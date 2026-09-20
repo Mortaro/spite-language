@@ -2,6 +2,8 @@ step_forward 0 Nothing
 step_back 0 Nothing
 battery 0 Int
 describe 2 String
+set_name 1 Nothing
 unit forward,unit back
 prefix String Int
 2
+step_forward step_back battery describe set_name

@@ -20,3 +20,7 @@ func battery(): Int {
 func describe(prefix: String, times: Int): String {
     return prefix + name + times
 }
+
+func set_attribute(attribute: Symbol, value: attribute.class) {
+    attributes[attribute] = value
+}

@@ -17,4 +17,6 @@ func FunctionValues() {
     console.print(describe.arguments[0].name, describe.arguments[0].class, describe.arguments[1].class)
     describe.call_function()
     console.print(robot.log.count())
+    robot.set_name("renamed")
+    console.print(robot.functions.map_name().join(" "))
 }
