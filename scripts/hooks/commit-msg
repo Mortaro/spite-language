@@ -1,0 +1,30 @@
+#!/bin/bash
+# Every commit must name the agent session that made it, so a bad change has an owner.
+# Enforced rather than documented: see SPITE.md, "anything that requires user discipline to work".
+
+message_file="$1"
+
+if grep -qE '^Agent: .+' "$message_file"; then
+    exit 0
+fi
+
+cat >&2 <<'ERROR'
+
+  commit rejected: no Agent trailer
+
+  Every commit ends with a line naming the session that made it, so Mortaro knows
+  who to blame. Add it as the last line of the message:
+
+      Agent: <session name> [<ref>]
+
+  for example:
+
+      Agent: Spite Language spec with budget subagents [066a95]
+
+  Use the name and ref exactly as ListAgents prints them. A human committing by
+  hand writes:
+
+      Agent: human
+
+ERROR
+exit 1
