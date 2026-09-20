@@ -1,4 +1,4 @@
-var value: Nullable<Syntax.Expressions.Expression> = null
+var value: Syntax.Expressions.Expression? = null
 var is_crash = false
 var line = 0
 

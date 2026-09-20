@@ -17,7 +17,7 @@ var has_error = false
 var error_message = ""
 var error_lines = List<String>()
 var current_function = ""
-var current_class: Nullable<Analysis.ClassInfo> = null
+var current_class: Analysis.ClassInfo? = null
 var discovered_classes = List<Discovery.DiscoveredClass>()
 var program_values = Dictionary<String>()
 var used_program_values = List<String>()
@@ -25,7 +25,7 @@ var current_path = ""
 var current_line = 0
 var bound_symbol_name = ""
 var bound_field_name = ""
-var bound_field_type: Nullable<Analysis.SpiteType> = null
+var bound_field_type: Analysis.SpiteType? = null
 var arguments_parameter_names = List<String>()
 var temporary_counter = 0
 var literal_counter = 0
@@ -293,7 +293,7 @@ func generate_codegen_value(name: String, class_information: Analysis.ClassInfo)
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
-func constant_condition(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Nullable<Bool> {
+func constant_condition(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Bool? {
     var generic_identifier = shape.as_generic_identifier(expression)
     if generic_identifier {
         var value = generate_codegen_value(without_dollar(generic_identifier.name), class_information)
@@ -355,7 +355,7 @@ func constant_condition(expression: Syntax.Expressions.Expression, class_informa
     return null
 }
 
-func constant_text(expression: Syntax.Expressions.Expression): Nullable<String> {
+func constant_text(expression: Syntax.Expressions.Expression): String? {
     var string_literal = shape.as_string_literal(expression)
     if string_literal {
         return "s:" + string_literal.value
@@ -401,7 +401,7 @@ func generic_argument_label(text: String): String {
     return result
 }
 
-func instantiate_generic(template: Analysis.ClassInfo, arguments: List<Syntax.Types.GenericArgument>, current_namespace: String): Nullable<Analysis.ClassInfo> {
+func instantiate_generic(template: Analysis.ClassInfo, arguments: List<Syntax.Types.GenericArgument>, current_namespace: String): Analysis.ClassInfo? {
     if arguments.count() != template.codegen_names.count() {
         report("'" + template.simple_name + "' takes " + template.codegen_names.count() + " codegen value(s), in this order: $" + template.codegen_names.join(", $") + " -- but " + arguments.count() + " were given")
         return null
@@ -545,7 +545,7 @@ func register_shapes(entry: Discovery.DiscoveredClass) {
     }
 }
 
-func shape_field_type(information: Analysis.UnionInfo, field_name: String): Nullable<Analysis.SpiteType> {
+func shape_field_type(information: Analysis.UnionInfo, field_name: String): Analysis.SpiteType? {
     var index = 0
     while index < information.shape_fields.count() {
         var field = information.shape_fields[index]
@@ -774,7 +774,7 @@ func resolve_union_members() {
     }
 }
 
-func class_of_type_reference(type_reference: Syntax.Types.Type, current_namespace: String): Nullable<Analysis.ClassInfo> {
+func class_of_type_reference(type_reference: Syntax.Types.Type, current_namespace: String): Analysis.ClassInfo? {
     var named = shape.as_named_type(type_reference)
     if named {
         if named.path.count() == 1 {
@@ -785,8 +785,8 @@ func class_of_type_reference(type_reference: Syntax.Types.Type, current_namespac
     return null
 }
 
-func find_union(name: String): Nullable<Analysis.UnionInfo> {
-    var fallback: Nullable<Analysis.UnionInfo> = null
+func find_union(name: String): Analysis.UnionInfo? {
+    var fallback: Analysis.UnionInfo? = null
     var index = 0
     while index < unions.count() {
         var candidate = unions[index]
@@ -801,7 +801,7 @@ func find_union(name: String): Nullable<Analysis.UnionInfo> {
     return fallback
 }
 
-func find_union_qualified(owner_qualified: String, name: String): Nullable<Analysis.UnionInfo> {
+func find_union_qualified(owner_qualified: String, name: String): Analysis.UnionInfo? {
     var index = 0
     while index < unions.count() {
         var candidate = unions[index]
@@ -813,7 +813,7 @@ func find_union_qualified(owner_qualified: String, name: String): Nullable<Analy
     return null
 }
 
-func find_union_by_c_name(c_name: String): Nullable<Analysis.UnionInfo> {
+func find_union_by_c_name(c_name: String): Analysis.UnionInfo? {
     var index = 0
     while index < unions.count() {
         if unions[index].c_name == c_name {
@@ -875,8 +875,8 @@ func register_enums(entry: Discovery.DiscoveredClass) {
     }
 }
 
-func find_enum(name: String): Nullable<Analysis.EnumInfo> {
-    var fallback: Nullable<Analysis.EnumInfo> = null
+func find_enum(name: String): Analysis.EnumInfo? {
+    var fallback: Analysis.EnumInfo? = null
     var index = 0
     while index < enums.count() {
         var candidate = enums[index]
@@ -891,7 +891,7 @@ func find_enum(name: String): Nullable<Analysis.EnumInfo> {
     return fallback
 }
 
-func find_enum_qualified(owner_qualified: String, name: String): Nullable<Analysis.EnumInfo> {
+func find_enum_qualified(owner_qualified: String, name: String): Analysis.EnumInfo? {
     var index = 0
     while index < enums.count() {
         var candidate = enums[index]
@@ -903,8 +903,8 @@ func find_enum_qualified(owner_qualified: String, name: String): Nullable<Analys
     return null
 }
 
-func find_enum_with_value(value: String): Nullable<Analysis.EnumInfo> {
-    var found: Nullable<Analysis.EnumInfo> = null
+func find_enum_with_value(value: String): Analysis.EnumInfo? {
+    var found: Analysis.EnumInfo? = null
     var matches = 0
     var index = 0
     while index < enums.count() {
@@ -959,7 +959,7 @@ func emit_enums() {
     }
 }
 
-func find_class_by_qualified(qualified: String): Nullable<Analysis.ClassInfo> {
+func find_class_by_qualified(qualified: String): Analysis.ClassInfo? {
     var index = 0
     while index < classes.count() {
         if classes[index].qualified_dotted == qualified {
@@ -970,7 +970,7 @@ func find_class_by_qualified(qualified: String): Nullable<Analysis.ClassInfo> {
     return null
 }
 
-func find_class_by_c_name(c_name: String): Nullable<Analysis.ClassInfo> {
+func find_class_by_c_name(c_name: String): Analysis.ClassInfo? {
     var index = 0
     while index < classes.count() {
         if classes[index].c_name == c_name {
@@ -981,7 +981,7 @@ func find_class_by_c_name(c_name: String): Nullable<Analysis.ClassInfo> {
     return null
 }
 
-func find_class(name: String, current_namespace: String): Nullable<Analysis.ClassInfo> {
+func find_class(name: String, current_namespace: String): Analysis.ClassInfo? {
     if not current_namespace.is_empty() {
         var qualified = current_namespace + "." + name
         var found = find_class_by_qualified(qualified)
@@ -1050,7 +1050,7 @@ func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.
     }
 }
 
-func infer_declared_type(annotation: Nullable<Syntax.Types.Type>, initializer: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): Analysis.SpiteType {
+func infer_declared_type(annotation: Syntax.Types.Type?, initializer: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): Analysis.SpiteType {
     if annotation {
         var resolved = resolve_type(annotation, class_information.namespace_dotted)
         if resolved {
@@ -1108,13 +1108,13 @@ func register_template(declaration: Syntax.Statements.FunctionDeclaration, infor
     return true
 }
 
-func find_or_instantiate_function(information: Analysis.ClassInfo, name: String): Nullable<Analysis.FunctionInfo> {
+func find_or_instantiate_function(information: Analysis.ClassInfo, name: String): Analysis.FunctionInfo? {
     var existing = information.find_function(name)
     if existing {
         return existing
     }
-    var chosen: Nullable<Analysis.TemplateInfo> = null
-    var chosen_field: Nullable<Analysis.FieldInfo> = null
+    var chosen: Analysis.TemplateInfo? = null
+    var chosen_field: Analysis.FieldInfo? = null
     var matches = 0
     var index = 0
     while index < information.templates.count() {
@@ -1293,7 +1293,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     information.functions.append(function)
 }
 
-func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String): Nullable<Analysis.SpiteType> {
+func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String): Analysis.SpiteType? {
     var generic_type = shape.as_generic_type(type_reference)
     if generic_type {
         var generic_name = without_dollar(generic_type.name)
@@ -1319,7 +1319,7 @@ func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String):
     return null
 }
 
-func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String): Nullable<Analysis.SpiteType> {
+func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String): Analysis.SpiteType? {
     if named.path.count() == 2 and not bound_symbol_name.is_empty() {
         if named.path[0] == bound_symbol_name and named.path[1] == "class" {
             return bound_field_type
@@ -1440,7 +1440,7 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
     return null
 }
 
-func resolve_single_type_argument(named: Syntax.Types.NamedType, current_namespace: String): Nullable<Analysis.SpiteType> {
+func resolve_single_type_argument(named: Syntax.Types.NamedType, current_namespace: String): Analysis.SpiteType? {
     if named.arguments.count() != 1 {
         report(named.path.last() + " takes exactly one type argument")
         return null
@@ -1448,7 +1448,7 @@ func resolve_single_type_argument(named: Syntax.Types.NamedType, current_namespa
     return resolve_generic_argument(named.arguments[0], current_namespace)
 }
 
-func resolve_generic_argument(argument: Syntax.Types.GenericArgument, current_namespace: String): Nullable<Analysis.SpiteType> {
+func resolve_generic_argument(argument: Syntax.Types.GenericArgument, current_namespace: String): Analysis.SpiteType? {
     var type_argument = shape.as_type_argument(argument)
     if not type_argument {
         report("a type argument must be a type")
@@ -1517,7 +1517,7 @@ func two_types(first: Analysis.SpiteType, second: Analysis.SpiteType): List<Anal
     return result
 }
 
-func resolve_nullable_argument(named: Syntax.Types.NamedType, current_namespace: String): Nullable<Analysis.SpiteType> {
+func resolve_nullable_argument(named: Syntax.Types.NamedType, current_namespace: String): Analysis.SpiteType? {
     if named.arguments.count() != 1 {
         report("Nullable takes exactly one type argument")
         return null
@@ -2033,7 +2033,7 @@ func is_enum_type(spite_type: Analysis.SpiteType): Bool {
     return false
 }
 
-func expected_enum_of(expected_type: Analysis.SpiteType): Nullable<Analysis.Types.EnumType> {
+func expected_enum_of(expected_type: Analysis.SpiteType): Analysis.Types.EnumType? {
     return type_shape.as_enum(expected_type_without_nullable(expected_type))
 }
 
@@ -2088,7 +2088,7 @@ func render_string_literal(value: String): String {
     return "(&" + literal_name + ")"
 }
 
-func lookup_static_type(expression: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): Nullable<Analysis.SpiteType> {
+func lookup_static_type(expression: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): Analysis.SpiteType? {
     var identifier = shape.as_identifier(expression)
     if not identifier {
         return null
@@ -2307,7 +2307,7 @@ func operator_function_name(operator: Syntax.Expressions.BinaryOperator): String
 func generate_class_binary(operator: Syntax.Expressions.BinaryOperator, left_class: Analysis.ClassInfo, left_result: ExpressionResult, left_ast: Syntax.Expressions.Expression, right_ast: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var function_name = operator_function_name(operator)
     var negated = operator == 'not_equal' or operator == 'greater_equal' or operator == 'less_equal'
-    var function: Nullable<Analysis.FunctionInfo> = null
+    var function: Analysis.FunctionInfo? = null
     if not function_name.is_empty() {
         function = find_or_instantiate_function(left_class, function_name)
     }
@@ -2948,7 +2948,7 @@ func generate_list_method(element: Analysis.SpiteType, name: String, object_resu
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
-func member_type_of(element_class: Analysis.ClassInfo, member_name: String): Nullable<Analysis.SpiteType> {
+func member_type_of(element_class: Analysis.ClassInfo, member_name: String): Analysis.SpiteType? {
     var field = element_class.find_field(member_name)
     if field {
         return field.get_type()
@@ -3162,7 +3162,7 @@ func type_display_name(spite_type: Analysis.SpiteType): String {
     }
     var nullable_type = type_shape.as_nullable(spite_type)
     if nullable_type {
-        return "Nullable<" + type_display_name(nullable_type.get_inner()) + ">"
+        return type_display_name(nullable_type.get_inner()) + "?"
     }
     return type_label(spite_type)
 }
@@ -3212,7 +3212,7 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
     return function_c_name
 }
 
-func generate_reflection_read(member_name: String, object_result: ExpressionResult, object_ast: Syntax.Expressions.Expression): Nullable<ExpressionResult> {
+func generate_reflection_read(member_name: String, object_result: ExpressionResult, object_ast: Syntax.Expressions.Expression): ExpressionResult? {
     if member_name != "class" and member_name != "attributes" {
         return null
     }
@@ -3252,7 +3252,7 @@ func generate_reflection_read(member_name: String, object_result: ExpressionResu
     return null
 }
 
-func find_getter(target_class: Analysis.ClassInfo, attribute_name: String, calling_class: Analysis.ClassInfo): Nullable<Analysis.FunctionInfo> {
+func find_getter(target_class: Analysis.ClassInfo, attribute_name: String, calling_class: Analysis.ClassInfo): Analysis.FunctionInfo? {
     if target_class.is_builtin {
         return null
     }
@@ -3272,7 +3272,7 @@ func find_getter(target_class: Analysis.ClassInfo, attribute_name: String, calli
     return null
 }
 
-func find_setter(target_class: Analysis.ClassInfo, attribute_name: String, calling_class: Analysis.ClassInfo): Nullable<Analysis.FunctionInfo> {
+func find_setter(target_class: Analysis.ClassInfo, attribute_name: String, calling_class: Analysis.ClassInfo): Analysis.FunctionInfo? {
     if target_class.is_builtin {
         return null
     }
@@ -3896,7 +3896,7 @@ func collect_static_segments(expression: Syntax.Expressions.Expression, out: Lis
     return false
 }
 
-func try_resolve_static_path(expression: Syntax.Expressions.Expression, current_namespace: String): Nullable<Analysis.ClassInfo> {
+func try_resolve_static_path(expression: Syntax.Expressions.Expression, current_namespace: String): Analysis.ClassInfo? {
     var segments = List<String>()
     var ok = collect_static_segments(expression, segments)
     if not ok {
@@ -4098,7 +4098,7 @@ func generate_expression(expression: Syntax.Expressions.Expression, scope: Scope
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
-func try_nullable_guard(condition_ast: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): Nullable<NullableGuard> {
+func try_nullable_guard(condition_ast: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): NullableGuard? {
     var identifier = shape.as_identifier(condition_ast)
     assert identifier
     var static_type = lookup_static_type(condition_ast, scope, class_information)
@@ -4376,10 +4376,65 @@ func generate_if_statement(if_statement: Syntax.Statements.IfStatement, scope: S
     }
 }
 
-func generate_switch_statement(switch_statement: Syntax.Statements.SwitchStatement, scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo) {
+func generate_nullable_switch(switch_statement: Syntax.Statements.SwitchStatement, subject_ast: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo) {
+    var guard = try_nullable_guard(subject_ast, scope, class_information)
+    if not guard {
+        report("switch over a value that may be null needs a variable or an attribute as its subject")
+        return
+    }
+    assert guard
+    var covered_null = false
+    var covered_value = false
+    var case_index = 0
+    while case_index < switch_statement.cases.count() {
+        var switch_case = switch_statement.cases[case_index]
+        var case_type_reference = switch_case.type_reference
+        if case_type_reference {
+            var case_named = shape.as_named_type(case_type_reference)
+            var is_null_case = false
+            if case_named {
+                is_null_case = case_named.path.count() == 1 and case_named.path[0] == "Null"
+            }
+            if is_null_case {
+                covered_null = true
+                builder.add_user("if (!(" + guard.guard_code + ")) {")
+                generate_block(switch_case.body, scope, class_information, function_information)
+                builder.add_user("}")
+            } else {
+                var case_type = resolve_type(case_type_reference, class_information.namespace_dotted)
+                if case_type {
+                    if not types_equal(case_type, guard.get_inner()) {
+                        report("this value is a " + type_display_name(guard.get_inner()) + " or null, so its switch cases are '" + type_display_name(guard.get_inner()) + "' and 'Null'")
+                    }
+                }
+                covered_value = true
+                builder.add_user("if (" + guard.guard_code + ") {")
+                var case_scope = Scope(scope)
+                case_scope.set_override(guard.name, guard.override_code)
+                case_scope.declare(guard.name, guard.get_inner())
+                generate_block_in_scope(switch_case.body, case_scope, class_information, function_information)
+                builder.add_user("}")
+            }
+        }
+        case_index = case_index + 1
+    }
+    if not covered_null {
+        report("this switch does not cover 'Null'")
+    }
+    if not covered_value {
+        report("this switch does not cover '" + type_display_name(guard.get_inner()) + "'")
+    }
+}
+
+func generate_switch_statement(
+switch_statement: Syntax.Statements.SwitchStatement, scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo) {
     var subject_ast = switch_statement.subject
     assert subject_ast
     var subject = generate_expression(subject_ast, scope, class_information)
+    if type_shape.as_nullable(subject.get_type()) {
+        generate_nullable_switch(switch_statement, subject_ast, scope, class_information, function_information)
+        return
+    }
     var subject_union = type_shape.as_union(subject.get_type())
     if not subject_union {
         report("switch needs a union value")
@@ -4583,7 +4638,7 @@ func generate_assert_statement(assert_statement: Syntax.Statements.AssertStateme
             report("'assert' is not allowed in a constructor: a constructor is setup, not logic. Take already resolved values, or use 'crash' when absence is a bug")
         } else if not type_shape.is_void(function_information.get_return_type()) {
             if not type_shape.as_nullable(function_information.get_return_type()) {
-                report("'assert' is only allowed in a function that returns nothing or a Nullable<T>: the caller could not tell the default from a real value. Return Nullable<T>, or use 'crash' when absence is a bug")
+                report("'assert' is only allowed in a function that returns nothing or a value that may be null: the caller could not tell the default from a real value. Return 'Type?', or use 'crash' when absence is a bug")
             }
         }
     }

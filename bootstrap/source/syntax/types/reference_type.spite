@@ -1,4 +1,4 @@
-var inner: Nullable<Type> = null
+var inner: Type? = null
 
 func ReferenceType(inner_type: Type) {
     inner = inner_type

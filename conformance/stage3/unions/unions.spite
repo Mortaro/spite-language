@@ -5,7 +5,7 @@ union Shape = {
 
 var console = Console()
 var shapes = List<Shape>()
-var favorite: Nullable<Shape> = null
+var favorite: Shape? = null
 
 func Unions() {
     shapes.append(Circle(2))

@@ -1,5 +1,5 @@
 var name = ""
-var value: Nullable<Expression> = null
+var value: Expression? = null
 
 func ObjectField(field_name: String, field_value: Expression) {
     name = field_name

@@ -1,4 +1,4 @@
-var callee: Nullable<Expression> = null
+var callee: Expression? = null
 var arguments = List<Expression>()
 
 func CallExpression(callee_expression: Expression, call_arguments: List<Expression>) {

@@ -1,4 +1,4 @@
-var value: Nullable<Type> = null
+var value: Type? = null
 
 func TypeArgument(argument_type: Type) {
     value = argument_type

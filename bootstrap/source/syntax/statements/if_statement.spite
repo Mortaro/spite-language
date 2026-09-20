@@ -1,4 +1,4 @@
-var condition: Nullable<Syntax.Expressions.Expression> = null
+var condition: Syntax.Expressions.Expression? = null
 var then_branch = List<Statement>()
 var has_else_branch = false
 var else_branch = List<Statement>()

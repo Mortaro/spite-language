@@ -1,4 +1,4 @@
-var object: Nullable<Expression> = null
+var object: Expression? = null
 var name = ""
 
 func MemberExpression(object_expression: Expression, member_name: String) {

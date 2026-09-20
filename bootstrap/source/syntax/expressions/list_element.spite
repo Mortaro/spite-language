@@ -1,4 +1,4 @@
-var value: Nullable<Expression> = null
+var value: Expression? = null
 
 func ListElement(entry_value: Expression) {
     value = entry_value

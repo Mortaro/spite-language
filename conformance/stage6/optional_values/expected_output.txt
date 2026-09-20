@@ -1,0 +1,7 @@
+no target
+no bonus
+target is rat
+bonus 8
+there is a rat
+nobody there
+found ada

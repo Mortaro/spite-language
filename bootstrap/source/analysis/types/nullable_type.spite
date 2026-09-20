@@ -1,4 +1,4 @@
-var inner: Nullable<SpiteType> = null
+var inner: SpiteType? = null
 
 func NullableType(starting_inner: SpiteType) {
     inner = starting_inner

@@ -40,7 +40,7 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
         if not root_directory.exists() {
             return failure("could not find the folder '" + root_name + "' loaded by " + entry_path)
         }
-        var no_skip: Nullable<String> = null
+        var no_skip: String? = null
         var no_exclusions = List<String>()
         walk_directory(root_folder, empty_segments, no_skip, no_exclusions)
         if has_error {
@@ -51,7 +51,7 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
 
     var library_directory = Directory("library")
     if library_directory.exists() {
-        var no_library_skip: Nullable<String> = null
+        var no_library_skip: String? = null
         var no_library_exclusions = List<String>()
         walk_directory("library", empty_segments, no_library_skip, no_library_exclusions)
         if has_error {
@@ -69,7 +69,7 @@ func failure(message: String): DiscoveryResult {
     return DiscoveryResult(empty, "", true, message)
 }
 
-func walk_directory(root_folder: String, segments: List<String>, skip_basename: Nullable<String>, excluded_top_level: List<String>) {
+func walk_directory(root_folder: String, segments: List<String>, skip_basename: String?, excluded_top_level: List<String>) {
     var path = root_folder
     var index = 0
     while index < segments.count() {

@@ -1,6 +1,6 @@
 var code = ""
-var spite_type: Nullable<Analysis.SpiteType> = null
-var owning_override: Nullable<Bool> = null
+var spite_type: Analysis.SpiteType? = null
+var owning_override: Bool? = null
 var constant_text = ""
 
 func ExpressionResult(starting_code: String, starting_spite_type: Analysis.SpiteType) {

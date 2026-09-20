@@ -1,0 +1,3 @@
+var target: Nullable<Int> = null
+
+func OldNullableSpelling() { }

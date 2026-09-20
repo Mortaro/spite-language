@@ -2,7 +2,7 @@ var mangled_name = ""
 var simple_name = ""
 var namespace_dotted = ""
 var qualified_dotted = ""
-var source_file: Nullable<Syntax.SourceFile> = null
+var source_file: Syntax.SourceFile? = null
 
 func DiscoveredClass(starting_mangled_name: String, starting_simple_name: String, starting_namespace_dotted: String, starting_qualified_dotted: String, starting_source_file: Syntax.SourceFile) {
     mangled_name = starting_mangled_name

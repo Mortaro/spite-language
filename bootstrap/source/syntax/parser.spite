@@ -235,7 +235,7 @@ func parse_generics_declaration(): Syntax.Statements.Statement {
 func parse_variable_declaration(): Syntax.Statements.Statement {
     advance()
     var name = expect('identifier', "a variable name")
-    var type_reference: Nullable<Syntax.Types.Type> = null
+    var type_reference: Syntax.Types.Type? = null
     if check('colon') {
         advance()
         type_reference = parse_type()
@@ -281,7 +281,7 @@ func parse_function_declaration(): Syntax.Statements.Statement {
     }
     expect('right_paren', "')' to close the parameter list")
 
-    var return_type: Nullable<Syntax.Types.Type> = null
+    var return_type: Syntax.Types.Type? = null
     if check('colon') {
         advance()
         return_type = parse_type()
@@ -444,7 +444,7 @@ func parse_crash_statement(): Syntax.Statements.Statement {
 
 func parse_return_statement(): Syntax.Statements.Statement {
     advance()
-    var value: Nullable<Syntax.Expressions.Expression> = null
+    var value: Syntax.Expressions.Expression? = null
     if not at_statement_end() {
         value = parse_expression()
     }
@@ -468,6 +468,23 @@ func parse_expression_or_assignment_statement_with(expression: Syntax.Expression
 }
 
 func parse_type(): Syntax.Types.Type {
+    return with_optional_suffix(parse_type_without_suffix())
+}
+
+func with_optional_suffix(type_reference: Syntax.Types.Type): Syntax.Types.Type {
+    var result = type_reference
+    while check('question') {
+        advance()
+        var wrapped_arguments = List<Syntax.Types.GenericArgument>()
+        wrapped_arguments.append(Syntax.Types.TypeArgument(result))
+        var wrapper_path = List<String>()
+        wrapper_path.append("Nullable")
+        result = Syntax.Types.NamedType(wrapper_path, wrapped_arguments)
+    }
+    return result
+}
+
+func parse_type_without_suffix(): Syntax.Types.Type {
     if check('ampersand') {
         advance()
         return Syntax.Types.ReferenceType(parse_type())
@@ -513,6 +530,9 @@ func parse_type(): Syntax.Types.Type {
         expect('greater', "'>' to close the generic argument list")
     }
 
+    if path.count() == 1 and path[0] == "Nullable" {
+        fail("'Nullable<T>' was replaced by a '?' suffix: write 'Monster?' for a value that may be null")
+    }
     return Syntax.Types.NamedType(path, arguments)
 }
 
@@ -565,7 +585,7 @@ func try_parse_generic_argument_list_quiet(): List<Syntax.Types.GenericArgument>
     return arguments
 }
 
-func try_parse_generic_argument_quiet(): Nullable<Syntax.Types.GenericArgument> {
+func try_parse_generic_argument_quiet(): Syntax.Types.GenericArgument? {
     if check('integer_literal') {
         var token = advance()
         var argument: Syntax.Types.GenericArgument = Syntax.Types.IntegerArgument(token.text.to_long())
@@ -604,7 +624,7 @@ func try_parse_generic_argument_quiet(): Nullable<Syntax.Types.GenericArgument> 
     return null
 }
 
-func try_parse_type_quiet(): Nullable<Syntax.Types.Type> {
+func try_parse_type_quiet(): Syntax.Types.Type? {
     if check('ampersand') {
         advance()
         var inner_result = try_parse_type_quiet()
@@ -646,7 +666,7 @@ func try_parse_type_quiet(): Nullable<Syntax.Types.Type> {
     var arguments = try_parse_generic_argument_list_quiet()
 
     var type_reference: Syntax.Types.Type = Syntax.Types.NamedType(path, arguments)
-    return type_reference
+    return with_optional_suffix(type_reference)
 }
 
 var quiet_generic_instantiation_matched = false

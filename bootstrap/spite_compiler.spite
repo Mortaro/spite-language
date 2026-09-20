@@ -54,7 +54,7 @@ func has_debug_memory_flag(arguments: Arguments): Bool {
     return false
 }
 
-func generate_c_or_report(file_argument: String, content: String): Nullable<String> {
+func generate_c_or_report(file_argument: String, content: String): String? {
     var discovery = Discovery.ProgramDiscovery().discover(file_argument, content)
     if discovery.has_error {
         console.error(discovery.error_message)
@@ -112,7 +112,7 @@ func unused_program_values(used: List<String>): List<String> {
     return unused
 }
 
-func read_runtime_header(): Nullable<String> {
+func read_runtime_header(): String? {
     var header_file = File("runtime/spite_runtime.h")
     return header_file.read()
 }
@@ -158,6 +158,9 @@ func pascal_case_class_name(snake: String): String {
 
 func build_to_path(file_argument: String, content: String, output_path: String, debug_memory: Bool): Bool {
     var code = generate_c_or_report(file_argument, content)
+    if not code {
+        return false
+    }
     crash code
     var directory = Directory(".spite-cache")
     directory.create()

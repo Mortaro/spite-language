@@ -1,5 +1,5 @@
-var target: Nullable<Syntax.Expressions.Expression> = null
-var value: Nullable<Syntax.Expressions.Expression> = null
+var target: Syntax.Expressions.Expression? = null
+var value: Syntax.Expressions.Expression? = null
 var line = 0
 
 func AssignmentStatement(assignment_target: Syntax.Expressions.Expression, assignment_value: Syntax.Expressions.Expression) {

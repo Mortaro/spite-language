@@ -1,11 +1,11 @@
-var parent: Nullable<Scope> = null
+var parent: Scope? = null
 var entry_names = List<String>()
 var entry_types = List<Analysis.SpiteType>()
 var override_names = List<String>()
 var override_codes = List<String>()
 var owned = List<OwnedLocal>()
 
-func Scope(starting_parent: Nullable<Scope>) {
+func Scope(starting_parent: Scope?) {
     parent = starting_parent
 }
 
@@ -24,7 +24,7 @@ func set_override(name: String, code: String) {
     override_codes.append(code)
 }
 
-func lookup_type(name: String): Nullable<Analysis.SpiteType> {
+func lookup_type(name: String): Analysis.SpiteType? {
     var index = entry_names.count() - 1
     while index >= 0 {
         if entry_names[index] == name {
@@ -39,7 +39,7 @@ func lookup_type(name: String): Nullable<Analysis.SpiteType> {
     return null
 }
 
-func lookup_override(name: String): Nullable<String> {
+func lookup_override(name: String): String? {
     var index = override_names.count() - 1
     while index >= 0 {
         if override_names[index] == name {

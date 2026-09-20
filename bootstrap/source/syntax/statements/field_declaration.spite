@@ -1,5 +1,5 @@
 var name = ""
-var type_reference: Nullable<Syntax.Types.Type> = null
+var type_reference: Syntax.Types.Type? = null
 
 func FieldDeclaration(field_name: String, field_type: Syntax.Types.Type) {
     name = field_name

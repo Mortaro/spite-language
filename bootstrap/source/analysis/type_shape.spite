@@ -1,6 +1,6 @@
 func TypeShape() { }
 
-func as_scalar(spite_type: SpiteType): Nullable<Analysis.Types.ScalarType> {
+func as_scalar(spite_type: SpiteType): Analysis.Types.ScalarType? {
     switch spite_type {
         Analysis.Types.ScalarType: return spite_type
         Analysis.Types.StringType: return null
@@ -16,7 +16,7 @@ func as_scalar(spite_type: SpiteType): Nullable<Analysis.Types.ScalarType> {
     }
 }
 
-func as_class_ref(spite_type: SpiteType): Nullable<Analysis.Types.ClassRefType> {
+func as_class_ref(spite_type: SpiteType): Analysis.Types.ClassRefType? {
     switch spite_type {
         Analysis.Types.ScalarType: return null
         Analysis.Types.StringType: return null
@@ -32,7 +32,7 @@ func as_class_ref(spite_type: SpiteType): Nullable<Analysis.Types.ClassRefType> 
     }
 }
 
-func as_nullable(spite_type: SpiteType): Nullable<Analysis.Types.NullableType> {
+func as_nullable(spite_type: SpiteType): Analysis.Types.NullableType? {
     switch spite_type {
         Analysis.Types.ScalarType: return null
         Analysis.Types.StringType: return null
@@ -48,7 +48,7 @@ func as_nullable(spite_type: SpiteType): Nullable<Analysis.Types.NullableType> {
     }
 }
 
-func as_enum(spite_type: SpiteType): Nullable<Analysis.Types.EnumType> {
+func as_enum(spite_type: SpiteType): Analysis.Types.EnumType? {
     switch spite_type {
         Analysis.Types.ScalarType: return null
         Analysis.Types.StringType: return null
@@ -64,7 +64,7 @@ func as_enum(spite_type: SpiteType): Nullable<Analysis.Types.EnumType> {
     }
 }
 
-func as_list(spite_type: SpiteType): Nullable<Analysis.Types.ListType> {
+func as_list(spite_type: SpiteType): Analysis.Types.ListType? {
     switch spite_type {
         Analysis.Types.ScalarType: return null
         Analysis.Types.StringType: return null
@@ -80,7 +80,7 @@ func as_list(spite_type: SpiteType): Nullable<Analysis.Types.ListType> {
     }
 }
 
-func as_dictionary(spite_type: SpiteType): Nullable<Analysis.Types.DictionaryType> {
+func as_dictionary(spite_type: SpiteType): Analysis.Types.DictionaryType? {
     switch spite_type {
         Analysis.Types.ScalarType: return null
         Analysis.Types.StringType: return null
@@ -96,7 +96,7 @@ func as_dictionary(spite_type: SpiteType): Nullable<Analysis.Types.DictionaryTyp
     }
 }
 
-func as_union(spite_type: SpiteType): Nullable<Analysis.Types.UnionType> {
+func as_union(spite_type: SpiteType): Analysis.Types.UnionType? {
     switch spite_type {
         Analysis.Types.ScalarType: return null
         Analysis.Types.StringType: return null

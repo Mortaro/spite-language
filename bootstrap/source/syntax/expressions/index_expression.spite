@@ -1,5 +1,5 @@
-var object: Nullable<Expression> = null
-var index: Nullable<Expression> = null
+var object: Expression? = null
+var index: Expression? = null
 
 func IndexExpression(object_expression: Expression, index_expression: Expression) {
     object = object_expression

@@ -1,5 +1,5 @@
 var name = ""
-var spite_type: Nullable<SpiteType> = null
+var spite_type: SpiteType? = null
 
 func ParamInfo(starting_name: String, starting_spite_type: SpiteType) {
     name = starting_name

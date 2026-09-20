@@ -1,7 +1,7 @@
 var name = ""
 var c_name = ""
 var parameters = List<ParamInfo>()
-var return_type: Nullable<SpiteType> = null
+var return_type: SpiteType? = null
 var body = List<Syntax.Statements.Statement>()
 var is_constructor = false
 var is_emitted = false

@@ -47,6 +47,7 @@ enum TokenKind = {
     'left_brace'
     'right_brace'
     'ampersand'
+    'question'
     'newline'
     'end_of_file'
     'invalid'

@@ -1,5 +1,5 @@
 var name = ""
-var type_reference: Nullable<Syntax.Types.Type> = null
+var type_reference: Syntax.Types.Type? = null
 
 func Parameter(parameter_name: String, parameter_type: Syntax.Types.Type) {
     name = parameter_name

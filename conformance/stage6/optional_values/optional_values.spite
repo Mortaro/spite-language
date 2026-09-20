@@ -1,0 +1,46 @@
+var console = Console()
+var target: Monster? = null
+var bonus: Int? = null
+
+func OptionalValues() {
+    report()
+    target = Monster("rat")
+    bonus = 7
+    report()
+    describe(find("rat"))
+    describe(find("nobody"))
+    var names = Dictionary<String>()
+    names.set("first", "ada")
+    var found: String? = names.get("first")
+    switch found {
+        String: console.print("found " + found)
+        Null: console.print("missing")
+    }
+}
+
+func report() {
+    switch target {
+        Monster: console.print("target is " + target.name)
+        Null: console.print("no target")
+    }
+    switch bonus {
+        Int: console.print("bonus", bonus + 1)
+        Null: console.print("no bonus")
+    }
+}
+
+func find(name: String): Monster? {
+    if name == "rat" {
+        return Monster(name)
+    }
+    return null
+}
+
+func describe(monster: Monster?) {
+    switch monster {
+        Null: console.print("nobody there")
+        Monster: {
+            console.print("there is a " + monster.name)
+        }
+    }
+}

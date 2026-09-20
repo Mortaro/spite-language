@@ -1,6 +1,6 @@
 func AstShape() { }
 
-func as_named_type(type_reference: Syntax.Types.Type): Nullable<Syntax.Types.NamedType> {
+func as_named_type(type_reference: Syntax.Types.Type): Syntax.Types.NamedType? {
     switch type_reference {
         Syntax.Types.ReferenceType: return null
         Syntax.Types.GenericType: return null
@@ -8,7 +8,7 @@ func as_named_type(type_reference: Syntax.Types.Type): Nullable<Syntax.Types.Nam
     }
 }
 
-func as_type_argument(argument: Syntax.Types.GenericArgument): Nullable<Syntax.Types.TypeArgument> {
+func as_type_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.TypeArgument? {
     switch argument {
         Syntax.Types.TypeArgument: return argument
         Syntax.Types.IntegerArgument: return null
@@ -19,7 +19,7 @@ func as_type_argument(argument: Syntax.Types.GenericArgument): Nullable<Syntax.T
     }
 }
 
-func as_identifier(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.IdentifierExpression> {
+func as_identifier(expression: Syntax.Expressions.Expression): Syntax.Expressions.IdentifierExpression? {
     switch expression {
         Syntax.Expressions.NullLiteral: return null
         Syntax.Expressions.TrueLiteral: return null
@@ -41,7 +41,7 @@ func as_identifier(expression: Syntax.Expressions.Expression): Nullable<Syntax.E
     }
 }
 
-func as_integer_literal(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.IntegerLiteral> {
+func as_integer_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.IntegerLiteral? {
     switch expression {
         Syntax.Expressions.NullLiteral: return null
         Syntax.Expressions.TrueLiteral: return null
@@ -63,7 +63,7 @@ func as_integer_literal(expression: Syntax.Expressions.Expression): Nullable<Syn
     }
 }
 
-func as_float_literal(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.FloatLiteral> {
+func as_float_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.FloatLiteral? {
     switch expression {
         Syntax.Expressions.NullLiteral: return null
         Syntax.Expressions.TrueLiteral: return null
@@ -85,7 +85,7 @@ func as_float_literal(expression: Syntax.Expressions.Expression): Nullable<Synta
     }
 }
 
-func as_string_literal(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.StringLiteralExpression> {
+func as_string_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.StringLiteralExpression? {
     switch expression {
         Syntax.Expressions.NullLiteral: return null
         Syntax.Expressions.TrueLiteral: return null
@@ -173,7 +173,7 @@ func is_null_literal(expression: Syntax.Expressions.Expression): Bool {
     }
 }
 
-func as_binary(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.BinaryExpression> {
+func as_binary(expression: Syntax.Expressions.Expression): Syntax.Expressions.BinaryExpression? {
     switch expression {
         Syntax.Expressions.NullLiteral: return null
         Syntax.Expressions.TrueLiteral: return null
@@ -195,7 +195,7 @@ func as_binary(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expre
     }
 }
 
-func as_unary(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.UnaryExpression> {
+func as_unary(expression: Syntax.Expressions.Expression): Syntax.Expressions.UnaryExpression? {
     switch expression {
         Syntax.Expressions.NullLiteral: return null
         Syntax.Expressions.TrueLiteral: return null
@@ -217,7 +217,7 @@ func as_unary(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expres
     }
 }
 
-func as_call(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.CallExpression> {
+func as_call(expression: Syntax.Expressions.Expression): Syntax.Expressions.CallExpression? {
     switch expression {
         Syntax.Expressions.NullLiteral: return null
         Syntax.Expressions.TrueLiteral: return null
@@ -239,7 +239,7 @@ func as_call(expression: Syntax.Expressions.Expression): Nullable<Syntax.Express
     }
 }
 
-func as_member(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.MemberExpression> {
+func as_member(expression: Syntax.Expressions.Expression): Syntax.Expressions.MemberExpression? {
     switch expression {
         Syntax.Expressions.NullLiteral: return null
         Syntax.Expressions.TrueLiteral: return null
@@ -261,7 +261,7 @@ func as_member(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expre
     }
 }
 
-func as_function_declaration(statement: Syntax.Statements.Statement): Nullable<Syntax.Statements.FunctionDeclaration> {
+func as_function_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.FunctionDeclaration? {
     switch statement {
         Syntax.Statements.GenericsDeclaration: return null
         Syntax.Statements.VariableDeclaration: return null
@@ -279,7 +279,7 @@ func as_function_declaration(statement: Syntax.Statements.Statement): Nullable<S
     }
 }
 
-func as_variable_declaration(statement: Syntax.Statements.Statement): Nullable<Syntax.Statements.VariableDeclaration> {
+func as_variable_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.VariableDeclaration? {
     switch statement {
         Syntax.Statements.GenericsDeclaration: return null
         Syntax.Statements.VariableDeclaration: return statement
@@ -297,7 +297,7 @@ func as_variable_declaration(statement: Syntax.Statements.Statement): Nullable<S
     }
 }
 
-func as_if_statement(statement: Syntax.Statements.Statement): Nullable<Syntax.Statements.IfStatement> {
+func as_if_statement(statement: Syntax.Statements.Statement): Syntax.Statements.IfStatement? {
     switch statement {
         Syntax.Statements.GenericsDeclaration: return null
         Syntax.Statements.VariableDeclaration: return null
@@ -315,7 +315,7 @@ func as_if_statement(statement: Syntax.Statements.Statement): Nullable<Syntax.St
     }
 }
 
-func as_while_statement(statement: Syntax.Statements.Statement): Nullable<Syntax.Statements.WhileStatement> {
+func as_while_statement(statement: Syntax.Statements.Statement): Syntax.Statements.WhileStatement? {
     switch statement {
         Syntax.Statements.GenericsDeclaration: return null
         Syntax.Statements.VariableDeclaration: return null
@@ -333,7 +333,7 @@ func as_while_statement(statement: Syntax.Statements.Statement): Nullable<Syntax
     }
 }
 
-func as_return_statement(statement: Syntax.Statements.Statement): Nullable<Syntax.Statements.ReturnStatement> {
+func as_return_statement(statement: Syntax.Statements.Statement): Syntax.Statements.ReturnStatement? {
     switch statement {
         Syntax.Statements.GenericsDeclaration: return null
         Syntax.Statements.VariableDeclaration: return null
@@ -351,7 +351,7 @@ func as_return_statement(statement: Syntax.Statements.Statement): Nullable<Synta
     }
 }
 
-func as_assert_statement(statement: Syntax.Statements.Statement): Nullable<Syntax.Statements.AssertStatement> {
+func as_assert_statement(statement: Syntax.Statements.Statement): Syntax.Statements.AssertStatement? {
     switch statement {
         Syntax.Statements.GenericsDeclaration: return null
         Syntax.Statements.VariableDeclaration: return null
@@ -369,7 +369,7 @@ func as_assert_statement(statement: Syntax.Statements.Statement): Nullable<Synta
     }
 }
 
-func as_assignment_statement(statement: Syntax.Statements.Statement): Nullable<Syntax.Statements.AssignmentStatement> {
+func as_assignment_statement(statement: Syntax.Statements.Statement): Syntax.Statements.AssignmentStatement? {
     switch statement {
         Syntax.Statements.GenericsDeclaration: return null
         Syntax.Statements.VariableDeclaration: return null
@@ -387,7 +387,7 @@ func as_assignment_statement(statement: Syntax.Statements.Statement): Nullable<S
     }
 }
 
-func as_expression_statement(statement: Syntax.Statements.Statement): Nullable<Syntax.Statements.ExpressionStatement> {
+func as_expression_statement(statement: Syntax.Statements.Statement): Syntax.Statements.ExpressionStatement? {
     switch statement {
         Syntax.Statements.GenericsDeclaration: return null
         Syntax.Statements.VariableDeclaration: return null
@@ -405,7 +405,7 @@ func as_expression_statement(statement: Syntax.Statements.Statement): Nullable<S
     }
 }
 
-func as_enum_literal(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.EnumLiteralExpression> {
+func as_enum_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.EnumLiteralExpression? {
     switch expression {
         Syntax.Expressions.NullLiteral: return null
         Syntax.Expressions.TrueLiteral: return null
@@ -427,7 +427,7 @@ func as_enum_literal(expression: Syntax.Expressions.Expression): Nullable<Syntax
     }
 }
 
-func as_index(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.IndexExpression> {
+func as_index(expression: Syntax.Expressions.Expression): Syntax.Expressions.IndexExpression? {
     switch expression {
         Syntax.Expressions.NullLiteral: return null
         Syntax.Expressions.TrueLiteral: return null
@@ -449,7 +449,7 @@ func as_index(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expres
     }
 }
 
-func as_list_literal(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.ListLiteralExpression> {
+func as_list_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.ListLiteralExpression? {
     switch expression {
         Syntax.Expressions.NullLiteral: return null
         Syntax.Expressions.TrueLiteral: return null
@@ -471,7 +471,7 @@ func as_list_literal(expression: Syntax.Expressions.Expression): Nullable<Syntax
     }
 }
 
-func as_generic_call(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.GenericCallExpression> {
+func as_generic_call(expression: Syntax.Expressions.Expression): Syntax.Expressions.GenericCallExpression? {
     switch expression {
         Syntax.Expressions.NullLiteral: return null
         Syntax.Expressions.TrueLiteral: return null
@@ -493,7 +493,7 @@ func as_generic_call(expression: Syntax.Expressions.Expression): Nullable<Syntax
     }
 }
 
-func as_enum_declaration(statement: Syntax.Statements.Statement): Nullable<Syntax.Statements.EnumDeclaration> {
+func as_enum_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.EnumDeclaration? {
     switch statement {
         Syntax.Statements.GenericsDeclaration: return null
         Syntax.Statements.VariableDeclaration: return null
@@ -511,7 +511,7 @@ func as_enum_declaration(statement: Syntax.Statements.Statement): Nullable<Synta
     }
 }
 
-func as_union_declaration(statement: Syntax.Statements.Statement): Nullable<Syntax.Statements.UnionDeclaration> {
+func as_union_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.UnionDeclaration? {
     switch statement {
         Syntax.Statements.GenericsDeclaration: return null
         Syntax.Statements.VariableDeclaration: return null
@@ -529,7 +529,7 @@ func as_union_declaration(statement: Syntax.Statements.Statement): Nullable<Synt
     }
 }
 
-func as_switch_statement(statement: Syntax.Statements.Statement): Nullable<Syntax.Statements.SwitchStatement> {
+func as_switch_statement(statement: Syntax.Statements.Statement): Syntax.Statements.SwitchStatement? {
     switch statement {
         Syntax.Statements.GenericsDeclaration: return null
         Syntax.Statements.VariableDeclaration: return null
@@ -547,7 +547,7 @@ func as_switch_statement(statement: Syntax.Statements.Statement): Nullable<Synta
     }
 }
 
-func as_object_literal(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.ObjectLiteralExpression> {
+func as_object_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.ObjectLiteralExpression? {
     switch expression {
         Syntax.Expressions.NullLiteral: return null
         Syntax.Expressions.TrueLiteral: return null
@@ -569,7 +569,7 @@ func as_object_literal(expression: Syntax.Expressions.Expression): Nullable<Synt
     }
 }
 
-func as_type_declaration(statement: Syntax.Statements.Statement): Nullable<Syntax.Statements.TypeDeclaration> {
+func as_type_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.TypeDeclaration? {
     switch statement {
         Syntax.Statements.GenericsDeclaration: return null
         Syntax.Statements.VariableDeclaration: return null
@@ -587,7 +587,7 @@ func as_type_declaration(statement: Syntax.Statements.Statement): Nullable<Synta
     }
 }
 
-func as_generic_type(type_reference: Syntax.Types.Type): Nullable<Syntax.Types.GenericType> {
+func as_generic_type(type_reference: Syntax.Types.Type): Syntax.Types.GenericType? {
     switch type_reference {
         Syntax.Types.ReferenceType: return null
         Syntax.Types.GenericType: return type_reference
@@ -595,7 +595,7 @@ func as_generic_type(type_reference: Syntax.Types.Type): Nullable<Syntax.Types.G
     }
 }
 
-func as_generic_identifier(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.GenericIdentifierExpression> {
+func as_generic_identifier(expression: Syntax.Expressions.Expression): Syntax.Expressions.GenericIdentifierExpression? {
     switch expression {
         Syntax.Expressions.NullLiteral: return null
         Syntax.Expressions.TrueLiteral: return null
@@ -617,7 +617,7 @@ func as_generic_identifier(expression: Syntax.Expressions.Expression): Nullable<
     }
 }
 
-func as_bool_argument(argument: Syntax.Types.GenericArgument): Nullable<Syntax.Types.BoolArgument> {
+func as_bool_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.BoolArgument? {
     switch argument {
         Syntax.Types.TypeArgument: return null
         Syntax.Types.IntegerArgument: return null
@@ -628,7 +628,7 @@ func as_bool_argument(argument: Syntax.Types.GenericArgument): Nullable<Syntax.T
     }
 }
 
-func as_integer_argument(argument: Syntax.Types.GenericArgument): Nullable<Syntax.Types.IntegerArgument> {
+func as_integer_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.IntegerArgument? {
     switch argument {
         Syntax.Types.TypeArgument: return null
         Syntax.Types.IntegerArgument: return argument
@@ -639,7 +639,7 @@ func as_integer_argument(argument: Syntax.Types.GenericArgument): Nullable<Synta
     }
 }
 
-func as_float_argument(argument: Syntax.Types.GenericArgument): Nullable<Syntax.Types.FloatArgument> {
+func as_float_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.FloatArgument? {
     switch argument {
         Syntax.Types.TypeArgument: return null
         Syntax.Types.IntegerArgument: return null
@@ -650,7 +650,7 @@ func as_float_argument(argument: Syntax.Types.GenericArgument): Nullable<Syntax.
     }
 }
 
-func as_string_argument(argument: Syntax.Types.GenericArgument): Nullable<Syntax.Types.StringArgument> {
+func as_string_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.StringArgument? {
     switch argument {
         Syntax.Types.TypeArgument: return null
         Syntax.Types.IntegerArgument: return null
@@ -661,7 +661,7 @@ func as_string_argument(argument: Syntax.Types.GenericArgument): Nullable<Syntax
     }
 }
 
-func as_enum_argument(argument: Syntax.Types.GenericArgument): Nullable<Syntax.Types.EnumArgument> {
+func as_enum_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.EnumArgument? {
     switch argument {
         Syntax.Types.TypeArgument: return null
         Syntax.Types.IntegerArgument: return null

@@ -7,12 +7,12 @@ func AssertDefault() {
     announce(5)
 }
 
-func safe_divide(numerator: Int, denominator: Int): Nullable<Int> {
+func safe_divide(numerator: Int, denominator: Int): Int? {
     assert denominator != 0
     return numerator / denominator
 }
 
-func report(result: Nullable<Int>) {
+func report(result: Int?) {
     assert result
     console.print(result)
 }

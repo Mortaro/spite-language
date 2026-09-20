@@ -1,5 +1,5 @@
 var name = ""
-var spite_type: Nullable<Analysis.SpiteType> = null
+var spite_type: Analysis.SpiteType? = null
 
 func OwnedLocal(starting_name: String, starting_spite_type: Analysis.SpiteType) {
     name = starting_name

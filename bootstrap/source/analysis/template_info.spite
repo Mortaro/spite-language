@@ -1,4 +1,4 @@
-var declaration: Nullable<Syntax.Statements.FunctionDeclaration> = null
+var declaration: Syntax.Statements.FunctionDeclaration? = null
 var symbol_parameter = ""
 var prefix = ""
 var suffix = ""

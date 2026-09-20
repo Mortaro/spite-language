@@ -1,5 +1,5 @@
 var console = Console()
-var current_file: Nullable<Syntax.SourceFile> = null
+var current_file: Syntax.SourceFile? = null
 
 func Printer() { }
 

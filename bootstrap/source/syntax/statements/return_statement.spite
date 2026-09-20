@@ -1,6 +1,6 @@
-var value: Nullable<Syntax.Expressions.Expression> = null
+var value: Syntax.Expressions.Expression? = null
 var line = 0
 
-func ReturnStatement(return_value: Nullable<Syntax.Expressions.Expression>) {
+func ReturnStatement(return_value: Syntax.Expressions.Expression?) {
     value = return_value
 }

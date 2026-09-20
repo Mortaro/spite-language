@@ -1,4 +1,4 @@
-var type_reference: Nullable<Syntax.Types.Type> = null
+var type_reference: Syntax.Types.Type? = null
 var body = List<Statement>()
 
 func SwitchCase(case_type: Syntax.Types.Type, case_body: List<Statement>) {

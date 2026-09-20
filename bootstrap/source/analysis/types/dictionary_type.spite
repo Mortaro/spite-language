@@ -1,4 +1,4 @@
-var element: Nullable<SpiteType> = null
+var element: SpiteType? = null
 
 func DictionaryType(starting_element: SpiteType) {
     element = starting_element

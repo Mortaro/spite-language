@@ -1,5 +1,5 @@
 var console = Console()
-var held: Nullable<Box> = null
+var held: Box? = null
 
 func NullableNarrowing() {
     print_box(held)
@@ -15,7 +15,7 @@ func update_held() {
     console.print("updated to " + held.value)
 }
 
-func print_box(maybe_box: Nullable<Box>) {
+func print_box(maybe_box: Box?) {
     if maybe_box {
         console.print("has box " + maybe_box.value)
     } else {

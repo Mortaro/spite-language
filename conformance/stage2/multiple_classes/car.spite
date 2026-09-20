@@ -1,6 +1,6 @@
 var console = Console()
 var name = ""
-var engine: Nullable<Engine> = null
+var engine: Engine? = null
 
 func Car(starting_name: String, starting_engine: Engine) {
     name = starting_name

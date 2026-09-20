@@ -1,5 +1,5 @@
 var name = ""
-var inner: Nullable<Analysis.SpiteType> = null
+var inner: Analysis.SpiteType? = null
 var guard_code = ""
 var override_code = ""
 

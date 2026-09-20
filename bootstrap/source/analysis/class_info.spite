@@ -15,8 +15,8 @@ var source_path = ""
 var fields = List<FieldInfo>()
 var functions = List<FunctionInfo>()
 var templates = List<TemplateInfo>()
-var constructor: Nullable<FunctionInfo> = null
-var drop_function: Nullable<FunctionInfo> = null
+var constructor: FunctionInfo? = null
+var drop_function: FunctionInfo? = null
 
 func ClassInfo(starting_c_name: String, starting_simple_name: String, starting_namespace_dotted: String, starting_qualified_dotted: String, starting_class_id: Int) {
     c_name = starting_c_name
@@ -26,7 +26,7 @@ func ClassInfo(starting_c_name: String, starting_simple_name: String, starting_n
     class_id = starting_class_id
 }
 
-func find_field(name: String): Nullable<FieldInfo> {
+func find_field(name: String): FieldInfo? {
     var index = 0
     while index < fields.count() {
         var field = fields[index]
@@ -38,7 +38,7 @@ func find_field(name: String): Nullable<FieldInfo> {
     return null
 }
 
-func find_function(name: String): Nullable<FunctionInfo> {
+func find_function(name: String): FunctionInfo? {
     var index = 0
     while index < functions.count() {
         var function = functions[index]

@@ -1,4 +1,4 @@
-var condition: Nullable<Syntax.Expressions.Expression> = null
+var condition: Syntax.Expressions.Expression? = null
 var body = List<Statement>()
 var line = 0
 
