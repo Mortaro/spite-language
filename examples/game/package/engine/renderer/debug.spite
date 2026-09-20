@@ -1,0 +1,8 @@
+func log(message: String): String {
+    return "[debug] " + message
+}
+
+func render_and_log(): String {
+    var renderer = Renderer()
+    return log(renderer.render())
+}

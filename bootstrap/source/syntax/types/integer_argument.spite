@@ -1,0 +1,5 @@
+var value: Long = 0
+
+func IntegerArgument(starting_value: Long) {
+    value = starting_value
+}

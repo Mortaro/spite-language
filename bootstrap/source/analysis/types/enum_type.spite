@@ -1,0 +1,7 @@
+var c_name = ""
+var values = List<String>()
+
+func EnumType(starting_c_name: String, starting_values: List<String>) {
+    c_name = starting_c_name
+    values = starting_values
+}

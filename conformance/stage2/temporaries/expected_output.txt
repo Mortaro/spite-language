@@ -1,0 +1,4 @@
+abcd
+hello, world
+wrapped(deep)
+first and second

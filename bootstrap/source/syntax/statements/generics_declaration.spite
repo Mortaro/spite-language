@@ -1,0 +1,5 @@
+var names = List<String>()
+
+func GenericsDeclaration(starting_names: List<String>) {
+    names = starting_names
+}

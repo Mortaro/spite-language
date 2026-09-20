@@ -1,0 +1,80 @@
+var console = Console()
+var variables = Dictionary<Float>()
+var current_tree: Nullable<Expression> = null
+
+func Evaluator() { }
+
+func assign(name: String, value: Float) {
+    variables.set(name, value)
+}
+
+# Stores the freshly parsed tree in 'current_tree' (dropping whatever tree
+# was there before, per the ordinary "overwriting an owning slot drops the
+# old value first" rule) before evaluating it, rather than passing it
+# straight into 'evaluate' by value: 'evaluate' never stores its parameter
+# anywhere and this compiler never auto-drops a by-value class/union
+# parameter for anything but String, so a fresh, owned tree handed to it
+# directly would leak with no owner left to free it (manual.md's Memory
+# section documents this exact gap). Routing it through a field first gives
+# it a real, single owner that keeps dropping it correctly on every future
+# call and when the Evaluator itself is dropped.
+func evaluate_tree(tree: Expression): Float {
+    current_tree = tree
+    var stored_tree = current_tree
+    assert stored_tree
+    return evaluate(stored_tree)
+}
+
+func evaluate(expression: Expression): Float {
+    switch expression {
+        NumberExpression: return expression.value
+        VariableExpression: {
+            var looked_up = variables.get(expression.name)
+            if looked_up {
+                return looked_up
+            }
+            return 0.0
+        }
+        BinaryExpression: {
+            var left_value = 0.0
+            var left = expression.left
+            if left {
+                left_value = evaluate(left)
+            }
+            var right_value = 0.0
+            var right = expression.right
+            if right {
+                right_value = evaluate(right)
+            }
+            if expression.operator == 'plus' {
+                return left_value + right_value
+            }
+            if expression.operator == 'minus' {
+                return left_value - right_value
+            }
+            if expression.operator == 'star' {
+                return left_value * right_value
+            }
+            return left_value / right_value
+        }
+    }
+}
+
+func process_line(line: String) {
+    if line.is_empty() {
+        return
+    }
+    if line.contains("=") {
+        var parts = line.split("=")
+        var parser = Parser(Lexer(parts[1]).tokens)
+        var tree = parser.parse()
+        var value = evaluate_tree(tree)
+        console.print(parts[0].trim(), "=", value)
+        assign(parts[0].trim(), value)
+        return
+    }
+    var parser = Parser(Lexer(line).tokens)
+    var tree = parser.parse()
+    var value = evaluate_tree(tree)
+    console.print("=>", value)
+}

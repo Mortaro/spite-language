@@ -1,0 +1,10 @@
+var variable_name = "lorem ipsum"
+
+var inline_vector = [1, 2, 3, 4]
+var multiline_vector = ["no", "commas", "between", "lines"]
+
+var object_name = { key: "value", other_key: 3 }
+
+func function_name(variable_name: Reference, variable_name: Value): Tiny {
+    return 1
+}

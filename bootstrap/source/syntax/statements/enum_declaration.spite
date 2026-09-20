@@ -1,0 +1,7 @@
+var name = ""
+var values = List<String>()
+
+func EnumDeclaration(declaration_name: String, declaration_values: List<String>) {
+    name = declaration_name
+    values = declaration_values
+}

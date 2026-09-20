@@ -1,0 +1,5 @@
+var value = ""
+
+func EnumLiteralExpression(starting_value: String) {
+    value = starting_value
+}

@@ -1,0 +1,92 @@
+var tokens = List<Token>()
+var position = 0
+
+func Parser(starting_tokens: List<Token>) {
+    tokens = starting_tokens
+    position = 0
+}
+
+func current(): Token {
+    return tokens[position]
+}
+
+func is_kind(expected_kind: TokenKind): Bool {
+    return current().kind == expected_kind
+}
+
+func advance() {
+    position = position + 1
+}
+
+func parse(): Expression {
+    return parse_expression()
+}
+
+# Precedence climbing written with recursion instead of a while loop: each
+# "_rest" function is the tail-recursive equivalent of "while the next token
+# is at this precedence level, consume it and fold it into the result".
+func parse_expression(): Expression {
+    return parse_expression_rest(parse_term())
+}
+
+# `left`/the freshly parsed right-hand operand are handed straight to
+# `BinaryExpression(...)` without ever being bound to a local `var`: a
+# `BinaryExpression` moves its operands onto the heap (see
+# binary_expression.spite), and a local `var` that had already "given away"
+# its value that way would still be auto-dropped at the end of this
+# function's scope, double-freeing whatever the tree now owns. `left` is
+# safe as a bare parameter (parameters are never auto-dropped), so only the
+# right-hand operand needs to stay un-bound, computed inline.
+func parse_expression_rest(left: Expression): Expression {
+    if is_kind('plus') or is_kind('minus') {
+        var operator_kind = current().kind
+        advance()
+        return parse_expression_rest(BinaryExpression(operator_kind, left, parse_term()))
+    }
+    return left
+}
+
+func parse_term(): Expression {
+    return parse_term_rest(parse_factor())
+}
+
+func parse_term_rest(left: Expression): Expression {
+    if is_kind('star') or is_kind('slash') {
+        var operator_kind = current().kind
+        advance()
+        return parse_term_rest(BinaryExpression(operator_kind, left, parse_factor()))
+    }
+    return left
+}
+
+func parse_factor(): Expression {
+    if is_kind('minus') {
+        advance()
+        return BinaryExpression('minus', NumberExpression(0.0), parse_factor())
+    }
+    if is_kind('left_paren') {
+        advance()
+        var inner = parse_expression()
+        advance()
+        return inner
+    }
+    if is_kind('number') {
+        var value = current().text.to_float()
+        advance()
+        return NumberExpression(value)
+    }
+    return VariableExpression(consume_name())
+}
+
+# A small helper purely so the cloned name can be returned by its own bare
+# name (`return text`): that is the one case the compiler recognizes as
+# moving a local's value out to the caller instead of auto-dropping it.
+# Written inline as `VariableExpression(consume_name())` above, the clone
+# would otherwise be bound to a `var` that is not itself what gets
+# returned -- still auto-dropped even though `VariableExpression` already
+# moved it onto the tree, double-freeing it once the tree is later dropped.
+func consume_name(): String {
+    var text = current().text.trim()
+    advance()
+    return text
+}

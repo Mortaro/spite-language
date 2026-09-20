@@ -1,0 +1,17 @@
+# manual.md section 5's Operators table: `+`/`==` duck-type across a
+# union's members exactly like a method call already does (every member
+# must define the operator function with the same signature).
+union Count = {
+    CounterA
+    CounterB
+}
+
+var console = Console()
+
+func UnionOperators() {
+    var first_counter: Count = CounterA(3)
+    var second_counter: Count = CounterB(4)
+    console.print("sum", first_counter + second_counter)
+    console.print("equal", first_counter == CounterA(3))
+    console.print("equal to different value", first_counter == second_counter)
+}

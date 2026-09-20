@@ -1,0 +1,11 @@
+var element: Nullable<SpiteType> = null
+
+func DictionaryType(starting_element: SpiteType) {
+    element = starting_element
+}
+
+func get_element(): SpiteType {
+    var value = element
+    assert value
+    return value
+}

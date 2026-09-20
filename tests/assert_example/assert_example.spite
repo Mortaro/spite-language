@@ -1,0 +1,3 @@
+func sum_positives(first_value: Float, second_value: Float) {
+    assert first_value > 0 and second_value > 0
+}

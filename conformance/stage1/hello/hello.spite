@@ -1,0 +1,5 @@
+var console = Console()
+
+func Hello() {
+    console.print("Hello, world!")
+}

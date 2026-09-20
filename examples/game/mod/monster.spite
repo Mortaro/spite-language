@@ -1,0 +1,7 @@
+func describe(): String {
+    return "a modded monster"
+}
+
+func taunt(): String {
+    return "Modded monster taunts you"
+}

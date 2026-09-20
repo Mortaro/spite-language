@@ -1,0 +1,844 @@
+var tokens = List<Token>()
+var position = 0
+var has_error = false
+var error_line = 0
+var error_column = 0
+var error_message = ""
+
+func Parser(starting_tokens: List<Token>) {
+    tokens = starting_tokens
+}
+
+func current(): Token {
+    var token = tokens[position]
+    return Token(token.kind, token.lexeme, token.text, token.line, token.column)
+}
+
+func current_kind(): TokenKind {
+    return tokens[position].kind
+}
+
+func check(kind: TokenKind): Bool {
+    return current_kind() == kind
+}
+
+func advance(): Token {
+    var token = current()
+    if token.kind != 'end_of_file' {
+        position = position + 1
+    }
+    return token
+}
+
+func fail(message: String) {
+    if has_error {
+        return
+    }
+    has_error = true
+    error_line = current().line
+    error_column = current().column
+    error_message = message
+}
+
+func expect(kind: TokenKind, description: String): Token {
+    if check(kind) {
+        return advance()
+    }
+    fail("expected " + description + " but found '" + current().lexeme + "'")
+    return current()
+}
+
+func skip_trivia() {
+    var continue_skipping = true
+    while continue_skipping and not check('end_of_file') {
+        if check('newline') or check('comment') {
+            advance()
+        } else {
+            continue_skipping = false
+        }
+    }
+}
+
+func at_statement_end(): Bool {
+    return check('newline') or check('right_brace') or check('end_of_file') or check('comment')
+}
+
+func consume_statement_terminator() {
+    if check('comment') {
+        advance()
+    }
+    if check('newline') {
+        advance()
+        return
+    }
+    if check('right_brace') or check('end_of_file') {
+        return
+    }
+    fail("expected end of statement but found '" + current().lexeme + "'")
+}
+
+func consume_field_separator(closing: TokenKind) {
+    if check('comment') {
+        advance()
+    }
+    if check('comma') {
+        advance()
+        skip_trivia()
+        return
+    }
+    if check('newline') {
+        skip_trivia()
+        return
+    }
+    if check(closing) or check('end_of_file') {
+        return
+    }
+    fail("expected ',' or a newline but found '" + current().lexeme + "'")
+}
+
+func dummy_expression(): Syntax.Expressions.Expression {
+    return Syntax.Expressions.NullLiteral()
+}
+
+func dummy_statement(): Syntax.Statements.Statement {
+    return Syntax.Statements.ExpressionStatement(dummy_expression())
+}
+
+func dummy_type(): Syntax.Types.Type {
+    return Syntax.Types.GenericType("")
+}
+
+func parse_file(): Syntax.SourceFile {
+    return Syntax.SourceFile(parse_top_level_statements())
+}
+
+func parse_top_level_statements(): List<Syntax.Statements.Statement> {
+    var statements = List<Syntax.Statements.Statement>()
+    var finished = false
+    while not finished {
+        skip_trivia()
+        if check('end_of_file') or has_error {
+            finished = true
+        } else {
+            statements.append(parse_statement())
+        }
+    }
+    return statements
+}
+
+func parse_statement_list_until(stop_kind: TokenKind): List<Syntax.Statements.Statement> {
+    var statements = List<Syntax.Statements.Statement>()
+    var finished = false
+    while not finished {
+        skip_trivia()
+        if check('end_of_file') or check(stop_kind) or has_error {
+            finished = true
+        } else {
+            statements.append(parse_statement())
+        }
+    }
+    return statements
+}
+
+func parse_block(): List<Syntax.Statements.Statement> {
+    expect('left_brace', "'{'")
+    var statements = parse_statement_list_until('right_brace')
+    expect('right_brace', "'}'")
+    return statements
+}
+
+func parse_statement(): Syntax.Statements.Statement {
+    if check('identifier') and current().lexeme == "for" {
+        fail(
+            "Spite only has 'while' loops; there is no 'for'. Use List<T>'s metaprogramming helpers or 'while index < list.count() { ... }' instead.",
+        )
+        return dummy_statement()
+    }
+    if check('keyword_generics') {
+        return parse_generics_declaration()
+    }
+    if check('variable_keyword') {
+        return parse_variable_declaration()
+    }
+    if check('function_keyword') {
+        return parse_function_declaration()
+    }
+    if check('keyword_type') {
+        return parse_type_declaration()
+    }
+    if check('keyword_enum') {
+        return parse_enum_declaration()
+    }
+    if check('keyword_union') {
+        return parse_union_declaration()
+    }
+    if check('keyword_if') {
+        return parse_if_statement()
+    }
+    if check('keyword_while') {
+        return parse_while_statement()
+    }
+    if check('keyword_switch') {
+        return parse_switch_statement()
+    }
+    if check('keyword_assert') {
+        return parse_assert_statement()
+    }
+    if check('keyword_return') {
+        return parse_return_statement()
+    }
+    return parse_expression_or_assignment_statement()
+}
+
+func parse_generics_declaration(): Syntax.Statements.Statement {
+    advance()
+    var names = List<String>()
+    var expect_more = true
+    while expect_more and not check('end_of_file') {
+        var token = expect('generic_identifier', "a generic name (e.g. $name)")
+        names.append("" + token.text)
+        if check('comma') {
+            advance()
+        } else {
+            expect_more = false
+        }
+    }
+    consume_statement_terminator()
+    return Syntax.Statements.GenericsDeclaration(names)
+}
+
+func parse_variable_declaration(): Syntax.Statements.Statement {
+    advance()
+    var name = expect('identifier', "a variable name")
+    var type_reference: Nullable<Syntax.Types.Type> = null
+    if check('colon') {
+        advance()
+        type_reference = parse_type()
+    }
+    expect('equal', "'=' (every variable needs a default value)")
+    var value = parse_expression()
+    consume_statement_terminator()
+    return Syntax.Statements.VariableDeclaration(name.text, type_reference, value)
+}
+
+func parse_function_declaration(): Syntax.Statements.Statement {
+    advance()
+    var name = expect('identifier', "a function name")
+    expect('left_paren', "'(' to start the parameter list")
+    var parameters = List<Syntax.Statements.Parameter>()
+    var expect_more = not check('right_paren')
+    while expect_more and not check('end_of_file') {
+        var parameter_name = expect('identifier', "a parameter name")
+        expect('colon', "':' followed by the parameter's type")
+        var parameter_type = parse_type()
+        parameters.append(Syntax.Statements.Parameter(parameter_name.text, parameter_type))
+        if check('comma') {
+            advance()
+            expect_more = not check('right_paren')
+        } else {
+            expect_more = false
+        }
+    }
+    expect('right_paren', "')' to close the parameter list")
+
+    var return_type: Nullable<Syntax.Types.Type> = null
+    if check('colon') {
+        advance()
+        return_type = parse_type()
+    }
+
+    var body = parse_block()
+    return Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
+}
+
+func parse_type_declaration(): Syntax.Statements.Statement {
+    advance()
+    var name = expect('identifier', "a type name")
+    expect('equal', "'='")
+    expect('left_brace', "'{' to start the type body")
+    skip_trivia()
+    var fields = List<Syntax.Statements.FieldDeclaration>()
+    var finished = check('right_brace') or check('end_of_file')
+    while not finished {
+        var field_name = expect('identifier', "a field name")
+        expect('colon', "':' followed by the field's type")
+        var field_type = parse_type()
+        fields.append(Syntax.Statements.FieldDeclaration(field_name.text, field_type))
+        consume_field_separator('right_brace')
+        skip_trivia()
+        if check('right_brace') or check('end_of_file') {
+            finished = true
+        }
+    }
+    expect('right_brace', "'}' to close the type body")
+    return Syntax.Statements.TypeDeclaration(name.text, fields)
+}
+
+func parse_enum_declaration(): Syntax.Statements.Statement {
+    advance()
+    var name = expect('identifier', "an enum name")
+    expect('equal', "'='")
+    expect('left_brace', "'{' to start the enum body")
+    skip_trivia()
+    var values = List<String>()
+    var finished = check('right_brace') or check('end_of_file')
+    while not finished {
+        var value = expect('enum_literal', "an enum value (e.g. 'value')")
+        values.append("" + value.text)
+        consume_field_separator('right_brace')
+        skip_trivia()
+        if check('right_brace') or check('end_of_file') {
+            finished = true
+        }
+    }
+    expect('right_brace', "'}' to close the enum body")
+    return Syntax.Statements.EnumDeclaration(name.text, values)
+}
+
+func parse_union_declaration(): Syntax.Statements.Statement {
+    advance()
+    var name = expect('identifier', "a union name")
+    expect('equal', "'='")
+    expect('left_brace', "'{' to start the union body")
+    skip_trivia()
+    var members = List<Syntax.Types.Type>()
+    var finished = check('right_brace') or check('end_of_file')
+    while not finished {
+        var member = parse_type()
+        members.append(member)
+        consume_field_separator('right_brace')
+        skip_trivia()
+        if check('right_brace') or check('end_of_file') {
+            finished = true
+        }
+    }
+    expect('right_brace', "'}' to close the union body")
+    return Syntax.Statements.UnionDeclaration(name.text, members)
+}
+
+func parse_if_statement(): Syntax.Statements.Statement {
+    advance()
+    return parse_if_statement_with_condition(parse_expression())
+}
+
+func parse_if_statement_with_condition(condition: Syntax.Expressions.Expression): Syntax.Statements.Statement {
+    return parse_if_rest(condition)
+}
+
+func parse_if_rest(condition: Syntax.Expressions.Expression): Syntax.Statements.Statement {
+    var then_branch = parse_block()
+    var has_else_branch = false
+    var else_branch = List<Syntax.Statements.Statement>()
+    if check('keyword_else') {
+        advance()
+        has_else_branch = true
+        if check('keyword_if') {
+            var nested = parse_if_statement()
+            var wrapped = List<Syntax.Statements.Statement>()
+            wrapped.append(nested)
+            else_branch = wrapped
+        } else {
+            else_branch = parse_block()
+        }
+    }
+    return Syntax.Statements.IfStatement(condition, then_branch, has_else_branch, else_branch)
+}
+
+func parse_while_statement(): Syntax.Statements.Statement {
+    advance()
+    var condition = parse_expression()
+    var body = parse_block()
+    return Syntax.Statements.WhileStatement(condition, body)
+}
+
+func parse_switch_statement(): Syntax.Statements.Statement {
+    advance()
+    var subject = parse_expression()
+    expect('left_brace', "'{' to start the switch body")
+    skip_trivia()
+    var cases = List<Syntax.Statements.SwitchCase>()
+    var finished = check('right_brace') or check('end_of_file')
+    while not finished {
+        var case_type = parse_type()
+        expect('colon', "':' followed by the case body")
+        var body = parse_switch_case_body()
+        cases.append(Syntax.Statements.SwitchCase(case_type, body))
+        skip_trivia()
+        if check('right_brace') or check('end_of_file') {
+            finished = true
+        }
+    }
+    expect('right_brace', "'}' to close the switch body")
+    return Syntax.Statements.SwitchStatement(subject, cases)
+}
+
+func parse_switch_case_body(): List<Syntax.Statements.Statement> {
+    if check('left_brace') {
+        return parse_block()
+    }
+    var single = List<Syntax.Statements.Statement>()
+    single.append(parse_statement())
+    return single
+}
+
+func parse_assert_statement(): Syntax.Statements.Statement {
+    advance()
+    var value = parse_expression()
+    consume_statement_terminator()
+    return Syntax.Statements.AssertStatement(value)
+}
+
+func parse_return_statement(): Syntax.Statements.Statement {
+    advance()
+    var value: Nullable<Syntax.Expressions.Expression> = null
+    if not at_statement_end() {
+        value = parse_expression()
+    }
+    consume_statement_terminator()
+    return Syntax.Statements.ReturnStatement(value)
+}
+
+func parse_expression_or_assignment_statement(): Syntax.Statements.Statement {
+    return parse_expression_or_assignment_statement_with(parse_expression())
+}
+
+func parse_expression_or_assignment_statement_with(expression: Syntax.Expressions.Expression): Syntax.Statements.Statement {
+    if check('equal') {
+        advance()
+        var value = parse_expression()
+        consume_statement_terminator()
+        return Syntax.Statements.AssignmentStatement(expression, value)
+    }
+    consume_statement_terminator()
+    return Syntax.Statements.ExpressionStatement(expression)
+}
+
+func parse_type(): Syntax.Types.Type {
+    if check('ampersand') {
+        advance()
+        return Syntax.Types.ReferenceType(parse_type())
+    }
+    if check('generic_identifier') {
+        var token = advance()
+        return Syntax.Types.GenericType(token.text)
+    }
+    if not check('identifier') {
+        fail("expected a type name but found '" + current().lexeme + "'")
+        return dummy_type()
+    }
+
+    var path = List<String>()
+    path.append("" + advance().text)
+    var continue_dots = true
+    while continue_dots and not check('end_of_file') {
+        if check('dot') {
+            advance()
+            if check('identifier') {
+                path.append("" + advance().text)
+            } else {
+                fail("expected a name after '.' but found '" + current().lexeme + "'")
+                continue_dots = false
+            }
+        } else {
+            continue_dots = false
+        }
+    }
+
+    var arguments = List<Syntax.Types.GenericArgument>()
+    if check('less') {
+        advance()
+        var expect_more = true
+        while expect_more and not check('end_of_file') {
+            arguments.append(parse_generic_argument())
+            if check('comma') {
+                advance()
+            } else {
+                expect_more = false
+            }
+        }
+        expect('greater', "'>' to close the generic argument list")
+    }
+
+    return Syntax.Types.NamedType(path, arguments)
+}
+
+func parse_generic_argument(): Syntax.Types.GenericArgument {
+    var result = try_parse_generic_argument_quiet()
+    if result {
+        return result
+    }
+    fail("expected a generic argument but found '" + current().lexeme + "'")
+    return Syntax.Types.IntegerArgument(0)
+}
+
+var quiet_generic_arguments_matched = false
+
+func try_parse_generic_argument_list_quiet(): List<Syntax.Types.GenericArgument> {
+    var saved_position = position
+    quiet_generic_arguments_matched = false
+    if not check('less') {
+        return List<Syntax.Types.GenericArgument>()
+    }
+    advance()
+    var arguments = List<Syntax.Types.GenericArgument>()
+    var ok = true
+    var expect_more = true
+    while expect_more and ok and not check('end_of_file') {
+        var argument_result = try_parse_generic_argument_quiet()
+        var parsed_argument = false
+        if argument_result {
+            arguments.append(argument_result)
+            parsed_argument = true
+        }
+        if not parsed_argument {
+            ok = false
+        }
+        if ok {
+            if check('comma') {
+                advance()
+            } else {
+                expect_more = false
+            }
+        }
+    }
+    if ok and check('greater') {
+        advance()
+        quiet_generic_arguments_matched = true
+    } else {
+        position = saved_position
+        arguments = List<Syntax.Types.GenericArgument>()
+    }
+    return arguments
+}
+
+func try_parse_generic_argument_quiet(): Nullable<Syntax.Types.GenericArgument> {
+    if check('integer_literal') {
+        var token = advance()
+        var argument: Syntax.Types.GenericArgument = Syntax.Types.IntegerArgument(token.text.to_long())
+        return argument
+    }
+    if check('float_literal') {
+        var token = advance()
+        var argument: Syntax.Types.GenericArgument = Syntax.Types.FloatArgument(token.text.to_double())
+        return argument
+    }
+    if check('string_literal') {
+        var token = advance()
+        var argument: Syntax.Types.GenericArgument = Syntax.Types.StringArgument(token.text)
+        return argument
+    }
+    if check('enum_literal') {
+        var token = advance()
+        var argument: Syntax.Types.GenericArgument = Syntax.Types.EnumArgument(token.text)
+        return argument
+    }
+    if check('keyword_true') {
+        advance()
+        var argument: Syntax.Types.GenericArgument = Syntax.Types.BoolArgument(true)
+        return argument
+    }
+    if check('keyword_false') {
+        advance()
+        var argument: Syntax.Types.GenericArgument = Syntax.Types.BoolArgument(false)
+        return argument
+    }
+    var type_result = try_parse_type_quiet()
+    if type_result {
+        var argument: Syntax.Types.GenericArgument = Syntax.Types.TypeArgument(type_result)
+        return argument
+    }
+    return null
+}
+
+func try_parse_type_quiet(): Nullable<Syntax.Types.Type> {
+    if check('ampersand') {
+        advance()
+        var inner_result = try_parse_type_quiet()
+        if inner_result {
+            var type_reference: Syntax.Types.Type = Syntax.Types.ReferenceType(inner_result)
+            return type_reference
+        }
+        return null
+    }
+    if check('generic_identifier') {
+        var token = advance()
+        var type_reference: Syntax.Types.Type = Syntax.Types.GenericType(token.text)
+        return type_reference
+    }
+    if not check('identifier') {
+        return null
+    }
+
+    var path = List<String>()
+    path.append("" + advance().text)
+    var continue_dots = true
+    var ok = true
+    while continue_dots and ok and not check('end_of_file') {
+        if check('dot') {
+            advance()
+            if check('identifier') {
+                path.append("" + advance().text)
+            } else {
+                ok = false
+            }
+        } else {
+            continue_dots = false
+        }
+    }
+    if not ok {
+        return null
+    }
+
+    var arguments = try_parse_generic_argument_list_quiet()
+
+    var type_reference: Syntax.Types.Type = Syntax.Types.NamedType(path, arguments)
+    return type_reference
+}
+
+var quiet_generic_instantiation_matched = false
+
+func try_parse_generic_instantiation_arguments(): List<Syntax.Types.GenericArgument> {
+    var saved_position = position
+    var argument_list = try_parse_generic_argument_list_quiet()
+    quiet_generic_instantiation_matched = false
+    if quiet_generic_arguments_matched and check('left_paren') {
+        quiet_generic_instantiation_matched = true
+    } else {
+        position = saved_position
+        argument_list = List<Syntax.Types.GenericArgument>()
+    }
+    return argument_list
+}
+
+func parse_expression(): Syntax.Expressions.Expression {
+    return parse_binary_expression(0)
+}
+
+func binary_operator_precedence(kind: TokenKind): Int {
+    if kind == 'keyword_or' {
+        return 1
+    }
+    if kind == 'keyword_and' {
+        return 2
+    }
+    if kind == 'equal_equal' or kind == 'bang_equal' {
+        return 3
+    }
+    if kind == 'less' or kind == 'less_equal' or kind == 'greater' or kind == 'greater_equal' {
+        return 4
+    }
+    if kind == 'plus' or kind == 'minus' {
+        return 5
+    }
+    if kind == 'star' or kind == 'slash' or kind == 'percent' {
+        return 6
+    }
+    return -1
+}
+
+func binary_operator_for(kind: TokenKind): Syntax.Expressions.BinaryOperator {
+    if kind == 'keyword_or' {
+        return 'logical_or'
+    }
+    if kind == 'keyword_and' {
+        return 'logical_and'
+    }
+    if kind == 'equal_equal' {
+        return 'equal'
+    }
+    if kind == 'bang_equal' {
+        return 'not_equal'
+    }
+    if kind == 'less' {
+        return 'less'
+    }
+    if kind == 'less_equal' {
+        return 'less_equal'
+    }
+    if kind == 'greater' {
+        return 'greater'
+    }
+    if kind == 'greater_equal' {
+        return 'greater_equal'
+    }
+    if kind == 'plus' {
+        return 'add'
+    }
+    if kind == 'minus' {
+        return 'subtract'
+    }
+    if kind == 'star' {
+        return 'multiply'
+    }
+    if kind == 'slash' {
+        return 'divide'
+    }
+    return 'modulo'
+}
+
+func parse_binary_expression(minimum_precedence: Int): Syntax.Expressions.Expression {
+    return parse_binary_expression_rest(parse_unary(), minimum_precedence)
+}
+
+func parse_binary_expression_rest(left: Syntax.Expressions.Expression, minimum_precedence: Int): Syntax.Expressions.Expression {
+    var precedence = binary_operator_precedence(current_kind())
+    if precedence < 0 or precedence < minimum_precedence {
+        return left
+    }
+    var operator = binary_operator_for(current_kind())
+    advance()
+    var right = parse_binary_expression(precedence + 1)
+    return parse_binary_expression_rest(Syntax.Expressions.BinaryExpression(operator, left, right), minimum_precedence)
+}
+
+func parse_unary(): Syntax.Expressions.Expression {
+    if check('minus') or check('keyword_not') {
+        var operator: Syntax.Expressions.UnaryOperator = 'negate'
+        if current_kind() == 'keyword_not' {
+            operator = 'logical_not'
+        }
+        advance()
+        var operand = parse_unary()
+        return Syntax.Expressions.UnaryExpression(operator, operand)
+    }
+    return parse_postfix()
+}
+
+func parse_postfix(): Syntax.Expressions.Expression {
+    return parse_postfix_rest(parse_primary())
+}
+
+func parse_postfix_rest(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression {
+    if check('dot') {
+        advance()
+        var name = expect('identifier', "a member name after '.'")
+        return parse_postfix_rest(Syntax.Expressions.MemberExpression(expression, name.text))
+    }
+    if check('left_paren') {
+        var arguments = parse_argument_list()
+        return parse_postfix_rest(Syntax.Expressions.CallExpression(expression, arguments))
+    }
+    if check('left_bracket') {
+        advance()
+        var index_expression = parse_expression()
+        expect('right_bracket', "']' to close the index expression")
+        return parse_postfix_rest(Syntax.Expressions.IndexExpression(expression, index_expression))
+    }
+    if check('less') {
+        var type_arguments = try_parse_generic_instantiation_arguments()
+        if not quiet_generic_instantiation_matched {
+            return expression
+        }
+        var arguments = parse_argument_list()
+        return parse_postfix_rest(Syntax.Expressions.GenericCallExpression(expression, type_arguments, arguments))
+    }
+    return expression
+}
+
+func parse_argument_list(): List<Syntax.Expressions.Expression> {
+    expect('left_paren', "'(' to start the argument list")
+    var arguments = List<Syntax.Expressions.Expression>()
+    var expect_more = not check('right_paren')
+    while expect_more and not check('end_of_file') {
+        arguments.append(parse_expression())
+        if check('comma') {
+            advance()
+            expect_more = not check('right_paren')
+        } else {
+            expect_more = false
+        }
+    }
+    expect('right_paren', "')' to close the argument list")
+    return arguments
+}
+
+func parse_primary(): Syntax.Expressions.Expression {
+    if check('integer_literal') {
+        var token = advance()
+        return Syntax.Expressions.IntegerLiteral(token.text.to_long())
+    }
+    if check('float_literal') {
+        var token = advance()
+        return Syntax.Expressions.FloatLiteral(token.text.to_double())
+    }
+    if check('string_literal') {
+        var token = advance()
+        return Syntax.Expressions.StringLiteralExpression(token.text)
+    }
+    if check('enum_literal') {
+        var token = advance()
+        return Syntax.Expressions.EnumLiteralExpression(token.text)
+    }
+    if check('generic_identifier') {
+        var token = advance()
+        return Syntax.Expressions.GenericIdentifierExpression(token.text)
+    }
+    if check('keyword_null') {
+        advance()
+        return Syntax.Expressions.NullLiteral()
+    }
+    if check('keyword_true') {
+        advance()
+        return Syntax.Expressions.TrueLiteral()
+    }
+    if check('keyword_false') {
+        advance()
+        return Syntax.Expressions.FalseLiteral()
+    }
+    if check('identifier') {
+        var token = advance()
+        return Syntax.Expressions.IdentifierExpression(token.text)
+    }
+    if check('left_paren') {
+        advance()
+        var inner = parse_expression()
+        expect('right_paren', "')' to close the parenthesized expression")
+        return inner
+    }
+    if check('left_bracket') {
+        return parse_list_literal()
+    }
+    if check('left_brace') {
+        return parse_object_literal()
+    }
+    fail("expected an expression but found '" + current().lexeme + "'")
+    return dummy_expression()
+}
+
+func parse_list_literal(): Syntax.Expressions.Expression {
+    advance()
+    skip_trivia()
+    var elements = List<Syntax.Expressions.ListElement>()
+    var finished = check('right_bracket') or check('end_of_file')
+    while not finished {
+        var value = parse_expression()
+        elements.append(Syntax.Expressions.ListElement(value))
+        consume_field_separator('right_bracket')
+        skip_trivia()
+        if check('right_bracket') or check('end_of_file') {
+            finished = true
+        }
+    }
+    expect('right_bracket', "']' to close the list literal")
+    return Syntax.Expressions.ListLiteralExpression(elements)
+}
+
+func parse_object_literal(): Syntax.Expressions.Expression {
+    advance()
+    skip_trivia()
+    var fields = List<Syntax.Expressions.ObjectField>()
+    var finished = check('right_brace') or check('end_of_file')
+    while not finished {
+        var name = expect('identifier', "a field name")
+        expect('colon', "':' followed by the field's value")
+        var value = parse_expression()
+        fields.append(Syntax.Expressions.ObjectField(name.text, value))
+        consume_field_separator('right_brace')
+        skip_trivia()
+        if check('right_brace') or check('end_of_file') {
+            finished = true
+        }
+    }
+    expect('right_brace', "'}' to close the object literal")
+    return Syntax.Expressions.ObjectLiteralExpression(fields)
+}

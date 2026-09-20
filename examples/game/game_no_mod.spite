@@ -1,0 +1,9 @@
+func GameNoMod() {
+    load("package")
+
+    var console = Console()
+
+    var monster = Monster(10)
+    console.print(monster.describe())
+    console.print(monster.roar())
+}

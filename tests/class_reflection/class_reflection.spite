@@ -1,0 +1,8 @@
+var console = Console()
+
+func ClassReflection() {
+    var widget = Widget("gadget")
+    console.print(widget.class)
+    console.print(widget.class.name)
+    widget.print_name()
+}

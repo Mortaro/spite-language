@@ -1,0 +1,2 @@
+var stars = 0
+var active = false

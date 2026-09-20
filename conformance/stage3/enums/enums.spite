@@ -1,0 +1,35 @@
+enum Mood = {
+    'calm'
+    'angry'
+    'asleep'
+}
+
+var console = Console()
+var mood: Mood = 'calm'
+
+func Enums() {
+    console.print(mood)
+    mood = 'angry'
+    console.print(describe(mood))
+    console.print(describe('asleep'))
+    if mood == 'angry' {
+        console.print("still angry")
+    }
+    if mood != 'calm' {
+        console.print("not calm: " + mood)
+    }
+    var pet = Pet('hungry')
+    console.print(pet.report())
+    pet.state = 'full'
+    console.print(pet.report())
+}
+
+func describe(value: Mood): String {
+    if value == 'calm' {
+        return "all quiet"
+    }
+    if value == 'angry' {
+        return "watch out"
+    }
+    return "zzz"
+}

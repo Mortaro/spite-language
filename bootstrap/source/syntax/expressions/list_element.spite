@@ -1,0 +1,5 @@
+var value: Nullable<Expression> = null
+
+func ListElement(entry_value: Expression) {
+    value = entry_value
+}

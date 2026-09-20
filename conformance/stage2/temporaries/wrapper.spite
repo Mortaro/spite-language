@@ -1,0 +1,15 @@
+var inner: Nullable<Inner> = null
+
+func Wrapper(starting_inner: Inner) {
+    inner = starting_inner
+}
+
+func label(): String {
+    assert inner
+    return inner.label()
+}
+
+func unwrap_label(): String {
+    assert inner
+    return "wrapped(" + inner.label() + ")"
+}

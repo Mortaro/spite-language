@@ -1,0 +1,11 @@
+# manual.md section 10: a cycle leaks under reference counting. Neither
+# Node ever reaches a reference count of zero, since each holds the other
+# -- this is deliberate, documented behavior, not a bug: the point of this
+# fixture is that it leaks cleanly (--debug-memory reports it) rather than
+# crashing.
+func ReferenceCycle() {
+    var first = Node()
+    var second = Node()
+    first.next = second
+    second.next = first
+}

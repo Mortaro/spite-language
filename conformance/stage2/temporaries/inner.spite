@@ -1,0 +1,9 @@
+var label_text = ""
+
+func Inner(starting_label: String) {
+    label_text = starting_label
+}
+
+func label(): String {
+    return label_text
+}

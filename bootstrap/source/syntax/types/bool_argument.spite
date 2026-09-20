@@ -1,0 +1,5 @@
+var value = false
+
+func BoolArgument(starting_value: Bool) {
+    value = starting_value
+}

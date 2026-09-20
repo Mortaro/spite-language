@@ -1,0 +1,5 @@
+var elements = List<ListElement>()
+
+func ListLiteralExpression(starting_elements: List<ListElement>) {
+    elements = starting_elements
+}

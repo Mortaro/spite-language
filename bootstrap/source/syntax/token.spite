@@ -1,0 +1,23 @@
+var kind: TokenKind = 'end_of_file'
+var lexeme = ""
+var text = ""
+var line = 0
+var column = 0
+
+func Token(starting_kind: TokenKind, starting_lexeme: String, starting_text: String, starting_line: Int, starting_column: Int) {
+    kind = starting_kind
+    lexeme = starting_lexeme
+    text = starting_text
+    line = starting_line
+    column = starting_column
+}
+
+func kind_text(): String {
+    if kind == 'variable_keyword' {
+        return "keyword_var"
+    }
+    if kind == 'function_keyword' {
+        return "keyword_func"
+    }
+    return "" + kind
+}

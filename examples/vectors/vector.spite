@@ -1,0 +1,42 @@
+var x_component = 0.0
+var y_component = 0.0
+
+func Vector(new_x: Float, new_y: Float) {
+    x_component = new_x
+    y_component = new_y
+}
+
+func sum(other: Vector): Vector {
+    return Vector(x_component + other.x_component, y_component + other.y_component)
+}
+
+func subtract(other: Vector): Vector {
+    return Vector(x_component - other.x_component, y_component - other.y_component)
+}
+
+func multiply(factor: Float): Vector {
+    return Vector(x_component * factor, y_component * factor)
+}
+
+func equals(other: Vector): Bool {
+    return x_component == other.x_component and y_component == other.y_component
+}
+
+func get_at(index: Int): Float {
+    if index == 0 {
+        return x_component
+    }
+    return y_component
+}
+
+func set_at(index: Int, value: Float) {
+    if index == 0 {
+        x_component = value
+    } else {
+        y_component = value
+    }
+}
+
+func length_squared(): Float {
+    return x_component * x_component + y_component * y_component
+}

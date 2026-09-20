@@ -1,0 +1,5 @@
+var statements = List<Syntax.Statements.Statement>()
+
+func SourceFile(file_statements: List<Syntax.Statements.Statement>) {
+    statements = file_statements
+}

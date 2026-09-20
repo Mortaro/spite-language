@@ -1,0 +1,7 @@
+var condition: Nullable<Syntax.Expressions.Expression> = null
+var body = List<Statement>()
+
+func WhileStatement(while_condition: Syntax.Expressions.Expression, while_body: List<Statement>) {
+    condition = while_condition
+    body = while_body
+}

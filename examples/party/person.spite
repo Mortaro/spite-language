@@ -1,0 +1,17 @@
+enum Job = {
+    'knight'
+    'mage'
+    'archer'
+}
+
+var age = 0
+var job: Job = 'knight'
+
+func Person(starting_age: Int, starting_job: Job) {
+    age = starting_age
+    job = starting_job
+}
+
+func is_knight(): Bool {
+    return job == 'knight'
+}

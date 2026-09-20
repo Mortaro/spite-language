@@ -1,0 +1,27 @@
+enum Job = {
+    'knight'
+    'mage'
+    'archer'
+}
+
+var name = "Hero"
+var age = 0
+var health = 100
+var job: Job = 'knight'
+var equipment: Item = Sword("Iron Sword", 12)
+
+func Player() {
+    set_age(20)
+}
+
+func set_attribute(attribute: Symbol, value: attribute.class) {
+    attributes[attribute] = value
+}
+
+func get_attribute(attribute: Symbol): attribute.class {
+    return attributes[attribute]
+}
+
+func greet(): String {
+    return name
+}

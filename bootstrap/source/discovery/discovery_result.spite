@@ -1,0 +1,11 @@
+var class_files = List<DiscoveredClass>()
+var entry_mangled_name = ""
+var has_error = false
+var error_message = ""
+
+func DiscoveryResult(result_class_files: List<DiscoveredClass>, result_entry_mangled_name: String, result_has_error: Bool, result_error_message: String) {
+    class_files = result_class_files
+    entry_mangled_name = result_entry_mangled_name
+    has_error = result_has_error
+    error_message = result_error_message
+}

@@ -1,0 +1,18 @@
+var console = Console()
+
+func AssertDefault() {
+    console.print(safe_divide(10, 2))
+    console.print(safe_divide(10, 0))
+    console.print(clamp_positive(-5))
+    console.print(clamp_positive(5))
+}
+
+func safe_divide(numerator: Int, denominator: Int): Int {
+    assert denominator != 0
+    return numerator / denominator
+}
+
+func clamp_positive(value: Int): Int {
+    assert value > 0
+    return value
+}

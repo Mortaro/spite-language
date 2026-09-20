@@ -1,0 +1,40 @@
+var console = Console()
+
+func Arithmetic() {
+    var sum = add(3, 4)
+    console.print(sum)
+    var difference = 10 - 3
+    console.print(difference)
+    var product = 6 * 7
+    console.print(product)
+    var quotient = 20 / 4
+    console.print(quotient)
+    var remainder = 17 % 5
+    console.print(remainder)
+
+    var value: Double = 3.75
+    var truncated: Int = value
+    console.print(truncated)
+
+    var count = 0
+    console.print(count)
+    var widened: Long = 2000000000
+    widened = widened + 2000000000
+    console.print(widened)
+
+    console.print(negate(5))
+    console.print(is_positive(4))
+    console.print(is_positive(-4))
+}
+
+func add(left: Int, right: Int): Int {
+    return left + right
+}
+
+func negate(value: Int): Int {
+    return -value
+}
+
+func is_positive(value: Int): Bool {
+    return value > 0
+}

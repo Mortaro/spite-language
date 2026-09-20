@@ -1,0 +1,11 @@
+union Enemy = {
+    Player
+    Monster
+}
+
+func NonExhaustiveSwitch() {
+    var enemy: Enemy = Player(1)
+    switch enemy {
+        Player: enemy.hurt()
+    }
+}

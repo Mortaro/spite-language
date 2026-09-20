@@ -1,0 +1,5 @@
+var kind: NumericKind = 'integer_kind'
+
+func ScalarType(starting_kind: NumericKind) {
+    kind = starting_kind
+}

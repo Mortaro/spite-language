@@ -1,0 +1,17 @@
+enum State = {
+    'hungry'
+    'full'
+}
+
+var state: State = 'hungry'
+
+func Pet(starting_state: State) {
+    state = starting_state
+}
+
+func report(): String {
+    if state == 'hungry' {
+        return "pet is hungry"
+    }
+    return "pet is " + state
+}

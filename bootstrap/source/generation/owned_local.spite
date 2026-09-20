@@ -1,0 +1,13 @@
+var name = ""
+var spite_type: Nullable<Analysis.SpiteType> = null
+
+func OwnedLocal(starting_name: String, starting_spite_type: Analysis.SpiteType) {
+    name = starting_name
+    spite_type = starting_spite_type
+}
+
+func get_type(): Analysis.SpiteType {
+    var value = spite_type
+    assert value
+    return value
+}

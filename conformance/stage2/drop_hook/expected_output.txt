@@ -1,0 +1,4 @@
+before
+using file handle
+dropping file handle
+after

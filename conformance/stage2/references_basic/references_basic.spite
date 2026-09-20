@@ -1,0 +1,12 @@
+var console = Console()
+var name = "first"
+
+func ReferencesBasic() {
+    console.print(name)
+    name = "second"
+    console.print(name)
+    var alias = name
+    name = "third"
+    console.print(alias)
+    console.print(name)
+}

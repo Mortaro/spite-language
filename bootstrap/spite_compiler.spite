@@ -1,0 +1,207 @@
+var console = Console()
+
+func SpiteCompiler(arguments: Arguments) {
+    load("source")
+
+    var file_argument = arguments.file
+    assert file_argument
+    var mode_argument = arguments.mode
+    assert mode_argument
+
+    var program_file = File(file_argument)
+    var content = program_file.read()
+    assert content
+
+    if mode_argument == "tokens" {
+        run_tokens_mode(content)
+        return
+    }
+
+    if mode_argument == "tree" {
+        run_tree_mode(file_argument, content)
+        return
+    }
+
+    if mode_argument == "c" {
+        run_c_mode(file_argument, content)
+        return
+    }
+
+    if mode_argument == "build" {
+        var output_argument = arguments.output
+        assert output_argument
+        run_build_mode(file_argument, content, output_argument, has_debug_memory_flag(arguments))
+        return
+    }
+
+    if mode_argument == "run" {
+        run_run_mode(file_argument, content, has_debug_memory_flag(arguments))
+        return
+    }
+
+    console.error("unknown --mode '" + mode_argument + "' (expected 'tokens', 'tree', 'c', 'build' or 'run')")
+    var program = Program()
+    program.exit(1)
+}
+
+func has_debug_memory_flag(arguments: Arguments): Bool {
+    var debug_memory_argument = arguments.debug_memory
+    if debug_memory_argument {
+        return debug_memory_argument == "true"
+    }
+    return false
+}
+
+func generate_c_or_report(file_argument: String, content: String): Nullable<String> {
+    var discovery = Discovery.ProgramDiscovery().discover(file_argument, content)
+    if discovery.has_error {
+        console.error(discovery.error_message)
+        return null
+    }
+    var runtime_header = read_runtime_header()
+    assert runtime_header
+    var system_structs = File("runtime/system_structs.h").read()
+    assert system_structs
+    var system_prototypes = File("runtime/system_prototypes.h").read()
+    assert system_prototypes
+    var system_bodies = File("runtime/system_bodies.h").read()
+    assert system_bodies
+    var generator = Generation.Generator()
+    var code = generator.generate(discovery, runtime_header, system_structs, system_prototypes, system_bodies)
+    if generator.has_error {
+        console.error(generator.error_message)
+        return null
+    }
+    return code
+}
+
+func read_runtime_header(): Nullable<String> {
+    var header_file = File("runtime/spite_runtime.h")
+    return header_file.read()
+}
+
+func run_c_mode(file_argument: String, content: String) {
+    var code = generate_c_or_report(file_argument, content)
+    if code {
+        console.write(code)
+        return
+    }
+    var program = Program()
+    program.exit(1)
+}
+
+func computed_class_name(file_argument: String): String {
+    var segments = file_argument.split("/")
+    var basename = segments.last()
+    var stem = basename
+    if basename.ends_with(".spite") {
+        stem = basename.slice(0, basename.length() - 6)
+    }
+    return pascal_case_class_name(stem)
+}
+
+func pascal_case_class_name(snake: String): String {
+    var result = ""
+    var capitalize_next = true
+    var index = 0
+    while index < snake.length() {
+        var character = snake.character_at(index)
+        if character == "_" {
+            capitalize_next = true
+        } else if capitalize_next {
+            result = result + character.upper()
+            capitalize_next = false
+        } else {
+            result = result + character
+        }
+        index = index + 1
+    }
+    return result
+}
+
+func build_to_path(file_argument: String, content: String, output_path: String, debug_memory: Bool): Bool {
+    var code = generate_c_or_report(file_argument, content)
+    assert code
+    var directory = Directory(".spite-cache")
+    directory.create()
+    var class_name = computed_class_name(file_argument)
+    var c_path = ".spite-cache/" + class_name + "_gen1.c"
+    var c_file = File(c_path)
+    var wrote = c_file.write(code)
+    assert wrote
+
+    var process_arguments = List<String>()
+    process_arguments.append("cc")
+    process_arguments.append("-O0")
+    process_arguments.append("-Wno-parentheses-equality")
+    if debug_memory {
+        process_arguments.append("-DSPITE_DEBUG_MEMORY")
+    }
+    process_arguments.append(c_path)
+    process_arguments.append("-o")
+    process_arguments.append(output_path)
+    var process = Process("cc", process_arguments)
+    var exit_code = process.run()
+    if exit_code != 0 {
+        console.error(process.output())
+        return false
+    }
+    return true
+}
+
+func run_build_mode(file_argument: String, content: String, output_path: String, debug_memory: Bool) {
+    var built = build_to_path(file_argument, content, output_path, debug_memory)
+    if not built {
+        var program = Program()
+        program.exit(1)
+    }
+}
+
+func run_run_mode(file_argument: String, content: String, debug_memory: Bool) {
+    var output_path = ".spite-cache/" + computed_class_name(file_argument) + "_gen1.exe"
+    var built = build_to_path(file_argument, content, output_path, debug_memory)
+    if not built {
+        var program = Program()
+        program.exit(1)
+        return
+    }
+    var no_arguments = List<String>()
+    var runner = Process(output_path.replace("/", "\\"), no_arguments)
+    var exit_code = runner.run()
+    console.write(runner.output())
+    var program = Program()
+    program.exit(exit_code)
+}
+
+func run_tokens_mode(content: String) {
+    var lexer = Syntax.Lexer(content)
+    print_tokens(lexer.tokens)
+    if lexer.has_error {
+        var program = Program()
+        program.exit(1)
+    }
+}
+
+func run_tree_mode(file_argument: String, content: String) {
+    var parser = Syntax.Parser(Syntax.Lexer(content).tokens)
+    var file = parser.parse_file()
+    if parser.has_error {
+        console.error(
+            file_argument + ":" + parser.error_line + ":" + parser.error_column + ": error: " + parser.error_message,
+        )
+        var program = Program()
+        program.exit(1)
+        return
+    }
+    var printer = Syntax.Printer()
+    printer.print_file(file)
+}
+
+func print_tokens(tokens: List<Syntax.Token>) {
+    var index = 0
+    while index < tokens.count() {
+        var token = tokens[index]
+        console.print("" + token.line + ":" + token.column + " " + token.kind_text() + " '" + token.lexeme + "'")
+        index = index + 1
+    }
+}

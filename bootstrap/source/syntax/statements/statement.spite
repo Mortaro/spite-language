@@ -1,0 +1,15 @@
+union Statement = {
+    Syntax.Statements.GenericsDeclaration
+    Syntax.Statements.VariableDeclaration
+    Syntax.Statements.FunctionDeclaration
+    Syntax.Statements.TypeDeclaration
+    Syntax.Statements.EnumDeclaration
+    Syntax.Statements.UnionDeclaration
+    Syntax.Statements.AssignmentStatement
+    Syntax.Statements.IfStatement
+    Syntax.Statements.WhileStatement
+    Syntax.Statements.SwitchStatement
+    Syntax.Statements.AssertStatement
+    Syntax.Statements.ReturnStatement
+    Syntax.Statements.ExpressionStatement
+}

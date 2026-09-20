@@ -1,0 +1,20 @@
+var console = Console()
+
+func Arsenal(arguments: Arguments) {
+    var sword = Weapon<Int, true>(10)
+    sword.hit()
+
+    if $environment == "server" {
+        console.print("environment is server")
+    } else {
+        console.print("environment is not server")
+    }
+
+    var player = arguments.player
+    if player {
+        console.print("player", player)
+    }
+
+    console.print("argument count", arguments.count())
+    console.print("first argument", arguments.get(0))
+}

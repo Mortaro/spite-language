@@ -1,0 +1,58 @@
+union Shape = {
+    Circle
+    Square
+}
+
+var console = Console()
+var shapes = List<Shape>()
+var favorite: Nullable<Shape> = null
+
+func Unions() {
+    shapes.append(Circle(2))
+    shapes.append(Square(3))
+    var index = 0
+    while index < shapes.count() {
+        console.print(describe(shapes[index]), shapes[index].area(), shapes[index].name)
+        index = index + 1
+    }
+    var shape: Shape = Square(4)
+    grow(shape)
+    console.print(describe(shape))
+    favorite = shape
+    var current = favorite
+    if current {
+        console.print("favorite", current.area())
+    }
+    console.print(pick(true).name, pick(false).name)
+    var lookup = Dictionary<Shape>()
+    lookup.set("round", Circle(1))
+    var found = lookup.get("round")
+    if found {
+        console.print(describe(found))
+    }
+    console.print("done")
+}
+
+func describe(shape: Shape): String {
+    switch shape {
+        Circle: return "circle of radius " + shape.radius
+        Square: {
+            var side = shape.side
+            return "square of side " + side
+        }
+    }
+}
+
+func grow(shape: Shape) {
+    switch shape {
+        Circle: shape.radius = shape.radius * 2
+        Square: shape.side = shape.side * 2
+    }
+}
+
+func pick(round: Bool): Shape {
+    if round {
+        return Circle(9)
+    }
+    return Square(9)
+}

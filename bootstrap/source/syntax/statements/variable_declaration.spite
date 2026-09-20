@@ -1,0 +1,9 @@
+var name = ""
+var type_reference: Nullable<Syntax.Types.Type> = null
+var value: Nullable<Syntax.Expressions.Expression> = null
+
+func VariableDeclaration(declaration_name: String, declaration_type: Nullable<Syntax.Types.Type>, declaration_value: Syntax.Expressions.Expression) {
+    name = declaration_name
+    type_reference = declaration_type
+    value = declaration_value
+}

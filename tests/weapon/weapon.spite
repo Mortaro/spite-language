@@ -1,0 +1,13 @@
+generics $damage_type, $is_magic
+
+var damage: $damage_type = null
+
+func set_damage(damage: $damage_type) { }
+
+func hit() {
+    if $is_magic {
+        return 1
+    } else {
+        return 2
+    }
+}

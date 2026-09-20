@@ -1,0 +1,14 @@
+var value = 0
+var label: Nullable<Label> = null
+var tracker: Nullable<Tracker> = null
+
+func Box(text: String) {
+    value = 0
+    label = Label(text)
+}
+
+func drop() {
+    var live_tracker = tracker
+    assert live_tracker
+    live_tracker.bump()
+}

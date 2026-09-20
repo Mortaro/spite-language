@@ -1,0 +1,16 @@
+var console = Console()
+var name = ""
+var age = 0
+
+func Person(starting_name: String, starting_age: Int) {
+    name = starting_name
+    age = starting_age
+}
+
+func introduce() {
+    console.print(name + " is " + age)
+}
+
+func have_birthday() {
+    age = age + 1
+}

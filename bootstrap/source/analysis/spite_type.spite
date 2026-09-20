@@ -1,0 +1,13 @@
+union SpiteType = {
+    Analysis.Types.ScalarType
+    Analysis.Types.StringType
+    Analysis.Types.ClassRefType
+    Analysis.Types.NullableType
+    Analysis.Types.VoidType
+    Analysis.Types.ConsoleType
+    Analysis.Types.EnumType
+    Analysis.Types.ListType
+    Analysis.Types.DictionaryType
+    Analysis.Types.UnionType
+    Analysis.Types.ArgumentsType
+}

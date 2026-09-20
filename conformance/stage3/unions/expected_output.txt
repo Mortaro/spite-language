@@ -1,0 +1,7 @@
+circle of radius 2 12 circle
+square of side 3 9 square
+square of side 8
+favorite 64
+circle square
+circle of radius 1
+done

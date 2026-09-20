@@ -1,0 +1,42 @@
+var c_name = ""
+var simple_name = ""
+var namespace_dotted = ""
+var qualified_dotted = ""
+var class_id = 0
+var is_builtin = false
+var fields = List<FieldInfo>()
+var functions = List<FunctionInfo>()
+var constructor: Nullable<FunctionInfo> = null
+var drop_function: Nullable<FunctionInfo> = null
+
+func ClassInfo(starting_c_name: String, starting_simple_name: String, starting_namespace_dotted: String, starting_qualified_dotted: String, starting_class_id: Int) {
+    c_name = starting_c_name
+    simple_name = starting_simple_name
+    namespace_dotted = starting_namespace_dotted
+    qualified_dotted = starting_qualified_dotted
+    class_id = starting_class_id
+}
+
+func find_field(name: String): Nullable<FieldInfo> {
+    var index = 0
+    while index < fields.count() {
+        var field = fields[index]
+        if field.name == name {
+            return field
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func find_function(name: String): Nullable<FunctionInfo> {
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if function.name == name {
+            return function
+        }
+        index = index + 1
+    }
+    return null
+}

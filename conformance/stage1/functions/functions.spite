@@ -1,0 +1,35 @@
+var console = Console()
+
+func Functions() {
+    console.print(fibonacci(10))
+    console.print(factorial(5))
+    print_range(3)
+}
+
+func fibonacci(count: Int): Int {
+    var previous = 0
+    var current = 1
+    var index = 0
+    while index < count {
+        var next = previous + current
+        previous = current
+        current = next
+        index = index + 1
+    }
+    return previous
+}
+
+func factorial(value: Int): Int {
+    if value <= 1 {
+        return 1
+    }
+    return value * factorial(value - 1)
+}
+
+func print_range(count: Int) {
+    var index = 0
+    while index < count {
+        console.print("range " + index)
+        index = index + 1
+    }
+}

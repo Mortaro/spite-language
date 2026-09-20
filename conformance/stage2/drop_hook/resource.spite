@@ -1,0 +1,10 @@
+var console = Console()
+var label = ""
+
+func Resource(starting_label: String) {
+    label = starting_label
+}
+
+func drop() {
+    console.print("dropping " + label)
+}

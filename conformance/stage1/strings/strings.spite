@@ -1,0 +1,18 @@
+var console = Console()
+
+func Strings() {
+    var name = "world"
+    console.print("Hello, " + name + "!")
+    var greeting = greet(name)
+    console.print(greeting)
+    console.print("a" == "a")
+    console.print("a" == "b")
+    console.print("a" != "b")
+    console.print("a" < "b")
+    console.print("b" > "a")
+    console.print("escaped: \"quoted\" and \\backslash\\ and \ttab")
+}
+
+func greet(name: String): String {
+    return "Hi, " + name + "!"
+}

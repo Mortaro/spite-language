@@ -1,0 +1,29 @@
+var age = 0
+var nickname = ""
+
+func Person(starting_age: Int, starting_nickname: String) {
+    age = starting_age
+    nickname = starting_nickname
+}
+
+# `age` is intercepted through Symbol codegen (manual.md section 5's
+# Operators table): no exact `set_age`/`get_age` function exists, so
+# `person.age = ...`/`person.age` (from outside this class) answer through
+# these templates instead.
+func set_attribute(attribute: Symbol, value: attribute.class) {
+    attributes[attribute] = value
+}
+
+func get_attribute(attribute: Symbol): attribute.class {
+    return attributes[attribute]
+}
+
+# `nickname` is intercepted through an exact function instead (uppercased on
+# the way in), which always wins over Symbol codegen.
+func set_nickname(new_nickname: String) {
+    nickname = new_nickname.upper()
+}
+
+func get_nickname(): String {
+    return nickname
+}

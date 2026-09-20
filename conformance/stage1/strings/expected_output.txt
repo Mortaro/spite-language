@@ -1,0 +1,8 @@
+Hello, world!
+Hi, world!
+true
+false
+true
+true
+true
+escaped: "quoted" and \backslash\ and 	tab

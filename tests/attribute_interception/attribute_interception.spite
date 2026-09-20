@@ -1,0 +1,16 @@
+var console = Console()
+
+func AttributeInterception() {
+    var person = Person(10, "ann")
+
+    # `person.age = person.age + 1` (manual.md section 5's Operators table):
+    # both the read and the write go through Symbol codegen
+    # (`get_age`/`set_age`, answered by `get_attribute`/`set_attribute`).
+    person.age = person.age + 1
+    console.print("age", person.age)
+
+    # `nickname` goes through an exact `set_nickname`/`get_nickname`
+    # instead, which always wins over Symbol codegen.
+    person.nickname = "bob"
+    console.print("nickname", person.nickname)
+}

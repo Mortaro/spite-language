@@ -1,0 +1,13 @@
+var name = ""
+var spite_type: Nullable<SpiteType> = null
+
+func ParamInfo(starting_name: String, starting_spite_type: SpiteType) {
+    name = starting_name
+    spite_type = starting_spite_type
+}
+
+func get_type(): SpiteType {
+    var value = spite_type
+    assert value
+    return value
+}

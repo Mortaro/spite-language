@@ -1,0 +1,9 @@
+var callee: Nullable<Expression> = null
+var type_arguments = List<Syntax.Types.GenericArgument>()
+var arguments = List<Expression>()
+
+func GenericCallExpression(callee_expression: Expression, call_type_arguments: List<Syntax.Types.GenericArgument>, call_arguments: List<Expression>) {
+    callee = callee_expression
+    type_arguments = call_type_arguments
+    arguments = call_arguments
+}

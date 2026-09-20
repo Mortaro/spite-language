@@ -1,0 +1,18 @@
+var left: Nullable<Node> = null
+var right: Nullable<Node> = null
+
+func Branch(left_node: Node, right_node: Node) {
+    left = (left_node)
+    right = (right_node)
+}
+
+func total(): Int {
+    var sum = 0
+    if left {
+        sum = sum + left.total()
+    }
+    if right {
+        sum = sum + right.total()
+    }
+    return sum
+}

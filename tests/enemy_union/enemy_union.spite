@@ -1,0 +1,12 @@
+union Enemy = {
+    Player
+    Monster
+}
+
+func attack(enemy: Enemy): Bool {
+    switch enemy {
+        Player: enemy.hurt()
+        Monster: enemy.die()
+    }
+    return enemy.is_alive()
+}

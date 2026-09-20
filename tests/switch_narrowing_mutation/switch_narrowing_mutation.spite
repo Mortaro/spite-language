@@ -1,0 +1,15 @@
+union Enemy = {
+    Player
+    Monster
+}
+
+var console = Console()
+
+func SwitchNarrowingMutation() {
+    var enemy: Enemy = Player(10)
+    switch enemy {
+        Player: enemy.hurt(3)
+        Monster: enemy.hurt(3)
+    }
+    console.print(enemy.health)
+}

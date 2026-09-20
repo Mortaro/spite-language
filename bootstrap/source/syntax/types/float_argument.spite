@@ -1,0 +1,5 @@
+var value: Double = 0.0
+
+func FloatArgument(starting_value: Double) {
+    value = starting_value
+}

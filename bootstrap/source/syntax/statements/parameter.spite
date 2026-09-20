@@ -1,0 +1,7 @@
+var name = ""
+var type_reference: Nullable<Syntax.Types.Type> = null
+
+func Parameter(parameter_name: String, parameter_type: Syntax.Types.Type) {
+    name = parameter_name
+    type_reference = parameter_type
+}

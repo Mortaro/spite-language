@@ -1,0 +1,15 @@
+var name = "Monster"
+var health = 10
+
+func Monster(new_name: String, new_health: Int) {
+    name = new_name
+    health = new_health
+}
+
+func roar(): String {
+    return name + " roars!"
+}
+
+func is_alive(): Bool {
+    return health > 0
+}

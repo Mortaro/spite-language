@@ -1,0 +1,20 @@
+var console = Console()
+var greeting = "Hello, Spite!"
+var count = 0
+
+func Hello() {
+    console.print(greeting)
+    count = add_stuff(3, 2.5)
+    console.print("sum", count)
+    count = check(count)
+    console.print("checked", count)
+}
+
+func add_stuff(first_value: Int, second_value: Float): Int {
+    return first_value + second_value
+}
+
+func check(value: Int): Int {
+    assert value > 100
+    return value
+}

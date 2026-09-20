@@ -1,0 +1,7 @@
+var name = ""
+var value: Nullable<Expression> = null
+
+func ObjectField(field_name: String, field_value: Expression) {
+    name = field_name
+    value = field_value
+}

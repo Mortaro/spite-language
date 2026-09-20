@@ -1,0 +1,14 @@
+var console = Console()
+
+func Temporaries() {
+    console.print("a" + "b" + "c" + "d")
+    console.print(make_greeting("world"))
+    console.print(Wrapper(Inner("deep")).unwrap_label())
+    var first = Wrapper(Inner("first")).label()
+    var second = Wrapper(Inner("second")).label()
+    console.print(first + " and " + second)
+}
+
+func make_greeting(name: String): String {
+    return "hello, " + name
+}

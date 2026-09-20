@@ -1,0 +1,5 @@
+var inner: Nullable<Type> = null
+
+func ReferenceType(inner_type: Type) {
+    inner = inner_type
+}

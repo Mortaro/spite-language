@@ -1,0 +1,15 @@
+# Build caches and outputs. Nothing here is source; all of it regenerates.
+.spite-cache/
+
+# Compiled programs and debug symbols, wherever they land.
+*.exe
+*.pdb
+*.obj
+*.o
+*.lib
+*.ilk
+
+# Generated C from a manual --emit-c run at the repository root.
+# bootstrap/seed/spite_compiler.c is NOT ignored: it is the committed fixpoint.
+/next.c
+/gen*.c

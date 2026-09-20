@@ -1,0 +1,7 @@
+var name = ""
+var members = List<Syntax.Types.Type>()
+
+func UnionDeclaration(declaration_name: String, declaration_members: List<Syntax.Types.Type>) {
+    name = declaration_name
+    members = declaration_members
+}

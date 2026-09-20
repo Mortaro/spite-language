@@ -1,0 +1,18 @@
+var console = Console()
+
+func Recursion() {
+    var tree: Node = Branch(Branch(Leaf(1), Leaf(2)), Leaf(3))
+    console.print("total", tree.total())
+
+    var items = List<Node>()
+    items.append((Leaf(10)))
+    items.append((Branch(Leaf(4), Leaf(5))))
+    var accumulated = 0
+    var index = 0
+    while index < items.count() {
+        var item = items[index]
+        accumulated = accumulated + item.total()
+        index = index + 1
+    }
+    console.print("accumulated", accumulated)
+}

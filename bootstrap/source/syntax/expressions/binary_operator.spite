@@ -1,0 +1,15 @@
+enum BinaryOperator = {
+    'add'
+    'subtract'
+    'multiply'
+    'divide'
+    'modulo'
+    'equal'
+    'not_equal'
+    'less'
+    'less_equal'
+    'greater'
+    'greater_equal'
+    'logical_and'
+    'logical_or'
+}

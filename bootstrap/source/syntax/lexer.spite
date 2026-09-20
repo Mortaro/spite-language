@@ -1,0 +1,424 @@
+var source = ""
+var tokens = List<Token>()
+var index = 0
+var line = 1
+var column = 1
+var paren_depth = 0
+var has_error = false
+
+func Lexer(starting_source: String) {
+    source = starting_source
+    run()
+}
+
+func run() {
+    var finished = false
+    while not finished {
+        finished = scan_one()
+    }
+}
+
+func at_end(): Bool {
+    return index >= source.length()
+}
+
+func current_code(): Int {
+    return source.code_at(index)
+}
+
+func peek_code(offset: Int): Int {
+    return source.code_at(index + offset)
+}
+
+func advance_character(): Int {
+    var code = source.code_at(index)
+    index = index + 1
+    if code == 10 {
+        line = line + 1
+        column = 1
+    } else {
+        column = column + 1
+    }
+    return code
+}
+
+func push_token(kind: TokenKind, lexeme: String, text: String, token_line: Int, token_column: Int) {
+    tokens.append(Token(kind, lexeme, text, token_line, token_column))
+}
+
+func is_digit(code: Int): Bool {
+    return code >= 48 and code <= 57
+}
+
+func is_identifier_start(code: Int): Bool {
+    return code >= 97 and code <= 122 or code >= 65 and code <= 90 or code == 95
+}
+
+func is_identifier_continue(code: Int): Bool {
+    return is_identifier_start(code) or is_digit(code)
+}
+
+func scan_one(): Bool {
+    if at_end() {
+        push_token('end_of_file', "", "", line, column)
+        return true
+    }
+
+    var code = current_code()
+
+    if code == 35 {
+        return scan_comment()
+    }
+    if code == 13 {
+        advance_character()
+        return false
+    }
+    if code == 10 {
+        return scan_newline()
+    }
+    if code == 32 or code == 9 {
+        advance_character()
+        return false
+    }
+    if is_digit(code) {
+        return scan_number()
+    }
+    if is_identifier_start(code) {
+        return scan_identifier()
+    }
+    if code == 34 {
+        return scan_quoted(34, 'string_literal')
+    }
+    if code == 39 {
+        return scan_quoted(39, 'enum_literal')
+    }
+    if code == 36 {
+        return scan_generic_identifier()
+    }
+    return scan_operator()
+}
+
+func scan_newline(): Bool {
+    var token_line = line
+    var token_column = column
+    advance_character()
+    if paren_depth == 0 {
+        var last_is_newline = tokens.is_empty()
+        if not last_is_newline {
+            if tokens.last().kind == 'newline' {
+                last_is_newline = true
+            }
+        }
+        if not last_is_newline {
+            push_token('newline', "\n", "\n", token_line, token_column)
+        }
+    }
+    return false
+}
+
+func scan_comment(): Bool {
+    var token_line = line
+    var token_column = column
+    var start_index = index
+    advance_character()
+    var text_start = index
+    var stopped = false
+    while not at_end() and not stopped {
+        if current_code() == 10 {
+            stopped = true
+        } else {
+            advance_character()
+        }
+    }
+    var text = source.slice(text_start, index)
+    var lexeme = source.slice(start_index, index)
+    push_token('comment', lexeme, text, token_line, token_column)
+    return false
+}
+
+func scan_number(): Bool {
+    var start_index = index
+    var token_line = line
+    var token_column = column
+    while not at_end() and is_digit(current_code()) {
+        advance_character()
+    }
+    var is_float = false
+    if current_code() == 46 and is_digit(peek_code(1)) {
+        is_float = true
+        advance_character()
+        while not at_end() and is_digit(current_code()) {
+            advance_character()
+        }
+    }
+    if is_float {
+        push_token(
+            'float_literal',
+            source.slice(start_index, index),
+            source.slice(start_index, index),
+            token_line,
+            token_column,
+        )
+    } else {
+        push_token(
+            'integer_literal',
+            source.slice(start_index, index),
+            source.slice(start_index, index),
+            token_line,
+            token_column,
+        )
+    }
+    return false
+}
+
+func scan_identifier(): Bool {
+    var start_index = index
+    var token_line = line
+    var token_column = column
+    while not at_end() and is_identifier_continue(current_code()) {
+        advance_character()
+    }
+    var kind = keyword_kind(source.slice(start_index, index))
+    push_token(kind, source.slice(start_index, index), source.slice(start_index, index), token_line, token_column)
+    return false
+}
+
+func keyword_kind(text: String): TokenKind {
+    if text == "var" {
+        return 'variable_keyword'
+    }
+    if text == "func" {
+        return 'function_keyword'
+    }
+    if text == "return" {
+        return 'keyword_return'
+    }
+    if text == "if" {
+        return 'keyword_if'
+    }
+    if text == "else" {
+        return 'keyword_else'
+    }
+    if text == "while" {
+        return 'keyword_while'
+    }
+    if text == "switch" {
+        return 'keyword_switch'
+    }
+    if text == "type" {
+        return 'keyword_type'
+    }
+    if text == "enum" {
+        return 'keyword_enum'
+    }
+    if text == "union" {
+        return 'keyword_union'
+    }
+    if text == "generics" {
+        return 'keyword_generics'
+    }
+    if text == "assert" {
+        return 'keyword_assert'
+    }
+    if text == "and" {
+        return 'keyword_and'
+    }
+    if text == "or" {
+        return 'keyword_or'
+    }
+    if text == "not" {
+        return 'keyword_not'
+    }
+    if text == "null" {
+        return 'keyword_null'
+    }
+    if text == "true" {
+        return 'keyword_true'
+    }
+    if text == "false" {
+        return 'keyword_false'
+    }
+    return 'identifier'
+}
+
+func scan_generic_identifier(): Bool {
+    var start_index = index
+    var token_line = line
+    var token_column = column
+    advance_character()
+    var name_start = index
+    while not at_end() and is_identifier_continue(current_code()) {
+        advance_character()
+    }
+    if index == name_start {
+        push_token('invalid', source.slice(start_index, index), "", token_line, token_column)
+        has_error = true
+        return false
+    }
+    var lexeme = source.slice(start_index, index)
+    var name = source.slice(name_start, index)
+    push_token('generic_identifier', lexeme, name, token_line, token_column)
+    return false
+}
+
+func decode_escape(escaped_character: String): String {
+    if escaped_character == "n" {
+        return "\n"
+    }
+    if escaped_character == "t" {
+        return "\t"
+    }
+    if escaped_character == "r" {
+        return "\r"
+    }
+    if escaped_character == "\\" {
+        return "\\"
+    }
+    if escaped_character == "\"" {
+        return "\""
+    }
+    if escaped_character == "'" {
+        return "'"
+    }
+    return escaped_character
+}
+
+func scan_quoted(quote_code: Int, kind: TokenKind): Bool {
+    var start_index = index
+    var token_line = line
+    var token_column = column
+    advance_character()
+    var buffer = ""
+    var terminated = false
+    var stopped = false
+    while not at_end() and not stopped {
+        var code = current_code()
+        if code == quote_code {
+            advance_character()
+            terminated = true
+            stopped = true
+        } else if code == 10 {
+            stopped = true
+        } else if code == 92 and index + 1 < source.length() {
+            advance_character()
+            var escaped_character = source.character_at(index)
+            advance_character()
+            buffer = buffer + decode_escape(escaped_character)
+        } else {
+            buffer = buffer + source.character_at(index)
+            advance_character()
+        }
+    }
+    if not terminated {
+        push_token('invalid', source.slice(start_index, index), "", token_line, token_column)
+        has_error = true
+        return false
+    }
+    var lexeme = source.slice(start_index, index)
+    push_token(kind, lexeme, buffer, token_line, token_column)
+    return false
+}
+
+func scan_operator(): Bool {
+    var token_line = line
+    var token_column = column
+    var start_index = index
+    var code = advance_character()
+
+    if code == 61 and current_code() == 61 {
+        advance_character()
+        push_token(
+            'equal_equal',
+            source.slice(start_index, index),
+            source.slice(start_index, index),
+            token_line,
+            token_column,
+        )
+        return false
+    }
+    if code == 33 and current_code() == 61 {
+        advance_character()
+        push_token(
+            'bang_equal',
+            source.slice(start_index, index),
+            source.slice(start_index, index),
+            token_line,
+            token_column,
+        )
+        return false
+    }
+    if code == 60 and current_code() == 61 {
+        advance_character()
+        push_token(
+            'less_equal',
+            source.slice(start_index, index),
+            source.slice(start_index, index),
+            token_line,
+            token_column,
+        )
+        return false
+    }
+    if code == 62 and current_code() == 61 {
+        advance_character()
+        push_token(
+            'greater_equal',
+            source.slice(start_index, index),
+            source.slice(start_index, index),
+            token_line,
+            token_column,
+        )
+        return false
+    }
+
+    var kind: TokenKind = 'invalid'
+    var recognized = true
+    if code == 43 {
+        kind = 'plus'
+    } else if code == 45 {
+        kind = 'minus'
+    } else if code == 42 {
+        kind = 'star'
+    } else if code == 47 {
+        kind = 'slash'
+    } else if code == 37 {
+        kind = 'percent'
+    } else if code == 61 {
+        kind = 'equal'
+    } else if code == 60 {
+        kind = 'less'
+    } else if code == 62 {
+        kind = 'greater'
+    } else if code == 46 {
+        kind = 'dot'
+    } else if code == 44 {
+        kind = 'comma'
+    } else if code == 58 {
+        kind = 'colon'
+    } else if code == 38 {
+        kind = 'ampersand'
+    } else if code == 40 {
+        kind = 'left_paren'
+        paren_depth = paren_depth + 1
+    } else if code == 41 {
+        kind = 'right_paren'
+        if paren_depth > 0 {
+            paren_depth = paren_depth - 1
+        }
+    } else if code == 91 {
+        kind = 'left_bracket'
+    } else if code == 93 {
+        kind = 'right_bracket'
+    } else if code == 123 {
+        kind = 'left_brace'
+    } else if code == 125 {
+        kind = 'right_brace'
+    } else {
+        recognized = false
+    }
+
+    if not recognized {
+        has_error = true
+    }
+    push_token(kind, source.slice(start_index, index), source.slice(start_index, index), token_line, token_column)
+    return false
+}

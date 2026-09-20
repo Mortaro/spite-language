@@ -1,0 +1,11 @@
+var inner: Nullable<SpiteType> = null
+
+func NullableType(starting_inner: SpiteType) {
+    inner = starting_inner
+}
+
+func get_inner(): SpiteType {
+    var value = inner
+    assert value
+    return value
+}

@@ -1,0 +1,5 @@
+var value = 0
+
+func Target(starting_value: Int) {
+    value = starting_value
+}

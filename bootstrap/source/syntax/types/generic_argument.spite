@@ -1,0 +1,8 @@
+union GenericArgument = {
+    Syntax.Types.TypeArgument
+    Syntax.Types.IntegerArgument
+    Syntax.Types.FloatArgument
+    Syntax.Types.BoolArgument
+    Syntax.Types.StringArgument
+    Syntax.Types.EnumArgument
+}

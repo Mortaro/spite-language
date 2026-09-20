@@ -1,0 +1,4 @@
+union Node = {
+    Leaf
+    Branch
+}

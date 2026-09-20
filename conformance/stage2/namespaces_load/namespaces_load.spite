@@ -1,0 +1,8 @@
+var console = Console()
+
+func NamespacesLoad() {
+    load("package")
+
+    var widget = Widgets.Widget("gadget", 3)
+    console.print(widget.describe())
+}

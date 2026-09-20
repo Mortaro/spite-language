@@ -1,0 +1,7 @@
+var object: Nullable<Expression> = null
+var index: Nullable<Expression> = null
+
+func IndexExpression(object_expression: Expression, index_expression: Expression) {
+    object = object_expression
+    index = index_expression
+}

@@ -1,0 +1,33 @@
+var console = Console()
+
+func System(arguments: Arguments) {
+    console.print(arguments.count(), arguments.get(3) + "|")
+    var missing = arguments.nothing_here
+    if missing {
+        console.print("unexpected", missing)
+    } else {
+        console.print("no such argument")
+    }
+    var folder = Directory(".spite-cache/conformance_system")
+    console.print(folder.create(), folder.exists())
+    var file = File(".spite-cache/conformance_system/note.txt")
+    console.print(file.write("first line\n"), file.append("second line"), file.exists())
+    report(file)
+    console.print(folder.files().join(","), folder.folders().count())
+    console.print(file.remove(), file.exists())
+    report(file)
+    var process = Process("cc", ["version"])
+    var exit_code = process.run()
+    console.print(exit_code, process.output().trim().is_empty())
+    Program().sleep(1)
+    console.print("done")
+}
+
+func report(file: File) {
+    var content = file.read()
+    if content {
+        console.print(content.lines().count(), content.lines().last())
+    } else {
+        console.print("cannot read")
+    }
+}

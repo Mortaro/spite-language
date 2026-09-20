@@ -1,0 +1,17 @@
+var health = 0
+var weapon = "claws"
+var power = 0
+
+func Monster(starting_health: Int) {
+    health = starting_health
+    weapon = "claws"
+    power = 3
+}
+
+func is_alive(): Bool {
+    return health > 0
+}
+
+func hurt(amount: Int) {
+    health = health - amount
+}

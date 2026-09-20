@@ -1,0 +1,5 @@
+var value = 0.0
+
+func NumberExpression(starting_value: Float) {
+    value = starting_value
+}

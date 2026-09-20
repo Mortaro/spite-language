@@ -1,0 +1,10 @@
+0
+1
+2
+3
+4
+big
+also big
+both true
+at least one true
+flag was true

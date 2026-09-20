@@ -1,0 +1,21 @@
+var name = ""
+var c_name = ""
+var parameters = List<ParamInfo>()
+var return_type: Nullable<SpiteType> = null
+var body = List<Syntax.Statements.Statement>()
+var is_constructor = false
+
+func FunctionInfo(starting_name: String, starting_c_name: String, starting_parameters: List<ParamInfo>, starting_return_type: SpiteType, starting_body: List<Syntax.Statements.Statement>, starting_is_constructor: Bool) {
+    name = starting_name
+    c_name = starting_c_name
+    parameters = starting_parameters
+    return_type = starting_return_type
+    body = starting_body
+    is_constructor = starting_is_constructor
+}
+
+func get_return_type(): SpiteType {
+    var value = return_type
+    assert value
+    return value
+}

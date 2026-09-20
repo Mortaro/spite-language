@@ -1,0 +1,9 @@
+var health = 0
+
+func Player(starting_health: Int) {
+    health = starting_health
+}
+
+func hurt() {
+    health = health - 1
+}

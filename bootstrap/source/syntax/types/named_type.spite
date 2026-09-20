@@ -1,0 +1,7 @@
+var path = List<String>()
+var arguments = List<GenericArgument>()
+
+func NamedType(starting_path: List<String>, starting_arguments: List<GenericArgument>) {
+    path = starting_path
+    arguments = starting_arguments
+}

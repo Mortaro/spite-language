@@ -1,0 +1,18 @@
+var console = Console()
+var name = ""
+var engine: Nullable<Engine> = null
+
+func Car(starting_name: String, starting_engine: Engine) {
+    name = starting_name
+    engine = starting_engine
+}
+
+func accelerate(amount: Int) {
+    assert engine
+    engine.push(amount)
+}
+
+func describe() {
+    assert engine
+    console.print(name + ": " + engine.report())
+}

@@ -1,0 +1,5 @@
+var name = ""
+
+func VariableExpression(starting_name: String) {
+    name = starting_name
+}

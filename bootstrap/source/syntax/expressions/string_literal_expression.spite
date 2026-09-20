@@ -1,0 +1,5 @@
+var value = ""
+
+func StringLiteralExpression(starting_value: String) {
+    value = starting_value
+}

@@ -1,0 +1,20 @@
+enum TokenKind = {
+    'end'
+    'number'
+    'identifier'
+    'plus'
+    'minus'
+    'star'
+    'slash'
+    'left_paren'
+    'right_paren'
+    'equals'
+}
+
+var kind: TokenKind = 'end'
+var text = ""
+
+func Token(starting_kind: TokenKind, starting_text: String) {
+    kind = starting_kind
+    text = starting_text
+}

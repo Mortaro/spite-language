@@ -1,0 +1,17 @@
+var name = ""
+var stars = 0
+var active = false
+
+func Repository(new_name: String, new_stars: Int, new_active: Bool) {
+    name = new_name
+    stars = new_stars
+    active = new_active
+}
+
+func set_attribute(attribute: Symbol, value: attribute.class) {
+    attributes[attribute] = value
+}
+
+func get_attribute(attribute: Symbol): attribute.class {
+    return attributes[attribute]
+}

@@ -1,0 +1,5 @@
+var name = ""
+
+func GenericType(starting_name: String) {
+    name = starting_name
+}

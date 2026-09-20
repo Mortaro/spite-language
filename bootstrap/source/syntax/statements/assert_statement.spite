@@ -1,0 +1,5 @@
+var value: Nullable<Syntax.Expressions.Expression> = null
+
+func AssertStatement(assert_value: Syntax.Expressions.Expression) {
+    value = assert_value
+}

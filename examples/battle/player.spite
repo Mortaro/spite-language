@@ -1,0 +1,19 @@
+var health = 0
+var job = "knight"
+var weapon = "sword"
+var power = 0
+
+func Player(starting_health: Int, starting_job: String) {
+    health = starting_health
+    job = starting_job
+    weapon = "sword"
+    power = 5
+}
+
+func is_alive(): Bool {
+    return health > 0
+}
+
+func hurt(amount: Int) {
+    health = health - amount
+}

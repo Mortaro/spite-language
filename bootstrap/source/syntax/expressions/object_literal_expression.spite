@@ -1,0 +1,5 @@
+var fields = List<ObjectField>()
+
+func ObjectLiteralExpression(starting_fields: List<ObjectField>) {
+    fields = starting_fields
+}

@@ -1,0 +1,49 @@
+var console = Console()
+var ages = Dictionary<Int>()
+var labels = Dictionary<String>()
+
+func Dictionaries() {
+    ages.set("ada", 36)
+    ages.set("grace", 85)
+    ages["alan"] = 41
+    ages.set("ada", 37)
+    console.print(ages.count(), ages.has("ada"), ages.has("bob"), ages["ada"], ages["bob"])
+    var found = ages.get("grace")
+    if found {
+        console.print("grace is", found)
+    }
+    var missing = ages.get("nobody")
+    if missing {
+        console.print("unexpected")
+    } else {
+        console.print("nobody is missing")
+    }
+    ages.remove("grace")
+    console.print(ages.keys().join(","), ages.count())
+    var values = ages.values()
+    console.print(values.count(), values[0] + values[1])
+
+    labels.set("x" + 1, "first" + 1)
+    labels["y"] = "second"
+    console.print(labels["x1"], labels["y"], labels["z"] + "|", labels.keys().count())
+    console.print(lookup("y"), lookup("q"))
+
+    var pets = Dictionary<Animal>()
+    pets.set("rex", Animal("dog"))
+    pets.set("tom", Animal("cat"))
+    var rex = pets.get("rex")
+    if rex {
+        console.print(rex.kind)
+    }
+    console.print(pets["tom"].kind, pets.values().count())
+    pets.remove("rex")
+    console.print(pets.count(), pets.has("rex"))
+}
+
+func lookup(key: String): String {
+    var label = labels.get(key)
+    if label {
+        return "found " + label
+    }
+    return "no " + key
+}

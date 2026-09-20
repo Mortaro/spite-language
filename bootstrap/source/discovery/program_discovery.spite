@@ -1,0 +1,307 @@
+var shape = Analysis.AstShape()
+var class_files = List<DiscoveredClass>()
+var has_error = false
+var error_message = ""
+
+func ProgramDiscovery() { }
+
+func discover(entry_path: String, entry_source: String): DiscoveryResult {
+    var lexer = Syntax.Lexer(entry_source)
+    if lexer.has_error {
+        return failure("could not lex '" + entry_path + "'")
+    }
+    var parser = Syntax.Parser(lexer.tokens)
+    var entry_file = parser.parse_file()
+    if parser.has_error {
+        return failure(entry_path + ":" + parser.error_line + ":" + parser.error_column + ": " + parser.error_message)
+    }
+
+    var entry_directory = directory_of(entry_path)
+    var entry_stem = file_stem(entry_path)
+    var entry_basename = basename(entry_path)
+
+    var load_names = List<String>()
+    scan_top_level_loads(entry_file, load_names)
+
+    var empty_segments = List<String>()
+    add_parsed_file(entry_file, empty_segments, entry_stem)
+
+    walk_directory(entry_directory, empty_segments, entry_basename, load_names)
+    if has_error {
+        return failure(error_message)
+    }
+
+    var root_index = 0
+    while root_index < load_names.count() {
+        var root_name = load_names[root_index]
+        var root_folder = entry_directory + "/" + root_name
+        var root_directory = Directory(root_folder)
+        if not root_directory.exists() {
+            return failure("could not find the folder '" + root_name + "' loaded by " + entry_path)
+        }
+        var no_skip: Nullable<String> = null
+        var no_exclusions = List<String>()
+        walk_directory(root_folder, empty_segments, no_skip, no_exclusions)
+        if has_error {
+            return failure(error_message)
+        }
+        root_index = root_index + 1
+    }
+
+    var entry_mangled_name = mangle_dotted(pascal_case(entry_stem))
+    return DiscoveryResult(class_files, entry_mangled_name, false, "")
+}
+
+func failure(message: String): DiscoveryResult {
+    var empty = List<DiscoveredClass>()
+    return DiscoveryResult(empty, "", true, message)
+}
+
+func walk_directory(root_folder: String, segments: List<String>, skip_basename: Nullable<String>, excluded_top_level: List<String>) {
+    var path = root_folder
+    var index = 0
+    while index < segments.count() {
+        path = path + "/" + segments[index]
+        index = index + 1
+    }
+    var directory = Directory(path)
+    if not directory.exists() {
+        return
+    }
+
+    var files = directory.files()
+    var file_index = 0
+    while file_index < files.count() {
+        var name = files[file_index]
+        if name.ends_with(".spite") {
+            var skip = false
+            if segments.is_empty() {
+                if skip_basename {
+                    if name == skip_basename {
+                        skip = true
+                    }
+                }
+            }
+            if not skip {
+                read_and_add_file(path + "/" + name, segments)
+            }
+        }
+        file_index = file_index + 1
+    }
+
+    var folders = directory.folders()
+    var folder_index = 0
+    while folder_index < folders.count() {
+        var folder_name = folders[folder_index]
+        var excluded = false
+        if segments.is_empty() {
+            excluded = excluded_top_level.contains(folder_name)
+        }
+        if not excluded {
+            var child_segments = copy_segments(segments)
+            child_segments.append(folder_name)
+            walk_directory(root_folder, child_segments, skip_basename, excluded_top_level)
+        }
+        folder_index = folder_index + 1
+    }
+}
+
+func copy_segments(segments: List<String>): List<String> {
+    var result = List<String>()
+    var index = 0
+    while index < segments.count() {
+        result.append(segments[index])
+        index = index + 1
+    }
+    return result
+}
+
+func read_and_add_file(path: String, segments: List<String>) {
+    if has_error {
+        return
+    }
+    var program_file = File(path)
+    var content = program_file.read()
+    if content {
+        var lexer = Syntax.Lexer(content)
+        if lexer.has_error {
+            has_error = true
+            error_message = "could not lex '" + path + "'"
+            return
+        }
+        var parser = Syntax.Parser(lexer.tokens)
+        var parsed_file = parser.parse_file()
+        if parser.has_error {
+            has_error = true
+            error_message = path + ":" + parser.error_line + ":" + parser.error_column + ": " + parser.error_message
+            return
+        }
+        add_parsed_file(parsed_file, segments, file_stem(path))
+    } else {
+        has_error = true
+        error_message = "could not read '" + path + "'"
+    }
+}
+
+func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, stem: String) {
+    var mangled_name = mangle_dotted(compute_qualified(segments, stem))
+    var simple_name = compute_simple_name(segments, stem)
+    var namespace_dotted = compute_namespace(segments, stem)
+    var qualified_dotted = compute_qualified(segments, stem)
+    class_files.append(DiscoveredClass(mangled_name, simple_name, namespace_dotted, qualified_dotted, parsed_file))
+}
+
+func scan_top_level_loads(file: Syntax.SourceFile, found: List<String>) {
+    var index = 0
+    while index < file.statements.count() {
+        var function_declaration = shape.as_function_declaration(file.statements[index])
+        if function_declaration {
+            scan_function_body_loads(function_declaration.body, found)
+        }
+        index = index + 1
+    }
+}
+
+func scan_function_body_loads(statements: List<Syntax.Statements.Statement>, found: List<String>) {
+    var index = 0
+    while index < statements.count() {
+        var expression_statement = shape.as_expression_statement(statements[index])
+        if expression_statement {
+            var value = expression_statement.value
+            assert value
+            add_load_name_if_present(value, found)
+        }
+        index = index + 1
+    }
+}
+
+func add_load_name_if_present(expression: Syntax.Expressions.Expression, found: List<String>) {
+    var call = shape.as_call(expression)
+    assert call
+    var callee = call.callee
+    assert callee
+    var identifier = shape.as_identifier(callee)
+    assert identifier
+    if identifier.name != "load" {
+        return
+    }
+    if call.arguments.count() != 1 {
+        return
+    }
+    var literal = shape.as_string_literal(call.arguments[0])
+    assert literal
+    found.append(literal.value)
+}
+
+func pascal_case(snake: String): String {
+    var result = ""
+    var capitalize_next = true
+    var index = 0
+    while index < snake.length() {
+        var character = snake.character_at(index)
+        if character == "_" {
+            capitalize_next = true
+        } else if capitalize_next {
+            result = result + character.upper()
+            capitalize_next = false
+        } else {
+            result = result + character
+        }
+        index = index + 1
+    }
+    return result
+}
+
+func mangle_dotted(dotted: String): String {
+    return dotted.replace(".", "_")
+}
+
+func pascal_join(segments: List<String>): String {
+    var result = ""
+    var index = 0
+    while index < segments.count() {
+        if index > 0 {
+            result = result + "."
+        }
+        result = result + pascal_case(segments[index])
+        index = index + 1
+    }
+    return result
+}
+
+func compute_namespace(segments: List<String>, stem: String): String {
+    if segments.is_empty() {
+        return ""
+    }
+    var last_segment = segments[segments.count() - 1]
+    if last_segment == stem {
+        return pascal_join(all_but_last(segments))
+    }
+    return pascal_join(segments)
+}
+
+func compute_simple_name(segments: List<String>, stem: String): String {
+    if segments.is_empty() {
+        return pascal_case(stem)
+    }
+    var last_segment = segments[segments.count() - 1]
+    if last_segment == stem {
+        return pascal_case(last_segment)
+    }
+    return pascal_case(stem)
+}
+
+func compute_qualified(segments: List<String>, stem: String): String {
+    if segments.is_empty() {
+        return pascal_case(stem)
+    }
+    var last_segment = segments[segments.count() - 1]
+    if last_segment == stem {
+        return pascal_join(segments)
+    }
+    return pascal_join(segments) + "." + pascal_case(stem)
+}
+
+func all_but_last(segments: List<String>): List<String> {
+    var result = List<String>()
+    var index = 0
+    while index < segments.count() - 1 {
+        result.append(segments[index])
+        index = index + 1
+    }
+    return result
+}
+
+func directory_of(path: String): String {
+    var segments = path.split("/")
+    if segments.count() <= 1 {
+        return "."
+    }
+    return join_with_slash(all_but_last(segments))
+}
+
+func join_with_slash(segments: List<String>): String {
+    var result = ""
+    var index = 0
+    while index < segments.count() {
+        if index > 0 {
+            result = result + "/"
+        }
+        result = result + segments[index]
+        index = index + 1
+    }
+    return result
+}
+
+func basename(path: String): String {
+    var segments = path.split("/")
+    return segments.last()
+}
+
+func file_stem(path: String): String {
+    var base = basename(path)
+    if base.ends_with(".spite") {
+        return base.slice(0, base.length() - 6)
+    }
+    return base
+}

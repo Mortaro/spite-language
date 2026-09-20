@@ -1,0 +1,41 @@
+var typedefs = List<String>()
+var prototypes = List<String>()
+var support_bodies = List<String>()
+var user_bodies = List<String>()
+var main_lines = List<String>()
+
+func CodeBuilder() { }
+
+func add_typedef(line: String) {
+    typedefs.append(line)
+}
+
+func add_prototype(line: String) {
+    prototypes.append(line)
+}
+
+func add_support(line: String) {
+    support_bodies.append(line)
+}
+
+func add_user(line: String) {
+    user_bodies.append(line)
+}
+
+func add_main(line: String) {
+    main_lines.append(line)
+}
+
+func render(): String {
+    var text = ""
+    text = text + typedefs.join("\n") + "\n"
+    text = text + prototypes.join("\n") + "\n"
+    text = text + support_bodies.join("\n") + "\n"
+    text = text + user_bodies.join("\n") + "\n"
+    text = text + "int main(int argument_count, char** argument_values) {\n"
+    text = text + "(void)argument_count; (void)argument_values;\n"
+    text = text + "#ifdef _WIN32\n_setmode(_fileno(stdout), _O_BINARY);\n#endif\n"
+    text = text + main_lines.join("\n") + "\n"
+    text = text + "return 0;\n}\n"
+    return text
+}

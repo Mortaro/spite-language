@@ -1,0 +1,5 @@
+var c_name = ""
+
+func ClassRefType(starting_c_name: String) {
+    c_name = starting_c_name
+}

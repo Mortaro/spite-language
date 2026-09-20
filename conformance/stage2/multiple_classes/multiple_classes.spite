@@ -1,0 +1,9 @@
+var console = Console()
+
+func MultipleClasses() {
+    var engine = Engine(200)
+    var car = Car("Roadster", engine)
+    car.describe()
+    car.accelerate(50)
+    car.describe()
+}

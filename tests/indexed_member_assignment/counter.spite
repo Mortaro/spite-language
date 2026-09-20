@@ -1,0 +1,6 @@
+var name = ""
+var quantity = 0
+
+func Counter(starting_name: String) {
+    name = starting_name
+}

@@ -1,0 +1,12 @@
+var console = Console()
+
+func DropHook() {
+    console.print("before")
+    make_and_drop()
+    console.print("after")
+}
+
+func make_and_drop() {
+    var resource = Resource("file handle")
+    console.print("using " + resource.label)
+}

@@ -1,0 +1,20 @@
+var console = Console()
+var held: Nullable<Box> = null
+
+func NullableNarrowing() {
+    print_box(held)
+    held = Box(42)
+    print_box(held)
+    assert held
+    console.print("box value is " + held.value)
+    held.value = 100
+    console.print("updated to " + held.value)
+}
+
+func print_box(maybe_box: Nullable<Box>) {
+    if maybe_box {
+        console.print("has box " + maybe_box.value)
+    } else {
+        console.print("no box")
+    }
+}

@@ -1,0 +1,7 @@
+var operator: UnaryOperator = 'negate'
+var operand: Nullable<Expression> = null
+
+func UnaryExpression(starting_operator: UnaryOperator, starting_operand: Expression) {
+    operator = starting_operator
+    operand = starting_operand
+}

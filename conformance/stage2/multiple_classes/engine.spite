@@ -1,0 +1,14 @@
+var horsepower = 0
+var speed = 0
+
+func Engine(starting_horsepower: Int) {
+    horsepower = starting_horsepower
+}
+
+func push(amount: Int) {
+    speed = speed + amount
+}
+
+func report(): String {
+    return "" + horsepower + "hp at " + speed + "mph"
+}

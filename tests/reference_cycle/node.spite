@@ -1,0 +1,1 @@
+var next: Nullable<Node> = null

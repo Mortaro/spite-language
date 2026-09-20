@@ -1,0 +1,60 @@
+var console = Console()
+var names = List<String>()
+var scores = [3, 1, 2]
+
+func Lists() {
+    names.append("ada")
+    names.append("grace")
+    names.prepend("alan")
+    console.print(names.count(), names.first(), names.last())
+    console.print(names.join(", "))
+    console.print(names.contains("ada"), names.contains("bob"))
+    names.insert(1, "edsger")
+    names.remove_at(0)
+    console.print(names.join(" "))
+    console.print(names.remove_last(), names.remove_first(), names.count())
+    names[0] = "barbara"
+    console.print(names[0], names[7] + "!")
+    names.clear()
+    console.print(names.is_empty())
+
+    scores.append(10)
+    scores.reverse()
+    console.print(total(scores), scores[0], scores[99])
+    console.print(scores.contains(10), scores.contains(11))
+
+    var items = build_items(3)
+    var index = 0
+    while index < items.count() {
+        console.print(items[index].describe())
+        index = index + 1
+    }
+    items[1].quantity = 50
+    console.print(items[1].describe(), items.last().describe())
+    var holder = Holder()
+    holder.keep(items)
+    holder.keep_one(Item("extra", 9))
+    console.print(holder.items.count(), holder.items.last().name)
+    var words = ["one", "two"]
+    console.print(words.join("+"))
+}
+
+func total(values: List<Int>): Int {
+    var sum = 0
+    var index = 0
+    while index < values.count() {
+        sum = sum + values[index]
+        index = index + 1
+    }
+    return sum
+}
+
+func build_items(count: Int): List<Item> {
+    var result = List<Item>()
+    var index = 0
+    while index < count {
+        result.append(Item("item" + index, index * 2))
+        index = index + 1
+    }
+    return result
+}

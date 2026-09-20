@@ -1,0 +1,44 @@
+union Enemy = {
+    Player
+    Monster
+}
+
+type Loadout = {
+    weapon: String
+    power: Int
+}
+
+var console = Console()
+
+func Battle() {
+    var enemies = List<Enemy>()
+    enemies.append(Player(10, "knight"))
+    enemies.append(Monster(6))
+
+    var index = 0
+    while index < enemies.count() {
+        var enemy = enemies[index]
+        console.print("health", enemy.health, "alive", enemy.is_alive())
+        index = index + 1
+    }
+
+    var duelist: Enemy = Player(10, "knight")
+    switch duelist {
+        Player: duelist.hurt(3)
+        Monster: duelist.hurt(3)
+    }
+    console.print("duelist health", duelist.health)
+
+    var mage = Player(5, "mage")
+    var hero_loadout: Loadout = mage
+    console.print("hero loadout", hero_loadout.weapon, hero_loadout.power)
+
+    var beast = Monster(8)
+    var beast_loadout: Loadout = beast
+    console.print("beast loadout", beast_loadout.weapon, beast_loadout.power)
+
+    var literal_loadout: Loadout = { weapon: "bow", power: 7 }
+    console.print("literal loadout", literal_loadout.weapon, literal_loadout.power)
+
+    console.print("done")
+}

@@ -1,0 +1,5 @@
+var value = ""
+
+func EnumArgument(starting_value: String) {
+    value = starting_value
+}

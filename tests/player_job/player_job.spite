@@ -1,0 +1,11 @@
+enum Job = {
+    'knight'
+    'magician'
+    'archer'
+}
+
+func set_job(player_job: Job) { }
+
+func other_function() {
+    set_job('knight')
+}

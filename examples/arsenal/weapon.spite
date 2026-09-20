@@ -1,0 +1,16 @@
+generics $damage_type, $is_magic
+
+var console = Console()
+var damage: $damage_type = null
+
+func Weapon(new_damage: $damage_type) {
+    damage = new_damage
+}
+
+func hit() {
+    if $is_magic {
+        console.print("magic hit for", damage)
+    } else {
+        console.print("normal hit for", damage)
+    }
+}

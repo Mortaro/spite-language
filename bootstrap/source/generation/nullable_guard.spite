@@ -1,0 +1,17 @@
+var name = ""
+var inner: Nullable<Analysis.SpiteType> = null
+var guard_code = ""
+var override_code = ""
+
+func NullableGuard(starting_name: String, starting_inner: Analysis.SpiteType, starting_guard_code: String, starting_override_code: String) {
+    name = starting_name
+    inner = starting_inner
+    guard_code = starting_guard_code
+    override_code = starting_override_code
+}
+
+func get_inner(): Analysis.SpiteType {
+    var value = inner
+    assert value
+    return value
+}

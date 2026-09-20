@@ -1,0 +1,15 @@
+var name = ""
+var spite_type: Nullable<SpiteType> = null
+var default_value_code = ""
+
+func FieldInfo(starting_name: String, starting_spite_type: SpiteType, starting_default_value_code: String) {
+    name = starting_name
+    spite_type = starting_spite_type
+    default_value_code = starting_default_value_code
+}
+
+func get_type(): SpiteType {
+    var value = spite_type
+    assert value
+    return value
+}

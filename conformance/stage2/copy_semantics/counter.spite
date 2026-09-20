@@ -1,0 +1,13 @@
+var count = 0
+
+func Counter(starting_count: Int) {
+    count = starting_count
+}
+
+func increment() {
+    count = count + 1
+}
+
+func value(): Int {
+    return count
+}

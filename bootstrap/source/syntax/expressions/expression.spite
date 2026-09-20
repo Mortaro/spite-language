@@ -1,0 +1,19 @@
+union Expression = {
+    Syntax.Expressions.NullLiteral
+    Syntax.Expressions.TrueLiteral
+    Syntax.Expressions.FalseLiteral
+    Syntax.Expressions.IntegerLiteral
+    Syntax.Expressions.FloatLiteral
+    Syntax.Expressions.StringLiteralExpression
+    Syntax.Expressions.EnumLiteralExpression
+    Syntax.Expressions.GenericIdentifierExpression
+    Syntax.Expressions.IdentifierExpression
+    Syntax.Expressions.ListLiteralExpression
+    Syntax.Expressions.ObjectLiteralExpression
+    Syntax.Expressions.UnaryExpression
+    Syntax.Expressions.BinaryExpression
+    Syntax.Expressions.CallExpression
+    Syntax.Expressions.GenericCallExpression
+    Syntax.Expressions.MemberExpression
+    Syntax.Expressions.IndexExpression
+}

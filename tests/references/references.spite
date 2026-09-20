@@ -1,0 +1,53 @@
+# D1 (Mortaro, 2026-09-19): reference counting is the default memory
+# model. Replaces the old tests/ownership/ move-tracking stress test with
+# one exercising the new semantics: sharing is visible, copy() isolates,
+# deep_copy() recurses, drop() runs exactly once when the last reference
+# goes, container removal releases, and identity vs content equality.
+var console = Console()
+
+func References() {
+    var original = Box("widget")
+    var alias = original
+    alias.value = 99
+    console.print("shared", alias.value)
+    console.print("original sees mutation through alias", original.value)
+
+    var shallow = original.copy()
+    shallow.value = 5
+    console.print("original after shallow copy mutated", original.value)
+    console.print("shallow copy value", shallow.value)
+
+    var deep = original.deep_copy()
+    var original_label = original.label
+    var deep_label = deep.label
+    assert original_label
+    assert deep_label
+    deep_label.append_marker()
+    console.print("deep copy original label", original_label.text)
+    console.print("deep copy copy label", deep_label.text)
+
+    var same = Box("id")
+    var same_reference = same
+    console.print("identity same", same == same_reference)
+    console.print("identity different", same == Box("id"))
+
+    var text_a = Box("id").label
+    var text_b = Box("id").label
+    assert text_a
+    assert text_b
+    console.print("content equal", text_a.text == text_b.text)
+
+    var tracker = Tracker()
+    var doomed = Box("temporary")
+    doomed.tracker = tracker
+    doomed = Box("replacement")
+    console.print("drop count", tracker.count)
+
+    var items = List<Box>()
+    items.append(Box("a"))
+    items.append(Box("b"))
+    items.remove_at(0)
+    console.print("list after removal count", items.count())
+
+    console.print("done")
+}
