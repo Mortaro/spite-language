@@ -617,7 +617,7 @@ func as_generic_identifier(expression: Syntax.Expressions.Expression): Syntax.Ex
     }
 }
 
-func as_bool_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.BoolArgument? {
+func as_boolean_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.BoolArgument? {
     switch argument {
         Syntax.Types.TypeArgument: return null
         Syntax.Types.IntegerArgument: return null

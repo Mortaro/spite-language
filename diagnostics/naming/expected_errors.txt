@@ -1,0 +1,6 @@
+diagnostics/naming/naming.spite:1: error: the enum 'job_kind' must be written in PascalCase: capitalised words with no underscores (in Naming.)
+diagnostics/naming/naming.spite:1: error: the enum value 'Knight' must be written in snake_case: lowercase words joined by underscores (in Naming.)
+diagnostics/naming/naming.spite:16: error: 'val' abbreviates: write 'value' instead of 'val'. Spite has no abbreviations outside its own keywords (in Naming.)
+diagnostics/naming/naming.spite:16: error: the function 'calcTotal' must be written in snake_case: lowercase words joined by underscores (in Naming.)
+diagnostics/naming/naming.spite:7: error: the attribute 'playerName' must be written in snake_case: lowercase words joined by underscores (in Naming.)
+diagnostics/naming/naming.spite:8: error: 'msg' abbreviates: write 'message' instead of 'msg'. Spite has no abbreviations outside its own keywords (in Naming.)

@@ -430,10 +430,10 @@ func instantiate_generic(template: Analysis.ClassInfo, arguments: List<Syntax.Ty
                 label = label + "_" + type_label(argument_type)
             }
         }
-        var bool_argument = shape.as_bool_argument(argument)
-        if bool_argument {
+        var boolean_argument = shape.as_boolean_argument(argument)
+        if boolean_argument {
             types.append(boolean_type())
-            if bool_argument.value {
+            if boolean_argument.value {
                 codes.append("true")
             } else {
                 codes.append("false")
@@ -520,6 +520,11 @@ func register_unions(entry: Discovery.DiscoveredClass) {
     while statement_index < file.statements.count() {
         var declaration = shape.as_union_declaration(file.statements[statement_index])
         if declaration {
+            current_path = file.path
+            current_line = declaration.line
+            current_owner = entry.qualified_dotted
+            current_function = ""
+            check_type_name(declaration.name, "union")
             unions.append(
                 Analysis.UnionInfo(
                     entry.mangled_name + "_" + declaration.name,
@@ -540,6 +545,12 @@ func register_shapes(entry: Discovery.DiscoveredClass) {
     while statement_index < file.statements.count() {
         var declaration = shape.as_type_declaration(file.statements[statement_index])
         if declaration {
+            current_path = file.path
+            current_line = declaration.line
+            current_owner = entry.qualified_dotted
+            current_function = ""
+            check_type_name(declaration.name, "type")
+
             var information = Analysis.UnionInfo(entry.mangled_name + "_" + declaration.name, declaration.name, entry.qualified_dotted, entry.namespace_dotted, List<Syntax.Types.Type>())
             information.is_shape = true
             information.shape_fields = declaration.fields
@@ -1018,6 +1029,16 @@ func register_enums(entry: Discovery.DiscoveredClass) {
     while statement_index < file.statements.count() {
         var declaration = shape.as_enum_declaration(file.statements[statement_index])
         if declaration {
+            current_path = file.path
+            current_line = declaration.line
+            current_owner = entry.qualified_dotted
+            current_function = ""
+            check_type_name(declaration.name, "enum")
+            var value_index = 0
+            while value_index < declaration.values.count() {
+                check_value_name(declaration.values[value_index], "enum value")
+                value_index = value_index + 1
+            }
             enums.append(
                 Analysis.EnumInfo(
                     entry.mangled_name + "_" + declaration.name,
@@ -1231,6 +1252,7 @@ func infer_declared_type(annotation: Syntax.Types.Type?, initializer: Syntax.Exp
 func resolve_field(declaration: Syntax.Statements.VariableDeclaration, information: Analysis.ClassInfo, scope: Scope) {
     var initializer = declaration.value
     assert initializer
+    check_value_name(declaration.name, "attribute")
     var field_type = infer_declared_type(declaration.type_reference, initializer, scope, information)
     if type_shape.is_console(field_type) {
         information.fields.append(Analysis.FieldInfo(declaration.name, field_type, ""))
@@ -1422,6 +1444,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     var parameter_index = 0
     while parameter_index < declaration.parameters.count() {
         var parameter = declaration.parameters[parameter_index]
+        check_value_name(parameter.name, "parameter")
         var parameter_type_reference = parameter.type_reference
         assert parameter_type_reference
         var parameter_type = resolve_type(parameter_type_reference, information.namespace_dotted)
@@ -1441,6 +1464,9 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         }
     }
     var is_constructor = declaration.name == information.simple_name
+    if not is_constructor {
+        check_value_name(declaration.name, "function")
+    }
     var c_name = information.c_name + "_" + declaration.name
     var function = Analysis.FunctionInfo(
         declaration.name,
@@ -4402,9 +4428,11 @@ func generate_variable_declaration(declaration: Syntax.Statements.VariableDeclar
     if type_needs_drop(declared_type) {
         scope.declare_owned(declaration.name, declared_type)
         scope.check_last(current_line)
+        check_value_name(declaration.name, "variable")
     } else {
         scope.declare(declaration.name, declared_type)
         scope.check_last(current_line)
+        check_value_name(declaration.name, "variable")
     }
 }
 
@@ -4598,6 +4626,96 @@ func signature_is_dictated(function: Analysis.FunctionInfo): Bool {
     }
     var dictated = ["sum", "subtract", "multiply", "divide", "remainder", "equals", "less_than", "greater_than", "negate", "get_at", "set_at"]
     return dictated.contains(function.name)
+}
+
+func is_lowercase_name(name: String): Bool {
+    var index = 0
+    while index < name.length() {
+        var code = name.code_at(index)
+        var is_lower = code >= 97 and code <= 122
+        var is_digit = code >= 48 and code <= 57
+        if not is_lower and not is_digit and code != 95 {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func is_pascal_name(name: String): Bool {
+    if name.is_empty() {
+        return false
+    }
+    var first = name.code_at(0)
+    if first < 65 or first > 90 {
+        return false
+    }
+    return not name.contains("_")
+}
+
+func words_of(name: String): List<String> {
+    var words = List<String>()
+    var current = ""
+    var index = 0
+    while index < name.length() {
+        var code = name.code_at(index)
+        var is_upper = code >= 65 and code <= 90
+        if code == 95 or is_upper {
+            if not current.is_empty() {
+                words.append(current)
+            }
+            current = ""
+        }
+        if code != 95 {
+            current = current + name.character_at(index).lower()
+        }
+        index = index + 1
+    }
+    if not current.is_empty() {
+        words.append(current)
+    }
+    return words
+}
+
+func check_abbreviations(name: String) {
+    var short_words = ["expr", "stmt", "param", "params", "arg", "args", "idx", "ctx", "cfg", "conf", "tmp", "temp", "str", "num", "len", "btn", "msg", "req", "res", "resp", "err", "val", "obj", "fn", "ptr", "src", "dst", "dest", "dir", "pos", "prev", "cur", "curr", "max", "min", "init", "calc", "attr", "attrs", "elem", "char", "info", "spec", "env", "db", "auth", "impl", "util", "utils", "lib", "pkg", "cmd", "desc", "doc", "docs", "func", "var", "int", "bool"]
+    var full_words = ["expression", "statement", "parameter", "parameters", "argument", "arguments", "index", "context", "configuration", "configuration", "temporary", "temporary", "string", "number", "length", "button", "message", "request", "response", "response", "error", "value", "object", "function", "pointer", "source", "destination", "destination", "directory", "position", "previous", "current", "current", "maximum", "minimum", "initialize", "calculate", "attribute", "attributes", "element", "character", "information", "specification", "environment", "database", "authentication", "implementation", "utilities", "utilities", "library", "package", "command", "description", "documentation", "documentation", "function", "variable", "integer", "boolean"]
+    var words = words_of(name)
+    var index = 0
+    while index < words.count() {
+        var position = 0
+        while position < short_words.count() {
+            if short_words[position] == words[index] {
+                report("'" + name + "' abbreviates: write '" + full_words[position] + "' instead of '" + words[index] + "'. Spite has no abbreviations outside its own keywords")
+            }
+            position = position + 1
+        }
+        index = index + 1
+    }
+}
+
+func check_value_name(name: String, what: String) {
+    var bare = name
+    if bare.starts_with("_") {
+        bare = bare.slice(1, bare.length())
+    }
+    if not is_lowercase_name(bare) {
+        report("the " + what + " '" + name + "' must be written in snake_case: lowercase words joined by underscores")
+        return
+    }
+    if bare.length() == 1 {
+        report("the " + what + " '" + name + "' is a single letter: give it a name that says what it holds")
+        return
+    }
+    check_abbreviations(bare)
+}
+
+func check_type_name(name: String, what: String) {
+    if not is_pascal_name(name) {
+        report("the " + what + " '" + name + "' must be written in PascalCase: capitalised words with no underscores")
+        return
+    }
+    check_abbreviations(name)
 }
 
 func report_unused(scope: Scope) {

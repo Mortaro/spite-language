@@ -1,0 +1,18 @@
+enum job_kind = {
+    'Knight'
+    'mage'
+}
+
+var console = Console()
+var playerName = ""
+var msg = "hello"
+
+func Naming() {
+    var n = 1
+    var btn_count = n + 1
+    console.print(msg, playerName, btn_count, calcTotal(2))
+}
+
+func calcTotal(val: Int): Int {
+    return val * 2
+}

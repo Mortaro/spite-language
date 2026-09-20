@@ -1,58 +1,58 @@
-var x = 0
-var y = 0
+var across = 0
+var up = 0
 
-func Vector(starting_x: Int, starting_y: Int) {
-    x = starting_x
-    y = starting_y
+func Vector(starting_across: Int, starting_up: Int) {
+    across = starting_across
+    up = starting_up
 }
 
 func sum(other: Vector): Vector {
-    return Vector(x + other.x, y + other.y)
+    return Vector(across + other.across, up + other.up)
 }
 
 func subtract(other: Vector): Vector {
-    return Vector(x - other.x, y - other.y)
+    return Vector(across - other.across, up - other.up)
 }
 
 func multiply(factor: Int): Vector {
-    return Vector(x * factor, y * factor)
+    return Vector(across * factor, up * factor)
 }
 
 func negate(): Vector {
-    return Vector(0 - x, 0 - y)
+    return Vector(0 - across, 0 - up)
 }
 
 func equals(other: Vector): Bool {
-    return x == other.x and y == other.y
+    return across == other.across and up == other.up
 }
 
 func less_than(other: Vector): Bool {
-    return x + y < other.x + other.y
+    return across + up < other.across + other.up
 }
 
 func greater_than(other: Vector): Bool {
-    return x + y > other.x + other.y
+    return across + up > other.across + other.up
 }
 
 func get_at(index: Int): Int {
     if index == 0 {
-        return x
+        return across
     }
     if index == 1 {
-        return y
+        return up
     }
     return 0 - 1
 }
 
 func set_at(index: Int, value: Int) {
     if index == 0 {
-        x = value
+        across = value
     }
     if index == 1 {
-        y = value
+        up = value
     }
 }
 
 func describe(): String {
-    return "(" + x + ", " + y + ")"
+    return "(" + across + ", " + up + ")"
 }
