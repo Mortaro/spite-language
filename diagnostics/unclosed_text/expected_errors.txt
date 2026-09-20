@@ -1,0 +1,1 @@
+diagnostics/unclosed_text/unclosed_text.spite:2: error: this text never closes: a piece of text is written on one line, and a line break inside it is written as the two characters backslash and n

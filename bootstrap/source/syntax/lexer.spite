@@ -13,6 +13,15 @@ func Lexer(starting_source: String) {
     run()
 }
 
+func fail_lex(message: String, at_line: Int) {
+    if has_error {
+        return
+    }
+    has_error = true
+    error_line = at_line
+    error_message = message
+}
+
 func skip_byte_order_mark() {
     if source.length() < 3 {
         return
@@ -272,7 +281,7 @@ func scan_generic_identifier(): Bool {
     }
     if index == name_start {
         push_token('invalid', source.slice(start_index, index), "", token_line, token_column)
-        has_error = true
+        fail_lex("a codegen value is written '$name': there is nothing after the '$'", token_line)
         return false
     }
     var lexeme = source.slice(start_index, index)
@@ -331,7 +340,7 @@ func scan_quoted(quote_code: Int, kind: TokenKind): Bool {
     }
     if not terminated {
         push_token('invalid', source.slice(start_index, index), "", token_line, token_column)
-        has_error = true
+        fail_lex("this text never closes: a piece of text is written on one line, and a line break inside it is written as the two characters backslash and n", token_line)
         return false
     }
     var lexeme = source.slice(start_index, index)
@@ -444,7 +453,7 @@ func scan_operator(): Bool {
     }
 
     if not recognized {
-        has_error = true
+        fail_lex("'" + source.slice(start_index, index) + "' is not something Spite reads", token_line)
     }
     push_token(kind, source.slice(start_index, index), source.slice(start_index, index), token_line, token_column)
     return false

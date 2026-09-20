@@ -1,0 +1,38 @@
+func test_trim_removes_the_edges() {
+    crash "  spite  ".trim() == "spite"
+    crash "".trim() == ""
+}
+
+func test_case_changes_every_letter() {
+    crash "Spite".upper() == "SPITE"
+    crash "Spite".lower() == "spite"
+}
+
+func test_replace_changes_every_occurrence() {
+    crash "a-b-c".replace("-", "+") == "a+b+c"
+    crash "abc".replace("z", "!") == "abc"
+}
+
+func test_index_of_is_minus_one_when_absent() {
+    crash "spite".index_of("it") == 2
+    crash "spite".index_of("zz") == -1
+}
+
+func test_the_edges_are_tested_by_name() {
+    crash "spite".starts_with("sp")
+    crash "spite".ends_with("te")
+    crash "spite".contains("pit")
+    crash not "spite".starts_with("te")
+}
+
+func test_lines_splits_on_line_breaks() {
+    var counted = "one\ntwo\nthree".lines()
+    crash counted.count() == 3
+    crash counted[1] == "two"
+}
+
+func test_a_character_can_be_read_by_position() {
+    crash "spite".character_at(0) == "s"
+    crash "spite".character_at(99) == ""
+    crash "a".code_at(0) == 97
+}
