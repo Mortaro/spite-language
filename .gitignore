@@ -13,3 +13,6 @@
 # bootstrap/seed/spite_compiler.c is NOT ignored: it is the committed fixpoint.
 /next.c
 /gen*.c
+
+# The launcher builds the compiler here.
+bin/spite.exe

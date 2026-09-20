@@ -1,0 +1,50 @@
+#!/bin/bash
+# Runs the Spite compiler, rebuilding it first if the sources moved on.
+#   spite thing.spite            compile and run
+#   spite thing.spite --mode=c   print the C instead
+here="$(cd "$(dirname "$0")/.." && pwd)"
+seed="$here/bootstrap/seed/spite_compiler.c"
+binary="$here/bin/spite.exe"
+
+find_c_compiler() {
+    for candidate in cc clang gcc; do
+        command -v "$candidate" >/dev/null 2>&1 && { echo "$candidate"; return; }
+    done
+    for found in "/c/Program Files/Microsoft Visual Studio/"*/*/VC/Tools/Llvm/x64/bin/clang.exe \
+                 "/c/Program Files (x86)/Microsoft Visual Studio/"*/*/VC/Tools/Llvm/x64/bin/clang.exe; do
+        [ -x "$found" ] && { echo "$found"; return; }
+    done
+}
+
+compiler="${SPITE_CC:-$(find_c_compiler)}"
+if [ -z "$compiler" ]; then
+    echo "spite: no C compiler found. Set SPITE_CC, or install cc, clang or gcc." >&2
+    exit 1
+fi
+
+# The compiler shells out to CC as one string, so a path with spaces needs its short form.
+case "$compiler" in
+    *\ *) export CC="$(cygpath -d "$compiler" 2>/dev/null || echo "$compiler") -Wno-deprecated-declarations" ;;
+    *)    export CC="$compiler" ;;
+esac
+
+if [ ! -x "$binary" ] || [ "$seed" -nt "$binary" ]; then
+    echo "spite: building the compiler" >&2
+    "$compiler" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$binary" || exit 1
+fi
+
+# `spite thing.spite` is the common case; anything starting with - is passed through.
+# The compiler reads runtime/*.h relative to its working directory, so it runs from the
+# repository root and every file argument is made absolute first.
+arguments=()
+for argument in "$@"; do
+    case "$argument" in
+        -*) arguments+=("$argument") ;;
+        /*) arguments+=("--file=$argument") ;;
+        *)  arguments+=("--file=$(pwd)/$argument") ;;
+    esac
+done
+case " $* " in *" --mode="*) ;; *) arguments+=("--mode=run") ;; esac
+
+cd "$here" || exit 1
+exec "$binary" "${arguments[@]}"
