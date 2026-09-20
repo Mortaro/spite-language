@@ -433,13 +433,38 @@ func parse_assert_statement(): Syntax.Statements.Statement {
 func parse_crash_statement(): Syntax.Statements.Statement {
     advance()
     var value: Syntax.Expressions.Expression = Syntax.Expressions.FalseLiteral()
+    var first_token = position
     if not at_statement_end() {
         value = parse_expression()
     }
+    var condition_text = source_text_between(first_token, position)
     consume_statement_terminator()
     var statement = Syntax.Statements.AssertStatement(value)
     statement.is_crash = true
+    statement.condition_text = condition_text
     return statement
+}
+
+func source_text_between(first_token: Int, after_last_token: Int): String {
+    var text = ""
+    var index = first_token
+    while index < after_last_token {
+        var lexeme = tokens[index].lexeme
+        var glued = text.is_empty() or lexeme == ")" or lexeme == "]" or lexeme == "," or lexeme == "." or lexeme == "("
+        if text.ends_with("(") or text.ends_with("[") or text.ends_with(".") {
+            glued = true
+        }
+        if lexeme == "(" and (text.ends_with(" and") or text.ends_with(" or") or text.ends_with(" not") or text.ends_with("=") or text.ends_with("<") or text.ends_with(">")) {
+            glued = false
+        }
+        if glued {
+            text = text + lexeme
+        } else {
+            text = text + " " + lexeme
+        }
+        index = index + 1
+    }
+    return text
 }
 
 func parse_return_statement(): Syntax.Statements.Statement {
