@@ -52,4 +52,4 @@ A residual gap here (a getter-answered `person.age` read used directly as a call
 getter's own extra reference) was fixed later in the same milestone: `ExpressionResult.is_owning` now lets
 `codegenMember`'s getter-intercepted read tell every caller it already produced a fresh, independent reference,
 regardless of the read's own `.member` AST shape (which otherwise reads as a stable alias) -- see
-`tests/attribute_interception/`.
+`conformance/`.

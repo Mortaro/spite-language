@@ -14,7 +14,9 @@ bootstrap/BOOTSTRAP_PLAN.md      the compiler's own plan and progress log
 runtime/                         the C runtime the generated code includes
 library/                         Spite.Class, Spite.Attribute and the rest, as ordinary Spite source
 conformance/                     programs the compiler must handle exactly, checked by check.sh
-examples/  tests/  docs/           sample programs, fixtures, language documentation
+examples/                        sample programs, each run by check.sh against its expected output
+tests/                           the test package: test_ functions whose only assertion is crash
+docs/                            language documentation
 ```
 
 Everything the compiler does is proved by `bash check.sh`: it rebuilds the compiler from the seed, requires
@@ -96,7 +98,7 @@ and balanced allocations.
     Touches the lexer (retire the `generics` keyword), the parser (`<...>` on a constructor
     declaration), codegen (monomorphization keyed by the constructor's declared order, plus the declared-versus-
     flag-fed split), the formatter (the `generics`-first rule disappears) and the final-class printer.
-    Migration: two live files declare `generics` (`examples/arsenal/weapon.spite`, `tests/weapon.spite`) plus
+    Migration: two live files declare `generics` (`examples/arsenal/weapon.spite`) plus
     their call sites; `docs/metaprogramming.md` and `docs/for_ai_writers.md` migrate with it, since
     `check.sh` compiles every sample in them. `examples/dungeon` and `examples/arsenal` keep
     requiring `--serve=`/`--environment=` exactly as they do now, since those are flag-fed and undeclared.
@@ -140,20 +142,19 @@ and balanced allocations.
 16. **PRIORITY, next.** Being able to run tests (manual.md D46: a test is a package that crashes). The point is
     to build only what tests actually need, not to wait for milestone 10. Ordered so that each step is usable on
     its own:
-    - **16a. Make `examples/` and `tests/` compile again, and have `check.sh` run them.** Nothing runs either
-      directory today, which is why `examples/hello/hello.spite` sits broken: it uses `assert` in a function
-      returning a bare value, which D27 forbids. A hello world that does not compile is the worst thing to leave
-      uncaught. No new feature needed.
-    - **16b. A crash reports its file and line.** `assert_statement` already carries `line` and the generator
-      emits the crash from that statement, so this is a one-line change -- `spite.crash<TAB>file:line<TAB>Class<TAB>function`.
-      This is the single highest value item on this list: without it a failing test says which function broke but
-      not where, and with it a test failure is already actionable.
-    - **16c. A first test package**, written the way D46 says: ordinary Spite loaded with `load(...)`, one
-      `test_` function per case, `crash <condition>` as the only assertion. Hand-list the calls in the entry
-      class -- discovery is an improvement, not a prerequisite, and tests can exist before reflection does.
+    - **16a. Done.** All nine examples migrated, each with an `expected_output.txt`, run by `check.sh` to the
+      corpus standard: exact output and balanced memory. Unqualified class names now resolve by walking up
+      namespaces. The old `tests/` fixtures were deleted rather than migrated -- they had no expected outputs
+      left, and `conformance/` and `diagnostics/` cover what they covered.
+    - **16b. Done.** `spite.crash<TAB>path:line<TAB>Class<TAB>function`. It was the one-line change it looked
+      like. `check.sh` now also accepts programs that are meant to crash, via a `crashes.txt` beside them.
+    - **16c. Done.** `tests/tests.spite`: 21 `test_` functions over `String`, `List<T>`, `Dictionary<T>` and the
+      member templates, `crash` as the only assertion, hand-listed in the entry class, run by `check.sh`. A wrong
+      expectation fails the run with `spite.crash tests/string_tests.spite:4 ...`, which is D46 working as
+      described.
     - **16d. Discovery through `Class.functions`** (D12), so the entry stops hand-listing. This is the only part
       that waits on milestone 10, and it waits on one member of it rather than the whole design pass.
-    - **16e. The condition'"'"'s source text and operand values in the report** (D25), then crash ids and the
+    - **16e. The condition's source text and operand values in the report** (D25), then crash ids and the
       `.crashes` map (D32, D33). The largest piece and the last, because a file and a line already make a
       failure fixable.
     Why this order: after 16a and 16b -- both small -- a failing test is a crash naming a file, a line, a class
