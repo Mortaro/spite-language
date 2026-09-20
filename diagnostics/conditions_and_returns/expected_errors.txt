@@ -1,0 +1,3 @@
+diagnostics/conditions_and_returns/conditions_and_returns.spite:5: error: the condition of 'if' is a Int, but it must be a Bool: compare it with something, like 'count > 0' or 'name != ""' (in ConditionsAndReturns.ConditionsAndReturns)
+diagnostics/conditions_and_returns/conditions_and_returns.spite:8: error: the condition of 'while' is a String, but it must be a Bool: compare it with something, like 'count > 0' or 'name != ""' (in ConditionsAndReturns.ConditionsAndReturns)
+diagnostics/conditions_and_returns/conditions_and_returns.spite:19: error: 'loud' returns a Int, so 'return' needs a value (in ConditionsAndReturns.loud)

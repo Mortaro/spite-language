@@ -1,0 +1,20 @@
+var console = Console()
+
+func ConditionsAndReturns() {
+    var count = 3
+    if count {
+        console.print("non zero")
+    }
+    while "text" {
+        count = count - 1
+    }
+    console.print(silent(), loud())
+}
+
+func silent() {
+    return 5
+}
+
+func loud(): Int {
+    return
+}

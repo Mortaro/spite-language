@@ -5187,6 +5187,7 @@ func generate_if_statement(if_statement: Syntax.Statements.IfStatement, scope: S
         return
     }
     var condition_result = generate_expression(condition_ast, scope, class_information)
+    check_condition(condition_result, "if")
     builder.add_user("if (" + condition_result.code + ") {")
     generate_block(if_statement.then_branch, scope, class_information, function_information)
     builder.add_user("}")
@@ -5431,10 +5432,24 @@ func default_value_for_scalar_or_null(spite_type: Analysis.SpiteType): String {
     return default_value_for_type(spite_type)
 }
 
+func check_condition(condition: ExpressionResult, keyword: String) {
+    if type_shape.is_void(condition.get_type()) {
+        return
+    }
+    if type_shape.as_nullable(condition.get_type()) {
+        return
+    }
+    if not is_boolean_type(condition.get_type()) {
+        report("the condition of '"
+ + keyword + "' is a " + type_display_name(condition.get_type()) + ", but it must be a Bool: compare it with something, like 'count > 0' or 'name != \"\"'")
+    }
+}
+
 func generate_while_statement(while_statement: Syntax.Statements.WhileStatement, scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo) {
     var condition_ast = while_statement.condition
     assert condition_ast
     var condition_result = generate_expression(condition_ast, scope, class_information)
+    check_condition(condition_result, "while")
     builder.add_user("while (" + condition_result.code + ") {")
     generate_block(while_statement.body, scope, class_information, function_information)
     builder.add_user("}")
@@ -5641,7 +5656,17 @@ func generate_assert_statement(assert_statement: Syntax.Statements.AssertStateme
 func generate_return_statement(return_statement: Syntax.Statements.ReturnStatement, scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo) {
     var return_type = function_information.get_return_type()
     var value_ast = return_statement.value
+    if type_shape.is_void(return_type) {
+        if value_ast and not has_error {
+            report("'" + function_information.name + "' returns nothing, so 'return' cannot carry a value here: declare what it returns, like 'func " + function_information.name + "(): Int', or return without a value")
+            return
+        }
+    } else if not value_ast {
+        report("'" + function_information.name + "' returns a " + type_display_name(return_type) + ", so 'return' needs a value")
+        return
+    }
     if value_ast {
+
         var value_code = coerce_for_store(value_ast, return_type, scope, class_information)
         var temporary = next_temporary()
         builder.add_user(c_type_name(return_type) + " " + temporary + " = " + value_code + ";")
