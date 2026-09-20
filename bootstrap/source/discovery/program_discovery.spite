@@ -188,9 +188,7 @@ func walk_directory(root_folder: String, segments: List<String>, skip_basename: 
         index = index + 1
     }
     var directory = Directory(path)
-    if not directory.exists() {
-        return
-    }
+    assert directory.exists()
 
     var files = directory.files()
     var file_index = 0
@@ -240,9 +238,7 @@ func copy_segments(segments: List<String>): List<String> {
 }
 
 func read_and_add_file(path: String, segments: List<String>) {
-    if has_error {
-        return
-    }
+    assert not has_error
     var program_file = File(path)
     var content = program_file.read()
     if content {
@@ -253,9 +249,7 @@ func read_and_add_file(path: String, segments: List<String>) {
             return
         }
         check_comments(path, lexer.tokens)
-        if has_error {
-            return
-        }
+        assert not has_error
         var parser = Syntax.Parser(lexer.tokens)
         var parsed_file = parser.parse_file()
         if parser.has_error {
@@ -369,12 +363,8 @@ func add_load_name_if_present(expression: Syntax.Expressions.Expression, found: 
     assert callee
     var identifier = shape.as_identifier(callee)
     assert identifier
-    if identifier.name != "load" {
-        return
-    }
-    if call.arguments.count() != 1 {
-        return
-    }
+    assert not (identifier.name != "load")
+    assert not (call.arguments.count() != 1)
     var literal = shape.as_string_literal(call.arguments[0])
     assert literal
     found.append(literal.value)

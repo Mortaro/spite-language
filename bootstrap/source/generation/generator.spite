@@ -51,15 +51,11 @@ var literal_counter = 0
 func report(message: String) {
     has_error = true
     var line ="{current_path}:{current_line}: error: {message} (in {current_owner}.{current_function})"
-    if error_lines.contains(line) {
-        return
-    }
+    assert not error_lines.contains(line)
     if error_lines.count() == 25 {
         error_lines.append("too many errors: stopping at 25")
     }
-    if error_lines.count() > 25 {
-        return
-    }
+    assert not (error_lines.count() > 25)
     error_lines.append(line)
     error_message = error_lines.join("\n")
 }
@@ -763,9 +759,7 @@ func emit_shape_callers(information: Analysis.UnionInfo) {
 }
 
 func admit_to_union(information: Analysis.UnionInfo, candidate: Analysis.ClassInfo) {
-    if information.has_member(candidate.c_name) {
-        return
-    }
+    assert not information.has_member(candidate.c_name)
     if not information.is_shape {
         report("'{candidate.simple_name}' is not a member of union '{information.simple_name}'")
         return
@@ -1499,9 +1493,7 @@ func emit_pending_functions() {
 }
 
 func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, information: Analysis.ClassInfo) {
-    if register_template(declaration, information) {
-        return
-    }
+    assert not register_template(declaration, information)
     var parameters = List<Analysis.ParamInfo>()
     var parameter_index = 0
     while parameter_index < declaration.parameters.count() {
@@ -2223,9 +2215,7 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
 }
 
 func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType) {
-    if type_shape.is_void(from) or type_shape.is_void(to) {
-        return
-    }
+    assert not (type_shape.is_void(from) or type_shape.is_void(to))
     if type_shape.as_nullable(from) {
         report("this value may be null (it is a {type_display_name(from)}), but a {type_display_name(to)} is needed: narrow it first with 'if value \{ }', 'assert value' or 'crash value'")
         return
@@ -3568,13 +3558,9 @@ func emit_class_object_bodies() {
 }
 
 func emit_all_classes_function() {
-    if not all_classes_used {
-        return
-    }
+    assert all_classes_used
     var class_class = find_class_by_c_name("Spite_Class")
-    if not class_class {
-        return
-    }
+    assert class_class
     assert class_class
     var list_name = ensure_list(class_type_of(class_class))
     var lines = List<String>()
@@ -4936,9 +4922,7 @@ func emit_scope_drops(scope: Scope, all_the_way_up: Bool) {
         builder.add_user("{release_call(owned_local.get_type(), owned_local.name)};")
         index = index - 1
     }
-    if not all_the_way_up {
-        return
-    }
+    assert all_the_way_up
     var parent = scope.parent
     assert parent
     emit_scope_drops(parent, true)
@@ -5307,9 +5291,7 @@ func terminal_if_of(body: List<Syntax.Statements.Statement>): Syntax.Statements.
 }
 
 func report_terminal_if(if_statement: Syntax.Statements.IfStatement, name: String) {
-    if if_statement.has_else_branch {
-        return
-    }
+    assert not if_statement.has_else_branch
     var candidate = terminal_if
     assert candidate
     if candidate == if_statement {
@@ -5605,12 +5587,8 @@ func default_value_for_scalar_or_null(spite_type: Analysis.SpiteType): String {
 }
 
 func check_condition(condition: ExpressionResult, keyword: String) {
-    if type_shape.is_void(condition.get_type()) {
-        return
-    }
-    if type_shape.as_nullable(condition.get_type()) {
-        return
-    }
+    assert not type_shape.is_void(condition.get_type())
+    assert not type_shape.as_nullable(condition.get_type())
     if not is_boolean_type(condition.get_type()) {
         report("the condition of '{keyword}' is a {type_display_name(condition.get_type())}, but it must be a Bool: compare it with something, like 'count > 0' or 'name != \"\"'")
     }
@@ -5646,9 +5624,7 @@ func operand_text(expression: Syntax.Expressions.Expression): String {
 
 func emit_crash_operand(expression: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo) {
     var name = operand_text(expression)
-    if name.is_empty() {
-        return
-    }
+    assert not name.is_empty()
     var saved_counter = temporary_counter
     var probe = generate_expression(expression, scope, class_information)
     temporary_counter = saved_counter
@@ -5659,9 +5635,7 @@ func emit_crash_operand(expression: Syntax.Expressions.Expression, scope: Scope,
     if is_enum_type(probe.get_type()) {
         printable = true
     }
-    if not printable {
-        return
-    }
+    assert printable
     builder.add_user("fputs(\"\\t{name}=\", stderr);")
     builder.add_user(printed_statement_for(expression, "stderr", scope, class_information))
 }
@@ -6090,9 +6064,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
 }
 
 func emit_user_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
-    if function.is_emitted {
-        return
-    }
+    assert not function.is_emitted
     function.is_emitted = true
     site_ordinal = 0
     current_class = information
@@ -6138,9 +6110,7 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
 }
 
 func emit_class(information: Analysis.ClassInfo) {
-    if information.is_emitted {
-        return
-    }
+    assert not information.is_emitted
     information.is_emitted = true
     current_owner = information.qualified_dotted
     var struct_lines = List<String>()

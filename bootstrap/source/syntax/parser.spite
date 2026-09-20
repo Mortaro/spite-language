@@ -49,9 +49,7 @@ func found_text(): String {
 }
 
 func fail(message: String) {
-    if has_error {
-        return
-    }
+    assert not has_error
     has_error = true
     error_line = current().line
     error_column = current().column
@@ -89,9 +87,7 @@ func consume_statement_terminator() {
         advance()
         return
     }
-    if check('right_brace') or check('end_of_file') {
-        return
-    }
+    assert not (check('right_brace') or check('end_of_file'))
     fail("expected end of statement but found {found_text()}")
 }
 
@@ -108,9 +104,7 @@ func consume_field_separator(closing: TokenKind) {
         skip_trivia()
         return
     }
-    if check(closing) or check('end_of_file') {
-        return
-    }
+    assert not (check(closing) or check('end_of_file'))
     fail("expected ',' or a newline but found '{current().lexeme}'")
 }
 
@@ -434,9 +428,7 @@ func open_declaration_body(keyword: String) {
     if check('comment') {
         advance()
     }
-    if check('right_brace') or check('end_of_file') {
-        return
-    }
+    assert not (check('right_brace') or check('end_of_file'))
     if not check('newline') {
         fail("{keyword} declarations put each entry on its own line: start a new line after '\{'")
         advance()
@@ -458,9 +450,7 @@ func consume_declaration_entry(keyword: String) {
         skip_trivia()
         return
     }
-    if check('end_of_file') {
-        return
-    }
+    assert not check('end_of_file')
     fail("{keyword} declarations put each entry on its own line: move '{current().lexeme}' to the next line")
     advance()
 }
@@ -533,7 +523,29 @@ func parse_union_declaration(): Syntax.Statements.Statement {
 
 func parse_if_statement(): Syntax.Statements.Statement {
     advance()
-    return parse_if_statement_with_condition(parse_expression())
+    var first_token = position
+    var condition = parse_expression()
+    var condition_text = source_text_between(first_token, position)
+    var statement = parse_if_statement_with_condition(condition)
+    reject_returning_guard(statement, condition_text)
+    return statement
+}
+
+func reject_returning_guard(statement: Syntax.Statements.Statement, condition_text: String) {
+    var written = shape.as_if_statement(statement)
+    assert written
+    assert not (written.has_else_branch or written.then_branch.count() != 1)
+    var only = shape.as_return_statement(written.then_branch[0])
+    assert only
+    var returned = only.value
+    assert not returned
+    var proven = condition_text
+    if proven.starts_with("not ") {
+        proven = proven.slice(4, proven.length())
+    } else {
+        proven ="not ({proven})"
+    }
+    fail("this 'if' only leaves the function: write 'assert {proven}' instead, and let the rest of the function run unindented")
 }
 
 func parse_if_statement_with_condition(condition: Syntax.Expressions.Expression): Syntax.Statements.Statement {
@@ -986,9 +998,7 @@ func reject_written_text_join(left: Syntax.Expressions.Expression, right: Syntax
         fail("text written down is not joined with '+': put the value inside it, like \"hello \{name}\". Two values are still joined with '+'")
         return
     }
-    if not written_right {
-        return
-    }
+    assert written_right
     fail("text written down is not joined with '+': put the value inside it, like \"\{name} arrived\". Two values are still joined with '+'")
 }
 

@@ -14,18 +14,14 @@ func Lexer(starting_source: String) {
 }
 
 func fail_lex(message: String, at_line: Int) {
-    if has_error {
-        return
-    }
+    assert not has_error
     has_error = true
     error_line = at_line
     error_message = message
 }
 
 func skip_byte_order_mark() {
-    if source.length() < 3 {
-        return
-    }
+    assert not (source.length() < 3)
     var first = source.code_at(0)
     var second = source.code_at(1)
     var third = source.code_at(2)
