@@ -1,0 +1,5 @@
+var journal = Journal()
+
+func work() {
+    journal.record("from a worker")
+}

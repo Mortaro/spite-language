@@ -10,6 +10,8 @@ var class_object_names = List<String>()
 var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
 var deep_copy_names = List<String>()
+var singleton_names = List<String>()
+var singleton_releases = List<String>()
 var class_object_displays = List<String>()
 var class_object_namespaces = List<String>()
 var class_object_labels = List<String>()
@@ -1499,6 +1501,9 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         is_constructor,
     )
     function.source_path = declaration.source_path
+    if declares_singleton(declaration) {
+        information.is_singleton = true
+    }
     function.line = declaration.line
     if is_constructor {
         information.constructor = function
@@ -2609,6 +2614,32 @@ func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.Spi
     return result
 }
 
+func declares_singleton(declaration: Syntax.Statements.FunctionDeclaration): Bool {
+    if declaration.name != "is_singleton" or declaration.parameters.count() != 0 or declaration.body.count() != 1 {
+        return false
+    }
+    var only = shape.as_return_statement(declaration.body[0])
+    if only {
+        var returned = only.value
+        if returned {
+            return shape.is_true_literal(returned)
+        }
+    }
+    return false
+}
+
+func singleton_call(target_class: Analysis.ClassInfo): String {
+    var function_c_name = "spite_singleton_" + target_class.c_name
+    if not singleton_names.contains(function_c_name) {
+        singleton_names.append(function_c_name)
+        builder.add_typedef("static " + target_class.c_name + "* " + function_c_name + "_cache = 0;")
+        builder.add_prototype(target_class.c_name + "* " + function_c_name + "(void);")
+        builder.add_support(target_class.c_name + "* " + function_c_name + "(void) {\nif (" + function_c_name + "_cache == 0) " + function_c_name + "_cache = " + target_class.c_name + "_make();\nreturn " + target_class.c_name + "_retain(" + function_c_name + "_cache);\n}")
+        singleton_releases.append(target_class.c_name + "_release(" + function_c_name + "_cache);")
+    }
+    return function_c_name + "()"
+}
+
 func generate_constructor_call(target_class: Analysis.ClassInfo, arguments_ast: List<Syntax.Expressions.Expression>, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     if target_class.is_generic_template {
         report("'" + target_class.simple_name + "' takes " + target_class.codegen_names.count() + " codegen value(s), in this order: $" + target_class.codegen_names.join(", $") + " -- write them between < and > before the arguments")
@@ -2619,6 +2650,14 @@ func generate_constructor_call(target_class: Analysis.ClassInfo, arguments_ast: 
     var constructor = target_class.constructor
     if constructor {
         expected_types = parameter_types_of(constructor.parameters)
+    }
+    if target_class.is_singleton {
+        if not expected_types.is_empty() or not arguments_ast.is_empty() {
+            report("'" + target_class.simple_name + "' is a singleton, so its constructor takes no arguments: there is one instance, made the first time it is asked for")
+        }
+        var shared = ExpressionResult(singleton_call(target_class), Analysis.Types.ClassRefType(target_class.c_name))
+        shared.owning_override = true
+        return shared
     }
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
     var call_code = target_class.c_name + "_make(" + argument_codes.join(", ") + ")"
@@ -5824,6 +5863,11 @@ func emit_main(entry_mangled_name: String) {
         builder.add_main(constructor.c_name + "(" + arguments.join(", ") + ");")
     }
     builder.add_main(entry_class.c_name + "_release(spite_entry_instance);")
+    var singleton_index = 0
+    while singleton_index < singleton_releases.count() {
+        builder.add_main(singleton_releases[singleton_index])
+        singleton_index = singleton_index + 1
+    }
     var cache_index = 0
     while cache_index < class_object_names.count() {
         builder.add_main("Spite_Class_release(" + class_object_names[cache_index] + "_cache);")
