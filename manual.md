@@ -583,6 +583,32 @@ func attack(enemy: Enemy): Bool {
 ```
 
 Memory safety is done with unions instead of borrow checking noise: `Nullable<T>` is the union of `T` and `null` and must be unwrapped with `if ... else` (or `assert`, section 5).
+**`Monster?` is a union, and `Nullable<T>` is gone** (D45, decided by Mortaro, 2026-09-20). A `?` suffix is
+sugar for the union of a type and nothing:
+
+```
+var target: Monster? = null
+
+func find_target(): Monster? {
+    return null
+}
+```
+
+`Monster?` *is* `union { Monster, Null }` -- `Null` is an ordinary class whose only value is the literal `null`,
+the way `true` and `false` are the values of `Bool`. That is the point of the change: nullability stops being a
+special case in the compiler and becomes a union like any other. `switch target { Monster: ... Null: ... }`
+works because it is a switch over a union; `assert`, `crash` and `if ... do` narrow it because union narrowing
+already exists; and the pile of `Nullable<T>` exceptions collapses into rules the language already had.
+
+Section 10's optimisation survives as a codegen detail rather than a language rule: a union of a reference and
+`Null` is still just the pointer, and only a scalar needs a wrapper.
+
+**Considered and rejected on the way** (2026-09-20): `Nullable<T>` (ugly, and a generic wrapper is what keeps it
+a special case); `Monster or Null` (`or` short-circuits everywhere else, so a return type reads as an
+expression yielding the truthy left side); `maybe Monster` (a keyword bought for a shortcut); `Maybe<Monster>`
+as a standard library generic union (generics over unions hide the members, and collide with `$` codegen
+replacement when a parent already declares the same name); and `Monster.Maybe` as a class-level member.
+
 
 ### Inline types and duck typing  **[implemented]**
 
@@ -1904,3 +1930,5 @@ func format_name(first_name: String, last_name: String): String { }
 | 2026-09-20 | **D42** (decided by Mortaro): **reflection may be as detailed as it likes, because what is not used is not emitted.** Most of the metadata will never be reached by a given program, and reaching for it is the only thing that makes it cost anything -- "if it has a cost it is because we needed it anyway". This holds here in a way it does not elsewhere: Spite's reflection is resolved at compile time, so which parts a program touches is **statically decidable** and tree shaking is exact rather than conservative. A language with runtime reflection cannot prove a class is never reflected on and must keep the tables for everything; Spite can prove it. Section 8 already worked this way for `value.attributes`; D42 extends the rule to the whole family (`Spite.Class`, `Spite.Function`, `Spite.Argument`, `Spite.Attribute`, `Spite.Namespace`, and whatever follows) and gives milestone 10 its direction: **err toward more detail**, since an unused field costs a program nothing while a missing one costs a design. It is also what keeps D32's wasm size argument intact -- a rich reflection family does not inflate a module that never reads it. |
 | 2026-09-20 | (decided by Mortaro, amending D41) **`Spite.Class.namespace` and `Spite.Namespace.parent` are `Nullable<Spite.Namespace>`, and the chain ends at `null`** -- rejecting Claude's proposal of a root namespace object. A root object would have read as though every namespace were nested inside something, and inside the metaprogramming package in particular: a namespace *uses* `Spite.Namespace`, it is not contained by it. A top-level namespace has no parent, so you walk up with `class.namespace.namespace` for as long as that can be satisfied. |
 | 2026-09-20 | **D43** (decided by Mortaro): **`assert` narrows every link of a chain, not only the last.** Walking a nullable structure would otherwise need one `assert` per hop, and "a thousand asserts" is a tax rather than a language -- the need became obvious the moment D41 made namespaces a nullable chain. `assert class.namespace.namespace` proves the whole path, so every prefix of it is a plain value for the rest of that block and any nested block. It is the rule section 5 already had for `assert value and other_condition`, applied along a member chain instead of across an `and`. It narrows the asserted path and its prefixes only -- a sibling path stays `Nullable<T>` -- and `crash` narrows a chain identically, since it narrows exactly as `assert` does but never returns. Reading through a link that has not been narrowed is still an error: this removes the verbosity of proving a path, not the requirement to prove it. |
+| 2026-09-20 | **D44** (decided by Mortaro): **Spite emits C and takes no dependency on LLVM; the C compiler is the user's to bring.** "Each person brings its own C compiler." The language does not emit LLVM IR and is not bound to it as a backend -- which is a different statement from refusing to *use* clang, since a user may well bring it (this machine's own compiler is the clang inside Visual Studio). What is refused is binding the language to one backend. The reason is philosophy line 5, compilation speed and live reload: emitting C keeps the final step swappable, so a fast compiler can be used while iterating and an optimising one for release, and emitting LLVM IR directly would trade that away for LLVM's codegen speed, which is the slow half of every toolchain built on it. It is also what makes the bootstrap honest -- the committed seed is C, so any machine with a ubiquitous tool can rebuild the compiler from source rather than trusting a prebuilt binary. `check.sh` finds `cc`, `clang` or `gcc`, looks inside Visual Studio on Windows, and otherwise takes `CC`. |
+| 2026-09-20 | **D45** (decided by Mortaro): **`Monster?` is sugar for `union { Monster, Null }`, and `Nullable<T>` is gone.** `Null` is an ordinary class whose only value is the literal `null`, as `true` and `false` are the values of `Bool`. The point is not the spelling but the semantics Mortaro wanted underneath it: nullability stops being a compiler special case and becomes a union like any other, so `switch` covers it exhaustively, `assert`/`crash`/`if ... do` narrow it through union narrowing that already exists, and the `Nullable<T>` exceptions collapse into rules the language already had. Section 10's representation survives as a codegen detail -- a union of a reference and `Null` is still just the pointer, and only a scalar needs a wrapper. Rejected on the way: `Nullable<T>` (a generic wrapper is what keeps it special), `Monster or Null` (`or` short-circuits everywhere else, so a return type reads as an expression yielding the truthy side), `maybe Monster` (a keyword bought for a shortcut), `Maybe<Monster>` as a standard library generic union (generics over unions hide the members and collide with `$` codegen replacement), and `Monster.Maybe` as a class-level member. |

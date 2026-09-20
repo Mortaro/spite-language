@@ -11,10 +11,21 @@ if [ -z "$CC" ]; then
     for candidate in cc clang gcc; do
         command -v "$candidate" >/dev/null 2>&1 && { CC="$candidate"; break; }
     done
+    # Windows usually has one inside Visual Studio rather than on PATH.
+    if [ -z "$CC" ]; then
+        for found in "/c/Program Files/Microsoft Visual Studio/"*/*/VC/Tools/Llvm/x64/bin/clang.exe \
+                     "/c/Program Files (x86)/Microsoft Visual Studio/"*/*/VC/Tools/Llvm/x64/bin/clang.exe; do
+            [ -x "$found" ] && { CC="$found"; break; }
+        done
+    fi
     [ -z "$CC" ] && { echo "no C compiler found: set CC, or install cc, clang or gcc" >&2; exit 1; }
 fi
+CC_BIN="$CC"
+# The compiler passes CC to a shell unquoted, so a path with spaces has to be shortened.
+case "$CC" in *\ *) command -v cygpath >/dev/null 2>&1 && CC=$(cygpath -d "$CC" 2>/dev/null || echo "$CC") ;; esac
+CC="$CC -Wno-deprecated-declarations"   # CC may carry arguments; MSVC headers warn on fopen
 export CC   # the Spite compiler reads it to compile the C it emits
-compile_c() { $CC -O1 -Wno-parentheses-equality "$1" -o "$2" 2> "$work/c_errors.txt" || { head -20 "$work/c_errors.txt"; exit 1; }; }
+compile_c() { "$CC_BIN" -O1 -Wno-parentheses-equality -Wno-deprecated-declarations "$1" -o "$2" 2> "$work/c_errors.txt" || { head -20 "$work/c_errors.txt"; exit 1; }; }
 
 echo "1/4 building the seed compiler"
 compile_c bootstrap/seed/spite_compiler.c "$work/seed.exe"
