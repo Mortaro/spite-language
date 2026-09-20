@@ -1,0 +1,34 @@
+type Named {
+    name: String
+}
+
+type Describable {
+    label(): String
+}
+
+func test_a_class_fits_a_shape_by_its_attributes() {
+    var creature: Named = Creature("rat", 3, true)
+    crash creature.name == "rat"
+}
+
+func test_an_object_literal_fits_a_shape_too() {
+    var literal: Named = { name: "a literal" }
+    crash literal.name == "a literal"
+}
+
+func test_a_shape_can_require_a_function() {
+    var creature: Describable = Creature("rat", 3, true)
+    crash creature.label() == "rat:3"
+}
+
+func test_writing_through_a_shape_reaches_the_object() {
+    var creature = Creature("rat", 3, true)
+    var shaped: Named = creature
+    shaped.name = "mouse"
+    crash creature.name == "mouse"
+}
+
+func test_a_shape_keeps_the_class_it_holds() {
+    var shaped: Named = Creature("rat", 3, true)
+    crash shaped.class.name == "Creature"
+}

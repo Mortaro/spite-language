@@ -1,0 +1,30 @@
+func test_plus_and_minus_go_through_the_named_functions() {
+    var first = Money(150)
+    var second = Money(50)
+    crash first.sum(second).cents == 200
+    crash (first + second).cents == 200
+    crash (first - second).cents == 100
+}
+
+func test_comparison_goes_through_the_named_functions() {
+    var small = Money(1)
+    var large = Money(2)
+    crash small < large
+    crash large > small
+    crash not (small > large)
+}
+
+func test_equals_wins_over_identity() {
+    var first = Money(7)
+    var second = Money(7)
+    crash first == second
+    crash not (first != second)
+}
+
+func test_a_class_without_equals_compares_by_identity() {
+    var creature = Creature("rat", 3, true)
+    var same = creature
+    var other = Creature("rat", 3, true)
+    crash creature == same
+    crash creature != other
+}

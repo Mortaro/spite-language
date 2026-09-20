@@ -1,0 +1,25 @@
+var cents = 0
+
+func Money(starting_cents: Int) {
+    cents = starting_cents
+}
+
+func sum(other: Money): Money {
+    return Money(cents + other.cents)
+}
+
+func subtract(other: Money): Money {
+    return Money(cents - other.cents)
+}
+
+func equals(other: Money): Bool {
+    return cents == other.cents
+}
+
+func less_than(other: Money): Bool {
+    return cents < other.cents
+}
+
+func greater_than(other: Money): Bool {
+    return cents > other.cents
+}

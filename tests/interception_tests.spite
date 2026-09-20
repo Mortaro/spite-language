@@ -1,0 +1,17 @@
+func test_symbol_codegen_answers_a_read_and_a_write() {
+    var ledger = Ledger(100, "ada")
+    ledger.balance = ledger.balance + 20
+    crash ledger.balance == 120
+}
+
+func test_an_exact_function_wins_over_the_template() {
+    var ledger = Ledger(100, "ada")
+    ledger.owner = "bob"
+    crash ledger.owner == "BOB"
+}
+
+func test_the_explicit_call_form_is_the_same_thing() {
+    var ledger = Ledger(100, "ada")
+    ledger.set_balance(7)
+    crash ledger.get_balance() == 7
+}

@@ -1,0 +1,19 @@
+var balance = 0
+var owner = ""
+
+func Ledger(starting_balance: Int, starting_owner: String) {
+    balance = starting_balance
+    owner = starting_owner
+}
+
+func set_attribute(attribute: Symbol, value: attribute.class) {
+    attributes[attribute] = value
+}
+
+func get_attribute(attribute: Symbol): attribute.class {
+    return attributes[attribute]
+}
+
+func set_owner(new_owner: String) {
+    owner = new_owner.upper()
+}

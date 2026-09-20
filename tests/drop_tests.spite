@@ -1,0 +1,18 @@
+func test_drop_runs_when_the_last_reference_goes() {
+    var tracker = Resource()
+    make_one_and_let_it_go(tracker)
+    crash tracker.dropped == 1
+}
+
+func make_one_and_let_it_go(tracker: Resource) {
+    var holder = Holder(tracker)
+    crash holder.tracker
+}
+
+func test_a_second_reference_keeps_it_alive() {
+    var tracker = Resource()
+    var kept = Holder(tracker)
+    var same = kept
+    crash same.tracker
+    crash tracker.dropped == 0
+}

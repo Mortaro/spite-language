@@ -1,0 +1,15 @@
+enum Mood {
+    'calm'
+    'angry'
+    'asleep'
+}
+
+var mood: Mood = 'calm'
+
+func MoodHolder(starting_mood: Mood) {
+    mood = starting_mood
+}
+
+func is_calm(): Bool {
+    return mood == 'calm'
+}

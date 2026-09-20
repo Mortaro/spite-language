@@ -1,0 +1,16 @@
+func test_a_value_resolves_without_naming_its_enum() {
+    var holder = MoodHolder('angry')
+    crash not holder.is_calm()
+    crash MoodHolder('calm').is_calm()
+}
+
+func test_an_enum_prints_as_its_own_name() {
+    var holder = MoodHolder('asleep')
+    crash "" + holder.mood == "asleep"
+}
+
+func test_an_enum_compares_both_ways() {
+    var holder = MoodHolder('angry')
+    crash holder.mood == 'angry'
+    crash holder.mood != 'calm'
+}

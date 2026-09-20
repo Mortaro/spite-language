@@ -1,0 +1,11 @@
+var tracker: Resource? = null
+
+func Holder(shared_tracker: Resource) {
+    tracker = shared_tracker
+}
+
+func drop() {
+    var watcher = tracker
+    assert watcher
+    watcher.note_a_drop()
+}

@@ -1,0 +1,26 @@
+union Holding {
+    Creature
+    Money
+}
+
+func held(creature: Bool): Holding {
+    if creature {
+        var living: Holding = Creature("rat", 3, true)
+        return living
+    }
+    var coin: Holding = Money(25)
+    return coin
+}
+
+func test_switch_narrows_each_case() {
+    var thing = held(true)
+    switch thing {
+        Creature: crash thing.name == "rat"
+        Money: crash false
+    }
+}
+
+func test_a_union_keeps_the_class_it_holds() {
+    crash held(false).class.name == "Money"
+    crash held(true).class.name == "Creature"
+}
