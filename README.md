@@ -50,6 +50,61 @@ committed seed is current (`bash check.sh --update-seed` refreshes it). It uses 
 bash check.sh
 ```
 
+## Write your own
+
+Build the compiler once, then point it at a file:
+
+```
+cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite
+export CC=cc                     # the compiler shells out to this to build the C it emits
+./spite --file=path/to/thing.spite --mode=run
+```
+
+`--mode=c` prints the generated C instead of running it.
+
+On Windows the C compiler usually lives inside Visual Studio rather than on `PATH`, and its path
+contains spaces, so use the short form:
+
+```
+CL="/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/x64/bin/clang.exe"
+"$CL" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations bootstrap/seed/spite_compiler.c -o spite.exe
+export CC="$(cygpath -d "$CL") -Wno-deprecated-declarations"
+./spite.exe --file=path/to/thing.spite --mode=run
+```
+
+A file is a class named after it, and its constructor is the entry point, so `greeter.spite`:
+
+```spite
+var console = Console()
+var names = List<String>()
+
+func Greeter() {
+    names.append("ada")
+    names.append("grace")
+    console.print("greeting", names.count(), "people")
+    say_hello_to_everyone()
+}
+
+func say_hello_to_everyone() {
+    var index = 0
+    while index < names.count() {
+        console.print("hello", names[index])
+        index = index + 1
+    }
+}
+```
+
+```
+greeting 2 people
+hello ada
+hello grace
+```
+
+**The manual describes more of the language than the compiler implements yet.** `conformance/` is the
+ground truth: every program in it passes, so anything used there works today. `examples/` is the same,
+at program scale. When something in `manual.md` does not compile, that is the compiler being behind,
+not you being wrong -- `bootstrap/COMPILER_PLAN.md` lists what is missing.
+
 ## Where to look
 
 - [`AGENTS.md`](AGENTS.md) -- how to work in this repository: gitmoji commits, how decisions are recorded,
