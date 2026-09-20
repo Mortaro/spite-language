@@ -1,6 +1,5 @@
 # Regression test for a codegen bug: `Dictionary<T>_get` where `T` is a
 # union handed back the dictionary's own stored copy of the active member
-# without retaining it (see `the driver`'s `emitDictionarySupport`, the
 # `_get` branch for a value-embedded element -- a union is `isReference() ==
 # false` but `needsDrop() == true`, since its active member is always a
 # class reference). The dictionary's slot and the caller's `Nullable<T>`
