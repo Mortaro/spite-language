@@ -4,6 +4,9 @@ var parameters = List<ParamInfo>()
 var return_type: Nullable<SpiteType> = null
 var body = List<Syntax.Statements.Statement>()
 var is_constructor = false
+var is_emitted = false
+var symbol_name = ""
+var symbol_field_name = ""
 
 func FunctionInfo(starting_name: String, starting_c_name: String, starting_parameters: List<ParamInfo>, starting_return_type: SpiteType, starting_body: List<Syntax.Statements.Statement>, starting_is_constructor: Bool) {
     name = starting_name

@@ -1,0 +1,30 @@
+var declaration: Nullable<Syntax.Statements.FunctionDeclaration> = null
+var symbol_parameter = ""
+var prefix = ""
+var suffix = ""
+
+func TemplateInfo(starting_declaration: Syntax.Statements.FunctionDeclaration, starting_symbol_parameter: String, starting_prefix: String, starting_suffix: String) {
+    declaration = starting_declaration
+    symbol_parameter = starting_symbol_parameter
+    prefix = starting_prefix
+    suffix = starting_suffix
+}
+
+func get_declaration(): Syntax.Statements.FunctionDeclaration {
+    var value = declaration
+    crash value
+    return value
+}
+
+func member_name_for(call_name: String): String {
+    if call_name.length() <= prefix.length() + suffix.length() {
+        return ""
+    }
+    if not call_name.starts_with(prefix) {
+        return ""
+    }
+    if not call_name.ends_with(suffix) {
+        return ""
+    }
+    return call_name.slice(prefix.length(), call_name.length() - suffix.length())
+}

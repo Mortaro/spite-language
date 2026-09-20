@@ -1,0 +1,28 @@
+var name = ""
+var age = 0
+var tags = List<String>()
+
+func Person(starting_name: String, starting_age: Int) {
+    name = starting_name
+    age = starting_age
+}
+
+func set_attribute(attribute: Symbol, value: attribute.class) {
+    attributes[attribute] = value
+}
+
+func get_attribute(attribute: Symbol): attribute.class {
+    return attributes[attribute]
+}
+
+func describe_attribute(attribute: Symbol): String {
+    return attribute.name + " is " + attributes[attribute]
+}
+
+func set_name(new_name: String) {
+    name = "exact: " + new_name
+}
+
+func birthday() {
+    set_age(get_age() + 1)
+}

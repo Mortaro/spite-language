@@ -6,6 +6,7 @@ var class_id = 0
 var is_builtin = false
 var fields = List<FieldInfo>()
 var functions = List<FunctionInfo>()
+var templates = List<TemplateInfo>()
 var constructor: Nullable<FunctionInfo> = null
 var drop_function: Nullable<FunctionInfo> = null
 

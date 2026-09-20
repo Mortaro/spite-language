@@ -12,6 +12,9 @@ var nullable_scalar_labels = List<String>()
 var has_error = false
 var error_message = ""
 var current_function = ""
+var bound_symbol_name = ""
+var bound_field_name = ""
+var bound_field_type: Nullable<Analysis.SpiteType> = null
 var arguments_parameter_names = List<String>()
 var temporary_counter = 0
 var literal_counter = 0
@@ -132,6 +135,7 @@ func generate(discovery: Discovery.DiscoveryResult, runtime_header_text: String,
         }
         index = index + 1
     }
+    emit_pending_functions()
     emit_main(discovery.entry_mangled_name)
     return builder.render()
 }
@@ -476,7 +480,180 @@ func resolve_field(declaration: Syntax.Statements.VariableDeclaration, informati
     information.fields.append(Analysis.FieldInfo(declaration.name, field_type, default_code))
 }
 
+func symbol_parameter_of(declaration: Syntax.Statements.FunctionDeclaration): String {
+    var index = 0
+    while index < declaration.parameters.count() {
+        var parameter = declaration.parameters[index]
+        var parameter_type = parameter.type_reference
+        if parameter_type {
+            var named = shape.as_named_type(parameter_type)
+            if named {
+                if named.path.count() == 1 and named.path[0] == "Symbol" {
+                    return parameter.name
+                }
+            }
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func register_template(declaration: Syntax.Statements.FunctionDeclaration, information: Analysis.ClassInfo): Bool {
+    var symbol_parameter = symbol_parameter_of(declaration)
+    if symbol_parameter.is_empty() {
+        return false
+    }
+    var padded_name = "_" + declaration.name + "_"
+    var position = padded_name.index_of("_" + symbol_parameter + "_")
+    if position < 0 {
+        return false
+    }
+    var prefix = declaration.name.slice(0, position)
+    var suffix = declaration.name.slice(position + symbol_parameter.length(), declaration.name.length())
+    information.templates.append(Analysis.TemplateInfo(declaration, symbol_parameter, prefix, suffix))
+    return true
+}
+
+func find_or_instantiate_function(information: Analysis.ClassInfo, name: String): Nullable<Analysis.FunctionInfo> {
+    var existing = information.find_function(name)
+    if existing {
+        return existing
+    }
+    var chosen: Nullable<Analysis.TemplateInfo> = null
+    var chosen_field: Nullable<Analysis.FieldInfo> = null
+    var matches = 0
+    var index = 0
+    while index < information.templates.count() {
+        var template = information.templates[index]
+        var member_name = template.member_name_for(name)
+        if not member_name.is_empty() {
+            var field = information.find_field(member_name)
+            if field {
+                chosen = template
+                chosen_field = field
+                matches = matches + 1
+            }
+        }
+        index = index + 1
+    }
+    if matches > 1 {
+        report("'" + name + "' is answered by more than one Symbol codegen function of '" + information.simple_name + "'")
+        return null
+    }
+    if chosen {
+        if chosen_field {
+            return instantiate_template(information, chosen, chosen_field, name)
+        }
+    }
+    return null
+}
+
+func instantiate_template(information: Analysis.ClassInfo, template: Analysis.TemplateInfo, field: Analysis.FieldInfo, call_name: String): Analysis.FunctionInfo {
+    var declaration = template.get_declaration()
+    var saved_symbol_name = bound_symbol_name
+    var saved_field_name = bound_field_name
+    var saved_field_type = bound_field_type
+    var saved_owner = current_owner
+    bound_symbol_name = template.symbol_parameter
+    bound_field_name = field.name
+    bound_field_type = field.get_type()
+    current_owner = information.qualified_dotted
+
+    var parameters = List<Analysis.ParamInfo>()
+    var parameter_index = 0
+    while parameter_index < declaration.parameters.count() {
+        var parameter = declaration.parameters[parameter_index]
+        if parameter.name != template.symbol_parameter {
+            var parameter_type_reference = parameter.type_reference
+            if parameter_type_reference {
+                var parameter_type = resolve_type(parameter_type_reference, information.namespace_dotted)
+                if parameter_type {
+                    parameters.append(Analysis.ParamInfo(parameter.name, parameter_type))
+                }
+            }
+        }
+        parameter_index = parameter_index + 1
+    }
+    var return_type = void_type()
+    var return_type_reference = declaration.return_type
+    if return_type_reference {
+        var resolved_return = resolve_type(return_type_reference, information.namespace_dotted)
+        if resolved_return {
+            return_type = resolved_return
+        }
+    }
+    var function = Analysis.FunctionInfo(call_name, information.c_name + "_" + call_name, parameters, return_type, declaration.body, false)
+    function.symbol_name = template.symbol_parameter
+    function.symbol_field_name = field.name
+    information.functions.append(function)
+    builder.add_prototype(function_signature(information, function) + ";")
+
+    bound_symbol_name = saved_symbol_name
+    bound_field_name = saved_field_name
+    bound_field_type = saved_field_type
+    current_owner = saved_owner
+    return function
+}
+
+func bind_symbol_of(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    bound_symbol_name = function.symbol_name
+    bound_field_name = function.symbol_field_name
+    bound_field_type = null
+    if not function.symbol_field_name.is_empty() {
+        var field = information.find_field(function.symbol_field_name)
+        if field {
+            bound_field_type = field.get_type()
+        }
+    }
+}
+
+func is_bound_attributes_index(index_expression: Syntax.Expressions.IndexExpression): Bool {
+    if bound_symbol_name.is_empty() {
+        return false
+    }
+    var object_ast = index_expression.object
+    var index_ast = index_expression.index
+    if object_ast {
+        if index_ast {
+            var object_identifier = shape.as_identifier(object_ast)
+            var index_identifier = shape.as_identifier(index_ast)
+            if object_identifier {
+                if index_identifier {
+                    return object_identifier.name == "attributes" and index_identifier.name == bound_symbol_name
+                }
+            }
+        }
+    }
+    return false
+}
+
+func emit_pending_functions() {
+    var emitted_any = true
+    while emitted_any {
+        emitted_any = false
+        var class_index = 0
+        while class_index < classes.count() {
+            var information = classes[class_index]
+            if not information.is_builtin {
+                var function_index = 0
+                while function_index < information.functions.count() {
+                    if not information.functions[function_index].is_emitted {
+                        current_owner = information.qualified_dotted
+                        emit_user_function(information, information.functions[function_index])
+                        emitted_any = true
+                    }
+                    function_index = function_index + 1
+                }
+            }
+            class_index = class_index + 1
+        }
+    }
+}
+
 func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, information: Analysis.ClassInfo) {
+    if register_template(declaration, information) {
+        return
+    }
     var parameters = List<Analysis.ParamInfo>()
     var parameter_index = 0
     while parameter_index < declaration.parameters.count() {
@@ -523,6 +700,11 @@ func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String):
 }
 
 func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String): Nullable<Analysis.SpiteType> {
+    if named.path.count() == 2 and not bound_symbol_name.is_empty() {
+        if named.path[0] == bound_symbol_name and named.path[1] == "class" {
+            return bound_field_type
+        }
+    }
     if named.path.count() == 1 {
         var name = named.path[0]
         if name == "Int" {
@@ -1118,6 +1300,12 @@ func is_owning_shape(expression: Syntax.Expressions.Expression): Bool {
     if identifier {
         return false
     }
+    var indexed = shape.as_index(expression)
+    if indexed {
+        if is_bound_attributes_index(indexed) {
+            return false
+        }
+    }
     var member = shape.as_member(expression)
     if member {
         var object_ast = member.object
@@ -1472,7 +1660,7 @@ func generate_constructor_call(target_class: Analysis.ClassInfo, arguments_ast: 
 }
 
 func generate_own_function_call(name: String, arguments_ast: List<Syntax.Expressions.Expression>, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
-    var function = class_information.find_function(name)
+    var function = find_or_instantiate_function(class_information, name)
     if not function {
         report("unknown function '" + name + "'")
         return ExpressionResult("0", Analysis.Types.VoidType())
@@ -1595,7 +1783,7 @@ func generate_method_call(member: Syntax.Expressions.MemberExpression, object_as
     crash object_class_ref
     var target_class = find_class_by_c_name(object_class_ref.c_name)
     crash target_class
-    var function = target_class.find_function(member.name)
+    var function = find_or_instantiate_function(target_class, member.name)
     if not function {
         if member.name == "copy" {
             return generate_generic_call(
@@ -2057,6 +2245,11 @@ func generate_index_read(index_expression: Syntax.Expressions.IndexExpression, s
     crash object_ast
     var index_ast = index_expression.index
     crash index_ast
+    if is_bound_attributes_index(index_expression) {
+        var bound_type = bound_field_type
+        crash bound_type
+        return ExpressionResult("self->" + bound_field_name, bound_type)
+    }
     var object_result = generate_expression(object_ast, scope, class_information)
     var arguments_ast = List<Syntax.Expressions.Expression>()
     arguments_ast.append(index_ast)
@@ -2601,6 +2794,12 @@ func generate_call(call: Syntax.Expressions.CallExpression, scope: Scope, class_
 func generate_member_read(member: Syntax.Expressions.MemberExpression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var object_ast = member.object
     crash object_ast
+    var symbol_identifier = shape.as_identifier(object_ast)
+    if symbol_identifier {
+        if symbol_identifier.name == bound_symbol_name and member.name == "name" and not bound_symbol_name.is_empty() {
+            return ExpressionResult(render_string_literal(bound_field_name), string_type())
+        }
+    }
     var object_result = generate_expression(object_ast, scope, class_information)
     if type_shape.is_arguments(object_result.get_type()) {
         var lookup_result = ExpressionResult(
@@ -2808,6 +3007,12 @@ func generate_assignment(assignment: Syntax.Statements.AssignmentStatement, scop
 
     var index_target = shape.as_index(target_ast)
     if index_target {
+        if is_bound_attributes_index(index_target) {
+            var bound_target_type = bound_field_type
+            crash bound_target_type
+            emit_owning_assignment("self->" + bound_field_name, bound_target_type, value_ast, scope, class_information)
+            return
+        }
         var indexed_ast = index_target.object
         assert indexed_ast
         var position_ast = index_target.index
@@ -3390,7 +3595,12 @@ func emit_class_support(information: Analysis.ClassInfo) {
 }
 
 func emit_user_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    if function.is_emitted {
+        return
+    }
+    function.is_emitted = true
     current_function = function.name
+    bind_symbol_of(information, function)
     builder.add_user(function_signature(information, function) + " {")
     var scope = Scope(null)
     arguments_parameter_names.clear()
