@@ -201,3 +201,18 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   asymmetry and is worth revisiting: a loaded root's own name never becomes a namespace, so it collides with
   nothing. The 10b design pass is above, under its own heading. State: 56 conformance + examples, 54 tests,
   34 diagnostics, 45 documentation programs, fixpoint holds, seed current.
+- 2026-09-20 (Mortaro's inbox, three notes): **D53, text is written with its values inside it.** `"hello {name}"`
+  places a value in text; `{ }` holds any single expression; `\{` is a brace meant literally. The lexer splits a
+  piece of text into its parts and holes, and the parser parses each hole with an ordinary sub-parser and joins
+  them, so nothing downstream knows interpolation exists. Joining written text with `+` is then an error naming
+  the form, checked in the parser on a `+` actually written in the source (the concatenation interpolation itself
+  builds is not caught by it). Two scripted passes rewrote 1032 concatenation chains across the compiler, the
+  standard library, the corpus, the tests and the documentation; 212 literal braces in emitted C were escaped
+  first. Five sites needed a hand: a chain whose operand ran past a comparison, one split over two lines, and
+  four holes that themselves contained a join. **D54, an `if` whose only statement is a bare `return` is a
+  precondition**, an error naming `assert`, with the condition negated when the guard was not already negative
+  (parenthesised whenever it has an operator in it -- `not source.length() < 3` is not what the guard meant).
+  32 of them in the compiler's own sources. **D55, a function body holds no empty lines**, checked beside the
+  comment rule from the gap between a newline token and the next token, so text spanning lines is not mistaken
+  for one; 164 left the compiler and 25 left the documentation's samples.
+  State: 57 conformance + examples, 54 tests, 37 diagnostics, 45 documentation programs, fixpoint holds.
