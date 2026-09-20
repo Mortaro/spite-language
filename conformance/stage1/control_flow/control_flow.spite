@@ -6,20 +6,17 @@ func ControlFlow() {
         console.print(index)
         index = index + 1
     }
-
     var value = 7
     if value > 5 {
         console.print("big")
     } else {
         console.print("small")
     }
-
     if value < 5 {
         console.print("unreachable")
     } else {
         console.print("also big")
     }
-
     var flag = true
     if flag and value > 0 {
         console.print("both true")

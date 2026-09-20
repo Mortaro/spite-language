@@ -4,11 +4,9 @@ func CopySemantics() {
     var original = Counter(5)
     var alias = original
     var independent = original.copy()
-
     alias.increment()
     independent.increment()
     independent.increment()
-
     console.print("original {original.value()}")
     console.print("alias {alias.value()}")
     console.print("independent {independent.value()}")

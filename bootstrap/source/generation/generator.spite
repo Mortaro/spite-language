@@ -109,26 +109,22 @@ func register_system_classes() {
     add_builtin_function(file, "append", one_parameter("text", string_type()), boolean_type())
     add_builtin_function(file, "exists", no_parameters(), boolean_type())
     add_builtin_function(file, "remove", no_parameters(), boolean_type())
-
     var directory = register_system_class("Directory")
     add_builtin_function(directory, "Directory", one_parameter("path", string_type()), void_type())
     add_builtin_function(directory, "files", no_parameters(), list_type_of(string_type()))
     add_builtin_function(directory, "folders", no_parameters(), list_type_of(string_type()))
     add_builtin_function(directory, "exists", no_parameters(), boolean_type())
     add_builtin_function(directory, "create", no_parameters(), boolean_type())
-
     var process = register_system_class("Process")
     var process_parameters = one_parameter("command", string_type())
     process_parameters.append(Analysis.ParamInfo("arguments", list_type_of(string_type())))
     add_builtin_function(process, "Process", process_parameters, void_type())
     add_builtin_function(process, "run", no_parameters(), integer_type())
     add_builtin_function(process, "output", no_parameters(), string_type())
-
     var console = register_system_class("Console")
     console.is_singleton = true
     add_builtin_function(console, "Console", no_parameters(), void_type())
     add_builtin_function(console, "read_line", no_parameters(), nullable_type_of(string_type()))
-
     var program = register_system_class("Program")
     add_builtin_function(program, "Program", no_parameters(), void_type())
     add_builtin_function(program, "exit", one_parameter("code", integer_type()), void_type())
@@ -158,7 +154,6 @@ func generate(discovery: Discovery.DiscoveryResult, runtime_header_text: String,
     entry_class_c_name = discovery.entry_mangled_name
     builder.add_typedef(runtime_header_text)
     builder.add_typedef("static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_kept = spite_assert_total < 32 ? spite_assert_total : 32;\nfor (int64_t spite_index = spite_assert_total - spite_kept; spite_index < spite_assert_total; spite_index = spite_index + 1) \{ fputs(spite_assert_trace[spite_index % 32], stderr); }\nif (spite_assert_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_assert_total - 32)); }\n}")
-
     register_system_classes()
     register_classes(discovery.class_files)
     emit_enums()
@@ -522,7 +517,6 @@ func instantiate_generic(template: Analysis.ClassInfo, arguments: List<Syntax.Ty
     instance.codegen_texts = texts
     classes.append(instance)
     builder.add_typedef("typedef struct {label} {label};")
-
     var saved_owner = current_owner
     var saved_class = current_class
     var saved_function = current_function
@@ -582,7 +576,6 @@ func register_shapes(entry: Discovery.DiscoveredClass) {
             current_owner = entry.qualified_dotted
             current_function = ""
             check_type_name(declaration.name, "type")
-
             var information = Analysis.UnionInfo("{entry.mangled_name}_{declaration.name}", declaration.name, entry.qualified_dotted, entry.namespace_dotted, List<Syntax.Types.Type>())
             information.is_shape = true
             information.shape_fields = declaration.fields
@@ -1396,7 +1389,6 @@ func instantiate_template(information: Analysis.ClassInfo, template: Analysis.Te
     bound_field_name = field.name
     bound_field_type = field.get_type()
     current_owner = information.qualified_dotted
-
     var parameters = List<Analysis.ParamInfo>()
     var parameter_index = 0
     while parameter_index < declaration.parameters.count() {
@@ -1425,7 +1417,6 @@ func instantiate_template(information: Analysis.ClassInfo, template: Analysis.Te
     function.symbol_field_name = field.name
     information.functions.append(function)
     builder.add_prototype("{function_signature(information, function)};")
-
     bound_symbol_name = saved_symbol_name
     bound_field_name = saved_field_name
     bound_field_type = saved_field_type
@@ -1522,7 +1513,6 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         report("'{declaration.name}' has an empty constructor: delete it. A class without a constructor is already made from its defaults")
     }
     if not is_constructor {
-
         check_value_name(declaration.name, "function")
     }
     var c_name ="{information.c_name}_{declaration.name}"
@@ -1716,7 +1706,6 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
         if owned_enum {
             return enum_type_of(owned_enum)
         }
-
         var resolved: Analysis.SpiteType = Analysis.Types.ClassRefType(qualified_class.c_name)
         return resolved
     }
@@ -2191,7 +2180,6 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         }
         report_mismatch(from, to)
         return code
-
     }
     if type_shape.as_string(from) {
         var to_scalar = type_shape.as_scalar(to)
@@ -2552,7 +2540,6 @@ func generate_string_binary(operator: Syntax.Expressions.BinaryOperator, left_re
     var lines = List<String>()
     lines.append("SpiteString* {left_temporary} = {left_result.code};")
     lines.append("SpiteString* {right_temporary} = {right_code_casted};")
-
     var result_type: Analysis.SpiteType = Analysis.Types.StringType()
     var combine = ""
     if operator == 'add' {
@@ -2573,7 +2560,6 @@ func generate_string_binary(operator: Syntax.Expressions.BinaryOperator, left_re
             combine = "(!(SpiteString_less({left_temporary}, {right_temporary})))"
         }
     }
-
     var result_temporary = next_temporary()
     lines.append("{c_type_name(result_type)} {result_temporary} = {combine};")
     if owns(left_result, left_ast) {
@@ -2734,7 +2720,6 @@ func generate_argument_list(arguments_ast: List<Syntax.Expressions.Expression>, 
         index = index + 1
     }
     return result
-
 }
 
 func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.SpiteType> {
@@ -2778,7 +2763,6 @@ func generate_constructor_call(target_class: Analysis.ClassInfo, arguments_ast: 
         report("'{target_class.simple_name}' takes {target_class.codegen_names.count()} codegen value(s), in this order: ${target_class.codegen_names.join(", $")} -- write them between < and > before the arguments")
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
-
     var expected_types = List<Analysis.SpiteType>()
     var constructor = target_class.constructor
     if constructor {
@@ -2924,7 +2908,6 @@ func generate_method_call(member: Syntax.Expressions.MemberExpression, object_as
         } else {
             report("a {type_display_name(object_result.get_type())} has no function '{member.name}'")
         }
-
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     crash object_class_ref
@@ -2941,7 +2924,6 @@ func generate_method_call(member: Syntax.Expressions.MemberExpression, object_as
             return deep_copied
         }
         if member.name == "copy" {
-
             return generate_generic_call(
 "{object_class_ref.c_name}_copy",
                 object_result,
@@ -3430,7 +3412,6 @@ func generate_list_template(element: Analysis.SpiteType, element_class: Analysis
     var return_type = void_type()
     var parameter_types = no_types()
     var body = ""
-
     if template_prefix == "filter_" or template_prefix == "any_" or template_prefix == "all_" or template_prefix == "count_" {
         if not is_boolean_type(member_type) {
             requirement = "return Bool"
@@ -3449,7 +3430,6 @@ func generate_list_template(element: Analysis.SpiteType, element_class: Analysis
         report("'{template_prefix}{member_name}': the member '{member_name}' of '{element_class.simple_name}' is a {type_label(member_type)}, but '{template_prefix}' needs it to {requirement}")
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
-
     if template_prefix == "filter_" {
         return_type = list_type_of(element)
         body ="{list_name}* result = {list_name}_make();\n{loop_open}{read}\nif (member) {list_name}_add(result, {retain_call(element, "item")});\n}\nreturn result;"
@@ -3500,7 +3480,6 @@ func generate_list_template(element: Analysis.SpiteType, element_class: Analysis
         }
         body ="{list_name}* result = {list_name}_make();\n{member_c_type}* keys = ({member_c_type}*)SPITE_MALLOC(sizeof({member_c_type}) * (size_t)(self->count + 1));\n{loop_open}{read}\n{list_name}_add(result, {retain_call(element, "item")});\nkeys[spite_index] = member;\n}\nfor (int64_t spite_outer = 1; spite_outer < self->count; spite_outer = spite_outer + 1) \{\n{member_c_type} key = keys[spite_outer];\n{item} moved = result->items[spite_outer];\nint64_t spite_inner = spite_outer;\nwhile (spite_inner > 0 && {before}) \{\nkeys[spite_inner] = keys[spite_inner - 1];\nresult->items[spite_inner] = result->items[spite_inner - 1];\nspite_inner = spite_inner - 1;\n}\nkeys[spite_inner] = key;\nresult->items[spite_inner] = moved;\n}\n{release_keys}SPITE_FREE(keys);\nreturn result;"
     }
-
     if not list_template_names.contains(function_c_name) {
         list_template_names.append(function_c_name)
         var signature ="{c_type_name(return_type)} {function_c_name}({self_parameter}"
@@ -4198,17 +4177,14 @@ func emit_dictionary_support(dictionary_name: String, element: Analysis.SpiteTyp
     builder.add_typedef(
         "typedef struct {dictionary_name} {dictionary_name};\nstruct {dictionary_name} \{\nSpiteHeader header;\nSpiteString** keys;\n{item}* values;\nint64_t count;\nint64_t capacity;\n};",
     )
-
     builder.add_prototype("{dictionary_name}* {dictionary_name}_make(void);")
     builder.add_support(
 "{dictionary_name}* {dictionary_name}_make(void) \{\n{dictionary_name}* dictionary = ({dictionary_name}*)SPITE_MALLOC(sizeof({dictionary_name}));\ndictionary->header.ref_count = 1;\ndictionary->header.class_id = {class_id};\n#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(dictionary, {class_id});\n#endif\ndictionary->keys = 0;\ndictionary->values = 0;\ndictionary->count = 0;\ndictionary->capacity = 0;\nreturn dictionary;\n}",
     )
-
     builder.add_prototype("{dictionary_name}* {dictionary_name}_retain({self_parameter});")
     builder.add_support(
 "{dictionary_name}* {dictionary_name}_retain({self_parameter}) \{\nif (self != 0) self->header.ref_count = self->header.ref_count + 1;\nreturn self;\n}",
     )
-
     builder.add_prototype("void {dictionary_name}_release({self_parameter});")
     builder.add_support(
         "void {dictionary_name}_release({self_parameter}) \{\nif (self == 0) return;\nself->header.ref_count = self->header.ref_count - 1;\nif (self->header.ref_count > 0) return;\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) \{\nSpiteString_release(self->keys[spite_index]);\n{release_statement(
@@ -4216,12 +4192,10 @@ func emit_dictionary_support(dictionary_name: String, element: Analysis.SpiteTyp
             "self->values[spite_index]",
         )}\n}\nSPITE_FREE(self->keys);\nSPITE_FREE(self->values);\nSPITE_FREE(self);\n}",
     )
-
     builder.add_prototype("int64_t {dictionary_name}_index_of_key({self_parameter}, SpiteString* key);")
     builder.add_support(
         "int64_t {dictionary_name}_index_of_key({self_parameter}, SpiteString* key) \{\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) \{\nif (SpiteString_equals(self->keys[spite_index], key)) return spite_index;\n}\nreturn -1;\n}",
     )
-
     builder.add_prototype(
         "void {dictionary_name}_set({self_parameter}, SpiteString* key, {item} value);",
     )
@@ -4231,7 +4205,6 @@ func emit_dictionary_support(dictionary_name: String, element: Analysis.SpiteTyp
             "self->values[existing_index]",
         )}\nSpiteString_release(self->keys[existing_index]);\nself->keys[existing_index] = key;\nself->values[existing_index] = value;\nreturn;\n}\nif (self->count == self->capacity) \{\nint64_t new_capacity = self->capacity == 0 ? 4 : self->capacity * 2;\nself->keys = (SpiteString**)SPITE_REALLOC(self->keys, (size_t)new_capacity * sizeof(SpiteString*));\nself->values = ({item}*)SPITE_REALLOC(self->values, (size_t)new_capacity * sizeof({item}));\nself->capacity = new_capacity;\n}\nself->keys[self->count] = key;\nself->values[self->count] = value;\nself->count = self->count + 1;\n}",
     )
-
     var missing_value = "0"
     var found_value = retain_call(element, "self->values[existing_index]")
     if not type_is_reference(element) {
@@ -4242,12 +4215,10 @@ func emit_dictionary_support(dictionary_name: String, element: Analysis.SpiteTyp
     builder.add_support(
 "{nullable_item} {dictionary_name}_get({self_parameter}, SpiteString* key) \{\n{lookup}\nSpiteString_release(key);\nif (existing_index < 0) return {missing_value};\nreturn {found_value};\n}",
     )
-
     builder.add_prototype("bool {dictionary_name}_has({self_parameter}, SpiteString* key);")
     builder.add_support(
         "bool {dictionary_name}_has({self_parameter}, SpiteString* key) \{\nbool spite_found = {dictionary_name}_index_of_key(self, key) >= 0;\nSpiteString_release(key);\nreturn spite_found;\n}",
     )
-
     builder.add_prototype("void {dictionary_name}_remove({self_parameter}, SpiteString* key);")
     builder.add_support(
         "void {dictionary_name}_remove({self_parameter}, SpiteString* key) \{\n{lookup}\nSpiteString_release(key);\nif (existing_index < 0) return;\n{release_statement(
@@ -4255,15 +4226,12 @@ func emit_dictionary_support(dictionary_name: String, element: Analysis.SpiteTyp
             "self->values[existing_index]",
         )}\nSpiteString_release(self->keys[existing_index]);\nfor (int64_t spite_index = existing_index; spite_index < self->count - 1; spite_index = spite_index + 1) \{\nself->keys[spite_index] = self->keys[spite_index + 1];\nself->values[spite_index] = self->values[spite_index + 1];\n}\nself->count = self->count - 1;\n}",
     )
-
     builder.add_prototype("int64_t {dictionary_name}_count({self_parameter});")
     builder.add_support("int64_t {dictionary_name}_count({self_parameter}) \{\nreturn self->count;\n}")
-
     builder.add_prototype("{keys_list}* {dictionary_name}_keys({self_parameter});")
     builder.add_support(
 "{keys_list}* {dictionary_name}_keys({self_parameter}) \{\n{keys_list}* result = {keys_list}_make();\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) \{ {keys_list}_add(result, SpiteString_retain(self->keys[spite_index])); }\nreturn result;\n}",
     )
-
     builder.add_prototype("{values_list}* {dictionary_name}_values({self_parameter});")
     builder.add_support(
 "{values_list}* {dictionary_name}_values({self_parameter}) \{\n{values_list}* result = {values_list}_make();\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) \{ {values_list}_add(result, {retain_call(
@@ -4310,7 +4278,6 @@ func generate_dictionary_method(element: Analysis.SpiteType, name: String, objec
         return shared_dictionary
     }
     if name == "has" {
-
         return generate_generic_call(
 "{dictionary_name}_has",
             object_result,
@@ -4389,7 +4356,6 @@ func generate_dictionary_method(element: Analysis.SpiteType, name: String, objec
         }
     }
     report("Dictionary has no method '{name}'")
-
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
@@ -4407,20 +4373,16 @@ func emit_list_support(list_name: String, element: Analysis.SpiteType, class_id:
     builder.add_typedef(
         "typedef struct {list_name} {list_name};\nstruct {list_name} \{\nSpiteHeader header;\n{item}* items;\nint64_t count;\nint64_t capacity;\n};",
     )
-
     var grow = "if (self->count == self->capacity) \{\nint64_t new_capacity = self->capacity == 0 ? 4 : self->capacity * 2;\nself->items = ({item}*)SPITE_REALLOC(self->items, (size_t)new_capacity * sizeof({item}));\nself->capacity = new_capacity;\n}"
     var shift_down = "for (int64_t spite_index = index; spite_index < self->count - 1; spite_index = spite_index + 1) \{ self->items[spite_index] = self->items[spite_index + 1]; }"
-
     builder.add_prototype("{list_name}* {list_name}_make(void);")
     builder.add_support(
 "{list_name}* {list_name}_make(void) \{\n{list_name}* list = ({list_name}*)SPITE_MALLOC(sizeof({list_name}));\nlist->header.ref_count = 1;\nlist->header.class_id = {class_id};\n#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(list, {class_id});\n#endif\nlist->items = 0;\nlist->count = 0;\nlist->capacity = 0;\nreturn list;\n}",
     )
-
     builder.add_prototype("{list_name}* {list_name}_retain({self_parameter});")
     builder.add_support(
 "{list_name}* {list_name}_retain({self_parameter}) \{\nif (self != 0) self->header.ref_count = self->header.ref_count + 1;\nreturn self;\n}",
     )
-
     builder.add_prototype("void {list_name}_release({self_parameter});")
     builder.add_support(
         "void {list_name}_release({self_parameter}) \{\nif (self == 0) return;\nself->header.ref_count = self->header.ref_count - 1;\nif (self->header.ref_count > 0) return;\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) \{ {release_statement(
@@ -4428,15 +4390,12 @@ func emit_list_support(list_name: String, element: Analysis.SpiteType, class_id:
             "self->items[spite_index]",
         )} }\nSPITE_FREE(self->items);\nSPITE_FREE(self);\n}",
     )
-
     builder.add_prototype("void {list_name}_add({self_parameter}, {item} value);")
     builder.add_support(
         "void {list_name}_add({self_parameter}, {item} value) \{\n{grow}\nself->items[self->count] = value;\nself->count = self->count + 1;\n}",
     )
-
     builder.add_prototype("int64_t {list_name}_count({self_parameter});")
     builder.add_support("int64_t {list_name}_count({self_parameter}) \{\nreturn self->count;\n}")
-
     builder.add_prototype("{item} {list_name}_get({self_parameter}, int64_t index);")
     builder.add_support(
 "{item} {list_name}_get({self_parameter}, int64_t index) \{\nif (index < 0 || index >= self->count) \{\nreturn {default_code};\n}\nreturn {retain_call(
@@ -4444,7 +4403,6 @@ func emit_list_support(list_name: String, element: Analysis.SpiteType, class_id:
             "self->items[index]",
         )};\n}",
     )
-
     builder.add_prototype("void {list_name}_set({self_parameter}, int64_t index, {item} value);")
     builder.add_support(
         "void {list_name}_set({self_parameter}, int64_t index, {item} value) \{\nif (index < 0 || index >= self->count) \{ {release_statement(
@@ -4452,17 +4410,14 @@ func emit_list_support(list_name: String, element: Analysis.SpiteType, class_id:
             "value",
         )} return; }\n{release_statement(element, "self->items[index]")}\nself->items[index] = value;\n}",
     )
-
     builder.add_prototype("void {list_name}_insert({self_parameter}, int64_t index, {item} value);")
     builder.add_support(
         "void {list_name}_insert({self_parameter}, int64_t index, {item} value) \{\nint64_t clamped_index = index < 0 ? 0 : (index > self->count ? self->count : index);\n{grow}\nfor (int64_t spite_index = self->count; spite_index > clamped_index; spite_index = spite_index - 1) \{ self->items[spite_index] = self->items[spite_index - 1]; }\nself->items[clamped_index] = value;\nself->count = self->count + 1;\n}",
     )
-
     builder.add_prototype("void {list_name}_prepend({self_parameter}, {item} value);")
     builder.add_support(
         "void {list_name}_prepend({self_parameter}, {item} value) \{\n{list_name}_insert(self, 0, value);\n}",
     )
-
     builder.add_prototype("void {list_name}_remove_at({self_parameter}, int64_t index);")
     builder.add_support(
         "void {list_name}_remove_at({self_parameter}, int64_t index) \{\nif (index < 0 || index >= self->count) return;\n{release_statement(
@@ -4470,17 +4425,14 @@ func emit_list_support(list_name: String, element: Analysis.SpiteType, class_id:
             "self->items[index]",
         )}\n{shift_down}\nself->count = self->count - 1;\n}",
     )
-
     builder.add_prototype("{item} {list_name}_pop({self_parameter});")
     builder.add_support(
 "{item} {list_name}_pop({self_parameter}) \{\nif (self->count == 0) return {default_code};\n{item} value = self->items[self->count - 1];\nself->count = self->count - 1;\nreturn value;\n}",
     )
-
     builder.add_prototype("{item} {list_name}_remove_first({self_parameter});")
     builder.add_support(
 "{item} {list_name}_remove_first({self_parameter}) \{\nif (self->count == 0) return {default_code};\n{item} value = self->items[0];\nint64_t index = 0;\n{shift_down}\nself->count = self->count - 1;\nreturn value;\n}",
     )
-
     builder.add_prototype("{item} {list_name}_first({self_parameter});")
     builder.add_support(
 "{item} {list_name}_first({self_parameter}) \{\nif (self->count == 0) return {default_code};\nreturn {retain_call(
@@ -4488,7 +4440,6 @@ func emit_list_support(list_name: String, element: Analysis.SpiteType, class_id:
             "self->items[0]",
         )};\n}",
     )
-
     builder.add_prototype("{item} {list_name}_last({self_parameter});")
     builder.add_support(
 "{item} {list_name}_last({self_parameter}) \{\nif (self->count == 0) return {default_code};\nreturn {retain_call(
@@ -4496,10 +4447,8 @@ func emit_list_support(list_name: String, element: Analysis.SpiteType, class_id:
             "self->items[self->count - 1]",
         )};\n}",
     )
-
     builder.add_prototype("bool {list_name}_is_empty({self_parameter});")
     builder.add_support("bool {list_name}_is_empty({self_parameter}) \{\nreturn self->count == 0;\n}")
-
     builder.add_prototype("void {list_name}_clear({self_parameter});")
     builder.add_support(
         "void {list_name}_clear({self_parameter}) \{\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) \{ {release_statement(
@@ -4507,12 +4456,10 @@ func emit_list_support(list_name: String, element: Analysis.SpiteType, class_id:
             "self->items[spite_index]",
         )} }\nself->count = 0;\n}",
     )
-
     builder.add_prototype("void {list_name}_reverse({self_parameter});")
     builder.add_support(
         "void {list_name}_reverse({self_parameter}) \{\nfor (int64_t spite_index = 0; spite_index < self->count / 2; spite_index = spite_index + 1) \{\n{item} spite_swap_temporary = self->items[spite_index];\nself->items[spite_index] = self->items[self->count - 1 - spite_index];\nself->items[self->count - 1 - spite_index] = spite_swap_temporary;\n}\n}",
     )
-
     var comparison = ""
     if type_shape.as_string(element) {
         comparison = "SpiteString_equals(self->items[spite_index], value)"
@@ -4537,7 +4484,6 @@ func emit_list_support(list_name: String, element: Analysis.SpiteType, class_id:
         builder.add_support(
             "List_String* SpiteString_lines(SpiteString* self) \{\nSpiteString* spite_newline = spite_string_from_cstring_owned(\"\\n\");\nList_String* result = SpiteString_split(self, spite_newline);\nSpiteString_release(spite_newline);\nreturn result;\n}",
         )
-
         builder.add_support(
             "SpiteString* {list_name}_join({self_parameter}, SpiteString* separator) \{\nSpiteString* result = (&spite_static_string_empty);\nfor (int64_t index = 0; index < self->count; index = index + 1) \{\nSpiteString* next = index == 0 ? spite_string_from_bytes(self->items[index]->data, self->items[index]->length) : SpiteString_concat(result, self->items[index]);\nSpiteString_release(result);\nresult = next;\nif (index + 1 != self->count) \{\nSpiteString* with_separator = SpiteString_concat(result, separator);\nSpiteString_release(result);\nresult = with_separator;\n}\n}\nreturn result;\n}",
         )
@@ -4594,8 +4540,6 @@ func printed_statement_for(expression_ast: Syntax.Expressions.Expression, stream
         return ""
     }
     report("Console cannot print a {type_display_name(result.get_type())}: print one of its attributes, or give it a function that returns a String")
-
-
     return ""
 }
 
@@ -4779,7 +4723,6 @@ func generate_member_read(member: Syntax.Expressions.MemberExpression, scope: Sc
                 report("'{member.name}' cannot be read from a {type_display_name(object_result.get_type())}: if it is a function, call it with '{member.name}()'")
             }
         }
-
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     crash object_class_ref
@@ -4962,7 +4905,6 @@ func generate_assignment(assignment: Syntax.Statements.AssignmentStatement, scop
     assert target_ast
     var value_ast = assignment.value
     assert value_ast
-
     var identifier = shape.as_identifier(target_ast)
     if identifier {
         var scope_type = scope.lookup_type(identifier.name)
@@ -4984,7 +4926,6 @@ func generate_assignment(assignment: Syntax.Statements.AssignmentStatement, scop
         emit_owning_assignment("self->{identifier.name}", field.get_type(), value_ast, scope, class_information)
         return
     }
-
     var index_target = shape.as_index(target_ast)
     if index_target {
         if is_bound_attributes_index(index_target) {
@@ -5016,7 +4957,6 @@ func generate_assignment(assignment: Syntax.Statements.AssignmentStatement, scop
             }
         }
         var indexed_dictionary = type_shape.as_dictionary(indexed_result.get_type())
-
         if indexed_dictionary {
             var dictionary_arguments = List<Syntax.Expressions.Expression>()
             dictionary_arguments.append(position_ast)
@@ -5035,7 +4975,6 @@ func generate_assignment(assignment: Syntax.Statements.AssignmentStatement, scop
             return
         }
         var indexed_list = type_shape.as_list(indexed_result.get_type())
-
         if indexed_list {
             var set_arguments = List<Syntax.Expressions.Expression>()
             set_arguments.append(position_ast)
@@ -5099,9 +5038,7 @@ target_class, member.name, class_information)
             return
         }
         assert field
-
         var object_temporary = next_temporary()
-
         builder.add_user(
 "{c_type_name(object_result.get_type())} {object_temporary} = {object_result.code};",
         )
@@ -5117,7 +5054,6 @@ target_class, member.name, class_information)
         }
         return
     }
-
     report("unsupported assignment target")
 }
 
@@ -5811,7 +5747,6 @@ func generate_return_statement(return_statement: Syntax.Statements.ReturnStateme
         return
     }
     if value_ast {
-
         var value_code = coerce_for_store(value_ast, return_type, scope, class_information)
         var temporary = next_temporary()
         builder.add_user("{c_type_name(return_type)} {temporary} = {value_code};")
@@ -5942,7 +5877,6 @@ func emit_class_prototypes(information: Analysis.ClassInfo) {
 
 func emit_class_support(information: Analysis.ClassInfo) {
     var class_id_text = "{information.class_id}"
-
     var initialize_lines = List<String>()
     initialize_lines.append("void {information.c_name}_init({information.c_name}* self) \{")
     var field_index = 0
@@ -5961,7 +5895,6 @@ func emit_class_support(information: Analysis.ClassInfo) {
     }
     initialize_lines.append("}")
     builder.add_support(initialize_lines.join("\n"))
-
     var allocate_lines = List<String>()
     allocate_lines.append("{information.c_name}* {information.c_name}_allocate(void) \{")
     allocate_lines.append(
@@ -5979,11 +5912,9 @@ func emit_class_support(information: Analysis.ClassInfo) {
     allocate_lines.append("return self;")
     allocate_lines.append("}")
     builder.add_support(allocate_lines.join("\n"))
-
     builder.add_support(
 "{information.c_name}* {information.c_name}_default(void) \{ return {information.c_name}_allocate(); }",
     )
-
     var make_lines = List<String>()
     make_lines.append(
 "{information.c_name}* {information.c_name}_make({constructor_parameter_list(information)}) \{",
@@ -6003,11 +5934,9 @@ func emit_class_support(information: Analysis.ClassInfo) {
     make_lines.append("return self;")
     make_lines.append("}")
     builder.add_support(make_lines.join("\n"))
-
     builder.add_support(
 "{information.c_name}* {information.c_name}_retain({information.c_name}* self) \{ if (self != 0) self->header.ref_count = self->header.ref_count + 1; return self; }",
     )
-
     var release_lines = List<String>()
     release_lines.append("void {information.c_name}_release({information.c_name}* self) \{")
     release_lines.append("if (self == 0) return;")
@@ -6034,7 +5963,6 @@ func emit_class_support(information: Analysis.ClassInfo) {
     release_lines.append("SPITE_FREE(self);")
     release_lines.append("}")
     builder.add_support(release_lines.join("\n"))
-
     var copy_lines = List<String>()
     copy_lines.append("{information.c_name}* {information.c_name}_copy({information.c_name}* self) \{")
     copy_lines.append(
@@ -6074,7 +6002,6 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
     if not function.source_path.is_empty() {
         current_path = function.source_path
     }
-
     bind_symbol_of(information, function)
     builder.add_user("{function_signature(information, function)} \{")
     var scope = Scope(null)
@@ -6085,7 +6012,6 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         if type_shape.is_arguments(parameter.get_type()) {
             arguments_parameter_names.append(parameter.name)
         }
-
         if type_needs_drop(parameter.get_type()) {
             scope.declare_owned(parameter.name, parameter.get_type())
         } else {
@@ -6136,10 +6062,8 @@ func emit_class(information: Analysis.ClassInfo) {
         builder.add_prototype("void Spite_Function_call_function(Spite_Function* self);")
         builder.add_support("void Spite_Function_call_function(Spite_Function* self) \{\nif (self != 0 && self->spite_call != 0) self->spite_call(self->spite_owner);\n}")
     }
-
     emit_class_prototypes(information)
     emit_class_support(information)
-
     var function_index = 0
     while function_index < information.functions.count() {
         emit_user_function(information, information.functions[function_index])
@@ -6154,7 +6078,6 @@ func debug_memory_class_name_table(): String {
         names.append("\"{class_names_by_id[index]}\"")
         index = index + 1
     }
-
     return "\{ {names.join(", ")} }"
 }
 
@@ -6196,7 +6119,6 @@ func emit_main(entry_mangled_name: String) {
         builder.add_main("Spite_Class_release({class_object_names[cache_index]}_cache);")
         cache_index = cache_index + 1
     }
-
     builder.add_main("#ifdef SPITE_DEBUG_MEMORY")
     builder.add_main("spite_debug_report_leaks();")
     builder.add_main(

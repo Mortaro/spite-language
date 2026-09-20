@@ -372,7 +372,6 @@ func parse_function_declaration(): Syntax.Statements.Statement {
         }
     }
     expect('right_paren', "')' to close the parameter list")
-
     var return_type: Syntax.Types.Type? = null
     if check('colon') {
         advance()
@@ -380,7 +379,6 @@ func parse_function_declaration(): Syntax.Statements.Statement {
     } else if not check('left_brace') {
         fail("a return type is written '(): {current().lexeme}': add the ':' after the parameter list")
     }
-
     var body = parse_block()
     var declaration = Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
     declaration.codegen_names = codegen_names
@@ -711,7 +709,6 @@ func parse_type_without_suffix(): Syntax.Types.Type {
         fail("expected a type name but found {found_text()}")
         return dummy_type()
     }
-
     var path = List<String>()
     path.append("{advance().text}")
     var continue_dots = true
@@ -728,7 +725,6 @@ func parse_type_without_suffix(): Syntax.Types.Type {
             continue_dots = false
         }
     }
-
     var arguments = List<Syntax.Types.GenericArgument>()
     if check('less') {
         advance()
@@ -743,7 +739,6 @@ func parse_type_without_suffix(): Syntax.Types.Type {
         }
         expect('greater', "'>' to close the generic argument list")
     }
-
     if path.count() == 1 and path[0] == "Nullable" {
         fail("'Nullable<T>' was replaced by a '?' suffix: write 'Monster?' for a value that may be null")
     }
@@ -856,7 +851,6 @@ func try_parse_type_quiet(): Syntax.Types.Type? {
     if not check('identifier') {
         return null
     }
-
     var path = List<String>()
     path.append("{advance().text}")
     var continue_dots = true
@@ -876,9 +870,7 @@ func try_parse_type_quiet(): Syntax.Types.Type? {
     if not ok {
         return null
     }
-
     var arguments = try_parse_generic_argument_list_quiet()
-
     var type_reference: Syntax.Types.Type = Syntax.Types.NamedType(path, arguments)
     return with_nullable_suffix(type_reference)
 }

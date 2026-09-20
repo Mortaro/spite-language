@@ -5,7 +5,6 @@ var last_crash_map = ""
 
 func SpiteCompiler(arguments: Arguments) {
     load("source")
-
     var file_argument = file_to_compile(arguments)
     if file_argument.is_empty() {
         console.error("usage: spite program.spite [--optimized] [--debug_memory=true] [--name=value ...]")
@@ -21,7 +20,6 @@ func SpiteCompiler(arguments: Arguments) {
     }
     optimized = has_flag(arguments, "--optimized")
     collect_program_values(arguments)
-
     var program_file = File(file_argument)
     var maybe_content = program_file.read()
     if not maybe_content {
@@ -33,34 +31,28 @@ func SpiteCompiler(arguments: Arguments) {
     if maybe_content {
         content = maybe_content
     }
-
     if mode_argument == "tokens" {
         run_tokens_mode(content)
         return
     }
-
     if mode_argument == "tree" {
         run_tree_mode(file_argument, content)
         return
     }
-
     if mode_argument == "c" {
         run_c_mode(file_argument, content)
         return
     }
-
     if mode_argument == "build" {
         var output_argument = arguments.output
         crash output_argument
         run_build_mode(file_argument, content, output_argument, has_debug_memory_flag(arguments))
         return
     }
-
     if mode_argument == "run" {
         run_run_mode(file_argument, content, has_debug_memory_flag(arguments))
         return
     }
-
     console.error("unknown --mode '{mode_argument}' (expected 'tokens', 'tree', 'c', 'build' or 'run')")
     var program = Program()
     program.exit(1)
@@ -217,7 +209,6 @@ func build_to_path(file_argument: String, content: String, output_path: String, 
     var c_file = File(c_path)
     var wrote = c_file.write(code)
     crash wrote
-
     var c_compiler = find_c_compiler()
     if c_compiler.is_empty() {
         console.error("error: no C compiler found. Set the CC environment variable to the command that compiles C (for example CC=clang), or install cc, clang or gcc")

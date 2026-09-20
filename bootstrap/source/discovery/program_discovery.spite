@@ -12,6 +12,7 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     }
     comment_root = directory_of(entry_path)
     check_comments(entry_path, lexer.tokens)
+    check_blank_lines(entry_path, lexer.tokens)
     if has_error {
         return failure(error_message)
     }
@@ -20,16 +21,12 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     if parser.has_error {
         return failure("{entry_path}:{parser.error_line}:{parser.error_column}: {parser.error_message}")
     }
-
     var entry_directory = directory_of(entry_path)
     var entry_stem = file_stem(entry_path)
     var entry_basename = basename(entry_path)
-
     var load_names = List<String>()
     scan_top_level_loads(entry_file, load_names)
-
     var empty_segments = List<String>()
-
     var library_directory = Directory("library")
     if library_directory.exists() {
         var no_library_skip: String? = null
@@ -41,15 +38,12 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
             return failure(error_message)
         }
     }
-
     entry_file.path = entry_path
     add_parsed_file(entry_file, empty_segments, entry_stem)
-
     walk_directory(entry_directory, empty_segments, entry_basename, load_names)
     if has_error {
         return failure(error_message)
     }
-
     var root_index = 0
     while root_index < load_names.count() {
         var root_name = load_names[root_index]
@@ -69,10 +63,7 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
         }
         root_index = root_index + 1
     }
-
-
     var entry_mangled_name = mangle_dotted(pascal_case(entry_stem))
-
     return DiscoveryResult(class_files, entry_mangled_name, false, "")
 }
 
@@ -104,6 +95,42 @@ func check_comments(path: String, tokens: List<Syntax.Token>) {
                 has_error = true
                 error_message ="{path}:{token.line}: error: {problem}"
             }
+        }
+        index = index + 1
+    }
+}
+
+func check_blank_lines(path: String, tokens: List<Syntax.Token>) {
+    var depth = 0
+    var in_function = false
+    var previous_line = 0
+    var previous_kind: Syntax.TokenKind = 'end_of_file'
+    var last_declaration: Syntax.TokenKind = 'end_of_file'
+    var index = 0
+    while index < tokens.count() {
+        var token = tokens[index]
+        if depth == 0 and (token.kind == 'function_keyword' or token.kind == 'keyword_type' or token.kind == 'keyword_enum' or token.kind == 'keyword_union') {
+            last_declaration = token.kind
+        }
+        if token.kind == 'left_brace' {
+            if depth == 0 {
+                in_function = last_declaration == 'function_keyword'
+            }
+            depth = depth + 1
+        }
+        if token.kind == 'right_brace' {
+            depth = depth - 1
+            if depth == 0 {
+                in_function = false
+            }
+        }
+        if in_function and depth > 0 and previous_kind == 'newline' and token.line - previous_line > 1 and not has_error {
+            has_error = true
+            error_message = "{path}:{previous_line + 1}: error: a function body holds no empty lines: the blank line is where a second function wants to be, so give the part below it a name and call it"
+        }
+        if token.kind != 'end_of_file' {
+            previous_line = token.line
+            previous_kind = token.kind
         }
         index = index + 1
     }
@@ -189,7 +216,6 @@ func walk_directory(root_folder: String, segments: List<String>, skip_basename: 
     }
     var directory = Directory(path)
     assert directory.exists()
-
     var files = directory.files()
     var file_index = 0
     while file_index < files.count() {
@@ -209,7 +235,6 @@ func walk_directory(root_folder: String, segments: List<String>, skip_basename: 
         }
         file_index = file_index + 1
     }
-
     var folders = directory.folders()
     var folder_index = 0
     while folder_index < folders.count() {
@@ -249,6 +274,7 @@ func read_and_add_file(path: String, segments: List<String>) {
             return
         }
         check_comments(path, lexer.tokens)
+        check_blank_lines(path, lexer.tokens)
         assert not has_error
         var parser = Syntax.Parser(lexer.tokens)
         var parsed_file = parser.parse_file()

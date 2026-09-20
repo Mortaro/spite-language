@@ -40,7 +40,6 @@ var console = Console()
 func CastingEdge() {
     var progress: Int = 0
     console.print("mathematically true, but", progress > -0.5)
-
     var price: Float = 3.0
     var quantity: Int = 2
     console.print("total", price * quantity)
@@ -78,11 +77,9 @@ func StringBasics() {
     console.print("length", greeting.length())
     console.print("upper", greeting.upper())
     console.print("contains", greeting.contains("Spite"))
-
     var parts = greeting.split(", ")
     console.print("parts count", parts.count())
     console.print("joined", parts.join(" - "))
-
     var age: Int = "42"
     console.print("parsed", age)
     console.print("bad parse", "not a number".to_int())
@@ -130,7 +127,6 @@ func report_health() {
     var target = find_monster(false)
     assert target
     console.print("health", target.health)
-
     var missing_target = find_monster(true)
     if missing_target {
         console.print("should not print", missing_target.health)
@@ -313,10 +309,8 @@ var console = Console()
 func DuckTyping() {
     var hero = Player(8)
     console.print("class of hero", hero.class)
-
     var hero_loadout: Loadout = hero
     console.print("from class", hero_loadout.weapon, hero_loadout.power)
-
     var literal_loadout: Loadout = { weapon: "bow", power: 4 }
     console.print("from literal", literal_loadout.weapon, literal_loadout.power)
 }

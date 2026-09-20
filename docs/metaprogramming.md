@@ -89,7 +89,6 @@ var console = Console()
 func describe(gadget: Gadget) {
     console.print("class", gadget.class)
     console.print("class name", gadget.class.name)
-
     var attributes = gadget.attributes
     var index = 0
     while index < attributes.count() {

@@ -1,0 +1,1 @@
+diagnostics/blank_line/blank_line.spite:5: error: a function body holds no empty lines: the blank line is where a second function wants to be, so give the part below it a name and call it

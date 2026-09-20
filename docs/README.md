@@ -67,13 +67,11 @@ func TourClasses() {
     var party = List<Person>()
     party.append(Person(22, 'knight'))
     party.append(Person(19, 'mage'))
-
     var index = 0
     while index < party.count() {
         console.print("member", party[index].age, party[index].job)
         index = index + 1
     }
-
     console.print("total age", party.sum_age())
 }
 ```

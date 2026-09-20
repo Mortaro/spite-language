@@ -61,10 +61,8 @@ var console = Console()
 func PackageDemo() {
     load("package")
     load("mods")
-
     var renderer = Engine.Renderer()
     console.print(renderer.render())
-
     var monster = Monster(10)
     console.print(monster.describe())
     console.print(monster.taunt())

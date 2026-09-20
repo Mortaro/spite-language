@@ -1,15 +1,11 @@
 func Game() {
     load("package")
     load("mod")
-
     var console = Console()
-
     var renderer = Engine.Renderer()
     console.print(renderer.render())
-
     var debug = Engine.Renderer.Debug()
     console.print(debug.render_and_log())
-
     var monster = Monster(10)
     console.print(monster.describe())
     console.print(monster.roar())

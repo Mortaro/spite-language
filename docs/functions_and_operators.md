@@ -62,7 +62,6 @@ var console = Console()
 func OperatorsAsFunctions() {
     var wallet = Money(150)
     var found = Money(50)
-
     var total = wallet + found
     console.print("total cents", total.cents)
     console.print("equal", total.equals(Money(200)))
@@ -135,10 +134,8 @@ var console = Console()
 
 func Interception() {
     var account = Account(100, "ann")
-
     account.balance = account.balance + 20
     console.print("balance", account.balance)
-
     account.owner = "bob"
     console.print("owner", account.owner)
 }

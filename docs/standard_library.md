@@ -15,11 +15,9 @@ func FileTasks() {
     log_file.write("first line")
     log_file.append(", second line")
     console.print("exists", log_file.exists())
-
     var content = log_file.read()
     crash content
     console.print("content", content)
-
     console.print("removed", log_file.remove())
     console.print("exists after remove", log_file.exists())
 }
@@ -45,7 +43,6 @@ func DirectoryTasks() {
     var target = Directory(".spite-cache/documentation_demo_dir")
     target.create()
     console.print("exists", target.exists())
-
     var examples = Directory("examples")
     console.print("has hello", examples.folders().contains("hello"))
 }
@@ -88,12 +85,10 @@ func DictionaryTasks() {
     inventory.set("sword", 1)
     inventory.set("potion", 4)
     inventory.set("potion", 6)
-
     console.print("count", inventory.count())
     console.print("has shield", inventory.has("shield"))
     console.print("potions", inventory["potion"])
     console.print("shields", inventory["shield"])
-
     var total = 0
     var values = inventory.values()
     var index = 0
@@ -138,15 +133,12 @@ func ListQuery() {
     items.append(Item("sword", 50, true))
     items.append(Item("shield", 30, false))
     items.append(Item("potion", 10, true))
-
     console.print("in stock count", items.filter_in_stock().count())
     console.print("in stock price total", items.filter_in_stock().sum_price())
-
     var found = items.find_by_name("shield")
     if found {
         console.print("found", found.name, found.price)
     }
-
     var by_price = items.sort_by_price()
     var index = 0
     while index < by_price.count() {

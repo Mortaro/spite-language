@@ -56,6 +56,9 @@ func is_alive(): Bool {
   `value` not `val`). The error names the word to write.
 - A local or parameter that is never used is an error: remove it or name it `_name`. A `_name` that is used is an
   error too.
+- A function body holds no empty lines: the blank line is where a second function wants to be, so name the part
+  below it and call it. An `if` whose only statement is a bare `return` is an error too -- that is a
+  precondition, and a precondition is written `assert condition`.
 - A comment is one line, outside functions, and nothing but a link to a markdown heading:
   `# notes.md#why-this-exists` (relative to the entry file's folder; the file and the heading must exist).
   Anything else, including `//` and `/* */`, is an error. If the code already says it, do not write it.

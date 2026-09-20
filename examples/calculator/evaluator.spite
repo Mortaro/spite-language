@@ -49,9 +49,7 @@ func evaluate(expression: Expression): Float {
 }
 
 func process_line(line: String) {
-    if line.is_empty() {
-        return
-    }
+    assert not line.is_empty()
     if line.contains("=") {
         var parts = line.split("=")
         var parser = Parser(Lexer(parts[1]).tokens)

@@ -5,37 +5,30 @@ func Party() {
     bump_age(hero)
     console.print("hero age", hero.age)
     console.print("hero job", hero.job)
-
     var members = List<Person>()
     members.append(hero)
     members.append(Person(2, 'mage'))
     members.append(Person(3, 'archer'))
     console.print("member count", members.count())
-
     var index = 0
     while index < members.count() {
         var member = members[index]
         console.print("member age", member.age, "job", member.job)
         index = index + 1
     }
-
     console.print("missing member age", members[10].age)
     console.print("missing member job", members[10].job)
-
     var scores = [10, 20, 30]
     console.print("score count", scores.count())
     console.print("second score", scores[1])
-
     var nearby = find_monster(false)
     if nearby {
         console.print("found monster", nearby.health)
     }
-
     var far_away = find_monster(true)
     if far_away {
         console.print("should not print", far_away.health)
     }
-
     console.print("done")
 }
 

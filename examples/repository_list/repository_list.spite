@@ -5,18 +5,14 @@ func RepositoryList() {
     repositories.append(Repository("engine", 10, true))
     repositories.append(Repository("cookie_clicker", 3, false))
     repositories.append(Repository("compiler", 20, true))
-
     var first = repositories[0]
     first.set_stars(15)
     console.print("first stars", first.get_stars())
-
     console.print("active stars", repositories.filter_active().sum_stars())
-
     var found = repositories.find_by_name("compiler")
     if found {
         console.print("found", found.name, found.stars)
     }
-
     var sorted = repositories.sort_by_stars()
     var index = 0
     while index < sorted.count() {
@@ -24,7 +20,6 @@ func RepositoryList() {
         console.print(repository.name, repository.stars)
         index = index + 1
     }
-
     var attributes = first.attributes
     var attribute_index = 0
     while attribute_index < attributes.count() {
@@ -32,6 +27,5 @@ func RepositoryList() {
         console.print(attribute.name, attribute.class, attribute.value)
         attribute_index = attribute_index + 1
     }
-
     console.print("done")
 }

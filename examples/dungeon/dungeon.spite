@@ -12,9 +12,7 @@ func Dungeon() {
     settings.set("volume", 80)
     settings.set("difficulty", 2)
     target = Monster("Boss", 200)
-
     console.print("player age", player.age)
-
     if $serve {
         while tick < 3 {
             console.print("tick", tick)

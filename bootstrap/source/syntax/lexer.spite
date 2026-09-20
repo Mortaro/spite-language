@@ -85,9 +85,7 @@ func scan_one(): Bool {
         push_token('end_of_file', "", "", line, column)
         return true
     }
-
     var code = current_code()
-
     if code == 35 {
         return scan_comment()
     }
@@ -400,7 +398,6 @@ func scan_operator(): Bool {
     var token_column = column
     var start_index = index
     var code = advance_character()
-
     if code == 61 and current_code() == 61 {
         advance_character()
         push_token(
@@ -445,7 +442,6 @@ func scan_operator(): Bool {
         )
         return false
     }
-
     if code == 38 or code == 124 {
         if current_code() == code {
             advance_character()
@@ -478,7 +474,6 @@ func scan_operator(): Bool {
         push_token('invalid', source.slice(start_index, index), "", token_line, token_column)
         return false
     }
-
     var kind: TokenKind = 'invalid'
     var recognized = true
     if code == 43 {
@@ -531,7 +526,6 @@ func scan_operator(): Bool {
     } else {
         recognized = false
     }
-
     if not recognized {
         fail_lex("'{source.slice(start_index, index)}' is not something Spite reads", token_line)
     }
