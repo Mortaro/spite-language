@@ -14,5 +14,3 @@
 /next.c
 /gen*.c
 
-# The launcher builds the compiler here.
-bin/spite.exe

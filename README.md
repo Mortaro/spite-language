@@ -100,6 +100,14 @@ hello ada
 hello grace
 ```
 
+**Put each program in its own folder.** Running a script loads its parent folder (manual.md section 11), so
+every `.spite` file beside it becomes part of the same program -- a scratch directory with several unrelated
+programs in it will not compile.
+
+**Save as UTF-8 without a byte order mark.** The lexer rejects a file that starts with one, and PowerShell's
+`Set-Content -Encoding utf8` writes one by default: use `-Encoding utf8NoBOM`, or an editor set to UTF-8
+without BOM.
+
 **The manual describes more of the language than the compiler implements yet.** `conformance/` is the
 ground truth: every program in it passes, so anything used there works today. `examples/` is the same,
 at program scale. When something in `manual.md` does not compile, that is the compiler being behind,

@@ -4,7 +4,7 @@
 #   spite thing.spite --mode=c   print the C instead
 here="$(cd "$(dirname "$0")/.." && pwd)"
 seed="$here/bootstrap/seed/spite_compiler.c"
-binary="$here/bin/spite.exe"
+binary="$here/.spite-cache/spite.exe"   # not in bin/, or it would shadow this launcher on PATH
 
 find_c_compiler() {
     for candidate in cc clang gcc; do
@@ -30,6 +30,7 @@ esac
 
 if [ ! -x "$binary" ] || [ "$seed" -nt "$binary" ]; then
     echo "spite: building the compiler" >&2
+    mkdir -p "$here/.spite-cache"
     "$compiler" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$binary" || exit 1
 fi
 
@@ -39,9 +40,10 @@ fi
 arguments=()
 for argument in "$@"; do
     case "$argument" in
-        -*) arguments+=("$argument") ;;
-        /*) arguments+=("--file=$argument") ;;
-        *)  arguments+=("--file=$(pwd)/$argument") ;;
+        -*)        arguments+=("$argument") ;;
+        /*)        arguments+=("--file=$argument") ;;
+        [A-Za-z]:*) arguments+=("--file=$(cygpath -u "$argument" 2>/dev/null || echo "$argument")") ;;
+        *)         arguments+=("--file=$(pwd)/$argument") ;;
     esac
 done
 case " $* " in *" --mode="*) ;; *) arguments+=("--mode=run") ;; esac
