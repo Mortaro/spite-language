@@ -1557,6 +1557,30 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
             var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('long_kind')
             return resolved
         }
+        if name == "Tiny" {
+            var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('tiny_kind')
+            return resolved
+        }
+        if name == "Short" {
+            var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('short_kind')
+            return resolved
+        }
+        if name == "Byte" {
+            var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('byte_kind')
+            return resolved
+        }
+        if name == "UnsignedShort" {
+            var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('unsigned_short_kind')
+            return resolved
+        }
+        if name == "UnsignedInt" {
+            var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('unsigned_integer_kind')
+            return resolved
+        }
+        if name == "UnsignedLong" {
+            var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('unsigned_long_kind')
+            return resolved
+        }
         if name == "Float" {
             var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('float_kind')
             return resolved
@@ -1863,6 +1887,24 @@ func numeric_c_name(kind: Analysis.Types.NumericKind): String {
     if kind == 'long_kind' {
         return "int64_t"
     }
+    if kind == 'tiny_kind' {
+        return "int8_t"
+    }
+    if kind == 'short_kind' {
+        return "int16_t"
+    }
+    if kind == 'byte_kind' {
+        return "uint8_t"
+    }
+    if kind == 'unsigned_short_kind' {
+        return "uint16_t"
+    }
+    if kind == 'unsigned_integer_kind' {
+        return "uint32_t"
+    }
+    if kind == 'unsigned_long_kind' {
+        return "uint64_t"
+    }
     if kind == 'float_kind' {
         return "float"
     }
@@ -1880,6 +1922,24 @@ func type_label(spite_type: Analysis.SpiteType): String {
         }
         if scalar.kind == 'long_kind' {
             return "Long"
+        }
+        if scalar.kind == 'tiny_kind' {
+            return "Tiny"
+        }
+        if scalar.kind == 'short_kind' {
+            return "Short"
+        }
+        if scalar.kind == 'byte_kind' {
+            return "Byte"
+        }
+        if scalar.kind == 'unsigned_short_kind' {
+            return "UnsignedShort"
+        }
+        if scalar.kind == 'unsigned_integer_kind' {
+            return "UnsignedInt"
+        }
+        if scalar.kind == 'unsigned_long_kind' {
+            return "UnsignedLong"
         }
         if scalar.kind == 'float_kind' {
             return "Float"
@@ -4376,6 +4436,9 @@ func printed_statement_for(expression_ast: Syntax.Expressions.Expression, stream
         }
         if scalar.kind == 'double_kind' {
             return print_float_statement(result.code, stream, "spite_string_from_float64")
+        }
+        if scalar.kind == 'unsigned_long_kind' {
+            return "fprintf(" + stream + ", \"%llu\", (unsigned long long)(" + result.code + "));"
         }
         return "fprintf(" + stream + ", \"%lld\", (long long)(" + result.code + "));"
     }

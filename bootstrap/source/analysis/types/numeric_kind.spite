@@ -4,4 +4,10 @@ enum NumericKind = {
     'float_kind'
     'double_kind'
     'boolean_kind'
+    'tiny_kind'
+    'short_kind'
+    'byte_kind'
+    'unsigned_short_kind'
+    'unsigned_integer_kind'
+    'unsigned_long_kind'
 }
