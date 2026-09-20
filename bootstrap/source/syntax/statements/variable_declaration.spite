@@ -3,6 +3,7 @@ var type_reference: Syntax.Types.Type? = null
 var value: Syntax.Expressions.Expression? = null
 var line = 0
 var source_path = ""
+var overrides_declaration = false
 
 func VariableDeclaration(declaration_name: String, declaration_type: Syntax.Types.Type?, declaration_value: Syntax.Expressions.Expression) {
     name = declaration_name

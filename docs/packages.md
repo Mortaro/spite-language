@@ -127,7 +127,8 @@ itself compiles to nothing at runtime.
 ## Final classes
 
 Because patching is dangerous to read silently, `--final-classes[=folder]` writes one `.spite` file per class,
-after every `load`-ed root is merged and every reopened class resolved to its winning functions -- each
-replaced function preceded by a `#` comment naming the root it came from. Bare `--final-classes` defaults to
-`.spite-cache/final/` when `--development` is also given. This is the file to read when you are not sure which
-mod actually won for a given function.
+after every `load`-ed root is merged and every reopened class resolved to its winning declarations -- each
+replaced declaration preceded by a `#` comment naming the source file it came from. Bare `--final-classes`
+defaults to `.spite-cache/final/`; `--final-classes=folder` writes there instead. This is the file to read when
+you are not sure which mod actually won for a declaration. See [compiler.md](compiler.md) for every command-line
+option.

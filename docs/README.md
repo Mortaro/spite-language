@@ -8,7 +8,8 @@ open while you write.
 
 ## Pages
 
-- [getting_started.md](getting_started.md) -- build the compiler, hello world, the command line, formatting and lints.
+- [getting_started.md](getting_started.md) -- build the compiler and run hello world.
+- [compiler.md](compiler.md) -- every compiler option, its behavior, and a command-line example.
 - [classes_and_files.md](classes_and_files.md) -- files are classes, constructors, classes are references by default.
 - [values_and_types.md](values_and_types.md) -- numeric types and the casting rule, `String`, `T?` and
   `assert` narrowing, enums, unions, inline types and duck typing.

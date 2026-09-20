@@ -1,0 +1,412 @@
+var shape = Analysis.AstShape()
+
+func source_file(file: Syntax.SourceFile): String {
+    return source_statement_list(file.statements, 0)
+}
+
+func source_statement_list(statements: List<Syntax.Statements.Statement>, depth: Int): String {
+    var text = ""
+    var index = 0
+    while index < statements.count() {
+        if index > 0 {
+            text = "{text}\n"
+            if depth == 0 and stands_apart(statements[index - 1], statements[index]) {
+                text = "{text}\n"
+            }
+        }
+        text = "{text}{source_statement(statements[index], depth)}"
+        index = index + 1
+    }
+    return text
+}
+
+func stands_apart(previous: Syntax.Statements.Statement, next: Syntax.Statements.Statement): Bool {
+    var previous_attribute = shape.as_variable_declaration(previous)
+    var next_attribute = shape.as_variable_declaration(next)
+    if previous_attribute and next_attribute {
+        return false
+    }
+    return true
+}
+
+func source_indent(depth: Int): String {
+    var text = ""
+    var index = 0
+    while index < depth {
+        text = "{text}    "
+        index = index + 1
+    }
+    return text
+}
+
+func source_block(statements: List<Syntax.Statements.Statement>, depth: Int): String {
+    if statements.is_empty() {
+        return "\{}"
+    }
+    return "\{\n{source_statement_list(statements, depth + 1)}\n{source_indent(depth)}}"
+}
+
+func source_statement(statement: Syntax.Statements.Statement, depth: Int): String {
+    var indent = source_indent(depth)
+    switch statement {
+        Syntax.Statements.GenericsDeclaration: return "{indent}generics ${statement.names.join(", $")}"
+        Syntax.Statements.VariableDeclaration: {
+            var type_text = ""
+            var type_reference = statement.type_reference
+            if type_reference {
+                type_text = ": {source_type(type_reference)}"
+            }
+            var value = statement.value
+            crash value
+            return "{source_reopen_note(statement.source_path, statement.overrides_declaration, depth)}{indent}var {statement.name}{type_text} = {source_expression(value)}"
+        }
+        Syntax.Statements.FunctionDeclaration: return source_function(statement, depth)
+        Syntax.Statements.TypeDeclaration: return source_type_declaration(statement, depth)
+        Syntax.Statements.EnumDeclaration: return "{indent}enum {statement.name} {source_names(statement.values, depth)}"
+        Syntax.Statements.UnionDeclaration: return "{indent}union {statement.name} {source_types(statement.members, depth)}"
+        Syntax.Statements.AssignmentStatement: {
+            var target = statement.target
+            var value = statement.value
+            crash target
+            crash value
+            return "{indent}{source_expression(target)} = {source_expression(value)}"
+        }
+        Syntax.Statements.IfStatement: {
+            var condition = statement.condition
+            crash condition
+            var text = "{indent}if {source_expression(condition)} {source_block(statement.then_branch, depth)}"
+            if statement.has_else_branch {
+                text = "{text} else {source_block(statement.else_branch, depth)}"
+            }
+            return text
+        }
+        Syntax.Statements.WhileStatement: {
+            var condition = statement.condition
+            crash condition
+            return "{indent}while {source_expression(condition)} {source_block(statement.body, depth)}"
+        }
+        Syntax.Statements.SwitchStatement: return source_switch(statement, depth)
+        Syntax.Statements.AssertStatement: {
+            var value = statement.value
+            crash value
+            if statement.is_crash {
+                return "{indent}crash {source_expression(value)}"
+            }
+            return "{indent}assert {source_expression(value)}"
+        }
+        Syntax.Statements.ReturnStatement: {
+            var value = statement.value
+            if value {
+                return "{indent}return {source_expression(value)}"
+            }
+            return "{indent}return"
+        }
+        Syntax.Statements.ExpressionStatement: {
+            var value = statement.value
+            crash value
+            return "{indent}{source_expression(value)}"
+        }
+    }
+}
+
+func source_function(function: Syntax.Statements.FunctionDeclaration, depth: Int): String {
+    var codegen = ""
+    if not function.codegen_names.is_empty() {
+        codegen = "<$${function.codegen_names.join(", $")}>"
+    }
+    var parameters = ""
+    var index = 0
+    while index < function.parameters.count() {
+        if index > 0 {
+            parameters = "{parameters}, "
+        }
+        var parameter = function.parameters[index]
+        var type_reference = parameter.type_reference
+        crash type_reference
+        parameters = "{parameters}{parameter.name}: {source_type(type_reference)}"
+        index = index + 1
+    }
+    var returns = ""
+    var return_type = function.return_type
+    if return_type {
+        returns = ": {source_type(return_type)}"
+    }
+    return "{source_reopen_note(function.source_path, function.overrides_declaration, depth)}{source_indent(depth)}func {function.name}{codegen}({parameters}){returns} {source_block(function.body, depth)}"
+}
+
+func source_reopen_note(path: String, replaces: Bool, depth: Int): String {
+    if replaces {
+        return "{source_indent(depth)}# replaced by {path}\n"
+    }
+    return ""
+}
+
+func source_type_declaration(declaration: Syntax.Statements.TypeDeclaration, depth: Int): String {
+    var text = "{source_indent(depth)}type {declaration.name} \{"
+    var index = 0
+    while index < declaration.fields.count() {
+        var field = declaration.fields[index]
+        var field_type = field.type_reference
+        crash field_type
+        if field.is_function {
+            var parameters = ""
+            var parameter_index = 0
+            while parameter_index < field.parameter_types.count() {
+                if parameter_index > 0 {
+                    parameters = "{parameters}, "
+                }
+                parameters = "{parameters}{source_type(field.parameter_types[parameter_index])}"
+                parameter_index = parameter_index + 1
+            }
+            text = "{text}\n{source_indent(depth + 1)}func {field.name}({parameters}): {source_type(field_type)}"
+        } else {
+            text = "{text}\n{source_indent(depth + 1)}{field.name}: {source_type(field_type)}"
+        }
+        index = index + 1
+    }
+    return "{text}\n{source_indent(depth)}}"
+}
+
+func source_names(names: List<String>, depth: Int): String {
+    var text = "\{"
+    var index = 0
+    while index < names.count() {
+        text = "{text}\n{source_indent(depth + 1)}'{names[index]}'"
+        index = index + 1
+    }
+    return "{text}\n{source_indent(depth)}}"
+}
+
+func source_types(types: List<Syntax.Types.Type>, depth: Int): String {
+    var text = "\{"
+    var index = 0
+    while index < types.count() {
+        text = "{text}\n{source_indent(depth + 1)}{source_type(types[index])}"
+        index = index + 1
+    }
+    return "{text}\n{source_indent(depth)}}"
+}
+
+func source_switch(statement: Syntax.Statements.SwitchStatement, depth: Int): String {
+    var subject = statement.subject
+    crash subject
+    var text = "{source_indent(depth)}switch {source_expression(subject)} \{"
+    var index = 0
+    while index < statement.cases.count() {
+        var switch_case = statement.cases[index]
+        var type_reference = switch_case.type_reference
+        crash type_reference
+        text = "{text}\n{source_indent(depth + 1)}{source_type(type_reference)} {source_block(switch_case.body, depth + 1)}"
+        index = index + 1
+    }
+    return "{text}\n{source_indent(depth)}}"
+}
+
+func source_type(type_reference: Syntax.Types.Type): String {
+    switch type_reference {
+        Syntax.Types.ReferenceType: {
+            var inner = type_reference.inner
+            crash inner
+            return "&{source_type(inner)}"
+        }
+        Syntax.Types.GenericType: return "${type_reference.name}"
+        Syntax.Types.NamedType: {
+            if type_reference.path.count() == 1 and type_reference.path[0] == "Nullable" and type_reference.arguments.count() == 1 {
+                var nullable_argument = type_reference.arguments[0]
+                switch nullable_argument {
+                    Syntax.Types.TypeArgument: {
+                        var value = nullable_argument.value
+                        crash value
+                        return "{source_type(value)}?"
+                    }
+                    Syntax.Types.IntegerArgument: crash false
+                    Syntax.Types.FloatArgument: crash false
+                    Syntax.Types.BoolArgument: crash false
+                    Syntax.Types.StringArgument: crash false
+                    Syntax.Types.EnumArgument: crash false
+                }
+            }
+            var text = type_reference.path.join(".")
+            if not type_reference.arguments.is_empty() {
+                var arguments = ""
+                var index = 0
+                while index < type_reference.arguments.count() {
+                    if index > 0 {
+                        arguments = "{arguments}, "
+                    }
+                    arguments = "{arguments}{source_generic_argument(type_reference.arguments[index])}"
+                    index = index + 1
+                }
+                text = "{text}<{arguments}>"
+            }
+            return text
+        }
+    }
+}
+
+func source_generic_argument(argument: Syntax.Types.GenericArgument): String {
+    switch argument {
+        Syntax.Types.TypeArgument: {
+            var value = argument.value
+            crash value
+            return source_type(value)
+        }
+        Syntax.Types.IntegerArgument: return "{argument.value}"
+        Syntax.Types.FloatArgument: return "{argument.value}"
+        Syntax.Types.BoolArgument: {
+            if argument.value { return "true" }
+            return "false"
+        }
+        Syntax.Types.StringArgument: return source_string(argument.value)
+        Syntax.Types.EnumArgument: return "'{argument.value}'"
+    }
+}
+
+func source_expression(expression: Syntax.Expressions.Expression): String {
+    switch expression {
+        Syntax.Expressions.NullLiteral: return "null"
+        Syntax.Expressions.TrueLiteral: return "true"
+        Syntax.Expressions.FalseLiteral: return "false"
+        Syntax.Expressions.IntegerLiteral: return "{expression.value}"
+        Syntax.Expressions.FloatLiteral: return "{expression.value}"
+        Syntax.Expressions.StringLiteralExpression: return source_string(expression.value)
+        Syntax.Expressions.EnumLiteralExpression: return "'{expression.value}'"
+        Syntax.Expressions.GenericIdentifierExpression: return "${expression.name}"
+        Syntax.Expressions.IdentifierExpression: return expression.name
+        Syntax.Expressions.ListLiteralExpression: return source_list(expression)
+        Syntax.Expressions.ObjectLiteralExpression: return source_object(expression)
+        Syntax.Expressions.UnaryExpression: {
+            var operand = expression.operand
+            crash operand
+            return "{source_unary_operator(expression.operator)}{source_expression(operand)}"
+        }
+        Syntax.Expressions.BinaryExpression: {
+            if expression.is_text_join { return source_text_join(expression) }
+            var left = expression.left
+            var right = expression.right
+            crash left
+            crash right
+            return "({source_expression(left)} {source_binary_operator(expression.operator)} {source_expression(right)})"
+        }
+        Syntax.Expressions.CallExpression: return source_call(expression.callee, expression.arguments, "")
+        Syntax.Expressions.GenericCallExpression: return source_generic_call(expression)
+        Syntax.Expressions.MemberExpression: {
+            var object = expression.object
+            crash object
+            return "{source_expression(object)}.{expression.name}"
+        }
+        Syntax.Expressions.IndexExpression: {
+            var object = expression.object
+            var index = expression.index
+            crash object
+            crash index
+            return "{source_expression(object)}[{source_expression(index)}]"
+        }
+    }
+}
+
+func source_text_join(expression: Syntax.Expressions.BinaryExpression): String {
+    var pieces = List<String>()
+    collect_text_join_pieces(expression, pieces)
+    return "\"{pieces.join("")}\""
+}
+
+func collect_text_join_pieces(expression: Syntax.Expressions.Expression, pieces: List<String>) {
+    var binary = shape.as_binary(expression)
+    if binary {
+        if binary.is_text_join {
+            var left = binary.left
+            var right = binary.right
+            crash left
+            crash right
+            collect_text_join_pieces(left, pieces)
+            collect_text_join_pieces(right, pieces)
+            return
+        }
+    }
+    var string = shape.as_string_literal(expression)
+    if string {
+        pieces.append(source_string_piece(string.value))
+        return
+    }
+    pieces.append("\{{source_expression(expression)}}")
+}
+
+func source_call(callee: Syntax.Expressions.Expression?, arguments: List<Syntax.Expressions.Expression>, type_arguments: String): String {
+    crash callee
+    var text = "{source_expression(callee)}{type_arguments}("
+    var index = 0
+    while index < arguments.count() {
+        if index > 0 { text = "{text}, " }
+        text = "{text}{source_expression(arguments[index])}"
+        index = index + 1
+    }
+    return "{text})"
+}
+
+func source_generic_call(expression: Syntax.Expressions.GenericCallExpression): String {
+    var arguments = ""
+    var index = 0
+    while index < expression.type_arguments.count() {
+        if index > 0 { arguments = "{arguments}, " }
+        arguments = "{arguments}{source_generic_argument(expression.type_arguments[index])}"
+        index = index + 1
+    }
+    return source_call(expression.callee, expression.arguments, "<{arguments}>")
+}
+
+func source_list(expression: Syntax.Expressions.ListLiteralExpression): String {
+    if expression.elements.is_empty() { return "[]" }
+    var text = "["
+    var index = 0
+    while index < expression.elements.count() {
+        if index > 0 { text = "{text}, " }
+        var value = expression.elements[index].value
+        crash value
+        text = "{text}{source_expression(value)}"
+        index = index + 1
+    }
+    return "{text}]"
+}
+
+func source_object(expression: Syntax.Expressions.ObjectLiteralExpression): String {
+    if expression.fields.is_empty() { return "\{}" }
+    var text = "\{"
+    var index = 0
+    while index < expression.fields.count() {
+        if index > 0 { text = "{text}, " }
+        var field = expression.fields[index]
+        var value = field.value
+        crash value
+        text = "{text}{field.name}: {source_expression(value)}"
+        index = index + 1
+    }
+    return "{text}}"
+}
+
+func source_unary_operator(operator: Syntax.Expressions.UnaryOperator): String {
+    if operator == 'negate' { return "-" }
+    return "not "
+}
+
+func source_binary_operator(operator: Syntax.Expressions.BinaryOperator): String {
+    if operator == 'add' { return "+" }
+    if operator == 'subtract' { return "-" }
+    if operator == 'multiply' { return "*" }
+    if operator == 'divide' { return "/" }
+    if operator == 'modulo' { return "%" }
+    if operator == 'equal' { return "==" }
+    if operator == 'not_equal' { return "!=" }
+    if operator == 'less' { return "<" }
+    if operator == 'less_equal' { return "<=" }
+    if operator == 'greater' { return ">" }
+    if operator == 'greater_equal' { return ">=" }
+    if operator == 'logical_and' { return "and" }
+    return "or"
+}
+
+func source_string(value: String): String { return "\"{source_string_piece(value)}\"" }
+
+func source_string_piece(value: String): String {
+    return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t").replace("\{", "\\\{")
+}

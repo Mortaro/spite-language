@@ -39,6 +39,11 @@ func SpiteCompiler(arguments: Arguments) {
         run_tree_mode(file_argument, content)
         return
     }
+    var final_classes_directory = final_classes_directory(arguments)
+    if final_classes_directory {
+        run_final_classes_mode(file_argument, content, final_classes_directory)
+        return
+    }
     if mode_argument == "c" {
         run_c_mode(file_argument, content)
         return
@@ -124,7 +129,7 @@ func has_flag(arguments: Arguments, flag: String): Bool {
 }
 
 func collect_program_values(arguments: Arguments) {
-    var reserved = ["file", "mode", "output", "debug_memory", "runtime"]
+    var reserved = ["file", "mode", "output", "debug_memory", "runtime", "final-classes"]
     var index = 0
     while index < arguments.count() {
         var argument = arguments.get(index)
@@ -135,6 +140,106 @@ func collect_program_values(arguments: Arguments) {
                 program_values.set(name, argument.slice(equals_position + 1, argument.length()))
             }
         }
+        index = index + 1
+    }
+}
+
+func final_classes_directory(arguments: Arguments): String? {
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments.get(index)
+        if argument == "--final-classes" {
+            return ".spite-cache/final"
+        }
+        if argument.starts_with("--final-classes=") {
+            var directory = argument.slice(16, argument.length())
+            if directory.is_empty() {
+                return ".spite-cache/final"
+            }
+            return directory
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func run_final_classes_mode(file_argument: String, content: String, output_directory: String) {
+    var discovery = Discovery.ProgramDiscovery().discover(file_argument, content)
+    if discovery.has_error {
+        console.error(discovery.error_message)
+        Program().exit(1)
+        return
+    }
+    var index = 0
+    while index < discovery.class_files.count() {
+        var class_file = discovery.class_files[index]
+        var path = final_class_path(output_directory, class_file.qualified_dotted)
+        create_final_class_directory(final_class_directory(path))
+        var source = Syntax.SourcePrinter().source_file(class_file.get_file())
+        var output = File(path)
+        if not output.write("{source}\n") {
+            console.error("error: could not write '{path}'")
+            Program().exit(1)
+            return
+        }
+        index = index + 1
+    }
+}
+
+func final_class_path(output_directory: String, qualified_name: String): String {
+    var segments = qualified_name.split(".")
+    var path = output_directory
+    var index = 0
+    while index < segments.count() {
+        path = "{path}/{final_class_file_name(segments[index])}"
+        index = index + 1
+    }
+    return "{path}.spite"
+}
+
+func final_class_file_name(class_name: String): String {
+    var result = ""
+    var index = 0
+    while index < class_name.length() {
+        var character = class_name.character_at(index)
+        var code = class_name.code_at(index)
+        if code >= 65 and code <= 90 {
+            if index > 0 {
+                result = "{result}_"
+            }
+            result = "{result}{character.lower()}"
+        } else {
+            result = "{result}{character}"
+        }
+        index = index + 1
+    }
+    return result
+}
+
+func final_class_directory(path: String): String {
+    var segments = path.split("/")
+    var result = ""
+    var index = 0
+    while index < segments.count() - 1 {
+        if index > 0 {
+            result = "{result}/"
+        }
+        result = "{result}{segments[index]}"
+        index = index + 1
+    }
+    return result
+}
+
+func create_final_class_directory(path: String) {
+    var segments = path.split("/")
+    var current = ""
+    var index = 0
+    while index < segments.count() {
+        if index > 0 {
+            current = "{current}/"
+        }
+        current = "{current}{segments[index]}"
+        Directory(current).create()
         index = index + 1
     }
 }

@@ -2595,6 +2595,11 @@ func generate_binary(binary: Syntax.Expressions.BinaryExpression, scope: Scope, 
             return generate_class_binary(binary.operator, left_class, left, left_ast, right_ast, scope, class_information)
         }
     }
+    if binary.operator == 'logical_and' or binary.operator == 'logical_or' {
+        var other = generate_expression(right_ast, scope, class_information)
+        var joined = "({truth_of(left)} {binary_operator_symbol(binary.operator)} {truth_of(other)})"
+        return ExpressionResult(joined, Analysis.Types.ScalarType('boolean_kind'))
+    }
     var right_code = ""
     if is_enum_literal(right_ast) and is_enum_type(left.get_type()) {
         right_code = coerce_for_store(right_ast, left.get_type(), scope, class_information)
@@ -2608,6 +2613,17 @@ func generate_binary(binary: Syntax.Expressions.BinaryExpression, scope: Scope, 
         return ExpressionResult(code, Analysis.Types.ScalarType('boolean_kind'))
     }
     return ExpressionResult(code, left.get_type())
+}
+
+func truth_of(result: ExpressionResult): String {
+    var maybe_null = type_shape.as_nullable(result.get_type())
+    if maybe_null {
+        if type_is_reference(maybe_null.get_inner()) {
+            return "(({result.code}) != 0)"
+        }
+        return "(({result.code}).has_value)"
+    }
+    return "({result.code})"
 }
 
 func operator_function_name(operator: Syntax.Expressions.BinaryOperator): String {

@@ -1968,6 +1968,16 @@ payloads to JSON on demand, since the compiler knows the schema.
    - **Make `${` inside text a compile error** naming `+` (proposed by Claude). A dollar before a brace has no
      other use, and text that genuinely needs it can be built with `+` or written `$` `{` apart.
    - **Leave it.** Text is text, and a rule about what may appear inside it is a rule to remember.
+10. **How `--final-classes` shows which root supplied a declaration.** D7 and milestone 10a both say a
+    reopening must not be silent, and `--final-classes` is where it stops being silent -- but what it writes is
+    a *program*: running the printed entry file runs the same program, which is what makes it proof rather than
+    a report. Provenance cannot be a comment, because a comment is only ever a link to a markdown heading
+    (section 12), and it cannot be a declaration without changing the program.
+    - **A separate manifest** beside the printed classes (proposed by Claude): one line per declaration with the
+      root it came from. Keeps the printed source a program, and the thing you grep is a table rather than
+      prose scattered through files.
+    - **Print it to the console** as the classes are written, so it is read once and not stored.
+    - **Give the comment rule one more form**, a provenance line the compiler writes and a human never does.
 
 
 ## Decision log
@@ -2099,3 +2109,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-20 | **D53** (decided by Mortaro): **text is joined by writing the value inside it, not with `+`.** `"hello {name}"` places `name` in the text at that point; `{ }` holds one value, which may be any expression (`"{person.name} is {person.age + 1}"`), and a brace meant literally is written `\{` the way a quote is written `\"`. Joining a *literal* to a value with `+` becomes an error naming the interpolation -- `"hello " + name` is wrong where `name + other_name` is right, because the first has a written-down piece of text with a hole in it and the second does not. One way to write the common thing, and the shape reads as the sentence it produces rather than as an expression that assembles one. |
 | 2026-09-20 | **D54** (decided by Mortaro): **an `if` whose only statement is a bare `return` is a compile error naming `assert`.** `if not directory.exists() { return }` is an `if` written for the sake of asserting something, and section 5 already has the way to say it: `assert directory.exists()`, which returns quietly and leaves the rest of the function unindented. The error names the condition to assert, negating it when the guard was not already negative. It is the same rule as the terminal-`if` lint one step further: an `if` that only decides whether the function continues is not control flow, it is a precondition. The compiler's own sources had 32 of them. |
 | 2026-09-20 | **D55** (decided by Mortaro): **a function body holds no empty lines.** A blank line inside a function is a compile error, because it is where a second function wants to be: the part below it is a step with a name, and the way to break a body into pieces is to name them and call them, not to space them apart. Blank lines stay legal between declarations, where they separate one thing from the next rather than one half of a thing from the other. The compiler's own sources had 164 of them, and the documentation's samples 25. It is the same push D27 makes with `assert`: decomposition is forced by the compiler rather than suggested by a style guide. |
+| 2026-09-20 | (implements the first step of milestone 10b's design; started by Codex, finished by Claude) **`--final-classes` writes the program back out as Spite source**, one file per class under its namespace folders, after discovery has merged every reopening. `--final-classes` alone writes to `.spite-cache/final`; `--final-classes=<folder>` chooses where. What it writes is a program rather than a report: `check.sh` prints a corpus program that reopens a standard library class, runs what came out, and requires the same output. That is what makes the milestone's "visible, not compiler magic" checkable at all. Not yet shown: which root supplied each declaration (open question 10). |

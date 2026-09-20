@@ -1069,11 +1069,15 @@ func parse_primary(): Syntax.Expressions.Expression {
         var text: Syntax.Expressions.Expression = Syntax.Expressions.StringLiteralExpression(token.text)
         while check('interpolation') {
             var hole = advance()
-            text = Syntax.Expressions.BinaryExpression('add', text, parse_interpolation(hole))
+            var joined = Syntax.Expressions.BinaryExpression('add', text, parse_interpolation(hole))
+            joined.is_text_join = true
+            text = joined
             var following = expect('string_literal', "the rest of the text after '}'")
             if not following.text.is_empty() {
                 var piece: Syntax.Expressions.Expression = Syntax.Expressions.StringLiteralExpression(following.text)
-                text = Syntax.Expressions.BinaryExpression('add', text, piece)
+                var joined = Syntax.Expressions.BinaryExpression('add', text, piece)
+                joined.is_text_join = true
+                text = joined
             }
         }
         return text

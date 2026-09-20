@@ -43,23 +43,18 @@ name (`HelloWorld`, from `hello_world.spite` PascalCased) is constructed and tha
 
 ## The command line
 
-```
-spite file.spite                      build and run
-spite file.spite --optimized          optimized build
-spite file.spite --development        keep everything (no tree shaking), for live reload
-spite file.spite --repl               run with an in-place REPL
-spite file.spite --repl-port 4000     run with a remote REPL an AI can connect to
-spite file.spite --environment=server set $environment to "server" for the whole program
-spite file.spite --output=path        build to path without running it
-spite file.spite --no-format          skip the automatic formatting pass below
-spite connect 4000                    talk to a running --repl-port program
-spite format <file-or-folder>         format without compiling (recursive on a folder)
-spite format --check <path>           rewrite nothing; list every file that would change, exit 1 if any would
+The complete, current command-line reference is [compiler.md](compiler.md). The shortest useful forms are:
+
+```bash
+spite file.spite                              # build and run
+spite file.spite --optimized                  # build and run with C optimization
+spite file.spite --mode=c > file.c            # print generated C
+spite file.spite --mode=build --output=file.exe # build without running
+spite file.spite --environment=server         # supply $environment at compile time
 ```
 
-Flags mix freely. A `--name=value` flag that matches no `$name` used anywhere in the program is a compile
-error -- there is no silent typo. See [metaprogramming.md](metaprogramming.md) for `$name` codegen values and
-[repl.md](repl.md) for `--repl`/`--repl-port`.
+A `--name=value` flag that matches no `$name` used anywhere in the program is a compile error -- there is no
+silent typo. Planned flags such as `--development`, `--repl`, and formatting commands are not available yet.
 
 ## Automatic formatting and lints
 

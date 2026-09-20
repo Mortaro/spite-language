@@ -32,9 +32,10 @@ and balanced allocations.
      Smaller than 10b (reopening is already implemented for user classes), this mostly needs the "library"
      classes to participate in the discovery pass's merge pass.
    - **10b. Designed, not started.** The design pass this entry asks for is done and lives in
-     `bootstrap/COMPILER_PLAN.md`, "Milestone 10b: the design pass": `--final-classes` first, because it is the
-     only way to tell finished reflection from the compiler magic it replaces; then the members move into
-     `library/spite/class.spite`; then `Spite.Namespace` with the migration of every `.namespace` reader.
+     `bootstrap/COMPILER_PLAN.md`, "Milestone 10b: the design pass". Its first step is **done**:
+     `--final-classes` writes the merged program back out as Spite source, and `check.sh` runs what it printed.
+     Next: the members move into `library/spite/class.spite`; then `Spite.Namespace` with the migration of
+     every `.namespace` reader.
      Calling by `Symbol` with arguments and defining members from data move out of this milestone.
      Comprehensive, Ruby grade reflection at compile time (manual.md section 16 item 2): `attributes`,
      `class`, `functions`, `Class.instances`, enumerating and calling functions by `Symbol`, respond-to checks, defining

@@ -125,6 +125,17 @@ done
 echo "documentation: $documented passed, $undocumented failed"
 [ "$undocumented" == "0" ] || exit 1
 
+# --final-classes writes the program back out as Spite source. What it writes has to be a program:
+# printing one of the corpus programs and running what came out must print the same thing.
+printed="$work/printed"
+"$work/generation_two.exe" --file=conformance/stage6/reopen_library/reopen_library.spite --final-classes="$printed" > /dev/null 2>&1 || {
+  echo "FAILED: --final-classes could not write the program out"; exit 1; }
+printed_output=$("$work/generation_two.exe" --file="$printed/reopen_library.spite" --mode=run --debug_memory=true < /dev/null 2>&1 | tr -d '' | grep -v '^allocations: ')
+if [ "$printed_output" != "$(tr -d '' < conformance/stage6/reopen_library/expected_output.txt)" ]; then
+  echo "FAILED: the printed program does not run like the one it was printed from"; echo "$printed_output" | head -6; exit 1
+fi
+echo "final classes: the printed program runs the same"
+
 if cmp -s "$work/generation_two.c" bootstrap/seed/spite_compiler.c; then
   echo "OK: fixpoint holds and the committed seed is current"
 elif [ "$1" == "--update-seed" ]; then

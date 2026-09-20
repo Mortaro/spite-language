@@ -37,13 +37,23 @@ fi
 # `spite thing.spite` is the common case; anything starting with - is passed through.
 # The compiler reads runtime/*.h relative to its working directory, so it runs from the
 # repository root and every file argument is made absolute first.
+# A flag that names a path where output goes needs the same treatment, since the working
+# directory it was written against is the caller's, not the repository's.
+absolute() {
+    case "$1" in
+        /* | [A-Za-z]:*) echo "$1" ;;
+        *)               echo "$(pwd)/$1" ;;
+    esac
+}
 arguments=()
 for argument in "$@"; do
     case "$argument" in
-        -*)        arguments+=("$argument") ;;
-        /*)        arguments+=("--file=$argument") ;;
-        [A-Za-z]:*) arguments+=("--file=$(cygpath -u "$argument" 2>/dev/null || echo "$argument")") ;;
-        *)         arguments+=("--file=$(pwd)/$argument") ;;
+        --final-classes=* ) arguments+=("--final-classes=$(absolute "${argument#*=}")") ;;
+        --output=*)         arguments+=("--output=$(absolute "${argument#*=}")") ;;
+        -*)                 arguments+=("$argument") ;;
+        /*)                 arguments+=("--file=$argument") ;;
+        [A-Za-z]:*)         arguments+=("--file=$(cygpath -u "$argument" 2>/dev/null || echo "$argument")") ;;
+        *)                  arguments+=("--file=$(pwd)/$argument") ;;
     esac
 done
 case " $* " in *" --mode="*) ;; *) arguments+=("--mode=run") ;; esac

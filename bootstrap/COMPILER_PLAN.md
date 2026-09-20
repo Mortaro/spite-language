@@ -216,3 +216,19 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   comment rule from the gap between a newline token and the next token, so text spanning lines is not mistaken
   for one; 164 left the compiler and 25 left the documentation's samples.
   State: 57 conformance + examples, 54 tests, 37 diagnostics, 45 documentation programs, fixpoint holds.
+- 2026-09-20 (`--final-classes`, milestone 10b step one; started by Codex, finished here): the flag writes every
+  discovered, merged class back out as Spite source under its namespace folders, with a `SourcePrinter` over the
+  AST. Three things were wrong with it as found. The committed seed had none of it, which is the whole of the
+  bug reported from a real run (`could not write 'build/final-classes/nothing.spite'`): `bin/spite` builds from
+  the seed, and the seed predated the recursive directory creation. `bin/spite` then wrote the output to the
+  repository root rather than the caller's folder, because it `cd`s to the root and only made *file* arguments
+  absolute -- `--final-classes=` and `--output=` now get the same treatment. And `if value and not condition`
+  emitted `(value && ((Type)(!has_error)))`, casting a Bool to a pointer, because the "right side casts toward
+  the left" rule was being applied to `and`/`or`; each side of a logical operator is now emitted as its own
+  truth test, which is also what removes the last warning from compiling the seed.
+  `check.sh` prints `conformance/stage6/reopen_library` and runs what came out, requiring the same output: the
+  printed classes are a program, not a report, which is what makes milestone 10b's "visible, not compiler magic"
+  checkable. Provenance -- which root supplied each declaration -- is not shown and cannot be a comment (D34);
+  it is manual.md open question 10.
+  State: 57 conformance + examples, 54 tests, 37 diagnostics, 45 documentation programs, the printed program
+  round trip, fixpoint holds.
