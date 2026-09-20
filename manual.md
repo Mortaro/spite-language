@@ -101,7 +101,22 @@ var target: Nullable<Monster> = null
   Operations that cannot succeed produce the default instead of crashing (for example reading a list out of range).
 - `null` exists only as the empty state of `Nullable<T>`. See [Open questions](#open-questions) for `= null` on other types.
 - An inner `var` may shadow an outer local, parameter, or attribute with the same name (second batch item 4,
-  decided 2026-09-19). Redeclaring a name in the *same* scope is still a compile error.
+  decided 2026-09-19), **and a `var` may shadow a name in the same scope too** (D51, decided by Mortaro,
+  2026-09-20). The second binding may hold a different type, which is what makes it worth having:
+
+```
+var content = file.read()        # String?
+assert content
+var content = content.trim()     # String
+```
+
+  **The order is: evaluate, then drop, then bind.** The new value is computed first -- so `var content =
+  content.trim()` reads the binding it is about to replace -- then the previous value is released, running its
+  `drop()` if that takes it to zero, and only then does the new binding take effect. Releasing first would make
+  the common case a use-after-free.
+
+  The unused rule (section 5) still applies to the binding being shadowed: shadowing a name that was never read
+  is an error, which is what catches an accidental reuse rather than a deliberate one.
 
 ### Casting
 
@@ -1970,3 +1985,4 @@ func format_name(first_name: String, last_name: String): String { }
 | 2026-09-20 | **D48** (decided by Mortaro): **`Nothing` is the class a function returns when it returns nothing**, which D39 left open and which turned out to be required rather than optional: with the return in the last generic position, `Spite.Function<String>` already reads as "takes nothing, returns a `String`", so a function taking a `String` and returning nothing could not otherwise be written. `Spite.Function<Nothing>` takes nothing and returns nothing. It is also what `.returns` reports for every function declared without a return type, so it is not notation invented for the type syntax -- it fills a hole the reflection already had. Chosen over `None` because it says "no value" rather than reading like an empty collection. This unblocks milestone 16d, the zero-argument subset of `Spite.Function` that lets the test entry discover its `test_` functions instead of hand-listing them. |
 | 2026-09-20 | **D49** (decided by Mortaro): **`Spite.Class.instances` is every class in the program.** A class is an instance of `Spite.Class` (D6), so the registry of its instances is the whole program's classes -- whole-program enumeration falls out of "everything is a class, including classes" rather than needing a mechanism. A test runner finds every test class with it instead of being handed them, so there is no registration, no manifest and no `run(...)` call per class. D42 pays for it: a program that never enumerates its classes never generates the registry. |
 | 2026-09-20 | **D50** (decided by Mortaro): **a class with no declared constructor has an implicit one**, taking no arguments and doing nothing, so `func DictionaryTests() { }` never needs writing. Every field already has a default value (section 4), so there is nothing for such a constructor to do. This already works in the compiler: a class with no constructor function is constructed with its field defaults. **Proposed by Claude, unconfirmed:** an explicitly written empty constructor is then redundant and should be a lint error naming the deletion, the way an unused local is -- the language removes redundancy rather than tolerating it. A constructor that declares codegen values (D9) or does real setup is of course still written. |
+| 2026-09-20 | **D51** (decided by Mortaro): **a `var` may shadow a name in the same scope**, not only in a nested one, and the previous value is dropped as part of the shadowing. The second binding may hold a different type, which is the point: `var content = content.trim()` turns a `String?` that has been narrowed into a `String` without inventing a second name. **The order is evaluate, then drop, then bind** -- the new value is computed first, so the expression may read the binding it is about to replace, then the previous value is released (running `drop()` if that takes it to zero), then the new binding takes effect. Releasing first would make the most common use of the feature a use-after-free. The unused rule (D-log, second batch item 5) still applies to the shadowed binding, so shadowing a name that was never read is an error -- which separates a deliberate reuse from an accidental one. |
