@@ -60,6 +60,12 @@ for folder in conformance/*/*/; do
   body=$(echo "$actual" | grep -v '^allocations: ')
   balance=$(echo "$actual" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
   allocations=${balance% *}; frees=${balance#* }
+  if [ -f "$folder/crashes.txt" ]; then
+    # a program that is meant to crash: its whole output (stdout and the crash line) must match, and there is no
+    # balance line because a crash halts before the program would have released anything
+    if [ "$actual" == "$expected" ]; then passed=$((passed+1)); else failed=$((failed+1)); echo "FAILED: $name"; echo "$actual" | head -8; fi
+    continue
+  fi
   if [ "$body" == "$expected" ] && [ -n "$balance" ] && [ "$allocations" == "$frees" ]; then passed=$((passed+1)); else failed=$((failed+1)); echo "FAILED: $name"; echo "$actual" | head -8; fi
 done
 echo "conformance: $passed passed, $failed failed"

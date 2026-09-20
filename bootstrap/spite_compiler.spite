@@ -203,7 +203,7 @@ func find_c_compiler(): String {
     var candidates = ["cc", "clang", "gcc"]
     var index = 0
     while index < candidates.count() {
-        var probe = Process(candidates[index], ["--version"])
+        var probe = Process(candidates[index] + " --version 2>&1", List<String>())
         if probe.run() == 0 {
             return candidates[index]
         }

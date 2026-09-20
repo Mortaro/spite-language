@@ -1,0 +1,2 @@
+spite.crash	conformance/stage5/crash_report/crash_report.spite:10	CrashReport	check
+before the crash
