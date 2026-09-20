@@ -6,5 +6,6 @@ true true true
 note.txt 0
 true false
 cannot read
+CC is set
 0 false
 done

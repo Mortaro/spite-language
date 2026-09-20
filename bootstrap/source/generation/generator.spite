@@ -116,6 +116,7 @@ func register_system_classes() {
     add_builtin_function(program, "Program", no_parameters(), void_type())
     add_builtin_function(program, "exit", one_parameter("code", integer_type()), void_type())
     add_builtin_function(program, "sleep", one_parameter("milliseconds", integer_type()), void_type())
+    add_builtin_function(program, "environment", one_parameter("name", string_type()), nullable_type_of(string_type()))
 }
 
 func emit_system_classes(system_structs: String, system_prototypes: String, system_bodies: String) {

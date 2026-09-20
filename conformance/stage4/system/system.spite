@@ -16,7 +16,17 @@ func System(arguments: Arguments) {
     console.print(folder.files().join(","), folder.folders().count())
     console.print(file.remove(), file.exists())
     report(file)
-    var process = Process("cc", ["version"])
+    var c_compiler = Program().environment("CC")
+    if c_compiler {
+        console.print("CC is set")
+    } else {
+        console.print("CC is not set")
+    }
+    var never_set = Program().environment("SPITE_CONFORMANCE_NEVER_SET")
+    if never_set {
+        console.print("unexpected")
+    }
+    var process = Process("git", ["--version"])
     var exit_code = process.run()
     console.print(exit_code, process.output().trim().is_empty())
     Program().sleep(1)

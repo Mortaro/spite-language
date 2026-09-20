@@ -50,3 +50,4 @@ Program* Program_copy(Program* self);
 Program* Program_deep_copy(Program* self);
 void Program_exit(Program* self, int32_t code);
 void Program_sleep(Program* self, int32_t milliseconds);
+SpiteString* Program_environment(Program* self, SpiteString* name);

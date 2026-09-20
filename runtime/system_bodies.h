@@ -315,3 +315,11 @@ void Program_sleep(Program* self, int32_t milliseconds) {
     (void)self;
     spite_sleep_milliseconds((int64_t)milliseconds);
 }
+
+SpiteString* Program_environment(Program* self, SpiteString* name) {
+    (void)self;
+    const char* spite_environment_value = getenv(name->data);
+    SpiteString_release(name);
+    if (spite_environment_value == 0) return 0;
+    return spite_string_from_cstring_owned(spite_environment_value);
+}

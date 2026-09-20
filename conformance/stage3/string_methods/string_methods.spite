@@ -6,7 +6,7 @@ func StringMethods() {
     console.print(trimmed.length(), trimmed.is_empty(), "".is_empty())
     console.print(trimmed.upper(), trimmed.lower())
     console.print(trimmed.slice(7, 12), trimmed.character_at(0), trimmed.code_at(0), trimmed.character_at(99) + "|")
-    console.print(trimmed.contains("Spite"), trimmed.starts_with("Hello"), trimmed.ends_with("x"), trimmed.index_of("Spite"), trimmed.index_of("cc"))
+    console.print(trimmed.contains("Spite"), trimmed.starts_with("Hello"), trimmed.ends_with("x"), trimmed.index_of("Spite"), trimmed.index_of("absent"))
     console.print(trimmed.replace("World", "Compiler").replace("Hello", "Bye"))
     var parts = "a,b,,c".split(",")
     console.print(parts.count(), parts.join("|"))

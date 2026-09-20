@@ -167,8 +167,12 @@ func build_to_path(file_argument: String, content: String, output_path: String, 
     var wrote = c_file.write(code)
     crash wrote
 
+    var c_compiler = find_c_compiler()
+    if c_compiler.is_empty() {
+        console.error("error: no C compiler found. Set the CC environment variable to the command that compiles C (for example CC=clang), or install cc, clang or gcc")
+        return false
+    }
     var process_arguments = List<String>()
-    process_arguments.append("cc")
     process_arguments.append("-O0")
     process_arguments.append("-Wno-parentheses-equality")
     if debug_memory {
@@ -177,13 +181,32 @@ func build_to_path(file_argument: String, content: String, output_path: String, 
     process_arguments.append(c_path)
     process_arguments.append("-o")
     process_arguments.append(output_path)
-    var process = Process("cc", process_arguments)
+    var process = Process(c_compiler, process_arguments)
     var exit_code = process.run()
     if exit_code != 0 {
         console.error(process.output())
         return false
     }
     return true
+}
+
+func find_c_compiler(): String {
+    var chosen = Program().environment("CC")
+    if chosen {
+        if not chosen.trim().is_empty() {
+            return chosen.trim()
+        }
+    }
+    var candidates = ["cc", "clang", "gcc"]
+    var index = 0
+    while index < candidates.count() {
+        var probe = Process(candidates[index], ["--version"])
+        if probe.run() == 0 {
+            return candidates[index]
+        }
+        index = index + 1
+    }
+    return ""
 }
 
 func run_build_mode(file_argument: String, content: String, output_path: String, debug_memory: Bool) {
