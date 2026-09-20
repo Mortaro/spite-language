@@ -1,140 +1,120 @@
-# Cheat sheet for AI writers
+# Writing Spite: the one page to read first
 
-Paste this page into context before generating Spite. Every rule below is enforced by the compiler, not a
-style guideline -- violating one is a compile error, not a warning.
+Everything here is enforced by the compiler. When it rejects something it says what to write instead, reports
+every error in one run as `path:line: error: message (in Class.function)`, and never warns: it errors or it is fine.
+`manual.md` is the reference; this page is the working set.
 
-## Rules that differ from mainstream languages
+## Run it
 
-- One `.spite` file = one class, named by PascalCasing the file name. No `class` keyword. No two classes per file.
-- No file-level statements. Only `generics`/`var`/`func`/`type`/`enum`/`union` at file scope.
-- No `main`. The entry file's class is constructed; that construction *is* the program.
-- `spite folder/file.spite` loads `folder/` as a root: the file's own folder is the namespace root, and every
-  sub folder is a namespace, recursively -- the same as `load("folder")` would load it. The entry class is the
-  PascalCase of the file's own name (`game/game.spite` runs `Game`).
-- `return` is always explicit, and the return type is always `(): Type` (with the colon). No implicit return of
-  a trailing expression, no `() Type` without a colon.
-- A function whose body falls off the end without `return` gets the return type's default -- silently, no
-  diagnostic. If you meant to return something, write `return`.
-- There is no `for`. Only `while`. Index with `while index < list.count() { }`, or reach for a `List<T>`/
-  `Dictionary<T>` metaprogramming helper (`filter_`/`count_`/`sum_`/`find_by_`/`sort_by_`/`each_`/`map_`/
-  `any_`/`all_`) first.
-- Casting is always right-side-toward-left-side, with no cast syntax at all. `age > 0.5` with an `Int age`
-  compares against `0` (`0.5` truncates), not `0.5`.
-- `null` only exists for `Nullable<T>`. Unwrap with `if value { }` (narrows `value` itself to `T` inside the
-  block, with an `else` for when it is null) or `assert value` (narrows for the rest of the block). There is no
-  `do` keyword any more -- `if value do name { }` is a parse error naming the `if value { }` form.
-- **Lint, not a style choice:** a function whose *last* statement is `if value { ... }` (no `else`) used only to
-  check existence is a compile error. Use `assert` instead.
-- **Shadowing is allowed**, redeclaring in the same scope is not: an inner `var name` may reuse an outer
-  local/parameter/attribute's name, but two `var name` in the *same* scope is still an error.
-- **Unused is an error**, not a warning: an unused local variable or parameter is a compile error unless its
-  name starts with `_` (and a `_name` that *is* used is also an error -- remove the underscore). Exempt:
-  parameters whose signature is dictated from outside -- operator functions (`sum`, `equals`, `get_at`, ...),
-  Symbol codegen templates, setters/getters that answer attribute access (`person.age = 1` calls `set_age`),
-  and functions that replace another through class reopening.
-- Every operator (`+ - * / % == != < > <= >=`, unary `-`, `a[x]`, `a[x] = v`) is a function a class can define
-  (`sum`, `subtract`, ..., `get_at`, `set_at`). `not`/`and`/`or` stay built-in keywords, never functions.
-- `person.field = value` / `person.field` (read) from *outside* a class go through `set_field`/`get_field` when
-  the class defines them (exact function, or Symbol codegen) -- from inside the class, `field = value` always
-  stays a raw field access.
-- **No abbreviations, ever**, except the keywords themselves. `msg`, `cfg`, `idx`, `str`, and roughly fifty more
-  are compile errors naming the full word. Single-letter names are always errors too.
-- Everything is formatted for you. Do not hand-indent, hand-wrap, or fuss over blank lines -- the compiler
-  rewrites the file to the one true style before compiling. Do not fight it; write reasonable code and let it
-  format.
-- Reference counted, not garbage collected: a scalar is copied, everything else (a class instance, `List<T>`,
-  `Dictionary<T>`, `String`, a union, an object literal) is a reference -- assigning/passing/storing one shares
-  the exact same object, visibly (mutating it through one name shows up through every other name that holds it).
-  `copy()`/`deep_copy()` make an independent object when you want one; `drop()` runs once, right before the last
-  reference is freed, if the class defines it. A cycle (two objects holding references to each other) leaks --
-  break it by hand (see [memory.md](memory.md)).
-- A class/union can contain itself directly now -- no special wrapper type needed for that (`&Type`/`Heap<T>`
-  no longer exist; a plain `Type` already means "a reference to it").
+```
+spite program.spite                     compile and run
+spite program.spite --optimized         optimized build
+spite program.spite --mode=c            print the C instead
+spite program.spite --environment=server   sets $environment for the whole program
+bash check.sh                           the compiler still compiles itself, and every corpus passes
+```
 
-## Lints (compile errors, each with a suggested fix)
+A program lives in its own folder. Running `game/game.spite` loads `game/` as a package: every sub folder is a
+namespace (`game/engine/renderer/debug.spite` is `Engine.Renderer.Debug`; a file named like its folder is the
+folder's own class). `load("folder")` inside a function loads another package; a file at the same namespace path
+reopens the class: same-named functions and attributes replace, the rest are added.
 
-| Lint | Example that fails |
-|---|---|
-| non-`snake_case` variable/attribute/function/parameter | `var userName = ""` |
-| non-`PascalCase` class/type/enum/union | already correct by construction for classes (from the file name) |
-| single-letter name | `var x = 0` |
-| abbreviation | `var msg = ""` (spell out `message`) |
-| terminal `if value { }` (no `else`) | see [values_and_types.md](values_and_types.md)'s `assert`-narrowing section |
-| `for` | parse error naming `while` and the metaprogramming helpers |
-| `if value do name { }` | parse error naming `if value { }` (see [control_flow.md](control_flow.md)) |
-| unused local/parameter not prefixed with `_` | `func f(count: Int) { }` where `count` is never read |
-| a used `_name` local/parameter | remove the underscore |
-| `) Type` return type without a colon | parse error naming `(): Type` |
+## A file is a class
 
-## Common compile errors and their fixes
+```spite
+var name = ""
+var health = 10
+var target: Monster? = null
+var friends = List<Monster>()
 
-```spite fragment
-# error: "'&Type' is not supported: references are the default now, so plain
-# 'Type' already means what '&Type' used to -- remove the '&'"
-func broken(target: &Widget) {
-    target.rename("new name")
+func Monster(starting_name: String) {
+    name = starting_name
 }
 
-# fix: drop the '&' -- a reference is already the default
-func fixed(target: Widget) {
-    target.rename("new name")
+func hurt(amount: Int) {
+    health = health - amount
+}
+
+func is_alive(): Bool {
+    return health > 0
 }
 ```
 
-```spite fragment
-# Not a compile error, the one behavior most likely to surprise you: passing/
-# assigning a class instance never copies it, so a mutation through one name
-# is visible through every other name holding the same object.
-func surprising() {
-    var original = Widget("a")
-    var alias = original
-    alias.rename("b")
-    console.print(original.name)     # prints "b": alias IS original, not a copy
-}
+- The file name is the class name (`monster.spite` is `Monster`). Only `var`, `func`, `enum`, `union` and `type`
+  may appear at file level. Every `var` has a default value.
+- The function named like the class is the constructor. Do not write an empty one: a class without a constructor
+  is made from its defaults, and `func Monster() { }` is an error.
+- A program starts by constructing the entry file's class. `func Game(arguments: Arguments)` receives the command
+  line: `arguments.count()`, `arguments.get(0)`, and `arguments.player` for `--player=value` (a `String?`).
+- `return` is always written. The return type is written `(): Type`. No return type means it returns `Nothing`.
+- Only `while` exists. There is no `for`, `break` or `continue`. Prefer the member templates below.
 
-# fix: copy() first for an independent object
-func fixed() {
-    var original = Widget("a")
-    var independent = original.copy()
-    independent.rename("b")
-    console.print(original.name)     # prints "a"
-}
-```
+## Names, comments, unused things
 
-```spite fragment
-# error: "'Focused' does not define a 'sum' function needed for '+': define func sum(other: Focused): Focused"
-# fix: define the operator function the diagnostic names
-func sum(other: Focused): Focused {
-    return Focused(value + other.value)
-}
-```
+- `snake_case` for variables, attributes, parameters, functions and enum values; `PascalCase` for classes,
+  enums, unions and types; never a single letter; never an abbreviation (`message` not `msg`, `index` not `idx`,
+  `value` not `val`). The error names the word to write.
+- A local or parameter that is never used is an error: remove it or name it `_name`. A `_name` that is used is an
+  error too.
+- A comment is one line, outside functions, and nothing but a link to a markdown heading:
+  `# notes.md#why-this-exists` (relative to the entry file's folder; the file and the heading must exist).
+  Anything else, including `//` and `/* */`, is an error. If the code already says it, do not write it.
 
-```spite fragment
-# error: variable 'msg' uses an abbreviation; no abbreviations, spell it out: 'message'
-var msg = ""
+## Values
 
-# fix
-var message = ""
-```
+- Numbers: `Int` (32 bit, the default), `Long`, `Tiny`, `Short`, `Byte`, `UnsignedShort`, `UnsignedInt`,
+  `UnsignedLong`, `Float` (the default for decimals), `Double`. `Bool`. `String` (double quotes only).
+- No cast syntax: the right side is cast toward the left. `"age " + 3` is `"age 3"`; `var total: Int = "12"` parses
+  it; an `Int` plus a `Float` is an `Int`. A value that does not fit wraps.
+- Everything that is not a number, a `Bool` or an enum value is a reference: passing, assigning and storing share
+  the same object. `copy()` copies one level, `deep_copy()` all the way down. `drop()` runs when the last reference
+  goes. Two objects that refer to each other leak: clear one side.
+- `List<T>`: `[1, 2, 3]`, `append`, `prepend`, `insert`, `remove_at`, `remove_last`, `remove_first`, `first`,
+  `last`, `count`, `contains`, `is_empty`, `clear`, `reverse`, `join` (strings), `list[index]` (out of range gives
+  the default). `Dictionary<T>` (String keys): `set`, `get` (a `T?`), `has`, `remove`, `count`, `keys`, `values`,
+  `dictionary["key"]`.
+- On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Bool` member),
+  `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<member>()`,
+  `each_<member>()` (a function). A member is an attribute or a function that takes nothing.
+- `enum Job = { 'knight', 'mage' }`: values are single quoted and resolve from where they are used.
+- `union Enemy = { Player, Monster }`: `switch enemy { Player: ... Monster: { ... } }` must cover every member and
+  narrows `enemy` inside each case; a function or attribute every member has can be used on the union directly.
+- `type Renderable = { label: String, render(): String }` accepts any class, or object literal `{ label: "x" }`,
+  with those attributes and functions.
 
-## Idioms
+## Nothing, null, and failure
 
-- Prefer `repositories.filter_active().sum_stars()` over a `while` loop and manual accumulation, whenever the
-  class already has the field the helper name needs.
-- `List<T>` is `append`/`prepend`/`remove_last`/`remove_first`, never `add`/`pop` -- those old names are compile
-  errors naming the replacement.
-- Give every class an explicit constructor only when it needs one; a class with no matching-name function gets
-  a free no-argument constructor from its field defaults.
-- Use `assert` for "this must be true or bail with the default" at the top of a function, not nested `if`s.
-- Reach for `type` (structural matching) when you want to accept "anything shaped like this," including a
-  plain object literal, instead of requiring a specific class.
-- Keep a `Symbol`-codegen getter (`get_attribute`) to scalar/enum attributes; write an exact function for a
-  `String`/`List<T>`/`Dictionary<T>` getter instead of letting Symbol codegen generate it (see
-  [KNOWN_ISSUES.md](KNOWN_ISSUES.md)).
-- `count()` is always just the size of a collection. `count_<attribute>()` only exists for a `Bool` attribute
-  (counts how many elements have it `true`); on a numeric attribute it is a compile error naming
-  `sum_<attribute>()` instead.
+- `Monster?` is a value that may be `null`. It must be narrowed before use: `if target { }` (with `else`),
+  `assert target`, `crash target`, or `switch target { Monster: ... Null: ... }`.
+- There are no exceptions and no error values. Three outcomes only:
+  - the compiler can know it: a compile error;
+  - absence is fine: `assert condition` returns quietly. Legal only in a function that returns nothing or a `T?`,
+    never in a constructor;
+  - absence is a bug: `crash condition` halts with
+    `spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition<TAB>name=value...`, followed by the
+    asserts that failed before it. A bare `crash` marks a branch that cannot happen.
+- A test is a function named `test_...` that crashes when wrong. `tests/tests.spite` finds them all by itself.
 
-See [manual.md](../manual.md) for the normative rules this sheet compresses, and
-[KNOWN_ISSUES.md](KNOWN_ISSUES.md) for where the real compiler's behavior surprised even careful reading of the
-manual.
+## Metaprogramming
+
+- A `Symbol` parameter named inside its function's name answers every attribute:
+  `func set_attribute(attribute: Symbol, value: attribute.class) { attributes[attribute] = value }` makes
+  `person.set_age(2)` and `person.set_name("x")` work. An exact function always wins.
+- `person.age = 1` calls `set_age(1)` and `person.age` calls `get_age()` when the class has them.
+- Operators are functions a class may define: `sum`, `subtract`, `multiply`, `divide`, `remainder`, `equals`,
+  `less_than`, `greater_than`, `negate`, `get_at(index)`, `set_at(index, value)`. Without `equals`, `==` compares
+  identity.
+- Codegen values: `func Weapon<$damage_type, $is_magic>(damage: $damage_type)` is called `Weapon<Int, true>(10)`.
+  A `$name` the constructor does not declare comes from a flag (`--environment=server`). `if $is_magic { }` is
+  decided at compile time.
+- Reflection: `value.class` (a `Spite.Class`: `.name`, `.namespace`, `.functions`), `value.attributes`
+  (`.name`, `.class`, `.value`), `value.functions` (`.name`, `.arguments`, `.returns`, `call_function()` for
+  functions that take nothing and return `Nothing`), `Monster.instances` (live instances), and
+  `Spite.Class.instances` (every class of the program).
+- A class with `func is_singleton(): Bool { return true }` has one instance: `Journal()` always returns it.
+
+## Built in classes
+
+`Console()` (`print`, `write`, `error`), `File(path)` (`read(): String?`, `write`, `append`, `exists`, `remove`),
+`Directory(path)` (`files`, `folders`, `exists`, `create`), `Process(command, arguments)` (`run(): Int`, `output()`),
+`Program()` (`exit(code)`, `sleep(milliseconds)`, `environment(name): String?`).
