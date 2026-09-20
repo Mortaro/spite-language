@@ -347,3 +347,79 @@ SpiteString* Program_environment(Program* self, SpiteString* name) {
     if (spite_environment_value == 0) return 0;
     return spite_string_from_cstring_owned(spite_environment_value);
 }
+
+void Console_init(Console* self) {
+}
+
+Console* Console_allocate(void) {
+    Console* self = (Console*)SPITE_MALLOC(sizeof(Console));
+    self->header.ref_count = 1;
+    self->header.class_id = SPITE_CLASS_ID_CONSOLE;
+    #ifdef SPITE_DEBUG_MEMORY
+    spite_debug_register_object(self, SPITE_CLASS_ID_CONSOLE);
+    #endif
+    Console_init(self);
+    return self;
+}
+
+Console* Console_default(void) {
+    return Console_allocate();
+}
+
+Console* Console_make(void) {
+    Console* self = Console_allocate();
+    return self;
+}
+
+Console* Console_retain(Console* self) {
+    if (self != 0) self->header.ref_count = self->header.ref_count + 1;
+    return self;
+}
+
+void Console_release(Console* self) {
+    if (self == 0) return;
+    self->header.ref_count = self->header.ref_count - 1;
+    if (self->header.ref_count > 0) return;
+    SPITE_FREE(self);
+}
+
+Console* Console_copy(Console* self) {
+    Console* spite_copy = Console_allocate();
+    return spite_copy;
+}
+
+Console* Console_deep_copy(Console* self) {
+    Console* spite_copy = Console_allocate();
+    return spite_copy;
+}
+
+SpiteString* Console_read_line(Console* self) {
+    (void)self;
+    int64_t spite_capacity = 128;
+    int64_t spite_length = 0;
+    char* spite_buffer = (char*)SPITE_MALLOC((size_t)spite_capacity);
+    while (1) {
+        int spite_character = fgetc(stdin);
+        if (spite_character == EOF) {
+            if (spite_length == 0) {
+                SPITE_FREE(spite_buffer);
+                return 0;
+            }
+            break;
+        }
+        if (spite_character == '\n') break;
+        if (spite_length + 1 >= spite_capacity) {
+            spite_capacity = spite_capacity * 2;
+            char* spite_grown = (char*)SPITE_MALLOC((size_t)spite_capacity);
+            memcpy(spite_grown, spite_buffer, (size_t)spite_length);
+            SPITE_FREE(spite_buffer);
+            spite_buffer = spite_grown;
+        }
+        spite_buffer[spite_length] = (char)spite_character;
+        spite_length = spite_length + 1;
+    }
+    if (spite_length > 0 && spite_buffer[spite_length - 1] == '\r') spite_length = spite_length - 1;
+    SpiteString* spite_line = spite_string_from_bytes(spite_buffer, spite_length);
+    SPITE_FREE(spite_buffer);
+    return spite_line;
+}

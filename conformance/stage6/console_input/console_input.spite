@@ -1,0 +1,16 @@
+var console = Console()
+
+func ConsoleInput() {
+    var first = console.read_line()
+    crash first
+    var second = console.read_line()
+    crash second
+    console.print("read", first.trim() + "|")
+    console.print("read", second + "|")
+    var past_the_end = console.read_line()
+    if past_the_end {
+        console.print("unexpected", past_the_end)
+    } else {
+        console.print("the end of input is the only way read_line has nothing")
+    }
+}

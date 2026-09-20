@@ -51,10 +51,11 @@ passed=0; failed=0
 for folder in conformance/*/*/ examples/*/; do   # the examples are held to the same standard as the corpus
   name=$(basename "$folder")
   flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")   # compiler flags such as --environment=server
-  actual=$("$work/generation_two.exe" --file="$folder$name.spite" --mode=run --debug_memory=true $flags 2>&1 | tr -d '\r')
+  input=/dev/null; [ -f "$folder/input.txt" ] && input="$folder/input.txt"   # what the program reads from the console
+  actual=$("$work/generation_two.exe" --file="$folder$name.spite" --mode=run --debug_memory=true $flags < "$input" 2>&1 | tr -d '\r')
   # some toolchains intermittently fail to open their own cache files on Windows; that is not a
   if echo "$actual" | grep -q "failed to check cache"; then
-    actual=$("$work/generation_two.exe" --file="$folder$name.spite" --mode=run --debug_memory=true $flags 2>&1 | tr -d '\r')
+    actual=$("$work/generation_two.exe" --file="$folder$name.spite" --mode=run --debug_memory=true $flags < "$input" 2>&1 | tr -d '\r')
   fi
   expected=$(tr -d '\r' < "$folder/expected_output.txt")
   body=$(echo "$actual" | grep -v '^allocations: ')
@@ -72,9 +73,9 @@ echo "conformance and examples: $passed passed, $failed failed"
 [ "$failed" == "0" ] || exit 1
 
 # The tests: a package that crashes (D46). No framework: a test is a function, and `crash` is the assertion.
-test_output=$("$work/generation_two.exe" --file=tests/tests.spite --mode=run --debug_memory=true 2>&1 | tr -d '\r')
+test_output=$("$work/generation_two.exe" --file=tests/tests.spite --mode=run --debug_memory=true < /dev/null 2>&1 | tr -d '\r')
 if echo "$test_output" | grep -q "failed to check cache"; then
-  test_output=$("$work/generation_two.exe" --file=tests/tests.spite --mode=run --debug_memory=true 2>&1 | tr -d '\r')
+  test_output=$("$work/generation_two.exe" --file=tests/tests.spite --mode=run --debug_memory=true < /dev/null 2>&1 | tr -d '\r')
 fi
 test_balance=$(echo "$test_output" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
 if [ "$(echo "$test_output" | grep -vc '^allocations: ')" != "0" ] || [ -z "$test_balance" ] || [ "${test_balance% *}" != "${test_balance#* }" ]; then

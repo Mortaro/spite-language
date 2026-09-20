@@ -1,0 +1,3 @@
+true Console |
+written and written again
+a class that keeps a Console shares the one instance

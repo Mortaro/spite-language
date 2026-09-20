@@ -1,5 +1,5 @@
 """Regenerates bootstrap/source/analysis/spite_type.spite and type_shape.spite from the member list below."""
-members = ["ScalarType", "StringType", "ClassRefType", "NullableType", "VoidType", "ConsoleType", "EnumType",
+members = ["ScalarType", "StringType", "ClassRefType", "NullableType", "VoidType", "EnumType",
            "ListType", "DictionaryType", "UnionType", "ArgumentsType"]
 root = "bootstrap/source/analysis/"
 
@@ -11,15 +11,15 @@ def switch(hit, hit_value, miss_value):
 
 open(root + "spite_type.spite", "w", newline="\n").write(
     "union SpiteType = {\n" + "".join("    Analysis.Types.%s\n" % m for m in members) + "}\n")
-out = "func TypeShape() { }\n"
+out = ""
 for name, member in [("as_scalar", "ScalarType"), ("as_class_ref", "ClassRefType"), ("as_nullable", "NullableType"),
                      ("as_enum", "EnumType"), ("as_list", "ListType"), ("as_dictionary", "DictionaryType"),
                      ("as_union", "UnionType")]:
-    out += "\nfunc %s(spite_type: SpiteType): Nullable<Analysis.Types.%s> {\n" % (name, member)
-    out += switch(member, "spite_type", "null") + "}\n"
-for name, member in [("as_string", "StringType"), ("is_void", "VoidType"), ("is_console", "ConsoleType"),
+    out += "func %s(spite_type: SpiteType): Analysis.Types.%s? {\n" % (name, member)
+    out += switch(member, "spite_type", "null") + "}\n\n"
+for name, member in [("as_string", "StringType"), ("is_void", "VoidType"),
                      ("is_arguments", "ArgumentsType")]:
-    out += "\nfunc %s(spite_type: SpiteType): Bool {\n" % name + switch(member, "true", "false") + "}\n"
-open(root + "type_shape.spite", "w", newline="\n").write(out)
-open(root + "types/arguments_type.spite", "w", newline="\n").write("func ArgumentsType() { }\n")
+    out += "func %s(spite_type: SpiteType): Bool {\n" % name + switch(member, "true", "false") + "}\n\n"
+open(root + "type_shape.spite", "w", newline="\n").write(out.rstrip("\n") + "\n")
+open(root + "types/arguments_type.spite", "w", newline="\n").write("")
 print("regenerated")

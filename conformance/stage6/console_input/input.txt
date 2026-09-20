@@ -1,0 +1,2 @@
+a line with a trailing space 
+the second line

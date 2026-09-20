@@ -127,6 +127,11 @@ func register_system_classes() {
     add_builtin_function(process, "run", no_parameters(), integer_type())
     add_builtin_function(process, "output", no_parameters(), string_type())
 
+    var console = register_system_class("Console")
+    console.is_singleton = true
+    add_builtin_function(console, "Console", no_parameters(), void_type())
+    add_builtin_function(console, "read_line", no_parameters(), nullable_type_of(string_type()))
+
     var program = register_system_class("Program")
     add_builtin_function(program, "Program", no_parameters(), void_type())
     add_builtin_function(program, "exit", one_parameter("code", integer_type()), void_type())
@@ -1276,10 +1281,6 @@ func resolve_field(declaration: Syntax.Statements.VariableDeclaration, informati
     assert initializer
     check_value_name(declaration.name, "attribute")
     var field_type = infer_declared_type(declaration.type_reference, initializer, scope, information)
-    if type_shape.is_console(field_type) {
-        information.fields.append(Analysis.FieldInfo(declaration.name, field_type, ""))
-        return
-    }
     var default_code = coerce_for_store(initializer, field_type, scope, information)
     information.fields.append(Analysis.FieldInfo(declaration.name, field_type, default_code))
 }
@@ -1597,10 +1598,6 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
             var resolved: Analysis.SpiteType = Analysis.Types.StringType()
             return resolved
         }
-        if name == "Console" {
-            var resolved: Analysis.SpiteType = Analysis.Types.ConsoleType()
-            return resolved
-        }
         if name == "Nullable" {
             return resolve_nullable_argument(named, current_namespace)
         }
@@ -1877,7 +1874,7 @@ func types_equal(left_type: Analysis.SpiteType, right_type: Analysis.SpiteType):
     if type_shape.is_arguments(left_type) {
         return type_shape.is_arguments(right_type)
     }
-    return type_shape.is_console(right_type)
+    return false
 }
 
 func numeric_c_name(kind: Analysis.Types.NumericKind): String {
@@ -3646,17 +3643,15 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
     var index = 0
     while index < information.fields.count() {
         var field = information.fields[index]
-        if not type_shape.is_console(field.get_type()) {
-            var value_code = "(&spite_static_string_empty)"
-            if type_shape.as_string(field.get_type()) {
-                value_code = "SpiteString_retain(self->" + field.name + ")"
-            } else if type_shape.as_scalar(field.get_type()) {
-                value_code = string_conversion("self->" + field.name, field.get_type())
-            } else if is_enum_type(field.get_type()) {
-                value_code = string_conversion("self->" + field.name, field.get_type())
-            }
-            lines.append(list_name + "_add(result, Spite_Attribute_make(" + render_string_literal(field.name) + ", " + class_object_call(field.get_type()) + ", " + value_code + "));")
+        var value_code = "(&spite_static_string_empty)"
+        if type_shape.as_string(field.get_type()) {
+            value_code = "SpiteString_retain(self->" + field.name + ")"
+        } else if type_shape.as_scalar(field.get_type()) {
+            value_code = string_conversion("self->" + field.name, field.get_type())
+        } else if is_enum_type(field.get_type()) {
+            value_code = string_conversion("self->" + field.name, field.get_type())
         }
+        lines.append(list_name + "_add(result, Spite_Attribute_make(" + render_string_literal(field.name) + ", " + class_object_call(field.get_type()) + ", " + value_code + "));")
         index = index + 1
     }
     lines.append("(void)self;")
@@ -3888,11 +3883,9 @@ func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
     var index = 0
     while index < information.fields.count() {
         var field = information.fields[index]
-        if not type_shape.is_console(field.get_type()) {
-            var target = "copied->" + field.name
-            lines.append(release_statement(field.get_type(), target))
-            lines.append(target + " = " + deep_copy_code(field.get_type(), "self->" + field.name) + ";")
-        }
+        var target = "copied->" + field.name
+        lines.append(release_statement(field.get_type(), target))
+        lines.append(target + " = " + deep_copy_code(field.get_type(), "self->" + field.name) + ";")
         index = index + 1
     }
     lines.append("return copied;")
@@ -4509,19 +4502,34 @@ func printed_statement_for(expression_ast: Syntax.Expressions.Expression, stream
     return ""
 }
 
-func generate_console_call(method_name: String, arguments_ast: List<Syntax.Expressions.Expression>, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
+func is_console_reference(spite_type: Analysis.SpiteType): Bool {
+    var console_reference = type_shape.as_class_ref(spite_type)
+    if console_reference {
+        return console_reference.c_name == "Console"
+    }
+    return false
+}
+
+func is_console_printer(method_name: String): Bool {
+    return method_name == "print" or method_name == "write" or method_name == "error"
+}
+
+func generate_console_call(object_ast: Syntax.Expressions.Expression, method_name: String, arguments_ast: List<Syntax.Expressions.Expression>, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var stream = "stdout"
     var trailing_newline = true
     if method_name == "error" {
         stream = "stderr"
     } else if method_name == "write" {
         trailing_newline = false
-    } else if method_name != "print" {
-        report("Console has no method '" + method_name + "'")
-        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    var console_result = generate_expression(object_ast, scope, class_information)
+    var console_temporary = next_temporary()
+    var console_release = ""
+    if owns(console_result, object_ast) {
+        console_release = "Console_release(" + console_temporary + ");"
     }
     var lines = List<String>()
-    lines.append("{")
+    lines.append("{ Console* " + console_temporary + " = " + console_result.code + "; (void)" + console_temporary + ";")
     var index = 0
     while index < arguments_ast.count() {
         if index > 0 {
@@ -4533,6 +4541,7 @@ func generate_console_call(method_name: String, arguments_ast: List<Syntax.Expre
     if trailing_newline {
         lines.append("fprintf(" + stream + ", \"\\n\");")
     }
+    lines.append(console_release)
     lines.append("}")
     return ExpressionResult(lines.join(" "), Analysis.Types.VoidType())
 }
@@ -4572,9 +4581,6 @@ func generate_call(call: Syntax.Expressions.CallExpression, scope: Scope, class_
     crash callee
     var callee_identifier = shape.as_identifier(callee)
     if callee_identifier {
-        if callee_identifier.name == "Console" {
-            return ExpressionResult("0", Analysis.Types.ConsoleType())
-        }
         if callee_identifier.name == "load" {
             return ExpressionResult("(void)0", Analysis.Types.VoidType())
         }
@@ -4589,8 +4595,8 @@ func generate_call(call: Syntax.Expressions.CallExpression, scope: Scope, class_
         crash object_ast
         var static_type = lookup_static_type(object_ast, scope, class_information)
         if static_type {
-            if type_shape.is_console(static_type) {
-                return generate_console_call(member.name, call.arguments, scope, class_information)
+            if is_console_reference(static_type) and is_console_printer(member.name) {
+                return generate_console_call(object_ast, member.name, call.arguments, scope, class_information)
             }
         }
         return generate_method_call(member, object_ast, call.arguments, scope, class_information)
@@ -5803,9 +5809,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
     var field_index = 0
     while field_index < information.fields.count() {
         var field = information.fields[field_index]
-        if not type_shape.is_console(field.get_type()) {
-            initialize_lines.append("self->" + field.name + " = " + field.default_value_code + ";")
-        }
+        initialize_lines.append("self->" + field.name + " = " + field.default_value_code + ";")
         field_index = field_index + 1
     }
     if information.c_name == "Spite_Class" {
@@ -5905,13 +5909,11 @@ func emit_class_support(information: Analysis.ClassInfo) {
     var copy_field_index = 0
     while copy_field_index < information.fields.count() {
         var field = information.fields[copy_field_index]
-        if not type_shape.is_console(field.get_type()) {
-            var value_code = "self->" + field.name
-            if type_needs_drop(field.get_type()) {
-                value_code = retain_call(field.get_type(), value_code)
-            }
-            copy_lines.append("spite_copy->" + field.name + " = " + value_code + ";")
+        var value_code = "self->" + field.name
+        if type_needs_drop(field.get_type()) {
+            value_code = retain_call(field.get_type(), value_code)
         }
+        copy_lines.append("spite_copy->" + field.name + " = " + value_code + ";")
         copy_field_index = copy_field_index + 1
     }
     copy_lines.append("#ifdef SPITE_TRACKS_" + information.c_name)
@@ -5980,9 +5982,7 @@ func emit_class(information: Analysis.ClassInfo) {
     var field_index = 0
     while field_index < information.fields.count() {
         var field = information.fields[field_index]
-        if not type_shape.is_console(field.get_type()) {
-            struct_lines.append(c_type_name(field.get_type()) + " " + field.name + ";")
-        }
+        struct_lines.append(c_type_name(field.get_type()) + " " + field.name + ";")
         field_index = field_index + 1
     }
     if information.c_name == "Spite_Class" {

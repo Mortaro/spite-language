@@ -1,0 +1,3 @@
+read a line with a trailing space|
+read the second line|
+the end of input is the only way read_line has nothing

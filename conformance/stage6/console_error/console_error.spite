@@ -1,0 +1,6 @@
+var console = Console()
+
+func ConsoleError() {
+    console.error("a failure nobody can act on goes to the error stream")
+    console.error(1, "and it prints every kind of value", true)
+}

@@ -1,0 +1,2 @@
+a failure nobody can act on goes to the error stream
+1 and it prints every kind of value true

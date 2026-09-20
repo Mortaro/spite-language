@@ -1,0 +1,5 @@
+var console = Console()
+
+func greet() {
+    console.print("a class that keeps a Console shares the one instance")
+}

@@ -5,7 +5,6 @@ func as_scalar(spite_type: SpiteType): Analysis.Types.ScalarType? {
         Analysis.Types.ClassRefType: return null
         Analysis.Types.NullableType: return null
         Analysis.Types.VoidType: return null
-        Analysis.Types.ConsoleType: return null
         Analysis.Types.EnumType: return null
         Analysis.Types.ListType: return null
         Analysis.Types.DictionaryType: return null
@@ -21,7 +20,6 @@ func as_class_ref(spite_type: SpiteType): Analysis.Types.ClassRefType? {
         Analysis.Types.ClassRefType: return spite_type
         Analysis.Types.NullableType: return null
         Analysis.Types.VoidType: return null
-        Analysis.Types.ConsoleType: return null
         Analysis.Types.EnumType: return null
         Analysis.Types.ListType: return null
         Analysis.Types.DictionaryType: return null
@@ -37,7 +35,6 @@ func as_nullable(spite_type: SpiteType): Analysis.Types.NullableType? {
         Analysis.Types.ClassRefType: return null
         Analysis.Types.NullableType: return spite_type
         Analysis.Types.VoidType: return null
-        Analysis.Types.ConsoleType: return null
         Analysis.Types.EnumType: return null
         Analysis.Types.ListType: return null
         Analysis.Types.DictionaryType: return null
@@ -53,7 +50,6 @@ func as_enum(spite_type: SpiteType): Analysis.Types.EnumType? {
         Analysis.Types.ClassRefType: return null
         Analysis.Types.NullableType: return null
         Analysis.Types.VoidType: return null
-        Analysis.Types.ConsoleType: return null
         Analysis.Types.EnumType: return spite_type
         Analysis.Types.ListType: return null
         Analysis.Types.DictionaryType: return null
@@ -69,7 +65,6 @@ func as_list(spite_type: SpiteType): Analysis.Types.ListType? {
         Analysis.Types.ClassRefType: return null
         Analysis.Types.NullableType: return null
         Analysis.Types.VoidType: return null
-        Analysis.Types.ConsoleType: return null
         Analysis.Types.EnumType: return null
         Analysis.Types.ListType: return spite_type
         Analysis.Types.DictionaryType: return null
@@ -85,7 +80,6 @@ func as_dictionary(spite_type: SpiteType): Analysis.Types.DictionaryType? {
         Analysis.Types.ClassRefType: return null
         Analysis.Types.NullableType: return null
         Analysis.Types.VoidType: return null
-        Analysis.Types.ConsoleType: return null
         Analysis.Types.EnumType: return null
         Analysis.Types.ListType: return null
         Analysis.Types.DictionaryType: return spite_type
@@ -101,7 +95,6 @@ func as_union(spite_type: SpiteType): Analysis.Types.UnionType? {
         Analysis.Types.ClassRefType: return null
         Analysis.Types.NullableType: return null
         Analysis.Types.VoidType: return null
-        Analysis.Types.ConsoleType: return null
         Analysis.Types.EnumType: return null
         Analysis.Types.ListType: return null
         Analysis.Types.DictionaryType: return null
@@ -117,7 +110,6 @@ func as_string(spite_type: SpiteType): Bool {
         Analysis.Types.ClassRefType: return false
         Analysis.Types.NullableType: return false
         Analysis.Types.VoidType: return false
-        Analysis.Types.ConsoleType: return false
         Analysis.Types.EnumType: return false
         Analysis.Types.ListType: return false
         Analysis.Types.DictionaryType: return false
@@ -133,23 +125,6 @@ func is_void(spite_type: SpiteType): Bool {
         Analysis.Types.ClassRefType: return false
         Analysis.Types.NullableType: return false
         Analysis.Types.VoidType: return true
-        Analysis.Types.ConsoleType: return false
-        Analysis.Types.EnumType: return false
-        Analysis.Types.ListType: return false
-        Analysis.Types.DictionaryType: return false
-        Analysis.Types.UnionType: return false
-        Analysis.Types.ArgumentsType: return false
-    }
-}
-
-func is_console(spite_type: SpiteType): Bool {
-    switch spite_type {
-        Analysis.Types.ScalarType: return false
-        Analysis.Types.StringType: return false
-        Analysis.Types.ClassRefType: return false
-        Analysis.Types.NullableType: return false
-        Analysis.Types.VoidType: return false
-        Analysis.Types.ConsoleType: return true
         Analysis.Types.EnumType: return false
         Analysis.Types.ListType: return false
         Analysis.Types.DictionaryType: return false
@@ -165,7 +140,6 @@ func is_arguments(spite_type: SpiteType): Bool {
         Analysis.Types.ClassRefType: return false
         Analysis.Types.NullableType: return false
         Analysis.Types.VoidType: return false
-        Analysis.Types.ConsoleType: return false
         Analysis.Types.EnumType: return false
         Analysis.Types.ListType: return false
         Analysis.Types.DictionaryType: return false
