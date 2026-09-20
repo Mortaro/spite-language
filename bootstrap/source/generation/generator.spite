@@ -3927,7 +3927,25 @@ func generate_dictionary_method(element: Analysis.SpiteType, name: String, objec
             class_information,
         )
     }
+    var value_class_ref = type_shape.as_class_ref(element)
+    if value_class_ref {
+        var value_class = find_class_by_c_name(value_class_ref.c_name)
+        if value_class {
+            var template_prefixes = ["find_by_", "sort_by_", "filter_", "count_", "sum_", "each_", "map_", "any_", "all_"]
+            var prefix_index = 0
+            while prefix_index < template_prefixes.count() {
+                var template_prefix = template_prefixes[prefix_index]
+                if name.starts_with(template_prefix) and name.length() > template_prefix.length() {
+                    var values_call = generate_generic_call(dictionary_name + "_values", object_result, object_ast, List<Syntax.Expressions.Expression>(), no_types(), list_type_of(element), scope, class_information)
+                    values_call.owning_override = true
+                    return generate_list_template(element, value_class, ensure_list(element), template_prefix, name.slice(template_prefix.length(), name.length()), values_call, object_ast, arguments_ast, scope, class_information)
+                }
+                prefix_index = prefix_index + 1
+            }
+        }
+    }
     report("Dictionary has no method '" + name + "'")
+
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
