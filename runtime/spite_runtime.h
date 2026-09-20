@@ -1,5 +1,5 @@
-/* Spite compiler runtime prelude, embedded into every generated C file with
- * @embedFile (see codegen/classes.the driver's emitPrelude). Self-contained: no
+/* Spite compiler runtime prelude, pasted at the top of every generated C
+ * file. Self-contained: no
  * function here calls a monomorphized List<T>/Dictionary<T>/Nullable<T>
  * function, so this whole block can be emitted before any of those are
  * generated. Nothing here is `static`, matching the rest of the generated
@@ -142,7 +142,7 @@ static void spite_debug_free(void* pointer) {
  * section 10).
  *
  * Each concrete type gets its own small, readable, generated
- * `{Type}_retain`/`{Type}_release` pair (see codegen/classes.the C compiler); this
+ * `{Type}_retain`/`{Type}_release` pair; this
  * header only holds what is shared: the header layout itself, and (under
  * `--debug-memory`) a class-id -> name table used to report which classes'
  * objects leaked when allocations and frees do not balance. */
@@ -537,8 +537,8 @@ SpiteString* spite_console_read_line(bool* ok) {
 }
 
 /* ---- File/Directory/Process support: portable-C leaf helpers used by the
- * hand-written File/Directory/Process/Program builtin classes (see
- * classes.the driver's emitSystemClasses). Directory listing and process spawning
+ * File/Directory/Process/Program built-in classes (runtime/system_bodies.h).
+ * Directory listing and process spawning
  * branch on `_WIN32`; everything else is plain stdio/stdlib. */
 
 FILE* spite_file_open(SpiteString* path, const char* mode) {

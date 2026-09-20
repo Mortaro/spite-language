@@ -1020,6 +1020,19 @@ func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.
     while statement_index < file.statements.count() {
         var statement = file.statements[statement_index]
         current_line = statement.line
+        current_path = information.source_path
+        var reopened_function = shape.as_function_declaration(statement)
+        if reopened_function {
+            if not reopened_function.source_path.is_empty() {
+                current_path = reopened_function.source_path
+            }
+        }
+        var reopened_variable = shape.as_variable_declaration(statement)
+        if reopened_variable {
+            if not reopened_variable.source_path.is_empty() {
+                current_path = reopened_variable.source_path
+            }
+        }
         var variable_declaration = shape.as_variable_declaration(statement)
         if variable_declaration {
             if not functions_pass {
@@ -1270,6 +1283,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         declaration.body,
         is_constructor,
     )
+    function.source_path = declaration.source_path
     if is_constructor {
         information.constructor = function
     } else if declaration.name == "drop" {
@@ -3152,7 +3166,6 @@ func type_display_name(spite_type: Analysis.SpiteType): String {
     return type_label(spite_type)
 }
 
-
 func spite_class_type(): Analysis.SpiteType {
     var resolved: Analysis.SpiteType = Analysis.Types.ClassRefType("Spite_Class")
     return resolved
@@ -4575,7 +4588,6 @@ func generate_assert_statement(assert_statement: Syntax.Statements.AssertStateme
     }
     builder.add_user("if (!(" + guard_code + ")) {")
     if assert_statement.is_crash {
-
         builder.add_user("fflush(stdout);")
         builder.add_user("fprintf(stderr, \"spite.crash\\t" + current_owner + "\\t" + function_information.name + "\\n\");")
         builder.add_user("exit(1);")
@@ -4838,6 +4850,9 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
     current_class = information
     current_function = function.name
     current_path = information.source_path
+    if not function.source_path.is_empty() {
+        current_path = function.source_path
+    }
 
     bind_symbol_of(information, function)
     builder.add_user(function_signature(information, function) + " {")

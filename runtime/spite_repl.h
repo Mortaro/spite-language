@@ -1,6 +1,6 @@
 /* Spite REPL runtime, embedded into generated C only in REPL modes
- * (--repl / --repl-port), included right after spite_runtime.h (see
- * codegen/classes.the driver's emitReflectionTables). Self-contained except for
+ * (--repl / --repl-port), included right after spite_runtime.h.
+ * Self-contained except for
  * the reflection tables themselves (spite_reflect_classes and friends),
  * which are `extern` here and defined by generated code once every class
  * has finished resolving.
@@ -34,7 +34,7 @@ typedef int SpiteSocketHandle;
 #define SPITE_INVALID_SOCKET (-1)
 #endif
 
-/* ---- reflection kinds and tables (data only; see classes.the C compiler) ---- */
+/* ---- reflection kinds and tables (data only) ---- */
 
 typedef enum {
     SPITE_REFLECT_INT8,
@@ -257,8 +257,7 @@ bool spite_repl_write_scalar_from_text(SpiteReflectKind kind, void* address, con
 }
 
 /* ---- parsing one already-tokenized call argument into a real C value
- * (used by the per-function thunks codegen emits; see classes.the driver's
- * emitReflectThunk) ---- */
+ * (used by the per-function thunks the compiler emits) ---- */
 
 int64_t spite_repl_parse_int_token(const char* token) { return strtoll(token, 0, 10); }
 uint64_t spite_repl_parse_unsigned_token(const char* token) { return strtoull(token, 0, 10); }

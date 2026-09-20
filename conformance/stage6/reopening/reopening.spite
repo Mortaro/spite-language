@@ -1,0 +1,9 @@
+var console = Console()
+
+func Reopening() {
+    load("package")
+    load("mod")
+    var monster = Creatures.Monster("rat")
+    console.print(monster.describe())
+    console.print(monster.roar(), monster.taunt(), monster.health, monster.armor)
+}

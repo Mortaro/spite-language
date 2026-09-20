@@ -5,6 +5,7 @@ var return_type: Nullable<SpiteType> = null
 var body = List<Syntax.Statements.Statement>()
 var is_constructor = false
 var is_emitted = false
+var source_path = ""
 var symbol_name = ""
 var symbol_field_name = ""
 

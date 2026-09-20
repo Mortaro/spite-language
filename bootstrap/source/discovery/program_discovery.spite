@@ -161,7 +161,62 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
     var simple_name = compute_simple_name(segments, stem)
     var namespace_dotted = compute_namespace(segments, stem)
     var qualified_dotted = compute_qualified(segments, stem)
+    var existing_index = 0
+    while existing_index < class_files.count() {
+        if class_files[existing_index].qualified_dotted == qualified_dotted {
+            reopen_class(class_files[existing_index].get_file(), parsed_file)
+            return
+        }
+        existing_index = existing_index + 1
+    }
     class_files.append(DiscoveredClass(mangled_name, simple_name, namespace_dotted, qualified_dotted, parsed_file))
+}
+
+func declared_name(statement: Syntax.Statements.Statement): String {
+    var function = shape.as_function_declaration(statement)
+    if function {
+        return "func " + function.name
+    }
+    var variable = shape.as_variable_declaration(statement)
+    if variable {
+        return "var " + variable.name
+    }
+    return ""
+}
+
+func stamp_source_path(statement: Syntax.Statements.Statement, path: String) {
+    var function = shape.as_function_declaration(statement)
+    if function {
+        function.source_path = path
+    }
+    var variable = shape.as_variable_declaration(statement)
+    if variable {
+        variable.source_path = path
+    }
+}
+
+func reopen_class(original: Syntax.SourceFile, reopening: Syntax.SourceFile) {
+    var index = 0
+    while index < reopening.statements.count() {
+        var statement = reopening.statements[index]
+        stamp_source_path(statement, reopening.path)
+        var name = declared_name(statement)
+        var replaced = false
+        if not name.is_empty() {
+            var original_index = 0
+            while original_index < original.statements.count() {
+                if declared_name(original.statements[original_index]) == name {
+                    original.statements[original_index] = statement
+                    replaced = true
+                }
+                original_index = original_index + 1
+            }
+        }
+        if not replaced {
+            original.statements.append(statement)
+        }
+        index = index + 1
+    }
 }
 
 func scan_top_level_loads(file: Syntax.SourceFile, found: List<String>) {

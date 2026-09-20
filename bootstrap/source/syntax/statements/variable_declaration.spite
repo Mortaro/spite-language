@@ -2,6 +2,7 @@ var name = ""
 var type_reference: Nullable<Syntax.Types.Type> = null
 var value: Nullable<Syntax.Expressions.Expression> = null
 var line = 0
+var source_path = ""
 
 func VariableDeclaration(declaration_name: String, declaration_type: Nullable<Syntax.Types.Type>, declaration_value: Syntax.Expressions.Expression) {
     name = declaration_name

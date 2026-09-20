@@ -1,0 +1,14 @@
+var name = ""
+var health = 10
+
+func Monster(starting_name: String) {
+    name = starting_name
+}
+
+func describe(): String {
+    return "a wild " + name
+}
+
+func roar(): String {
+    return name + " roars"
+}

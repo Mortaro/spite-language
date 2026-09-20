@@ -1,0 +1,10 @@
+var health = 99
+var armor = 5
+
+func describe(): String {
+    return "a modded " + name + " with " + armor + " armor"
+}
+
+func taunt(): String {
+    return roar() + " and taunts you"
+}
