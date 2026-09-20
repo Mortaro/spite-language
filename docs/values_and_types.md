@@ -106,14 +106,14 @@ to `T` inside the block, with an `else` for when it is null), or with `assert va
 itself from `T?` to `T` for the rest of the current block (and any block nested inside it) -- no
 rebinding to a new name needed either way:
 
-```spite title=nullable_narrowing/monster.spite
+```spite title=optional_narrowing/monster.spite
 var health = 10
 
 func Monster(starting_health: Int) {
     health = starting_health
 }
 ```
-```spite title=nullable_narrowing/nullable_narrowing.spite entry
+```spite title=optional_narrowing/optional_narrowing.spite entry
 var console = Console()
 
 func find_monster(missing: Bool): Monster? {
@@ -135,7 +135,7 @@ func report_health() {
     console.print("done")
 }
 
-func NullableNarrowing() {
+func OptionalNarrowing() {
     report_health()
 }
 ```
@@ -150,7 +150,7 @@ return type's default value immediately -- there is no panic, and no code after 
 **Lint:** if a function's *last* statement is `if value { ... }` (no `else`) used only to check existence, that
 is a compile error naming the `assert` rewrite -- write it with `assert` instead:
 
-```spite title=terminal_if_do_error/terminal_if_do_error.spite entry error
+```spite title=terminal_if_error/terminal_if_error.spite entry error
 var console = Console()
 
 func try_get_name(): String? {
@@ -164,7 +164,7 @@ func announce() {
     }
 }
 
-func TerminalIfDoError() {
+func TerminalIfError() {
     announce()
 }
 ```
@@ -172,7 +172,7 @@ func TerminalIfDoError() {
 write 'assert maybe_name' and let the rest of the function run unindented
 ```
 
-```spite title=terminal_if_do_fixed/terminal_if_do_fixed.spite entry
+```spite title=terminal_if_fixed/terminal_if_fixed.spite entry
 var console = Console()
 
 func try_get_name(): String? {
@@ -185,7 +185,7 @@ func announce() {
     console.print(name)
 }
 
-func TerminalIfDoFixed() {
+func TerminalIfFixed() {
     announce()
 }
 ```

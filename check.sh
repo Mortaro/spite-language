@@ -100,6 +100,7 @@ echo "diagnostics: $checked checked, $wrong wrong"
 # Every program written in docs/ is a program: scripts/docs_corpus.spite (itself Spite) writes each titled
 # code block out, and each one has to compile, run, print its ```output block and free everything it took.
 # A block marked `error` must fail to compile with its ```diagnostic text somewhere in the message.
+rm -rf .spite-cache/docs   # so a program deleted from docs/ stops being checked
 "$work/generation_two.exe" --file=scripts/docs_corpus.spite --mode=run > /dev/null || {
   echo "FAILED: could not extract the documentation's programs"; exit 1; }
 documented=0; undocumented=0

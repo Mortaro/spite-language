@@ -91,7 +91,7 @@ and balanced allocations.
     form; a `$name` used but not declared is a flag-fed program variable (`$serve`, `$environment`), which is
     the rule that separates the two kinds; a class taking codegen values always has a constructor, even one that
     exists only to declare them; and the built-in containers declare theirs the same way (`List<$element_type>`,
-    `Dictionary<$value_type>`, `Nullable<$value_type>`). A wrong-arity or wrong-kind call is an error naming the
+    `Dictionary<$value_type>`, `$value_type?`). A wrong-arity or wrong-kind call is an error naming the
     class's codegen values in order, so the message carries what the abandoned named form would have carried.
     Unchanged: the unmatched-`--name=value` typo error, the reserved flag names, and a flag-fed value still being
     mandatory.

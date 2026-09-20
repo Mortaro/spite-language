@@ -15,7 +15,7 @@ When Mortaro rejects something new, add it here with its reason.
 a message we have no action to take about them." Bubbling an error up for a developer to eventually log is
 "masturbatory" — it does not help, it just makes code defensive.
 *Instead:* three outcomes and no others (D24). A compile error for anything the compiler can know, `assert` when
-the program should keep running, `crash` when it should halt. `Nullable<T>` is the only runtime failure value and
+the program should keep running, `crash` when it should halt. `T?` is the only runtime failure value and
 carries no reason. If a distinction is actionable it is data — an enum or a union — not an error.
 
 **`async`/`await` colouring.** The JS and C# pollution: the callee declares itself async, which infects every
@@ -46,7 +46,7 @@ the class file.
 
 **Rust-style borrow-checking noise.** From the original spec: "we should make things memory safe by using unions,
 but we can be more permissive instead of all that rust noise."
-*Instead:* reference counting (D1), `Nullable<T>`, and `assert`/`crash` narrowing.
+*Instead:* reference counting (D1), `Monster?`, and `assert`/`crash` narrowing.
 
 **Hidden costs — but hidden optimisations are welcome.** The rule is not symmetric (D36). Code that runs slower
 than a reader expects is the only real surprise; code that runs faster is a free win and needs no announcement.

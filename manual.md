@@ -93,13 +93,13 @@ var object_name = {
     key: "value"
     other_key: 3
 }
-var target: Nullable<Monster> = null
+var target: Monster? = null
 ```
 
 - Every variable has a default value. The type is inferred from it, or annotated with `: Type`.
 - Every class has a default value (`Int` 0, `Float` 0.0, `Bool` false, `String` "", a class: its attribute defaults).
   Operations that cannot succeed produce the default instead of crashing (for example reading a list out of range).
-- `null` exists only as the empty state of `Nullable<T>`. See [Open questions](#open-questions) for `= null` on other types.
+- `null` exists only as the empty state of `T?`. See [Open questions](#open-questions) for `= null` on other types.
 - An inner `var` may shadow an outer local, parameter, or attribute with the same name (second batch item 4,
   decided 2026-09-19), **and a `var` may shadow a name in the same scope too** (D51, decided by Mortaro,
   2026-09-20). The second binding may hold a different type, which is what makes it worth having:
@@ -152,7 +152,7 @@ An integer literal defaults to `Int`; one too large to fit becomes a `Long` inst
 defaults to `Float`. All of them follow the same right-side-casts-toward-left-side rule as everything else
 (`var tiny: Tiny = some_int_variable` narrows with an ordinary cast); converting between two numeric types
 wraps on overflow (an out-of-range value assigned into a narrower type keeps its low bits, the same as a plain
-C cast) rather than crashing or saturating. `List<T>`, `Dictionary<T>`, `Nullable<T>`, and generics all work
+C cast) rather than crashing or saturating. `List<T>`, `Dictionary<T>`, `T?`, and generics all work
 with every numeric type; so does `String` conversion both ways -- casting a `String` to any numeric type by
 assignment parses it (defaulting to `0`/`0.0` on failure, like `Int`/`Float` always did), and `String` gains
 one `to_<name>()` method per type (`to_tiny()`, `to_short()`, `to_int()`, `to_long()`, `to_byte()`,
@@ -197,24 +197,24 @@ func sum_positives(a: Float, b: Float): Float {
 
 ### Null safety and `assert` narrowing  **[implemented]**
 
-`assert` doubles as the way to prove a `Nullable<T>` is not null without nesting: after `assert value` on a
-`Nullable<T>` local, parameter, or field, `value` is a plain `T` for the rest of that block and any block
-nested inside it -- reads, writes, and method calls all go straight to the value held inside the `Nullable`,
-so ownership and dropping still belong to the `Nullable` itself (assigning a new `T` through the narrowed
-name drops the old one first, exactly like overwriting any other owning slot). `assert value and
+`assert` doubles as the way to prove a `T?` is not null without nesting: after `assert value` on a
+`T?` local, parameter, or field, `value` is a plain `T` for the rest of that block and any block
+nested inside it -- reads, writes, and method calls all go straight to the value the `T?` holds, and ownership
+and dropping still belong to that `T?` (assigning a new `T` through the narrowed name drops the old one first,
+exactly like overwriting any other owning slot). `assert value and
 other_condition` narrows `value` too, and `other_condition` itself already sees the narrowed type. Reassigning
-the narrowed name to `null` afterward is a diagnostic (there is no way back to `Nullable<T>` in the same
+the narrowed name to `null` afterward is a diagnostic (there is no way back to `T?` in the same
 scope).
 
 ```
 var content = program_file.read()
 assert content
-console.print(content.length())        # content is a String here, not Nullable<String>
+console.print(content.length())        # content is a String here, not String?
 ```
 
-`if` on a `Nullable<T>` narrows the same way, in place, for the whole block: `if value { } else { }` runs the
+`if` on a `T?` narrows the same way, in place, for the whole block: `if value { } else { }` runs the
 block with `value` already a plain `T`, and the `else` exactly when it is null/absent. One rule for narrowing
-everywhere -- `assert`, `if`, and `switch` all read/write/call straight through to the value the `Nullable`
+everywhere -- `assert`, `if`, and `switch` all read/write/call straight through to the value the `T?`
 still owns. (Second batch item 2, decided 2026-09-19: `if value do name { ... }` is gone -- `do` is removed, so
 this is the only form.)
 
@@ -257,10 +257,10 @@ One `assert` proves the whole path, so `class.namespace` and `class.namespace.na
 for the rest of that block and any block nested inside it. It is the same rule section 5 already has for
 `assert value and other_condition`, applied along a member chain instead of across an `and`.
 
-- It narrows the path asserted **and its prefixes**, nothing else. A sibling path stays `Nullable<T>`: asserting
+- It narrows the path asserted **and its prefixes**, nothing else. A sibling path stays `T?`: asserting
   `class.namespace.namespace` says nothing about `other_class.namespace`.
 - `crash` (below) narrows a chain the same way, since it narrows exactly as `assert` does but never returns.
-- Reading through a `Nullable` link that has not been narrowed is still an error. This removes the verbosity of
+- Reading through a link that may be null and has not been narrowed is still an error. This removes the verbosity of
   proving a path, not the requirement to prove it.
 
 
@@ -366,7 +366,7 @@ tend to be useless: they tell us a message we have no action to take about them"
 2. **`assert`**, for when the program should keep running.
 3. **`crash`**, for when everything should stop so the code gets rewritten.
 
-`Nullable<T>` is the only runtime failure value, and it carries no reason. A caller narrows it with `assert`,
+`T?` is the only runtime failure value, and it carries no reason. A caller narrows it with `assert`,
 halts on it with `crash`, or handles the absent case with `if ... do`.
 
 **If a distinction is actionable, it is data, not an error** (proposed by Claude, unconfirmed). A caller that
@@ -379,7 +379,7 @@ D26 (decided by Mortaro, 2026-09-19): `assert` is a guard clause, not validation
 there is no more logic to do here, but the program is fine and keeps serving everything else". It is why a web
 server or a game written in Spite should rarely crash.
 
-D27: **`assert` is legal only in a function that returns nothing, or returns `Nullable<T>`** -- the two cases
+D27: **`assert` is legal only in a function that returns nothing, or returns `T?`** -- the two cases
 where the substituted default is honest, since void has nothing to say and `null` says exactly "absent".
 Anything else is a compile error naming the return type. An empty `List<T>` or an empty `String` is as
 ambiguous as `0`: the caller cannot tell "no user" from "a user with no orders".
@@ -390,10 +390,10 @@ func count_user_orders(user_id: Int): Int {
 }
 ```
 
-The author then chooses deliberately -- widen the return to `Nullable<Int>`, handle it with `if ... do`, or, if
+The author then chooses deliberately -- widen the return to `Int?`, handle it with `if`, or, if
 absence is a bug rather than a case, `crash`. **The rule also forces smaller functions** (Mortaro): a function
 that handles a reference and wants a guard has to split, so the lookup lands in a small function whose signature
-honestly says `Nullable<T>`. Decomposition comes from the type system rather than from style advice, which is
+honestly says `T?`. Decomposition comes from the type system rather than from style advice, which is
 what works on an AI -- there is no "should" left to ignore.
 
 D28: **`assert` is banned in a constructor**, including the entry class's own (D29). A constructor is setup, not
@@ -414,7 +414,7 @@ crash  database.connect()        # falsey: halt
 
 The compiler captures the condition's source text and every operand value, so nothing has to be written and
 nothing can drift out of sync. Bare `crash` is legal for an unreachable branch and reports its enclosing
-context. `crash user` narrows a `Nullable<T>` exactly as `assert user` does, but never returns -- which is what
+context. `crash user` narrows a `T?` exactly as `assert user` does, but never returns -- which is what
 fills the gap D27 opens, since a function returning `Int` can then guard without widening its signature.
 
 Absence is fine -> `assert`. Absence is a bug -> `crash`. Absence is meaningful -> `if ... do`.
@@ -522,7 +522,7 @@ switch enemy {
 }
 ```
 
-An `if` on a `Nullable<T>` narrows the value in place (section 5): the block runs with `value` as a plain `T`,
+An `if` on a `T?` narrows the value in place (section 5): the block runs with `value` as a plain `T`,
 and the `else` runs exactly when it is null/absent -- one rule for narrowing everywhere, `assert`/`if`/`switch`
 alike (second batch item 2, decided 2026-09-19: `if value do name { }` is gone, and `do` is no longer a
 keyword, section 2). The terminal-`if` lint (section 5) applies only when the `if` has no `else` -- one with
@@ -605,7 +605,7 @@ func attack(enemy: Enemy): Bool {
 }
 ```
 
-Memory safety is done with unions instead of borrow checking noise: `Nullable<T>` is the union of `T` and `null` and must be unwrapped with `if ... else` (or `assert`, section 5).
+Memory safety is done with unions instead of borrow checking noise: `T?` is the union of `T` and `Null`, and it is narrowed before use with `if ... else`, `assert`, `crash` or `switch` (section 5).
 **`Monster?` is a union, and `Nullable<T>` is gone** (D45, decided by Mortaro, 2026-09-20). A `?` suffix is
 sugar for the union of a type and nothing:
 
@@ -620,7 +620,7 @@ func find_target(): Monster? {
 `Monster?` *is* `union { Monster, Null }` -- `Null` is an ordinary class whose only value is the literal `null`,
 the way `true` and `false` are the values of `Bool`. That is the point of the change: nullability stops being a
 special case in the compiler and becomes a union like any other. `switch target { Monster: ... Null: ... }`
-works because it is a switch over a union; `assert`, `crash` and `if ... do` narrow it because union narrowing
+works because it is a switch over a union; `assert`, `crash` and `if` narrow it because union narrowing
 already exists; and the pile of `Nullable<T>` exceptions collapses into rules the language already had.
 
 Section 10's optimisation survives as a codegen detail rather than a language rule: a union of a reference and
@@ -683,11 +683,11 @@ nothing in it can be mistaken for a user class. **[planned]**
 
 | Object | Members |
 |---|---|
-| `Spite.Class` | `.name: String`, `.namespace: Nullable<Spite.Namespace>`, `.attributes`, `.functions`, `.instances`, plus the class-level functions a class may override ([above](#class-level-functions-and-why-there-are-no-static-functions-planned)) |
+| `Spite.Class` | `.name: String`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, plus the class-level functions a class may override ([above](#class-level-functions-and-why-there-are-no-static-functions-planned)) |
 | `Spite.Function` | `.name: String`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `.owner`, `call_function()` |
 | `Spite.Argument` | `.name: String`, `.class: Spite.Class` |
 | `Spite.Attribute` | `.name: String`, `.class: Spite.Class`, `.value: String` |
-| `Spite.Namespace` | `.name: String` (the segment), `.full_name: String` (dotted), `.parent: Nullable<Spite.Namespace>`, `.classes`, `.namespaces` |
+| `Spite.Namespace` | `.name: String` (the segment), `.full_name: String` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
 
 **What `.functions` contains** (proposed by Claude, unconfirmed): the functions a class declares, plus the
 Symbol-codegen instances that were actually generated for it -- because those are functions of the class in the
@@ -724,7 +724,7 @@ made readable: `.parent` walks up it, `.classes` and `.namespaces` walk down. A 
 becomes something a program can enumerate -- which is what D13's isomorphic split needs when it partitions a
 package's functions, and what the deferred compile-time class generation would extend.
 
-`.namespace` and `.parent` are `Nullable<Spite.Namespace>`, and the chain ends at `null` (Mortaro, 2026-09-20,
+`.namespace` and `.parent` are `Spite.Namespace?`, and the chain ends at `null` (Mortaro, 2026-09-20,
 rejecting Claude's proposal of a root object). A root object would have read as though every namespace were
 nested inside something -- and inside the metaprogramming package in particular, when a namespace merely *uses*
 `Spite.Namespace`, it is not contained by it. A top-level namespace has no parent, so it has `null`, and you
@@ -981,7 +981,7 @@ var sword = Weapon<Magic, true>(10)
   the constructor list is exactly "what a caller must pass".
 - A class that takes codegen values therefore has a constructor, even if it only exists to declare them
   (`func Pair<$left_type, $right_type>() { }`). The built-in containers declare theirs the same way:
-  `List<$element_type>`, `Dictionary<$value_type>`, `Nullable<$value_type>`.
+  `List<$element_type>`, `Dictionary<$value_type>`, `$value_type?`.
 - **Every hole must be filled.** There are no defaults. A call supplying the wrong number is a compile error
   naming the class's codegen values, in order, so the mistake is corrected from the message rather than by
   opening the class. A `$name` that is neither declared nor supplied by a flag is the same error -- which is what
@@ -1037,7 +1037,7 @@ writes `Type`. A copy is always explicit: `copy()`/`deep_copy()` (below).
 - **Cycles leak.** Reference counting cannot free a cycle (two objects holding a reference to each other, directly
   or through several hops): neither one's count ever reaches zero. This is a known, accepted tradeoff, not a bug --
   break a cycle by hand when you are done with it (set the back-reference to `null` inside `drop()`-time logic, or
-  clear a `Nullable<T>` field that closes the loop) if it matters for a long-running program. **[planned]** A future
+  clear a `T?` field that closes the loop) if it matters for a long-running program. **[planned]** A future
   opt-in type (e.g. a weak reference) is the intended real fix; not implemented yet.
 - Parameters follow the same rule as everything else in section 5: a scalar is passed by value (copied); anything
   else is passed by reference (the same object, retained for the callee's own binding and released when the
@@ -1291,13 +1291,13 @@ callable function whose parameters are all scalar/String/enum -- an ordinary met
 *instantiated* Symbol-codegen function (`set_age`, ...; a template nothing calls is still never
 instantiated, so tree shaking for templates is unaffected). Each reflected function gets a generated
 uniform thunk, `(self pointer, parsed arguments) -> rendered String result`. Enums get their value
-names; `List<T>`/`Dictionary<T>`/`Nullable<T>`/a union get the element/member kind and C offsets needed
+names; `List<T>`/`Dictionary<T>`/`T?`/a union get the element/member kind and C offsets needed
 to walk them generically, all resolved with the real `offsetof`/`sizeof` operators at compile time, so
 the interpreter (`src/runtime/spite_repl.h`) never has to reason about struct layout itself. D1 (milestone
-9a): a class/`List<T>`/`Dictionary<T>`/`String` attribute (or a `Nullable<T>` of one) is always itself a
-pointer now, so every one of those is `via_pointer` (walking through it -- and through a `Nullable<T>` of
+9a): a class/`List<T>`/`Dictionary<T>`/`String` attribute (or a `T?` of one) is always itself a
+pointer now, so every one of those is `via_pointer` (walking through it -- and through a `T?` of
 one, which is just that same nullable pointer -- is always transparent); only a still-embedded scalar/
-enum/union attribute (or a `Nullable<T>` of one) is not.
+enum/union attribute (or a `T?` of one) is not.
 
 A class itself was already emitted whenever reachable (unaffected by REPL mode); a class's own
 *functions*, it turns out, were never tree-shaken to begin with (`classes.emitClassBodies` already
@@ -1311,7 +1311,7 @@ reflection tables, rooted at the entry instance under the fixed name `program` (
 entry class's own Spite name):
 
 - **paths**: `program`, `program.monsters`, `program.monsters[0].health`, `program.settings["volume"]`,
-  `program.target`. Walking through a non-null `Nullable<T>` is transparent; a union shows its active
+  `program.target`. Walking through a non-null `T?` is transparent; a union shows its active
   member and walks straight into it.
 - **calls**: `program.monsters.count()`, `program.monsters[0].roar()`, `program.player.set_age(3)` (any
   reflected function, including an instantiated Symbol-codegen one); `List<T>`'s `count()`;
@@ -1328,7 +1328,7 @@ entry class's own Spite name):
   `exit`.
 - Printing a class instance shows `ClassName { attribute: value, ... }` one level deep: a nested class/
   union attribute prints as `ClassName {...}` (never expanded further); a list/dictionary attribute
-  prints as `List<T>(count)`/`Dictionary<T>(count)` regardless of depth; a `Nullable<T>` prints `null` or
+  prints as `List<T>(count)`/`Dictionary<T>(count)` regardless of depth; a `T?` prints `null` or
   transparently passes through to its held value at the *same* depth (it is never itself a level of
   nesting).
 - Every error is one line and never a crash: an unknown attribute names the ones that do exist, an index
@@ -1432,7 +1432,7 @@ On top of `append`/`prepend`/`count`/index-read/index-write (iterate with `while
 | `filter_<member>()` | `List<T>` | a new list of the elements whose Bool attribute is true (section 8) |
 | `count_<member>()` | `Int` | a Bool attribute: how many elements have it true (section 8) |
 | `sum_<member>()` | `Int`/`Float` | adds that attribute up across every element (section 8) |
-| `find_by_<member>(value)` | `Nullable<T>` | the first element whose attribute equals `value` |
+| `find_by_<member>(value)` | `T?` | the first element whose attribute equals `value` |
 | `sort_by_<member>()` | `List<T>` | a new list sorted ascending by an `Int`/`Float`/`String` attribute |
 | `each_<member>()` | | `T` a class: calls that zero-argument function on every element, mutating it in place |
 | `map_<member>()` | `List<U>` | an `Int`/`Float`/`Bool`/`String`/enum attribute's values, one per element |
@@ -1450,7 +1450,7 @@ never get large enough for that to matter). `Dictionary<T>()` constructs one.
 | Member | Result | Notes |
 |---|---|---|
 | `set(key, value)` | | replaces an existing key's value |
-| `get(key)` | `Nullable<T>` | |
+| `get(key)` | `T?` | |
 | `has(key)` | `Bool` | |
 | `remove(key)` | | |
 | `count()` | `Int` | |
@@ -1483,8 +1483,8 @@ union Expression {
 }
 ```
 ```binary_expression.spite
-var left: Nullable<Expression> = null
-var right: Nullable<Expression> = null
+var left: Expression? = null
+var right: Expression? = null
 
 func BinaryExpression(left_expression: Expression, right_expression: Expression) {
     left = left_expression
@@ -1502,7 +1502,7 @@ directory listing and process spawning).
 
 | Class | Members |
 |---|---|
-| `File(path)` | `read(): Nullable<String>`, `write(text): Bool`, `append(text): Bool`, `exists(): Bool`, `remove(): Bool` |
+| `File(path)` | `read(): String?`, `write(text): Bool`, `append(text): Bool`, `exists(): Bool`, `remove(): Bool` |
 | `Directory(path)` | `files(): List<String>` (names, sorted), `folders(): List<String>` (sorted), `exists(): Bool`, `create(): Bool` |
 | `Process(command, arguments)` | `run(): Int` (exit code; `arguments` is a `List<String>`, each shell-quoted), `output(): String` (stdout+stderr merged, valid after `run()`) |
 | `Program()` | `exit(code)`: exits the process immediately with `code` |
@@ -1609,7 +1609,7 @@ From `mortaros_notes.md` on 2026-09-19 (second batch):
    hooks when a class is reopened) resolved at compile time. Needs a design pass: see PLAN.md milestones 10a/10b.
 3. **Errors: there are none to handle, only `crash`.** (third batch, 2026-09-20.) The main author of Spite code is an LLM, and
    bubbling errors up for someone to eventually log only makes code defensive. So there are no exceptions and no result
-   types. Things that can simply not work return the default or a `Nullable<T>` and are handled with `assert`.
+   types. Things that can simply not work return the default or a `T?` and are handled with `assert`.
    Things that stop the program from functioning call `crash("message")` (name decided by Mortaro: it is clear the program
    crashes and the AI needs to recode something). A crash stops the program with a report written for an LLM: the message,
    the Spite stack trace with `file:line`, and the attribute and local values of each frame, as text and as JSON in
@@ -1939,9 +1939,9 @@ payloads to JSON on demand, since the compiler knows the schema.
 
 ## Open questions
 
-1. `var damage: $damage_type = null`: `null` otherwise only exists for `Nullable<T>`. PROVISIONAL: the compiler treats
+1. `var damage: $damage_type = null`: `null` otherwise only exists for `T?`. PROVISIONAL: the compiler treats
    `= null` on a `$generic`-typed variable/field as "the default value of whatever type the generic is bound to" (not
-   `Nullable<T>`). This is implemented but still provisional -- revisit if it reads confusingly once more code exists.
+   `T?`). This is implemented but still provisional -- revisit if it reads confusingly once more code exists.
 3. Right-to-left casting makes `age > 0.5` with an Int `age` mean `age > 0`. Accept, or make comparisons cast toward the wider type.
    - The abbreviation lint has no escape hatch for names that must mirror an external spelling (`keyword_var`). Keep it absolute, or allow a per line `# spelled: keyword_var` style exemption.
 6. `_` now means two things: private (section 2) and intentionally unused (section 5). They mostly agree (an unused
