@@ -2,7 +2,7 @@ var console = Console()
 
 func Strings() {
     var name = "world"
-    console.print("Hello, " + name + "!")
+    console.print("Hello, {name}!")
     var greeting = greet(name)
     console.print(greeting)
     console.print("a" == "a")
@@ -14,5 +14,5 @@ func Strings() {
 }
 
 func greet(name: String): String {
-    return "Hi, " + name + "!"
+    return "Hi, {name}!"
 }

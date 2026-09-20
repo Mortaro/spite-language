@@ -64,7 +64,7 @@ func is_alive(): Bool {
 
 - Numbers: `Int` (32 bit, the default), `Long`, `Tiny`, `Short`, `Byte`, `UnsignedShort`, `UnsignedInt`,
   `UnsignedLong`, `Float` (the default for decimals), `Double`. `Bool`. `String` (double quotes only).
-- No cast syntax: the right side is cast toward the left. `"age " + 3` is `"age 3"`; `var total: Int = "12"` parses
+- No cast syntax: the right side is cast toward the left. `"age {3}"` is `"age 3"`; `var total: Int = "12"` parses
   it; an `Int` plus a `Float` is an `Int`. A value that does not fit wraps.
 - Everything that is not a number, a `Bool` or an enum value is a reference: passing, assigning and storing share
   the same object. `copy()` copies one level, `deep_copy()` all the way down. `drop()` runs when the last reference
@@ -147,11 +147,12 @@ round trip, and this list is cheaper to read than to rediscover.
 | `class Monster { }` | nothing: the file *is* the class |
 | `func greet(name: String = "world")` | a second function, or an attribute holding the value |
 | `print(value)` | `var console = Console()` at file level, then `console.print(value)` |
-| `"hello ${name}"` | `"hello " + name` |
+| `"hello ${name}"`, `"hello " + name` | `"hello {name}"` |
 | `for item in list` | `while index < list.count()`, or `map_`/`filter_`/`each_<member>()` |
 | `value == null` | `if value { } else { }`, `assert value`, `crash value`, or `switch` |
 | `text[0]` | `text.character_at(0)`, or `text.slice(start, end)` |
 | `// comment`, `/* comment */` | nothing, or `# docs/page.md#section` on its own line outside a function |
 | a variable named `int`, `static`, `unsigned`, `stdout` | any name that is not reserved in C |
 
-`"hello ${name}"` is the one exception: it is not an error yet, it simply prints those characters.
+Text is written with its values inside it: `"hello {name}"`, where `{ }` holds one value of any type and
+`\{` is a brace meant literally. Joining written text with `+` is an error; two values still join with `+`.

@@ -17,7 +17,7 @@ func describe(): String {
         return "impossible"
     }
     if not $is_magic {
-        return "plain " + damage
+        return "plain {damage}"
     }
-    return "magic " + damage
+    return "magic {damage}"
 }

@@ -14,7 +14,7 @@ func Lists() {
     console.print(names.join(" "))
     console.print(names.remove_last(), names.remove_first(), names.count())
     names[0] = "barbara"
-    console.print(names[0], names[7] + "!")
+    console.print(names[0],"{names[7]}!")
     names.clear()
     console.print(names.is_empty())
 
@@ -53,7 +53,7 @@ func build_items(count: Int): List<Item> {
     var result = List<Item>()
     var index = 0
     while index < count {
-        result.append(Item("item" + index, index * 2))
+        result.append(Item("item{index}", index * 2))
         index = index + 1
     }
     return result

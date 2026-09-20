@@ -10,14 +10,14 @@ func NullableNarrowing() {
 
 func update_held() {
     assert held
-    console.print("box value is " + held.value)
+    console.print("box value is {held.value}")
     held.value = 100
-    console.print("updated to " + held.value)
+    console.print("updated to {held.value}")
 }
 
 func print_box(maybe_box: Box?) {
     if maybe_box {
-        console.print("has box " + maybe_box.value)
+        console.print("has box {maybe_box.value}")
     } else {
         console.print("no box")
     }

@@ -21,8 +21,8 @@ func test_the_right_side_casts_toward_the_left() {
 }
 
 func test_a_number_becomes_text_and_back() {
-    crash "" + 7 == "7"
-    crash "" + true == "true"
+    crash "{7}" == "7"
+    crash "{true}" == "true"
     crash "7".to_int() == 7
     crash "7.5".to_float() == 7.5
 }

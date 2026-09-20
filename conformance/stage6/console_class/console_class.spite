@@ -2,7 +2,7 @@ var console = Console()
 
 func ConsoleClass() {
     var another = Console()
-    console.print(console == another, console.class.name, console.class.namespace + "|")
+    console.print(console == another, console.class.name,"{console.class.namespace}|")
     another.write("written")
     another.write(" and written again")
     console.print("")

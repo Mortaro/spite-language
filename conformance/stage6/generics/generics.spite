@@ -4,7 +4,7 @@ func Generics() {
     var sword = Weapon<Int, true>(10)
     var club = Weapon<String, false>("heavy")
     console.print(sword.hit(), sword.damage + 1, sword.describe())
-    console.print(club.hit(), club.damage + "!", club.describe())
+    console.print(club.hit(),"{club.damage}!", club.describe())
     var another: Weapon<Int, true> = Weapon<Int, true>(3)
     console.print(another.damage, sword.class, club.class)
     var pair = Pair<String, Int>("answer", 42)

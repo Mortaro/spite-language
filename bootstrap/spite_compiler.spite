@@ -25,7 +25,7 @@ func SpiteCompiler(arguments: Arguments) {
     var program_file = File(file_argument)
     var maybe_content = program_file.read()
     if not maybe_content {
-        console.error("error: could not read '" + file_argument + "'")
+        console.error("error: could not read '{file_argument}'")
         Program().exit(1)
         return
     }
@@ -61,7 +61,7 @@ func SpiteCompiler(arguments: Arguments) {
         return
     }
 
-    console.error("unknown --mode '" + mode_argument + "' (expected 'tokens', 'tree', 'c', 'build' or 'run')")
+    console.error("unknown --mode '{mode_argument}' (expected 'tokens', 'tree', 'c', 'build' or 'run')")
     var program = Program()
     program.exit(1)
 }
@@ -98,7 +98,7 @@ func generate_c_or_report(file_argument: String, content: String): String? {
     last_crash_map = generator.crash_map()
     var unused_flags = unused_program_values(generator.used_program_values)
     if not unused_flags.is_empty() {
-        console.error("error: no '$' value in the program is named by: --" + unused_flags.join(", --") + " (a compiler flag that matches nothing is an error, so a typo never passes silently)")
+        console.error("error: no '$' value in the program is named by: --{unused_flags.join(", --")} (a compiler flag that matches nothing is an error, so a typo never passes silently)")
         return null
     }
     return code
@@ -213,7 +213,7 @@ func build_to_path(file_argument: String, content: String, output_path: String, 
     var directory = Directory(".spite-cache")
     directory.create()
     var class_name = computed_class_name(file_argument)
-    var c_path = ".spite-cache/" + class_name + "_gen1.c"
+    var c_path = ".spite-cache/{class_name}_gen1.c"
     var c_file = File(c_path)
     var wrote = c_file.write(code)
     crash wrote
@@ -246,7 +246,7 @@ func build_to_path(file_argument: String, content: String, output_path: String, 
     if map_path.ends_with(".exe") {
         map_path = map_path.slice(0, map_path.length() - 4)
     }
-    File(map_path + ".crashes").write(last_crash_map)
+    File("{map_path}.crashes").write(last_crash_map)
     return true
 }
 
@@ -260,7 +260,7 @@ func find_c_compiler(): String {
     var candidates = ["cc", "clang", "gcc"]
     var index = 0
     while index < candidates.count() {
-        var probe = Process(candidates[index] + " --version 2>&1", List<String>())
+        var probe = Process("{candidates[index]} --version 2>&1", List<String>())
         if probe.run() == 0 {
             return candidates[index]
         }
@@ -278,7 +278,7 @@ func run_build_mode(file_argument: String, content: String, output_path: String,
 }
 
 func run_run_mode(file_argument: String, content: String, debug_memory: Bool) {
-    var output_path = ".spite-cache/" + computed_class_name(file_argument) + "_gen1.exe"
+    var output_path = ".spite-cache/{computed_class_name(file_argument)}_gen1.exe"
     var built = build_to_path(file_argument, content, output_path, debug_memory)
     if not built {
         var program = Program()
@@ -307,7 +307,7 @@ func run_tree_mode(file_argument: String, content: String) {
     var file = parser.parse_file()
     if parser.has_error {
         console.error(
-            file_argument + ":" + parser.error_line + ":" + parser.error_column + ": error: " + parser.error_message,
+"{file_argument}:{parser.error_line}:{parser.error_column}: error: {parser.error_message}",
         )
         var program = Program()
         program.exit(1)
@@ -321,7 +321,7 @@ func print_tokens(tokens: List<Syntax.Token>) {
     var index = 0
     while index < tokens.count() {
         var token = tokens[index]
-        console.print("" + token.line + ":" + token.column + " " + token.kind_text() + " '" + token.lexeme + "'")
+        console.print("{token.line}:{token.column} {token.kind_text()} '{token.lexeme}'")
         index = index + 1
     }
 }

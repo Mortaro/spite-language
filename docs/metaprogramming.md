@@ -133,7 +133,7 @@ func Pair<$left_type, $right_type>(new_left: $left_type, new_right: $right_type)
 }
 
 func describe(): String {
-    return left + " and " + right
+    return "{left} and {right}"
 }
 ```
 ```spite title=generics_basics/generics_basics.spite entry

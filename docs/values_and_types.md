@@ -63,14 +63,17 @@ a crash), and every numeric type gets a `to_<name>()` method (`to_int()`, `to_lo
 
 ## `String`
 
-Immutable, length-prefixed (not a bare `char*`), single-owner. `+` concatenates and casts its right side to
-text (every numeric type, `Bool`, and enum format themselves); `==`/`!=`/`<`/`>` compare by content.
+Immutable, length-prefixed (not a bare `char*`), single-owner. A value is placed inside written text rather
+than joined to it with `+`: `"hello {name}"`, where `{ }` holds one value of any type (every numeric type,
+`Bool`, and enum format themselves) and `\{` is a brace meant literally. Two values still join with `+`, and
+joining written text with `+` is an error naming the form above. `==`/`!=`/`<`/`>` compare by content.
 
 ```spite title=string_basics/string_basics.spite entry
 var console = Console()
 
 func StringBasics() {
-    var greeting = "Hello" + ", " + "Spite"
+    var subject = "Spite"
+    var greeting = "Hello, {subject}"
     console.print(greeting)
     console.print("length", greeting.length())
     console.print("upper", greeting.upper())

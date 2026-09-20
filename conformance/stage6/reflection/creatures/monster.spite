@@ -15,5 +15,5 @@ func Monster(starting_name: String, starting_health: Int) {
 }
 
 func kind_of_attribute(attribute: Symbol): String {
-    return attribute.name + ":" + attribute.class.name
+    return "{attribute.name}:{attribute.class.name}"
 }

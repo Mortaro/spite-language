@@ -6,9 +6,9 @@ func Monster(starting_name: String) {
 }
 
 func describe(): String {
-    return "a wild " + name
+    return "a wild {name}"
 }
 
 func roar(): String {
-    return name + " roars"
+    return "{name} roars"
 }

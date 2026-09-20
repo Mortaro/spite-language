@@ -9,7 +9,7 @@ func CopySemantics() {
     independent.increment()
     independent.increment()
 
-    console.print("original " + original.value())
-    console.print("alias " + alias.value())
-    console.print("independent " + independent.value())
+    console.print("original {original.value()}")
+    console.print("alias {alias.value()}")
+    console.print("independent {independent.value()}")
 }

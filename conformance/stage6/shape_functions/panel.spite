@@ -7,7 +7,7 @@ func Panel(starting_label: String, starting_rows: Int) {
 }
 
 func render(): String {
-    return "panel " + label + " with " + rows + " rows"
+    return "panel {label} with {rows} rows"
 }
 
 func resize(factor: Int) {

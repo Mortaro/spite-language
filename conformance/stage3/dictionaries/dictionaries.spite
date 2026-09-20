@@ -23,9 +23,9 @@ func Dictionaries() {
     var values = ages.values()
     console.print(values.count(), values[0] + values[1])
 
-    labels.set("x" + 1, "first" + 1)
+    labels.set("x{1}", "first{1}")
     labels["y"] = "second"
-    console.print(labels["x1"], labels["y"], labels["z"] + "|", labels.keys().count())
+    console.print(labels["x1"], labels["y"],"{labels["z"]}|", labels.keys().count())
     console.print(lookup("y"), lookup("q"))
 
     var pets = Dictionary<Animal>()
@@ -43,7 +43,7 @@ func Dictionaries() {
 func lookup(key: String): String {
     var label = labels.get(key)
     if label {
-        return "found " + label
+        return "found {label}"
     }
-    return "no " + key
+    return "no {key}"
 }

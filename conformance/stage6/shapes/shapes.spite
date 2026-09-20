@@ -31,10 +31,10 @@ func Shapes() {
 }
 
 func announce(thing: Named) {
-    console.print(thing.name + " has size " + thing.size)
+    console.print("{thing.name} has size {thing.size}")
 }
 
 func grow(thing: Named) {
     thing.size = thing.size + 1
-    thing.name = thing.name + "+"
+    thing.name ="{thing.name}+"
 }

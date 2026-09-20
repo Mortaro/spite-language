@@ -6,5 +6,5 @@ func Resource(starting_label: String) {
 }
 
 func drop() {
-    console.print("dropping " + label)
+    console.print("dropping {label}")
 }

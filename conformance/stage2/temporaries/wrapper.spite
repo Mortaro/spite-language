@@ -11,5 +11,5 @@ func label(): String {
 
 func unwrap_label(): String {
     crash inner
-    return "wrapped(" + inner.label() + ")"
+    return "wrapped({inner.label()})"
 }

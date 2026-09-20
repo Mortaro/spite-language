@@ -13,7 +13,7 @@ func get_attribute(attribute: Symbol): attribute.class {
 }
 
 func label(): String {
-    return name + "!"
+    return "{name}!"
 }
 
 func is_popular(): Bool {

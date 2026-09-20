@@ -7,5 +7,5 @@ func Widget(starting_name: String, starting_quantity: Int) {
 }
 
 func describe(): String {
-    return name + " x" + quantity
+    return "{name} x{quantity}"
 }

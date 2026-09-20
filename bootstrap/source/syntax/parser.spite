@@ -1,3 +1,4 @@
+var shape = Analysis.AstShape()
 var tokens = List<Token>()
 var position = 0
 var has_error = false
@@ -44,7 +45,7 @@ func found_text(): String {
     if check('end_of_file') {
         return "the end of the file"
     }
-    return "'" + current().lexeme + "'"
+    return "'{current().lexeme}'"
 }
 
 func fail(message: String) {
@@ -61,7 +62,7 @@ func expect(kind: TokenKind, description: String): Token {
     if check(kind) {
         return advance()
     }
-    fail("expected " + description + " but found " + found_text())
+    fail("expected {description} but found {found_text()}")
     return current()
 }
 
@@ -91,7 +92,7 @@ func consume_statement_terminator() {
     if check('right_brace') or check('end_of_file') {
         return
     }
-    fail("expected end of statement but found " + found_text())
+    fail("expected end of statement but found {found_text()}")
 }
 
 func consume_field_separator(closing: TokenKind) {
@@ -110,7 +111,7 @@ func consume_field_separator(closing: TokenKind) {
     if check(closing) or check('end_of_file') {
         return
     }
-    fail("expected ',' or a newline but found '" + current().lexeme + "'")
+    fail("expected ',' or a newline but found '{current().lexeme}'")
 }
 
 func dummy_expression(): Syntax.Expressions.Expression {
@@ -228,7 +229,7 @@ func parse_interpolation(hole: Token): Syntax.Expressions.Expression {
         return dummy_expression()
     }
     if not hole_parser.at_end_of_tokens() {
-        fail("'" + hole.text + "' is more than one value: what goes between '\{' and '}' is a single value")
+        fail("'{hole.text}' is more than one value: what goes between '\{' and '}' is a single value")
         return dummy_expression()
     }
     return value
@@ -244,7 +245,7 @@ func borrowed_word_lesson(word: String): String {
         return "there is no 'new' in Spite: a class is made by calling its own name, like 'Creature(\"rat\")'"
     }
     if word == "this" or word == "self" {
-        return "a class reads its own attributes by name: write 'name', not '" + word + ".name'"
+        return "a class reads its own attributes by name: write 'name', not '{word}.name'"
     }
     if word == "import" or word == "require" {
         return "there are no imports: 'load(\"folder\")' inside a function brings a folder into the program, and everything shares one namespace"
@@ -260,7 +261,7 @@ func borrowed_word_lesson(word: String): String {
 
 func parse_statement_without_line(): Syntax.Statements.Statement {
     if check('identifier') and next_kind() == 'identifier' and (current().lexeme == "class" or current().lexeme == "struct" or current().lexeme == "interface" or current().lexeme == "trait") {
-        fail("there is no '" + current().lexeme + "' keyword: a file is a class, named after the file, and its attributes and functions are written at the top level of that file")
+        fail("there is no '{current().lexeme}' keyword: a file is a class, named after the file, and its attributes and functions are written at the top level of that file")
         return dummy_statement()
     }
     if check('identifier') and current().lexeme == "for" {
@@ -315,7 +316,7 @@ func parse_generics_declaration(): Syntax.Statements.Statement {
     var expect_more = true
     while expect_more and not check('end_of_file') {
         var token = expect('generic_identifier', "a generic name (e.g. $name)")
-        names.append("" + token.text)
+        names.append("{token.text}")
         if check('comma') {
             advance()
         } else {
@@ -349,7 +350,7 @@ func parse_function_declaration(): Syntax.Statements.Statement {
         var expect_more_names = true
         while expect_more_names and not check('end_of_file') {
             var codegen_token = expect('generic_identifier', "a codegen value name (e.g. $name)")
-            codegen_names.append("" + codegen_token.text)
+            codegen_names.append("{codegen_token.text}")
             if check('comma') {
                 advance()
             } else {
@@ -383,7 +384,7 @@ func parse_function_declaration(): Syntax.Statements.Statement {
         advance()
         return_type = parse_type()
     } else if not check('left_brace') {
-        fail("a return type is written '(): " + current().lexeme + "': add the ':' after the parameter list")
+        fail("a return type is written '(): {current().lexeme}': add the ':' after the parameter list")
     }
 
     var body = parse_block()
@@ -425,7 +426,7 @@ func parse_required_function(name: String): Syntax.Statements.FieldDeclaration {
 
 func reject_declaration_equal(keyword: String, name: String) {
     if check('equal') {
-        fail("a declaration takes no '=': write '" + keyword + " " + name + " \{' with one entry on each line")
+        fail("a declaration takes no '=': write '{keyword} {name} \{' with one entry on each line")
     }
 }
 
@@ -437,7 +438,7 @@ func open_declaration_body(keyword: String) {
         return
     }
     if not check('newline') {
-        fail(keyword + " declarations put each entry on its own line: start a new line after '\{'")
+        fail("{keyword} declarations put each entry on its own line: start a new line after '\{'")
         advance()
         return
     }
@@ -449,7 +450,7 @@ func consume_declaration_entry(keyword: String) {
         advance()
     }
     if check('comma') {
-        fail(keyword + " declarations separate their entries by lines, not commas: delete the ','")
+        fail("{keyword} declarations separate their entries by lines, not commas: delete the ','")
         advance()
         return
     }
@@ -460,7 +461,7 @@ func consume_declaration_entry(keyword: String) {
     if check('end_of_file') {
         return
     }
-    fail(keyword + " declarations put each entry on its own line: move '" + current().lexeme + "' to the next line")
+    fail("{keyword} declarations put each entry on its own line: move '{current().lexeme}' to the next line")
     advance()
 }
 
@@ -500,7 +501,7 @@ func parse_enum_declaration(): Syntax.Statements.Statement {
     var finished = check('right_brace') or check('end_of_file')
     while not finished {
         var value = expect('enum_literal', "an enum value (e.g. 'value')")
-        values.append("" + value.text)
+        values.append("{value.text}")
         consume_declaration_entry("enum")
         if check('right_brace') or check('end_of_file') or has_error {
             finished = true
@@ -636,7 +637,7 @@ func source_text_between(first_token: Int, after_last_token: Int): String {
         if glued {
             text = text + lexeme
         } else {
-            text = text + " " + lexeme
+            text ="{text} {lexeme}"
         }
         index = index + 1
     }
@@ -695,20 +696,20 @@ func parse_type_without_suffix(): Syntax.Types.Type {
         return Syntax.Types.GenericType(token.text)
     }
     if not check('identifier') {
-        fail("expected a type name but found " + found_text())
+        fail("expected a type name but found {found_text()}")
         return dummy_type()
     }
 
     var path = List<String>()
-    path.append("" + advance().text)
+    path.append("{advance().text}")
     var continue_dots = true
     while continue_dots and not check('end_of_file') {
         if check('dot') {
             advance()
             if check('identifier') {
-                path.append("" + advance().text)
+                path.append("{advance().text}")
             } else {
-                fail("expected a name after '.' but found " + found_text())
+                fail("expected a name after '.' but found {found_text()}")
                 continue_dots = false
             }
         } else {
@@ -742,7 +743,7 @@ func parse_generic_argument(): Syntax.Types.GenericArgument {
     if result {
         return result
     }
-    fail("expected a generic argument but found " + found_text())
+    fail("expected a generic argument but found {found_text()}")
     return Syntax.Types.IntegerArgument(0)
 }
 
@@ -845,14 +846,14 @@ func try_parse_type_quiet(): Syntax.Types.Type? {
     }
 
     var path = List<String>()
-    path.append("" + advance().text)
+    path.append("{advance().text}")
     var continue_dots = true
     var ok = true
     while continue_dots and ok and not check('end_of_file') {
         if check('dot') {
             advance()
             if check('identifier') {
-                path.append("" + advance().text)
+                path.append("{advance().text}")
             } else {
                 ok = false
             }
@@ -965,9 +966,30 @@ func parse_binary_expression_rest(left: Syntax.Expressions.Expression, minimum_p
         return left
     }
     var operator = binary_operator_for(current_kind())
+    var joining = check('plus')
     advance()
     var right = parse_binary_expression(precedence + 1)
+    if joining {
+        reject_written_text_join(left, right)
+    }
     return parse_binary_expression_rest(Syntax.Expressions.BinaryExpression(operator, left, right), minimum_precedence)
+}
+
+func reject_written_text_join(left: Syntax.Expressions.Expression, right: Syntax.Expressions.Expression) {
+    var written_left = shape.as_string_literal(left)
+    var written_right = shape.as_string_literal(right)
+    if written_left and written_right {
+        fail("these are two pieces of written text: write them as one")
+        return
+    }
+    if written_left {
+        fail("text written down is not joined with '+': put the value inside it, like \"hello \{name}\". Two values are still joined with '+'")
+        return
+    }
+    if not written_right {
+        return
+    }
+    fail("text written down is not joined with '+': put the value inside it, like \"\{name} arrived\". Two values are still joined with '+'")
 }
 
 func parse_unary(): Syntax.Expressions.Expression {
@@ -1096,7 +1118,7 @@ func parse_primary(): Syntax.Expressions.Expression {
     if check('left_brace') {
         return parse_object_literal()
     }
-    fail("expected an expression but found '" + current().lexeme + "'")
+    fail("expected an expression but found '{current().lexeme}'")
     return dummy_expression()
 }
 

@@ -18,7 +18,7 @@ func Monster(new_name: String, new_health: Int) {
 }
 
 func roar(): String {
-    return name + " roars!"
+    return "{name} roars!"
 }
 ```
 ```spite title=repl_program/repl_program.spite entry

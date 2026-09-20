@@ -24,7 +24,7 @@ func read_every_page(documentation: Directory) {
     while page_index < pages.count() {
         var page = pages[page_index]
         if page.ends_with(".md") {
-            read_page("docs/" + page)
+            read_page("docs/{page}")
         }
         page_index = page_index + 1
     }
@@ -51,7 +51,7 @@ func read_block(lines: List<String>, opening_index: Int, opening: String): Int {
     var title = words[0]
     var separator = title.index_of("/")
     if separator < 1 {
-        console.error("a documentation block's title names a folder and a file: " + title)
+        console.error("a documentation block's title names a folder and a file: {title}")
         Program().exit(1)
         return opening_index + 1
     }
@@ -65,7 +65,7 @@ func read_block(lines: List<String>, opening_index: Int, opening: String): Int {
     }
     index = index + 1
     remember_folder(folder, file_name, words)
-    write_source(folder, file_name, body.join("\n") + "\n")
+    write_source(folder, file_name,"{body.join("\n")}\n")
     while index < lines.count() and lines[index].trim().is_empty() {
         index = index + 1
     }
@@ -89,7 +89,7 @@ func read_expectation(lines: List<String>, first_index: Int, folder: String, is_
     if is_output {
         name = "expected_output.txt"
     }
-    File(root + "/" + folder + "/" + name).write(expected.join("\n") + "\n")
+    File("{root}/{folder}/{name}").write("{expected.join("\n")}\n")
     return index + 1
 }
 
@@ -134,23 +134,23 @@ func flags_of(declaration: String): String {
     var pairs = declaration.split(",")
     var index = 0
     while index < pairs.count() {
-        flags.append("--" + pairs[index].replace(":", "="))
+        flags.append("--{pairs[index].replace(":", "=")}")
         index = index + 1
     }
     return flags.join(" ")
 }
 
 func write_source(folder: String, file_name: String, text: String) {
-    var path = root + "/" + folder
+    var path ="{root}/{folder}"
     make_directory(path)
     var parts = file_name.split("/")
     var index = 0
     while index < parts.count() - 1 {
-        path = path + "/" + parts[index]
+        path ="{path}/{parts[index]}"
         make_directory(path)
         index = index + 1
     }
-    File(root + "/" + folder + "/" + file_name).write(text)
+    File("{root}/{folder}/{file_name}").write(text)
 }
 
 func write_manifest() {
@@ -158,16 +158,16 @@ func write_manifest() {
     while index < folder_names.count() {
         var folder = folder_names[index]
         if folder_entries[index].is_empty() {
-            console.error("no block of '" + folder + "' is marked 'entry'")
+            console.error("no block of '{folder}' is marked 'entry'")
             Program().exit(1)
             return
         }
-        File(root + "/" + folder + "/entry.txt").write(folder_entries[index] + "\n")
+        File("{root}/{folder}/entry.txt").write("{folder_entries[index]}\n")
         if not folder_flags[index].is_empty() {
-            File(root + "/" + folder + "/flags.txt").write(folder_flags[index] + "\n")
+            File("{root}/{folder}/flags.txt").write("{folder_flags[index]}\n")
         }
         if folder_must_fail[index] {
-            File(root + "/" + folder + "/must_fail.txt").write("\n")
+            File("{root}/{folder}/must_fail.txt").write("\n")
         }
         index = index + 1
     }

@@ -13,14 +13,14 @@ func NullableValues() {
     names.set("first", "ada")
     var found: String? = names.get("first")
     switch found {
-        String: console.print("found " + found)
+        String: console.print("found {found}")
         Null: console.print("missing")
     }
 }
 
 func report() {
     switch target {
-        Monster: console.print("target is " + target.name)
+        Monster: console.print("target is {target.name}")
         Null: console.print("no target")
     }
     switch bonus {
@@ -40,7 +40,7 @@ func describe(monster: Monster?) {
     switch monster {
         Null: console.print("nobody there")
         Monster: {
-            console.print("there is a " + monster.name)
+            console.print("there is a {monster.name}")
         }
     }
 }

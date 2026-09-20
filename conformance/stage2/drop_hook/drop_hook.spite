@@ -8,5 +8,5 @@ func DropHook() {
 
 func make_and_drop() {
     var resource = Resource("file handle")
-    console.print("using " + resource.label)
+    console.print("using {resource.label}")
 }

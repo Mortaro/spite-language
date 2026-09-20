@@ -6,7 +6,7 @@ func Button(starting_label: String) {
 }
 
 func render(): String {
-    return "[" + label + " x" + width + "]"
+    return "[{label} x{width}]"
 }
 
 func resize(factor: Int) {

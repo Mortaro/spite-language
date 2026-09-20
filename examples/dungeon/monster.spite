@@ -7,7 +7,7 @@ func Monster(new_name: String, new_health: Int) {
 }
 
 func roar(): String {
-    return name + " roars!"
+    return "{name} roars!"
 }
 
 func is_alive(): Bool {

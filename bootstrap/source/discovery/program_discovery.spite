@@ -18,7 +18,7 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     var parser = Syntax.Parser(lexer.tokens)
     var entry_file = parser.parse_file()
     if parser.has_error {
-        return failure(entry_path + ":" + parser.error_line + ":" + parser.error_column + ": " + parser.error_message)
+        return failure("{entry_path}:{parser.error_line}:{parser.error_column}: {parser.error_message}")
     }
 
     var entry_directory = directory_of(entry_path)
@@ -54,12 +54,12 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     while root_index < load_names.count() {
         var root_name = load_names[root_index]
         if root_name == "spite" {
-            return failure(entry_path + ": error: 'spite' is reserved for the built-in Spite namespace: name the folder something else")
+            return failure("{entry_path}: error: 'spite' is reserved for the built-in Spite namespace: name the folder something else")
         }
-        var root_folder = entry_directory + "/" + root_name
+        var root_folder ="{entry_directory}/{root_name}"
         var root_directory = Directory(root_folder)
         if not root_directory.exists() {
-            return failure("could not find the folder '" + root_name + "' loaded by " + entry_path)
+            return failure("could not find the folder '{root_name}' loaded by {entry_path}")
         }
         var no_skip: String? = null
         var no_exclusions = List<String>()
@@ -78,9 +78,9 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
 
 func lex_failure(path: String, lexer: Syntax.Lexer): String {
     if lexer.error_message.is_empty() {
-        return "could not lex '" + path + "'"
+        return "could not lex '{path}'"
     }
-    return path + ":" + lexer.error_line + ": error: " + lexer.error_message
+    return "{path}:{lexer.error_line}: error: {lexer.error_message}"
 }
 
 func comment_lesson(): String {
@@ -102,7 +102,7 @@ func check_comments(path: String, tokens: List<Syntax.Token>) {
             var problem = comment_problem(token.text.trim(), depth)
             if not problem.is_empty() {
                 has_error = true
-                error_message = path + ":" + token.line + ": error: " + problem
+                error_message ="{path}:{token.line}: error: {problem}"
             }
         }
         index = index + 1
@@ -111,21 +111,21 @@ func check_comments(path: String, tokens: List<Syntax.Token>) {
 
 func comment_problem(text: String, depth: Int): String {
     if depth > 0 {
-        return "a comment may not appear inside a function or a declaration body: a line that needs explaining becomes a named function instead. " + comment_lesson()
+        return "a comment may not appear inside a function or a declaration body: a line that needs explaining becomes a named function instead. {comment_lesson()}"
     }
     var hash_position = text.index_of("#")
     if text.contains(" ") or hash_position < 1 or not text.slice(0, hash_position).ends_with(".md") {
-        return "this comment is not a link: " + comment_lesson()
+        return "this comment is not a link: {comment_lesson()}"
     }
     var markdown_path = text.slice(0, hash_position)
     var anchor = text.slice(hash_position + 1, text.length())
-    var content = File(comment_root + "/" + markdown_path).read()
+    var content = File("{comment_root}/{markdown_path}").read()
     if not content {
-        return "this comment links to '" + markdown_path + "', which does not exist (the path is relative to the entry file's folder, like load)"
+        return "this comment links to '{markdown_path}', which does not exist (the path is relative to the entry file's folder, like load)"
     }
     if content {
         if not markdown_anchors(content).contains(anchor) {
-            return "this comment links to '" + markdown_path + "#" + anchor + "', but that file has no heading with that anchor"
+            return "this comment links to '{markdown_path}#{anchor}', but that file has no heading with that anchor"
         }
     }
     return ""
@@ -146,7 +146,7 @@ func markdown_anchors(content: String): List<String> {
             var candidate = anchor
             var suffix = 1
             while anchors.contains(candidate) {
-                candidate = anchor + "-" + suffix
+                candidate ="{anchor}-{suffix}"
                 suffix = suffix + 1
             }
             anchors.append(candidate)
@@ -168,7 +168,7 @@ func heading_anchor(heading: String): String {
             anchor = anchor + lowered.character_at(index)
         }
         if code == 32 {
-            anchor = anchor + "-"
+            anchor ="{anchor}-"
         }
         index = index + 1
     }
@@ -184,7 +184,7 @@ func walk_directory(root_folder: String, segments: List<String>, skip_basename: 
     var path = root_folder
     var index = 0
     while index < segments.count() {
-        path = path + "/" + segments[index]
+        path ="{path}/{segments[index]}"
         index = index + 1
     }
     var directory = Directory(path)
@@ -206,7 +206,7 @@ func walk_directory(root_folder: String, segments: List<String>, skip_basename: 
                 }
             }
             if not skip {
-                read_and_add_file(path + "/" + name, segments)
+                read_and_add_file("{path}/{name}", segments)
             }
         }
         file_index = file_index + 1
@@ -260,14 +260,14 @@ func read_and_add_file(path: String, segments: List<String>) {
         var parsed_file = parser.parse_file()
         if parser.has_error {
             has_error = true
-            error_message = path + ":" + parser.error_line + ":" + parser.error_column + ": " + parser.error_message
+            error_message ="{path}:{parser.error_line}:{parser.error_column}: {parser.error_message}"
             return
         }
         parsed_file.path = path
         add_parsed_file(parsed_file, segments, file_stem(path))
     } else {
         has_error = true
-        error_message = "could not read '" + path + "'"
+        error_message = "could not read '{path}'"
     }
 }
 
@@ -286,7 +286,7 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
     }
     if not walking_library and qualified_dotted.starts_with("Spite.") {
         has_error = true
-        error_message = parsed_file.path + ": error: 'Spite' holds the standard library's own classes, so a file in a 'spite' folder may only reopen one of them: '" + qualified_dotted + "' is not one, and a new class of your own belongs in a namespace of your own"
+        error_message ="{parsed_file.path}: error: 'Spite' holds the standard library's own classes, so a file in a 'spite' folder may only reopen one of them: '{qualified_dotted}' is not one, and a new class of your own belongs in a namespace of your own"
         return
     }
     class_files.append(DiscoveredClass(mangled_name, simple_name, namespace_dotted, qualified_dotted, parsed_file))
@@ -295,11 +295,11 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
 func declared_name(statement: Syntax.Statements.Statement): String {
     var function = shape.as_function_declaration(statement)
     if function {
-        return "func " + function.name
+        return "func {function.name}"
     }
     var variable = shape.as_variable_declaration(statement)
     if variable {
-        return "var " + variable.name
+        return "var {variable.name}"
     }
     return ""
 }
@@ -408,7 +408,7 @@ func pascal_join(segments: List<String>): String {
     var index = 0
     while index < segments.count() {
         if index > 0 {
-            result = result + "."
+            result ="{result}."
         }
         result = result + pascal_case(segments[index])
         index = index + 1
@@ -446,7 +446,7 @@ func compute_qualified(segments: List<String>, stem: String): String {
     if last_segment == stem {
         return pascal_join(segments)
     }
-    return pascal_join(segments) + "." + pascal_case(stem)
+    return "{pascal_join(segments)}.{pascal_case(stem)}"
 }
 
 func all_but_last(segments: List<String>): List<String> {
@@ -472,7 +472,7 @@ func join_with_slash(segments: List<String>): String {
     var index = 0
     while index < segments.count() {
         if index > 0 {
-            result = result + "/"
+            result ="{result}/"
         }
         result = result + segments[index]
         index = index + 1

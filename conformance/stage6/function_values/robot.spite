@@ -6,11 +6,11 @@ func Robot(starting_name: String) {
 }
 
 func step_forward() {
-    log.append(name + " forward")
+    log.append("{name} forward")
 }
 
 func step_back() {
-    log.append(name + " back")
+    log.append("{name} back")
 }
 
 func battery(): Int {

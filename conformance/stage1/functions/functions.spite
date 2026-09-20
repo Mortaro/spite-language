@@ -29,7 +29,7 @@ func factorial(value: Int): Int {
 func print_range(count: Int) {
     var index = 0
     while index < count {
-        console.print("range " + index)
+        console.print("range {index}")
         index = index + 1
     }
 }

@@ -10,5 +10,5 @@ func speak() {
 }
 
 func fetch(item: String): String {
-    return "fetched " + item
+    return "fetched {item}"
 }

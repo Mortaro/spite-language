@@ -13,5 +13,5 @@ func report(): String {
     if state == 'hungry' {
         return "pet is hungry"
     }
-    return "pet is " + state
+    return "pet is {state}"
 }

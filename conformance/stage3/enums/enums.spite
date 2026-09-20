@@ -16,7 +16,7 @@ func Enums() {
         console.print("still angry")
     }
     if mood != 'calm' {
-        console.print("not calm: " + mood)
+        console.print("not calm: {mood}")
     }
     var pet = Pet('hungry')
     console.print(pet.report())

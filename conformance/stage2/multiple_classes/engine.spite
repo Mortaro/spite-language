@@ -10,5 +10,5 @@ func push(amount: Int) {
 }
 
 func report(): String {
-    return "" + horsepower + "hp at " + speed + "mph"
+    return "{horsepower}hp at {speed}mph"
 }

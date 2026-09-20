@@ -54,5 +54,5 @@ func set_at(index: Int, value: Int) {
 }
 
 func describe(): String {
-    return "(" + across + ", " + up + ")"
+    return "({across}, {up})"
 }

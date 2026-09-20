@@ -16,11 +16,11 @@ func get_attribute(attribute: Symbol): attribute.class {
 }
 
 func describe_attribute(attribute: Symbol): String {
-    return attribute.name + " is " + attributes[attribute]
+    return "{attribute.name} is {attributes[attribute]}"
 }
 
 func set_name(new_name: String) {
-    name = "exact: " + new_name
+    name = "exact: {new_name}"
 }
 
 func birthday() {

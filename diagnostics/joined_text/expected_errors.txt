@@ -1,0 +1,1 @@
+diagnostics/joined_text/joined_text.spite:5:34: text written down is not joined with '+': put the value inside it, like "hello {name}". Two values are still joined with '+'

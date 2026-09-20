@@ -35,10 +35,10 @@ func Unions() {
 
 func describe(shape: Shape): String {
     switch shape {
-        Circle: return "circle of radius " + shape.radius
+        Circle: return "circle of radius {shape.radius}"
         Square: {
             var side = shape.side
-            return "square of side " + side
+            return "square of side {side}"
         }
     }
 }

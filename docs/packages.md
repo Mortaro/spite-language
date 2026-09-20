@@ -91,7 +91,7 @@ func full_name(): String {
     if namespace.is_empty() {
         return name
     }
-    return namespace + "." + name
+    return "{namespace}.{name}"
 }
 ```
 ```spite title=reopen_spite_class/reopen_spite_class.spite entry

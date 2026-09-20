@@ -14,5 +14,5 @@ func accelerate(amount: Int) {
 
 func describe() {
     assert engine
-    console.print(name + ": " + engine.report())
+    console.print("{name}: {engine.report()}")
 }

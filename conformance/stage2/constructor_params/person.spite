@@ -8,7 +8,7 @@ func Person(starting_name: String, starting_age: Int) {
 }
 
 func introduce() {
-    console.print(name + " is " + age)
+    console.print("{name} is {age}")
 }
 
 func have_birthday() {

@@ -5,7 +5,7 @@ func indent_text(depth: Int): String {
     var text = ""
     var index = 0
     while index < depth {
-        text = text + "  "
+        text ="{text}  "
         index = index + 1
     }
     return text
@@ -37,16 +37,16 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
             var text = "Generics"
             var index = 0
             while index < statement.names.count() {
-                text = text + " $" + statement.names[index]
+                text ="{text} ${statement.names[index]}"
                 index = index + 1
             }
             print_line(depth, text)
         }
         Syntax.Statements.VariableDeclaration: {
-            print_line(depth, "VarDecl " + statement.name)
+            print_line(depth, "VarDecl {statement.name}")
             var type_reference = statement.type_reference
             if type_reference {
-                print_line(depth + 1, "Type " + inline_type(type_reference))
+                print_line(depth + 1, "Type {inline_type(type_reference)}")
             }
             var value = statement.value
             assert value
@@ -54,30 +54,30 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
         }
         Syntax.Statements.FunctionDeclaration: print_function(statement, depth)
         Syntax.Statements.TypeDeclaration: {
-            print_line(depth, "TypeDecl " + statement.name)
+            print_line(depth, "TypeDecl {statement.name}")
             var index = 0
             while index < statement.fields.count() {
                 var field = statement.fields[index]
                 var field_type = field.type_reference
                 assert field_type
                 if field.is_function {
-                    print_line(depth + 1, "Function " + field.name + "(" + field.parameter_types.count() + "): " + inline_type(field_type))
+                    print_line(depth + 1, "Function {field.name}({field.parameter_types.count()}): {inline_type(field_type)}")
                 } else {
-                    print_line(depth + 1, "Field " + field.name + ": " + inline_type(field_type))
+                    print_line(depth + 1, "Field {field.name}: {inline_type(field_type)}")
                 }
                 index = index + 1
             }
         }
         Syntax.Statements.EnumDeclaration: {
-            print_line(depth, "EnumDecl " + statement.name)
+            print_line(depth, "EnumDecl {statement.name}")
             var index = 0
             while index < statement.values.count() {
-                print_line(depth + 1, "'" + statement.values[index] + "'")
+                print_line(depth + 1, "'{statement.values[index]}'")
                 index = index + 1
             }
         }
         Syntax.Statements.UnionDeclaration: {
-            print_line(depth, "UnionDecl " + statement.name)
+            print_line(depth, "UnionDecl {statement.name}")
             var index = 0
             while index < statement.members.count() {
                 print_line(depth + 1, inline_type(statement.members[index]))
@@ -122,7 +122,7 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
                 var switch_case = statement.cases[index]
                 var case_type = switch_case.type_reference
                 assert case_type
-                print_line(depth + 1, "Case " + inline_type(case_type))
+                print_line(depth + 1, "Case {inline_type(case_type)}")
                 print_statement_list(switch_case.body, depth + 2)
                 index = index + 1
             }
@@ -154,26 +154,26 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
 }
 
 func print_function(function: Syntax.Statements.FunctionDeclaration, depth: Int) {
-    var text = "FuncDecl " + function.name
+    var text = "FuncDecl {function.name}"
     if not function.codegen_names.is_empty() {
-        text = text + "<$" + function.codegen_names.join(", $") + ">"
+        text ="{text}<${function.codegen_names.join(", $")}>"
     }
-    text = text + "("
+    text ="{text}("
     var index = 0
     while index < function.parameters.count() {
         if index != 0 {
-            text = text + ", "
+            text ="{text}, "
         }
         var parameter = function.parameters[index]
         var parameter_type = parameter.type_reference
         assert parameter_type
-        text = text + parameter.name + ": " + inline_type(parameter_type)
+        text = text +"{parameter.name}: {inline_type(parameter_type)}"
         index = index + 1
     }
-    text = text + ")"
+    text ="{text})"
     var return_type = function.return_type
     if return_type {
-        text = text + ": " + inline_type(return_type)
+        text ="{text}: {inline_type(return_type)}"
     }
     print_line(depth, text)
     print_statement_list(function.body, depth + 1)
@@ -184,30 +184,30 @@ func inline_type(type_reference: Syntax.Types.Type): String {
         Syntax.Types.ReferenceType: {
             var inner = type_reference.inner
             crash inner
-            return "&" + inline_type(inner)
+            return "&{inline_type(inner)}"
         }
-        Syntax.Types.GenericType: return "$" + type_reference.name
+        Syntax.Types.GenericType: return "${type_reference.name}"
         Syntax.Types.NamedType: {
             var text = ""
             var index = 0
             while index < type_reference.path.count() {
                 if index != 0 {
-                    text = text + "."
+                    text ="{text}."
                 }
                 text = text + type_reference.path[index]
                 index = index + 1
             }
             if type_reference.arguments.count() != 0 {
-                text = text + "<"
+                text ="{text}<"
                 var argument_index = 0
                 while argument_index < type_reference.arguments.count() {
                     if argument_index != 0 {
-                        text = text + ", "
+                        text ="{text}, "
                     }
                     text = text + inline_generic_argument(type_reference.arguments[argument_index])
                     argument_index = argument_index + 1
                 }
-                text = text + ">"
+                text ="{text}>"
             }
             return text
         }
@@ -221,16 +221,16 @@ func inline_generic_argument(argument: Syntax.Types.GenericArgument): String {
             crash value
             return inline_type(value)
         }
-        Syntax.Types.IntegerArgument: return "" + argument.value
-        Syntax.Types.FloatArgument: return "" + argument.value
+        Syntax.Types.IntegerArgument: return "{argument.value}"
+        Syntax.Types.FloatArgument: return "{argument.value}"
         Syntax.Types.BoolArgument: {
             if argument.value {
                 return "true"
             }
             return "false"
         }
-        Syntax.Types.StringArgument: return "\"" + argument.value + "\""
-        Syntax.Types.EnumArgument: return "'" + argument.value + "'"
+        Syntax.Types.StringArgument: return "\"{argument.value}\""
+        Syntax.Types.EnumArgument: return "'{argument.value}'"
     }
 }
 
@@ -239,12 +239,12 @@ func print_expression(expression: Syntax.Expressions.Expression, depth: Int) {
         Syntax.Expressions.NullLiteral: print_line(depth, "Null")
         Syntax.Expressions.TrueLiteral: print_line(depth, "True")
         Syntax.Expressions.FalseLiteral: print_line(depth, "False")
-        Syntax.Expressions.IntegerLiteral: print_line(depth, "Integer " + expression.value)
-        Syntax.Expressions.FloatLiteral: print_line(depth, "Float " + expression.value)
-        Syntax.Expressions.StringLiteralExpression: print_line(depth, "String \"" + expression.value + "\"")
-        Syntax.Expressions.EnumLiteralExpression: print_line(depth, "Enum '" + expression.value + "'")
-        Syntax.Expressions.GenericIdentifierExpression: print_line(depth, "Generic $" + expression.name)
-        Syntax.Expressions.IdentifierExpression: print_line(depth, "Identifier " + expression.name)
+        Syntax.Expressions.IntegerLiteral: print_line(depth, "Integer {expression.value}")
+        Syntax.Expressions.FloatLiteral: print_line(depth, "Float {expression.value}")
+        Syntax.Expressions.StringLiteralExpression: print_line(depth, "String \"{expression.value}\"")
+        Syntax.Expressions.EnumLiteralExpression: print_line(depth, "Enum '{expression.value}'")
+        Syntax.Expressions.GenericIdentifierExpression: print_line(depth, "Generic ${expression.name}")
+        Syntax.Expressions.IdentifierExpression: print_line(depth, "Identifier {expression.name}")
         Syntax.Expressions.ListLiteralExpression: {
             print_line(depth, "List")
             var index = 0
@@ -261,7 +261,7 @@ func print_expression(expression: Syntax.Expressions.Expression, depth: Int) {
             var index = 0
             while index < expression.fields.count() {
                 var field = expression.fields[index]
-                print_line(depth + 1, field.name + ":")
+                print_line(depth + 1,"{field.name}:")
                 var value = field.value
                 assert value
                 print_expression(value, depth + 2)
@@ -269,13 +269,13 @@ func print_expression(expression: Syntax.Expressions.Expression, depth: Int) {
             }
         }
         Syntax.Expressions.UnaryExpression: {
-            print_line(depth, "Unary " + expression.operator)
+            print_line(depth, "Unary {expression.operator}")
             var operand = expression.operand
             assert operand
             print_expression(operand, depth + 1)
         }
         Syntax.Expressions.BinaryExpression: {
-            print_line(depth, "Binary " + expression.operator)
+            print_line(depth, "Binary {expression.operator}")
             var left = expression.left
             assert left
             print_expression(left, depth + 1)
@@ -301,7 +301,7 @@ func print_expression(expression: Syntax.Expressions.Expression, depth: Int) {
             print_expression(callee, depth + 1)
             var type_index = 0
             while type_index < expression.type_arguments.count() {
-                print_line(depth + 1, "TypeArgument " + inline_generic_argument(expression.type_arguments[type_index]))
+                print_line(depth + 1, "TypeArgument {inline_generic_argument(expression.type_arguments[type_index])}")
                 type_index = type_index + 1
             }
             var index = 0
@@ -311,7 +311,7 @@ func print_expression(expression: Syntax.Expressions.Expression, depth: Int) {
             }
         }
         Syntax.Expressions.MemberExpression: {
-            print_line(depth, "Member " + expression.name)
+            print_line(depth, "Member {expression.name}")
             var object = expression.object
             assert object
             print_expression(object, depth + 1)

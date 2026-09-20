@@ -478,7 +478,7 @@ func scan_operator(): Bool {
     if current_code() == 61 and (code == 43 or code == 45 or code == 42 or code == 47 or code == 37) {
         advance_character()
         var operator_text = source.slice(start_index, index - 1)
-        fail_lex("Spite has no '" + operator_text + "=': write 'count = count " + operator_text + " value'", token_line)
+        fail_lex("Spite has no '{operator_text}=': write 'count = count {operator_text} value'", token_line)
         push_token('invalid', source.slice(start_index, index), "", token_line, token_column)
         return false
     }
@@ -537,7 +537,7 @@ func scan_operator(): Bool {
     }
 
     if not recognized {
-        fail_lex("'" + source.slice(start_index, index) + "' is not something Spite reads", token_line)
+        fail_lex("'{source.slice(start_index, index)}' is not something Spite reads", token_line)
     }
     push_token(kind, source.slice(start_index, index), source.slice(start_index, index), token_line, token_column)
     return false

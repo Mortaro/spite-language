@@ -1,0 +1,6 @@
+var console = Console()
+var name = "ada"
+
+func JoinedText() {
+    console.print("hello " + name)
+}

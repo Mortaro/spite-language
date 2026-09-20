@@ -5,7 +5,7 @@ func EveryClass() {
     var index = 0
     while index < classes.count() {
         var described = classes[index]
-        console.print(described.name, described.namespace + "|", described.functions.map_name().join(","))
+        console.print(described.name,"{described.namespace}|", described.functions.map_name().join(","))
         index = index + 1
     }
     index = 0

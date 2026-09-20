@@ -15,12 +15,12 @@ func test_split_and_join_round_trip() {
 }
 
 func test_a_number_joins_a_string() {
-    crash "age " + 3 == "age 3"
-    crash "ratio " + 2.5 == "ratio 2.5"
+    crash "age {3}" == "age 3"
+    crash "ratio {2.5}" == "ratio 2.5"
 }
 
 func test_comparison_is_by_content() {
-    var built = "ab" + "c"
+    var built = "abc"
     crash built == "abc"
     crash built != "abd"
     crash "abc" < "abd"

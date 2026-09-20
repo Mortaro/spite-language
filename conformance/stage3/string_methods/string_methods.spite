@@ -5,7 +5,7 @@ func StringMethods() {
     var trimmed = text.trim()
     console.print(trimmed.length(), trimmed.is_empty(), "".is_empty())
     console.print(trimmed.upper(), trimmed.lower())
-    console.print(trimmed.slice(7, 12), trimmed.character_at(0), trimmed.code_at(0), trimmed.character_at(99) + "|")
+    console.print(trimmed.slice(7, 12), trimmed.character_at(0), trimmed.code_at(0),"{trimmed.character_at(99)}|")
     console.print(trimmed.contains("Spite"), trimmed.starts_with("Hello"), trimmed.ends_with("x"), trimmed.index_of("Spite"), trimmed.index_of("absent"))
     console.print(trimmed.replace("World", "Compiler").replace("Hello", "Bye"))
     var parts = "a,b,,c".split(",")
@@ -17,10 +17,10 @@ func StringMethods() {
     console.print("42".to_int() + 1, "7".to_long(), "2.5".to_float(), "1.25".to_double(), "oops".to_int())
     var number: Int = "12"
     console.print(number * 2)
-    console.print(("x" + 1).length(), build("q").upper())
+    console.print(("x{1}").length(), build("q").upper())
     console.print("abc" < "abd", "abc" == "abc", "b" > "a", "abc" != "abc")
 }
 
 func build(prefix: String): String {
-    return prefix + "-" + prefix.length()
+    return "{prefix}-{prefix.length()}"
 }
