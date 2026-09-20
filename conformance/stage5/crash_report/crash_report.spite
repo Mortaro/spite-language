@@ -7,5 +7,6 @@ func CrashReport() {
 }
 
 func check(value: Int) {
-    crash value > 0
+    var limit = 0
+    crash value > limit
 }
