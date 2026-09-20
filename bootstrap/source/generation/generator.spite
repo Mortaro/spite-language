@@ -434,13 +434,17 @@ func find_class(name: String, current_namespace: String): Nullable<Analysis.Clas
 func resolve_classes(discovered: List<Discovery.DiscoveredClass>) {
     var index = 0
     while index < discovered.count() {
-        resolve_class_body(discovered[index], classes[index + classes.count() - discovered.count()])
-
+        resolve_class_body(discovered[index], classes[index + classes.count() - discovered.count()], true)
+        index = index + 1
+    }
+    index = 0
+    while index < discovered.count() {
+        resolve_class_body(discovered[index], classes[index + classes.count() - discovered.count()], false)
         index = index + 1
     }
 }
 
-func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.ClassInfo) {
+func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.ClassInfo, functions_pass: Bool) {
     var file = entry.get_file()
     current_owner = information.qualified_dotted
     var empty_scope = Scope(null)
@@ -449,11 +453,15 @@ func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.
         var statement = file.statements[statement_index]
         var variable_declaration = shape.as_variable_declaration(statement)
         if variable_declaration {
-            resolve_field(variable_declaration, information, empty_scope)
+            if not functions_pass {
+                resolve_field(variable_declaration, information, empty_scope)
+            }
         }
         var function_declaration = shape.as_function_declaration(statement)
         if function_declaration {
-            resolve_function(function_declaration, information)
+            if functions_pass {
+                resolve_function(function_declaration, information)
+            }
         }
         statement_index = statement_index + 1
     }

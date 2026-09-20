@@ -1,0 +1,9 @@
+var name = ""
+var class = Spite.Class("", "")
+var value = ""
+
+func Attribute(starting_name: String, starting_class: Spite.Class, starting_value: String) {
+    name = starting_name
+    class = starting_class
+    value = starting_value
+}

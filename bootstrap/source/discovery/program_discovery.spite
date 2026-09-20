@@ -48,7 +48,18 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
         root_index = root_index + 1
     }
 
+    var library_directory = Directory("library")
+    if library_directory.exists() {
+        var no_library_skip: Nullable<String> = null
+        var no_library_exclusions = List<String>()
+        walk_directory("library", empty_segments, no_library_skip, no_library_exclusions)
+        if has_error {
+            return failure(error_message)
+        }
+    }
+
     var entry_mangled_name = mangle_dotted(pascal_case(entry_stem))
+
     return DiscoveryResult(class_files, entry_mangled_name, false, "")
 }
 
