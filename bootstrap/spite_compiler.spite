@@ -1,19 +1,38 @@
 var console = Console()
 var program_values = Dictionary<String>()
+var optimized = false
 var last_crash_map = ""
 
 func SpiteCompiler(arguments: Arguments) {
     load("source")
 
-    var file_argument = arguments.file
-    crash file_argument
-    var mode_argument = arguments.mode
-    crash mode_argument
+    var file_argument = file_to_compile(arguments)
+    if file_argument.is_empty() {
+        console.error("usage: spite program.spite [--optimized] [--debug_memory=true] [--name=value ...]")
+        console.error("       spite program.spite --mode=c                  print the C instead of running")
+        console.error("       spite program.spite --mode=build --output=path  build without running")
+        Program().exit(1)
+        return
+    }
+    var mode_argument = "run"
+    var given_mode = arguments.mode
+    if given_mode {
+        mode_argument = given_mode
+    }
+    optimized = has_flag(arguments, "--optimized")
     collect_program_values(arguments)
 
     var program_file = File(file_argument)
-    var content = program_file.read()
-    crash content
+    var maybe_content = program_file.read()
+    if not maybe_content {
+        console.error("error: could not read '" + file_argument + "'")
+        Program().exit(1)
+        return
+    }
+    var content = ""
+    if maybe_content {
+        content = maybe_content
+    }
 
     if mode_argument == "tokens" {
         run_tokens_mode(content)
@@ -83,6 +102,33 @@ func generate_c_or_report(file_argument: String, content: String): String? {
         return null
     }
     return code
+}
+
+func file_to_compile(arguments: Arguments): String {
+    var named = arguments.file
+    if named {
+        return named
+    }
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments.get(index)
+        if not argument.starts_with("--") and argument.ends_with(".spite") {
+            return argument
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func has_flag(arguments: Arguments, flag: String): Bool {
+    var index = 0
+    while index < arguments.count() {
+        if arguments.get(index) == flag {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func collect_program_values(arguments: Arguments) {
@@ -178,7 +224,11 @@ func build_to_path(file_argument: String, content: String, output_path: String, 
         return false
     }
     var process_arguments = List<String>()
-    process_arguments.append("-O0")
+    if optimized {
+        process_arguments.append("-O2")
+    } else {
+        process_arguments.append("-O0")
+    }
     process_arguments.append("-Wno-parentheses-equality")
     if debug_memory {
         process_arguments.append("-DSPITE_DEBUG_MEMORY")
