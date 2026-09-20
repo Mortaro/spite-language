@@ -9,6 +9,7 @@ var list_template_names = List<String>()
 var class_object_names = List<String>()
 var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
+var deep_copy_names = List<String>()
 var functions_function_classes = List<Analysis.ClassInfo>()
 var dictionary_names = List<String>()
 var support_class_names = List<String>()
@@ -2732,6 +2733,11 @@ func generate_method_call(member: Syntax.Expressions.MemberExpression, object_as
     }
     var function = find_or_instantiate_function(target_class, member.name)
     if not function {
+        if member.name == "deep_copy" {
+            var deep_copied = generate_generic_call(ensure_class_deep_copy(target_class), object_result, object_ast, arguments_ast, no_types(), class_type_of(target_class), scope, class_information)
+            deep_copied.owning_override = true
+            return deep_copied
+        }
         if member.name == "copy" {
 
             return generate_generic_call(
@@ -3039,6 +3045,11 @@ func generate_list_method(element: Analysis.SpiteType, name: String, object_resu
             scope,
             class_information,
         )
+    }
+    if name == "deep_copy" {
+        var copied_list = generate_generic_call(ensure_list_deep_copy(element), object_result, object_ast, arguments_ast, no_types(), list_type_of(element), scope, class_information)
+        copied_list.owning_override = true
+        return copied_list
     }
     if name == "clear" or name == "reverse" {
         return generate_generic_call(
@@ -3577,6 +3588,88 @@ func find_setter(target_class: Analysis.ClassInfo, attribute_name: String, calli
     return null
 }
 
+func deep_copy_code(spite_type: Analysis.SpiteType, code: String): String {
+    var class_ref = type_shape.as_class_ref(spite_type)
+    if class_ref {
+        var copied_class = find_class_by_c_name(class_ref.c_name)
+        if copied_class {
+            if not copied_class.is_builtin {
+                return ensure_class_deep_copy(copied_class) + "(" + code + ")"
+            }
+        }
+    }
+    var list_type = type_shape.as_list(spite_type)
+    if list_type {
+        return ensure_list_deep_copy(list_type.get_element()) + "(" + code + ")"
+    }
+    var dictionary_type = type_shape.as_dictionary(spite_type)
+    if dictionary_type {
+        return ensure_dictionary_deep_copy(dictionary_type.get_element()) + "(" + code + ")"
+    }
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        if type_is_reference(nullable.get_inner()) {
+            return deep_copy_code(nullable.get_inner(), code)
+        }
+        return code
+    }
+    if type_needs_drop(spite_type) {
+        return retain_call(spite_type, code)
+    }
+    return code
+}
+
+func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
+    var function_c_name = information.c_name + "_deep_copy"
+    if deep_copy_names.contains(function_c_name) {
+        return function_c_name
+    }
+    deep_copy_names.append(function_c_name)
+    builder.add_prototype(information.c_name + "* " + function_c_name + "(" + information.c_name + "* self);")
+    var lines = List<String>()
+    lines.append(information.c_name + "* " + function_c_name + "(" + information.c_name + "* self) {")
+    lines.append("if (self == 0) return 0;")
+    lines.append(information.c_name + "* copied = " + information.c_name + "_allocate();")
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        if not type_shape.is_console(field.get_type()) {
+            var target = "copied->" + field.name
+            lines.append(release_statement(field.get_type(), target))
+            lines.append(target + " = " + deep_copy_code(field.get_type(), "self->" + field.name) + ";")
+        }
+        index = index + 1
+    }
+    lines.append("return copied;")
+    lines.append("}")
+    builder.add_support(lines.join("\n"))
+    return function_c_name
+}
+
+func ensure_list_deep_copy(element: Analysis.SpiteType): String {
+    var list_name = ensure_list(element)
+    var function_c_name = list_name + "_deep_copy"
+    if deep_copy_names.contains(function_c_name) {
+        return function_c_name
+    }
+    deep_copy_names.append(function_c_name)
+    builder.add_prototype(list_name + "* " + function_c_name + "(" + list_name + "* self);")
+    builder.add_support(list_name + "* " + function_c_name + "(" + list_name + "* self) {\nif (self == 0) return 0;\n" + list_name + "* copied = " + list_name + "_make();\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) { " + list_name + "_add(copied, " + deep_copy_code(element, "self->items[spite_index]") + "); }\nreturn copied;\n}")
+    return function_c_name
+}
+
+func ensure_dictionary_deep_copy(element: Analysis.SpiteType): String {
+    var dictionary_name = ensure_dictionary(element)
+    var function_c_name = dictionary_name + "_deep_copy"
+    if deep_copy_names.contains(function_c_name) {
+        return function_c_name
+    }
+    deep_copy_names.append(function_c_name)
+    builder.add_prototype(dictionary_name + "* " + function_c_name + "(" + dictionary_name + "* self);")
+    builder.add_support(dictionary_name + "* " + function_c_name + "(" + dictionary_name + "* self) {\nif (self == 0) return 0;\n" + dictionary_name + "* copied = " + dictionary_name + "_make();\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) { " + dictionary_name + "_set(copied, SpiteString_retain(self->keys[spite_index]), " + deep_copy_code(element, "self->values[spite_index]") + "); }\nreturn copied;\n}")
+    return function_c_name
+}
+
 func generate_list_literal(
 
 literal: Syntax.Expressions.ListLiteralExpression, element: Analysis.SpiteType, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
@@ -3866,7 +3959,13 @@ func generate_dictionary_method(element: Analysis.SpiteType, name: String, objec
             class_information,
         )
     }
+    if name == "deep_copy" {
+        var copied_dictionary = generate_generic_call(ensure_dictionary_deep_copy(element), object_result, object_ast, arguments_ast, no_types(), dictionary_type_of(element), scope, class_information)
+        copied_dictionary.owning_override = true
+        return copied_dictionary
+    }
     if name == "has" {
+
         return generate_generic_call(
             dictionary_name + "_has",
             object_result,

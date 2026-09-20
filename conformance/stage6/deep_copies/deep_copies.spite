@@ -1,0 +1,28 @@
+var console = Console()
+
+func DeepCopies() {
+    var team = Team("red")
+    team.members.append(Member("ada", 3))
+    team.members.append(Member("grace", 5))
+    team.scores.set("first", 10)
+    team.captain = team.members[0]
+
+    var shallow = team.copy()
+    var deep = team.deep_copy()
+    team.members[0].level = 99
+    team.members.append(Member("alan", 1))
+    team.scores.set("first", 11)
+
+    console.print(shallow.members.count(), shallow.members[0].level, shallow.scores["first"])
+    console.print(deep.members.count(), deep.members[0].level, deep.scores["first"], deep.name)
+    report(deep.captain)
+    var numbers = [1, 2, 3]
+    var copied_numbers = numbers.deep_copy()
+    numbers.append(4)
+    console.print(numbers.count(), copied_numbers.count())
+}
+
+func report(captain: Member?) {
+    assert captain
+    console.print("captain", captain.name, captain.level)
+}
