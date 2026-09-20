@@ -46,6 +46,6 @@ manual.md's "Pure Spite: dissolving the runtime" for where that ends.
 
 ## What the compiler does not do yet
 
-The language is larger than the subset the compiler currently implements. `bootstrap/BOOTSTRAP_PLAN.md` is the
+The language is larger than the subset the compiler currently implements. `bootstrap/COMPILER_PLAN.md` is the
 progress log and says exactly what is missing; `conformance/` says exactly what works, because every program in
 it must pass.

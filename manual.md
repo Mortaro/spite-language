@@ -24,7 +24,7 @@ The compiler is written in Spite and compiles itself. `bootstrap/seed/spite_comp
 its own sources, so a C compiler is all that is needed to build it, and `bash check.sh` requires generation 2
 and generation 3 to be byte identical before anything else is believed. See `docs/self_hosting.md`.
 
-The language is larger than the subset the compiler implements today; `bootstrap/BOOTSTRAP_PLAN.md` is the
+The language is larger than the subset the compiler implements today; `bootstrap/COMPILER_PLAN.md` is the
 progress log, and `conformance/` is the part that demonstrably works.
 
 ## 2. Lexical structure  **[implemented]**

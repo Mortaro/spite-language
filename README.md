@@ -125,6 +125,6 @@ not you being wrong -- `bootstrap/COMPILER_PLAN.md` lists what is missing.
   is compiled and checked as part of `bash check.sh`.
 - [`PLAN.md`](PLAN.md) -- implementation milestones, decisions made where the manual was silent, and what is
   left.
-- [`bootstrap/BOOTSTRAP_PLAN.md`](bootstrap/BOOTSTRAP_PLAN.md) -- the compiler's own plan and progress log:
+- [`bootstrap/COMPILER_PLAN.md`](bootstrap/COMPILER_PLAN.md) -- the compiler's own plan and progress log:
   what it implements today, and what it does not.
 - [`examples/`](examples/) -- idiomatic sample programs the end-to-end test suite also runs.
