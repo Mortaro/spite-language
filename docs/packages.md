@@ -42,9 +42,11 @@ func render(): String {
     return "rendering the scene"
 }
 ```
+
+`mods` is loaded after `package`, so the `describe` below replaces `package/monster.spite`'s own, and `taunt`
+is a name that folder never had. That is the whole of monkey patching.
+
 ```spite title=package_demo/mods/monster.spite
-# Reopening: this folder is loaded after "package", so this `describe`
-# replaces "package/monster.spite"'s own -- monkey patching / a game mod.
 func describe(): String {
     return "a modded monster"
 }

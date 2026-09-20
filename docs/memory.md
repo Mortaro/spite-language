@@ -117,8 +117,8 @@ func total(): Int {
 }
 ```
 ```spite title=tree_basics/branch.spite
-var left: Nullable<TreeNode> = null
-var right: Nullable<TreeNode> = null
+var left: TreeNode? = null
+var right: TreeNode? = null
 
 func Branch(left_node: TreeNode, right_node: TreeNode) {
     left = left_node
@@ -152,7 +152,7 @@ total 6
 
 Reference counting cannot free a cycle -- two objects (directly, or through several hops) holding a reference
 to each other never reach a count of zero. This is a known, accepted tradeoff, not a bug: break the cycle by
-hand when you are done with it (clear a `Nullable<T>` field that closes the loop, ideally from `drop()`-time
+hand when you are done with it (clear a `T?` field that closes the loop, ideally from `drop()`-time
 logic on whichever side runs last) if it matters for a long-running program. **[planned]** A future opt-in weak
 reference type is the intended real fix; not implemented yet.
 

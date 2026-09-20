@@ -26,9 +26,6 @@ func Person(new_age: Int, new_name: String) {
     name = new_name
 }
 
-# `age` (Int) is intercepted through this pair of templates: calling
-# set_age/get_age from outside this class instantiates set_attribute/
-# get_attribute with attribute bound to the 'age' Symbol.
 func set_attribute(attribute: Symbol, value: attribute.class) {
     attributes[attribute] = value
 }
@@ -37,34 +34,24 @@ func get_attribute(attribute: Symbol): attribute.class {
     return attributes[attribute]
 }
 
-# An exact function always wins over the templates above, for this one
-# name only -- writing 'name' (person.name = ...) always goes through this
-# exact set_name, never the set_attribute template. Reading it back still
-# goes through the get_attribute template below, since no exact get_name
-# exists.
 func set_name(new_name: String) {
     name = new_name.upper()
 }
 ```
+
+`age` is reached through that pair of templates: calling `set_age`/`get_age` from outside the class
+instantiates `set_attribute`/`get_attribute` with `attribute` bound to the `'age'` symbol. `set_name` is an
+exact function, and an exact function always wins over a template -- but only for that one direction of that
+one name: writing `person.name` goes through `set_name`, while reading it still goes through the
+`get_attribute` template, since no exact `get_name` exists.
+
 ```spite title=symbol_codegen/symbol_codegen.spite entry
 var console = Console()
 
 func SymbolCodegen() {
     var person = Person(20, "ann")
-
-    # No exact set_age/get_age exists, so set_attribute/get_attribute
-    # answer for "age": this call is set_age(...), generated on demand.
     person.set_age(person.get_age() + 1)
     console.print("age", person.age)
-
-    # set_name exists exactly, so it wins over the template for the write.
-    # The read (person.name) still has no exact get_name, so it goes
-    # through the get_attribute template, generating one on demand -- safe
-    # for a String/List<T>/Dictionary<T> attribute too, since milestone 9a
-    # (reference counting, manual.md section 10): every function/method
-    # return is a properly retained, independent reference now, so a
-    # generated getter returning an owning attribute is exactly as safe as
-    # one returning a scalar.
     person.set_name("bea")
     console.print("name", person.name)
 }
@@ -73,6 +60,8 @@ func SymbolCodegen() {
 age 21
 name BEA
 ```
+
+`set_age` and `get_age` are generated on demand by those two calls.
 
 Before milestone 9a's reference-counting model, generating (or writing) a `get_<attribute>()` for an owning
 attribute (`String`/`List<T>`/`Dictionary<T>`) and calling it -- including implicitly, the way `person.name`
@@ -125,22 +114,20 @@ power Int 3
 different things reading the same data: the former is compile-time only, indexed by a `Symbol`; the latter is
 an ordinary runtime `List<T>`, walked with `while` like any other list.
 
-`Person.instances` (every live instance of a class) is **[planned]**, not implemented yet -- using it reports a
-"not supported yet" diagnostic.
+`Person.instances` is every instance of `Person` that is alive at that moment, in the order they were made.
+`Spite.Class.instances` is every class in the program, because a class is an instance of `Spite.Class`.
 
 ## Generics and codegen values (`$`)
 
-`$name` means "replaced at code generation." Two sources feed it: `generics`, declared on a file's first line
-and given positionally at the call site, and compiler flags (`--name=value`), which set `$name` for the whole
-program.
+`$name` means "replaced at code generation." Two sources feed it: the codegen values a constructor declares
+between `<` and `>`, given positionally at the call site, and compiler flags (`--name=value`), which set `$name`
+for the whole program. A `$name` that no constructor declares is flag-fed.
 
 ```spite title=generics_basics/pair.spite
-generics $left_type, $right_type
-
 var left: $left_type = null
 var right: $right_type = null
 
-func Pair(new_left: $left_type, new_right: $right_type) {
+func Pair<$left_type, $right_type>(new_left: $left_type, new_right: $right_type) {
     left = new_left
     right = new_right
 }
@@ -161,7 +148,7 @@ func GenericsBasics() {
 Aria and 42
 ```
 
-`null` on a `$generic`-typed field means that generic's bound type's default value, not literal `Nullable<T>`
+`null` on a `$generic`-typed field means that generic's bound type's default value, not a literal `T?`
 -- provisional, see manual.md open question 1.
 
 ## Compiler flags and tree shaking
@@ -181,9 +168,9 @@ func CompilerFlags() {
 using the production endpoint
 ```
 
-Conditions on codegen values (both `generics` and `--name=value` flags) are decided **at compile time**, and
-the untaken branch is removed from the generated C entirely -- this is tree shaking, not just dead-code
-elimination at the C compiler level. Compiling the program above with `--environment=production --emit-c`
+Conditions on codegen values -- both the ones a constructor declares and `--name=value` flags -- are decided
+**at compile time**, and the untaken branch is removed from the generated C entirely: this is tree shaking, not
+just dead-code elimination at the C compiler level. Compiling the program above with `--environment=production --emit-c`
 shows the string `"using the local endpoint"` nowhere in the generated C; compiling with
 `--environment=staging` instead flips which branch survives and prints `using the local endpoint`. A
 `--name=value` flag that matches no `$name` anywhere in the program is a compile error, so a typo in the flag

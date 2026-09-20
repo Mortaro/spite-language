@@ -80,7 +80,7 @@ fixed name `program`, regardless of what the entry class is actually called.
 Commands are a small subset of Spite expressions:
 
 - **paths**: `program`, `program.monsters`, `program.monsters[0].health`. Walking through a non-null
-  `Nullable<T>` is transparent; a union shows its active member.
+  A `T?` is transparent; a union shows its active member.
 - **calls**: `program.monsters.count()`, `program.monsters[0].roar()` -- any reflected function. A call must be
   the last part of an expression; chaining after `()` is not supported yet.
 - **assignment**: `program.player_name = "Aria"` -- a raw field write, unless a `set_<attribute>` function is

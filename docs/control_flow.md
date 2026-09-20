@@ -11,14 +11,14 @@ switch enemy {
 ```
 
 `if value { }` narrows `value` in place inside the `{ }` block, exactly like `assert value` does, whenever
-`value` is a `Nullable<T>` local, parameter, or attribute (see [values_and_types.md](values_and_types.md)'s
+`value` is a `T?` local, parameter, or attribute (see [values_and_types.md](values_and_types.md)'s
 `assert`-narrowing section) -- `if value and other_condition { }` narrows too. Add an `else` for what runs when
 `value` is null:
 
 ```spite title=if_narrowing/if_narrowing.spite entry
 var console = Console()
 
-func find_name(missing: Bool): Nullable<String> {
+func find_name(missing: Bool): String? {
     if missing {
         return null
     }
@@ -87,7 +87,7 @@ class's field or method name. These are generated per attribute/function, only f
 | `filter_<bool attribute>()` | a view containing only the elements where that field is `true` |
 | `count_<bool attribute>()` | how many elements have that `Bool` field set to `true` |
 | `sum_<numeric attribute>()` | adds up that `Int`/`Float` field across every element |
-| `find_by_<attribute>(value)` | first element whose field equals `value`, as a `Nullable<T>` |
+| `find_by_<attribute>(value)` | first element whose field equals `value`, as a `T?` |
 | `sort_by_<attribute>()` | a view sorted by that field |
 | `each_<function>()` | calls that zero-argument function on every element, mutating it in place |
 | `map_<attribute>()` | a `List<U>` of just that field's values |

@@ -99,9 +99,12 @@ no abbreviations, spell it out: 'message'
 ```
 
 ```spite title=single_letter/single_letter.spite entry error
+var console = Console()
 var x = 0
 
-func SingleLetter() { }
+func SingleLetter() {
+    console.print(x)
+}
 ```
 ```diagnostic
 is a single-letter name

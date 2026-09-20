@@ -17,7 +17,7 @@ func FileTasks() {
     console.print("exists", log_file.exists())
 
     var content = log_file.read()
-    assert content
+    crash content
     console.print("content", content)
 
     console.print("removed", log_file.remove())
@@ -31,8 +31,10 @@ removed true
 exists after remove false
 ```
 
-`read()` is a `Nullable<String>` (`null` when the file does not exist) -- unwrap it with `assert` or
-`if ... { }`, exactly like any other `Nullable<T>`.
+`read()` is a `String?` (`null` when the file does not exist) -- narrow it with `if ... { }`, with `assert`
+(which returns quietly from a function that returns nothing), or with `crash` (which halts), exactly like any
+other `T?`. This entry constructor uses `crash`: `assert` is not allowed in a constructor, because a
+constructor is setup rather than logic.
 
 ## List a directory
 
@@ -112,7 +114,7 @@ total items 7
 
 `set(key, value)` replaces an existing key's value rather than adding a duplicate -- there is exactly one entry
 per key, insertion-ordered. `dictionary["missing_key"]` reads as the value type's default (`0` for
-`Dictionary<Int>`), never a crash; `get(key)` is the `Nullable<T>` form when you need to tell "absent" apart
+`Dictionary<Int>`), never a crash; `get(key)` is the `T?` form when you need to tell "absent" apart
 from "present but zero."
 
 ## Query a list of classes
@@ -170,7 +172,7 @@ double free.
 ## `Console`
 
 `print(...)` (space-separated, trailing newline), `error(...)` (stderr, trailing newline), `write(...)`
-(stdout, no trailing newline), `read_line(): Nullable<String>` (one line from stdin; `null` only at end of
+(stdout, no trailing newline), `read_line(): String?` (one line from stdin; `null` only at end of
 file with nothing read).
 
 ## `Program`

@@ -86,9 +86,7 @@ func OperatorMissingError(starting_cents: Int) {
 }
 
 func use_it() {
-    var first_purse = OperatorMissingError(1)
-    var second_purse = OperatorMissingError(2)
-    console.print(first_purse + second_purse)
+    console.print(OperatorMissingError(1) + OperatorMissingError(2))
 }
 ```
 ```diagnostic
@@ -112,8 +110,6 @@ func Account(starting_balance: Int, starting_owner: String) {
     owner = starting_owner
 }
 
-# `balance` has no exact set_balance/get_balance, so Symbol codegen answers
-# reads and writes to it from outside this class.
 func set_attribute(attribute: Symbol, value: attribute.class) {
     attributes[attribute] = value
 }
@@ -122,8 +118,6 @@ func get_attribute(attribute: Symbol): attribute.class {
     return attributes[attribute]
 }
 
-# `owner` goes through an exact function instead, which always wins over
-# Symbol codegen: every name written through it is capitalized.
 func set_owner(new_owner: String) {
     owner = new_owner.upper()
 }
@@ -132,6 +126,10 @@ func get_owner(): String {
     return owner
 }
 ```
+`balance` has no exact `set_balance`/`get_balance`, so Symbol codegen answers reads and writes to it from
+outside the class. `owner` has exact functions instead, which always win over Symbol codegen, so every name
+written through `set_owner` is capitalized.
+
 ```spite title=interception/interception.spite entry
 var console = Console()
 

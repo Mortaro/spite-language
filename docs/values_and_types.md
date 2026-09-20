@@ -38,9 +38,6 @@ to `Int` *before* comparing -- not the mathematically obvious thing:
 var console = Console()
 
 func CastingEdge() {
-    # Mathematically, 0 > -0.5 is true. But -0.5 casts toward the left
-    # side's type (Int) first: -0.5 truncates to 0, so this becomes
-    # 0 > 0, which is false.
     var progress: Int = 0
     console.print("mathematically true, but", progress > -0.5)
 
@@ -53,6 +50,9 @@ func CastingEdge() {
 mathematically true, but false
 total 6
 ```
+
+`0 > -0.5` is mathematically true, but `-0.5` casts toward the left side's type first: it truncates to `0`, so
+the comparison becomes `0 > 0`, which is false.
 
 Give the `Int` side a `Float`/`Double` type instead of comparing an `Int` variable directly against a
 non-integer literal, if you need the mathematical answer. (This is manual.md's own open question 3 --
@@ -99,11 +99,11 @@ bad parse 0
 A value that "cannot succeed" -- a parse failure, an out-of-range index -- always produces the default instead
 of crashing. See [standard_library.md](standard_library.md) for the full method table.
 
-## `Nullable<T>` and `assert` narrowing
+## `T?` and `assert` narrowing
 
-`null` exists only as the empty state of `Nullable<T>`. Unwrap it with `if value { }` (narrows `value` itself
+`null` exists only as the empty state of a `T?`. Unwrap it with `if value { }` (narrows `value` itself
 to `T` inside the block, with an `else` for when it is null), or with `assert value`, which narrows `value`
-itself from `Nullable<T>` to `T` for the rest of the current block (and any block nested inside it) -- no
+itself from `T?` to `T` for the rest of the current block (and any block nested inside it) -- no
 rebinding to a new name needed either way:
 
 ```spite title=nullable_narrowing/monster.spite
@@ -116,7 +116,7 @@ func Monster(starting_health: Int) {
 ```spite title=nullable_narrowing/nullable_narrowing.spite entry
 var console = Console()
 
-func find_monster(missing: Bool): Nullable<Monster> {
+func find_monster(missing: Bool): Monster? {
     if missing {
         return null
     }
@@ -149,7 +149,7 @@ is a compile error naming the `assert` rewrite -- write it with `assert` instead
 ```spite title=terminal_if_do_error/terminal_if_do_error.spite entry error
 var console = Console()
 
-func try_get_name(): Nullable<String> {
+func try_get_name(): String? {
     return null
 }
 
@@ -167,7 +167,7 @@ write it with 'assert' instead
 ```spite title=terminal_if_do_fixed/terminal_if_do_fixed.spite entry
 var console = Console()
 
-func try_get_name(): Nullable<String> {
+func try_get_name(): String? {
     return "Aria"
 }
 
@@ -272,7 +272,7 @@ a monster 6
 alive true
 ```
 
-`Nullable<T>` is, conceptually, exactly this: the union of `T` and `null`.
+`T?` is, conceptually, exactly this: the union of `T` and `null`.
 
 ## Inline types and duck typing
 

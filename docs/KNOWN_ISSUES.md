@@ -23,10 +23,12 @@ type Labeled {
     label: String
 }
 
+var console = Console()
+
 func ClassViaTypeError() {
     var widget = Widget("thing")
     var labeled: Labeled = widget
-    var widget_class = labeled.class
+    console.print(labeled.class)
 }
 ```
 ```diagnostic

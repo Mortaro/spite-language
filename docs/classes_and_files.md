@@ -13,6 +13,7 @@ var console = Console()
 console.print("not allowed")
 
 func FileScopeError() {
+    console.print("a statement inside a function is fine")
 }
 ```
 ```diagnostic
@@ -66,7 +67,7 @@ first name unnamed level 1
 ```
 
 Every value has a default: `Int` is `0`, `Float` `0.0`, `Bool` `false`, `String` `""`, and a class's default is
-its fields' defaults. There is no `null` for anything but `Nullable<T>` (see
+its fields' defaults. There is no `null` for anything but a `T?` (see
 [values_and_types.md](values_and_types.md)).
 
 ## Classes are references

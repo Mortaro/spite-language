@@ -10,7 +10,7 @@ open while you write.
 
 - [getting_started.md](getting_started.md) -- build the compiler, hello world, the command line, formatting and lints.
 - [classes_and_files.md](classes_and_files.md) -- files are classes, constructors, classes are references by default.
-- [values_and_types.md](values_and_types.md) -- numeric types and the casting rule, `String`, `Nullable<T>` and
+- [values_and_types.md](values_and_types.md) -- numeric types and the casting rule, `String`, `T?` and
   `assert` narrowing, enums, unions, inline types and duck typing.
 - [functions_and_operators.md](functions_and_operators.md) -- operators as functions, setter/getter interception.
 - [control_flow.md](control_flow.md) -- `while` is the only loop, and how to avoid it.
