@@ -14,7 +14,10 @@ var current_owner = ""
 var nullable_scalar_labels = List<String>()
 var has_error = false
 var error_message = ""
+var error_lines = List<String>()
 var current_function = ""
+var current_path = ""
+var current_line = 0
 var bound_symbol_name = ""
 var bound_field_name = ""
 var bound_field_type: Nullable<Analysis.SpiteType> = null
@@ -25,11 +28,19 @@ var literal_counter = 0
 func Generator() { }
 
 func report(message: String) {
-    if has_error {
+    has_error = true
+    var line = current_path + ":" + current_line + ": error: " + message + " (in " + current_owner + "." + current_function + ")"
+    if error_lines.contains(line) {
         return
     }
-    has_error = true
-    error_message = current_owner + "." + current_function + ": " + message
+    if error_lines.count() == 25 {
+        error_lines.append("too many errors: stopping at 25")
+    }
+    if error_lines.count() > 25 {
+        return
+    }
+    error_lines.append(line)
+    error_message = error_lines.join("\n")
 }
 
 func register_system_class(name: String): Analysis.ClassInfo {
@@ -157,6 +168,7 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
                 next_id,
             ),
         )
+        classes.last().source_path = entry.get_file().path
         register_enums(entry)
         register_unions(entry)
         next_id = next_id + 1
@@ -449,10 +461,13 @@ func resolve_classes(discovered: List<Discovery.DiscoveredClass>) {
 func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.ClassInfo, functions_pass: Bool) {
     var file = entry.get_file()
     current_owner = information.qualified_dotted
+    current_path = information.source_path
+    current_function = ""
     var empty_scope = Scope(null)
     var statement_index = 0
     while statement_index < file.statements.count() {
         var statement = file.statements[statement_index]
+        current_line = statement.line
         var variable_declaration = shape.as_variable_declaration(statement)
         if variable_declaration {
             if not functions_pass {
@@ -472,8 +487,10 @@ func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.
 func infer_declared_type(annotation: Nullable<Syntax.Types.Type>, initializer: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): Analysis.SpiteType {
     if annotation {
         var resolved = resolve_type(annotation, class_information.namespace_dotted)
-        crash resolved
-        return resolved
+        if resolved {
+            return resolved
+        }
+        return void_type()
     }
     var result = generate_expression(initializer, scope, class_information)
     return result.get_type()
@@ -672,16 +689,20 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         var parameter_type_reference = parameter.type_reference
         assert parameter_type_reference
         var parameter_type = resolve_type(parameter_type_reference, information.namespace_dotted)
-        assert parameter_type
-        parameters.append(Analysis.ParamInfo(parameter.name, parameter_type))
+        if parameter_type {
+            parameters.append(Analysis.ParamInfo(parameter.name, parameter_type))
+        } else {
+            parameters.append(Analysis.ParamInfo(parameter.name, void_type()))
+        }
         parameter_index = parameter_index + 1
     }
     var return_type: Analysis.SpiteType = Analysis.Types.VoidType()
     var return_type_reference = declaration.return_type
     if return_type_reference {
         var resolved_return = resolve_type(return_type_reference, information.namespace_dotted)
-        assert resolved_return
-        return_type = resolved_return
+        if resolved_return {
+            return_type = resolved_return
+        }
     }
     var is_constructor = declaration.name == information.simple_name
     var c_name = information.c_name + "_" + declaration.name
@@ -3942,6 +3963,7 @@ func generate_expression_statement(expression_statement: Syntax.Statements.Expre
 }
 
 func generate_statement(statement: Syntax.Statements.Statement, scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo): Bool {
+    current_line = statement.line
     var variable_declaration = shape.as_variable_declaration(statement)
     if variable_declaration {
         generate_variable_declaration(variable_declaration, scope, class_information)
@@ -4151,6 +4173,8 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
     }
     function.is_emitted = true
     current_function = function.name
+    current_path = information.source_path
+
     bind_symbol_of(information, function)
     builder.add_user(function_signature(information, function) + " {")
     var scope = Scope(null)

@@ -1,0 +1,5 @@
+diagnostics/several_mistakes/several_mistakes.spite:6: error: unknown function 'missing_function' (in SeveralMistakes.SeveralMistakes)
+diagnostics/several_mistakes/several_mistakes.spite:10: error: 'assert' is only allowed in a function that returns nothing or a Nullable<T>: the caller could not tell the default from a real value. Return Nullable<T>, or use 'crash' when absence is a bug (in SeveralMistakes.helper)
+diagnostics/several_mistakes/several_mistakes.spite:15: error: unknown type 'Strng' (in SeveralMistakes.other)
+diagnostics/several_mistakes/several_mistakes.spite:16: error: unknown identifier 'nothing' (in SeveralMistakes.other)
+diagnostics/several_mistakes/several_mistakes.spite:16: error: member read on a value that is not a class instance (in SeveralMistakes.other)

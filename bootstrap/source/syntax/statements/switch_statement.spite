@@ -1,5 +1,6 @@
 var subject: Nullable<Syntax.Expressions.Expression> = null
 var cases = List<SwitchCase>()
+var line = 0
 
 func SwitchStatement(switch_subject: Syntax.Expressions.Expression, switch_cases: List<SwitchCase>) {
     subject = switch_subject

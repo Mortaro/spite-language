@@ -1,5 +1,6 @@
 var value: Nullable<Syntax.Expressions.Expression> = null
 var is_crash = false
+var line = 0
 
 func AssertStatement(assert_value: Syntax.Expressions.Expression) {
     value = assert_value

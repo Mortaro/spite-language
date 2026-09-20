@@ -2,6 +2,7 @@ var condition: Nullable<Syntax.Expressions.Expression> = null
 var then_branch = List<Statement>()
 var has_else_branch = false
 var else_branch = List<Statement>()
+var line = 0
 
 func IfStatement(if_condition: Syntax.Expressions.Expression, if_then_branch: List<Statement>, if_has_else_branch: Bool, if_else_branch: List<Statement>) {
     condition = if_condition

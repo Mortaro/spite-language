@@ -1,5 +1,6 @@
 var condition: Nullable<Syntax.Expressions.Expression> = null
 var body = List<Statement>()
+var line = 0
 
 func WhileStatement(while_condition: Syntax.Expressions.Expression, while_body: List<Statement>) {
     condition = while_condition

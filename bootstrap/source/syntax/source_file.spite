@@ -1,4 +1,5 @@
 var statements = List<Syntax.Statements.Statement>()
+var path = ""
 
 func SourceFile(file_statements: List<Syntax.Statements.Statement>) {
     statements = file_statements

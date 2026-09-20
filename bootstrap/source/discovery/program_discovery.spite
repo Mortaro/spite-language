@@ -24,6 +24,7 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     scan_top_level_loads(entry_file, load_names)
 
     var empty_segments = List<String>()
+    entry_file.path = entry_path
     add_parsed_file(entry_file, empty_segments, entry_stem)
 
     walk_directory(entry_directory, empty_segments, entry_basename, load_names)
@@ -147,6 +148,7 @@ func read_and_add_file(path: String, segments: List<String>) {
             error_message = path + ":" + parser.error_line + ":" + parser.error_column + ": " + parser.error_message
             return
         }
+        parsed_file.path = path
         add_parsed_file(parsed_file, segments, file_stem(path))
     } else {
         has_error = true

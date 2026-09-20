@@ -1,4 +1,5 @@
 var names = List<String>()
+var line = 0
 
 func GenericsDeclaration(starting_names: List<String>) {
     names = starting_names

@@ -1,5 +1,6 @@
 var name = ""
 var members = List<Syntax.Types.Type>()
+var line = 0
 
 func UnionDeclaration(declaration_name: String, declaration_members: List<Syntax.Types.Type>) {
     name = declaration_name

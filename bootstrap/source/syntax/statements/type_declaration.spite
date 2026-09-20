@@ -1,5 +1,6 @@
 var name = ""
 var fields = List<FieldDeclaration>()
+var line = 0
 
 func TypeDeclaration(declaration_name: String, declaration_fields: List<FieldDeclaration>) {
     name = declaration_name

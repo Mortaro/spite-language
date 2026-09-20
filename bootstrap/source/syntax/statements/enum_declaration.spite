@@ -1,5 +1,6 @@
 var name = ""
 var values = List<String>()
+var line = 0
 
 func EnumDeclaration(declaration_name: String, declaration_values: List<String>) {
     name = declaration_name

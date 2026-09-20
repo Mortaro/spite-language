@@ -1,0 +1,17 @@
+var console = Console()
+
+func SeveralMistakes() {
+    console.print("fine")
+    var total = 1
+    total = total + missing_function(2)
+}
+
+func helper(): Int {
+    assert 1 > 0
+    return 1
+}
+
+func other(): String {
+    var value: Strng = "x"
+    return nothing.name
+}

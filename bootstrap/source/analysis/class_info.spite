@@ -4,6 +4,7 @@ var namespace_dotted = ""
 var qualified_dotted = ""
 var class_id = 0
 var is_builtin = false
+var source_path = ""
 var fields = List<FieldInfo>()
 var functions = List<FunctionInfo>()
 var templates = List<TemplateInfo>()
