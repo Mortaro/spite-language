@@ -460,9 +460,13 @@ func parse_switch_case_body(): List<Syntax.Statements.Statement> {
 
 func parse_assert_statement(): Syntax.Statements.Statement {
     advance()
+    var first_token = position
     var value = parse_expression()
+    var condition_text = source_text_between(first_token, position)
     consume_statement_terminator()
-    return Syntax.Statements.AssertStatement(value)
+    var statement = Syntax.Statements.AssertStatement(value)
+    statement.condition_text = condition_text
+    return statement
 }
 
 func parse_crash_statement(): Syntax.Statements.Statement {

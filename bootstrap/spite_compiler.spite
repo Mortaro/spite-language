@@ -1,5 +1,6 @@
 var console = Console()
 var program_values = Dictionary<String>()
+var last_crash_map = ""
 
 func SpiteCompiler(arguments: Arguments) {
     load("source")
@@ -75,6 +76,7 @@ func generate_c_or_report(file_argument: String, content: String): String? {
         console.error(generator.error_message)
         return null
     }
+    last_crash_map = generator.crash_map()
     var unused_flags = unused_program_values(generator.used_program_values)
     if not unused_flags.is_empty() {
         console.error("error: no '$' value in the program is named by: --" + unused_flags.join(", --") + " (a compiler flag that matches nothing is an error, so a typo never passes silently)")
@@ -190,6 +192,11 @@ func build_to_path(file_argument: String, content: String, output_path: String, 
         console.error(process.output())
         return false
     }
+    var map_path = output_path
+    if map_path.ends_with(".exe") {
+        map_path = map_path.slice(0, map_path.length() - 4)
+    }
+    File(map_path + ".crashes").write(last_crash_map)
     return true
 }
 

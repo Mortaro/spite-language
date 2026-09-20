@@ -1,2 +1,2 @@
-spite.crash	conformance/stage5/crash_report/crash_report.spite:11	CrashReport	check	value > limit	value=-9	limit=0
+spite.crash	64b935f1	conformance/stage5/crash_report/crash_report.spite:11	CrashReport	check	value > limit	value=-9	limit=0
 before the crash

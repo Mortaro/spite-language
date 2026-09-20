@@ -10,6 +10,9 @@ var class_object_names = List<String>()
 var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
 var deep_copy_names = List<String>()
+var crash_map_lines = List<String>()
+var site_ordinal = 0
+var current_site_id = ""
 var functions_function_classes = List<Analysis.ClassInfo>()
 var dictionary_names = List<String>()
 var support_class_names = List<String>()
@@ -5207,6 +5210,85 @@ func emit_crash_operands(condition: Syntax.Expressions.Expression, scope: Scope,
     emit_crash_operand(condition, scope, class_information)
 }
 
+func content_hash(content: String): String {
+    var hash: Long = 5381
+    var index = 0
+    while index < content.length() {
+        hash = (hash * 33 + content.code_at(index)) % 2147483629
+        index = index + 1
+    }
+    var digits = "0123456789abcdef"
+    var text = ""
+    var remaining = hash
+    var count = 0
+    while count < 8 {
+        var digit: Int = remaining % 16
+        text = digits.character_at(digit) + text
+        remaining = remaining / 16
+        count = count + 1
+    }
+    return text
+}
+
+func operand_description(expression: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): String {
+    var name = operand_text(expression)
+    if name.is_empty() {
+        return ""
+    }
+    var saved_counter = temporary_counter
+    var probe = generate_expression(expression, scope, class_information)
+    temporary_counter = saved_counter
+    return name + ":" + type_display_name(probe.get_type())
+}
+
+func record_site(assert_statement: Syntax.Statements.AssertStatement, kind: String, function_name: String, scope: Scope, class_information: Analysis.ClassInfo) {
+    site_ordinal = site_ordinal + 1
+    current_site_id = content_hash(current_owner + "/" + function_name + "/" + site_ordinal + "/" + assert_statement.condition_text)
+    var operands = List<String>()
+    var condition = assert_statement.value
+    if condition {
+        var binary = shape.as_binary(condition)
+        if binary {
+            var left_ast = binary.left
+            var right_ast = binary.right
+            if left_ast {
+                var left_description = operand_description(left_ast, scope, class_information)
+                if not left_description.is_empty() {
+                    operands.append(left_description)
+                }
+            }
+            if right_ast {
+                var right_description = operand_description(right_ast, scope, class_information)
+                if not right_description.is_empty() {
+                    operands.append(right_description)
+                }
+            }
+        } else {
+            var single = operand_description(condition, scope, class_information)
+            if not single.is_empty() {
+                operands.append(single)
+            }
+        }
+    }
+    crash_map_lines.append(current_site_id + "\t" + current_path + "\t" + current_line + "\t0\t" + current_owner + "\t" + function_name + "\t" + kind + "\t" + assert_statement.condition_text + "\t" + operands.join(" "))
+}
+
+func crash_map(): String {
+    var sorted = List<String>()
+    var index = 0
+    while index < crash_map_lines.count() {
+        var line = crash_map_lines[index]
+        var position = sorted.count()
+        while position > 0 and sorted[position - 1] > line {
+            position = position - 1
+        }
+        sorted.insert(position, line)
+        index = index + 1
+    }
+    var body = sorted.join("\n")
+    return "# spite crashes 1 " + content_hash(body) + "\n" + body + "\n"
+}
+
 func generate_assert_statement(assert_statement: Syntax.Statements.AssertStatement, scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo) {
     var condition_ast = assert_statement.value
     assert condition_ast
@@ -5229,10 +5311,18 @@ func generate_assert_statement(assert_statement: Syntax.Statements.AssertStateme
             }
         }
     }
+    var site_kind = "assert-predicate"
+    if guard {
+        site_kind = "assert-narrowing"
+    }
+    if assert_statement.is_crash {
+        site_kind = "crash"
+    }
+    record_site(assert_statement, site_kind, function_information.name, scope, class_information)
     builder.add_user("if (!(" + guard_code + ")) {")
     if assert_statement.is_crash {
         builder.add_user("fflush(stdout);")
-        builder.add_user("fputs(\"spite.crash\\t" + escape_c_string(current_path) + ":" + current_line + "\\t" + current_owner + "\\t" + function_information.name + "\\t" + escape_c_string(assert_statement.condition_text) + "\", stderr);")
+        builder.add_user("fputs(\"spite.crash\\t" + current_site_id + "\\t" + escape_c_string(current_path) + ":" + current_line + "\\t" + current_owner + "\\t" + function_information.name + "\\t" + escape_c_string(assert_statement.condition_text) + "\", stderr);")
         emit_crash_operands(condition_ast, scope, class_information)
         builder.add_user("fputs(\"\\n\", stderr);")
         builder.add_user("exit(1);")
@@ -5500,6 +5590,7 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         return
     }
     function.is_emitted = true
+    site_ordinal = 0
     current_class = information
     current_function = function.name
     current_line = function.line
