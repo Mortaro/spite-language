@@ -527,8 +527,11 @@ standard library metaprogramming first.
 
 ### Enums  **[implemented]**
 
+An `enum`, `type` or `union` declaration takes no `=` and always breaks lines, one entry per line, no commas
+(D47). `=` means assignment and nothing else. Writing `enum Job = {` is a parse error naming the fix.
+
 ```player.spite
-enum Job = {
+enum Job {
     'knight'
     'magician'
     'archer'
@@ -546,7 +549,7 @@ func other_function() {
 - An enum value is resolved from where it is used (parameter, annotation, assignment target, comparison). Two enums may share a value name; with no expected type in hand, the value resolves when exactly one enum in the program has it, otherwise it is a compile error listing every enum that does.
 
 **An enum is a closed list of symbols** (D10, decided by Mortaro, 2026-09-19). `'knight'` is a symbol -- a name
-known at compile time -- and `enum Job = { ... }` declares which symbols are accepted where a `Job` is expected.
+known at compile time -- and `enum Job { ... }` declares which symbols are accepted where a `Job` is expected.
 That is all an enum is; the integer it compiles to is a representation detail.
 
 - **A symbol literal is legal only where something says what it may be.** Where an enum is expected it must be
@@ -568,7 +571,7 @@ Tagged unions. A `switch` must cover every member and narrows the value inside e
 When every member has the same function or attribute (same signature), it can be used directly on the union.
 
 ```
-union Enemy = {
+union Enemy {
     Player
     Monster
 }
@@ -613,7 +616,7 @@ replacement when a parent already declares the same name); and `Monster.Maybe` a
 ### Inline types and duck typing  **[implemented]**
 
 ```
-type System = {
+type System {
     query: Query
     with: Dictionary<Class>
 }
@@ -630,7 +633,7 @@ is the `type` shape (even holding that exact same instance) is a compile error, 
 exactly as an attribute-only `type` is:
 
 ```
-type Renderable = {
+type Renderable {
     render(): Element
 }
 ```
@@ -1405,7 +1408,7 @@ against (a class is always a heap object referred to by pointer, so a self-refer
 like any other):
 
 ```
-union Expression = {
+union Expression {
     NumberExpression
     BinaryExpression
 }
@@ -1569,7 +1572,7 @@ functions and nothing else, and a constant read is a diagnostic naming the missi
 has, section 11), because the compiler reads them during codegen.
 
 ```dynamic_library.spite
-enum Naming = {
+enum Naming {
     'identity'
     'windows'
     'camel_case'
@@ -1641,7 +1644,7 @@ address, never as a Spite heap object. There is no annotation -- the value's typ
 annotation or from the parameter it feeds, exactly like any other object literal matched by shape.
 
 ```mouse.spite
-type Input = {
+type Input {
     kind: UnsignedInt
     padding: UnsignedInt
     x_movement: Int
@@ -1769,7 +1772,7 @@ func format_name(first_name: String, last_name: String): String { }
   `Spite.Class` values, so a renamed or misspelled class is a compile error rather than a predicate that quietly
   turns false and drops an endpoint. Matching on `.name.starts_with("Server")` would work and is what a language
   without real reflection has to do; Spite has the class object, so it uses it.
-- **A union gives exhaustiveness.** With `union Context = { ServerContext ClientContext }`, a `switch` over it
+- **A union gives exhaustiveness.** With `union Context { ServerContext ClientContext }`, a `switch` over it
   must cover every member (section 7), so adding a third environment later -- a worker, an edge runtime -- fails
   to compile everywhere that has to change, instead of silently taking a default branch.
 - **The body is never emitted into the client bundle.** Only the generated call stub is, so a secret, a
@@ -1892,13 +1895,13 @@ func format_name(first_name: String, last_name: String): String { }
 | 2026-09-19 | **D10** (decided by Mortaro): **an enum is a closed list of symbols.** `'knight'` is a symbol (a compile-time name) and an `enum` declares which symbols are accepted where it is expected; the integer is a representation detail. A symbol literal is legal only where something says what it may be -- an enum (it must be a member; `set_weapon('orange')` is an error listing the accepted symbols) or `Symbol` (any name). No widening, and no untyped symbol literal. `Symbol` is the open, compile-time-only form and an enum is the closed, runtime-representable one, so a bare `Symbol` cannot be stored in a field. What a `Symbol` names is still checked by whatever consumes it. The gain: symbol literals make `person.set_attribute('age', 2)` and `Weapon.attributes['damage']` writable in source, which the language cannot express today. See [Enums](#enums-implemented). |
 | 2026-09-19 | **D11** (decided by Mortaro): **reflection reads at two levels and the same word is right at both.** A class object is an instance of `Spite.Class` (D6), so `weapon.attributes['damage']` is the value while `Weapon.attributes['damage']` is the `Spite.Attribute` describing the field; a PascalCase receiver is the class, the same convention section 17 uses for `user32.Input`. This also stops `attributes[symbol]` being a special compile-time-only form bolted onto Symbol codegen -- it is ordinary indexing at whichever level the receiver names. The shape of the class-level mapping still needs design (milestone 10). |
 | 2026-09-19 | **D12** (decided by Mortaro): **every reflection object lives in the `Spite` namespace** -- `Spite.Class`, `Spite.Function`, `Spite.Argument`, `Spite.Attribute`, and whatever reflection grows next: "super flexible but very clear". `Spite.Function` carries `.name`/`.arguments`/`.returns`, `Spite.Argument` carries `.name`/`.class`. And `.class` everywhere is a real `Spite.Class`, not the type name as a `String` (which is what the compiler has today), because identity comparison is what makes reflection composable -- `function.arguments[0].class == ServerContext` is checked, while `.class.name.starts_with("Server")` quietly turns false when a class is renamed. Printing a `Spite.Class` still prints its `.name`. Milestone 10; see [Reflection objects](#reflection-objects-partial). |
-| 2026-09-19 | **D13** (decided by Mortaro): **a function's first parameter decides which bundle it is compiled into** -- `ServerContext` means server-only (the client gets a generated network stub), `ClientContext` means client-only, neither means isomorphic. No annotation and no compiler trick: the framework reads it off the signature with D12 reflection, comparing class identity. The marker is the capability, so it cannot drift -- a function cannot claim to be server-side without holding server capabilities, and the same shape extends to `DatabaseContext`/`FileSystemContext` with no new language feature. A `union Context = { ServerContext ClientContext }` gives exhaustiveness when a third environment appears. The server function's body is never emitted into the client bundle, so secrets and server-only helpers are removed by the per-bundle tree shaking section 11 already does -- which is what makes the split safe rather than merely convenient. Routes generate from class and function name; a `type` shape is the wire format; parameters and return types crossing the boundary must be serialisable, with a diagnostic naming what is not. Blocked on the errors design (a network call fails in ways a local call cannot). Milestone 12; see [Isomorphic classes](#isomorphic-classes-where-a-function-lives-planned). |
+| 2026-09-19 | **D13** (decided by Mortaro): **a function's first parameter decides which bundle it is compiled into** -- `ServerContext` means server-only (the client gets a generated network stub), `ClientContext` means client-only, neither means isomorphic. No annotation and no compiler trick: the framework reads it off the signature with D12 reflection, comparing class identity. The marker is the capability, so it cannot drift -- a function cannot claim to be server-side without holding server capabilities, and the same shape extends to `DatabaseContext`/`FileSystemContext` with no new language feature. A `union Context { ServerContext ClientContext }` gives exhaustiveness when a third environment appears. The server function's body is never emitted into the client bundle, so secrets and server-only helpers are removed by the per-bundle tree shaking section 11 already does -- which is what makes the split safe rather than merely convenient. Routes generate from class and function name; a `type` shape is the wire format; parameters and return types crossing the boundary must be serialisable, with a diagnostic naming what is not. Blocked on the errors design (a network call fails in ways a local call cannot). Milestone 12; see [Isomorphic classes](#isomorphic-classes-where-a-function-lives-planned). |
 | 2026-09-20 | (proposed by Claude, unconfirmed) Milestone 9c, second batch item 1: `spite folder/file.spite` treats `folder/` as a loaded root -- the entry file's own folder is loaded and every sub folder is a namespace, recursively, exactly as a `load("folder")` would (section 11). Implemented as the discovery pass's `discoverProgram` walking the entry folder as root 0, with `tests/entry_folder_namespace/` and `examples/game` covering it. |
 | 2026-09-20 | (proposed by Claude, unconfirmed) Milestone 9c, second batch items 2, 4, 5: `do` is fully removed (`if value do name { }` is a parse error naming the plain-`if` narrowing form; no leftover `do` token kind in bootstrap), shadowing is allowed in an inner scope (same-scope redeclaration stays an error), and the unused rule is enforced with the four dictated-signature exemptions -- operator functions, Symbol codegen templates, setters/getters answering attribute access, and functions that replace another through class reopening -- each now under test (section 5). |
 | 2026-09-20 | (proposed by Claude, unconfirmed) Milestone 9c, second batch items 3, 6, 8: `add`/`pop` compile errors name `append`/`prepend`/`remove_last`/`remove_first` (section 15); the compiler prints nothing called a "warning" -- the last one, a `--development`-only skipped-class notice, is now plain informational `note:` text (sections 12/13); and `count_<member>()` counts the true elements of a Bool attribute while a numeric attribute is a compile error naming `sum_<member>()` (sections 8/15). |
 | 2026-09-20 | Milestone 9c's implemented second-batch items (1, 2, 3, 4, 5, 6, 8) moved out of section 16 into their proper sections; section 16 keeps item 7 (now numbered 1) plus the third batch. Milestone 10 splits into 10a "reopen standard library classes" (section 16 item 1) and 10b "Ruby grade compile time reflection visible in final classes" (section 16 item 2); see PLAN.md. |
 | 2026-09-19 | **D15** (decided by Mortaro): **every standard library template names a `<member>`, and a member is a field or a zero-argument function without distinction** -- `map_age` and `map_get_age` are the same call. Reading an attribute already goes through `get_<attribute>()` (section 5), so the field case is the function case with an optimisation the writer never thinks about; what a template constrains is arity and return type, never whether a member is stored or computed. `filter_`/`count_`/`any_`/`all_` want `Bool`, `sum_` a numeric, `sort_by_` something ordered, `find_by_(value)` something comparable, `map_` anything, `each_` nothing in particular. `each_<function>()` and `map_<attribute>()` stop being different families. Consequence: `todos.map_render()` -- a list of components -- needs no new feature, and a member that does not fit is a compile error naming the member, its return type and the requirement. This makes the uniform access principle, which section 5 already committed to for `person.age`, true for the standard library too. |
-| 2026-09-19 | **D16** (decided by Mortaro): **a `type` may require functions, not only attributes** -- `type Renderable = { render(): Element }` -- and a value matches it by shape exactly as an attribute-only `type` already does. This is what lets a collection hold "any class that responds to `render()`" (a children list of components, section 17) without a union listing every class, and it makes the respond-to check section 16 item 9 promises expressible as an ordinary type rather than as reflection. |
+| 2026-09-19 | **D16** (decided by Mortaro): **a `type` may require functions, not only attributes** -- `type Renderable { render(): Element }` -- and a value matches it by shape exactly as an attribute-only `type` already does. This is what lets a collection hold "any class that responds to `render()`" (a children list of components, section 17) without a union listing every class, and it makes the respond-to check section 16 item 9 promises expressible as an ordinary type rather than as reflection. |
 | 2026-09-19 | **D17** (decided by Mortaro): **functions are first-class values, and always bound to an instance.** Passing `pretty_print` inside a class passes that function paired with the instance doing the passing, so `console.log(pretty_print)` calls it exactly as the owning instance would have. There are no free functions and no closures: a function value is `{instance, function}`, which is one retain in a reference-counted language and captures nothing else, so no local ever escapes its scope. Consequences: section 17's "Not designed yet" callbacks become solvable, since `{instance, function}` is precisely what a C callback plus its `void*` user data wants; and an event handler can be written `onclick: increment` (signature-checked) rather than as the symbol `'increment'` (D10). **Open:** how a function-valued parameter's type is written -- a one-function `type` (D16), or a signature form such as `func(value: String): String`. |
 | 2026-09-19 | **D18** (decided by Mortaro): **Spite has no JSX and no trailing-block syntax; markup is ordinary metaprogramming.** A tag comes from `missing_function` (D4), attributes and children are ordinary literals, components are matched by shape (D16), handlers are bound functions (D17), a list of children is `map_<member>()` (D15), and a conditional child is a `when(condition, element)` call returning `Nullable<Element>` that the framework skips. **Children are variadic at no cost**, because a Symbol-codegen template monomorphizes per call site -- `html.div({ class: "card" }, html.h1(title), TodoForm({ ondone: add_todo }))` needs no varargs feature and no list brackets. Rejected: a JSX-like literal (a second grammar, in a language whose philosophy is a very small feature set; it also fixes neither the conditional nor the mapping problem, which are what actually make markup awkward); and a Ruby-style trailing block `f(x) { a b c }` == `f(x, [a b c])` -- it serves exactly one shape, since a query is `database.filter_age_greater_than(10).sort_by_name()` and routes are plain statements, so it would be a sixth meaning for `{ }` bought for a single case. The justification for accepting the verbosity is the language's first philosophy line: this is annoying for a human to *write* and cheap for an AI to write, while a human can still easily *read* it -- and the verbosity buys compile-time checking of tags, attributes and handler names that JSX cannot do, plus static subtrees folding into constant instruction buffers. |
 | 2026-09-19 | **D19** (decided by Mortaro): **the DOM is bridged exactly like a native library.** `Html` is the web counterpart of `DynamicLibrary` (D4): a singleton (D8) whose `missing_function`/`missing_attribute` hooks resolve names against the browser instead of against a `.dll`, with `Html.Node` wrapping one node handle (an index into the JavaScript-side table, freed by `drop()`). The naming rule is `'camel_case'`, which the `Naming` enum already has, because the DOM is camelCase: `document.create_element("div")` is `createElement`, `node.text_content = "Hello"` is the `textContent` property, `root.append_child(node)` is `appendChild`. A call is a method and a read or write is a property, the same split D4 uses for functions versus constants. So there is one foreign-bridge pattern with two backends, and `Html` is the low-level layer that D18's markup builder compiles down to, exactly as `Mouse` sits on `DynamicLibrary`. **Open:** D18 writes the markup builder as `html.div(...)`, which collides with this name -- the builder probably needs a different one (`Markup`, `View`), since `div` is an element to create and not a DOM method. |
@@ -1933,3 +1936,4 @@ func format_name(first_name: String, last_name: String): String { }
 | 2026-09-20 | **D44** (decided by Mortaro): **Spite emits C and takes no dependency on LLVM; the C compiler is the user's to bring.** "Each person brings its own C compiler." The language does not emit LLVM IR and is not bound to it as a backend -- which is a different statement from refusing to *use* clang, since a user may well bring it (this machine's own compiler is the clang inside Visual Studio). What is refused is binding the language to one backend. The reason is philosophy line 5, compilation speed and live reload: emitting C keeps the final step swappable, so a fast compiler can be used while iterating and an optimising one for release, and emitting LLVM IR directly would trade that away for LLVM's codegen speed, which is the slow half of every toolchain built on it. It is also what makes the bootstrap honest -- the committed seed is C, so any machine with a ubiquitous tool can rebuild the compiler from source rather than trusting a prebuilt binary. `check.sh` finds `cc`, `clang` or `gcc`, looks inside Visual Studio on Windows, and otherwise takes `CC`. |
 | 2026-09-20 | **D45** (decided by Mortaro): **`Monster?` is sugar for `union { Monster, Null }`, and `Nullable<T>` is gone.** `Null` is an ordinary class whose only value is the literal `null`, as `true` and `false` are the values of `Bool`. The point is not the spelling but the semantics Mortaro wanted underneath it: nullability stops being a compiler special case and becomes a union like any other, so `switch` covers it exhaustively, `assert`/`crash`/`if ... do` narrow it through union narrowing that already exists, and the `Nullable<T>` exceptions collapse into rules the language already had. Section 10's representation survives as a codegen detail -- a union of a reference and `Null` is still just the pointer, and only a scalar needs a wrapper. Rejected on the way: `Nullable<T>` (a generic wrapper is what keeps it special), `Monster or Null` (`or` short-circuits everywhere else, so a return type reads as an expression yielding the truthy side), `maybe Monster` (a keyword bought for a shortcut), `Maybe<Monster>` as a standard library generic union (generics over unions hide the members and collide with `$` codegen replacement), and `Monster.Maybe` as a class-level member. |
 | 2026-09-20 | **D46** (decided by Mortaro): **a test is a package that crashes, not a framework.** There is no `expect`, no matcher vocabulary, no reporter and no summary -- those exist to make a failure pleasant for a human reading a terminal, and "my ass that I am running them myself". A test is ordinary Spite shipped alongside the project as a package (`load(...)`), and an expectation is `crash <condition>` (D30), which already halts on falsey and reports the condition's source text with every operand value (D25, D32, D33). **The testing story therefore needs no new language feature**: crash, load and reflection are the whole of it, and `Class.functions` (D12) is enough to discover every `test_`-prefixed member without registration. **Fail-fast is deliberate and is the opposite of what a human suite wants**: a person wants all thirty failures so the work can be batched, while an AI wants one precise failure to fix before re-running, since a list of mostly-cascading failures invites shotgun fixes. The crash report is the test output. |
+| 2026-09-20 | **D47** (decided by Mortaro): **`enum`, `type` and `union` declarations drop the `=` and must break lines.** `enum Job {` ... `}`, one entry per line, no commas. The `=` was only ever there so a single-line form would not look odd, and that single-line form is what creates the need for commas -- removing both removes a choice. `=` now means assignment and nothing else. The reasoning is the language's own: it reads better multi-line, and "having less options make ai less fucked up" -- a rule with one form cannot be got wrong. Writing `enum Job {` is a parse error naming the fix, the way `for`, `&`, `Heap<T>` and `generics` were retired, rather than something the formatter quietly rewrites: it is syntax, not style. **Scope:** declarations only. A list or object *literal* keeps both forms (`[1, 2, 3]` inline, or one entry per line), because a literal is data at a use site while a declaration defines a type and is read far more often than it is written. Migration is 22 declarations across `.spite` files -- none of them single-line already -- plus 13 in `manual.md` and `docs/`. |

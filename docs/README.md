@@ -47,7 +47,7 @@ Every other `.spite` file next to the entry file is another class. Classes hold 
 alone is usually enough). Build a `List<T>` of them and iterate with `while` -- there is no `for`:
 
 ```spite title=tour_classes/person.spite
-enum Job = {
+enum Job {
     'knight'
     'mage'
 }

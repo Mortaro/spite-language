@@ -100,7 +100,7 @@ A tree, a linked list, or any other recursive structure needs nothing beyond an 
 no explicit indirection:
 
 ```spite title=tree_basics/tree_node.spite
-union TreeNode = {
+union TreeNode {
     Leaf
     Branch
 }

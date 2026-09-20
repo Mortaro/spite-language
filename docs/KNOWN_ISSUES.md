@@ -19,7 +19,7 @@ func Widget(new_label: String) {
 }
 ```
 ```spite title=class_via_type_error/class_via_type_error.spite entry error
-type Labeled = {
+type Labeled {
     label: String
 }
 

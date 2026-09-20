@@ -187,7 +187,7 @@ statement, with no `else`" triggers the lint.
 ## Enums
 
 ```spite title=enum_basics/player.spite
-enum Job = {
+enum Job {
     'knight'
     'mage'
     'archer'
@@ -251,7 +251,7 @@ func is_alive(): Bool {
 }
 ```
 ```spite title=union_basics/union_basics.spite entry
-union Enemy = {
+union Enemy {
     Player
     Monster
 }
@@ -288,7 +288,7 @@ func Player(starting_power: Int) {
 }
 ```
 ```spite title=duck_typing/duck_typing.spite entry
-type Loadout = {
+type Loadout {
     weapon: String
     power: Int
 }
