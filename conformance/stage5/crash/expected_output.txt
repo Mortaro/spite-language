@@ -1,0 +1,3 @@
+12
+positive
+not positive

@@ -126,7 +126,11 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
             }
         }
         Syntax.Statements.AssertStatement: {
-            print_line(depth, "Assert")
+            if statement.is_crash {
+                print_line(depth, "Crash")
+            } else {
+                print_line(depth, "Assert")
+            }
             var value = statement.value
             assert value
             print_expression(value, depth + 1)

@@ -184,6 +184,9 @@ func parse_statement(): Syntax.Statements.Statement {
     if check('keyword_assert') {
         return parse_assert_statement()
     }
+    if check('keyword_crash') {
+        return parse_crash_statement()
+    }
     if check('keyword_return') {
         return parse_return_statement()
     }
@@ -386,6 +389,18 @@ func parse_assert_statement(): Syntax.Statements.Statement {
     var value = parse_expression()
     consume_statement_terminator()
     return Syntax.Statements.AssertStatement(value)
+}
+
+func parse_crash_statement(): Syntax.Statements.Statement {
+    advance()
+    var value: Syntax.Expressions.Expression = Syntax.Expressions.FalseLiteral()
+    if not at_statement_end() {
+        value = parse_expression()
+    }
+    consume_statement_terminator()
+    var statement = Syntax.Statements.AssertStatement(value)
+    statement.is_crash = true
+    return statement
 }
 
 func parse_return_statement(): Syntax.Statements.Statement {

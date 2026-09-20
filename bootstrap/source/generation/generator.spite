@@ -3125,6 +3125,13 @@ func generate_assert_statement(assert_statement: Syntax.Statements.AssertStateme
         guard_code = condition_result.code
     }
     builder.add_user("if (!(" + guard_code + ")) {")
+    if assert_statement.is_crash {
+        builder.add_user("fflush(stdout);")
+        builder.add_user("fprintf(stderr, \"spite.crash\\t" + current_owner + "\\t" + function_information.name + "\\n\");")
+        builder.add_user("exit(1);")
+        builder.add_user("}")
+        return
+    }
     emit_scope_drops(scope, true)
     if type_shape.is_void(function_information.get_return_type()) {
         builder.add_user("return;")

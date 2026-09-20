@@ -1,0 +1,26 @@
+var console = Console()
+var names = Dictionary<String>()
+
+func Crash() {
+    names.set("ada", "Ada Lovelace")
+    console.print(name_length("ada"))
+    console.print(describe(3))
+    console.print(describe(0 - 1))
+}
+
+func name_length(key: String): Int {
+    var name = names.get(key)
+    crash name
+    return name.length()
+}
+
+func describe(value: Int): String {
+    crash value > 0 - 5
+    if value > 0 {
+        return "positive"
+    }
+    if value < 1 {
+        return "not positive"
+    }
+    crash
+}

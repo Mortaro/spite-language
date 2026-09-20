@@ -220,6 +220,9 @@ func keyword_kind(text: String): TokenKind {
     if text == "assert" {
         return 'keyword_assert'
     }
+    if text == "crash" {
+        return 'keyword_crash'
+    }
     if text == "and" {
         return 'keyword_and'
     }
