@@ -1,0 +1,19 @@
+enum Mood = {
+    'calm'
+    'angry'
+}
+
+var name = ""
+var health = 0
+var alive = true
+var mood: Mood = 'angry'
+var friends = List<Monster>()
+
+func Monster(starting_name: String, starting_health: Int) {
+    name = starting_name
+    health = starting_health
+}
+
+func kind_of_attribute(attribute: Symbol): String {
+    return attribute.name + ":" + attribute.class.name
+}

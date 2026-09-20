@@ -6,6 +6,8 @@ var enums = List<Analysis.EnumInfo>()
 var unions = List<Analysis.UnionInfo>()
 var list_names = List<String>()
 var list_template_names = List<String>()
+var class_object_names = List<String>()
+var attributes_function_names = List<String>()
 var dictionary_names = List<String>()
 var support_class_names = List<String>()
 var current_owner = ""
@@ -1317,6 +1319,9 @@ func is_owning_shape(expression: Syntax.Expressions.Expression): Bool {
     }
     var member = shape.as_member(expression)
     if member {
+        if member.name == "class" or member.name == "attributes" {
+            return true
+        }
         var object_ast = member.object
         crash object_ast
         var object_identifier = shape.as_identifier(object_ast)
@@ -2357,6 +2362,160 @@ func generate_list_template(element: Analysis.SpiteType, element_class: Analysis
     return generate_generic_call(function_c_name, object_result, object_ast, arguments_ast, parameter_types, return_type, scope, class_information)
 }
 
+func ensure_class_object(display_name: String, namespace: String, label: String): String {
+    var function_c_name = "spite_class_object_" + label
+    if class_object_names.contains(function_c_name) {
+        return function_c_name
+    }
+    if not find_class_by_c_name("Spite_Class") {
+        report("reflection needs the standard library: library/spite/class.spite was not found from the working directory")
+        return function_c_name
+    }
+    class_object_names.append(function_c_name)
+    builder.add_typedef("static Spite_Class* " + function_c_name + "_cache = 0;")
+    builder.add_prototype("Spite_Class* " + function_c_name + "(void);")
+    builder.add_support("Spite_Class* " + function_c_name + "(void) {\nif (" + function_c_name + "_cache == 0) " + function_c_name + "_cache = Spite_Class_make(" + render_string_literal(display_name) + ", " + render_string_literal(namespace) + ");\nreturn Spite_Class_retain(" + function_c_name + "_cache);\n}")
+    return function_c_name
+}
+
+func class_object_call(spite_type: Analysis.SpiteType): String {
+    var class_ref = type_shape.as_class_ref(spite_type)
+    if class_ref {
+        var described = find_class_by_c_name(class_ref.c_name)
+        if described {
+            return ensure_class_object(described.simple_name, described.namespace_dotted, described.c_name) + "()"
+        }
+    }
+    var label = type_label(spite_type)
+    return ensure_class_object(type_display_name(spite_type), "", label) + "()"
+}
+
+func type_display_name(spite_type: Analysis.SpiteType): String {
+    var class_ref = type_shape.as_class_ref(spite_type)
+    if class_ref {
+        var described = find_class_by_c_name(class_ref.c_name)
+        if described {
+            return described.simple_name
+        }
+    }
+    var enum_type = type_shape.as_enum(spite_type)
+    if enum_type {
+        var enum_index = 0
+        while enum_index < enums.count() {
+            if enums[enum_index].c_name == enum_type.c_name {
+                return enums[enum_index].simple_name
+            }
+            enum_index = enum_index + 1
+        }
+    }
+    var union_type = type_shape.as_union(spite_type)
+    if union_type {
+        var union_information = find_union_by_c_name(union_type.c_name)
+        if union_information {
+            return union_information.simple_name
+        }
+    }
+    var list_type = type_shape.as_list(spite_type)
+    if list_type {
+        return "List<" + type_display_name(list_type.get_element()) + ">"
+    }
+    var dictionary_type = type_shape.as_dictionary(spite_type)
+    if dictionary_type {
+        return "Dictionary<" + type_display_name(dictionary_type.get_element()) + ">"
+    }
+    var nullable_type = type_shape.as_nullable(spite_type)
+    if nullable_type {
+        return "Nullable<" + type_display_name(nullable_type.get_inner()) + ">"
+    }
+    return type_label(spite_type)
+}
+
+
+func spite_class_type(): Analysis.SpiteType {
+    var resolved: Analysis.SpiteType = Analysis.Types.ClassRefType("Spite_Class")
+    return resolved
+}
+
+func ensure_attributes_function(information: Analysis.ClassInfo): String {
+    var function_c_name = information.c_name + "_attributes"
+    if attributes_function_names.contains(function_c_name) {
+        return function_c_name
+    }
+    attributes_function_names.append(function_c_name)
+    var attribute_class = find_class_by_c_name("Spite_Attribute")
+    if not attribute_class {
+        report("reflection needs the standard library: library/spite/attribute.spite was not found from the working directory")
+        return function_c_name
+    }
+    crash attribute_class
+    var list_name = ensure_list(class_type_of(attribute_class))
+    var lines = List<String>()
+    lines.append(list_name + "* " + function_c_name + "(" + information.c_name + "* self) {")
+    lines.append(list_name + "* result = " + list_name + "_make();")
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        if not type_shape.is_console(field.get_type()) {
+            var value_code = "(&spite_static_string_empty)"
+            if type_shape.as_string(field.get_type()) {
+                value_code = "SpiteString_retain(self->" + field.name + ")"
+            } else if type_shape.as_scalar(field.get_type()) {
+                value_code = string_conversion("self->" + field.name, field.get_type())
+            } else if is_enum_type(field.get_type()) {
+                value_code = string_conversion("self->" + field.name, field.get_type())
+            }
+            lines.append(list_name + "_add(result, Spite_Attribute_make(" + render_string_literal(field.name) + ", " + class_object_call(field.get_type()) + ", " + value_code + "));")
+        }
+        index = index + 1
+    }
+    lines.append("(void)self;")
+    lines.append("return result;")
+    lines.append("}")
+    builder.add_prototype(list_name + "* " + function_c_name + "(" + information.c_name + "* self);")
+    builder.add_support(lines.join("\n"))
+    return function_c_name
+}
+
+func generate_reflection_read(member_name: String, object_result: ExpressionResult, object_ast: Syntax.Expressions.Expression): Nullable<ExpressionResult> {
+    if member_name != "class" and member_name != "attributes" {
+        return null
+    }
+    var object_type = object_result.get_type()
+    var object_c_type = c_type_name(object_type)
+    var owning_object = is_owning_shape(object_ast) and type_needs_drop(object_type)
+    var release_object = ""
+    if owning_object {
+        release_object = release_call(object_type, "spite_reflected") + ";"
+    }
+    var object_class_ref = type_shape.as_class_ref(object_type)
+    if object_class_ref {
+        var object_class = find_class_by_c_name(object_class_ref.c_name)
+        if object_class {
+            var real_field = object_class.find_field(member_name)
+            if real_field {
+                var retained_field = retain_call(real_field.get_type(), "spite_reflected->" + member_name)
+                return ExpressionResult("({ " + object_c_type + " spite_reflected = " + object_result.code + "; " + c_type_name(real_field.get_type()) + " spite_reflected_value = " + retained_field + "; " + release_object + " spite_reflected_value; })", real_field.get_type())
+            }
+            if member_name == "attributes" {
+                var attributes_function = ensure_attributes_function(object_class)
+                var attribute_class = find_class_by_c_name("Spite_Attribute")
+                if attribute_class {
+                    var attributes_type = list_type_of(class_type_of(attribute_class))
+                    return ExpressionResult("({ " + object_c_type + " spite_reflected = " + object_result.code + "; " + c_type_name(attributes_type) + " spite_reflected_value = " + attributes_function + "(spite_reflected); " + release_object + " spite_reflected_value; })", attributes_type)
+                }
+                return null
+            }
+        }
+    }
+    if member_name == "class" {
+        if type_shape.is_void(object_type) {
+            return null
+        }
+        return ExpressionResult("({ " + object_c_type + " spite_reflected = " + object_result.code + "; " + release_object + " (void)spite_reflected; " + class_object_call(object_type) + "; })", spite_class_type())
+    }
+    return null
+}
+
 func generate_list_literal(
 literal: Syntax.Expressions.ListLiteralExpression, element: Analysis.SpiteType, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var list_name = ensure_list(element)
@@ -2865,6 +3024,17 @@ func printed_statement_for(expression_ast: Syntax.Expressions.Expression, stream
         }
         return "{ SpiteString* " + temporary + " = " + result.code + "; fprintf(" + stream + ", \"%s\", (" + temporary + ")->data);" + release_line + " }"
     }
+    var printed_class = type_shape.as_class_ref(result.get_type())
+    if printed_class {
+        if printed_class.c_name == "Spite_Class" {
+            var class_temporary = next_temporary()
+            var class_release = ""
+            if is_owning_shape(expression_ast) {
+                class_release = " Spite_Class_release(" + class_temporary + ");"
+            }
+            return "{ Spite_Class* " + class_temporary + " = " + result.code + "; fprintf(" + stream + ", \"%s\", " + class_temporary + "->name->data);" + class_release + " }"
+        }
+    }
     var printed_enum = type_shape.as_enum(result.get_type())
     if printed_enum {
         return "fprintf(" + stream + ", \"%s\", " + printed_enum.c_name + "_name(" + result.code + "));"
@@ -2976,8 +3146,17 @@ func generate_member_read(member: Syntax.Expressions.MemberExpression, scope: Sc
         if symbol_identifier.name == bound_symbol_name and member.name == "name" and not bound_symbol_name.is_empty() {
             return ExpressionResult(render_string_literal(bound_field_name), string_type())
         }
+        if symbol_identifier.name == bound_symbol_name and member.name == "class" and not bound_symbol_name.is_empty() {
+            var bound_class_type = bound_field_type
+            crash bound_class_type
+            return ExpressionResult(class_object_call(bound_class_type), spite_class_type())
+        }
     }
     var object_result = generate_expression(object_ast, scope, class_information)
+    var reflection = generate_reflection_read(member.name, object_result, object_ast)
+    if reflection {
+        return reflection
+    }
     if type_shape.is_arguments(object_result.get_type()) {
         var lookup_result = ExpressionResult(
             "SpiteArguments_lookup(&(" + object_result.code + "), \"" + member.name + "\")",
@@ -3877,6 +4056,12 @@ func emit_main(entry_mangled_name: String) {
         builder.add_main(constructor.c_name + "(" + arguments.join(", ") + ");")
     }
     builder.add_main(entry_class.c_name + "_release(spite_entry_instance);")
+    var cache_index = 0
+    while cache_index < class_object_names.count() {
+        builder.add_main("Spite_Class_release(" + class_object_names[cache_index] + "_cache);")
+        cache_index = cache_index + 1
+    }
+
     builder.add_main("#ifdef SPITE_DEBUG_MEMORY")
     builder.add_main("spite_debug_report_leaks();")
     builder.add_main(

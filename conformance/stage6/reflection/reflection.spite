@@ -1,0 +1,22 @@
+var console = Console()
+
+func Reflection() {
+    var monster = Creatures.Monster("rat", 7)
+    console.print(monster.class, monster.class.name, monster.class.namespace + "|")
+    var attributes = monster.attributes
+    var index = 0
+    while index < attributes.count() {
+        var attribute = attributes[index]
+        console.print(attribute.name, attribute.class, attribute.value + "|")
+        index = index + 1
+    }
+    console.print(monster.attributes.map_name().join(","))
+    console.print(monster.kind_of_health(), monster.kind_of_name(), monster.kind_of_friends())
+    var count = 3
+    console.print(count.class, "text".class, console_class_name())
+}
+
+func console_class_name(): String {
+    var reflection = Reflection2()
+    return reflection.class.name
+}
