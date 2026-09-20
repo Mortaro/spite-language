@@ -10,6 +10,7 @@ var class_object_names = List<String>()
 var attributes_function_names = List<String>()
 var dictionary_names = List<String>()
 var support_class_names = List<String>()
+var class_names_by_id = List<String>()
 var current_owner = ""
 var nullable_scalar_labels = List<String>()
 var has_error = false
@@ -43,8 +44,16 @@ func report(message: String) {
     error_message = error_lines.join("\n")
 }
 
+func allocate_class_id(debug_name: String): Int {
+    if class_names_by_id.is_empty() {
+        class_names_by_id.append("String")
+    }
+    class_names_by_id.append(debug_name)
+    return class_names_by_id.count() - 1
+}
+
 func register_system_class(name: String): Analysis.ClassInfo {
-    var information = Analysis.ClassInfo(name, name, "", name, classes.count() + 1)
+    var information = Analysis.ClassInfo(name, name, "", name, allocate_class_id(name))
     information.is_builtin = true
     classes.append(information)
     return information
@@ -156,7 +165,6 @@ func generate(discovery: Discovery.DiscoveryResult, runtime_header_text: String,
 
 func register_classes(discovered: List<Discovery.DiscoveredClass>) {
     var index = 0
-    var next_id = classes.count() + 1
     while index < discovered.count() {
         var entry = discovered[index]
         classes.append(
@@ -165,13 +173,12 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
                 entry.simple_name,
                 entry.namespace_dotted,
                 entry.qualified_dotted,
-                next_id,
+                allocate_class_id(entry.mangled_name),
             ),
         )
         classes.last().source_path = entry.get_file().path
         register_enums(entry)
         register_unions(entry)
-        next_id = next_id + 1
         index = index + 1
     }
 }
@@ -2823,7 +2830,7 @@ func ensure_list(element: Analysis.SpiteType): String {
     }
     list_names.append(list_name)
     support_class_names.append(list_name)
-    emit_list_support(list_name, element, classes.count() + support_class_names.count())
+    emit_list_support(list_name, element, allocate_class_id(list_name))
     return list_name
 }
 
@@ -2834,7 +2841,7 @@ func ensure_dictionary(element: Analysis.SpiteType): String {
     }
     dictionary_names.append(dictionary_name)
     support_class_names.append(dictionary_name)
-    emit_dictionary_support(dictionary_name, element, classes.count() + support_class_names.count())
+    emit_dictionary_support(dictionary_name, element, allocate_class_id(dictionary_name))
     return dictionary_name
 }
 
@@ -4231,15 +4238,9 @@ func emit_class(information: Analysis.ClassInfo) {
 
 func debug_memory_class_name_table(): String {
     var names = List<String>()
-    names.append("\"String\"")
     var index = 0
-    while index < classes.count() {
-        names.append("\"" + classes[index].c_name + "\"")
-        index = index + 1
-    }
-    index = 0
-    while index < support_class_names.count() {
-        names.append("\"" + support_class_names[index] + "\"")
+    while index < class_names_by_id.count() {
+        names.append("\"" + class_names_by_id[index] + "\"")
         index = index + 1
     }
 
@@ -4252,8 +4253,7 @@ func emit_main(entry_mangled_name: String) {
     builder.add_main("#ifdef SPITE_DEBUG_MEMORY")
     builder.add_main("static const char* spite_debug_class_name_table[] = " + debug_memory_class_name_table() + ";")
     builder.add_main(
-        "spite_debug_set_class_names(spite_debug_class_name_table, " + ("" + (classes.count() + 1 + support_class_names.count(
-        ))) + ");",
+        "spite_debug_set_class_names(spite_debug_class_name_table, " + ("" + class_names_by_id.count()) + ");",
     )
     builder.add_main("#endif")
     builder.add_main(entry_class.c_name + "* spite_entry_instance = " + entry_class.c_name + "_allocate();")
