@@ -1625,6 +1625,13 @@ func generate_binary(binary: Syntax.Expressions.BinaryExpression, scope: Scope, 
     if type_shape.as_string(left.get_type()) {
         return generate_string_binary(binary.operator, left, left_ast, right_ast, scope, class_information)
     }
+    var left_class_ref = type_shape.as_class_ref(left.get_type())
+    if left_class_ref {
+        var left_class = find_class_by_c_name(left_class_ref.c_name)
+        if left_class {
+            return generate_class_binary(binary.operator, left_class, left, left_ast, right_ast, scope, class_information)
+        }
+    }
     var right_code = ""
     if is_enum_literal(right_ast) and is_enum_type(left.get_type()) {
         right_code = coerce_for_store(right_ast, left.get_type(), scope, class_information)
@@ -1640,10 +1647,98 @@ func generate_binary(binary: Syntax.Expressions.BinaryExpression, scope: Scope, 
     return ExpressionResult(code, left.get_type())
 }
 
+func operator_function_name(operator: Syntax.Expressions.BinaryOperator): String {
+    if operator == 'add' {
+        return "sum"
+    }
+    if operator == 'subtract' {
+        return "subtract"
+    }
+    if operator == 'multiply' {
+        return "multiply"
+    }
+    if operator == 'divide' {
+        return "divide"
+    }
+    if operator == 'modulo' {
+        return "remainder"
+    }
+    if operator == 'equal' or operator == 'not_equal' {
+        return "equals"
+    }
+    if operator == 'less' or operator == 'greater_equal' {
+        return "less_than"
+    }
+    if operator == 'greater' or operator == 'less_equal' {
+        return "greater_than"
+    }
+    return ""
+}
+
+func generate_class_binary(operator: Syntax.Expressions.BinaryOperator, left_class: Analysis.ClassInfo, left_result: ExpressionResult, left_ast: Syntax.Expressions.Expression, right_ast: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
+    var function_name = operator_function_name(operator)
+    var negated = operator == 'not_equal' or operator == 'greater_equal' or operator == 'less_equal'
+    var function: Nullable<Analysis.FunctionInfo> = null
+    if not function_name.is_empty() {
+        function = find_or_instantiate_function(left_class, function_name)
+    }
+    if function {
+        if function.parameters.count() == 1 {
+            var operator_arguments = List<Syntax.Expressions.Expression>()
+            operator_arguments.append(right_ast)
+            var called = generate_generic_call(function.c_name, left_result, left_ast, operator_arguments, parameter_types_of(function.parameters), function.get_return_type(), scope, class_information)
+            if negated {
+                return ExpressionResult("(!(" + called.code + "))", boolean_type())
+            }
+            called.owning_override = true
+            return called
+        }
+    }
+    if operator == 'equal' or operator == 'not_equal' {
+        var right_result = generate_expression(right_ast, scope, class_information)
+        var lines = List<String>()
+        var left_temporary = next_temporary()
+        var right_temporary = next_temporary()
+        lines.append("void* " + left_temporary + " = " + left_result.code + ";")
+        lines.append("void* " + right_temporary + " = " + right_result.code + ";")
+        var comparison = "=="
+        if operator == 'not_equal' {
+            comparison = "!="
+        }
+        lines.append("bool spite_same = " + left_temporary + " " + comparison + " " + right_temporary + ";")
+        if owns(left_result, left_ast) {
+            lines.append(release_call(left_result.get_type(), left_temporary) + ";")
+        }
+        if owns(right_result, right_ast) and type_needs_drop(right_result.get_type()) {
+            lines.append(release_call(right_result.get_type(), right_temporary) + ";")
+        }
+        lines.append("spite_same;")
+        return ExpressionResult("({ " + lines.join(" ") + " })", boolean_type())
+    }
+    report("this operator on a '" + left_class.simple_name + "' needs it to define '" + function_name + "(other)'")
+    return ExpressionResult("0", Analysis.Types.VoidType())
+}
+
 func generate_unary(unary: Syntax.Expressions.UnaryExpression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var operand_ast = unary.operand
     crash operand_ast
     var operand = generate_expression(operand_ast, scope, class_information)
+    var operand_class_ref = type_shape.as_class_ref(operand.get_type())
+    if operand_class_ref {
+        var operand_class = find_class_by_c_name(operand_class_ref.c_name)
+        var negating = unary.operator == 'negate'
+        if operand_class {
+          if negating {
+            var negate = find_or_instantiate_function(operand_class, "negate")
+            if negate {
+                var negated = generate_generic_call(negate.c_name, operand, operand_ast, List<Syntax.Expressions.Expression>(), no_types(), negate.get_return_type(), scope, class_information)
+                negated.owning_override = true
+                return negated
+            }
+            report("'-' on a '" + operand_class.simple_name + "' needs it to define 'negate()'")
+          }
+        }
+    }
     if unary.operator == 'negate' {
         return ExpressionResult("(-(" + operand.code + "))", operand.get_type())
     }
@@ -2652,6 +2747,20 @@ func generate_index_read(index_expression: Syntax.Expressions.IndexExpression, s
             class_information,
         )
     }
+    var indexed_class_ref = type_shape.as_class_ref(object_result.get_type())
+    if indexed_class_ref {
+        var indexed_class = find_class_by_c_name(indexed_class_ref.c_name)
+        if indexed_class {
+            var get_at = find_or_instantiate_function(indexed_class, "get_at")
+            if get_at {
+                var got = generate_generic_call(get_at.c_name, object_result, object_ast, arguments_ast, parameter_types_of(get_at.parameters), get_at.get_return_type(), scope, class_information)
+                got.owning_override = true
+                return got
+            }
+            report("indexing a '" + indexed_class.simple_name + "' needs it to define 'get_at(index)'")
+            return ExpressionResult("0", Analysis.Types.VoidType())
+        }
+    }
     var object_dictionary = type_shape.as_dictionary(object_result.get_type())
     if object_dictionary {
         var value_type = object_dictionary.get_element()
@@ -3433,7 +3542,25 @@ func generate_assignment(assignment: Syntax.Statements.AssignmentStatement, scop
         var position_ast = index_target.index
         assert position_ast
         var indexed_result = generate_expression(indexed_ast, scope, class_information)
+        var assigned_class_ref = type_shape.as_class_ref(indexed_result.get_type())
+        if assigned_class_ref {
+            var assigned_class = find_class_by_c_name(assigned_class_ref.c_name)
+            if assigned_class {
+                var set_at = find_or_instantiate_function(assigned_class, "set_at")
+                if set_at {
+                    var set_at_arguments = List<Syntax.Expressions.Expression>()
+                    set_at_arguments.append(position_ast)
+                    set_at_arguments.append(value_ast)
+                    var set_at_call = generate_generic_call(set_at.c_name, indexed_result, indexed_ast, set_at_arguments, parameter_types_of(set_at.parameters), set_at.get_return_type(), scope, class_information)
+                    builder.add_user(set_at_call.code + ";")
+                    return
+                }
+                report("assigning through an index on a '" + assigned_class.simple_name + "' needs it to define 'set_at(index, value)'")
+                return
+            }
+        }
         var indexed_dictionary = type_shape.as_dictionary(indexed_result.get_type())
+
         if indexed_dictionary {
             var dictionary_arguments = List<Syntax.Expressions.Expression>()
             dictionary_arguments.append(position_ast)

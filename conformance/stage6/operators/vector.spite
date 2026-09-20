@@ -1,0 +1,58 @@
+var x = 0
+var y = 0
+
+func Vector(starting_x: Int, starting_y: Int) {
+    x = starting_x
+    y = starting_y
+}
+
+func sum(other: Vector): Vector {
+    return Vector(x + other.x, y + other.y)
+}
+
+func subtract(other: Vector): Vector {
+    return Vector(x - other.x, y - other.y)
+}
+
+func multiply(factor: Int): Vector {
+    return Vector(x * factor, y * factor)
+}
+
+func negate(): Vector {
+    return Vector(0 - x, 0 - y)
+}
+
+func equals(other: Vector): Bool {
+    return x == other.x and y == other.y
+}
+
+func less_than(other: Vector): Bool {
+    return x + y < other.x + other.y
+}
+
+func greater_than(other: Vector): Bool {
+    return x + y > other.x + other.y
+}
+
+func get_at(index: Int): Int {
+    if index == 0 {
+        return x
+    }
+    if index == 1 {
+        return y
+    }
+    return 0 - 1
+}
+
+func set_at(index: Int, value: Int) {
+    if index == 0 {
+        x = value
+    }
+    if index == 1 {
+        y = value
+    }
+}
+
+func describe(): String {
+    return "(" + x + ", " + y + ")"
+}
