@@ -13,7 +13,22 @@ func Lexer(starting_source: String) {
     run()
 }
 
+func skip_byte_order_mark() {
+    if source.length() < 3 {
+        return
+    }
+    var first = source.code_at(0)
+    var second = source.code_at(1)
+    var third = source.code_at(2)
+    var unsigned_mark = first == 239 and second == 187 and third == 191
+    var signed_mark = first == 0 - 17 and second == 0 - 69 and third == 0 - 65
+    if unsigned_mark or signed_mark {
+        index = 3
+    }
+}
+
 func run() {
+    skip_byte_order_mark()
     var finished = false
     while not finished {
         finished = scan_one()

@@ -1,0 +1,1 @@
+a file that starts with a byte order mark still compiles

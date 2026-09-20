@@ -1,0 +1,5 @@
+﻿var console = Console()
+
+func ByteOrderMark() {
+    console.print("a file that starts with a byte order mark still compiles")
+}
