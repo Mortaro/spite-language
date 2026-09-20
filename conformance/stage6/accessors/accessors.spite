@@ -1,0 +1,21 @@
+var console = Console()
+
+func Accessors() {
+    var account = Account("ada")
+    account.balance = 50
+    account.balance = 0 - 20
+    console.print(account.balance, account.owner, account.owner.length())
+    account.owner = "grace"
+    console.print(account.owner, account.history.join(","))
+    var plain = Plain()
+    plain.label = "direct"
+    plain.size = plain.size + 2
+    console.print(plain.label, plain.size)
+    console.print(make_account().owner, make_account().balance)
+}
+
+func make_account(): Account {
+    var account = Account("temporary")
+    account.balance = 9
+    return account
+}

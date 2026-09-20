@@ -1306,6 +1306,14 @@ func release_call(spite_type: Analysis.SpiteType, code: String): String {
     return code
 }
 
+func owns(result: ExpressionResult, expression: Syntax.Expressions.Expression): Bool {
+    var stated = result.owning_override
+    if stated {
+        return stated
+    }
+    return is_owning_shape(expression)
+}
+
 func is_owning_shape(expression: Syntax.Expressions.Expression): Bool {
     var identifier = shape.as_identifier(expression)
     if identifier {
@@ -1366,7 +1374,7 @@ func coerce_for_store(expression_ast: Syntax.Expressions.Expression, expected_ty
     var result = generate_expression(expression_ast, scope, class_information)
     var casted = cast(result.code, result.get_type(), expected_type)
     if type_needs_drop(expected_type) {
-        if is_owning_shape(expression_ast) {
+        if owns(result, expression_ast) {
             return casted
         }
         return retain_call(expected_type, casted)
@@ -1591,11 +1599,11 @@ func generate_string_binary(operator: Syntax.Expressions.BinaryOperator, left_re
 
     var result_temporary = next_temporary()
     lines.append(c_type_name(result_type) + " " + result_temporary + " = " + combine + ";")
-    if is_owning_shape(left_ast) {
+    if owns(left_result, left_ast) {
         lines.append("SpiteString_release(" + left_temporary + ");")
     }
     var right_was_converted = not type_shape.as_string(right_result.get_type())
-    if is_owning_shape(right_ast) or right_was_converted {
+    if owns(right_result, right_ast) or right_was_converted {
         lines.append("SpiteString_release(" + right_temporary + ");")
     }
     lines.append(result_temporary + ";")
@@ -1698,7 +1706,7 @@ func generate_own_function_call(name: String, arguments_ast: List<Syntax.Express
 
 func generate_generic_call(function_c_name: String, object_result: ExpressionResult, object_ast: Syntax.Expressions.Expression, arguments_ast: List<Syntax.Expressions.Expression>, expected_types: List<Analysis.SpiteType>, return_type: Analysis.SpiteType, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
-    if is_owning_shape(object_ast) {
+    if owns(object_result, object_ast) {
         var object_temporary = next_temporary()
         var lines = List<String>()
         lines.append(c_type_name(object_result.get_type()) + " " + object_temporary + " = " + object_result.code + ";")
@@ -1831,7 +1839,7 @@ func generate_borrowing_call(function_c_name: String, object_result: ExpressionR
     var lines = List<String>()
     var releases = List<String>()
     var full_arguments = List<String>()
-    if is_owning_shape(object_ast) {
+    if owns(object_result, object_ast) {
         var object_temporary = next_temporary()
         lines.append(c_type_name(object_result.get_type()) + " " + object_temporary + " = " + object_result.code + ";")
         releases.append(release_call(object_result.get_type(), object_temporary) + ";")
@@ -2482,7 +2490,7 @@ func generate_reflection_read(member_name: String, object_result: ExpressionResu
     }
     var object_type = object_result.get_type()
     var object_c_type = c_type_name(object_type)
-    var owning_object = is_owning_shape(object_ast) and type_needs_drop(object_type)
+    var owning_object = owns(object_result, object_ast) and type_needs_drop(object_type)
     var release_object = ""
     if owning_object {
         release_object = release_call(object_type, "spite_reflected") + ";"
@@ -2516,7 +2524,48 @@ func generate_reflection_read(member_name: String, object_result: ExpressionResu
     return null
 }
 
+func find_getter(target_class: Analysis.ClassInfo, attribute_name: String, calling_class: Analysis.ClassInfo): Nullable<Analysis.FunctionInfo> {
+    if target_class.is_builtin {
+        return null
+    }
+    if not target_class.find_field(attribute_name) {
+        return null
+    }
+    var getter_name = "get_" + attribute_name
+    if target_class.c_name == calling_class.c_name and current_function == getter_name {
+        return null
+    }
+    var getter = find_or_instantiate_function(target_class, getter_name)
+    if getter {
+        if getter.parameters.count() == 0 {
+            return getter
+        }
+    }
+    return null
+}
+
+func find_setter(target_class: Analysis.ClassInfo, attribute_name: String, calling_class: Analysis.ClassInfo): Nullable<Analysis.FunctionInfo> {
+    if target_class.is_builtin {
+        return null
+    }
+    if not target_class.find_field(attribute_name) {
+        return null
+    }
+    var setter_name = "set_" + attribute_name
+    if target_class.c_name == calling_class.c_name and current_function == setter_name {
+        return null
+    }
+    var setter = find_or_instantiate_function(target_class, setter_name)
+    if setter {
+        if setter.parameters.count() == 1 {
+            return setter
+        }
+    }
+    return null
+}
+
 func generate_list_literal(
+
 literal: Syntax.Expressions.ListLiteralExpression, element: Analysis.SpiteType, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var list_name = ensure_list(element)
     var temporary = next_temporary()
@@ -3019,7 +3068,7 @@ func printed_statement_for(expression_ast: Syntax.Expressions.Expression, stream
     if type_shape.as_string(result.get_type()) {
         var temporary = next_temporary()
         var release_line = ""
-        if is_owning_shape(expression_ast) {
+        if owns(result, expression_ast) {
             release_line = " SpiteString_release(" + temporary + ");"
         }
         return "{ SpiteString* " + temporary + " = " + result.code + "; fprintf(" + stream + ", \"%s\", (" + temporary + ")->data);" + release_line + " }"
@@ -3029,7 +3078,7 @@ func printed_statement_for(expression_ast: Syntax.Expressions.Expression, stream
         if printed_class.c_name == "Spite_Class" {
             var class_temporary = next_temporary()
             var class_release = ""
-            if is_owning_shape(expression_ast) {
+            if owns(result, expression_ast) {
                 class_release = " Spite_Class_release(" + class_temporary + ");"
             }
             return "{ Spite_Class* " + class_temporary + " = " + result.code + "; fprintf(" + stream + ", \"%s\", " + class_temporary + "->name->data);" + class_release + " }"
@@ -3189,13 +3238,19 @@ func generate_member_read(member: Syntax.Expressions.MemberExpression, scope: Sc
     crash object_class_ref
     var target_class = find_class_by_c_name(object_class_ref.c_name)
     crash target_class
+    var getter = find_getter(target_class, member.name, class_information)
+    if getter {
+        var getter_call = generate_generic_call(getter.c_name, object_result, object_ast, List<Syntax.Expressions.Expression>(), no_types(), getter.get_return_type(), scope, class_information)
+        getter_call.owning_override = true
+        return getter_call
+    }
     var field = target_class.find_field(member.name)
     if not field {
         report("'" + object_class_ref.c_name + "' has no field '" + member.name + "'")
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     crash field
-    if is_owning_shape(object_ast) {
+    if owns(object_result, object_ast) {
         var object_temporary = next_temporary()
         var field_temporary = next_temporary()
         var lines = List<String>()
@@ -3207,9 +3262,13 @@ func generate_member_read(member: Syntax.Expressions.MemberExpression, scope: Sc
         lines.append(c_type_name(field.get_type()) + " " + field_temporary + " = " + field_code + ";")
         lines.append(release_call(object_result.get_type(), object_temporary) + ";")
         lines.append(field_temporary + ";")
-        return ExpressionResult("({ " + lines.join(" ") + " })", field.get_type())
+        var owned_read = ExpressionResult("({ " + lines.join(" ") + " })", field.get_type())
+        owned_read.owning_override = true
+        return owned_read
     }
-    return ExpressionResult("(" + object_result.code + ")->" + member.name, field.get_type())
+    var alias_read = ExpressionResult("(" + object_result.code + ")->" + member.name, field.get_type())
+    alias_read.owning_override = false
+    return alias_read
 }
 
 func generate_expression(expression: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
@@ -3421,10 +3480,19 @@ func generate_assignment(assignment: Syntax.Statements.AssignmentStatement, scop
         assert object_class_ref
         var target_class = find_class_by_c_name(object_class_ref.c_name)
         assert target_class
+        var setter = find_setter(target_class, member.name, class_information)
+        if setter {
+            var setter_arguments = List<Syntax.Expressions.Expression>()
+            setter_arguments.append(value_ast)
+            var setter_call = generate_generic_call(setter.c_name, object_result, object_ast, setter_arguments, parameter_types_of(setter.parameters), setter.get_return_type(), scope, class_information)
+            builder.add_user(setter_call.code + ";")
+            return
+        }
         var field = target_class.find_field(member.name)
         assert field
 
         var object_temporary = next_temporary()
+
         builder.add_user(
             c_type_name(object_result.get_type()) + " " + object_temporary + " = " + object_result.code + ";",
         )
@@ -3435,7 +3503,7 @@ func generate_assignment(assignment: Syntax.Statements.AssignmentStatement, scop
             scope,
             class_information,
         )
-        if is_owning_shape(object_ast) {
+        if owns(object_result, object_ast) {
             builder.add_user(release_call(object_result.get_type(), object_temporary) + ";")
         }
         return
@@ -3549,7 +3617,7 @@ func generate_switch_statement(switch_statement: Syntax.Statements.SwitchStateme
     if covered != information.members.count() {
         report("switch over '" + information.simple_name + "' does not cover every member")
     }
-    if is_owning_shape(subject_ast) {
+    if owns(subject, subject_ast) {
         builder.add_user(release_call(subject.get_type(), subject_temporary) + ";")
     }
     builder.add_user("}")
@@ -3581,7 +3649,7 @@ func generate_union_dispatch(information: Analysis.UnionInfo, member_name: Strin
         crash first_field
         result_type = first_field.get_type()
     }
-    var owning_object = is_owning_shape(object_ast)
+    var owning_object = owns(object_result, object_ast)
     var lines = List<String>()
     var object_temporary = next_temporary()
     lines.append(information.c_name + " " + object_temporary + " = " + object_result.code + ";")
@@ -3736,7 +3804,7 @@ func generate_expression_statement(expression_statement: Syntax.Statements.Expre
         return
     }
     if type_needs_drop(result.get_type()) {
-        if is_owning_shape(expression_ast) {
+        if owns(result, expression_ast) {
             var temporary = next_temporary()
             builder.add_user(c_type_name(result.get_type()) + " " + temporary + " = " + result.code + ";")
             builder.add_user(release_call(result.get_type(), temporary) + ";")

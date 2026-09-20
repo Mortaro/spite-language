@@ -1,0 +1,25 @@
+var owner = ""
+var balance = 0
+var history = List<String>()
+
+func Account(starting_owner: String) {
+    owner = starting_owner
+}
+
+func set_balance(new_balance: Int) {
+    if new_balance < 0 {
+        history.append("rejected " + new_balance)
+        return
+    }
+    balance = new_balance
+    history.append("balance " + new_balance)
+}
+
+func get_owner(): String {
+    return "owner:" + owner
+}
+
+func set_attribute(attribute: Symbol, value: attribute.class) {
+    attributes[attribute] = value
+    history.append("set " + attribute.name)
+}

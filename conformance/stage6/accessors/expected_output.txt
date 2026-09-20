@@ -1,0 +1,4 @@
+50 owner:ada 9
+owner:grace balance 50,rejected -20,set owner
+direct 3
+owner:temporary 9
