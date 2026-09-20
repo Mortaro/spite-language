@@ -1,4 +1,4 @@
-enum TokenKind = {
+enum TokenKind {
     'integer_literal'
     'float_literal'
     'string_literal'

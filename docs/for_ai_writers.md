@@ -76,11 +76,21 @@ func is_alive(): Bool {
 - On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Bool` member),
   `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<member>()`,
   `each_<member>()` (a function). A member is an attribute or a function that takes nothing.
-- `enum Job = { 'knight', 'mage' }`: values are single quoted and resolve from where they are used.
-- `union Enemy = { Player, Monster }`: `switch enemy { Player: ... Monster: { ... } }` must cover every member and
-  narrows `enemy` inside each case; a function or attribute every member has can be used on the union directly.
-- `type Renderable = { label: String, render(): String }` accepts any class, or object literal `{ label: "x" }`,
-  with those attributes and functions.
+- `enum`, `union` and `type` declarations take no `=`, one entry per line, no commas:
+
+  ```spite
+  enum Job {
+      'knight'
+      'mage'
+  }
+  ```
+
+- An enum's values are single quoted and resolve from where they are used.
+- `union Enemy { Player Monster }`, written one member per line: `switch enemy { Player: ... Monster: { ... } }`
+  must cover every member and narrows `enemy` inside each case; a function or attribute every member has can be
+  used on the union directly.
+- A `type` declares a shape -- `label: String` and `render(): String`, one per line -- and accepts any class, or
+  object literal `{ label: "x" }`, with those attributes and functions.
 
 ## Nothing, null, and failure
 

@@ -1,4 +1,4 @@
-union Statement = {
+union Statement {
     Syntax.Statements.GenericsDeclaration
     Syntax.Statements.VariableDeclaration
     Syntax.Statements.FunctionDeclaration

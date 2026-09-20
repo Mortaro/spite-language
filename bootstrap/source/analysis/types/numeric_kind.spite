@@ -1,4 +1,4 @@
-enum NumericKind = {
+enum NumericKind {
     'integer_kind'
     'long_kind'
     'float_kind'

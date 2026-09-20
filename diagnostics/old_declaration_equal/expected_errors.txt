@@ -1,0 +1,1 @@
+diagnostics/old_declaration_equal/old_declaration_equal.spite:1:10: a declaration takes no '=': write 'enum Job {' with one entry on each line

@@ -1,4 +1,4 @@
-union Shape = {
+union Shape {
     Circle
     Square
 }

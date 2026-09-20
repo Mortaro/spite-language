@@ -1,9 +1,9 @@
-union Enemy = {
+union Enemy {
     Player
     Monster
 }
 
-type Loadout = {
+type Loadout {
     weapon: String
     power: Int
 }

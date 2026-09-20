@@ -1,4 +1,4 @@
-union Type = {
+union Type {
     Syntax.Types.ReferenceType
     Syntax.Types.GenericType
     Syntax.Types.NamedType

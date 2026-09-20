@@ -1,4 +1,4 @@
-type Named = {
+type Named {
     name: String
     size: Int
 }

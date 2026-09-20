@@ -10,7 +10,7 @@ def switch(hit, hit_value, miss_value):
 
 
 open(root + "spite_type.spite", "w", newline="\n").write(
-    "union SpiteType = {\n" + "".join("    Analysis.Types.%s\n" % m for m in members) + "}\n")
+    "union SpiteType {\n" + "".join("    Analysis.Types.%s\n" % m for m in members) + "}\n")
 out = ""
 for name, member in [("as_scalar", "ScalarType"), ("as_class_ref", "ClassRefType"), ("as_nullable", "NullableType"),
                      ("as_enum", "EnumType"), ("as_list", "ListType"), ("as_dictionary", "DictionaryType"),

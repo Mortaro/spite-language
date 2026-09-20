@@ -1,4 +1,4 @@
-type Renderable = {
+type Renderable {
     render(): String
 }
 

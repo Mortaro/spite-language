@@ -1,4 +1,4 @@
-enum TokenKind = {
+enum TokenKind {
     'end'
     'number'
     'identifier'

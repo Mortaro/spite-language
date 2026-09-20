@@ -1,4 +1,4 @@
-type Renderable = {
+type Renderable {
     label: String
     render(): String
     resize(factor: Int)

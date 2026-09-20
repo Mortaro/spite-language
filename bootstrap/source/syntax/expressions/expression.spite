@@ -1,4 +1,4 @@
-union Expression = {
+union Expression {
     Syntax.Expressions.NullLiteral
     Syntax.Expressions.TrueLiteral
     Syntax.Expressions.FalseLiteral

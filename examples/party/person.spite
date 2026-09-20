@@ -1,4 +1,4 @@
-enum Job = {
+enum Job {
     'knight'
     'mage'
     'archer'

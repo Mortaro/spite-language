@@ -1,0 +1,1 @@
+diagnostics/declaration_one_per_line/declaration_one_per_line.spite:2:13: enum declarations separate their entries by lines, not commas: delete the ','

@@ -324,12 +324,53 @@ func parse_required_function(name: String): Syntax.Statements.FieldDeclaration {
     return required
 }
 
+func reject_declaration_equal(keyword: String, name: String) {
+    if check('equal') {
+        fail("a declaration takes no '=': write '" + keyword + " " + name + " {' with one entry on each line")
+    }
+}
+
+func open_declaration_body(keyword: String) {
+    if check('comment') {
+        advance()
+    }
+    if check('right_brace') or check('end_of_file') {
+        return
+    }
+    if not check('newline') {
+        fail(keyword + " declarations put each entry on its own line: start a new line after '{'")
+        advance()
+        return
+    }
+    skip_trivia()
+}
+
+func consume_declaration_entry(keyword: String) {
+    if check('comment') {
+        advance()
+    }
+    if check('comma') {
+        fail(keyword + " declarations separate their entries by lines, not commas: delete the ','")
+        advance()
+        return
+    }
+    if check('newline') {
+        skip_trivia()
+        return
+    }
+    if check('end_of_file') {
+        return
+    }
+    fail(keyword + " declarations put each entry on its own line: move '" + current().lexeme + "' to the next line")
+    advance()
+}
+
 func parse_type_declaration(): Syntax.Statements.Statement {
     advance()
     var name = expect('identifier', "a type name")
-    expect('equal', "'='")
+    reject_declaration_equal("type", name.text)
     expect('left_brace', "'{' to start the type body")
-    skip_trivia()
+    open_declaration_body("type")
     var fields = List<Syntax.Statements.FieldDeclaration>()
     var finished = check('right_brace') or check('end_of_file')
     while not finished {
@@ -341,9 +382,8 @@ func parse_type_declaration(): Syntax.Statements.Statement {
             var field_type = parse_type()
             fields.append(Syntax.Statements.FieldDeclaration(field_name.text, field_type))
         }
-        consume_field_separator('right_brace')
-        skip_trivia()
-        if check('right_brace') or check('end_of_file') {
+        consume_declaration_entry("type")
+        if check('right_brace') or check('end_of_file') or has_error {
             finished = true
         }
     }
@@ -354,17 +394,16 @@ func parse_type_declaration(): Syntax.Statements.Statement {
 func parse_enum_declaration(): Syntax.Statements.Statement {
     advance()
     var name = expect('identifier', "an enum name")
-    expect('equal', "'='")
+    reject_declaration_equal("enum", name.text)
     expect('left_brace', "'{' to start the enum body")
-    skip_trivia()
+    open_declaration_body("enum")
     var values = List<String>()
     var finished = check('right_brace') or check('end_of_file')
     while not finished {
         var value = expect('enum_literal', "an enum value (e.g. 'value')")
         values.append("" + value.text)
-        consume_field_separator('right_brace')
-        skip_trivia()
-        if check('right_brace') or check('end_of_file') {
+        consume_declaration_entry("enum")
+        if check('right_brace') or check('end_of_file') or has_error {
             finished = true
         }
     }
@@ -375,17 +414,16 @@ func parse_enum_declaration(): Syntax.Statements.Statement {
 func parse_union_declaration(): Syntax.Statements.Statement {
     advance()
     var name = expect('identifier', "a union name")
-    expect('equal', "'='")
+    reject_declaration_equal("union", name.text)
     expect('left_brace', "'{' to start the union body")
-    skip_trivia()
+    open_declaration_body("union")
     var members = List<Syntax.Types.Type>()
     var finished = check('right_brace') or check('end_of_file')
     while not finished {
         var member = parse_type()
         members.append(member)
-        consume_field_separator('right_brace')
-        skip_trivia()
-        if check('right_brace') or check('end_of_file') {
+        consume_declaration_entry("union")
+        if check('right_brace') or check('end_of_file') or has_error {
             finished = true
         }
     }

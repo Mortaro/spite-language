@@ -1,4 +1,4 @@
-union Expression = {
+union Expression {
     NumberExpression
     VariableExpression
     BinaryExpression

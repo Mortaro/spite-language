@@ -1,0 +1,6 @@
+enum Job = {
+    'knight'
+    'mage'
+}
+
+func OldDeclarationEqual() { }

@@ -1,0 +1,5 @@
+enum Job {
+    'knight', 'mage'
+}
+
+func DeclarationOnePerLine() { }

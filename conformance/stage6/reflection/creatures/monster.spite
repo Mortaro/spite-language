@@ -1,4 +1,4 @@
-enum Mood = {
+enum Mood {
     'calm'
     'angry'
 }

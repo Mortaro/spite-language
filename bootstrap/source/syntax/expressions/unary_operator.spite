@@ -1,4 +1,4 @@
-enum UnaryOperator = {
+enum UnaryOperator {
     'negate'
     'logical_not'
 }

@@ -1,4 +1,4 @@
-union SpiteType = {
+union SpiteType {
     Analysis.Types.ScalarType
     Analysis.Types.StringType
     Analysis.Types.ClassRefType

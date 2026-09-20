@@ -1,4 +1,4 @@
-union GenericArgument = {
+union GenericArgument {
     Syntax.Types.TypeArgument
     Syntax.Types.IntegerArgument
     Syntax.Types.FloatArgument

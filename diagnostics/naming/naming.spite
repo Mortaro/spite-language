@@ -1,4 +1,4 @@
-enum job_kind = {
+enum job_kind {
     'Knight'
     'mage'
 }
