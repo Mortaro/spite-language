@@ -6179,7 +6179,7 @@ Syntax_Statements_Statement_Statement Syntax_Parser_parse_return_statement(Synta
 Syntax_Statements_Statement_Statement Syntax_Parser_parse_expression_or_assignment_statement(Syntax_Parser* self);
 Syntax_Statements_Statement_Statement Syntax_Parser_parse_expression_or_assignment_statement_with(Syntax_Parser* self, Syntax_Expressions_Expression_Expression expression);
 Syntax_Types_Type_Type Syntax_Parser_parse_type(Syntax_Parser* self);
-Syntax_Types_Type_Type Syntax_Parser_with_optional_suffix(Syntax_Parser* self, Syntax_Types_Type_Type type_reference);
+Syntax_Types_Type_Type Syntax_Parser_with_nullable_suffix(Syntax_Parser* self, Syntax_Types_Type_Type type_reference);
 Syntax_Types_Type_Type Syntax_Parser_parse_type_without_suffix(Syntax_Parser* self);
 Syntax_Types_GenericArgument_GenericArgument Syntax_Parser_parse_generic_argument(Syntax_Parser* self);
 List_Syntax_Types_GenericArgument_GenericArgument* Syntax_Parser_try_parse_generic_argument_list_quiet(Syntax_Parser* self);
@@ -32278,10 +32278,10 @@ Syntax_Expressions_Expression_Expression_release(expression);
 return spite_temp_10941;
 }
 Syntax_Types_Type_Type Syntax_Parser_parse_type(Syntax_Parser* self) {
-Syntax_Types_Type_Type spite_temp_10942 = Syntax_Parser_with_optional_suffix(self, Syntax_Parser_parse_type_without_suffix(self));
+Syntax_Types_Type_Type spite_temp_10942 = Syntax_Parser_with_nullable_suffix(self, Syntax_Parser_parse_type_without_suffix(self));
 return spite_temp_10942;
 }
-Syntax_Types_Type_Type Syntax_Parser_with_optional_suffix(Syntax_Parser* self, Syntax_Types_Type_Type type_reference) {
+Syntax_Types_Type_Type Syntax_Parser_with_nullable_suffix(Syntax_Parser* self, Syntax_Types_Type_Type type_reference) {
 Syntax_Types_Type_Type result = Syntax_Types_Type_Type_retain(type_reference);
 while (Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_question)) {
 Syntax_Token* spite_temp_10943 = Syntax_Parser_advance(self);
@@ -32539,7 +32539,7 @@ return spite_temp_11013;
 }
 List_Syntax_Types_GenericArgument_GenericArgument* arguments = Syntax_Parser_try_parse_generic_argument_list_quiet(self);
 Syntax_Types_Type_Type type_reference = ((Syntax_Types_Type_Type)(Syntax_Types_NamedType_make(List_String_retain(path), List_Syntax_Types_GenericArgument_GenericArgument_retain(arguments))));
-Syntax_Types_Type_Type spite_temp_11014 = Syntax_Parser_with_optional_suffix(self, Syntax_Types_Type_Type_retain(type_reference));
+Syntax_Types_Type_Type spite_temp_11014 = Syntax_Parser_with_nullable_suffix(self, Syntax_Types_Type_Type_retain(type_reference));
 Syntax_Types_Type_Type_release(type_reference);
 List_Syntax_Types_GenericArgument_GenericArgument_release(arguments);
 List_String_release(path);

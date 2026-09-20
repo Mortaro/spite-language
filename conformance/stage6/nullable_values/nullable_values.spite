@@ -2,7 +2,7 @@ var console = Console()
 var target: Monster? = null
 var bonus: Int? = null
 
-func OptionalValues() {
+func NullableValues() {
     report()
     target = Monster("rat")
     bonus = 7

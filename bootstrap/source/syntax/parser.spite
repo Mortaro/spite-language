@@ -641,10 +641,10 @@ func parse_expression_or_assignment_statement_with(expression: Syntax.Expression
 }
 
 func parse_type(): Syntax.Types.Type {
-    return with_optional_suffix(parse_type_without_suffix())
+    return with_nullable_suffix(parse_type_without_suffix())
 }
 
-func with_optional_suffix(type_reference: Syntax.Types.Type): Syntax.Types.Type {
+func with_nullable_suffix(type_reference: Syntax.Types.Type): Syntax.Types.Type {
     var result = type_reference
     while check('question') {
         advance()
@@ -839,7 +839,7 @@ func try_parse_type_quiet(): Syntax.Types.Type? {
     var arguments = try_parse_generic_argument_list_quiet()
 
     var type_reference: Syntax.Types.Type = Syntax.Types.NamedType(path, arguments)
-    return with_optional_suffix(type_reference)
+    return with_nullable_suffix(type_reference)
 }
 
 var quiet_generic_instantiation_matched = false

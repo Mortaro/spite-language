@@ -106,14 +106,14 @@ to `T` inside the block, with an `else` for when it is null), or with `assert va
 itself from `T?` to `T` for the rest of the current block (and any block nested inside it) -- no
 rebinding to a new name needed either way:
 
-```spite title=optional_narrowing/monster.spite
+```spite title=nullable_narrowing/monster.spite
 var health = 10
 
 func Monster(starting_health: Int) {
     health = starting_health
 }
 ```
-```spite title=optional_narrowing/optional_narrowing.spite entry
+```spite title=nullable_narrowing/nullable_narrowing.spite entry
 var console = Console()
 
 func find_monster(missing: Bool): Monster? {
@@ -135,7 +135,7 @@ func report_health() {
     console.print("done")
 }
 
-func OptionalNarrowing() {
+func NullableNarrowing() {
     report_health()
 }
 ```
