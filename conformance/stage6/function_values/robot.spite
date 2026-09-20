@@ -1,0 +1,22 @@
+var name = ""
+var log = List<String>()
+
+func Robot(starting_name: String) {
+    name = starting_name
+}
+
+func step_forward() {
+    log.append(name + " forward")
+}
+
+func step_back() {
+    log.append(name + " back")
+}
+
+func battery(): Int {
+    return 80
+}
+
+func describe(prefix: String, times: Int): String {
+    return prefix + name + times
+}

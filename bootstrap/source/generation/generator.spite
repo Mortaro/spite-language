@@ -8,6 +8,7 @@ var list_names = List<String>()
 var list_template_names = List<String>()
 var class_object_names = List<String>()
 var attributes_function_names = List<String>()
+var functions_function_names = List<String>()
 var dictionary_names = List<String>()
 var support_class_names = List<String>()
 var class_names_by_id = List<String>()
@@ -1966,7 +1967,7 @@ func is_owning_shape(expression: Syntax.Expressions.Expression): Bool {
     }
     var member = shape.as_member(expression)
     if member {
-        if member.name == "class" or member.name == "attributes" {
+        if member.name == "class" or member.name == "attributes" or member.name == "functions" {
             return true
         }
         var object_ast = member.object
@@ -2544,9 +2545,13 @@ func generate_method_call(member: Syntax.Expressions.MemberExpression, object_as
     crash object_class_ref
     var target_class = find_class_by_c_name(object_class_ref.c_name)
     crash target_class
+    if target_class.c_name == "Spite_Function" and member.name == "call_function" {
+        return generate_generic_call("Spite_Function_call_function", object_result, object_ast, arguments_ast, no_types(), void_type(), scope, class_information)
+    }
     var function = find_or_instantiate_function(target_class, member.name)
     if not function {
         if member.name == "copy" {
+
             return generate_generic_call(
                 object_class_ref.c_name + "_copy",
                 object_result,
@@ -3222,8 +3227,71 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
     return function_c_name
 }
 
+func returned_class_object_call(function: Analysis.FunctionInfo): String {
+    if type_shape.is_void(function.get_return_type()) {
+        var nothing = find_class_by_c_name("Nothing")
+        if nothing {
+            return class_object_call(class_type_of(nothing))
+        }
+        return ensure_class_object("Nothing", "", "Nothing") + "()"
+    }
+    return class_object_call(function.get_return_type())
+}
+
+func ensure_functions_function(information: Analysis.ClassInfo): String {
+    var function_c_name = information.c_name + "_functions"
+    if functions_function_names.contains(function_c_name) {
+        return function_c_name
+    }
+    functions_function_names.append(function_c_name)
+    var function_class = find_class_by_c_name("Spite_Function")
+    var argument_class = find_class_by_c_name("Spite_Argument")
+    if not function_class {
+        report("reflection needs the standard library: library/spite/function.spite was not found from the working directory")
+        return function_c_name
+    }
+    if not argument_class {
+        report("reflection needs the standard library: library/spite/argument.spite was not found from the working directory")
+        return function_c_name
+    }
+    crash function_class
+    crash argument_class
+    var list_name = ensure_list(class_type_of(function_class))
+    var arguments_list_name = ensure_list(class_type_of(argument_class))
+    var lines = List<String>()
+    lines.append(list_name + "* " + function_c_name + "(" + information.c_name + "* self) {")
+    lines.append(list_name + "* result = " + list_name + "_make();")
+    var index = 0
+    while index < information.functions.count() {
+        var function = information.functions[index]
+        if not function.is_constructor and function.symbol_name.is_empty() {
+            lines.append("{")
+            lines.append("Spite_Function* described = Spite_Function_make(" + render_string_literal(function.name) + ", " + returned_class_object_call(function) + ");")
+            var parameter_index = 0
+            while parameter_index < function.parameters.count() {
+                var parameter = function.parameters[parameter_index]
+                lines.append(arguments_list_name + "_add(described->arguments, Spite_Argument_make(" + render_string_literal(parameter.name) + ", " + class_object_call(parameter.get_type()) + "));")
+                parameter_index = parameter_index + 1
+            }
+            lines.append("described->spite_owner = " + information.c_name + "_retain(self);")
+            lines.append("described->spite_release_owner = (void (*)(void*))" + information.c_name + "_release;")
+            if function.parameters.count() == 0 and type_shape.is_void(function.get_return_type()) {
+                lines.append("described->spite_call = (void (*)(void*))" + function.c_name + ";")
+            }
+            lines.append(list_name + "_add(result, described);")
+            lines.append("}")
+        }
+        index = index + 1
+    }
+    lines.append("return result;")
+    lines.append("}")
+    builder.add_prototype(list_name + "* " + function_c_name + "(" + information.c_name + "* self);")
+    builder.add_support(lines.join("\n"))
+    return function_c_name
+}
+
 func generate_reflection_read(member_name: String, object_result: ExpressionResult, object_ast: Syntax.Expressions.Expression): ExpressionResult? {
-    if member_name != "class" and member_name != "attributes" {
+    if member_name != "class" and member_name != "attributes" and member_name != "functions" {
         return null
     }
     var object_type = object_result.get_type()
@@ -3241,6 +3309,15 @@ func generate_reflection_read(member_name: String, object_result: ExpressionResu
             if real_field {
                 var retained_field = retain_call(real_field.get_type(), "spite_reflected->" + member_name)
                 return ExpressionResult("({ " + object_c_type + " spite_reflected = " + object_result.code + "; " + c_type_name(real_field.get_type()) + " spite_reflected_value = " + retained_field + "; " + release_object + " spite_reflected_value; })", real_field.get_type())
+            }
+            if member_name == "functions" {
+                var functions_function = ensure_functions_function(object_class)
+                var described_class = find_class_by_c_name("Spite_Function")
+                if described_class {
+                    var functions_type = list_type_of(class_type_of(described_class))
+                    return ExpressionResult("({ " + object_c_type + " spite_reflected = " + object_result.code + "; " + c_type_name(functions_type) + " spite_reflected_value = " + functions_function + "(spite_reflected); " + release_object + " spite_reflected_value; })", functions_type)
+                }
+                return null
             }
             if member_name == "attributes" {
                 var attributes_function = ensure_attributes_function(object_class)
@@ -4814,6 +4891,11 @@ func emit_class_support(information: Analysis.ClassInfo) {
         }
         field_index = field_index + 1
     }
+    if information.c_name == "Spite_Function" {
+        initialize_lines.append("self->spite_owner = 0;")
+        initialize_lines.append("self->spite_release_owner = 0;")
+        initialize_lines.append("self->spite_call = 0;")
+    }
     initialize_lines.append("}")
     builder.add_support(initialize_lines.join("\n"))
 
@@ -4876,6 +4958,9 @@ func emit_class_support(information: Analysis.ClassInfo) {
             release_lines.append(release_call(field.get_type(), "self->" + field.name) + ";")
         }
         drop_field_index = drop_field_index + 1
+    }
+    if information.c_name == "Spite_Function" {
+        release_lines.append("if (self->spite_owner != 0 && self->spite_release_owner != 0) self->spite_release_owner(self->spite_owner);")
     }
     release_lines.append("SPITE_FREE(self);")
     release_lines.append("}")
@@ -4965,8 +5050,17 @@ func emit_class(information: Analysis.ClassInfo) {
         }
         field_index = field_index + 1
     }
+    if information.c_name == "Spite_Function" {
+        struct_lines.append("void* spite_owner;")
+        struct_lines.append("void (*spite_release_owner)(void*);")
+        struct_lines.append("void (*spite_call)(void*);")
+    }
     struct_lines.append("};")
     builder.add_typedef(struct_lines.join("\n"))
+    if information.c_name == "Spite_Function" {
+        builder.add_prototype("void Spite_Function_call_function(Spite_Function* self);")
+        builder.add_support("void Spite_Function_call_function(Spite_Function* self) {\nif (self != 0 && self->spite_call != 0) self->spite_call(self->spite_owner);\n}")
+    }
 
     emit_class_prototypes(information)
     emit_class_support(information)

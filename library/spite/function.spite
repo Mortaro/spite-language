@@ -1,0 +1,8 @@
+var name = ""
+var arguments = List<Spite.Argument>()
+var returns = Spite.Class("", "")
+
+func Function(starting_name: String, starting_returns: Spite.Class) {
+    name = starting_name
+    returns = starting_returns
+}
