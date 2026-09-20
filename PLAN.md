@@ -31,7 +31,12 @@ and balanced allocations.
      program-wide, and `--final-classes` shows each change with its root, so nothing about it is silent.
      Smaller than 10b (reopening is already implemented for user classes), this mostly needs the "library"
      classes to participate in the discovery pass's merge pass.
-   - **10b. Not started.** Comprehensive, Ruby grade reflection at compile time (manual.md section 16 item 2): `attributes`,
+   - **10b. Designed, not started.** The design pass this entry asks for is done and lives in
+     `bootstrap/COMPILER_PLAN.md`, "Milestone 10b: the design pass": `--final-classes` first, because it is the
+     only way to tell finished reflection from the compiler magic it replaces; then the members move into
+     `library/spite/class.spite`; then `Spite.Namespace` with the migration of every `.namespace` reader.
+     Calling by `Symbol` with arguments and defining members from data move out of this milestone.
+     Comprehensive, Ruby grade reflection at compile time (manual.md section 16 item 2): `attributes`,
      `class`, `functions`, `Class.instances`, enumerating and calling functions by `Symbol`, respond-to checks, defining
      members from data, and hooks when a class is reopened -- all resolved at compile time and all emitted as source that
      is VISIBLE in `--final-classes`, not as compiler magic. Needs a design pass before any code. Referenced by manual.md

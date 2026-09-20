@@ -100,6 +100,44 @@ line.
 8. Known problem: compiling the compiler itself leaks about 0.1% of its allocations (every corpus program is
    balanced, so it is a path only the large program exercises).
 
+## Milestone 10b: the design pass
+
+PLAN.md says 10b needs a design pass before any code. This is it. The shape is already decided -- D12 names the
+objects and their members, D6 says they are ordinary members of `Spite.Class` -- so what was missing was the
+mechanism and the order.
+
+**The acceptance test is `--final-classes`, so it comes first.** manual.md section 16 item 2 does not ask for
+reflection to work; it asks for it to be *visible*: "real generated members, not compiler magic", emitted as
+source you can read. Every `Spite.*` answer today is C written by `generate_reflection_read` and friends,
+keyed on a member name at the call site, and there is no way to look at it. Until `--final-classes` exists there
+is no way to tell a finished 10b from the compiler magic it is meant to replace, which makes it the first step
+rather than a later convenience. It needs the tree printer (`bootstrap/source/syntax/printer.spite`), which
+already exists, and the discovery pass's merged class list, which also exists.
+
+**Then the members move into the library.** `library/spite/class.spite` declares `name` and `namespace` and
+nothing else; `attributes`, `functions`, `instances` and `is_singleton()` are compiler answers that never appear
+in any file. D6 says they are ordinary members with defaults that a class file overrides. The mechanism that is
+missing is one thing: a member declared in a library class whose body the compiler fills in per class object.
+`is_singleton()` is the smallest case and already folds; `attributes` and `functions` are the same shape with a
+generated body instead of a literal. Doing this removes special cases from `generate_reflection_read` rather
+than adding to it, and it does not change the language, so it is the safe half.
+
+**`Spite.Namespace` is the half that breaks source** (D41). The manual says `Spite.Class.namespace` is a
+`Spite.Namespace?`; the library class says it is a `String`, and every reader in `conformance/`, `tests/` and
+`docs/` treats it as one. The class has to be written (`.name`, `.full_name`, `.parent`, `.classes`,
+`.namespaces`), the chain has to end at `null`, and every reader migrates with it in the same commit, the way
+D45 and D47 were done.
+
+**Two things listed under 10b do not belong to it.** Calling a function by `Symbol` with arguments needs the
+typed `Spite.Function<Arguments..., Return>` of D39/D40, which is its own item above. Defining members from
+data, and hooks that run when a class is reopened, are the compile-time class generation PLAN.md already
+defers under "Later, deliberately deferred" -- 10b is enumeration, identity and visibility, and those two are
+generation. A respond-to check needs nothing new once `.functions` is a real member: it is
+`class.functions.find_by_name('greet')` and a null test.
+
+So the order is: `--final-classes`; the members into `library/spite/class.spite`; `Spite.Namespace` with its
+migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of those, not the third.
+
 ## Progress log (newest last)
 
 - 2026-09-20: this plan written. State: 30 conformance programs, 3 diagnostics programs, fixpoint holds. Latest additions: class reopening, the compiler's sources and `library/` carry no comments (D34), the C compiler comes from `CC` (or the first of `cc`, `clang`, `gcc`), `Program().environment(name)`. Decisions waiting to be implemented that change existing behaviour: D45 (`Monster?` replaces `Nullable<T>` and is sugar for a union with `Null`; mostly a front end and narrowing change, the representation stays a pointer), D39/D40 (function values). Queue found by running things: `examples/` and `tests/` predate several decisions and do not compile (first failure: `assert` in a function returning a bare value); `Process` does not quote its command, so a compiler path with spaces breaks unless `CC` is given as a short path.
@@ -154,3 +192,12 @@ line.
   incomplete `switch` (it now names the members it has no case for), and a parse error at a line break (it says
   "the end of the line" instead of printing one). `docs/for_ai_writers.md` ends with the table of all of them.
   State: 55 conformance + examples, 54 tests, 33 diagnostics, 44 documentation programs, fixpoint holds.
+- 2026-09-20 (milestone 10a, and 10b designed): `library/` is discovered before the program instead of after it,
+  which had the load order backwards -- a library class would have reopened a user class rather than the other
+  way round. A `spite/` folder of your own now reopens `Spite.Class` and the rest (`conformance/stage6/reopen_library`
+  adds `full_name()` and every class object in the program answers it); a file under `Spite` that reopens nothing
+  is an error naming the fix (`diagnostics/new_spite_class`), so the namespace stays the standard library's
+  without the folder being forbidden outright. `load("spite")` stays an error on its own name, which is the one
+  asymmetry and is worth revisiting: a loaded root's own name never becomes a namespace, so it collides with
+  nothing. The 10b design pass is above, under its own heading. State: 56 conformance + examples, 54 tests,
+  34 diagnostics, 45 documentation programs, fixpoint holds, seed current.
