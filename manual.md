@@ -435,11 +435,11 @@ for an unreachable branch, and the compiler enforcing D27/D28/D29 -- but the rep
 firing `crash` flushes stdout, writes one line to stderr, and exits with status 1:
 
 ```
-spite.crash<TAB>Class<TAB>function
+spite.crash<TAB>path:line<TAB>Class<TAB>function<TAB>condition
 ```
 
-There are no crash ids, no `<output-name>.crashes` map and no assert ring buffer, because the AST does not
-carry source locations yet; that is what D25, D32 and D33 need before they can be built. The line keeps the
+The condition is rebuilt from its own tokens, so `crash value > 0` reports `value > 0`, and a bare `crash`
+reports nothing there. Still missing: the operand *values*, the crash ids and the `<output-name>.crashes` map. The line keeps the
 `spite.crash` prefix, so anything grepping for it keeps working when the id and values arrive.
 
 ### Operators  **[implemented]**

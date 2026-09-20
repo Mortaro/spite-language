@@ -154,8 +154,10 @@ and balanced allocations.
       described.
     - **16d. Discovery through `Class.functions`** (D12), so the entry stops hand-listing. This is the only part
       that waits on milestone 10, and it waits on one member of it rather than the whole design pass.
-    - **16e. The condition's source text and operand values in the report** (D25), then crash ids and the
-      `.crashes` map (D32, D33). The largest piece and the last, because a file and a line already make a
-      failure fixable.
+    - **16e. Half done.** The crash line is now `spite.crash<TAB>path:line<TAB>Class<TAB>function<TAB>condition`,
+      the condition rebuilt from its tokens. Still to do: the operand values (D25), then crash ids and the
+      `<output-name>.crashes` map (D32, D33) -- the largest piece, and last, because a file, a line and the
+      condition already make a failure fixable.
+
     Why this order: after 16a and 16b -- both small -- a failing test is a crash naming a file, a line, a class
     and a function, which is enough for an AI to fix it and re-run. Everything after that is refinement.
