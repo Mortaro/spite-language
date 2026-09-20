@@ -1,0 +1,9 @@
+30 2 33
+true false true
+engine,cookie_clicker,compiler engine!,cookie_clicker!,compiler!
+cookie_clicker,engine,compiler compiler,cookie_clicker,engine
+compiler engine,compiler
+36 3
+found compiler 21
+by label 11
+no repository with 999 stars

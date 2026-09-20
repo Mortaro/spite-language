@@ -1,0 +1,29 @@
+var console = Console()
+var repositories = List<Repository>()
+
+func MemberTemplates() {
+    repositories.append(Repository("engine", 10, true))
+    repositories.append(Repository("cookie_clicker", 3, false))
+    repositories.append(Repository("compiler", 20, true))
+    console.print(repositories.filter_active().sum_stars(), repositories.count_active(), repositories.sum_stars())
+    console.print(repositories.any_active(), repositories.all_active(), repositories.filter_active().all_active())
+    console.print(repositories.map_name().join(","), repositories.map_label().join(","))
+    console.print(repositories.sort_by_stars().map_name().join(","), repositories.sort_by_name().map_name().join(","))
+    console.print(repositories.sort_by_label().first().name, repositories.filter_is_popular().map_name().join(","))
+    repositories.each_bump_stars()
+    console.print(repositories.sum_stars(), repositories.map_get_stars().count())
+    var found = repositories.find_by_name("compiler")
+    if found {
+        console.print("found", found.name, found.stars)
+    }
+    var by_label = repositories.find_by_label("engine!")
+    if by_label {
+        console.print("by label", by_label.stars)
+    }
+    var missing = repositories.find_by_stars(999)
+    if missing {
+        console.print("unexpected")
+    } else {
+        console.print("no repository with 999 stars")
+    }
+}

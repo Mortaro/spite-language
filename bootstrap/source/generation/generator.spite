@@ -5,6 +5,7 @@ var classes = List<Analysis.ClassInfo>()
 var enums = List<Analysis.EnumInfo>()
 var unions = List<Analysis.UnionInfo>()
 var list_names = List<String>()
+var list_template_names = List<String>()
 var dictionary_names = List<String>()
 var support_class_names = List<String>()
 var current_owner = ""
@@ -2177,11 +2178,179 @@ func generate_list_method(element: Analysis.SpiteType, name: String, object_resu
             class_information,
         )
     }
+    var element_class_ref = type_shape.as_class_ref(element)
+    if element_class_ref {
+        var element_class = find_class_by_c_name(element_class_ref.c_name)
+        if element_class {
+            var template_prefixes = ["find_by_", "sort_by_", "filter_", "count_", "sum_", "each_", "map_", "any_", "all_"]
+            var prefix_index = 0
+            while prefix_index < template_prefixes.count() {
+                var template_prefix = template_prefixes[prefix_index]
+                if name.starts_with(template_prefix) and name.length() > template_prefix.length() {
+                    var member_name = name.slice(template_prefix.length(), name.length())
+                    return generate_list_template(element, element_class, list_name, template_prefix, member_name, object_result, object_ast, arguments_ast, scope, class_information)
+                }
+                prefix_index = prefix_index + 1
+            }
+        }
+    }
     report("List has no method '" + name + "'")
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
-func generate_list_literal(literal: Syntax.Expressions.ListLiteralExpression, element: Analysis.SpiteType, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
+func member_type_of(element_class: Analysis.ClassInfo, member_name: String): Nullable<Analysis.SpiteType> {
+    var field = element_class.find_field(member_name)
+    if field {
+        return field.get_type()
+    }
+    var function = find_or_instantiate_function(element_class, member_name)
+    if function {
+        if function.parameters.count() == 0 {
+            return function.get_return_type()
+        }
+    }
+    return null
+}
+
+func member_is_function(element_class: Analysis.ClassInfo, member_name: String): Bool {
+    if element_class.find_field(member_name) {
+        return false
+    }
+    return true
+}
+
+func member_read_code(element_class: Analysis.ClassInfo, member_name: String, item_code: String): String {
+    if element_class.find_field(member_name) {
+        return item_code + "->" + member_name
+    }
+    return element_class.c_name + "_" + member_name + "(" + item_code + ")"
+}
+
+func is_numeric_type(spite_type: Analysis.SpiteType): Bool {
+    var scalar = type_shape.as_scalar(spite_type)
+    if scalar {
+        return scalar.kind != 'boolean_kind'
+    }
+    return false
+}
+
+func is_boolean_type(spite_type: Analysis.SpiteType): Bool {
+    var scalar = type_shape.as_scalar(spite_type)
+    if scalar {
+        return scalar.kind == 'boolean_kind'
+    }
+    return false
+}
+
+func generate_list_template(element: Analysis.SpiteType, element_class: Analysis.ClassInfo, list_name: String, template_prefix: String, member_name: String, object_result: ExpressionResult, object_ast: Syntax.Expressions.Expression, arguments_ast: List<Syntax.Expressions.Expression>, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
+    var member_type = member_type_of(element_class, member_name)
+    if not member_type {
+        report("'" + element_class.simple_name + "' has no attribute or zero argument function '" + member_name + "' for '" + template_prefix + member_name + "'")
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    crash member_type
+    var function_c_name = list_name + "_" + template_prefix + member_name
+    var item = c_type_name(element)
+    var member_c_type = c_type_name(member_type)
+    var computed = member_is_function(element_class, member_name)
+    var owned_member = computed and type_needs_drop(member_type)
+    var read = member_c_type + " member = " + member_read_code(element_class, member_name, "item") + ";"
+    var release_member = ""
+    if owned_member {
+        release_member = release_call(member_type, "member") + ";"
+    }
+    var loop_open = "for (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) {\n" + item + " item = self->items[spite_index];\n"
+    var self_parameter = list_name + "* self"
+    var requirement = ""
+    var return_type = void_type()
+    var parameter_types = no_types()
+    var body = ""
+
+    if template_prefix == "filter_" or template_prefix == "any_" or template_prefix == "all_" or template_prefix == "count_" {
+        if not is_boolean_type(member_type) {
+            requirement = "return Bool"
+            if template_prefix == "count_" and is_numeric_type(member_type) {
+                requirement = "return Bool (to add up a numeric member use 'sum_" + member_name + "')"
+            }
+        }
+    }
+    if template_prefix == "sum_" and not is_numeric_type(member_type) {
+        requirement = "return a numeric type"
+    }
+    if template_prefix == "each_" and not computed {
+        requirement = "be a function: reading an attribute and discarding it does nothing"
+    }
+    if not requirement.is_empty() {
+        report("'" + template_prefix + member_name + "': the member '" + member_name + "' of '" + element_class.simple_name + "' is a " + type_label(member_type) + ", but '" + template_prefix + "' needs it to " + requirement)
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+
+    if template_prefix == "filter_" {
+        return_type = list_type_of(element)
+        body = list_name + "* result = " + list_name + "_make();\n" + loop_open + read + "\nif (member) " + list_name + "_add(result, " + retain_call(element, "item") + ");\n}\nreturn result;"
+    } else if template_prefix == "any_" {
+        return_type = boolean_type()
+        body = loop_open + read + "\nif (member) return true;\n}\nreturn false;"
+    } else if template_prefix == "all_" {
+        return_type = boolean_type()
+        body = loop_open + read + "\nif (!member) return false;\n}\nreturn true;"
+    } else if template_prefix == "count_" {
+        return_type = integer_type()
+        body = "int32_t result = 0;\n" + loop_open + read + "\nif (member) result = result + 1;\n}\nreturn result;"
+    } else if template_prefix == "sum_" {
+        return_type = member_type
+        body = member_c_type + " result = 0;\n" + loop_open + read + "\nresult = result + member;\n}\nreturn result;"
+    } else if template_prefix == "each_" {
+        if type_shape.is_void(member_type) {
+            body = loop_open + member_read_code(element_class, member_name, "item") + ";\n}"
+        } else {
+            body = loop_open + read + "\n" + release_member + "\n(void)member;\n}"
+        }
+    } else if template_prefix == "map_" {
+        return_type = list_type_of(member_type)
+        var mapped_list = ensure_list(member_type)
+        var stored = "member"
+        if type_needs_drop(member_type) and not computed {
+            stored = retain_call(member_type, "member")
+        }
+        body = mapped_list + "* result = " + mapped_list + "_make();\n" + loop_open + read + "\n" + mapped_list + "_add(result, " + stored + ");\n}\nreturn result;"
+    } else if template_prefix == "find_by_" {
+        return_type = nullable_type_of(element)
+        parameter_types = one_type(member_type)
+        var equal = "member == value"
+        if type_shape.as_string(member_type) {
+            equal = "SpiteString_equals(member, value)"
+        }
+        var release_value = release_statement(member_type, "value")
+        body = loop_open + read + "\nbool spite_found = " + equal + ";\n" + release_member + "\nif (spite_found) { " + release_value + " return " + retain_call(element, "item") + "; }\n}\n" + release_value + "\nreturn 0;"
+    } else {
+        return_type = list_type_of(element)
+        var before = "keys[spite_inner - 1] > key"
+        if type_shape.as_string(member_type) {
+            before = "SpiteString_greater(keys[spite_inner - 1], key)"
+        }
+        var release_keys = ""
+        if owned_member {
+            release_keys = "for (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) { " + release_call(member_type, "keys[spite_index]") + "; }\n"
+        }
+        body = list_name + "* result = " + list_name + "_make();\n" + member_c_type + "* keys = (" + member_c_type + "*)SPITE_MALLOC(sizeof(" + member_c_type + ") * (size_t)(self->count + 1));\n" + loop_open + read + "\n" + list_name + "_add(result, " + retain_call(element, "item") + ");\nkeys[spite_index] = member;\n}\nfor (int64_t spite_outer = 1; spite_outer < self->count; spite_outer = spite_outer + 1) {\n" + member_c_type + " key = keys[spite_outer];\n" + item + " moved = result->items[spite_outer];\nint64_t spite_inner = spite_outer;\nwhile (spite_inner > 0 && " + before + ") {\nkeys[spite_inner] = keys[spite_inner - 1];\nresult->items[spite_inner] = result->items[spite_inner - 1];\nspite_inner = spite_inner - 1;\n}\nkeys[spite_inner] = key;\nresult->items[spite_inner] = moved;\n}\n" + release_keys + "SPITE_FREE(keys);\nreturn result;"
+    }
+
+    if not list_template_names.contains(function_c_name) {
+        list_template_names.append(function_c_name)
+        var signature = c_type_name(return_type) + " " + function_c_name + "(" + self_parameter
+        if template_prefix == "find_by_" {
+            signature = signature + ", " + member_c_type + " value"
+        }
+        signature = signature + ")"
+        builder.add_prototype(signature + ";")
+        builder.add_support(signature + " {\n" + body + "\n}")
+    }
+    return generate_generic_call(function_c_name, object_result, object_ast, arguments_ast, parameter_types, return_type, scope, class_information)
+}
+
+func generate_list_literal(
+literal: Syntax.Expressions.ListLiteralExpression, element: Analysis.SpiteType, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var list_name = ensure_list(element)
     var temporary = next_temporary()
     var lines = List<String>()
