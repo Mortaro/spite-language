@@ -1,0 +1,40 @@
+type Named = {
+    name: String
+    size: Int
+}
+
+var console = Console()
+
+func Shapes() {
+    var planet = Planet("mars", 3389)
+    var pet = Pet("rex", 12, "dog")
+    announce(planet)
+    announce(pet)
+    announce({ name: "literal", size: 1 })
+    grow(planet)
+    grow(pet)
+    console.print(planet.size, pet.size, pet.kind)
+    var things = List<Named>()
+    things.append(planet)
+    things.append(Pet("tom", 4, "cat"))
+    things.append({ name: "box", size: 9 })
+    var index = 0
+    var total = 0
+    while index < things.count() {
+        total = total + things[index].size
+        index = index + 1
+    }
+    console.print(total, things[2].name, things.last().name.upper())
+    var point = { x: 3, y: 4, label: "corner" }
+    point.x = point.x + 10
+    console.print(point.x, point.y, point.label)
+}
+
+func announce(thing: Named) {
+    console.print(thing.name + " has size " + thing.size)
+}
+
+func grow(thing: Named) {
+    thing.size = thing.size + 1
+    thing.name = thing.name + "+"
+}

@@ -1,0 +1,16 @@
+type Named = {
+    name: String
+    size: Int
+}
+
+var console = Console()
+
+func ShapeMismatch() {
+    show({ name: "fine", size: 1 })
+    show({ name: "no size" })
+    show({ name: "wrong", size: "big" })
+}
+
+func show(thing: Named) {
+    console.print(thing.name)
+}

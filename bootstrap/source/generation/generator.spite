@@ -159,6 +159,7 @@ func generate(discovery: Discovery.DiscoveryResult, runtime_header_text: String,
         index = index + 1
     }
     emit_pending_functions()
+    emit_shape_bodies()
     emit_main(discovery.entry_mangled_name)
     return builder.render()
 }
@@ -179,6 +180,7 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
         classes.last().source_path = entry.get_file().path
         register_enums(entry)
         register_unions(entry)
+        register_shapes(entry)
         index = index + 1
     }
 }
@@ -201,6 +203,229 @@ func register_unions(entry: Discovery.DiscoveredClass) {
         }
         statement_index = statement_index + 1
     }
+}
+
+func register_shapes(entry: Discovery.DiscoveredClass) {
+    var file = entry.get_file()
+    var statement_index = 0
+    while statement_index < file.statements.count() {
+        var declaration = shape.as_type_declaration(file.statements[statement_index])
+        if declaration {
+            var information = Analysis.UnionInfo(entry.mangled_name + "_" + declaration.name, declaration.name, entry.qualified_dotted, entry.namespace_dotted, List<Syntax.Types.Type>())
+            information.is_shape = true
+            information.shape_fields = declaration.fields
+            unions.append(information)
+        }
+        statement_index = statement_index + 1
+    }
+}
+
+func shape_field_type(information: Analysis.UnionInfo, field_name: String): Nullable<Analysis.SpiteType> {
+    var index = 0
+    while index < information.shape_fields.count() {
+        var field = information.shape_fields[index]
+        if field.name == field_name {
+            var type_reference = field.type_reference
+            if type_reference {
+                var saved_owner = current_owner
+                current_owner = information.owner_qualified
+                var resolved = resolve_type(type_reference, information.owner_namespace)
+                current_owner = saved_owner
+                return resolved
+            }
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func fit_subject(candidate: Analysis.ClassInfo): String {
+    if candidate.c_name.starts_with("Object_") {
+        return "this object literal"
+    }
+    return "'" + candidate.simple_name + "'"
+}
+
+func admit_to_union(information: Analysis.UnionInfo, candidate: Analysis.ClassInfo) {
+    if information.has_member(candidate.c_name) {
+        return
+    }
+    if not information.is_shape {
+        report("'" + candidate.simple_name + "' is not a member of union '" + information.simple_name + "'")
+        return
+    }
+    var index = 0
+    while index < information.shape_fields.count() {
+        var wanted = information.shape_fields[index]
+        var wanted_type = shape_field_type(information, wanted.name)
+        var found = candidate.find_field(wanted.name)
+        if not found {
+            report(fit_subject(candidate) + " does not fit type '" + information.simple_name + "': it has no attribute '" + wanted.name + "'")
+            return
+        }
+        if found {
+            if wanted_type {
+                if not types_equal(found.get_type(), wanted_type) {
+                    report(fit_subject(candidate) + " does not fit type '" + information.simple_name + "': attribute '" + wanted.name + "' is a " + type_display_name(found.get_type()) + ", but the type needs a " + type_display_name(wanted_type))
+                    return
+                }
+            }
+        }
+        index = index + 1
+    }
+    information.members.append(candidate)
+}
+
+func ensure_shape_reader(information: Analysis.UnionInfo, field_name: String, field_type: Analysis.SpiteType): String {
+    var function_c_name = information.c_name + "_read_" + field_name
+    if not information.accessor_names.contains(field_name) {
+        information.accessor_names.append(field_name)
+        builder.add_prototype(c_type_name(field_type) + " " + function_c_name + "(" + information.c_name + " self);")
+    }
+    return function_c_name
+}
+
+func ensure_shape_writer(information: Analysis.UnionInfo, field_name: String, field_type: Analysis.SpiteType): String {
+    var function_c_name = information.c_name + "_write_" + field_name
+    if not information.writer_names.contains(field_name) {
+        information.writer_names.append(field_name)
+        builder.add_prototype("void " + function_c_name + "(" + information.c_name + " self, " + c_type_name(field_type) + " value);")
+    }
+    return function_c_name
+}
+
+func emit_union_release(information: Analysis.UnionInfo) {
+    var name = information.c_name
+    var release_lines = List<String>()
+    release_lines.append("void " + name + "_release(" + name + " self) {")
+    release_lines.append("if (self == 0) return;")
+    var member_index = 0
+    while member_index < information.members.count() {
+        var member = information.members[member_index]
+        release_lines.append("if " + class_id_test("self", member) + " { " + member.c_name + "_release((" + member.c_name + "*)self); return; }")
+        member_index = member_index + 1
+    }
+    release_lines.append("}")
+    builder.add_support(release_lines.join("\n"))
+}
+
+func emit_shape_bodies() {
+    var index = 0
+    while index < unions.count() {
+        var information = unions[index]
+        if information.is_shape {
+            emit_union_release(information)
+            var reader_index = 0
+            while reader_index < information.accessor_names.count() {
+                var field_name = information.accessor_names[reader_index]
+                var field_type = shape_field_type(information, field_name)
+                if field_type {
+                    var lines = List<String>()
+                    lines.append(c_type_name(field_type) + " " + information.c_name + "_read_" + field_name + "(" + information.c_name + " self) {")
+                    var member_index = 0
+                    while member_index < information.members.count() {
+                        var member = information.members[member_index]
+                        lines.append("if " + class_id_test("self", member) + " return " + retain_call(field_type, "((" + member.c_name + "*)self)->" + field_name) + ";")
+                        member_index = member_index + 1
+                    }
+                    lines.append("return " + default_value_for_type(field_type) + ";")
+                    lines.append("}")
+                    builder.add_support(lines.join("\n"))
+                }
+                reader_index = reader_index + 1
+            }
+            var writer_index = 0
+            while writer_index < information.writer_names.count() {
+                var written_name = information.writer_names[writer_index]
+                var written_type = shape_field_type(information, written_name)
+                if written_type {
+                    var writer_lines = List<String>()
+                    writer_lines.append("void " + information.c_name + "_write_" + written_name + "(" + information.c_name + " self, " + c_type_name(written_type) + " value) {")
+                    var writer_member_index = 0
+                    while writer_member_index < information.members.count() {
+                        var writer_member = information.members[writer_member_index]
+                        var target = "((" + writer_member.c_name + "*)self)->" + written_name
+                        writer_lines.append("if " + class_id_test("self", writer_member) + " { " + release_statement(written_type, target) + " " + target + " = value; return; }")
+                        writer_member_index = writer_member_index + 1
+                    }
+                    writer_lines.append(release_statement(written_type, "value"))
+                    writer_lines.append("}")
+                    builder.add_support(writer_lines.join("\n"))
+                }
+                writer_index = writer_index + 1
+            }
+        }
+        index = index + 1
+    }
+}
+
+func generate_shape_read(information: Analysis.UnionInfo, field_name: String, object_result: ExpressionResult, object_ast: Syntax.Expressions.Expression): ExpressionResult {
+    var field_type = shape_field_type(information, field_name)
+    if not field_type {
+        report("type '" + information.simple_name + "' has no attribute '" + field_name + "'")
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    crash field_type
+    var reader = ensure_shape_reader(information, field_name, field_type)
+    var lines = List<String>()
+    lines.append(information.c_name + " spite_shaped = " + object_result.code + ";")
+    lines.append(c_type_name(field_type) + " spite_shaped_value = " + reader + "(spite_shaped);")
+    if owns(object_result, object_ast) {
+        lines.append(information.c_name + "_release(spite_shaped);")
+    }
+    lines.append("spite_shaped_value;")
+    var read = ExpressionResult("({ " + lines.join(" ") + " })", field_type)
+    read.owning_override = true
+    return read
+}
+
+func generate_object_literal(literal: Syntax.Expressions.ObjectLiteralExpression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
+    var names = List<String>()
+    var types = List<Analysis.SpiteType>()
+    var codes = List<String>()
+    var label = "Object"
+    var index = 0
+    while index < literal.fields.count() {
+        var field = literal.fields[index]
+        var value_ast = field.value
+        if value_ast {
+            var saved_counter = temporary_counter
+            var probe = generate_expression(value_ast, scope, class_information)
+            temporary_counter = saved_counter
+            names.append(field.name)
+            types.append(probe.get_type())
+            codes.append(coerce_for_store(value_ast, probe.get_type(), scope, class_information))
+            label = label + "_" + field.name + "_" + type_label(probe.get_type())
+        }
+        index = index + 1
+    }
+    var information = find_class_by_c_name(label)
+    if not information {
+        var created = Analysis.ClassInfo(label, "Object", "", label, allocate_class_id(label))
+        var field_index = 0
+        while field_index < names.count() {
+            created.fields.append(Analysis.FieldInfo(names[field_index], types[field_index], default_value_for_type(types[field_index])))
+            field_index = field_index + 1
+        }
+        classes.append(created)
+        builder.add_typedef("typedef struct " + label + " " + label + ";")
+        var saved_owner = current_owner
+        emit_class(created)
+        current_owner = saved_owner
+    }
+    var lines = List<String>()
+    var temporary = next_temporary()
+    lines.append(label + "* " + temporary + " = " + label + "_allocate();")
+    var assign_index = 0
+    while assign_index < names.count() {
+        var target = temporary + "->" + names[assign_index]
+        lines.append(release_statement(types[assign_index], target) + " " + target + " = " + codes[assign_index] + ";")
+        assign_index = assign_index + 1
+    }
+    lines.append(temporary + ";")
+    var built = ExpressionResult("({ " + lines.join(" ") + " })", Analysis.Types.ClassRefType(label))
+    built.owning_override = true
+    return built
 }
 
 func resolve_union_members() {
@@ -299,19 +524,9 @@ func emit_unions() {
         builder.add_support(
             name + " " + name + "_retain(" + name + " self) {\nif (self != 0) ((SpiteHeader*)self)->ref_count = ((SpiteHeader*)self)->ref_count + 1;\nreturn self;\n}",
         )
-        var release_lines = List<String>()
-        release_lines.append("void " + name + "_release(" + name + " self) {")
-        release_lines.append("if (self == 0) return;")
-        var member_index = 0
-        while member_index < information.members.count() {
-            var member = information.members[member_index]
-            release_lines.append(
-                "if " + class_id_test("self", member) + " { " + member.c_name + "_release((" + member.c_name + "*)self); return; }",
-            )
-            member_index = member_index + 1
+        if not information.is_shape {
+            emit_union_release(information)
         }
-        release_lines.append("}")
-        builder.add_support(release_lines.join("\n"))
         index = index + 1
     }
 }
@@ -1201,6 +1416,9 @@ func default_value_for_type(spite_type: Analysis.SpiteType): String {
     if union_type {
         var union_information = find_union_by_c_name(union_type.c_name)
         if union_information {
+            if union_information.is_shape {
+                return "0"
+            }
             return "((" + union_type.c_name + ")" + union_information.members.first().c_name + "_default())"
         }
     }
@@ -1259,6 +1477,16 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
     }
     var to_union = type_shape.as_union(to)
     if to_union {
+        var from_class_ref = type_shape.as_class_ref(from)
+        if from_class_ref {
+            var admitted_union = find_union_by_c_name(to_union.c_name)
+            var admitted_class = find_class_by_c_name(from_class_ref.c_name)
+            if admitted_union {
+                if admitted_class {
+                    admit_to_union(admitted_union, admitted_class)
+                }
+            }
+        }
         return "((" + to_union.c_name + ")(" + code + "))"
     }
     if type_shape.as_string(to) {
@@ -3444,6 +3672,10 @@ func generate_expression(expression: Syntax.Expressions.Expression, scope: Scope
     if list_literal {
         return generate_untyped_list_literal(list_literal, scope, class_information)
     }
+    var object_literal = shape.as_object_literal(expression)
+    if object_literal {
+        return generate_object_literal(object_literal, scope, class_information)
+    }
     var generic_call = shape.as_generic_call(expression)
     if generic_call {
         return generate_generic_constructor(generic_call, class_information)
@@ -3631,11 +3863,33 @@ func generate_assignment(assignment: Syntax.Statements.AssignmentStatement, scop
         var object_ast = member.object
         assert object_ast
         var object_result = generate_expression(object_ast, scope, class_information)
+        var shaped_union = type_shape.as_union(object_result.get_type())
+        if shaped_union {
+            var shaped_information = find_union_by_c_name(shaped_union.c_name)
+            if shaped_information {
+                var written_type = shape_field_type(shaped_information, member.name)
+                if shaped_information.is_shape {
+                    if written_type {
+                        var writer = ensure_shape_writer(shaped_information, member.name, written_type)
+                        var shaped_temporary = next_temporary()
+                        builder.add_user(shaped_union.c_name + " " + shaped_temporary + " = " + object_result.code + ";")
+                        builder.add_user(writer + "(" + shaped_temporary + ", " + coerce_for_store(value_ast, written_type, scope, class_information) + ");")
+                        if owns(object_result, object_ast) {
+                            builder.add_user(shaped_union.c_name + "_release(" + shaped_temporary + ");")
+                        }
+                        return
+                    }
+                }
+            }
+            report("cannot assign to '" + member.name + "' through this value")
+            return
+        }
         var object_class_ref = type_shape.as_class_ref(object_result.get_type())
         assert object_class_ref
         var target_class = find_class_by_c_name(object_class_ref.c_name)
         assert target_class
-        var setter = find_setter(target_class, member.name, class_information)
+        var setter = find_setter(
+target_class, member.name, class_information)
         if setter {
             var setter_arguments = List<Syntax.Expressions.Expression>()
             setter_arguments.append(value_ast)
@@ -3729,6 +3983,10 @@ func generate_switch_statement(switch_statement: Syntax.Statements.SwitchStateme
     assert subject_union
     var information = find_union_by_c_name(subject_union.c_name)
     assert information
+    if information.is_shape {
+        report("switch needs a union: '" + information.simple_name + "' is a type matched by shape, so read its attributes directly")
+        return
+    }
     var subject_temporary = next_temporary()
     builder.add_user("{")
     builder.add_user(subject_union.c_name + " " + subject_temporary + " = " + subject.code + ";")
@@ -3779,6 +4037,13 @@ func generate_switch_statement(switch_statement: Syntax.Statements.SwitchStateme
 }
 
 func generate_union_dispatch(information: Analysis.UnionInfo, member_name: String, is_call: Bool, object_result: ExpressionResult, object_ast: Syntax.Expressions.Expression, arguments_ast: List<Syntax.Expressions.Expression>, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
+    if information.is_shape {
+        if is_call {
+            report("calling a function through type '" + information.simple_name + "' is not supported yet")
+            return ExpressionResult("0", Analysis.Types.VoidType())
+        }
+        return generate_shape_read(information, member_name, object_result, object_ast)
+    }
     var first_member = information.members.first()
     var result_type = void_type()
     var expected_types = no_types()
@@ -4211,6 +4476,10 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
 }
 
 func emit_class(information: Analysis.ClassInfo) {
+    if information.is_emitted {
+        return
+    }
+    information.is_emitted = true
     current_owner = information.qualified_dotted
     var struct_lines = List<String>()
     struct_lines.append("struct " + information.c_name + " {")

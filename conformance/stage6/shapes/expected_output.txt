@@ -1,0 +1,6 @@
+mars has size 3389
+rex has size 12
+literal has size 1
+3390 13 dog
+3403 box BOX
+13 4 corner

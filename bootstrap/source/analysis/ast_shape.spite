@@ -546,3 +546,43 @@ func as_switch_statement(statement: Syntax.Statements.Statement): Nullable<Synta
         Syntax.Statements.ExpressionStatement: return null
     }
 }
+
+func as_object_literal(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.ObjectLiteralExpression> {
+    switch expression {
+        Syntax.Expressions.NullLiteral: return null
+        Syntax.Expressions.TrueLiteral: return null
+        Syntax.Expressions.FalseLiteral: return null
+        Syntax.Expressions.IntegerLiteral: return null
+        Syntax.Expressions.FloatLiteral: return null
+        Syntax.Expressions.StringLiteralExpression: return null
+        Syntax.Expressions.EnumLiteralExpression: return null
+        Syntax.Expressions.GenericIdentifierExpression: return null
+        Syntax.Expressions.IdentifierExpression: return null
+        Syntax.Expressions.ListLiteralExpression: return null
+        Syntax.Expressions.ObjectLiteralExpression: return expression
+        Syntax.Expressions.UnaryExpression: return null
+        Syntax.Expressions.BinaryExpression: return null
+        Syntax.Expressions.CallExpression: return null
+        Syntax.Expressions.GenericCallExpression: return null
+        Syntax.Expressions.MemberExpression: return null
+        Syntax.Expressions.IndexExpression: return null
+    }
+}
+
+func as_type_declaration(statement: Syntax.Statements.Statement): Nullable<Syntax.Statements.TypeDeclaration> {
+    switch statement {
+        Syntax.Statements.GenericsDeclaration: return null
+        Syntax.Statements.VariableDeclaration: return null
+        Syntax.Statements.FunctionDeclaration: return null
+        Syntax.Statements.TypeDeclaration: return statement
+        Syntax.Statements.EnumDeclaration: return null
+        Syntax.Statements.UnionDeclaration: return null
+        Syntax.Statements.AssignmentStatement: return null
+        Syntax.Statements.IfStatement: return null
+        Syntax.Statements.WhileStatement: return null
+        Syntax.Statements.SwitchStatement: return null
+        Syntax.Statements.AssertStatement: return null
+        Syntax.Statements.ReturnStatement: return null
+        Syntax.Statements.ExpressionStatement: return null
+    }
+}

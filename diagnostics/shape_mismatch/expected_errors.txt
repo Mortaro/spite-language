@@ -1,0 +1,2 @@
+diagnostics/shape_mismatch/shape_mismatch.spite:10: error: this object literal does not fit type 'Named': it has no attribute 'size' (in ShapeMismatch.ShapeMismatch)
+diagnostics/shape_mismatch/shape_mismatch.spite:11: error: this object literal does not fit type 'Named': attribute 'size' is a String, but the type needs a Int (in ShapeMismatch.ShapeMismatch)

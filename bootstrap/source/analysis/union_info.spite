@@ -4,6 +4,10 @@ var owner_qualified = ""
 var owner_namespace = ""
 var member_types = List<Syntax.Types.Type>()
 var members = List<ClassInfo>()
+var is_shape = false
+var shape_fields = List<Syntax.Statements.FieldDeclaration>()
+var accessor_names = List<String>()
+var writer_names = List<String>()
 
 func UnionInfo(starting_c_name: String, starting_simple_name: String, starting_owner_qualified: String, starting_owner_namespace: String, starting_member_types: List<Syntax.Types.Type>) {
     c_name = starting_c_name
