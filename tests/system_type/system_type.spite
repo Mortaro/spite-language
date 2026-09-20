@@ -1,8 +1,0 @@
-type System = {
-    query: Query
-    with: Dictionary<Class>
-}
-
-func run_system(system: System): Bool {
-    return system.query
-}

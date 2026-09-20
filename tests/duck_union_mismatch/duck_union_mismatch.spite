@@ -1,9 +1,0 @@
-union Enemy = {
-    Player
-    Monster
-}
-
-func DuckUnionMismatch() {
-    var enemy: Enemy = Player(1)
-    enemy.special_move()
-}

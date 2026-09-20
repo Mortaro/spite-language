@@ -1,9 +1,0 @@
-var text = ""
-
-func Label(initial: String) {
-    text = initial
-}
-
-func append_marker() {
-    text = text + "-deep"
-}

@@ -1,5 +1,0 @@
-var count = 0
-
-func bump() {
-    count = count + 1
-}

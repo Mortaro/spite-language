@@ -982,12 +982,22 @@ func find_class_by_c_name(c_name: String): Analysis.ClassInfo? {
 }
 
 func find_class(name: String, current_namespace: String): Analysis.ClassInfo? {
-    if not current_namespace.is_empty() {
-        var qualified = current_namespace + "." + name
-        var found = find_class_by_qualified(qualified)
-        if found {
-            return found
+    var segments = current_namespace.split(".")
+    if current_namespace.is_empty() {
+        segments.clear()
+    }
+    while not segments.is_empty() {
+        var inside = find_class_by_qualified(segments.join(".") + "." + name)
+        if inside {
+            return inside
         }
+        if segments.last() == name {
+            var folder_entry = find_class_by_qualified(segments.join("."))
+            if folder_entry {
+                return folder_entry
+            }
+        }
+        segments.remove_last()
     }
     return find_class_by_qualified(name)
 }

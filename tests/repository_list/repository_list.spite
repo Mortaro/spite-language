@@ -1,4 +1,0 @@
-func main() {
-    var repositories = List<Repository>()
-    repositories.filter_active().count_stars()
-}

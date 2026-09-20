@@ -1,6 +1,0 @@
-var console = Console()
-
-func EntryFolderNamespace() {
-    var helper = Utilities.Helper()
-    console.print("doubled", helper.double(5))
-}

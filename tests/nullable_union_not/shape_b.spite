@@ -1,5 +1,0 @@
-var value = 0
-
-func ShapeB(starting_value: Int) {
-    value = starting_value
-}

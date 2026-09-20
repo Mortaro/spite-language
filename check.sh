@@ -46,9 +46,9 @@ if ! cmp -s "$work/generation_two.c" "$work/generation_three.c"; then
 fi
 
 cp "$work/generation_two.exe" .spite-cache/spite_development.exe   # the freshly built compiler, handy for trying things by hand
-echo "4/4 conformance corpus with generation 2"
+echo "4/4 conformance corpus and examples with generation 2"
 passed=0; failed=0
-for folder in conformance/*/*/; do
+for folder in conformance/*/*/ examples/*/; do   # the examples are held to the same standard as the corpus
   name=$(basename "$folder")
   flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")   # compiler flags such as --environment=server
   actual=$("$work/generation_two.exe" --file="$folder$name.spite" --mode=run --debug_memory=true $flags 2>&1 | tr -d '\r')
@@ -68,7 +68,7 @@ for folder in conformance/*/*/; do
   fi
   if [ "$body" == "$expected" ] && [ -n "$balance" ] && [ "$allocations" == "$frees" ]; then passed=$((passed+1)); else failed=$((failed+1)); echo "FAILED: $name"; echo "$actual" | head -8; fi
 done
-echo "conformance: $passed passed, $failed failed"
+echo "conformance and examples: $passed passed, $failed failed"
 [ "$failed" == "0" ] || exit 1
 
 # Programs that must NOT compile: the errors are the language's main channel to whoever (or whatever) writes the code.

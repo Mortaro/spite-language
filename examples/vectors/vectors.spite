@@ -1,8 +1,3 @@
-# manual.md section 5's Operators table: every operator is a shortcut for a
-# function the class defines (Vector.sum/subtract/multiply/equals/get_at/
-# set_at), so `+`, `-`, `*`, `==`, `!=`, `vector[index]`, and
-# `vector[index] = value` all work on a plain user class here exactly as
-# they do on Int/Float.
 var console = Console()
 
 func Vectors() {

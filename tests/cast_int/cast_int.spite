@@ -1,3 +1,0 @@
-func sum(first_value: Int, second_value: Float): Int {
-    return first_value + second_value
-}

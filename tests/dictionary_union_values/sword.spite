@@ -1,7 +1,0 @@
-var name = "Sword"
-var power = 0
-
-func Sword(new_name: String, new_power: Int) {
-    name = new_name
-    power = new_power
-}

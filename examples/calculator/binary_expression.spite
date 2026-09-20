@@ -1,6 +1,6 @@
 var operator: TokenKind = 'plus'
-var left: Nullable<Expression> = null
-var right: Nullable<Expression> = null
+var left: Expression? = null
+var right: Expression? = null
 
 func BinaryExpression(starting_operator: TokenKind, left_expression: Expression, right_expression: Expression) {
     operator = starting_operator

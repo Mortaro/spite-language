@@ -1,5 +1,0 @@
-var health = 0
-
-func Monster(starting_health: Int) {
-    health = starting_health
-}

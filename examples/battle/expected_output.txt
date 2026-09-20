@@ -1,0 +1,7 @@
+health 10 alive true
+health 6 alive true
+duelist health 7
+hero loadout sword 5
+beast loadout claws 3
+literal loadout bow 7
+done

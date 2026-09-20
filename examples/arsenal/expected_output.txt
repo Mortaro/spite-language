@@ -1,0 +1,4 @@
+magic hit for 10
+environment is server
+argument count 0
+first argument 

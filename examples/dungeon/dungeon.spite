@@ -3,7 +3,7 @@ var system = Program()
 var player = Player()
 var monsters = List<Monster>()
 var settings = Dictionary<Int>()
-var target: Nullable<Monster> = null
+var target: Monster? = null
 var tick = 0
 
 func Dungeon() {

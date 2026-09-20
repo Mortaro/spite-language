@@ -1,9 +1,0 @@
-var held_value = 0
-
-func Leaf(starting_value: Int) {
-    held_value = starting_value
-}
-
-func total(): Int {
-    return held_value
-}

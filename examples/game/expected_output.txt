@@ -1,0 +1,5 @@
+rendering the scene
+[debug] rendering the scene
+a modded monster
+Monster roars
+Modded monster taunts you

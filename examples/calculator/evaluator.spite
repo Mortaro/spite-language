@@ -1,6 +1,6 @@
 var console = Console()
 var variables = Dictionary<Float>()
-var current_tree: Nullable<Expression> = null
+var current_tree: Expression? = null
 
 func Evaluator() { }
 
@@ -8,20 +8,10 @@ func assign(name: String, value: Float) {
     variables.set(name, value)
 }
 
-# Stores the freshly parsed tree in 'current_tree' (dropping whatever tree
-# was there before, per the ordinary "overwriting an owning slot drops the
-# old value first" rule) before evaluating it, rather than passing it
-# straight into 'evaluate' by value: 'evaluate' never stores its parameter
-# anywhere and this compiler never auto-drops a by-value class/union
-# parameter for anything but String, so a fresh, owned tree handed to it
-# directly would leak with no owner left to free it (manual.md's Memory
-# section documents this exact gap). Routing it through a field first gives
-# it a real, single owner that keeps dropping it correctly on every future
-# call and when the Evaluator itself is dropped.
 func evaluate_tree(tree: Expression): Float {
     current_tree = tree
     var stored_tree = current_tree
-    assert stored_tree
+    crash stored_tree
     return evaluate(stored_tree)
 }
 

@@ -3,7 +3,7 @@ var evaluator = Evaluator()
 func Calculator() {
     var program_file = File("examples/calculator/program.txt")
     var content = program_file.read()
-    assert content
+    crash content
     var lines = content.lines()
     var index = 0
     while index < lines.count() {

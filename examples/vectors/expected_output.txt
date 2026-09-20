@@ -1,0 +1,7 @@
+sum 4 6
+difference 2 2
+equal true
+not equal true
+scaled 2 4
+mutated 10 20
+length squared 25

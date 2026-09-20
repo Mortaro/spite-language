@@ -1,4 +1,0 @@
-func main() {
-    var person = Person(1)
-    person.set_age(2)
-}

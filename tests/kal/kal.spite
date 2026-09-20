@@ -1,4 +1,0 @@
-func Kal(arguments: Arguments) {
-    assert arguments.some_key
-    console.print(arguments.some_key)
-}

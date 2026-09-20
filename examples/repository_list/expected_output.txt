@@ -1,0 +1,10 @@
+first stars 15
+active stars 35
+found compiler 20
+cookie_clicker 3
+engine 15
+compiler 20
+name String engine
+stars Int 15
+active Bool true
+done

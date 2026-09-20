@@ -1,6 +1,0 @@
-var target: Nullable<Monster> = Monster()
-var target: Nullable<Monster> = null
-
-func get_target(): Nullable<Monster> {
-    return null
-}
