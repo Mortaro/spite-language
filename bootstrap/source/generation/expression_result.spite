@@ -9,6 +9,6 @@ func ExpressionResult(starting_code: String, starting_spite_type: Analysis.Spite
 
 func get_type(): Analysis.SpiteType {
     var value = spite_type
-    assert value
+    crash value
     return value
 }

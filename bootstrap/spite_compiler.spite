@@ -4,13 +4,13 @@ func SpiteCompiler(arguments: Arguments) {
     load("source")
 
     var file_argument = arguments.file
-    assert file_argument
+    crash file_argument
     var mode_argument = arguments.mode
-    assert mode_argument
+    crash mode_argument
 
     var program_file = File(file_argument)
     var content = program_file.read()
-    assert content
+    crash content
 
     if mode_argument == "tokens" {
         run_tokens_mode(content)
@@ -29,7 +29,7 @@ func SpiteCompiler(arguments: Arguments) {
 
     if mode_argument == "build" {
         var output_argument = arguments.output
-        assert output_argument
+        crash output_argument
         run_build_mode(file_argument, content, output_argument, has_debug_memory_flag(arguments))
         return
     }
@@ -121,14 +121,14 @@ func pascal_case_class_name(snake: String): String {
 
 func build_to_path(file_argument: String, content: String, output_path: String, debug_memory: Bool): Bool {
     var code = generate_c_or_report(file_argument, content)
-    assert code
+    crash code
     var directory = Directory(".spite-cache")
     directory.create()
     var class_name = computed_class_name(file_argument)
     var c_path = ".spite-cache/" + class_name + "_gen1.c"
     var c_file = File(c_path)
     var wrote = c_file.write(code)
-    assert wrote
+    crash wrote
 
     var process_arguments = List<String>()
     process_arguments.append("cc")

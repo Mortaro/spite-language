@@ -1,6 +1,5 @@
 var value: Nullable<Syntax.Expressions.Expression> = null
 
 func ReturnStatement(return_value: Nullable<Syntax.Expressions.Expression>) {
-    assert return_value
     value = return_value
 }

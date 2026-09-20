@@ -8,6 +8,6 @@ func ParamInfo(starting_name: String, starting_spite_type: SpiteType) {
 
 func get_type(): SpiteType {
     var value = spite_type
-    assert value
+    crash value
     return value
 }

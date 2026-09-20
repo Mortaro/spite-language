@@ -177,7 +177,7 @@ func inline_type(type_reference: Syntax.Types.Type): String {
     switch type_reference {
         Syntax.Types.ReferenceType: {
             var inner = type_reference.inner
-            assert inner
+            crash inner
             return "&" + inline_type(inner)
         }
         Syntax.Types.GenericType: return "$" + type_reference.name
@@ -212,7 +212,7 @@ func inline_generic_argument(argument: Syntax.Types.GenericArgument): String {
     switch argument {
         Syntax.Types.TypeArgument: {
             var value = argument.value
-            assert value
+            crash value
             return inline_type(value)
         }
         Syntax.Types.IntegerArgument: return "" + argument.value

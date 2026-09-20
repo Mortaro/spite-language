@@ -5,6 +5,10 @@ func NullableNarrowing() {
     print_box(held)
     held = Box(42)
     print_box(held)
+    update_held()
+}
+
+func update_held() {
     assert held
     console.print("box value is " + held.value)
     held.value = 100

@@ -457,7 +457,7 @@ func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.
 func infer_declared_type(annotation: Nullable<Syntax.Types.Type>, initializer: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): Analysis.SpiteType {
     if annotation {
         var resolved = resolve_type(annotation, class_information.namespace_dotted)
-        assert resolved
+        crash resolved
         return resolved
     }
     var result = generate_expression(initializer, scope, class_information)
@@ -886,7 +886,7 @@ func type_label(spite_type: Analysis.SpiteType): String {
 
 func ensure_nullable_scalar_typedef(inner: Analysis.SpiteType): String {
     var scalar = type_shape.as_scalar(inner)
-    assert scalar
+    crash scalar
     var label = type_label(inner)
     var struct_name = "Nullable_" + label
     if not nullable_scalar_labels.contains(label) {
@@ -1121,7 +1121,7 @@ func is_owning_shape(expression: Syntax.Expressions.Expression): Bool {
     var member = shape.as_member(expression)
     if member {
         var object_ast = member.object
-        assert object_ast
+        crash object_ast
         var object_identifier = shape.as_identifier(object_ast)
         if object_identifier {
             if arguments_parameter_names.contains(object_identifier.name) {
@@ -1402,9 +1402,9 @@ func generate_string_binary(operator: Syntax.Expressions.BinaryOperator, left_re
 
 func generate_binary(binary: Syntax.Expressions.BinaryExpression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var left_ast = binary.left
-    assert left_ast
+    crash left_ast
     var right_ast = binary.right
-    assert right_ast
+    crash right_ast
     if is_enum_literal(left_ast) and not is_enum_literal(right_ast) {
         var swapped_right = generate_expression(right_ast, scope, class_information)
         var swapped_left_code = coerce_for_store(left_ast, swapped_right.get_type(), scope, class_information)
@@ -1432,7 +1432,7 @@ func generate_binary(binary: Syntax.Expressions.BinaryExpression, scope: Scope, 
 
 func generate_unary(unary: Syntax.Expressions.UnaryExpression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var operand_ast = unary.operand
-    assert operand_ast
+    crash operand_ast
     var operand = generate_expression(operand_ast, scope, class_information)
     if unary.operator == 'negate' {
         return ExpressionResult("(-(" + operand.code + "))", operand.get_type())
@@ -1477,7 +1477,7 @@ func generate_own_function_call(name: String, arguments_ast: List<Syntax.Express
         report("unknown function '" + name + "'")
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
-    assert function
+    crash function
     var argument_codes = generate_argument_list(
         arguments_ast,
         parameter_types_of(function.parameters),
@@ -1551,7 +1551,7 @@ func generate_method_call(member: Syntax.Expressions.MemberExpression, object_as
     var object_union = type_shape.as_union(object_result.get_type())
     if object_union {
         var union_information = find_union_by_c_name(object_union.c_name)
-        assert union_information
+        crash union_information
         return generate_union_dispatch(
             union_information,
             member.name,
@@ -1592,9 +1592,9 @@ func generate_method_call(member: Syntax.Expressions.MemberExpression, object_as
         report("method call on a value that is not a class instance")
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
-    assert object_class_ref
+    crash object_class_ref
     var target_class = find_class_by_c_name(object_class_ref.c_name)
-    assert target_class
+    crash target_class
     var function = target_class.find_function(member.name)
     if not function {
         if member.name == "copy" {
@@ -1612,7 +1612,7 @@ func generate_method_call(member: Syntax.Expressions.MemberExpression, object_as
         report("'" + object_class_ref.c_name + "' does not define '" + member.name + "'")
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
-    assert function
+    crash function
     return generate_generic_call(
         function.c_name,
         object_result,
@@ -2001,7 +2001,7 @@ func generate_list_literal(literal: Syntax.Expressions.ListLiteralExpression, el
     var index = 0
     while index < literal.elements.count() {
         var element_ast = literal.elements[index].value
-        assert element_ast
+        crash element_ast
         lines.append(
             list_name + "_add(" + temporary + ", " + coerce_for_store(element_ast, element, scope, class_information) + ");",
         )
@@ -2017,7 +2017,7 @@ func generate_untyped_list_literal(literal: Syntax.Expressions.ListLiteralExpres
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     var first_ast = literal.elements[0].value
-    assert first_ast
+    crash first_ast
     var saved_counter = temporary_counter
     var probe = generate_expression(first_ast, scope, class_information)
     temporary_counter = saved_counter
@@ -2026,7 +2026,7 @@ func generate_untyped_list_literal(literal: Syntax.Expressions.ListLiteralExpres
 
 func generate_generic_constructor(generic_call: Syntax.Expressions.GenericCallExpression, class_information: Analysis.ClassInfo): ExpressionResult {
     var callee_ast = generic_call.callee
-    assert callee_ast
+    crash callee_ast
     var callee = shape.as_identifier(callee_ast)
     if callee {
         if callee.name == "Dictionary" and generic_call.type_arguments.count() == 1 {
@@ -2054,9 +2054,9 @@ func generate_generic_constructor(generic_call: Syntax.Expressions.GenericCallEx
 
 func generate_index_read(index_expression: Syntax.Expressions.IndexExpression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var object_ast = index_expression.object
-    assert object_ast
+    crash object_ast
     var index_ast = index_expression.index
-    assert index_ast
+    crash index_ast
     var object_result = generate_expression(object_ast, scope, class_information)
     var arguments_ast = List<Syntax.Expressions.Expression>()
     arguments_ast.append(index_ast)
@@ -2541,7 +2541,7 @@ func collect_static_segments(expression: Syntax.Expressions.Expression, out: Lis
     var member = shape.as_member(expression)
     if member {
         var object_ast = member.object
-        assert object_ast
+        crash object_ast
         var ok = collect_static_segments(object_ast, out)
         if not ok {
             return false
@@ -2564,7 +2564,7 @@ func try_resolve_static_path(expression: Syntax.Expressions.Expression, current_
 
 func generate_call(call: Syntax.Expressions.CallExpression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var callee = call.callee
-    assert callee
+    crash callee
     var callee_identifier = shape.as_identifier(callee)
     if callee_identifier {
         if callee_identifier.name == "Console" {
@@ -2581,7 +2581,7 @@ func generate_call(call: Syntax.Expressions.CallExpression, scope: Scope, class_
     var member = shape.as_member(callee)
     if member {
         var object_ast = member.object
-        assert object_ast
+        crash object_ast
         var static_type = lookup_static_type(object_ast, scope, class_information)
         if static_type {
             if type_shape.is_console(static_type) {
@@ -2600,7 +2600,7 @@ func generate_call(call: Syntax.Expressions.CallExpression, scope: Scope, class_
 
 func generate_member_read(member: Syntax.Expressions.MemberExpression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var object_ast = member.object
-    assert object_ast
+    crash object_ast
     var object_result = generate_expression(object_ast, scope, class_information)
     if type_shape.is_arguments(object_result.get_type()) {
         var lookup_result = ExpressionResult(
@@ -2613,7 +2613,7 @@ func generate_member_read(member: Syntax.Expressions.MemberExpression, scope: Sc
     var read_union = type_shape.as_union(object_result.get_type())
     if read_union {
         var read_union_information = find_union_by_c_name(read_union.c_name)
-        assert read_union_information
+        crash read_union_information
         return generate_union_dispatch(
             read_union_information,
             member.name,
@@ -2631,15 +2631,15 @@ func generate_member_read(member: Syntax.Expressions.MemberExpression, scope: Sc
 
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
-    assert object_class_ref
+    crash object_class_ref
     var target_class = find_class_by_c_name(object_class_ref.c_name)
-    assert target_class
+    crash target_class
     var field = target_class.find_field(member.name)
     if not field {
         report("'" + object_class_ref.c_name + "' has no field '" + member.name + "'")
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
-    assert field
+    crash field
     if is_owning_shape(object_ast) {
         var object_temporary = next_temporary()
         var field_temporary = next_temporary()
@@ -3006,7 +3006,7 @@ func generate_union_dispatch(information: Analysis.UnionInfo, member_name: Strin
             )
             return ExpressionResult("0", Analysis.Types.VoidType())
         }
-        assert first_function
+        crash first_function
         result_type = first_function.get_return_type()
         expected_types = parameter_types_of(first_function.parameters)
     } else {
@@ -3017,7 +3017,7 @@ func generate_union_dispatch(information: Analysis.UnionInfo, member_name: Strin
             )
             return ExpressionResult("0", Analysis.Types.VoidType())
         }
-        assert first_field
+        crash first_field
         result_type = first_field.get_type()
     }
     var owning_object = is_owning_shape(object_ast)
@@ -3124,8 +3124,18 @@ func generate_assert_statement(assert_statement: Syntax.Statements.AssertStateme
         var condition_result = generate_expression(condition_ast, scope, class_information)
         guard_code = condition_result.code
     }
+    if not assert_statement.is_crash {
+        if function_information.is_constructor {
+            report("'assert' is not allowed in a constructor: a constructor is setup, not logic. Take already resolved values, or use 'crash' when absence is a bug")
+        } else if not type_shape.is_void(function_information.get_return_type()) {
+            if not type_shape.as_nullable(function_information.get_return_type()) {
+                report("'assert' is only allowed in a function that returns nothing or a Nullable<T>: the caller could not tell the default from a real value. Return Nullable<T>, or use 'crash' when absence is a bug")
+            }
+        }
+    }
     builder.add_user("if (!(" + guard_code + ")) {")
     if assert_statement.is_crash {
+
         builder.add_user("fflush(stdout);")
         builder.add_user("fprintf(stderr, \"spite.crash\\t" + current_owner + "\\t" + function_information.name + "\\n\");")
         builder.add_user("exit(1);")
@@ -3225,7 +3235,7 @@ func constructor_parameter_list(information: Analysis.ClassInfo): String {
     if not constructor {
         return "void"
     }
-    assert constructor
+    crash constructor
     var parts = List<String>()
     var index = 0
     while index < constructor.parameters.count() {

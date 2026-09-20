@@ -6,6 +6,6 @@ func DictionaryType(starting_element: SpiteType) {
 
 func get_element(): SpiteType {
     var value = element
-    assert value
+    crash value
     return value
 }

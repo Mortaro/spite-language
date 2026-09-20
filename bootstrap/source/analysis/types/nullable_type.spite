@@ -6,6 +6,6 @@ func NullableType(starting_inner: SpiteType) {
 
 func get_inner(): SpiteType {
     var value = inner
-    assert value
+    crash value
     return value
 }

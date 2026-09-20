@@ -5,11 +5,11 @@ func Wrapper(starting_inner: Inner) {
 }
 
 func label(): String {
-    assert inner
+    crash inner
     return inner.label()
 }
 
 func unwrap_label(): String {
-    assert inner
+    crash inner
     return "wrapped(" + inner.label() + ")"
 }

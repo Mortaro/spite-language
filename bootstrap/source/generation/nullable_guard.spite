@@ -12,6 +12,6 @@ func NullableGuard(starting_name: String, starting_inner: Analysis.SpiteType, st
 
 func get_inner(): Analysis.SpiteType {
     var value = inner
-    assert value
+    crash value
     return value
 }
