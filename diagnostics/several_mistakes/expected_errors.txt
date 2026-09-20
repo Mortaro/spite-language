@@ -2,5 +2,5 @@ diagnostics/several_mistakes/several_mistakes.spite:6: error: unknown function '
 diagnostics/several_mistakes/several_mistakes.spite:10: error: 'assert' is only allowed in a function that returns nothing or a value that may be null: the caller could not tell the default from a real value. Return 'Type?', or use 'crash' when absence is a bug (in SeveralMistakes.helper)
 diagnostics/several_mistakes/several_mistakes.spite:15: error: unknown type 'Strng' (in SeveralMistakes.other)
 diagnostics/several_mistakes/several_mistakes.spite:16: error: unknown identifier 'nothing' (in SeveralMistakes.other)
-diagnostics/several_mistakes/several_mistakes.spite:16: error: member read on a value that is not a class instance (in SeveralMistakes.other)
+diagnostics/several_mistakes/several_mistakes.spite:16: error: 'name' cannot be read from a Value (in SeveralMistakes.other)
 diagnostics/several_mistakes/several_mistakes.spite:15: error: 'value' is never used: remove it, or name it '_value' to say that is intended (in SeveralMistakes.other)

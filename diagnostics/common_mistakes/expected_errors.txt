@@ -2,7 +2,7 @@ diagnostics/common_mistakes/common_mistakes.spite:6: error: 'Pet' has no attribu
 diagnostics/common_mistakes/common_mistakes.spite:7: error: 'undefined_name' is not a variable or an attribute here: declare it with 'var undefined_name = ...' first (in CommonMistakes.CommonMistakes)
 diagnostics/common_mistakes/common_mistakes.spite:8: error: 'Pet' has no attribute 'nothing_here' (in CommonMistakes.CommonMistakes)
 diagnostics/common_mistakes/common_mistakes.spite:9: error: this call passes 2 argument(s), but 1 are expected (in CommonMistakes.CommonMistakes)
-diagnostics/common_mistakes/common_mistakes.spite:11: error: method call on a value that is not a class instance (in CommonMistakes.CommonMistakes)
+diagnostics/common_mistakes/common_mistakes.spite:11: error: a Int has no function 'explode' (in CommonMistakes.CommonMistakes)
 diagnostics/common_mistakes/common_mistakes.spite:13: error: String has no method 'no_such_method' (in CommonMistakes.CommonMistakes)
 diagnostics/common_mistakes/common_mistakes.spite:15: error: List has no method 'push' (in CommonMistakes.CommonMistakes)
 diagnostics/common_mistakes/common_mistakes.spite:16: error: unknown function 'unknown_function' (in CommonMistakes.CommonMistakes)

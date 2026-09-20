@@ -1,0 +1,21 @@
+var console = Console()
+var pet: Pet? = null
+
+func TypeMistakes() {
+    console.print(pet.name)
+    var other = Pet()
+    other = "a string"
+    feed("not a pet")
+    var count: Int = other
+    console.print(count, give_back())
+    var names = List<String>()
+    names.append(other)
+}
+
+func feed(animal: Pet) {
+    console.print(animal.name)
+}
+
+func give_back(): Pet {
+    return "nope"
+}

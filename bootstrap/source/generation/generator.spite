@@ -2145,7 +2145,15 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         return "((" + to_union.c_name + ")(" + code + "))"
     }
     if type_shape.as_string(to) {
-        return string_conversion(code, from)
+        if type_shape.as_scalar(from) {
+            return string_conversion(code, from)
+        }
+        if is_enum_type(from) {
+            return string_conversion(code, from)
+        }
+        report_mismatch(from, to)
+        return code
+
     }
     if type_shape.as_string(from) {
         var to_scalar = type_shape.as_scalar(to)
@@ -2158,10 +2166,27 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
     }
     var to_scalar_plain = type_shape.as_scalar(to)
     if to_scalar_plain {
-        return "((" + c_type_name(to) + ")(" + code + "))"
+        if type_shape.as_scalar(from) {
+            return "((" + c_type_name(to) + ")(" + code + "))"
+        }
+        report_mismatch(from, to)
+        return code
     }
+    report_mismatch(from, to)
     return code
 }
+
+func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType) {
+    if type_shape.is_void(from) or type_shape.is_void(to) {
+        return
+    }
+    if type_shape.as_nullable(from) {
+        report("this value may be null (it is a " + type_display_name(from) + "), but a " + type_display_name(to) + " is needed: narrow it first with 'if value { }', 'assert value' or 'crash value'")
+        return
+    }
+    report("a " + type_display_name(from) + " cannot be used where a " + type_display_name(to) + " is needed")
+}
+
 
 func retain_call(spite_type: Analysis.SpiteType, code: String): String {
     var class_ref = type_shape.as_class_ref(spite_type)
@@ -2849,7 +2874,12 @@ func generate_method_call(member: Syntax.Expressions.MemberExpression, object_as
     }
     var object_class_ref = type_shape.as_class_ref(object_result.get_type())
     if not object_class_ref {
-        report("method call on a value that is not a class instance")
+        if type_shape.as_nullable(object_result.get_type()) {
+            report("this value may be null (it is a " + type_display_name(object_result.get_type()) + "), so '" + member.name + "' cannot be called on it yet: narrow it first with 'if value { }', 'assert value' or 'crash value'")
+        } else {
+            report("a " + type_display_name(object_result.get_type()) + " has no function '" + member.name + "'")
+        }
+
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     crash object_class_ref
@@ -4473,7 +4503,8 @@ func printed_statement_for(expression_ast: Syntax.Expressions.Expression, stream
     if type_shape.is_void(result.get_type()) and has_error {
         return ""
     }
-    report("Console.print does not support this value's type yet")
+    report("Console cannot print a " + type_display_name(result.get_type()) + ": print one of its attributes, or give it a function that returns a String")
+
 
     return ""
 }
@@ -4636,7 +4667,11 @@ func generate_member_read(member: Syntax.Expressions.MemberExpression, scope: Sc
     }
     var object_class_ref = type_shape.as_class_ref(object_result.get_type())
     if not object_class_ref {
-        report("member read on a value that is not a class instance")
+        if type_shape.as_nullable(object_result.get_type()) {
+            report("this value may be null (it is a " + type_display_name(object_result.get_type()) + "), so '" + member.name + "' cannot be read from it yet: narrow it first with 'if value { }', 'assert value' or 'crash value'")
+        } else {
+            report("'" + member.name + "' cannot be read from a " + type_display_name(object_result.get_type()))
+        }
 
         return ExpressionResult("0", Analysis.Types.VoidType())
     }

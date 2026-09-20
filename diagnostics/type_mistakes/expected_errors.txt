@@ -1,0 +1,7 @@
+diagnostics/type_mistakes/type_mistakes.spite:5: error: this value may be null (it is a Pet?), so 'name' cannot be read from it yet: narrow it first with 'if value { }', 'assert value' or 'crash value' (in TypeMistakes.TypeMistakes)
+diagnostics/type_mistakes/type_mistakes.spite:7: error: a String cannot be used where a Pet is needed (in TypeMistakes.TypeMistakes)
+diagnostics/type_mistakes/type_mistakes.spite:8: error: a String cannot be used where a Pet is needed (in TypeMistakes.TypeMistakes)
+diagnostics/type_mistakes/type_mistakes.spite:9: error: a Pet cannot be used where a Int is needed (in TypeMistakes.TypeMistakes)
+diagnostics/type_mistakes/type_mistakes.spite:10: error: Console cannot print a Pet: print one of its attributes, or give it a function that returns a String (in TypeMistakes.TypeMistakes)
+diagnostics/type_mistakes/type_mistakes.spite:12: error: a Pet cannot be used where a String is needed (in TypeMistakes.TypeMistakes)
+diagnostics/type_mistakes/type_mistakes.spite:20: error: a String cannot be used where a Pet is needed (in TypeMistakes.give_back)
