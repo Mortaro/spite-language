@@ -238,7 +238,18 @@ void Process_Process(Process* self, SpiteString* command, List_String* arguments
 }
 
 int32_t Process_run(Process* self) {
-    SpiteString* spite_process_command = spite_string_from_bytes(self->command->data, self->command->length);
+    /* A command that is the path of an existing file is quoted, so a path with spaces works; anything else is
+       passed as written, so a command may carry its own arguments ("clang -Wno-deprecated-declarations"). */
+    bool spite_command_is_path = strchr(self->command->data, ' ') != 0 && spite_file_exists(self->command);
+    SpiteString* spite_process_command = spite_command_is_path ? spite_string_from_cstring_owned("\"") : spite_string_from_bytes(self->command->data, self->command->length);
+    if (spite_command_is_path) {
+        SpiteString* spite_quoted_start = SpiteString_concat(spite_process_command, self->command);
+        SpiteString_release(spite_process_command);
+        SpiteString* spite_quote_end = spite_string_from_cstring_owned("\"");
+        spite_process_command = SpiteString_concat(spite_quoted_start, spite_quote_end);
+        SpiteString_release(spite_quoted_start);
+        SpiteString_release(spite_quote_end);
+    }
     for (int64_t spite_index = 0; spite_index < self->arguments->count; spite_index = spite_index + 1) {
         SpiteString* spite_open_quote = spite_string_from_cstring_owned(" \"");
         SpiteString* spite_with_space = SpiteString_concat(spite_process_command, spite_open_quote);
@@ -251,6 +262,19 @@ int32_t Process_run(Process* self) {
         SpiteString_release(spite_with_argument);
         SpiteString_release(spite_close_quote);
     }
+#ifdef _WIN32
+    if (spite_command_is_path) {
+        /* cmd.exe strips one outer pair of quotes from a line that starts with one, so give it a pair to strip. */
+        SpiteString* spite_outer_open = spite_string_from_cstring_owned("\"");
+        SpiteString* spite_outer_joined = SpiteString_concat(spite_outer_open, spite_process_command);
+        SpiteString_release(spite_outer_open);
+        SpiteString_release(spite_process_command);
+        SpiteString* spite_outer_close = spite_string_from_cstring_owned("\"");
+        spite_process_command = SpiteString_concat(spite_outer_joined, spite_outer_close);
+        SpiteString_release(spite_outer_joined);
+        SpiteString_release(spite_outer_close);
+    }
+#endif
     int spite_process_exit_code = 0;
     SpiteString* spite_process_output = spite_process_run(spite_process_command->data, &spite_process_exit_code);
     SpiteString_release(spite_process_command);

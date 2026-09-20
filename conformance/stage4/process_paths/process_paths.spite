@@ -1,0 +1,12 @@
+var console = Console()
+
+func ProcessPaths() {
+    var folder = Directory(".spite-cache/folder with spaces")
+    folder.create()
+    var script = File(".spite-cache/folder with spaces/hello.cmd")
+    script.write("@echo hello from a spaced path %1\r\n")
+    var spaced = Process(".spite-cache/folder with spaces/hello.cmd", ["argument one"])
+    console.print(spaced.run(), spaced.output().trim())
+    var with_arguments = Process("git --version", List<String>())
+    console.print(with_arguments.run(), with_arguments.output().starts_with("git version"))
+}
