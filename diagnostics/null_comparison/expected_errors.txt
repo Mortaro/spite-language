@@ -1,0 +1,2 @@
+diagnostics/null_comparison/null_comparison.spite:9: error: 'null' is not a value to compare against or pass around: narrow the value instead, with 'if value { } else { }', 'assert value', 'crash value' or 'switch value { <Type>: ... Null: ... }' (in NullComparison.announce)
+diagnostics/null_comparison/null_comparison.spite:12: error: Console cannot print a String?: print one of its attributes, or give it a function that returns a String (in NullComparison.announce)

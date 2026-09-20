@@ -1,0 +1,47 @@
+var stored: Creature? = null
+
+func maybe_creature(present: Bool): Creature? {
+    if present {
+        return Creature("rat", 3, true)
+    }
+    return null
+}
+
+func test_if_narrows_for_the_whole_block() {
+    var found = maybe_creature(true)
+    if found {
+        crash found.name == "rat"
+    } else {
+        crash false
+    }
+}
+
+func test_else_runs_when_there_is_nothing() {
+    var missing = maybe_creature(false)
+    if missing {
+        crash false
+    } else {
+        crash true
+    }
+}
+
+func test_crash_narrows_for_the_rest_of_the_function() {
+    var found = maybe_creature(true)
+    crash found
+    crash found.strength == 3
+}
+
+func test_switch_covers_both_sides() {
+    var missing = maybe_creature(false)
+    switch missing {
+        Creature: crash false
+        Null: crash true
+    }
+}
+
+func test_an_attribute_narrows_the_same_way() {
+    stored = maybe_creature(true)
+    crash stored
+    crash stored.name == "rat"
+    stored = null
+}

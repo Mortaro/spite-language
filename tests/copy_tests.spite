@@ -1,0 +1,32 @@
+func test_assignment_shares_one_object() {
+    var first = Creature("rat", 3, true)
+    var same = first
+    same.strength = 9
+    crash first.strength == 9
+}
+
+func test_copy_makes_a_second_object() {
+    var first = Creature("rat", 3, true)
+    var second = first.copy()
+    second.strength = 9
+    crash first.strength == 3
+    crash second.strength == 9
+}
+
+func test_a_copied_list_is_a_second_list() {
+    var names = ["ada"]
+    var second = names.copy()
+    second.append("grace")
+    crash names.count() == 1
+    crash second.count() == 2
+}
+
+func test_a_copy_is_shallow_and_a_deep_copy_is_not() {
+    var nest = [[1]]
+    var shallow = nest.copy()
+    shallow[0].append(2)
+    crash nest[0].count() == 2
+    var deep = nest.deep_copy()
+    deep[0].append(3)
+    crash nest[0].count() == 2
+}

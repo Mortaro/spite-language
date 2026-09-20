@@ -1,0 +1,33 @@
+func test_an_integer_divides_toward_zero() {
+    crash 7 / 2 == 3
+    crash -7 / 2 == -3
+    crash 7 % 2 == 1
+}
+
+func test_a_narrow_type_wraps_rather_than_crashing() {
+    var small: Tiny = 127
+    small = small + 1
+    crash small == -128
+    var never_negative: Byte = 255
+    never_negative = never_negative + 1
+    crash never_negative == 0
+}
+
+func test_the_right_side_casts_toward_the_left() {
+    var whole: Int = 0
+    crash not (whole > -0.5)
+    var fraction: Float = 3.0
+    crash fraction * 2 == 6.0
+}
+
+func test_a_number_becomes_text_and_back() {
+    crash "" + 7 == "7"
+    crash "" + true == "true"
+    crash "7".to_int() == 7
+    crash "7.5".to_float() == 7.5
+}
+
+func test_a_long_holds_what_an_integer_cannot() {
+    var big: Long = 3000000000
+    crash big > 2147483647
+}

@@ -1,0 +1,6 @@
+var console = Console()
+var unsigned = 0
+
+func ReservedName() {
+    console.print(unsigned)
+}

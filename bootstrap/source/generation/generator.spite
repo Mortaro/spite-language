@@ -3244,6 +3244,11 @@ func generate_list_method(element: Analysis.SpiteType, name: String, object_resu
         copied_list.owning_override = true
         return copied_list
     }
+    if name == "copy" {
+        var shared_list = generate_generic_call(ensure_list_copy(element), object_result, object_ast, arguments_ast, no_types(), list_type_of(element), scope, class_information)
+        shared_list.owning_override = true
+        return shared_list
+    }
     if name == "clear" or name == "reverse" {
         return generate_generic_call(
             list_name + "_" + name,
@@ -3953,6 +3958,37 @@ func ensure_list_deep_copy(element: Analysis.SpiteType): String {
     return function_c_name
 }
 
+func shared_element_code(element: Analysis.SpiteType, code: String): String {
+    if type_needs_drop(element) {
+        return retain_call(element, code)
+    }
+    return code
+}
+
+func ensure_list_copy(element: Analysis.SpiteType): String {
+    var list_name = ensure_list(element)
+    var function_c_name = list_name + "_copy"
+    if deep_copy_names.contains(function_c_name) {
+        return function_c_name
+    }
+    deep_copy_names.append(function_c_name)
+    builder.add_prototype(list_name + "* " + function_c_name + "(" + list_name + "* self);")
+    builder.add_support(list_name + "* " + function_c_name + "(" + list_name + "* self) {\nif (self == 0) return 0;\n" + list_name + "* copied = " + list_name + "_make();\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) { " + list_name + "_add(copied, " + shared_element_code(element, "self->items[spite_index]") + "); }\nreturn copied;\n}")
+    return function_c_name
+}
+
+func ensure_dictionary_copy(element: Analysis.SpiteType): String {
+    var dictionary_name = ensure_dictionary(element)
+    var function_c_name = dictionary_name + "_copy"
+    if deep_copy_names.contains(function_c_name) {
+        return function_c_name
+    }
+    deep_copy_names.append(function_c_name)
+    builder.add_prototype(dictionary_name + "* " + function_c_name + "(" + dictionary_name + "* self);")
+    builder.add_support(dictionary_name + "* " + function_c_name + "(" + dictionary_name + "* self) {\nif (self == 0) return 0;\n" + dictionary_name + "* copied = " + dictionary_name + "_make();\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) { " + dictionary_name + "_set(copied, SpiteString_retain(self->keys[spite_index]), " + shared_element_code(element, "self->values[spite_index]") + "); }\nreturn copied;\n}")
+    return function_c_name
+}
+
 func ensure_dictionary_deep_copy(element: Analysis.SpiteType): String {
     var dictionary_name = ensure_dictionary(element)
     var function_c_name = dictionary_name + "_deep_copy"
@@ -4258,6 +4294,11 @@ func generate_dictionary_method(element: Analysis.SpiteType, name: String, objec
         var copied_dictionary = generate_generic_call(ensure_dictionary_deep_copy(element), object_result, object_ast, arguments_ast, no_types(), dictionary_type_of(element), scope, class_information)
         copied_dictionary.owning_override = true
         return copied_dictionary
+    }
+    if name == "copy" {
+        var shared_dictionary = generate_generic_call(ensure_dictionary_copy(element), object_result, object_ast, arguments_ast, no_types(), dictionary_type_of(element), scope, class_information)
+        shared_dictionary.owning_override = true
+        return shared_dictionary
     }
     if name == "has" {
 
@@ -4832,6 +4873,10 @@ func generate_expression(expression: Syntax.Expressions.Expression, scope: Scope
     if member {
         return generate_member_read(member, scope, class_information)
     }
+    if shape.is_null_literal(expression) {
+        report("'null' is not a value to compare against or pass around: narrow the value instead, with 'if value { } else { }', 'assert value', 'crash value' or 'switch value { <Type>: ... Null: ... }'")
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
     report("unsupported expression kind in this stage")
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
@@ -5168,7 +5213,18 @@ func check_value_name(name: String, what: String) {
         report("the " + what + " '" + name + "' is a single letter: give it a name that says what it holds")
         return
     }
+    if is_reserved_name(bare) {
+        report("the " + what + " '" + name + "' has a reserved name: it means something else in the C this compiles to, so give it a name of your own")
+        return
+    }
     check_abbreviations(bare)
+}
+
+func is_reserved_name(name: String): Bool {
+    var reserved = ["auto", "bool", "break", "case", "char", "const", "continue", "default", "do", "double",
+        "extern", "float", "goto", "inline", "int", "long", "main", "register", "restrict", "short", "signed",
+        "sizeof", "static", "stderr", "stdin", "stdout", "struct", "typedef", "unsigned", "void", "volatile"]
+    return reserved.contains(name)
 }
 
 func check_type_name(name: String, what: String) {

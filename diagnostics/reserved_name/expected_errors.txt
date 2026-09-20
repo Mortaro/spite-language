@@ -1,0 +1,1 @@
+diagnostics/reserved_name/reserved_name.spite:2: error: the attribute 'unsigned' has a reserved name: it means something else in the C this compiles to, so give it a name of your own (in ReservedName.)
