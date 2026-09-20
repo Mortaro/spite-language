@@ -1,2 +1,5 @@
-spite.crash	64b935f1	conformance/stage5/crash_report/crash_report.spite:11	CrashReport	check	value > limit	value=-9	limit=0
+spite.crash	64b935f1	conformance/stage5/crash_report/crash_report.spite:14	CrashReport	check	value > limit	value=-9	limit=0
+spite.assert	0aae5005	conformance/stage5/crash_report/crash_report.spite:18	CrashReport	announce	amount > 0
+spite.assert	0aae5005	conformance/stage5/crash_report/crash_report.spite:18	CrashReport	announce	amount > 0
 before the crash
+announced 5

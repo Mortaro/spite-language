@@ -155,6 +155,7 @@ func emit_system_classes(system_structs: String, system_prototypes: String, syst
 func generate(discovery: Discovery.DiscoveryResult, runtime_header_text: String, system_structs: String, system_prototypes: String, system_bodies: String): String {
     entry_class_c_name = discovery.entry_mangled_name
     builder.add_typedef(runtime_header_text)
+    builder.add_typedef("static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic void spite_report_assert_trace(void) {\nint64_t spite_kept = spite_assert_total < 32 ? spite_assert_total : 32;\nfor (int64_t spite_index = spite_assert_total - spite_kept; spite_index < spite_assert_total; spite_index = spite_index + 1) { fputs(spite_assert_trace[spite_index % 32], stderr); }\nif (spite_assert_total > 32) { fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_assert_total - 32)); }\n}")
 
     register_system_classes()
     register_classes(discovery.class_files)
@@ -5463,6 +5464,18 @@ func crash_map(): String {
     return "# spite crashes 1 " + content_hash(body) + "\n" + body + "\n"
 }
 
+func backslash_quote(): String {
+    return "\""
+}
+
+func tab_text(): String {
+    return "\\t"
+}
+
+func newline_text(): String {
+    return "\\n"
+}
+
 func generate_assert_statement(assert_statement: Syntax.Statements.AssertStatement, scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo) {
     var condition_ast = assert_statement.value
     assert condition_ast
@@ -5499,10 +5512,12 @@ func generate_assert_statement(assert_statement: Syntax.Statements.AssertStateme
         builder.add_user("fputs(\"spite.crash\\t" + current_site_id + "\\t" + escape_c_string(current_path) + ":" + current_line + "\\t" + current_owner + "\\t" + function_information.name + "\\t" + escape_c_string(assert_statement.condition_text) + "\", stderr);")
         emit_crash_operands(condition_ast, scope, class_information)
         builder.add_user("fputs(\"\\n\", stderr);")
+        builder.add_user("spite_report_assert_trace();")
         builder.add_user("exit(1);")
         builder.add_user("}")
         return
     }
+    builder.add_user("spite_assert_trace[spite_assert_total % 32] = " + backslash_quote() + "spite.assert" + tab_text() + current_site_id + tab_text() + escape_c_string(current_path) + ":" + current_line + tab_text() + current_owner + tab_text() + function_information.name + tab_text() + escape_c_string(assert_statement.condition_text) + newline_text() + backslash_quote() + "; spite_assert_total = spite_assert_total + 1;")
     emit_scope_drops(scope, true)
     if type_shape.is_void(function_information.get_return_type()) {
         builder.add_user("return;")

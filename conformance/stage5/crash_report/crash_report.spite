@@ -2,6 +2,9 @@ var console = Console()
 
 func CrashReport() {
     console.print("before the crash")
+    announce(0 - 1)
+    announce(5)
+    announce(0)
     check(0 - 9)
     console.print("never printed")
 }
@@ -9,4 +12,9 @@ func CrashReport() {
 func check(value: Int) {
     var limit = 0
     crash value > limit
+}
+
+func announce(amount: Int) {
+    assert amount > 0
+    console.print("announced", amount)
 }
