@@ -1,0 +1,5 @@
+1 11 magic 10
+2 heavy! plain heavy
+3 Weapon Weapon
+answer 42 42
+13

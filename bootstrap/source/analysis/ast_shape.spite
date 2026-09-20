@@ -586,3 +586,88 @@ func as_type_declaration(statement: Syntax.Statements.Statement): Nullable<Synta
         Syntax.Statements.ExpressionStatement: return null
     }
 }
+
+func as_generic_type(type_reference: Syntax.Types.Type): Nullable<Syntax.Types.GenericType> {
+    switch type_reference {
+        Syntax.Types.ReferenceType: return null
+        Syntax.Types.GenericType: return type_reference
+        Syntax.Types.NamedType: return null
+    }
+}
+
+func as_generic_identifier(expression: Syntax.Expressions.Expression): Nullable<Syntax.Expressions.GenericIdentifierExpression> {
+    switch expression {
+        Syntax.Expressions.NullLiteral: return null
+        Syntax.Expressions.TrueLiteral: return null
+        Syntax.Expressions.FalseLiteral: return null
+        Syntax.Expressions.IntegerLiteral: return null
+        Syntax.Expressions.FloatLiteral: return null
+        Syntax.Expressions.StringLiteralExpression: return null
+        Syntax.Expressions.EnumLiteralExpression: return null
+        Syntax.Expressions.GenericIdentifierExpression: return expression
+        Syntax.Expressions.IdentifierExpression: return null
+        Syntax.Expressions.ListLiteralExpression: return null
+        Syntax.Expressions.ObjectLiteralExpression: return null
+        Syntax.Expressions.UnaryExpression: return null
+        Syntax.Expressions.BinaryExpression: return null
+        Syntax.Expressions.CallExpression: return null
+        Syntax.Expressions.GenericCallExpression: return null
+        Syntax.Expressions.MemberExpression: return null
+        Syntax.Expressions.IndexExpression: return null
+    }
+}
+
+func as_bool_argument(argument: Syntax.Types.GenericArgument): Nullable<Syntax.Types.BoolArgument> {
+    switch argument {
+        Syntax.Types.TypeArgument: return null
+        Syntax.Types.IntegerArgument: return null
+        Syntax.Types.FloatArgument: return null
+        Syntax.Types.BoolArgument: return argument
+        Syntax.Types.StringArgument: return null
+        Syntax.Types.EnumArgument: return null
+    }
+}
+
+func as_integer_argument(argument: Syntax.Types.GenericArgument): Nullable<Syntax.Types.IntegerArgument> {
+    switch argument {
+        Syntax.Types.TypeArgument: return null
+        Syntax.Types.IntegerArgument: return argument
+        Syntax.Types.FloatArgument: return null
+        Syntax.Types.BoolArgument: return null
+        Syntax.Types.StringArgument: return null
+        Syntax.Types.EnumArgument: return null
+    }
+}
+
+func as_float_argument(argument: Syntax.Types.GenericArgument): Nullable<Syntax.Types.FloatArgument> {
+    switch argument {
+        Syntax.Types.TypeArgument: return null
+        Syntax.Types.IntegerArgument: return null
+        Syntax.Types.FloatArgument: return argument
+        Syntax.Types.BoolArgument: return null
+        Syntax.Types.StringArgument: return null
+        Syntax.Types.EnumArgument: return null
+    }
+}
+
+func as_string_argument(argument: Syntax.Types.GenericArgument): Nullable<Syntax.Types.StringArgument> {
+    switch argument {
+        Syntax.Types.TypeArgument: return null
+        Syntax.Types.IntegerArgument: return null
+        Syntax.Types.FloatArgument: return null
+        Syntax.Types.BoolArgument: return null
+        Syntax.Types.StringArgument: return argument
+        Syntax.Types.EnumArgument: return null
+    }
+}
+
+func as_enum_argument(argument: Syntax.Types.GenericArgument): Nullable<Syntax.Types.EnumArgument> {
+    switch argument {
+        Syntax.Types.TypeArgument: return null
+        Syntax.Types.IntegerArgument: return null
+        Syntax.Types.FloatArgument: return null
+        Syntax.Types.BoolArgument: return null
+        Syntax.Types.StringArgument: return null
+        Syntax.Types.EnumArgument: return argument
+    }
+}

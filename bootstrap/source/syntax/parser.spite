@@ -215,6 +215,7 @@ func parse_statement_without_line(): Syntax.Statements.Statement {
 }
 
 func parse_generics_declaration(): Syntax.Statements.Statement {
+    fail("the 'generics' line was removed: a constructor declares the codegen values its callers supply, like 'func Weapon<$damage_type, $is_magic>(new_damage: $damage_type)'")
     advance()
     var names = List<String>()
     var expect_more = true
@@ -248,6 +249,21 @@ func parse_variable_declaration(): Syntax.Statements.Statement {
 func parse_function_declaration(): Syntax.Statements.Statement {
     advance()
     var name = expect('identifier', "a function name")
+    var codegen_names = List<String>()
+    if check('less') {
+        advance()
+        var expect_more_names = true
+        while expect_more_names and not check('end_of_file') {
+            var codegen_token = expect('generic_identifier', "a codegen value name (e.g. $name)")
+            codegen_names.append("" + codegen_token.text)
+            if check('comma') {
+                advance()
+            } else {
+                expect_more_names = false
+            }
+        }
+        expect('greater', "'>' to close the codegen value list")
+    }
     expect('left_paren', "'(' to start the parameter list")
     var parameters = List<Syntax.Statements.Parameter>()
     var expect_more = not check('right_paren')
@@ -272,7 +288,9 @@ func parse_function_declaration(): Syntax.Statements.Statement {
     }
 
     var body = parse_block()
-    return Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
+    var declaration = Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
+    declaration.codegen_names = codegen_names
+    return declaration
 }
 
 func parse_type_declaration(): Syntax.Statements.Statement {

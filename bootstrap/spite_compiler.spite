@@ -1,4 +1,5 @@
 var console = Console()
+var program_values = Dictionary<String>()
 
 func SpiteCompiler(arguments: Arguments) {
     load("source")
@@ -7,6 +8,7 @@ func SpiteCompiler(arguments: Arguments) {
     crash file_argument
     var mode_argument = arguments.mode
     crash mode_argument
+    collect_program_values(arguments)
 
     var program_file = File(file_argument)
     var content = program_file.read()
@@ -67,12 +69,47 @@ func generate_c_or_report(file_argument: String, content: String): Nullable<Stri
     var system_bodies = File("runtime/system_bodies.h").read()
     assert system_bodies
     var generator = Generation.Generator()
+    generator.program_values = program_values
     var code = generator.generate(discovery, runtime_header, system_structs, system_prototypes, system_bodies)
     if generator.has_error {
         console.error(generator.error_message)
         return null
     }
+    var unused_flags = unused_program_values(generator.used_program_values)
+    if not unused_flags.is_empty() {
+        console.error("error: no '$' value in the program is named by: --" + unused_flags.join(", --") + " (a compiler flag that matches nothing is an error, so a typo never passes silently)")
+        return null
+    }
     return code
+}
+
+func collect_program_values(arguments: Arguments) {
+    var reserved = ["file", "mode", "output", "debug_memory", "runtime"]
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments.get(index)
+        var equals_position = argument.index_of("=")
+        if argument.starts_with("--") and equals_position > 2 {
+            var name = argument.slice(2, equals_position)
+            if not reserved.contains(name) {
+                program_values.set(name, argument.slice(equals_position + 1, argument.length()))
+            }
+        }
+        index = index + 1
+    }
+}
+
+func unused_program_values(used: List<String>): List<String> {
+    var unused = List<String>()
+    var names = program_values.keys()
+    var index = 0
+    while index < names.count() {
+        if not used.contains(names[index]) {
+            unused.append(names[index])
+        }
+        index = index + 1
+    }
+    return unused
 }
 
 func read_runtime_header(): Nullable<String> {

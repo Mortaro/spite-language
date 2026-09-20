@@ -17,6 +17,10 @@ var has_error = false
 var error_message = ""
 var error_lines = List<String>()
 var current_function = ""
+var current_class: Nullable<Analysis.ClassInfo> = null
+var discovered_classes = List<Discovery.DiscoveredClass>()
+var program_values = Dictionary<String>()
+var used_program_values = List<String>()
 var current_path = ""
 var current_line = 0
 var bound_symbol_name = ""
@@ -153,7 +157,7 @@ func generate(discovery: Discovery.DiscoveryResult, runtime_header_text: String,
     }
     var index = 0
     while index < classes.count() {
-        if not classes[index].is_builtin {
+        if not classes[index].is_builtin and not classes[index].is_generic_template {
             emit_class(classes[index])
         }
         index = index + 1
@@ -178,11 +182,331 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
             ),
         )
         classes.last().source_path = entry.get_file().path
+        classes.last().entry_index = index
+        classes.last().codegen_names = constructor_codegen_names(entry)
+        classes.last().is_generic_template = not classes.last().codegen_names.is_empty()
+        discovered_classes.append(entry)
         register_enums(entry)
         register_unions(entry)
         register_shapes(entry)
         index = index + 1
     }
+}
+
+func constructor_codegen_names(entry: Discovery.DiscoveredClass): List<String> {
+    var file = entry.get_file()
+    var statement_index = 0
+    while statement_index < file.statements.count() {
+        var declaration = shape.as_function_declaration(file.statements[statement_index])
+        if declaration {
+            if declaration.name == entry.simple_name {
+                var names = List<String>()
+                var index = 0
+                while index < declaration.codegen_names.count() {
+                    names.append(without_dollar(declaration.codegen_names[index]))
+                    index = index + 1
+                }
+                return names
+            }
+        }
+        statement_index = statement_index + 1
+    }
+    return List<String>()
+}
+
+func without_dollar(name: String): String {
+    if name.starts_with("$") {
+        return name.slice(1, name.length())
+    }
+    return name
+}
+
+func codegen_index(information: Analysis.ClassInfo, name: String): Int {
+    var index = 0
+    while index < information.codegen_names.count() {
+        if information.codegen_names[index] == name {
+            if index < information.codegen_types.count() {
+                return index
+            }
+        }
+        index = index + 1
+    }
+    return 0 - 1
+}
+
+func program_value_type(text: String): Analysis.SpiteType {
+    if text == "true" or text == "false" {
+        return boolean_type()
+    }
+    if not text.is_empty() {
+        var digits = true
+        var index = 0
+        while index < text.length() {
+            var code = text.code_at(index)
+            if code < 48 or code > 57 {
+                digits = false
+            }
+            index = index + 1
+        }
+        if digits {
+            return integer_type()
+        }
+    }
+    return string_type()
+}
+
+func generate_codegen_value(name: String, class_information: Analysis.ClassInfo): ExpressionResult {
+    var bound = codegen_index(class_information, name)
+    if bound >= 0 {
+        if class_information.codegen_codes[bound].is_empty() {
+            report("'$" + name + "' is a type here, so it cannot be used as a value")
+            return ExpressionResult("0", Analysis.Types.VoidType())
+        }
+        var bound_value = ExpressionResult(class_information.codegen_codes[bound], class_information.codegen_types[bound])
+        bound_value.owning_override = false
+        bound_value.constant_text = class_information.codegen_texts[bound]
+        return bound_value
+    }
+    if program_values.has(name) {
+        if not used_program_values.contains(name) {
+            used_program_values.append(name)
+        }
+        var text = program_values[name]
+        var value_type = program_value_type(text)
+        var code = text
+        if type_shape.as_string(value_type) {
+            code = render_string_literal(text)
+        }
+        var program_value = ExpressionResult(code, value_type)
+        program_value.owning_override = false
+        program_value.constant_text = "s:" + text
+        if is_boolean_type(value_type) {
+            program_value.constant_text = "b:" + text
+        }
+        if is_numeric_type(value_type) {
+            program_value.constant_text = "i:" + text
+        }
+        return program_value
+    }
+    report("'$" + name + "' has no value: '" + class_information.simple_name + "' does not declare it on its constructor, so it must come from a compiler flag: --" + name + "=value")
+    return ExpressionResult("0", Analysis.Types.VoidType())
+}
+
+func constant_condition(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Nullable<Bool> {
+    var generic_identifier = shape.as_generic_identifier(expression)
+    if generic_identifier {
+        var value = generate_codegen_value(without_dollar(generic_identifier.name), class_information)
+        if is_boolean_type(value.get_type()) {
+            return value.code == "true"
+        }
+        return null
+    }
+    var unary = shape.as_unary(expression)
+    if unary {
+        if unary.operator == 'logical_not' {
+            var operand_ast = unary.operand
+            if operand_ast {
+                var inner = constant_condition(operand_ast, class_information)
+                if inner {
+                    return not inner
+                }
+                return null
+            }
+        }
+        return null
+    }
+    var binary = shape.as_binary(expression)
+    if binary {
+        var left_ast = binary.left
+        var right_ast = binary.right
+        if left_ast {
+            if right_ast {
+                if binary.operator == 'logical_and' or binary.operator == 'logical_or' {
+                    var left_constant = constant_condition(left_ast, class_information)
+                    var right_constant = constant_condition(right_ast, class_information)
+                    if left_constant {
+                        if right_constant {
+                            if binary.operator == 'logical_and' {
+                                return left_constant and right_constant
+                            }
+                            return left_constant or right_constant
+                        }
+                    }
+                    return null
+                }
+                if binary.operator == 'equal' or binary.operator == 'not_equal' {
+                    var left_generic = shape.as_generic_identifier(left_ast)
+                    if left_generic {
+                        var left_value = generate_codegen_value(without_dollar(left_generic.name), class_information)
+                        var right_text = constant_text(right_ast)
+                        if right_text {
+                            var same = constant_text_of_code(left_value) == right_text
+                            if binary.operator == 'equal' {
+                                return same
+                            }
+                            return not same
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return null
+}
+
+func constant_text(expression: Syntax.Expressions.Expression): Nullable<String> {
+    var string_literal = shape.as_string_literal(expression)
+    if string_literal {
+        return "s:" + string_literal.value
+    }
+    var integer_literal = shape.as_integer_literal(expression)
+    if integer_literal {
+        return "i:" + integer_literal.value
+    }
+    var enum_literal = shape.as_enum_literal(expression)
+    if enum_literal {
+        return "e:" + enum_literal.value
+    }
+    if shape.is_true_literal(expression) {
+        return "b:true"
+    }
+    if shape.is_false_literal(expression) {
+        return "b:false"
+    }
+    return null
+}
+
+func constant_text_of_code(value: ExpressionResult): String {
+    if value.constant_text.is_empty() {
+        return "?"
+    }
+    return value.constant_text
+}
+
+func generic_argument_label(text: String): String {
+    var result = ""
+    var index = 0
+    while index < text.length() {
+        var code = text.code_at(index)
+        var is_letter = (code >= 65 and code <= 90) or (code >= 97 and code <= 122)
+        var is_digit = code >= 48 and code <= 57
+        if is_letter or is_digit {
+            result = result + text.character_at(index)
+        } else {
+            result = result + "_"
+        }
+        index = index + 1
+    }
+    return result
+}
+
+func instantiate_generic(template: Analysis.ClassInfo, arguments: List<Syntax.Types.GenericArgument>, current_namespace: String): Nullable<Analysis.ClassInfo> {
+    if arguments.count() != template.codegen_names.count() {
+        report("'" + template.simple_name + "' takes " + template.codegen_names.count() + " codegen value(s), in this order: $" + template.codegen_names.join(", $") + " -- but " + arguments.count() + " were given")
+        return null
+    }
+    var types = List<Analysis.SpiteType>()
+    var codes = List<String>()
+    var texts = List<String>()
+    var label = template.c_name + "_"
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments[index]
+        var type_argument = shape.as_type_argument(argument)
+        if type_argument {
+            var argument_type = resolve_generic_argument(argument, current_namespace)
+            if not argument_type {
+                return null
+            }
+            if argument_type {
+                types.append(argument_type)
+                codes.append("")
+                texts.append("")
+                label = label + "_" + type_label(argument_type)
+            }
+        }
+        var bool_argument = shape.as_bool_argument(argument)
+        if bool_argument {
+            types.append(boolean_type())
+            if bool_argument.value {
+                codes.append("true")
+            } else {
+                codes.append("false")
+            }
+            texts.append("b:" + codes.last())
+            label = label + "_" + codes.last()
+        }
+        var integer_argument = shape.as_integer_argument(argument)
+        if integer_argument {
+            types.append(integer_type())
+            codes.append("" + integer_argument.value)
+            texts.append("i:" + codes.last())
+            label = label + "_" + codes.last()
+        }
+        var float_argument = shape.as_float_argument(argument)
+        if float_argument {
+            types.append(float_type())
+            codes.append("" + float_argument.value)
+            texts.append("f:" + codes.last())
+            label = label + "_" + generic_argument_label(codes.last())
+        }
+        var string_argument = shape.as_string_argument(argument)
+        if string_argument {
+            types.append(string_type())
+            codes.append(render_string_literal(string_argument.value))
+            texts.append("s:" + string_argument.value)
+            label = label + "_" + generic_argument_label(string_argument.value)
+        }
+        var enum_argument = shape.as_enum_argument(argument)
+        if enum_argument {
+            var owner_enum = find_enum_with_value(enum_argument.value)
+            if owner_enum {
+                types.append(enum_type_of(owner_enum))
+                codes.append(owner_enum.c_name + "_" + enum_argument.value)
+                texts.append("e:" + enum_argument.value)
+                label = label + "_" + enum_argument.value
+            } else {
+                report("cannot tell which enum '" + enum_argument.value + "' belongs to here")
+                return null
+            }
+        }
+        index = index + 1
+    }
+    var existing = find_class_by_c_name(label)
+    if existing {
+        return existing
+    }
+    var instance = Analysis.ClassInfo(label, template.simple_name, template.namespace_dotted, template.qualified_dotted, allocate_class_id(label))
+    instance.source_path = template.source_path
+    instance.entry_index = template.entry_index
+    instance.codegen_names = template.codegen_names
+    instance.codegen_types = types
+    instance.codegen_codes = codes
+    instance.codegen_texts = texts
+    classes.append(instance)
+    builder.add_typedef("typedef struct " + label + " " + label + ";")
+
+    var saved_owner = current_owner
+    var saved_class = current_class
+    var saved_function = current_function
+    var saved_path = current_path
+    var saved_line = current_line
+    var saved_symbol_name = bound_symbol_name
+    var saved_field_name = bound_field_name
+    var saved_field_type = bound_field_type
+    bound_symbol_name = ""
+    var entry = discovered_classes[template.entry_index]
+    resolve_class_body(entry, instance, true)
+    resolve_class_body(entry, instance, false)
+    bound_symbol_name = saved_symbol_name
+    bound_field_name = saved_field_name
+    bound_field_type = saved_field_type
+    current_owner = saved_owner
+    current_class = saved_class
+    current_function = saved_function
+    current_path = saved_path
+    current_line = saved_line
+    return instance
 }
 
 func register_unions(entry: Discovery.DiscoveredClass) {
@@ -668,14 +992,19 @@ func find_class(name: String, current_namespace: String): Nullable<Analysis.Clas
 }
 
 func resolve_classes(discovered: List<Discovery.DiscoveredClass>) {
+    var first_user_class = classes.count() - discovered.count()
     var index = 0
     while index < discovered.count() {
-        resolve_class_body(discovered[index], classes[index + classes.count() - discovered.count()], true)
+        if not classes[first_user_class + index].is_generic_template {
+            resolve_class_body(discovered[index], classes[first_user_class + index], true)
+        }
         index = index + 1
     }
     index = 0
     while index < discovered.count() {
-        resolve_class_body(discovered[index], classes[index + classes.count() - discovered.count()], false)
+        if not classes[first_user_class + index].is_generic_template {
+            resolve_class_body(discovered[index], classes[first_user_class + index], false)
+        }
         index = index + 1
     }
 }
@@ -683,6 +1012,7 @@ func resolve_classes(discovered: List<Discovery.DiscoveredClass>) {
 func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.ClassInfo, functions_pass: Bool) {
     var file = entry.get_file()
     current_owner = information.qualified_dotted
+    current_class = information
     current_path = information.source_path
     current_function = ""
     var empty_scope = Scope(null)
@@ -884,7 +1214,11 @@ func emit_pending_functions() {
         var class_index = 0
         while class_index < classes.count() {
             var information = classes[class_index]
-            if not information.is_builtin {
+            if not information.is_builtin and not information.is_generic_template {
+                if not information.is_emitted {
+                    emit_class(information)
+                    emitted_any = true
+                }
                 var function_index = 0
                 while function_index < information.functions.count() {
                     if not information.functions[function_index].is_emitted {
@@ -945,6 +1279,23 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
 }
 
 func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String): Nullable<Analysis.SpiteType> {
+    var generic_type = shape.as_generic_type(type_reference)
+    if generic_type {
+        var generic_name = without_dollar(generic_type.name)
+        var owner = current_class
+        if owner {
+            var bound = codegen_index(owner, generic_name)
+            if bound >= 0 {
+                if owner.codegen_codes[bound].is_empty() {
+                    return owner.codegen_types[bound]
+                }
+                report("'$" + generic_name + "' is a value here, so it cannot be used as a type")
+                return null
+            }
+        }
+        report("'$" + generic_name + "' is not declared on this class's constructor, so it cannot be used as a type")
+        return null
+    }
     var named = shape.as_named_type(type_reference)
     if named {
         return resolve_named_type(named, current_namespace)
@@ -1012,6 +1363,13 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
         }
         var found_class = find_class(name, current_namespace)
         if found_class {
+            if found_class.is_generic_template {
+                var generic_instance = instantiate_generic(found_class, named.arguments, current_namespace)
+                if generic_instance {
+                    return class_type_of(generic_instance)
+                }
+                return null
+            }
             var same_name_union = find_union_qualified(found_class.qualified_dotted, name)
             if same_name_union {
                 return union_type_of(same_name_union)
@@ -2022,6 +2380,11 @@ func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.Spi
 }
 
 func generate_constructor_call(target_class: Analysis.ClassInfo, arguments_ast: List<Syntax.Expressions.Expression>, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
+    if target_class.is_generic_template {
+        report("'" + target_class.simple_name + "' takes " + target_class.codegen_names.count() + " codegen value(s), in this order: $" + target_class.codegen_names.join(", $") + " -- write them between < and > before the arguments")
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+
     var expected_types = List<Analysis.SpiteType>()
     var constructor = target_class.constructor
     if constructor {
@@ -2948,11 +3311,21 @@ func generate_untyped_list_literal(literal: Syntax.Expressions.ListLiteralExpres
     return generate_list_literal(literal, probe.get_type(), scope, class_information)
 }
 
-func generate_generic_constructor(generic_call: Syntax.Expressions.GenericCallExpression, class_information: Analysis.ClassInfo): ExpressionResult {
+func generate_generic_constructor(generic_call: Syntax.Expressions.GenericCallExpression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var callee_ast = generic_call.callee
     crash callee_ast
     var callee = shape.as_identifier(callee_ast)
     if callee {
+        var generic_template = find_class(callee.name, class_information.namespace_dotted)
+        if generic_template {
+            if generic_template.is_generic_template {
+                var generic_class = instantiate_generic(generic_template, generic_call.type_arguments, class_information.namespace_dotted)
+                if generic_class {
+                    return generate_constructor_call(generic_class, generic_call.arguments, scope, class_information)
+                }
+                return ExpressionResult("0", Analysis.Types.VoidType())
+            }
+        }
         if callee.name == "Dictionary" and generic_call.type_arguments.count() == 1 {
             var dictionary_element = resolve_generic_argument(
                 generic_call.type_arguments[0],
@@ -3453,6 +3826,9 @@ func printed_statement_for(expression_ast: Syntax.Expressions.Expression, stream
     if printed_enum {
         return "fprintf(" + stream + ", \"%s\", " + printed_enum.c_name + "_name(" + result.code + "));"
     }
+    if type_shape.is_void(result.get_type()) and has_error {
+        return ""
+    }
     report("Console.print does not support this value's type yet")
 
     return ""
@@ -3659,6 +4035,10 @@ func generate_expression(expression: Syntax.Expressions.Expression, scope: Scope
     if identifier {
         return generate_identifier(identifier, scope, class_information)
     }
+    var generic_identifier = shape.as_generic_identifier(expression)
+    if generic_identifier {
+        return generate_codegen_value(without_dollar(generic_identifier.name), class_information)
+    }
     var enum_literal = shape.as_enum_literal(expression)
     if enum_literal {
         var only_enum = find_enum_with_value(enum_literal.value)
@@ -3678,7 +4058,7 @@ func generate_expression(expression: Syntax.Expressions.Expression, scope: Scope
     }
     var generic_call = shape.as_generic_call(expression)
     if generic_call {
-        return generate_generic_constructor(generic_call, class_information)
+        return generate_generic_constructor(generic_call, scope, class_information)
     }
     var index_expression = shape.as_index(expression)
     if index_expression {
@@ -3945,6 +4325,17 @@ func generate_block(statements: List<Syntax.Statements.Statement>, parent_scope:
 func generate_if_statement(if_statement: Syntax.Statements.IfStatement, scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo) {
     var condition_ast = if_statement.condition
     assert condition_ast
+    var constant = constant_condition(condition_ast, class_information)
+    if constant {
+        builder.add_user("{")
+        if constant == true {
+            generate_block(if_statement.then_branch, scope, class_information, function_information)
+        } else if if_statement.has_else_branch {
+            generate_block(if_statement.else_branch, scope, class_information, function_information)
+        }
+        builder.add_user("}")
+        return
+    }
     var guard = try_nullable_guard(condition_ast, scope, class_information)
     if guard {
         builder.add_user("if (" + guard.guard_code + ") {")
@@ -4444,6 +4835,7 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         return
     }
     function.is_emitted = true
+    current_class = information
     current_function = function.name
     current_path = information.source_path
 

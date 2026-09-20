@@ -1,0 +1,23 @@
+var damage: $damage_type = null
+
+func Weapon<$damage_type, $is_magic>(new_damage: $damage_type) {
+    damage = new_damage
+}
+
+func hit(): Int {
+    if $is_magic {
+        return 1
+    } else {
+        return 2
+    }
+}
+
+func describe(): String {
+    if $is_magic and not $is_magic {
+        return "impossible"
+    }
+    if not $is_magic {
+        return "plain " + damage
+    }
+    return "magic " + damage
+}

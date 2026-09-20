@@ -1,0 +1,9 @@
+var held: $held_type = null
+
+func Box<$held_type>(starting: $held_type) {
+    held = starting
+}
+
+func broken(): $other_type {
+    return held
+}

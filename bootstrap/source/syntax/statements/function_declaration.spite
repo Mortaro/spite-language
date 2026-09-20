@@ -2,6 +2,7 @@ var name = ""
 var parameters = List<Parameter>()
 var return_type: Nullable<Syntax.Types.Type> = null
 var body = List<Statement>()
+var codegen_names = List<String>()
 var line = 0
 
 func FunctionDeclaration(function_name: String, function_parameters: List<Parameter>, function_return_type: Nullable<Syntax.Types.Type>, function_body: List<Statement>) {
