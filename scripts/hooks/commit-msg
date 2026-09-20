@@ -1,43 +1,25 @@
 #!/bin/bash
-# Every commit names the session that made it and the model that wrote it, so a bad change
-# has an owner. Enforced rather than documented: see SPITE.md, "anything that requires user
-# discipline to work".
+# Every commit names the model that wrote it, so a bad change has an owner.
+# Enforced rather than documented: see SPITE.md, "anything that requires user discipline to work".
 
 message_file="$1"
 
-has_agent=0
-has_coauthor=0
-grep -qE '^Agent: .+'            "$message_file" && has_agent=1
-grep -qiE '^Co-authored-by: .+ <.+@.+>' "$message_file" && has_coauthor=1
-
-if [ "$has_agent" = 1 ] && [ "$has_coauthor" = 1 ]; then
+if grep -qiE '^Co-authored-by: .+ <.+@.+>' "$message_file"; then
     exit 0
 fi
 
-{
-    echo
-    echo "  commit rejected: missing attribution"
-    echo
-    [ "$has_agent" = 0 ]    && echo "  missing: Agent      (which session made this)"
-    [ "$has_coauthor" = 0 ] && echo "  missing: Co-authored-by (which model wrote it)"
-    cat <<'ERROR'
+cat >&2 <<'ERROR'
 
-  Every commit ends with both, so Mortaro knows who to blame:
+  commit rejected: no Co-authored-by trailer
 
-      Agent: <session name> [<ref>]
-      Co-authored-by: Claude <model> <noreply@anthropic.com>
+  Every commit ends with the model that wrote it:
 
-  for example:
-
-      Agent: C/DLL and web environment bridging [87bfaf]
       Co-authored-by: Claude Opus 5 <noreply@anthropic.com>
 
-  Take the session name and ref exactly as ListAgents prints them, and name the
-  model you are actually running as. A human committing by hand writes:
+  Name the model you are actually running as, not just "Claude". A human
+  committing by hand writes their own:
 
-      Agent: human
       Co-authored-by: Mortaro <christian.mortaro@gmail.com>
 
 ERROR
-} >&2
 exit 1
