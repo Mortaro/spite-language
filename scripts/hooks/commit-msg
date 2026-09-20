@@ -1,30 +1,43 @@
 #!/bin/bash
-# Every commit must name the agent session that made it, so a bad change has an owner.
-# Enforced rather than documented: see SPITE.md, "anything that requires user discipline to work".
+# Every commit names the session that made it and the model that wrote it, so a bad change
+# has an owner. Enforced rather than documented: see SPITE.md, "anything that requires user
+# discipline to work".
 
 message_file="$1"
 
-if grep -qE '^Agent: .+' "$message_file"; then
+has_agent=0
+has_coauthor=0
+grep -qE '^Agent: .+'            "$message_file" && has_agent=1
+grep -qiE '^Co-authored-by: .+ <.+@.+>' "$message_file" && has_coauthor=1
+
+if [ "$has_agent" = 1 ] && [ "$has_coauthor" = 1 ]; then
     exit 0
 fi
 
-cat >&2 <<'ERROR'
+{
+    echo
+    echo "  commit rejected: missing attribution"
+    echo
+    [ "$has_agent" = 0 ]    && echo "  missing: Agent      (which session made this)"
+    [ "$has_coauthor" = 0 ] && echo "  missing: Co-authored-by (which model wrote it)"
+    cat <<'ERROR'
 
-  commit rejected: no Agent trailer
-
-  Every commit ends with a line naming the session that made it, so Mortaro knows
-  who to blame. Add it as the last line of the message:
+  Every commit ends with both, so Mortaro knows who to blame:
 
       Agent: <session name> [<ref>]
+      Co-authored-by: Claude <model> <noreply@anthropic.com>
 
   for example:
 
-      Agent: Spite Language spec with budget subagents [066a95]
+      Agent: C/DLL and web environment bridging [87bfaf]
+      Co-authored-by: Claude Opus 5 <noreply@anthropic.com>
 
-  Use the name and ref exactly as ListAgents prints them. A human committing by
-  hand writes:
+  Take the session name and ref exactly as ListAgents prints them, and name the
+  model you are actually running as. A human committing by hand writes:
 
       Agent: human
+      Co-authored-by: Mortaro <christian.mortaro@gmail.com>
 
 ERROR
+} >&2
 exit 1
