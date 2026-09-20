@@ -2,6 +2,7 @@ enum TokenKind {
     'integer_literal'
     'float_literal'
     'string_literal'
+    'interpolation'
     'enum_literal'
     'generic_identifier'
     'identifier'

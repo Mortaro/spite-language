@@ -1,0 +1,7 @@
+hello ada
+ada is 36
+next year 37, twice 72
+the list holds 3 and starts at 1
+a brace { and one more {} on its own
+ada
+nothing to add

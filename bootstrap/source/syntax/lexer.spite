@@ -309,6 +309,9 @@ func decode_escape(escaped_character: String): String {
     if escaped_character == "'" {
         return "'"
     }
+    if escaped_character == "\{" {
+        return "\{"
+    }
     return escaped_character
 }
 
@@ -320,6 +323,8 @@ func scan_quoted(quote_code: Int, kind: TokenKind): Bool {
     var buffer = ""
     var terminated = false
     var stopped = false
+    var pieces = List<String>()
+    var holes = List<String>()
     while not at_end() and not stopped {
         var code = current_code()
         if code == quote_code {
@@ -333,6 +338,32 @@ func scan_quoted(quote_code: Int, kind: TokenKind): Bool {
             var escaped_character = source.character_at(index)
             advance_character()
             buffer = buffer + decode_escape(escaped_character)
+        } else if code == 123 and kind == 'string_literal' {
+            advance_character()
+            var hole_start = index
+            var depth = 1
+            while not at_end() and depth > 0 {
+                var inner = current_code()
+                if inner == 123 {
+                    depth = depth + 1
+                } else if inner == 125 {
+                    depth = depth - 1
+                } else if inner == 34 or inner == 39 {
+                    skip_quoted_run(inner)
+                }
+                if depth > 0 {
+                    advance_character()
+                }
+            }
+            if depth > 0 {
+                push_token('invalid', source.slice(start_index, index), "", token_line, token_column)
+                fail_lex("this '\{' inside text never closes: write the value between '\{' and '}', like \"hello \{name}\", or write a '\{' of its own as backslash \{", token_line)
+                return false
+            }
+            pieces.append(buffer)
+            holes.append(source.slice(hole_start, index))
+            buffer = ""
+            advance_character()
         } else {
             buffer = buffer + source.character_at(index)
             advance_character()
@@ -344,8 +375,28 @@ func scan_quoted(quote_code: Int, kind: TokenKind): Bool {
         return false
     }
     var lexeme = source.slice(start_index, index)
-    push_token(kind, lexeme, buffer, token_line, token_column)
+    if holes.is_empty() {
+        push_token(kind, lexeme, buffer, token_line, token_column)
+        return false
+    }
+    var piece_index = 0
+    while piece_index < holes.count() {
+        push_token('string_literal', lexeme, pieces[piece_index], token_line, token_column)
+        push_token('interpolation', lexeme, holes[piece_index], token_line, token_column)
+        piece_index = piece_index + 1
+    }
+    push_token('string_literal', lexeme, buffer, token_line, token_column)
     return false
+}
+
+func skip_quoted_run(quote_code: Int) {
+    advance_character()
+    while not at_end() and current_code() != quote_code {
+        if current_code() == 92 {
+            advance_character()
+        }
+        advance_character()
+    }
 }
 
 func scan_operator(): Bool {

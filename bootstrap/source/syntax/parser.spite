@@ -184,7 +184,7 @@ func parse_statement_list_until(stop_kind: TokenKind): List<Syntax.Statements.St
 }
 
 func parse_block(): List<Syntax.Statements.Statement> {
-    expect('left_brace', "'{'")
+    expect('left_brace', "'\{'")
     var statements = parse_statement_list_until('right_brace')
     expect('right_brace', "'}'")
     return statements
@@ -209,6 +209,34 @@ func parse_statement(): Syntax.Statements.Statement {
         Syntax.Statements.ExpressionStatement: statement.line = line
     }
     return statement
+}
+
+func parse_interpolation(hole: Token): Syntax.Expressions.Expression {
+    if hole.text.trim().is_empty() {
+        fail("there is nothing between '\{' and '}': write the value to place there, like \"hello \{name}\"")
+        return dummy_expression()
+    }
+    var hole_lexer = Syntax.Lexer(hole.text)
+    if hole_lexer.has_error {
+        fail(hole_lexer.error_message)
+        return dummy_expression()
+    }
+    var hole_parser = Syntax.Parser(hole_lexer.tokens)
+    var value = hole_parser.parse_expression()
+    if hole_parser.has_error {
+        fail(hole_parser.error_message)
+        return dummy_expression()
+    }
+    if not hole_parser.at_end_of_tokens() {
+        fail("'" + hole.text + "' is more than one value: what goes between '\{' and '}' is a single value")
+        return dummy_expression()
+    }
+    return value
+}
+
+func at_end_of_tokens(): Bool {
+    skip_trivia()
+    return check('end_of_file')
 }
 
 func borrowed_word_lesson(word: String): String {
@@ -237,7 +265,7 @@ func parse_statement_without_line(): Syntax.Statements.Statement {
     }
     if check('identifier') and current().lexeme == "for" {
         fail(
-            "Spite only has 'while' loops; there is no 'for'. Use List<T>'s metaprogramming helpers or 'while index < list.count() { ... }' instead.",
+            "Spite only has 'while' loops; there is no 'for'. Use List<T>'s metaprogramming helpers or 'while index < list.count() \{ ... }' instead.",
         )
         return dummy_statement()
     }
@@ -397,7 +425,7 @@ func parse_required_function(name: String): Syntax.Statements.FieldDeclaration {
 
 func reject_declaration_equal(keyword: String, name: String) {
     if check('equal') {
-        fail("a declaration takes no '=': write '" + keyword + " " + name + " {' with one entry on each line")
+        fail("a declaration takes no '=': write '" + keyword + " " + name + " \{' with one entry on each line")
     }
 }
 
@@ -409,7 +437,7 @@ func open_declaration_body(keyword: String) {
         return
     }
     if not check('newline') {
-        fail(keyword + " declarations put each entry on its own line: start a new line after '{'")
+        fail(keyword + " declarations put each entry on its own line: start a new line after '\{'")
         advance()
         return
     }
@@ -440,7 +468,7 @@ func parse_type_declaration(): Syntax.Statements.Statement {
     advance()
     var name = expect('identifier', "a type name")
     reject_declaration_equal("type", name.text)
-    expect('left_brace', "'{' to start the type body")
+    expect('left_brace', "'\{' to start the type body")
     open_declaration_body("type")
     var fields = List<Syntax.Statements.FieldDeclaration>()
     var finished = check('right_brace') or check('end_of_file')
@@ -466,7 +494,7 @@ func parse_enum_declaration(): Syntax.Statements.Statement {
     advance()
     var name = expect('identifier', "an enum name")
     reject_declaration_equal("enum", name.text)
-    expect('left_brace', "'{' to start the enum body")
+    expect('left_brace', "'\{' to start the enum body")
     open_declaration_body("enum")
     var values = List<String>()
     var finished = check('right_brace') or check('end_of_file')
@@ -486,7 +514,7 @@ func parse_union_declaration(): Syntax.Statements.Statement {
     advance()
     var name = expect('identifier', "a union name")
     reject_declaration_equal("union", name.text)
-    expect('left_brace', "'{' to start the union body")
+    expect('left_brace', "'\{' to start the union body")
     open_declaration_body("union")
     var members = List<Syntax.Types.Type>()
     var finished = check('right_brace') or check('end_of_file')
@@ -540,7 +568,7 @@ func parse_while_statement(): Syntax.Statements.Statement {
 func parse_switch_statement(): Syntax.Statements.Statement {
     advance()
     var subject = parse_expression()
-    expect('left_brace', "'{' to start the switch body")
+    expect('left_brace', "'\{' to start the switch body")
     skip_trivia()
     var cases = List<Syntax.Statements.SwitchCase>()
     var finished = check('right_brace') or check('end_of_file')
@@ -1014,7 +1042,17 @@ func parse_primary(): Syntax.Expressions.Expression {
     }
     if check('string_literal') {
         var token = advance()
-        return Syntax.Expressions.StringLiteralExpression(token.text)
+        var text: Syntax.Expressions.Expression = Syntax.Expressions.StringLiteralExpression(token.text)
+        while check('interpolation') {
+            var hole = advance()
+            text = Syntax.Expressions.BinaryExpression('add', text, parse_interpolation(hole))
+            var following = expect('string_literal', "the rest of the text after '}'")
+            if not following.text.is_empty() {
+                var piece: Syntax.Expressions.Expression = Syntax.Expressions.StringLiteralExpression(following.text)
+                text = Syntax.Expressions.BinaryExpression('add', text, piece)
+            }
+        }
+        return text
     }
     if check('enum_literal') {
         var token = advance()

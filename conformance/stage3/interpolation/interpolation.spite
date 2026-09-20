@@ -1,0 +1,13 @@
+var console = Console()
+
+func Interpolation() {
+    var person = Person("ada", 36)
+    console.print(person.greeting())
+    console.print("{person.name} is {person.age}")
+    console.print("next year {person.age + 1}, twice {person.age * 2}")
+    var numbers = [1, 2, 3]
+    console.print("the list holds {numbers.count()} and starts at {numbers[0]}")
+    console.print("a brace \{ and one more \{} on its own")
+    console.print("{person.name}")
+    console.print("nothing to add")
+}
