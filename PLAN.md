@@ -152,8 +152,16 @@ and balanced allocations.
       member templates, `crash` as the only assertion, hand-listed in the entry class, run by `check.sh`. A wrong
       expectation fails the run with `spite.crash tests/string_tests.spite:4 ...`, which is D46 working as
       described.
-    - **16d. Discovery through `Class.functions`** (D12), so the entry stops hand-listing. This is the only part
-      that waits on milestone 10, and it waits on one member of it rather than the whole design pass.
+    - **16d. Done.** `instance.functions` is a `List<Spite.Function>`, generated only where used, each carrying
+      `.name`, `.arguments` (a `List<Spite.Argument>` of `.name`/`.class`) and `.returns` -- `Nothing` (D48) for
+      every function declared without a return type. A function value retains the instance it came from, and
+      `call_function()` calls it. `tests/tests.spite` no longer hand-lists: `run(StringTests().functions)` calls
+      everything named `test_*`. `library/nothing.spite`, `library/spite/function.spite` and `argument.spite`
+      are ordinary Spite source, which is D14 continuing.
+      **Not built yet:** typed `Spite.Function<Arguments..., Return>` (D39), naming a function to pass it as a
+      value, `.owner` as a readable attribute (D40 -- there is no type to give it until the typed form exists),
+      calling with arguments, and class-level `Class.functions`. Only functions taking nothing and returning
+      `Nothing` are callable; the rest are described but not callable.
     - **16e. Half done.** The crash line is now `spite.crash<TAB>path:line<TAB>Class<TAB>function<TAB>condition`,
       the condition rebuilt from its tokens. Still to do: the operand values (D25), then crash ids and the
       `<output-name>.crashes` map (D32, D33) -- the largest piece, and last, because a file, a line and the

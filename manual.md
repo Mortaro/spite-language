@@ -669,10 +669,20 @@ nothing in it can be mistaken for a user class. **[planned]**
 | Object | Members |
 |---|---|
 | `Spite.Class` | `.name: String`, `.namespace: Nullable<Spite.Namespace>`, `.attributes`, `.functions`, `.instances`, plus the class-level functions a class may override ([above](#class-level-functions-and-why-there-are-no-static-functions-planned)) |
-| `Spite.Function` | `.name: String`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` |
+| `Spite.Function` | `.name: String`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `.owner`, `call_function()` |
 | `Spite.Argument` | `.name: String`, `.class: Spite.Class` |
 | `Spite.Attribute` | `.name: String`, `.class: Spite.Class`, `.value: String` |
 | `Spite.Namespace` | `.name: String` (the segment), `.full_name: String` (dotted), `.parent: Nullable<Spite.Namespace>`, `.classes`, `.namespaces` |
+
+**What `.functions` contains** (proposed by Claude, unconfirmed): the functions a class declares, plus the
+Symbol-codegen instances that were actually generated for it -- because those are functions of the class in the
+program as built, and `--final-classes` already prints them (section 16 item 9). Reflection describes the
+program that exists, not the source as written, which is the same rule D42 applies everywhere else.
+
+**A constructor is not one of them.** It does not answer on an instance, it makes one, so putting it in
+`.functions` would mean every caller that walks the list has to know to skip it -- and the first thing anyone
+writes is a loop that calls what it finds. If a constructor needs to be reachable it belongs on the class object
+as its own member, not in the list of what an instance answers.
 
 **Reflection may be as detailed as it likes, because what is not used is not emitted** (D42, decided by
 Mortaro, 2026-09-20). Most of this metadata will never be reached by any given program, and reaching for it is
