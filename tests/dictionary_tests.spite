@@ -1,0 +1,32 @@
+func DictionaryTests() { }
+
+func test_a_missing_key_is_null() {
+    var ages = Dictionary<Int>()
+    var missing = ages.get("nobody")
+    switch missing {
+        Int: crash
+        Null: crash ages.count() == 0
+    }
+}
+
+func test_set_replaces_a_value() {
+    var ages = Dictionary<Int>()
+    ages.set("ada", 36)
+    ages.set("ada", 37)
+    crash ages.count() == 1
+    crash ages["ada"] == 37
+}
+
+func test_keys_keep_insertion_order() {
+    var ages = Dictionary<Int>()
+    ages.set("grace", 85)
+    ages.set("ada", 36)
+    crash ages.keys().join(",") == "grace,ada"
+}
+
+func test_remove_forgets_the_key() {
+    var ages = Dictionary<Int>()
+    ages.set("ada", 36)
+    ages.remove("ada")
+    crash not ages.has("ada")
+}

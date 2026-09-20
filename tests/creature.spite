@@ -1,0 +1,13 @@
+var name = ""
+var strength = 0
+var small = false
+
+func Creature(starting_name: String, starting_strength: Int, starting_small: Bool) {
+    name = starting_name
+    strength = starting_strength
+    small = starting_small
+}
+
+func label(): String {
+    return name + ":" + strength
+}

@@ -1,0 +1,43 @@
+func ListTests() { }
+
+func test_append_and_prepend_keep_order() {
+    var numbers = [2, 3]
+    numbers.append(4)
+    numbers.prepend(1)
+    crash numbers.count() == 4
+    crash numbers[0] == 1
+    crash numbers.last() == 4
+}
+
+func test_reading_out_of_range_gives_the_default() {
+    var numbers = [7]
+    crash numbers[5] == 0
+    var names = ["ada"]
+    crash names[5] == ""
+}
+
+func test_remove_last_returns_what_it_removed() {
+    var names = ["ada", "grace"]
+    crash names.remove_last() == "grace"
+    crash names.count() == 1
+}
+
+func test_contains_finds_a_value() {
+    var names = ["ada", "grace"]
+    crash names.contains("ada")
+    crash not names.contains("alan")
+}
+
+func test_reverse_turns_the_list_around() {
+    var numbers = [1, 2, 3]
+    numbers.reverse()
+    crash numbers.first() == 3
+    crash numbers.last() == 1
+}
+
+func test_a_list_is_shared_not_copied() {
+    var original = [1]
+    var same = original
+    same.append(2)
+    crash original.count() == 2
+}

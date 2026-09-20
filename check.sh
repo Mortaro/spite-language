@@ -71,6 +71,17 @@ done
 echo "conformance and examples: $passed passed, $failed failed"
 [ "$failed" == "0" ] || exit 1
 
+# The tests: a package that crashes (D46). No framework: a test is a function, and `crash` is the assertion.
+test_output=$("$work/generation_two.exe" --file=tests/tests.spite --mode=run --debug_memory=true 2>&1 | tr -d '\r')
+if echo "$test_output" | grep -q "failed to check cache"; then
+  test_output=$("$work/generation_two.exe" --file=tests/tests.spite --mode=run --debug_memory=true 2>&1 | tr -d '\r')
+fi
+test_balance=$(echo "$test_output" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
+if [ "$(echo "$test_output" | grep -vc '^allocations: ')" != "0" ] || [ -z "$test_balance" ] || [ "${test_balance% *}" != "${test_balance#* }" ]; then
+  echo "FAILED: tests"; echo "$test_output" | head -8; exit 1
+fi
+echo "tests: passed"
+
 # Programs that must NOT compile: the errors are the language's main channel to whoever (or whatever) writes the code.
 wrong=0; checked=0
 for folder in diagnostics/*/; do
