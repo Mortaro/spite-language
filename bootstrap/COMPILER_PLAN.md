@@ -17,13 +17,18 @@ progress log before it ends. `manual.md` is the language; this file is the compi
 
 ## How to work on it
 
-- `bash check.sh` is the green bar: builds the seed with `zig cc`, proves the fixpoint, runs every program under
-  `conformance/` (exact output and balanced `allocations == frees`) and every program under `diagnostics/` (exact
-  compile errors). It leaves the freshly built compiler at `.spite-cache/spite_development.exe`.
+- `bash check.sh` is the green bar: builds the seed with whatever `CC` names (else the first of `cc`, `clang`,
+  `gcc`), proves the fixpoint, then runs every program under `conformance/` and `examples/` (exact output and
+  balanced `allocations == frees`), `tests/`, every program under `diagnostics/` (exact compile errors) and every
+  titled code block in `docs/`. It leaves the freshly built compiler at `.spite-cache/spite_development.exe`.
 - `bash check.sh --update-seed` refreshes the committed seed after an intended compiler change.
 - One feature = one conformance (or diagnostics) program = one commit. Run `check.sh` per feature, not per file.
 - `conformance/<stage>/<name>/<name>.spite` plus `expected_output.txt`; `diagnostics/<name>/<name>.spite` plus
-  `expected_errors.txt`; either may carry `flags.txt` with compiler flags such as `--environment=server`.
+  `expected_errors.txt`; either may carry `flags.txt` with compiler flags such as `--environment=server`, and a
+  conformance program may carry `input.txt` for what it reads from the console.
+- A documentation program is a fenced block in `docs/` headed `spite title=<folder>/<file>.spite [entry] [error]
+  [vars=name:value]`, followed by an ```output or ```diagnostic block. `scripts/docs_corpus.spite` writes them
+  out; `check.sh` runs them.
 - `scripts/patch_tool.py` applies a file of OLD/NEW blocks; `scripts/regenerate_type_shape.py` regenerates the
   `SpiteType` union and its narrowing helpers when a kind of type is added.
 
@@ -65,7 +70,7 @@ progress log before it ends. `manual.md` is the language; this file is the compi
 
 Classes per file, namespaces from folders, `load`, reopening; attributes with defaults; functions, constructors,
 the entry constructor with `Arguments`; `Int`, `Long`, `Float`, `Double`, `Bool`, `String` and the casting rule;
-enums; unions with exhaustive narrowing `switch` and calls/reads directly on a union; `Nullable<T>` with `assert`,
+enums; unions with exhaustive narrowing `switch` and calls/reads directly on a union; `T?` with `assert`,
 `crash` and plain `if` narrowing; `List<T>` and `Dictionary<T>` with their methods and index sugar; String
 methods; `while`, `if`/`else`, `return`; reference counting with `copy()` and `drop()`; `Console`, `File`,
 `Directory`, `Process`, `Program`; `crash` (interim report line); the `assert` rules (D27 to D29); Symbol codegen;
@@ -87,14 +92,13 @@ line.
    declare those members in `library/spite/class.spite` so they are visible Spite source rather than compiler
    knowledge, make `some_class.is_singleton()` answer truthfully through the class object, and
    `Monster.attributes['name']` (D11, its shape still needs design).
-4. The rest of the failure model: crash ids, the `.crashes` map, the assert ring buffer (D25, D32, D33).
-5. `Dictionary<T>` member templates, `deep_copy()`, the remaining numeric types.
-6. The lints as compile errors: unused locals and parameters, naming, abbreviations, the comment rule (D34).
-7. The formatter (the compiler rewrites sources to the one style), then `--final-classes`.
-8. The command line in its final shape (`spite file.spite --optimized ...`), `--development`, the REPL, live reload.
-9. Known problems: compiling the compiler itself leaks about 0.1% of its allocations (conformance programs are
-   balanced, so it is a path only the large program exercises); `examples/`, `tests/` and the `docs/` samples
-   predate several language decisions and need migrating or deleting.
+4. `deep_copy()` and the `Dictionary<T>` member templates.
+5. The formatter (the compiler rewrites sources to the one style), then `--final-classes`.
+6. Arguments for the program being run: `--mode=run` hands it an empty `Arguments`, so nothing on the command
+   line can reach it. Needs a rule for where the compiler's flags end and the program's begin.
+7. `--development`, the REPL, live reload.
+8. Known problem: compiling the compiler itself leaks about 0.1% of its allocations (every corpus program is
+   balanced, so it is a path only the large program exercises).
 
 ## Progress log (newest last)
 
@@ -107,3 +111,30 @@ line.
 - 2026-09-20 (late night): a crash prints the asserts that failed before it from a ring of 32 (D25; `spite_assert_trace`, defined right after the runtime header); `Tiny`, `Short`, `Byte`, `UnsignedShort`, `UnsignedInt`, `UnsignedLong`; the command line takes the file on its own, defaults to running it, has `--optimized`, prints usage when given nothing and reports an unreadable file instead of crashing. State: 42 conformance + 9 examples, tests, 14 diagnostics. The compiler's own leak when compiling itself is still there (about 3,000 of 2,000,000 allocations; `--mode=tokens` and `--mode=tree` are balanced, so it is in discovery or generation; even compiling `conformance/stage1/hello` leaks a dozen objects: Strings, `ClassRefType`s, five `Token`s and one `File`). Patterns already ruled out with small programs, all balanced: unions as arguments and returns, a typed local returned as a union, early returns inside loops with owned locals, reassigning a variable that holds an object, the narrowed-getter pattern (`var value = attribute; crash value; return value`), a temporary `File(...).read()`. To find it: build the seed with `-DSPITE_DEBUG_MEMORY`, compile `conformance/stage1/hello` with `--mode=c`, and shrink the compiler run (for example return early from `Generator.generate`) until the dozen disappears.
 - 2026-09-20 (before dawn): hardening. `docs/for_ai_writers.md` was rewritten to match what the compiler enforces (its inline declarations were compiled). Found by writing deliberately wrong programs, now errors and covered by `diagnostics/common_mistakes` and `diagnostics/type_mistakes`: assigning to an attribute that does not exist, assigning to an undeclared name, a call with the wrong number of arguments, and any value whose type cannot become the needed one (`cast()` ends in `report_mismatch`; numbers, strings and enum values still convert toward the left; a class converts to a union or a `type` it fits). Using a `T?` without narrowing names the three ways to narrow. State: 42 conformance + 9 examples, tests, 16 diagnostics. The best next hardening step is more of the same: write the program an AI would get wrong, and make the compiler say what to write. Known soft spots: errors inside function bodies are not reported when the declaration pass already failed; a condition that is not a `Bool` is accepted; arithmetic on a class without the operator function reports, but arithmetic between a number and a class on the right does not name the types; `return` with a value in a function that returns nothing is accepted.
 - 2026-09-20 (dawn): `if` and `while` need a Bool or a value that may be null; a `return` must match its function (`diagnostics/conditions_and_returns`). To avoid a cascade, "returns nothing" is not reported once the run already has errors. State at the end of the night: 42 conformance + 9 examples, tests, 17 diagnostics, fixpoint holds, seed current, `bin/spite` verified on an example and on the tests. Nothing is half done.
+- 2026-09-20 (morning): `Console` is a standard library class rather than a reserved word (D52, from Mortaro's
+  inbox): registered like `File`/`Directory`/`Process`/`Program`, declared a singleton, with `read_line()` added
+  and `ConsoleType` gone from the type union, so an attribute holding a `Console` is an ordinary attribute
+  instead of one the generator deleted from the struct; `print`/`write`/`error` stay compiler-written only
+  because the language cannot yet declare a function taking any number of arguments of any type.
+  `check.sh` feeds a program an `input.txt` when one sits beside it and `/dev/null` otherwise, so a program
+  that waits for input can never hang the suite. D47 landed: `enum`, `type` and `union` declarations take no
+  `=` and break their lines, with the old form and a comma both parse errors naming the fix; the 24
+  declarations in the tree and the three in `docs/` moved with it (two seed generations: accept both forms,
+  migrate, then reject). `scripts/regenerate_type_shape.py` was several decisions out of date and wrote
+  `Nullable<T>` and empty constructors back into the files it owns; it now writes the current language.
+  **`check.sh` runs `docs/` as a corpus.** Every fenced block titled `folder/file.spite` becomes a program:
+  it must compile, run, print its ```output block and free everything it took, or -- marked `error` -- fail
+  to compile with its ```diagnostic text in the message. The extractor is itself a Spite program
+  (`scripts/docs_corpus.spite`, written in an evening and balanced on its first run), so `check.sh` still
+  needs nothing but a C compiler. 17 of the 44 documentation programs failed the first time. Most were stale
+  text; five were the compiler not doing what the manual says, now fixed with a `diagnostics/` program each:
+  a statement at file scope was parsed and silently dropped, a return type without its colon said "expected
+  '{' but found 'Int'", `load("spite")` collided with the reserved namespace, the terminal-`if` lint of
+  manual.md section 5 did not exist (and caught three places in the compiler's own sources on its first run),
+  and `.class` read through a `type`-shaped or union value answered the shape instead of the class -- it now
+  reads the object's own tag at runtime, which closes `docs/KNOWN_ISSUES.md` item 1.
+  State: 55 conformance + examples, tests, 23 diagnostics, 44 documentation programs, fixpoint holds, seed
+  current. Found on the way, not fixed: a program run with `--mode=run` receives no command line arguments at
+  all (`Arguments.count()` is 0), so there is no way yet to pass anything to the program being run -- which is
+  why `scripts/docs_corpus.spite` writes to a fixed `.spite-cache/docs`. Its output is deterministic, so two
+  `check.sh` runs at once write the same bytes.

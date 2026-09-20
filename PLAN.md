@@ -84,7 +84,7 @@ and balanced allocations.
     type that cannot be serialised is a diagnostic naming it. **Blocked on the errors design** (`mortaros_notes.md`
     item 2): a network call fails in ways a local call cannot, and this is where "only errors that stop the
     program" has to be answered concretely. This is the Nullstack-in-Spite milestone.
-13. **Not started.** D5 + D9, the codegen value form (manual.md section 9): remove the `generics` header line
+13. **Done.** D5 + D9, the codegen value form (manual.md section 9): remove the `generics` header line
     (writing it becomes a parse error naming the new form) and move the ordered list into the constructor --
     `func Weapon<$damage_type, $is_magic>(new_damage: $damage_type)`, called `Weapon<Magic, true>(10)`. Every
     codegen value a caller supplies is declared, even a single one; call sites stay positional with no named
@@ -139,7 +139,7 @@ and balanced allocations.
     Performance is not a reason to delay any of this: the output is still C, so Spite-written standard library
     code meets the same optimiser the hand-written C does.
 
-16. **PRIORITY, next.** Being able to run tests (manual.md D46: a test is a package that crashes). The point is
+16. **Done.** Being able to run tests (manual.md D46: a test is a package that crashes). The point was
     to build only what tests actually need, not to wait for milestone 10. Ordered so that each step is usable on
     its own:
     - **16a. Done.** All nine examples migrated, each with an `expected_output.txt`, run by `check.sh` to the
@@ -162,10 +162,10 @@ and balanced allocations.
       value, `.owner` as a readable attribute (D40 -- there is no type to give it until the typed form exists),
       calling with arguments, and class-level `Class.functions`. Only functions taking nothing and returning
       `Nothing` are callable; the rest are described but not callable.
-    - **16e. Half done.** The crash line is now `spite.crash<TAB>path:line<TAB>Class<TAB>function<TAB>condition`,
-      the condition rebuilt from its tokens. Still to do: the operand values (D25), then crash ids and the
-      `<output-name>.crashes` map (D32, D33) -- the largest piece, and last, because a file, a line and the
-      condition already make a failure fixable.
+    - **16e. Done.** The crash line is `spite.crash<TAB>path:line<TAB>Class<TAB>function<TAB>condition`, the
+      condition rebuilt from its tokens and followed by the named operands of the failed comparison with their
+      values (D25); a crash also prints the asserts that failed before it, from a ring of 32. Crash and assert
+      sites carry content-derived ids and every build writes `<output>.crashes` (D32, D33).
 
     Why this order: after 16a and 16b -- both small -- a failing test is a crash naming a file, a line, a class
     and a function, which is enough for an AI to fix it and re-run. Everything after that is refinement.
