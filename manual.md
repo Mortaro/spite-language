@@ -442,8 +442,9 @@ firing `crash` flushes stdout, writes one line to stderr, and exits with status 
 spite.crash<TAB>path:line<TAB>Class<TAB>function<TAB>condition
 ```
 
-The condition is rebuilt from its own tokens, so `crash value > 0` reports `value > 0`, and a bare `crash`
-reports nothing there. Still missing: the operand *values*, the crash ids and the `<output-name>.crashes` map. The line keeps the
+The condition is rebuilt from its own tokens and the line ends with the named operands of the failed
+comparison and their values -- `value > limit<TAB>value=-9<TAB>limit=0` -- with calls never evaluated a second
+time. Still missing: the crash ids, the `<output-name>.crashes` map and the assert ring buffer. The line keeps the
 `spite.crash` prefix, so anything grepping for it keeps working when the id and values arrive.
 
 ### Operators  **[implemented]**
@@ -637,7 +638,7 @@ own declared type is the concrete class itself -- reading it through a variable/
 is the `type` shape (even holding that exact same instance) is a compile error, "unknown field 'class'"; see
 `docs/KNOWN_ISSUES.md`.
 
-**A `type` may require functions, not only attributes** (D16, decided by Mortaro, 2026-09-19), matched by shape
+**A `type` may require functions, not only attributes** (D16, decided by Mortaro, 2026-09-19; implemented), matched by shape
 exactly as an attribute-only `type` is:
 
 ```
@@ -1140,7 +1141,7 @@ cannot be auto-fixed are their own subsection below.
   text appears, in the same order, in the formatted output. Either check failing refuses to write the file and
   reports an internal formatter error instead -- see the formatter.
 
-### Naming and abbreviations -- lints, not auto-fixed
+### Naming and abbreviations -- compile errors, not auto-fixed  **[implemented]**
 
 A naming or abbreviation problem cannot be silently rewritten (renaming a symbol can change what a program
 means to a reader who searches for its old name), so these are compile **errors** with `file:line:column` and
@@ -1422,7 +1423,12 @@ never get large enough for that to matter). `Dictionary<T>()` constructs one.
 | `each_<member>()` | | `T` a class: calls that zero-argument function on every value, mutating it in place |
 
 Iterate values with `while` (`dictionary.values()`, or `dictionary.keys()` plus `dictionary[key]`), or use
-`each_<member>()` when a class value just needs one of its own methods called on every entry.
+`each_<member>()` when a class value just needs one of its own methods called on every entry. The whole member
+template family works on a `Dictionary<T>` through its values, as it does on a `List<T>`.
+
+`deep_copy()` is implemented for classes, lists and dictionaries. A `String` is shared rather than duplicated
+because it is immutable; a union or a `type` shape is shared for now; a self-referring structure is still
+unsupported (section 10).
 
 ### Heap\<T\> -- removed (D1, decided by Mortaro, 2026-09-19)
 
