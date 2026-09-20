@@ -1156,6 +1156,31 @@ cannot be auto-fixed are their own subsection below.
   text appears, in the same order, in the formatted output. Either check failing refuses to write the file and
   reports an internal formatter error instead -- see the formatter.
 
+### Comments  **[implemented]**
+
+**A comment is one line, and it is nothing but a link to a markdown section** (D34, decided by Mortaro, 2026-09-20):
+
+```
+# notes.md#why-this-exists
+func Game() {
+```
+
+- The link is a path to a markdown file plus a GitHub format anchor (lowercase, punctuation dropped, spaces to
+  hyphens, `-1`, `-2` for repeated headings) and no other text. The path is resolved from the entry file's folder,
+  the same rule `load` uses, so a local run and an automated one agree.
+- The compiler checks that the file exists and has a heading with that anchor. A link that does not resolve fails
+  the build, which is the point: prose in source rots into a lie, a link either resolves or stops you.
+- A comment may only appear outside functions and declaration bodies. A line that seems to need explaining
+  becomes a named function instead, and unlike a comment a name is visible to `functions`, to `--final-classes`
+  and to every tool.
+- `//` and `/* */` are recognised by the lexer only to be rejected with the explanation.
+- Every one of these errors teaches: it states the one legal form, then asks whether the note is needed at all.
+  If a reader could work it out from the code, delete it; if it is lasting knowledge, write the section first and
+  link to it; if it warns against a change, a test or a compile error pushes harder than prose.
+- Why not zero comments: finding out that nothing is there costs a search on every edit, which is the common
+  case, while a link costs a few tokens only where there is something to say. Absence becomes free and
+  trustworthy.
+
 ### Naming and abbreviations -- compile errors, not auto-fixed  **[implemented]**
 
 A naming or abbreviation problem cannot be silently rewritten (renaming a symbol can change what a program
@@ -1532,6 +1557,20 @@ nothing in the repository is written in a second language and nothing rots out o
 150-300 hand-written lines; generating it fully is a goal, not a day-one requirement, and it shrinks on its own
 as wasm proposals land.
 
+### JSON is reflection, not a library  **[planned]**
+
+D22 and D23 (decided by Mortaro, 2026-09-19), amended by D31: writing JSON is walking a value's attributes and
+reading it is a series of symbol keyed writes, so JSON needs no machinery of its own: a `type` shape is the JSON
+shape. It is written WITH the metaprogramming once the standard library lives in Spite, which is the other half
+of [Pure Spite](#pure-spite-dissolving-the-runtime-planned). JSON is a format for talking to foreign systems; it is
+not what Spite programs send each other (see [The wire format](#the-wire-format-planned)).
+
+- Writing never fails at run time: a class that cannot be serialised is a compile error, the same check
+  isomorphic classes already need. Only parsing can fail, and it follows the failure model: a parse that may not
+  succeed returns a `T?`, and a variant that crashes exists for callers who want the report instead.
+- Open: the names of that pair. Mortaro sketched `to_json`/`to_crashing_json`; Claude prefers
+  `parse_json()`/`parse_json_or_crash()` (unconfirmed).
+
 ### examples/calculator  **[implemented]**
 
 A recursive-descent arithmetic interpreter (`token.spite`, `lexer.spite`, `expression.spite` + one file per union
@@ -1781,8 +1820,8 @@ loading and reopening, plus a codegen value.
 - The C backend emits wasm through a C compiler targeting `wasm32-freestanding`, **plus the JavaScript glue module**,
   generated from the same declarations -- hand-written glue is what makes wasm painful everywhere else, and this
   compiler already generates C.
-- `File`/`Directory`/`Process` under `--target=web` are a compile error naming the web replacement, in the style
-  of section 13's unmatched `--name=value` error, rather than a stub that silently does nothing.
+- Which classes exist on which target is not a special rule: a class declares it (see [Targets](#targets-planned)),
+  so `File`, `Directory` and `Process` on the web are a compile error like any other class used off its target.
 - The isomorphic direction (`$environment=server|client`, already in `examples/arsenal`) is what the next section
   describes: a class compiled into both bundles, whose server-only functions become a network call on the client
   and a route registration on the server.
@@ -1832,6 +1871,58 @@ func format_name(first_name: String, last_name: String): String { }
 - **Open, and blocking:** what a failed call does. A network call fails in ways a local call cannot, and Spite's
   position is that only errors which stop the program deserve to exist (`mortaros_notes.md`). This is the case
   where that has to be answered concretely, so the errors design gates this milestone and nothing else does.
+
+### Targets  **[planned]**
+
+D20 (decided by Mortaro, 2026-09-19): a class says where it can run by overriding an ordinary member of
+`Spite.Class`, `func targets(): List<Symbol>`. The default is every target; `DynamicLibrary` answers `['native']`
+and `Html` answers `['web']`. Using a class against the wrong `$target` is a compile error naming the class, the
+target and the flag. This replaces any special rule about `File`, `Directory` and `Process` on the web: they
+declare their targets like everything else. The check runs after compile time folding and tree shaking, so a
+`load(...)` behind `if $target == 'web'` stays legal: only a class still reachable in the built program is checked.
+
+### Html: the browser as a library  **[planned]**
+
+D19 (decided by Mortaro, 2026-09-19): `Html` is the web counterpart of `DynamicLibrary`: a singleton whose
+`missing_function` and `missing_attribute` resolve against the browser. `Html.Node` wraps one node handle (an index
+into a table on the JavaScript side, freed by `drop()`). Names convert with the `'camel_case'` naming rule:
+`document.create_element("div")` is `createElement`, `node.text_content = "Hello"` is `textContent`,
+`root.append_child(node)` is `appendChild`. A call is a method and a read or write is a property, the same split
+foreign libraries use for functions and constants. `Html` is the low level layer the markup builder compiles down
+to, as `Mouse` sits on `DynamicLibrary`.
+
+Open: the markup builder below was sketched as `html.div(...)`, which now collides with this class. It needs
+another name (`Markup`? `View`?). Mortaro has not picked.
+
+### Markup  **[planned]**
+
+D18 (decided by Mortaro, 2026-09-19): there is no JSX and no trailing block. Markup is `missing_function` plus
+literals, with as many children as the call has arguments. That costs no new feature, because a Symbol codegen
+function is generated per call site:
+
+```
+html.div({ class: "card" }, html.h1(title), TodoForm({ ondone: add_todo }))
+```
+
+It pulls together what already exists: tags come from `missing_function`, a list of children is
+`todos.map_render()`, a component is any class that fits a `type` requiring `render()`, a handler is a function
+value bound to its instance, and `when(condition, element)` returns an `Element?` that the framework skips.
+
+Rejected, so nobody proposes them again: a JSX like literal is a second grammar and fixes neither conditionals
+nor mapping; a trailing block (`f(x) { a b c }`) serves exactly one shape, since queries are
+`database.filter_age_greater_than(10).sort_by_name()` and routes are plain statements, so it would be one more
+meaning for `{ }` bought for a single case. Mortaro on the verbosity: annoying for a human to write, cheap for an
+AI to write, and a human can still easily read it, which is the first line of the philosophy.
+
+### The wire format  **[planned]**
+
+D31 (decided by Mortaro, 2026-09-19): JSON is not what isomorphic classes send. Both bundles compile from the same
+source, so there are no unknown consumers and nothing needs to describe itself: the wire carries a binary packing
+derived at compile time, attributes in declaration order, no keys and no parsing. It compounds on the web, where
+nothing has to be turned into strings to cross into JavaScript: the DOM command buffer and the remote call channel
+are both opaque byte buffers. Proposed by Claude, unconfirmed: a schema hash in the handshake so an old client
+meeting a new server crashes with a clear report instead of misreading bytes, and `--development` decoding
+payloads to JSON on demand, since the compiler knows the schema.
 
 ### Not designed yet
 

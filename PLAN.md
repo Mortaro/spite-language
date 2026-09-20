@@ -169,3 +169,18 @@ and balanced allocations.
 
     Why this order: after 16a and 16b -- both small -- a failing test is a crash naming a file, a line, a class
     and a function, which is enough for an AI to fix it and re-run. Everything after that is refinement.
+
+## Later, deliberately deferred
+
+- **Generating class files at compile time** (Mortaro's idea, 2026-09-19). A framework could generate a namespace at
+  compile time: a markup package with real `ul`, `li`, `div` functions instead of catching everything through
+  `missing_function`; a class per database table; typed route functions; a class per protocol message. It is
+  stronger than `missing_function` because generated functions can be listed (`functions`), reflected and printed
+  by `--final-classes`, so an error names a real function instead of a hook. Constraints for whoever designs it:
+  the output must be ordinary readable Spite source in `--final-classes` (that is the line between this and
+  macros, which the philosophy forbids); generators must be pure and cached by a hash of their input, because
+  compilation speed is a first principle; a generated class needs a defined place in the reopening order, since a
+  later root may reopen it; and it depends on the compile time evaluator of milestone 10.
+- **Standard library templates name a `<member>`** (D15) is done in the compiler: `map_`, `filter_`, `sum_`,
+  `sort_by_`, `find_by_`, `any_`, `all_`, `count_` and `each_` accept an attribute or a function that takes
+  nothing, on `List<T>` and on `Dictionary<T>`.

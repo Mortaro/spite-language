@@ -60,6 +60,6 @@ Agent-owned state belongs in an agent-owned file.
 - `SPITE.md` — what Mortaro hates, and what to do instead.
 - `manual.md` — normative language reference, with the decision log at the end.
 - `PLAN.md` — milestones and implementation status.
-- `bootstrap/BOOTSTRAP_PLAN.md` — the self-hosting plan and progress log.
-- `conformance/` — programs both compilers must handle identically.
-- `decisions_pending_prose.md` — decisions recorded in the log whose manual sections are not written yet.
+- `bootstrap/COMPILER_PLAN.md` — the compiler's own plan, design notes and progress log.
+- `conformance/`, `examples/`, `tests/`, `diagnostics/` — what `bash check.sh` runs: programs with their exact
+  expected output and balanced memory, the test package, and programs that must fail with exact errors.
