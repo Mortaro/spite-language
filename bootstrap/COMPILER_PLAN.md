@@ -138,3 +138,19 @@ line.
   all (`Arguments.count()` is 0), so there is no way yet to pass anything to the program being run -- which is
   why `scripts/docs_corpus.spite` writes to a fixed `.spite-cache/docs`. Its output is deterministic, so two
   `check.sh` runs at once write the same bytes.
+- 2026-09-20 (late morning, hardening by writing the programs an AI would write): the test package grew from 21
+  to 54 tests over ten more classes -- numbers and the casting rule, `T?` narrowing every way, `copy`/`deep_copy`
+  and sharing, reflection, the String methods, operators through their named functions, `type` shapes, enums,
+  unions, Symbol codegen interception and `drop()`. Writing them found three gaps, each now fixed with a
+  `diagnostics/` program: `copy()` existed on a class but not on a `List<T>` or `Dictionary<T>`; a name reserved
+  in C (`unsigned`, `static`, `stdout`) emitted C that would not compile and is now a naming error beside
+  snake_case and the abbreviation list; `value == null` said "unsupported expression kind in this stage" and now
+  names the four ways to narrow. A function declared twice in one file emitted two C functions with the same
+  name and is now an error that explains how reopening differs. The lexer names its errors: an unclosed piece of
+  text (a string written across two lines) used to be "could not lex 'path'" with no line at all.
+  Then two rounds of deliberately wrong programs, with a message rewritten for each: `&&`/`||`/`!`, `++`/`+=`,
+  `? :`, `new`, `this.`/`self.`, `import`/`require`, `elif`, `class Name {`, a parameter with a default, a bare
+  `print(...)`, a PascalCase name used as a value, indexing text, reading a function without its parentheses, an
+  incomplete `switch` (it now names the members it has no case for), and a parse error at a line break (it says
+  "the end of the line" instead of printing one). `docs/for_ai_writers.md` ends with the table of all of them.
+  State: 55 conformance + examples, 54 tests, 33 diagnostics, 44 documentation programs, fixpoint holds.

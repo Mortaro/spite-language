@@ -125,6 +125,33 @@ func is_alive(): Bool {
 
 ## Built in classes
 
-`Console()` (`print`, `write`, `error`), `File(path)` (`read(): String?`, `write`, `append`, `exists`, `remove`),
-`Directory(path)` (`files`, `folders`, `exists`, `create`), `Process(command, arguments)` (`run(): Int`, `output()`),
-`Program()` (`exit(code)`, `sleep(milliseconds)`, `environment(name): String?`).
+`Console()` (`print`, `write`, `error`, `read_line(): String?`), `File(path)` (`read(): String?`, `write`,
+`append`, `exists`, `remove`), `Directory(path)` (`files`, `folders`, `exists`, `create`),
+`Process(command, arguments)` (`run(): Int`, `output()`), `Program()` (`exit(code)`, `sleep(milliseconds)`,
+`environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere.
+
+## Habits from other languages that Spite rejects
+
+Each of these is a compile error naming the Spite form, so none of them will pass silently -- but they cost a
+round trip, and this list is cheaper to read than to rediscover.
+
+| Written elsewhere | Written in Spite |
+|---|---|
+| `a && b`, `a \|\| b`, `!a` | `a and b`, `a or b`, `not a` |
+| `count++`, `count += 1` | `count = count + 1` |
+| `condition ? a : b` | an `if` with an `else`, or a function that returns one or the other |
+| `new Monster()` | `Monster()` |
+| `this.name`, `self.name` | `name` |
+| `import`, `require` | `load("folder")`, inside a function |
+| `elif` | `else if` |
+| `class Monster { }` | nothing: the file *is* the class |
+| `func greet(name: String = "world")` | a second function, or an attribute holding the value |
+| `print(value)` | `var console = Console()` at file level, then `console.print(value)` |
+| `"hello ${name}"` | `"hello " + name` |
+| `for item in list` | `while index < list.count()`, or `map_`/`filter_`/`each_<member>()` |
+| `value == null` | `if value { } else { }`, `assert value`, `crash value`, or `switch` |
+| `text[0]` | `text.character_at(0)`, or `text.slice(start, end)` |
+| `// comment`, `/* comment */` | nothing, or `# docs/page.md#section` on its own line outside a function |
+| a variable named `int`, `static`, `unsigned`, `stdout` | any name that is not reserved in C |
+
+`"hello ${name}"` is the one exception: it is not an error yet, it simply prints those characters.
