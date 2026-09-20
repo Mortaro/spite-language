@@ -1,0 +1,18 @@
+var console = Console()
+var score = 0
+
+func CommonMistakes() {
+    var pet = Pet()
+    pet.missing = 3
+    undefined_name = 4
+    score = pet.nothing_here
+    console.print(pet.bark(1, 2))
+    var number = 5
+    number.explode()
+    var text = "abc"
+    console.print(text.no_such_method())
+    var list = [1, 2]
+    list.push(3)
+    console.print(unknown_function(), Unknown())
+    console.print(score, number)
+}

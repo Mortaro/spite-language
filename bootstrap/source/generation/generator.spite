@@ -2658,12 +2658,17 @@ func generate_unary(unary: Syntax.Expressions.UnaryExpression, scope: Scope, cla
 
 func generate_argument_list(arguments_ast: List<Syntax.Expressions.Expression>, expected_types: List<Analysis.SpiteType>, scope: Scope, class_information: Analysis.ClassInfo): List<String> {
     var result = List<String>()
+    if arguments_ast.count() != expected_types.count() {
+        report("this call passes " + arguments_ast.count() + " argument(s), but " + expected_types.count() + " are expected")
+        return result
+    }
     var index = 0
     while index < arguments_ast.count() {
         result.append(coerce_for_store(arguments_ast[index], expected_types[index], scope, class_information))
         index = index + 1
     }
     return result
+
 }
 
 func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.SpiteType> {
@@ -4646,7 +4651,7 @@ func generate_member_read(member: Syntax.Expressions.MemberExpression, scope: Sc
     }
     var field = target_class.find_field(member.name)
     if not field {
-        report("'" + object_class_ref.c_name + "' has no field '" + member.name + "'")
+        report("'" + object_class_ref.c_name + "' has no attribute '" + member.name + "'")
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     crash field
@@ -4827,6 +4832,10 @@ func generate_assignment(assignment: Syntax.Statements.AssignmentStatement, scop
             return
         }
         var field = class_information.find_field(identifier.name)
+        if not field {
+            report("'" + identifier.name + "' is not a variable or an attribute here: declare it with 'var " + identifier.name + " = ...' first")
+            return
+        }
         assert field
         emit_owning_assignment("self->" + identifier.name, field.get_type(), value_ast, scope, class_information)
         return
@@ -4941,6 +4950,10 @@ target_class, member.name, class_information)
             return
         }
         var field = target_class.find_field(member.name)
+        if not field {
+            report("'" + target_class.simple_name + "' has no attribute '" + member.name + "' to assign to")
+            return
+        }
         assert field
 
         var object_temporary = next_temporary()
