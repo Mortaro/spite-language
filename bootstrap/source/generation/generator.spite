@@ -10,6 +10,7 @@ var class_object_names = List<String>()
 var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
 var deep_copy_names = List<String>()
+var terminal_if: Syntax.Statements.IfStatement? = null
 var singleton_names = List<String>()
 var tracked_class_names = List<String>()
 var singleton_releases = List<String>()
@@ -5163,6 +5164,30 @@ func generate_block(statements: List<Syntax.Statements.Statement>, parent_scope:
     generate_block_in_scope(statements, Scope(parent_scope), class_information, function_information)
 }
 
+func terminal_if_of(body: List<Syntax.Statements.Statement>): Syntax.Statements.IfStatement? {
+    if body.is_empty() {
+        return null
+    }
+    var last_if = shape.as_if_statement(body[body.count() - 1])
+    if last_if {
+        if not last_if.has_else_branch {
+            return last_if
+        }
+    }
+    return null
+}
+
+func report_terminal_if(if_statement: Syntax.Statements.IfStatement, name: String) {
+    if if_statement.has_else_branch {
+        return
+    }
+    var candidate = terminal_if
+    assert candidate
+    if candidate == if_statement {
+        report("this 'if' is the last thing the function does and has no 'else', so it only checks that '" + name + "' is there: write 'assert " + name + "' and let the rest of the function run unindented")
+    }
+}
+
 func generate_if_statement(if_statement: Syntax.Statements.IfStatement, scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo) {
     var condition_ast = if_statement.condition
     assert condition_ast
@@ -5179,6 +5204,7 @@ func generate_if_statement(if_statement: Syntax.Statements.IfStatement, scope: S
     }
     var guard = try_nullable_guard(condition_ast, scope, class_information)
     if guard {
+        report_terminal_if(if_statement, guard.name)
         builder.add_user("if (" + guard.guard_code + ") {")
         var then_scope = Scope(scope)
         then_scope.set_override(guard.name, guard.override_code)
@@ -5959,7 +5985,9 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         }
         parameter_index = parameter_index + 1
     }
+    terminal_if = terminal_if_of(function.body)
     var ended_in_return = generate_statement_list(function.body, scope, information, function)
+    terminal_if = null
     report_unused(scope)
     if not ended_in_return {
         emit_scope_drops(scope, true)

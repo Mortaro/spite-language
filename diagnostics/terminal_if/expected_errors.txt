@@ -1,0 +1,1 @@
+diagnostics/terminal_if/terminal_if.spite:9: error: this 'if' is the last thing the function does and has no 'else', so it only checks that 'maybe_name' is there: write 'assert maybe_name' and let the rest of the function run unindented (in TerminalIf.announce)

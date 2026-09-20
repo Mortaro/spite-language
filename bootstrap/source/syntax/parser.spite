@@ -112,6 +112,24 @@ func parse_file(): Syntax.SourceFile {
     return Syntax.SourceFile(parse_top_level_statements())
 }
 
+func is_declaration(statement: Syntax.Statements.Statement): Bool {
+    switch statement {
+        Syntax.Statements.GenericsDeclaration: return true
+        Syntax.Statements.VariableDeclaration: return true
+        Syntax.Statements.FunctionDeclaration: return true
+        Syntax.Statements.TypeDeclaration: return true
+        Syntax.Statements.EnumDeclaration: return true
+        Syntax.Statements.UnionDeclaration: return true
+        Syntax.Statements.AssignmentStatement: return false
+        Syntax.Statements.IfStatement: return false
+        Syntax.Statements.WhileStatement: return false
+        Syntax.Statements.SwitchStatement: return false
+        Syntax.Statements.AssertStatement: return false
+        Syntax.Statements.ReturnStatement: return false
+        Syntax.Statements.ExpressionStatement: return false
+    }
+}
+
 func parse_top_level_statements(): List<Syntax.Statements.Statement> {
     var statements = List<Syntax.Statements.Statement>()
     var finished = false
@@ -120,7 +138,15 @@ func parse_top_level_statements(): List<Syntax.Statements.Statement> {
         if check('end_of_file') or has_error {
             finished = true
         } else {
-            statements.append(parse_statement())
+            var line = current().line
+            var column = current().column
+            var statement = parse_statement()
+            if not is_declaration(statement) and not has_error {
+                fail("a file holds declarations and nothing else: move this statement into a function, or into the class's constructor")
+                error_line = line
+                error_column = column
+            }
+            statements.append(statement)
         }
     }
     return statements
@@ -285,6 +311,8 @@ func parse_function_declaration(): Syntax.Statements.Statement {
     if check('colon') {
         advance()
         return_type = parse_type()
+    } else if not check('left_brace') {
+        fail("a return type is written '(): " + current().lexeme + "': add the ':' after the parameter list")
     }
 
     var body = parse_block()

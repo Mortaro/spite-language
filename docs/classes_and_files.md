@@ -17,7 +17,7 @@ func FileScopeError() {
 }
 ```
 ```diagnostic
-is not allowed at file scope
+a file holds declarations and nothing else
 ```
 
 ## Constructors

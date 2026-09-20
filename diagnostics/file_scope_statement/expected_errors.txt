@@ -1,0 +1,1 @@
+diagnostics/file_scope_statement/file_scope_statement.spite:3:1: a file holds declarations and nothing else: move this statement into a function, or into the class's constructor

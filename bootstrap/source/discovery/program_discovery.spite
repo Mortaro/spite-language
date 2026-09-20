@@ -3,6 +3,7 @@ var class_files = List<DiscoveredClass>()
 var has_error = false
 var comment_root = ""
 var error_message = ""
+var walking_library = false
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
     var lexer = Syntax.Lexer(entry_source)
@@ -39,6 +40,9 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     var root_index = 0
     while root_index < load_names.count() {
         var root_name = load_names[root_index]
+        if root_name == "spite" {
+            return failure(entry_path + ": error: 'spite' is reserved for the built-in Spite namespace: name the folder something else")
+        }
         var root_folder = entry_directory + "/" + root_name
         var root_directory = Directory(root_folder)
         if not root_directory.exists() {
@@ -57,7 +61,9 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     if library_directory.exists() {
         var no_library_skip: String? = null
         var no_library_exclusions = List<String>()
+        walking_library = true
         walk_directory("library", empty_segments, no_library_skip, no_library_exclusions)
+        walking_library = false
         if has_error {
             return failure(error_message)
         }
@@ -212,6 +218,11 @@ func walk_directory(root_folder: String, segments: List<String>, skip_basename: 
         if segments.is_empty() {
             excluded = excluded_top_level.contains(folder_name)
         }
+        if folder_name == "spite" and not walking_library {
+            has_error = true
+            error_message = path + "/" + folder_name + ": error: 'spite' is reserved for the built-in Spite namespace: name the folder something else"
+            return
+        }
         if not excluded {
             var child_segments = copy_segments(segments)
             child_segments.append(folder_name)
@@ -297,9 +308,8 @@ func stamp_source_path(statement: Syntax.Statements.Statement, path: String) {
         function.source_path = path
     }
     var variable = shape.as_variable_declaration(statement)
-    if variable {
-        variable.source_path = path
-    }
+    assert variable
+    variable.source_path = path
 }
 
 func reopen_class(original: Syntax.SourceFile, reopening: Syntax.SourceFile) {

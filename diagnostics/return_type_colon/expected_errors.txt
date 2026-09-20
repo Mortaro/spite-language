@@ -1,0 +1,1 @@
+diagnostics/return_type_colon/return_type_colon.spite:1:26: a return type is written '(): Int': add the ':' after the parameter list

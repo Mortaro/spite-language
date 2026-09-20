@@ -123,7 +123,7 @@ func find_monster(missing: Bool): Monster? {
     return Monster(30)
 }
 
-func NullableNarrowing() {
+func report_health() {
     var target = find_monster(false)
     assert target
     console.print("health", target.health)
@@ -133,6 +133,10 @@ func NullableNarrowing() {
         console.print("should not print", missing_target.health)
     }
     console.print("done")
+}
+
+func NullableNarrowing() {
+    report_health()
 }
 ```
 ```output
@@ -153,15 +157,19 @@ func try_get_name(): String? {
     return null
 }
 
-func TerminalIfDoError() {
+func announce() {
     var maybe_name = try_get_name()
     if maybe_name {
         console.print(maybe_name)
     }
 }
+
+func TerminalIfDoError() {
+    announce()
+}
 ```
 ```diagnostic
-write it with 'assert' instead
+write 'assert maybe_name' and let the rest of the function run unindented
 ```
 
 ```spite title=terminal_if_do_fixed/terminal_if_do_fixed.spite entry
@@ -171,10 +179,14 @@ func try_get_name(): String? {
     return "Aria"
 }
 
-func TerminalIfDoFixed() {
+func announce() {
     var name = try_get_name()
     assert name
     console.print(name)
+}
+
+func TerminalIfDoFixed() {
+    announce()
 }
 ```
 ```output

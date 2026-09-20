@@ -1,0 +1,7 @@
+var console = Console()
+
+console.print("a file holds no statements")
+
+func FileScopeStatement() {
+    console.print("this one is inside a function")
+}

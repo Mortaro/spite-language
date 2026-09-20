@@ -1,0 +1,1 @@
+diagnostics/reserved_spite_namespace/reserved_spite_namespace.spite: error: 'spite' is reserved for the built-in Spite namespace: name the folder something else

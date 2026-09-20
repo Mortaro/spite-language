@@ -92,7 +92,7 @@ func SpiteNamespaceError() {
 }
 ```
 ```diagnostic
-reserved for the built-in Spite namespace
+'spite' is reserved for the built-in Spite namespace
 ```
 
 ## `load` is a bundle boundary

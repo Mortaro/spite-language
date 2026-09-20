@@ -1,0 +1,16 @@
+var console = Console()
+
+func try_get_name(): String? {
+    return null
+}
+
+func announce() {
+    var maybe_name = try_get_name()
+    if maybe_name {
+        console.print(maybe_name)
+    }
+}
+
+func TerminalIf() {
+    announce()
+}

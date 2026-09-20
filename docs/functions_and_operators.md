@@ -17,7 +17,7 @@ func add_one(value: Int) Int {
 }
 ```
 ```diagnostic
-'(): Type'
+a return type is written '(): Int'
 ```
 
 ## Every operator is a function
@@ -90,7 +90,7 @@ func use_it() {
 }
 ```
 ```diagnostic
-does not define a 'sum' function needed for '+'
+needs it to define 'sum(other)'
 ```
 
 ## Setter/getter interception

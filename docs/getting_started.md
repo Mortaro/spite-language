@@ -95,7 +95,7 @@ func LintError() {
 }
 ```
 ```diagnostic
-no abbreviations, spell it out: 'message'
+'msg' abbreviates: write 'message' instead of 'msg'
 ```
 
 ```spite title=single_letter/single_letter.spite entry error
@@ -107,7 +107,7 @@ func SingleLetter() {
 }
 ```
 ```diagnostic
-is a single-letter name
+is a single letter: give it a name that says what it holds
 ```
 
 There is no `--no-lint` -- manual.md section 12 puts it plainly: "the compiler already **is** the linter." Fix
