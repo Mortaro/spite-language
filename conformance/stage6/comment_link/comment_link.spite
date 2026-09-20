@@ -1,0 +1,7 @@
+# docs/memory.md#memory
+var console = Console()
+
+# docs/memory.md#do-know-that-sharing-is-visible
+func CommentLink() {
+    console.print("a comment that links to a section is fine")
+}

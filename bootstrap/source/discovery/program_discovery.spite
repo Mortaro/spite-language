@@ -8,7 +8,11 @@ func ProgramDiscovery() { }
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
     var lexer = Syntax.Lexer(entry_source)
     if lexer.has_error {
-        return failure("could not lex '" + entry_path + "'")
+        return failure(lex_failure(entry_path, lexer))
+    }
+    check_comments(entry_path, lexer.tokens)
+    if has_error {
+        return failure(error_message)
     }
     var parser = Syntax.Parser(lexer.tokens)
     var entry_file = parser.parse_file()
@@ -62,6 +66,105 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     var entry_mangled_name = mangle_dotted(pascal_case(entry_stem))
 
     return DiscoveryResult(class_files, entry_mangled_name, false, "")
+}
+
+func lex_failure(path: String, lexer: Syntax.Lexer): String {
+    if lexer.error_message.is_empty() {
+        return "could not lex '" + path + "'"
+    }
+    return path + ":" + lexer.error_line + ": error: " + lexer.error_message
+}
+
+func comment_lesson(): String {
+    return "a comment is one line holding only a link to a markdown section, like '# docs/memory.md#cycles', and only outside functions. Ask whether the note is needed: if a reader could work it out from the code, delete it; if it is lasting knowledge, write the section first and link to it; if it warns against a change, a test or a compile error pushes harder than prose"
+}
+
+func check_comments(path: String, tokens: List<Syntax.Token>) {
+    var depth = 0
+    var index = 0
+    while index < tokens.count() {
+        var token = tokens[index]
+        if token.kind == 'left_brace' {
+            depth = depth + 1
+        }
+        if token.kind == 'right_brace' {
+            depth = depth - 1
+        }
+        if token.kind == 'comment' and not has_error {
+            var problem = comment_problem(token.text.trim(), depth)
+            if not problem.is_empty() {
+                has_error = true
+                error_message = path + ":" + token.line + ": error: " + problem
+            }
+        }
+        index = index + 1
+    }
+}
+
+func comment_problem(text: String, depth: Int): String {
+    if depth > 0 {
+        return "a comment may not appear inside a function or a declaration body: a line that needs explaining becomes a named function instead. " + comment_lesson()
+    }
+    var hash_position = text.index_of("#")
+    if text.contains(" ") or hash_position < 1 or not text.slice(0, hash_position).ends_with(".md") {
+        return "this comment is not a link: " + comment_lesson()
+    }
+    var markdown_path = text.slice(0, hash_position)
+    var anchor = text.slice(hash_position + 1, text.length())
+    var content = File(markdown_path).read()
+    if not content {
+        return "this comment links to '" + markdown_path + "', which does not exist (the path is relative to the folder the compiler runs from)"
+    }
+    if content {
+        if not markdown_anchors(content).contains(anchor) {
+            return "this comment links to '" + markdown_path + "#" + anchor + "', but that file has no heading with that anchor"
+        }
+    }
+    return ""
+}
+
+func markdown_anchors(content: String): List<String> {
+    var anchors = List<String>()
+    var lines = content.lines()
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index].trim()
+        if line.starts_with("#") {
+            var heading = line
+            while heading.starts_with("#") {
+                heading = heading.slice(1, heading.length())
+            }
+            var anchor = heading_anchor(heading.trim())
+            var candidate = anchor
+            var suffix = 1
+            while anchors.contains(candidate) {
+                candidate = anchor + "-" + suffix
+                suffix = suffix + 1
+            }
+            anchors.append(candidate)
+        }
+        index = index + 1
+    }
+    return anchors
+}
+
+func heading_anchor(heading: String): String {
+    var lowered = heading.lower()
+    var anchor = ""
+    var index = 0
+    while index < lowered.length() {
+        var code = lowered.code_at(index)
+        var is_letter = code >= 97 and code <= 122
+        var is_digit = code >= 48 and code <= 57
+        if is_letter or is_digit or code == 45 or code == 95 {
+            anchor = anchor + lowered.character_at(index)
+        }
+        if code == 32 {
+            anchor = anchor + "-"
+        }
+        index = index + 1
+    }
+    return anchor
 }
 
 func failure(message: String): DiscoveryResult {
@@ -138,7 +241,11 @@ func read_and_add_file(path: String, segments: List<String>) {
         var lexer = Syntax.Lexer(content)
         if lexer.has_error {
             has_error = true
-            error_message = "could not lex '" + path + "'"
+            error_message = lex_failure(path, lexer)
+            return
+        }
+        check_comments(path, lexer.tokens)
+        if has_error {
             return
         }
         var parser = Syntax.Parser(lexer.tokens)

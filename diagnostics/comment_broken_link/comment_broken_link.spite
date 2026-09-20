@@ -1,0 +1,2 @@
+# docs/memory.md#a-heading-that-does-not-exist
+func CommentBrokenLink() { }

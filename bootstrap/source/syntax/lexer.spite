@@ -5,6 +5,8 @@ var line = 1
 var column = 1
 var paren_depth = 0
 var has_error = false
+var error_message = ""
+var error_line = 0
 
 func Lexer(starting_source: String) {
     source = starting_source
@@ -383,6 +385,11 @@ func scan_operator(): Bool {
         kind = 'star'
     } else if code == 47 {
         kind = 'slash'
+        if peek_code(0) == 47 or peek_code(0) == 42 {
+            has_error = true
+            error_line = token_line
+            error_message = "Spite has no '//' or '/* */' comments: a comment is one line holding only a link to a markdown section, like '# docs/memory.md#cycles', and only outside functions. Ask whether the note is needed: if a reader could work it out from the code, delete it; if it is lasting knowledge, write the section first and link to it; if it warns against a change, a test or a compile error pushes harder than prose"
+        }
     } else if code == 37 {
         kind = 'percent'
     } else if code == 61 {
