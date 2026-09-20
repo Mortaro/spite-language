@@ -1,4 +1,3 @@
 var label = ""
 var size = 1
 
-func Plain() { }

@@ -1,8 +1,6 @@
 var console = Console()
 var current_file: Syntax.SourceFile? = null
 
-func Printer() { }
-
 func indent_text(depth: Int): String {
     var text = ""
     var index = 0

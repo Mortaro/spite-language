@@ -1,5 +1,3 @@
-func AstShape() { }
-
 func as_named_type(type_reference: Syntax.Types.Type): Syntax.Types.NamedType? {
     switch type_reference {
         Syntax.Types.ReferenceType: return null

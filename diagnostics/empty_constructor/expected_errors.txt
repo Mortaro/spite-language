@@ -1,0 +1,1 @@
+diagnostics/empty_constructor/holder.spite:3: error: 'Holder' has an empty constructor: delete it. A class without a constructor is already made from its defaults (in Holder.)

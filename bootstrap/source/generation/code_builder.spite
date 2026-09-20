@@ -4,8 +4,6 @@ var support_bodies = List<String>()
 var user_bodies = List<String>()
 var main_lines = List<String>()
 
-func CodeBuilder() { }
-
 func add_typedef(line: String) {
     typedefs.append(line)
 }

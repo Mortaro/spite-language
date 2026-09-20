@@ -4,8 +4,6 @@ var has_error = false
 var comment_root = ""
 var error_message = ""
 
-func ProgramDiscovery() { }
-
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
     var lexer = Syntax.Lexer(entry_source)
     if lexer.has_error {

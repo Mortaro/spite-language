@@ -1,5 +1,3 @@
-func DictionaryTests() { }
-
 func test_a_missing_key_is_null() {
     var ages = Dictionary<Int>()
     var missing = ages.get("nobody")

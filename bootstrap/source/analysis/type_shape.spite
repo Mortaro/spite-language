@@ -1,5 +1,3 @@
-func TypeShape() { }
-
 func as_scalar(spite_type: SpiteType): Analysis.Types.ScalarType? {
     switch spite_type {
         Analysis.Types.ScalarType: return spite_type

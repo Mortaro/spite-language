@@ -1,7 +1,5 @@
 var items = List<Item>()
 
-func Holder() { }
-
 func keep(new_items: List<Item>) {
     items = new_items
 }

@@ -33,8 +33,6 @@ var arguments_parameter_names = List<String>()
 var temporary_counter = 0
 var literal_counter = 0
 
-func Generator() { }
-
 func report(message: String) {
     has_error = true
     var line = current_path + ":" + current_line + ": error: " + message + " (in " + current_owner + "." + current_function + ")"
@@ -1465,7 +1463,11 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         }
     }
     var is_constructor = declaration.name == information.simple_name
+    if is_constructor and declaration.parameters.is_empty() and declaration.codegen_names.is_empty() and declaration.body.is_empty() {
+        report("'" + declaration.name + "' has an empty constructor: delete it. A class without a constructor is already made from its defaults")
+    }
     if not is_constructor {
+
         check_value_name(declaration.name, "function")
     }
     var c_name = information.c_name + "_" + declaration.name

@@ -1,5 +1,3 @@
-func StringTests() { }
-
 func test_length_counts_characters() {
     crash "spite".length() == 5
     crash "".length() == 0
