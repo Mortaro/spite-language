@@ -1,2 +1,2 @@
-# docs/memory.md#a-heading-that-does-not-exist
+# notes.md#a-heading-that-does-not-exist
 func CommentBrokenLink() { }

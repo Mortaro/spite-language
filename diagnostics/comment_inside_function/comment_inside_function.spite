@@ -1,3 +1,3 @@
 func CommentInsideFunction() {
-    # docs/memory.md#cycles
+    # notes.md#a-real-heading
 }
