@@ -1,0 +1,13 @@
+var console = Console()
+
+func ReopenLibrary() {
+    var monster = Monster("rat")
+    var rat = Creatures.Rat(2)
+    console.print(monster.class.full_name(), rat.class.full_name())
+    var classes = Spite.Class.instances
+    var index = 0
+    while index < classes.count() {
+        console.print(classes[index].full_name())
+        index = index + 1
+    }
+}

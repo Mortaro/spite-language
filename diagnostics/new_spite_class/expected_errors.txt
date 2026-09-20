@@ -1,0 +1,1 @@
+diagnostics/new_spite_class/spite/gadget.spite: error: 'Spite' holds the standard library's own classes, so a file in a 'spite' folder may only reopen one of them: 'Spite.Gadget' is not one, and a new class of your own belongs in a namespace of your own

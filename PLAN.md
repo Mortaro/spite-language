@@ -25,7 +25,7 @@ and balanced allocations.
 ## Milestones
 
 10. Ruby grade reflection and reopening the standard library. Split in two:
-   - **10a. Not started.** Reopen standard library classes (manual.md section 16 item 1): the way to try out a
+   - **10a. Done.** Reopen standard library classes (manual.md section 16 item 1): the way to try out a
      package before upstreaming it. Reopening `Spite.Class` is D7 (manual.md section 8, "Class-level
      functions") -- a root overrides a class-level default program-wide, a new hook name creates a new hook
      program-wide, and `--final-classes` shows each change with its root, so nothing about it is silent.

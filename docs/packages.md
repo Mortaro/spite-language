@@ -83,8 +83,32 @@ cannot be reopened at all, and gets its own clear diagnostic instead. Your foot 
 ## The `Spite` namespace is reserved
 
 `Spite` is the root namespace for reflection (`Spite.Class`, `Spite.Attribute` -- see
-[metaprogramming.md](metaprogramming.md)). A user folder or `load("spite")` call is a diagnostic, not a silent
-collision:
+[metaprogramming.md](metaprogramming.md)). A `spite/` folder of your own **reopens** those classes, which is
+how a package is tried out before it is upstreamed:
+
+```spite title=reopen_spite_class/spite/class.spite
+func full_name(): String {
+    if namespace.is_empty() {
+        return name
+    }
+    return namespace + "." + name
+}
+```
+```spite title=reopen_spite_class/reopen_spite_class.spite entry
+var console = Console()
+
+func ReopenSpiteClass() {
+    console.print(console.class.full_name())
+}
+```
+```output
+Console
+```
+
+Every class object in the program answers `full_name()` from then on, because there is one `Spite.Class` and
+that folder reopened it. A *new* class under `Spite` is a diagnostic instead -- that namespace holds the
+standard library's own classes, and a class of your own belongs in a namespace of your own. `load("spite")` is
+a diagnostic too:
 
 ```spite title=spite_namespace_error/spite_namespace_error.spite entry error
 func SpiteNamespaceError() {

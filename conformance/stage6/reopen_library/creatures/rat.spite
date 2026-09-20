@@ -1,0 +1,5 @@
+var bites = 0
+
+func Rat(starting_bites: Int) {
+    bites = starting_bites
+}

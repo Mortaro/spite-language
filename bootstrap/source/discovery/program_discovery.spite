@@ -29,6 +29,19 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     scan_top_level_loads(entry_file, load_names)
 
     var empty_segments = List<String>()
+
+    var library_directory = Directory("library")
+    if library_directory.exists() {
+        var no_library_skip: String? = null
+        var no_library_exclusions = List<String>()
+        walking_library = true
+        walk_directory("library", empty_segments, no_library_skip, no_library_exclusions)
+        walking_library = false
+        if has_error {
+            return failure(error_message)
+        }
+    }
+
     entry_file.path = entry_path
     add_parsed_file(entry_file, empty_segments, entry_stem)
 
@@ -57,17 +70,6 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
         root_index = root_index + 1
     }
 
-    var library_directory = Directory("library")
-    if library_directory.exists() {
-        var no_library_skip: String? = null
-        var no_library_exclusions = List<String>()
-        walking_library = true
-        walk_directory("library", empty_segments, no_library_skip, no_library_exclusions)
-        walking_library = false
-        if has_error {
-            return failure(error_message)
-        }
-    }
 
     var entry_mangled_name = mangle_dotted(pascal_case(entry_stem))
 
@@ -218,11 +220,6 @@ func walk_directory(root_folder: String, segments: List<String>, skip_basename: 
         if segments.is_empty() {
             excluded = excluded_top_level.contains(folder_name)
         }
-        if folder_name == "spite" and not walking_library {
-            has_error = true
-            error_message = path + "/" + folder_name + ": error: 'spite' is reserved for the built-in Spite namespace: name the folder something else"
-            return
-        }
         if not excluded {
             var child_segments = copy_segments(segments)
             child_segments.append(folder_name)
@@ -286,6 +283,11 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
             return
         }
         existing_index = existing_index + 1
+    }
+    if not walking_library and qualified_dotted.starts_with("Spite.") {
+        has_error = true
+        error_message = parsed_file.path + ": error: 'Spite' holds the standard library's own classes, so a file in a 'spite' folder may only reopen one of them: '" + qualified_dotted + "' is not one, and a new class of your own belongs in a namespace of your own"
+        return
     }
     class_files.append(DiscoveredClass(mangled_name, simple_name, namespace_dotted, qualified_dotted, parsed_file))
 }
