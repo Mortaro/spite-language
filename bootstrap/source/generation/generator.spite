@@ -1299,6 +1299,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         is_constructor,
     )
     function.source_path = declaration.source_path
+    function.line = declaration.line
     if is_constructor {
         information.constructor = function
     } else if declaration.name == "drop" {
@@ -4248,8 +4249,10 @@ func generate_variable_declaration(declaration: Syntax.Statements.VariableDeclar
     builder.add_user(c_type_name(declared_type) + " " + declaration.name + " = " + value_code + ";")
     if type_needs_drop(declared_type) {
         scope.declare_owned(declaration.name, declared_type)
+        scope.check_last(current_line)
     } else {
         scope.declare(declaration.name, declared_type)
+        scope.check_last(current_line)
     }
 }
 
@@ -4431,11 +4434,45 @@ func generate_statement_list(statements: List<Syntax.Statements.Statement>, scop
     return ended_in_return
 }
 
+func signature_is_dictated(function: Analysis.FunctionInfo): Bool {
+    if not function.symbol_name.is_empty() {
+        return true
+    }
+    if not function.source_path.is_empty() {
+        return true
+    }
+    if function.name.starts_with("set_") or function.name.starts_with("get_") {
+        return true
+    }
+    var dictated = ["sum", "subtract", "multiply", "divide", "remainder", "equals", "less_than", "greater_than", "negate", "get_at", "set_at"]
+    return dictated.contains(function.name)
+}
+
+func report_unused(scope: Scope) {
+    var index = 0
+    while index < scope.entry_names.count() {
+        if scope.entry_checked[index] {
+            var name = scope.entry_names[index]
+            var saved_line = current_line
+            current_line = scope.entry_lines[index]
+            if name.starts_with("_") and scope.entry_used[index] {
+                report("'" + name + "' is used, so it must not start with an underscore: that prefix says it is unused")
+            }
+            if not name.starts_with("_") and not scope.entry_used[index] {
+                report("'" + name + "' is never used: remove it, or name it '_" + name + "' to say that is intended")
+            }
+            current_line = saved_line
+        }
+        index = index + 1
+    }
+}
+
 func generate_block_in_scope(statements: List<Syntax.Statements.Statement>, block_scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo) {
     var ended_in_return = generate_statement_list(statements, block_scope, class_information, function_information)
     if not ended_in_return {
         emit_scope_drops(block_scope, false)
     }
+    report_unused(block_scope)
 }
 
 func generate_block(statements: List<Syntax.Statements.Statement>, parent_scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo) {
@@ -5019,6 +5056,7 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
     function.is_emitted = true
     current_class = information
     current_function = function.name
+    current_line = function.line
     current_path = information.source_path
     if not function.source_path.is_empty() {
         current_path = function.source_path
@@ -5040,9 +5078,13 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         } else {
             scope.declare(parameter.name, parameter.get_type())
         }
+        if not signature_is_dictated(function) {
+            scope.check_last(current_line)
+        }
         parameter_index = parameter_index + 1
     }
     var ended_in_return = generate_statement_list(function.body, scope, information, function)
+    report_unused(scope)
     if not ended_in_return {
         emit_scope_drops(scope, true)
         if not type_shape.is_void(function.get_return_type()) {

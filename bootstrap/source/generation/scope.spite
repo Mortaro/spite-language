@@ -1,6 +1,9 @@
 var parent: Scope? = null
 var entry_names = List<String>()
 var entry_types = List<Analysis.SpiteType>()
+var entry_used = List<Bool>()
+var entry_lines = List<Int>()
+var entry_checked = List<Bool>()
 var override_names = List<String>()
 var override_codes = List<String>()
 var owned = List<OwnedLocal>()
@@ -12,6 +15,34 @@ func Scope(starting_parent: Scope?) {
 func declare(name: String, spite_type: Analysis.SpiteType) {
     entry_names.append(name)
     entry_types.append(spite_type)
+    entry_used.append(false)
+    entry_lines.append(0)
+    entry_checked.append(false)
+}
+
+func declare_checked(name: String, spite_type: Analysis.SpiteType, line: Int) {
+    declare(name, spite_type)
+    entry_lines[entry_lines.count() - 1] = line
+    entry_checked[entry_checked.count() - 1] = true
+}
+
+func check_last(line: Int) {
+    entry_lines[entry_lines.count() - 1] = line
+    entry_checked[entry_checked.count() - 1] = true
+}
+
+func mark_used(name: String) {
+    var index = entry_names.count() - 1
+    while index >= 0 {
+        if entry_names[index] == name {
+            entry_used[index] = true
+        }
+        index = index - 1
+    }
+    var above = parent
+    if above {
+        above.mark_used(name)
+    }
 }
 
 func declare_owned(name: String, spite_type: Analysis.SpiteType) {
@@ -28,6 +59,7 @@ func lookup_type(name: String): Analysis.SpiteType? {
     var index = entry_names.count() - 1
     while index >= 0 {
         if entry_names[index] == name {
+            mark_used(name)
             return entry_types[index]
         }
         index = index - 1

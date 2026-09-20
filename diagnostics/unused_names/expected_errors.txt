@@ -1,0 +1,4 @@
+diagnostics/unused_names/unused_names.spite:4: error: 'forgotten' is never used: remove it, or name it '_forgotten' to say that is intended (in UnusedNames.UnusedNames)
+diagnostics/unused_names/unused_names.spite:6: error: '_counted' is used, so it must not start with an underscore: that prefix says it is unused (in UnusedNames.UnusedNames)
+diagnostics/unused_names/unused_names.spite:14: error: 'inner' is never used: remove it, or name it '_inner' to say that is intended (in UnusedNames.helper)
+diagnostics/unused_names/unused_names.spite:11: error: 'spare' is never used: remove it, or name it '_spare' to say that is intended (in UnusedNames.helper)

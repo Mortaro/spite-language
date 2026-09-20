@@ -3,3 +3,4 @@ diagnostics/several_mistakes/several_mistakes.spite:10: error: 'assert' is only 
 diagnostics/several_mistakes/several_mistakes.spite:15: error: unknown type 'Strng' (in SeveralMistakes.other)
 diagnostics/several_mistakes/several_mistakes.spite:16: error: unknown identifier 'nothing' (in SeveralMistakes.other)
 diagnostics/several_mistakes/several_mistakes.spite:16: error: member read on a value that is not a class instance (in SeveralMistakes.other)
+diagnostics/several_mistakes/several_mistakes.spite:15: error: 'value' is never used: remove it, or name it '_value' to say that is intended (in SeveralMistakes.other)
