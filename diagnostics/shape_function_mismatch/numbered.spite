@@ -1,0 +1,5 @@
+func Numbered() { }
+
+func render(): Int {
+    return 1
+}

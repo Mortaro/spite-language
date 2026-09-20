@@ -1,0 +1,24 @@
+type Renderable = {
+    label: String
+    render(): String
+    resize(factor: Int)
+}
+
+var console = Console()
+
+func ShapeFunctions() {
+    var parts = List<Renderable>()
+    parts.append(Button("ok"))
+    parts.append(Panel("side", 3))
+    var index = 0
+    while index < parts.count() {
+        parts[index].resize(2)
+        console.print(parts[index].label, parts[index].render())
+        index = index + 1
+    }
+    show(Button("direct"))
+}
+
+func show(part: Renderable) {
+    console.print(part.render().upper())
+}

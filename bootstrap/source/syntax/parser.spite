@@ -293,6 +293,37 @@ func parse_function_declaration(): Syntax.Statements.Statement {
     return declaration
 }
 
+func parse_required_function(name: String): Syntax.Statements.FieldDeclaration {
+    advance()
+    var parameter_types = List<Syntax.Types.Type>()
+    var expect_more = not check('right_paren')
+    while expect_more and not check('end_of_file') {
+        expect('identifier', "a parameter name")
+        expect('colon', "':' followed by the parameter's type")
+        parameter_types.append(parse_type())
+        if check('comma') {
+            advance()
+        } else {
+            expect_more = false
+        }
+    }
+    expect('right_paren', "')' to close the parameter list")
+    var nothing_path = List<String>()
+    nothing_path.append("Nothing")
+    var return_type: Syntax.Types.Type = Syntax.Types.NamedType(nothing_path, List<Syntax.Types.GenericArgument>())
+    var returns_nothing = true
+    if check('colon') {
+        advance()
+        return_type = parse_type()
+        returns_nothing = false
+    }
+    var required = Syntax.Statements.FieldDeclaration(name, return_type)
+    required.is_function = true
+    required.returns_nothing = returns_nothing
+    required.parameter_types = parameter_types
+    return required
+}
+
 func parse_type_declaration(): Syntax.Statements.Statement {
     advance()
     var name = expect('identifier', "a type name")
@@ -303,9 +334,13 @@ func parse_type_declaration(): Syntax.Statements.Statement {
     var finished = check('right_brace') or check('end_of_file')
     while not finished {
         var field_name = expect('identifier', "a field name")
-        expect('colon', "':' followed by the field's type")
-        var field_type = parse_type()
-        fields.append(Syntax.Statements.FieldDeclaration(field_name.text, field_type))
+        if check('left_paren') {
+            fields.append(parse_required_function(field_name.text))
+        } else {
+            expect('colon', "':' followed by the field's type")
+            var field_type = parse_type()
+            fields.append(Syntax.Statements.FieldDeclaration(field_name.text, field_type))
+        }
         consume_field_separator('right_brace')
         skip_trivia()
         if check('right_brace') or check('end_of_file') {

@@ -575,6 +575,146 @@ func fit_subject(candidate: Analysis.ClassInfo): String {
     return "'" + candidate.simple_name + "'"
 }
 
+func required_parameter_types(information: Analysis.UnionInfo, wanted: Syntax.Statements.FieldDeclaration): List<Analysis.SpiteType> {
+    var types = List<Analysis.SpiteType>()
+    var saved_owner = current_owner
+    current_owner = information.owner_qualified
+    var index = 0
+    while index < wanted.parameter_types.count() {
+        var resolved = resolve_type(wanted.parameter_types[index], information.owner_namespace)
+        if resolved {
+            types.append(resolved)
+        }
+        index = index + 1
+    }
+    current_owner = saved_owner
+    return types
+}
+
+func required_return_type(information: Analysis.UnionInfo, wanted: Syntax.Statements.FieldDeclaration): Analysis.SpiteType {
+    if wanted.returns_nothing {
+        return void_type()
+    }
+    var resolved = shape_field_type(information, wanted.name)
+    if resolved {
+        return resolved
+    }
+    return void_type()
+}
+
+func find_required_function(information: Analysis.UnionInfo, name: String): Syntax.Statements.FieldDeclaration? {
+    var index = 0
+    while index < information.shape_fields.count() {
+        if information.shape_fields[index].is_function and information.shape_fields[index].name == name {
+            return information.shape_fields[index]
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func returned_display(spite_type: Analysis.SpiteType): String {
+    if type_shape.is_void(spite_type) {
+        return "Nothing"
+    }
+    return "a " + type_display_name(spite_type)
+}
+
+func required_function_problem(
+information: Analysis.UnionInfo, wanted: Syntax.Statements.FieldDeclaration, candidate: Analysis.ClassInfo): String {
+    var function = find_or_instantiate_function(candidate, wanted.name)
+    if not function {
+        return "it has no function '" + wanted.name + "'"
+    }
+    if function {
+        var wanted_types = required_parameter_types(information, wanted)
+        if function.parameters.count() != wanted_types.count() {
+            return "its '" + wanted.name + "' takes " + function.parameters.count() + " argument(s), but the type needs " + wanted_types.count()
+        }
+        var index = 0
+        while index < wanted_types.count() {
+            if not types_equal(function.parameters[index].get_type(), wanted_types[index]) {
+                return "argument " + (index + 1) + " of its '" + wanted.name + "' is a " + type_display_name(function.parameters[index].get_type()) + ", but the type needs a " + type_display_name(wanted_types[index])
+            }
+            index = index + 1
+        }
+        var wanted_return = required_return_type(information, wanted)
+        if not types_equal(function.get_return_type(), wanted_return) {
+            return "its '" + wanted.name + "' returns " + returned_display(function.get_return_type()) + ", but the type needs " + returned_display(wanted_return)
+        }
+    }
+    return ""
+}
+
+func generate_shape_call(information: Analysis.UnionInfo, name: String, object_result: ExpressionResult, object_ast: Syntax.Expressions.Expression, arguments_ast: List<Syntax.Expressions.Expression>, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
+    var wanted = find_required_function(information, name)
+    if not wanted {
+        report("type '" + information.simple_name + "' does not require a function '" + name + "', so it cannot be called through it")
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    crash wanted
+    var parameter_types = required_parameter_types(information, wanted)
+    var return_type = required_return_type(information, wanted)
+    var function_c_name = information.c_name + "_call_" + name
+    if not information.caller_names.contains(name) {
+        information.caller_names.append(name)
+        var signature = c_type_name(return_type) + " " + function_c_name + "(" + information.c_name + " self"
+        var index = 0
+        while index < parameter_types.count() {
+            signature = signature + ", " + c_type_name(parameter_types[index]) + " argument_" + index
+            index = index + 1
+        }
+        builder.add_prototype(signature + ");")
+    }
+    var called = generate_generic_call(function_c_name, object_result, object_ast, arguments_ast, parameter_types, return_type, scope, class_information)
+    called.owning_override = true
+    return called
+}
+
+func emit_shape_callers(information: Analysis.UnionInfo) {
+    var caller_index = 0
+    while caller_index < information.caller_names.count() {
+        var name = information.caller_names[caller_index]
+        var wanted = find_required_function(information, name)
+        if wanted {
+            var parameter_types = required_parameter_types(information, wanted)
+            var return_type = required_return_type(information, wanted)
+            var lines = List<String>()
+            var signature = c_type_name(return_type) + " " + information.c_name + "_call_" + name + "(" + information.c_name + " self"
+            var passed = ""
+            var index = 0
+            while index < parameter_types.count() {
+                signature = signature + ", " + c_type_name(parameter_types[index]) + " argument_" + index
+                passed = passed + ", argument_" + index
+                index = index + 1
+            }
+            lines.append(signature + ") {")
+            var member_index = 0
+            while member_index < information.members.count() {
+                var member = information.members[member_index]
+                var call = member.c_name + "_" + name + "((" + member.c_name + "*)self" + passed + ")"
+                if type_shape.is_void(return_type) {
+                    lines.append("if " + class_id_test("self", member) + " { " + call + "; return; }")
+                } else {
+                    lines.append("if " + class_id_test("self", member) + " return " + call + ";")
+                }
+                member_index = member_index + 1
+            }
+            index = 0
+            while index < parameter_types.count() {
+                lines.append(release_statement(parameter_types[index], "argument_" + index))
+                index = index + 1
+            }
+            if not type_shape.is_void(return_type) {
+                lines.append("return " + default_value_for_type(return_type) + ";")
+            }
+            lines.append("}")
+            builder.add_support(lines.join("\n"))
+        }
+        caller_index = caller_index + 1
+    }
+}
+
 func admit_to_union(information: Analysis.UnionInfo, candidate: Analysis.ClassInfo) {
     if information.has_member(candidate.c_name) {
         return
@@ -587,7 +727,18 @@ func admit_to_union(information: Analysis.UnionInfo, candidate: Analysis.ClassIn
     while index < information.shape_fields.count() {
         var wanted = information.shape_fields[index]
         var wanted_type = shape_field_type(information, wanted.name)
+        if wanted.is_function {
+            var function_problem = required_function_problem(information, wanted, candidate)
+            if not function_problem.is_empty() {
+                report(fit_subject(candidate) + " does not fit type '" + information.simple_name + "': " + function_problem)
+                return
+            }
+        }
         var found = candidate.find_field(wanted.name)
+        if wanted.is_function {
+            found = Analysis.FieldInfo(wanted.name, void_type(), "")
+            wanted_type = null
+        }
         if not found {
             report(fit_subject(candidate) + " does not fit type '" + information.simple_name + "': it has no attribute '" + wanted.name + "'")
             return
@@ -644,6 +795,7 @@ func emit_shape_bodies() {
         var information = unions[index]
         if information.is_shape {
             emit_union_release(information)
+            emit_shape_callers(information)
             var reader_index = 0
             while reader_index < information.accessor_names.count() {
                 var field_name = information.accessor_names[reader_index]
@@ -4642,8 +4794,7 @@ switch_statement: Syntax.Statements.SwitchStatement, scope: Scope, class_informa
 func generate_union_dispatch(information: Analysis.UnionInfo, member_name: String, is_call: Bool, object_result: ExpressionResult, object_ast: Syntax.Expressions.Expression, arguments_ast: List<Syntax.Expressions.Expression>, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     if information.is_shape {
         if is_call {
-            report("calling a function through type '" + information.simple_name + "' is not supported yet")
-            return ExpressionResult("0", Analysis.Types.VoidType())
+            return generate_shape_call(information, member_name, object_result, object_ast, arguments_ast, scope, class_information)
         }
         return generate_shape_read(information, member_name, object_result, object_ast)
     }

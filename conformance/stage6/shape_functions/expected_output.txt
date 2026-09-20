@@ -1,0 +1,3 @@
+ok [ok x2]
+side panel side with 6 rows
+[DIRECT X1]

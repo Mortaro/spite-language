@@ -1,0 +1,14 @@
+type Renderable = {
+    render(): String
+}
+
+var console = Console()
+
+func ShapeFunctionMismatch() {
+    show(Silent())
+    show(Numbered())
+}
+
+func show(part: Renderable) {
+    console.print(part.render())
+}

@@ -1,0 +1,14 @@
+var label = ""
+var width = 1
+
+func Button(starting_label: String) {
+    label = starting_label
+}
+
+func render(): String {
+    return "[" + label + " x" + width + "]"
+}
+
+func resize(factor: Int) {
+    width = width * factor
+}

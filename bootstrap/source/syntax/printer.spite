@@ -62,7 +62,11 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
                 var field = statement.fields[index]
                 var field_type = field.type_reference
                 assert field_type
-                print_line(depth + 1, "Field " + field.name + ": " + inline_type(field_type))
+                if field.is_function {
+                    print_line(depth + 1, "Function " + field.name + "(" + field.parameter_types.count() + "): " + inline_type(field_type))
+                } else {
+                    print_line(depth + 1, "Field " + field.name + ": " + inline_type(field_type))
+                }
                 index = index + 1
             }
         }
