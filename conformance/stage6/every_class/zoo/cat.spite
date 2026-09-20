@@ -1,0 +1,6 @@
+var console = Console()
+var sound = "meow"
+
+func speak() {
+    console.print("the cat says", sound)
+}

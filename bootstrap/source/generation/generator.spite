@@ -10,6 +10,14 @@ var class_object_names = List<String>()
 var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
 var deep_copy_names = List<String>()
+var class_object_displays = List<String>()
+var class_object_namespaces = List<String>()
+var class_object_labels = List<String>()
+var class_objects_emitted = 0
+var functions_functions_emitted = 0
+var entry_class_c_name = ""
+var class_level_functions_used = false
+var all_classes_used = false
 var crash_map_lines = List<String>()
 var site_ordinal = 0
 var current_site_id = ""
@@ -142,7 +150,9 @@ func emit_system_classes(system_structs: String, system_prototypes: String, syst
 }
 
 func generate(discovery: Discovery.DiscoveryResult, runtime_header_text: String, system_structs: String, system_prototypes: String, system_bodies: String): String {
+    entry_class_c_name = discovery.entry_mangled_name
     builder.add_typedef(runtime_header_text)
+
     register_system_classes()
     register_classes(discovery.class_files)
     emit_enums()
@@ -168,8 +178,14 @@ func generate(discovery: Discovery.DiscoveryResult, runtime_header_text: String,
         index = index + 1
     }
     emit_pending_functions()
-    emit_functions_function_bodies()
-    emit_pending_functions()
+    emit_all_classes_function()
+    var settle = 0
+    while settle < 4 {
+        emit_class_object_bodies()
+        emit_functions_function_bodies()
+        emit_pending_functions()
+        settle = settle + 1
+    }
     emit_shape_bodies()
     emit_main(discovery.entry_mangled_name)
     return builder.render()
@@ -3312,6 +3328,74 @@ func generate_list_template(element: Analysis.SpiteType, element_class: Analysis
     return generate_generic_call(function_c_name, object_result, object_ast, arguments_ast, parameter_types, return_type, scope, class_information)
 }
 
+func is_listed_class(information: Analysis.ClassInfo): Bool {
+    if information.is_builtin or information.is_generic_template {
+        return false
+    }
+    if information.c_name.starts_with("Object_") or information.c_name.starts_with("Spite_") {
+        return false
+    }
+    return information.c_name != "Nothing"
+}
+
+func emit_class_object_bodies() {
+    while class_objects_emitted < class_object_names.count() {
+        var position = class_objects_emitted
+        class_objects_emitted = class_objects_emitted + 1
+        var function_c_name = class_object_names[position]
+        var lines = List<String>()
+        lines.append("Spite_Class* " + function_c_name + "(void) {")
+        lines.append("if (" + function_c_name + "_cache == 0) {")
+        lines.append(function_c_name + "_cache = Spite_Class_make(" + render_string_literal(class_object_displays[position]) + ", " + render_string_literal(class_object_namespaces[position]) + ");")
+        var described = find_class_by_c_name(class_object_labels[position])
+        if described {
+            if class_level_functions_used and is_listed_class(described) and described.c_name != entry_class_c_name {
+                var functions_function = ensure_functions_function(described)
+                var maker = described.c_name + "_default()"
+                var constructor = described.constructor
+                if constructor {
+                    if constructor.parameters.count() == 0 {
+                        maker = described.c_name + "_make()"
+                    }
+                }
+                var thunk = "spite_class_functions_" + described.c_name
+                builder.add_prototype("void* " + thunk + "(void);")
+                builder.add_support("void* " + thunk + "(void) {\n" + described.c_name + "* fresh = " + maker + ";\nvoid* listed = " + functions_function + "(fresh);\n" + described.c_name + "_release(fresh);\nreturn listed;\n}")
+                lines.append(function_c_name + "_cache->spite_functions = " + thunk + ";")
+            }
+        }
+        lines.append("}")
+        lines.append("return Spite_Class_retain(" + function_c_name + "_cache);")
+        lines.append("}")
+        builder.add_support(lines.join("\n"))
+    }
+}
+
+func emit_all_classes_function() {
+    if not all_classes_used {
+        return
+    }
+    var class_class = find_class_by_c_name("Spite_Class")
+    if not class_class {
+        return
+    }
+    assert class_class
+    var list_name = ensure_list(class_type_of(class_class))
+    var lines = List<String>()
+    lines.append(list_name + "* spite_all_classes(void) {")
+    lines.append(list_name + "* result = " + list_name + "_make();")
+    var index = 0
+    while index < classes.count() {
+        if is_listed_class(classes[index]) {
+            lines.append(list_name + "_add(result, " + class_object_call(class_type_of(classes[index])) + ");")
+        }
+        index = index + 1
+    }
+    lines.append("return result;")
+    lines.append("}")
+    builder.add_support(lines.join("\n"))
+}
+
 func ensure_class_object(display_name: String, namespace: String, label: String): String {
     var function_c_name = "spite_class_object_" + label
     if class_object_names.contains(function_c_name) {
@@ -3322,9 +3406,11 @@ func ensure_class_object(display_name: String, namespace: String, label: String)
         return function_c_name
     }
     class_object_names.append(function_c_name)
+    class_object_displays.append(display_name)
+    class_object_namespaces.append(namespace)
+    class_object_labels.append(label)
     builder.add_typedef("static Spite_Class* " + function_c_name + "_cache = 0;")
     builder.add_prototype("Spite_Class* " + function_c_name + "(void);")
-    builder.add_support("Spite_Class* " + function_c_name + "(void) {\nif (" + function_c_name + "_cache == 0) " + function_c_name + "_cache = Spite_Class_make(" + render_string_literal(display_name) + ", " + render_string_literal(namespace) + ");\nreturn Spite_Class_retain(" + function_c_name + "_cache);\n}")
     return function_c_name
 }
 
@@ -3497,10 +3583,9 @@ func emit_functions_function(information: Analysis.ClassInfo) {
 }
 
 func emit_functions_function_bodies() {
-    var index = 0
-    while index < functions_function_classes.count() {
-        emit_functions_function(functions_function_classes[index])
-        index = index + 1
+    while functions_functions_emitted < functions_function_classes.count() {
+        functions_functions_emitted = functions_functions_emitted + 1
+        emit_functions_function(functions_function_classes[functions_functions_emitted - 1])
     }
 }
 
@@ -3517,6 +3602,15 @@ func generate_reflection_read(member_name: String, object_result: ExpressionResu
     }
     var object_class_ref = type_shape.as_class_ref(object_type)
     if object_class_ref {
+        if object_class_ref.c_name == "Spite_Class" and member_name == "functions" {
+            var listed_class = find_class_by_c_name("Spite_Function")
+            if listed_class {
+                class_level_functions_used = true
+                var listed_type = list_type_of(class_type_of(listed_class))
+                var listed_c_type = c_type_name(listed_type)
+                return ExpressionResult("({ " + object_c_type + " spite_reflected = " + object_result.code + "; " + listed_c_type + " spite_reflected_value = spite_reflected->spite_functions != 0 ? (" + listed_c_type + ")spite_reflected->spite_functions() : " + ensure_list(class_type_of(listed_class)) + "_make(); " + release_object + " spite_reflected_value; })", listed_type)
+            }
+        }
         var object_class = find_class_by_c_name(object_class_ref.c_name)
         if object_class {
             var real_field = object_class.find_field(member_name)
@@ -4352,6 +4446,21 @@ func generate_call(call: Syntax.Expressions.CallExpression, scope: Scope, class_
 func generate_member_read(member: Syntax.Expressions.MemberExpression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var object_ast = member.object
     crash object_ast
+    if member.name == "instances" {
+        var named_class = try_resolve_static_path(object_ast, class_information.namespace_dotted)
+        if named_class {
+            if named_class.c_name == "Spite_Class" {
+                all_classes_used = true
+                var every_class_type = list_type_of(class_type_of(named_class))
+                builder.add_prototype(c_type_name(every_class_type) + " spite_all_classes(void);")
+                var every_class = ExpressionResult("spite_all_classes()", every_class_type)
+                every_class.owning_override = true
+                return every_class
+            }
+            report("'" + named_class.simple_name + ".instances' is not supported yet: only 'Spite.Class.instances', every class in the program, exists so far")
+            return ExpressionResult("0", Analysis.Types.VoidType())
+        }
+    }
     var symbol_identifier = shape.as_identifier(object_ast)
     if symbol_identifier {
         if symbol_identifier.name == bound_symbol_name and member.name == "name" and not bound_symbol_name.is_empty() {
@@ -5483,6 +5592,9 @@ func emit_class_support(information: Analysis.ClassInfo) {
         }
         field_index = field_index + 1
     }
+    if information.c_name == "Spite_Class" {
+        initialize_lines.append("self->spite_functions = 0;")
+    }
     if information.c_name == "Spite_Function" {
         initialize_lines.append("self->spite_owner = 0;")
         initialize_lines.append("self->spite_release_owner = 0;")
@@ -5647,6 +5759,9 @@ func emit_class(information: Analysis.ClassInfo) {
             struct_lines.append(c_type_name(field.get_type()) + " " + field.name + ";")
         }
         field_index = field_index + 1
+    }
+    if information.c_name == "Spite_Class" {
+        struct_lines.append("void* (*spite_functions)(void);")
     }
     if information.c_name == "Spite_Function" {
         struct_lines.append("void* spite_owner;")

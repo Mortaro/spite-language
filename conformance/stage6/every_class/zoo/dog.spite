@@ -1,0 +1,14 @@
+var console = Console()
+var sound = ""
+
+func Dog() {
+    sound = "woof"
+}
+
+func speak() {
+    console.print("the dog says", sound)
+}
+
+func fetch(item: String): String {
+    return "fetched " + item
+}

@@ -1,0 +1,28 @@
+var console = Console()
+
+func EveryClass() {
+    var classes = Spite.Class.instances
+    var index = 0
+    while index < classes.count() {
+        var described = classes[index]
+        console.print(described.name, described.namespace + "|", described.functions.map_name().join(","))
+        index = index + 1
+    }
+    index = 0
+    while index < classes.count() {
+        if classes[index].namespace == "Zoo" {
+            run_speakers(classes[index].functions)
+        }
+        index = index + 1
+    }
+}
+
+func run_speakers(functions: List<Spite.Function>) {
+    var index = 0
+    while index < functions.count() {
+        if functions[index].name == "speak" {
+            functions[index].call_function()
+        }
+        index = index + 1
+    }
+}

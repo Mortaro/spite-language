@@ -1,8 +1,12 @@
 func Tests() {
-    run(StringTests().functions)
-    run(ListTests().functions)
-    run(DictionaryTests().functions)
-    run(MemberTests().functions)
+    var classes = Spite.Class.instances
+    var index = 0
+    while index < classes.count() {
+        if classes[index].name.ends_with("Tests") {
+            run(classes[index].functions)
+        }
+        index = index + 1
+    }
 }
 
 func run(functions: List<Spite.Function>) {
