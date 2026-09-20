@@ -399,6 +399,39 @@ func scan_operator(): Bool {
         return false
     }
 
+    if code == 38 or code == 124 {
+        if current_code() == code {
+            advance_character()
+        }
+        fail_lex("Spite writes 'and' and 'or' as words: there is no '&&' or '||'", token_line)
+        push_token('invalid', source.slice(start_index, index), "", token_line, token_column)
+        return false
+    }
+    if code == 33 {
+        fail_lex("Spite writes 'not' as a word: there is no '!'", token_line)
+        push_token('invalid', source.slice(start_index, index), "", token_line, token_column)
+        return false
+    }
+    if code == 43 and current_code() == 43 {
+        advance_character()
+        fail_lex("Spite has no '++': write 'count = count + 1'", token_line)
+        push_token('invalid', source.slice(start_index, index), "", token_line, token_column)
+        return false
+    }
+    if code == 45 and current_code() == 45 {
+        advance_character()
+        fail_lex("Spite has no '--': write 'count = count - 1'", token_line)
+        push_token('invalid', source.slice(start_index, index), "", token_line, token_column)
+        return false
+    }
+    if current_code() == 61 and (code == 43 or code == 45 or code == 42 or code == 47 or code == 37) {
+        advance_character()
+        var operator_text = source.slice(start_index, index - 1)
+        fail_lex("Spite has no '" + operator_text + "=': write 'count = count " + operator_text + " value'", token_line)
+        push_token('invalid', source.slice(start_index, index), "", token_line, token_column)
+        return false
+    }
+
     var kind: TokenKind = 'invalid'
     var recognized = true
     if code == 43 {

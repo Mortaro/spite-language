@@ -1,0 +1,1 @@
+diagnostics/borrowed_this/borrowed_this.spite:5:19: a class reads its own attributes by name: write 'name', not 'this.name'

@@ -1,0 +1,6 @@
+var console = Console()
+
+func BorrowedNew() {
+    var holder = new Console()
+    holder.print("hello")
+}

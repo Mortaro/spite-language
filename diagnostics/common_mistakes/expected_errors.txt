@@ -5,5 +5,5 @@ diagnostics/common_mistakes/common_mistakes.spite:9: error: this call passes 2 a
 diagnostics/common_mistakes/common_mistakes.spite:11: error: a Int has no function 'explode' (in CommonMistakes.CommonMistakes)
 diagnostics/common_mistakes/common_mistakes.spite:13: error: String has no method 'no_such_method' (in CommonMistakes.CommonMistakes)
 diagnostics/common_mistakes/common_mistakes.spite:15: error: List has no method 'push' (in CommonMistakes.CommonMistakes)
-diagnostics/common_mistakes/common_mistakes.spite:16: error: unknown function 'unknown_function' (in CommonMistakes.CommonMistakes)
-diagnostics/common_mistakes/common_mistakes.spite:16: error: unknown function 'Unknown' (in CommonMistakes.CommonMistakes)
+diagnostics/common_mistakes/common_mistakes.spite:16: error: this class has no function 'unknown_function' (in CommonMistakes.CommonMistakes)
+diagnostics/common_mistakes/common_mistakes.spite:16: error: this class has no function 'Unknown' (in CommonMistakes.CommonMistakes)

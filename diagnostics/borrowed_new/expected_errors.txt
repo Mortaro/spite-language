@@ -1,0 +1,1 @@
+diagnostics/borrowed_new/borrowed_new.spite:4:18: there is no 'new' in Spite: a class is made by calling its own name, like 'Creature("rat")'

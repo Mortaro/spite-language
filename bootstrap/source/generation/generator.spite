@@ -2795,7 +2795,11 @@ func generate_constructor_call(target_class: Analysis.ClassInfo, arguments_ast: 
 func generate_own_function_call(name: String, arguments_ast: List<Syntax.Expressions.Expression>, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var function = find_or_instantiate_function(class_information, name)
     if not function {
-        report("unknown function '" + name + "'")
+        if name == "print" or name == "println" or name == "echo" or name == "printf" {
+            report("this class has no function '" + name + "': printing goes through the console -- 'var console = Console()' beside the attributes, then 'console.print(value)'")
+        } else {
+            report("this class has no function '" + name + "'")
+        }
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     crash function

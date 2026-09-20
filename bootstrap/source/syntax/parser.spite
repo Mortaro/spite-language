@@ -194,6 +194,25 @@ func parse_statement(): Syntax.Statements.Statement {
     return statement
 }
 
+func borrowed_word_lesson(word: String): String {
+    if word == "new" {
+        return "there is no 'new' in Spite: a class is made by calling its own name, like 'Creature(\"rat\")'"
+    }
+    if word == "this" or word == "self" {
+        return "a class reads its own attributes by name: write 'name', not '" + word + ".name'"
+    }
+    if word == "import" or word == "require" {
+        return "there are no imports: 'load(\"folder\")' inside a function brings a folder into the program, and everything shares one namespace"
+    }
+    if word == "elif" {
+        return "Spite writes 'else if'"
+    }
+    if word == "null" or word == "nil" or word == "none" or word == "undefined" {
+        return "the empty value is written 'null'"
+    }
+    return ""
+}
+
 func parse_statement_without_line(): Syntax.Statements.Statement {
     if check('identifier') and current().lexeme == "for" {
         fail(
@@ -297,6 +316,9 @@ func parse_function_declaration(): Syntax.Statements.Statement {
         var parameter_name = expect('identifier', "a parameter name")
         expect('colon', "':' followed by the parameter's type")
         var parameter_type = parse_type()
+        if check('equal') {
+            fail("a parameter has no default value in Spite: every argument is written at the call site, or the class holds the value as an attribute")
+        }
         parameters.append(Syntax.Statements.Parameter(parameter_name.text, parameter_type))
         if check('comma') {
             advance()
@@ -815,7 +837,11 @@ func try_parse_generic_instantiation_arguments(): List<Syntax.Types.GenericArgum
 }
 
 func parse_expression(): Syntax.Expressions.Expression {
-    return parse_binary_expression(0)
+    var value = parse_binary_expression(0)
+    if check('question') {
+        fail("Spite has no 'condition ? a : b': write an 'if' with an 'else', or a function that returns one or the other")
+    }
+    return value
 }
 
 func binary_operator_precedence(kind: TokenKind): Int {
@@ -990,6 +1016,12 @@ func parse_primary(): Syntax.Expressions.Expression {
         return Syntax.Expressions.FalseLiteral()
     }
     if check('identifier') {
+        var borrowed = borrowed_word_lesson(current().lexeme)
+        if not borrowed.is_empty() {
+            fail(borrowed)
+            advance()
+            return dummy_expression()
+        }
         var token = advance()
         return Syntax.Expressions.IdentifierExpression(token.text)
     }

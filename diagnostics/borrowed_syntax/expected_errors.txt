@@ -1,0 +1,1 @@
+diagnostics/borrowed_syntax/borrowed_syntax.spite:5: error: Spite has no '+=': write 'count = count + value'
