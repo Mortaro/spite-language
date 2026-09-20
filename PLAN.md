@@ -137,3 +137,24 @@ and balanced allocations.
     Performance is not a reason to delay any of this: the output is still C, so Spite-written standard library
     code meets the same optimiser the hand-written C does.
 
+16. **PRIORITY, next.** Being able to run tests (manual.md D46: a test is a package that crashes). The point is
+    to build only what tests actually need, not to wait for milestone 10. Ordered so that each step is usable on
+    its own:
+    - **16a. Make `examples/` and `tests/` compile again, and have `check.sh` run them.** Nothing runs either
+      directory today, which is why `examples/hello/hello.spite` sits broken: it uses `assert` in a function
+      returning a bare value, which D27 forbids. A hello world that does not compile is the worst thing to leave
+      uncaught. No new feature needed.
+    - **16b. A crash reports its file and line.** `assert_statement` already carries `line` and the generator
+      emits the crash from that statement, so this is a one-line change -- `spite.crash<TAB>file:line<TAB>Class<TAB>function`.
+      This is the single highest value item on this list: without it a failing test says which function broke but
+      not where, and with it a test failure is already actionable.
+    - **16c. A first test package**, written the way D46 says: ordinary Spite loaded with `load(...)`, one
+      `test_` function per case, `crash <condition>` as the only assertion. Hand-list the calls in the entry
+      class -- discovery is an improvement, not a prerequisite, and tests can exist before reflection does.
+    - **16d. Discovery through `Class.functions`** (D12), so the entry stops hand-listing. This is the only part
+      that waits on milestone 10, and it waits on one member of it rather than the whole design pass.
+    - **16e. The condition'"'"'s source text and operand values in the report** (D25), then crash ids and the
+      `.crashes` map (D32, D33). The largest piece and the last, because a file and a line already make a
+      failure fixable.
+    Why this order: after 16a and 16b -- both small -- a failing test is a crash naming a file, a line, a class
+    and a function, which is enough for an AI to fix it and re-run. Everything after that is refinement.
