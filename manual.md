@@ -648,10 +648,9 @@ commas (D47). The single-line form is what would have needed commas, so removing
 
 A `type` is a class matched by shape: any value with the same attributes and types is accepted, including object literals.
 `.class` of the value still points to its original class. This is what makes fast JSON-like code possible.
-**Known limitation (found writing docs/, milestone 7b):** `.class` only resolves when the variable/parameter's
-own declared type is the concrete class itself -- reading it through a variable/parameter whose declared type
-is the `type` shape (even holding that exact same instance) is a compile error, "unknown field 'class'"; see
-`docs/KNOWN_ISSUES.md`.
+`.class` read through a `type`-shaped or union-typed value is answered from the object's own tag at runtime,
+so it names the class the value really is (`Widget`), not the shape it is being read through (`Labeled`).
+An object literal has no class of its own, so it answers `Object`.
 
 **A `type` may require functions, not only attributes** (D16, decided by Mortaro, 2026-09-19; implemented), matched by shape
 exactly as an attribute-only `type` is:

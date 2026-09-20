@@ -1,0 +1,4 @@
+thing Widget Widget
+dial Gauge Gauge
+Gauge
+a literal Object

@@ -1,0 +1,181 @@
+var console = Console()
+var root = ".spite-cache/docs"
+var folder_names = List<String>()
+var folder_entries = List<String>()
+var folder_flags = List<String>()
+var folder_must_fail = List<Bool>()
+
+func DocsCorpus() {
+    make_directory(root)
+    var documentation = Directory("docs")
+    if not documentation.exists() {
+        console.error("run this from the repository root: there is no docs/ folder here")
+        Program().exit(1)
+        return
+    }
+    read_every_page(documentation)
+    write_manifest()
+    console.print(folder_names.count(), "documentation programs")
+}
+
+func read_every_page(documentation: Directory) {
+    var pages = documentation.files()
+    var page_index = 0
+    while page_index < pages.count() {
+        var page = pages[page_index]
+        if page.ends_with(".md") {
+            read_page("docs/" + page)
+        }
+        page_index = page_index + 1
+    }
+}
+
+func read_page(path: String) {
+    var content = File(path).read()
+    crash content
+    var lines = content.lines()
+    var index = 0
+    while index < lines.count() {
+        var opening = lines[index]
+        if opening.starts_with("```spite title=") {
+            index = read_block(lines, index, opening)
+        } else {
+            index = index + 1
+        }
+    }
+}
+
+func read_block(lines: List<String>, opening_index: Int, opening: String): Int {
+    var header = opening.slice("```spite title=".length(), opening.length())
+    var words = header.split(" ")
+    var title = words[0]
+    var separator = title.index_of("/")
+    if separator < 1 {
+        console.error("a documentation block's title names a folder and a file: " + title)
+        Program().exit(1)
+        return opening_index + 1
+    }
+    var folder = title.slice(0, separator)
+    var file_name = title.slice(separator + 1, title.length())
+    var index = opening_index + 1
+    var body = List<String>()
+    while index < lines.count() and lines[index].trim() != "```" {
+        body.append(lines[index])
+        index = index + 1
+    }
+    index = index + 1
+    remember_folder(folder, file_name, words)
+    write_source(folder, file_name, body.join("\n") + "\n")
+    while index < lines.count() and lines[index].trim().is_empty() {
+        index = index + 1
+    }
+    if index < lines.count() {
+        var expectation = lines[index].trim()
+        if expectation == "```output" or expectation == "```diagnostic" {
+            index = read_expectation(lines, index + 1, folder, expectation == "```output")
+        }
+    }
+    return index
+}
+
+func read_expectation(lines: List<String>, first_index: Int, folder: String, is_output: Bool): Int {
+    var index = first_index
+    var expected = List<String>()
+    while index < lines.count() and lines[index].trim() != "```" {
+        expected.append(lines[index])
+        index = index + 1
+    }
+    var name = "expected_diagnostic.txt"
+    if is_output {
+        name = "expected_output.txt"
+    }
+    File(root + "/" + folder + "/" + name).write(expected.join("\n") + "\n")
+    return index + 1
+}
+
+func remember_folder(folder: String, file_name: String, words: List<String>) {
+    var position = position_of(folder)
+    if position < 0 {
+        folder_names.append(folder)
+        folder_entries.append("")
+        folder_flags.append("")
+        folder_must_fail.append(false)
+        position = folder_names.count() - 1
+    }
+    var word_index = 1
+    while word_index < words.count() {
+        var word = words[word_index]
+        if word == "entry" {
+            folder_entries[position] = file_name
+        }
+        if word == "error" {
+            folder_must_fail[position] = true
+        }
+        if word.starts_with("vars=") {
+            folder_flags[position] = flags_of(word.slice("vars=".length(), word.length()))
+        }
+        word_index = word_index + 1
+    }
+}
+
+func position_of(folder: String): Int {
+    var index = 0
+    while index < folder_names.count() {
+        if folder_names[index] == folder {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func flags_of(declaration: String): String {
+    var flags = List<String>()
+    var pairs = declaration.split(",")
+    var index = 0
+    while index < pairs.count() {
+        flags.append("--" + pairs[index].replace(":", "="))
+        index = index + 1
+    }
+    return flags.join(" ")
+}
+
+func write_source(folder: String, file_name: String, text: String) {
+    var path = root + "/" + folder
+    make_directory(path)
+    var parts = file_name.split("/")
+    var index = 0
+    while index < parts.count() - 1 {
+        path = path + "/" + parts[index]
+        make_directory(path)
+        index = index + 1
+    }
+    File(root + "/" + folder + "/" + file_name).write(text)
+}
+
+func write_manifest() {
+    var index = 0
+    while index < folder_names.count() {
+        var folder = folder_names[index]
+        if folder_entries[index].is_empty() {
+            console.error("no block of '" + folder + "' is marked 'entry'")
+            Program().exit(1)
+            return
+        }
+        File(root + "/" + folder + "/entry.txt").write(folder_entries[index] + "\n")
+        if not folder_flags[index].is_empty() {
+            File(root + "/" + folder + "/flags.txt").write(folder_flags[index] + "\n")
+        }
+        if folder_must_fail[index] {
+            File(root + "/" + folder + "/must_fail.txt").write("\n")
+        }
+        index = index + 1
+    }
+}
+
+func make_directory(path: String) {
+    var directory = Directory(path)
+    if not directory.exists() {
+        directory.create()
+    }
+}

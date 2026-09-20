@@ -197,6 +197,14 @@ func generate(discovery: Discovery.DiscoveryResult, runtime_header_text: String,
         settle = settle + 1
     }
     emit_shape_bodies()
+    emit_union_class_of_bodies()
+    var final_settle = 0
+    while final_settle < 4 {
+        emit_class_object_bodies()
+        emit_functions_function_bodies()
+        emit_pending_functions()
+        final_settle = final_settle + 1
+    }
     emit_main(discovery.entry_mangled_name)
     return builder.render()
 }
@@ -811,6 +819,36 @@ func ensure_shape_writer(information: Analysis.UnionInfo, field_name: String, fi
         builder.add_prototype("void " + function_c_name + "(" + information.c_name + " self, " + c_type_name(field_type) + " value);")
     }
     return function_c_name
+}
+
+func ensure_union_class_of(information: Analysis.UnionInfo): String {
+    var function_c_name = information.c_name + "_class_of"
+    if not information.class_of_used {
+        information.class_of_used = true
+        builder.add_prototype("Spite_Class* " + function_c_name + "(" + information.c_name + " self);")
+    }
+    return function_c_name
+}
+
+func emit_union_class_of_bodies() {
+    var index = 0
+    while index < unions.count() {
+        var information = unions[index]
+        if information.class_of_used {
+            var lines = List<String>()
+            lines.append("Spite_Class* " + information.c_name + "_class_of(" + information.c_name + " self) {")
+            var member_index = 0
+            while member_index < information.members.count() {
+                var member = information.members[member_index]
+                lines.append("if " + class_id_test("self", member) + " return " + class_object_call(class_type_of(member)) + ";")
+                member_index = member_index + 1
+            }
+            lines.append("return " + ensure_class_object(information.simple_name, information.owner_namespace, information.c_name) + "();")
+            lines.append("}")
+            builder.add_support(lines.join("\n"))
+        }
+        index = index + 1
+    }
 }
 
 func emit_union_release(information: Analysis.UnionInfo) {
@@ -3793,6 +3831,14 @@ func generate_reflection_read(member_name: String, object_result: ExpressionResu
     if member_name == "class" {
         if type_shape.is_void(object_type) {
             return null
+        }
+        var object_union = type_shape.as_union(object_type)
+        if object_union {
+            var union_information = find_union_by_c_name(object_union.c_name)
+            if union_information {
+                var class_of = ensure_union_class_of(union_information)
+                return ExpressionResult("({ " + object_c_type + " spite_reflected = " + object_result.code + "; Spite_Class* spite_reflected_class = " + class_of + "(spite_reflected); " + release_object + " spite_reflected_class; })", spite_class_type())
+            }
         }
         return ExpressionResult("({ " + object_c_type + " spite_reflected = " + object_result.code + "; " + release_object + " (void)spite_reflected; " + class_object_call(object_type) + "; })", spite_class_type())
     }

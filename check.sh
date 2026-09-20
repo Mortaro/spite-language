@@ -1,5 +1,6 @@
 #!/bin/bash
-# Proves the Spite compiler still compiles itself and still passes the conformance corpus.
+# Proves the Spite compiler still compiles itself, still passes the conformance corpus, and still does
+# what docs/ says it does.
 # Needs only a C compiler. Set CC to choose one, otherwise the first available of cc, clang or gcc
 # is used.  Run from anywhere:   bash check.sh
 # Update the committed seed after an intended compiler change:   bash check.sh --update-seed
@@ -95,6 +96,33 @@ for folder in diagnostics/*/; do
 done
 echo "diagnostics: $checked checked, $wrong wrong"
 [ "$wrong" == "0" ] || exit 1
+
+# Every program written in docs/ is a program: scripts/docs_corpus.spite (itself Spite) writes each titled
+# code block out, and each one has to compile, run, print its ```output block and free everything it took.
+# A block marked `error` must fail to compile with its ```diagnostic text somewhere in the message.
+"$work/generation_two.exe" --file=scripts/docs_corpus.spite --mode=run > /dev/null || {
+  echo "FAILED: could not extract the documentation's programs"; exit 1; }
+documented=0; undocumented=0
+for folder in .spite-cache/docs/*/; do
+  name=$(basename "$folder")
+  entry=$(tr -d '\r\n' < "$folder/entry.txt")
+  flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")
+  if [ -f "$folder/must_fail.txt" ]; then
+    actual=$("$work/generation_two.exe" --file="$folder$entry" --mode=c $flags 2>&1 >/dev/null | tr -d '\r')
+    expected=$(tr -d '\r' < "$folder/expected_diagnostic.txt")
+    if [ -n "$actual" ] && [ "${actual#*$expected}" != "$actual" ]; then documented=$((documented+1))
+    else undocumented=$((undocumented+1)); echo "FAILED docs: $name wanted an error saying '$expected'"; echo "$actual" | head -4; fi
+    continue
+  fi
+  actual=$("$work/generation_two.exe" --file="$folder$entry" --mode=run --debug_memory=true $flags < /dev/null 2>&1 | tr -d '\r')
+  expected=$(tr -d '\r' < "$folder/expected_output.txt")
+  body=$(echo "$actual" | grep -v '^allocations: ')
+  balance=$(echo "$actual" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
+  if [ "$body" == "$expected" ] && [ -n "$balance" ] && [ "${balance% *}" == "${balance#* }" ]; then documented=$((documented+1))
+  else undocumented=$((undocumented+1)); echo "FAILED docs: $name"; echo "$actual" | head -6; fi
+done
+echo "documentation: $documented passed, $undocumented failed"
+[ "$undocumented" == "0" ] || exit 1
 
 if cmp -s "$work/generation_two.c" bootstrap/seed/spite_compiler.c; then
   echo "OK: fixpoint holds and the committed seed is current"

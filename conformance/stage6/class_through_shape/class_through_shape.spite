@@ -1,0 +1,23 @@
+type Labeled {
+    label: String
+}
+
+union Readout {
+    Widget
+    Gauge
+}
+
+var console = Console()
+
+func describe(labeled: Labeled) {
+    console.print(labeled.label, labeled.class, labeled.class.name)
+}
+
+func ClassThroughShape() {
+    describe(Widget("thing"))
+    describe(Gauge("dial"))
+    var readout: Readout = Gauge("second dial")
+    console.print(readout.class)
+    var shaped: Labeled = { label: "a literal" }
+    console.print(shaped.label, shaped.class)
+}

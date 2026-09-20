@@ -324,10 +324,9 @@ from class sword 8
 from literal bow 4
 ```
 
-> **Caveat, not in the manual's main text:** `.class` only resolves when the variable/parameter's *declared*
-> type is the concrete class itself. Read it before assigning into the `Loadout`-typed variable, as above --
-> `hero_loadout.class` is a compile error ("unknown field 'class'"), even though `hero_loadout` holds the exact
-> same `Player` instance. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+`.class` read through the `type`-shaped variable answers the same thing: the class the value really is, read
+from the object's own tag rather than from the declared type. An object literal has no class of its own, so it
+answers `Object`.
 
 This is what makes fast, JSON-shaped code possible: accept a `type`, and both a real class instance and a
 plain `{ key: value }` literal work.

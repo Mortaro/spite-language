@@ -1,0 +1,5 @@
+var label = "gauge"
+
+func Gauge(new_label: String) {
+    label = new_label
+}

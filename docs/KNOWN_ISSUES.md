@@ -4,12 +4,11 @@ Places where the real compiler's behavior surprised careful reading of `manual.m
 `docs/`. None of these are fixed here (milestone 7b is documentation only) -- each is documented in the
 relevant page and repeated here with a minimal repro.
 
-## 1. `.class` does not resolve through a `type`-typed variable or parameter
+## 1. `.class` through a `type`-typed variable or parameter (fixed)
 
-manual.md section 7 says "`.class` of the value still points to its original class," without qualification.
-In practice, `.class` only resolves when the variable/parameter's *declared* type is the concrete class
-itself. The exact same instance, read through a variable whose declared type is a structural `type`, is a
-compile error:
+manual.md section 7 says "`.class` of the value still points to its original class". It did not: reading
+`.class` through a variable whose declared type was a structural `type` answered the shape's name, or failed
+outright. It now reads the object's own tag at runtime, so it answers the class the value really is:
 
 ```spite title=class_via_type_error/widget.spite
 var label = "gadget"
@@ -18,7 +17,7 @@ func Widget(new_label: String) {
     label = new_label
 }
 ```
-```spite title=class_via_type_error/class_via_type_error.spite entry error
+```spite title=class_via_type_error/class_via_type_error.spite entry
 type Labeled {
     label: String
 }
@@ -31,13 +30,11 @@ func ClassViaTypeError() {
     console.print(labeled.class)
 }
 ```
-```diagnostic
-unknown field 'class' on type
+```output
+Widget
 ```
 
-Workaround: read `.class` off the original class-typed variable before assigning it into the `type`-typed one
-(see [values_and_types.md](values_and_types.md)'s duck typing section for a working example side by side with
-this failure).
+The same holds for a union-typed value. An object literal has no class of its own and answers `Object`.
 
 ## 2. `get_<attribute>()` on an owning attribute (fixed in milestone 9a)
 

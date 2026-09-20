@@ -63,3 +63,5 @@ Agent-owned state belongs in an agent-owned file.
 - `bootstrap/COMPILER_PLAN.md` — the compiler's own plan, design notes and progress log.
 - `conformance/`, `examples/`, `tests/`, `diagnostics/` — what `bash check.sh` runs: programs with their exact
   expected output and balanced memory, the test package, and programs that must fail with exact errors.
+- `docs/` — the language documentation. Every titled code block in it is a program `check.sh` runs too
+  (`scripts/docs_corpus.spite` writes them out), so a page cannot drift from the compiler without failing.
