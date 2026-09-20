@@ -1,0 +1,5 @@
+0
+while alive: 3 ghost
+2 rat,bat
+3 copy of rat
+1 copy of rat

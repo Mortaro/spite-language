@@ -11,6 +11,7 @@ var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
 var deep_copy_names = List<String>()
 var singleton_names = List<String>()
+var tracked_class_names = List<String>()
 var singleton_releases = List<String>()
 var class_object_displays = List<String>()
 var class_object_namespaces = List<String>()
@@ -3435,6 +3436,26 @@ func emit_all_classes_function() {
     builder.add_support(lines.join("\n"))
 }
 
+func ensure_live_instances(information: Analysis.ClassInfo): String {
+    var name = information.c_name
+    var function_c_name = name + "_instances"
+    if tracked_class_names.contains(name) {
+        return function_c_name
+    }
+    tracked_class_names.append(name)
+    var list_name = ensure_list(class_type_of(information))
+    var registry = "spite_instances_" + name
+    builder.add_typedef("#define SPITE_TRACKS_" + name + "\nstatic " + name + "** " + registry + " = 0;\nstatic int64_t " + registry + "_count = 0;\nstatic int64_t " + registry + "_capacity = 0;")
+    builder.add_prototype("void spite_track_" + name + "(" + name + "* self);")
+    builder.add_prototype("void spite_untrack_" + name + "(" + name + "* self);")
+    builder.add_prototype(list_name + "* " + function_c_name + "(void);")
+    builder.add_support("void spite_track_" + name + "(" + name + "* self) {\nif (" + registry + "_count == " + registry + "_capacity) {\n" + registry + "_capacity = " + registry + "_capacity == 0 ? 8 : " + registry + "_capacity * 2;\n" + registry + " = (" + name + "**)SPITE_REALLOC(" + registry + ", (size_t)" + registry + "_capacity * sizeof(" + name + "*));\n}\n" + registry + "[" + registry + "_count] = self;\n" + registry + "_count = " + registry + "_count + 1;\n}")
+    builder.add_support("void spite_untrack_" + name + "(" + name + "* self) {\nfor (int64_t spite_index = 0; spite_index < " + registry + "_count; spite_index = spite_index + 1) {\nif (" + registry + "[spite_index] == self) {\nfor (int64_t spite_shift = spite_index; spite_shift < " + registry + "_count - 1; spite_shift = spite_shift + 1) { " + registry + "[spite_shift] = " + registry + "[spite_shift + 1]; }\n" + registry + "_count = " + registry + "_count - 1;\nreturn;\n}\n}\n}")
+    builder.add_support(list_name + "* " + function_c_name + "(void) {\n" + list_name + "* result = " + list_name + "_make();\nfor (int64_t spite_index = 0; spite_index < " + registry + "_count; spite_index = spite_index + 1) { " + list_name + "_add(result, " + name + "_retain(" + registry + "[spite_index])); }\nreturn result;\n}")
+    singleton_releases.append("if (" + registry + " != 0) SPITE_FREE(" + registry + ");")
+    return function_c_name
+}
+
 func ensure_class_object(display_name: String, namespace: String, label: String): String {
     var function_c_name = "spite_class_object_" + label
     if class_object_names.contains(function_c_name) {
@@ -4496,8 +4517,13 @@ func generate_member_read(member: Syntax.Expressions.MemberExpression, scope: Sc
                 every_class.owning_override = true
                 return every_class
             }
-            report("'" + named_class.simple_name + ".instances' is not supported yet: only 'Spite.Class.instances', every class in the program, exists so far")
-            return ExpressionResult("0", Analysis.Types.VoidType())
+            if named_class.is_builtin or named_class.is_generic_template {
+                report("'" + named_class.simple_name + ".instances' is not available for this class")
+                return ExpressionResult("0", Analysis.Types.VoidType())
+            }
+            var live = ExpressionResult(ensure_live_instances(named_class) + "()", list_type_of(class_type_of(named_class)))
+            live.owning_override = true
+            return live
         }
     }
     var symbol_identifier = shape.as_identifier(object_ast)
@@ -5653,6 +5679,9 @@ func emit_class_support(information: Analysis.ClassInfo) {
     allocate_lines.append("spite_debug_register_object(self, " + class_id_text + ");")
     allocate_lines.append("#endif")
     allocate_lines.append(information.c_name + "_init(self);")
+    allocate_lines.append("#ifdef SPITE_TRACKS_" + information.c_name)
+    allocate_lines.append("spite_track_" + information.c_name + "(self);")
+    allocate_lines.append("#endif")
     allocate_lines.append("return self;")
     allocate_lines.append("}")
     builder.add_support(allocate_lines.join("\n"))
@@ -5705,6 +5734,9 @@ func emit_class_support(information: Analysis.ClassInfo) {
     if information.c_name == "Spite_Function" {
         release_lines.append("if (self->spite_owner != 0 && self->spite_release_owner != 0) self->spite_release_owner(self->spite_owner);")
     }
+    release_lines.append("#ifdef SPITE_TRACKS_" + information.c_name)
+    release_lines.append("spite_untrack_" + information.c_name + "(self);")
+    release_lines.append("#endif")
     release_lines.append("SPITE_FREE(self);")
     release_lines.append("}")
     builder.add_support(release_lines.join("\n"))
@@ -5731,6 +5763,9 @@ func emit_class_support(information: Analysis.ClassInfo) {
         }
         copy_field_index = copy_field_index + 1
     }
+    copy_lines.append("#ifdef SPITE_TRACKS_" + information.c_name)
+    copy_lines.append("spite_track_" + information.c_name + "(spite_copy);")
+    copy_lines.append("#endif")
     copy_lines.append("return spite_copy;")
     copy_lines.append("}")
     builder.add_support(copy_lines.join("\n"))
