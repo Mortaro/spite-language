@@ -1,0 +1,1 @@
+diagnostics/duplicate_function/duplicate_function.spite:11: error: 'DuplicateFunction' declares 'twice' twice: a later file may reopen a class and replace a function, but one file declares each name once (in DuplicateFunction.)

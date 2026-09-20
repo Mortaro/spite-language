@@ -1,0 +1,3 @@
+class ClassKeyword {
+    var name = "ada"
+}

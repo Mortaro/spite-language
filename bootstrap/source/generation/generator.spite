@@ -1552,6 +1552,16 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     } else if declaration.name == "drop" {
         information.drop_function = function
     }
+    var existing = 0
+    while existing < information.functions.count() {
+        if information.functions[existing].name == declaration.name {
+            var saved_line = current_line
+            current_line = declaration.line
+            report("'" + information.simple_name + "' declares '" + declaration.name + "' twice: a later file may reopen a class and replace a function, but one file declares each name once")
+            current_line = saved_line
+        }
+        existing = existing + 1
+    }
     information.functions.append(function)
 }
 
@@ -2476,7 +2486,12 @@ func generate_identifier(identifier: Syntax.Expressions.IdentifierExpression, sc
     if field {
         return ExpressionResult("self->" + identifier.name, field.get_type())
     }
-    report("unknown identifier '" + identifier.name + "'")
+    var named_class = find_class(identifier.name, class_information.namespace_dotted)
+    if named_class {
+        report("'" + identifier.name + "' is a class, not a value: write '" + identifier.name + "()' to make one, and give it a name with 'var ... = '")
+    } else {
+        report("unknown identifier '" + identifier.name + "'")
+    }
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
@@ -4147,7 +4162,11 @@ func generate_index_read(index_expression: Syntax.Expressions.IndexExpression, s
             value_type,
         )
     }
-    report("this value cannot be indexed")
+    if type_shape.as_string(object_result.get_type()) {
+        report("text is not indexed with [ ]: 'text.character_at(index)' gives one character and 'text.slice(start, end)' gives a piece")
+    } else {
+        report("a " + type_display_name(object_result.get_type()) + " is not indexed with [ ]: only a List<T> and a Dictionary<T> are")
+    }
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
@@ -4768,7 +4787,11 @@ func generate_member_read(member: Syntax.Expressions.MemberExpression, scope: Sc
         if type_shape.as_nullable(object_result.get_type()) {
             report("this value may be null (it is a " + type_display_name(object_result.get_type()) + "), so '" + member.name + "' cannot be read from it yet: narrow it first with 'if value { }', 'assert value' or 'crash value'")
         } else {
-            report("'" + member.name + "' cannot be read from a " + type_display_name(object_result.get_type()))
+            if type_shape.is_void(object_result.get_type()) {
+                report("'" + member.name + "' cannot be read from this value")
+            } else {
+                report("'" + member.name + "' cannot be read from a " + type_display_name(object_result.get_type()) + ": if it is a function, call it with '" + member.name + "()'")
+            }
         }
 
         return ExpressionResult("0", Analysis.Types.VoidType())
@@ -5411,6 +5434,7 @@ switch_statement: Syntax.Statements.SwitchStatement, scope: Scope, class_informa
     builder.add_user("{")
     builder.add_user(subject_union.c_name + " " + subject_temporary + " = " + subject.code + ";")
     var subject_identifier = shape.as_identifier(subject_ast)
+    var covered_names = List<String>()
     var covered = 0
     var case_index = 0
     while case_index < switch_statement.cases.count() {
@@ -5424,6 +5448,7 @@ switch_statement: Syntax.Statements.SwitchStatement, scope: Scope, class_informa
         if case_class {
             if information.has_member(case_class.c_name) {
                 covered = covered + 1
+                covered_names.append(case_class.simple_name)
             } else {
                 report("'" + case_class.simple_name + "' is not a member of union '" + information.simple_name + "'")
             }
@@ -5448,7 +5473,16 @@ switch_statement: Syntax.Statements.SwitchStatement, scope: Scope, class_informa
         case_index = case_index + 1
     }
     if covered != information.members.count() {
-        report("switch over '" + information.simple_name + "' does not cover every member")
+        var missing = List<String>()
+        var member_index = 0
+        while member_index < information.members.count() {
+            var member_name = information.members[member_index].simple_name
+            if not covered_names.contains(member_name) {
+                missing.append(member_name)
+            }
+            member_index = member_index + 1
+        }
+        report("this switch over '" + information.simple_name + "' has no case for " + missing.join(", ") + ": every member is covered, so a member added later cannot be forgotten")
     }
     if owns(subject, subject_ast) {
         builder.add_user(release_call(subject.get_type(), subject_temporary) + ";")

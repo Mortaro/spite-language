@@ -1,0 +1,13 @@
+var console = Console()
+
+union Held {
+    Console
+    Program
+}
+
+func MissingSwitchCase() {
+    var thing: Held = Program()
+    switch thing {
+        Program: console.print("a program")
+    }
+}

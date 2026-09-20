@@ -30,6 +30,23 @@ func advance(): Token {
     return token
 }
 
+func next_kind(): TokenKind {
+    if position + 1 < tokens.count() {
+        return tokens[position + 1].kind
+    }
+    return 'end_of_file'
+}
+
+func found_text(): String {
+    if check('newline') {
+        return "the end of the line"
+    }
+    if check('end_of_file') {
+        return "the end of the file"
+    }
+    return "'" + current().lexeme + "'"
+}
+
 func fail(message: String) {
     if has_error {
         return
@@ -44,7 +61,7 @@ func expect(kind: TokenKind, description: String): Token {
     if check(kind) {
         return advance()
     }
-    fail("expected " + description + " but found '" + current().lexeme + "'")
+    fail("expected " + description + " but found " + found_text())
     return current()
 }
 
@@ -74,7 +91,7 @@ func consume_statement_terminator() {
     if check('right_brace') or check('end_of_file') {
         return
     }
-    fail("expected end of statement but found '" + current().lexeme + "'")
+    fail("expected end of statement but found " + found_text())
 }
 
 func consume_field_separator(closing: TokenKind) {
@@ -214,6 +231,10 @@ func borrowed_word_lesson(word: String): String {
 }
 
 func parse_statement_without_line(): Syntax.Statements.Statement {
+    if check('identifier') and next_kind() == 'identifier' and (current().lexeme == "class" or current().lexeme == "struct" or current().lexeme == "interface" or current().lexeme == "trait") {
+        fail("there is no '" + current().lexeme + "' keyword: a file is a class, named after the file, and its attributes and functions are written at the top level of that file")
+        return dummy_statement()
+    }
     if check('identifier') and current().lexeme == "for" {
         fail(
             "Spite only has 'while' loops; there is no 'for'. Use List<T>'s metaprogramming helpers or 'while index < list.count() { ... }' instead.",
@@ -646,7 +667,7 @@ func parse_type_without_suffix(): Syntax.Types.Type {
         return Syntax.Types.GenericType(token.text)
     }
     if not check('identifier') {
-        fail("expected a type name but found '" + current().lexeme + "'")
+        fail("expected a type name but found " + found_text())
         return dummy_type()
     }
 
@@ -659,7 +680,7 @@ func parse_type_without_suffix(): Syntax.Types.Type {
             if check('identifier') {
                 path.append("" + advance().text)
             } else {
-                fail("expected a name after '.' but found '" + current().lexeme + "'")
+                fail("expected a name after '.' but found " + found_text())
                 continue_dots = false
             }
         } else {
@@ -693,7 +714,7 @@ func parse_generic_argument(): Syntax.Types.GenericArgument {
     if result {
         return result
     }
-    fail("expected a generic argument but found '" + current().lexeme + "'")
+    fail("expected a generic argument but found " + found_text())
     return Syntax.Types.IntegerArgument(0)
 }
 

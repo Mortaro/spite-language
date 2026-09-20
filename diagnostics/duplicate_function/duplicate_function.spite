@@ -1,0 +1,13 @@
+var console = Console()
+
+func DuplicateFunction() {
+    console.print(twice())
+}
+
+func twice(): Int {
+    return 2
+}
+
+func twice(): Int {
+    return 3
+}

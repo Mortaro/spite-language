@@ -1,0 +1,1 @@
+diagnostics/missing_switch_case/missing_switch_case.spite:11: error: this switch over 'Held' has no case for Console: every member is covered, so a member added later cannot be forgotten (in MissingSwitchCase.MissingSwitchCase)
