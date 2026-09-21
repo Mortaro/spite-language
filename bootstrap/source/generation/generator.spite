@@ -4697,6 +4697,23 @@ func is_console_reference(spite_type: Analysis.SpiteType): Bool {
     return false
 }
 
+func receives_on_console(object_ast: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): Bool {
+    var static_type = lookup_static_type(object_ast, scope, class_information)
+    if static_type {
+        return is_console_reference(static_type)
+    }
+    var made = shape.as_call(object_ast)
+    if made {
+        var made_callee = made.callee
+        crash made_callee
+        var made_class = try_resolve_static_path(made_callee, class_information.namespace_dotted)
+        if made_class {
+            return made_class.c_name == "Console"
+        }
+    }
+    return false
+}
+
 func is_console_printer(method_name: String): Bool {
     return method_name == "print" or method_name == "write" or method_name == "error"
 }
@@ -4780,11 +4797,8 @@ func generate_call(call: Syntax.Expressions.CallExpression, scope: Scope, class_
     if member {
         var object_ast = member.object
         crash object_ast
-        var static_type = lookup_static_type(object_ast, scope, class_information)
-        if static_type {
-            if is_console_reference(static_type) and is_console_printer(member.name) {
-                return generate_console_call(object_ast, member.name, call.arguments, scope, class_information)
-            }
+        if is_console_printer(member.name) and receives_on_console(object_ast, scope, class_information) {
+            return generate_console_call(object_ast, member.name, call.arguments, scope, class_information)
         }
         return generate_method_call(member, object_ast, call.arguments, scope, class_information)
     }

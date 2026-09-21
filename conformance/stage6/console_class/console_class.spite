@@ -8,4 +8,5 @@ func ConsoleClass() {
     console.print("")
     var greeter = Greeter()
     greeter.greet()
+    Console().print("a Console made on the spot prints too")
 }
