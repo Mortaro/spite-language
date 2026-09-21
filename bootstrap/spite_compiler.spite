@@ -184,6 +184,26 @@ func run_final_classes_mode(file_argument: String, content: String, output_direc
         }
         index = index + 1
     }
+    write_built_in_classes(output_directory)
+}
+
+func write_built_in_classes(output_directory: String) {
+    var generator = Generation.Generator()
+    var sources = generator.built_in_class_sources()
+    var names = generator.built_in_class_names()
+    var directory = "{output_directory}/built_in"
+    create_final_class_directory(directory)
+    var index = 0
+    while index < names.count() {
+        var path = "{directory}/{final_class_file_name(names[index])}.spite"
+        var output = File(path)
+        if not output.write("{sources[index]}\n") {
+            console.error("error: could not write '{path}'")
+            Program().exit(1)
+            return
+        }
+        index = index + 1
+    }
 }
 
 func final_class_path(output_directory: String, qualified_name: String): String {

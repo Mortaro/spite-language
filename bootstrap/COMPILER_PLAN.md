@@ -232,3 +232,15 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   it is manual.md open question 10.
   State: 57 conformance + examples, 54 tests, 37 diagnostics, 45 documentation programs, the printed program
   round trip, fixpoint holds.
+- 2026-09-20 (`--final-classes` shows the compiler's own classes too): Mortaro found that it printed only the
+  classes that came from a file. It now also writes `built_in/`, one `type` declaration per class the compiler
+  provides -- `Console`, `File`, `Directory`, `Process`, `Program` -- read straight from the generator's own
+  system class table, so the knowledge is not written down twice. A `type` is the language's existing way of
+  naming members without bodies, so the view needed no new notation.
+  **What is still missing is a gap in the compiler, not in the printer.** `Int`, `String`, `List<T>` and
+  `Dictionary<T>` have no `ClassInfo` anywhere: the generator knows them by name in `generate_string_method`
+  and friends, so there is no table to print and no honest way to invent one. Making `Int` printable means
+  making it a class, which is milestone 15c. `Console.print`/`write`/`error` are variadic and have no signature
+  the language can write yet (D39). And a generic prints as its template, because instantiations are created
+  during generation while `--final-classes` runs after discovery -- moving it after generation is the next step
+  and would also let it show which classes survived tree shaking.

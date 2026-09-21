@@ -132,6 +132,59 @@ func register_system_classes() {
     add_builtin_function(program, "environment", one_parameter("name", string_type()), nullable_type_of(string_type()))
 }
 
+func built_in_class_sources(): List<String> {
+    register_system_classes()
+    var sources = List<String>()
+    var index = 0
+    while index < classes.count() {
+        if classes[index].is_builtin {
+            sources.append(built_in_class_source(classes[index]))
+        }
+        index = index + 1
+    }
+    return sources
+}
+
+func built_in_class_names(): List<String> {
+    var names = List<String>()
+    var index = 0
+    while index < classes.count() {
+        if classes[index].is_builtin {
+            names.append(classes[index].simple_name)
+        }
+        index = index + 1
+    }
+    return names
+}
+
+func built_in_class_source(information: Analysis.ClassInfo): String {
+    var lines = List<String>()
+    lines.append("type {information.simple_name} \{")
+    var index = 0
+    while index < information.functions.count() {
+        var function = information.functions[index]
+        lines.append("    {built_in_signature(function)}")
+        index = index + 1
+    }
+    lines.append("}")
+    return lines.join("\n")
+}
+
+func built_in_signature(function: Analysis.FunctionInfo): String {
+    var parameters = List<String>()
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        parameters.append("{parameter.name}: {type_display_name(parameter.get_type())}")
+        index = index + 1
+    }
+    var signature = "{function.name}({parameters.join(", ")})"
+    if type_shape.is_void(function.get_return_type()) {
+        return signature
+    }
+    return "{signature}: {type_display_name(function.get_return_type())}"
+}
+
 func emit_system_classes(system_structs: String, system_prototypes: String, system_bodies: String) {
     ensure_list(string_type())
     var defines = List<String>()

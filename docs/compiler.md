@@ -98,6 +98,13 @@ namespace folders it belongs to. It is useful after `load(...)` or a reopening: 
 that won, so reopening stops being invisible. What it writes is a program, not a report: running the printed
 entry file runs the same program, which `check.sh` proves on every run.
 
+`built_in/` holds the classes the compiler provides rather than a file: `Console`, `File`, `Directory`,
+`Process` and `Program`, written as `type` declarations because a `type` is how Spite names members without
+bodies. Two things are **not** there yet. `Int`, `String`, `List<T>` and `Dictionary<T>` have no class table
+inside the compiler at all -- they are handled as shapes in the generator, so there is nothing to print until
+they become real classes (manual.md section 15, "Pure Spite"). And a generic is printed as the template it was
+written as (`Weapon<$damage_type, $is_magic>`), not once per instantiation.
+
 Which root supplied each declaration is **not** shown yet. It cannot be a comment, since a comment is only ever
 a link to a markdown heading (manual.md section 12), so it needs a form of its own -- see manual.md's open
 questions.
