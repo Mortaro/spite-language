@@ -287,3 +287,14 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   temporary was rejected, because the printing interception asked `lookup_static_type`, which does not type a
   constructor call. It now also recognises a call whose callee resolves to `Console`, and
   `conformance/stage6/console_class` covers it.
+- 2026-09-21 (D57, and milestone 10b's second step continued): `Spite.Class.functions` is an ordinary attribute
+  declared in `library/spite/class.spite`, filled when the class object is written, instead of a hidden C
+  function pointer read by a special case in `generate_reflection_read`. Mortaro's rule settled the design
+  question that was blocking it: **tree-shake it, do not make it lazy** -- `class_level_functions_used` already
+  decided whether any of it is emitted, so a program that never asks has none of it (`--mode=c` on
+  `conformance/stage1/hello` contains zero `spite_class_functions_`, `tests/tests.spite` contains 63).
+  The one thing that had to be handled: a class object owning its functions is a cycle, because a
+  `Spite.Function` holds a `Spite.Class` for `.returns`. The program's exit clears each cache's list before
+  releasing the class objects, which is "clear one side" from section 10 applied by the compiler rather than by
+  the programmer. `instances` needs no change: it is tracked only when asked, and stays a live registry because
+  which instances exist is not a compile-time fact.

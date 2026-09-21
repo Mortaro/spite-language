@@ -1,6 +1,7 @@
 var name = ""
 var namespace = ""
 var singleton = false
+var functions = List<Spite.Function>()
 
 func Class(starting_name: String, starting_namespace: String) {
     name = starting_name

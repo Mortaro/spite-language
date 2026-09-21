@@ -3661,9 +3661,14 @@ func emit_class_object_bodies() {
                     }
                 }
                 var thunk = "spite_class_functions_{described.c_name}"
-                builder.add_prototype("void* {thunk}(void);")
-                builder.add_support("void* {thunk}(void) \{\n{described.c_name}* fresh = {maker};\nvoid* listed = {functions_function}(fresh);\n{described.c_name}_release(fresh);\nreturn listed;\n}")
-                lines.append("{function_c_name}_cache->spite_functions = {thunk};")
+                var listed_class = find_class_by_c_name("Spite_Function")
+                crash listed_class
+                var listed_name = ensure_list(class_type_of(listed_class))
+                var listed_c_type = c_type_name(list_type_of(class_type_of(listed_class)))
+                builder.add_prototype("{listed_c_type} {thunk}(void);")
+                builder.add_support("{listed_c_type} {thunk}(void) \{\n{described.c_name}* fresh = {maker};\n{listed_c_type} listed = {functions_function}(fresh);\n{described.c_name}_release(fresh);\nreturn listed;\n}")
+                lines.append("{listed_name}_release({function_c_name}_cache->functions);")
+                lines.append("{function_c_name}_cache->functions = {thunk}();")
             }
         }
         lines.append("}")
@@ -3919,13 +3924,7 @@ func generate_reflection_read(member_name: String, object_result: ExpressionResu
     var object_class_ref = type_shape.as_class_ref(object_type)
     if object_class_ref {
         if object_class_ref.c_name == "Spite_Class" and member_name == "functions" {
-            var listed_class = find_class_by_c_name("Spite_Function")
-            if listed_class {
-                class_level_functions_used = true
-                var listed_type = list_type_of(class_type_of(listed_class))
-                var listed_c_type = c_type_name(listed_type)
-                return ExpressionResult("(\{ {object_c_type} spite_reflected = {object_result.code}; {listed_c_type} spite_reflected_value = spite_reflected->spite_functions != 0 ? ({listed_c_type})spite_reflected->spite_functions() : {ensure_list(class_type_of(listed_class))}_make(); {release_object} spite_reflected_value; })", listed_type)
-            }
+            class_level_functions_used = true
         }
         var object_class = find_class_by_c_name(object_class_ref.c_name)
         if object_class {
@@ -6046,7 +6045,6 @@ func emit_class_support(information: Analysis.ClassInfo) {
         field_index = field_index + 1
     }
     if information.c_name == "Spite_Class" {
-        initialize_lines.append("self->spite_functions = 0;")
     }
     if information.c_name == "Spite_Function" {
         initialize_lines.append("self->spite_owner = 0;")
@@ -6209,7 +6207,6 @@ func emit_class(information: Analysis.ClassInfo) {
         field_index = field_index + 1
     }
     if information.c_name == "Spite_Class" {
-        struct_lines.append("void* (*spite_functions)(void);")
     }
     if information.c_name == "Spite_Function" {
         struct_lines.append("void* spite_owner;")
@@ -6274,9 +6271,19 @@ func emit_main(entry_mangled_name: String) {
         builder.add_main(singleton_releases[singleton_index])
         singleton_index = singleton_index + 1
     }
+    var listed_name = ""
+    if class_level_functions_used {
+        var listed_class = find_class_by_c_name("Spite_Function")
+        crash listed_class
+        listed_name = ensure_list(class_type_of(listed_class))
+    }
     var cache_index = 0
     while cache_index < class_object_names.count() {
-        builder.add_main("Spite_Class_release({class_object_names[cache_index]}_cache);")
+        var cache = "{class_object_names[cache_index]}_cache"
+        if not listed_name.is_empty() {
+            builder.add_main("if ({cache} != 0) \{ {listed_name}_release({cache}->functions); {cache}->functions = 0; }")
+        }
+        builder.add_main("Spite_Class_release({cache});")
         cache_index = cache_index + 1
     }
     builder.add_main("#ifdef SPITE_DEBUG_MEMORY")
