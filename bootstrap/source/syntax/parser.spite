@@ -385,13 +385,24 @@ func parse_function_declaration(): Syntax.Statements.Statement {
     return declaration
 }
 
+func parse_type_name_hint(): String {
+    if check('identifier') {
+        return current().lexeme
+    }
+    return "Type"
+}
+
 func parse_required_function(name: String): Syntax.Statements.FieldDeclaration {
     advance()
     var parameter_types = List<Syntax.Types.Type>()
     var expect_more = not check('right_paren')
     while expect_more and not check('end_of_file') {
-        expect('identifier', "a parameter name")
-        expect('colon', "':' followed by the parameter's type")
+        if check('identifier') and next_kind() == 'colon' {
+            var named = advance()
+            advance()
+            fail("a shape names the types it needs, not the names they are given: write '{parse_type_name_hint()}' where '{named.text}: ...' is, since a class satisfies it whatever it calls its parameters")
+            return Syntax.Statements.FieldDeclaration(name, dummy_type())
+        }
         parameter_types.append(parse_type())
         if check('comma') {
             advance()

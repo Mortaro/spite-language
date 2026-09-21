@@ -1,0 +1,1 @@
+diagnostics/shape_parameter_name/shape_parameter_name.spite:2:19: a shape names the types it needs, not the names they are given: write 'Int' where 'scale: ...' is, since a class satisfies it whatever it calls its parameters

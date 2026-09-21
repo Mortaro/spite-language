@@ -167,7 +167,10 @@ func class_view_source(information: Analysis.ClassInfo, display_name: String): S
     }
     var index = 0
     while index < information.functions.count() {
-        lines.append("    {built_in_signature(information.functions[index])}")
+        var function = information.functions[index]
+        if not function.is_constructor {
+            lines.append("    {built_in_signature(function)}")
+        }
         index = index + 1
     }
     lines.append("}")
@@ -237,8 +240,7 @@ func built_in_signature(function: Analysis.FunctionInfo): String {
     var parameters = List<String>()
     var index = 0
     while index < function.parameters.count() {
-        var parameter = function.parameters[index]
-        parameters.append("{parameter.name}: {type_display_name(parameter.get_type())}")
+        parameters.append(type_display_name(function.parameters[index].get_type()))
         index = index + 1
     }
     var signature = "{function.name}({parameters.join(", ")})"

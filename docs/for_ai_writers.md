@@ -92,7 +92,8 @@ func is_alive(): Bool {
 - `union Enemy { Player Monster }`, written one member per line: `switch enemy { Player: ... Monster: { ... } }`
   must cover every member and narrows `enemy` inside each case; a function or attribute every member has can be
   used on the union directly.
-- A `type` declares a shape -- `label: String` and `render(): String`, one per line -- and accepts any class, or
+- A `type` declares a shape -- `label: String` and `render(Int): String`, one per line, a required function
+  naming the *types* it takes and never the names -- and accepts any class, or
   object literal `{ label: "x" }`, with those attributes and functions.
 
 ## Nothing, null, and failure

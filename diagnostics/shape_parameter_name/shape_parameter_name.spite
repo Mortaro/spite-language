@@ -1,0 +1,9 @@
+type Drawable {
+    render(scale: Int): String
+}
+
+var console = Console()
+
+func ShapeParameterName() {
+    console.print("unreached")
+}

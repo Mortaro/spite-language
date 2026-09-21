@@ -264,3 +264,13 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   `generate_reflection_read` and are next; each needs its value written into the class object the same way,
   which is harder than `singleton` only because the value is a generated list rather than a Bool.
   State: 57 conformance + examples, 54 tests, 37 diagnostics, 45 documentation programs, fixpoint holds.
+- 2026-09-21 (D56, from Mortaro's inbox after reading a printed `type` view): a shape names the types it
+  requires, not the names they are given -- `render(Int): String`. The parser was already discarding the name,
+  so this only made the syntax say what the language meant; writing a name is an error that shows the type to
+  put in its place. A shape also no longer carries a constructor, because an entry whose name is capitalised
+  would mean requiring a class to be constructible, which is forcing a class rather than describing a shape.
+  Both were found by Mortaro reading `--final-classes` output, which is the flag doing its job: the views it
+  prints are now written in the same shape syntax a human would write, and the round trip proves it, because
+  the new rule caught the `built_in/` views on its first run.
+  Left open, and recorded as manual.md open question 11: whether a required function should instead be an
+  attribute holding a `Spite.Function<...>`. It needs D39's typed function values before it can be written.
