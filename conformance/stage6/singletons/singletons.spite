@@ -9,4 +9,7 @@ func Singletons() {
     console.print(again.entries.join(", "), first == again, again.opened)
     var plain_one = Worker()
     console.print(plain_one == worker)
+    var reader = JournalReader()
+    reader.report(first.class)
+    reader.report(worker.class)
 }

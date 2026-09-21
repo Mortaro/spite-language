@@ -1,2 +1,4 @@
 from the entry, from a worker true 1
 false
+Journal true
+Worker false

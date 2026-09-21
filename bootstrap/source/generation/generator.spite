@@ -3646,6 +3646,9 @@ func emit_class_object_bodies() {
         lines.append("{function_c_name}_cache = Spite_Class_make({render_string_literal(class_object_displays[position])}, {render_string_literal(class_object_namespaces[position])});")
         var described = find_class_by_c_name(class_object_labels[position])
         if described {
+            if described.is_singleton {
+                lines.append("{function_c_name}_cache->singleton = true;")
+            }
             if class_level_functions_used and is_listed_class(described) and described.c_name != entry_class_c_name {
                 var functions_function = ensure_functions_function(described)
                 var maker ="{described.c_name}_default()"

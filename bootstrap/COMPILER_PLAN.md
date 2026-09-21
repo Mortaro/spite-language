@@ -88,10 +88,12 @@ line.
    `Spite.Class`, so `is_singleton()`, `instances`, `functions` and `attributes` are ordinary members of `Spite.Class`,
    declared in `library/spite/class.spite` with their defaults, and a class file that writes `func is_singleton()`
    is overriding that ordinary function for its own class object. Built so far as compiler-provided answers:
-   `is_singleton()` (D8), `Monster.instances`, `Spite.Class.instances` (D49), `some_class.functions`. Still to do:
-   declare those members in `library/spite/class.spite` so they are visible Spite source rather than compiler
-   knowledge, make `some_class.is_singleton()` answer truthfully through the class object, and
-   `Monster.attributes['name']` (D11, its shape still needs design).
+   `is_singleton()` (D8), `Monster.instances`, `Spite.Class.instances` (D49), `some_class.functions`.
+   **`is_singleton()` is now declared in `library/spite/class.spite`** and answers truthfully through the class
+   object: the library declares `var singleton = false` and `func is_singleton(): Bool { return singleton }`,
+   and the compiler fills the *data* when it writes the class object, never the behaviour. That is the shape
+   the rest of D6 follows. Still to do: `attributes`, `functions` and `instances` the same way (each is answered
+   by name at the call site today), and `Monster.attributes['name']` (D11, its shape still needs design).
 4. `deep_copy()` and the `Dictionary<T>` member templates.
 5. The formatter (the compiler rewrites sources to the one style), then `--final-classes`.
 6. Arguments for the program being run: `--mode=run` hands it an empty `Arguments`, so nothing on the command
@@ -252,3 +254,13 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   nothing written by hand is paraphrased; a class the compiler provides is a `type` view of its members.
   `Int`, `String`, `List<T>` and `Dictionary<T>` are still the outstanding gap and still not the printer's:
   they have no `ClassInfo`, so making them printable is milestone 15c.
+- 2026-09-21 (milestone 10b, second step begun): `is_singleton()` stopped being an answer the generator gives at
+  a call site and became an ordinary member of `Spite.Class`, written in `library/spite/class.spite` as
+  `var singleton = false` plus `func is_singleton(): Bool { return singleton }`. The compiler sets that one
+  attribute while it writes each class object (`emit_class_object_bodies`) and does nothing else, so
+  `some_class.is_singleton()` is a real call to a function that appears in `--final-classes` and that a
+  reopening can see. The pattern to copy for the rest of D6 is exactly this: **the compiler fills data, never
+  behaviour.** `attributes`, `functions` and `instances` are still answered by name in
+  `generate_reflection_read` and are next; each needs its value written into the class object the same way,
+  which is harder than `singleton` only because the value is a generated list rather than a Bool.
+  State: 57 conformance + examples, 54 tests, 37 diagnostics, 45 documentation programs, fixpoint holds.

@@ -1,0 +1,5 @@
+var console = Console()
+
+func report(subject: Spite.Class) {
+    console.print(subject.name, subject.is_singleton())
+}

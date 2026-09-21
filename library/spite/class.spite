@@ -1,7 +1,12 @@
 var name = ""
 var namespace = ""
+var singleton = false
 
 func Class(starting_name: String, starting_namespace: String) {
     name = starting_name
     namespace = starting_namespace
+}
+
+func is_singleton(): Bool {
+    return singleton
 }
