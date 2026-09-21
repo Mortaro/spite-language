@@ -170,28 +170,52 @@ func run_final_classes_mode(file_argument: String, content: String, output_direc
         Program().exit(1)
         return
     }
+    var generator = final_classes_generator(discovery)
+    assert generator
+    var kept = generator.emitted_qualified_names()
     var index = 0
     while index < discovery.class_files.count() {
         var class_file = discovery.class_files[index]
-        var path = final_class_path(output_directory, class_file.qualified_dotted)
-        create_final_class_directory(final_class_directory(path))
-        var source = Syntax.SourcePrinter().source_file(class_file.get_file())
-        var output = File(path)
-        if not output.write("{source}\n") {
-            console.error("error: could not write '{path}'")
-            Program().exit(1)
-            return
+        if kept.contains(class_file.qualified_dotted) {
+            var path = final_class_path(output_directory, class_file.qualified_dotted)
+            create_final_class_directory(final_class_directory(path))
+            var source = Syntax.SourcePrinter().source_file(class_file.get_file())
+            var output = File(path)
+            if not output.write("{source}\n") {
+                console.error("error: could not write '{path}'")
+                Program().exit(1)
+                return
+            }
         }
         index = index + 1
     }
-    write_built_in_classes(output_directory)
+    write_class_views(output_directory, "built_in", generator.built_in_class_names(), generator.built_in_class_sources())
+    write_class_views(output_directory, "instantiated", generator.instantiated_class_names(), generator.instantiated_class_sources())
 }
 
-func write_built_in_classes(output_directory: String) {
+func final_classes_generator(discovery: Discovery.DiscoveryResult): Generation.Generator? {
+    var runtime_header = read_runtime_header()
+    assert runtime_header
+    var system_structs = File("runtime/system_structs.h").read()
+    assert system_structs
+    var system_prototypes = File("runtime/system_prototypes.h").read()
+    assert system_prototypes
+    var system_bodies = File("runtime/system_bodies.h").read()
+    assert system_bodies
     var generator = Generation.Generator()
-    var sources = generator.built_in_class_sources()
-    var names = generator.built_in_class_names()
-    var directory = "{output_directory}/built_in"
+    generator.program_values = program_values
+    generator.generate(discovery, runtime_header, system_structs, system_prototypes, system_bodies)
+    if generator.has_error {
+        console.error(generator.error_message)
+        Program().exit(1)
+        return null
+    }
+    return generator
+}
+
+func write_class_views(output_directory: String, folder: String, names: List<String>, sources: List<String>) {
+    assert not (names.is_empty())
+    var directory = "{output_directory}/{folder}"
     create_final_class_directory(directory)
     var index = 0
     while index < names.count() {

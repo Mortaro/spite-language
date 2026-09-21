@@ -244,3 +244,11 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   the language can write yet (D39). And a generic prints as its template, because instantiations are created
   during generation while `--final-classes` runs after discovery -- moving it after generation is the next step
   and would also let it show which classes survived tree shaking.
+- 2026-09-20 (`--final-classes` runs after generation): it discovered and printed, which meant it showed the
+  merged *source* rather than the *final classes*. It now runs the generator and reads its class table
+  afterwards, so three things changed at once: a class tree shaking removed is no longer written, a generic
+  template is no longer written, and each instantiation is, under `instantiated/`, named for the values it was
+  given (`WeaponIntTrue`, `PairStringInt`). A class that has a file is still printed from its own source, so
+  nothing written by hand is paraphrased; a class the compiler provides is a `type` view of its members.
+  `Int`, `String`, `List<T>` and `Dictionary<T>` are still the outstanding gap and still not the printer's:
+  they have no `ClassInfo`, so making them printable is milestone 15c.
