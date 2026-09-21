@@ -73,7 +73,8 @@ func is_alive(): Bool {
   the same object. `copy()` copies one level, `deep_copy()` all the way down. `drop()` runs when the last reference
   goes. Two objects that refer to each other leak: clear one side.
 - `List<T>`: `[1, 2, 3]`, `append`, `prepend`, `insert`, `remove_at`, `remove_last`, `remove_first`, `first`,
-  `last`, `count`, `contains`, `is_empty`, `clear`, `reverse`, `join` (strings), `list[index]` (out of range gives
+  `last`, `count`, `contains`, `is_empty`, `clear`, `reverse`, `join` (text, numbers, `Bool` and enum values
+  all join), `list[index]` (out of range gives
   the default). `Dictionary<T>` (String keys): `set`, `get` (a `T?`), `has`, `remove`, `count`, `keys`, `values`,
   `dictionary["key"]`.
 - On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Bool` member),

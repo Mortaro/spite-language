@@ -1,0 +1,50 @@
+var console = Console()
+var books = List<Book>()
+
+func LibraryCard() {
+    stock()
+    console.print("{books.count()} books, {books.count_is_available()} available")
+    console.print(books.map_label().join("; "))
+    lend("Dune", "ada")
+    console.print("after lending: {books.count_is_available()} available")
+    report_by_shelf()
+    var found = books.find_by_title("Dune")
+    crash found
+    console.print("{found.label()} is held by {held_by(found)}")
+}
+
+func stock() {
+    books.append(Book("Dune", 'fiction'))
+    books.append(Book("Atlas", 'reference'))
+    books.append(Book("Moon", 'childrens'))
+}
+
+func lend(title: String, reader: String) {
+    var book = books.find_by_title(title)
+    assert book
+    book.borrowed_by = reader
+}
+
+func held_by(book: Book): String {
+    var holder = book.borrowed_by
+    if holder {
+        return holder
+    }
+    return "nobody"
+}
+
+func report_by_shelf() {
+    var counts = Dictionary<Int>()
+    var index = 0
+    while index < books.count() {
+        var shelf = "{books[index].shelf}"
+        var seen = counts.get(shelf)
+        if seen {
+            counts.set(shelf, seen + 1)
+        } else {
+            counts.set(shelf, 1)
+        }
+        index = index + 1
+    }
+    console.print(counts.keys().join(","), counts.values().join(","))
+}

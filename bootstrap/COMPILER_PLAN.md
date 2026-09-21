@@ -274,3 +274,9 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   the new rule caught the `built_in/` views on its first run.
   Left open, and recorded as manual.md open question 11: whether a required function should instead be an
   attribute holding a `Spite.Function<...>`. It needs D39's typed function values before it can be written.
+- 2026-09-21 (hardening by writing an ordinary program): a lending-library program using enums, a `T?` attribute,
+  the member templates, a `Dictionary<Int>` tally and interpolation found one real bug in its first run:
+  `join(separator)` was only generated for `List<String>`, so `counts.values().join(",")` emitted a call to
+  `List_Int_join`, which never existed -- C that does not compile, the worst outcome available. It now generates
+  for every element that becomes text (a number, `Bool`, an enum value), reusing `string_conversion`, the same
+  rule `+` and `"{value}"` use. The program is `examples/library_card`, so it stays covered.

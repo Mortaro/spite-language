@@ -1,0 +1,26 @@
+enum Shelf {
+    'fiction'
+    'reference'
+    'childrens'
+}
+
+var title = ""
+var shelf: Shelf = 'fiction'
+var borrowed_by: String? = null
+
+func Book(starting_title: String, starting_shelf: Shelf) {
+    title = starting_title
+    shelf = starting_shelf
+}
+
+func label(): String {
+    return "{title} ({shelf})"
+}
+
+func is_available(): Bool {
+    var holder = borrowed_by
+    if holder {
+        return false
+    }
+    return true
+}

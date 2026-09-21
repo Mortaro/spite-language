@@ -1,0 +1,5 @@
+3 books, 3 available
+Dune (fiction); Atlas (reference); Moon (childrens)
+after lending: 2 available
+fiction,reference,childrens 1,1,1
+Dune (fiction) is held by ada
