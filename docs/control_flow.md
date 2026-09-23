@@ -18,13 +18,6 @@ switch enemy {
 ```spite title=if_narrowing/if_narrowing.spite entry
 var console = Console()
 
-func find_name(missing: Bool): String? {
-    if missing {
-        return null
-    }
-    return "kal"
-}
-
 func IfNarrowing() {
     var name = find_name(false)
     if name {
@@ -32,6 +25,13 @@ func IfNarrowing() {
     } else {
         console.print("missing")
     }
+}
+
+func find_name(missing: Bool): String? {
+    if missing {
+        return null
+    }
+    return "kal"
 }
 ```
 ```output

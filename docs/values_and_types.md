@@ -116,6 +116,10 @@ func Monster(starting_health: Int) {
 ```spite title=nullable_narrowing/nullable_narrowing.spite entry
 var console = Console()
 
+func NullableNarrowing() {
+    report_health()
+}
+
 func find_monster(missing: Bool): Monster? {
     if missing {
         return null
@@ -133,10 +137,6 @@ func report_health() {
     }
     console.print("done")
 }
-
-func NullableNarrowing() {
-    report_health()
-}
 ```
 ```output
 health 30
@@ -152,6 +152,10 @@ is a compile error naming the `assert` rewrite -- write it with `assert` instead
 ```spite title=terminal_if_error/terminal_if_error.spite entry error
 var console = Console()
 
+func TerminalIfError() {
+    announce()
+}
+
 func try_get_name(): String? {
     return null
 }
@@ -162,10 +166,6 @@ func announce() {
         console.print(maybe_name)
     }
 }
-
-func TerminalIfError() {
-    announce()
-}
 ```
 ```diagnostic
 write 'assert maybe_name' and let the rest of the function run unindented
@@ -173,6 +173,10 @@ write 'assert maybe_name' and let the rest of the function run unindented
 
 ```spite title=terminal_if_fixed/terminal_if_fixed.spite entry
 var console = Console()
+
+func TerminalIfFixed() {
+    announce()
+}
 
 func try_get_name(): String? {
     return "Aria"
@@ -182,10 +186,6 @@ func announce() {
     var name = try_get_name()
     assert name
     console.print(name)
-}
-
-func TerminalIfFixed() {
-    announce()
 }
 ```
 ```output

@@ -88,6 +88,10 @@ func Gadget(new_name: String, new_power: Int) {
 ```spite title=reflection_basics/reflection_basics.spite entry
 var console = Console()
 
+func ReflectionBasics() {
+    describe(Gadget("wrench", 3))
+}
+
 func describe(gadget: Gadget) {
     console.print("class", gadget.class)
     console.print("class name", gadget.class.name)
@@ -100,10 +104,6 @@ func describe(gadget: Gadget) {
         console.print(attribute.name, attribute.class, attribute.value)
         index = index + 1
     }
-}
-
-func ReflectionBasics() {
-    describe(Gadget("wrench", 3))
 }
 ```
 ```output

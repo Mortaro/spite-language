@@ -1,10 +1,10 @@
-var console = Console()
-
 union Creature {
     Cat
     Dog
     Fish
 }
+
+var console = Console()
 
 func RestCase() {
     describe(Cat())

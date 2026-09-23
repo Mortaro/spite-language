@@ -1,5 +1,9 @@
 var console = Console()
 
+func TerminalIf() {
+    announce()
+}
+
 func try_get_name(): String? {
     return null
 }
@@ -9,8 +13,4 @@ func announce() {
     if maybe_name {
         console.print(maybe_name)
     }
-}
-
-func TerminalIf() {
-    announce()
 }

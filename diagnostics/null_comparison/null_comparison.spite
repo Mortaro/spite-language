@@ -1,5 +1,9 @@
 var console = Console()
 
+func NullComparison() {
+    announce()
+}
+
 func try_get_name(): String? {
     return null
 }
@@ -11,8 +15,4 @@ func announce() {
     } else {
         console.print(name)
     }
-}
-
-func NullComparison() {
-    announce()
 }

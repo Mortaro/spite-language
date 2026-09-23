@@ -1,7 +1,7 @@
-func add_one(value: Int) Int {
-    return value + 1
-}
-
 func ReturnTypeColon() {
     add_one(1)
+}
+
+func add_one(value: Int) Int {
+    return value + 1
 }

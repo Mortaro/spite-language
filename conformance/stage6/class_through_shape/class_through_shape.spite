@@ -1,17 +1,13 @@
-type Labeled {
-    label: String
-}
-
 union Readout {
     Widget
     Gauge
 }
 
-var console = Console()
-
-func describe(labeled: Labeled) {
-    console.print(labeled.label, labeled.class, labeled.class.name)
+type Labeled {
+    label: String
 }
+
+var console = Console()
 
 func ClassThroughShape() {
     describe(Widget("thing"))
@@ -20,4 +16,8 @@ func ClassThroughShape() {
     console.print(readout.class)
     var shaped: Labeled = { label: "a literal" }
     console.print(shaped.label, shaped.class)
+}
+
+func describe(labeled: Labeled) {
+    console.print(labeled.label, labeled.class, labeled.class.name)
 }

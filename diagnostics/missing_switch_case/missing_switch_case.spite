@@ -1,9 +1,9 @@
-var console = Console()
-
 union Held {
     Console
     Program
 }
+
+var console = Console()
 
 func MissingSwitchCase() {
     var thing: Held = Program()

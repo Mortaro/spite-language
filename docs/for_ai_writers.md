@@ -41,7 +41,8 @@ func is_alive(): Bool {
 ```
 
 - The file name is the class name (`monster.spite` is `Monster`). Only `var`, `func`, `enum`, `union` and `type`
-  may appear at file level. Every `var` has a default value.
+  may appear at file level, and in that order: enums, unions, types, variables, the constructor, then functions.
+  Every `var` has a default value.
 - The function named like the class is the constructor. Do not write an empty one: a class without a constructor
   is made from its defaults, and `func Monster() { }` is an error.
 - A program starts by constructing the entry file's class. `func Game(arguments: Arguments)` receives the command
@@ -101,6 +102,11 @@ func is_alive(): Bool {
 
 - `Monster?` is a value that may be `null`. It must be narrowed before use: `if target { }` (with `else`),
   `assert target`, `crash target`, or `switch target { Monster: ... Null: ... }`.
+  Narrow the name or the path itself -- `assert target`, `assert target.weapon` -- never a local copied from it,
+  which is an error. Comparing needs no narrowing: `target.name == "rat"` needs `target` narrowed, but
+  `maybe_name == "rat"` is simply false when it is null.
+- A `switch` covers every member; `_:` as the last case answers for the rest, and two cases doing the same thing
+  are an error: write it once as `_:`.
 - There are no exceptions and no error values. Three outcomes only:
   - the compiler can know it: a compile error;
   - absence is fine: `assert condition` returns quietly. Legal only in a function that returns nothing or a `T?`,

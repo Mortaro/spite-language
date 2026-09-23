@@ -5,6 +5,8 @@ var has_error = false
 var error_line = 0
 var error_column = 0
 var error_message = ""
+var quiet_generic_arguments_matched = false
+var quiet_generic_instantiation_matched = false
 
 func Parser(starting_tokens: List<Token>) {
     tokens = starting_tokens
@@ -755,8 +757,6 @@ func parse_generic_argument(): Syntax.Types.GenericArgument {
     return Syntax.Types.IntegerArgument(0)
 }
 
-var quiet_generic_arguments_matched = false
-
 func try_parse_generic_argument_list_quiet(): List<Syntax.Types.GenericArgument> {
     var saved_position = position
     quiet_generic_arguments_matched = false
@@ -875,8 +875,6 @@ func try_parse_type_quiet(): Syntax.Types.Type? {
     var type_reference: Syntax.Types.Type = Syntax.Types.NamedType(path, arguments)
     return with_nullable_suffix(type_reference)
 }
-
-var quiet_generic_instantiation_matched = false
 
 func try_parse_generic_instantiation_arguments(): List<Syntax.Types.GenericArgument> {
     var saved_position = position

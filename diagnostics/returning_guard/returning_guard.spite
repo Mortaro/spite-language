@@ -1,12 +1,12 @@
 var console = Console()
 
+func ReturningGuard() {
+    announce("ada")
+}
+
 func announce(name: String) {
     if name.is_empty() {
         return
     }
     console.print(name)
-}
-
-func ReturningGuard() {
-    announce("ada")
 }

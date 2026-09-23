@@ -21,6 +21,10 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     if parser.has_error {
         return failure("{entry_path}:{parser.error_line}:{parser.error_column}: {parser.error_message}")
     }
+    check_order(entry_path, entry_file, pascal_case(file_stem(entry_path)))
+    if has_error {
+        return failure(error_message)
+    }
     var entry_directory = directory_of(entry_path)
     var entry_stem = file_stem(entry_path)
     var entry_basename = basename(entry_path)
@@ -76,6 +80,71 @@ func lex_failure(path: String, lexer: Syntax.Lexer): String {
 
 func comment_lesson(): String {
     return "a comment is one line holding only a link to a markdown section, like '# docs/memory.md#cycles', and only outside functions. Ask whether the note is needed: if a reader could work it out from the code, delete it; if it is lasting knowledge, write the section first and link to it; if it warns against a change, a test or a compile error pushes harder than prose"
+}
+
+func check_order(path: String, file: Syntax.SourceFile, class_name: String) {
+    var kinds = ["an enum", "a union", "a type", "a variable", "the constructor", "a function"]
+    var reached = 0
+    var index = 0
+    while index < file.statements.count() {
+        var statement = file.statements[index]
+        var rank = order_rank(statement, class_name)
+        if rank >= 0 and rank < reached and not has_error {
+            has_error = true
+            error_message = "{path}:{statement_line(statement)}: error: {kinds[rank]} comes after {kinds[reached]} here, but a file is ordered: enums, unions, types, variables, the constructor, then functions"
+        }
+        if rank > reached {
+            reached = rank
+        }
+        index = index + 1
+    }
+}
+
+func order_rank(statement: Syntax.Statements.Statement, class_name: String): Int {
+    if shape.as_enum_declaration(statement) {
+        return 0
+    }
+    if shape.as_union_declaration(statement) {
+        return 1
+    }
+    if shape.as_type_declaration(statement) {
+        return 2
+    }
+    if shape.as_variable_declaration(statement) {
+        return 3
+    }
+    var function = shape.as_function_declaration(statement)
+    if function {
+        if function.name == class_name {
+            return 4
+        }
+        return 5
+    }
+    return -1
+}
+
+func statement_line(statement: Syntax.Statements.Statement): Int {
+    var enumeration = shape.as_enum_declaration(statement)
+    if enumeration {
+        return enumeration.line
+    }
+    var joined = shape.as_union_declaration(statement)
+    if joined {
+        return joined.line
+    }
+    var described = shape.as_type_declaration(statement)
+    if described {
+        return described.line
+    }
+    var variable = shape.as_variable_declaration(statement)
+    if variable {
+        return variable.line
+    }
+    var function = shape.as_function_declaration(statement)
+    if function {
+        return function.line
+    }
+    return 0
 }
 
 func check_comments(path: String, tokens: List<Syntax.Token>) {
@@ -284,6 +353,8 @@ func read_and_add_file(path: String, segments: List<String>) {
             return
         }
         parsed_file.path = path
+        check_order(path, parsed_file, pascal_case(file_stem(path)))
+        assert not has_error
         add_parsed_file(parsed_file, segments, file_stem(path))
     } else {
         has_error = true
