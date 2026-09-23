@@ -870,7 +870,7 @@ func describe(person: Person) {
 }
 ```
 
-### Class-level functions, and why there are no static functions  **[planned]**
+### Class-level functions, and why there are no static functions  **[implemented]**
 
 D6 (decided by Mortaro, 2026-09-19): **Spite has no static class functions and will not get any.** A class is an
 instance of `Spite.Class`, and `Spite.Class` is an ordinary standard library class with an ordinary declaration.
@@ -921,7 +921,7 @@ file being a class that gets reopened -- like Rails patching its internal option
 code, rather than through a static configuration file. A static line can only state a value; a function can
 compute one, and it costs the language nothing because functions already exist.
 
-### Singletons  **[planned]**
+### Singletons  **[implemented]**
 
 D8 (decided by Mortaro, 2026-09-19): a singleton is declared with a class-level function (above), overriding the
 default `Spite.Class` declares.
