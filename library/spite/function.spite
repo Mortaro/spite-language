@@ -1,8 +1,8 @@
-var name = ""
+var name: Symbol = 'unnamed'
 var arguments = List<Spite.Argument>()
 var returns = Spite.Class('Nothing')
 
-func Function(starting_name: String, starting_returns: Spite.Class) {
+func Function(starting_name: Symbol, starting_returns: Spite.Class) {
     name = starting_name
     returns = starting_returns
 }

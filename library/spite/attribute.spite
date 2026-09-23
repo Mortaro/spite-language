@@ -1,8 +1,8 @@
-var name = ""
+var name: Symbol = 'unnamed'
 var class = Spite.Class('Nothing')
 var value = ""
 
-func Attribute(starting_name: String, starting_class: Spite.Class, starting_value: String) {
+func Attribute(starting_name: Symbol, starting_class: Spite.Class, starting_value: String) {
     name = starting_name
     class = starting_class
     value = starting_value

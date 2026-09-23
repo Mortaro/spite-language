@@ -3440,13 +3440,13 @@ func function_value(
         var lines = List<String>()
         lines.append("Spite_Function* {maker}({information.c_name}* owner) \{")
         lines.append(
-            "Spite_Function* described = Spite_Function_make({render_string_literal(function.name)}, {returned_class_object_call(function)});",
+            "Spite_Function* described = Spite_Function_make({ensure_symbol(function.name)}, {returned_class_object_call(function)});",
         )
         var parameter_index = 0
         while parameter_index < function.parameters.count() {
             var parameter = function.parameters[parameter_index]
             lines.append(
-                "{arguments_list_name}_add(described->arguments, Spite_Argument_make({render_string_literal(parameter.name)}, {class_object_call(parameter.get_type())}));",
+                "{arguments_list_name}_add(described->arguments, Spite_Argument_make({ensure_symbol(parameter.name)}, {class_object_call(parameter.get_type())}));",
             )
             parameter_index = parameter_index + 1
         }
@@ -4580,7 +4580,7 @@ func emit_namespace_object_bodies() {
         lines.append("Spite_Namespace* {function_c_name}(void) \{")
         lines.append("if ({function_c_name}_cache == 0) \{")
         lines.append(
-            "{function_c_name}_cache = Spite_Namespace_make({render_string_literal(namespace_name)}, {render_string_literal(namespace_dotted)});",
+            "{function_c_name}_cache = Spite_Namespace_make({ensure_symbol(namespace_name)}, {ensure_symbol(namespace_dotted)});",
         )
         if segments.count() > 1 {
             var parent_segments = List<String>()
@@ -4758,7 +4758,7 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
             value_code = string_conversion("self->{field.name}", field.get_type())
         }
         lines.append(
-            "{list_name}_add(result, Spite_Attribute_make({render_string_literal(field.name)}, {class_object_call(field.get_type())}, {value_code}));",
+            "{list_name}_add(result, Spite_Attribute_make({ensure_symbol(field.name)}, {class_object_call(field.get_type())}, {value_code}));",
         )
         index = index + 1
     }
@@ -4826,13 +4826,13 @@ func emit_functions_function(information: Analysis.ClassInfo) {
         if not function.is_constructor {
             lines.append("\{")
             lines.append(
-                "Spite_Function* described = Spite_Function_make({render_string_literal(function.name)}, {returned_class_object_call(function)});",
+                "Spite_Function* described = Spite_Function_make({ensure_symbol(function.name)}, {returned_class_object_call(function)});",
             )
             var parameter_index = 0
             while parameter_index < function.parameters.count() {
                 var parameter = function.parameters[parameter_index]
                 lines.append(
-                    "{arguments_list_name}_add(described->arguments, Spite_Argument_make({render_string_literal(parameter.name)}, {class_object_call(parameter.get_type())}));",
+                    "{arguments_list_name}_add(described->arguments, Spite_Argument_make({ensure_symbol(parameter.name)}, {class_object_call(parameter.get_type())}));",
                 )
                 parameter_index = parameter_index + 1
             }
@@ -5656,7 +5656,7 @@ func emit_list_support(list_name: String, element: Analysis.SpiteType, class_id:
         "void {list_name}_reverse({self_parameter}) \{\nfor (int64_t spite_index = 0; spite_index < self->count / 2; spite_index = spite_index + 1) \{\n{item} spite_swap_temporary = self->items[spite_index];\nself->items[spite_index] = self->items[self->count - 1 - spite_index];\nself->items[self->count - 1 - spite_index] = spite_swap_temporary;\n}\n}",
     )
     var comparison = ""
-    if type_shape.as_string(element) {
+    if type_shape.as_string(element) or type_shape.is_symbol(element) {
         comparison = "SpiteString_equals(self->items[spite_index], value)"
     } else if is_enum_type(element) {
         comparison = "self->items[spite_index] == value"

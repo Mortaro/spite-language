@@ -1,10 +1,10 @@
-var name = ""
-var name_with_namespaces = ""
+var name: Symbol = 'unnamed'
+var name_with_namespaces: Symbol = 'unnamed'
 var parent: Spite.Namespace? = null
 var classes = List<Spite.Class>()
 var namespaces = List<Spite.Namespace>()
 
-func Namespace(starting_name: String, starting_name_with_namespaces: String) {
+func Namespace(starting_name: Symbol, starting_name_with_namespaces: Symbol) {
     name = starting_name
     name_with_namespaces = starting_name_with_namespaces
 }

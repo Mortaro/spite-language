@@ -25,7 +25,7 @@ func test_attributes_report_name_class_and_value() {
 func test_functions_report_their_names() {
     var creature = Creature("rat", 3, true)
     var names = creature.functions.map_name()
-    crash names.contains("label")
+    crash names.contains('label')
 }
 
 func test_every_class_of_the_program_is_listed() {
