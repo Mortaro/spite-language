@@ -2192,7 +2192,7 @@ payloads to JSON on demand, since the compiler knows the schema.
     only restates the folder -- two ways to say one thing, and the second can disagree (`spite hello/other.spite`).
     One way to run a program is the rule SPITE.md states under "more than one way to do a thing". The cost is
     small and known: editors that pass the current file will pass its folder instead, and a compile error naming
-    the folder covers the habit. Claude would do it.
+    the folder covers the habit. Claude would do it. **Half built (2026-09-23):** `spite hello` runs `hello/hello.spite` now; a file argument still works, and making it an error is the part that waits on Mortaro.
 19. **Constants without a `const` keyword, and reflection attributes that cannot be overwritten** (Mortaro,
     2026-09-23). Constants: yes, without a keyword -- the compiler sees the whole program, so an attribute that
     nothing assigns after its default (no assignment, no `set_` call, no reflective write) is a constant and

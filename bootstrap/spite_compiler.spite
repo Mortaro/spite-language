@@ -147,17 +147,29 @@ func generate_c_or_report(file_argument: String, content: String): String? {
 
 func file_to_compile(arguments: Arguments): String {
     if arguments.file {
-        return arguments.file
+        return entry_file_of(arguments.file)
     }
     var index = 0
     while index < compiler_arguments_end(arguments) {
         var argument = arguments.get(index)
-        if not argument.starts_with("--") and argument.ends_with(".spite") {
-            return argument
+        if not argument.starts_with("--") and (argument.ends_with(".spite") or Directory(argument).exists()) {
+            return entry_file_of(argument)
         }
         index = index + 1
     }
     return ""
+}
+
+func entry_file_of(path: String): String {
+    if not Directory(path).exists() {
+        return path
+    }
+    var folder = path
+    while folder.ends_with("/") or folder.ends_with("\\") {
+        folder = folder.slice(0, folder.length() - 1)
+    }
+    var name = folder.replace("\\", "/").split("/").last()
+    return "{folder}/{name}.spite"
 }
 
 func compiler_arguments_end(arguments: Arguments): Int {
