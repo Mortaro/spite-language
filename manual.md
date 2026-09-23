@@ -1681,6 +1681,32 @@ emitted C needs before any Spite exists). Everything above that line is Spite.
   then the standard library moves file by file. `spite_repl.h` follows the same way -- it is an interpreter over
   generated tables, which is ordinary Spite once the reflection of milestone 10 exists.
 
+**The floor, named** (milestone 15a; proposed by Claude, unconfirmed, 2026-09-23). With `DynamicLibrary` built
+(section 17), the floor is small enough to list. Everything the runtime does today is either one of these, or
+Spite above them:
+
+1. **`Memory`**, a built-in singleton whose functions the compiler emits as single C expressions: `allocate(bytes:
+   Long): Long`, `resize(address: Long, bytes: Long): Long`, `free(address: Long)`, `read_byte`/`read_int`/
+   `read_long`/`read_double(address: Long, offset: Long)`, the matching `write_*(address, offset, value)`, and
+   `copy(from: Long, to: Long, bytes: Long)`. An address is a `Long`, as section 17 already says a handle is --
+   there is still no `Pointer` type, and nothing outside the standard library needs `Memory` at all.
+2. **Text from memory and back**: `Memory.text(address: Long, length: Long): String` copies bytes into a `String`,
+   and `Memory.address_of(text: String): Long` lends a string's bytes to C for the length of a call. Literals stay
+   static data the compiler writes, as symbols already are (D70).
+3. **The object header**: retain, release and the class id are code the compiler emits, not functions anyone
+   calls, so they are part of code generation rather than a library.
+4. **Entry and exit**: `main` is emitted by the compiler; `Program.exit` is a foreign call like any other.
+5. **The C runtime by one name**: `DynamicLibrary("c", 'identity', "")` names the platform's own C runtime
+   (`ucrtbase` on Windows, `libc.so.6` on Linux, `libSystem` on macOS), so `File`, `Directory`, `Process` and the
+   allocator are written once in Spite over `fopen`/`malloc`/`popen` instead of once per platform.
+6. **On wasm**, `Memory.allocate` grows linear memory with `memory.grow`, and the C runtime library is the
+   JavaScript host's, which is the web shim below.
+
+That is the whole floor: `String`, `List<T>` and `Dictionary<T>` become Spite over `Memory`; `File`, `Directory`,
+`Process` and `Program` become Spite over `DynamicLibrary("c", ...)`; the `--debug-memory` live table becomes Spite
+over `Memory`; and float formatting is a foreign call to `snprintf` until a Spite shortest-round-trip formatter
+replaces it. What stays in C is exactly what the compiler emits, never a file someone maintains.
+
 **The web shim is the one honest exception, and its target is zero hand-written lines.** A file that runs in the
 JavaScript virtual machine cannot be Spite by construction -- it is on the far side of a boundary Spite does not
 own, and every language targeting the browser has one. What is achievable is that nobody writes it: the imports

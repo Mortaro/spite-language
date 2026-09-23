@@ -128,7 +128,7 @@ and balanced allocations.
 15. **Not started.** D14, dissolve the runtime (manual.md section 15, "Pure Spite"). The end state is that
     `src/runtime/spite_runtime.h` and `src/runtime/spite_repl.h` do not exist, and everything above a short list
     of compiler intrinsics is written in Spite. Ordered, because each step unblocks the next:
-    - **15a.** Name the floor: the five to ten intrinsics the compiler emits directly (raw memory in and out --
+    - **15a. Proposed (2026-09-23), waiting on Mortaro** -- manual.md section 15, "The floor, named". Name the floor: the five to ten intrinsics the compiler emits directly (raw memory in and out --
       `mmap`/`VirtualAlloc` through the FFI on native, `memory.grow` on wasm -- plus whatever the emitted C needs
       before any Spite exists). Nothing else is allowed to be hand-written C. This is a design step, and it gates
       the rest, because it decides what "pure" means precisely enough to check.
