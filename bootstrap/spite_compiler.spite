@@ -243,7 +243,8 @@ func run_final_classes_mode(file_argument: String, content: String, output_direc
         if kept.contains(class_file.qualified_dotted) {
             var path = final_class_path(output_directory, class_file.qualified_dotted)
             create_final_class_directory(final_class_directory(path))
-            var source = "{Syntax.SourcePrinter().source_file(class_file.get_file())}{generator.generated_functions_source(class_file.qualified_dotted)}"
+            var ordered = in_file_order(class_file.get_file(), class_file.simple_name)
+            var source = "{Syntax.SourcePrinter().source_file(ordered)}{generator.generated_functions_source(class_file.qualified_dotted)}"
             var output = File(path)
             if not output.write(formatted_or_as_printed(source)) {
                 console.error("error: could not write '{path}'")
@@ -285,6 +286,23 @@ func final_classes_generator(discovery: Discovery.DiscoveryResult): Generation.G
         return null
     }
     return generator
+}
+
+func in_file_order(file: Syntax.SourceFile, class_name: String): Syntax.SourceFile {
+    var ranking = Discovery.ProgramDiscovery()
+    var ordered = List<Syntax.Statements.Statement>()
+    var rank = -1
+    while rank < 6 {
+        var index = 0
+        while index < file.statements.count() {
+            if ranking.order_rank(file.statements[index], class_name) == rank {
+                ordered.append(file.statements[index])
+            }
+            index = index + 1
+        }
+        rank = rank + 1
+    }
+    return Syntax.SourceFile(ordered)
 }
 
 func formatted_or_as_printed(source: String): String {
