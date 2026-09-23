@@ -1,0 +1,11 @@
+var console = Console()
+
+func ProgramArguments(arguments: Arguments) {
+    greet(arguments)
+}
+
+func greet(arguments: Arguments) {
+    console.print(arguments.count(), arguments.get(0))
+    assert arguments.player
+    console.print("player", arguments.player)
+}

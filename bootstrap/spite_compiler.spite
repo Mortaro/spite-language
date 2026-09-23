@@ -61,7 +61,7 @@ func SpiteCompiler(arguments: Arguments) {
         return
     }
     if mode_argument == "run" {
-        run_run_mode(file_argument, content, has_debug_memory_flag(arguments))
+        run_run_mode(file_argument, content, has_debug_memory_flag(arguments), program_arguments(arguments))
         return
     }
     console.error(
@@ -147,7 +147,7 @@ func file_to_compile(arguments: Arguments): String {
         return arguments.file
     }
     var index = 0
-    while index < arguments.count() {
+    while index < compiler_arguments_end(arguments) {
         var argument = arguments.get(index)
         if not argument.starts_with("--") and argument.ends_with(".spite") {
             return argument
@@ -157,9 +157,30 @@ func file_to_compile(arguments: Arguments): String {
     return ""
 }
 
-func has_flag(arguments: Arguments, flag: String): Bool {
+func compiler_arguments_end(arguments: Arguments): Int {
     var index = 0
     while index < arguments.count() {
+        if arguments.get(index) == "--" {
+            return index
+        }
+        index = index + 1
+    }
+    return arguments.count()
+}
+
+func program_arguments(arguments: Arguments): List<String> {
+    var passed = List<String>()
+    var index = compiler_arguments_end(arguments) + 1
+    while index < arguments.count() {
+        passed.append(arguments.get(index))
+        index = index + 1
+    }
+    return passed
+}
+
+func has_flag(arguments: Arguments, flag: String): Bool {
+    var index = 0
+    while index < compiler_arguments_end(arguments) {
         if arguments.get(index) == flag {
             return true
         }
@@ -171,7 +192,7 @@ func has_flag(arguments: Arguments, flag: String): Bool {
 func collect_program_values(arguments: Arguments) {
     var reserved = ["file", "mode", "output", "debug_memory", "runtime", "final-classes"]
     var index = 0
-    while index < arguments.count() {
+    while index < compiler_arguments_end(arguments) {
         var argument = arguments.get(index)
         var equals_position = argument.index_of("=")
         if argument.starts_with("--") and equals_position > 2 {
@@ -186,7 +207,7 @@ func collect_program_values(arguments: Arguments) {
 
 func final_classes_directory(arguments: Arguments): String? {
     var index = 0
-    while index < arguments.count() {
+    while index < compiler_arguments_end(arguments) {
         var argument = arguments.get(index)
         if argument == "--final-classes" {
             return ".spite-cache/final"
@@ -470,7 +491,7 @@ func run_build_mode(file_argument: String, content: String, output_path: String,
     }
 }
 
-func run_run_mode(file_argument: String, content: String, debug_memory: Bool) {
+func run_run_mode(file_argument: String, content: String, debug_memory: Bool, passed: List<String>) {
     var output_path = ".spite-cache/{computed_class_name(file_argument)}_gen1.exe"
     var built = build_to_path(file_argument, content, output_path, debug_memory)
     if not built {
@@ -478,8 +499,7 @@ func run_run_mode(file_argument: String, content: String, debug_memory: Bool) {
         program.exit(1)
         return
     }
-    var no_arguments = List<String>()
-    var runner = Process(output_path.replace("/", "\\"), no_arguments)
+    var runner = Process(output_path.replace("/", "\\"), passed)
     var exit_code = runner.run()
     console.write(runner.output())
     var program = Program()

@@ -99,8 +99,8 @@ line.
    mapping, whose shape still needs design (milestone 14).
 4. `deep_copy()` and the `Dictionary<T>` member templates.
 5. The formatter (the compiler rewrites sources to the one style), then `--final-classes`.
-6. Arguments for the program being run: `--mode=run` hands it an empty `Arguments`, so nothing on the command
-   line can reach it. Needs a rule for where the compiler's flags end and the program's begin.
+6. Done 2026-09-23: arguments for the program being run -- everything after a bare `--` (the rule is proposed,
+   unconfirmed; manual.md section 13).
 7. `--development`, the REPL, live reload.
 8. Fixed 2026-09-23: compiling the compiler itself leaked about 0.1% of its allocations. Two causes: a
    condition, `not` or `and`/`or` operand that owned what it tested never released it (`owned_truth`), and a

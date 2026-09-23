@@ -1354,12 +1354,19 @@ spite file.spite --environment=server set $environment
 spite file.spite --final-classes=folder write the final class folder (bare --final-classes defaults to .spite-cache/final/ when --development is set)
 spite connect 4000                    talk to a running --repl-port program (see section 14)
 spite connect 4000 --command="..."    send one REPL command, print its raw JSON response line, and exit
+spite file.spite -- ada --player=x    run it, passing everything after -- to the program's Arguments
 spite file.spite --no-format          skip the automatic formatting pass below
 spite format <file-or-folder>         format without compiling (recursive on a folder)
 spite format --check <path>           rewrite nothing; exit 1 listing (to stdout) every file that would change
 ```
 
 Flags mix freely (a production build may keep the REPL). Building and running are the same command.
+
+**Where the compiler's flags end** (proposed by Claude, unconfirmed; implemented 2026-09-23): at the first bare
+`--`. Everything after it reaches the program's `Arguments` verbatim -- `arguments.get(0)` is the first,
+`arguments.player` reads `--player=...` -- and none of it is read as a compiler flag, a file to compile or a
+`$name` value. A program's own `Arguments` stops at `--` the same way, which is the ordinary meaning of `--`.
+Before this, a program run by the compiler received no arguments at all (`conformance/stage6/program_arguments`).
 
 - Compiler flag names are reserved and can not be used as codegen value names.
 - A `--name=value` flag that matches no `$name` used in the program is an error, so typos never pass silently.

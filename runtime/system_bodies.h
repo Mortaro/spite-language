@@ -11,6 +11,7 @@ SpiteString* SpiteArguments_lookup(SpiteArguments* self, const char* key) {
     int64_t key_length = (int64_t)strlen(key);
     for (int64_t index = 0; index < self->count; index = index + 1) {
         const char* item = self->items[index];
+        if (strcmp(item, "--") == 0) return 0;
         if (strncmp(item, "--", 2) == 0 && strncmp(item + 2, key, (size_t)key_length) == 0 && item[2 + key_length] == '=') {
             return spite_string_from_cstring_owned(item + 2 + key_length + 1);
         }
