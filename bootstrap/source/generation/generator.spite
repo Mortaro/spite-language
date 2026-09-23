@@ -2968,7 +2968,7 @@ func generate_binary(
         var other = generate_expression(binary.right, right_scope, class_information)
         report_maybe_boolean(left, "'{binary_operator_symbol(binary.operator)}'")
         report_maybe_boolean(other, "'{binary_operator_symbol(binary.operator)}'")
-        var joined = "({truth_of(left)} {binary_operator_symbol(binary.operator)} {truth_of(other)})"
+        var joined = "({owned_truth(left, binary.left)} {binary_operator_symbol(binary.operator)} {owned_truth(other, binary.right)})"
         return ExpressionResult(joined, Analysis.Types.ScalarType('boolean_kind'))
     }
     var right_code = ""
@@ -3031,6 +3031,15 @@ func report_maybe_boolean(result: ExpressionResult, used_by: String) {
     report(
         "this is a Bool? used by {used_by}, which would only test that it is there, not that it is true: prove it is there first -- 'crash index < flags.count()' proves 'flags[index]' -- or switch over it",
     )
+}
+
+func owned_truth(result: ExpressionResult, expression: Syntax.Expressions.Expression): String {
+    if owns(result, expression) and type_needs_drop(result.get_type()) {
+        var tested = next_temporary()
+        var held = ExpressionResult(tested, result.get_type())
+        return "(\{ {c_type_name(result.get_type())} {tested} = {result.code}; bool spite_truth = {truth_of(held)}; {release_call(result.get_type(), tested)}; spite_truth; })"
+    }
+    return truth_of(result)
 }
 
 func truth_of(result: ExpressionResult): String {
@@ -3197,7 +3206,7 @@ func generate_unary(
         return ExpressionResult("(-({operand.code}))", operand.get_type())
     }
     report_maybe_boolean(operand, "'not'")
-    return ExpressionResult("(!({operand.code}))", Analysis.Types.ScalarType('boolean_kind'))
+    return ExpressionResult("(!{owned_truth(operand, unary.operand)})", Analysis.Types.ScalarType('boolean_kind'))
 }
 
 func generate_argument_list(
@@ -6787,7 +6796,7 @@ func generate_if_statement(
     }
     var condition_result = generate_expression(if_statement.condition, scope, class_information)
     check_condition(condition_result, "if")
-    builder.add_user("if ({condition_result.code}) \{")
+    builder.add_user("if ({owned_truth(condition_result, if_statement.condition)}) \{")
     var proven_scope = Scope(scope)
     narrow_proven_indices(if_statement.condition, proven_scope)
     generate_block_in_scope(if_statement.then_branch, proven_scope, class_information, function_information)
@@ -7315,7 +7324,7 @@ func generate_while_statement(
     assert while_statement.condition
     var condition_result = generate_expression(while_statement.condition, scope, class_information)
     check_condition(condition_result, "while")
-    builder.add_user("while ({condition_result.code}) \{")
+    builder.add_user("while ({owned_truth(condition_result, while_statement.condition)}) \{")
     var body_scope = Scope(scope)
     body_scope.is_loop = true
     narrow_proven_indices(while_statement.condition, body_scope)
@@ -7526,7 +7535,7 @@ func generate_assert_statement(
         }
     } else {
         var condition_result = generate_expression(assert_statement.value, scope, class_information)
-        guard_code = condition_result.code
+        guard_code = owned_truth(condition_result, assert_statement.value)
         narrow_proven_indices(assert_statement.value, scope)
         if assert_statement.is_crash {
             check_condition(condition_result, "crash")

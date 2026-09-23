@@ -1,0 +1,30 @@
+var console = Console()
+
+func OwnedConditions() {
+    check()
+}
+
+func check() {
+    if find("rat") {
+        console.print("found a rat")
+    }
+    if not find("cat") {
+        console.print("no cat")
+    }
+    if find("rat") and not find("dog") {
+        console.print("a rat and no dog")
+    }
+    var tries = 0
+    while find("rat") and tries < 2 {
+        tries = tries + 1
+    }
+    assert find("rat")
+    console.print(tries)
+}
+
+func find(name: String): Creature? {
+    if name == "rat" {
+        return Creature(name)
+    }
+    return null
+}
