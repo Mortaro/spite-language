@@ -8045,6 +8045,21 @@ func generate_while_statement(
     function_information: Analysis.FunctionInfo,
 ) {
     assert while_statement.condition
+    var guard = try_nullable_guard(while_statement.condition, scope, class_information)
+    if guard {
+        builder.add_user("while ({guard.guard_code}) \{")
+        var narrowed_body = Scope(scope)
+        narrowed_body.is_loop = true
+        if guard.override_code.is_empty() {
+            narrowed_body.narrow_path(guard.name)
+        } else {
+            narrowed_body.set_override(guard.name, guard.override_code)
+            narrowed_body.declare(guard.name, guard.get_inner())
+        }
+        generate_block_in_scope(while_statement.body, narrowed_body, class_information, function_information)
+        builder.add_user("}")
+        return
+    }
     var condition_result = generate_expression(while_statement.condition, scope, class_information)
     check_condition(condition_result, "while")
     builder.add_user("while ({owned_truth(condition_result, while_statement.condition)}) \{")

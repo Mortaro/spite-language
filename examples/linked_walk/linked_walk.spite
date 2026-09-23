@@ -10,7 +10,6 @@ func run() {
     current = build_chain(4)
     var walked = 0
     while current {
-        assert current
         steps.append("node {current.label}")
         current = current.next
         walked = walked + 1

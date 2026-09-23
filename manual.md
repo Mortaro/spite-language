@@ -276,6 +276,9 @@ for the rest of that block and any block nested inside it. It is the same rule s
   undoes everything narrowed beneath it. A narrowed *name* follows the same rule: `current = current.next` after
   `assert current` stores into the `Node?` it really is and un-narrows it (until 2026-09-23 it was rejected, and
   `maybe = null` silently stored a default object instead).  **[implemented; proposed by Claude, unconfirmed]**
+- **`while value` narrows its body like `if value`** (proposed by Claude, unconfirmed; implemented 2026-09-23): the
+  condition is tested again before every pass, and a store that may be null undoes it for the rest of the pass, so
+  `while current { ... current = current.next }` walks a chain with no `assert` inside (`examples/linked_walk`).
 - Inside a `while`, undoing a narrowing that was made before the loop *and read inside it* is an error, because
   the next pass would read it unproven: narrow it inside the loop instead (`diagnostics/path_narrow_loop`).
   **[implemented; proposed by Claude, unconfirmed]**
