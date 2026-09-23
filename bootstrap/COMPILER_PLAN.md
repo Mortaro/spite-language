@@ -376,3 +376,23 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   changed line was audited for replacements inside quoted text (`scratchpad` scripts are not kept; the approach
   is in the commit messages). State: 62 conformance/examples, tests (each proven leak-free), 48 diagnostics, 45
   documentation programs, printed-program round trips, fixpoint holds, seed current.
+- 2026-09-23 (later afternoon, Claude Opus 5.5): **typed function values** (D39/D40): a function named without
+  being called is a `Spite.Function` bound to its instance, typed by a signature carried on `ClassRefType`
+  (`has_signature`, `arguments`, `returns`), called as `f(x)`, `f.call_function(x)` or through any expression
+  that holds one (`listeners[index](event)`); `.owner` is still unbuilt. **The formatter** (sections 12/13):
+  `SourcePrinter` became it (minimum parentheses, receivers keep theirs, `else if`, width breaking, floats as
+  written, link comments kept), `Syntax.Formatter` refuses any rewrite whose fully-parenthesised program
+  differs from the original, `bin/spite format [--check]`, every compile formats the program's own files
+  (`--no-format`; a file with an empty line in a function is left for D55 to reject), and `check.sh` keeps the
+  tree and the documentation's programs formatted. **The compiler's own leak is gone**: a condition that owned
+  what it tested never released it (`owned_truth`), and `crash_map` compared a `T?` with `>` -- a hole in D64,
+  now an error for every operator but `==`/`!=`. `check.sh` builds generation 2 with `-DSPITE_DEBUG_MEMORY` and
+  requires compiling itself to free everything; the debug allocator's live table became a hash set (2m28s to
+  under 10s). **Program arguments**: everything after a bare `--` reaches the program (proposed, unconfirmed).
+  Also: `--final-classes` no longer writes a `# replaced by` comment (D34) and prints a reopened class in file
+  order (D67); an assignment forgets narrowings after its store, not before. Ordinary programs written to hunt
+  bugs: `examples/event_bus`, plus a grid, a shop and a generic box that all ran first time. State: 65
+  conformance/examples, leak-proven tests, 50 diagnostics, 46 documentation programs, fixpoint, leak-free
+  self-compile, formatted tree. **Waiting on Mortaro:** D68 vs D10, open questions 12-20, whether the REPL is
+  C or Spite (section 14), and milestone 11a's decisions (singleton key, `#` binding comments vs D34, how a
+  platform-specific library is tested).
