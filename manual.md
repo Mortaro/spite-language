@@ -1213,8 +1213,12 @@ cannot be auto-fixed are their own subsection below.
   top-level link comments (the only comments D34 allows) kept before the declaration they preceded, and the
   blank-line rule for grouped `var`s. **Safety check:** the formatted text must lex, parse, print to the same
   fully-parenthesised program as the original, and keep every comment, or the file is left alone and the reason
-  printed. **Not built yet:** formatting on every compile (and so `--no-format`), list and object literals over
-  120 columns, and the code blocks inside `docs/`.
+  printed. **Every compile formats** the entry folder's files and every `load()`ed root as discovery reads
+  them (not `library/`), printing `formatted <path>` for each file it rewrote; `--no-format` skips it. A file
+  whose function body has an empty line is left alone, so D55's error still fires instead of the formatter
+  quietly removing the line; a file the formatter refuses is left alone with its reason printed.
+  `--final-classes` writes its classes already formatted. **Not built yet:** list and object literals over 120
+  columns, and the code blocks inside `docs/`.
 - **A file is ordered** (D67, decided by Mortaro, 2026-09-23): enums, unions, types, variables, the constructor,
   then functions. Anything out of that order is a compile error naming what came before it
   (`diagnostics/declaration_order`). Where `union` goes was not said; beside `enum` and before `type` is

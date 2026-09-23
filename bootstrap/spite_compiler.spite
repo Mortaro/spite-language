@@ -2,6 +2,7 @@ var console = Console()
 var program_values = Dictionary<String>()
 var optimized = false
 var last_crash_map = ""
+var formats = true
 
 func SpiteCompiler(arguments: Arguments) {
     load("source")
@@ -18,6 +19,7 @@ func SpiteCompiler(arguments: Arguments) {
         mode_argument = arguments.mode
     }
     optimized = has_flag(arguments, "--optimized")
+    formats = not has_flag(arguments, "--no-format")
     collect_program_values(arguments)
     var program_file = File(file_argument)
     var maybe_content = program_file.read()
@@ -111,7 +113,9 @@ func has_debug_memory_flag(arguments: Arguments): Bool {
 }
 
 func generate_c_or_report(file_argument: String, content: String): String? {
-    var discovery = Discovery.ProgramDiscovery().discover(file_argument, content)
+    var discoverer = Discovery.ProgramDiscovery()
+    discoverer.formats = formats
+    var discovery = discoverer.discover(file_argument, content)
     if discovery.has_error {
         console.error(discovery.error_message)
         return null
@@ -242,7 +246,7 @@ func run_final_classes_mode(file_argument: String, content: String, output_direc
             create_final_class_directory(final_class_directory(path))
             var source = "{Syntax.SourcePrinter().source_file(class_file.get_file())}{generator.generated_functions_source(class_file.qualified_dotted)}"
             var output = File(path)
-            if not output.write("{source}\n") {
+            if not output.write(formatted_or_as_printed(source)) {
                 console.error("error: could not write '{path}'")
                 Program().exit(1)
                 return
@@ -284,6 +288,14 @@ func final_classes_generator(discovery: Discovery.DiscoveryResult): Generation.G
     return generator
 }
 
+func formatted_or_as_printed(source: String): String {
+    var formatted = Syntax.Formatter().format("{source}\n")
+    if formatted {
+        return formatted
+    }
+    return "{source}\n"
+}
+
 func write_class_views(output_directory: String, folder: String, names: List<String>, sources: List<String>) {
     assert not names.is_empty()
     var directory = "{output_directory}/{folder}"
@@ -293,7 +305,7 @@ func write_class_views(output_directory: String, folder: String, names: List<Str
         var path = "{directory}/{final_class_file_name(names[index])}.spite"
         var output = File(path)
         crash sources[index]
-        if not output.write("{sources[index]}\n") {
+        if not output.write(formatted_or_as_printed(sources[index])) {
             console.error("error: could not write '{path}'")
             Program().exit(1)
             return

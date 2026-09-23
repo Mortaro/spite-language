@@ -95,7 +95,7 @@ wrong=0; checked=0
 for folder in diagnostics/*/; do
   name=$(basename "$folder")
   flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")
-  actual=$("$work/generation_two.exe" --file="$folder$name.spite" --mode=c $flags 2>&1 >/dev/null | tr -d '\r')
+  actual=$("$work/generation_two.exe" --file="$folder$name.spite" --mode=c --no-format $flags 2>&1 >/dev/null | tr -d '\r')
   expected=$(tr -d '\r' < "$folder/expected_errors.txt")
   checked=$((checked+1))
   if [ "$actual" != "$expected" ]; then wrong=$((wrong+1)); echo "FAILED diagnostics: $name"; echo "$actual" | head -8; fi
@@ -115,13 +115,13 @@ for folder in .spite-cache/docs/*/; do
   entry=$(tr -d '\r\n' < "$folder/entry.txt")
   flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")
   if [ -f "$folder/must_fail.txt" ]; then
-    actual=$("$work/generation_two.exe" --file="$folder$entry" --mode=c $flags 2>&1 >/dev/null | tr -d '\r')
+    actual=$("$work/generation_two.exe" --file="$folder$entry" --mode=c --no-format $flags 2>&1 >/dev/null | tr -d '\r')
     expected=$(tr -d '\r' < "$folder/expected_diagnostic.txt")
     if [ -n "$actual" ] && [ "${actual#*$expected}" != "$actual" ]; then documented=$((documented+1))
     else undocumented=$((undocumented+1)); echo "FAILED docs: $name wanted an error saying '$expected'"; echo "$actual" | head -4; fi
     continue
   fi
-  actual=$("$work/generation_two.exe" --file="$folder$entry" --mode=run --debug_memory=true $flags < /dev/null 2>&1 | tr -d '\r')
+  actual=$("$work/generation_two.exe" --file="$folder$entry" --mode=run --debug_memory=true --no-format $flags < /dev/null 2>&1 | tr -d '\r')
   expected=$(tr -d '\r' < "$folder/expected_output.txt")
   body=$(echo "$actual" | grep -v '^allocations: ')
   balance=$(echo "$actual" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
