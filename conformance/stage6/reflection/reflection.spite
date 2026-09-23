@@ -8,7 +8,7 @@ func Reflection() {
     var index = 0
     while index < attributes.count() {
         var attribute = attributes[index]
-        console.print(attribute.name, attribute.class,"{attribute.value}|")
+        console.print(attribute.name, attribute.class, "{attribute.value}|")
         index = index + 1
     }
     console.print(monster.attributes.map_name().join(","))

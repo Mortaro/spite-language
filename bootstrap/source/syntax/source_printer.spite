@@ -1,7 +1,64 @@
 var shape = Analysis.AstShape()
 
+var explicit_grouping = false
+var comment_lines = List<Int>()
+var comment_texts = List<String>()
+var statement_lines = List<Int>()
+
 func source_file(file: Syntax.SourceFile): String {
     return source_statement_list(file.statements, 0)
+}
+
+func formatted_file(file: Syntax.SourceFile, lines: List<Int>, comments_at: List<Int>, comments: List<String>): String {
+    statement_lines = lines
+    comment_lines = comments_at
+    comment_texts = comments
+    var text = ""
+    var comment_index = 0
+    var index = 0
+    while index < file.statements.count() {
+        crash index < statement_lines.count()
+        var starts_at = statement_lines[index]
+        var comment_block = ""
+        while comment_index < comment_lines.count() and comment_lines[comment_index] < starts_at {
+            crash comment_index < comment_texts.count()
+            comment_block = "{comment_block}{comment_texts[comment_index]}\n"
+            comment_index = comment_index + 1
+        }
+        if index > 0 {
+            text = "{text}\n"
+            if not comment_block.is_empty() or declarations_stand_apart(file.statements, index) {
+                text = "{text}\n"
+            }
+        }
+        text = "{text}{comment_block}{source_statement(file.statements[index], 0)}"
+        index = index + 1
+    }
+    while comment_index < comment_texts.count() {
+        if not text.is_empty() {
+            text = "{text}\n"
+        }
+        text = "{text}\n{comment_texts[comment_index]}"
+        comment_index = comment_index + 1
+    }
+    if text.is_empty() {
+        return ""
+    }
+    return "{text}\n"
+}
+
+func declarations_stand_apart(statements: List<Syntax.Statements.Statement>, index: Int): Bool {
+    crash index > 0
+    var previous = index - 1
+    crash statements[previous]
+    crash statements[index]
+    if not stands_apart(statements[previous], statements[index]) {
+        crash index < statement_lines.count()
+        crash previous < statement_lines.count()
+        var printed_lines = source_statement(statements[previous], 0).split("\n").count()
+        return statement_lines[index] > statement_lines[previous] + printed_lines
+    }
+    return true
 }
 
 func source_statement_list(statements: List<Syntax.Statements.Statement>, depth: Int): String {
@@ -47,6 +104,84 @@ func source_block(statements: List<Syntax.Statements.Statement>, depth: Int): St
 }
 
 func source_statement(statement: Syntax.Statements.Statement, depth: Int): String {
+    var printed = source_statement_line(statement, depth)
+    if printed.contains("\n") or printed.length() <= 120 {
+        return printed
+    }
+    var indent = source_indent(depth)
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            crash statement.value
+            var type_text = ""
+            if statement.type_reference {
+                type_text = ": {source_type(statement.type_reference)}"
+            }
+            return broken_or(printed, "{indent}var {statement.name}{type_text} = ", statement.value, depth)
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            return broken_or(printed, "{indent}{source_expression(statement.target)} = ", statement.value, depth)
+        }
+        Syntax.Statements.ReturnStatement: {
+            if statement.value {
+                return broken_or(printed, "{indent}return ", statement.value, depth)
+            }
+            return printed
+        }
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            return broken_or(printed, indent, statement.value, depth)
+        }
+        _: return printed
+    }
+}
+
+func broken_or(printed: String, lead: String, expression: Syntax.Expressions.Expression, depth: Int): String {
+    var broken = broken_expression(expression, depth)
+    if broken.is_empty() {
+        return printed
+    }
+    return "{lead}{broken}"
+}
+
+func broken_expression(expression: Syntax.Expressions.Expression, depth: Int): String {
+    var call = shape.as_call(expression)
+    if call {
+        return broken_call(call.callee, call.arguments, "", depth)
+    }
+    var generic_call = shape.as_generic_call(expression)
+    if generic_call {
+        return broken_call(
+            generic_call.callee,
+            generic_call.arguments,
+            "<{generic_arguments_text(generic_call)}>",
+            depth,
+        )
+    }
+    return ""
+}
+
+func broken_call(
+    callee: Syntax.Expressions.Expression?,
+    arguments: List<Syntax.Expressions.Expression>,
+    type_arguments: String,
+    depth: Int,
+): String {
+    crash callee
+    if arguments.is_empty() {
+        return ""
+    }
+    var text = "{source_receiver(callee)}{type_arguments}("
+    var index = 0
+    while index < arguments.count() {
+        text = "{text}\n{source_indent(depth + 1)}{source_expression(arguments[index])},"
+        index = index + 1
+    }
+    return "{text}\n{source_indent(depth)})"
+}
+
+func source_statement_line(statement: Syntax.Statements.Statement, depth: Int): String {
     var indent = source_indent(depth)
     switch statement {
         Syntax.Statements.GenericsDeclaration: return "{indent}generics ${statement.names.join(", $")}"
@@ -71,6 +206,11 @@ func source_statement(statement: Syntax.Statements.Statement, depth: Int): Strin
             crash statement.condition
             var text = "{indent}if {source_expression(statement.condition)} {source_block(statement.then_branch, depth)}"
             if statement.has_else_branch {
+                if statement.else_branch.count() == 1 {
+                    if shape.as_if_statement(statement.else_branch[0]) {
+                        return "{text} else {source_statement(statement.else_branch[0], depth).trim()}"
+                    }
+                }
                 text = "{text} else {source_block(statement.else_branch, depth)}"
             }
             return text
@@ -103,7 +243,7 @@ func source_statement(statement: Syntax.Statements.Statement, depth: Int): Strin
 func source_function(function: Syntax.Statements.FunctionDeclaration, depth: Int): String {
     var codegen = ""
     if not function.codegen_names.is_empty() {
-        codegen = "<$${function.codegen_names.join(", $")}>"
+        codegen = "<${function.codegen_names.join(", $")}>"
     }
     var parameters = ""
     var index = 0
@@ -119,6 +259,17 @@ func source_function(function: Syntax.Statements.FunctionDeclaration, depth: Int
     var returns = ""
     if function.return_type {
         returns = ": {source_type(function.return_type)}"
+    }
+    var header = "{source_indent(depth)}func {function.name}{codegen}({parameters}){returns} \{"
+    if header.length() > 120 {
+        var listed = ""
+        index = 0
+        while index < function.parameters.count() {
+            crash function.parameters[index].type_reference
+            listed = "{listed}\n{source_indent(depth + 1)}{function.parameters[index].name}: {source_type(function.parameters[index].type_reference)},"
+            index = index + 1
+        }
+        parameters = "{listed}\n{source_indent(depth)}"
     }
     return "{source_reopen_note(function.source_path, function.overrides_declaration, depth)}{source_indent(depth)}func {function.name}{codegen}({parameters}){returns} {source_block(function.body, depth)}"
 }
@@ -146,7 +297,11 @@ func source_type_declaration(declaration: Syntax.Statements.TypeDeclaration, dep
                 parameters = "{parameters}{source_type(field.parameter_types[parameter_index])}"
                 parameter_index = parameter_index + 1
             }
-            text = "{text}\n{source_indent(depth + 1)}func {field.name}({parameters}): {source_type(field.type_reference)}"
+            var returned = ": {source_type(field.type_reference)}"
+            if returned == ": Nothing" {
+                returned = ""
+            }
+            text = "{text}\n{source_indent(depth + 1)}{field.name}({parameters}){returned}"
         } else {
             text = "{text}\n{source_indent(depth + 1)}{field.name}: {source_type(field.type_reference)}"
         }
@@ -182,7 +337,17 @@ func source_switch(statement: Syntax.Statements.SwitchStatement, depth: Int): St
     while index < statement.cases.count() {
         var switch_case = statement.cases[index]
         crash switch_case.type_reference
-        text = "{text}\n{source_indent(depth + 1)}{source_type(switch_case.type_reference)} {source_block(switch_case.body, depth + 1)}"
+        var label = "{source_indent(depth + 1)}{source_type(switch_case.type_reference)}:"
+        if switch_case.body.count() == 1 {
+            var single = source_statement(switch_case.body[0], depth + 1).trim()
+            if not single.contains("\n") and not shape.as_if_statement(switch_case.body[0]) and not shape.as_while_statement(switch_case.body[0]) and not shape.as_switch_statement(switch_case.body[0]) {
+                text = "{text}\n{label} {single}"
+            } else {
+                text = "{text}\n{label} {source_block(switch_case.body, depth + 1)}"
+            }
+        } else {
+            text = "{text}\n{label} {source_block(switch_case.body, depth + 1)}"
+        }
         index = index + 1
     }
     return "{text}\n{source_indent(depth)}}"
@@ -231,7 +396,9 @@ func source_generic_argument(argument: Syntax.Types.GenericArgument): String {
             return source_type(argument.value)
         }
         Syntax.Types.BoolArgument: {
-            if argument.value { return "true" }
+            if argument.value {
+                return "true"
+            }
             return "false"
         }
         Syntax.Types.StringArgument: return source_string(argument.value)
@@ -253,27 +420,79 @@ func source_expression(expression: Syntax.Expressions.Expression): String {
         Syntax.Expressions.ObjectLiteralExpression: return source_object(expression)
         Syntax.Expressions.UnaryExpression: {
             crash expression.operand
-            return "{source_unary_operator(expression.operator)}{source_expression(expression.operand)}"
+            return "{source_unary_operator(expression.operator)}{source_operand(expression.operand, 7, false)}"
         }
         Syntax.Expressions.BinaryExpression: {
-            if expression.is_text_join { return source_text_join(expression) }
+            if expression.is_text_join {
+                return source_text_join(expression)
+            }
             crash expression.left
             crash expression.right
-            return "({source_expression(expression.left)} {source_binary_operator(expression.operator)} {source_expression(expression.right)})"
+            var precedence = operator_precedence(expression.operator)
+            return "{source_operand(expression.left, precedence, false)} {source_binary_operator(expression.operator)} {source_operand(expression.right, precedence, true)}"
         }
         Syntax.Expressions.CallExpression: return source_call(expression.callee, expression.arguments, "")
         Syntax.Expressions.GenericCallExpression: return source_generic_call(expression)
         Syntax.Expressions.MemberExpression: {
             crash expression.object
-            return "{source_expression(expression.object)}.{expression.name}"
+            return "{source_receiver(expression.object)}.{expression.name}"
         }
         Syntax.Expressions.IndexExpression: {
             crash expression.object
             crash expression.index
-            return "{source_expression(expression.object)}[{source_expression(expression.index)}]"
+            return "{source_receiver(expression.object)}[{source_expression(expression.index)}]"
+        }
+        Syntax.Expressions.FloatLiteral: {
+            if not expression.written.is_empty() {
+                return expression.written
+            }
+            var number = "{expression.value}"
+            if not number.contains(".") and not number.contains("e") {
+                return "{number}.0"
+            }
+            return number
         }
         _: return "{expression.value}"
     }
+}
+
+func source_receiver(expression: Syntax.Expressions.Expression): String {
+    if shape.as_binary(expression) or shape.as_unary(expression) {
+        return "({source_expression(expression)})"
+    }
+    return source_expression(expression)
+}
+
+func source_operand(expression: Syntax.Expressions.Expression, parent_precedence: Int, on_the_right: Bool): String {
+    var binary = shape.as_binary(expression)
+    if binary {
+        if not binary.is_text_join {
+            var own = operator_precedence(binary.operator)
+            if explicit_grouping or own < parent_precedence or on_the_right and own == parent_precedence {
+                return "({source_expression(expression)})"
+            }
+        }
+    }
+    return source_expression(expression)
+}
+
+func operator_precedence(operator: Syntax.Expressions.BinaryOperator): Int {
+    if operator == 'logical_or' {
+        return 1
+    }
+    if operator == 'logical_and' {
+        return 2
+    }
+    if operator == 'equal' or operator == 'not_equal' {
+        return 3
+    }
+    if operator == 'add' or operator == 'subtract' {
+        return 5
+    }
+    if operator == 'multiply' or operator == 'divide' or operator == 'modulo' {
+        return 6
+    }
+    return 4
 }
 
 func source_text_join(expression: Syntax.Expressions.BinaryExpression): String {
@@ -301,12 +520,18 @@ func collect_text_join_pieces(expression: Syntax.Expressions.Expression, pieces:
     pieces.append("\{{source_expression(expression)}}")
 }
 
-func source_call(callee: Syntax.Expressions.Expression?, arguments: List<Syntax.Expressions.Expression>, type_arguments: String): String {
+func source_call(
+    callee: Syntax.Expressions.Expression?,
+    arguments: List<Syntax.Expressions.Expression>,
+    type_arguments: String,
+): String {
     crash callee
-    var text = "{source_expression(callee)}{type_arguments}("
+    var text = "{source_receiver(callee)}{type_arguments}("
     var index = 0
     while index < arguments.count() {
-        if index > 0 { text = "{text}, " }
+        if index > 0 {
+            text = "{text}, "
+        }
         text = "{text}{source_expression(arguments[index])}"
         index = index + 1
     }
@@ -314,22 +539,32 @@ func source_call(callee: Syntax.Expressions.Expression?, arguments: List<Syntax.
 }
 
 func source_generic_call(expression: Syntax.Expressions.GenericCallExpression): String {
+    return source_call(expression.callee, expression.arguments, "<{generic_arguments_text(expression)}>")
+}
+
+func generic_arguments_text(expression: Syntax.Expressions.GenericCallExpression): String {
     var arguments = ""
     var index = 0
     while index < expression.type_arguments.count() {
-        if index > 0 { arguments = "{arguments}, " }
+        if index > 0 {
+            arguments = "{arguments}, "
+        }
         arguments = "{arguments}{source_generic_argument(expression.type_arguments[index])}"
         index = index + 1
     }
-    return source_call(expression.callee, expression.arguments, "<{arguments}>")
+    return arguments
 }
 
 func source_list(expression: Syntax.Expressions.ListLiteralExpression): String {
-    if expression.elements.is_empty() { return "[]" }
+    if expression.elements.is_empty() {
+        return "[]"
+    }
     var text = "["
     var index = 0
     while index < expression.elements.count() {
-        if index > 0 { text = "{text}, " }
+        if index > 0 {
+            text = "{text}, "
+        }
         var value = expression.elements[index].value
         crash value
         text = "{text}{source_expression(value)}"
@@ -339,11 +574,15 @@ func source_list(expression: Syntax.Expressions.ListLiteralExpression): String {
 }
 
 func source_object(expression: Syntax.Expressions.ObjectLiteralExpression): String {
-    if expression.fields.is_empty() { return "\{}" }
+    if expression.fields.is_empty() {
+        return "\{}"
+    }
     var text = "\{"
     var index = 0
     while index < expression.fields.count() {
-        if index > 0 { text = "{text}, " }
+        if index > 0 {
+            text = "{text}, "
+        }
         var field = expression.fields[index]
         crash field.value
         text = "{text}{field.name}: {source_expression(field.value)}"
@@ -353,28 +592,59 @@ func source_object(expression: Syntax.Expressions.ObjectLiteralExpression): Stri
 }
 
 func source_unary_operator(operator: Syntax.Expressions.UnaryOperator): String {
-    if operator == 'negate' { return "-" }
+    if operator == 'negate' {
+        return "-"
+    }
     return "not "
 }
 
 func source_binary_operator(operator: Syntax.Expressions.BinaryOperator): String {
-    if operator == 'add' { return "+" }
-    if operator == 'subtract' { return "-" }
-    if operator == 'multiply' { return "*" }
-    if operator == 'divide' { return "/" }
-    if operator == 'modulo' { return "%" }
-    if operator == 'equal' { return "==" }
-    if operator == 'not_equal' { return "!=" }
-    if operator == 'less' { return "<" }
-    if operator == 'less_equal' { return "<=" }
-    if operator == 'greater' { return ">" }
-    if operator == 'greater_equal' { return ">=" }
-    if operator == 'logical_and' { return "and" }
+    if operator == 'add' {
+        return "+"
+    }
+    if operator == 'subtract' {
+        return "-"
+    }
+    if operator == 'multiply' {
+        return "*"
+    }
+    if operator == 'divide' {
+        return "/"
+    }
+    if operator == 'modulo' {
+        return "%"
+    }
+    if operator == 'equal' {
+        return "=="
+    }
+    if operator == 'not_equal' {
+        return "!="
+    }
+    if operator == 'less' {
+        return "<"
+    }
+    if operator == 'less_equal' {
+        return "<="
+    }
+    if operator == 'greater' {
+        return ">"
+    }
+    if operator == 'greater_equal' {
+        return ">="
+    }
+    if operator == 'logical_and' {
+        return "and"
+    }
     return "or"
 }
 
-func source_string(value: String): String { return "\"{source_string_piece(value)}\"" }
+func source_string(value: String): String {
+    return "\"{source_string_piece(value)}\""
+}
 
 func source_string_piece(value: String): String {
-    return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t").replace("\{", "\\\{")
+    return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t").replace(
+        "\{",
+        "\\\{",
+    )
 }

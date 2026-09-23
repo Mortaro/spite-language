@@ -1,0 +1,83 @@
+var shape = Analysis.AstShape()
+var refusal = ""
+
+func format(source: String): String? {
+    var lexer = Syntax.Lexer(source)
+    if lexer.has_error {
+        refusal = "it does not lex"
+        return null
+    }
+    var comment_lines = List<Int>()
+    var comment_texts = List<String>()
+    var depth = 0
+    var index = 0
+    while index < lexer.tokens.count() {
+        var token = lexer.tokens[index]
+        if token.kind == 'left_brace' {
+            depth = depth + 1
+        }
+        if token.kind == 'right_brace' {
+            depth = depth - 1
+        }
+        if token.kind == 'comment' {
+            if depth > 0 {
+                refusal = "line {token.line} has a comment inside a declaration, which the formatter cannot place"
+                return null
+            }
+            comment_lines.append(token.line)
+            comment_texts.append("# {token.text.trim()}")
+        }
+        index = index + 1
+    }
+    var parser = Syntax.Parser(lexer.tokens)
+    var file = parser.parse_file()
+    if parser.has_error {
+        refusal = "it does not parse"
+        return null
+    }
+    var lines = List<Int>()
+    index = 0
+    while index < file.statements.count() {
+        lines.append(declaration_line(file.statements[index]))
+        index = index + 1
+    }
+    var formatted = Syntax.SourcePrinter().formatted_file(file, lines, comment_lines, comment_texts)
+    var again = Syntax.Lexer(formatted)
+    if again.has_error {
+        refusal = "its formatted text does not lex"
+        return null
+    }
+    var reparser = Syntax.Parser(again.tokens)
+    var reparsed = reparser.parse_file()
+    if reparser.has_error {
+        refusal = "its formatted text does not parse: line {reparser.error_line}: {reparser.error_message}"
+        return null
+    }
+    var before = Syntax.SourcePrinter()
+    before.explicit_grouping = true
+    var after = Syntax.SourcePrinter()
+    after.explicit_grouping = true
+    if after.source_file(reparsed) != before.source_file(file) {
+        refusal = "its formatted text is a different program"
+        return null
+    }
+    var kept = 0
+    index = 0
+    while index < comment_texts.count() {
+        if formatted.contains(comment_texts[index]) {
+            kept = kept + 1
+        }
+        index = index + 1
+    }
+    if kept != comment_texts.count() {
+        refusal = "a comment would be lost"
+        return null
+    }
+    return formatted
+}
+
+func declaration_line(statement: Syntax.Statements.Statement): Int {
+    switch statement {
+        _: return statement.line
+    }
+}

@@ -52,9 +52,11 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     while root_index < load_names.count() {
         var root_name = load_names[root_index]
         if root_name == "spite" {
-            return failure("{entry_path}: error: 'spite' is reserved for the built-in Spite namespace: name the folder something else")
+            return failure(
+                "{entry_path}: error: 'spite' is reserved for the built-in Spite namespace: name the folder something else",
+            )
         }
-        var root_folder ="{entry_directory}/{root_name}"
+        var root_folder = "{entry_directory}/{root_name}"
         var root_directory = Directory(root_folder)
         if not root_directory.exists() {
             return failure("could not find the folder '{root_name}' loaded by {entry_path}")
@@ -164,7 +166,7 @@ func check_comments(path: String, tokens: List<Syntax.Token>) {
             var problem = comment_problem(token.text.trim(), depth)
             if not problem.is_empty() {
                 has_error = true
-                error_message ="{path}:{token.line}: error: {problem}"
+                error_message = "{path}:{token.line}: error: {problem}"
             }
         }
         index = index + 1
@@ -244,7 +246,7 @@ func markdown_anchors(content: String): List<String> {
             var candidate = anchor
             var suffix = 1
             while anchors.contains(candidate) {
-                candidate ="{anchor}-{suffix}"
+                candidate = "{anchor}-{suffix}"
                 suffix = suffix + 1
             }
             anchors.append(candidate)
@@ -266,7 +268,7 @@ func heading_anchor(heading: String): String {
             anchor = anchor + lowered.character_at(index)
         }
         if code == 32 {
-            anchor ="{anchor}-"
+            anchor = "{anchor}-"
         }
         index = index + 1
     }
@@ -278,11 +280,16 @@ func failure(message: String): DiscoveryResult {
     return DiscoveryResult(empty, "", true, message)
 }
 
-func walk_directory(root_folder: String, segments: List<String>, skip_basename: String?, excluded_top_level: List<String>) {
+func walk_directory(
+    root_folder: String,
+    segments: List<String>,
+    skip_basename: String?,
+    excluded_top_level: List<String>,
+) {
     var path = root_folder
     var index = 0
     while index < segments.count() {
-        path ="{path}/{segments[index]}"
+        path = "{path}/{segments[index]}"
         index = index + 1
     }
     var directory = Directory(path)
@@ -351,7 +358,7 @@ func read_and_add_file(path: String, segments: List<String>) {
         var parsed_file = parser.parse_file()
         if parser.has_error {
             has_error = true
-            error_message ="{path}:{parser.error_line}:{parser.error_column}: {parser.error_message}"
+            error_message = "{path}:{parser.error_line}:{parser.error_column}: {parser.error_message}"
             return
         }
         parsed_file.path = path
@@ -379,7 +386,7 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
     }
     if not walking_library and qualified_dotted.starts_with("Spite.") {
         has_error = true
-        error_message ="{parsed_file.path}: error: 'Spite' holds the standard library's own classes, so a file in a 'spite' folder may only reopen one of them: '{qualified_dotted}' is not one, and a new class of your own belongs in a namespace of your own"
+        error_message = "{parsed_file.path}: error: 'Spite' holds the standard library's own classes, so a file in a 'spite' folder may only reopen one of them: '{qualified_dotted}' is not one, and a new class of your own belongs in a namespace of your own"
         return
     }
     class_files.append(DiscoveredClass(mangled_name, simple_name, namespace_dotted, qualified_dotted, parsed_file))
@@ -507,7 +514,7 @@ func pascal_join(segments: List<String>): String {
     var index = 0
     while index < segments.count() {
         if index > 0 {
-            result ="{result}."
+            result = "{result}."
         }
         result = result + pascal_case(segments[index])
         index = index + 1
@@ -570,7 +577,7 @@ func join_with_slash(segments: List<String>): String {
     var index = 0
     while index < segments.count() {
         if index > 0 {
-            result ="{result}/"
+            result = "{result}/"
         }
         result = result + segments[index]
         index = index + 1

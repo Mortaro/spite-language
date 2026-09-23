@@ -15,11 +15,11 @@ func NamespaceObjects() {
     console.print(gadget.class.namespace.parent.name)
     crash gadget.class.namespace == second_gadget.class.namespace
     if gadget.class.namespace == gear.class.namespace {
-        crash
+        crash false
     }
     console.print(gadget.class.namespace.parent.name_with_namespaces, gadget.class.namespace.parent.name)
     if gadget.class.namespace.parent.parent {
-        crash
+        crash false
     }
     console.print(gadget.class.namespace)
     var tree_classes = gadget.class.namespace.classes

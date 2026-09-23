@@ -1204,6 +1204,17 @@ cannot be auto-fixed are their own subsection below.
   end of the file.
 - A `<...>` list holding a single named codegen value is rewritten to the positional form (section 9), so
   there is one way to write each call.
+- **Implemented by the Spite compiler (2026-09-23)**, as `bin/spite format [--check] <file-or-folder>` (the
+  compiler's `--mode=format` and `--mode=check_format`), and `check.sh` requires every file outside
+  `diagnostics/` to be formatted already. What it does today: 4-space indentation, one space around binary
+  operators, the minimum parentheses (a receiver that is an operation always keeps them), `else if` on one line,
+  a switch case with one short statement on its own line, a call or a signature wider than 120 columns broken
+  one argument per line with trailing commas, floats as written, `: Nothing` dropped from a shape function,
+  top-level link comments (the only comments D34 allows) kept before the declaration they preceded, and the
+  blank-line rule for grouped `var`s. **Safety check:** the formatted text must lex, parse, print to the same
+  fully-parenthesised program as the original, and keep every comment, or the file is left alone and the reason
+  printed. **Not built yet:** formatting on every compile (and so `--no-format`), list and object literals over
+  120 columns, and the code blocks inside `docs/`.
 - **A file is ordered** (D67, decided by Mortaro, 2026-09-23): enums, unions, types, variables, the constructor,
   then functions. Anything out of that order is a compile error naming what came before it
   (`diagnostics/declaration_order`). Where `union` goes was not said; beside `enum` and before `type` is

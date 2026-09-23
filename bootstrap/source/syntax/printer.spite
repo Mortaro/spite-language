@@ -5,7 +5,7 @@ func indent_text(depth: Int): String {
     var text = ""
     var index = 0
     while index < depth {
-        text ="{text}  "
+        text = "{text}  "
         index = index + 1
     }
     return text
@@ -37,7 +37,7 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
             var text = "Generics"
             var index = 0
             while index < statement.names.count() {
-                text ="{text} ${statement.names[index]}"
+                text = "{text} ${statement.names[index]}"
                 index = index + 1
             }
             print_line(depth, text)
@@ -58,7 +58,10 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
                 var field = statement.fields[index]
                 assert field.type_reference
                 if field.is_function {
-                    print_line(depth + 1, "Function {field.name}({field.parameter_types.count()}): {inline_type(field.type_reference)}")
+                    print_line(
+                        depth + 1,
+                        "Function {field.name}({field.parameter_types.count()}): {inline_type(field.type_reference)}",
+                    )
                 } else {
                     print_line(depth + 1, "Field {field.name}: {inline_type(field.type_reference)}")
                 }
@@ -144,22 +147,22 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
 func print_function(function: Syntax.Statements.FunctionDeclaration, depth: Int) {
     var text = "FuncDecl {function.name}"
     if not function.codegen_names.is_empty() {
-        text ="{text}<${function.codegen_names.join(", $")}>"
+        text = "{text}<${function.codegen_names.join(", $")}>"
     }
-    text ="{text}("
+    text = "{text}("
     var index = 0
     while index < function.parameters.count() {
         if index != 0 {
-            text ="{text}, "
+            text = "{text}, "
         }
         var parameter = function.parameters[index]
         assert parameter.type_reference
-        text = text +"{parameter.name}: {inline_type(parameter.type_reference)}"
+        text = text + "{parameter.name}: {inline_type(parameter.type_reference)}"
         index = index + 1
     }
-    text ="{text})"
+    text = "{text})"
     if function.return_type {
-        text ="{text}: {inline_type(function.return_type)}"
+        text = "{text}: {inline_type(function.return_type)}"
     }
     print_line(depth, text)
     print_statement_list(function.body, depth + 1)
@@ -177,22 +180,22 @@ func inline_type(type_reference: Syntax.Types.Type): String {
             var index = 0
             while index < type_reference.path.count() {
                 if index != 0 {
-                    text ="{text}."
+                    text = "{text}."
                 }
                 text = text + type_reference.path[index]
                 index = index + 1
             }
             if type_reference.arguments.count() != 0 {
-                text ="{text}<"
+                text = "{text}<"
                 var argument_index = 0
                 while argument_index < type_reference.arguments.count() {
                     if argument_index != 0 {
-                        text ="{text}, "
+                        text = "{text}, "
                     }
                     text = text + inline_generic_argument(type_reference.arguments[argument_index])
                     argument_index = argument_index + 1
                 }
-                text ="{text}>"
+                text = "{text}>"
             }
             return text
         }
@@ -243,7 +246,7 @@ func print_expression(expression: Syntax.Expressions.Expression, depth: Int) {
             var index = 0
             while index < expression.fields.count() {
                 var field = expression.fields[index]
-                print_line(depth + 1,"{field.name}:")
+                print_line(depth + 1, "{field.name}:")
                 assert field.value
                 print_expression(field.value, depth + 2)
                 index = index + 1

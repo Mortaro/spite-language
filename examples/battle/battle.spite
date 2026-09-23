@@ -31,7 +31,7 @@ func Battle() {
     var beast = Monster(8)
     var beast_loadout: Loadout = beast
     console.print("beast loadout", beast_loadout.weapon, beast_loadout.power)
-    var literal_loadout: Loadout = { weapon: "bow", power: 7 }
+    var literal_loadout: Loadout = {weapon: "bow", power: 7}
     console.print("literal loadout", literal_loadout.weapon, literal_loadout.power)
     console.print("done")
 }

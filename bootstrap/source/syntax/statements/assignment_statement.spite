@@ -2,7 +2,10 @@ var target: Syntax.Expressions.Expression? = null
 var value: Syntax.Expressions.Expression? = null
 var line = 0
 
-func AssignmentStatement(assignment_target: Syntax.Expressions.Expression, assignment_value: Syntax.Expressions.Expression) {
+func AssignmentStatement(
+    assignment_target: Syntax.Expressions.Expression,
+    assignment_value: Syntax.Expressions.Expression,
+) {
     target = assignment_target
     value = assignment_value
 }

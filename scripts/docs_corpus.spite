@@ -66,7 +66,7 @@ func read_block(lines: List<String>, opening_index: Int, opening: String): Int {
     }
     index = index + 1
     remember_folder(folder, file_name, words)
-    write_source(folder, file_name,"{body.join("\n")}\n")
+    write_source(folder, file_name, "{body.join("\n")}\n")
     while index < lines.count() and lines[index].trim().is_empty() {
         index = index + 1
     }
@@ -142,12 +142,12 @@ func flags_of(declaration: String): String {
 }
 
 func write_source(folder: String, file_name: String, text: String) {
-    var path ="{root}/{folder}"
+    var path = "{root}/{folder}"
     make_directory(path)
     var parts = file_name.split("/")
     var index = 0
     while index < parts.count() - 1 {
-        path ="{path}/{parts[index]}"
+        path = "{path}/{parts[index]}"
         make_directory(path)
         index = index + 1
     }

@@ -121,7 +121,7 @@ func forget_path(path: String, include_itself: Bool, read_by_crossed_loops: List
     while index >= 0 {
         crash narrowed_paths[index]
         var narrowed = narrowed_paths[index]
-        if narrowed.starts_with("{path}.") or narrowed.starts_with("{path}[") or narrowed.contains("[{path}]") or (include_itself and narrowed == path) {
+        if narrowed.starts_with("{path}.") or narrowed.starts_with("{path}[") or narrowed.contains("[{path}]") or include_itself and narrowed == path {
             narrowed_paths.remove_at(index)
             if read_by_crossed_loops.contains(narrowed) {
                 crossed_a_loop = true

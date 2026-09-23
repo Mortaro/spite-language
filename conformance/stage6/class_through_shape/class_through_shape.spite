@@ -14,7 +14,7 @@ func ClassThroughShape() {
     describe(Gauge("dial"))
     var readout: Readout = Gauge("second dial")
     console.print(readout.class)
-    var shaped: Labeled = { label: "a literal" }
+    var shaped: Labeled = {label: "a literal"}
     console.print(shaped.label, shaped.class)
 }
 

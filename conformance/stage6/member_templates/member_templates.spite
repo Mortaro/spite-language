@@ -23,7 +23,12 @@ func MemberTemplates() {
     var by_name = Dictionary<Repository>()
     by_name.set("engine", Repository("engine", 10, true))
     by_name.set("idle", Repository("idle", 4, false))
-    console.print(by_name.sum_stars(), by_name.filter_active().map_name().join(","), by_name.any_active(), by_name.sort_by_stars().first().name)
+    console.print(
+        by_name.sum_stars(),
+        by_name.filter_active().map_name().join(","),
+        by_name.any_active(),
+        by_name.sort_by_stars().first().name,
+    )
     var missing = repositories.find_by_stars(999)
     if missing {
         console.print("unexpected")

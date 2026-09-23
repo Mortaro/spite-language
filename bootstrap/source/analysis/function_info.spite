@@ -10,7 +10,14 @@ var source_path = ""
 var symbol_name = ""
 var symbol_field_name = ""
 
-func FunctionInfo(starting_name: String, starting_c_name: String, starting_parameters: List<ParamInfo>, starting_return_type: SpiteType, starting_body: List<Syntax.Statements.Statement>, starting_is_constructor: Bool) {
+func FunctionInfo(
+    starting_name: String,
+    starting_c_name: String,
+    starting_parameters: List<ParamInfo>,
+    starting_return_type: SpiteType,
+    starting_body: List<Syntax.Statements.Statement>,
+    starting_is_constructor: Bool,
+) {
     name = starting_name
     c_name = starting_c_name
     parameters = starting_parameters

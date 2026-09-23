@@ -2,7 +2,7 @@ func test_a_missing_key_is_null() {
     var ages = Dictionary<Int>()
     var missing = ages.get("nobody")
     switch missing {
-        Int: crash
+        Int: crash false
         Null: crash ages.count() == 0
     }
 }

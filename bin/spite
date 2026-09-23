@@ -34,6 +34,21 @@ if [ ! -x "$binary" ] || [ "$seed" -nt "$binary" ]; then
     "$compiler" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$binary" || exit 1
 fi
 
+# `spite format [--check] <file-or-folder>` formats every .spite file it finds; --check rewrites nothing, lists
+# every file that would change, and fails if there is one.
+if [ "$1" == "format" ]; then
+    shift
+    mode=format
+    if [ "$1" == "--check" ]; then mode=check_format; shift; fi
+    target="${1:-.}"
+    case "$target" in /* | [A-Za-z]:*) ;; *) target="$(pwd)/$target" ;; esac
+    status=0
+    while IFS= read -r file; do
+        (cd "$here" && "$binary" --file="$file" --mode=$mode) || status=1
+    done < <(if [ -d "$target" ]; then find "$target" -name "*.spite" -not -path "*/.spite-cache/*"; else echo "$target"; fi)
+    exit $status
+fi
+
 # `spite thing.spite` is the common case; anything starting with - is passed through.
 # The compiler reads runtime/*.h relative to its working directory, so it runs from the
 # repository root and every file argument is made absolute first.

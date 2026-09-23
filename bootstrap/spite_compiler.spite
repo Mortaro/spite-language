@@ -30,6 +30,14 @@ func SpiteCompiler(arguments: Arguments) {
     if maybe_content {
         content = maybe_content
     }
+    if mode_argument == "canonical" {
+        run_canonical_mode(content)
+        return
+    }
+    if mode_argument == "format" or mode_argument == "check_format" {
+        run_format_mode(file_argument, content, mode_argument == "check_format")
+        return
+    }
     if mode_argument == "tokens" {
         run_tokens_mode(content)
         return
@@ -56,9 +64,43 @@ func SpiteCompiler(arguments: Arguments) {
         run_run_mode(file_argument, content, has_debug_memory_flag(arguments))
         return
     }
-    console.error("unknown --mode '{mode_argument}' (expected 'tokens', 'tree', 'c', 'build' or 'run')")
+    console.error(
+        "unknown --mode '{mode_argument}' (expected 'tokens', 'tree', 'c', 'build', 'run', 'format' or 'check_format')",
+    )
     var program = Program()
     program.exit(1)
+}
+
+func run_canonical_mode(content: String) {
+    var lexer = Syntax.Lexer(content)
+    var parser = Syntax.Parser(lexer.tokens)
+    var file = parser.parse_file()
+    var printer = Syntax.SourcePrinter()
+    printer.explicit_grouping = true
+    console.print(printer.source_file(file))
+}
+
+func run_format_mode(file_argument: String, content: String, only_check: Bool) {
+    var formatter = Syntax.Formatter()
+    var formatted = formatter.format(content)
+    if not formatted {
+        console.error("{file_argument}: not formatted: {formatter.refusal}")
+        Program().exit(1)
+        return
+    }
+    crash formatted
+    assert formatted != content
+    if only_check {
+        console.print(file_argument)
+        Program().exit(1)
+        return
+    }
+    if not File(file_argument).write(formatted) {
+        console.error("error: could not write '{file_argument}'")
+        Program().exit(1)
+        return
+    }
+    console.error("formatted {file_argument}")
 }
 
 func has_debug_memory_flag(arguments: Arguments): Bool {
@@ -92,7 +134,9 @@ func generate_c_or_report(file_argument: String, content: String): String? {
     last_crash_map = generator.crash_map()
     var unused_flags = unused_program_values(generator.used_program_values)
     if not unused_flags.is_empty() {
-        console.error("error: no '$' value in the program is named by: --{unused_flags.join(", --")} (a compiler flag that matches nothing is an error, so a typo never passes silently)")
+        console.error(
+            "error: no '$' value in the program is named by: --{unused_flags.join(", --")} (a compiler flag that matches nothing is an error, so a typo never passes silently)",
+        )
         return null
     }
     return code
@@ -185,8 +229,18 @@ func run_final_classes_mode(file_argument: String, content: String, output_direc
         }
         index = index + 1
     }
-    write_class_views(output_directory, "built_in", generator.built_in_class_names(), generator.built_in_class_sources())
-    write_class_views(output_directory, "instantiated", generator.instantiated_class_names(), generator.instantiated_class_sources())
+    write_class_views(
+        output_directory,
+        "built_in",
+        generator.built_in_class_names(),
+        generator.built_in_class_sources(),
+    )
+    write_class_views(
+        output_directory,
+        "instantiated",
+        generator.instantiated_class_names(),
+        generator.instantiated_class_sources(),
+    )
 }
 
 func final_classes_generator(discovery: Discovery.DiscoveryResult): Generation.Generator? {
@@ -210,7 +264,7 @@ func final_classes_generator(discovery: Discovery.DiscoveryResult): Generation.G
 }
 
 func write_class_views(output_directory: String, folder: String, names: List<String>, sources: List<String>) {
-    assert not (names.is_empty())
+    assert not names.is_empty()
     var directory = "{output_directory}/{folder}"
     create_final_class_directory(directory)
     var index = 0
@@ -357,7 +411,9 @@ func build_to_path(file_argument: String, content: String, output_path: String, 
     crash wrote
     var c_compiler = find_c_compiler()
     if c_compiler.is_empty() {
-        console.error("error: no C compiler found. Set the CC environment variable to the command that compiles C (for example CC=clang), or install cc, clang or gcc")
+        console.error(
+            "error: no C compiler found. Set the CC environment variable to the command that compiles C (for example CC=clang), or install cc, clang or gcc",
+        )
         return false
     }
     var process_arguments = List<String>()
@@ -443,9 +499,7 @@ func run_tree_mode(file_argument: String, content: String) {
     var parser = Syntax.Parser(Syntax.Lexer(content).tokens)
     var file = parser.parse_file()
     if parser.has_error {
-        console.error(
-"{file_argument}:{parser.error_line}:{parser.error_column}: error: {parser.error_message}",
-        )
+        console.error("{file_argument}:{parser.error_line}:{parser.error_column}: error: {parser.error_message}")
         var program = Program()
         program.exit(1)
         return

@@ -12,7 +12,7 @@ func test_a_class_fits_a_shape_by_its_attributes() {
 }
 
 func test_an_object_literal_fits_a_shape_too() {
-    var literal: Named = { name: "a literal" }
+    var literal: Named = {name: "a literal"}
     crash literal.name == "a literal"
 }
 

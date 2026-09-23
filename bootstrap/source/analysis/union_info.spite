@@ -11,7 +11,13 @@ var writer_names = List<String>()
 var caller_names = List<String>()
 var class_of_used = false
 
-func UnionInfo(starting_c_name: String, starting_simple_name: String, starting_owner_qualified: String, starting_owner_namespace: String, starting_member_types: List<Syntax.Types.Type>) {
+func UnionInfo(
+    starting_c_name: String,
+    starting_simple_name: String,
+    starting_owner_qualified: String,
+    starting_owner_namespace: String,
+    starting_member_types: List<Syntax.Types.Type>,
+) {
     c_name = starting_c_name
     simple_name = starting_simple_name
     owner_qualified = starting_owner_qualified

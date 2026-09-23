@@ -1,7 +1,7 @@
 func test_a_value_knows_its_class() {
     var creature = Creature("rat", 3, true)
     if creature.class.namespace {
-        crash
+        crash false
     }
     crash creature.class.name == "Creature"
 }
@@ -74,7 +74,7 @@ func test_a_path_can_be_narrowed_with_crash() {
 func test_a_null_link_fails_the_if_without_dereferencing_it() {
     var creature = Creature("rat", 3, true)
     if creature.class.namespace.parent {
-        crash
+        crash false
     }
     crash creature.class.name == "Creature"
 }

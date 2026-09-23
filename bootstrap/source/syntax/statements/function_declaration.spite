@@ -7,7 +7,12 @@ var source_path = ""
 var overrides_declaration = false
 var line = 0
 
-func FunctionDeclaration(function_name: String, function_parameters: List<Parameter>, function_return_type: Syntax.Types.Type?, function_body: List<Statement>) {
+func FunctionDeclaration(
+    function_name: String,
+    function_parameters: List<Parameter>,
+    function_return_type: Syntax.Types.Type?,
+    function_body: List<Statement>,
+) {
     name = function_name
     parameters = function_parameters
     return_type = function_return_type

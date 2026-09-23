@@ -3,7 +3,12 @@ var simple_name = ""
 var owner_qualified = ""
 var values = List<String>()
 
-func EnumInfo(starting_c_name: String, starting_simple_name: String, starting_owner_qualified: String, starting_values: List<String>) {
+func EnumInfo(
+    starting_c_name: String,
+    starting_simple_name: String,
+    starting_owner_qualified: String,
+    starting_values: List<String>,
+) {
     c_name = starting_c_name
     simple_name = starting_simple_name
     owner_qualified = starting_owner_qualified

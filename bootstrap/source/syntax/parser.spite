@@ -153,7 +153,9 @@ func parse_top_level_statements(): List<Syntax.Statements.Statement> {
             var column = current().column
             var statement = parse_statement()
             if not is_declaration(statement) and not has_error {
-                fail("a file holds declarations and nothing else: move this statement into a function, or into the class's constructor")
+                fail(
+                    "a file holds declarations and nothing else: move this statement into a function, or into the class's constructor",
+                )
                 error_line = line
                 error_column = column
             }
@@ -242,7 +244,9 @@ func borrowed_word_lesson(word: String): String {
 
 func parse_statement_without_line(): Syntax.Statements.Statement {
     if check('identifier') and next_kind() == 'identifier' and (current().lexeme == "class" or current().lexeme == "struct" or current().lexeme == "interface" or current().lexeme == "trait") {
-        fail("there is no '{current().lexeme}' keyword: a file is a class, named after the file, and its attributes and functions are written at the top level of that file")
+        fail(
+            "there is no '{current().lexeme}' keyword: a file is a class, named after the file, and its attributes and functions are written at the top level of that file",
+        )
         return dummy_statement()
     }
     if check('identifier') and current().lexeme == "for" {
@@ -291,7 +295,9 @@ func parse_statement_without_line(): Syntax.Statements.Statement {
 }
 
 func parse_generics_declaration(): Syntax.Statements.Statement {
-    fail("the 'generics' line was removed: a constructor declares the codegen values its callers supply, like 'func Weapon<$damage_type, $is_magic>(new_damage: $damage_type)'")
+    fail(
+        "the 'generics' line was removed: a constructor declares the codegen values its callers supply, like 'func Weapon<$damage_type, $is_magic>(new_damage: $damage_type)'",
+    )
     advance()
     var names = List<String>()
     var expect_more = true
@@ -348,7 +354,9 @@ func parse_function_declaration(): Syntax.Statements.Statement {
         expect('colon', "':' followed by the parameter's type")
         var parameter_type = parse_type()
         if check('equal') {
-            fail("a parameter has no default value in Spite: every argument is written at the call site, or the class holds the value as an attribute")
+            fail(
+                "a parameter has no default value in Spite: every argument is written at the call site, or the class holds the value as an attribute",
+            )
         }
         parameters.append(Syntax.Statements.Parameter(parameter_name.text, parameter_type))
         if check('comma') {
@@ -387,7 +395,9 @@ func parse_required_function(name: String): Syntax.Statements.FieldDeclaration {
         if check('identifier') and next_kind() == 'colon' {
             var named = advance()
             advance()
-            fail("a shape names the types it needs, not the names they are given: write '{parse_type_name_hint()}' where '{named.text}: ...' is, since a class satisfies it whatever it calls its parameters")
+            fail(
+                "a shape names the types it needs, not the names they are given: write '{parse_type_name_hint()}' where '{named.text}: ...' is, since a class satisfies it whatever it calls its parameters",
+            )
             return Syntax.Statements.FieldDeclaration(name, dummy_type())
         }
         parameter_types.append(parse_type())
@@ -539,9 +549,11 @@ func reject_returning_guard(statement: Syntax.Statements.Statement, condition_te
     if proven.starts_with("not ") {
         proven = proven.slice(4, proven.length())
     } else {
-        proven ="not ({proven})"
+        proven = "not ({proven})"
     }
-    fail("this 'if' only leaves the function: write 'assert {proven}' instead, and let the rest of the function run unindented")
+    fail(
+        "this 'if' only leaves the function: write 'assert {proven}' instead, and let the rest of the function run unindented",
+    )
 }
 
 func parse_if_statement_with_condition(condition: Syntax.Expressions.Expression): Syntax.Statements.Statement {
@@ -681,7 +693,9 @@ func parse_expression_or_assignment_statement(): Syntax.Statements.Statement {
     return parse_expression_or_assignment_statement_with(parse_expression())
 }
 
-func parse_expression_or_assignment_statement_with(expression: Syntax.Expressions.Expression): Syntax.Statements.Statement {
+func parse_expression_or_assignment_statement_with(
+    expression: Syntax.Expressions.Expression,
+): Syntax.Statements.Statement {
     if check('equal') {
         advance()
         var value = parse_expression()
@@ -902,7 +916,9 @@ func try_parse_generic_instantiation_arguments(): List<Syntax.Types.GenericArgum
 func parse_expression(): Syntax.Expressions.Expression {
     var value = parse_binary_expression(0)
     if check('question') {
-        fail("Spite has no 'condition ? a : b': write an 'if' with an 'else', or a function that returns one or the other")
+        fail(
+            "Spite has no 'condition ? a : b': write an 'if' with an 'else', or a function that returns one or the other",
+        )
     }
     return value
 }
@@ -973,7 +989,10 @@ func parse_binary_expression(minimum_precedence: Int): Syntax.Expressions.Expres
     return parse_binary_expression_rest(parse_unary(), minimum_precedence)
 }
 
-func parse_binary_expression_rest(left: Syntax.Expressions.Expression, minimum_precedence: Int): Syntax.Expressions.Expression {
+func parse_binary_expression_rest(
+    left: Syntax.Expressions.Expression,
+    minimum_precedence: Int,
+): Syntax.Expressions.Expression {
     var precedence = binary_operator_precedence(current_kind())
     if precedence < 0 or precedence < minimum_precedence {
         return left
@@ -996,11 +1015,15 @@ func reject_written_text_join(left: Syntax.Expressions.Expression, right: Syntax
         return
     }
     if written_left {
-        fail("text written down is not joined with '+': put the value inside it, like \"hello \{name}\". Two values are still joined with '+'")
+        fail(
+            "text written down is not joined with '+': put the value inside it, like \"hello \{name}\". Two values are still joined with '+'",
+        )
         return
     }
     assert written_right
-    fail("text written down is not joined with '+': put the value inside it, like \"\{name} arrived\". Two values are still joined with '+'")
+    fail(
+        "text written down is not joined with '+': put the value inside it, like \"\{name} arrived\". Two values are still joined with '+'",
+    )
 }
 
 func parse_unary(): Syntax.Expressions.Expression {
@@ -1071,7 +1094,9 @@ func parse_primary(): Syntax.Expressions.Expression {
     }
     if check('float_literal') {
         var token = advance()
-        return Syntax.Expressions.FloatLiteral(token.text.to_double())
+        var float_literal = Syntax.Expressions.FloatLiteral(token.text.to_double())
+        float_literal.written = token.lexeme
+        return float_literal
     }
     if check('string_literal') {
         var token = advance()

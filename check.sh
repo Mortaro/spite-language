@@ -140,6 +140,15 @@ for printed_program in conformance/stage3/interpolation conformance/stage6/symbo
 done
 echo "final classes: the printed program runs the same"
 
+# The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
+# already in the one style, so formatting it changes nothing.
+unformatted=""
+for file in $(find bootstrap library tests conformance examples scripts -name "*.spite"); do
+  "$work/generation_two.exe" --file="$file" --mode=check_format > /dev/null 2>&1 || unformatted="$unformatted $file"
+done
+if [ -n "$unformatted" ]; then echo "FAILED: not formatted (run: bin/spite format <path>):$unformatted"; exit 1; fi
+echo "formatting: every file is in the one style"
+
 if cmp -s "$work/generation_two.c" bootstrap/seed/spite_compiler.c; then
   echo "OK: fixpoint holds and the committed seed is current"
 elif [ "$1" == "--update-seed" ]; then

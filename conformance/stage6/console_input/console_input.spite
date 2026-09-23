@@ -5,8 +5,8 @@ func ConsoleInput() {
     crash first
     var second = console.read_line()
     crash second
-    console.print("read","{first.trim()}|")
-    console.print("read","{second}|")
+    console.print("read", "{first.trim()}|")
+    console.print("read", "{second}|")
     var past_the_end = console.read_line()
     if past_the_end {
         console.print("unexpected", past_the_end)

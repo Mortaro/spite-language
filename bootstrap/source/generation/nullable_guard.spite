@@ -3,7 +3,12 @@ var inner: Analysis.SpiteType? = null
 var guard_code = ""
 var override_code = ""
 
-func NullableGuard(starting_name: String, starting_inner: Analysis.SpiteType, starting_guard_code: String, starting_override_code: String) {
+func NullableGuard(
+    starting_name: String,
+    starting_inner: Analysis.SpiteType,
+    starting_guard_code: String,
+    starting_override_code: String,
+) {
     name = starting_name
     inner = starting_inner
     guard_code = starting_guard_code

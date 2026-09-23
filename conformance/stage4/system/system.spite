@@ -1,7 +1,7 @@
 var console = Console()
 
 func System(arguments: Arguments) {
-    console.print(arguments.count(),"{arguments.get(3)}|")
+    console.print(arguments.count(), "{arguments.get(3)}|")
     if arguments.nothing_here {
         console.print("unexpected", arguments.nothing_here)
     } else {

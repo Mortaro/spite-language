@@ -22,5 +22,5 @@ func describe(value: Int): String {
     if value < 1 {
         return "not positive"
     }
-    crash
+    crash false
 }

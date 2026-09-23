@@ -351,7 +351,10 @@ func scan_quoted(quote_code: Int, kind: TokenKind): Bool {
             }
             if depth > 0 {
                 push_token('invalid', source.slice(start_index, index), "", token_line, token_column)
-                fail_lex("this '\{' inside text never closes: write the value between '\{' and '}', like \"hello \{name}\", or write a '\{' of its own as backslash \{", token_line)
+                fail_lex(
+                    "this '\{' inside text never closes: write the value between '\{' and '}', like \"hello \{name}\", or write a '\{' of its own as backslash \{",
+                    token_line,
+                )
                 return false
             }
             pieces.append(buffer)
@@ -365,7 +368,10 @@ func scan_quoted(quote_code: Int, kind: TokenKind): Bool {
     }
     if not terminated {
         push_token('invalid', source.slice(start_index, index), "", token_line, token_column)
-        fail_lex("this text never closes: a piece of text is written on one line, and a line break inside it is written as the two characters backslash and n", token_line)
+        fail_lex(
+            "this text never closes: a piece of text is written on one line, and a line break inside it is written as the two characters backslash and n",
+            token_line,
+        )
         return false
     }
     var lexeme = source.slice(start_index, index)

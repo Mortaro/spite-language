@@ -1,4 +1,5 @@
 var value: Double = 0.0
+var written = ""
 
 func FloatLiteral(starting_value: Double) {
     value = starting_value

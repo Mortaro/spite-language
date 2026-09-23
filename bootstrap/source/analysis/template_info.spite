@@ -3,7 +3,12 @@ var symbol_parameter = ""
 var prefix = ""
 var suffix = ""
 
-func TemplateInfo(starting_declaration: Syntax.Statements.FunctionDeclaration, starting_symbol_parameter: String, starting_prefix: String, starting_suffix: String) {
+func TemplateInfo(
+    starting_declaration: Syntax.Statements.FunctionDeclaration,
+    starting_symbol_parameter: String,
+    starting_prefix: String,
+    starting_suffix: String,
+) {
     declaration = starting_declaration
     symbol_parameter = starting_symbol_parameter
     prefix = starting_prefix

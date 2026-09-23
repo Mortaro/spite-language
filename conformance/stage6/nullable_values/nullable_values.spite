@@ -39,8 +39,6 @@ func find(name: String): Monster? {
 func describe(monster: Monster?) {
     switch monster {
         Null: console.print("nobody there")
-        Monster: {
-            console.print("there is a {monster.name}")
-        }
+        Monster: console.print("there is a {monster.name}")
     }
 }

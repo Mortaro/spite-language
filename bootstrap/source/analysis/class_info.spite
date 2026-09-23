@@ -19,7 +19,13 @@ var templates = List<TemplateInfo>()
 var constructor: FunctionInfo? = null
 var drop_function: FunctionInfo? = null
 
-func ClassInfo(starting_c_name: String, starting_simple_name: String, starting_namespace_dotted: String, starting_qualified_dotted: String, starting_class_id: Int) {
+func ClassInfo(
+    starting_c_name: String,
+    starting_simple_name: String,
+    starting_namespace_dotted: String,
+    starting_qualified_dotted: String,
+    starting_class_id: Int,
+) {
     c_name = starting_c_name
     simple_name = starting_simple_name
     namespace_dotted = starting_namespace_dotted

@@ -10,14 +10,14 @@ func Shapes() {
     var pet = Pet("rex", 12, "dog")
     announce(planet)
     announce(pet)
-    announce({ name: "literal", size: 1 })
+    announce({name: "literal", size: 1})
     grow(planet)
     grow(pet)
     console.print(planet.size, pet.size, pet.kind)
     var things = List<Named>()
     things.append(planet)
     things.append(Pet("tom", 4, "cat"))
-    things.append({ name: "box", size: 9 })
+    things.append({name: "box", size: 9})
     var index = 0
     var total = 0
     while index < things.count() {
@@ -26,7 +26,7 @@ func Shapes() {
     }
     crash things[2]
     console.print(total, things[2].name, things.last().name.upper())
-    var point = { x: 3, y: 4, label: "corner" }
+    var point = {x: 3, y: 4, label: "corner"}
     point.x = point.x + 10
     console.print(point.x, point.y, point.label)
 }
@@ -37,5 +37,5 @@ func announce(thing: Named) {
 
 func grow(thing: Named) {
     thing.size = thing.size + 1
-    thing.name ="{thing.name}+"
+    thing.name = "{thing.name}+"
 }
