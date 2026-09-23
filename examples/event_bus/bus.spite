@@ -1,0 +1,13 @@
+var listeners = List<Spite.Function<Event, Nothing>>()
+
+func subscribe(listener: Spite.Function<Event, Nothing>) {
+    listeners.append(listener)
+}
+
+func publish(event: Event) {
+    var index = 0
+    while index < listeners.count() {
+        listeners[index](event)
+        index = index + 1
+    }
+}

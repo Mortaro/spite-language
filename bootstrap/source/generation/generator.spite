@@ -5864,6 +5864,13 @@ func generate_call(
     if identifier {
         return generate_own_function_call(identifier.name, call.arguments, scope, class_information)
     }
+    var held = generate_expression(call.callee, scope, class_information)
+    var held_function = type_shape.as_class_ref(held.get_type())
+    if held_function {
+        if held_function.has_signature {
+            return call_function_value(held, call.callee, call.arguments, scope, class_information)
+        }
+    }
     report("unsupported call form")
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
@@ -6371,6 +6378,9 @@ func value_is_never_null(
     if shape.as_generic_call(value_ast) or shape.as_string_literal(value_ast) or shape.as_integer_literal(value_ast) {
         return true
     }
+    if shape.as_binary(value_ast) or shape.as_unary(value_ast) {
+        return true
+    }
     var call = shape.as_call(value_ast)
     if call {
         if call.callee {
@@ -6394,9 +6404,19 @@ func generate_assignment(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ) {
+    generate_store(assignment, scope, class_information)
     assert assignment.target
     assert assignment.value
     forget_narrowing_under(assignment.target, assignment.value, scope, class_information)
+}
+
+func generate_store(
+    assignment: Syntax.Statements.AssignmentStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    assert assignment.target
+    assert assignment.value
     var identifier = shape.as_identifier(assignment.target)
     if identifier {
         var scope_type = scope.lookup_type(identifier.name)

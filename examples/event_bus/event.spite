@@ -1,0 +1,4 @@
+union Event {
+    Arrival
+    Departure
+}

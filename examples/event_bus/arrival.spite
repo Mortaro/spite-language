@@ -1,0 +1,5 @@
+var name = ""
+
+func Arrival(arriving: String) {
+    name = arriving
+}

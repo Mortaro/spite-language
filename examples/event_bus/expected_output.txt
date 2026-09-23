@@ -1,0 +1,5 @@
+arrived ada
+something else happened to ada
+arrived grace
+3 ada,ada,grace
+true true false

@@ -1,0 +1,36 @@
+var console = Console()
+
+func EventBus() {
+    var bus = Bus()
+    var counter = Counter()
+    bus.subscribe(counter.count_event)
+    bus.subscribe(log_event)
+    bus.publish(Arrival("ada"))
+    bus.publish(Departure("ada", 3))
+    bus.publish(Arrival("grace"))
+    console.print(counter.seen, counter.names.join(","))
+    report(counter)
+}
+
+func log_event(event: Event) {
+    switch event {
+        Arrival: console.print("arrived", event.name)
+        _: console.print("something else happened to", event.name)
+    }
+}
+
+func report(counter: Counter) {
+    var totals = Dictionary<Int>()
+    var index = 0
+    while index < counter.names.count() {
+        var name = counter.names[index]
+        if totals.has(name) {
+            crash totals[name]
+            totals[name] = totals[name] + 1
+        } else {
+            totals[name] = 1
+        }
+        index = index + 1
+    }
+    console.print(totals["ada"] == 2, totals["grace"] == 1, totals["alan"] == 0)
+}

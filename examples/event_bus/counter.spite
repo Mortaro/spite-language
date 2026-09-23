@@ -1,0 +1,7 @@
+var seen = 0
+var names = List<String>()
+
+func count_event(event: Event) {
+    seen = seen + 1
+    names.append(event.name)
+}
