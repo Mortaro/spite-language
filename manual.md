@@ -1388,15 +1388,20 @@ Before this, a program run by the compiler received no arguments at all (`confor
   found is formatted, unconditionally). `--check` rewrites nothing and instead lists (to stdout) every file
   that would change, exiting 1 if that list is non-empty (0 if the whole tree is already clean).
 
-## 14. REPL and live reload  **[partial]**
+## 14. REPL and live reload  **[planned]**
 
 Milestone 6a: a REPL that inspects and drives the *running* program, local (`--repl`) and remote
-(`--repl-port`). Compiling and executing arbitrary new Spite code inside the running process,
+(`--repl-port`). **Status (2026-09-23): none of this section is built in the Spite compiler.**
+`runtime/spite_repl.h` is the interpreter this section describes, written in C and not wired in; the
+subsections below keep the design. **Open for Mortaro:** wire that C in now, or write the REPL in Spite over
+the reflection that milestone 10b made real (`Spite.Class.attributes`, `.functions`, typed function values) --
+which is what milestone 15d asks for, and what D14's "nothing above the floor is hand-written C" implies.
+Claude would write it in Spite, since the C version would be the next thing 15d deletes. Compiling and executing arbitrary new Spite code inside the running process,
 `Class.instances`, and live reload were blocked on the memory-model decision in [open question
 4](#open-questions), decided as D1 (reference counting, milestone 9a, section 10) -- unblocked, not yet
 started, for milestone 6b (see "Live reload and 6b" below).
 
-### Reflection tables  **[implemented]**
+### Reflection tables  **[planned]**
 
 Emitted only when `--repl` or `--repl-port` is given (never for a normal build): for every class the
 compiler actually emits, its qualified name, attributes (name, type name, C offset, kind), and every
@@ -1448,14 +1453,14 @@ entry class's own Spite name):
   or key out of range says so, a scalar/String/enum-only operation on the wrong kind of value is a type
   mismatch, and calling a non-function is "not callable".
 
-### `--repl`  **[implemented]**
+### `--repl`  **[planned]**
 
 Runs the entry constructor normally; when it returns, instead of dropping the entry instance and
 exiting, reads commands from stdin with a `spite> ` prompt until `exit` or end of input, then drops and
 exits normally (memory balanced -- checked by its own end-to-end test the same way `--debug-memory`'s
 own tests are).
 
-### `--repl-port <port>`  **[implemented]**
+### `--repl-port <port>`  **[planned]**
 
 Also accepts `--repl-port=<port>`. Before the entry constructor runs, starts a background thread with a
 TCP server bound to `127.0.0.1:<port>` **only** -- it never listens on any other interface, and there is
@@ -1474,7 +1479,7 @@ will ever unwind back to a clean `main` return, so this does not attempt one). I
 threads and Winsock under `_WIN32`, pthreads and BSD sockets otherwise; `ws2_32` is only linked when a
 REPL mode is actually requested.
 
-### `spite connect <port>`  **[implemented]**
+### `spite connect <port>`  **[planned]**
 
 A tiny client built into the compiler binary itself (built in, using the platform sockets -- no libc socket
 calls needed on the compiler's own side): with no `--command`, an interactive prompt that sends each

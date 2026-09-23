@@ -21,17 +21,16 @@ func SpiteCompiler(arguments: Arguments) {
     optimized = has_flag(arguments, "--optimized")
     formats = not has_flag(arguments, "--no-format")
     collect_program_values(arguments)
-    var program_file = File(file_argument)
-    var maybe_content = program_file.read()
-    if not maybe_content {
+    var content = File(file_argument).read()
+    if content {
+        run_mode(arguments, file_argument, mode_argument, content)
+    } else {
         console.error("error: could not read '{file_argument}'")
         Program().exit(1)
-        return
     }
-    var content = ""
-    if maybe_content {
-        content = maybe_content
-    }
+}
+
+func run_mode(arguments: Arguments, file_argument: String, mode_argument: String, content: String) {
     if mode_argument == "canonical" {
         run_canonical_mode(content)
         return
