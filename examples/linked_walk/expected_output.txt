@@ -1,0 +1,2 @@
+4 node n1 -> node n2 -> node n3 -> node n4
+not working: Idle busy with 3 jobs not working: Broken

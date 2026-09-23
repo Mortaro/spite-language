@@ -6849,6 +6849,15 @@ func forget_narrowing_under(
     var path = operand_text(target_ast)
     assert not path.is_empty()
     var value_may_be_null = not value_is_never_null(value_ast, scope, class_information)
+    if value_may_be_null and shape.as_identifier(target_ast) {
+        if scope.lookup_override(path) {
+            if scope.forget_override(path, false) {
+                report(
+                    "assigning a value that may be null to '{path}' inside this loop undoes a narrowing made before the loop, and the next pass would read it unproven: narrow it inside the loop instead",
+                )
+            }
+        }
+    }
     if scope.forget_path(path, value_may_be_null, List<String>()) {
         report(
             "assigning to '{path}' inside this loop undoes a narrowing made before the loop, and the next pass would read it unproven: narrow it inside the loop instead",
@@ -6909,10 +6918,20 @@ func generate_store(
         if scope_type {
             var override = scope.lookup_override(identifier.name)
             var target_code = identifier.name
+            var storage_type = scope_type
             if override {
                 target_code = override
+                var declared = scope.unnarrowed_type(identifier.name)
+                if declared {
+                    storage_type = declared
+                } else {
+                    var narrowed_field = class_information.find_field(identifier.name)
+                    if narrowed_field {
+                        storage_type = narrowed_field.get_type()
+                    }
+                }
             }
-            emit_owning_assignment(target_code, scope_type, assignment.value, scope, class_information)
+            emit_owning_assignment(target_code, storage_type, assignment.value, scope, class_information)
             return
         }
         var field = class_information.find_field(identifier.name)

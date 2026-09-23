@@ -1,0 +1,5 @@
+var reason = ""
+
+func Broken(starting_reason: String) {
+    reason = starting_reason
+}

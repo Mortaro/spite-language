@@ -144,3 +144,61 @@ func forget_path(path: String, include_itself: Bool, read_by_crossed_loops: List
     }
     return crossed_a_loop
 }
+
+func unnarrowed_type(name: String): Analysis.SpiteType? {
+    var skipping = override_names.contains(name)
+    var index = entry_names.count() - 1
+    while index >= 0 {
+        crash index < entry_types.count()
+        if entry_names[index] == name {
+            if skipping {
+                skipping = false
+            } else {
+                return entry_types[index]
+            }
+        }
+        index = index - 1
+    }
+    if parent {
+        return parent.unnarrowed_type(name)
+    }
+    return null
+}
+
+func forget_override(name: String, below_a_loop: Bool): Bool {
+    var crossed_a_loop = false
+    var index = override_names.count() - 1
+    while index >= 0 {
+        if override_names[index] == name {
+            crash index < override_codes.count()
+            override_names.remove_at(index)
+            override_codes.remove_at(index)
+            remove_last_entry(name)
+            if below_a_loop {
+                crossed_a_loop = true
+            }
+        }
+        index = index - 1
+    }
+    if parent {
+        if parent.forget_override(name, below_a_loop or is_loop) {
+            crossed_a_loop = true
+        }
+    }
+    return crossed_a_loop
+}
+
+func remove_last_entry(name: String) {
+    var index = entry_names.count() - 1
+    while index >= 0 {
+        if entry_names[index] == name {
+            entry_names.remove_at(index)
+            entry_types.remove_at(index)
+            entry_used.remove_at(index)
+            entry_lines.remove_at(index)
+            entry_checked.remove_at(index)
+            return
+        }
+        index = index - 1
+    }
+}

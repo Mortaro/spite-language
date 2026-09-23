@@ -273,7 +273,9 @@ for the rest of that block and any block nested inside it. It is the same rule s
 - Assigning to a narrowed path, or to anything it reads through, undoes the narrowing from that point on: after
   `outer = Box()` or `outer.inner = null`, `outer.inner` is a `Box?` again. Assigning a value that cannot be null
   (a constructor, a literal, a name that is not `T?`) to the narrowed path itself keeps it narrowed, and still
-  undoes everything narrowed beneath it.  **[implemented; proposed by Claude, unconfirmed]**
+  undoes everything narrowed beneath it. A narrowed *name* follows the same rule: `current = current.next` after
+  `assert current` stores into the `Node?` it really is and un-narrows it (until 2026-09-23 it was rejected, and
+  `maybe = null` silently stored a default object instead).  **[implemented; proposed by Claude, unconfirmed]**
 - Inside a `while`, undoing a narrowing that was made before the loop *and read inside it* is an error, because
   the next pass would read it unproven: narrow it inside the loop instead (`diagnostics/path_narrow_loop`).
   **[implemented; proposed by Claude, unconfirmed]**

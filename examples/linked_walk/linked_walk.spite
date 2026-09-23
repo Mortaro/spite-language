@@ -1,0 +1,39 @@
+var console = Console()
+var current: Node? = null
+var steps = List<String>()
+
+func LinkedWalk() {
+    run()
+}
+
+func run() {
+    current = build_chain(4)
+    var walked = 0
+    while current {
+        assert current
+        steps.append("node {current.label}")
+        current = current.next
+        walked = walked + 1
+    }
+    console.print(walked, steps.join(" -> "))
+    console.print(describe(Idle()), describe(Busy(3)), describe(Broken("fuse")))
+}
+
+func build_chain(length: Int): Node? {
+    var head: Node? = null
+    var position = length
+    while position > 0 {
+        var node = Node("n{position}")
+        node.next = head
+        head = node
+        position = position - 1
+    }
+    return head
+}
+
+func describe(state: State): String {
+    switch state {
+        Busy: return "busy with {state.jobs} jobs"
+        _: return "not working: {state.class.name}"
+    }
+}

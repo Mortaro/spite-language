@@ -1,0 +1,6 @@
+var label = ""
+var next: Node? = null
+
+func Node(starting_label: String) {
+    label = starting_label
+}

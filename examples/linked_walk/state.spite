@@ -1,0 +1,7 @@
+union State {
+    Idle
+    Busy
+    Broken
+}
+
+var unused = 0
