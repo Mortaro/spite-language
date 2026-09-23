@@ -8,3 +8,7 @@ func Namespace(starting_name: String, starting_name_with_namespaces: String) {
     name = starting_name
     name_with_namespaces = starting_name_with_namespaces
 }
+
+func equals(other: String): Bool {
+    return name_with_namespaces == other
+}

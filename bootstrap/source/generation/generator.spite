@@ -2722,6 +2722,12 @@ func generate_binary(binary: Syntax.Expressions.BinaryExpression, scope: Scope, 
         return ExpressionResult(swapped_code, Analysis.Types.ScalarType('boolean_kind'))
     }
     var left = generate_expression(left_ast, scope, class_information)
+    var left_nullable = type_shape.as_nullable(left.get_type())
+    if left_nullable {
+        if binary.operator == 'equal' or binary.operator == 'not_equal' {
+            return generate_nullable_equality(binary, left, left_nullable.get_inner(), left_ast, right_ast, scope, class_information)
+        }
+    }
     if type_shape.as_string(left.get_type()) {
         return generate_string_binary(binary.operator, left, left_ast, right_ast, scope, class_information)
     }
@@ -2750,6 +2756,40 @@ func generate_binary(binary: Syntax.Expressions.BinaryExpression, scope: Scope, 
         return ExpressionResult(code, Analysis.Types.ScalarType('boolean_kind'))
     }
     return ExpressionResult(code, left.get_type())
+}
+
+func generate_nullable_equality(
+    binary: Syntax.Expressions.BinaryExpression,
+    left: ExpressionResult,
+    inner: Analysis.SpiteType,
+    left_ast: Syntax.Expressions.Expression,
+    right_ast: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var compared_name = next_temporary()
+    var compared_scope = Scope(scope)
+    compared_scope.declare(compared_name, inner)
+    var null_check = "{compared_name} != 0"
+    if type_is_reference(inner) {
+        compared_scope.set_override(compared_name, compared_name)
+    } else {
+        compared_scope.set_override(compared_name, "{compared_name}.value")
+        null_check = "{compared_name}.has_value"
+    }
+    var narrowed_left: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(compared_name)
+    var narrowed_comparison: Syntax.Expressions.Expression = Syntax.Expressions.BinaryExpression(binary.operator, narrowed_left, right_ast)
+    var compared = generate_expression(narrowed_comparison, compared_scope, class_information)
+    var when_null = "false"
+    if binary.operator == 'not_equal' {
+        when_null = "true"
+    }
+    var release = ""
+    if owns(left, left_ast) and type_needs_drop(inner) {
+        release = " {release_call(inner, compared_name)};"
+    }
+    var code = "(\{ {c_type_name(left.get_type())} {compared_name} = {left.code}; bool spite_equal = ({null_check}) ? ({compared.code}) : {when_null};{release} spite_equal; \})"
+    return ExpressionResult(code, boolean_type())
 }
 
 func truth_of(result: ExpressionResult): String {
@@ -2799,7 +2839,7 @@ func generate_class_binary(operator: Syntax.Expressions.BinaryOperator, left_cla
         function = find_or_instantiate_function(left_class, function_name)
     }
     if function {
-        if function.parameters.count() == 1 {
+        if function.parameters.count() == 1 and not compares_identity_instead(function, left_class, right_ast, scope, class_information) {
             var operator_arguments = List<Syntax.Expressions.Expression>()
             operator_arguments.append(right_ast)
             var called = generate_generic_call(function.c_name, left_result, left_ast, operator_arguments, parameter_types_of(function.parameters), function.get_return_type(), scope, class_information)
@@ -2833,6 +2873,22 @@ func generate_class_binary(operator: Syntax.Expressions.BinaryOperator, left_cla
     }
     report("this operator on a '{left_class.simple_name}' needs it to define '{function_name}(other)'")
     return ExpressionResult("0", Analysis.Types.VoidType())
+}
+
+func compares_identity_instead(function: Analysis.FunctionInfo, left_class: Analysis.ClassInfo, right_ast: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): Bool {
+    if function.name != "equals" {
+        return false
+    }
+    var right_type = lookup_static_type(right_ast, scope, class_information)
+    if right_type {
+        var right_class_ref = type_shape.as_class_ref(right_type)
+        if right_class_ref {
+            if right_class_ref.c_name == left_class.c_name {
+                return not type_shape.as_class_ref(function.parameters[0].get_type())
+            }
+        }
+    }
+    return false
 }
 
 func generate_unary(unary: Syntax.Expressions.UnaryExpression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {

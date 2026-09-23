@@ -274,6 +274,14 @@ for the rest of that block and any block nested inside it. It is the same rule s
   **[implemented; proposed by Claude, unconfirmed]**
 
 
+**Comparing needs no narrowing** (D69, decided by Mortaro, 2026-09-23). `==` and `!=` accept a `T?` on the left:
+null is not equal to anything, so `crash Spite.Class.namespace == "Spite"` is a whole test. Only the comparison
+is exempt -- reading a member through a `T?` still needs it narrowed first. A `Spite.Namespace` compares with
+text through `equals(String)` in `library/spite/namespace.spite`, against its `name_with_namespaces`; two
+namespaces still compare by identity, because a class's `equals` is used for a right side of that same class
+only when `equals` takes that class.  **[implemented]**
+
+
 ### Unused is an error  **[implemented]**
 
 Second batch item 5 (decided 2026-09-19): a local variable or parameter that is never read is a compile error
@@ -2243,4 +2251,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-23 | **D66** (decided by Mortaro): **the test package proves there are no memory leaks.** A test run that ends with allocations and frees unequal fails, as every corpus program already does. |
 | 2026-09-23 | **D67** (decided by Mortaro): **the order of a file is enforced**: `singleton`, then `generic` lines (open question 12), then `enum`, then `type`, then variables, then the constructor, then functions. Out of order is a compile error (section 12: the compiler formats or errors). |
 | 2026-09-23 | **D68** (decided by Mortaro): **a class name is a `Symbol`, not a `String`.** Symbols are easier to tree-shake, and for the reader a `Symbol` answers every `String` method as if it were text, even though `symbol.class == Symbol`. Text can become a `Symbol` only when that symbol already exists in the program's table -- enough for metaprogramming, without Ruby's attack of minting symbols from input. Part of milestone 14. |
-| 2026-09-23 | **D69** (decided by Mortaro): **comparing a `T?` with `==` needs no narrowing: null is simply not equal**, so `crash Spite.Class.namespace == "Spite"` is the whole of a test that used to be five lines of copying, narrowing and comparing. "If AI can do this messy code, it will do this messy code" -- the language should accept only the short form (D63 rejects the copy). How a `Spite.Namespace` compares with text is an operator function in the library (operators are functions, section 5), not a special case; under D68 that compares its name. |
+| 2026-09-23 | **D69** (decided by Mortaro): **comparing a `T?` with `==` needs no narrowing: null is simply not equal**, so `crash Spite.Class.namespace == "Spite"` is the whole of a test that used to be five lines of copying, narrowing and comparing. "If AI can do this messy code, it will do this messy code" -- the language should accept only the short form (D63 rejects the copy). How a `Spite.Namespace` compares with text is an operator function in the library (operators are functions, section 5), not a special case; under D68 that compares its name. As implemented it compares `name_with_namespaces`, so a nested namespace is compared by its dotted path (Claude's reading, unconfirmed).  **[implemented]** |

@@ -45,3 +45,23 @@ func test_an_attribute_narrows_the_same_way() {
     crash stored.name == "rat"
     stored = null
 }
+
+func test_a_value_that_may_be_null_compares_without_narrowing() {
+    var named: String? = "rat"
+    var counted: Int? = 3
+    crash named == "rat"
+    crash counted == 3
+    crash counted != 4
+}
+
+func test_null_is_not_equal_to_anything() {
+    var named: String? = null
+    var counted: Int? = null
+    crash named != "rat"
+    crash not (counted == 0)
+}
+
+func test_a_namespace_compares_with_its_name() {
+    crash Spite.Class.namespace == "Spite"
+    crash OptionalTests.namespace != "Spite"
+}
