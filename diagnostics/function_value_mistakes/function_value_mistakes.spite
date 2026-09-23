@@ -1,0 +1,22 @@
+var console = Console()
+
+func FunctionValueMistakes() {
+    console.print(apply(ring, "x"))
+    var change = shout
+    console.print(change("a", "b"))
+    var described = FunctionValueMistakes.functions
+    crash described[0]
+    console.print(apply(described[0], "y"))
+}
+
+func apply(change: Spite.Function<String, String>, text: String): String {
+    return change(text)
+}
+
+func shout(text: String): String {
+    return text.upper()
+}
+
+func ring() {
+    console.print("ring")
+}

@@ -1,4 +1,7 @@
 var c_name = ""
+var has_signature = false
+var arguments = List<SpiteType>()
+var returns: SpiteType? = null
 
 func ClassRefType(starting_c_name: String) {
     c_name = starting_c_name

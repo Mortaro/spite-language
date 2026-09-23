@@ -334,7 +334,7 @@ the read requirement, because the author never chose them:
 A `set_age` with two parameters never answers attribute access (the dispatch passes exactly one value), so its
 parameters are the author's free choice and the ordinary rule applies.
 
-### Functions are values, always bound to an instance  **[planned]**
+### Functions are values, always bound to an instance  **[implemented, except `.owner`]**
 
 D17 (decided by Mortaro, 2026-09-19): a function is a first-class value. Naming one inside a class passes it
 together with the instance doing the passing, so it runs exactly as that instance would have run it:
@@ -398,6 +398,16 @@ direct call and never builds a `Spite.Function`; only a function used *as a valu
 It is required rather than optional: with the return in the last position, `Spite.Function<String>` already
 reads as "takes nothing, returns a `String`", so a function taking a `String` and returning nothing could not
 otherwise be written. `Spite.Function<Nothing>` takes nothing and returns nothing.
+
+**As implemented** (2026-09-23): naming a function without calling it -- `greet` inside the class, `person.greet`
+on a value -- builds a `Spite.Function` bound to that instance, whose type carries the signature; `change(text)`
+and `change.call_function(text)` call it with their arguments checked; a typed value can go where a plain
+`Spite.Function` (a reflected one) is expected, but not the other way round, since a reflected function's
+signature is not known to the type checker (`diagnostics/function_value_mistakes`). In C it is still one
+`Spite_Function` with a typed call pointer beside the owner, so a function value *is* its reflection object, as
+D39 says (`conformance/stage6/typed_functions`). **Not built:** `.owner` as a readable attribute -- nothing in
+`Spite.Function<...>` says what class the owner is, so there is no type to give it; calling a *reflected*
+function with arguments; and a class attribute initialised with a function value.
 
 `Nothing` is also what `.returns` reports for every function declared without a return type, so it is not a
 notation invented for the type syntax -- it fills a hole the reflection already had. A function whose body falls

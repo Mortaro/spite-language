@@ -1,0 +1,8 @@
+var on_press: Spite.Function<Nothing>? = null
+var presses = 0
+
+func press() {
+    presses = presses + 1
+    assert on_press
+    on_press()
+}

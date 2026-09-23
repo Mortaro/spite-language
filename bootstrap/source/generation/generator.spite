@@ -11,6 +11,7 @@ var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
 var deep_copy_names = List<String>()
 var terminal_if: Syntax.Statements.IfStatement? = null
+var function_value_makers = List<String>()
 var body_narrowed_names = List<String>()
 var body_assigned_paths = List<String>()
 var singleton_names = List<String>()
@@ -1861,6 +1862,9 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
             if same_name_enum {
                 return enum_type_of(same_name_enum)
             }
+            if found_class.c_name == "Spite_Function" and not named.arguments.is_empty() {
+                return function_type_from(named, current_namespace)
+            }
             var resolved: Analysis.SpiteType = Analysis.Types.ClassRefType(found_class.c_name)
             return resolved
         }
@@ -1899,6 +1903,9 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
         var owned_enum = find_enum_qualified(joined, named.path.last())
         if owned_enum {
             return enum_type_of(owned_enum)
+        }
+        if qualified_class.c_name == "Spite_Function" and not named.arguments.is_empty() {
+            return function_type_from(named, current_namespace)
         }
         var resolved: Analysis.SpiteType = Analysis.Types.ClassRefType(qualified_class.c_name)
         return resolved
@@ -2046,7 +2053,7 @@ func types_equal(left_type: Analysis.SpiteType, right_type: Analysis.SpiteType):
     if left_class {
         var right_class = type_shape.as_class_ref(right_type)
         if right_class {
-            return left_class.c_name == right_class.c_name
+            return left_class.c_name == right_class.c_name and same_signature(left_class, right_class)
         }
         return false
     }
@@ -2339,6 +2346,15 @@ func string_conversion(code: String, from: Analysis.SpiteType): String {
 func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): String {
     if types_equal(from, to) {
         return code
+    }
+    var from_function = type_shape.as_class_ref(from)
+    var to_function = type_shape.as_class_ref(to)
+    if from_function {
+        if to_function {
+            if from_function.has_signature and not to_function.has_signature and to_function.c_name == "Spite_Function" {
+                return code
+            }
+        }
     }
     var to_nullable = type_shape.as_nullable(to)
     if to_nullable {
@@ -2666,6 +2682,12 @@ func generate_identifier(identifier: Syntax.Expressions.IdentifierExpression, sc
         if class_of_self {
             class_of_self.owning_override = true
             return class_of_self
+        }
+    }
+    var named_function = find_or_instantiate_function(class_information, identifier.name)
+    if named_function {
+        if not named_function.is_constructor {
+            return function_value(class_information, named_function, ExpressionResult("self", class_type_of(class_information)), identifier)
         }
     }
     var named_class = find_class(identifier.name, class_information.namespace_dotted)
@@ -3072,8 +3094,178 @@ func generate_constructor_call(target_class: Analysis.ClassInfo, arguments_ast: 
     return ExpressionResult(call_code, Analysis.Types.ClassRefType(target_class.c_name))
 }
 
+func function_type_from(named: Syntax.Types.NamedType, current_namespace: String): Analysis.SpiteType? {
+    var signature = Analysis.Types.ClassRefType("Spite_Function")
+    signature.has_signature = true
+    var index = 0
+    while index < named.arguments.count() {
+        var resolved = resolve_generic_argument(named.arguments[index], current_namespace)
+        if not resolved {
+            return null
+        }
+        assert resolved
+        if index == named.arguments.count() - 1 {
+            signature.returns = resolved
+        } else {
+            signature.arguments.append(resolved)
+        }
+        index = index + 1
+    }
+    var typed: Analysis.SpiteType = signature
+    return typed
+}
+
+func same_signature(left: Analysis.Types.ClassRefType, right: Analysis.Types.ClassRefType): Bool {
+    if left.has_signature != right.has_signature {
+        return false
+    }
+    if not left.has_signature {
+        return true
+    }
+    if left.arguments.count() != right.arguments.count() {
+        return false
+    }
+    var index = 0
+    while index < left.arguments.count() {
+        if not types_equal(left.arguments[index], right.arguments[index]) {
+            return false
+        }
+        index = index + 1
+    }
+    if left.returns {
+        if right.returns {
+            return types_equal(left.returns, right.returns)
+        }
+    }
+    return false
+}
+
+func signature_of(function: Analysis.FunctionInfo): Analysis.SpiteType {
+    var signature = Analysis.Types.ClassRefType("Spite_Function")
+    signature.has_signature = true
+    var index = 0
+    while index < function.parameters.count() {
+        signature.arguments.append(function.parameters[index].get_type())
+        index = index + 1
+    }
+    if type_shape.is_void(function.get_return_type()) {
+        signature.returns = Analysis.Types.ClassRefType("Nothing")
+    } else {
+        signature.returns = function.get_return_type()
+    }
+    var typed: Analysis.SpiteType = signature
+    return typed
+}
+
+func function_value(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, owner: ExpressionResult, owner_ast: Syntax.Expressions.Expression): ExpressionResult {
+    var maker = "spite_function_value_{function.c_name}"
+    if not function_value_makers.contains(maker) {
+        function_value_makers.append(maker)
+        var argument_class = find_class_by_c_name("Spite_Argument")
+        if not find_class_by_c_name("Spite_Function") or not argument_class {
+            report("a function value needs the standard library: library/spite/function.spite was not found from the working directory")
+            return ExpressionResult("0", Analysis.Types.VoidType())
+        }
+        crash argument_class
+        var arguments_list_name = ensure_list(class_type_of(argument_class))
+        var lines = List<String>()
+        lines.append("Spite_Function* {maker}({information.c_name}* owner) \{")
+        lines.append("Spite_Function* described = Spite_Function_make({render_string_literal(function.name)}, {returned_class_object_call(function)});")
+        var parameter_index = 0
+        while parameter_index < function.parameters.count() {
+            var parameter = function.parameters[parameter_index]
+            lines.append("{arguments_list_name}_add(described->arguments, Spite_Argument_make({render_string_literal(parameter.name)}, {class_object_call(parameter.get_type())}));")
+            parameter_index = parameter_index + 1
+        }
+        lines.append("described->spite_owner = {information.c_name}_retain(owner);")
+        lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}_release;")
+        if function.parameters.count() == 0 and type_shape.is_void(function.get_return_type()) {
+            lines.append("described->spite_call = (void (*)(void*)){function.c_name};")
+        }
+        lines.append("described->spite_typed_call = (void*){function.c_name};")
+        lines.append("return described;")
+        lines.append("}")
+        builder.add_prototype("Spite_Function* {maker}({information.c_name}* owner);")
+        builder.add_support(lines.join("\n"))
+    }
+    var code = "{maker}({owner.code})"
+    if owns(owner, owner_ast) {
+        var owner_temporary = next_temporary()
+        var value_temporary = next_temporary()
+        code = "(\{ {information.c_name}* {owner_temporary} = {owner.code}; Spite_Function* {value_temporary} = {maker}({owner_temporary}); {information.c_name}_release({owner_temporary}); {value_temporary}; })"
+    }
+    var made = ExpressionResult(code, signature_of(function))
+    made.owning_override = true
+    return made
+}
+
+func call_function_value(held: ExpressionResult, held_ast: Syntax.Expressions.Expression, arguments_ast: List<Syntax.Expressions.Expression>, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
+    var signature = type_shape.as_class_ref(held.get_type())
+    crash signature
+    var argument_codes = generate_argument_list(arguments_ast, signature.arguments, scope, class_information)
+    var pointer_parameters = List<String>()
+    pointer_parameters.append("void*")
+    var index = 0
+    while index < signature.arguments.count() {
+        pointer_parameters.append(c_type_name(signature.arguments[index]))
+        index = index + 1
+    }
+    var returned: Analysis.SpiteType = void_type()
+    if signature.returns {
+        var returns_class = type_shape.as_class_ref(signature.returns)
+        var returns_nothing = false
+        if returns_class {
+            returns_nothing = returns_class.c_name == "Nothing"
+        }
+        if not returns_nothing {
+            returned = signature.returns
+        }
+    }
+    var returned_c = "void"
+    if not type_shape.is_void(returned) {
+        returned_c = c_type_name(returned)
+    }
+    var function_temporary = next_temporary()
+    var call_arguments = List<String>()
+    call_arguments.append("{function_temporary}->spite_owner")
+    index = 0
+    while index < argument_codes.count() {
+        call_arguments.append(argument_codes[index])
+        index = index + 1
+    }
+    var call_code = "(({returned_c} (*)({pointer_parameters.join(", ")})){function_temporary}->spite_typed_call)({call_arguments.join(", ")})"
+    var release = ""
+    if owns(held, held_ast) {
+        release = " Spite_Function_release({function_temporary});"
+    }
+    if type_shape.is_void(returned) {
+        return ExpressionResult("(\{ Spite_Function* {function_temporary} = {held.code}; {call_code};{release} })", returned)
+    }
+    var result_temporary = next_temporary()
+    var called = ExpressionResult("(\{ Spite_Function* {function_temporary} = {held.code}; {returned_c} {result_temporary} = {call_code};{release} {result_temporary}; })", returned)
+    called.owning_override = true
+    return called
+}
+
 func generate_own_function_call(name: String, arguments_ast: List<Syntax.Expressions.Expression>, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var function = find_or_instantiate_function(class_information, name)
+    var held_type = scope.lookup_type(name)
+    if not held_type {
+        var held_field = class_information.find_field(name)
+        if held_field {
+            held_type = held_field.get_type()
+        }
+    }
+    if held_type {
+        var held_function = type_shape.as_class_ref(held_type)
+        if held_function {
+            if held_function.has_signature and not function {
+                var held_ast: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(name)
+                var held = generate_expression(held_ast, scope, class_information)
+                return call_function_value(held, held_ast, arguments_ast, scope, class_information)
+            }
+        }
+    }
     if not function {
         if name == "print" or name == "println" or name == "echo" or name == "printf" {
             report("this class has no function '{name}': printing goes through the console -- 'var console = Console()' beside the attributes, then 'console.print(value)'")
@@ -3145,6 +3337,20 @@ func forget_indices_if_shrinking(name: String, object_ast: Syntax.Expressions.Ex
 
 func generate_method_call(member: Syntax.Expressions.MemberExpression, object_ast: Syntax.Expressions.Expression, arguments_ast: List<Syntax.Expressions.Expression>, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     forget_indices_if_shrinking(member.name, object_ast, scope)
+    if member.name == "call_function" {
+        var saved_counter = temporary_counter
+        var called_probe = generate_expression(object_ast, scope, class_information)
+        temporary_counter = saved_counter
+        var called_function = type_shape.as_class_ref(called_probe.get_type())
+        if called_function {
+            if called_function.c_name == "Spite_Function" {
+                if called_function.has_signature {
+                    var held = generate_expression(object_ast, scope, class_information)
+                    return call_function_value(held, object_ast, arguments_ast, scope, class_information)
+                }
+            }
+        }
+    }
     var static_receiver = try_resolve_static_path(object_ast, class_information.namespace_dotted)
     if static_receiver {
         var class_value_class = find_class_by_c_name("Spite_Class")
@@ -4041,6 +4247,18 @@ func class_object_call(spite_type: Analysis.SpiteType): String {
 func type_display_name(spite_type: Analysis.SpiteType): String {
     var class_ref = type_shape.as_class_ref(spite_type)
     if class_ref {
+        if class_ref.has_signature {
+            var named_types = List<String>()
+            var argument_index = 0
+            while argument_index < class_ref.arguments.count() {
+                named_types.append(type_display_name(class_ref.arguments[argument_index]))
+                argument_index = argument_index + 1
+            }
+            if class_ref.returns {
+                named_types.append(type_display_name(class_ref.returns))
+            }
+            return "Spite.Function<{named_types.join(", ")}>"
+        }
         var described = find_class_by_c_name(class_ref.c_name)
         if described {
             return described.simple_name
@@ -4182,6 +4400,7 @@ func emit_functions_function(information: Analysis.ClassInfo) {
             if function.parameters.count() == 0 and type_shape.is_void(function.get_return_type()) {
                 lines.append("described->spite_call = (void (*)(void*)){function.c_name};")
             }
+            lines.append("described->spite_typed_call = (void*){function.c_name};")
             lines.append("{list_name}_add(result, described);")
             lines.append("}")
         }
@@ -5250,6 +5469,12 @@ func generate_member_read_raw(member: Syntax.Expressions.MemberExpression, scope
     }
     var field = target_class.find_field(member.name)
     if not field {
+        var member_function = find_or_instantiate_function(target_class, member.name)
+        if member_function {
+            if not member_function.is_constructor {
+                return function_value(target_class, member_function, object_result, member.object)
+            }
+        }
         report("'{object_class_ref.c_name}' has no attribute '{member.name}'")
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
@@ -6789,6 +7014,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
         initialize_lines.append("self->spite_owner = 0;")
         initialize_lines.append("self->spite_release_owner = 0;")
         initialize_lines.append("self->spite_call = 0;")
+        initialize_lines.append("self->spite_typed_call = 0;")
     }
     initialize_lines.append("}")
     builder.add_support(initialize_lines.join("\n"))
@@ -6952,6 +7178,7 @@ func emit_class(information: Analysis.ClassInfo) {
         struct_lines.append("void* spite_owner;")
         struct_lines.append("void (*spite_release_owner)(void*);")
         struct_lines.append("void (*spite_call)(void*);")
+        struct_lines.append("void* spite_typed_call;")
     }
     struct_lines.append("};")
     builder.add_typedef(struct_lines.join("\n"))

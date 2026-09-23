@@ -1,0 +1,13 @@
+var ending = ""
+
+func Shouter(starting_ending: String) {
+    ending = starting_ending
+}
+
+func shout(text: String): String {
+    return "{text.upper()}{ending}"
+}
+
+func whisper(text: String): String {
+    return text.lower()
+}

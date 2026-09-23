@@ -1,0 +1,6 @@
+shout 1 String
+HI! hi
+hello ada,hello grace
+ring
+ring
+2 YO! yo

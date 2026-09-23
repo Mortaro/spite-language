@@ -20,6 +20,46 @@ func add_one(value: Int) Int {
 a return type is written '(): Int'
 ```
 
+## Functions are values
+
+Naming a function without calling it gives a value: the function bound to the instance it was named on, so it
+runs exactly as that instance would have run it. There are no free functions and no closures -- the value holds
+its owner and nothing else. Its type is written like any generic, with the return last:
+`Spite.Function<String, String>` takes a `String` and returns a `String`, and `Spite.Function<Nothing>` takes
+nothing and returns nothing. Calling it is `change(text)` or `change.call_function(text)`, which are the same
+call; and the value is also its own reflection, with `.name`, `.arguments` and `.returns`.
+
+```spite title=function_values_doc/shouter.spite
+func shout(text: String): String {
+    return "{text.upper()}!"
+}
+```
+```spite title=function_values_doc/function_values_doc.spite entry
+var console = Console()
+
+func FunctionValuesDoc() {
+    var shouter = Shouter()
+    console.print(apply(shouter.shout, "hi"), apply(quiet, "HI"))
+    var remembered = shouter.shout
+    console.print(remembered.name, remembered.call_function("again"))
+}
+
+func apply(change: Spite.Function<String, String>, text: String): String {
+    return change(text)
+}
+
+func quiet(text: String): String {
+    return text.lower()
+}
+```
+```output
+HI! hi
+shout AGAIN!
+```
+
+A value that holds a function bound to the instance holding it is a cycle, and leaks like any other: clear one
+side (see [memory.md](memory.md)).
+
 ## Every operator is a function
 
 Every operator is a shortcut for a function a class can define to support it:
