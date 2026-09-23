@@ -159,6 +159,28 @@ func broken_expression(expression: Syntax.Expressions.Expression, depth: Int): S
             depth,
         )
     }
+    var listed = shape.as_list_literal(expression)
+    if listed {
+        var text = "["
+        var index = 0
+        while index < listed.elements.count() {
+            crash listed.elements[index].value
+            text = "{text}\n{source_indent(depth + 1)}{source_expression(listed.elements[index].value)}"
+            index = index + 1
+        }
+        return "{text}\n{source_indent(depth)}]"
+    }
+    var described = shape.as_object_literal(expression)
+    if described {
+        var text = "\{"
+        var index = 0
+        while index < described.fields.count() {
+            crash described.fields[index].value
+            text = "{text}\n{source_indent(depth + 1)}{described.fields[index].name}: {source_expression(described.fields[index].value)}"
+            index = index + 1
+        }
+        return "{text}\n{source_indent(depth)}}"
+    }
     return ""
 }
 

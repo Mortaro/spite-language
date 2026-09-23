@@ -4161,7 +4161,17 @@ func generate_list_method(
     if element_class_ref {
         var element_class = find_class_by_c_name(element_class_ref.c_name)
         if element_class {
-            var template_prefixes = ["find_by_", "sort_by_", "filter_", "count_", "sum_", "each_", "map_", "any_", "all_"]
+            var template_prefixes = [
+                "find_by_"
+                "sort_by_"
+                "filter_"
+                "count_"
+                "sum_"
+                "each_"
+                "map_"
+                "any_"
+                "all_"
+            ]
             var prefix_index = 0
             while prefix_index < template_prefixes.count() {
                 var template_prefix = template_prefixes[prefix_index]
@@ -5455,7 +5465,17 @@ func generate_dictionary_method(
     if value_class_ref {
         var value_class = find_class_by_c_name(value_class_ref.c_name)
         if value_class {
-            var template_prefixes = ["find_by_", "sort_by_", "filter_", "count_", "sum_", "each_", "map_", "any_", "all_"]
+            var template_prefixes = [
+                "find_by_"
+                "sort_by_"
+                "filter_"
+                "count_"
+                "sum_"
+                "each_"
+                "map_"
+                "any_"
+                "all_"
+            ]
             var prefix_index = 0
             while prefix_index < template_prefixes.count() {
                 var template_prefix = template_prefixes[prefix_index]
@@ -6587,7 +6607,19 @@ func signature_is_dictated(function: Analysis.FunctionInfo): Bool {
     if function.name.starts_with("set_") or function.name.starts_with("get_") {
         return true
     }
-    var dictated = ["sum", "subtract", "multiply", "divide", "remainder", "equals", "less_than", "greater_than", "negate", "get_at", "set_at"]
+    var dictated = [
+        "sum"
+        "subtract"
+        "multiply"
+        "divide"
+        "remainder"
+        "equals"
+        "less_than"
+        "greater_than"
+        "negate"
+        "get_at"
+        "set_at"
+    ]
     return dictated.contains(function.name)
 }
 
@@ -6641,8 +6673,128 @@ func words_of(name: String): List<String> {
 }
 
 func check_abbreviations(name: String) {
-    var short_words = ["expr", "stmt", "param", "params", "arg", "args", "idx", "ctx", "cfg", "conf", "tmp", "temp", "str", "num", "len", "btn", "msg", "req", "res", "resp", "err", "val", "obj", "fn", "ptr", "src", "dst", "dest", "dir", "pos", "prev", "cur", "curr", "max", "min", "init", "calc", "attr", "attrs", "elem", "char", "info", "spec", "env", "db", "auth", "impl", "util", "utils", "lib", "pkg", "cmd", "desc", "doc", "docs", "func", "var", "int", "bool"]
-    var full_words = ["expression", "statement", "parameter", "parameters", "argument", "arguments", "index", "context", "configuration", "configuration", "temporary", "temporary", "string", "number", "length", "button", "message", "request", "response", "response", "error", "value", "object", "function", "pointer", "source", "destination", "destination", "directory", "position", "previous", "current", "current", "maximum", "minimum", "initialize", "calculate", "attribute", "attributes", "element", "character", "information", "specification", "environment", "database", "authentication", "implementation", "utilities", "utilities", "library", "package", "command", "description", "documentation", "documentation", "function", "variable", "integer", "boolean"]
+    var short_words = [
+        "expr"
+        "stmt"
+        "param"
+        "params"
+        "arg"
+        "args"
+        "idx"
+        "ctx"
+        "cfg"
+        "conf"
+        "tmp"
+        "temp"
+        "str"
+        "num"
+        "len"
+        "btn"
+        "msg"
+        "req"
+        "res"
+        "resp"
+        "err"
+        "val"
+        "obj"
+        "fn"
+        "ptr"
+        "src"
+        "dst"
+        "dest"
+        "dir"
+        "pos"
+        "prev"
+        "cur"
+        "curr"
+        "max"
+        "min"
+        "init"
+        "calc"
+        "attr"
+        "attrs"
+        "elem"
+        "char"
+        "info"
+        "spec"
+        "env"
+        "db"
+        "auth"
+        "impl"
+        "util"
+        "utils"
+        "lib"
+        "pkg"
+        "cmd"
+        "desc"
+        "doc"
+        "docs"
+        "func"
+        "var"
+        "int"
+        "bool"
+    ]
+    var full_words = [
+        "expression"
+        "statement"
+        "parameter"
+        "parameters"
+        "argument"
+        "arguments"
+        "index"
+        "context"
+        "configuration"
+        "configuration"
+        "temporary"
+        "temporary"
+        "string"
+        "number"
+        "length"
+        "button"
+        "message"
+        "request"
+        "response"
+        "response"
+        "error"
+        "value"
+        "object"
+        "function"
+        "pointer"
+        "source"
+        "destination"
+        "destination"
+        "directory"
+        "position"
+        "previous"
+        "current"
+        "current"
+        "maximum"
+        "minimum"
+        "initialize"
+        "calculate"
+        "attribute"
+        "attributes"
+        "element"
+        "character"
+        "information"
+        "specification"
+        "environment"
+        "database"
+        "authentication"
+        "implementation"
+        "utilities"
+        "utilities"
+        "library"
+        "package"
+        "command"
+        "description"
+        "documentation"
+        "documentation"
+        "function"
+        "variable"
+        "integer"
+        "boolean"
+    ]
     var words = words_of(name)
     var index = 0
     while index < words.count() {
@@ -6683,7 +6835,39 @@ func check_value_name(name: String, what: String) {
 }
 
 func is_reserved_name(name: String): Bool {
-    var reserved = ["auto", "bool", "break", "case", "char", "const", "continue", "default", "do", "double", "extern", "float", "goto", "inline", "int", "long", "main", "register", "restrict", "short", "signed", "sizeof", "static", "stderr", "stdin", "stdout", "struct", "typedef", "unsigned", "void", "volatile"]
+    var reserved = [
+        "auto"
+        "bool"
+        "break"
+        "case"
+        "char"
+        "const"
+        "continue"
+        "default"
+        "do"
+        "double"
+        "extern"
+        "float"
+        "goto"
+        "inline"
+        "int"
+        "long"
+        "main"
+        "register"
+        "restrict"
+        "short"
+        "signed"
+        "sizeof"
+        "static"
+        "stderr"
+        "stdin"
+        "stdout"
+        "struct"
+        "typedef"
+        "unsigned"
+        "void"
+        "volatile"
+    ]
     return reserved.contains(name)
 }
 
