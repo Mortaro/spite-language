@@ -6085,6 +6085,14 @@ func generate_foreign_call(
             }
             parameter_types.append("const char*")
             passed.append("{text}->data")
+        } else if passes_as_array(argument_type) {
+            var held_list = next_temporary()
+            lines.append("{c_type_name(argument_type)} {held_list} = {argument.code};")
+            if owns(argument, arguments_ast[index]) {
+                releases.append("{release_call(argument_type, held_list)};")
+            }
+            parameter_types.append("void*")
+            passed.append("{held_list}->items")
         } else if passes_as_struct(argument_type) {
             var passed_union = type_shape.as_union(argument_type)
             crash passed_union
@@ -6176,6 +6184,16 @@ func ensure_foreign_header(header: String) {
     } else {
         builder.add_typedef("#include <{header}>")
     }
+}
+
+func passes_as_array(spite_type: Analysis.SpiteType): Bool {
+    var listed = type_shape.as_list(spite_type)
+    if listed {
+        if type_shape.as_scalar(listed.get_element()) {
+            return true
+        }
+    }
+    return false
 }
 
 func passes_as_struct(spite_type: Analysis.SpiteType): Bool {

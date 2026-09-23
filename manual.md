@@ -1761,7 +1761,7 @@ how `check.sh` tests it, building the fixture's C into a library beside the prog
 naming rule is a symbol literal (D70); a foreign function is called only through the attribute or variable that
 holds its `DynamicLibrary(...)`, so the compiler knows which table binds it; and `--final-classes` writes no
 resolved-name comments, which D34 would reject (how to show them is open question 10). A constant reads from the header (`user32.mouseeventf_leftdown` is `MOUSEEVENTF_LEFTDOWN`, an `Int`); a header path
-that exists relative to the working directory is included as a file, anything else as a system header. A value of a `type` whose attributes are all numbers crosses by address as a C struct
+that exists relative to the working directory is included as a file, anything else as a system header. A `List<T>` of numbers crosses as its element array (C may write into it), and a value of a `type` whose attributes are all numbers crosses by address as a C struct
 in its declared order, and C's writes come back into the value afterwards; under the `'windows'` rule with a header,
 `_Static_assert` checks the layout against the header's struct, named `PointPair` -> `POINT_PAIR` (Claude: only
 there, since other headers do not name structs that way, and a missing name would be a C error). Not built:

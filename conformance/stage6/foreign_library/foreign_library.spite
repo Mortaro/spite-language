@@ -20,4 +20,8 @@ func ForeignLibrary() {
     console.print(plain.sum_point(spot))
     windows.move_point(spot)
     console.print(spot.across, spot.down)
+    var values = [1, 2, 3]
+    console.print(plain.sum_values(values, values.count()))
+    plain.double_values(values, values.count())
+    console.print(values.join(","))
 }

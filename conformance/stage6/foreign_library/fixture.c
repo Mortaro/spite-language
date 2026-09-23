@@ -15,3 +15,5 @@ EXPORTED int text_length(const char* text) { int count = 0; while (text[count] !
 typedef struct { int x; int y; } Point;
 EXPORTED int sum_point(Point* point) { return point->x + point->y; }
 EXPORTED void MovePoint(Point* point) { point->x = point->x + 10; point->y = point->y + 20; }
+EXPORTED int sum_values(int* values, int count) { int total = 0; for (int index = 0; index < count; index = index + 1) total = total + values[index]; return total; }
+EXPORTED void double_values(int* values, int count) { for (int index = 0; index < count; index = index + 1) values[index] = values[index] * 2; }
