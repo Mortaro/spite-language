@@ -311,7 +311,7 @@ func DuckTyping() {
     console.print("class of hero", hero.class)
     var hero_loadout: Loadout = hero
     console.print("from class", hero_loadout.weapon, hero_loadout.power)
-    var literal_loadout: Loadout = { weapon: "bow", power: 4 }
+    var literal_loadout: Loadout = {weapon: "bow", power: 4}
     console.print("from literal", literal_loadout.weapon, literal_loadout.power)
 }
 ```

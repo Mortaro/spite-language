@@ -1218,7 +1218,8 @@ cannot be auto-fixed are their own subsection below.
   whose function body has an empty line is left alone, so D55's error still fires instead of the formatter
   quietly removing the line; a file the formatter refuses is left alone with its reason printed.
   `--final-classes` writes its classes already formatted. A list or object literal over 120 columns is written
-  one entry per line with no commas. **Not built yet:** formatting the code blocks inside `docs/`.
+  one entry per line with no commas. Every documentation program not marked `error` is formatted too, and `check.sh`
+  keeps it so.
 - **A file is ordered** (D67, decided by Mortaro, 2026-09-23): enums, unions, types, variables, the constructor,
   then functions. Anything out of that order is a compile error naming what came before it
   (`diagnostics/declaration_order`). Where `union` goes was not said; beside `enum` and before `type` is

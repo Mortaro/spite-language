@@ -149,6 +149,12 @@ echo "final classes: the printed program runs the same"
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
 # already in the one style, so formatting it changes nothing.
 unformatted=""
+for folder in .spite-cache/docs/*/; do
+  [ -f "$folder/must_fail.txt" ] && continue   # a program that must fail may be wrong on purpose, formatting included
+  for file in "$folder"*.spite; do
+    "$work/generation_two.exe" --file="$file" --mode=check_format > /dev/null 2>&1 || unformatted="$unformatted docs:$(basename "$folder")/$(basename "$file")"
+  done
+done
 for file in $(find bootstrap library tests conformance examples scripts -name "*.spite"); do
   "$work/generation_two.exe" --file="$file" --mode=check_format > /dev/null 2>&1 || unformatted="$unformatted $file"
 done
