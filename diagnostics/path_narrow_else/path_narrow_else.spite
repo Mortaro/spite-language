@@ -1,0 +1,13 @@
+var console = Console()
+
+func PathNarrowElse() {
+    probe()
+}
+
+func probe() {
+    if PathNarrowElse.namespace {
+        console.print(PathNarrowElse.namespace.name)
+    } else {
+        console.print(PathNarrowElse.namespace.name)
+    }
+}

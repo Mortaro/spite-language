@@ -5,13 +5,21 @@ func EveryClass() {
     var index = 0
     while index < classes.count() {
         var described = classes[index]
-        console.print(described.name,"{described.namespace}|", described.functions.map_name().join(","))
+        var text = ""
+        var containing = described.namespace
+        if containing {
+            text = containing.full_name
+        }
+        console.print(described.name, "{text}|", described.functions.map_name().join(","))
         index = index + 1
     }
     index = 0
     while index < classes.count() {
-        if classes[index].namespace == "Zoo" {
-            run_speakers(classes[index].functions)
+        var zoo_namespace = classes[index].namespace
+        if zoo_namespace {
+            if zoo_namespace.full_name == "Zoo" {
+                run_speakers(classes[index].functions)
+            }
         }
         index = index + 1
     }

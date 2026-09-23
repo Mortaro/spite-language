@@ -1,7 +1,10 @@
 func test_a_value_knows_its_class() {
     var creature = Creature("rat", 3, true)
+    var containing = creature.class.namespace
+    if containing {
+        crash false
+    }
     crash creature.class.name == "Creature"
-    crash creature.class.namespace == ""
 }
 
 func test_a_class_object_is_the_same_object_everywhere() {
@@ -37,4 +40,74 @@ func test_every_class_of_the_program_is_listed() {
         index = index + 1
     }
     crash found
+}
+
+func test_a_bare_class_identifier_is_the_class_of_self() {
+    crash class.name == "ReflectionTests"
+    var mine = class
+    crash mine.name == "ReflectionTests"
+}
+
+func test_an_instance_method_can_ask_for_its_own_class() {
+    var creature = Creature("rat", 3, true)
+    crash creature.class_name() == "Creature"
+}
+
+func test_a_class_name_reads_its_own_name() {
+    crash Creature.name == "Creature"
+    crash ReflectionTests.name == "ReflectionTests"
+}
+
+func test_a_namespace_can_be_narrowed_with_if() {
+    var ns = Spite.Class.namespace
+    var name = ""
+    if ns {
+        name = ns.name
+    }
+    crash name == "Spite"
+}
+
+func test_a_namespace_can_be_narrowed_with_assert() {
+    var ns = Spite.Class.namespace
+    assert ns
+    crash ns.name == "Spite"
+    crash ns.full_name == "Spite"
+}
+
+func test_a_namespace_can_be_narrowed_with_crash() {
+    var ns = Spite.Class.namespace
+    crash ns
+    crash ns.name == "Spite"
+}
+
+func test_an_asserted_path_reads_through_the_same_assert() {
+    assert Spite.Class.namespace
+    crash Spite.Class.namespace.name == "Spite"
+    crash Spite.Class.namespace.full_name == "Spite"
+}
+
+func test_an_asserted_path_narrows_every_link_of_it() {
+    assert Spite.Attribute.class.namespace
+    crash Spite.Attribute.class.namespace.name == "Spite"
+}
+
+func test_a_path_can_be_narrowed_with_if() {
+    var name = ""
+    if Spite.Class.namespace {
+        name = Spite.Class.namespace.full_name
+    }
+    crash name == "Spite"
+}
+
+func test_a_path_can_be_narrowed_with_crash() {
+    crash Spite.Class.namespace
+    crash Spite.Class.namespace.name == "Spite"
+}
+
+func test_a_null_path_fails_the_if_without_dereferencing_it() {
+    var creature = Creature("rat", 3, true)
+    if creature.class.namespace {
+        crash false
+    }
+    crash true
 }

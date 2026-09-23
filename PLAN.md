@@ -31,18 +31,23 @@ and balanced allocations.
      program-wide, and `--final-classes` shows each change with its root, so nothing about it is silent.
      Smaller than 10b (reopening is already implemented for user classes), this mostly needs the "library"
      classes to participate in the discovery pass's merge pass.
-   - **10b. Designed, not started.** The design pass this entry asks for is done and lives in
-     `bootstrap/COMPILER_PLAN.md`, "Milestone 10b: the design pass". Its first step is **done**:
-     `--final-classes` writes the merged program back out as Spite source, and `check.sh` runs what it printed.
-     Next: the members move into `library/spite/class.spite`; then `Spite.Namespace` with the migration of
-     every `.namespace` reader.
-     Calling by `Symbol` with arguments and defining members from data move out of this milestone.
+   - **10b. Done.** Its design pass lives in `bootstrap/COMPILER_PLAN.md`, "Milestone 10b: the design pass",
+     and every step of it is built: `--final-classes` writes the merged program back out as Spite source and
+     `check.sh` runs what it printed (done first); the reflection members moved into
+     `library/spite/class.spite` as ordinary declared members whose *data* the compiler fills when it writes
+     the class object (`is_singleton()`, `functions`, `attributes`); and `Spite.Namespace` (D41) is written
+     with every `.namespace` reader migrated in the same change. New conformance:
+     `conformance/stage6/namespace_objects` (identity, the parent chain, `.classes`/`.namespaces`) and
+     `conformance/stage6/class_attributes` (`Sticker.attributes` beside `sticker.attributes`). One semantic
+     still marked proposed-by-Claude-unconfirmed in the decision log: a class-level entry's `.value` is the
+     field's declared default.
+     Calling by `Symbol` with arguments, defining members from data, and hooks that run when a class is
+     reopened move out of this milestone (the design pass places them under compile-time class generation).
      Comprehensive, Ruby grade reflection at compile time (manual.md section 16 item 2): `attributes`,
      `class`, `functions`, `Class.instances`, enumerating and calling functions by `Symbol`, respond-to checks, defining
      members from data, and hooks when a class is reopened -- all resolved at compile time and all emitted as source that
-     is VISIBLE in `--final-classes`, not as compiler magic. Needs a design pass before any code. Referenced by manual.md
      section 16 item 2 and by milestone 11c below; this entry exists because the manual pointed at a milestone that was
-     missing from this list.
+     missing from this list. The design pass it needed is recorded in `bootstrap/COMPILER_PLAN.md`.
      **D12 sets the shape** (manual.md section 8, "Reflection objects"): the whole family lives in the `Spite`
      namespace -- `Spite.Class` (`.name`/`.namespace`/`.attributes`/`.functions`/`.instances`), `Spite.Function`
      (`.name`/`.arguments`/`.returns`), `Spite.Argument` (`.name`/`.class`), `Spite.Attribute`

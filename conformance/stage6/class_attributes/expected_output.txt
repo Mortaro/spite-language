@@ -1,0 +1,6 @@
+label String untitled|
+amount Int 3|
+ready Bool false|
+pinned
+7
+true

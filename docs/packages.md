@@ -86,10 +86,11 @@ how a package is tried out before it is upstreamed:
 
 ```spite title=reopen_spite_class/spite/class.spite
 func full_name(): String {
-    if namespace.is_empty() {
-        return name
+    var containing = namespace
+    if containing {
+        return "{containing.full_name}.{name}"
     }
-    return "{namespace}.{name}"
+    return name
 }
 ```
 ```spite title=reopen_spite_class/reopen_spite_class.spite entry

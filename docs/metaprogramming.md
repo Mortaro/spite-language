@@ -70,7 +70,9 @@ fixed now: scalar/enum/owning attributes all intercept safely in both directions
 
 ## Reflection: `Spite.Class` and `Spite.Attribute`
 
-`value.class` is a `Spite.Class` (`.name`, `.namespace`); printing one prints just its `.name`. `value.attributes`
+`value.class` is a `Spite.Class` (`.name`, and `.namespace` -- a `Spite.Namespace?` with `.name`, `.full_name`,
+`.parent`, `.classes` and `.namespaces`, `null` for a global class; printing a namespace prints its `.full_name`);
+printing a class prints just its `.name`. `value.attributes`
 is a real, runtime `List<Spite.Attribute>` (`.name`, `.class`, `.value` -- all `String`), built only for a class
 that actually uses `.attributes`:
 
@@ -89,6 +91,8 @@ var console = Console()
 func describe(gadget: Gadget) {
     console.print("class", gadget.class)
     console.print("class name", gadget.class.name)
+    console.print("own class", class.name)
+    console.print("declared name", Gadget.name)
     var attributes = gadget.attributes
     var index = 0
     while index < attributes.count() {
@@ -105,9 +109,21 @@ func ReflectionBasics() {
 ```output
 class Gadget
 class name Gadget
+own class ReflectionBasics
+declared name Gadget
 name String wrench
 power Int 3
 ```
+
+`class` is an ordinary identifier, not a keyword: inside any function of a class it is the class of the
+instance that function answers on -- an inherited attribute every instance has -- so `own class` above names
+the class the function was written in, and an attribute explicitly named `class` shadows it. A class name read
+directly reads the same class object member by member: `declared name` is `"Gadget"` with no instance anywhere.
+`.namespace` is the one `Spite.Namespace?`, so it needs narrowing before its members are read -- and what gets
+narrowed is the variable you hold it in: asserting a local copy does not narrow a fresh `Gadget.namespace`
+read. Assert the path itself, `assert Gadget.namespace`, and every read of that path and its prefixes is a
+plain value for the rest of the block -- the attribute is an ordinary nullable value, so it follows the
+ordinary narrowing rules like any other.
 
 `attributes[symbol]` inside a class (used by Symbol codegen above) and `.attributes` from outside are
 different things reading the same data: the former is compile-time only, indexed by a `Symbol`; the latter is

@@ -22,6 +22,11 @@ var functions_functions_emitted = 0
 var entry_class_c_name = ""
 var class_level_functions_used = false
 var all_classes_used = false
+var class_level_attributes_used = false
+var namespace_read_used = false
+var namespace_tree_used = false
+var namespace_object_keys = List<String>()
+var namespace_objects_emitted = 0
 var crash_map_lines = List<String>()
 var site_ordinal = 0
 var current_site_id = ""
@@ -301,6 +306,7 @@ func generate(discovery: Discovery.DiscoveryResult, runtime_header_text: String,
     var settle = 0
     while settle < 4 {
         emit_class_object_bodies()
+        emit_namespace_object_bodies()
         emit_functions_function_bodies()
         emit_pending_functions()
         settle = settle + 1
@@ -310,6 +316,7 @@ func generate(discovery: Discovery.DiscoveryResult, runtime_header_text: String,
     var final_settle = 0
     while final_settle < 4 {
         emit_class_object_bodies()
+        emit_namespace_object_bodies()
         emit_functions_function_bodies()
         emit_pending_functions()
         final_settle = final_settle + 1
@@ -2580,7 +2587,18 @@ func generate_identifier(identifier: Syntax.Expressions.IdentifierExpression, sc
     }
     var field = class_information.find_field(identifier.name)
     if field {
+        if identifier.name == "namespace" and class_information.c_name == "Spite_Class" {
+            namespace_read_used = true
+        }
         return ExpressionResult("self->{identifier.name}", field.get_type())
+    }
+    if identifier.name == "class" {
+        var self_result = ExpressionResult("self", Analysis.Types.ClassRefType(class_information.c_name))
+        var class_of_self = generate_reflection_read("class", self_result, identifier)
+        if class_of_self {
+            class_of_self.owning_override = true
+            return class_of_self
+        }
     }
     var named_class = find_class(identifier.name, class_information.namespace_dotted)
     if named_class {
@@ -2978,7 +2996,18 @@ func generate_generic_call(function_c_name: String, object_result: ExpressionRes
 }
 
 func generate_method_call(member: Syntax.Expressions.MemberExpression, object_ast: Syntax.Expressions.Expression, arguments_ast: List<Syntax.Expressions.Expression>, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
-    var object_result = generate_expression(object_ast, scope, class_information)
+    var static_receiver = try_resolve_static_path(object_ast, class_information.namespace_dotted)
+    if static_receiver {
+        var class_value_class = find_class_by_c_name("Spite_Class")
+        if class_value_class {
+            var on_the_class_value = find_or_instantiate_function(class_value_class, member.name)
+            if not on_the_class_value and member.name != "deep_copy" and member.name != "copy" {
+                report("'{static_receiver.qualified_dotted}' is a class, not a value: write '{static_receiver.qualified_dotted}()' to make one, and give it a name with 'var ... = '")
+                return ExpressionResult("0", Analysis.Types.VoidType())
+            }
+        }
+    }
+    var object_result = generate_member_object(object_ast, scope, class_information)
     if type_shape.as_string(object_result.get_type()) {
         return generate_string_method(member.name, object_result, object_ast, arguments_ast, scope, class_information)
     }
@@ -3645,11 +3674,31 @@ func emit_class_object_bodies() {
         var lines = List<String>()
         lines.append("Spite_Class* {function_c_name}(void) \{")
         lines.append("if ({function_c_name}_cache == 0) \{")
-        lines.append("{function_c_name}_cache = Spite_Class_make({render_string_literal(class_object_displays[position])}, {render_string_literal(class_object_namespaces[position])});")
+        lines.append("{function_c_name}_cache = Spite_Class_make({render_string_literal(class_object_displays[position])});")
         var described = find_class_by_c_name(class_object_labels[position])
         if described {
             if described.is_singleton {
                 lines.append("{function_c_name}_cache->singleton = true;")
+            }
+            if namespace_read_used {
+                var described_namespace = class_object_namespaces[position]
+                if not described_namespace.is_empty() {
+                    lines.append("{function_c_name}_cache->namespace = {ensure_namespace_object(described_namespace)}();")
+                }
+            }
+            if class_level_attributes_used and is_listed_class(described) {
+                var attributes_function = ensure_attributes_function(described)
+                var attribute_thunk = "spite_class_attributes_{described.c_name}"
+                var attribute_listed_class = find_class_by_c_name("Spite_Attribute")
+                crash attribute_listed_class
+                var attribute_list_name = ensure_list(class_type_of(attribute_listed_class))
+                var attribute_list_c_type = c_type_name(list_type_of(class_type_of(attribute_listed_class)))
+                builder.add_prototype("{attribute_list_c_type} {attribute_thunk}(void);")
+                builder.add_support(
+                    "{attribute_list_c_type} {attribute_thunk}(void) \{\n{described.c_name}* fresh = {described.c_name}_default();\n{attribute_list_c_type} listed = {attributes_function}(fresh);\n{described.c_name}_release(fresh);\nreturn listed;\n}",
+                )
+                lines.append("{attribute_list_name}_release({function_c_name}_cache->attributes);")
+                lines.append("{function_c_name}_cache->attributes = {attribute_thunk}();")
             }
             if class_level_functions_used and is_listed_class(described) and described.c_name != entry_class_c_name {
                 var functions_function = ensure_functions_function(described)
@@ -3717,6 +3766,94 @@ func ensure_live_instances(information: Analysis.ClassInfo): String {
     builder.add_support("{list_name}* {function_c_name}(void) \{\n{list_name}* result = {list_name}_make();\nfor (int64_t spite_index = 0; spite_index < {registry}_count; spite_index = spite_index + 1) \{ {list_name}_add(result, {name}_retain({registry}[spite_index])); }\nreturn result;\n}")
     singleton_releases.append("if ({registry} != 0) SPITE_FREE({registry});")
     return function_c_name
+}
+
+func ensure_namespace_object(namespace_dotted: String): String {
+    var function_c_name = "spite_namespace_object_{namespace_dotted.replace(".", "_")}"
+    if namespace_object_keys.contains(namespace_dotted) {
+        return function_c_name
+    }
+    if not find_class_by_c_name("Spite_Namespace") {
+        report(
+            "reflection needs the standard library: library/spite/namespace.spite was not found from the working directory",
+        )
+        return function_c_name
+    }
+    namespace_object_keys.append(namespace_dotted)
+    builder.add_typedef("static Spite_Namespace* {function_c_name}_cache = 0;")
+    builder.add_prototype("Spite_Namespace* {function_c_name}(void);")
+    return function_c_name
+}
+
+func emit_namespace_object_bodies() {
+    while namespace_objects_emitted < namespace_object_keys.count() {
+        var position = namespace_objects_emitted
+        namespace_objects_emitted = namespace_objects_emitted + 1
+        var namespace_dotted = namespace_object_keys[position]
+        var function_c_name = "spite_namespace_object_{namespace_dotted.replace(".", "_")}"
+        var segments = namespace_dotted.split(".")
+        var namespace_name = segments[segments.count() - 1]
+        var lines = List<String>()
+        lines.append("Spite_Namespace* {function_c_name}(void) \{")
+        lines.append("if ({function_c_name}_cache == 0) \{")
+        lines.append(
+            "{function_c_name}_cache = Spite_Namespace_make({render_string_literal(namespace_name)}, {render_string_literal(namespace_dotted)});",
+        )
+        if segments.count() > 1 {
+            var parent_segments = List<String>()
+            var segment_index = 0
+            while segment_index < segments.count() - 1 {
+                parent_segments.append(segments[segment_index])
+                segment_index = segment_index + 1
+            }
+            lines.append("{function_c_name}_cache->parent = {ensure_namespace_object(parent_segments.join("."))}();")
+        }
+        if namespace_tree_used {
+            var class_class = find_class_by_c_name("Spite_Class")
+            var namespace_class = find_class_by_c_name("Spite_Namespace")
+            crash class_class
+            crash namespace_class
+            var classes_list_name = ensure_list(class_type_of(class_class))
+            var namespaces_list_name = ensure_list(class_type_of(namespace_class))
+            var class_index = 0
+            while class_index < classes.count() {
+                if is_listed_class(classes[class_index]) {
+                    if classes[class_index].namespace_dotted == namespace_dotted {
+                        lines.append(
+                            "{classes_list_name}_add({function_c_name}_cache->classes, {class_object_call(class_type_of(classes[class_index]))});",
+                        )
+                    }
+                }
+                class_index = class_index + 1
+            }
+            var child_namespaces = List<String>()
+            class_index = 0
+            while class_index < classes.count() {
+                if is_listed_class(classes[class_index]) {
+                    var child_dotted = classes[class_index].namespace_dotted
+                    if child_dotted.starts_with("{namespace_dotted}.") {
+                        if child_dotted.split(".").count() == segments.count() + 1 {
+                            if not child_namespaces.contains(child_dotted) {
+                                child_namespaces.append(child_dotted)
+                            }
+                        }
+                    }
+                }
+                class_index = class_index + 1
+            }
+            var child_position = 0
+            while child_position < child_namespaces.count() {
+                lines.append(
+                    "{namespaces_list_name}_add({function_c_name}_cache->namespaces, {ensure_namespace_object(child_namespaces[child_position])}());",
+                )
+                child_position = child_position + 1
+            }
+        }
+        lines.append("\}")
+        lines.append("return Spite_Namespace_retain({function_c_name}_cache);")
+        lines.append("\}")
+        builder.add_support(lines.join("\n"))
+    }
 }
 
 func ensure_class_object(display_name: String, namespace: String, label: String): String {
@@ -3925,6 +4062,9 @@ func generate_reflection_read(member_name: String, object_result: ExpressionResu
     if object_class_ref {
         if object_class_ref.c_name == "Spite_Class" and member_name == "functions" {
             class_level_functions_used = true
+        }
+        if object_class_ref.c_name == "Spite_Class" and member_name == "attributes" {
+            class_level_attributes_used = true
         }
         var object_class = find_class_by_c_name(object_class_ref.c_name)
         if object_class {
@@ -4676,6 +4816,14 @@ func printed_statement_for(expression_ast: Syntax.Expressions.Expression, stream
             }
             return "\{ Spite_Class* {class_temporary} = {result.code}; fprintf({stream}, \"%s\", {class_temporary}->name->data);{class_release} }"
         }
+        if printed_class.c_name == "Spite_Namespace" {
+            var namespace_temporary = next_temporary()
+            var namespace_release = ""
+            if owns(result, expression_ast) {
+                namespace_release = " Spite_Namespace_release({namespace_temporary});"
+            }
+            return "\{ Spite_Namespace* {namespace_temporary} = {result.code}; fprintf({stream}, \"%s\", {namespace_temporary}->full_name->data);{namespace_release} }"
+        }
     }
     var printed_enum = type_shape.as_enum(result.get_type())
     if printed_enum {
@@ -4779,6 +4927,20 @@ func try_resolve_static_path(expression: Syntax.Expressions.Expression, current_
     return find_class(joined, current_namespace)
 }
 
+func generate_member_object(
+    object_ast: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var static_class = try_resolve_static_path(object_ast, class_information.namespace_dotted)
+    if static_class {
+        var class_object = ExpressionResult(class_object_call(class_type_of(static_class)), spite_class_type())
+        class_object.owning_override = true
+        return class_object
+    }
+    return generate_expression(object_ast, scope, class_information)
+}
+
 func generate_call(call: Syntax.Expressions.CallExpression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var callee = call.callee
     crash callee
@@ -4810,6 +4972,26 @@ func generate_call(call: Syntax.Expressions.CallExpression, scope: Scope, class_
 }
 
 func generate_member_read(member: Syntax.Expressions.MemberExpression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
+    var result = generate_member_read_raw(member, scope, class_information)
+    var path = operand_text(member)
+    if not path.is_empty() {
+        var nullable = type_shape.as_nullable(result.get_type())
+        if nullable {
+            if scope.is_path_narrowed(path) {
+                var unwrapped_code = result.code
+                if not type_is_reference(nullable.get_inner()) {
+                    unwrapped_code = "({result.code}).value"
+                }
+                var unwrapped = ExpressionResult(unwrapped_code, nullable.get_inner())
+                unwrapped.owning_override = result.owning_override
+                return unwrapped
+            }
+        }
+    }
+    return result
+}
+
+func generate_member_read_raw(member: Syntax.Expressions.MemberExpression, scope: Scope, class_information: Analysis.ClassInfo): ExpressionResult {
     var object_ast = member.object
     crash object_ast
     if member.name == "instances" {
@@ -4843,7 +5025,23 @@ func generate_member_read(member: Syntax.Expressions.MemberExpression, scope: Sc
             return ExpressionResult(class_object_call(bound_class_type), spite_class_type())
         }
     }
-    var object_result = generate_expression(object_ast, scope, class_information)
+    var object_result = generate_member_object(object_ast, scope, class_information)
+    if member.name == "namespace" {
+        var namespace_receiver = type_shape.as_class_ref(object_result.get_type())
+        if namespace_receiver {
+            if namespace_receiver.c_name == "Spite_Class" {
+                namespace_read_used = true
+            }
+        }
+    }
+    if member.name == "classes" or member.name == "namespaces" {
+        var tree_receiver = type_shape.as_class_ref(object_result.get_type())
+        if tree_receiver {
+            if tree_receiver.c_name == "Spite_Namespace" {
+                namespace_tree_used = true
+            }
+        }
+    }
     var reflection = generate_reflection_read(member.name, object_result, object_ast)
     if reflection {
         return reflection
@@ -4998,6 +5196,9 @@ func generate_expression(expression: Syntax.Expressions.Expression, scope: Scope
 
 func try_nullable_guard(condition_ast: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): NullableGuard? {
     var identifier = shape.as_identifier(condition_ast)
+    if not identifier {
+        return try_path_guard(condition_ast, scope, class_information)
+    }
     assert identifier
     var static_type = lookup_static_type(condition_ast, scope, class_information)
     assert static_type
@@ -5015,6 +5216,45 @@ func try_nullable_guard(condition_ast: Syntax.Expressions.Expression, scope: Sco
         override_code = "({base_result.code}).value"
     }
     return NullableGuard(identifier.name, inner, guard_code, override_code)
+}
+
+func try_path_guard(condition_ast: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): NullableGuard? {
+    var path = operand_text(condition_ast)
+    if path.is_empty() {
+        return null
+    }
+    var probe_scope = Scope(scope)
+    var segments = path.split(".")
+    var prefix = ""
+    var index = 0
+    while index < segments.count() - 1 {
+        if index == 0 {
+            prefix = segments[index]
+        } else {
+            prefix = "{prefix}.{segments[index]}"
+        }
+        probe_scope.narrow_path(prefix)
+        index = index + 1
+    }
+    var base_result = generate_expression(condition_ast, probe_scope, class_information)
+    var nullable = type_shape.as_nullable(base_result.get_type())
+    if not nullable {
+        return null
+    }
+    assert nullable
+    var inner = nullable.get_inner()
+    var guard_code = ""
+    if type_is_reference(inner) {
+        if type_needs_drop(inner) and owns(base_result, condition_ast) {
+            var value_temporary = next_temporary()
+            guard_code = "(\{ {c_type_name(inner)} {value_temporary} = {base_result.code}; int path_narrowed = {value_temporary} != 0; {release_call(inner, value_temporary)}; path_narrowed; \})"
+        } else {
+            guard_code = "({base_result.code}) != 0"
+        }
+    } else {
+        guard_code = "({base_result.code}).has_value"
+    }
+    return NullableGuard(path, inner, guard_code, "")
 }
 
 func emit_scope_drops(scope: Scope, all_the_way_up: Bool) {
@@ -5413,8 +5653,12 @@ func generate_if_statement(if_statement: Syntax.Statements.IfStatement, scope: S
         report_terminal_if(if_statement, guard.name)
         builder.add_user("if ({guard.guard_code}) \{")
         var then_scope = Scope(scope)
-        then_scope.set_override(guard.name, guard.override_code)
-        then_scope.declare(guard.name, guard.get_inner())
+        if guard.override_code.is_empty() {
+            then_scope.narrow_path(guard.name)
+        } else {
+            then_scope.set_override(guard.name, guard.override_code)
+            then_scope.declare(guard.name, guard.get_inner())
+        }
         generate_block_in_scope(if_statement.then_branch, then_scope, class_information, function_information)
         builder.add_user("}")
         if if_statement.has_else_branch {
@@ -5436,13 +5680,7 @@ func generate_if_statement(if_statement: Syntax.Statements.IfStatement, scope: S
     }
 }
 
-func generate_nullable_switch(switch_statement: Syntax.Statements.SwitchStatement, subject_ast: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo) {
-    var guard = try_nullable_guard(subject_ast, scope, class_information)
-    if not guard {
-        report("switch over a value that may be null needs a variable or an attribute as its subject")
-        return
-    }
-    assert guard
+func generate_nullable_switch(switch_statement: Syntax.Statements.SwitchStatement, scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo, guard: NullableGuard) {
     var covered_null = false
     var covered_value = false
     var case_index = 0
@@ -5470,8 +5708,12 @@ func generate_nullable_switch(switch_statement: Syntax.Statements.SwitchStatemen
                 covered_value = true
                 builder.add_user("if ({guard.guard_code}) \{")
                 var case_scope = Scope(scope)
-                case_scope.set_override(guard.name, guard.override_code)
-                case_scope.declare(guard.name, guard.get_inner())
+                if guard.override_code.is_empty() {
+                    case_scope.narrow_path(guard.name)
+                } else {
+                    case_scope.set_override(guard.name, guard.override_code)
+                    case_scope.declare(guard.name, guard.get_inner())
+                }
                 generate_block_in_scope(switch_case.body, case_scope, class_information, function_information)
                 builder.add_user("}")
             }
@@ -5490,9 +5732,14 @@ func generate_switch_statement(
 switch_statement: Syntax.Statements.SwitchStatement, scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo) {
     var subject_ast = switch_statement.subject
     assert subject_ast
+    var guard = try_nullable_guard(subject_ast, scope, class_information)
+    if guard {
+        generate_nullable_switch(switch_statement, scope, class_information, function_information, guard)
+        return
+    }
     var subject = generate_expression(subject_ast, scope, class_information)
     if type_shape.as_nullable(subject.get_type()) {
-        generate_nullable_switch(switch_statement, subject_ast, scope, class_information, function_information)
+        report("switch over a value that may be null needs a variable or an attribute as its subject")
         return
     }
     var subject_union = type_shape.as_union(subject.get_type())
@@ -5849,8 +6096,12 @@ func generate_assert_statement(assert_statement: Syntax.Statements.AssertStateme
     var guard_code = ""
     if guard {
         guard_code = guard.guard_code
-        scope.set_override(guard.name, guard.override_code)
-        scope.declare(guard.name, guard.get_inner())
+        if guard.override_code.is_empty() {
+            scope.narrow_path(guard.name)
+        } else {
+            scope.set_override(guard.name, guard.override_code)
+            scope.declare(guard.name, guard.get_inner())
+        }
     } else {
         var condition_result = generate_expression(condition_ast, scope, class_information)
         guard_code = condition_result.code
@@ -6277,14 +6528,53 @@ func emit_main(entry_mangled_name: String) {
         crash listed_class
         listed_name = ensure_list(class_type_of(listed_class))
     }
+    var attribute_listed_name = ""
+    if class_level_attributes_used {
+        var attribute_class = find_class_by_c_name("Spite_Attribute")
+        crash attribute_class
+        attribute_listed_name = ensure_list(class_type_of(attribute_class))
+    }
     var cache_index = 0
     while cache_index < class_object_names.count() {
         var cache = "{class_object_names[cache_index]}_cache"
         if not listed_name.is_empty() {
             builder.add_main("if ({cache} != 0) \{ {listed_name}_release({cache}->functions); {cache}->functions = 0; }")
         }
+        if not attribute_listed_name.is_empty() {
+            builder.add_main(
+                "if ({cache} != 0) \{ {attribute_listed_name}_release({cache}->attributes); {cache}->attributes = 0; }",
+            )
+        }
+        builder.add_main(
+            "if ({cache} != 0 && {cache}->namespace != 0) \{ Spite_Namespace_release({cache}->namespace); {cache}->namespace = 0; }",
+        )
         builder.add_main("Spite_Class_release({cache});")
         cache_index = cache_index + 1
+    }
+    if namespace_read_used {
+        var class_class = find_class_by_c_name("Spite_Class")
+        var namespace_class = find_class_by_c_name("Spite_Namespace")
+        crash class_class
+        crash namespace_class
+        var classes_list_name = ensure_list(class_type_of(class_class))
+        var namespaces_list_name = ensure_list(class_type_of(namespace_class))
+        var parent_position = 0
+        while parent_position < namespace_object_keys.count() {
+            var parent_cache = "spite_namespace_object_{namespace_object_keys[parent_position].replace(".", "_")}_cache"
+            builder.add_main(
+                "if ({parent_cache} != 0 && {parent_cache}->parent != 0) \{ Spite_Namespace_release({parent_cache}->parent); {parent_cache}->parent = 0; }",
+            )
+            parent_position = parent_position + 1
+        }
+        var namespace_position = 0
+        while namespace_position < namespace_object_keys.count() {
+            var namespace_cache = "spite_namespace_object_{namespace_object_keys[namespace_position].replace(".", "_")}_cache"
+            builder.add_main(
+                "if ({namespace_cache} != 0) \{ {classes_list_name}_release({namespace_cache}->classes); {namespace_cache}->classes = 0; {namespaces_list_name}_release({namespace_cache}->namespaces); {namespace_cache}->namespaces = 0; }",
+            )
+            builder.add_main("Spite_Namespace_release({namespace_cache});")
+            namespace_position = namespace_position + 1
+        }
     }
     builder.add_main("#ifdef SPITE_DEBUG_MEMORY")
     builder.add_main("spite_debug_report_leaks();")

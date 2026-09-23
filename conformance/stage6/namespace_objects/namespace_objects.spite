@@ -1,0 +1,52 @@
+var console = Console()
+
+func NamespaceObjects() {
+    var gadget = Pack.Widgets.Gadget()
+    var second_gadget = Pack.Widgets.Gadget()
+    var cog = Pack.Widgets.Cog()
+    var gear = Pack.Gear()
+    console.print(gadget.class.name, second_gadget.class.name, cog.class.name, gear.class.name)
+    var gadget_namespace = gadget.class.namespace
+    var second_namespace = second_gadget.class.namespace
+    var gear_namespace = gear.class.namespace
+    crash gadget_namespace
+    crash second_namespace
+    crash gear_namespace
+    console.print(gadget_namespace.full_name, gadget_namespace.name)
+    console.print(gear_namespace.full_name, gear_namespace.name)
+    crash gadget.class.namespace.parent
+    console.print(gadget.class.namespace.parent.name)
+    crash gadget_namespace == second_namespace
+    if gadget_namespace == gear_namespace {
+        crash
+    }
+    var pack = gadget_namespace.parent
+    crash pack
+    console.print(pack.full_name, pack.name)
+    if pack.parent {
+        crash
+    }
+    console.print(gadget_namespace)
+    var tree_classes = gadget_namespace.classes
+    var found_cog = false
+    var index = 0
+    while index < tree_classes.count() {
+        if tree_classes[index].name == "Cog" {
+            found_cog = true
+        }
+        index = index + 1
+    }
+    crash found_cog
+    console.print(tree_classes.count())
+    var child_namespaces = pack.namespaces
+    var found_widgets = false
+    index = 0
+    while index < child_namespaces.count() {
+        if child_namespaces[index].name == "Widgets" {
+            found_widgets = true
+        }
+        index = index + 1
+    }
+    crash found_widgets
+    console.print(child_namespaces.count())
+}

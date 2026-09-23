@@ -1,6 +1,7 @@
 func full_name(): String {
-    if namespace.is_empty() {
-        return name
+    var containing = namespace
+    if containing {
+        return "{containing.full_name}.{name}"
     }
-    return "{namespace}.{name}"
+    return name
 }

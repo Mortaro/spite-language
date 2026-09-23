@@ -1,0 +1,9 @@
+var label = "untitled"
+var amount = 3
+var ready = false
+
+func Sticker(new_label: String) {
+    label = new_label
+    amount = 7
+    ready = true
+}

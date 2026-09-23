@@ -1,0 +1,18 @@
+var console = Console()
+
+func ClassAttributes() {
+    var declarations = Sticker.attributes
+    var index = 0
+    while index < declarations.count() {
+        var described = declarations[index]
+        console.print(described.name, described.class, "{described.value}|")
+        index = index + 1
+    }
+    var sticker = Sticker("pinned")
+    var values = sticker.attributes
+    index = 0
+    while index < values.count() {
+        console.print(values[index].value)
+        index = index + 1
+    }
+}

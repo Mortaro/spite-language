@@ -1,0 +1,1 @@
+diagnostics/path_narrow_else/path_narrow_else.spite:11: error: this value may be null (it is a Namespace?), so 'name' cannot be read from it yet: narrow it first with 'if value { }', 'assert value' or 'crash value' (in PathNarrowElse.probe)

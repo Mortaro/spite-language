@@ -122,10 +122,14 @@ func is_alive(): Bool {
 - Codegen values: `func Weapon<$damage_type, $is_magic>(damage: $damage_type)` is called `Weapon<Int, true>(10)`.
   A `$name` the constructor does not declare comes from a flag (`--environment=server`). `if $is_magic { }` is
   decided at compile time.
-- Reflection: `value.class` (a `Spite.Class`: `.name`, `.namespace`, `.functions`), `value.attributes`
+- Reflection: `value.class` (a `Spite.Class`: `.name`, `.namespace` (a `Spite.Namespace?` -- narrow it before
+  reading its members: hold it in a local and assert that, or `assert value.class.namespace` to narrow the
+  path itself and its prefixes for the rest of the block -- `.full_name`, `.parent`, `.classes`,
+  `.namespaces`), `.functions`), `value.attributes`
   (`.name`, `.class`, `.value`), `value.functions` (`.name`, `.arguments`, `.returns`, `call_function()` for
   functions that take nothing and return `Nothing`), `Monster.instances` (live instances), and
-  `Spite.Class.instances` (every class of the program).
+  `Spite.Class.instances` (every class of the program). `class`, bare inside a class's function, is the class
+  of the instance it answers on, and a class name reads its own class object: `Monster.name` is `"Monster"`.
 - A class with `func is_singleton(): Bool { return true }` has one instance: `Journal()` always returns it.
 
 ## Built in classes

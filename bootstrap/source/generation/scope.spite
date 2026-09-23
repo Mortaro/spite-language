@@ -7,6 +7,7 @@ var entry_checked = List<Bool>()
 var override_names = List<String>()
 var override_codes = List<String>()
 var owned = List<OwnedLocal>()
+var narrowed_paths = List<String>()
 
 func Scope(starting_parent: Scope?) {
     parent = starting_parent
@@ -83,4 +84,29 @@ func lookup_override(name: String): String? {
         return above.lookup_override(name)
     }
     return null
+}
+
+func narrow_path(path: String) {
+    if not is_path_narrowed(path) {
+        narrowed_paths.append(path)
+    }
+}
+
+func is_path_narrowed(candidate: String): Bool {
+    var index = narrowed_paths.count() - 1
+    while index >= 0 {
+        var narrowed = narrowed_paths[index]
+        if narrowed == candidate {
+            return true
+        }
+        if narrowed.starts_with("{candidate}.") {
+            return true
+        }
+        index = index - 1
+    }
+    var above = parent
+    if above {
+        return above.is_path_narrowed(candidate)
+    }
+    return false
 }

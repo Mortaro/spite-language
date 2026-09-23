@@ -1,5 +1,5 @@
 var name = ""
-var class = Spite.Class("", "")
+var class = Spite.Class("")
 
 func Argument(starting_name: String, starting_class: Spite.Class) {
     name = starting_name

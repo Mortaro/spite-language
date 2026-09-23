@@ -92,8 +92,11 @@ line.
    **`is_singleton()` is now declared in `library/spite/class.spite`** and answers truthfully through the class
    object: the library declares `var singleton = false` and `func is_singleton(): Bool { return singleton }`,
    and the compiler fills the *data* when it writes the class object, never the behaviour. That is the shape
-   the rest of D6 follows. Still to do: `attributes`, `functions` and `instances` the same way (each is answered
-   by name at the call site today), and `Monster.attributes['name']` (D11, its shape still needs design).
+   the rest of D6 follows. **`functions` (D57) and `attributes` are now declared the same way**, filled when
+   the class object is written -- a class-level `attributes` entry's `.value` is the field's declared default,
+   read off a `_default()` instance (proposed by Claude, unconfirmed) -- and `instances` needs no change (D57:
+   a live registry, tracked only when asked). Still to do: `Monster.attributes['name']`, D11's symbol-keyed
+   mapping, whose shape still needs design (milestone 14).
 4. `deep_copy()` and the `Dictionary<T>` member templates.
 5. The formatter (the compiler rewrites sources to the one style), then `--final-classes`.
 6. Arguments for the program being run: `--mode=run` hands it an empty `Arguments`, so nothing on the command
@@ -298,3 +301,52 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   releasing the class objects, which is "clear one side" from section 10 applied by the compiler rather than by
   the programmer. `instances` needs no change: it is tracked only when asked, and stays a live registry because
   which instances exist is not a compile-time fact.
+- 2026-09-22 (milestone 10b finished): the members moved into `library/spite/class.spite` -- `attributes`
+  beside `functions` (D57) and `is_singleton()` (D8) -- filled when the class object is written, with a
+  class-level entry's `.value` being the field's declared default read off a `_default()` instance (proposed
+  by Claude, unconfirmed; D11's symbol-keyed mapping stays milestone 14). `library/spite/namespace.spite`
+  writes `Spite.Namespace`, and `Spite.Class.namespace` became `Spite.Namespace?` (D41): `namespace_read_used`
+  gates the fill plus the parent chain and `namespace_tree_used` gates `.classes`/`.namespaces`, so
+  `--mode=c` on `conformance/stage1/hello` still contains no namespace objects. Shutdown clears each class
+  cache's `namespace` field and then every namespace cache's `classes`/`namespaces` lists before releasing
+  them -- the same "clear one side" as D57, with the cycle here being class <-> namespace through `.classes`.
+  Five readers migrated in the same change (`every_class`, `reflection`, `console_class`,
+  `tests/reflection_tests`, `reopen_library`, plus the `docs/packages.md` block), all with expected outputs
+  unchanged; a static receiver (`Sticker.attributes`) now compiles through a shared `generate_member_object`
+  substitution; and two conformance programs were added: `namespace_objects` and `class_attributes`.
+- 2026-09-22 (Mortaro's three follow-ups to 10b): bare `class` is the instance's class -- decided: not a
+  keyword, an inherited attribute of any instance -- wired into `generate_identifier` after local/attribute
+  lookup and before `find_class`, returning with `owning_override` set so the retained class object is
+  released by whoever reads it. The static-path substitution in `generate_member_object` lost its
+  `functions`/`attributes`/`namespace` whitelist and now serves every member read and method receiver
+  (`instances` stays special-cased earlier in `generate_member_read`), so `Creature.name` reads the class
+  object; `generate_method_call` gained a special case so a method the class object does not have still
+  reports "'Creature' is a class, not a value: write 'Creature()'" instead of naming `Spite_Class`.
+  Six tests added to `tests/reflection_tests` (bare `class`, `creature.class_name()` on `tests/creature`,
+  `Creature.name`/`ReflectionTests.name`, and `if`/`assert`/`crash` narrowing of `Spite.Class.namespace`) plus
+  `diagnostics/namespace_nullable` for the reported shape verbatim. Suite green with `--update-seed`
+  (fixpoint holds, 39 diagnostics 0 wrong), `bin/spite` rebuilt and smoke-tested: `Probe.name`, bare
+  `class.name`, local narrowing and `Console.is_singleton()` all print with balanced memory.
+  **Found while writing it: D43's chain form has no implementation** -- `lookup_override` is consulted for bare
+  identifiers only, so `assert Spite.Class.namespace` followed by `Spite.Class.namespace.name` still errors
+  (manual section 5's chain bullets over-promise; no corpus program asserts a chain). Flagged for Mortaro, not
+  changed here.
+- 2026-09-23 (implements D43, per Mortaro: "the chain form for a class should not be a special case at all ...
+  every attribute spite adds by default is just a normal attribute so any normal rule apply"): chain narrowing
+  went in as one receiver-agnostic mechanism. `Scope` gained `narrowed_paths` with `narrow_path`/
+  `is_path_narrowed` (equal to a recorded path or a prefix of one, walked up the scope chain like
+  `lookup_override`), and `generate_member_read` went through a wrapper that answers a narrowed path with its
+  plain type -- exactly what an overridden name does -- so member reads, calls, stores and conditions all see
+  an ordinary value and no site knows about paths. `try_nullable_guard` gained `try_path_guard`: a member-path
+  condition generates in a throwaway scope with its strict prefixes recorded (the condition reads through
+  them), tests the whole path (`!= 0` for references, `.has_value` otherwise) and, when the path owns what it
+  read, tests and releases it inside the guard, so it leaks nothing however often the guard is emitted. `if`,
+  `assert`/`crash` and the switch subject record the path where the narrowing belongs; the switch now asks for
+  the guard before generating its subject, so a deep chain cannot read through an unproven link. Five tests in
+  `tests/reflection_tests` (assert/if/crash forms, `Spite.Attribute.class.namespace` as a deep chain, a null
+  path failing the `if` without dereferencing), `conformance/stage6/namespace_objects` walks a nullable prefix
+  with `crash`, and `diagnostics/path_narrow_else` pins the else-branch staying `T?`. Suite green with
+  `--update-seed`: fixpoint holds at generation 3, 60 conformance/examples, tests, 40 diagnostics 0 wrong, 45
+  docs, seed updated; `bin/spite` rebuilt and smoke-tested. **Open for Mortaro:** the manual's examples walk up
+  with `class.namespace.namespace`, but `Spite.Namespace` declares only `.parent` -- recorded in the decision
+  log's open point for 2026-09-23.

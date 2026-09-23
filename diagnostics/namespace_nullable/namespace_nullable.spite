@@ -1,0 +1,11 @@
+var console = Console()
+
+func NamespaceNullable() {
+    probe()
+}
+
+func probe() {
+    var ns = NamespaceNullable.namespace
+    assert ns
+    console.print(NamespaceNullable.namespace.name)
+}

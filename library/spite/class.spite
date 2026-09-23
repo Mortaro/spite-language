@@ -1,11 +1,11 @@
 var name = ""
-var namespace = ""
+var namespace: Spite.Namespace? = null
 var singleton = false
+var attributes = List<Spite.Attribute>()
 var functions = List<Spite.Function>()
 
-func Class(starting_name: String, starting_namespace: String) {
+func Class(starting_name: String) {
     name = starting_name
-    namespace = starting_namespace
 }
 
 func is_singleton(): Bool {

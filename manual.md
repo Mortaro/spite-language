@@ -255,10 +255,13 @@ console.print(class.namespace.namespace.name)
 
 One `assert` proves the whole path, so `class.namespace` and `class.namespace.namespace` are both plain values
 for the rest of that block and any block nested inside it. It is the same rule section 5 already has for
-`assert value and other_condition`, applied along a member chain instead of across an `and`.
+`assert value and other_condition`, applied along a member chain instead of across an `and`.  **[implemented]**
 
 - It narrows the path asserted **and its prefixes**, nothing else. A sibling path stays `T?`: asserting
   `class.namespace.namespace` says nothing about `other_class.namespace`.
+- A local holding a copy is its own path: `var ns = Hello.namespace; assert ns` narrows `ns`, and a later read
+  of `Hello.namespace` is a fresh `Spite.Namespace?` that must be narrowed in its own right --
+  `diagnostics/namespace_nullable` is exactly that shape.  **[implemented]**
 - `crash` (below) narrows a chain the same way, since it narrows exactly as `assert` does but never returns.
 - Reading through a link that may be null and has not been narrowed is still an error. This removes the verbosity of
   proving a path, not the requirement to prove it.
@@ -679,7 +682,7 @@ user folder named `spite` (or `load("spite")`) is a diagnostic.
 
 D12 (decided by Mortaro, 2026-09-19): **every reflection object lives in the `Spite` namespace** -- `Spite.Class`,
 `Spite.Function`, `Spite.Argument`, `Spite.Attribute`, and whatever else reflection grows. One namespace, and
-nothing in it can be mistaken for a user class. **[planned]**
+nothing in it can be mistaken for a user class. **[implemented]**
 
 | Object | Members |
 |---|---|
@@ -729,7 +732,6 @@ rejecting Claude's proposal of a root object). A root object would have read as 
 nested inside something -- and inside the metaprogramming package in particular, when a namespace merely *uses*
 `Spite.Namespace`, it is not contained by it. A top-level namespace has no parent, so it has `null`, and you
 walk up with `class.namespace.namespace` for as long as that can be satisfied.
-applied -- the same thing `--final-classes` prints.
 
 **`.class` is a real `Spite.Class`, not the type's name as a `String`** (D12). This is the change that makes
 reflection composable: `function.arguments[0].class == ServerContext` is an identity comparison the compiler
@@ -739,8 +741,24 @@ that way. **[`Spite.Attribute.class` is a real `Spite.Class` as of the 2026-09-2
 below.]**
 
 - `value.class` is the value's class: a `Spite.Class` with `.name: String` (the class's own declared name) and
-  `.namespace: String` (its dotted containing namespace, `""` for a global class). Printing a `Spite.Class`
-  prints just its `.name`.
+  `.namespace: Spite.Namespace?` (its namespace object -- `.name` is the segment, `.full_name` the dotted path,
+  `.parent` the chain up, `.classes`/`.namespaces` the tree down; `null` for a global class). Printing a
+  `Spite.Class` prints just its `.name`, and printing a `Spite.Namespace` prints its `.full_name`.
+- **`class` is an inherited attribute of every instance, not a keyword** (decided by Mortaro, 2026-09-22):
+  inside any function of a class, a bare `class` answers with that instance's class -- the same `Spite.Class`
+  `value.class` gives -- so `class.name` is the class you are writing. A local or an attribute actually named
+  `class` takes precedence over the inherited one (that is how `Spite.Attribute.class` reads its own field),
+  and the parser's diagnostic is untouched: `class ClassKeyword {` at file scope still fails at 1:1 with
+  "there is no 'class' keyword" (`diagnostics/class_keyword`), because a file is a class named after the file.
+  **[implemented]**
+- **A class name reads its class object member by member** (decided by Mortaro, 2026-09-22): `Weapon.name` is
+  `"Weapon"` with no instance anywhere, `Weapon.namespace` answers the same `Spite.Namespace?` as
+  `weapon.class.namespace`, and a method receiver written as a class name resolves against the class object --
+  `Weapon.is_singleton()` works, while `Weapon.debug()` (a function of the class being described) still reports
+  "'Weapon' is a class, not a value: write 'Weapon()' to make one", since there are no static functions. This
+  is D6 read literally: a class name is an ordinary `Spite.Class` value, so the substitution that already made
+  `Sticker.attributes` work is what every member read and method receiver on a static path does;
+  `Weapon.instances` still means its live registry.  **[implemented]**
 - `value.attributes` is a real, runtime `List<Spite.Attribute>` (built fresh, one entry per field, only for a
   class that actually uses `.attributes` -- nothing is generated for a class that never does): each entry has
   `.name: String`, `.class: Spite.Class` (D12) and `.value: String` (the field
@@ -749,13 +767,13 @@ below.]**
   class is a separate, compile-time-only form: that same field indexed by a `Symbol` (see [Symbol
   codegen](#symbol-codegen-implemented) below).
 - `Person.instances` lists every live instance of a class. Conceptually each class is a variable living on the heap and so is
-  its registry of instances; the compiler removes whatever is unused.  **[planned]**
+  its registry of instances; the compiler removes whatever is unused.  **[implemented]**
 - **`Spite.Class.instances` is every class in the program** (D49, decided by Mortaro, 2026-09-20). A class is an
   instance of `Spite.Class` (D6), so the registry of *its* instances is the whole program's classes -- nothing
   new is needed for whole-program enumeration, it falls out of "everything is a class, including classes". A
   test runner uses it to find every test class instead of being handed them: no registration, no manifest, no
   `run(...)` per class. D42 pays for it, since a program that never enumerates its classes never generates the
-  registry.  **[planned]**
+  registry.  **[implemented]**
 - **Reflection reads at two levels, and the same word is right at both** (D11, decided by Mortaro, 2026-09-19).
   A class object is an instance of `Spite.Class` (see [Class-level
   functions](#class-level-functions-and-why-there-are-no-static-functions-planned)), so it has attributes of its
@@ -2126,3 +2144,8 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-21 | **D56** (decided by Mortaro): **a shape names the types it requires, never the names they are given.** `render(Int): String`, not `render(scale: Int): String` -- "the name you give an argument does not matter to type". A class satisfies the shape whatever it calls its own parameters, and the parser was already throwing the name away, so the syntax now says what the language already meant. Writing a name is an error that shows the type to write in its place. **A shape also never carries a constructor:** an entry whose name is capitalised would mean requiring a class to be *constructible*, which is forcing a class rather than describing a shape, so `--final-classes` no longer writes one into the `type` views it prints. Still open: whether a required function should instead be written as an attribute holding a `Spite.Function` (open question 11). |
 | 2026-09-21 | (found by writing an ordinary program; proposed by Claude, unconfirmed) **`join(separator)` works on every list whose elements become text**, not only `List<String>`: a list of numbers, of `Bool`s or of enum values joins with the same rule `+` and `"{value}"` already use. It used to emit a call to a function it never generated, so `counts.values().join(",")` produced C that would not compile -- the worst outcome a compiler can have, and one an ordinary program hits immediately. |
 | 2026-09-21 | **D57** (decided by Mortaro): **class-level reflection is tree-shaken, not made lazy.** Asked whether `Spite.Class.functions` should be filled on demand, the answer is no: a program that never asks for it has none of it emitted, and a program that does asks at compile time and gets it whole. That is the compile-time guarantee the rest of the language already makes, and it is what lets the REPL have everything without deciding what to keep. So `functions` is an ordinary attribute of `Spite.Class`, declared in `library/spite/class.spite`, filled when the class object is written; the hidden C member it used to be is gone. `instances` already worked this way -- a class is only tracked when some part of the program asks for its instances -- and stays a live registry rather than a filled attribute, because which instances exist is not a compile-time fact. **One consequence to know:** a class object holding its functions makes a cycle, since a `Spite.Function` names a `Spite.Class` for what it returns, so the program's exit clears the lists before releasing the class objects -- the same "clear one side" section 10 prescribes for any cycle. |
+| 2026-09-22 | (implements D41, milestone 10b; proposed by Claude, unconfirmed) **`Spite.Namespace` is written, and `Spite.Class.namespace` is now one of them.** `library/spite/namespace.spite` declares `.name`/`.full_name`/`.parent`/`.classes`/`.namespaces` with a two-argument constructor; the compiler fills the *data* when it writes a class object -- `->namespace` is the cached object for that class's dotted namespace, `null` for a global class (Mortaro's settled rejection of the root object, section 8) -- so two classes of one namespace share one object and `.parent` walks up to `null`. `Spite.Class`'s constructor drops its namespace parameter (`Class(name)` only). `.classes`/`.namespaces` answer from the merged class list, and both the fill and the tree are tree-shaken behind reads (`namespace_read_used`/`namespace_tree_used`), the same rule D42/D57 prescribe: a program that never reads a namespace emits no namespace objects at all. Printing a `Spite.Namespace` prints its `.full_name`, as D41 says. Every `.namespace` reader in `conformance/`, `tests/` and `docs/` migrated in the same change (`if containing { ... }` narrowing), and `conformance/stage6/namespace_objects` covers identity, the parent chain and both tree walks. |
+| 2026-09-22 | (implements the members half of D11/D6, milestone 10b; proposed by Claude, unconfirmed) **`Spite.Class.attributes` is a declared `List<Spite.Attribute>` in `library/spite/class.spite`, filled when the class object is written**, next to `functions` (D57) and `is_singleton` (D8): the compiler assigns `spite_class_attributes_<Class>()`, which builds the list off a default-constructed instance rather than any constructed one, so **a class-level entry's `.value` is the field's declared default** (section 4). This answers the question D11 left open -- what the class-level mapping says for a field the instance has not set -- and it is the half needing Mortaro's confirmation; the symbol-keyed mapping `Weapon.attributes['damage']` (D10) stays milestone 14. Tree-shaken behind `class_level_attributes_used`, and the program's exit clears the lists the same way D57 clears `functions`, since a `Spite.Attribute` holds a `Spite.Class` for `.class` and the cycle is real. `conformance/stage6/class_attributes` walks both levels: `Sticker.attributes` beside `sticker.attributes`. |
+| 2026-09-22 | **(decided by Mortaro): `class` is not a keyword -- it is an inherited attribute of any instance, pointing to that instance's class.** "class should not be a keyword instead its just a inherited attribute of any instance that points to the class of that instance." So a bare `class` inside any function of a class answers where `self.class` would: resolved after a local or an attribute of that name (a declared field wins -- that is how `Spite.Attribute.class` reads its own field) and before a class name of the same spelling, returning the class object with the same ownership `monster.class` returns it with, so `class.name` composes. The parser keeps its diagnostic -- `class ClassKeyword {` at file scope still fails at 1:1 with "there is no 'class' keyword" (`diagnostics/class_keyword`), because a file is a class named after the file -- and `class` was never in the reserved-name list. `tests/reflection_tests` covers it bare (`class.name`), through a local (`var mine = class`), and in an instance method (`creature.class_name()`).  **[implemented]** |
+| 2026-09-22 | **(decided by Mortaro): a class name reads its class object member by member -- `Hello.name` is the class's name -- and the `Namespace?` narrowing error gets tests.** "i should also be able to directly say Hello.name to get class name"; "we should have tests for it." The first falls out of D6 (a class name is an ordinary `Spite.Class` value): the static-path substitution that made `Sticker.attributes` work now serves every member read and method receiver on a static path -- `Creature.name`, `Creature.namespace`, `Creature.attributes` answer the same class object as `creature.class.*`, and `Console.is_singleton()` calls -- while `Creature.instances` still means its live registry and `Creature.debug()` still reports "'Creature' is a class, not a value: write 'Creature()'", since there are no static functions. The second pins the existing nullability rule rather than changing it: `diagnostics/namespace_nullable` is the reported shape verbatim (assert a local copy, then re-read `Hello.namespace.name` -- narrowing narrows the variable you hold, so the fresh read must be narrowed in its own right), and `tests/reflection_tests` exercises all three narrowing forms (`if`, `assert`, `crash`) on `Spite.Class.namespace`.  **[implemented]** |
+| 2026-09-23 | **(decided by Mortaro): D43's chain narrowing is the ordinary rule -- no special case for a class path, because every attribute Spite adds by default is a normal attribute and the normal null rules apply to it.** "the chain form for a class should not be a special case at all, namespace should be returning a Spite.Namespace which should follow same null coalecense rules, the beauty of spite metaprograming is that every attribute spite adds by default is just a normal attribute so any normal rule apply." Implemented as section 5 already specifies: `Scope` keeps a set of narrowed paths beside its name overrides, and a member read whose path is in the set answers with its plain type -- the same thing `lookup_override` already does for a bare name, consulted where a member generates instead of where an identifier resolves, so nothing downstream (member reads, method calls, stores, conditions) knows that paths exist. `if`, `assert`/`crash` and a switch subject each record the path in the block they narrow (then-scope, current scope, case-scope); while the condition itself generates its strict prefixes are visible in a throwaway scope, since the condition reads through them, which is what makes a deep chain provable in one statement; every link is tested before the next is read, so a null link fails the narrowing instead of dereferencing anything, and a condition that owns what it read releases it in the guard itself. A local copy stays its own path (`diagnostics/namespace_nullable`), the `else` of a narrowed `if` does not inherit the narrowing (`diagnostics/path_narrow_else`), `conformance/stage6/namespace_objects` walks a nullable prefix (`gadget.class.namespace.parent`) with `crash`, since a constructor bans `assert`, and `tests/reflection_tests` has the `if`/`assert`/`crash` forms, a deep `Spite.Attribute.class.namespace` chain, and a null path that fails the `if` without being dereferenced. **Open:** the manual walks up with `class.namespace.namespace` (section 5, section 8, D43, the 2026-09-20 row), but `Spite.Namespace` declares `.parent` and has no `.namespace` (section 8 itself: "`.parent` walks up it") -- either the member is meant to exist and the library is missing it, or every example means `.parent`; Mortaro to say which.  **[implemented]** |

@@ -11,3 +11,7 @@ func Creature(starting_name: String, starting_strength: Int, starting_small: Boo
 func label(): String {
     return "{name}:{strength}"
 }
+
+func class_name(): String {
+    return class.name
+}
