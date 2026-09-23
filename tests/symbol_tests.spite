@@ -28,3 +28,9 @@ func test_symbols_cost_no_allocation() {
     crash kinds[1] == "Creature"
     crash program.live_allocations() == before
 }
+
+func test_a_symbol_knows_its_class() {
+    var kind: Symbol = 'fruit'
+    crash kind.class.name == "Symbol"
+    crash Creature.name.class.name == "Symbol"
+}
