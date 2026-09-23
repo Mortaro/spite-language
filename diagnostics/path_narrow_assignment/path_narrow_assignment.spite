@@ -1,0 +1,13 @@
+var console = Console()
+
+func PathNarrowAssignment() {
+    probe()
+}
+
+func probe() {
+    var outer = Box()
+    outer.inner = Box()
+    assert outer.inner
+    outer = Box()
+    console.print(outer.inner.label)
+}

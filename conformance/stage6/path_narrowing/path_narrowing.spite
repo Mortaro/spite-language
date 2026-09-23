@@ -1,0 +1,31 @@
+var console = Console()
+
+func PathNarrowing() {
+    run()
+}
+
+func run() {
+    var outer = Box()
+    if outer.inner.inner {
+        console.print("a null middle link was read through")
+    }
+    console.print("a null middle link fails the if")
+    outer.inner = Box()
+    assert outer.inner
+    outer.inner = Box()
+    console.print(outer.inner.label)
+    outer.inner.label = "inner"
+    outer.inner.inner = Box()
+    assert outer.inner.inner
+    console.print(outer.inner.label, outer.inner.inner.label)
+    var walker = Box()
+    walker.inner = Box()
+    var passes = 0
+    while passes < 2 {
+        assert walker.inner
+        console.print(walker.inner.label)
+        walker.inner = null
+        walker.inner = Box()
+        passes = passes + 1
+    }
+}

@@ -8,6 +8,8 @@ var override_names = List<String>()
 var override_codes = List<String>()
 var owned = List<OwnedLocal>()
 var narrowed_paths = List<String>()
+var is_loop = false
+var paths_read_from_outside = List<String>()
 
 func Scope(starting_parent: Scope?) {
     parent = starting_parent
@@ -87,26 +89,61 @@ func lookup_override(name: String): String? {
 }
 
 func narrow_path(path: String) {
-    if not is_path_narrowed(path) {
+    if not narrowed_paths.contains(path) {
         narrowed_paths.append(path)
     }
 }
 
 func is_path_narrowed(candidate: String): Bool {
+    return not narrowing_of(candidate).is_empty()
+}
+
+func narrowing_of(candidate: String): String {
     var index = narrowed_paths.count() - 1
     while index >= 0 {
         var narrowed = narrowed_paths[index]
-        if narrowed == candidate {
-            return true
-        }
-        if narrowed.starts_with("{candidate}.") {
-            return true
+        if narrowed == candidate or narrowed.starts_with("{candidate}.") {
+            return narrowed
         }
         index = index - 1
     }
     var above = parent
     if above {
-        return above.is_path_narrowed(candidate)
+        var answered = above.narrowing_of(candidate)
+        if is_loop and not answered.is_empty() and not paths_read_from_outside.contains(answered) {
+            paths_read_from_outside.append(answered)
+        }
+        return answered
     }
-    return false
+    return ""
+}
+
+func forget_path(path: String, include_itself: Bool, read_by_crossed_loops: List<String>): Bool {
+    var crossed_a_loop = false
+    var index = narrowed_paths.count() - 1
+    while index >= 0 {
+        var narrowed = narrowed_paths[index]
+        if narrowed.starts_with("{path}.") or (include_itself and narrowed == path) {
+            narrowed_paths.remove_at(index)
+            if read_by_crossed_loops.contains(narrowed) {
+                crossed_a_loop = true
+            }
+        }
+        index = index - 1
+    }
+    var above = parent
+    if above {
+        var read_above = read_by_crossed_loops.copy()
+        if is_loop {
+            var read_index = 0
+            while read_index < paths_read_from_outside.count() {
+                read_above.append(paths_read_from_outside[read_index])
+                read_index = read_index + 1
+            }
+        }
+        if above.forget_path(path, include_itself, read_above) {
+            crossed_a_loop = true
+        }
+    }
+    return crossed_a_loop
 }

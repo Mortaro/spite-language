@@ -5223,38 +5223,55 @@ func try_path_guard(condition_ast: Syntax.Expressions.Expression, scope: Scope, 
     if path.is_empty() {
         return null
     }
+    var links = path_links(condition_ast, class_information.namespace_dotted)
     var probe_scope = Scope(scope)
-    var segments = path.split(".")
-    var prefix = ""
+    var tests = List<String>()
+    var inner: Analysis.SpiteType? = null
     var index = 0
-    while index < segments.count() - 1 {
-        if index == 0 {
-            prefix = segments[index]
-        } else {
-            prefix = "{prefix}.{segments[index]}"
+    while index < links.count() {
+        var link = links[index]
+        var link_result = generate_expression(link, probe_scope, class_information)
+        inner = null
+        var link_nullable = type_shape.as_nullable(link_result.get_type())
+        if link_nullable {
+            var link_inner = link_nullable.get_inner()
+            inner = link_inner
+            tests.append(link_test(link_result, link, link_inner))
         }
-        probe_scope.narrow_path(prefix)
+        probe_scope.narrow_path(operand_text(link))
         index = index + 1
     }
-    var base_result = generate_expression(condition_ast, probe_scope, class_information)
-    var nullable = type_shape.as_nullable(base_result.get_type())
-    if not nullable {
+    if not inner {
         return null
     }
-    assert nullable
-    var inner = nullable.get_inner()
-    var guard_code = ""
-    if type_is_reference(inner) {
-        if type_needs_drop(inner) and owns(base_result, condition_ast) {
-            var value_temporary = next_temporary()
-            guard_code = "(\{ {c_type_name(inner)} {value_temporary} = {base_result.code}; int path_narrowed = {value_temporary} != 0; {release_call(inner, value_temporary)}; path_narrowed; \})"
-        } else {
-            guard_code = "({base_result.code}) != 0"
+    assert inner
+    return NullableGuard(path, inner, tests.join(" && "), "")
+}
+
+func path_links(expression: Syntax.Expressions.Expression, current_namespace: String): List<Syntax.Expressions.Expression> {
+    var member = shape.as_member(expression)
+    if member {
+        var object_ast = member.object
+        if object_ast {
+            if not try_resolve_static_path(expression, current_namespace) {
+                var links = path_links(object_ast, current_namespace)
+                links.append(expression)
+                return links
+            }
         }
-    } else {
-        guard_code = "({base_result.code}).has_value"
     }
-    return NullableGuard(path, inner, guard_code, "")
+    return List<Syntax.Expressions.Expression>()
+}
+
+func link_test(link_result: ExpressionResult, link_ast: Syntax.Expressions.Expression, inner: Analysis.SpiteType): String {
+    if not type_is_reference(inner) {
+        return "(({link_result.code}).has_value)"
+    }
+    if type_needs_drop(inner) and owns(link_result, link_ast) {
+        var value_temporary = next_temporary()
+        return "(\{ {c_type_name(inner)} {value_temporary} = {link_result.code}; int path_narrowed = {value_temporary} != 0; {release_call(inner, value_temporary)}; path_narrowed; \})"
+    }
+    return "(({link_result.code}) != 0)"
 }
 
 func emit_scope_drops(scope: Scope, all_the_way_up: Bool) {
@@ -5299,11 +5316,44 @@ func emit_owning_assignment(target_code: String, target_type: Analysis.SpiteType
     }
 }
 
+func forget_narrowing_under(target_ast: Syntax.Expressions.Expression, value_ast: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo) {
+    var path = operand_text(target_ast)
+    assert not path.is_empty()
+    var value_may_be_null = not value_is_never_null(value_ast, scope, class_information)
+    if scope.forget_path(path, value_may_be_null, List<String>()) {
+        report("assigning to '{path}' inside this loop undoes a narrowing made before the loop, and the next pass would read it unproven: narrow it inside the loop instead")
+    }
+}
+
+func value_is_never_null(value_ast: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): Bool {
+    if shape.as_generic_call(value_ast) or shape.as_string_literal(value_ast) or shape.as_integer_literal(value_ast) {
+        return true
+    }
+    var call = shape.as_call(value_ast)
+    if call {
+        var callee = call.callee
+        if callee {
+            if try_resolve_static_path(callee, class_information.namespace_dotted) {
+                return true
+            }
+        }
+        return false
+    }
+    var value_type = lookup_static_type(value_ast, scope, class_information)
+    if value_type {
+        if not type_shape.as_nullable(value_type) {
+            return true
+        }
+    }
+    return false
+}
+
 func generate_assignment(assignment: Syntax.Statements.AssignmentStatement, scope: Scope, class_information: Analysis.ClassInfo) {
     var target_ast = assignment.target
     assert target_ast
     var value_ast = assignment.value
     assert value_ast
+    forget_narrowing_under(target_ast, value_ast, scope, class_information)
     var identifier = shape.as_identifier(target_ast)
     if identifier {
         var scope_type = scope.lookup_type(identifier.name)
@@ -5942,7 +5992,9 @@ func generate_while_statement(while_statement: Syntax.Statements.WhileStatement,
     var condition_result = generate_expression(condition_ast, scope, class_information)
     check_condition(condition_result, "while")
     builder.add_user("while ({condition_result.code}) \{")
-    generate_block(while_statement.body, scope, class_information, function_information)
+    var body_scope = Scope(scope)
+    body_scope.is_loop = true
+    generate_block_in_scope(while_statement.body, body_scope, class_information, function_information)
     builder.add_user("}")
 }
 

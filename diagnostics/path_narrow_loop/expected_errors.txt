@@ -1,0 +1,1 @@
+diagnostics/path_narrow_loop/path_narrow_loop.spite:14: error: assigning to 'outer.inner' inside this loop undoes a narrowing made before the loop, and the next pass would read it unproven: narrow it inside the loop instead (in PathNarrowLoop.probe)

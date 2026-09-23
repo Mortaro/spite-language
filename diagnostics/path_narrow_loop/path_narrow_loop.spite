@@ -1,0 +1,17 @@
+var console = Console()
+
+func PathNarrowLoop() {
+    probe()
+}
+
+func probe() {
+    var outer = Box()
+    outer.inner = Box()
+    assert outer.inner
+    var passes = 0
+    while passes < 2 {
+        console.print(outer.inner.label)
+        outer.inner = null
+        passes = passes + 1
+    }
+}

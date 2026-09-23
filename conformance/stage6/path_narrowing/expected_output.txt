@@ -1,0 +1,5 @@
+a null middle link fails the if
+box
+inner box
+box
+box
