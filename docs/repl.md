@@ -1,5 +1,10 @@
 # REPL and live reload
 
+> **Not built in this compiler yet.** `--repl`, `--repl-port` and `spite connect` below are the design (manual.md
+> section 14); the Spite compiler does not accept them today. Whether the REPL is wired in from
+> `runtime/spite_repl.h` or written in Spite is waiting on a decision (manual.md section 14). The program on this
+> page still compiles and runs, which is all `check.sh` asks of it.
+
 Milestone 6a: a REPL that inspects and drives the *running* program -- local (`--repl`, stdin) and remote
 (`--repl-port`, TCP). Compiling and running arbitrary new Spite code inside the process, `Class.instances`, and
 swapping code while the program runs are all **[planned]**, blocked on manual.md's open question 4 (see
