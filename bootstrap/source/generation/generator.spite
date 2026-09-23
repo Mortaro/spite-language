@@ -152,6 +152,76 @@ func built_in_class_sources(): List<String> {
     return sources
 }
 
+func generated_functions_source(qualified: String): String {
+    var text = ""
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        if information.qualified_dotted == qualified {
+            var function_index = 0
+            while function_index < information.functions.count() {
+                var function = information.functions[function_index]
+                if not function.symbol_name.is_empty() {
+                    text = "{text}\n\n{instantiated_function_source(information, function)}"
+                }
+                function_index = function_index + 1
+            }
+        }
+        index = index + 1
+    }
+    return text
+}
+
+func instantiated_function_source(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    var field = information.find_field(function.symbol_field_name)
+    var field_type = "Nothing"
+    if field {
+        field_type = type_display_name(field.get_type())
+    }
+    var parameters = List<String>()
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        parameters.append("{parameter.name}: {type_display_name(parameter.get_type())}")
+        index = index + 1
+    }
+    var returns = ""
+    if not type_shape.is_void(function.get_return_type()) {
+        returns = ": {type_display_name(function.get_return_type())}"
+    }
+    var symbol = function.symbol_name
+    var body = Syntax.SourcePrinter().source_statement_list(function.body, 1)
+    body = body.replace("attributes[{symbol}]", function.symbol_field_name)
+    body = body.replace("\{{symbol}.name}", function.symbol_field_name)
+    body = body.replace("{symbol}.name", "\"{function.symbol_field_name}\"")
+    body = body.replace("{symbol}.class", field_type)
+    body = replace_word(body, symbol, "'{function.symbol_field_name}'")
+    return "func {function.name}({parameters.join(", ")}){returns} \{\n{body}\n}"
+}
+
+func replace_word(text: String, word: String, replacement: String): String {
+    var result = ""
+    var index = 0
+    while index < text.length() {
+        if text.slice(index, text.length()).starts_with(word) and not is_word_character_at(text, index - 1) and not is_word_character_at(text, index + word.length()) {
+            result = "{result}{replacement}"
+            index = index + word.length()
+        } else {
+            result = "{result}{text.slice(index, index + 1)}"
+            index = index + 1
+        }
+    }
+    return result
+}
+
+func is_word_character_at(text: String, index: Int): Bool {
+    if index < 0 or index >= text.length() {
+        return false
+    }
+    var character = text.slice(index, index + 1)
+    return character == "_" or character == "." or character.lower() != character.upper() or "0123456789".contains(character)
+}
+
 func built_in_class_names(): List<String> {
     var names = List<String>()
     var index = 0

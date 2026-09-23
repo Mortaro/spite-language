@@ -175,7 +175,7 @@ func run_final_classes_mode(file_argument: String, content: String, output_direc
         if kept.contains(class_file.qualified_dotted) {
             var path = final_class_path(output_directory, class_file.qualified_dotted)
             create_final_class_directory(final_class_directory(path))
-            var source = Syntax.SourcePrinter().source_file(class_file.get_file())
+            var source = "{Syntax.SourcePrinter().source_file(class_file.get_file())}{generator.generated_functions_source(class_file.qualified_dotted)}"
             var output = File(path)
             if not output.write("{source}\n") {
                 console.error("error: could not write '{path}'")
