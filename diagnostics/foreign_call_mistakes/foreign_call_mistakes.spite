@@ -1,0 +1,11 @@
+var console = Console()
+var library = DynamicLibrary("fixture", 'identity', "")
+
+func ForeignCallMistakes() {
+    call_through(library)
+    console.print(library.store(console))
+}
+
+func call_through(passed: DynamicLibrary) {
+    console.print(passed.add_numbers(1, 2))
+}

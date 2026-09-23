@@ -1,0 +1,8 @@
+var console = Console()
+var chosen = "fixture"
+var wrong_naming = DynamicLibrary("fixture", 'shouting', "")
+var not_literal = DynamicLibrary(chosen, 'identity', "")
+
+func ForeignLibraryMistakes() {
+    console.print(chosen)
+}

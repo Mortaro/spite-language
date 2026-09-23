@@ -63,7 +63,7 @@ and balanced allocations.
      static slot per argument list. A literal `return` folds without any evaluator, so the hook mechanism and
      `is_singleton()` can both ship ahead of the rest of this milestone.
 11. Foreign libraries (manual.md section 17, D4). Split in three:
-    - **11a. Not started.** `DynamicLibrary` itself: the class, the `missing_function`/`missing_attribute` hooks
+    - **11a. Done (2026-09-23)** -- see manual.md section 17 for what was built and the choices made. `DynamicLibrary` itself: the class, the `missing_function`/`missing_attribute` hooks
       (the Symbol-codegen segment rule at its limit, where the segment is the whole name, opted into by a reserved
       name), `LoadLibraryA`/`dlopen` + `GetProcAddress`/`dlsym` with the import table built from the tree-shaken call
       sites and resolved once in the constructor, the three built-in naming conventions (`'identity'`, `'windows'`,

@@ -1,5 +1,6 @@
 var c_name = ""
 var has_signature = false
+var foreign_library = -1
 var arguments = List<SpiteType>()
 var returns: SpiteType? = null
 

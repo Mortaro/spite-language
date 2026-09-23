@@ -429,3 +429,98 @@ SpiteString* Console_read_line(Console* self) {
     SPITE_FREE(spite_buffer);
     return spite_line;
 }
+
+void DynamicLibrary_init(DynamicLibrary* self) {
+    self->file_name = (&spite_static_string_empty);
+    self->handle = 0;
+}
+
+DynamicLibrary* DynamicLibrary_allocate(void) {
+    DynamicLibrary* self = (DynamicLibrary*)SPITE_MALLOC(sizeof(DynamicLibrary));
+    self->header.ref_count = 1;
+    self->header.class_id = SPITE_CLASS_ID_DYNAMICLIBRARY;
+    #ifdef SPITE_DEBUG_MEMORY
+    spite_debug_register_object(self, SPITE_CLASS_ID_DYNAMICLIBRARY);
+    #endif
+    DynamicLibrary_init(self);
+    return self;
+}
+
+DynamicLibrary* DynamicLibrary_default(void) {
+    return DynamicLibrary_allocate();
+}
+
+/* A file name with no extension gets the platform's own, so one Spite source names a library on every
+ * platform. A library that cannot be opened stops the program, naming the file. */
+DynamicLibrary* DynamicLibrary_make(SpiteString* file_name) {
+    DynamicLibrary* self = DynamicLibrary_allocate();
+    self->file_name = file_name;
+    const char* base = file_name->data;
+    for (const char* cursor = file_name->data; *cursor != '\0'; cursor = cursor + 1) {
+        if (*cursor == '/' || *cursor == '\\') base = cursor + 1;
+    }
+    char path[1024];
+#ifdef _WIN32
+    const char* extension = ".dll";
+#elif defined(__APPLE__)
+    const char* extension = ".dylib";
+#else
+    const char* extension = ".so";
+#endif
+    snprintf(path, sizeof(path), "%s%s", file_name->data, strchr(base, '.') == 0 ? extension : "");
+#ifdef _WIN32
+    self->handle = (void*)LoadLibraryA(path);
+#else
+    self->handle = dlopen(path, RTLD_NOW);
+#endif
+    if (self->handle == 0) {
+        fflush(stdout);
+        fprintf(stderr, "spite: could not open the library '%s'\n", path);
+        exit(1);
+    }
+    return self;
+}
+
+DynamicLibrary* DynamicLibrary_retain(DynamicLibrary* self) {
+    if (self != 0) self->header.ref_count = self->header.ref_count + 1;
+    return self;
+}
+
+void DynamicLibrary_release(DynamicLibrary* self) {
+    if (self == 0) return;
+    self->header.ref_count = self->header.ref_count - 1;
+    if (self->header.ref_count > 0) return;
+    if (self->handle != 0) {
+#ifdef _WIN32
+        FreeLibrary((HMODULE)self->handle);
+#else
+        dlclose(self->handle);
+#endif
+    }
+    SpiteString_release(self->file_name);
+    SPITE_FREE(self);
+}
+
+DynamicLibrary* DynamicLibrary_copy(DynamicLibrary* self) {
+    return DynamicLibrary_retain(self);
+}
+
+DynamicLibrary* DynamicLibrary_deep_copy(DynamicLibrary* self) {
+    return DynamicLibrary_retain(self);
+}
+
+/* Resolved once, when the library is opened, for every symbol the program calls. A missing one stops the
+ * program, naming the library, the symbol and the Spite function that wanted it. */
+void* DynamicLibrary_symbol(DynamicLibrary* self, const char* name, const char* wanted_by) {
+#ifdef _WIN32
+    void* found = (void*)GetProcAddress((HMODULE)self->handle, name);
+#else
+    void* found = dlsym(self->handle, name);
+#endif
+    if (found == 0) {
+        fflush(stdout);
+        fprintf(stderr, "spite: the library '%s' has no '%s', which %s calls\n", self->file_name->data, name, wanted_by);
+        exit(1);
+    }
+    return found;
+}

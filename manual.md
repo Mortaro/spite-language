@@ -1746,7 +1746,23 @@ From `mortaros_notes.md` on 2026-09-19 (second batch):
 4. **The compiler is also the language server**, so editors get real time validation. After the bootstrap, written in Spite.
 5. **Bootstrap as soon as possible** to start the repository; fancy features wait until after.
 
-## 17. Foreign libraries  **[planned]**
+## 17. Foreign libraries  **[partial]**
+
+**Built (milestone 11a, 2026-09-23):** `DynamicLibrary(file, naming, header)` with the three naming rules, calls
+of any function the library exports, the import table of exactly the called symbols resolved once when the
+library opens, and a program-stopping message naming the file, or the symbol and the Spite function that wanted
+it, when either is missing (`conformance/stage6/foreign_library`, `diagnostics/foreign_library_mistakes`,
+`diagnostics/foreign_call_mistakes`). What crosses is the table below, minus structs and lists. Choices Claude made
+while building it (proposed, unconfirmed): one library per distinct file and naming rule, following D8's
+"one instance per literal argument list", opened on first use and closed at exit; a file name with no extension
+gets the platform's own (`.dll`, `.so`, `.dylib`), so one source names a library everywhere -- which is also
+how `check.sh` tests it, building the fixture's C into a library beside the program; `_as_long` beside
+`_as_double` and `_as_text`, since a plain call returns a 32-bit `Int` and a handle or pointer needs 64; the
+naming rule is a symbol literal (D70); a foreign function is called only through the attribute or variable that
+holds its `DynamicLibrary(...)`, so the compiler knows which table binds it; and `--final-classes` writes no
+resolved-name comments, which D34 would reject (how to show them is open question 10). Not built: the header
+(constants, types, structs -- 11b), `missing_function`/`missing_attribute` as reopenable Spite, and a
+user-written naming rule (11c).
 
 D4 (decided by Mortaro, 2026-09-19): **a native library is a class, not a keyword.** There is no `external`
 keyword, no per-symbol binding string, no generated-binding step and no hand-written C shim. `DynamicLibrary`

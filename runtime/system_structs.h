@@ -32,3 +32,10 @@ typedef struct Console Console;
 struct Console {
     SpiteHeader header;
 };
+
+typedef struct DynamicLibrary DynamicLibrary;
+struct DynamicLibrary {
+    SpiteHeader header;
+    SpiteString* file_name;
+    void* handle;
+};

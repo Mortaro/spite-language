@@ -29,6 +29,7 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <dlfcn.h>
 #endif
 
 /* ---- allocation counters (--debug-memory) ---- */

@@ -1,0 +1,2 @@
+diagnostics/foreign_call_mistakes/foreign_call_mistakes.spite:6: error: a Console cannot cross into C: a foreign function takes numbers, Bool, enum values and text (in ForeignCallMistakes.ForeignCallMistakes)
+diagnostics/foreign_call_mistakes/foreign_call_mistakes.spite:10: error: a foreign function is called through the attribute or variable that holds its DynamicLibrary(...), so the compiler knows which library to bind it in (in ForeignCallMistakes.call_through)

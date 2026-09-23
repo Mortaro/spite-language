@@ -48,6 +48,12 @@ fi
 
 cp "$work/generation_two.exe" .spite-cache/spite_development.exe   # the freshly built compiler, handy for trying things by hand
 echo "4/4 conformance corpus and examples with generation 2"
+# A program that calls a foreign library brings the library's C as fixture.c; it is built next to it here.
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) library_extension=dll; position_independent="" ;; Darwin) library_extension=dylib; position_independent="-fPIC" ;; *) library_extension=so; position_independent="-fPIC" ;; esac
+for fixture in conformance/*/*/fixture.c; do
+  [ -f "$fixture" ] || continue
+  "$CC_BIN" -shared $position_independent -w "$fixture" -o "$(dirname "$fixture")/fixture.$library_extension" > "$work/c_errors.txt" 2>&1 || { echo "FAILED: could not build $fixture"; head -5 "$work/c_errors.txt"; exit 1; }
+done
 passed=0; failed=0
 for folder in conformance/*/*/ examples/*/; do   # the examples are held to the same standard as the corpus
   name=$(basename "$folder")
