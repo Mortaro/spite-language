@@ -70,8 +70,8 @@ fixed now: scalar/enum/owning attributes all intercept safely in both directions
 
 ## Reflection: `Spite.Class` and `Spite.Attribute`
 
-`value.class` is a `Spite.Class` (`.name`, and `.namespace` -- a `Spite.Namespace?` with `.name`, `.full_name`,
-`.parent`, `.classes` and `.namespaces`, `null` for a global class; printing a namespace prints its `.full_name`);
+`value.class` is a `Spite.Class` (`.name`, and `.namespace` -- a `Spite.Namespace?` with `.name`, `.name_with_namespaces`,
+`.parent`, `.classes` and `.namespaces`, `null` for a global class; printing a namespace prints its `.name_with_namespaces`);
 printing a class prints just its `.name`. `value.attributes`
 is a real, runtime `List<Spite.Attribute>` (`.name`, `.class`, `.value` -- all `String`), built only for a class
 that actually uses `.attributes`:

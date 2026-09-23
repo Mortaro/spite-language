@@ -71,7 +71,7 @@ func test_a_namespace_can_be_narrowed_with_assert() {
     var ns = Spite.Class.namespace
     assert ns
     crash ns.name == "Spite"
-    crash ns.full_name == "Spite"
+    crash ns.name_with_namespaces == "Spite"
 }
 
 func test_a_namespace_can_be_narrowed_with_crash() {
@@ -83,7 +83,7 @@ func test_a_namespace_can_be_narrowed_with_crash() {
 func test_an_asserted_path_reads_through_the_same_assert() {
     assert Spite.Class.namespace
     crash Spite.Class.namespace.name == "Spite"
-    crash Spite.Class.namespace.full_name == "Spite"
+    crash Spite.Class.namespace.name_with_namespaces == "Spite"
 }
 
 func test_an_asserted_path_narrows_every_link_of_it() {
@@ -94,7 +94,7 @@ func test_an_asserted_path_narrows_every_link_of_it() {
 func test_a_path_can_be_narrowed_with_if() {
     var name = ""
     if Spite.Class.namespace {
-        name = Spite.Class.namespace.full_name
+        name = Spite.Class.namespace.name_with_namespaces
     }
     crash name == "Spite"
 }

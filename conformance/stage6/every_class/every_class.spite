@@ -8,7 +8,7 @@ func EveryClass() {
         var text = ""
         var containing = described.namespace
         if containing {
-            text = containing.full_name
+            text = containing.name_with_namespaces
         }
         console.print(described.name, "{text}|", described.functions.map_name().join(","))
         index = index + 1
@@ -17,7 +17,7 @@ func EveryClass() {
     while index < classes.count() {
         var zoo_namespace = classes[index].namespace
         if zoo_namespace {
-            if zoo_namespace.full_name == "Zoo" {
+            if zoo_namespace.name_with_namespaces == "Zoo" {
                 run_speakers(classes[index].functions)
             }
         }

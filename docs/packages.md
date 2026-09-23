@@ -85,10 +85,10 @@ cannot be reopened at all, and gets its own clear diagnostic instead. Your foot 
 how a package is tried out before it is upstreamed:
 
 ```spite title=reopen_spite_class/spite/class.spite
-func full_name(): String {
+func name_with_namespaces(): String {
     var containing = namespace
     if containing {
-        return "{containing.full_name}.{name}"
+        return "{containing.name_with_namespaces}.{name}"
     }
     return name
 }
@@ -97,14 +97,14 @@ func full_name(): String {
 var console = Console()
 
 func ReopenSpiteClass() {
-    console.print(console.class.full_name())
+    console.print(console.class.name_with_namespaces())
 }
 ```
 ```output
 Console
 ```
 
-Every class object in the program answers `full_name()` from then on, because there is one `Spite.Class` and
+Every class object in the program answers `name_with_namespaces()` from then on, because there is one `Spite.Class` and
 that folder reopened it. A *new* class under `Spite` is a diagnostic instead -- that namespace holds the
 standard library's own classes, and a class of your own belongs in a namespace of your own. `load("spite")` is
 a diagnostic too:

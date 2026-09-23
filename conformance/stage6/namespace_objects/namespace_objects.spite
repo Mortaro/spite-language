@@ -12,8 +12,8 @@ func NamespaceObjects() {
     crash gadget_namespace
     crash second_namespace
     crash gear_namespace
-    console.print(gadget_namespace.full_name, gadget_namespace.name)
-    console.print(gear_namespace.full_name, gear_namespace.name)
+    console.print(gadget_namespace.name_with_namespaces, gadget_namespace.name)
+    console.print(gear_namespace.name_with_namespaces, gear_namespace.name)
     crash gadget.class.namespace.parent
     console.print(gadget.class.namespace.parent.name)
     crash gadget_namespace == second_namespace
@@ -22,7 +22,7 @@ func NamespaceObjects() {
     }
     var pack = gadget_namespace.parent
     crash pack
-    console.print(pack.full_name, pack.name)
+    console.print(pack.name_with_namespaces, pack.name)
     if pack.parent {
         crash
     }

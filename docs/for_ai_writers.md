@@ -124,7 +124,7 @@ func is_alive(): Bool {
   decided at compile time.
 - Reflection: `value.class` (a `Spite.Class`: `.name`, `.namespace` (a `Spite.Namespace?` -- narrow it before
   reading its members: hold it in a local and assert that, or `assert value.class.namespace` to narrow the
-  path itself and its prefixes for the rest of the block -- `.full_name`, `.parent`, `.classes`,
+  path itself and its prefixes for the rest of the block -- `.name_with_namespaces`, `.parent`, `.classes`,
   `.namespaces`), `.functions`), `value.attributes`
   (`.name`, `.class`, `.value`), `value.functions` (`.name`, `.arguments`, `.returns`, `call_function()` for
   functions that take nothing and return `Nothing`), `Monster.instances` (live instances), and

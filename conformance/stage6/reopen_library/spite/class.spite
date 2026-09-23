@@ -1,7 +1,7 @@
-func full_name(): String {
+func name_with_namespaces(): String {
     var containing = namespace
     if containing {
-        return "{containing.full_name}.{name}"
+        return "{containing.name_with_namespaces}.{name}"
     }
     return name
 }

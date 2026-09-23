@@ -5,7 +5,7 @@ func ConsoleClass() {
     var containing = console.class.namespace
     var namespace_text = ""
     if containing {
-        namespace_text = containing.full_name
+        namespace_text = containing.name_with_namespaces
     }
     console.print(console == another, console.class.name, "{namespace_text}|")
     another.write("written")

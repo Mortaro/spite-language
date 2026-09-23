@@ -697,7 +697,7 @@ nothing in it can be mistaken for a user class. **[implemented]**
 | `Spite.Function` | `.name: String`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `.owner`, `call_function()` |
 | `Spite.Argument` | `.name: String`, `.class: Spite.Class` |
 | `Spite.Attribute` | `.name: String`, `.class: Spite.Class`, `.value: String` |
-| `Spite.Namespace` | `.name: String` (the segment), `.full_name: String` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
+| `Spite.Namespace` | `.name: String` (the segment), `.name_with_namespaces: String` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
 
 **What `.functions` contains** (proposed by Claude, unconfirmed): the functions a class declares, plus the
 Symbol-codegen instances that were actually generated for it -- because those are functions of the class in the
@@ -748,9 +748,9 @@ that way. **[`Spite.Attribute.class` is a real `Spite.Class` as of the 2026-09-2
 below.]**
 
 - `value.class` is the value's class: a `Spite.Class` with `.name: String` (the class's own declared name) and
-  `.namespace: Spite.Namespace?` (its namespace object -- `.name` is the segment, `.full_name` the dotted path,
+  `.namespace: Spite.Namespace?` (its namespace object -- `.name` is the segment, `.name_with_namespaces` the dotted path,
   `.parent` the chain up, `.classes`/`.namespaces` the tree down; `null` for a global class). Printing a
-  `Spite.Class` prints just its `.name`, and printing a `Spite.Namespace` prints its `.full_name`.
+  `Spite.Class` prints just its `.name`, and printing a `Spite.Namespace` prints its `.name_with_namespaces`.
 - **`class` is an inherited attribute of every instance, not a keyword** (decided by Mortaro, 2026-09-22):
   inside any function of a class, a bare `class` answers with that instance's class -- the same `Spite.Class`
   `value.class` gives -- so `class.name` is the class you are writing. A local or an attribute actually named

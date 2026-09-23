@@ -4,7 +4,7 @@ func Reflection() {
     var monster = Creatures.Monster("rat", 7)
     var containing = monster.class.namespace
     crash containing
-    console.print(monster.class, monster.class.name, "{containing.full_name}|")
+    console.print(monster.class, monster.class.name, "{containing.name_with_namespaces}|")
     var attributes = monster.attributes
     var index = 0
     while index < attributes.count() {
