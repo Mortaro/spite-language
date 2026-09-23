@@ -4752,7 +4752,6 @@ func emit_list_support(list_name: String, element: Analysis.SpiteType, class_id:
         )
     }
     if type_shape.as_string(element) {
-        builder.add_prototype("SpiteString* {list_name}_join({self_parameter}, SpiteString* separator);")
         builder.add_prototype("List_String* SpiteString_split(SpiteString* self, SpiteString* separator);")
         builder.add_prototype("List_String* SpiteString_lines(SpiteString* self);")
         builder.add_support(
@@ -4761,19 +4760,24 @@ func emit_list_support(list_name: String, element: Analysis.SpiteType, class_id:
         builder.add_support(
             "List_String* SpiteString_lines(SpiteString* self) \{\nSpiteString* spite_newline = spite_string_from_cstring_owned(\"\\n\");\nList_String* result = SpiteString_split(self, spite_newline);\nSpiteString_release(spite_newline);\nreturn result;\n}",
         )
-        builder.add_support(
-            "SpiteString* {list_name}_join({self_parameter}, SpiteString* separator) \{\nSpiteString* result = (&spite_static_string_empty);\nfor (int64_t index = 0; index < self->count; index = index + 1) \{\nSpiteString* next = index == 0 ? spite_string_from_bytes(self->items[index]->data, self->items[index]->length) : SpiteString_concat(result, self->items[index]);\nSpiteString_release(result);\nresult = next;\nif (index + 1 != self->count) \{\nSpiteString* with_separator = SpiteString_concat(result, separator);\nSpiteString_release(result);\nresult = with_separator;\n}\n}\nreturn result;\n}",
-        )
-    } else if joins_as_text(element) {
+    }
+    if joins_as_text(element) {
         builder.add_prototype("SpiteString* {list_name}_join({self_parameter}, SpiteString* separator);")
         builder.add_support(
-            "SpiteString* {list_name}_join({self_parameter}, SpiteString* separator) \{\nSpiteString* result = (&spite_static_string_empty);\nfor (int64_t index = 0; index < self->count; index = index + 1) \{\nSpiteString* piece = {string_conversion("self->items[index]", element)};\nSpiteString* next = SpiteString_concat(result, piece);\nSpiteString_release(piece);\nSpiteString_release(result);\nresult = next;\nif (index + 1 != self->count) \{\nSpiteString* with_separator = SpiteString_concat(result, separator);\nSpiteString_release(result);\nresult = with_separator;\n}\n}\nreturn result;\n}",
+            "SpiteString* {list_name}_join({self_parameter}, SpiteString* separator) \{\nSpiteString* result = (&spite_static_string_empty);\nfor (int64_t index = 0; index < self->count; index = index + 1) \{\nSpiteString* piece = {owned_text_of("self->items[index]", element)};\nSpiteString* next = SpiteString_concat(result, piece);\nSpiteString_release(piece);\nSpiteString_release(result);\nresult = next;\nif (index + 1 != self->count) \{\nSpiteString* with_separator = SpiteString_concat(result, separator);\nSpiteString_release(result);\nresult = with_separator;\n}\n}\nreturn result;\n}",
         )
     }
 }
 
+func owned_text_of(code: String, from: Analysis.SpiteType): String {
+    if type_shape.as_string(from) {
+        return "SpiteString_retain({code})"
+    }
+    return string_conversion(code, from)
+}
+
 func joins_as_text(element: Analysis.SpiteType): Bool {
-    return type_shape.as_scalar(element) or is_enum_type(element)
+    return type_shape.as_string(element) or type_shape.as_scalar(element) or is_enum_type(element)
 }
 
 func print_float_statement(code: String, stream: String, converter: String): String {
