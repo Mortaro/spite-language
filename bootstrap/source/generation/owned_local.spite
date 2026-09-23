@@ -7,7 +7,6 @@ func OwnedLocal(starting_name: String, starting_spite_type: Analysis.SpiteType) 
 }
 
 func get_type(): Analysis.SpiteType {
-    var value = spite_type
-    crash value
-    return value
+    crash spite_type
+    return spite_type
 }

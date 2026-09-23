@@ -1,7 +1,6 @@
 func name_with_namespaces(): String {
-    var containing = namespace
-    if containing {
-        return "{containing.name_with_namespaces}.{name}"
+    if namespace {
+        return "{namespace.name_with_namespaces}.{name}"
     }
     return name
 }

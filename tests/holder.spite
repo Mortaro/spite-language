@@ -5,7 +5,6 @@ func Holder(shared_tracker: Resource) {
 }
 
 func drop() {
-    var watcher = tracker
-    assert watcher
-    watcher.note_a_drop()
+    assert tracker
+    tracker.note_a_drop()
 }

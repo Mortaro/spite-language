@@ -5,7 +5,6 @@ func DictionaryType(starting_element: SpiteType) {
 }
 
 func get_element(): SpiteType {
-    var value = element
-    crash value
-    return value
+    crash element
+    return element
 }

@@ -11,9 +11,8 @@ func TemplateInfo(starting_declaration: Syntax.Statements.FunctionDeclaration, s
 }
 
 func get_declaration(): Syntax.Statements.FunctionDeclaration {
-    var value = declaration
-    crash value
-    return value
+    crash declaration
+    return declaration
 }
 
 func member_name_for(call_name: String): String {

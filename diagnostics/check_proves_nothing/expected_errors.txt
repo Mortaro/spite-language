@@ -1,0 +1,1 @@
+diagnostics/check_proves_nothing/check_proves_nothing.spite:9: error: this value cannot be null here (it is a Tracker), so 'assert' on it proves nothing: remove the check (in CheckProvesNothing.drop)

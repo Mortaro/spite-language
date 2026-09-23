@@ -9,7 +9,6 @@ func FieldInfo(starting_name: String, starting_spite_type: SpiteType, starting_d
 }
 
 func get_type(): SpiteType {
-    var value = spite_type
-    crash value
-    return value
+    crash spite_type
+    return spite_type
 }

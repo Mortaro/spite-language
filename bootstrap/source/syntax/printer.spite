@@ -44,13 +44,11 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
         }
         Syntax.Statements.VariableDeclaration: {
             print_line(depth, "VarDecl {statement.name}")
-            var type_reference = statement.type_reference
-            if type_reference {
-                print_line(depth + 1, "Type {inline_type(type_reference)}")
+            if statement.type_reference {
+                print_line(depth + 1, "Type {inline_type(statement.type_reference)}")
             }
-            var value = statement.value
-            assert value
-            print_expression(value, depth + 1)
+            assert statement.value
+            print_expression(statement.value, depth + 1)
         }
         Syntax.Statements.FunctionDeclaration: print_function(statement, depth)
         Syntax.Statements.TypeDeclaration: {
@@ -58,12 +56,11 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
             var index = 0
             while index < statement.fields.count() {
                 var field = statement.fields[index]
-                var field_type = field.type_reference
-                assert field_type
+                assert field.type_reference
                 if field.is_function {
-                    print_line(depth + 1, "Function {field.name}({field.parameter_types.count()}): {inline_type(field_type)}")
+                    print_line(depth + 1, "Function {field.name}({field.parameter_types.count()}): {inline_type(field.type_reference)}")
                 } else {
-                    print_line(depth + 1, "Field {field.name}: {inline_type(field_type)}")
+                    print_line(depth + 1, "Field {field.name}: {inline_type(field.type_reference)}")
                 }
                 index = index + 1
             }
@@ -86,18 +83,15 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
         }
         Syntax.Statements.AssignmentStatement: {
             print_line(depth, "Assignment")
-            var target = statement.target
-            assert target
-            print_expression(target, depth + 1)
-            var value = statement.value
-            assert value
-            print_expression(value, depth + 1)
+            assert statement.target
+            print_expression(statement.target, depth + 1)
+            assert statement.value
+            print_expression(statement.value, depth + 1)
         }
         Syntax.Statements.IfStatement: {
             print_line(depth, "If")
-            var condition = statement.condition
-            assert condition
-            print_expression(condition, depth + 1)
+            assert statement.condition
+            print_expression(statement.condition, depth + 1)
             print_line(depth + 1, "Then")
             print_statement_list(statement.then_branch, depth + 2)
             if statement.has_else_branch {
@@ -107,22 +101,19 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
         }
         Syntax.Statements.WhileStatement: {
             print_line(depth, "While")
-            var condition = statement.condition
-            assert condition
-            print_expression(condition, depth + 1)
+            assert statement.condition
+            print_expression(statement.condition, depth + 1)
             print_statement_list(statement.body, depth + 1)
         }
         Syntax.Statements.SwitchStatement: {
             print_line(depth, "Switch")
-            var subject = statement.subject
-            assert subject
-            print_expression(subject, depth + 1)
+            assert statement.subject
+            print_expression(statement.subject, depth + 1)
             var index = 0
             while index < statement.cases.count() {
                 var switch_case = statement.cases[index]
-                var case_type = switch_case.type_reference
-                assert case_type
-                print_line(depth + 1, "Case {inline_type(case_type)}")
+                assert switch_case.type_reference
+                print_line(depth + 1, "Case {inline_type(switch_case.type_reference)}")
                 print_statement_list(switch_case.body, depth + 2)
                 index = index + 1
             }
@@ -133,22 +124,19 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
             } else {
                 print_line(depth, "Assert")
             }
-            var value = statement.value
-            assert value
-            print_expression(value, depth + 1)
+            assert statement.value
+            print_expression(statement.value, depth + 1)
         }
         Syntax.Statements.ReturnStatement: {
             print_line(depth, "Return")
-            var value = statement.value
-            if value {
-                print_expression(value, depth + 1)
+            if statement.value {
+                print_expression(statement.value, depth + 1)
             }
         }
         Syntax.Statements.ExpressionStatement: {
             print_line(depth, "ExpressionStatement")
-            var value = statement.value
-            assert value
-            print_expression(value, depth + 1)
+            assert statement.value
+            print_expression(statement.value, depth + 1)
         }
     }
 }
@@ -165,15 +153,13 @@ func print_function(function: Syntax.Statements.FunctionDeclaration, depth: Int)
             text ="{text}, "
         }
         var parameter = function.parameters[index]
-        var parameter_type = parameter.type_reference
-        assert parameter_type
-        text = text +"{parameter.name}: {inline_type(parameter_type)}"
+        assert parameter.type_reference
+        text = text +"{parameter.name}: {inline_type(parameter.type_reference)}"
         index = index + 1
     }
     text ="{text})"
-    var return_type = function.return_type
-    if return_type {
-        text ="{text}: {inline_type(return_type)}"
+    if function.return_type {
+        text ="{text}: {inline_type(function.return_type)}"
     }
     print_line(depth, text)
     print_statement_list(function.body, depth + 1)
@@ -182,9 +168,8 @@ func print_function(function: Syntax.Statements.FunctionDeclaration, depth: Int)
 func inline_type(type_reference: Syntax.Types.Type): String {
     switch type_reference {
         Syntax.Types.ReferenceType: {
-            var inner = type_reference.inner
-            crash inner
-            return "&{inline_type(inner)}"
+            crash type_reference.inner
+            return "&{inline_type(type_reference.inner)}"
         }
         Syntax.Types.GenericType: return "${type_reference.name}"
         Syntax.Types.NamedType: {
@@ -217,9 +202,8 @@ func inline_type(type_reference: Syntax.Types.Type): String {
 func inline_generic_argument(argument: Syntax.Types.GenericArgument): String {
     switch argument {
         Syntax.Types.TypeArgument: {
-            var value = argument.value
-            crash value
-            return inline_type(value)
+            crash argument.value
+            return inline_type(argument.value)
         }
         Syntax.Types.IntegerArgument: return "{argument.value}"
         Syntax.Types.FloatArgument: return "{argument.value}"
@@ -250,9 +234,8 @@ func print_expression(expression: Syntax.Expressions.Expression, depth: Int) {
             var index = 0
             while index < expression.elements.count() {
                 var element = expression.elements[index]
-                var value = element.value
-                assert value
-                print_expression(value, depth + 1)
+                assert element.value
+                print_expression(element.value, depth + 1)
                 index = index + 1
             }
         }
@@ -262,32 +245,27 @@ func print_expression(expression: Syntax.Expressions.Expression, depth: Int) {
             while index < expression.fields.count() {
                 var field = expression.fields[index]
                 print_line(depth + 1,"{field.name}:")
-                var value = field.value
-                assert value
-                print_expression(value, depth + 2)
+                assert field.value
+                print_expression(field.value, depth + 2)
                 index = index + 1
             }
         }
         Syntax.Expressions.UnaryExpression: {
             print_line(depth, "Unary {expression.operator}")
-            var operand = expression.operand
-            assert operand
-            print_expression(operand, depth + 1)
+            assert expression.operand
+            print_expression(expression.operand, depth + 1)
         }
         Syntax.Expressions.BinaryExpression: {
             print_line(depth, "Binary {expression.operator}")
-            var left = expression.left
-            assert left
-            print_expression(left, depth + 1)
-            var right = expression.right
-            assert right
-            print_expression(right, depth + 1)
+            assert expression.left
+            print_expression(expression.left, depth + 1)
+            assert expression.right
+            print_expression(expression.right, depth + 1)
         }
         Syntax.Expressions.CallExpression: {
             print_line(depth, "Call")
-            var callee = expression.callee
-            assert callee
-            print_expression(callee, depth + 1)
+            assert expression.callee
+            print_expression(expression.callee, depth + 1)
             var index = 0
             while index < expression.arguments.count() {
                 print_expression(expression.arguments[index], depth + 1)
@@ -296,9 +274,8 @@ func print_expression(expression: Syntax.Expressions.Expression, depth: Int) {
         }
         Syntax.Expressions.GenericCallExpression: {
             print_line(depth, "GenericCall")
-            var callee = expression.callee
-            assert callee
-            print_expression(callee, depth + 1)
+            assert expression.callee
+            print_expression(expression.callee, depth + 1)
             var type_index = 0
             while type_index < expression.type_arguments.count() {
                 print_line(depth + 1, "TypeArgument {inline_generic_argument(expression.type_arguments[type_index])}")
@@ -312,18 +289,15 @@ func print_expression(expression: Syntax.Expressions.Expression, depth: Int) {
         }
         Syntax.Expressions.MemberExpression: {
             print_line(depth, "Member {expression.name}")
-            var object = expression.object
-            assert object
-            print_expression(object, depth + 1)
+            assert expression.object
+            print_expression(expression.object, depth + 1)
         }
         Syntax.Expressions.IndexExpression: {
             print_line(depth, "Index")
-            var object = expression.object
-            assert object
-            print_expression(object, depth + 1)
-            var index_expression = expression.index
-            assert index_expression
-            print_expression(index_expression, depth + 1)
+            assert expression.object
+            print_expression(expression.object, depth + 1)
+            assert expression.index
+            print_expression(expression.index, depth + 1)
         }
     }
 }

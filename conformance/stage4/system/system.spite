@@ -2,9 +2,8 @@ var console = Console()
 
 func System(arguments: Arguments) {
     console.print(arguments.count(),"{arguments.get(3)}|")
-    var missing = arguments.nothing_here
-    if missing {
-        console.print("unexpected", missing)
+    if arguments.nothing_here {
+        console.print("unexpected", arguments.nothing_here)
     } else {
         console.print("no such argument")
     }

@@ -52,59 +52,50 @@ func source_statement(statement: Syntax.Statements.Statement, depth: Int): Strin
         Syntax.Statements.GenericsDeclaration: return "{indent}generics ${statement.names.join(", $")}"
         Syntax.Statements.VariableDeclaration: {
             var type_text = ""
-            var type_reference = statement.type_reference
-            if type_reference {
-                type_text = ": {source_type(type_reference)}"
+            if statement.type_reference {
+                type_text = ": {source_type(statement.type_reference)}"
             }
-            var value = statement.value
-            crash value
-            return "{source_reopen_note(statement.source_path, statement.overrides_declaration, depth)}{indent}var {statement.name}{type_text} = {source_expression(value)}"
+            crash statement.value
+            return "{source_reopen_note(statement.source_path, statement.overrides_declaration, depth)}{indent}var {statement.name}{type_text} = {source_expression(statement.value)}"
         }
         Syntax.Statements.FunctionDeclaration: return source_function(statement, depth)
         Syntax.Statements.TypeDeclaration: return source_type_declaration(statement, depth)
         Syntax.Statements.EnumDeclaration: return "{indent}enum {statement.name} {source_names(statement.values, depth)}"
         Syntax.Statements.UnionDeclaration: return "{indent}union {statement.name} {source_types(statement.members, depth)}"
         Syntax.Statements.AssignmentStatement: {
-            var target = statement.target
-            var value = statement.value
-            crash target
-            crash value
-            return "{indent}{source_expression(target)} = {source_expression(value)}"
+            crash statement.target
+            crash statement.value
+            return "{indent}{source_expression(statement.target)} = {source_expression(statement.value)}"
         }
         Syntax.Statements.IfStatement: {
-            var condition = statement.condition
-            crash condition
-            var text = "{indent}if {source_expression(condition)} {source_block(statement.then_branch, depth)}"
+            crash statement.condition
+            var text = "{indent}if {source_expression(statement.condition)} {source_block(statement.then_branch, depth)}"
             if statement.has_else_branch {
                 text = "{text} else {source_block(statement.else_branch, depth)}"
             }
             return text
         }
         Syntax.Statements.WhileStatement: {
-            var condition = statement.condition
-            crash condition
-            return "{indent}while {source_expression(condition)} {source_block(statement.body, depth)}"
+            crash statement.condition
+            return "{indent}while {source_expression(statement.condition)} {source_block(statement.body, depth)}"
         }
         Syntax.Statements.SwitchStatement: return source_switch(statement, depth)
         Syntax.Statements.AssertStatement: {
-            var value = statement.value
-            crash value
+            crash statement.value
             if statement.is_crash {
-                return "{indent}crash {source_expression(value)}"
+                return "{indent}crash {source_expression(statement.value)}"
             }
-            return "{indent}assert {source_expression(value)}"
+            return "{indent}assert {source_expression(statement.value)}"
         }
         Syntax.Statements.ReturnStatement: {
-            var value = statement.value
-            if value {
-                return "{indent}return {source_expression(value)}"
+            if statement.value {
+                return "{indent}return {source_expression(statement.value)}"
             }
             return "{indent}return"
         }
         Syntax.Statements.ExpressionStatement: {
-            var value = statement.value
-            crash value
-            return "{indent}{source_expression(value)}"
+            crash statement.value
+            return "{indent}{source_expression(statement.value)}"
         }
     }
 }
@@ -121,15 +112,13 @@ func source_function(function: Syntax.Statements.FunctionDeclaration, depth: Int
             parameters = "{parameters}, "
         }
         var parameter = function.parameters[index]
-        var type_reference = parameter.type_reference
-        crash type_reference
-        parameters = "{parameters}{parameter.name}: {source_type(type_reference)}"
+        crash parameter.type_reference
+        parameters = "{parameters}{parameter.name}: {source_type(parameter.type_reference)}"
         index = index + 1
     }
     var returns = ""
-    var return_type = function.return_type
-    if return_type {
-        returns = ": {source_type(return_type)}"
+    if function.return_type {
+        returns = ": {source_type(function.return_type)}"
     }
     return "{source_reopen_note(function.source_path, function.overrides_declaration, depth)}{source_indent(depth)}func {function.name}{codegen}({parameters}){returns} {source_block(function.body, depth)}"
 }
@@ -146,8 +135,7 @@ func source_type_declaration(declaration: Syntax.Statements.TypeDeclaration, dep
     var index = 0
     while index < declaration.fields.count() {
         var field = declaration.fields[index]
-        var field_type = field.type_reference
-        crash field_type
+        crash field.type_reference
         if field.is_function {
             var parameters = ""
             var parameter_index = 0
@@ -158,9 +146,9 @@ func source_type_declaration(declaration: Syntax.Statements.TypeDeclaration, dep
                 parameters = "{parameters}{source_type(field.parameter_types[parameter_index])}"
                 parameter_index = parameter_index + 1
             }
-            text = "{text}\n{source_indent(depth + 1)}func {field.name}({parameters}): {source_type(field_type)}"
+            text = "{text}\n{source_indent(depth + 1)}func {field.name}({parameters}): {source_type(field.type_reference)}"
         } else {
-            text = "{text}\n{source_indent(depth + 1)}{field.name}: {source_type(field_type)}"
+            text = "{text}\n{source_indent(depth + 1)}{field.name}: {source_type(field.type_reference)}"
         }
         index = index + 1
     }
@@ -188,15 +176,13 @@ func source_types(types: List<Syntax.Types.Type>, depth: Int): String {
 }
 
 func source_switch(statement: Syntax.Statements.SwitchStatement, depth: Int): String {
-    var subject = statement.subject
-    crash subject
-    var text = "{source_indent(depth)}switch {source_expression(subject)} \{"
+    crash statement.subject
+    var text = "{source_indent(depth)}switch {source_expression(statement.subject)} \{"
     var index = 0
     while index < statement.cases.count() {
         var switch_case = statement.cases[index]
-        var type_reference = switch_case.type_reference
-        crash type_reference
-        text = "{text}\n{source_indent(depth + 1)}{source_type(type_reference)} {source_block(switch_case.body, depth + 1)}"
+        crash switch_case.type_reference
+        text = "{text}\n{source_indent(depth + 1)}{source_type(switch_case.type_reference)} {source_block(switch_case.body, depth + 1)}"
         index = index + 1
     }
     return "{text}\n{source_indent(depth)}}"
@@ -205,9 +191,8 @@ func source_switch(statement: Syntax.Statements.SwitchStatement, depth: Int): St
 func source_type(type_reference: Syntax.Types.Type): String {
     switch type_reference {
         Syntax.Types.ReferenceType: {
-            var inner = type_reference.inner
-            crash inner
-            return "&{source_type(inner)}"
+            crash type_reference.inner
+            return "&{source_type(type_reference.inner)}"
         }
         Syntax.Types.GenericType: return "${type_reference.name}"
         Syntax.Types.NamedType: {
@@ -215,9 +200,8 @@ func source_type(type_reference: Syntax.Types.Type): String {
                 var nullable_argument = type_reference.arguments[0]
                 switch nullable_argument {
                     Syntax.Types.TypeArgument: {
-                        var value = nullable_argument.value
-                        crash value
-                        return "{source_type(value)}?"
+                        crash nullable_argument.value
+                        return "{source_type(nullable_argument.value)}?"
                     }
                     Syntax.Types.IntegerArgument: crash false
                     Syntax.Types.FloatArgument: crash false
@@ -247,9 +231,8 @@ func source_type(type_reference: Syntax.Types.Type): String {
 func source_generic_argument(argument: Syntax.Types.GenericArgument): String {
     switch argument {
         Syntax.Types.TypeArgument: {
-            var value = argument.value
-            crash value
-            return source_type(value)
+            crash argument.value
+            return source_type(argument.value)
         }
         Syntax.Types.IntegerArgument: return "{argument.value}"
         Syntax.Types.FloatArgument: return "{argument.value}"
@@ -276,31 +259,25 @@ func source_expression(expression: Syntax.Expressions.Expression): String {
         Syntax.Expressions.ListLiteralExpression: return source_list(expression)
         Syntax.Expressions.ObjectLiteralExpression: return source_object(expression)
         Syntax.Expressions.UnaryExpression: {
-            var operand = expression.operand
-            crash operand
-            return "{source_unary_operator(expression.operator)}{source_expression(operand)}"
+            crash expression.operand
+            return "{source_unary_operator(expression.operator)}{source_expression(expression.operand)}"
         }
         Syntax.Expressions.BinaryExpression: {
             if expression.is_text_join { return source_text_join(expression) }
-            var left = expression.left
-            var right = expression.right
-            crash left
-            crash right
-            return "({source_expression(left)} {source_binary_operator(expression.operator)} {source_expression(right)})"
+            crash expression.left
+            crash expression.right
+            return "({source_expression(expression.left)} {source_binary_operator(expression.operator)} {source_expression(expression.right)})"
         }
         Syntax.Expressions.CallExpression: return source_call(expression.callee, expression.arguments, "")
         Syntax.Expressions.GenericCallExpression: return source_generic_call(expression)
         Syntax.Expressions.MemberExpression: {
-            var object = expression.object
-            crash object
-            return "{source_expression(object)}.{expression.name}"
+            crash expression.object
+            return "{source_expression(expression.object)}.{expression.name}"
         }
         Syntax.Expressions.IndexExpression: {
-            var object = expression.object
-            var index = expression.index
-            crash object
-            crash index
-            return "{source_expression(object)}[{source_expression(index)}]"
+            crash expression.object
+            crash expression.index
+            return "{source_expression(expression.object)}[{source_expression(expression.index)}]"
         }
     }
 }
@@ -315,12 +292,10 @@ func collect_text_join_pieces(expression: Syntax.Expressions.Expression, pieces:
     var binary = shape.as_binary(expression)
     if binary {
         if binary.is_text_join {
-            var left = binary.left
-            var right = binary.right
-            crash left
-            crash right
-            collect_text_join_pieces(left, pieces)
-            collect_text_join_pieces(right, pieces)
+            crash binary.left
+            crash binary.right
+            collect_text_join_pieces(binary.left, pieces)
+            collect_text_join_pieces(binary.right, pieces)
             return
         }
     }
@@ -376,9 +351,8 @@ func source_object(expression: Syntax.Expressions.ObjectLiteralExpression): Stri
     while index < expression.fields.count() {
         if index > 0 { text = "{text}, " }
         var field = expression.fields[index]
-        var value = field.value
-        crash value
-        text = "{text}{field.name}: {source_expression(value)}"
+        crash field.value
+        text = "{text}{field.name}: {source_expression(field.value)}"
         index = index + 1
     }
     return "{text}}"

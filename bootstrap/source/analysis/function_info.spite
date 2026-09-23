@@ -20,7 +20,6 @@ func FunctionInfo(starting_name: String, starting_c_name: String, starting_param
 }
 
 func get_return_type(): SpiteType {
-    var value = return_type
-    crash value
-    return value
+    crash return_type
+    return return_type
 }

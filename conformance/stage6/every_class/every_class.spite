@@ -6,9 +6,8 @@ func EveryClass() {
     while index < classes.count() {
         var described = classes[index]
         var text = ""
-        var containing = described.namespace
-        if containing {
-            text = containing.name_with_namespaces
+        if described.namespace {
+            text = described.namespace.name_with_namespaces
         }
         console.print(described.name, "{text}|", described.functions.map_name().join(","))
         index = index + 1

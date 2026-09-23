@@ -26,9 +26,8 @@ func lend(title: String, reader: String) {
 }
 
 func held_by(book: Book): String {
-    var holder = book.borrowed_by
-    if holder {
-        return holder
+    if book.borrowed_by {
+        return book.borrowed_by
     }
     return "nobody"
 }

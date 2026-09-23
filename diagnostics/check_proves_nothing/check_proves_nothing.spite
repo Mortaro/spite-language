@@ -1,0 +1,11 @@
+var tracker: Tracker? = null
+
+func CheckProvesNothing() {
+    drop()
+}
+
+func drop() {
+    assert tracker
+    assert tracker
+    tracker.note_a_drop()
+}

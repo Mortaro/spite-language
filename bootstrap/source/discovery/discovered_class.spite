@@ -13,7 +13,6 @@ func DiscoveredClass(starting_mangled_name: String, starting_simple_name: String
 }
 
 func get_file(): Syntax.SourceFile {
-    var value = source_file
-    crash value
-    return value
+    crash source_file
+    return source_file
 }

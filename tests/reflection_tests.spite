@@ -1,8 +1,7 @@
 func test_a_value_knows_its_class() {
     var creature = Creature("rat", 3, true)
-    var containing = creature.class.namespace
-    if containing {
-        crash false
+    if creature.class.namespace {
+        crash
     }
     crash creature.class.name == "Creature"
 }
@@ -58,32 +57,8 @@ func test_a_class_name_reads_its_own_name() {
     crash ReflectionTests.name == "ReflectionTests"
 }
 
-func test_a_namespace_can_be_narrowed_with_if() {
-    var ns = Spite.Class.namespace
-    var name = ""
-    if ns {
-        name = ns.name
-    }
-    crash name == "Spite"
-}
-
-func test_a_namespace_can_be_narrowed_with_assert() {
-    var ns = Spite.Class.namespace
-    assert ns
-    crash ns.name == "Spite"
-    crash ns.name_with_namespaces == "Spite"
-}
-
-func test_a_namespace_can_be_narrowed_with_crash() {
-    var ns = Spite.Class.namespace
-    crash ns
-    crash ns.name == "Spite"
-}
-
-func test_an_asserted_path_reads_through_the_same_assert() {
-    assert Spite.Class.namespace
-    crash Spite.Class.namespace.name == "Spite"
-    crash Spite.Class.namespace.name_with_namespaces == "Spite"
+func test_a_namespace_compares_with_its_name() {
+    crash Spite.Class.namespace == "Spite"
 }
 
 func test_an_asserted_path_narrows_every_link_of_it() {
@@ -91,23 +66,15 @@ func test_an_asserted_path_narrows_every_link_of_it() {
     crash Spite.Attribute.class.namespace.name == "Spite"
 }
 
-func test_a_path_can_be_narrowed_with_if() {
-    var name = ""
-    if Spite.Class.namespace {
-        name = Spite.Class.namespace.name_with_namespaces
-    }
-    crash name == "Spite"
-}
-
 func test_a_path_can_be_narrowed_with_crash() {
     crash Spite.Class.namespace
-    crash Spite.Class.namespace.name == "Spite"
+    crash Spite.Class.namespace.name_with_namespaces == "Spite"
 }
 
-func test_a_null_path_fails_the_if_without_dereferencing_it() {
+func test_a_null_link_fails_the_if_without_dereferencing_it() {
     var creature = Creature("rat", 3, true)
-    if creature.class.namespace {
-        crash false
+    if creature.class.namespace.parent {
+        crash
     }
-    crash true
+    crash creature.class.name == "Creature"
 }

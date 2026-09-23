@@ -1,0 +1,11 @@
+var tracker: Tracker? = null
+
+func CopyToNarrow() {
+    drop()
+}
+
+func drop() {
+    var watcher = tracker
+    assert watcher
+    watcher.note_a_drop()
+}

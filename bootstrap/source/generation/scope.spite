@@ -42,9 +42,8 @@ func mark_used(name: String) {
         }
         index = index - 1
     }
-    var above = parent
-    assert above
-    above.mark_used(name)
+    assert parent
+    parent.mark_used(name)
 }
 
 func declare_owned(name: String, spite_type: Analysis.SpiteType) {
@@ -66,9 +65,8 @@ func lookup_type(name: String): Analysis.SpiteType? {
         }
         index = index - 1
     }
-    var above = parent
-    if above {
-        return above.lookup_type(name)
+    if parent {
+        return parent.lookup_type(name)
     }
     return null
 }
@@ -81,9 +79,8 @@ func lookup_override(name: String): String? {
         }
         index = index - 1
     }
-    var above = parent
-    if above {
-        return above.lookup_override(name)
+    if parent {
+        return parent.lookup_override(name)
     }
     return null
 }
@@ -107,9 +104,8 @@ func narrowing_of(candidate: String): String {
         }
         index = index - 1
     }
-    var above = parent
-    if above {
-        var answered = above.narrowing_of(candidate)
+    if parent {
+        var answered = parent.narrowing_of(candidate)
         if is_loop and not answered.is_empty() and not paths_read_from_outside.contains(answered) {
             paths_read_from_outside.append(answered)
         }
@@ -131,8 +127,7 @@ func forget_path(path: String, include_itself: Bool, read_by_crossed_loops: List
         }
         index = index - 1
     }
-    var above = parent
-    if above {
+    if parent {
         var read_above = read_by_crossed_loops.copy()
         if is_loop {
             var read_index = 0
@@ -141,7 +136,7 @@ func forget_path(path: String, include_itself: Bool, read_by_crossed_loops: List
                 read_index = read_index + 1
             }
         }
-        if above.forget_path(path, include_itself, read_above) {
+        if parent.forget_path(path, include_itself, read_above) {
             crossed_a_loop = true
         }
     }

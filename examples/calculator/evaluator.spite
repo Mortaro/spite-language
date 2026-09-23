@@ -25,14 +25,12 @@ func evaluate(expression: Expression): Float {
         }
         BinaryExpression: {
             var left_value = 0.0
-            var left = expression.left
-            if left {
-                left_value = evaluate(left)
+            if expression.left {
+                left_value = evaluate(expression.left)
             }
             var right_value = 0.0
-            var right = expression.right
-            if right {
-                right_value = evaluate(right)
+            if expression.right {
+                right_value = evaluate(expression.right)
             }
             if expression.operator == 'plus' {
                 return left_value + right_value

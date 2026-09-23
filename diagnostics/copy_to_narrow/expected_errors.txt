@@ -1,0 +1,1 @@
+diagnostics/copy_to_narrow/copy_to_narrow.spite:8: error: 'watcher' only copies 'tracker' so it can be narrowed: narrow 'tracker' itself ('assert tracker') and use it directly (in CopyToNarrow.drop)

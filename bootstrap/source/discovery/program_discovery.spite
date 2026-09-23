@@ -386,9 +386,8 @@ func scan_function_body_loads(statements: List<Syntax.Statements.Statement>, fou
     while index < statements.count() {
         var expression_statement = shape.as_expression_statement(statements[index])
         if expression_statement {
-            var value = expression_statement.value
-            assert value
-            add_load_name_if_present(value, found)
+            assert expression_statement.value
+            add_load_name_if_present(expression_statement.value, found)
         }
         index = index + 1
     }
@@ -397,9 +396,8 @@ func scan_function_body_loads(statements: List<Syntax.Statements.Statement>, fou
 func add_load_name_if_present(expression: Syntax.Expressions.Expression, found: List<String>) {
     var call = shape.as_call(expression)
     assert call
-    var callee = call.callee
-    assert callee
-    var identifier = shape.as_identifier(callee)
+    assert call.callee
+    var identifier = shape.as_identifier(call.callee)
     assert identifier
     assert not (identifier.name != "load")
     assert not (call.arguments.count() != 1)

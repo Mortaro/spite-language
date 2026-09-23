@@ -86,9 +86,8 @@ how a package is tried out before it is upstreamed:
 
 ```spite title=reopen_spite_class/spite/class.spite
 func name_with_namespaces(): String {
-    var containing = namespace
-    if containing {
-        return "{containing.name_with_namespaces}.{name}"
+    if namespace {
+        return "{namespace.name_with_namespaces}.{name}"
     }
     return name
 }

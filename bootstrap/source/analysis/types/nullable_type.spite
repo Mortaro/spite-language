@@ -5,7 +5,6 @@ func NullableType(starting_inner: SpiteType) {
 }
 
 func get_inner(): SpiteType {
-    var value = inner
-    crash value
-    return value
+    crash inner
+    return inner
 }

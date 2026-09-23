@@ -14,9 +14,8 @@ func SpiteCompiler(arguments: Arguments) {
         return
     }
     var mode_argument = "run"
-    var given_mode = arguments.mode
-    if given_mode {
-        mode_argument = given_mode
+    if arguments.mode {
+        mode_argument = arguments.mode
     }
     optimized = has_flag(arguments, "--optimized")
     collect_program_values(arguments)
@@ -49,9 +48,8 @@ func SpiteCompiler(arguments: Arguments) {
         return
     }
     if mode_argument == "build" {
-        var output_argument = arguments.output
-        crash output_argument
-        run_build_mode(file_argument, content, output_argument, has_debug_memory_flag(arguments))
+        crash arguments.output
+        run_build_mode(file_argument, content, arguments.output, has_debug_memory_flag(arguments))
         return
     }
     if mode_argument == "run" {
@@ -64,9 +62,8 @@ func SpiteCompiler(arguments: Arguments) {
 }
 
 func has_debug_memory_flag(arguments: Arguments): Bool {
-    var debug_memory_argument = arguments.debug_memory
-    if debug_memory_argument {
-        return debug_memory_argument == "true"
+    if arguments.debug_memory {
+        return arguments.debug_memory == "true"
     }
     return false
 }
@@ -102,9 +99,8 @@ func generate_c_or_report(file_argument: String, content: String): String? {
 }
 
 func file_to_compile(arguments: Arguments): String {
-    var named = arguments.file
-    if named {
-        return named
+    if arguments.file {
+        return arguments.file
     }
     var index = 0
     while index < arguments.count() {

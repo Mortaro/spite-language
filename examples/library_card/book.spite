@@ -18,8 +18,7 @@ func label(): String {
 }
 
 func is_available(): Bool {
-    var holder = borrowed_by
-    if holder {
+    if borrowed_by {
         return false
     }
     return true

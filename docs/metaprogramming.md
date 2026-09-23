@@ -119,11 +119,11 @@ power Int 3
 instance that function answers on -- an inherited attribute every instance has -- so `own class` above names
 the class the function was written in, and an attribute explicitly named `class` shadows it. A class name read
 directly reads the same class object member by member: `declared name` is `"Gadget"` with no instance anywhere.
-`.namespace` is the one `Spite.Namespace?`, so it needs narrowing before its members are read -- and what gets
-narrowed is the variable you hold it in: asserting a local copy does not narrow a fresh `Gadget.namespace`
-read. Assert the path itself, `assert Gadget.namespace`, and every read of that path and its prefixes is a
-plain value for the rest of the block -- the attribute is an ordinary nullable value, so it follows the
-ordinary narrowing rules like any other.
+`.namespace` is the one `Spite.Namespace?`, so it needs narrowing before its members are read. Assert the path
+itself, `assert Gadget.namespace`, and every read of that path and its prefixes is a plain value for the rest
+of the block -- the attribute is an ordinary nullable value, so it follows the ordinary narrowing rules like
+any other. Copying it into a local just to narrow the local is a compile error (D63), and comparing needs no
+narrowing at all: `Gadget.namespace == "Shop"` is false when there is no namespace (D69).
 
 `attributes[symbol]` inside a class (used by Symbol codegen above) and `.attributes` from outside are
 different things reading the same data: the former is compile-time only, indexed by a `Symbol`; the latter is

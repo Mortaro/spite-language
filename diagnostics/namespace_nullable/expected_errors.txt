@@ -1,1 +1,2 @@
+diagnostics/namespace_nullable/namespace_nullable.spite:8: error: 'ns' only copies 'NamespaceNullable.namespace' so it can be narrowed: narrow 'NamespaceNullable.namespace' itself ('assert NamespaceNullable.namespace') and use it directly (in NamespaceNullable.probe)
 diagnostics/namespace_nullable/namespace_nullable.spite:10: error: this value may be null (it is a Namespace?), so 'name' cannot be read from it yet: narrow it first with 'if value { }', 'assert value' or 'crash value' (in NamespaceNullable.probe)
