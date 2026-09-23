@@ -81,7 +81,7 @@ line.
 
 ## What comes next
 
-1. Functions in `type` shapes (D16) and calls through a shape.
+1. Done: functions in `type` shapes (D16) and calls through a shape.
 2. Function values: `Spite.Function<Arguments..., Return>`, `.owner`, `call_function()` (D39, D40), which needs
    the class that means "returns nothing".
 3. The rest of `Spite.Class`. There are no static or "class-level" functions in Spite (D6): a class is an instance of
@@ -350,3 +350,26 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   docs, seed updated; `bin/spite` rebuilt and smoke-tested. **Open for Mortaro:** the manual's examples walk up
   with `class.namespace.namespace`, but `Spite.Namespace` declares only `.parent` -- recorded in the decision
   log's open point for 2026-09-23.
+- 2026-09-23 (afternoon, Claude Opus 5.5, Mortaro away): **review of cfd2694** (written by another model): its
+  D43 guard tested only the last link of a path while the commit said it tested each, so `if outer.inner.inner`
+  with a null middle link dereferenced null; and nothing undid a narrowed path, so assigning null to it (or
+  replacing a prefix) and reading on crashed. Both fixed: `try_path_guard` walks `path_links` and joins one test
+  per nullable link with `&&`; `Scope.forget_path` runs on every assignment (a value that cannot be null keeps
+  the written path), and `Scope.is_loop` plus `paths_read_from_outside` make undoing, inside a loop, a narrowing
+  the loop has read an error. Then **the inbox**, moved into the manual as D58-D69 and open questions 12-20, and
+  built: D58 `join` is one body; D59 was already true; D60 `_:` expands to its body once per remaining member,
+  narrowed to each, and repeated case bodies are errors (`report_repeated_cases`, `generate_rest_case`); D61
+  `--final-classes` prints Symbol-codegen instances (`generated_functions_source`), and check.sh round-trips
+  `symbol_codegen` too; D63 copy-to-narrow is an error (`collect_body_facts` scans the body first), which found a
+  leaking check-on-a-non-null (now an error too); D64 `[]` answers `T?` (`List_at`), with proofs by count, by
+  bound (`narrow_proven_indices`, also on the left of `and`) and by `crash`, a `Bool?` condition is an error,
+  and assigning through a `T?` -- previously dropped silently -- is an error; D65 `name_with_namespaces`; D66
+  every test runs twice and must leave `Program().live_allocations()` where it was; D67 file order
+  (`check_order` in discovery); D69 `T? == value` without narrowing (`generate_nullable_equality`), and a class's
+  `equals` is skipped for a right side of its own class. D68 is recorded as conflicting with D10, with a
+  proposal, and not built. Three bootstrap detours worth knowing: `_:` needed two seed generations (the seed must
+  know `_` before sources rely on per-member narrowing), and D64 needed an intermediate compiler built from HEAD
+  with the crash-on-a-plain-value check relaxed, whose output became the seed. Migrations ran by script and every
+  changed line was audited for replacements inside quoted text (`scratchpad` scripts are not kept; the approach
+  is in the commit messages). State: 62 conformance/examples, tests (each proven leak-free), 48 diagnostics, 45
+  documentation programs, printed-program round trips, fixpoint holds, seed current.
