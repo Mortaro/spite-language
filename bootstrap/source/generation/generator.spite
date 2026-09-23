@@ -6057,6 +6057,7 @@ func generate_foreign_call(
     var pointer = ensure_foreign_symbol(library, foreign_symbol_name(name, foreign_library_namings[library]))
     var lines = List<String>()
     var releases = List<String>()
+    var afters = List<String>()
     var parameter_types = List<String>()
     parameter_types.append("void")
     var passed = List<String>()
@@ -6084,9 +6085,43 @@ func generate_foreign_call(
             }
             parameter_types.append("const char*")
             passed.append("{text}->data")
+        } else if passes_as_struct(argument_type) {
+            var passed_union = type_shape.as_union(argument_type)
+            crash passed_union
+            var shaped = find_union_by_c_name(passed_union.c_name)
+            crash shaped
+            var held_shape = next_temporary()
+            var struct_value = next_temporary()
+            lines.append("{passed_union.c_name} {held_shape} = {argument.code};")
+            var members = List<String>()
+            var initial = List<String>()
+            var field_index = 0
+            while field_index < shaped.shape_fields.count() {
+                var field = shaped.shape_fields[field_index]
+                var field_type = shape_field_type(shaped, field.name)
+                crash field_type
+                members.append("{c_type_name(field_type)} {field.name};")
+                initial.append("{ensure_shape_reader(shaped, field.name, field_type)}({held_shape})")
+                afters.append(
+                    "{ensure_shape_writer(shaped, field.name, field_type)}({held_shape}, {struct_value}.{field.name});",
+                )
+                field_index = field_index + 1
+            }
+            lines.append("struct \{ {members.join(" ")} } {struct_value} = \{ {initial.join(", ")} };")
+            crash library < foreign_library_headers.count()
+            if not foreign_library_headers[library].is_empty() and foreign_library_namings[library] == "windows" {
+                lines.append(
+                    "_Static_assert(sizeof({words_of(shaped.simple_name).join("_").upper()}) == sizeof({struct_value}), \"{shaped.simple_name} does not match {words_of(shaped.simple_name).join("_").upper()}\");",
+                )
+            }
+            if owns(argument, arguments_ast[index]) {
+                releases.append("{passed_union.c_name}_release({held_shape});")
+            }
+            parameter_types.append("void*")
+            passed.append("&{struct_value}")
         } else {
             report(
-                "a {type_display_name(argument_type)} cannot cross into C: a foreign function takes numbers, Bool, enum values and text",
+                "a {type_display_name(argument_type)} cannot cross into C: a foreign function takes numbers, Bool, enum values, text and a type whose attributes are all numbers",
             )
         }
         index = index + 1
@@ -6103,6 +6138,7 @@ func generate_foreign_call(
     lines.append(
         "{returned_c} {result} = (({returned_c} (*)({parameter_types.join(", ")})){pointer})({passed.join(", ")});",
     )
+    lines.append(afters.join(" "))
     var value = result
     if type_shape.as_string(returned) {
         value = "spite_string_from_cstring_owned({result} != 0 ? {result} : \"\")"
@@ -6140,6 +6176,39 @@ func ensure_foreign_header(header: String) {
     } else {
         builder.add_typedef("#include <{header}>")
     }
+}
+
+func passes_as_struct(spite_type: Analysis.SpiteType): Bool {
+    var passed_union = type_shape.as_union(spite_type)
+    if not passed_union {
+        return false
+    }
+    crash passed_union
+    var shaped = find_union_by_c_name(passed_union.c_name)
+    if not shaped {
+        return false
+    }
+    crash shaped
+    if not shaped.is_shape {
+        return false
+    }
+    var index = 0
+    while index < shaped.shape_fields.count() {
+        var field = shaped.shape_fields[index]
+        if field.is_function {
+            return false
+        }
+        var field_type = shape_field_type(shaped, field.name)
+        if not field_type {
+            return false
+        }
+        crash field_type
+        if not type_shape.as_scalar(field_type) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
 }
 
 func ensure_foreign_symbol(library: Int, c_name: String): String {

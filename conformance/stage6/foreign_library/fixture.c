@@ -12,3 +12,6 @@ EXPORTED double half_of(int value) { return value / 2.0; }
 EXPORTED long long big_number(void) { return 5000000000LL; }
 EXPORTED const char* greeting(void) { return "hello from C"; }
 EXPORTED int text_length(const char* text) { int count = 0; while (text[count] != '\0') count = count + 1; return count; }
+typedef struct { int x; int y; } Point;
+EXPORTED int sum_point(Point* point) { return point->x + point->y; }
+EXPORTED void MovePoint(Point* point) { point->x = point->x + 10; point->y = point->y + 20; }
