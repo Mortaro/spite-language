@@ -1760,8 +1760,9 @@ how `check.sh` tests it, building the fixture's C into a library beside the prog
 `_as_double` and `_as_text`, since a plain call returns a 32-bit `Int` and a handle or pointer needs 64; the
 naming rule is a symbol literal (D70); a foreign function is called only through the attribute or variable that
 holds its `DynamicLibrary(...)`, so the compiler knows which table binds it; and `--final-classes` writes no
-resolved-name comments, which D34 would reject (how to show them is open question 10). Not built: the header
-(constants, types, structs -- 11b), `missing_function`/`missing_attribute` as reopenable Spite, and a
+resolved-name comments, which D34 would reject (how to show them is open question 10). A constant reads from the header (`user32.mouseeventf_leftdown` is `MOUSEEVENTF_LEFTDOWN`, an `Int`); a header path
+that exists relative to the working directory is included as a file, anything else as a system header. Not built: the header's
+types and structs (the rest of 11b), `missing_function`/`missing_attribute` as reopenable Spite, and a
 user-written naming rule (11c).
 
 D4 (decided by Mortaro, 2026-09-19): **a native library is a class, not a keyword.** There is no `external`

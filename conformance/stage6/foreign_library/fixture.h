@@ -1,0 +1,2 @@
+#define FIXTURE_ANSWER 7
+#define FIXTURE_LIMIT 2

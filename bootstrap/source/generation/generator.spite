@@ -20,6 +20,7 @@ var foreign_library_headers = List<String>()
 var foreign_symbol_libraries = List<Int>()
 var foreign_symbol_names = List<String>()
 var foreign_symbol_wanted = List<String>()
+var foreign_headers_included = List<String>()
 var function_value_makers = List<String>()
 var body_narrowed_names = List<String>()
 var body_assigned_paths = List<String>()
@@ -6114,6 +6115,33 @@ func generate_foreign_call(
     return called
 }
 
+func generate_foreign_constant(foreign: Analysis.Types.ClassRefType, name: String): ExpressionResult {
+    if foreign.foreign_library < 0 {
+        report("a foreign constant is read through the attribute or variable that holds its DynamicLibrary(...)")
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    crash foreign.foreign_library < foreign_library_headers.count()
+    var header = foreign_library_headers[foreign.foreign_library]
+    if header.is_empty() {
+        report(
+            "'{name}' is a constant, and a constant comes from the library's header: name it as DynamicLibrary's third argument",
+        )
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    ensure_foreign_header(header)
+    return ExpressionResult("((int32_t)({name.upper()}))", integer_type())
+}
+
+func ensure_foreign_header(header: String) {
+    assert not foreign_headers_included.contains(header)
+    foreign_headers_included.append(header)
+    if File(header).exists() {
+        builder.add_typedef("#include \"{escape_c_string(header)}\"")
+    } else {
+        builder.add_typedef("#include <{header}>")
+    }
+}
+
 func ensure_foreign_symbol(library: Int, c_name: String): String {
     var index = 0
     while index < foreign_symbol_names.count() {
@@ -6304,6 +6332,12 @@ func generate_member_read_raw(
         }
     }
     var object_result = generate_member_object(member.object, scope, class_information)
+    var foreign = type_shape.as_class_ref(object_result.get_type())
+    if foreign {
+        if foreign.c_name == "DynamicLibrary" {
+            return generate_foreign_constant(foreign, member.name)
+        }
+    }
     if member.name == "namespace" {
         var namespace_receiver = type_shape.as_class_ref(object_result.get_type())
         if namespace_receiver {

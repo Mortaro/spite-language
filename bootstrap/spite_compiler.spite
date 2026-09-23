@@ -473,6 +473,7 @@ func build_to_path(file_argument: String, content: String, output_path: String, 
         process_arguments.append("-O0")
     }
     process_arguments.append("-Wno-parentheses-equality")
+    process_arguments.append("-I.")
     if debug_memory {
         process_arguments.append("-DSPITE_DEBUG_MEMORY")
     }

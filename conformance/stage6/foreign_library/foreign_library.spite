@@ -1,10 +1,14 @@
 var console = Console()
 var plain = DynamicLibrary("conformance/stage6/foreign_library/fixture", 'identity', "")
 var camel = DynamicLibrary("conformance/stage6/foreign_library/fixture", 'camel_case', "")
-var windows = DynamicLibrary("conformance/stage6/foreign_library/fixture", 'windows', "")
+var windows = DynamicLibrary(
+    "conformance/stage6/foreign_library/fixture",
+    'windows',
+    "conformance/stage6/foreign_library/fixture.h",
+)
 
 func ForeignLibrary() {
     console.print(plain.add_numbers(2, 3), camel.multiply_numbers(4, 5), windows.get_answer_position())
     console.print(plain.half_of_as_double(7), plain.big_number_as_long(), plain.greeting_as_text())
-    console.print(plain.text_length("spite"))
+    console.print(plain.text_length("spite"), windows.fixture_answer, windows.fixture_limit)
 }
