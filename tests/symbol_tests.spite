@@ -1,0 +1,30 @@
+var program = Program()
+
+func test_a_class_name_is_a_symbol() {
+    var named: Symbol = Creature.name
+    crash named == "Creature"
+    crash named.length() == 8
+    crash named.upper() == "CREATURE"
+}
+
+func test_a_symbol_reads_as_text() {
+    var greeting: Symbol = 'hello'
+    crash "{greeting} world" == "hello world"
+    crash greeting.starts_with("he")
+}
+
+func test_text_becomes_a_symbol_only_if_the_program_has_it() {
+    var known: Symbol = 'apple'
+    crash Symbol("apple") == known
+    crash Symbol("never used anywhere") != "never used anywhere"
+}
+
+func test_symbols_cost_no_allocation() {
+    var kinds: List<Symbol> = ['fruit', 'bakery']
+    var before = program.live_allocations()
+    var named: Symbol = 'fruit'
+    kinds[1] = Creature.name
+    crash named == kinds[0]
+    crash kinds[1] == "Creature"
+    crash program.live_allocations() == before
+}

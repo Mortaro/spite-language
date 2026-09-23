@@ -9,4 +9,5 @@ union SpiteType {
     Analysis.Types.DictionaryType
     Analysis.Types.UnionType
     Analysis.Types.ArgumentsType
+    Analysis.Types.SymbolType
 }

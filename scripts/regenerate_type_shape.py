@@ -1,6 +1,6 @@
 """Regenerates bootstrap/source/analysis/spite_type.spite and type_shape.spite from the member list below."""
 members = ["ScalarType", "StringType", "ClassRefType", "NullableType", "VoidType", "EnumType",
-           "ListType", "DictionaryType", "UnionType", "ArgumentsType"]
+           "ListType", "DictionaryType", "UnionType", "ArgumentsType", "SymbolType"]
 root = "bootstrap/source/analysis/"
 
 
@@ -18,8 +18,9 @@ for name, member in [("as_scalar", "ScalarType"), ("as_class_ref", "ClassRefType
     out += "func %s(spite_type: SpiteType): Analysis.Types.%s? {\n" % (name, member)
     out += switch(member, "spite_type", "null") + "}\n\n"
 for name, member in [("as_string", "StringType"), ("is_void", "VoidType"),
-                     ("is_arguments", "ArgumentsType")]:
+                     ("is_arguments", "ArgumentsType"), ("is_symbol", "SymbolType")]:
     out += "func %s(spite_type: SpiteType): Bool {\n" % name + switch(member, "true", "false") + "}\n\n"
 open(root + "type_shape.spite", "w", newline="\n").write(out.rstrip("\n") + "\n")
 open(root + "types/arguments_type.spite", "w", newline="\n").write("")
+open(root + "types/symbol_type.spite", "w", newline="\n").write("")
 print("regenerated")

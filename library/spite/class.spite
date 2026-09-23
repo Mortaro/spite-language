@@ -1,10 +1,10 @@
-var name = ""
+var name: Symbol = 'Nothing'
 var namespace: Spite.Namespace? = null
 var singleton = false
 var attributes = List<Spite.Attribute>()
 var functions = List<Spite.Function>()
 
-func Class(starting_name: String) {
+func Class(starting_name: Symbol) {
     name = starting_name
 }
 

@@ -67,3 +67,10 @@ func is_arguments(spite_type: SpiteType): Bool {
         _: return false
     }
 }
+
+func is_symbol(spite_type: SpiteType): Bool {
+    switch spite_type {
+        Analysis.Types.SymbolType: return true
+        _: return false
+    }
+}

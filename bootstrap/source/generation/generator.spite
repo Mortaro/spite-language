@@ -11,6 +11,9 @@ var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
 var deep_copy_names = List<String>()
 var terminal_if: Syntax.Statements.IfStatement? = null
+var symbol_names = List<String>()
+var symbol_lookup_used = false
+var symbol_positions = Dictionary<Int>()
 var function_value_makers = List<String>()
 var body_narrowed_names = List<String>()
 var body_assigned_paths = List<String>()
@@ -405,6 +408,7 @@ func generate(
         emit_pending_functions()
         final_settle = final_settle + 1
     }
+    emit_symbol_table()
     emit_main(discovery.entry_mangled_name)
     return builder.render()
 }
@@ -1918,6 +1922,10 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
         if name == "Nullable" {
             return resolve_nullable_argument(named, current_namespace)
         }
+        if name == "Symbol" {
+            var symbol_type: Analysis.SpiteType = Analysis.Types.SymbolType()
+            return symbol_type
+        }
         if name == "Arguments" {
             var resolved: Analysis.SpiteType = Analysis.Types.ArgumentsType()
             return resolved
@@ -2102,7 +2110,7 @@ func resolve_nullable_argument(named: Syntax.Types.NamedType, current_namespace:
 }
 
 func type_is_reference(spite_type: Analysis.SpiteType): Bool {
-    if type_shape.as_string(spite_type) {
+    if type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type) {
         return true
     }
     if type_shape.as_list(spite_type) {
@@ -2139,6 +2147,9 @@ func types_equal(left_type: Analysis.SpiteType, right_type: Analysis.SpiteType):
     }
     if type_shape.as_string(left_type) {
         return type_shape.as_string(right_type)
+    }
+    if type_shape.is_symbol(left_type) {
+        return type_shape.is_symbol(right_type)
     }
     var left_class = type_shape.as_class_ref(left_type)
     if left_class {
@@ -2269,6 +2280,9 @@ func type_label(spite_type: Analysis.SpiteType): String {
     if type_shape.as_string(spite_type) {
         return "String"
     }
+    if type_shape.is_symbol(spite_type) {
+        return "Symbol"
+    }
     var class_ref = type_shape.as_class_ref(spite_type)
     if class_ref {
         return class_ref.c_name
@@ -2309,7 +2323,7 @@ func c_type_name(spite_type: Analysis.SpiteType): String {
     if scalar {
         return numeric_c_name(scalar.kind)
     }
-    if type_shape.as_string(spite_type) {
+    if type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type) {
         return "SpiteString*"
     }
     var class_ref = type_shape.as_class_ref(spite_type)
@@ -2363,7 +2377,7 @@ func default_value_for_type(spite_type: Analysis.SpiteType): String {
         }
         return "0"
     }
-    if type_shape.as_string(spite_type) {
+    if type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type) {
         return "(&spite_static_string_empty)"
     }
     var class_ref = type_shape.as_class_ref(spite_type)
@@ -2434,6 +2448,15 @@ func string_conversion(code: String, from: Analysis.SpiteType): String {
 
 func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): String {
     if types_equal(from, to) {
+        return code
+    }
+    if type_shape.is_symbol(from) and type_shape.as_string(to) {
+        return code
+    }
+    if type_shape.as_string(from) and type_shape.is_symbol(to) {
+        report(
+            "text is not a Symbol: a Symbol is written 'name', and text becomes one with Symbol(text), which answers Symbol? -- null unless the program already uses that symbol",
+        )
         return code
     }
     var from_function = type_shape.as_class_ref(from)
@@ -2515,7 +2538,7 @@ func retain_call(spite_type: Analysis.SpiteType, code: String): String {
     if class_ref {
         return "{class_ref.c_name}_retain({code})"
     }
-    if type_shape.as_string(spite_type) {
+    if type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type) {
         return "SpiteString_retain({code})"
     }
     var list_type = type_shape.as_list(spite_type)
@@ -2542,7 +2565,7 @@ func release_call(spite_type: Analysis.SpiteType, code: String): String {
     if class_ref {
         return "{class_ref.c_name}_release({code})"
     }
-    if type_shape.as_string(spite_type) {
+    if type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type) {
         return "SpiteString_release({code})"
     }
     var list_type = type_shape.as_list(spite_type)
@@ -2626,6 +2649,9 @@ func coerce_for_store(
     }
     var enum_literal = shape.as_enum_literal(expression_ast)
     if enum_literal {
+        if type_shape.is_symbol(expected_type_without_nullable(expected_type)) {
+            return ensure_symbol(enum_literal.value)
+        }
         var expected_enum = expected_enum_of(expected_type)
         if expected_enum {
             return cast(
@@ -2914,6 +2940,23 @@ func generate_string_binary(
     return ExpressionResult("(\{ {lines.join(" ")} })", result_type)
 }
 
+func maybe_null_only_on_the_right(
+    binary: Syntax.Expressions.BinaryExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Bool {
+    crash binary.left
+    crash binary.right
+    if shape.is_null_literal(binary.right) or is_enum_literal(binary.left) or is_enum_literal(binary.right) {
+        return false
+    }
+    var saved_counter = temporary_counter
+    var left_probe = generate_expression(binary.left, scope, class_information)
+    var right_probe = generate_expression(binary.right, scope, class_information)
+    temporary_counter = saved_counter
+    return type_shape.as_nullable(right_probe.get_type()) and not type_shape.as_nullable(left_probe.get_type())
+}
+
 func generate_binary(
     binary: Syntax.Expressions.BinaryExpression,
     scope: Scope,
@@ -2921,6 +2964,16 @@ func generate_binary(
 ): ExpressionResult {
     crash binary.left
     crash binary.right
+    if binary.operator == 'equal' or binary.operator == 'not_equal' {
+        if maybe_null_only_on_the_right(binary, scope, class_information) {
+            var mirrored: Syntax.Expressions.Expression = Syntax.Expressions.BinaryExpression(
+                binary.operator,
+                binary.right,
+                binary.left,
+            )
+            return generate_expression(mirrored, scope, class_information)
+        }
+    }
     if is_enum_literal(binary.left) and not is_enum_literal(binary.right) {
         var swapped_right = generate_expression(binary.right, scope, class_information)
         var swapped_left_code = coerce_for_store(binary.left, swapped_right.get_type(), scope, class_information)
@@ -2948,6 +3001,7 @@ func generate_binary(
             return ExpressionResult("0", Analysis.Types.VoidType())
         }
     }
+    left = as_text(left)
     if type_shape.as_string(left.get_type()) {
         return generate_string_binary(binary.operator, left, binary.left, binary.right, scope, class_information)
     }
@@ -3619,7 +3673,7 @@ func generate_method_call(
             }
         }
     }
-    var object_result = generate_member_object(object_ast, scope, class_information)
+    var object_result = as_text(generate_member_object(object_ast, scope, class_information))
     if type_shape.as_string(object_result.get_type()) {
         return generate_string_method(member.name, object_result, object_ast, arguments_ast, scope, class_information)
     }
@@ -4390,9 +4444,7 @@ func emit_class_object_bodies() {
         lines.append("Spite_Class* {function_c_name}(void) \{")
         lines.append("if ({function_c_name}_cache == 0) \{")
         crash class_object_displays[position]
-        lines.append(
-            "{function_c_name}_cache = Spite_Class_make({render_string_literal(class_object_displays[position])});",
-        )
+        lines.append("{function_c_name}_cache = Spite_Class_make({ensure_symbol(class_object_displays[position])});")
         crash class_object_labels[position]
         var described = find_class_by_c_name(class_object_labels[position])
         if described {
@@ -5636,14 +5688,14 @@ func emit_list_support(list_name: String, element: Analysis.SpiteType, class_id:
 }
 
 func owned_text_of(code: String, from: Analysis.SpiteType): String {
-    if type_shape.as_string(from) {
+    if type_shape.as_string(from) or type_shape.is_symbol(from) {
         return "SpiteString_retain({code})"
     }
     return string_conversion(code, from)
 }
 
 func joins_as_text(element: Analysis.SpiteType): Bool {
-    return type_shape.as_string(element) or type_shape.as_scalar(element) or is_enum_type(element)
+    return type_shape.as_string(element) or type_shape.is_symbol(element) or type_shape.as_scalar(element) or is_enum_type(element)
 }
 
 func print_float_statement(code: String, stream: String, converter: String): String {
@@ -5657,7 +5709,7 @@ func printed_statement_for(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): String {
-    var result = generate_expression(expression_ast, scope, class_information)
+    var result = as_text(generate_expression(expression_ast, scope, class_information))
     var scalar = type_shape.as_scalar(result.get_type())
     if scalar {
         if scalar.kind == 'boolean_kind' {
@@ -5836,6 +5888,62 @@ func generate_member_object(
     return generate_expression(object_ast, scope, class_information)
 }
 
+func as_text(result: ExpressionResult): ExpressionResult {
+    if not type_shape.is_symbol(result.get_type()) {
+        return result
+    }
+    var text = ExpressionResult(result.code, string_type())
+    text.owning_override = result.owning_override
+    return text
+}
+
+func ensure_symbol(name: String): String {
+    if symbol_positions.has(name) {
+        crash symbol_positions[name]
+        return "(&spite_symbol_{symbol_positions[name]})"
+    }
+    var position = symbol_names.count()
+    symbol_names.append(name)
+    symbol_positions[name] = position
+    builder.add_typedef(
+        "static SpiteString spite_symbol_{position} = SPITE_STATIC_STRING(\"{escape_c_string(name)}\", {name.length()});",
+    )
+    return "(&spite_symbol_{position})"
+}
+
+func generate_symbol_lookup(
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    if arguments_ast.count() != 1 {
+        report("Symbol(text) takes the text to look up, and nothing else")
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    if not symbol_lookup_used {
+        builder.add_prototype("SpiteString* spite_symbol_find(SpiteString* text);")
+    }
+    symbol_lookup_used = true
+    var text_code = generate_argument_list(arguments_ast, one_type(string_type()), scope, class_information)
+    crash text_code.count() == 1
+    var found = ExpressionResult("spite_symbol_find({text_code[0]})", nullable_type_of(Analysis.Types.SymbolType()))
+    return found
+}
+
+func emit_symbol_table() {
+    assert symbol_lookup_used
+    var entries = List<String>()
+    var index = 0
+    while index < symbol_names.count() {
+        entries.append("&spite_symbol_{index}")
+        index = index + 1
+    }
+    entries.append("0")
+    builder.add_support(
+        "static SpiteString* spite_symbol_table[] = \{ {entries.join(", ")} };\nSpiteString* spite_symbol_find(SpiteString* text) \{\nSpiteString* found = 0;\nfor (int64_t index = 0; spite_symbol_table[index] != 0; index = index + 1) \{\nif (SpiteString_equals(spite_symbol_table[index], text)) \{ found = spite_symbol_table[index]; break; }\n}\nSpiteString_release(text);\nreturn found;\n}",
+    )
+}
+
 func generate_call(
     call: Syntax.Expressions.CallExpression,
     scope: Scope,
@@ -5851,6 +5959,11 @@ func generate_call(
     var target_class = try_resolve_static_path(call.callee, class_information.namespace_dotted)
     if target_class {
         return generate_constructor_call(target_class, call.arguments, scope, class_information)
+    }
+    if callee_identifier {
+        if callee_identifier.name == "Symbol" {
+            return generate_symbol_lookup(call.arguments, scope, class_information)
+        }
     }
     var member = shape.as_member(call.callee)
     if member {
