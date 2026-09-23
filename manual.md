@@ -2014,6 +2014,81 @@ payloads to JSON on demand, since the compiler knows the schema.
     - For: one kind of member, and it composes -- a shape could then require a function value it will *store*,
       which `hit(): Int` cannot express.
 
+12. **A header form for generics, with constraints** (Mortaro, 2026-09-23, asked to be argued with). The proposal:
+    `generic $type` lines at the top of the file beside `singleton`, and a described generic
+    `generic $sub_type { initial_value: Spite.Function<$sub_type> }` that narrows what may be supplied. The
+    problem it solves is real: a class that takes codegen values must have a constructor to declare them, even
+    when it has nothing to construct, and the constructor form has nowhere to say what a supplied class must be
+    able to do. And the distinction Mortaro draws is the right one -- a described generic is *one* class for every
+    place that uses it, where a `type` accepts anything that quacks, afresh at each call.
+    Claude's argument, for and against (proposed by Claude, unconfirmed):
+    - **For the header line:** `singleton` already made a header line a pattern, so parity is a real argument, and
+      the objection that removed the old `generics` line (SPITE.md: "feels outside of our patterns") was about
+      an ordered *list* in a line of its own; one `generic` per line is a declaration like `var`, not a header.
+    - **Against the inline block:** it is an anonymous `type`. Write the constraint as a shape the program
+      already has -- `generic $sub_type: Openable` -- so one mechanism describes what a class must be able to do.
+      An inline block is then just sugar for an unnamed `type`, and can come later if it is missed.
+    - **Against `gen`:** it is an abbreviation, and the abbreviation rule has no exceptions for keywords.
+      `generic` says what it is.
+    - **What becomes implicit:** a caller's `Journal<String, Chapter>()` is positional, so the order of the
+      `generic` lines becomes the order callers write. The constructor form made that order visible in one
+      signature; the header form spreads it over lines. Acceptable, since D67 fixes where the lines go.
+    - **The example's `var opened = $sub_type`** reads as assigning a class to a variable. Claude assumes
+      `var opened: $sub_type` was meant.
+13. **How casting works, so a class can define its own casts, and how to name a variable's class as a type**
+    (Mortaro, 2026-09-23: "a thing for you to ask me later"). Example shape: `func from_type(type: Symbol, value:
+    type.class)`. Not argued yet; waiting to be asked. D59 (arguments cast to their parameter type) is where it
+    will first matter.
+14. **An ABI for variadic arguments** (Mortaro, 2026-09-23, "fight me on this before we implement"). Proposed:
+    `func hello(world: String, ...args: List<Spite.Argument<String>>)`, which would make `Spite.Argument` generic.
+    Claude argues against the `Spite.Argument` part (proposed by Claude, unconfirmed): `Spite.Argument` is the
+    *reflection* of a parameter -- a name and a class, known at compile time -- and a variadic argument is a
+    *value* at runtime. Making one class carry both merges the two levels D11 keeps apart. `...args: List<String>`
+    already says everything: the `...` means "the caller writes these one by one", the list is the type the
+    function receives. For `Console.print`, which takes anything, the element type is a `type` every printable
+    value satisfies -- `...values: List<Printable>` -- so the language needs no new class, only `...`.
+15. **Whether `while` can go** (Mortaro, 2026-09-23: investigate every use; if it can be rewritten with
+    metaprogramming, make it an error). Measured on 2026-09-23 over the compiler, `library/`, `scripts/`, the
+    tests, the examples and the corpus: 259 `while` loops, and 199 of them are the same shape -- an index from 0
+    to `list.count()`, reading `list[index]`. Every one of those is a member template (`each_`, `map_`,
+    `filter_`, `find_by_`, `any_`, `count_`, `sum_`). The other 60 are genuinely loops over state: the lexer
+    scanning characters, the parser consuming tokens, walking backwards, settling until nothing changes.
+    Proposal (Claude, unconfirmed): make the 199-shape an error naming the template -- detected as a `while`
+    whose condition compares a counter with `.count()` of a list the body indexes by that counter -- and keep
+    `while` for the rest. This pairs with D64: an index read is where `[]` becomes `T?`, and removing the
+    index loops removes almost all of the narrowing D64 would otherwise demand. What the templates still lack
+    for the compiler's own loops: the index inside the body, and stopping early.
+16. **Two versions of one dependency** (Mortaro, 2026-09-23). When two packages load the same git dependency at
+    different commits and the difference changes nothing either package uses, the compiler should just use one,
+    without asking. When the versions differ in members that are used, the compiler treats them as two packages
+    in two namespaces, so both keep working, and a command lists these splits for whoever wants to unify them --
+    "not actually broken, just annoying". Belongs to D38 (a dependency is a git URL plus a commit in `load`),
+    which is not implemented; recorded so the design starts here.
+17. **A syntax for `this`** (Mortaro, 2026-09-23): to be discussed when something needs it. Today bare names
+    reach attributes and `class` is the instance's class, so nothing does yet.
+18. **The entry file is always the file named after its folder** (Mortaro, 2026-09-23, asked to be argued for).
+    `spite hello` runs the `hello` folder's entry file; a file name on the command line is no longer accepted.
+    The case for it (Claude): discovery already requires an entry folder, so the file name on the command line
+    only restates the folder -- two ways to say one thing, and the second can disagree (`spite hello/other.spite`).
+    One way to run a program is the rule SPITE.md states under "more than one way to do a thing". The cost is
+    small and known: editors that pass the current file will pass its folder instead, and a compile error naming
+    the folder covers the habit. Claude would do it.
+19. **Constants without a `const` keyword, and reflection attributes that cannot be overwritten** (Mortaro,
+    2026-09-23). Constants: yes, without a keyword -- the compiler sees the whole program, so an attribute that
+    nothing assigns after its default (no assignment, no `set_` call, no reflective write) is a constant and
+    folds. Nothing is declared; it is just what the optimiser finds (D36). Read-only attributes: Mortaro's idea
+    is to declare no attribute at all, only `get_attributes()`, which attribute interception already turns into
+    a readable `.attributes`; with no `set_attributes()` there is nothing to assign through, so writing it is an
+    error. What the compiler needs (Claude, unconfirmed): a read of `.name` that finds no attribute but finds
+    `get_name()` is an attribute read, and a write to it with no `set_name()` is an error saying the attribute
+    is read-only. The storage behind it is a private `_attributes`, which the compiler fills as it fills
+    `attributes` today.
+20. **Whether a nested `if`/`else` is an error** (Mortaro, 2026-09-23: "we should discuss"). Claude's view: nesting
+    is where generated code becomes unreadable, and the language already removes the common cases -- a
+    precondition is `assert` (D54), a choice between kinds is a `switch` over a union or enum. What remains is a
+    genuine decision tree, and forbidding it pushes it into a helper function, which is usually the right call.
+    A concrete rule to decide on: an `if` with an `else`, inside a branch of another `if` with an `else`, is an
+    error that names extracting a function.
 
 ## Decision log
 
@@ -2157,3 +2232,15 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-22 | **(decided by Mortaro): a class name reads its class object member by member -- `Hello.name` is the class's name -- and the `Namespace?` narrowing error gets tests.** "i should also be able to directly say Hello.name to get class name"; "we should have tests for it." The first falls out of D6 (a class name is an ordinary `Spite.Class` value): the static-path substitution that made `Sticker.attributes` work now serves every member read and method receiver on a static path -- `Creature.name`, `Creature.namespace`, `Creature.attributes` answer the same class object as `creature.class.*`, and `Console.is_singleton()` calls -- while `Creature.instances` still means its live registry and `Creature.debug()` still reports "'Creature' is a class, not a value: write 'Creature()'", since there are no static functions. The second pins the existing nullability rule rather than changing it: `diagnostics/namespace_nullable` is the reported shape verbatim (assert a local copy, then re-read `Hello.namespace.name` -- narrowing narrows the variable you hold, so the fresh read must be narrowed in its own right), and `tests/reflection_tests` exercises all three narrowing forms (`if`, `assert`, `crash`) on `Spite.Class.namespace`.  **[implemented]** |
 | 2026-09-23 | **(decided by Mortaro): D43's chain narrowing is the ordinary rule -- no special case for a class path, because every attribute Spite adds by default is a normal attribute and the normal null rules apply to it.** "the chain form for a class should not be a special case at all, namespace should be returning a Spite.Namespace which should follow same null coalecense rules, the beauty of spite metaprograming is that every attribute spite adds by default is just a normal attribute so any normal rule apply." Implemented as section 5 already specifies: `Scope` keeps a set of narrowed paths beside its name overrides, and a member read whose path is in the set answers with its plain type -- the same thing `lookup_override` already does for a bare name, consulted where a member generates instead of where an identifier resolves, so nothing downstream (member reads, method calls, stores, conditions) knows that paths exist. `if`, `assert`/`crash` and a switch subject each record the path in the block they narrow (then-scope, current scope, case-scope); while the condition itself generates its strict prefixes are visible in a throwaway scope, since the condition reads through them, which is what makes a deep chain provable in one statement; every link is tested before the next is read, so a null link fails the narrowing instead of dereferencing anything, and a condition that owns what it read releases it in the guard itself. A local copy stays its own path (`diagnostics/namespace_nullable`), the `else` of a narrowed `if` does not inherit the narrowing (`diagnostics/path_narrow_else`), `conformance/stage6/namespace_objects` walks a nullable prefix (`gadget.class.namespace.parent`) with `crash`, since a constructor bans `assert`, and `tests/reflection_tests` has the `if`/`assert`/`crash` forms, a deep `Spite.Attribute.class.namespace` chain, and a null path that fails the `if` without being dereferenced. **Open:** the manual walks up with `class.namespace.namespace` (section 5, section 8, D43, the 2026-09-20 row), but `Spite.Namespace` declares `.parent` and has no `.namespace` (section 8 itself: "`.parent` walks up it") -- either the member is meant to exist and the library is missing it, or every example means `.parent`; Mortaro to say which.  **[implemented]** |
 | 2026-09-23 | **Review of the D43 implementation (Claude Opus 5.5, reviewing a commit written by another model).** Two defects, both fixed. First, the row above says every link is tested before the next is read; the guard actually generated the whole path with its prefixes narrowed and tested only the last link, so `if outer.inner.inner` with a null `outer.inner` dereferenced null. The guard now tests each nullable link in order, joined with `&&`, so a null link stops the test (`conformance/stage6/path_narrowing`). Second, nothing undid a path narrowing: `assert outer.inner` then `outer.inner = null` (or `outer = Box()`) then `outer.inner.label` compiled and crashed. **(proposed by Claude, unconfirmed):** an assignment undoes every narrowing at or beneath the path it writes -- except that a value which cannot be null keeps the written path itself narrowed -- and inside a `while`, undoing a narrowing made before the loop that the loop has read is an error naming the fix, since generation is one pass and the read earlier in the body was already emitted as proven (`diagnostics/path_narrow_assignment`, `diagnostics/path_narrow_loop`). **Still open, for Mortaro:** a function call can change an attribute behind a narrowing (`assert tracker.target` then `reset()` which sets it to null). This is not new -- a narrowed bare attribute name has the same gap -- and closing it means either re-testing after every call or treating narrowing of an attribute as valid only until the next call. Also found, older than D43: assigning `null` to a narrowed *name* (`assert maybe` then `maybe = null`) stores `Box_default()` instead of null, silently. |
+| 2026-09-23 | **D58** (decided by Mortaro): **`join` is not special to `List<String>`.** It converts every item to text and joins the results; converting text to text is folded away as a no-op. So `join` is one function for every element type rather than a text-only case the other types borrow. |
+| 2026-09-23 | **D59** (decided by Mortaro): **no function overloading; arguments cast to the parameter's type.** "I don't like how ambiguous it is." One name means one function; calling `takes_a_float(i)` with an `Int` casts `i` to `Float` by the ordinary casting rule (section 4), exactly as an assignment would. A class that wants to accept several kinds of value accepts a union or a `type`. How a class defines its own casts is open question 13. |
+| 2026-09-23 | **D60** (decided by Mortaro): **a `switch` stays exhaustive, and `_:` covers every case not written.** As in Rust, a last `_:` case answers for the rest. And because a call on a union works when every member has the function (section 7), `_: shared.method()` calls the function all remaining cases share. **A `switch` that repeats a case body is a compile error:** cases with the same answer are written once, through `_:`. |
+| 2026-09-23 | **D61** (decided by Mortaro): **every function Spite adds to a class appears in `--final-classes`**, the member templates included (`sum_price()` and the rest, D15): a function you can call is a function you can read. |
+| 2026-09-23 | **D62** (decided by Mortaro): **no destructuring and no lambdas, anywhere.** "Writing it is fun, but it's not a human who will write code in this language, so it's a pointless readability sacrifice." A function value is a named, bound function (D17); a value is taken apart by reading its members by name. |
+| 2026-09-23 | **D63** (decided by Mortaro): **a local that only copies a name or a path so it can be narrowed is a compile error.** `var watcher = tracker; assert watcher; watcher.note_a_drop()` is written `assert tracker; tracker.note_a_drop()` -- narrowing works on the name and on the path (D43), so the copy is a human habit with no reason in Spite. Its exact scope (proposed by Claude, unconfirmed): a `var` whose value is a bare name or member path of a `T?` type, which is then narrowed, is never assigned again, and whose source is not assigned later in the function either -- a snapshot taken before the source changes is not a copy for narrowing. |
+| 2026-09-23 | **D64** (decided by Mortaro): **reading with `[]` answers `T?`** and has to be narrowed before use, so an out-of-range read is never a hidden runtime crash. From a test that read `attributes[0]` and `attributes[1]` after checking only the count: "we should either have an assert per case but also ideally extend the language to understand that if count > 2 it means 0 and 1 are safe" -- **a proven count proves the indices below it** (decided in intent; the exact rule is Claude's to propose). Most index reads live in the index loops of open question 15, which is why the two should land together. Writing through `[]` is unchanged. |
+| 2026-09-23 | **D65** (decided by Mortaro): **`full_name` is renamed, because it is ambiguous**: the name must say what it holds, "something like `name_with_namespaces`". Applies to `Spite.Namespace.full_name` and the `full_name()` a reopening adds in `conformance/stage6/reopen_library`. |
+| 2026-09-23 | **D66** (decided by Mortaro): **the test package proves there are no memory leaks.** A test run that ends with allocations and frees unequal fails, as every corpus program already does. |
+| 2026-09-23 | **D67** (decided by Mortaro): **the order of a file is enforced**: `singleton`, then `generic` lines (open question 12), then `enum`, then `type`, then variables, then the constructor, then functions. Out of order is a compile error (section 12: the compiler formats or errors). |
+| 2026-09-23 | **D68** (decided by Mortaro): **a class name is a `Symbol`, not a `String`.** Symbols are easier to tree-shake, and for the reader a `Symbol` answers every `String` method as if it were text, even though `symbol.class == Symbol`. Text can become a `Symbol` only when that symbol already exists in the program's table -- enough for metaprogramming, without Ruby's attack of minting symbols from input. Part of milestone 14. |
+| 2026-09-23 | **D69** (decided by Mortaro): **comparing a `T?` with `==` needs no narrowing: null is simply not equal**, so `crash Spite.Class.namespace == "Spite"` is the whole of a test that used to be five lines of copying, narrowing and comparing. "If AI can do this messy code, it will do this messy code" -- the language should accept only the short form (D63 rejects the copy). How a `Spite.Namespace` compares with text is an operator function in the library (operators are functions, section 5), not a special case; under D68 that compares its name. |

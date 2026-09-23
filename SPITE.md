@@ -91,6 +91,23 @@ two-line function, explaining the compiler rather than the code.
 code, delete it. If it warns against a change, write a test or a compiler diagnostic — both push harder than
 prose.
 
+**Destructuring and lambdas.** "Writing it is fun, but it's not a human who will write code in this language,
+so it's a pointless readability sacrifice" (D62).
+*Instead:* read members by name; pass a named function, which is bound to its instance (D17).
+
+**Function overloading.** Ambiguous: one name, several meanings, chosen by argument types the reader has to
+work out (D59).
+*Instead:* one name is one function, and an argument casts to the parameter's type.
+
+**Copying a value into a local just to narrow it.** `var watcher = tracker; assert watcher` is "a human practice,
+and in real life a war crime against the Geneva convention" (D63).
+*Instead:* narrow the name or the path itself: `assert tracker`, `assert tracker.target` (D43).
+
+**Messy code that an AI will copy.** "If AI can do this messy code, it will do this messy code." A long way
+round that the compiler accepts is a pattern that spreads.
+*Instead:* make the short form the only form the compiler accepts (D63, D69), and prefer a compile error to a
+convention.
+
 **Clever code.** "We don't need clever code for anything since AI will write most programs."
 
 **`for` loops.** Removed permanently, to push people toward the metaprogramming (D2 era).
