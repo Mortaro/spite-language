@@ -203,11 +203,7 @@ func source_type(type_reference: Syntax.Types.Type): String {
                         crash nullable_argument.value
                         return "{source_type(nullable_argument.value)}?"
                     }
-                    Syntax.Types.IntegerArgument: crash false
-                    Syntax.Types.FloatArgument: crash false
-                    Syntax.Types.BoolArgument: crash false
-                    Syntax.Types.StringArgument: crash false
-                    Syntax.Types.EnumArgument: crash false
+                    _: crash false
                 }
             }
             var text = type_reference.path.join(".")
@@ -234,14 +230,13 @@ func source_generic_argument(argument: Syntax.Types.GenericArgument): String {
             crash argument.value
             return source_type(argument.value)
         }
-        Syntax.Types.IntegerArgument: return "{argument.value}"
-        Syntax.Types.FloatArgument: return "{argument.value}"
         Syntax.Types.BoolArgument: {
             if argument.value { return "true" }
             return "false"
         }
         Syntax.Types.StringArgument: return source_string(argument.value)
         Syntax.Types.EnumArgument: return "'{argument.value}'"
+        _: return "{argument.value}"
     }
 }
 
@@ -250,8 +245,6 @@ func source_expression(expression: Syntax.Expressions.Expression): String {
         Syntax.Expressions.NullLiteral: return "null"
         Syntax.Expressions.TrueLiteral: return "true"
         Syntax.Expressions.FalseLiteral: return "false"
-        Syntax.Expressions.IntegerLiteral: return "{expression.value}"
-        Syntax.Expressions.FloatLiteral: return "{expression.value}"
         Syntax.Expressions.StringLiteralExpression: return source_string(expression.value)
         Syntax.Expressions.EnumLiteralExpression: return "'{expression.value}'"
         Syntax.Expressions.GenericIdentifierExpression: return "${expression.name}"
@@ -279,6 +272,7 @@ func source_expression(expression: Syntax.Expressions.Expression): String {
             crash expression.index
             return "{source_expression(expression.object)}[{source_expression(expression.index)}]"
         }
+        _: return "{expression.value}"
     }
 }
 

@@ -1,0 +1,4 @@
+diagnostics/switch_rest_case/switch_rest_case.spite:17: error: the cases 'Cat' and 'Dog' do the same thing: write it once, as the last case '_:' (in SwitchRestCase.repeated)
+diagnostics/switch_rest_case/switch_rest_case.spite:25: error: the case 'Cat' does the same as '_:': remove it and let '_:' answer for it (in SwitchRestCase.same_as_rest)
+diagnostics/switch_rest_case/switch_rest_case.spite:33: error: '_:' answers for every member without a case of its own, so it is the last case (in SwitchRestCase.rest_first)
+diagnostics/switch_rest_case/switch_rest_case.spite:43: error: every member of 'Creature' already has a case, so '_:' answers for nothing: remove it (in SwitchRestCase.rest_for_nothing)

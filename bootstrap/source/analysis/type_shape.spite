@@ -1,149 +1,69 @@
 func as_scalar(spite_type: SpiteType): Analysis.Types.ScalarType? {
     switch spite_type {
         Analysis.Types.ScalarType: return spite_type
-        Analysis.Types.StringType: return null
-        Analysis.Types.ClassRefType: return null
-        Analysis.Types.NullableType: return null
-        Analysis.Types.VoidType: return null
-        Analysis.Types.EnumType: return null
-        Analysis.Types.ListType: return null
-        Analysis.Types.DictionaryType: return null
-        Analysis.Types.UnionType: return null
-        Analysis.Types.ArgumentsType: return null
+        _: return null
     }
 }
 
 func as_class_ref(spite_type: SpiteType): Analysis.Types.ClassRefType? {
     switch spite_type {
-        Analysis.Types.ScalarType: return null
-        Analysis.Types.StringType: return null
         Analysis.Types.ClassRefType: return spite_type
-        Analysis.Types.NullableType: return null
-        Analysis.Types.VoidType: return null
-        Analysis.Types.EnumType: return null
-        Analysis.Types.ListType: return null
-        Analysis.Types.DictionaryType: return null
-        Analysis.Types.UnionType: return null
-        Analysis.Types.ArgumentsType: return null
+        _: return null
     }
 }
 
 func as_nullable(spite_type: SpiteType): Analysis.Types.NullableType? {
     switch spite_type {
-        Analysis.Types.ScalarType: return null
-        Analysis.Types.StringType: return null
-        Analysis.Types.ClassRefType: return null
         Analysis.Types.NullableType: return spite_type
-        Analysis.Types.VoidType: return null
-        Analysis.Types.EnumType: return null
-        Analysis.Types.ListType: return null
-        Analysis.Types.DictionaryType: return null
-        Analysis.Types.UnionType: return null
-        Analysis.Types.ArgumentsType: return null
+        _: return null
     }
 }
 
 func as_enum(spite_type: SpiteType): Analysis.Types.EnumType? {
     switch spite_type {
-        Analysis.Types.ScalarType: return null
-        Analysis.Types.StringType: return null
-        Analysis.Types.ClassRefType: return null
-        Analysis.Types.NullableType: return null
-        Analysis.Types.VoidType: return null
         Analysis.Types.EnumType: return spite_type
-        Analysis.Types.ListType: return null
-        Analysis.Types.DictionaryType: return null
-        Analysis.Types.UnionType: return null
-        Analysis.Types.ArgumentsType: return null
+        _: return null
     }
 }
 
 func as_list(spite_type: SpiteType): Analysis.Types.ListType? {
     switch spite_type {
-        Analysis.Types.ScalarType: return null
-        Analysis.Types.StringType: return null
-        Analysis.Types.ClassRefType: return null
-        Analysis.Types.NullableType: return null
-        Analysis.Types.VoidType: return null
-        Analysis.Types.EnumType: return null
         Analysis.Types.ListType: return spite_type
-        Analysis.Types.DictionaryType: return null
-        Analysis.Types.UnionType: return null
-        Analysis.Types.ArgumentsType: return null
+        _: return null
     }
 }
 
 func as_dictionary(spite_type: SpiteType): Analysis.Types.DictionaryType? {
     switch spite_type {
-        Analysis.Types.ScalarType: return null
-        Analysis.Types.StringType: return null
-        Analysis.Types.ClassRefType: return null
-        Analysis.Types.NullableType: return null
-        Analysis.Types.VoidType: return null
-        Analysis.Types.EnumType: return null
-        Analysis.Types.ListType: return null
         Analysis.Types.DictionaryType: return spite_type
-        Analysis.Types.UnionType: return null
-        Analysis.Types.ArgumentsType: return null
+        _: return null
     }
 }
 
 func as_union(spite_type: SpiteType): Analysis.Types.UnionType? {
     switch spite_type {
-        Analysis.Types.ScalarType: return null
-        Analysis.Types.StringType: return null
-        Analysis.Types.ClassRefType: return null
-        Analysis.Types.NullableType: return null
-        Analysis.Types.VoidType: return null
-        Analysis.Types.EnumType: return null
-        Analysis.Types.ListType: return null
-        Analysis.Types.DictionaryType: return null
         Analysis.Types.UnionType: return spite_type
-        Analysis.Types.ArgumentsType: return null
+        _: return null
     }
 }
 
 func as_string(spite_type: SpiteType): Bool {
     switch spite_type {
-        Analysis.Types.ScalarType: return false
         Analysis.Types.StringType: return true
-        Analysis.Types.ClassRefType: return false
-        Analysis.Types.NullableType: return false
-        Analysis.Types.VoidType: return false
-        Analysis.Types.EnumType: return false
-        Analysis.Types.ListType: return false
-        Analysis.Types.DictionaryType: return false
-        Analysis.Types.UnionType: return false
-        Analysis.Types.ArgumentsType: return false
+        _: return false
     }
 }
 
 func is_void(spite_type: SpiteType): Bool {
     switch spite_type {
-        Analysis.Types.ScalarType: return false
-        Analysis.Types.StringType: return false
-        Analysis.Types.ClassRefType: return false
-        Analysis.Types.NullableType: return false
         Analysis.Types.VoidType: return true
-        Analysis.Types.EnumType: return false
-        Analysis.Types.ListType: return false
-        Analysis.Types.DictionaryType: return false
-        Analysis.Types.UnionType: return false
-        Analysis.Types.ArgumentsType: return false
+        _: return false
     }
 }
 
 func is_arguments(spite_type: SpiteType): Bool {
     switch spite_type {
-        Analysis.Types.ScalarType: return false
-        Analysis.Types.StringType: return false
-        Analysis.Types.ClassRefType: return false
-        Analysis.Types.NullableType: return false
-        Analysis.Types.VoidType: return false
-        Analysis.Types.EnumType: return false
-        Analysis.Types.ListType: return false
-        Analysis.Types.DictionaryType: return false
-        Analysis.Types.UnionType: return false
         Analysis.Types.ArgumentsType: return true
+        _: return false
     }
 }

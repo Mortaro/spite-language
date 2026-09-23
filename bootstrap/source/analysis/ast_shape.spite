@@ -1,671 +1,258 @@
 func as_named_type(type_reference: Syntax.Types.Type): Syntax.Types.NamedType? {
     switch type_reference {
-        Syntax.Types.ReferenceType: return null
-        Syntax.Types.GenericType: return null
         Syntax.Types.NamedType: return type_reference
+        _: return null
     }
 }
 
 func as_type_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.TypeArgument? {
     switch argument {
         Syntax.Types.TypeArgument: return argument
-        Syntax.Types.IntegerArgument: return null
-        Syntax.Types.FloatArgument: return null
-        Syntax.Types.BoolArgument: return null
-        Syntax.Types.StringArgument: return null
-        Syntax.Types.EnumArgument: return null
+        _: return null
     }
 }
 
 func as_identifier(expression: Syntax.Expressions.Expression): Syntax.Expressions.IdentifierExpression? {
     switch expression {
-        Syntax.Expressions.NullLiteral: return null
-        Syntax.Expressions.TrueLiteral: return null
-        Syntax.Expressions.FalseLiteral: return null
-        Syntax.Expressions.IntegerLiteral: return null
-        Syntax.Expressions.FloatLiteral: return null
-        Syntax.Expressions.StringLiteralExpression: return null
-        Syntax.Expressions.EnumLiteralExpression: return null
-        Syntax.Expressions.GenericIdentifierExpression: return null
         Syntax.Expressions.IdentifierExpression: return expression
-        Syntax.Expressions.ListLiteralExpression: return null
-        Syntax.Expressions.ObjectLiteralExpression: return null
-        Syntax.Expressions.UnaryExpression: return null
-        Syntax.Expressions.BinaryExpression: return null
-        Syntax.Expressions.CallExpression: return null
-        Syntax.Expressions.GenericCallExpression: return null
-        Syntax.Expressions.MemberExpression: return null
-        Syntax.Expressions.IndexExpression: return null
+        _: return null
     }
 }
 
 func as_integer_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.IntegerLiteral? {
     switch expression {
-        Syntax.Expressions.NullLiteral: return null
-        Syntax.Expressions.TrueLiteral: return null
-        Syntax.Expressions.FalseLiteral: return null
         Syntax.Expressions.IntegerLiteral: return expression
-        Syntax.Expressions.FloatLiteral: return null
-        Syntax.Expressions.StringLiteralExpression: return null
-        Syntax.Expressions.EnumLiteralExpression: return null
-        Syntax.Expressions.GenericIdentifierExpression: return null
-        Syntax.Expressions.IdentifierExpression: return null
-        Syntax.Expressions.ListLiteralExpression: return null
-        Syntax.Expressions.ObjectLiteralExpression: return null
-        Syntax.Expressions.UnaryExpression: return null
-        Syntax.Expressions.BinaryExpression: return null
-        Syntax.Expressions.CallExpression: return null
-        Syntax.Expressions.GenericCallExpression: return null
-        Syntax.Expressions.MemberExpression: return null
-        Syntax.Expressions.IndexExpression: return null
+        _: return null
     }
 }
 
 func as_float_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.FloatLiteral? {
     switch expression {
-        Syntax.Expressions.NullLiteral: return null
-        Syntax.Expressions.TrueLiteral: return null
-        Syntax.Expressions.FalseLiteral: return null
-        Syntax.Expressions.IntegerLiteral: return null
         Syntax.Expressions.FloatLiteral: return expression
-        Syntax.Expressions.StringLiteralExpression: return null
-        Syntax.Expressions.EnumLiteralExpression: return null
-        Syntax.Expressions.GenericIdentifierExpression: return null
-        Syntax.Expressions.IdentifierExpression: return null
-        Syntax.Expressions.ListLiteralExpression: return null
-        Syntax.Expressions.ObjectLiteralExpression: return null
-        Syntax.Expressions.UnaryExpression: return null
-        Syntax.Expressions.BinaryExpression: return null
-        Syntax.Expressions.CallExpression: return null
-        Syntax.Expressions.GenericCallExpression: return null
-        Syntax.Expressions.MemberExpression: return null
-        Syntax.Expressions.IndexExpression: return null
+        _: return null
     }
 }
 
 func as_string_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.StringLiteralExpression? {
     switch expression {
-        Syntax.Expressions.NullLiteral: return null
-        Syntax.Expressions.TrueLiteral: return null
-        Syntax.Expressions.FalseLiteral: return null
-        Syntax.Expressions.IntegerLiteral: return null
-        Syntax.Expressions.FloatLiteral: return null
         Syntax.Expressions.StringLiteralExpression: return expression
-        Syntax.Expressions.EnumLiteralExpression: return null
-        Syntax.Expressions.GenericIdentifierExpression: return null
-        Syntax.Expressions.IdentifierExpression: return null
-        Syntax.Expressions.ListLiteralExpression: return null
-        Syntax.Expressions.ObjectLiteralExpression: return null
-        Syntax.Expressions.UnaryExpression: return null
-        Syntax.Expressions.BinaryExpression: return null
-        Syntax.Expressions.CallExpression: return null
-        Syntax.Expressions.GenericCallExpression: return null
-        Syntax.Expressions.MemberExpression: return null
-        Syntax.Expressions.IndexExpression: return null
+        _: return null
     }
 }
 
 func is_true_literal(expression: Syntax.Expressions.Expression): Bool {
     switch expression {
-        Syntax.Expressions.NullLiteral: return false
         Syntax.Expressions.TrueLiteral: return true
-        Syntax.Expressions.FalseLiteral: return false
-        Syntax.Expressions.IntegerLiteral: return false
-        Syntax.Expressions.FloatLiteral: return false
-        Syntax.Expressions.StringLiteralExpression: return false
-        Syntax.Expressions.EnumLiteralExpression: return false
-        Syntax.Expressions.GenericIdentifierExpression: return false
-        Syntax.Expressions.IdentifierExpression: return false
-        Syntax.Expressions.ListLiteralExpression: return false
-        Syntax.Expressions.ObjectLiteralExpression: return false
-        Syntax.Expressions.UnaryExpression: return false
-        Syntax.Expressions.BinaryExpression: return false
-        Syntax.Expressions.CallExpression: return false
-        Syntax.Expressions.GenericCallExpression: return false
-        Syntax.Expressions.MemberExpression: return false
-        Syntax.Expressions.IndexExpression: return false
+        _: return false
     }
 }
 
 func is_false_literal(expression: Syntax.Expressions.Expression): Bool {
     switch expression {
-        Syntax.Expressions.NullLiteral: return false
-        Syntax.Expressions.TrueLiteral: return false
         Syntax.Expressions.FalseLiteral: return true
-        Syntax.Expressions.IntegerLiteral: return false
-        Syntax.Expressions.FloatLiteral: return false
-        Syntax.Expressions.StringLiteralExpression: return false
-        Syntax.Expressions.EnumLiteralExpression: return false
-        Syntax.Expressions.GenericIdentifierExpression: return false
-        Syntax.Expressions.IdentifierExpression: return false
-        Syntax.Expressions.ListLiteralExpression: return false
-        Syntax.Expressions.ObjectLiteralExpression: return false
-        Syntax.Expressions.UnaryExpression: return false
-        Syntax.Expressions.BinaryExpression: return false
-        Syntax.Expressions.CallExpression: return false
-        Syntax.Expressions.GenericCallExpression: return false
-        Syntax.Expressions.MemberExpression: return false
-        Syntax.Expressions.IndexExpression: return false
+        _: return false
     }
 }
 
 func is_null_literal(expression: Syntax.Expressions.Expression): Bool {
     switch expression {
         Syntax.Expressions.NullLiteral: return true
-        Syntax.Expressions.TrueLiteral: return false
-        Syntax.Expressions.FalseLiteral: return false
-        Syntax.Expressions.IntegerLiteral: return false
-        Syntax.Expressions.FloatLiteral: return false
-        Syntax.Expressions.StringLiteralExpression: return false
-        Syntax.Expressions.EnumLiteralExpression: return false
-        Syntax.Expressions.GenericIdentifierExpression: return false
-        Syntax.Expressions.IdentifierExpression: return false
-        Syntax.Expressions.ListLiteralExpression: return false
-        Syntax.Expressions.ObjectLiteralExpression: return false
-        Syntax.Expressions.UnaryExpression: return false
-        Syntax.Expressions.BinaryExpression: return false
-        Syntax.Expressions.CallExpression: return false
-        Syntax.Expressions.GenericCallExpression: return false
-        Syntax.Expressions.MemberExpression: return false
-        Syntax.Expressions.IndexExpression: return false
+        _: return false
     }
 }
 
 func as_binary(expression: Syntax.Expressions.Expression): Syntax.Expressions.BinaryExpression? {
     switch expression {
-        Syntax.Expressions.NullLiteral: return null
-        Syntax.Expressions.TrueLiteral: return null
-        Syntax.Expressions.FalseLiteral: return null
-        Syntax.Expressions.IntegerLiteral: return null
-        Syntax.Expressions.FloatLiteral: return null
-        Syntax.Expressions.StringLiteralExpression: return null
-        Syntax.Expressions.EnumLiteralExpression: return null
-        Syntax.Expressions.GenericIdentifierExpression: return null
-        Syntax.Expressions.IdentifierExpression: return null
-        Syntax.Expressions.ListLiteralExpression: return null
-        Syntax.Expressions.ObjectLiteralExpression: return null
-        Syntax.Expressions.UnaryExpression: return null
         Syntax.Expressions.BinaryExpression: return expression
-        Syntax.Expressions.CallExpression: return null
-        Syntax.Expressions.GenericCallExpression: return null
-        Syntax.Expressions.MemberExpression: return null
-        Syntax.Expressions.IndexExpression: return null
+        _: return null
     }
 }
 
 func as_unary(expression: Syntax.Expressions.Expression): Syntax.Expressions.UnaryExpression? {
     switch expression {
-        Syntax.Expressions.NullLiteral: return null
-        Syntax.Expressions.TrueLiteral: return null
-        Syntax.Expressions.FalseLiteral: return null
-        Syntax.Expressions.IntegerLiteral: return null
-        Syntax.Expressions.FloatLiteral: return null
-        Syntax.Expressions.StringLiteralExpression: return null
-        Syntax.Expressions.EnumLiteralExpression: return null
-        Syntax.Expressions.GenericIdentifierExpression: return null
-        Syntax.Expressions.IdentifierExpression: return null
-        Syntax.Expressions.ListLiteralExpression: return null
-        Syntax.Expressions.ObjectLiteralExpression: return null
         Syntax.Expressions.UnaryExpression: return expression
-        Syntax.Expressions.BinaryExpression: return null
-        Syntax.Expressions.CallExpression: return null
-        Syntax.Expressions.GenericCallExpression: return null
-        Syntax.Expressions.MemberExpression: return null
-        Syntax.Expressions.IndexExpression: return null
+        _: return null
     }
 }
 
 func as_call(expression: Syntax.Expressions.Expression): Syntax.Expressions.CallExpression? {
     switch expression {
-        Syntax.Expressions.NullLiteral: return null
-        Syntax.Expressions.TrueLiteral: return null
-        Syntax.Expressions.FalseLiteral: return null
-        Syntax.Expressions.IntegerLiteral: return null
-        Syntax.Expressions.FloatLiteral: return null
-        Syntax.Expressions.StringLiteralExpression: return null
-        Syntax.Expressions.EnumLiteralExpression: return null
-        Syntax.Expressions.GenericIdentifierExpression: return null
-        Syntax.Expressions.IdentifierExpression: return null
-        Syntax.Expressions.ListLiteralExpression: return null
-        Syntax.Expressions.ObjectLiteralExpression: return null
-        Syntax.Expressions.UnaryExpression: return null
-        Syntax.Expressions.BinaryExpression: return null
         Syntax.Expressions.CallExpression: return expression
-        Syntax.Expressions.GenericCallExpression: return null
-        Syntax.Expressions.MemberExpression: return null
-        Syntax.Expressions.IndexExpression: return null
+        _: return null
     }
 }
 
 func as_member(expression: Syntax.Expressions.Expression): Syntax.Expressions.MemberExpression? {
     switch expression {
-        Syntax.Expressions.NullLiteral: return null
-        Syntax.Expressions.TrueLiteral: return null
-        Syntax.Expressions.FalseLiteral: return null
-        Syntax.Expressions.IntegerLiteral: return null
-        Syntax.Expressions.FloatLiteral: return null
-        Syntax.Expressions.StringLiteralExpression: return null
-        Syntax.Expressions.EnumLiteralExpression: return null
-        Syntax.Expressions.GenericIdentifierExpression: return null
-        Syntax.Expressions.IdentifierExpression: return null
-        Syntax.Expressions.ListLiteralExpression: return null
-        Syntax.Expressions.ObjectLiteralExpression: return null
-        Syntax.Expressions.UnaryExpression: return null
-        Syntax.Expressions.BinaryExpression: return null
-        Syntax.Expressions.CallExpression: return null
-        Syntax.Expressions.GenericCallExpression: return null
         Syntax.Expressions.MemberExpression: return expression
-        Syntax.Expressions.IndexExpression: return null
+        _: return null
     }
 }
 
 func as_function_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.FunctionDeclaration? {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: return null
-        Syntax.Statements.VariableDeclaration: return null
         Syntax.Statements.FunctionDeclaration: return statement
-        Syntax.Statements.TypeDeclaration: return null
-        Syntax.Statements.EnumDeclaration: return null
-        Syntax.Statements.UnionDeclaration: return null
-        Syntax.Statements.AssignmentStatement: return null
-        Syntax.Statements.IfStatement: return null
-        Syntax.Statements.WhileStatement: return null
-        Syntax.Statements.SwitchStatement: return null
-        Syntax.Statements.AssertStatement: return null
-        Syntax.Statements.ReturnStatement: return null
-        Syntax.Statements.ExpressionStatement: return null
+        _: return null
     }
 }
 
 func as_variable_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.VariableDeclaration? {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: return null
         Syntax.Statements.VariableDeclaration: return statement
-        Syntax.Statements.FunctionDeclaration: return null
-        Syntax.Statements.TypeDeclaration: return null
-        Syntax.Statements.EnumDeclaration: return null
-        Syntax.Statements.UnionDeclaration: return null
-        Syntax.Statements.AssignmentStatement: return null
-        Syntax.Statements.IfStatement: return null
-        Syntax.Statements.WhileStatement: return null
-        Syntax.Statements.SwitchStatement: return null
-        Syntax.Statements.AssertStatement: return null
-        Syntax.Statements.ReturnStatement: return null
-        Syntax.Statements.ExpressionStatement: return null
+        _: return null
     }
 }
 
 func as_if_statement(statement: Syntax.Statements.Statement): Syntax.Statements.IfStatement? {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: return null
-        Syntax.Statements.VariableDeclaration: return null
-        Syntax.Statements.FunctionDeclaration: return null
-        Syntax.Statements.TypeDeclaration: return null
-        Syntax.Statements.EnumDeclaration: return null
-        Syntax.Statements.UnionDeclaration: return null
-        Syntax.Statements.AssignmentStatement: return null
         Syntax.Statements.IfStatement: return statement
-        Syntax.Statements.WhileStatement: return null
-        Syntax.Statements.SwitchStatement: return null
-        Syntax.Statements.AssertStatement: return null
-        Syntax.Statements.ReturnStatement: return null
-        Syntax.Statements.ExpressionStatement: return null
+        _: return null
     }
 }
 
 func as_while_statement(statement: Syntax.Statements.Statement): Syntax.Statements.WhileStatement? {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: return null
-        Syntax.Statements.VariableDeclaration: return null
-        Syntax.Statements.FunctionDeclaration: return null
-        Syntax.Statements.TypeDeclaration: return null
-        Syntax.Statements.EnumDeclaration: return null
-        Syntax.Statements.UnionDeclaration: return null
-        Syntax.Statements.AssignmentStatement: return null
-        Syntax.Statements.IfStatement: return null
         Syntax.Statements.WhileStatement: return statement
-        Syntax.Statements.SwitchStatement: return null
-        Syntax.Statements.AssertStatement: return null
-        Syntax.Statements.ReturnStatement: return null
-        Syntax.Statements.ExpressionStatement: return null
+        _: return null
     }
 }
 
 func as_return_statement(statement: Syntax.Statements.Statement): Syntax.Statements.ReturnStatement? {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: return null
-        Syntax.Statements.VariableDeclaration: return null
-        Syntax.Statements.FunctionDeclaration: return null
-        Syntax.Statements.TypeDeclaration: return null
-        Syntax.Statements.EnumDeclaration: return null
-        Syntax.Statements.UnionDeclaration: return null
-        Syntax.Statements.AssignmentStatement: return null
-        Syntax.Statements.IfStatement: return null
-        Syntax.Statements.WhileStatement: return null
-        Syntax.Statements.SwitchStatement: return null
-        Syntax.Statements.AssertStatement: return null
         Syntax.Statements.ReturnStatement: return statement
-        Syntax.Statements.ExpressionStatement: return null
+        _: return null
     }
 }
 
 func as_assert_statement(statement: Syntax.Statements.Statement): Syntax.Statements.AssertStatement? {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: return null
-        Syntax.Statements.VariableDeclaration: return null
-        Syntax.Statements.FunctionDeclaration: return null
-        Syntax.Statements.TypeDeclaration: return null
-        Syntax.Statements.EnumDeclaration: return null
-        Syntax.Statements.UnionDeclaration: return null
-        Syntax.Statements.AssignmentStatement: return null
-        Syntax.Statements.IfStatement: return null
-        Syntax.Statements.WhileStatement: return null
-        Syntax.Statements.SwitchStatement: return null
         Syntax.Statements.AssertStatement: return statement
-        Syntax.Statements.ReturnStatement: return null
-        Syntax.Statements.ExpressionStatement: return null
+        _: return null
     }
 }
 
 func as_assignment_statement(statement: Syntax.Statements.Statement): Syntax.Statements.AssignmentStatement? {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: return null
-        Syntax.Statements.VariableDeclaration: return null
-        Syntax.Statements.FunctionDeclaration: return null
-        Syntax.Statements.TypeDeclaration: return null
-        Syntax.Statements.EnumDeclaration: return null
-        Syntax.Statements.UnionDeclaration: return null
         Syntax.Statements.AssignmentStatement: return statement
-        Syntax.Statements.IfStatement: return null
-        Syntax.Statements.WhileStatement: return null
-        Syntax.Statements.SwitchStatement: return null
-        Syntax.Statements.AssertStatement: return null
-        Syntax.Statements.ReturnStatement: return null
-        Syntax.Statements.ExpressionStatement: return null
+        _: return null
     }
 }
 
 func as_expression_statement(statement: Syntax.Statements.Statement): Syntax.Statements.ExpressionStatement? {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: return null
-        Syntax.Statements.VariableDeclaration: return null
-        Syntax.Statements.FunctionDeclaration: return null
-        Syntax.Statements.TypeDeclaration: return null
-        Syntax.Statements.EnumDeclaration: return null
-        Syntax.Statements.UnionDeclaration: return null
-        Syntax.Statements.AssignmentStatement: return null
-        Syntax.Statements.IfStatement: return null
-        Syntax.Statements.WhileStatement: return null
-        Syntax.Statements.SwitchStatement: return null
-        Syntax.Statements.AssertStatement: return null
-        Syntax.Statements.ReturnStatement: return null
         Syntax.Statements.ExpressionStatement: return statement
+        _: return null
     }
 }
 
 func as_enum_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.EnumLiteralExpression? {
     switch expression {
-        Syntax.Expressions.NullLiteral: return null
-        Syntax.Expressions.TrueLiteral: return null
-        Syntax.Expressions.FalseLiteral: return null
-        Syntax.Expressions.IntegerLiteral: return null
-        Syntax.Expressions.FloatLiteral: return null
-        Syntax.Expressions.StringLiteralExpression: return null
         Syntax.Expressions.EnumLiteralExpression: return expression
-        Syntax.Expressions.GenericIdentifierExpression: return null
-        Syntax.Expressions.IdentifierExpression: return null
-        Syntax.Expressions.ListLiteralExpression: return null
-        Syntax.Expressions.ObjectLiteralExpression: return null
-        Syntax.Expressions.UnaryExpression: return null
-        Syntax.Expressions.BinaryExpression: return null
-        Syntax.Expressions.CallExpression: return null
-        Syntax.Expressions.GenericCallExpression: return null
-        Syntax.Expressions.MemberExpression: return null
-        Syntax.Expressions.IndexExpression: return null
+        _: return null
     }
 }
 
 func as_index(expression: Syntax.Expressions.Expression): Syntax.Expressions.IndexExpression? {
     switch expression {
-        Syntax.Expressions.NullLiteral: return null
-        Syntax.Expressions.TrueLiteral: return null
-        Syntax.Expressions.FalseLiteral: return null
-        Syntax.Expressions.IntegerLiteral: return null
-        Syntax.Expressions.FloatLiteral: return null
-        Syntax.Expressions.StringLiteralExpression: return null
-        Syntax.Expressions.EnumLiteralExpression: return null
-        Syntax.Expressions.GenericIdentifierExpression: return null
-        Syntax.Expressions.IdentifierExpression: return null
-        Syntax.Expressions.ListLiteralExpression: return null
-        Syntax.Expressions.ObjectLiteralExpression: return null
-        Syntax.Expressions.UnaryExpression: return null
-        Syntax.Expressions.BinaryExpression: return null
-        Syntax.Expressions.CallExpression: return null
-        Syntax.Expressions.GenericCallExpression: return null
-        Syntax.Expressions.MemberExpression: return null
         Syntax.Expressions.IndexExpression: return expression
+        _: return null
     }
 }
 
 func as_list_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.ListLiteralExpression? {
     switch expression {
-        Syntax.Expressions.NullLiteral: return null
-        Syntax.Expressions.TrueLiteral: return null
-        Syntax.Expressions.FalseLiteral: return null
-        Syntax.Expressions.IntegerLiteral: return null
-        Syntax.Expressions.FloatLiteral: return null
-        Syntax.Expressions.StringLiteralExpression: return null
-        Syntax.Expressions.EnumLiteralExpression: return null
-        Syntax.Expressions.GenericIdentifierExpression: return null
-        Syntax.Expressions.IdentifierExpression: return null
         Syntax.Expressions.ListLiteralExpression: return expression
-        Syntax.Expressions.ObjectLiteralExpression: return null
-        Syntax.Expressions.UnaryExpression: return null
-        Syntax.Expressions.BinaryExpression: return null
-        Syntax.Expressions.CallExpression: return null
-        Syntax.Expressions.GenericCallExpression: return null
-        Syntax.Expressions.MemberExpression: return null
-        Syntax.Expressions.IndexExpression: return null
+        _: return null
     }
 }
 
 func as_generic_call(expression: Syntax.Expressions.Expression): Syntax.Expressions.GenericCallExpression? {
     switch expression {
-        Syntax.Expressions.NullLiteral: return null
-        Syntax.Expressions.TrueLiteral: return null
-        Syntax.Expressions.FalseLiteral: return null
-        Syntax.Expressions.IntegerLiteral: return null
-        Syntax.Expressions.FloatLiteral: return null
-        Syntax.Expressions.StringLiteralExpression: return null
-        Syntax.Expressions.EnumLiteralExpression: return null
-        Syntax.Expressions.GenericIdentifierExpression: return null
-        Syntax.Expressions.IdentifierExpression: return null
-        Syntax.Expressions.ListLiteralExpression: return null
-        Syntax.Expressions.ObjectLiteralExpression: return null
-        Syntax.Expressions.UnaryExpression: return null
-        Syntax.Expressions.BinaryExpression: return null
-        Syntax.Expressions.CallExpression: return null
         Syntax.Expressions.GenericCallExpression: return expression
-        Syntax.Expressions.MemberExpression: return null
-        Syntax.Expressions.IndexExpression: return null
+        _: return null
     }
 }
 
 func as_enum_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.EnumDeclaration? {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: return null
-        Syntax.Statements.VariableDeclaration: return null
-        Syntax.Statements.FunctionDeclaration: return null
-        Syntax.Statements.TypeDeclaration: return null
         Syntax.Statements.EnumDeclaration: return statement
-        Syntax.Statements.UnionDeclaration: return null
-        Syntax.Statements.AssignmentStatement: return null
-        Syntax.Statements.IfStatement: return null
-        Syntax.Statements.WhileStatement: return null
-        Syntax.Statements.SwitchStatement: return null
-        Syntax.Statements.AssertStatement: return null
-        Syntax.Statements.ReturnStatement: return null
-        Syntax.Statements.ExpressionStatement: return null
+        _: return null
     }
 }
 
 func as_union_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.UnionDeclaration? {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: return null
-        Syntax.Statements.VariableDeclaration: return null
-        Syntax.Statements.FunctionDeclaration: return null
-        Syntax.Statements.TypeDeclaration: return null
-        Syntax.Statements.EnumDeclaration: return null
         Syntax.Statements.UnionDeclaration: return statement
-        Syntax.Statements.AssignmentStatement: return null
-        Syntax.Statements.IfStatement: return null
-        Syntax.Statements.WhileStatement: return null
-        Syntax.Statements.SwitchStatement: return null
-        Syntax.Statements.AssertStatement: return null
-        Syntax.Statements.ReturnStatement: return null
-        Syntax.Statements.ExpressionStatement: return null
+        _: return null
     }
 }
 
 func as_switch_statement(statement: Syntax.Statements.Statement): Syntax.Statements.SwitchStatement? {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: return null
-        Syntax.Statements.VariableDeclaration: return null
-        Syntax.Statements.FunctionDeclaration: return null
-        Syntax.Statements.TypeDeclaration: return null
-        Syntax.Statements.EnumDeclaration: return null
-        Syntax.Statements.UnionDeclaration: return null
-        Syntax.Statements.AssignmentStatement: return null
-        Syntax.Statements.IfStatement: return null
-        Syntax.Statements.WhileStatement: return null
         Syntax.Statements.SwitchStatement: return statement
-        Syntax.Statements.AssertStatement: return null
-        Syntax.Statements.ReturnStatement: return null
-        Syntax.Statements.ExpressionStatement: return null
+        _: return null
     }
 }
 
 func as_object_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.ObjectLiteralExpression? {
     switch expression {
-        Syntax.Expressions.NullLiteral: return null
-        Syntax.Expressions.TrueLiteral: return null
-        Syntax.Expressions.FalseLiteral: return null
-        Syntax.Expressions.IntegerLiteral: return null
-        Syntax.Expressions.FloatLiteral: return null
-        Syntax.Expressions.StringLiteralExpression: return null
-        Syntax.Expressions.EnumLiteralExpression: return null
-        Syntax.Expressions.GenericIdentifierExpression: return null
-        Syntax.Expressions.IdentifierExpression: return null
-        Syntax.Expressions.ListLiteralExpression: return null
         Syntax.Expressions.ObjectLiteralExpression: return expression
-        Syntax.Expressions.UnaryExpression: return null
-        Syntax.Expressions.BinaryExpression: return null
-        Syntax.Expressions.CallExpression: return null
-        Syntax.Expressions.GenericCallExpression: return null
-        Syntax.Expressions.MemberExpression: return null
-        Syntax.Expressions.IndexExpression: return null
+        _: return null
     }
 }
 
 func as_type_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.TypeDeclaration? {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: return null
-        Syntax.Statements.VariableDeclaration: return null
-        Syntax.Statements.FunctionDeclaration: return null
         Syntax.Statements.TypeDeclaration: return statement
-        Syntax.Statements.EnumDeclaration: return null
-        Syntax.Statements.UnionDeclaration: return null
-        Syntax.Statements.AssignmentStatement: return null
-        Syntax.Statements.IfStatement: return null
-        Syntax.Statements.WhileStatement: return null
-        Syntax.Statements.SwitchStatement: return null
-        Syntax.Statements.AssertStatement: return null
-        Syntax.Statements.ReturnStatement: return null
-        Syntax.Statements.ExpressionStatement: return null
+        _: return null
     }
 }
 
 func as_generic_type(type_reference: Syntax.Types.Type): Syntax.Types.GenericType? {
     switch type_reference {
-        Syntax.Types.ReferenceType: return null
         Syntax.Types.GenericType: return type_reference
-        Syntax.Types.NamedType: return null
+        _: return null
     }
 }
 
 func as_generic_identifier(expression: Syntax.Expressions.Expression): Syntax.Expressions.GenericIdentifierExpression? {
     switch expression {
-        Syntax.Expressions.NullLiteral: return null
-        Syntax.Expressions.TrueLiteral: return null
-        Syntax.Expressions.FalseLiteral: return null
-        Syntax.Expressions.IntegerLiteral: return null
-        Syntax.Expressions.FloatLiteral: return null
-        Syntax.Expressions.StringLiteralExpression: return null
-        Syntax.Expressions.EnumLiteralExpression: return null
         Syntax.Expressions.GenericIdentifierExpression: return expression
-        Syntax.Expressions.IdentifierExpression: return null
-        Syntax.Expressions.ListLiteralExpression: return null
-        Syntax.Expressions.ObjectLiteralExpression: return null
-        Syntax.Expressions.UnaryExpression: return null
-        Syntax.Expressions.BinaryExpression: return null
-        Syntax.Expressions.CallExpression: return null
-        Syntax.Expressions.GenericCallExpression: return null
-        Syntax.Expressions.MemberExpression: return null
-        Syntax.Expressions.IndexExpression: return null
+        _: return null
     }
 }
 
 func as_boolean_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.BoolArgument? {
     switch argument {
-        Syntax.Types.TypeArgument: return null
-        Syntax.Types.IntegerArgument: return null
-        Syntax.Types.FloatArgument: return null
         Syntax.Types.BoolArgument: return argument
-        Syntax.Types.StringArgument: return null
-        Syntax.Types.EnumArgument: return null
+        _: return null
     }
 }
 
 func as_integer_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.IntegerArgument? {
     switch argument {
-        Syntax.Types.TypeArgument: return null
         Syntax.Types.IntegerArgument: return argument
-        Syntax.Types.FloatArgument: return null
-        Syntax.Types.BoolArgument: return null
-        Syntax.Types.StringArgument: return null
-        Syntax.Types.EnumArgument: return null
+        _: return null
     }
 }
 
 func as_float_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.FloatArgument? {
     switch argument {
-        Syntax.Types.TypeArgument: return null
-        Syntax.Types.IntegerArgument: return null
         Syntax.Types.FloatArgument: return argument
-        Syntax.Types.BoolArgument: return null
-        Syntax.Types.StringArgument: return null
-        Syntax.Types.EnumArgument: return null
+        _: return null
     }
 }
 
 func as_string_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.StringArgument? {
     switch argument {
-        Syntax.Types.TypeArgument: return null
-        Syntax.Types.IntegerArgument: return null
-        Syntax.Types.FloatArgument: return null
-        Syntax.Types.BoolArgument: return null
         Syntax.Types.StringArgument: return argument
-        Syntax.Types.EnumArgument: return null
+        _: return null
     }
 }
 
 func as_enum_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.EnumArgument? {
     switch argument {
-        Syntax.Types.TypeArgument: return null
-        Syntax.Types.IntegerArgument: return null
-        Syntax.Types.FloatArgument: return null
-        Syntax.Types.BoolArgument: return null
-        Syntax.Types.StringArgument: return null
         Syntax.Types.EnumArgument: return argument
+        _: return null
     }
 }

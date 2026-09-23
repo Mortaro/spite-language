@@ -22,8 +22,7 @@ func Battle() {
     }
     var duelist: Enemy = Player(10, "knight")
     switch duelist {
-        Player: duelist.hurt(3)
-        Monster: duelist.hurt(3)
+        _: duelist.hurt(3)
     }
     console.print("duelist health", duelist.health)
     var mage = Player(5, "mage")

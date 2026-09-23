@@ -1,0 +1,46 @@
+var console = Console()
+
+union Creature {
+    Cat
+    Dog
+    Fish
+}
+
+func SwitchRestCase() {
+    repeated(Cat())
+    same_as_rest(Cat())
+    rest_first(Cat())
+    rest_for_nothing(Cat())
+}
+
+func repeated(creature: Creature) {
+    switch creature {
+        Cat: console.print("pet")
+        Dog: console.print("pet")
+        Fish: console.print("not a pet")
+    }
+}
+
+func same_as_rest(creature: Creature) {
+    switch creature {
+        Cat: console.print("pet")
+        Fish: console.print("not a pet")
+        _: console.print("pet")
+    }
+}
+
+func rest_first(creature: Creature) {
+    switch creature {
+        _: console.print("pet")
+        Fish: console.print("not a pet")
+    }
+}
+
+func rest_for_nothing(creature: Creature) {
+    switch creature {
+        Cat: console.print("cat")
+        Dog: console.print("dog")
+        Fish: console.print("fish")
+        _: console.print("nothing")
+    }
+}

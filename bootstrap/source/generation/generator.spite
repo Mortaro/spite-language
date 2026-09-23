@@ -5861,6 +5861,128 @@ func generate_nullable_switch(switch_statement: Syntax.Statements.SwitchStatemen
     }
 }
 
+func generate_union_case(
+    switch_case: Syntax.Statements.SwitchCase,
+    case_index: Int,
+    information: Analysis.UnionInfo,
+    subject_temporary: String,
+    subject_identifier: Syntax.Expressions.IdentifierExpression?,
+    covered_names: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    assert switch_case.type_reference
+    var case_class = class_of_type_reference(switch_case.type_reference, information.owner_namespace)
+    if not case_class {
+        case_class = class_of_type_reference(switch_case.type_reference, class_information.namespace_dotted)
+    }
+    if not case_class {
+        report("a switch case must name a class of the union")
+        return
+    }
+    assert case_class
+    if information.has_member(case_class.c_name) {
+        covered_names.append(case_class.simple_name)
+    } else {
+        report("'{case_class.simple_name}' is not a member of union '{information.simple_name}'")
+    }
+    emit_narrowed_case(case_class, case_index > 0, switch_case.body, subject_temporary, subject_identifier, scope, class_information, function_information)
+}
+
+func generate_rest_case(
+    switch_case: Syntax.Statements.SwitchCase,
+    case_index: Int,
+    information: Analysis.UnionInfo,
+    subject_temporary: String,
+    subject_identifier: Syntax.Expressions.IdentifierExpression?,
+    covered_names: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    var chained = case_index > 0
+    var member_index = 0
+    while member_index < information.members.count() {
+        var member = information.members[member_index]
+        if not covered_names.contains(member.simple_name) {
+            emit_narrowed_case(member, chained, switch_case.body, subject_temporary, subject_identifier, scope, class_information, function_information)
+            chained = true
+        }
+        member_index = member_index + 1
+    }
+}
+
+func emit_narrowed_case(
+    case_class: Analysis.ClassInfo,
+    chained: Bool,
+    body: List<Syntax.Statements.Statement>,
+    subject_temporary: String,
+    subject_identifier: Syntax.Expressions.IdentifierExpression?,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    var keyword = "if "
+    if chained {
+        keyword = "else if "
+    }
+    builder.add_user("{keyword}{class_id_test(subject_temporary, case_class)} \{")
+    var case_scope = Scope(scope)
+    if subject_identifier {
+        case_scope.declare(subject_identifier.name, class_type_of(case_class))
+        case_scope.set_override(subject_identifier.name, "(({case_class.c_name}*){subject_temporary})")
+    }
+    generate_block_in_scope(body, case_scope, class_information, function_information)
+    builder.add_user("}")
+}
+
+func is_rest_case(switch_case: Syntax.Statements.SwitchCase): Bool {
+    if switch_case.type_reference {
+        var named = shape.as_named_type(switch_case.type_reference)
+        if named {
+            return named.path.count() == 1 and named.path[0] == "_"
+        }
+    }
+    return false
+}
+
+func report_repeated_cases(switch_statement: Syntax.Statements.SwitchStatement) {
+    var printer = Syntax.SourcePrinter()
+    var bodies = List<String>()
+    var names = List<String>()
+    var rest_body = ""
+    var index = 0
+    while index < switch_statement.cases.count() {
+        var switch_case = switch_statement.cases[index]
+        var printed = printer.source_statement_list(switch_case.body, 0)
+        if is_rest_case(switch_case) {
+            rest_body = printed
+        } else {
+            crash switch_case.type_reference
+            bodies.append(printed)
+            names.append(printer.source_type(switch_case.type_reference))
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < bodies.count() {
+        if not rest_body.is_empty() and bodies[index] == rest_body {
+            report("the case '{names[index]}' does the same as '_:': remove it and let '_:' answer for it")
+            return
+        }
+        var other = index + 1
+        while other < bodies.count() {
+            if rest_body.is_empty() and bodies[index] == bodies[other] {
+                report("the cases '{names[index]}' and '{names[other]}' do the same thing: write it once, as the last case '_:'")
+                return
+            }
+            other = other + 1
+        }
+        index = index + 1
+    }
+}
+
 func generate_switch_statement(
 switch_statement: Syntax.Statements.SwitchStatement, scope: Scope, class_information: Analysis.ClassInfo, function_information: Analysis.FunctionInfo) {
     assert switch_statement.subject
@@ -5890,44 +6012,26 @@ switch_statement: Syntax.Statements.SwitchStatement, scope: Scope, class_informa
     builder.add_user("\{")
     builder.add_user("{subject_union.c_name} {subject_temporary} = {subject.code};")
     var subject_identifier = shape.as_identifier(switch_statement.subject)
+    report_repeated_cases(switch_statement)
     var covered_names = List<String>()
-    var covered = 0
+    var answers_the_rest = false
     var case_index = 0
     while case_index < switch_statement.cases.count() {
         var switch_case = switch_statement.cases[case_index]
-        assert switch_case.type_reference
-        var case_class = class_of_type_reference(switch_case.type_reference, information.owner_namespace)
-        if not case_class {
-            case_class = class_of_type_reference(switch_case.type_reference, class_information.namespace_dotted)
-        }
-        if case_class {
-            if information.has_member(case_class.c_name) {
-                covered = covered + 1
-                covered_names.append(case_class.simple_name)
-            } else {
-                report("'{case_class.simple_name}' is not a member of union '{information.simple_name}'")
+        if is_rest_case(switch_case) {
+            if case_index != switch_statement.cases.count() - 1 {
+                report("'_:' answers for every member without a case of its own, so it is the last case")
+            } else if covered_names.count() == information.members.count() {
+                report("every member of '{information.simple_name}' already has a case, so '_:' answers for nothing: remove it")
             }
-            var keyword = "if "
-            if case_index > 0 {
-                keyword = "else if "
-            }
-            builder.add_user(keyword +"{class_id_test(subject_temporary, case_class)} \{")
-            var case_scope = Scope(scope)
-            if subject_identifier {
-                case_scope.declare(subject_identifier.name, class_type_of(case_class))
-                case_scope.set_override(
-                    subject_identifier.name,
-                    "(({case_class.c_name}*){subject_temporary})",
-                )
-            }
-            generate_block_in_scope(switch_case.body, case_scope, class_information, function_information)
-            builder.add_user("}")
+            answers_the_rest = true
+            generate_rest_case(switch_case, case_index, information, subject_temporary, subject_identifier, covered_names, scope, class_information, function_information)
         } else {
-            report("a switch case must name a class of the union")
+            generate_union_case(switch_case, case_index, information, subject_temporary, subject_identifier, covered_names, scope, class_information, function_information)
         }
         case_index = case_index + 1
     }
-    if covered != information.members.count() {
+    if covered_names.count() != information.members.count() and not answers_the_rest {
         var missing = List<String>()
         var member_index = 0
         while member_index < information.members.count() {

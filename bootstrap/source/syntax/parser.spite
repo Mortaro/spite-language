@@ -132,13 +132,7 @@ func is_declaration(statement: Syntax.Statements.Statement): Bool {
         Syntax.Statements.TypeDeclaration: return true
         Syntax.Statements.EnumDeclaration: return true
         Syntax.Statements.UnionDeclaration: return true
-        Syntax.Statements.AssignmentStatement: return false
-        Syntax.Statements.IfStatement: return false
-        Syntax.Statements.WhileStatement: return false
-        Syntax.Statements.SwitchStatement: return false
-        Syntax.Statements.AssertStatement: return false
-        Syntax.Statements.ReturnStatement: return false
-        Syntax.Statements.ExpressionStatement: return false
+        _: return false
     }
 }
 
@@ -189,19 +183,7 @@ func parse_statement(): Syntax.Statements.Statement {
     var line = current().line
     var statement = parse_statement_without_line()
     switch statement {
-        Syntax.Statements.GenericsDeclaration: statement.line = line
-        Syntax.Statements.VariableDeclaration: statement.line = line
-        Syntax.Statements.FunctionDeclaration: statement.line = line
-        Syntax.Statements.TypeDeclaration: statement.line = line
-        Syntax.Statements.EnumDeclaration: statement.line = line
-        Syntax.Statements.UnionDeclaration: statement.line = line
-        Syntax.Statements.AssignmentStatement: statement.line = line
-        Syntax.Statements.IfStatement: statement.line = line
-        Syntax.Statements.WhileStatement: statement.line = line
-        Syntax.Statements.SwitchStatement: statement.line = line
-        Syntax.Statements.AssertStatement: statement.line = line
-        Syntax.Statements.ReturnStatement: statement.line = line
-        Syntax.Statements.ExpressionStatement: statement.line = line
+        _: statement.line = line
     }
     return statement
 }

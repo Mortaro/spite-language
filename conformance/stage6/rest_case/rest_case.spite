@@ -1,0 +1,20 @@
+var console = Console()
+
+union Creature {
+    Cat
+    Dog
+    Fish
+}
+
+func RestCase() {
+    describe(Cat())
+    describe(Dog())
+    describe(Fish())
+}
+
+func describe(creature: Creature) {
+    switch creature {
+        Fish: console.print("a fish says nothing")
+        _: console.print("a {creature.class.name} says {creature.sound()}")
+    }
+}

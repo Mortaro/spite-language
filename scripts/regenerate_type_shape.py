@@ -5,7 +5,7 @@ root = "bootstrap/source/analysis/"
 
 
 def switch(hit, hit_value, miss_value):
-    lines = ["        Analysis.Types.%s: return %s\n" % (m, hit_value if m == hit else miss_value) for m in members]
+    lines = ["        Analysis.Types.%s: return %s\n" % (hit, hit_value), "        _: return %s\n" % miss_value]
     return "    switch spite_type {\n" + "".join(lines) + "    }\n"
 
 
