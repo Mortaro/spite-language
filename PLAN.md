@@ -169,10 +169,11 @@ and balanced allocations.
       `call_function()` calls it. `tests/tests.spite` no longer hand-lists: `run(StringTests().functions)` calls
       everything named `test_*`. `library/nothing.spite`, `library/spite/function.spite` and `argument.spite`
       are ordinary Spite source, which is D14 continuing.
-      **Not built yet:** typed `Spite.Function<Arguments..., Return>` (D39), naming a function to pass it as a
-      value, `.owner` as a readable attribute (D40 -- there is no type to give it until the typed form exists),
-      calling with arguments, and class-level `Class.functions`. Only functions taking nothing and returning
-      `Nothing` are callable; the rest are described but not callable.
+      **Since built (2026-09-23):** typed `Spite.Function<Arguments..., Return>` (D39), naming a function to pass
+      it as a value, and calling one with its arguments (`conformance/stage6/typed_functions`); class-level
+      `Class.functions` (D57). **Still not built:** `.owner` as a readable attribute (D40 -- the typed form does
+      not say what class the owner is, so there is still no type to give it), and calling a *reflected*
+      function with arguments.
     - **16e. Done.** The crash line is `spite.crash<TAB>path:line<TAB>Class<TAB>function<TAB>condition`, the
       condition rebuilt from its tokens and followed by the named operands of the failed comparison with their
       values (D25); a crash also prints the asserts that failed before it, from a ring of 32. Crash and assert
@@ -180,6 +181,17 @@ and balanced allocations.
 
     Why this order: after 16a and 16b -- both small -- a failing test is a crash naming a file, a line, a class
     and a function, which is enough for an AI to fix it and re-run. Everything after that is refinement.
+
+17. **Mortaro's 2026-09-23 inbox** (manual.md decision log, D58-D69; open questions 12-20). Built:
+    D58 `join`, D59 (already true), D60 `_:` and repeated cases, D61 for Symbol codegen (the `List<T>` member
+    templates wait on 15c), D63 copy-to-narrow, D64 `[]` answers `T?` with count/bound proofs, D65
+    `name_with_namespaces`, D66 leak-proven tests, D67 file order, D69 `T? == value`. **Waiting on Mortaro:**
+    D68 (class names as `Symbol`) conflicts with D10 -- the manual records a proposal; open questions 12
+    (generic header syntax), 14 (variadic arguments), 15 (whether `while` goes), 18 (entry file convention),
+    19 (constants and read-only reflection attributes) and 20 (nested `if`/`else`) each carry Claude's position.
+18. **Done (2026-09-23): the formatter** (manual.md sections 12 and 13): `bin/spite format [--check]`, a
+    safety check that refuses any rewrite that changes the program or loses a comment, and a tree kept in one
+    style by `check.sh`. Not built: formatting on every compile, long list literals, `docs/` code blocks.
 
 ## Later, deliberately deferred
 
