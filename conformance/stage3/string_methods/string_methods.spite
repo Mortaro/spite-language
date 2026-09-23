@@ -13,6 +13,7 @@ func StringMethods() {
     var rows = "one\ntwo\nthree".lines()
     console.print(rows.count(), rows.last())
     var letters = "abc".split("")
+    crash letters.count() == 3
     console.print(letters.count(), letters[1])
     console.print("42".to_int() + 1, "7".to_long(), "2.5".to_float(), "1.25".to_double(), "oops".to_int())
     var number: Int = "12"

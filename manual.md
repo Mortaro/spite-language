@@ -98,7 +98,8 @@ var target: Monster? = null
 
 - Every variable has a default value. The type is inferred from it, or annotated with `: Type`.
 - Every class has a default value (`Int` 0, `Float` 0.0, `Bool` false, `String` "", a class: its attribute defaults).
-  Operations that cannot succeed produce the default instead of crashing (for example reading a list out of range).
+  Operations that cannot succeed produce the default instead of crashing -- except reading with `[]`, which
+  answers `T?` (D64): an index or key that may not be there is a value that may be null, narrowed like any other.
 - `null` exists only as the empty state of `T?`. See [Open questions](#open-questions) for `= null` on other types.
 - An inner `var` may shadow an outer local, parameter, or attribute with the same name (second batch item 4,
   decided 2026-09-19), **and a `var` may shadow a name in the same scope too** (D51, decided by Mortaro,
@@ -277,6 +278,34 @@ for the rest of that block and any block nested inside it. It is the same rule s
   the next pass would read it unproven: narrow it inside the loop instead (`diagnostics/path_narrow_loop`).
   **[implemented; proposed by Claude, unconfirmed]**
 
+
+**Reading with `[]` answers `T?`** (D64, decided by Mortaro, 2026-09-23). `names[index]` and `table["key"]` may
+not be there, so they are values that may be null, and an index or key that is a name, a path, a number or
+quoted text makes the read a path that narrows like any other: `crash names[index]`, then `names[index].upper()`.
+How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked for them):
+
+- **A proven count proves the indices below it.** After `crash names.count() == 3` (or `>= 3`, or `> 2`),
+  `names[0]` to `names[2]` are plain values; so are they inside `if names.count() > 2 { }`.
+- **A bound proves its index.** `index < names.count()` (or `names.count() > index`) in an `assert`, a
+  `crash`, an `if`, or a `while` proves `names[index]` in what follows -- the loop body, for a `while` -- and
+  `index < names.count() - 1` does too. On the left of an `and`, it proves the right side, so
+  `while index < lines.count() and lines[index] != "end"` needs nothing more.
+- **Assigning the list or the index undoes it**, as for any path (section 5, D43): `index = index + 1`
+  un-proves `names[index]`, and so do `names.clear()`, `remove_at`, `remove_first` and `remove_last`. Inside a
+  loop, undoing a proof made before the loop that the loop has read is an error.
+- **A proven read still checks its bounds at runtime** and answers the default out of range, so a counter that
+  went negative gives a wrong value rather than reading memory it does not own.
+- **A `Bool?` cannot be a condition** -- not in `if`, `while`, `assert` or `crash`, and not under `not`, `and`
+  or `or`: `if flags[index]` would test that the element is there, not that it is true, and the two mean
+  opposite things for `false`. Prove the element is there first, or `switch` over it; `== true` also works,
+  since comparing needs no narrowing.
+- Writing through `[]` is unchanged, and **assigning through a `T?` is an error** naming the fix
+  (`diagnostics/store_through_nullable`): until D64 `outer.inner.label = "x"` on a `Box?` was silently
+  dropped, emitting nothing at all.
+
+`first()` and `last()` still answer the default on an empty list; whether they should answer `T?` too is
+open (Claude would say yes, by the same argument). `tests/list_tests`, `diagnostics/index_reads`.
+**[implemented]**
 
 **Comparing needs no narrowing** (D69, decided by Mortaro, 2026-09-23). `==` and `!=` accept a `T?` on the left:
 null is not equal to anything, so `crash Spite.Class.namespace == "Spite"` is a whole test. Only the comparison
@@ -2264,7 +2293,7 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-23 | **D61** (decided by Mortaro): **every function Spite adds to a class appears in `--final-classes`**, the member templates included (`sum_price()` and the rest, D15): a function you can call is a function you can read. **Partly implemented:** every function Symbol codegen made for a class is printed as an ordinary function under the class's own source, with the symbol spelled out (`func describe_age(): String { return "age is {age}" }`), and check.sh runs the printed `conformance/stage6/symbol_codegen` to the same output. The `List<T>` member templates are not printed yet, because `List<T>` has no class of its own to print them into until milestone 15c writes it in Spite.  **[partial]** |
 | 2026-09-23 | **D62** (decided by Mortaro): **no destructuring and no lambdas, anywhere.** "Writing it is fun, but it's not a human who will write code in this language, so it's a pointless readability sacrifice." A function value is a named, bound function (D17); a value is taken apart by reading its members by name. |
 | 2026-09-23 | **D63** (decided by Mortaro): **a local that only copies a name or a path so it can be narrowed is a compile error.** `var watcher = tracker; assert watcher; watcher.note_a_drop()` is written `assert tracker; tracker.note_a_drop()` -- narrowing works on the name and on the path (D43), so the copy is a human habit with no reason in Spite. Its exact scope (proposed by Claude, unconfirmed): a `var` whose value is a bare name or member path of a `T?` type, which is then narrowed, is never assigned again, and whose source is not assigned later in the function either -- a snapshot taken before the source changes is not a copy for narrowing. Migrating the tree removed 110 such copies from the compiler and a dozen from the corpus, and turned up the check-proves-nothing error of section 5.  **[implemented]** |
-| 2026-09-23 | **D64** (decided by Mortaro): **reading with `[]` answers `T?`** and has to be narrowed before use, so an out-of-range read is never a hidden runtime crash. From a test that read `attributes[0]` and `attributes[1]` after checking only the count: "we should either have an assert per case but also ideally extend the language to understand that if count > 2 it means 0 and 1 are safe" -- **a proven count proves the indices below it** (decided in intent; the exact rule is Claude's to propose). Most index reads live in the index loops of open question 15, which is why the two should land together. Writing through `[]` is unchanged. |
+| 2026-09-23 | **D64** (decided by Mortaro): **reading with `[]` answers `T?`** and has to be narrowed before use, so an out-of-range read is never a hidden runtime crash. From a test that read `attributes[0]` and `attributes[1]` after checking only the count: "we should either have an assert per case but also ideally extend the language to understand that if count > 2 it means 0 and 1 are safe" -- **a proven count proves the indices below it** (decided in intent; the exact rule is Claude's to propose). Most index reads live in the index loops of open question 15, which is why the two should land together. Writing through `[]` is unchanged. As implemented (rules proposed by Claude, unconfirmed; section 5): a proven count, a bound in a condition (`while index < names.count()` proves `names[index]` in the body) and an explicit `crash names[index]` narrow a read, and assigning the list or the index, or shrinking the list, undoes it. The bound rule alone proved all but about 45 of the compiler's 369 index reads, so open question 15 is no longer needed for D64 to be livable; the rest were parallel lists read by one counter, and got a `crash`. A `Bool?` in a condition became an error on the way, because `if flags[index]` would have silently changed from 'is true' to 'is there'. Two bootstrap steps: an intermediate compiler that tolerates `crash` on a plain value compiled the migrated sources into the new seed.  **[implemented]** |
 | 2026-09-23 | **D65** (decided by Mortaro): **`full_name` is renamed, because it is ambiguous**: the name must say what it holds, "something like `name_with_namespaces`". Applies to `Spite.Namespace.full_name` and the `full_name()` a reopening adds in `conformance/stage6/reopen_library`. |
 | 2026-09-23 | **D66** (decided by Mortaro): **the test package proves there are no memory leaks.** A test run that ends with allocations and frees unequal fails, as every corpus program already does. |
 | 2026-09-23 | **D67** (decided by Mortaro): **the order of a file is enforced**: `singleton`, then `generic` lines (open question 12), then `enum`, then `type`, then variables, then the constructor, then functions. Out of order is a compile error (section 12: the compiler formats or errors). Implemented for what exists today, with `union` placed between `enum` and `type` (Claude, unconfirmed); nine files in the tree were reordered.  **[implemented]** |

@@ -1,0 +1,43 @@
+var console = Console()
+var flags = [true, false]
+
+func IndexReads() {
+    unproven()
+    maybe_boolean()
+    shrunk_in_a_loop()
+    moved_counter()
+}
+
+func unproven() {
+    var names = ["ada"]
+    console.print(names[0].upper())
+}
+
+func maybe_boolean() {
+    var index = 0
+    if flags[index] {
+        console.print("first flag")
+    } else {
+        console.print("no first flag")
+    }
+}
+
+func shrunk_in_a_loop() {
+    var names = ["ada", "grace"]
+    crash names.count() == 2
+    var passes = 0
+    while passes < 2 {
+        console.print(names[1])
+        names.remove_last()
+        passes = passes + 1
+    }
+}
+
+func moved_counter() {
+    var names = ["ada", "grace"]
+    var index = 0
+    while index < names.count() {
+        index = index + 1
+        console.print(names[index])
+    }
+}

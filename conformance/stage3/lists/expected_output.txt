@@ -3,9 +3,9 @@ alan, ada, grace
 true false
 edsger ada grace
 grace edsger 1
-barbara !
+barbara false
 true
-16 10 0
+16 10 false
 true false
 item0 x0
 item1 x2

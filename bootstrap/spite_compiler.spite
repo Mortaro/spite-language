@@ -217,6 +217,7 @@ func write_class_views(output_directory: String, folder: String, names: List<Str
     while index < names.count() {
         var path = "{directory}/{final_class_file_name(names[index])}.spite"
         var output = File(path)
+        crash sources[index]
         if not output.write("{sources[index]}\n") {
             console.error("error: could not write '{path}'")
             Program().exit(1)

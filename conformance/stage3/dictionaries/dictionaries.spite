@@ -7,7 +7,8 @@ func Dictionaries() {
     ages.set("grace", 85)
     ages["alan"] = 41
     ages.set("ada", 37)
-    console.print(ages.count(), ages.has("ada"), ages.has("bob"), ages["ada"], ages["bob"])
+    crash ages["ada"]
+    console.print(ages.count(), ages.has("ada"), ages.has("bob"), ages["ada"], ages["bob"] == 0)
     var found = ages.get("grace")
     if found {
         console.print("grace is", found)
@@ -21,10 +22,13 @@ func Dictionaries() {
     ages.remove("grace")
     console.print(ages.keys().join(","), ages.count())
     var values = ages.values()
+    crash values.count() == 2
     console.print(values.count(), values[0] + values[1])
     labels.set("x{1}", "first{1}")
     labels["y"] = "second"
-    console.print(labels["x1"], labels["y"],"{labels["z"]}|", labels.keys().count())
+    crash labels["x1"]
+    crash labels["y"]
+    console.print(labels["x1"], labels["y"], labels["z"] == "", labels.keys().count())
     console.print(lookup("y"), lookup("q"))
     var pets = Dictionary<Animal>()
     pets.set("rex", Animal("dog"))
@@ -33,6 +37,7 @@ func Dictionaries() {
     if rex {
         console.print(rex.kind)
     }
+    crash pets["tom"]
     console.print(pets["tom"].kind, pets.values().count())
     pets.remove("rex")
     console.print(pets.count(), pets.has("rex"))

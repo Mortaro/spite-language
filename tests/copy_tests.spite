@@ -23,10 +23,13 @@ func test_a_copied_list_is_a_second_list() {
 
 func test_a_copy_is_shallow_and_a_deep_copy_is_not() {
     var nest = [[1]]
+    crash nest.count() == 1
     var shallow = nest.copy()
+    crash shallow.count() == 1
     shallow[0].append(2)
     crash nest[0].count() == 2
     var deep = nest.deep_copy()
+    crash deep.count() == 1
     deep[0].append(3)
     crash nest[0].count() == 2
 }

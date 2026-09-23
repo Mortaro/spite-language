@@ -5,6 +5,7 @@ func RepositoryList() {
     repositories.append(Repository("engine", 10, true))
     repositories.append(Repository("cookie_clicker", 3, false))
     repositories.append(Repository("compiler", 20, true))
+    crash repositories[0]
     var first = repositories[0]
     first.set_stars(15)
     console.print("first stars", first.get_stars())

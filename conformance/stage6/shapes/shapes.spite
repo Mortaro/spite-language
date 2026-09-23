@@ -24,6 +24,7 @@ func Shapes() {
         total = total + things[index].size
         index = index + 1
     }
+    crash things[2]
     console.print(total, things[2].name, things.last().name.upper())
     var point = { x: 3, y: 4, label: "corner" }
     point.x = point.x + 10

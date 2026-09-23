@@ -4,8 +4,7 @@ member count 3
 member age 2 job knight
 member age 2 job mage
 member age 3 job archer
-missing member age 0
-missing member job knight
+an eleventh member false
 score count 3
 second score 20
 found monster 42

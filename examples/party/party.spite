@@ -16,9 +16,9 @@ func Party() {
         console.print("member age", member.age, "job", member.job)
         index = index + 1
     }
-    console.print("missing member age", members[10].age)
-    console.print("missing member job", members[10].job)
+    console.print("an eleventh member", members.count() > 10)
     var scores = [10, 20, 30]
+    crash scores.count() == 3
     console.print("score count", scores.count())
     console.print("second score", scores[1])
     var nearby = find_monster(false)

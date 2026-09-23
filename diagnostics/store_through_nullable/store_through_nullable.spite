@@ -1,0 +1,13 @@
+var console = Console()
+
+func StoreThroughNullable() {
+    run()
+}
+
+func run() {
+    var boxes = List<Box>()
+    boxes[3].label = "x"
+    var outer = Box()
+    outer.inner.label = "y"
+    console.print(boxes.count())
+}

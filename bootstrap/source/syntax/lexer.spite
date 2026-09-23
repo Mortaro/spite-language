@@ -375,6 +375,7 @@ func scan_quoted(quote_code: Int, kind: TokenKind): Bool {
     }
     var piece_index = 0
     while piece_index < holes.count() {
+        crash pieces[piece_index]
         push_token('string_literal', lexeme, pieces[piece_index], token_line, token_column)
         push_token('interpolation', lexeme, holes[piece_index], token_line, token_column)
         piece_index = piece_index + 1

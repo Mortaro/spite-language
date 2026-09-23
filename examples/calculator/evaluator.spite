@@ -50,6 +50,7 @@ func process_line(line: String) {
     assert not line.is_empty()
     if line.contains("=") {
         var parts = line.split("=")
+        crash parts.count() > 1
         var parser = Parser(Lexer(parts[1]).tokens)
         var tree = parser.parse()
         var value = evaluate_tree(tree)

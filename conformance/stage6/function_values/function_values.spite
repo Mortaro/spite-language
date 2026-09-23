@@ -13,7 +13,9 @@ func FunctionValues() {
         index = index + 1
     }
     console.print(robot.log.join(","))
+    crash robot.functions[3]
     var describe = robot.functions[3]
+    crash describe.arguments.count() == 2
     console.print(describe.arguments[0].name, describe.arguments[0].class, describe.arguments[1].class)
     describe.call_function()
     console.print(robot.log.count())

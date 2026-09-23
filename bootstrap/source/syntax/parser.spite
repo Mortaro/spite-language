@@ -13,11 +13,13 @@ func Parser(starting_tokens: List<Token>) {
 }
 
 func current(): Token {
+    crash tokens[position]
     var token = tokens[position]
     return Token(token.kind, token.lexeme, token.text, token.line, token.column)
 }
 
 func current_kind(): TokenKind {
+    crash tokens[position]
     return tokens[position].kind
 }
 
@@ -34,8 +36,9 @@ func advance(): Token {
 }
 
 func next_kind(): TokenKind {
-    if position + 1 < tokens.count() {
-        return tokens[position + 1].kind
+    var following = position + 1
+    if following < tokens.count() {
+        return tokens[following].kind
     }
     return 'end_of_file'
 }
@@ -631,8 +634,15 @@ func source_text_between(first_token: Int, after_last_token: Int): String {
     var text = ""
     var index = first_token
     while index < after_last_token {
-        if index == first_token or not same_place(tokens[index], tokens[index - 1]) {
+        crash tokens[index]
+        if index == first_token {
             text = glue_lexeme(text, tokens[index].lexeme)
+        } else {
+            var previous = index - 1
+            crash tokens[previous]
+            if not same_place(tokens[index], tokens[previous]) {
+                text = glue_lexeme(text, tokens[index].lexeme)
+            }
         }
         index = index + 1
     }

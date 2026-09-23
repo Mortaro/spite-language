@@ -87,8 +87,9 @@ func DictionaryTasks() {
     inventory.set("potion", 6)
     console.print("count", inventory.count())
     console.print("has shield", inventory.has("shield"))
+    crash inventory["potion"]
     console.print("potions", inventory["potion"])
-    console.print("shields", inventory["shield"])
+    console.print("shields", inventory["shield"] == 0)
     var total = 0
     var values = inventory.values()
     var index = 0
@@ -103,7 +104,7 @@ func DictionaryTasks() {
 count 2
 has shield false
 potions 6
-shields 0
+shields false
 total items 7
 ```
 

@@ -14,14 +14,17 @@ func Lists() {
     console.print(names.join(" "))
     console.print(names.remove_last(), names.remove_first(), names.count())
     names[0] = "barbara"
-    console.print(names[0],"{names[7]}!")
+    crash names.count() == 1
+    console.print(names[0], names[7] == "")
     names.clear()
     console.print(names.is_empty())
     scores.append(10)
     scores.reverse()
-    console.print(total(scores), scores[0], scores[99])
+    crash scores.count() == 4
+    console.print(total(scores), scores[0], scores[99] == 0)
     console.print(scores.contains(10), scores.contains(11))
     var items = build_items(3)
+    crash items.count() == 3
     var index = 0
     while index < items.count() {
         console.print(items[index].describe())

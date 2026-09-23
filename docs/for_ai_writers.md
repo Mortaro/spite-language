@@ -75,9 +75,10 @@ func is_alive(): Bool {
   goes. Two objects that refer to each other leak: clear one side.
 - `List<T>`: `[1, 2, 3]`, `append`, `prepend`, `insert`, `remove_at`, `remove_last`, `remove_first`, `first`,
   `last`, `count`, `contains`, `is_empty`, `clear`, `reverse`, `join` (text, numbers, `Bool` and enum values
-  all join), `list[index]` (out of range gives
-  the default). `Dictionary<T>` (String keys): `set`, `get` (a `T?`), `has`, `remove`, `count`, `keys`, `values`,
-  `dictionary["key"]`.
+  all join), `list[index]` (a `T?`: out of range
+  gives nothing -- `crash names[index]` narrows it like a path, `crash names.count() == 3` proves `names[0]` to
+  `names[2]`, and `while index < names.count()` proves `names[index]` in the loop body). `Dictionary<T>` (String keys): `set`, `get` (a `T?`), `has`, `remove`, `count`, `keys`, `values`,
+  `dictionary["key"]` (a `T?`, like `list[index]`).
 - On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Bool` member),
   `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<member>()`,
   `each_<member>()` (a function). A member is an attribute or a function that takes nothing.

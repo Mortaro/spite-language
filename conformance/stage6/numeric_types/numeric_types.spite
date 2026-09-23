@@ -18,6 +18,7 @@ func NumericTypes() {
     var ports = List<UnsignedShort>()
     ports.append(port)
     ports.append(70000)
+    crash ports.count() == 2
     console.print(ports[0], ports[1], ports.count())
 }
 

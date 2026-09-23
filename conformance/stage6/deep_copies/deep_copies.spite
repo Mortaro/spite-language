@@ -8,9 +8,14 @@ func DeepCopies() {
     team.captain = team.members[0]
     var shallow = team.copy()
     var deep = team.deep_copy()
+    crash team.members[0]
     team.members[0].level = 99
     team.members.append(Member("alan", 1))
     team.scores.set("first", 11)
+    crash shallow.members[0]
+    crash shallow.scores["first"]
+    crash deep.members[0]
+    crash deep.scores["first"]
     console.print(shallow.members.count(), shallow.members[0].level, shallow.scores["first"])
     console.print(deep.members.count(), deep.members[0].level, deep.scores["first"], deep.name)
     report(deep.captain)

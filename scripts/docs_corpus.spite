@@ -48,6 +48,7 @@ func read_page(path: String) {
 func read_block(lines: List<String>, opening_index: Int, opening: String): Int {
     var header = opening.slice("```spite title=".length(), opening.length())
     var words = header.split(" ")
+    crash words[0]
     var title = words[0]
     var separator = title.index_of("/")
     if separator < 1 {
@@ -157,6 +158,9 @@ func write_manifest() {
     var index = 0
     while index < folder_names.count() {
         var folder = folder_names[index]
+        crash index < folder_entries.count()
+        crash index < folder_flags.count()
+        crash index < folder_must_fail.count()
         if folder_entries[index].is_empty() {
             console.error("no block of '{folder}' is marked 'entry'")
             Program().exit(1)

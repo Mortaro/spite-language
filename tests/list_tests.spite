@@ -7,11 +7,36 @@ func test_append_and_prepend_keep_order() {
     crash numbers.last() == 4
 }
 
-func test_reading_out_of_range_gives_the_default() {
+func test_reading_out_of_range_gives_nothing() {
     var numbers = [7]
-    crash numbers[5] == 0
+    crash numbers[5] != 0
+    crash numbers[0] == 7
     var names = ["ada"]
-    crash names[5] == ""
+    crash names[5] != ""
+}
+
+func test_a_proven_count_proves_the_indices_below_it() {
+    var names = ["ada", "grace", "alan"]
+    crash names.count() == 3
+    crash names[2].length() == 4
+}
+
+func test_a_loop_over_the_count_proves_each_element() {
+    var names = ["ada", "grace"]
+    var letters = 0
+    var index = 0
+    while index < names.count() {
+        letters = letters + names[index].length()
+        index = index + 1
+    }
+    crash letters == 8
+}
+
+func test_an_element_can_be_narrowed_like_a_path() {
+    var names = ["ada"]
+    var position = 0
+    crash names[position]
+    crash names[position].upper() == "ADA"
 }
 
 func test_remove_last_returns_what_it_removed() {

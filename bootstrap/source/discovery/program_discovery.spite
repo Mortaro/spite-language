@@ -91,6 +91,8 @@ func check_order(path: String, file: Syntax.SourceFile, class_name: String) {
         var rank = order_rank(statement, class_name)
         if rank >= 0 and rank < reached and not has_error {
             has_error = true
+            crash kinds[rank]
+            crash kinds[reached]
             error_message = "{path}:{statement_line(statement)}: error: {kinds[rank]} comes after {kinds[reached]} here, but a file is ordered: enums, unions, types, variables, the constructor, then functions"
         }
         if rank > reached {
@@ -528,9 +530,8 @@ func compute_simple_name(segments: List<String>, stem: String): String {
     if segments.is_empty() {
         return pascal_case(stem)
     }
-    var last_segment = segments[segments.count() - 1]
-    if last_segment == stem {
-        return pascal_case(last_segment)
+    if segments.last() == stem {
+        return pascal_case(stem)
     }
     return pascal_case(stem)
 }

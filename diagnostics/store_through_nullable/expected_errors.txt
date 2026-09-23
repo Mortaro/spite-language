@@ -1,0 +1,2 @@
+diagnostics/store_through_nullable/store_through_nullable.spite:9: error: this value may be null (it is a Box?), so 'label' cannot be assigned through it yet: narrow it first with 'if value { }', 'assert value' or 'crash value' (in StoreThroughNullable.run)
+diagnostics/store_through_nullable/store_through_nullable.spite:11: error: this value may be null (it is a Box?), so 'label' cannot be assigned through it yet: narrow it first with 'if value { }', 'assert value' or 'crash value' (in StoreThroughNullable.run)

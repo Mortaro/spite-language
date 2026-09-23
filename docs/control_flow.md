@@ -118,6 +118,7 @@ func ListHelpers() {
     console.print("any done", tasks.any_done())
     console.print("all done", tasks.all_done())
     var titles = tasks.map_title()
+    crash titles[0]
     console.print("first title", titles[0])
     tasks.each_finish()
     console.print("all done now", tasks.all_done())
