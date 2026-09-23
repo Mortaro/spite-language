@@ -647,22 +647,30 @@ func source_text_between(first_token: Int, after_last_token: Int): String {
     var text = ""
     var index = first_token
     while index < after_last_token {
-        var lexeme = tokens[index].lexeme
-        var glued = text.is_empty() or lexeme == ")" or lexeme == "]" or lexeme == "," or lexeme == "." or lexeme == "("
-        if text.ends_with("(") or text.ends_with("[") or text.ends_with(".") {
-            glued = true
-        }
-        if lexeme == "(" and (text.ends_with(" and") or text.ends_with(" or") or text.ends_with(" not") or text.ends_with("=") or text.ends_with("<") or text.ends_with(">")) {
-            glued = false
-        }
-        if glued {
-            text = text + lexeme
-        } else {
-            text ="{text} {lexeme}"
+        if index == first_token or not same_place(tokens[index], tokens[index - 1]) {
+            text = glue_lexeme(text, tokens[index].lexeme)
         }
         index = index + 1
     }
     return text
+}
+
+func same_place(token: Token, other: Token): Bool {
+    return token.line == other.line and token.column == other.column
+}
+
+func glue_lexeme(text: String, lexeme: String): String {
+    var glued = text.is_empty() or lexeme == ")" or lexeme == "]" or lexeme == "," or lexeme == "." or lexeme == "("
+    if text.ends_with("(") or text.ends_with("[") or text.ends_with(".") {
+        glued = true
+    }
+    if lexeme == "(" and (text.ends_with(" and") or text.ends_with(" or") or text.ends_with(" not") or text.ends_with("=") or text.ends_with("<") or text.ends_with(">")) {
+        glued = false
+    }
+    if glued {
+        return text + lexeme
+    }
+    return "{text} {lexeme}"
 }
 
 func parse_return_statement(): Syntax.Statements.Statement {

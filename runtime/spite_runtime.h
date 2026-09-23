@@ -125,10 +125,23 @@ static void spite_debug_free(void* pointer) {
 #define SPITE_REALLOC(pointer, size) spite_debug_realloc(pointer, size)
 #define SPITE_FREE(pointer) spite_debug_free(pointer)
 #define SPITE_MALLOC(size) spite_debug_realloc(0, size)
+static int64_t spite_live_allocation_count(void) { return spite_debug_live_count; }
 #else
-#define SPITE_REALLOC(pointer, size) realloc(pointer, size)
-#define SPITE_FREE(pointer) free(pointer)
-#define SPITE_MALLOC(size) malloc(size)
+static int64_t spite_live_allocations = 0;
+static void* spite_counted_realloc(void* pointer, size_t size) {
+    void* result = realloc(pointer, size);
+    if (pointer == 0 && result != 0) spite_live_allocations = spite_live_allocations + 1;
+    return result;
+}
+static void spite_counted_free(void* pointer) {
+    if (pointer == 0) return;
+    spite_live_allocations = spite_live_allocations - 1;
+    free(pointer);
+}
+static int64_t spite_live_allocation_count(void) { return spite_live_allocations; }
+#define SPITE_REALLOC(pointer, size) spite_counted_realloc(pointer, size)
+#define SPITE_FREE(pointer) spite_counted_free(pointer)
+#define SPITE_MALLOC(size) spite_counted_realloc(0, size)
 #endif
 
 /* ---- object model: reference counting (milestone 9a) ----

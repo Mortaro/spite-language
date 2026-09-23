@@ -135,6 +135,7 @@ func register_system_classes() {
     add_builtin_function(program, "exit", one_parameter("code", integer_type()), void_type())
     add_builtin_function(program, "sleep", one_parameter("milliseconds", integer_type()), void_type())
     add_builtin_function(program, "environment", one_parameter("name", string_type()), nullable_type_of(string_type()))
+    add_builtin_function(program, "live_allocations", no_parameters(), integer_type())
 }
 
 func built_in_class_sources(): List<String> {
@@ -4822,7 +4823,7 @@ func printed_statement_for(expression_ast: Syntax.Expressions.Expression, stream
             if owns(result, expression_ast) {
                 namespace_release = " Spite_Namespace_release({namespace_temporary});"
             }
-            return "\{ Spite_Namespace* {namespace_temporary} = {result.code}; fprintf({stream}, \"%s\", {namespace_temporary}->full_name->data);{namespace_release} }"
+            return "\{ Spite_Namespace* {namespace_temporary} = {result.code}; fprintf({stream}, \"%s\", {namespace_temporary}->name_with_namespaces->data);{namespace_release} }"
         }
     }
     var printed_enum = type_shape.as_enum(result.get_type())

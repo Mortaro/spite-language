@@ -1,3 +1,5 @@
+var program = Program()
+
 func Tests() {
     var classes = Spite.Class.instances
     var index = 0
@@ -14,8 +16,17 @@ func run(functions: List<Spite.Function>) {
     while index < functions.count() {
         var function = functions[index]
         if function.name.starts_with("test_") {
-            function.call_function()
+            prove(function)
         }
         index = index + 1
     }
+}
+
+func prove(function: Spite.Function) {
+    function.call_function()
+    var before = program.live_allocations()
+    function.call_function()
+    var leaked = program.live_allocations() - before
+    var balance = "{function.name} left {leaked} allocations behind"
+    crash balance == "{function.name} left 0 allocations behind"
 }

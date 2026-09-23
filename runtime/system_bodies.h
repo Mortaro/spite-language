@@ -348,6 +348,11 @@ SpiteString* Program_environment(Program* self, SpiteString* name) {
     return spite_string_from_cstring_owned(spite_environment_value);
 }
 
+int32_t Program_live_allocations(Program* self) {
+    (void)self;
+    return (int32_t)spite_live_allocation_count();
+}
+
 void Console_init(Console* self) {
 }
 
