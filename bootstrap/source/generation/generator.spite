@@ -2941,6 +2941,12 @@ func generate_binary(
                 class_information,
             )
         }
+        if binary.operator != 'logical_and' and binary.operator != 'logical_or' {
+            report(
+                "this value may be null (it is a {type_display_name(left.get_type())}), so '{binary_operator_symbol(binary.operator)}' cannot use it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+            )
+            return ExpressionResult("0", Analysis.Types.VoidType())
+        }
     }
     if type_shape.as_string(left.get_type()) {
         return generate_string_binary(binary.operator, left, binary.left, binary.right, scope, class_information)
@@ -7488,16 +7494,26 @@ func record_site(
     )
 }
 
+func sorted_position(sorted: List<String>, line: String): Int {
+    var position = sorted.count()
+    while position > 0 {
+        var before = position - 1
+        crash before < sorted.count()
+        if sorted[before] > line {
+            position = before
+        } else {
+            return position
+        }
+    }
+    return position
+}
+
 func crash_map(): String {
     var sorted = List<String>()
     var index = 0
     while index < crash_map_lines.count() {
         var line = crash_map_lines[index]
-        var position = sorted.count()
-        while position > 0 and sorted[position - 1] > line {
-            position = position - 1
-        }
-        sorted.insert(position, line)
+        sorted.insert(sorted_position(sorted, line), line)
         index = index + 1
     }
     var body = sorted.join("\n")

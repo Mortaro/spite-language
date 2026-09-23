@@ -1,0 +1,9 @@
+var console = Console()
+
+func MaybeInArithmetic() {
+    var scores = [3, 5]
+    var position = 1
+    console.print(scores[position] + 1)
+    var names = ["ada"]
+    console.print(names[position] > "b")
+}

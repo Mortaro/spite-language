@@ -102,8 +102,11 @@ line.
 6. Arguments for the program being run: `--mode=run` hands it an empty `Arguments`, so nothing on the command
    line can reach it. Needs a rule for where the compiler's flags end and the program's begin.
 7. `--development`, the REPL, live reload.
-8. Known problem: compiling the compiler itself leaks about 0.1% of its allocations (every corpus program is
-   balanced, so it is a path only the large program exercises).
+8. Fixed 2026-09-23: compiling the compiler itself leaked about 0.1% of its allocations. Two causes: a
+   condition, `not` or `and`/`or` operand that owned what it tested never released it (`owned_truth`), and a
+   `T?` on the left of `>` in `crash_map` -- which D64 now rejects. `check.sh` builds generation 2 with
+   `-DSPITE_DEBUG_MEMORY` and requires the compiler to free everything while compiling itself; the debug
+   allocator's live table became a hash set so that takes seconds, not minutes.
 
 ## Milestone 10b: the design pass
 

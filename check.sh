@@ -84,6 +84,12 @@ if [ "$(echo "$test_output" | grep -vc '^allocations: ')" != "0" ] || [ -z "$tes
 fi
 echo "tests: passed"
 
+# The compiler is held to the corpus standard too: compiling itself, it frees everything it takes.
+"$CC_BIN" -O1 -w -DSPITE_DEBUG_MEMORY "$work/generation_two.c" -o "$work/generation_two_debug.exe" 2> "$work/c_errors.txt" || { head -20 "$work/c_errors.txt"; exit 1; }
+self_leaks=$("$work/generation_two_debug.exe" --file=bootstrap/spite_compiler.spite --mode=c 2>&1 > /dev/null | head -5)
+if [ -n "$self_leaks" ]; then echo "FAILED: the compiler leaks while compiling itself"; echo "$self_leaks"; exit 1; fi
+echo "compiler memory: compiling itself frees everything it takes"
+
 # Programs that must NOT compile: the errors are the language's main channel to whoever (or whatever) writes the code.
 wrong=0; checked=0
 for folder in diagnostics/*/; do

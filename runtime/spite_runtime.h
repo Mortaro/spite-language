@@ -59,42 +59,75 @@ static SpiteDebugRecord* spite_debug_live_records = 0;
 static int64_t spite_debug_live_count = 0;
 static int64_t spite_debug_live_capacity = 0;
 static int64_t spite_debug_live_bytes = 0;
+static int64_t spite_debug_live_slots_used = 0;
+#define SPITE_DEBUG_REMOVED ((void*)1)
+
+/* The live table is an open-addressing hash set keyed by pointer, so tracking and untracking cost the same
+ * however many objects are live: a program making millions of objects -- the compiler compiling itself --
+ * stays fast enough under --debug-memory to be checked on every run. A removed slot keeps a marker so a
+ * probe does not stop early; the table is rebuilt without markers whenever it grows. */
+static int64_t spite_debug_slot_of(void* pointer, int64_t capacity) {
+    uint64_t hash = (uint64_t)(uintptr_t)pointer;
+    hash ^= hash >> 33;
+    hash *= 0xff51afd7ed558ccdULL;
+    hash ^= hash >> 33;
+    return (int64_t)(hash & (uint64_t)(capacity - 1));
+}
+
+static void spite_debug_place(SpiteDebugRecord* records, int64_t capacity, void* pointer, int64_t size) {
+    int64_t slot = spite_debug_slot_of(pointer, capacity);
+    while (records[slot].pointer != 0 && records[slot].pointer != SPITE_DEBUG_REMOVED) slot = (slot + 1) & (capacity - 1);
+    records[slot].pointer = pointer;
+    records[slot].size = size;
+}
 
 static void spite_debug_track(void* pointer, int64_t size) {
     if (pointer == 0) return;
-    if (spite_debug_live_count == spite_debug_live_capacity) {
-        int64_t new_capacity = spite_debug_live_capacity == 0 ? 64 : spite_debug_live_capacity * 2;
-        spite_debug_live_records = (SpiteDebugRecord*)realloc(spite_debug_live_records, (size_t)new_capacity * sizeof(SpiteDebugRecord));
+    if ((spite_debug_live_slots_used + 1) * 2 >= spite_debug_live_capacity) {
+        int64_t new_capacity = spite_debug_live_capacity == 0 ? 1024 : spite_debug_live_capacity * 2;
+        while ((spite_debug_live_count + 1) * 4 >= new_capacity * 3) new_capacity = new_capacity * 2;
+        SpiteDebugRecord* grown = (SpiteDebugRecord*)calloc((size_t)new_capacity, sizeof(SpiteDebugRecord));
+        for (int64_t index = 0; index < spite_debug_live_capacity; index = index + 1) {
+            void* kept = spite_debug_live_records[index].pointer;
+            if (kept != 0 && kept != SPITE_DEBUG_REMOVED) spite_debug_place(grown, new_capacity, kept, spite_debug_live_records[index].size);
+        }
+        free(spite_debug_live_records);
+        spite_debug_live_records = grown;
         spite_debug_live_capacity = new_capacity;
+        spite_debug_live_slots_used = spite_debug_live_count;
     }
-    spite_debug_live_records[spite_debug_live_count].pointer = pointer;
-    spite_debug_live_records[spite_debug_live_count].size = size;
+    spite_debug_place(spite_debug_live_records, spite_debug_live_capacity, pointer, size);
     spite_debug_live_count = spite_debug_live_count + 1;
+    spite_debug_live_slots_used = spite_debug_live_slots_used + 1;
     spite_debug_live_bytes = spite_debug_live_bytes + size;
+}
+
+static int64_t spite_debug_find(void* pointer) {
+    if (spite_debug_live_capacity == 0) return -1;
+    int64_t slot = spite_debug_slot_of(pointer, spite_debug_live_capacity);
+    while (spite_debug_live_records[slot].pointer != 0) {
+        if (spite_debug_live_records[slot].pointer == pointer) return slot;
+        slot = (slot + 1) & (spite_debug_live_capacity - 1);
+    }
+    return -1;
 }
 
 /* Removes `pointer` from the live table if present, reporting whether it
  * was found there at all. */
 static bool spite_debug_untrack(void* pointer) {
-    for (int64_t index = 0; index < spite_debug_live_count; index = index + 1) {
-        if (spite_debug_live_records[index].pointer == pointer) {
-            spite_debug_live_bytes = spite_debug_live_bytes - spite_debug_live_records[index].size;
-            spite_debug_live_records[index] = spite_debug_live_records[spite_debug_live_count - 1];
-            spite_debug_live_count = spite_debug_live_count - 1;
-            return true;
-        }
-    }
-    return false;
+    int64_t slot = spite_debug_find(pointer);
+    if (slot < 0) return false;
+    spite_debug_live_bytes = spite_debug_live_bytes - spite_debug_live_records[slot].size;
+    spite_debug_live_records[slot].pointer = SPITE_DEBUG_REMOVED;
+    spite_debug_live_count = spite_debug_live_count - 1;
+    return true;
 }
 
 /* Checks whether `pointer` is still live, without removing it -- used only
  * by `spite_debug_report_leaks`' by-class summary at the very end of the
  * program. */
 static bool spite_debug_is_live(void* pointer) {
-    for (int64_t index = 0; index < spite_debug_live_count; index = index + 1) {
-        if (spite_debug_live_records[index].pointer == pointer) return true;
-    }
-    return false;
+    return spite_debug_find(pointer) >= 0;
 }
 
 static void* spite_debug_realloc(void* pointer, size_t size) {

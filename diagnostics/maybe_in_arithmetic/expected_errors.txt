@@ -1,0 +1,2 @@
+diagnostics/maybe_in_arithmetic/maybe_in_arithmetic.spite:6: error: this value may be null (it is a Int?), so '+' cannot use it yet: narrow it first with 'if value { }', 'assert value' or 'crash value' (in MaybeInArithmetic.MaybeInArithmetic)
+diagnostics/maybe_in_arithmetic/maybe_in_arithmetic.spite:8: error: this value may be null (it is a String?), so '>' cannot use it yet: narrow it first with 'if value { }', 'assert value' or 'crash value' (in MaybeInArithmetic.MaybeInArithmetic)
