@@ -11148,10 +11148,11 @@ func emit_class(information: Analysis.ClassInfo) {
 }
 
 func emit_value_class(information: Analysis.ClassInfo) {
-    if not information.fields.is_empty() {
+    var declares_only_memory = information.fields.count() == 1 and information.fields[0].name == "_memory"
+    if information.qualified_dotted != "String" and not information.fields.is_empty() and not declares_only_memory {
         current_path = information.source_path
         report(
-            "'{information.simple_name}' is a value the compiler lays out, so it cannot have attributes: keep what a function needs in its locals",
+            "'{information.simple_name}' is a value the compiler keeps in one piece of memory, so its only attribute is that memory, 'var _memory = Memory().allocate_bytes(bytes)': keep what a function needs in its locals",
         )
         return
     }
