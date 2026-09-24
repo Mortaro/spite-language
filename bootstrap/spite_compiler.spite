@@ -584,6 +584,7 @@ func run_build_mode(file_argument: String, discovery: Discovery.DiscoveryResult)
 }
 
 func run_reload_mode(discovery: Discovery.DiscoveryResult) {
+    var program = Program()
     var program_file = option("output")
     var base = without_executable_extension(program_file)
     var host_text = File("{base}.reload_host").read()
@@ -592,7 +593,7 @@ func run_reload_mode(discovery: Discovery.DiscoveryResult) {
         console.print(
             "error: --mode=reload rebuilds what changed in a program built with --hot_reload, and '{program_file}' was not: build it with --hot_reload --output={program_file}",
         )
-        Program().exit(1)
+        program.exit(1)
         return
     }
     crash host_text
@@ -611,7 +612,7 @@ func run_reload_mode(discovery: Discovery.DiscoveryResult) {
     generator.generate(discovery, header, structs, prototypes, bodies)
     if generator.has_error {
         console.print(generator.error_message)
-        Program().exit(1)
+        program.exit(1)
         return
     }
     var next_generation = reload.generation + 1
@@ -624,7 +625,7 @@ func run_reload_mode(discovery: Discovery.DiscoveryResult) {
     var layout_problem = reload.layout_problem(generator.builder.typedefs)
     if not layout_problem.is_empty() {
         console.print("error: {layout_problem}")
-        Program().exit(1)
+        program.exit(1)
         return
     }
     var rebuilt = List<String>()
@@ -632,7 +633,7 @@ func run_reload_mode(discovery: Discovery.DiscoveryResult) {
     var library_base = "{base}_reload_{next_generation}"
     var library_path = "{library_base}.{library_extension()}"
     if not build_library(library_code, "{library_base}.c", library_path) {
-        Program().exit(1)
+        program.exit(1)
         return
     }
     File("{library_base}.files").write(state)
@@ -719,7 +720,7 @@ func run_run_mode(file_argument: String, discovery: Discovery.DiscoveryResult, p
     var replaced_output_path = output_path.replace("/", "\\")
     var runner = Process(replaced_output_path, passed)
     var port = remote_loop_port()
-    if is_on("repl") or port > 0 {
+    if is_on("repl") or port > 0 or is_on("hot_reload") {
         console.flush()
         var run_attached = runner.run_attached()
         Program().exit(run_attached)

@@ -316,7 +316,7 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
         var name = shaker.piece_names[index]
         var binds = not name.is_empty() and is_bound(name, prototypes, local_names)
         bound.append(binds)
-        shaker.kept[index] = name.is_empty()
+        shaker.kept[index] = name.is_empty() or counts_memory(name)
         index = index + 1
     }
     index = 0
@@ -369,7 +369,8 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
     while index < shaker.pieces.count() {
         crash shaker.piece_names[index]
         var name = shaker.piece_names[index]
-        if not name.is_empty() and shaker.kept[index] == true and bound[index] == false {
+        var local = not name.is_empty() and not counts_memory(name)
+        if local and shaker.kept[index] == true and bound[index] == false {
             parts.append(shaker.pieces[index])
         }
         index = index + 1
@@ -377,6 +378,10 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
     var bind_function = bind_function(redirected)
     parts.append(bind_function)
     return "{parts.join("\n")}\n"
+}
+
+func counts_memory(name: String): Bool {
+    return name.starts_with("spite_debug_") or name.starts_with("spite_allocation_table")
 }
 
 func bind_function(redirected: List<String>): String {
