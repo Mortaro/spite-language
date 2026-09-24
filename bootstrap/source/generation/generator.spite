@@ -49,7 +49,6 @@ var site_ordinal = 0
 var current_site_id = ""
 var functions_function_classes = List<Analysis.ClassInfo>()
 var dictionary_names = List<String>()
-var support_class_names = List<String>()
 var class_names_by_id = List<String>()
 var current_owner = ""
 var nullable_scalar_labels = List<String>()
@@ -5038,8 +5037,9 @@ func reflected_text(spite_type: Analysis.SpiteType, code: String): String {
     if type_shape.as_list(spite_type) {
         return "{number_text_function("long_text", "int64_t")}({code}->item_count)"
     }
-    if type_shape.as_dictionary(spite_type) {
-        return "{number_text_function("long_text", "int64_t")}({code}->count)"
+    var reflected_dictionary = type_shape.as_dictionary(spite_type)
+    if reflected_dictionary {
+        return "{number_text_function("long_text", "int64_t")}((int64_t){ensure_dictionary(reflected_dictionary.get_element())}_count({code}))"
     }
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
@@ -5496,27 +5496,6 @@ func ensure_list_deep_copy(element: Analysis.SpiteType): String {
     return function_c_name
 }
 
-func shared_element_code(element: Analysis.SpiteType, code: String): String {
-    if type_needs_drop(element) {
-        return retain_call(element, code)
-    }
-    return code
-}
-
-func ensure_dictionary_copy(element: Analysis.SpiteType): String {
-    var dictionary_name = ensure_dictionary(element)
-    var function_c_name = "{dictionary_name}_copy"
-    if deep_copy_names.contains(function_c_name) {
-        return function_c_name
-    }
-    deep_copy_names.append(function_c_name)
-    builder.add_prototype("{dictionary_name}* {function_c_name}({dictionary_name}* self);")
-    builder.add_support(
-        "{dictionary_name}* {function_c_name}({dictionary_name}* self) \{\nif (self == 0) return 0;\n{dictionary_name}* copied = {dictionary_name}_make();\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) \{ {dictionary_name}_set(copied, SpiteString_retain(self->keys[spite_index]), {shared_element_code(element, "self->values[spite_index]")}); }\nreturn copied;\n}",
-    )
-    return function_c_name
-}
-
 func ensure_dictionary_deep_copy(element: Analysis.SpiteType): String {
     var dictionary_name = ensure_dictionary(element)
     var function_c_name = "{dictionary_name}_deep_copy"
@@ -5526,7 +5505,7 @@ func ensure_dictionary_deep_copy(element: Analysis.SpiteType): String {
     deep_copy_names.append(function_c_name)
     builder.add_prototype("{dictionary_name}* {function_c_name}({dictionary_name}* self);")
     builder.add_support(
-        "{dictionary_name}* {function_c_name}({dictionary_name}* self) \{\nif (self == 0) return 0;\n{dictionary_name}* copied = {dictionary_name}_make();\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) \{ {dictionary_name}_set(copied, SpiteString_retain(self->keys[spite_index]), {deep_copy_code(element, "self->values[spite_index]")}); }\nreturn copied;\n}",
+        "{dictionary_name}* {function_c_name}({dictionary_name}* self) \{\nif (self == 0) return 0;\n{dictionary_name}* copied = {dictionary_name}_make();\nfor (int64_t spite_index = 0; spite_index < self->entry_keys->item_count; spite_index = spite_index + 1) \{ {dictionary_name}_set(copied, SpiteString_retain({list_item_code(string_type(), "self->entry_keys", "spite_index")}), {deep_copy_code(element, list_item_code(element, "self->entry_values", "spite_index"))}); }\nreturn copied;\n}",
     )
     return function_c_name
 }
@@ -5727,7 +5706,6 @@ func ensure_list(element: Analysis.SpiteType): String {
         return list_name
     }
     list_names.append(list_name)
-    support_class_names.append(list_name)
     var list_template = find_class_by_qualified("List")
     if not list_template {
         report("List needs the standard library: library/list.spite was not found from the working directory")
@@ -5820,8 +5798,15 @@ func ensure_dictionary(element: Analysis.SpiteType): String {
         return dictionary_name
     }
     dictionary_names.append(dictionary_name)
-    support_class_names.append(dictionary_name)
-    emit_dictionary_support(dictionary_name, element, allocate_class_id(dictionary_name))
+    var dictionary_template = find_class_by_qualified("Dictionary")
+    if not dictionary_template {
+        report(
+            "Dictionary needs the standard library: library/dictionary.spite was not found from the working directory",
+        )
+        return dictionary_name
+    }
+    crash dictionary_template
+    instantiated_container(dictionary_template, element, dictionary_name)
     return dictionary_name
 }
 
@@ -5833,66 +5818,6 @@ func dictionary_type_of(element: Analysis.SpiteType): Analysis.SpiteType {
 func nullable_type_of(inner: Analysis.SpiteType): Analysis.SpiteType {
     var resolved: Analysis.SpiteType = Analysis.Types.NullableType(inner)
     return resolved
-}
-
-func emit_dictionary_support(dictionary_name: String, element: Analysis.SpiteType, class_id: Int) {
-    var item = c_type_name(element)
-    var nullable_item = c_type_name(nullable_type_of(element))
-    var self_parameter = "{dictionary_name}* self"
-    var keys_list = ensure_list(string_type())
-    var values_list = ensure_list(element)
-    var lookup = "int64_t existing_index = {dictionary_name}_index_of_key(self, key);"
-    builder.add_typedef(
-        "typedef struct {dictionary_name} {dictionary_name};\nstruct {dictionary_name} \{\nSpiteHeader header;\nSpiteString** keys;\n{item}* values;\nint64_t count;\nint64_t capacity;\n};",
-    )
-    builder.add_prototype("{dictionary_name}* {dictionary_name}_make(void);")
-    builder.add_support(
-        "{dictionary_name}* {dictionary_name}_make(void) \{\n{dictionary_name}* dictionary = ({dictionary_name}*)SPITE_MALLOC(sizeof({dictionary_name}));\ndictionary->header.ref_count = 1;\ndictionary->header.class_id = {class_id};\n#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(dictionary, {class_id});\n#endif\ndictionary->keys = 0;\ndictionary->values = 0;\ndictionary->count = 0;\ndictionary->capacity = 0;\nreturn dictionary;\n}",
-    )
-    builder.add_prototype("{dictionary_name}* {dictionary_name}_retain({self_parameter});")
-    builder.add_support(
-        "{dictionary_name}* {dictionary_name}_retain({self_parameter}) \{\nif (self != 0) self->header.ref_count = self->header.ref_count + 1;\nreturn self;\n}",
-    )
-    builder.add_prototype("void {dictionary_name}_release({self_parameter});")
-    builder.add_support(
-        "void {dictionary_name}_release({self_parameter}) \{\nif (self == 0) return;\nself->header.ref_count = self->header.ref_count - 1;\nif (self->header.ref_count > 0) return;\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) \{\nSpiteString_release(self->keys[spite_index]);\n{release_statement(element, "self->values[spite_index]")}\n}\nSPITE_FREE(self->keys);\nSPITE_FREE(self->values);\nSPITE_FREE(self);\n}",
-    )
-    builder.add_prototype("int64_t {dictionary_name}_index_of_key({self_parameter}, SpiteString* key);")
-    builder.add_support(
-        "int64_t {dictionary_name}_index_of_key({self_parameter}, SpiteString* key) \{\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) \{\nif (SpiteString_equals(self->keys[spite_index], key)) return spite_index;\n}\nreturn -1;\n}",
-    )
-    builder.add_prototype("void {dictionary_name}_set({self_parameter}, SpiteString* key, {item} value);")
-    builder.add_support(
-        "void {dictionary_name}_set({self_parameter}, SpiteString* key, {item} value) \{\n{lookup}\nif (existing_index >= 0) \{\n{release_statement(element, "self->values[existing_index]")}\nSpiteString_release(self->keys[existing_index]);\nself->keys[existing_index] = key;\nself->values[existing_index] = value;\nreturn;\n}\nif (self->count == self->capacity) \{\nint64_t new_capacity = self->capacity == 0 ? 4 : self->capacity * 2;\nself->keys = (SpiteString**)SPITE_REALLOC(self->keys, (size_t)new_capacity * sizeof(SpiteString*));\nself->values = ({item}*)SPITE_REALLOC(self->values, (size_t)new_capacity * sizeof({item}));\nself->capacity = new_capacity;\n}\nself->keys[self->count] = key;\nself->values[self->count] = value;\nself->count = self->count + 1;\n}",
-    )
-    var missing_value = "0"
-    var found_value = retain_call(element, "self->values[existing_index]")
-    if not type_is_reference(element) {
-        missing_value = "({nullable_item})\{ .has_value = false, .value = {default_value_for_type(element)} }"
-        found_value = "({nullable_item})\{ .has_value = true, .value = self->values[existing_index] }"
-    }
-    builder.add_prototype("{nullable_item} {dictionary_name}_get({self_parameter}, SpiteString* key);")
-    builder.add_support(
-        "{nullable_item} {dictionary_name}_get({self_parameter}, SpiteString* key) \{\n{lookup}\nSpiteString_release(key);\nif (existing_index < 0) return {missing_value};\nreturn {found_value};\n}",
-    )
-    builder.add_prototype("bool {dictionary_name}_has({self_parameter}, SpiteString* key);")
-    builder.add_support(
-        "bool {dictionary_name}_has({self_parameter}, SpiteString* key) \{\nbool spite_found = {dictionary_name}_index_of_key(self, key) >= 0;\nSpiteString_release(key);\nreturn spite_found;\n}",
-    )
-    builder.add_prototype("void {dictionary_name}_remove({self_parameter}, SpiteString* key);")
-    builder.add_support(
-        "void {dictionary_name}_remove({self_parameter}, SpiteString* key) \{\n{lookup}\nSpiteString_release(key);\nif (existing_index < 0) return;\n{release_statement(element, "self->values[existing_index]")}\nSpiteString_release(self->keys[existing_index]);\nfor (int64_t spite_index = existing_index; spite_index < self->count - 1; spite_index = spite_index + 1) \{\nself->keys[spite_index] = self->keys[spite_index + 1];\nself->values[spite_index] = self->values[spite_index + 1];\n}\nself->count = self->count - 1;\n}",
-    )
-    builder.add_prototype("int64_t {dictionary_name}_count({self_parameter});")
-    builder.add_support("int64_t {dictionary_name}_count({self_parameter}) \{\nreturn self->count;\n}")
-    builder.add_prototype("{keys_list}* {dictionary_name}_keys({self_parameter});")
-    builder.add_support(
-        "{keys_list}* {dictionary_name}_keys({self_parameter}) \{\n{keys_list}* result = {keys_list}_make();\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) \{ {keys_list}_append(result, SpiteString_retain(self->keys[spite_index])); }\nreturn result;\n}",
-    )
-    builder.add_prototype("{values_list}* {dictionary_name}_values({self_parameter});")
-    builder.add_support(
-        "{values_list}* {dictionary_name}_values({self_parameter}) \{\n{values_list}* result = {values_list}_make();\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) \{ {values_list}_append(result, {retain_call(element, "self->values[spite_index]")}); }\nreturn result;\n}",
-    )
 }
 
 func generate_dictionary_method(
@@ -5945,7 +5870,7 @@ func generate_dictionary_method(
     }
     if name == "copy" {
         var shared_dictionary = generate_generic_call(
-            ensure_dictionary_copy(element),
+            "{dictionary_name}_copy",
             object_result,
             object_ast,
             arguments_ast,
@@ -6074,13 +5999,6 @@ func release_statement(spite_type: Analysis.SpiteType, code: String): String {
         return "{release_call(spite_type, code)};"
     }
     return ""
-}
-
-func owned_text_of(code: String, from: Analysis.SpiteType): String {
-    if type_shape.as_string(from) or type_shape.is_symbol(from) {
-        return "SpiteString_retain({code})"
-    }
-    return string_conversion(code, from)
 }
 
 func joins_as_text(element: Analysis.SpiteType): Bool {
