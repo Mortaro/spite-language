@@ -105,7 +105,7 @@ func generated_functions_source(qualified: String): String {
     var index = 0
     while index < classes.count() {
         var information = classes[index]
-        if information.qualified_dotted == qualified {
+        if information.qualified_dotted == qualified and information.codegen_names.is_empty() {
             var function_index = 0
             while function_index < information.functions.count() {
                 var function = information.functions[function_index]
@@ -511,6 +511,14 @@ func constant_condition(expression: Syntax.Expressions.Expression, class_informa
                     var left_generic = shape.as_generic_identifier(binary.left)
                     if left_generic {
                         var bare_name = without_dollar(left_generic.name)
+                        var bound_type = codegen_bound_type(bare_name, class_information)
+                        if bound_type {
+                            var same_kind = type_test(bound_type, binary.right, class_information)
+                            if binary.operator == 'equal' {
+                                return same_kind
+                            }
+                            return not same_kind
+                        }
                         var left_value = generate_codegen_value(bare_name, class_information)
                         var right_text = constant_text(binary.right)
                         if right_text {
@@ -526,6 +534,83 @@ func constant_condition(expression: Syntax.Expressions.Expression, class_informa
         }
     }
     return null
+}
+
+func codegen_bound_type(name: String, class_information: Analysis.ClassInfo): Analysis.SpiteType? {
+    var bound = codegen_index(class_information, name)
+    assert bound >= 0
+    crash class_information.codegen_codes[bound]
+    assert class_information.codegen_codes[bound].is_empty()
+    return class_information.codegen_types[bound]
+}
+
+func type_test(
+    bound_type: Analysis.SpiteType,
+    kind: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): Bool {
+    var kind_name = operand_text(kind)
+    if kind_name == "List" {
+        return bound_type == Analysis.Types.ListType
+    }
+    if kind_name == "Dictionary" {
+        return bound_type == Analysis.Types.DictionaryType
+    }
+    if kind_name == "Null" {
+        return bound_type == Analysis.Types.NullableType
+    }
+    if kind_name == "Symbol" {
+        return is_enum_type(bound_type) or type_shape.is_symbol(bound_type)
+    }
+    var kind_path = kind_name.split(".")
+    var kind_reference: Syntax.Types.Type = Syntax.Types.NamedType(kind_path, List<Syntax.Types.GenericArgument>())
+    var saved_class = current_class
+    current_class = class_information
+    var kind_type = resolve_type(kind_reference, class_information.namespace_dotted)
+    current_class = saved_class
+    if not kind_type {
+        return false
+    }
+    crash kind_type
+    var kind_union = type_shape.as_union(kind_type)
+    if kind_union {
+        var union_information = find_union_by_c_name(kind_union.c_name)
+        if union_information {
+            var member_index = 0
+            while member_index < union_information.member_types.count() {
+                var member_type = resolve_type(
+                    union_information.member_types[member_index],
+                    union_information.owner_namespace,
+                )
+                if member_type {
+                    if exact_type_label(member_type) == exact_type_label(bound_type) {
+                        return true
+                    }
+                }
+                member_index = member_index + 1
+            }
+        }
+    }
+    return exact_type_label(kind_type) == exact_type_label(bound_type)
+}
+
+func exact_type_label(spite_type: Analysis.SpiteType): String {
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        var nullable_inner = nullable.get_inner()
+        return "Nullable_{exact_type_label(nullable_inner)}"
+    }
+    var list_type = type_shape.as_list(spite_type)
+    if list_type {
+        var list_element = list_type.get_element()
+        return "List_{exact_type_label(list_element)}"
+    }
+    var dictionary_type = type_shape.as_dictionary(spite_type)
+    if dictionary_type {
+        var dictionary_element = dictionary_type.get_element()
+        return "Dictionary_{exact_type_label(dictionary_element)}"
+    }
+    return type_label(spite_type)
 }
 
 func constant_text(expression: Syntax.Expressions.Expression): String? {
@@ -602,7 +687,7 @@ func instantiate_generic(
                 types.append(argument_type)
                 codes.append("")
                 texts.append("")
-                label = "{label}_{type_label(argument_type)}"
+                label = "{label}_{exact_type_label(argument_type)}"
             }
         }
         var boolean_argument = shape.as_boolean_argument(argument)
@@ -730,9 +815,19 @@ func register_unions(entry: Discovery.DiscoveredClass) {
             current_owner = entry.qualified_dotted
             current_function = ""
             check_type_name(declaration.name, "union")
-            unions.append(
-                Analysis.UnionInfo("{entry.mangled_name}_{declaration.name}", declaration.name, entry.qualified_dotted, entry.namespace_dotted, declaration.members),
+            var information = Analysis.UnionInfo(
+                "{entry.mangled_name}_{declaration.name}",
+                declaration.name,
+                entry.qualified_dotted,
+                entry.namespace_dotted,
+                declaration.members,
             )
+            var reopened = shape_position(information.c_name)
+            if reopened < 0 {
+                unions.append(information)
+            } else {
+                unions[reopened] = information
+            }
         }
         statement_index = statement_index + 1
     }
@@ -1590,8 +1685,48 @@ func register_template(declaration: Syntax.Statements.FunctionDeclaration, infor
     var symbol_parameter_length = symbol_parameter.length()
     var name_length = declaration.name.length()
     var suffix = declaration.name.slice(position + symbol_parameter_length, name_length)
-    information.templates.append(Analysis.TemplateInfo(declaration, symbol_parameter, prefix, suffix))
+    var template = Analysis.TemplateInfo(declaration, symbol_parameter, prefix, suffix)
+    template.range = symbol_range_of(declaration, symbol_parameter)
+    information.templates.append(template)
     return true
+}
+
+func symbol_range_of(declaration: Syntax.Statements.FunctionDeclaration, symbol_parameter: String): Syntax.Types.Type? {
+    var index = 0
+    while index < declaration.parameters.count() {
+        var parameter = declaration.parameters[index]
+        if parameter.name == symbol_parameter and parameter.type_reference {
+            var named = shape.as_named_type(parameter.type_reference)
+            if named {
+                if named.arguments.count() == 1 {
+                    var range_argument = shape.as_type_argument(named.arguments[0])
+                    if range_argument {
+                        return range_argument.value
+                    }
+                }
+            }
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func template_range_class(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): Analysis.ClassInfo? {
+    if not template.range {
+        return information
+    }
+    crash template.range
+    var saved_class = current_class
+    current_class = information
+    var range_type = resolve_type(template.range, information.namespace_dotted)
+    current_class = saved_class
+    assert range_type
+    var range_class_ref = type_shape.as_class_ref(range_type)
+    assert range_class_ref
+    var range_class = find_class_by_c_name(range_class_ref.c_name)
+    assert range_class
+    assert not range_class.is_generic_template
+    return range_class
 }
 
 func find_or_instantiate_function(information: Analysis.ClassInfo, name: String): Analysis.FunctionInfo? {
@@ -1600,18 +1735,27 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
         return existing
     }
     var chosen: Analysis.TemplateInfo? = null
-    var chosen_field: Analysis.FieldInfo? = null
+    var chosen_member = ""
+    var chosen_type: Analysis.SpiteType? = null
+    var chosen_owner = ""
     var matches = 0
     var index = 0
+    var every: Analysis.TemplateInfo? = null
     while index < information.templates.count() {
         var template = information.templates[index]
         var member_name = template.member_name_for(name)
-        if not member_name.is_empty() {
-            var field = template_member(information, template, member_name)
-            if field {
+        var range_class = template_range_class(information, template)
+        if not member_name.is_empty() and not information.is_container and range_class {
+            crash range_class
+            var member_type = template_member_type(information, template, range_class, member_name)
+            if member_type {
                 chosen = template
-                chosen_field = field
+                chosen_member = member_name
+                chosen_type = member_type
+                chosen_owner = range_class.c_name
                 matches = matches + 1
+            } else if member_name == "{template.symbol_parameter}s" {
+                every = template
             }
         }
         index = index + 1
@@ -1621,22 +1765,20 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
         return null
     }
     if chosen {
-        if chosen_field {
-            var chosen_field_type = chosen_field.get_type()
-            return instantiate_template(information, chosen, chosen_field.name, chosen_field_type, "", name)
+        if chosen_type {
+            if not chosen.range {
+                chosen_owner = ""
+            }
+            return instantiate_template(information, chosen, chosen_member, chosen_type, chosen_owner, name)
         }
+    }
+    if every {
+        return instantiate_every_attribute(information, every, name)
     }
     return null
 }
 
-func template_member(
-    information: Analysis.ClassInfo,
-    template: Analysis.TemplateInfo,
-    member_name: String,
-): Analysis.FieldInfo? {
-    if template.symbol_parameter != "type" {
-        return information.find_field(member_name)
-    }
+func type_named_by(member_name: String): Analysis.SpiteType? {
     var words = member_name.split("_")
     var type_name = ""
     var index = 0
@@ -1646,9 +1788,92 @@ func template_member(
         type_name = "{type_name}{word.slice(0, 1).upper_case()}{word.slice(1, word_length)}"
         index = index + 1
     }
-    var bound_type = value_type_named(type_name)
-    assert bound_type
-    return Analysis.FieldInfo(member_name, bound_type, "0")
+    return value_type_named(type_name)
+}
+
+func template_member_type(
+    information: Analysis.ClassInfo,
+    template: Analysis.TemplateInfo,
+    range_class: Analysis.ClassInfo,
+    member_name: String,
+): Analysis.SpiteType? {
+    if template.range {
+        return member_type_of(range_class, member_name)
+    }
+    if template.symbol_parameter == "type" {
+        return type_named_by(member_name)
+    }
+    var field = information.find_field(member_name)
+    assert field
+    return field.get_type()
+}
+
+func instantiate_every_attribute(
+    information: Analysis.ClassInfo,
+    template: Analysis.TemplateInfo,
+    call_name: String,
+): Analysis.FunctionInfo? {
+    var declaration = template.get_declaration()
+    if declaration.return_type {
+        report(
+            "'{call_name}' calls '{declaration.name}' once for every attribute, so '{declaration.name}' has to return nothing",
+        )
+        return null
+    }
+    var range_class = template_range_class(information, template)
+    assert range_class
+    var saved_class = current_class
+    var saved_owner = current_owner
+    current_class = information
+    current_owner = information.qualified_dotted
+    var parameters = List<Analysis.ParamInfo>()
+    var parameter_index = 0
+    while parameter_index < declaration.parameters.count() {
+        var parameter = declaration.parameters[parameter_index]
+        if parameter.name != template.symbol_parameter and parameter.type_reference {
+            var parameter_type = resolve_type(parameter.type_reference, information.namespace_dotted)
+            if parameter_type {
+                parameters.append(Analysis.ParamInfo(parameter.name, parameter_type))
+            }
+        }
+        parameter_index = parameter_index + 1
+    }
+    current_class = saved_class
+    current_owner = saved_owner
+    var body = List<Syntax.Statements.Statement>()
+    var field_index = 0
+    while field_index < range_class.fields.count() {
+        var field = range_class.fields[field_index]
+        var arguments = List<Syntax.Expressions.Expression>()
+        var argument_index = 0
+        while argument_index < parameters.count() {
+            var argument: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(
+                parameters[argument_index].name,
+            )
+            arguments.append(argument)
+            argument_index = argument_index + 1
+        }
+        var callee: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(
+            "{template.prefix}{field.name}{template.suffix}",
+        )
+        var call: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, arguments)
+        var statement: Syntax.Statements.Statement = Syntax.Statements.ExpressionStatement(call)
+        body.append(statement)
+        field_index = field_index + 1
+    }
+    var returns_nothing = void_type()
+    var function = Analysis.FunctionInfo(
+        call_name,
+        "{information.c_name}_{call_name}",
+        parameters,
+        returns_nothing,
+        body,
+        false,
+    )
+    function.symbol_name = template.symbol_parameter
+    information.functions.append(function)
+    builder.add_prototype("{function_signature(information, function)};")
+    return function
 }
 
 func instantiate_template(
@@ -2001,6 +2226,9 @@ func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String):
 }
 
 func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String): Analysis.SpiteType? {
+    if named.path.count() > 1 and named.path[0].starts_with("$") {
+        return resolve_codegen_member(named)
+    }
     if named.path.count() == 2 and not bound_symbol_name.is_empty() {
         if named.path[0] == bound_symbol_name and named.path[1] == "class" {
             return bound_field_type
@@ -2154,6 +2382,63 @@ func resolve_single_type_argument(named: Syntax.Types.NamedType, current_namespa
         return null
     }
     return resolve_generic_argument(named.arguments[0], current_namespace)
+}
+
+func resolve_codegen_member(named: Syntax.Types.NamedType): Analysis.SpiteType? {
+    var written_name = named.path.first()
+    var generic_name = without_dollar(written_name)
+    var bound_type: Analysis.SpiteType? = null
+    if current_class {
+        bound_type = codegen_bound_type(generic_name, current_class)
+    }
+    if not bound_type {
+        report(
+            "'${generic_name}' is not a type declared on this class's constructor, so it has no codegen values to read",
+        )
+        return null
+    }
+    var index = 1
+    while index < named.path.count() {
+        crash bound_type
+        var segment = named.path.get_at(index)
+        var member_type = codegen_member_type(bound_type, segment)
+        if not member_type {
+            report(
+                "a {type_display_name(bound_type)} has no codegen value named '${segment}' -- List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own",
+            )
+            return null
+        }
+        bound_type = member_type
+        index = index + 1
+    }
+    return bound_type
+}
+
+func codegen_member_type(owner: Analysis.SpiteType, name: String): Analysis.SpiteType? {
+    var owner_list = type_shape.as_list(owner)
+    if owner_list {
+        assert name == "element_type"
+        return owner_list.get_element()
+    }
+    var owner_dictionary = type_shape.as_dictionary(owner)
+    if owner_dictionary {
+        assert name == "value_type"
+        return owner_dictionary.get_element()
+    }
+    var owner_nullable = type_shape.as_nullable(owner)
+    if owner_nullable {
+        assert name == "value_type"
+        return owner_nullable.get_inner()
+    }
+    var owner_class_ref = type_shape.as_class_ref(owner)
+    assert owner_class_ref
+    var owner_class = find_class_by_c_name(owner_class_ref.c_name)
+    assert owner_class
+    var bound = codegen_index(owner_class, name)
+    assert bound >= 0
+    crash owner_class.codegen_codes[bound]
+    assert owner_class.codegen_codes[bound].is_empty()
+    return owner_class.codegen_types[bound]
 }
 
 func resolve_generic_argument(argument: Syntax.Types.GenericArgument, current_namespace: String): Analysis.SpiteType? {
@@ -2499,13 +2784,12 @@ func type_label(spite_type: Analysis.SpiteType): String {
 }
 
 func ensure_nullable_scalar_typedef(inner: Analysis.SpiteType): String {
-    var scalar = type_shape.as_scalar(inner)
-    crash scalar
     var label = type_label(inner)
     var struct_name = "Nullable_{label}"
     if not nullable_scalar_labels.contains(label) {
         nullable_scalar_labels.append(label)
-        builder.add_typedef("typedef struct \{ bool has_value; {numeric_c_name(scalar.kind)} value; } {struct_name};")
+        var value_c_type = c_type_name(inner)
+        builder.add_typedef("typedef struct \{ bool has_value; {value_c_type} value; } {struct_name};")
     }
     return struct_name
 }
@@ -2803,6 +3087,12 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         return code
     }
     if type_shape.as_string(from) {
+        var to_enum = type_shape.as_enum(to)
+        if to_enum {
+            crash to_enum.values.count() > 0
+            var chosen_code = enum_from_text_lines(to_enum, "spite_enum_text", "spite_enum_value", ";")
+            return "(\{ SpiteString* spite_enum_text = {code}; {to_enum.c_name} spite_enum_value = {to_enum.c_name}_{to_enum.values[0]}; {chosen_code} spite_enum_value; })"
+        }
         var to_scalar = type_shape.as_scalar(to)
         if to_scalar {
             var target_label = type_label(to)
@@ -4893,7 +5183,7 @@ func element_template_of(list_class: Analysis.ClassInfo, name: String): Analysis
     while index < list_class.templates.count() {
         var template = list_class.templates[index]
         var member_name = template.member_name_for(name)
-        if not member_name.is_empty() {
+        if not member_name.is_empty() and template.range {
             return template
         }
         index = index + 1
@@ -4995,6 +5285,9 @@ func instantiate_member_templates_of(list_class: Analysis.ClassInfo) {
     while template_index < list_class.templates.count() {
         var template = list_class.templates[template_index]
         var member_index = 0
+        if not template.range {
+            member_index = member_names.count()
+        }
         while member_index < member_names.count() {
             var member_name = member_names[member_index]
             var member_type = member_type_of(element_class, member_name)
@@ -8182,9 +8475,19 @@ func generate_assignment(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ) {
-    generate_store(assignment, scope, class_information)
     assert assignment.target
     assert assignment.value
+    var index_target = shape.as_index(assignment.target)
+    if index_target {
+        if is_bound_member_index(index_target) {
+            var bound_member = bound_member_expression(index_target)
+            var member_assignment = Syntax.Statements.AssignmentStatement(bound_member, assignment.value)
+            member_assignment.line = assignment.line
+            generate_assignment(member_assignment, scope, class_information)
+            return
+        }
+    }
+    generate_store(assignment, scope, class_information)
     forget_narrowing_under(assignment.target, assignment.value, scope, class_information)
 }
 

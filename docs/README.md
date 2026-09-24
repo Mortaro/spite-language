@@ -21,7 +21,8 @@ open while you write.
 - [repl.md](repl.md) -- local and remote REPL, the wire protocol, a worked debugging session.
 - [concurrency.md](concurrency.md) -- `Concurrent` and `Parallel`, why there is no `async`/`await`, the waits the
   compiler turns into suspensions, and how the REPL answers at them.
-- [standard_library.md](standard_library.md) -- task-oriented: read a file, run a process, group things in a `Dictionary`.
+- [standard_library.md](standard_library.md) -- task-oriented: read a file, walk a directory, run a process, group things in a `Dictionary`.
+- [json.md](json.md) -- `Json<T>`: any class to JSON text and back, and how it is written with the metaprogramming.
 - [for_ai_writers.md](for_ai_writers.md) -- a dense one-page cheat sheet. Paste this into an AI's context.
 - [self_hosting.md](self_hosting.md) -- status of the Spite-in-Spite bootstrap compiler.
 - [KNOWN_ISSUES.md](KNOWN_ISSUES.md) -- places the compiler's real behavior differs from what you might expect.

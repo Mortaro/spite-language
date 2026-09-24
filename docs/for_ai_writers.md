@@ -151,13 +151,17 @@ func is_alive(): Bool {
 ## Built in classes
 
 `Console()` (`print`, `write`, `error`, `read_line(): String?`), `File(path)` (`read(): String?`, `write`,
-`append`, `exists`, `remove`), `Directory(path)` (`files`, `folders`, `exists`, `create`),
+`append`, `exists`, `remove`), `Directory(path)` (`path`, `entries(): List<Directory.Entry>` -- each a `Directory` or a `File`, switched on --,
+`files`, `folders`, `exists`, `create`),
 `Process(command, arguments)` (`run(): Int`, `output()`), `Program()` (`exit(code)`, `sleep(milliseconds)`,
 `environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere.
 `Concurrent(function)` runs a function on a fiber and `Parallel(function)` on a thread: `.wait()` answers what it
 returned, the type is never written, and dropping the handle waits for it. There is no `async`/`await`: a function
 that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can
 run ([concurrency.md](concurrency.md)).
+`Json<T>()` (`write(value): String`, `read(text): T?`, `read_or_crash(text): T`) converts any class, list,
+dictionary, enum, number, `Bool`, `String` or `T?` to JSON and back; `read` skips unknown keys, keeps defaults for
+missing ones, and is `null` on a value of the wrong kind (docs/json.md).
 
 ## Habits from other languages that Spite rejects
 

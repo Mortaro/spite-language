@@ -64,9 +64,49 @@ name BEA
 
 `set_age` and `get_age` are generated on demand by those two calls.
 
-In `List<T>` the symbol names a member of the element rather than of the list, and the template reads it with
-`item.attributes[member]`: that is how `filter_<member>()`, `sum_<member>()` and the rest are written, in
-Spite, in `library/list.spite` ([standard_library.md](standard_library.md#how-the-member-templates-are-written)).
+### Another class's attributes, and all of them at once
+
+A template can answer for the attributes of a class other than its own: write the class inside the `Symbol`,
+`attribute: Symbol<Label>`. Inside, `label.attributes[attribute]` is that attribute of the `Label` passed in,
+for reading and for writing. Calling the template with the symbol's name made plural -- `show_attributes(...)`
+for `show_attribute` -- calls it once for every attribute, in the order they are declared, so the template has
+to return nothing. It is how a class walks another one attribute by attribute without a loop or reflection at
+run time: every call is an ordinary typed function the compiler wrote.
+
+```spite title=every_attribute/label.spite
+var text = "fragile"
+var copies = 2
+var urgent = true
+```
+```spite title=every_attribute/every_attribute.spite entry
+var console = Console()
+
+func EveryAttribute() {
+    var label = Label()
+    var lines = List<String>()
+    show_attributes(label, lines)
+    var joined = lines.join(", ")
+    console.print(joined)
+    show_copies(label, lines)
+    var last_line = lines.last()
+    console.print(last_line)
+}
+
+func show_attribute(attribute: Symbol<Label>, label: Label, lines: List<String>) {
+    lines.append("{attribute.name}: {label.attributes[attribute]}")
+}
+```
+```output
+text: fragile, copies: 2, urgent: true
+copies: 2
+```
+
+The member may also be a function that takes no arguments: `label.attributes[attribute]` is then a call to it.
+In a generic class the class inside the `Symbol` is usually a codegen value. `List<$element_type>` writes its
+member templates over `member: Symbol<$element_type>`, so `item.attributes[member]` reads a member of the element
+-- that is how `filter_<member>()`, `sum_<member>()` and the rest are written, in Spite, in `library/list.spite`
+([standard_library.md](standard_library.md#how-the-member-templates-are-written)) -- and the standard library's
+[`Json`](json.md) writes and reads any class over `attribute: Symbol<$value_type>`.
 
 Before milestone 9a's reference-counting model, generating (or writing) a `get_<attribute>()` for an owning
 attribute (`String`/`List<T>`/`Dictionary<T>`) and calling it -- including implicitly, the way `person.name`
@@ -216,6 +256,71 @@ by Claude, unconfirmed).
 
 `null` on a `$generic`-typed field means that generic's bound type's default value, not a literal `T?`
 -- provisional, see manual.md open question 1.
+
+### Asking what a generic was given
+
+When a codegen value is a type, `if $value_type == String { }` asks which type it is. The answer is known when
+the class is made, so only the branch taken is compiled, and each branch may use what only that type has. Besides
+naming a type exactly, four names ask for a kind:
+
+| Test | True when the type is |
+|---|---|
+| `$value_type == List` | any `List<T>` |
+| `$value_type == Dictionary` | any `Dictionary<T>` |
+| `$value_type == Null` | any `T?` |
+| `$value_type == Symbol` | an enum (a closed list of symbols), or `Symbol` itself |
+
+Inside such a branch the types it was built from are named after the container's own codegen values:
+`$value_type.element_type` for a `List<$element_type>`, `$value_type.value_type` for a `Dictionary<$value_type>`
+or a `$value_type?`, and a generic class's own names for one of its instances.
+
+```spite title=describe_kind/kind.spite
+generic $kind_type
+
+func name(): String {
+    if $kind_type == String {
+        return "text"
+    } else if $kind_type == Int {
+        return "a whole number"
+    } else if $kind_type == Null {
+        var inner = Kind<$kind_type.value_type>()
+        var inner_name = inner.name()
+        return "{inner_name}, or nothing"
+    } else if $kind_type == List {
+        var element = Kind<$kind_type.element_type>()
+        var element_name = element.name()
+        return "a list of {element_name}"
+    } else {
+        return "something else"
+    }
+}
+```
+```spite title=describe_kind/describe_kind.spite entry
+var console = Console()
+
+func DescribeKind() {
+    var nested = Kind<List<List<Int>>>()
+    var nested_name = nested.name()
+    console.print(nested_name)
+    var maybe = Kind<String?>()
+    var maybe_name = maybe.name()
+    console.print(maybe_name)
+    var flag = Kind<Bool>()
+    var flag_name = flag.name()
+    console.print(flag_name)
+}
+```
+```output
+a list of a list of a whole number
+text, or nothing
+something else
+```
+
+A test on a type always decides at compile time, `--development` included, since the branch it rules out would
+not compile.
+
+Text also becomes an enum value by assignment, the way it becomes a number: `var course: Recipe.Course = name`
+is the value spelled `name`, or the enum's first value when there is none, as `"x"` becomes `0` for an `Int`.
 
 ## Tree shaking
 

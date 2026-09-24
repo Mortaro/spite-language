@@ -182,7 +182,7 @@ func copy(): List<$element_type> {
     return copied
 }
 
-func filter_member(member: Symbol): List<$element_type> {
+func filter_member(member: Symbol<$element_type>): List<$element_type> {
     var filtered = List<$element_type>()
     var index = 0
     while index < item_count {
@@ -195,7 +195,7 @@ func filter_member(member: Symbol): List<$element_type> {
     return filtered
 }
 
-func count_member(member: Symbol): Int {
+func count_member(member: Symbol<$element_type>): Int {
     var counted = 0
     var index = 0
     while index < item_count {
@@ -208,7 +208,7 @@ func count_member(member: Symbol): Int {
     return counted
 }
 
-func any_member(member: Symbol): Bool {
+func any_member(member: Symbol<$element_type>): Bool {
     var index = 0
     while index < item_count {
         var item = values.read_value(items, index)
@@ -220,7 +220,7 @@ func any_member(member: Symbol): Bool {
     return false
 }
 
-func all_member(member: Symbol): Bool {
+func all_member(member: Symbol<$element_type>): Bool {
     var index = 0
     while index < item_count {
         var item = values.read_value(items, index)
@@ -232,7 +232,7 @@ func all_member(member: Symbol): Bool {
     return true
 }
 
-func sum_member(member: Symbol): member.class {
+func sum_member(member: Symbol<$element_type>): member.class {
     var total: member.class = 0
     var index = 0
     while index < item_count {
@@ -243,7 +243,7 @@ func sum_member(member: Symbol): member.class {
     return total
 }
 
-func each_member(member: Symbol) {
+func each_member(member: Symbol<$element_type>) {
     var index = 0
     while index < item_count {
         var item = values.read_value(items, index)
@@ -252,7 +252,7 @@ func each_member(member: Symbol) {
     }
 }
 
-func map_member(member: Symbol): List<member.class> {
+func map_member(member: Symbol<$element_type>): List<member.class> {
     var mapped = List<member.class>()
     var index = 0
     while index < item_count {
@@ -264,7 +264,7 @@ func map_member(member: Symbol): List<member.class> {
     return mapped
 }
 
-func find_by_member(member: Symbol, value: member.class): $element_type? {
+func find_by_member(member: Symbol<$element_type>, value: member.class): $element_type? {
     var index = 0
     while index < item_count {
         var item = values.read_value(items, index)
@@ -276,7 +276,7 @@ func find_by_member(member: Symbol, value: member.class): $element_type? {
     return null
 }
 
-func sort_by_member(member: Symbol): List<$element_type> {
+func sort_by_member(member: Symbol<$element_type>): List<$element_type> {
     var sorted = List<$element_type>()
     var keys = List<member.class>()
     var index = 0

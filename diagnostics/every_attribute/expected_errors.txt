@@ -1,0 +1,5 @@
+diagnostics/every_attribute/every_attribute.spite:5: error: 'count_attributes' calls 'count_attribute' once for every attribute, so 'count_attribute' has to return nothing (in EveryAttribute.EveryAttribute)
+diagnostics/every_attribute/every_attribute.spite:5: error: this class has no function 'count_attributes' (in EveryAttribute.EveryAttribute)
+diagnostics/every_attribute/every_attribute.spite:4: error: 'lamp' is never used: remove it, or name it '_lamp' to say that is intended (in EveryAttribute.EveryAttribute)
+diagnostics/every_attribute/holder.spite:6: error: a List<Int> has no codegen value named '$value_type' -- List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own (in Holder.describe)
+diagnostics/every_attribute/holder.spite:7: error: 'class' cannot be read from this value (in Holder.describe)
