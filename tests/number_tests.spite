@@ -88,3 +88,8 @@ func test_infinity_and_not_a_number_read_as_words() {
     crash "{-huge}" == "-inf"
     crash "{huge - huge}" == "nan"
 }
+
+func test_a_large_unsigned_long_reads_as_positive() {
+    var largest: UnsignedLong = -1
+    crash "{largest}" == "18446744073709551615"
+}

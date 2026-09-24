@@ -2478,6 +2478,9 @@ func string_conversion(code: String, from: Analysis.SpiteType): String {
         if scalar.kind == 'double_kind' {
             return "{number_text_function("double_text", "double")}({code})"
         }
+        if scalar.kind == 'unsigned_long_kind' {
+            return "{number_text_function("unsigned_text", "uint64_t")}({code})"
+        }
         return "{number_text_function("long_text", "int64_t")}((int64_t)({code}))"
     }
     var enum_type = type_shape.as_enum(from)
