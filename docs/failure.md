@@ -222,7 +222,10 @@ path. The compiler also understands the usual proofs, so most reads need nothing
   `names[2]` are plain values; so they are inside `if names.count() > 2 { }`.
 - **A bound proves its index**: `index < names.count()` in an `assert`, `crash`, `if` or `while` proves
   `names[index]` in what follows -- the loop body, for a `while`. On the left of an `and` it proves the right
-  side, so `while index < lines.count() and lines[index] != "end"` needs nothing more.
+  side, so `while index < lines.count() and lines[index] != "end"` needs nothing more. Inside the body both
+  sides of the loop's `and` hold, so `while not found and index < names.count()` proves `names[index]` there too.
+  This is the same for a local, a parameter and an attribute, and `crash names[index]` on a read already
+  proven is an error saying so.
 - **Changing the list or the index undoes it**: `index = index + 1`, `names.clear()`, `remove_at`,
   `remove_first` and `remove_last` un-prove it, as assigning any path does.
 - A proven read still checks its bounds at run time and answers the default when out of range.

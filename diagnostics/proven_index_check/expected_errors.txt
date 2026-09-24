@@ -1,0 +1,2 @@
+diagnostics/proven_index_check/proven_index_check.spite:16: error: 'skipped[index]' cannot be null here: a count or a bound such as 'index < list.count()' around it already proves it, so 'crash' on it proves nothing: remove the check (in ProvenIndexCheck.attribute_prefix)
+diagnostics/proven_index_check/proven_index_check.spite:27: error: 'paths[index]' cannot be null here: a count or a bound such as 'index < list.count()' around it already proves it, so 'crash' on it proves nothing: remove the check (in ProvenIndexCheck.parameter_prefix)
