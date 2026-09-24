@@ -181,6 +181,118 @@ func copy(): List<$element_type> {
     return copied
 }
 
+func filter_member(member: Symbol<$element_type>): List<$element_type> {
+    var filtered = List<$element_type>()
+    var index = 0
+    while index < item_count {
+        var item = read_item(index)
+        if item.attributes[member] {
+            filtered.append(item)
+        }
+        index = index + 1
+    }
+    return filtered
+}
+
+func count_member(member: Symbol<$element_type>): Int {
+    var counted = 0
+    var index = 0
+    while index < item_count {
+        var item = read_item(index)
+        if item.attributes[member] {
+            counted = counted + 1
+        }
+        index = index + 1
+    }
+    return counted
+}
+
+func any_member(member: Symbol<$element_type>): Bool {
+    var index = 0
+    while index < item_count {
+        var item = read_item(index)
+        if item.attributes[member] {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func all_member(member: Symbol<$element_type>): Bool {
+    var index = 0
+    while index < item_count {
+        var item = read_item(index)
+        if not item.attributes[member] {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func sum_member(member: Symbol<$element_type>): member.class {
+    var total: member.class = 0
+    var index = 0
+    while index < item_count {
+        var item = read_item(index)
+        total = total + item.attributes[member]
+        index = index + 1
+    }
+    return total
+}
+
+func each_member(member: Symbol<$element_type>) {
+    var index = 0
+    while index < item_count {
+        var item = read_item(index)
+        item.attributes[member]
+        index = index + 1
+    }
+}
+
+func map_member(member: Symbol<$element_type>): List<member.class> {
+    var mapped = List<member.class>()
+    var index = 0
+    while index < item_count {
+        var item = read_item(index)
+        var value = item.attributes[member]
+        mapped.append(value)
+        index = index + 1
+    }
+    return mapped
+}
+
+func find_by_member(member: Symbol<$element_type>, value: member.class): $element_type? {
+    var index = 0
+    while index < item_count {
+        var item = read_item(index)
+        if item.attributes[member] == value {
+            return item
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func sort_by_member(member: Symbol<$element_type>): List<$element_type> {
+    var sorted = List<$element_type>()
+    var keys = List<member.class>()
+    var index = 0
+    while index < item_count {
+        var item = read_item(index)
+        var key = item.attributes[member]
+        var position = keys.count()
+        while position > 0 and keys.get_at(position - 1) > key {
+            position = position - 1
+        }
+        keys.insert(position, key)
+        sorted.insert(position, item)
+        index = index + 1
+    }
+    return sorted
+}
+
 func drop() {
     clear()
     memory.free(items)

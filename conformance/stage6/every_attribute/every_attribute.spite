@@ -15,4 +15,9 @@ func EveryAttribute() {
     var named: Recipe.Course = "dessert"
     var unknown: Recipe.Course = "brunch"
     console.print(named, unknown)
+    var portion_lines = List<String>()
+    describer.describe_portions(recipe, portion_lines)
+    var portion_line = portion_lines.first()
+    var shown = describer.show_portions(recipe)
+    console.print(portion_line, shown)
 }

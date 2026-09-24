@@ -358,19 +358,25 @@ func source_switch(statement: Syntax.Statements.SwitchStatement, depth: Int): St
         var switch_case = statement.cases[index]
         crash switch_case.type_reference
         var label = "{source_indent(depth + 1)}{source_type(switch_case.type_reference)}:"
-        if switch_case.body.count() == 1 {
-            var single = source_statement(switch_case.body[0], depth + 1).trim()
-            if not single.contains("\n") and not shape.as_if_statement(switch_case.body[0]) and not shape.as_while_statement(switch_case.body[0]) and not shape.as_switch_statement(switch_case.body[0]) {
-                text = "{text}\n{label} {single}"
-            } else {
-                text = "{text}\n{label} {source_block(switch_case.body, depth + 1)}"
-            }
-        } else {
+        var one_line_case = one_line_case(switch_case.body, depth)
+        if one_line_case.is_empty() {
             text = "{text}\n{label} {source_block(switch_case.body, depth + 1)}"
+        } else {
+            text = "{text}\n{label} {one_line_case}"
         }
         index = index + 1
     }
     return "{text}\n{source_indent(depth)}}"
+}
+
+func one_line_case(body: List<Syntax.Statements.Statement>, depth: Int): String {
+    if body.count() == 1 {
+        var single = source_statement(body[0], depth + 1).trim()
+        if not single.contains("\n") and not shape.as_if_statement(body[0]) and not shape.as_while_statement(body[0]) and not shape.as_switch_statement(body[0]) {
+            return single
+        }
+    }
+    return ""
 }
 
 func source_type(type_reference: Syntax.Types.Type): String {

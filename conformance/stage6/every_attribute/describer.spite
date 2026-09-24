@@ -15,3 +15,7 @@ func describe_attribute(attribute: Symbol<$described_type>, value: $described_ty
 func reset_attribute(attribute: Symbol<$described_type>, value: $described_type, fresh: $described_type) {
     value.attributes[attribute] = fresh.attributes[attribute]
 }
+
+func show_attribute(attribute: Symbol<$described_type>, value: $described_type): String {
+    return "{attribute.name} = {value.attributes[attribute]}"
+}

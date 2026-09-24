@@ -101,8 +101,12 @@ text: fragile, copies: 2, urgent: true
 copies: 2
 ```
 
-In a generic class the class inside the `Symbol` is usually the codegen value, `Symbol<$value_type>`, which is
-how the standard library's [`Json`](json.md) writes and reads any class.
+The member may also be a function that takes no arguments: `label.attributes[attribute]` is then a call to it.
+In a generic class the class inside the `Symbol` is usually a codegen value. `List<$element_type>` writes its
+member templates over `member: Symbol<$element_type>`, so `item.attributes[member]` reads a member of the element
+-- that is how `filter_<member>()`, `sum_<member>()` and the rest are written, in Spite, in `library/list.spite`
+([standard_library.md](standard_library.md#how-the-member-templates-are-written)) -- and the standard library's
+[`Json`](json.md) writes and reads any class over `attribute: Symbol<$value_type>`.
 
 Before milestone 9a's reference-counting model, generating (or writing) a `get_<attribute>()` for an owning
 attribute (`String`/`List<T>`/`Dictionary<T>`) and calling it -- including implicitly, the way `person.name`

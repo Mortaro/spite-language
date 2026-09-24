@@ -1,0 +1,14 @@
+ready
+spite> 9
+spite> 2
+spite> List<String>(3)
+spite> List<Monster>(2)
+spite> List<Monster>(3)
+spite> null
+spite> true
+spite> spite> false
+spite> 39
+spite> 3
+spite> no function 'filter_name' in monsters: 'functions' lists them
+spite> 
+
