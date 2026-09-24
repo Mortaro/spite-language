@@ -260,3 +260,11 @@ Behaviour that does not match the manual. The language was not changed; each is 
     nothing at run time, and binding it (`var build = Build()` in the launcher and anywhere else) costs no
     allocation. Reading a field of it any way but by name (reflection over its attributes) would see nothing.
     Fine as a hidden optimisation (D36)?
+
+## From D114 (compile-time function reflection, for SlopEngine)
+
+- **The spelling of D114**: `if $system_type.has('run_each')` and `$system_type.run_each.arguments` (each entry's
+  `.class` as a type, `.name` as a `Symbol`). The mechanism is yours; the spelling was the SlopEngine session's.
+- **Finding every function named `*_system` across the program** -- the same reflection over the program's
+  classes. Not decided.
+
