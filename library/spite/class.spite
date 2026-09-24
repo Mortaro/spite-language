@@ -1,13 +1,29 @@
-var name: Symbol = 'Nothing'
-var namespace: Spite.Namespace? = null
-var singleton = false
-var attributes = List<Spite.Attribute>()
-var functions = List<Spite.Function>()
+var _name: Symbol = 'Nothing'
+var _namespace: Spite.Namespace? = null
+var _singleton = false
+var _attributes = List<Spite.Attribute>()
+var _functions = List<Spite.Function>()
 
 func Class(starting_name: Symbol) {
-    name = starting_name
+    _name = starting_name
+}
+
+func get_name(): Symbol {
+    return _name
+}
+
+func get_namespace(): Spite.Namespace? {
+    return _namespace
+}
+
+func get_attributes(): List<Spite.Attribute> {
+    return _attributes
+}
+
+func get_functions(): List<Spite.Function> {
+    return _functions
 }
 
 func is_singleton(): Bool {
-    return singleton
+    return _singleton
 }

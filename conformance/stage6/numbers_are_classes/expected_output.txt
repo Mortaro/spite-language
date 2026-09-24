@@ -1,0 +1,6 @@
+42 21
+0.3333333333333333 0.3333333333333333
+255 18446744073709551615 true
+42 -7
+first, second
+is_singleton allocate_bytes resize free read_byte read_int read_long read_double write_byte write_int write_long write_double copy_bytes compare_bytes text take_text address_of live_allocations

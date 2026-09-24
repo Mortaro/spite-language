@@ -85,14 +85,15 @@ cannot be reopened at all, and gets its own clear diagnostic instead. Your foot 
 
 `Spite` is the root namespace for reflection (`Spite.Class`, `Spite.Attribute` -- see
 [metaprogramming.md](metaprogramming.md)). A `spite/` folder of your own **reopens** those classes, which is
-how a package is tried out before it is upstreamed:
+how a package is tried out before it is upstreamed. Inside the class, a reopening reads the private fields
+(`_name`, `_namespace`) that the read-only `name` and `namespace` answer from outside (D88):
 
 ```spite title=reopen_spite_class/spite/class.spite
 func name_with_namespaces(): String {
-    if namespace {
-        return "{namespace.name_with_namespaces}.{name}"
+    if _namespace {
+        return "{_namespace.name_with_namespaces}.{_name}"
     }
-    return name
+    return _name
 }
 ```
 ```spite title=reopen_spite_class/reopen_spite_class.spite entry

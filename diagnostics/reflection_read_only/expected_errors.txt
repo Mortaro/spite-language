@@ -1,0 +1,2 @@
+diagnostics/reflection_read_only/reflection_read_only.spite:5: error: 'name' is read-only: 'Class' answers it through get_name() and has no set_name(value) (in ReflectionReadOnly.ReflectionReadOnly)
+diagnostics/reflection_read_only/reflection_read_only.spite:6: error: '_name' is private to 'Class': a name starting with '_' is used only inside its own class, and 'name' reads it from outside (in ReflectionReadOnly.ReflectionReadOnly)

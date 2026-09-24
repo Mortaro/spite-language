@@ -459,15 +459,16 @@ func reopen_with_supplied_members() {
     var stems = prelude.reopened_classes()
     var index = 0
     while index < stems.count() {
-        var stem = stems[index]
-        var source = prelude.reopening(stem)
+        var class_path = stems[index]
+        var source = prelude.reopening(class_path)
         var lexer = Syntax.Lexer(source)
         var parser = Syntax.Parser(lexer.tokens)
         var parsed_file = parser.parse_file()
         crash not parser.has_error
         parsed_file.path = prelude.path()
-        var no_segments = List<String>()
-        add_parsed_file(parsed_file, no_segments, stem)
+        var segments = class_path.split("/")
+        var stem = segments.remove_last()
+        add_parsed_file(parsed_file, segments, stem)
         index = index + 1
     }
 }

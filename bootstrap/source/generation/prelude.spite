@@ -227,7 +227,7 @@ func path(): String {
 }
 
 func reopened_classes(): List<String> {
-    return ["memory", "dynamic_library"]
+    return ["memory", "dynamic_library", "spite/attribute", "spite/function"]
 }
 
 func reopening(stem: String): String {
@@ -261,6 +261,12 @@ func supplied_members(stem: String): List<String> {
     }
     if stem == "dynamic_library" {
         return dynamic_library_members()
+    }
+    if stem == "spite/attribute" {
+        return attribute_members()
+    }
+    if stem == "spite/function" {
+        return function_members()
     }
     return List<String>()
 }
@@ -312,5 +318,25 @@ func dynamic_library_members(): List<String> {
         "#ifdef _WIN32\nvoid* found = (void*)GetProcAddress((HMODULE)(intptr_t)self->handle, name->data);\n#else\nvoid* found = dlsym((void*)(intptr_t)self->handle, name->data);\n#endif\nif (found == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: the library '%s' has no '%s', which %s calls\\n\", self->file_name->data, name->data, wanted_by->data);\nexit(1);\n}\nSpiteString_release(name);\nSpiteString_release(wanted_by);\nreturn (int64_t)(intptr_t)found;"
         "func close_library(opened: Long)"
         "if (opened == 0) return;\n#ifdef _WIN32\nFreeLibrary((HMODULE)(intptr_t)opened);\n#else\ndlclose((void*)(intptr_t)opened);\n#endif"
+    ]
+}
+
+func attribute_members(): List<String> {
+    return [
+        "func value_attributes(): List<Spite.Attribute>"
+        "if (self->spite_held != 0 && self->spite_held_attributes != 0) return self->spite_held_attributes(self->spite_held);\nreturn List_Spite_Attribute_make();"
+        "func value_functions(): List<Spite.Function>"
+        "if (self->spite_held != 0 && self->spite_held_functions != 0) return self->spite_held_functions(self->spite_held);\nreturn List_Spite_Function_make();"
+        "func assign(text: String): Bool"
+        "bool assigned = false;\nif (self->spite_owner != 0 && self->spite_assign != 0) assigned = self->spite_assign(self->spite_owner, text);\nSpiteString_release(text);\nreturn assigned;"
+    ]
+}
+
+func function_members(): List<String> {
+    return [
+        "func call_function()"
+        "if (self->spite_call != 0) self->spite_call(self->spite_owner);"
+        "func call_with_text(arguments: List<String>): Spite.Attribute?"
+        "Spite_Attribute* result = 0;\nif (self->spite_text_call != 0) result = ((Spite_Attribute* (*)(void*, List_String*))self->spite_text_call)(self->spite_owner, arguments);\nList_String_release(arguments);\nreturn result;"
     ]
 }

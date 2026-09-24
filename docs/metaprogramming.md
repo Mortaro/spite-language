@@ -126,6 +126,32 @@ of the block -- the attribute is an ordinary nullable value, so it follows the o
 any other. Copying it into a local just to narrow the local is a compile error (D63), and comparing needs no
 narrowing at all: `Gadget.namespace == "Shop"` is false when there is no namespace (D69).
 
+**Reflection is read-only** (D88). `.name`, `.namespace`, `.attributes`, `.functions` and the rest are
+getter functions -- `get_name()`, `get_namespace()`, ... in `library/spite/class.spite` and its neighbours --
+with no setter, so reading `.name` works through the ordinary attribute read and writing it is an error. The
+values live in private fields (`_name`, `_namespace`): a name starting with `_` is used only inside its own
+class, which is how a reopening of `Spite.Class` reads them (see [packages.md](packages.md)). Everything
+reflection offers is ordinary code in `library/spite/`, so it is reachable by name at run time, from the REPL
+too; the few functions only the compiler can write -- `value_attributes()`, `value_functions()`, `assign(text)`,
+`call_function()` and `call_with_text(arguments)`, which reach the live value behind a `Spite.Attribute` or a
+`Spite.Function` -- are the compiler's reopening of those classes, printed by `--final-classes` like any other
+member (see [compiler.md](compiler.md)).
+
+```spite title=reflection_read_only/reflection_read_only.spite entry error
+var console = Console()
+
+func ReflectionReadOnly() {
+    var described = console.class
+    described.name = "Terminal"
+}
+```
+```diagnostic
+'name' is read-only
+```
+
+A class of the standard library describes its members the same way: `Memory.functions.map_name()` lists
+`allocate_bytes`, `resize`, `free` and the rest, including the ones whose bodies the compiler supplies.
+
 `attributes[symbol]` inside a class (used by Symbol codegen above) and `.attributes` from outside are
 different things reading the same data: the former is compile-time only, indexed by a `Symbol`; the latter is
 an ordinary runtime `List<T>`, walked with `while` like any other list.

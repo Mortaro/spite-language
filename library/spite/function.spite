@@ -1,8 +1,20 @@
-var name: Symbol = 'unnamed'
-var arguments = List<Spite.Argument>()
-var returns = Spite.Class('Nothing')
+var _name: Symbol = 'unnamed'
+var _arguments = List<Spite.Argument>()
+var _returns = Spite.Class('Nothing')
 
 func Function(starting_name: Symbol, starting_returns: Spite.Class) {
-    name = starting_name
-    returns = starting_returns
+    _name = starting_name
+    _returns = starting_returns
+}
+
+func get_name(): Symbol {
+    return _name
+}
+
+func get_arguments(): List<Spite.Argument> {
+    return _arguments
+}
+
+func get_returns(): Spite.Class {
+    return _returns
 }
