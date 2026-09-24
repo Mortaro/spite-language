@@ -1903,6 +1903,7 @@ gives an error, nothing is left to the user's taste. The only printout that used
 spite program                         build and run the program in the folder program/ (section 3)
 spite program --optimized             optimized build
 spite program --development           keep everything (no tree shaking), for live reload
+spite program --hot_reload            swap changed classes into the running program (implies --development)
 spite program --repl                  run with an in-place REPL
 spite program --repl_port=4000        run with a remote REPL an AI can connect to, to explore memory and debug
 spite program --serve=true            decide a Build field the program declares while compiling (section 9)
@@ -1969,10 +1970,9 @@ subsections below; `docs/repl.md`'s worked session is replayed by `check.sh` aga
 yet:** walking a `Dictionary<T>` or a union, assigning a `T?`, a list element or a whole instance, the meta
 commands `classes`, `describe`, `enums` and `memory`. D37's drain points are built (2026-09-24): the remote loop's
 commands are answered on the program's thread where it waits -- see "Answered where the program waits" below and
-section 15's "Concurrency". Compiling and executing arbitrary new Spite code inside the running process,
-`Class.instances`, and live reload were blocked on the memory-model decision in [open question
-4](#open-questions), decided as D1 (reference counting, milestone 9a, section 10) -- unblocked, not yet
-started, for milestone 6b (see "Live reload and 6b" below).
+section 15's "Concurrency". **Status (2026-09-24), milestone 6b:** live reload is built behind `--hot_reload`
+(D111, D112) on Windows, with the Linux and macOS folders held to compiling -- see "Live reload and 6b" below.
+Compiling and executing new Spite code typed at the prompt, and `Class.instances`, are not started.
 
 ### Reflection tables  **[planned]**
 
@@ -2101,12 +2101,76 @@ in `docs/` this way (`scripts/docs_corpus.spite` writes it out beside its progra
 `--repl_port`, each `$ spite connect ... --command="..."` line is sent, and each answer must be the line written
 under it, the program must end with exit code 0 after `exit`, and what it printed must be its ` ```output `.
 
-### Live reload and 6b  **[planned]**
+### Live reload and 6b  **[implemented on Windows; the mechanism and the rules below proposed by Claude, unconfirmed]**
 
-Moved from the milestone list; was blocked on [open question 4](#open-questions) (reference semantics),
-now decided as D1 (reference counting, milestone 9a, section 10) and therefore unblocked, but not yet
-started: compiling and executing arbitrary new Spite code inside the running process, `Class.instances`,
-and swapping code while the program runs.
+D111 (a change is seen through the operating system and only what changed is rebuilt) and D112 (`--hot_reload`, a
+flag of its own) as built on 2026-09-24. `docs/repl.md` ("Live reload") is the user's page, and `check.sh` runs its
+session against a copy of the program it edits. Still not started: compiling new Spite code typed at the prompt,
+and `Class.instances`.
+
+- **The flag.** `hot_reload` is a `Build` field (default `false`). It **implies** `--development` rather than
+  requiring it, since a new version of a class may call a function nothing called before. It works without a REPL:
+  the watcher still swaps, and each swap or refusal is one line on the program's error output (`spite: rebuilt
+  Monster`); an explicit rebuild needs `--repl` or `--repl_port`, whose `reload` swaps in what changed and answers
+  what it rebuilt, and whose `last_reload` answers what the last swap (the watcher's included) did. A build without
+  it has no slots, no watcher and no reload code: `reload` answers `'reload' answers in a program built with
+  --hot_reload, which swaps its code while it runs, and this one was not`, from a branch folded on the `Build`
+  constant. As with `--repl_port`, a `--hot_reload` build whose code never waits and has a `while` loop is a compile
+  error naming the loop, since the swap happens where the program waits. `spite program --hot_reload` runs the
+  program attached to the terminal, like a REPL build.
+- **The swap mechanism: one slot per function.** In a `--hot_reload` build every function of the program's own
+  classes (not `library/` or `launcher/`), and each such class's `_init` (its attribute defaults), is written as
+  `<name>_hot`, with a function pointer `<name>_slot` holding it, and `<name>` becomes a one-line forwarder through
+  the slot. Every call site, function value and REPL thunk still names `<name>`, so all of them follow a swap;
+  library functions stay direct calls. Any other build is unchanged: direct calls and tree shaking. The cost is one
+  indirect call that the C compiler cannot inline, about a nanosecond: 200 million calls to a one-line function
+  took about 0.62 s instead of 0.44 s at `-O0` and 0.40 s instead of 0.18 s with `--optimized` (Windows, clang).
+- **What the build records.** Beside the executable, `<program>.reload_host` lists every function the executable
+  defines with its C prototype, its slots, its class ids in order and the C layout of every class and enum;
+  `<program>.reload_files` holds a generation number and a hash of each of the program's files. The executable
+  holds a table of its functions' addresses by name, the path of the compiler that built it and that compiler's
+  options, so it must run from the directory it was built from.
+- **Rebuilding: `--mode=reload --output=<program>`.** A reload runs that compiler with those options and this mode.
+  It reads the whole program again (milliseconds), with the class ids seeded from the manifest so every class keeps
+  the id its instances carry, and compares file hashes: nothing changed answers `unchanged`. The rebuilt set is the
+  classes the changed files declare, plus every class whose code calls a function of the set that the running
+  program has with another prototype or does not have at all (the running caller would still call the old one),
+  repeated until nothing is added. It writes C only for the rebuilt classes' functions and what they reach that the
+  running program lacks, reaching every other function through a pointer the library is handed when it is loaded,
+  and compiles `<program>_reload_<n>.dll` (`.so`, `.dylib`). It prints `rebuilt A, B`, `removed A.f` when a function
+  the running program has is gone, and the library's path.
+- **Swapping at a drain point** (D37). The running program opens the library with `LoadLibraryA`/`dlopen`, the
+  calls `DynamicLibrary` opens a library with, and calls its `spite_reload_bind`, which looks up each running
+  function it uses by name (the allocator included, so the library allocates and frees through the program) and then
+  re-points the slots of the rebuilt functions whose prototypes are unchanged, with an atomic store. `reload` is a
+  REPL command, so it runs where the program waits; the watcher's signal is handled in the scheduler's idle, beside
+  the REPL's commands. While a reload runs, waits block instead of suspending, so nothing else runs until the swap
+  is done; the program waits for the compile (under a second for a small program). After a swap the file hashes
+  are updated. A library is never unloaded: values it made, such as its text literals, may still be referenced.
+- **What reloads.** A function body (the next call runs it; a call already running finishes the old one). A new
+  function or a new class (the new code calls it; the REPL's `functions` and reflection keep what the program
+  started with). A changed parameter list or return type (a new function: the rebuilt class and its callers are
+  rebuilt). A deleted function keeps its last code for whatever still holds it, a function value or the REPL, and
+  the answer names it. An attribute's default value (through the `_init` slot, for instances made afterwards).
+- **What needs a restart: a class's attributes or enums.** When the layout of a class or enum the running
+  program has differs, the reload is refused -- `the attributes of Monster changed, and the running program's
+  instances were made with the old ones: restart the program to change a class's attributes or enums, or undo that
+  part of the change to reload the rest` -- and the program keeps all of its code. Migrating instances by attribute
+  name (new attributes taking their defaults) needs every live instance and every reference to it, which the
+  program cannot find today; `mortaros_missing_decisions.md` asks which to build. A file that does not compile is
+  refused the same way, with the compiler's error, so a save caught half-written is harmless.
+- **Watching** (D111). Each operating system's folder reopens `HotReload` (`library/hot_reload.spite`) with
+  `watch_folder` and `wait_for_change`: `FindFirstChangeNotificationA`, `WaitForSingleObject` and
+  `FindNextChangeNotification` from `kernel32.dll` on Windows, `inotify` and `poll` from `libc.so.6` on Linux, and
+  `kqueue`/`kevent` on the folder and each of its files from `libSystem.dylib` on macOS -- no polling. The watcher
+  runs on a thread of its own, waits until 100 ms pass without a change, then sets a flag and wakes the scheduler.
+  Only the program's own folder is watched, not the folders it `load`s; `reload` picks those up.
+- **Windows' C runtime.** When the C compiler targets MSVC (its `-dumpmachine`), the program and its libraries are
+  built against the C runtime DLL (`-fms-runtime-lib=dll`) so they share one heap and one standard output.
+- **Untested:** Linux and macOS -- their watchers, `.so`/`.dylib` libraries and `Program.executable_path` (which
+  the compiler uses to record itself) -- are held to compiling by `check.sh`, and are written the same way as
+  Windows'. A crash inside reloaded code reports the library's own assert trace. A `Parallel` running a function
+  whose slot is re-pointed finishes the old code.
 
 ## 15. Standard library  **[partial]**
 
@@ -3333,3 +3397,7 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (implements D113's error; the shape proposed by Claude, unconfirmed) **The `while` that only passes each element to a caller function is an error, detected only where the rewrite is exact**: the statement before sets the counter to `0`; the condition is `counter < list.count()` on a name or path of type `List<T>`; the body is `f(list[counter])` or `var item = list[counter]` then `f(item)`, plus `counter = counter + 1` (last, or right after the `var`); `f` is a function of the class taking one `T`, and `T` has no member `f`. The message names the template: `this 'while' only calls 'say_hello' with each element of 'names': write 'names.each_say_hello()'` (`diagnostics/caller_templates`). **2 loops were rewritten**, `generator.spite`'s `collect_body_facts` and `docs/reflection.md`'s `function_reflection`: D94's 145 were almost all loops that pass more than the element (`depth`, `scope`), which D113 does not cover and which stay `while`; how to carry them is `mortaros_missing_decisions.md` item 57. The review file's counts are updated. |
 | 2026-09-24 | (implements D110; the readings proposed by Claude, unconfirmed) **A singleton's constructor call may only be the whole value of a `var`.** A call constructing a class with a `singleton` line (a generic one too) that is anything else -- the receiver of a member read or call, an argument, a returned or assigned value, an operand, a list element -- is an error: "'Build' is a singleton: bind it once beside the attributes, 'var build = Build()', and use 'build.target_operating_system'" (or "and use 'console'" when nothing is read from it). The binding may be an attribute or a local `var`: `String` keeps `Memory` in locals because a value class has no attribute to spare, and an error path binds `Program` where it exits. D77's constructor-as-argument does not extend to singletons. Checked on every statement the compiler generates and every attribute default, beside D77's check (`diagnostics/inline_singleton`, `diagnostics/inline_singleton_attribute`). On the way: **`Program` has its `singleton` line** -- D8 and section 15 already called it a singleton, but its file never said so, so every `Program().exit(1)` made an object; **`Build` is a static object** like `Memory` (D108's third row), since each of its fields is folded and it holds nothing at run time, so the launcher's `var build = Build()` costs no allocation and no allocation count changed; **the launcher** reads `load("library/{build.target_operating_system}")` and `load(build.program)` through a launcher `var` bound to `Build()`; **a number declares its storage in two lines**, `var memory = Memory()` and `var _memory = memory.allocate_bytes(4)`, where the binding is never a field and the compiler requires the allocation to go through it -- chosen over exempting `var _memory = Memory().allocate_bytes(4)`, because a number's file is where an AI learns how memory is declared. 58 sites were rewritten in `bootstrap/`, `launcher/`, `library/` (the eleven numbers, `environment`, the REPL), `scripts/`, `conformance/`, `diagnostics/` and `docs/`, 16 of them the compiler's own `Program()` calls. Sections 3, 8 to 12 and 14. |
 | 2026-09-24 | **D114** (decided by Mortaro, in the SlopEngine session, relayed by that session): **a generic class reflects on a class's functions at compile time.** SlopEngine's two gaps -- an engine cannot tell whether a system class has `run_each` or `run_all`, and one generic cannot cover functions of different arity -- are closed by compile-time function reflection, "not variadic generics and not engine workarounds." Inside a generic class, asking whether `$system_type` has a function of a given name is decided at compile time and folds like `if $is_magic`; that function's `.arguments` is a compile-time list whose entries give a `.class` usable as a type and a `.name` usable as a `Symbol`, walked by a plural template the way attributes are, so one `Runner<$system_type>` runs a `run_each` of any arity. The engine's systems are `run_each(potion: Potion, target: Target)` (once per matching combination) or `run_all(potions: List<Potion>, targets: List<Target>)` (once with every match -- Mortaro chose lists of rows), the rows being `type`s declared in the system's file, and the engine derives its queries from those parameter types with nothing registered. **The spelling** -- `$system_type.has('run_each')` and `$system_type.run_each.arguments` -- was proposed by that session and is not yet confirmed. Scheduled after the SlopEngine HIGH bugs. |
+| 2026-09-24 | (implements D111 and D112; the mechanism proposed by Claude, unconfirmed) **Live reload swaps functions through a slot per function, and rebuilds changed classes into a library the program loads.** In a `--hot_reload` build every function of the program's own classes, and each class's `_init`, is called through a function pointer the program can re-point, behind a forwarder with the function's own name; other builds keep direct calls and tree shaking. About a nanosecond per call. The build writes `<program>.reload_host` (functions and prototypes, slots, class ids, layouts) and `<program>.reload_files` (file hashes). A reload runs the compiler that built the program with its options and `--mode=reload --output=<program>`, which seeds class ids from the manifest, rebuilds the classes whose files changed plus the callers of any of their functions the running program has with another prototype or lacks, repeated to a fixed point, writes C only for those and what they reach that the program lacks, and compiles `<program>_reload_<n>.dll`/`.so`/`.dylib`. The program opens it with `LoadLibraryA`/`dlopen`, hands it its functions by name (the allocator included), and re-points the slots, at a drain point (D37), with waits blocking until the swap is done. Libraries are never unloaded. Section 14, "Live reload and 6b"; `docs/repl.md`; `check.sh`'s live reload step. |
+| 2026-09-24 | (on D111; the rule proposed by Claude, unconfirmed) **A change to a class's attributes or enums is refused with an error saying to restart, and the program keeps all of its code**; so is a file that does not compile. D111 says a change rebuilds "what depends on their layout", but the instances already in memory have the old layout, and migrating them by attribute name needs every live instance and every reference to it, which nothing finds yet (`mortaros_missing_decisions.md` item 64). A new function or class, a changed signature (a new function, whose callers are rebuilt), a changed default (through `_init`) reload; a deleted function keeps its last code for whatever still holds it, a function value or the REPL, and the answer names it (`removed Monster.roar`). The REPL's reflection keeps the functions the program started with. |
+| 2026-09-24 | (on D112; proposed by Claude, unconfirmed) **`--hot_reload` implies `--development`, works without a REPL, and is answered by two REPL commands.** Without a REPL the watcher still swaps and each swap or refusal is one line on standard error (`spite: rebuilt Monster`). With `--repl`/`--repl_port`, `reload` rebuilds and swaps what changed and answers `rebuilt A, B` (or `nothing changed since the code the program runs`, or the refusal), and `last_reload` answers what the last swap did, the watcher's included. A non-hot build answers both with an error naming `--hot_reload`. A `--hot_reload` build whose code never waits and has a `while` is a compile error, like `--repl_port`'s. |
+| 2026-09-24 | (implements D111's watcher; proposed by Claude, unconfirmed) **Each operating system's folder reopens `HotReload` with `watch_folder` and `wait_for_change`**: `FindFirstChangeNotificationA` on Windows (D111 named `ReadDirectoryChangesW`; which file changed is found by hash, so the simpler call is enough), `inotify` on Linux, `kqueue` on the folder and each file on macOS (not FSEvents, which needs a run loop). The watcher thread waits until 100 ms pass without a change, then flags the scheduler; only the program's own folder is watched, not `load`ed folders. On Windows, a program and its libraries built by an MSVC-targeting clang share the C runtime DLL. `Program.executable_path()` is added to each folder so the compiler can record itself. |

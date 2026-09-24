@@ -1,0 +1,47 @@
+var library = DynamicLibrary("libSystem.dylib", 'identity', "")
+
+func watch_folder(path: String): Long {
+    var queue = library.kqueue()
+    if queue >= 0 {
+        watch_entry(queue, path)
+        var directory = Directory(path)
+        var names = directory.entry_names(false)
+        var index = 0
+        while index < names.count() {
+            watch_entry(queue, "{path}/{names[index]}")
+            index = index + 1
+        }
+    }
+    return queue
+}
+
+func watch_entry(queue: Int, path: String) {
+    var opened = library.open(path, 32768)
+    if opened >= 0 {
+        var change = memory.allocate_bytes(32)
+        memory.write_long(change, 0, opened)
+        memory.write_int(change, 8, 2228220)
+        memory.write_int(change, 12, 47)
+        memory.write_long(change, 16, 0)
+        memory.write_long(change, 24, 0)
+        var no_value: Long = 0
+        library.kevent(queue, change, 1, no_value, 0, no_value)
+        memory.free(change)
+    }
+}
+
+func wait_for_change(watched: Long, milliseconds: Int): Bool {
+    var event = memory.allocate_bytes(32)
+    var timeout = memory.allocate_bytes(16)
+    memory.write_long(timeout, 0, milliseconds / 1000)
+    memory.write_long(timeout, 8, milliseconds % 1000 * 1000000)
+    var waiting: Long = timeout
+    if milliseconds < 0 {
+        waiting = 0
+    }
+    var no_value: Long = 0
+    var ready = library.kevent(watched, no_value, 0, event, 1, waiting) > 0
+    memory.free(timeout)
+    memory.free(event)
+    return ready
+}

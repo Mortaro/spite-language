@@ -12,6 +12,8 @@ var offload_fibers = List<Long>()
 var fibers_alive = 0
 var serving = false
 var commands: Spite.Function<Nothing>? = null
+var reloads: Spite.Function<Nothing>? = null
+var paused = false
 var wake: Long = 0
 
 func start() {
@@ -24,7 +26,7 @@ func start() {
 }
 
 func suspends_here(): Bool {
-    assert started and (fibers_alive != 0 or serving)
+    assert started and not paused and (fibers_alive != 0 or serving)
     return current_thread() == scheduler_thread
 }
 
@@ -71,6 +73,9 @@ func yield_now() {
     if commands {
         commands()
     }
+    if reloads {
+        reloads()
+    }
     wake_finished()
     if not runnable.is_empty() {
         runnable.append(current)
@@ -107,6 +112,9 @@ func signal() {
 func idle() {
     if commands {
         commands()
+    }
+    if reloads {
+        reloads()
     }
     wake_finished()
     if runnable.is_empty() {

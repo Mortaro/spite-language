@@ -6,9 +6,11 @@
 > literal arguments that print what they return (`monsters[0].roar()`, `monsters.count()`), written in Spite
 > (`library/read_evaluate_print_loop.spite`). `--repl_port` answers the same commands over TCP, one JSON line
 > each, answered where the program waits ([concurrency.md](concurrency.md)), and `spite connect` is its
-> client. **Not built yet:** the meta commands `classes`, `describe`, `enums` and `memory`, walking a
-> `Dictionary<T>` or a union, and assigning a `T?`, a list element or a whole instance
-> ([manual section 14](../manual.md#14-repl-and-live-reload--partial)).
+> client. `--hot_reload` swaps the classes whose files changed into the running program, keeping its state,
+> when a file is saved or when the REPL is sent `reload` ([Live reload](#live-reload---hot_reload)); Windows runs it,
+> and Linux and macOS are held to compiling. **Not built yet:** the meta commands `classes`, `describe`, `enums`
+> and `memory`, walking a `Dictionary<T>` or a union, assigning a `T?`, a list element or a whole instance, and
+> reloading a change to a class's attributes ([manual section 14](../manual.md#14-repl-and-live-reload--partial)).
 >
 > ```text
 > spite> monsters[0]
@@ -23,10 +25,9 @@
 
 The REPL inspects and drives the *running* program -- local (`--repl`, standard input) and remote
 (`--repl_port`, TCP). It is ordinary Spite, `ReadEvaluatePrintLoop` in the standard library, walking the program
-through reflection ([reflection.md](reflection.md)). What exists today reads and changes the running state: it
-is a debugger, not a live-coding console. Compiling new Spite code into the running process and swapping code
-while it runs (live reload) are decided but not built
-([manual section 14](../manual.md#live-reload-and-6b--planned)).
+through reflection ([reflection.md](reflection.md)). It reads and changes the running state, and with
+`--hot_reload` it also swaps in code you edited while the program keeps running
+([Live reload](#live-reload---hot_reload)). Typing new Spite code at the prompt is not built.
 
 ## The program this page uses
 
@@ -126,6 +127,9 @@ The commands are the ones `--repl` answers:
 - **assignment**: `program.player_name = "Aria"` -- through `set_<attribute>` when the class declares one,
   answering the value read back afterwards.
 - `attributes`, `functions`, `help`, `exit`.
+- `reload` and `last_reload`, which answer in a `--hot_reload` build ([Live reload](#live-reload---hot_reload)) and
+  fail everywhere else with `'reload' answers in a program built with --hot_reload, which swaps its code while it
+  runs, and this one was not`.
 
 ## A worked debugging session
 
@@ -167,3 +171,122 @@ For an AI driving this: issue one command per `spite connect --command="..."` ca
 session open), read the single JSON line back, and branch on `"ok"`. `attributes` and `functions` first, to see
 what is there (only functions whose arguments are numbers, Bool, text or an enum can be called), then walk paths
 down to the value in question before mutating anything.
+
+## Live reload: `--hot_reload`
+
+`--hot_reload` builds a program that can take new code while it runs. Save a file of the program, and the classes
+that file declares are compiled again, on their own, into a small library the running program loads and swaps in
+the next time it waits -- the same moments the REPL is answered at. Objects, singletons and everything the REPL
+changed stay as they were: only functions change.
+
+```
+spite game --hot_reload --repl_port=4000
+```
+
+It works with or without a REPL. Without one, each swap is reported on the program's error output (`spite: rebuilt
+Monster`); with `--repl` or `--repl_port`, `reload` swaps in what changed right away and answers what it rebuilt, and
+`last_reload` answers what the last swap did, which is how you learn about one the file watcher made. A program
+built without `--hot_reload` has none of this -- no watcher, no swapping, and `reload` answers that it was not
+built for it. `--hot_reload` keeps every function (it implies `--development`), since a new version of a class
+may call one nothing called before.
+
+```gdscript title=hot_counter/monster.spite
+var name = ""
+
+func Monster(starting_name: String) {
+    name = starting_name
+}
+
+func roar(): String {
+    return "{name} roars"
+}
+```
+```gdscript title=hot_counter/hot_counter.spite entry
+var console = Console()
+var visits = 0
+var monster = Monster("Goblin")
+
+func HotCounter() {
+    visits = 1
+    var greeting = greeting()
+    console.print(greeting)
+}
+
+func greeting(): String {
+    return "hello, visit {visits}"
+}
+```
+```output
+hello, visit 1
+```
+
+`check.sh` runs this session against a copy of the program above, built with `--hot_reload --repl_port`:
+
+```text
+$ spite connect 4000 --command="program.visits = 42"
+{"ok":true,"value":"42","type":"Int"}
+
+# hot_counter.spite: greeting() now returns "welcome back, visit {visits}"
+$ spite connect 4000 --command="reload"
+{"ok":true,"value":"rebuilt HotCounter","type":""}
+
+$ spite connect 4000 --command="greeting()"
+{"ok":true,"value":"welcome back, visit 42","type":"String"}
+
+# monster.spite: roar() now returns "{name} roars louder", and nothing is sent: the watcher sees the save
+$ spite connect 4000 --command="last_reload"
+{"ok":true,"value":"rebuilt Monster","type":""}
+
+$ spite connect 4000 --command="monster.roar()"
+{"ok":true,"value":"Goblin roars louder","type":"String"}
+
+$ spite connect 4000 --command="exit"
+{"ok":true,"value":"","type":""}
+```
+
+`visits` kept the 42 set before the first reload, and the second reload rebuilt `Monster` alone. When the watcher
+has already swapped a save in, `reload` finds nothing left to do and answers `nothing changed since the code the
+program runs`. For an AI: edit the file, send `reload`, and read `last_reload` if the answer says nothing changed.
+
+### What a reload can change
+
+| You change | What happens |
+|---|---|
+| a function's body | the next call runs the new body; a call already running finishes the old one |
+| a new function on an existing class | the new code calls it; the REPL's `functions` keeps listing what the program started with |
+| a function's parameters or return type | it becomes a new function: the rebuilt class and every class that calls it are rebuilt too |
+| a function you deleted | whatever still holds it -- a function value, the REPL -- keeps its last code; the answer says `removed Monster.roar` |
+| an attribute's default value | instances made after the reload get the new default |
+| a class's attributes or enums | refused: `the attributes of Monster changed, ... restart the program to change a class's attributes or enums`, and the program keeps all of its code |
+| a file that does not compile | refused with the compiler's error, and the program keeps all of its code |
+| a new class | its functions are compiled into the new code; the REPL does not see it until a restart |
+
+A refused reload leaves the program exactly as it was, so a save that caught a file half-written is harmless: the
+next save reloads.
+
+### How it works
+
+- **One slot per function.** In a `--hot_reload` build, every function of the program's own classes (not the
+  standard library's) is called through a slot the program can re-point: the function the rest of the code calls
+  is a one-line forwarder to its slot. A normal build is untouched -- direct calls, and tree shaking. The slot
+  costs about a nanosecond per call (one indirect call, which the C compiler also cannot inline):
+  200 million calls to a one-line function took about 0.62 s instead of 0.44 s unoptimized, and 0.40 s instead of
+  0.18 s with `--optimized`.
+- **Only what changed is compiled again.** The build writes two files beside the executable: `game.reload_host`
+  (every function the program has, its classes and their layouts) and `game.reload_files` (a hash of each of the
+  program's files). A reload runs the compiler that built the program with the same options and `--mode=reload`.
+  The compiler reads the program again -- which takes milliseconds -- but writes C only for the classes whose files
+  changed and whatever those need that the program does not already have, and compiles that into
+  `game_reload_1.dll` (`.so` on Linux, `.dylib` on macOS). Everything else the new code calls, it reaches in the
+  running program.
+- **The swap happens where the program waits** ([D37](../manual.md#decision-log)): the program loads the library
+  with the operating system's loader, the one `DynamicLibrary` uses, hands it the addresses of the program's
+  functions, and re-points the slots. Nothing runs halfway through a step. The program waits while the library is
+  compiled, typically well under a second.
+- **The watcher is the operating system's**, one per system folder of the library (`library/windows/hot_reload.spite`
+  and the rest), started on a thread of its own: `FindFirstChangeNotification` on Windows, `inotify` on Linux and
+  `kqueue` on macOS, with no polling. A burst of changes is waited out until 100 ms pass without one, so a save
+  that writes a file in pieces reloads once. The program's own folder is watched, not the folders it `load`s; send
+  `reload` after changing those.
+- The compiler, its options and the executable are recorded in the build, so the program must run from the folder
+  it was built from, as `spite game --hot_reload` does.

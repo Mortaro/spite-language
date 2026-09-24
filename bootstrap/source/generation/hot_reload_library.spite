@@ -1,0 +1,415 @@
+var host_names = List<String>()
+var host_prototypes = Dictionary<String>()
+var host_slots = Dictionary<String>()
+var host_classes = List<String>()
+var host_layouts = Dictionary<String>()
+var generation = 0
+var running_hashes = Dictionary<String>()
+var installed = List<String>()
+var added = List<String>()
+var removed = List<String>()
+
+func record_host(prototype_text: String, bodies: String) {
+    var shaker = TreeShaker()
+    shaker.split_pieces(bodies)
+    var lines = prototype_text.split("\n")
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index].trim()
+        var name = function_name(line, shaker)
+        if not name.is_empty() and not host_prototypes.has(name) {
+            host_names.append(name)
+            host_prototypes[name] = line
+        }
+        index = index + 1
+    }
+}
+
+func function_name(line: String, shaker: TreeShaker): String {
+    assert line.ends_with(");") and line.contains("(") and not line.starts_with("#") and not line.starts_with("typedef")
+    assert not line.starts_with("static")
+    var name = shaker.declared_name(line)
+    var name_length = name.length()
+    assert name_length > 0 and shaker.find_function(name, 0, name_length) >= 0
+    return name
+}
+
+func symbol_table(): String {
+    var entries = List<String>()
+    var index = 0
+    while index < host_names.count() {
+        entries.append("\{ \"{host_names[index]}\", (void*)&{host_names[index]} }")
+        index = index + 1
+    }
+    entries.append("\{ 0, 0 }")
+    return "typedef struct SpiteHotSymbol \{ const char* name; void* address; } SpiteHotSymbol;\nstatic const SpiteHotSymbol spite_hot_symbols[] = \{ {entries.join(", ")} };\nstatic void* spite_hot_find(const char* name) \{\nfor (int64_t index = 0; spite_hot_symbols[index].name != 0; index = index + 1) \{\nif (strcmp(spite_hot_symbols[index].name, name) == 0) return spite_hot_symbols[index].address;\n}\nreturn 0;\n}"
+}
+
+func host_manifest(
+    slot_names: List<String>,
+    slot_displays: List<String>,
+    class_names: List<String>,
+    typedefs: List<String>,
+): String {
+    var lines = List<String>()
+    var index = 0
+    while index < host_names.count() {
+        var name = host_names[index]
+        crash host_prototypes[name]
+        lines.append("function {name} {host_prototypes[name]}")
+        index = index + 1
+    }
+    index = 0
+    while index < slot_names.count() and index < slot_displays.count() {
+        lines.append("slot {slot_names[index]} {slot_displays[index]}")
+        index = index + 1
+    }
+    index = 0
+    while index < class_names.count() {
+        lines.append("class {class_names[index]}")
+        index = index + 1
+    }
+    index = 0
+    while index < typedefs.count() {
+        var name = layout_name(typedefs[index])
+        if not name.is_empty() {
+            lines.append("layout {name} {typedefs[index].replace("\n", " ")}")
+        }
+        index = index + 1
+    }
+    return lines.join("\n")
+}
+
+func layout_name(text: String): String {
+    if text.starts_with("struct ") {
+        var words = text.split(" ")
+        crash words[1]
+        return words[1]
+    }
+    assert text.starts_with("typedef enum")
+    var text_lines = text.split("\n")
+    var last_line = text_lines.last()
+    return last_line.replace("}", "").replace(";", "").trim()
+}
+
+func read_host(text: String) {
+    var lines = text.split("\n")
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        var space = line.index_of(" ")
+        if space > 0 {
+            var line_length = line.length()
+            var kind = line.slice(0, space)
+            var rest = line.slice(space + 1, line_length)
+            read_host_line(kind, rest)
+        }
+        index = index + 1
+    }
+}
+
+func read_host_line(kind: String, rest: String) {
+    var space = rest.index_of(" ")
+    var rest_length = rest.length()
+    if kind == "class" {
+        host_classes.append(rest)
+    } else if kind == "slot" and space > 0 {
+        var name = rest.slice(0, space)
+        host_slots[name] = rest.slice(space + 1, rest_length)
+    } else if kind == "function" and space > 0 {
+        var name = rest.slice(0, space)
+        host_names.append(name)
+        host_prototypes[name] = rest.slice(space + 1, rest_length)
+    } else if kind == "layout" and space > 0 {
+        var name = rest.slice(0, space)
+        host_layouts[name] = rest.slice(space + 1, rest_length)
+    }
+}
+
+func read_state(text: String) {
+    var lines = text.split("\n")
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index].trim()
+        var words = line.split(" ")
+        if words.count() == 2 and words[0] == "generation" {
+            generation = words[1].to_int()
+        } else if words.count() >= 3 and words[0] == "file" {
+            var line_length = line.length()
+            var path_start = words[0].length() + words[1].length() + 2
+            var path = line.slice(path_start, line_length)
+            running_hashes[path] = words[1]
+        }
+        index = index + 1
+    }
+}
+
+func state_text(next_generation: Int, paths: List<String>, hashes: List<String>): String {
+    var lines = List<String>()
+    lines.append("generation {next_generation}")
+    var index = 0
+    while index < paths.count() and index < hashes.count() {
+        lines.append("file {hashes[index]} {paths[index]}")
+        index = index + 1
+    }
+    return lines.join("\n")
+}
+
+func hash_of(text: String): String {
+    var hash: Long = 7
+    var index = 0
+    var text_length = text.length()
+    while index < text_length {
+        var code = text.code_at(index)
+        hash = (hash * 31 + code) % 4294967291
+        index = index + 1
+    }
+    return "{hash}"
+}
+
+func is_changed(path: String, hash: String): Bool {
+    if running_hashes[path] {
+        return running_hashes[path] != hash
+    }
+    return true
+}
+
+func layout_problem(typedefs: List<String>): String {
+    var changed = List<String>()
+    var index = 0
+    while index < typedefs.count() {
+        var name = layout_name(typedefs[index])
+        if host_layouts[name] {
+            var layout = typedefs[index].replace("\n", " ")
+            var class_name = name.replace("_", ".")
+            if host_layouts[name] != layout {
+                changed.append(class_name)
+            }
+        }
+        index = index + 1
+    }
+    assert not changed.is_empty()
+    return "the attributes of {changed.join(", ")} changed, and the running program's instances were made with the old ones: restart the program to change a class's attributes or enums, or undo that part of the change to reload the rest"
+}
+
+func new_prototypes(prototype_text: String, shaker: TreeShaker): Dictionary<String> {
+    var prototypes = Dictionary<String>()
+    var lines = prototype_text.split("\n")
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index].trim()
+        var name = function_name(line, shaker)
+        if not name.is_empty() and not prototypes.has(name) {
+            prototypes[name] = line
+        }
+        index = index + 1
+    }
+    return prototypes
+}
+
+func is_bound(name: String, prototypes: Dictionary<String>, local_names: Dictionary<String>): Bool {
+    var running = host_prototypes[name]
+    var prototype = prototypes[name]
+    assert running and prototype
+    return running == prototype and not local_names.has(name) and not name.starts_with("spite_foreign_library_")
+}
+
+func changed_signatures(
+    slot_names: List<String>,
+    slot_owners: List<String>,
+    rebuilt: List<String>,
+    prototype_text: String,
+    bodies: String,
+): List<String> {
+    var shaker = TreeShaker()
+    shaker.split_pieces(bodies)
+    var prototypes = new_prototypes(prototype_text, shaker)
+    var changed = List<String>()
+    var index = 0
+    while index < slot_names.count() and index < slot_owners.count() {
+        var name = slot_names[index]
+        var added_later = not host_slots.has(name)
+        if rebuilt.contains(slot_owners[index]) and (added_later or host_prototypes[name] != prototypes[name]) {
+            changed.append(name)
+        }
+        index = index + 1
+    }
+    return changed
+}
+
+func callers_of(
+    changed: List<String>,
+    slot_names: List<String>,
+    slot_owners: List<String>,
+    rebuilt: List<String>,
+    bodies: String,
+): List<String> {
+    var shaker = TreeShaker()
+    shaker.split_pieces(bodies)
+    var callers = List<String>()
+    var index = 0
+    while index < slot_names.count() and index < slot_owners.count() {
+        var owner = slot_owners[index]
+        var hot_name = "{slot_names[index]}_hot"
+        var hot_name_length = hot_name.length()
+        var position = shaker.find_function(hot_name, 0, hot_name_length)
+        if position >= 0 and not rebuilt.contains(owner) and not callers.contains(owner) {
+            crash shaker.pieces[position]
+            if mentions_any(shaker.pieces[position], changed) {
+                callers.append(owner)
+            }
+        }
+        index = index + 1
+    }
+    return callers
+}
+
+func mentions_any(text: String, names: List<String>): Bool {
+    var index = 0
+    while index < names.count() {
+        if text.contains("{names[index]}(") {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<String>, rebuilt: List<String>): String {
+    var bodies = builder.bodies_text()
+    var prototype_text = builder.prototypes.join("\n")
+    var shaker = TreeShaker()
+    shaker.split_pieces(bodies)
+    var prototypes = new_prototypes(prototype_text, shaker)
+    var local_names = Dictionary<String>()
+    var roots = List<Int>()
+    var index = 0
+    while index < slot_names.count() and index < slot_owners.count() {
+        var name = slot_names[index]
+        var hot_name = "{name}_hot"
+        var hot_name_length = hot_name.length()
+        var position = shaker.find_function(hot_name, 0, hot_name_length)
+        var running = host_prototypes[name]
+        if rebuilt.contains(slot_owners[index]) and position >= 0 and host_slots.has(name) and running == prototypes[name] {
+            local_names[hot_name] = hot_name
+            installed.append(name)
+            roots.append(position)
+        } else if rebuilt.contains(slot_owners[index]) and not host_slots.has(name) {
+            added.append(name)
+        }
+        index = index + 1
+    }
+    var running_slots = host_slots.keys()
+    index = 0
+    while index < running_slots.count() {
+        var running_slot = running_slots[index]
+        if not slot_names.contains(running_slot) {
+            crash host_slots[running_slot]
+            removed.append(host_slots[running_slot])
+        }
+        index = index + 1
+    }
+    var bound = List<Bool>()
+    index = 0
+    while index < shaker.pieces.count() {
+        crash shaker.piece_names[index]
+        var name = shaker.piece_names[index]
+        var binds = not name.is_empty() and is_bound(name, prototypes, local_names)
+        bound.append(binds)
+        shaker.kept[index] = name.is_empty() or counts_memory(name)
+        index = index + 1
+    }
+    index = 0
+    while index < roots.count() {
+        shaker.keep_function(roots[index])
+        index = index + 1
+    }
+    var redirected = List<String>()
+    while not shaker.waiting.is_empty() {
+        var next = shaker.waiting.remove_last()
+        crash shaker.piece_names[next]
+        crash shaker.pieces[next]
+        if bound[next] == true {
+            redirected.append(shaker.piece_names[next])
+        } else {
+            shaker.keep_named_in(shaker.pieces[next])
+            var hot_name = "{shaker.piece_names[next]}_hot"
+            var hot_name_length = hot_name.length()
+            var hot_position = shaker.find_function(hot_name, 0, hot_name_length)
+            if hot_position >= 0 {
+                shaker.keep_function(hot_position)
+            }
+        }
+    }
+    var parts = List<String>()
+    parts.append("#define SPITE_RELOADED")
+    if builder.threads {
+        parts.append("#define SPITE_THREADS")
+    }
+    var typedef_text = builder.typedefs.join("\n")
+    parts.append(typedef_text)
+    parts.append(prototype_text)
+    index = 0
+    while index < builder.slot_lines.count() and index < builder.slot_names.count() {
+        var name = builder.slot_names[index]
+        var name_length = name.length()
+        var position = shaker.find_function(name, 0, name_length)
+        if position >= 0 and shaker.kept[position] == true and bound[position] == false {
+            parts.append(builder.slot_lines[index])
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < redirected.count() {
+        var name = redirected[index]
+        parts.append("static __typeof__({name})* spite_host_{name} = 0;\n#define {name} (*spite_host_{name})")
+        index = index + 1
+    }
+    index = 0
+    while index < shaker.pieces.count() {
+        crash shaker.piece_names[index]
+        var name = shaker.piece_names[index]
+        var local = not name.is_empty() and not counts_memory(name)
+        if local and shaker.kept[index] == true and bound[index] == false {
+            parts.append(shaker.pieces[index])
+        }
+        index = index + 1
+    }
+    var bind_function = bind_function(redirected)
+    parts.append(bind_function)
+    return "{parts.join("\n")}\n"
+}
+
+func counts_memory(name: String): Bool {
+    return name.starts_with("spite_debug_") or name.starts_with("spite_allocation_table")
+}
+
+func bind_function(redirected: List<String>): String {
+    var lines = List<String>()
+    lines.append("#ifdef _WIN32")
+    lines.append("__declspec(dllexport)")
+    lines.append("#else")
+    lines.append("__attribute__((visibility(\"default\")))")
+    lines.append("#endif")
+    lines.append("const char* spite_reload_bind(void* (*find)(const char*), int32_t (*install)(const char*, void*)) \{")
+    lines.append("spite_host_realloc = (void* (*)(void*, size_t))find(\"spite_hot_realloc\");")
+    lines.append("spite_host_free = (void (*)(void*))find(\"spite_hot_free\");")
+    lines.append("if (spite_host_realloc == 0 || spite_host_free == 0) return \"spite_hot_realloc\";")
+    var index = 0
+    while index < redirected.count() {
+        var name = redirected[index]
+        lines.append(
+            "spite_host_{name} = (__typeof__(spite_host_{name}))find(\"{name}\"); if (spite_host_{name} == 0) return \"{name}\";",
+        )
+        index = index + 1
+    }
+    index = 0
+    while index < installed.count() {
+        var name = installed[index]
+        lines.append("if (install(\"{name}\", (void*)&{name}_hot) == 0) return \"{name}\";")
+        index = index + 1
+    }
+    lines.append("return 0;")
+    lines.append("}")
+    return lines.join("\n")
+}
