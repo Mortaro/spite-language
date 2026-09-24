@@ -1,7 +1,6 @@
 var command = ""
 var arguments = List<String>()
 var last_output = ""
-var runtime = CRuntime()
 var memory = Memory()
 
 func Process(starting_command: String, starting_arguments: List<String>) {
@@ -10,25 +9,21 @@ func Process(starting_command: String, starting_arguments: List<String>) {
 }
 
 func run(): Int {
-    var handle = runtime.open_process(command_line())
+    var handle = open_process(command_line())
     if handle == 0 {
         last_output = ""
         return -1
     }
     var output = ""
     var chunk = memory.allocate_bytes(4096)
-    var got = runtime.read_into(chunk, 4096, handle)
+    var got = read_into(chunk, 4096, handle)
     while got > 0 {
         output = "{output}{memory.text(chunk, got)}"
-        got = runtime.read_into(chunk, 4096, handle)
+        got = read_into(chunk, 4096, handle)
     }
     memory.free(chunk)
     last_output = output
-    return runtime.close_process(handle)
-}
-
-func run_attached(): Int {
-    return runtime.run_attached(command_line())
+    return close_process(handle)
 }
 
 func output(): String {
@@ -46,5 +41,5 @@ func command_line(): String {
         line = "{line} \"{arguments[index]}\""
         index = index + 1
     }
-    return runtime.shell_line(line, command_is_path)
+    return shell_line(line, command_is_path)
 }

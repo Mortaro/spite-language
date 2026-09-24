@@ -153,6 +153,16 @@ for printed_program in conformance/stage3/interpolation conformance/stage6/symbo
 done
 echo "final classes: the printed program runs the same"
 
+# Each operating system's folder in library/ reopens the classes it changes (D80). Only this machine's can run
+# here, so the others are held to compiling: the compiler writes itself out once for each.
+for operational_system in windows linux mac; do
+  "$work/generation_two.exe" --file=bootstrap/spite_compiler.spite --mode=c --operational_system=$operational_system > "$work/compiler_$operational_system.c" || {
+    echo "FAILED: the compiler does not compile with library/$operational_system"; exit 1; }
+  "$CC_BIN" -fsyntax-only -w "$work/compiler_$operational_system.c" 2> "$work/c_errors.txt" || {
+    echo "FAILED: the C written for library/$operational_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
+done
+echo "operational systems: the compiler compiles with the windows, linux and mac library folders"
+
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
 # already in the one style, so formatting it changes nothing.
 unformatted=""

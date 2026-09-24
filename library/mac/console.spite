@@ -1,0 +1,9 @@
+var library = DynamicLibrary("libSystem.dylib", 'identity', "")
+var input: Long = 0
+
+func read_line_into(buffer: Long, bytes: Int): Bool {
+    if input == 0 {
+        input = library.fdopen_as_long(0, "r")
+    }
+    return library.fgets_as_long(buffer, bytes, input) != 0
+}

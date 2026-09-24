@@ -1,0 +1,4 @@
+func to_double(): Double {
+    var library = DynamicLibrary("libSystem.dylib", 'identity', "")
+    return library.strtod_as_double(slice(0, length()), 0)
+}

@@ -205,7 +205,7 @@ func has_flag(arguments: Arguments, flag: String): Bool {
 }
 
 func unknown_compiler_flag(arguments: Arguments): String? {
-    var reserved = ["file", "mode", "output", "debug_memory", "runtime", "final-classes"]
+    var reserved = ["file", "mode", "output", "debug_memory", "runtime", "final-classes", "operational_system"]
     var index = 0
     while index < compiler_arguments_end(arguments) {
         var argument = arguments.get(index)

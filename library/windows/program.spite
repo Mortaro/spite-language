@@ -1,0 +1,14 @@
+var library = DynamicLibrary("ucrtbase.dll", 'identity', "")
+var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+
+func sleep(milliseconds: Int) {
+    kernel.Sleep(milliseconds)
+}
+
+func exit_process(code: Int) {
+    library.exit(code)
+}
+
+func environment_address(name: String): Long {
+    return library.getenv_as_long(name)
+}

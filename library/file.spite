@@ -1,5 +1,4 @@
 var path = ""
-var runtime = CRuntime()
 var memory = Memory()
 
 func File(starting_path: String) {
@@ -7,14 +6,14 @@ func File(starting_path: String) {
 }
 
 func read(): String? {
-    var handle = runtime.open_file(path, "rb")
+    var handle = open_file("rb")
     assert handle != 0
-    runtime.seek(handle, 0, 2)
-    var size = runtime.tell(handle)
-    runtime.seek(handle, 0, 0)
+    seek(handle, 0, 2)
+    var size = tell(handle)
+    seek(handle, 0, 0)
     var buffer = memory.allocate_bytes(size + 1)
-    var got = runtime.read_into(buffer, size, handle)
-    runtime.close_file(handle)
+    var got = read_into(buffer, size, handle)
+    close_file(handle)
     var content = memory.text(buffer, got)
     memory.free(buffer)
     return content
@@ -29,24 +28,20 @@ func append(text: String): Bool {
 }
 
 func exists(): Bool {
-    var handle = runtime.open_file(path, "rb")
+    var handle = open_file("rb")
     if handle == 0 {
         return false
     }
-    runtime.close_file(handle)
+    close_file(handle)
     return true
 }
 
-func remove(): Bool {
-    return runtime.remove_file(path) == 0
-}
-
 func put(text: String, mode: String): Bool {
-    var handle = runtime.open_file(path, mode)
+    var handle = open_file(mode)
     if handle == 0 {
         return false
     }
-    var written = runtime.write_text(text, handle)
-    runtime.close_file(handle)
+    var written = write_text(text, handle)
+    close_file(handle)
     return written == text.length()
 }
