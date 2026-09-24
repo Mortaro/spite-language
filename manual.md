@@ -1415,13 +1415,21 @@ Before this, a program run by the compiler received no arguments at all (`confor
 Milestone 6a: a REPL that inspects and drives the *running* program, local (`--repl`) and remote
 (`--repl-port`). **Status (2026-09-23), D72:** the REPL is written in Spite -- `library/read_evaluate_print_loop.spite` -- and
 `runtime/spite_repl.h`, the C interpreter the subsections below were first designed around, is deleted. `spite
-program.spite --repl` runs the entry constructor, then loops on `spite> `: `attributes` and an attribute's name show
-the entry instance's current values, `functions` lists its functions, `name()` calls one that takes nothing and
-returns nothing, `help`, `exit` (`conformance/stage6/interactive_loop`). The emitted `main` hands the loop fresh
-reflection lists before every command, and `--mode=run` runs the program attached to the terminal instead of
-capturing its output. **Not built yet:** walking into nested values (`program.monsters[0].health`), assignment,
-calling a function that takes arguments or returns a value, and `--repl-port` -- the first three need reflection to
-read an attribute as a live value rather than as text, and the last needs sockets through `DynamicLibrary`. Compiling and executing arbitrary new Spite code inside the running process,
+program.spite --repl` runs the entry constructor, then loops on `spite> `: `attributes` lists the entry instance's
+attributes, `functions` its functions with their arguments, `help`, `exit`, and the command language below is built
+for paths, assignment and calls (`conformance/stage6/interactive_loop`, `conformance/stage6/interactive_paths`):
+`player.weapon.damage`, `program.monsters[1].name`, `player.health = 12` (through `set_health` when the class has
+one), `player.job = 'knight'`, `add(2, 3)`, `monsters[0].roar()`, `monsters.count()`. The emitted `main` hands the
+loop the entry instance as a `Spite.Attribute` named `program` before every command, and `--mode=run` runs the
+program attached to the terminal instead of capturing its output. In a `--repl` build a `Spite.Attribute` stays
+linked to the live value it describes, through four functions the compiler supplies (proposed by Claude,
+unconfirmed): `value_attributes()` and `value_functions()` read the value's own attributes and functions (a
+list's attributes are its elements, named `0`, `1`, ...), `assign(text)` writes a number, Bool, text or enum
+value into it and answers whether it could, and a `Spite.Function`'s `call_with_text(arguments)` calls it with
+literal arguments and answers its result as a `Spite.Attribute?` -- `null` when an argument is not one the loop
+can write. Outside `--repl` they answer an empty list, `false` and `null`. **Not built yet:** walking a
+`Dictionary<T>` or a union, assigning a `T?`, a list element or a whole instance, the meta commands `classes`,
+`describe`, `enums`, `memory`, and `--repl-port`, which needs sockets through `DynamicLibrary`. Compiling and executing arbitrary new Spite code inside the running process,
 `Class.instances`, and live reload were blocked on the memory-model decision in [open question
 4](#open-questions), decided as D1 (reference counting, milestone 9a, section 10) -- unblocked, not yet
 started, for milestone 6b (see "Live reload and 6b" below).
@@ -1477,6 +1485,11 @@ entry class's own Spite name):
 - Every error is one line and never a crash: an unknown attribute names the ones that do exist, an index
   or key out of range says so, a scalar/String/enum-only operation on the wrong kind of value is a type
   mismatch, and calling a non-function is "not callable".
+- (proposed by Claude, unconfirmed; built in `library/read_evaluate_print_loop.spite`) Where the above is silent:
+  a path may leave out the leading `program.`, so `player.health` and `program.player.health` name the same
+  value; text prints without quotes (`name: hero`); an assignment prints the value read back afterwards, so a
+  `set_<attribute>` that refused it shows the old one; a call that returns `Nothing` prints nothing; `functions`
+  prints `name(argument: Class, ...): Returns`; a text literal has no escapes yet.
 
 ### `--repl`  **[planned]**
 
@@ -2431,3 +2444,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-23 | (proposed by Claude, unconfirmed) **Writing a whole number as text is Spite: `library/number_text.spite`, a singleton the compiler calls for every interpolated or printed integer.** A number has no way yet to name its own value from inside a method written for it (`String`'s methods reach theirs through `length()` and `code_at()`), so the digits cannot be a method on `Long` until Mortaro decides how a number's method refers to the number; a singleton the compiler calls needs no new language. `long_text` writes the digits backwards into a `Memory` buffer, so `-9223372036854775808` needs no special case. Floats still go through `snprintf` in C. |
 | 2026-09-23 | **D75** (decided by Mortaro): **`value == Class` is a class test, and a switch that only answers it is an error.** "this should be an error from compiler that does not allow over engineering ... if some code can be expressed simpler with no readability cost, it should be forced to do so. we just need to avoid letting it do shitty one liners like python that noone can read back." The example was `is_true_literal`, a switch with `Syntax.Expressions.TrueLiteral: return true` and `_: return false`, which becomes `return expression == Syntax.Expressions.TrueLiteral`. Asked which switches the error covers, Mortaro chose the narrow reading: exactly one class case plus `_:`, both returning `Bool` literals. The `as_*` shape (`C: return value`, `_: return null`) stays legal. See [Unions](#unions--implemented). |
 | 2026-09-23 | **D76** (decided by Mortaro): **`$name` is for generics only; a program's settings come from an `Environment` singleton the program reopens.** "using $variables for both command line environment setup and generics was a bad idea from my end, lets use it just for generics. instead lets have a singleton for dealing with Environment arguments so entrypoint is not forced to receive the args of the console." `var environment = Environment()` anywhere, and a program reopens `Environment` to declare which fields it has, so what it reads is deterministic and nothing it never uses is loaded. It replaces packages like Node's dotenv, but only for declared variables; it mirrors Nullstack's `context.environment`; the compiler uses it too; and it is how the game engine gets several environments. Supersedes D9's "undeclared means supplied by a compiler flag". **[planned]** |
+| 2026-09-23 | (proposed by Claude, unconfirmed) **In a `--repl` build a `Spite.Attribute` stays linked to the live value it describes, so the REPL written in Spite (D72) walks, assigns and calls through reflection alone.** Four functions the compiler supplies, because only it knows the layout: `value_attributes()` and `value_functions()` on `Spite.Attribute` (a list's attributes are its elements, named `0`, `1`, ...), `assign(text): Bool` for a number, Bool, text or enum attribute -- through `set_<attribute>` when the class declares one, per section 14 -- and `call_with_text(arguments: List<String>): Spite.Attribute?` on `Spite.Function`. The emitted `main` hands the loop one `Spite.Attribute` named `program` for the entry instance instead of two lists. The loop parses the literals in Spite; the compiler only converts checked text into the attribute's type. The REPL's own output choices where section 14 is silent are listed there under the command language. Outside `--repl` the four functions answer an empty list, `false` and `null`, and ordinary reflection emits exactly what it did before. |

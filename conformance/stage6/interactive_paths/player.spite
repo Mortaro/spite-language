@@ -1,0 +1,33 @@
+enum Job {
+    'squire'
+    'knight'
+}
+
+var name = ""
+var health = 10
+var speed = 1.5
+var alive = true
+var job: Job = 'squire'
+var weapon = Weapon()
+var log = List<String>()
+
+func Player(starting_name: String) {
+    name = starting_name
+}
+
+func set_health(new_health: Int) {
+    if new_health < 0 {
+        log.append("refused {new_health}")
+        return
+    }
+    health = new_health
+}
+
+func heal(amount: Int): Int {
+    health = health + amount
+    return health
+}
+
+func promote(to: Job) {
+    job = to
+}
