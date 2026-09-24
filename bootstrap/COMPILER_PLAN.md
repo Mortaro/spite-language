@@ -418,3 +418,13 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   per declared field to its constructor. `Arguments()` answers `spite_program_arguments`, set first thing in
   `main`. Bootstrap note: the seed checks every library class, so `Arguments()` had to reach the seed before
   `library/environment.spite` could use it -- the seed was refreshed with the file moved aside, then it went back.
+- 2026-09-24: D73 containers. `List<T>` and `Dictionary<T>` are generic classes in `library/list.spite` and
+  `library/dictionary.spite`; `ensure_list`/`ensure_dictionary` instantiate them under their old C names
+  (`List_String`, `Dictionary_Int`) with `instantiated_container`, and `supply_list_functions` adds the four
+  typed slot functions (`read_item`, `write_item`, `release_item`, `item_bytes`) and drops `contains`/`join` for
+  element types without them. `split`/`lines` are in `library/string.spite`. `resolve_discovered` finds the
+  discovered classes by `first_discovered_class` now, since a container can be instantiated before them.
+  Bootstrap note: the seed treated a `List` class in `library/` as a user generic, so the constructor lookup had
+  to check `List`/`Dictionary` first, and the C `split` had to change its name, in a seed of their own before the
+  library files could land. Compiling the compiler dropped from about 13 s to 0.7 s: `join` no longer
+  concatenates piece by piece.
