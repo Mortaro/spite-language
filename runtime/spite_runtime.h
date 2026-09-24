@@ -380,49 +380,6 @@ int64_t SpiteString_code_at(SpiteString* self, int64_t index) {
     return (int64_t)(unsigned char)self->data[index];
 }
 
-static bool spite_text_has_exponent(const char* text) {
-    for (const char* cursor = text; *cursor != '\0'; cursor = cursor + 1) {
-        if (*cursor == 'e' || *cursor == 'E') return true;
-    }
-    return false;
-}
-
-/* Shortest-round-trip formatting (manual.md's numeric types section,
- * "(proposed by Claude, unconfirmed)"): tries increasing precision until
- * parsing the formatted text back gives the exact same bits, so `Float`
- * being 32-bit does not make an ordinary value like 0.1 print as
- * "0.100000001" -- the shortest decimal that round-trips it is just "0.1",
- * exactly like it printed when `Float` was 64-bit. A low-precision `%g`
- * candidate that happens to round-trip only in scientific notation (e.g.
- * "1e+01" for 10) is skipped in favor of the fixed-notation candidate that
- * appears once precision exceeds the value's exponent -- scientific
- * notation is only actually used, as a last resort, for a magnitude that
- * never gets a fixed-notation candidate within the precision that fully
- * round-trips it. */
-SpiteString* spite_string_from_float32(float value) {
-    char temporary[64];
-    int last_written = 0;
-    for (int precision = 1; precision <= 9; precision = precision + 1) {
-        last_written = snprintf(temporary, sizeof(temporary), "%.*g", precision, (double)value);
-        if (spite_text_has_exponent(temporary)) continue;
-        if (strtof(temporary, 0) == value) return spite_string_from_bytes(temporary, (int64_t)last_written);
-    }
-    last_written = snprintf(temporary, sizeof(temporary), "%.9g", (double)value);
-    return spite_string_from_bytes(temporary, (int64_t)last_written);
-}
-
-SpiteString* spite_string_from_float64(double value) {
-    char temporary[64];
-    int last_written = 0;
-    for (int precision = 1; precision <= 17; precision = precision + 1) {
-        last_written = snprintf(temporary, sizeof(temporary), "%.*g", precision, value);
-        if (spite_text_has_exponent(temporary)) continue;
-        if (strtod(temporary, 0) == value) return spite_string_from_bytes(temporary, (int64_t)last_written);
-    }
-    last_written = snprintf(temporary, sizeof(temporary), "%.17g", value);
-    return spite_string_from_bytes(temporary, (int64_t)last_written);
-}
-
 static SpiteString spite_static_string_true = SPITE_STATIC_STRING("true", 4);
 static SpiteString spite_static_string_false = SPITE_STATIC_STRING("false", 5);
 static SpiteString spite_static_string_empty = SPITE_STATIC_STRING("", 0);

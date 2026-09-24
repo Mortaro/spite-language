@@ -38,3 +38,53 @@ func test_a_whole_number_reads_as_its_digits() {
     crash "{-305}" == "-305"
     crash "{smallest}" == "-9223372036854775808"
 }
+
+func test_a_fraction_reads_as_its_shortest_digits() {
+    var tenth: Float = 0.1
+    var wide_tenth: Double = 0.1
+    var wide_fifth: Double = 0.2
+    var third: Double = wide_tenth * 10.0 / 3.0
+    var tie: Double = 1125899906842624.25
+    crash "{tenth}" == "0.1"
+    crash "{wide_tenth}" == "0.1"
+    crash "{wide_tenth + wide_fifth}" == "0.30000000000000004"
+    crash "{third}" == "0.3333333333333333"
+    crash "{-2.5}" == "-2.5"
+    crash "{0.0001}" == "0.0001"
+    crash "{tie}" == "1125899906842624.2"
+}
+
+func test_a_whole_float_reads_without_a_point() {
+    var zero: Double = 0.0
+    var sixteen_digits: Double = 10000000000000000.0
+    var float_limit: Float = 16777216.0
+    crash "{zero}" == "0"
+    crash "{-zero}" == "-0"
+    crash "{100.0}" == "100"
+    crash "{sixteen_digits}" == "10000000000000000"
+    crash "{float_limit}" == "16777216"
+}
+
+func test_a_float_too_large_or_small_for_fixed_digits_reads_in_scientific_notation() {
+    var large: Double = 1000000000000000000000.0
+    var small: Double = 0.00001
+    var small_float: Float = 0.00001
+    var smallest: Double = 1.0
+    while smallest / 2.0 > 0.0 {
+        smallest = smallest / 2.0
+    }
+    crash "{large}" == "1e+21"
+    crash "{small}" == "1.0000000000000001e-05"
+    crash "{small_float}" == "9.99999975e-06"
+    crash "{smallest}" == "4.9406564584124654e-324"
+}
+
+func test_infinity_and_not_a_number_read_as_words() {
+    var huge: Double = 1.0
+    while huge * 2.0 > huge {
+        huge = huge * 2.0
+    }
+    crash "{huge}" == "inf"
+    crash "{-huge}" == "-inf"
+    crash "{huge - huge}" == "nan"
+}

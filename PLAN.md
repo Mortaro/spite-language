@@ -139,7 +139,8 @@ and balanced allocations.
       a `spite/` standard library root: ~400 lines, pure algorithms over memory, expressible in the language as
       it stands. `Spite.Class`/`Spite.Function`/`Spite.Argument`/`Spite.Attribute` (D12) are written here as
       ordinary classes, which is what D6 requires. Float formatting (~50 lines) becomes a shortest-round-trip
-      implementation in Spite or an FFI call. Wants milestone 8b first -- a compiler in Spite makes this natural
+      implementation in Spite or an FFI call -- **done (2026-09-24)**: pure Spite in `library/number_text.spite`,
+      and its C is deleted. Wants milestone 8b first -- a compiler in Spite makes this natural
       rather than heroic -- and it is what finally makes standard library classes reopenable (section 16 item 7).
     - **15d.** `spite_repl.h`'s 1392 lines: an interpreter over generated tables, which is ordinary Spite once
       milestone 10's reflection exists.
