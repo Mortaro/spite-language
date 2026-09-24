@@ -1,12 +1,23 @@
 # Classes and files
 
-Every `.spite` file is exactly one class, named by PascalCasing the file name: `person.spite` is `Person`. This
-cannot be changed -- there is no `class` keyword and no way to put two classes in one file.
+Every `.spite` file is exactly one class, named by PascalCasing the file name: `person.spite` is `Person`,
+`repository_list.spite` is `RepositoryList`. This cannot be changed -- there is no `class` keyword and no way to
+put two classes in one file. Every other file of the program is another class, and a folder is a namespace
+([packages.md](packages.md)).
 
-A file contains only declarations, in this order: a `singleton` line if the class has one instance, `generic
-$name` lines for the codegen values a caller supplies (see [metaprogramming.md](metaprogramming.md)),
-namespaced `enum`/`union`/`type` declarations, `var` fields, the constructor, then the other `func`s. Anything
-out of that order is an error. **No file-level statements** -- no loop, `if`, or call outside a function body:
+## What a file holds
+
+A file contains only declarations, in this order:
+
+1. a `singleton` line, when the class has one instance ([below](#singletons));
+2. `generic $name` lines, one per codegen value a caller supplies ([metaprogramming.md](metaprogramming.md#generics-and-codegen-values-));
+3. `enum`, `union` and `type` declarations, namespaced under the class (`Player.Job`);
+4. `var` declarations: the attributes, each with a default value;
+5. the constructor;
+6. the other `func`s.
+
+Anything out of that order is an error naming what came before it ([style.md](style.md#a-file-is-ordered)).
+There are **no file-level statements** -- no loop, `if` or call outside a function:
 
 ```spite title=file_scope_error/file_scope_error.spite entry error
 var console = Console()
@@ -19,6 +30,56 @@ func FileScopeError() {
 ```
 ```diagnostic
 a file holds declarations and nothing else
+```
+
+A whole file in order, with a codegen value, an enum and a `type`:
+
+```spite title=ordered_file/inventory.spite
+generic $item_type
+
+enum Sorting {
+    'by_name'
+    'by_count'
+}
+
+type Counted {
+    name: String
+    count: Int
+}
+
+var items = List<$item_type>()
+var sorting: Sorting = 'by_name'
+
+func add(item: $item_type) {
+    items.append(item)
+}
+
+func total(): Int {
+    return items.sum_count()
+}
+```
+```spite title=ordered_file/crate.spite
+var name = ""
+var count = 0
+
+func Crate(new_name: String, new_count: Int) {
+    name = new_name
+    count = new_count
+}
+```
+```spite title=ordered_file/ordered_file.spite entry
+var console = Console()
+
+func OrderedFile() {
+    var inventory = Inventory<Crate>()
+    inventory.add(Crate("apples", 3))
+    inventory.add(Crate("pears", 4))
+    var total = inventory.total()
+    console.print(total, inventory.sorting)
+}
+```
+```output
+7 by_name
 ```
 
 ## Constructors
@@ -44,8 +105,8 @@ func PersonBasics() {
 age 30
 ```
 
-A class with no function matching its own name gets an implicit no-argument constructor that just runs the
-field defaults -- there is no need to write an empty one yourself:
+A class with no constructor is made from its defaults with `Member()` -- and writing an empty one is an error,
+because it says nothing:
 
 ```spite title=team_roster/member.spite
 var name = "unnamed"
@@ -69,15 +130,36 @@ count 2
 first name unnamed level 1
 ```
 
-Every value has a default: `Int` is `0`, `Float` `0.0`, `Bool` `false`, `String` `""`, and a class's default is
-its fields' defaults. There is no `null` for anything but a `T?` (see
-[values_and_types.md](values_and_types.md)).
+```spite title=empty_constructor_error/holder.spite
+var held = 0
+
+func Holder() { }
+```
+```spite title=empty_constructor_error/empty_constructor_error.spite entry error
+var console = Console()
+
+func EmptyConstructorError() {
+    var holder = Holder()
+    console.print(holder.held)
+}
+```
+```diagnostic
+'Holder' has an empty constructor: delete it
+```
+
+Every value has a default: `Int` is `0`, `Float` `0.0`, `Bool` `false`, `String` `""`, an enum its first value,
+and a class its fields' defaults. There is no `null` for anything but a `T?` ([failure.md](failure.md)). A
+constructor is setup, not logic: `assert` is not allowed in one, and `crash` is how it says something is a bug
+([failure.md](failure.md#assert-is-not-allowed-in-a-constructor)). There is no `new`: `Person(30)` makes one.
+
+There is one function per name. A file declaring a name twice is an error, and there is no overloading: an
+argument is cast to the parameter's type instead ([functions_and_operators.md](functions_and_operators.md)).
 
 ## Singletons
 
 A file whose first line is `singleton` has one instance: calling its constructor anywhere answers that same
-instance, made the first time it is asked for, and the constructor takes no arguments. `Console` and
-`Environment` are singletons.
+instance, made the first time it is asked for, and the constructor takes no arguments. `Console`, `Environment`,
+`Build` and `Memory` are singletons; `File`, `Directory` and `Process` are not, since several may exist at once.
 
 ```spite title=singleton_basics/scoreboard.spite
 singleton
@@ -104,15 +186,19 @@ func SingletonBasics() {
 5 true true
 ```
 
-Declaring `func is_singleton(): Bool` in a class is an error that names the `singleton` line; `Spite.Class`
-answers `is_singleton()` for every class.
+Call sites never change: `var console = Console()` reads the same whether or not the class is a singleton, and
+the class file is where that is said. A singleton lives until the program ends, and its `drop()` runs then, in
+reverse order of creation. `is_singleton()` is answered by `Spite.Class` for every class, from the line;
+declaring it yourself is an error that names the `singleton` line. `DynamicLibrary` is the one singleton that
+takes arguments: it has one instance per distinct list of literal arguments
+([foreign_libraries.md](foreign_libraries.md)).
 
 ## Classes are references
 
 A scalar (`Int`, `Float`, `Bool`, an enum value) is passed by value, copied at the call site. Everything else --
 a class instance, `List<T>`, `Dictionary<T>`, `String`, a union, an object literal -- is a reference: passing one
-shares the exact same object, so a function can mutate it and the caller sees the change. There is nothing
-special to write at the call site or in the parameter's own type; a reference is just the default:
+shares the exact same object, so a function can change it and the caller sees the change. There is nothing
+special to write at the call site or in the parameter's type ([memory.md](memory.md)):
 
 ```spite title=level_up/member.spite
 var name = "unnamed"
@@ -139,9 +225,8 @@ func bump_level(member: Member) {
 name Aria level 2
 ```
 
-Sharing is visible both ways: two names can hold the same object, and a change through either one shows up
-through the other. Call `copy()` for an independent object with the same field values (see
-[memory.md](memory.md)) when that sharing is not what you want:
+Two names can hold the same object, and a change through either shows up through the other. `copy()` makes an
+independent object with the same field values when that sharing is not what you want:
 
 ```spite title=shared_member/member.spite
 var name = "unnamed"
@@ -165,12 +250,59 @@ original level 5
 independent level 9
 ```
 
-## The entry point and configuration files
+## `this`
 
-There is no `main`: a program runs by constructing the entry file's class. `Kal()` is the whole program if
-`kal.spite`'s constructor is the only thing that does anything. A configuration file is just an ordinary class
-whose constructor sets state instead of printing anything -- there is no separate "config" concept.
+A class reads and calls its own members by name: `level`, `score(2)`. There is no `self.` to write, and writing
+`this.level` is an error that says `level`. What `this` is for is handing the instance itself to something else:
 
-Multiple files sit next to each other as siblings; only files directly in the entry file's own folder are
-classes (non-recursive) unless pulled in with `load(...)` (see [packages.md](packages.md), which also covers
-namespacing files under sub-folders).
+```spite title=this_basics/registry.spite
+var names = List<String>()
+
+func record(drink: Drink) {
+    names.append(drink.name)
+}
+```
+```spite title=this_basics/drink.spite
+var name = ""
+
+func Drink(new_name: String) {
+    name = new_name
+}
+
+func join(registry: Registry) {
+    registry.record(this)
+}
+```
+```spite title=this_basics/this_basics.spite entry
+var console = Console()
+
+func ThisBasics() {
+    var registry = Registry()
+    var tea = Drink("tea")
+    tea.join(registry)
+    var coffee = Drink("coffee")
+    coffee.join(registry)
+    var joined_names = registry.names.join(", ")
+    console.print(joined_names)
+}
+```
+```output
+tea, coffee
+```
+
+Inside a function of a number class, `this` is the number itself ([values_and_types.md](values_and_types.md#numbers-are-classes)).
+Likewise `class`, written bare inside any function, is the instance's own `Spite.Class`
+([reflection.md](reflection.md)).
+
+## Private names
+
+A name starting with `_` is private: it is read, written or called only inside its own class -- a reopening of
+the class counts as inside -- and using it from anywhere else is an error that names the getter when there is
+one. The same prefix marks a local or parameter as intentionally unused ([style.md](style.md#nothing-unused)).
+
+## Reopening a class
+
+A second file with the same name, in a later loaded root, **reopens** the class instead of colliding with it:
+its functions and attributes replace the earlier ones of the same name and add the rest. That is how a program
+adds settings to `Environment`, a member template to `List`, a function to `Int`, and how a mod changes a game
+([packages.md](packages.md#monkey-patching-mods)).

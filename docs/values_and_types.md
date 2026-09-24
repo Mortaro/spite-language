@@ -219,10 +219,45 @@ job mage
 is knight false
 ```
 
-`'mage'` alone resolves without writing `Player.Job` -- Spite looks in the referencing class's own namespace
-first, then its folder, then each parent folder, then the whole program. Two enums may share a value name;
-with no expected type in hand (a bare comparison with nothing typed on either side, for instance) that is only
-an error if more than one enum in the program actually has that value.
+An enum declaration takes no `=` and lists one value per line, with no commas. A value is written in single
+quotes -- single quotes mean an enum value and nothing else -- and `'mage'` alone resolves without writing
+`Player.Job`, because it is resolved from where it is used: the parameter, the annotation, the assignment or the
+comparison says which enum it must belong to. Two enums may share a value name; only when nothing says which
+enum is meant, and more than one has that value, is it an error listing them.
+
+An enum is a closed list of **symbols**. A symbol literal is legal only where something says what it may be: a
+value the enum does not list is a compile error naming the ones it does, and `var choice = 'orange'`, with
+nothing to check it against, is an error too. A `Symbol` on its own is text from the program's table of names --
+reflection answers class and function names as symbols -- and reads as text anywhere text is expected.
+
+Text becomes an enum value by assignment, the way it becomes a number: the value spelled that way, or the enum's
+first value when there is none, as `"x"` becomes `0` for an `Int`. Compare the text back to tell the two apart:
+
+```spite title=enum_from_text/enum_from_text.spite entry
+enum Course {
+    'starter'
+    'soup'
+    'dessert'
+}
+
+var console = Console()
+
+func EnumFromText() {
+    var names = ["dessert", "brunch"]
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var course: Course = name
+        var known = "{course}" == name
+        console.print(name, course, known)
+        index = index + 1
+    }
+}
+```
+```output
+dessert dessert true
+brunch starter false
+```
 
 ## Unions
 
@@ -275,7 +310,10 @@ a monster 6
 alive true
 ```
 
-`T?` is, conceptually, exactly this: the union of `T` and `null`.
+Like `enum` and `type`, a `union` takes no `=` and lists one member per line. A `switch` may answer several
+members at once with `_:`, and `enemy == Monster` asks which member a value is
+([control_flow.md](control_flow.md#switch-over-a-union)). `Monster?` is exactly this kind of union: `Monster` and
+`Null`, the class whose only value is `null`.
 
 ## Inline types and duck typing
 
@@ -319,3 +357,49 @@ answers `Object`.
 
 This is what makes fast, JSON-shaped code possible: accept a `type`, and both a real class instance and a
 plain `{ key: value }` literal work.
+
+A `type` may require functions as well as attributes. A required function names the types it takes and returns,
+never the names of its parameters -- `render(Int): String` -- because the name a class gives its own parameter
+does not matter to the shape. Any class with a function of that signature fits, which is how a list holds "any
+class that can render" without a union naming every class in advance:
+
+```spite title=shape_functions_doc/badge.spite
+var label = ""
+
+func Badge(new_label: String) {
+    label = new_label
+}
+
+func render(width: Int): String {
+    return "[{label}] ({width})"
+}
+```
+```spite title=shape_functions_doc/banner.spite
+func render(columns: Int): String {
+    return "== banner {columns} =="
+}
+```
+```spite title=shape_functions_doc/shape_functions_doc.spite entry
+type Renderable {
+    render(Int): String
+}
+
+var console = Console()
+
+func ShapeFunctionsDoc() {
+    show(Badge("new"))
+    show(Banner())
+}
+
+func show(item: Renderable) {
+    var rendered = item.render(12)
+    console.print(rendered)
+}
+```
+```output
+[new] (12)
+== banner 12 ==
+```
+
+A `type` can also be the element of a variadic parameter, `...items: List<Renderable>`, so a call takes any number
+of values of any classes that fit ([functions_and_operators.md](functions_and_operators.md#variadic-arguments)).
