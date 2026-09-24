@@ -96,6 +96,10 @@ name the loaded folder does not have -- an added attribute or function works -- 
 name, the constructor included, the loaded folder's version is the one that stays. To replace something a
 loaded folder declares, put the replacement in a folder loaded after it, as `mods` is above.
 
+The program's entry class is the one class nothing reopens: a loaded `bundle/potion.spite` in the program
+`potion/` would otherwise become part of the entry class `Potion`, so it is an error naming both files
+(`diagnostics/entry_class_reopened`).
+
 The standard library is loaded before the program, so a program's own file reopens any class of it the same way:
 `environment.spite` adds settings to `Environment` ([programs.md](programs.md#run-time-settings-environment)),
 `list.spite` adds a member template to `List` ([collections.md](collections.md#write-your-own-member-template)),
