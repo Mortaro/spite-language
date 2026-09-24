@@ -5,9 +5,7 @@ var memory = Memory()
 func listen_locally(port: Int): Bool {
     start_sockets()
     handle = open_socket()
-    if handle == -1 {
-        return false
-    }
+    assert handle != -1
     var address = local_address(port)
     var bound = bind_address(address)
     memory.free(address)
@@ -17,9 +15,7 @@ func listen_locally(port: Int): Bool {
 func connect_locally(port: Int): Bool {
     start_sockets()
     handle = open_socket()
-    if handle == -1 {
-        return false
-    }
+    assert handle != -1
     var address = local_address(port)
     var connected = connect_address(address)
     memory.free(address)
@@ -28,9 +24,7 @@ func connect_locally(port: Int): Bool {
 
 func accept_client(): Socket? {
     var accepted = accept_handle()
-    if accepted == -1 {
-        return null
-    }
+    assert accepted != -1
     var client = Socket()
     client.handle = accepted
     return client
@@ -50,9 +44,7 @@ func read_line(): String? {
         }
     }
     memory.free(buffer)
-    if newline < 0 {
-        return null
-    }
+    assert newline >= 0
     var line = pending.slice(0, newline)
     var pending_length = pending.length()
     pending = pending.slice(newline + 1, pending_length)
@@ -70,9 +62,7 @@ func write_line(text: String): Bool {
     while written < line_length {
         var rest = line.slice(written, line_length)
         var sent = send_text(rest)
-        if sent <= 0 {
-            return false
-        }
+        assert sent > 0
         written = written + sent
     }
     return true

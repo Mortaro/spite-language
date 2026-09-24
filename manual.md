@@ -282,6 +282,29 @@ A narrowing `if` that is not the function's last statement (more statements foll
 another statement (an outer `if`/`while`/switch case) rather than being the function body's own tail, is not
 a lint error.
 
+**An `if` that only returns the default is an `assert`** (D106, decided by Mortaro, 2026-09-24). An `if` with no
+`else` whose whole body is one `return` of the function's default -- `false`, `0`, `0.0`, `""`, `null`, or a bare
+`return` in a function returning nothing -- is a compile error wherever it stands in the function, inside a
+`while` or a nested `if` included, and the message names the `assert` of the opposite condition:
+
+```
+func is_open(): Bool {
+    if handle == -1 {        # error: this 'if' only returns the default 'false':
+        return false         #        write 'assert handle != -1' and let the rest run unindented
+    }
+    return true
+}
+```
+
+It is the same rule as narrowing, so `if not value { return null }` becomes `assert value` and narrows `value`
+for the rest of the block. Returning anything else -- `return true` from a `Bool` function, `return -1` -- is an
+answer, not a guard, and is left alone. How the condition is turned around (proposed by Claude, unconfirmed):
+`==` and `!=` swap, `<` becomes `>=` and `>` becomes `<=` (and back), `not x` becomes `x`, anything else becomes
+`not x`, and `and`/`or` are turned around by De Morgan, side by side -- `if count < 0 or count > limit` becomes
+`assert count >= 0 and count <= limit`. An `else if` is covered too. In a constructor, where `assert` is not
+allowed (D28), the message names `crash` instead. `diagnostics/default_guard`, `diagnostics/returning_guard`.
+**[implemented]**
+
 **`assert` narrows every link of a chain, not only the last** (D43, decided by Mortaro, 2026-09-20). Walking a
 nullable structure would otherwise need one `assert` per hop, and a thousand asserts is not a language, it is a
 tax:
@@ -515,22 +538,22 @@ D26 (decided by Mortaro, 2026-09-19): `assert` is a guard clause, not validation
 there is no more logic to do here, but the program is fine and keeps serving everything else". It is why a web
 server or a game written in Spite should rarely crash.
 
-D27: **`assert` is legal only in a function that returns nothing, or returns `T?`** -- the two cases
-where the substituted default is honest, since void has nothing to say and `null` says exactly "absent".
-Anything else is a compile error naming the return type. An empty `List<T>` or an empty `String` is as
-ambiguous as `0`: the caller cannot tell "no user" from "a user with no orders".
+D27 limited `assert` to a function that returns nothing or `T?`, the two cases where the substituted default is
+honest. **D106 (decided by Mortaro, 2026-09-24) lifts that limit: `assert` is legal in a function returning any
+type, and a failed one returns that type's default** -- `false`, `0`, `""`, `null`, an empty value, or nothing.
+The reason is the code the limit produced: `if handle == -1 { return false }` returns the very same default, only
+spelled as an indented `if`, so the limit never removed the ambiguity, it only hid the guard. D106 makes that
+`if` an error naming its `assert` (section 5, "An `if` that only returns the default is an `assert`").
 
 ```
-func count_user_orders(user_id: Int): Int {
-    assert find_user(user_id)        # error: Int cannot express absence
+func is_open(): Bool {
+    assert handle != -1              # a failed assert returns false
+    return true
 }
 ```
 
-The author then chooses deliberately -- widen the return to `Int?`, handle it with `if`, or, if
-absence is a bug rather than a case, `crash`. **The rule also forces smaller functions** (Mortaro): a function
-that handles a reference and wants a guard has to split, so the lookup lands in a small function whose signature
-honestly says `T?`. Decomposition comes from the type system rather than from style advice, which is
-what works on an AI -- there is no "should" left to ignore.
+When the caller must tell absence from a real `0` or `false`, the choice is still deliberate: return `Int?`, or,
+if absence is a bug rather than a case, `crash`.
 
 D28: **`assert` is banned in a constructor**, including the entry class's own (D29). A constructor is setup, not
 logic: if something can be invalid inside one, function logic has been put where only setup belongs. The caller
@@ -550,8 +573,9 @@ crash  database.connect()        # falsey: halt
 
 The compiler captures the condition's source text and every operand value, so nothing has to be written and
 nothing can drift out of sync. Bare `crash` is legal for an unreachable branch and reports its enclosing
-context. `crash user` narrows a `T?` exactly as `assert user` does, but never returns -- which is what
-fills the gap D27 opens, since a function returning `Int` can then guard without widening its signature.
+context. `crash user` narrows a `T?` exactly as `assert user` does, but never returns -- which filled the gap
+D27 opened, since a function returning `Int` could then guard without widening its signature (D106 has since
+let `assert` guard there too, returning the default).
 
 Absence is fine -> `assert`. Absence is a bug -> `crash`. Absence is meaningful -> `if ... do`.
 
@@ -586,7 +610,7 @@ ring buffer**: a crash happens once and then the program is dead, so it should b
 while a narrowing assert may fire thousands of times an hour and must stay cheap until something dumps it.
 
 **Current implementation (2026-09-20).** `crash` itself is implemented -- the keyword, narrowing, bare `crash`
-for an unreachable branch, and the compiler enforcing D27/D28/D29 -- but the reporting above is not yet. A
+for an unreachable branch, and the compiler enforcing D28/D29 and D106 -- but the reporting above is not yet. A
 firing `crash` flushes stdout, writes one line to stderr, and exits with status 1:
 
 ```
@@ -3099,6 +3123,7 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (proposed by Claude, unconfirmed; unifies the D91 and D95 rows above) **One mechanism for a template over another class's members: `Symbol<Class>`.** The `List` templates are now written `member: Symbol<$element_type>`, the same form `Json` uses (`attribute: Symbol<$value_type>`), so which class a symbol ranges over is always written where the symbol is declared and never implied by the class it sits in; a container's template without the range answers nothing. The member may be an attribute or a function that takes no arguments, for any `Symbol<Class>` template, and `x.attributes[member]` reads the field or calls the function (and writes a field). What `List` adds on top is its own: the D15 requirement checks, the `--repl` instantiation of every fitting template, and chain fusion. The generator keeps one representation (the instance records its member's type and owning class) and one reader of `x.attributes[member]`. The plural call (`show_attributes`) still walks attributes only. Sections 8 and 15. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; applies D36) **Appending to a text the variable alone holds grows it in place.** `text = text + piece` copied the whole text on every append, a hidden O(n²) in the most common loop there is. The generator now recognises an assignment whose value is a join starting with the variable itself (`text + a + b`, or `"{text}..."`, which parses as `"" + text + ...`) on a local variable or parameter of type `String`, and emits one `SpiteString_append(text, piece)` per piece instead: the prelude function grows the buffer in place (doubling, a new `capacity` field on `SpiteString`) when the reference count is 1, and otherwise copies once with room to grow and releases the variable's old reference. Immutability as observed is kept by the count: a text also held by another name, a list or a literal (static, never counted) is never written to. Not applied to attributes (a call among the pieces could read or replace the attribute mid-append) or when a piece mentions the variable (`"{text}{text}"`), which compile as before. Chosen over giving every concatenation spare capacity, which cannot tell `other = text + piece` (must not touch `text`) from `text = text + piece`. The append is C in the prelude beside retain and release, since it reads the object header (the floor's item 3). 100 000 appends: 6.9 s and 1 100 000 allocations before, 0.23 s and 300 003 after; the compiler compiling itself, about 10% faster. Section 15, `conformance/stage6/text_building`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; follows the `Symbol<Class>` row above) **A plain `Symbol` template on `List` is a compile error naming `Symbol<$element_type>`.** Since the templates range over the class written inside the `Symbol`, a plain one on `List` would range over the list's own attributes (its buffer) and silently answer nothing. Reported where the template is declared. `Dictionary` is not checked yet. Section 8, `diagnostics/plain_symbol_on_list`. |
+| 2026-09-24 | **D106 as built** (interpretations proposed by Claude, unconfirmed): **the defaults the rule covers are the literals `false`, `0`, `0.0`, `""` and `null`, and a bare `return`** -- `null` only in a function returning `T?`, where it is the default, and not an enum's first value, an empty list or a fresh object, which are defaults too but are not written as one literal. **The condition is turned around by swapping the comparison** (`==`/`!=`, `<`/`>=`, `>`/`<=`), dropping a leading `not`, adding `not` otherwise, and by De Morgan for `and`/`or`, side by side (`a and b or not c` becomes `(not a or not b) and c`), which reads better than `not (...)` wrapping when the sides are comparisons, as they mostly are. **An `else if` whose body only returns the default is covered too**, as the parser's older bare-`return` rule already did; that rule moved from the parser into the generator, which knows the return type. **In a constructor the message names `crash`**, since D28 still bans `assert` there. The D27 error is gone. **138 sites were rewritten** across `bootstrap/`, `library/` (the linux and mac folders included), `examples/`, `conformance/` and `docs/`, plus the `all_` step of fused chains, which the compiler writes as Spite and now writes as `assert`; 19 `crash x` and `assert x` lines and one `if x` that repeated an `assert x` the rewrite had just made were removed or unwrapped, since they proved nothing. **Every rewritten guard is now an `assert` site**: a failed one enters the D25 trace ring, and a crash after it reports it. That showed at once in `conformance/stage6/json_crash`: `TextBytes.equals` had become `assert left.length() == right.length()`, so every comparison of two texts of different lengths wrote a line into the ring and the crash report grew one. A length mismatch is the answer `false`, not a guard, so `equals` now returns `left_length == right.length() and ...` as one expression, and no expected output changed. **Open (proposed by Claude):** the library still has predicate asserts on hot paths that fail routinely (`String.matches_at`, `TextBytes.slice`, `Dictionary` probing), which will crowd the 32-entry ring in a long-running program; either the ring should skip asserts in `library/`, or those should be written as expressions like `equals`. |
 | 2026-09-24 | (implements D81/D82; the form proposed by Claude, unconfirmed) **The compiler registers no classes: what it supplies is a reopening, and a supplied member is a `func` without a body.** `register_system_classes` and `add_builtin_function` are gone. `Memory`, `DynamicLibrary` and `TypedMemory` are `library/` files, and the members whose bodies stay C are Spite declarations with no block -- `func allocate_bytes(bytes: Long): Long` -- that the compiler merges into their classes right after `library/`, the same merge a later root gets (section 11), so a program can reopen them and `--final-classes` prints them. Reading a bodiless `func` back is what keeps the printed program compiling (check.sh's round trip). A bodiless `func` the compiler supplies nothing for is an error; supplied names skip the naming lint. The same form now covers the REPL's hooks on `Spite.Attribute`/`Spite.Function` (D92), `Concurrent`/`Parallel`'s `entry_address()`/`address()`, a number's `from_type` (D100) and `TypedMemory`'s slots, whose bodies the generator writes per instantiation. A supplied body starting `#define` is emitted inline (`Memory.allocate_stack_bytes`). A reopening that repeats an `enum`, a `generic` line or the `singleton` line replaces it instead of declaring it twice. A singleton's `copy()` and `deep_copy()` answer itself. Section 11, and section 17 for `DynamicLibrary`. |
 | 2026-09-24 | (implements D79/D83; the readings proposed by Claude, unconfirmed) **Numbers are value classes in `library/`, and `this` is a keyword.** `library/int.spite`, `long`, `float`, `double`, `bool`, `tiny`, `short`, `byte`, `unsigned_short`, `unsigned_int` and `unsigned_long` are classes whose functions take the plain C value as their receiver; `this` names it (and, in any class, the instance itself: `registry.append(this)`), while `this.member` is an error naming the plain form. `text()` is Spite on `Long`, `UnsignedLong` and `Double` (the shortest-round-trip digits, over `library/number_text.spite`'s arithmetic), and interpolation calls the class's `text()`; `library/number_text.spite`'s `long_text`/`double_text` are gone. `String` gained the `to_tiny()` ... `to_unsigned_long()` the manual already promised (they did not exist), and casting text into a number calls them. Found on the way: a decimal literal such as `1.0` was written to C as `1`, so `1.0 / 3.0` divided integers; it is written as a decimal now. Compiling the compiler takes the same time as before. Section 4. |
 | 2026-09-24 | (implements D88 and D92; proposed by Claude, unconfirmed) **Reflection keeps its data in private fields behind getters, and `_` means private.** `Spite.Class`, `Spite.Attribute`, `Spite.Function`, `Spite.Argument` and `Spite.Namespace` hold `_name`, `_namespace`, `_attributes`, ... and answer `get_name()` and the rest with no setter, so a write is the read-only error (`diagnostics/reflection_read_only`). A name starting with `_` is used only inside its own class -- the manual said `_name` is private without a rule, and without one `klass._name = ...` would undo D88. A member template's member may be a getter (`functions.map_name()`), and the REPL's templates list getters rather than private fields. A class of the standard library lists its functions through reflection (`Memory.functions`), where before only a program's own classes did. Section 8. |

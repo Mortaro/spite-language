@@ -22,15 +22,9 @@ func get_declaration(): Syntax.Statements.FunctionDeclaration {
 }
 
 func member_name_for(call_name: String): String {
-    if call_name.length() <= prefix.length() + suffix.length() {
-        return ""
-    }
-    if not call_name.starts_with(prefix) {
-        return ""
-    }
-    if not call_name.ends_with(suffix) {
-        return ""
-    }
+    assert call_name.length() > prefix.length() + suffix.length()
+    assert call_name.starts_with(prefix)
+    assert call_name.ends_with(suffix)
     var prefix_length = prefix.length()
     var call_name_length = call_name.length()
     var suffix_length = suffix.length()

@@ -14,9 +14,7 @@ func Rebinding() {
 }
 
 func find(name: String): String? {
-    if name.is_empty() {
-        return null
-    }
+    assert not name.is_empty()
     return "  {name}  "
 }
 

@@ -110,26 +110,18 @@ func add_piece(lines: List<String>) {
 
 func defined_name(line: String): String {
     var trimmed = line.trim()
-    if not trimmed.ends_with("\{") or trimmed.starts_with("#") or trimmed.starts_with("typedef") {
-        return ""
-    }
+    assert trimmed.ends_with("\{") and not trimmed.starts_with("#") and not trimmed.starts_with("typedef")
     var open = trimmed.index_of("(")
     var equals = trimmed.index_of("=")
-    if open <= 0 or equals >= 0 and equals < open {
-        return ""
-    }
+    assert open > 0 and (equals < 0 or equals >= open)
     return name_before(trimmed, open)
 }
 
 func declared_name(line: String): String {
     var trimmed = line.trim()
-    if not trimmed.ends_with(");") or trimmed.starts_with("#") or trimmed.starts_with("typedef") {
-        return ""
-    }
+    assert trimmed.ends_with(");") and not trimmed.starts_with("#") and not trimmed.starts_with("typedef")
     var open = trimmed.index_of("(")
-    if open <= 0 {
-        return ""
-    }
+    assert open > 0
     return name_before(trimmed, open)
 }
 
@@ -276,14 +268,10 @@ func find_function(text: String, start: Int, end: Int): Int {
 
 func same_name(name: String?, text: String, start: Int, end: Int): Bool {
     crash name
-    if name.length() != end - start {
-        return false
-    }
+    assert name.length() == end - start
     var index = 0
     while index < name.length() {
-        if name.code_at(index) != text.code_at(start + index) {
-            return false
-        }
+        assert name.code_at(index) == text.code_at(start + index)
         index = index + 1
     }
     return true

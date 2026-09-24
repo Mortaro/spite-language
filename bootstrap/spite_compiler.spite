@@ -462,10 +462,7 @@ func pascal_case_class_name(snake: String): String {
 
 func build_to_path(file_argument: String, content: String, output_path: String, debug_memory: Bool): Bool {
     var code = generate_c_or_report(file_argument, content)
-    if not code {
-        return false
-    }
-    crash code
+    assert code
     var directory = Directory(".spite-cache")
     directory.create()
     var class_name = computed_class_name(file_argument)

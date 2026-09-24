@@ -29,18 +29,14 @@ func append(text: String): Bool {
 
 func exists(): Bool {
     var handle = open_file("rb")
-    if handle == 0 {
-        return false
-    }
+    assert handle != 0
     close_file(handle)
     return true
 }
 
 func put(text: String, mode: String): Bool {
     var handle = open_file(mode)
-    if handle == 0 {
-        return false
-    }
+    assert handle != 0
     var written = write_text(text, handle)
     close_file(handle)
     return written == text.length()

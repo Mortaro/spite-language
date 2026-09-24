@@ -308,9 +308,7 @@ library's:
 
 ```spite title=list_average/list.spite
 func average_member(member: Symbol<$element_type>): Float {
-    if item_count == 0 {
-        return 0.0
-    }
+    assert item_count != 0
     var total = 0.0
     var index = 0
     while index < item_count {

@@ -4,9 +4,7 @@ var foreign_text = ForeignText()
 
 func exists(): Bool {
     var directory = library.opendir_as_long(path)
-    if directory == 0 {
-        return false
-    }
+    assert directory != 0
     library.closedir(directory)
     return true
 }

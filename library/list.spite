@@ -224,9 +224,7 @@ func all_member(member: Symbol<$element_type>): Bool {
     var index = 0
     while index < item_count {
         var item = values.read_value(items, index)
-        if not item.attributes[member] {
-            return false
-        }
+        assert item.attributes[member]
         index = index + 1
     }
     return true

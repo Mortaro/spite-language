@@ -200,9 +200,7 @@ func NullableNarrowing() {
 }
 
 func find_monster(missing: Bool): Monster? {
-    if missing {
-        return null
-    }
+    assert not missing
     return Monster(30)
 }
 
@@ -224,6 +222,50 @@ done
 
 `assert` is a production feature, not a debug-only one: when the condition is falsey, the function returns its
 return type's default value immediately -- there is no panic, and no code after the `assert` runs.
+It works in a function returning any type: `false`, `0`, `""`, `null`, an empty value, or nothing. So an `if` with
+no `else` whose whole body returns that default -- `false`, `0`, `0.0`, `""`, `null`, or a bare `return` -- is a
+compile error wherever it stands, and the message names the `assert` of the opposite condition. Returning
+anything else, like `return -1` or `return true`, is a real answer and is left alone:
+
+```spite title=default_guard_error/default_guard_error.spite entry error
+var console = Console()
+var handle = -1
+
+func DefaultGuardError() {
+    var open = is_open()
+    console.print(open)
+}
+
+func is_open(): Bool {
+    if handle == -1 {
+        return false
+    }
+    return true
+}
+```
+```diagnostic
+this 'if' only returns the default 'false': write 'assert handle != -1' and let the rest run unindented
+```
+
+The fix reads top to bottom:
+
+```spite title=default_guard_fixed/default_guard_fixed.spite entry
+var console = Console()
+var handle = -1
+
+func DefaultGuardFixed() {
+    var open = is_open()
+    console.print(open)
+}
+
+func is_open(): Bool {
+    assert handle != -1
+    return true
+}
+```
+```output
+false
+```
 
 **Lint:** if a function's *last* statement is `if value { ... }` (no `else`) used only to check existence, that
 is a compile error naming the `assert` rewrite -- write it with `assert` instead:

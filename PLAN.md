@@ -257,7 +257,7 @@ and balanced allocations.
     private `_` fields behind getters, and `_` is enforced as private. `Memory.allocate_stack_bytes`,
     `TypedMemory<$value_type>` (which `List<T>` now uses) and `value.memory` (`Spite.Memory`) are built, with a
     ring buffer in `docs/memory.md` (`conformance/stage6/numbers_are_classes`, `diagnostics/reflection_read_only`).
-    **Waiting on Mortaro:** `mortaros_missing_decisions.md` 27-35. **Not done:** `Console`'s printing and
+    **Waiting on Mortaro:** `mortaros_missing_decisions.md` 28-36. **Not done:** `Console`'s printing and
     `Arguments` are still the generator's; `String`'s `length`, `code_at` and `slice` are still emitted by name
     rather than declared in its reopening; `missing_function`/`missing_attribute` for `DynamicLibrary`; a
     user generic instantiated with `Int` prints as `...Int` in `instantiated/`, which the name lint rejects on
