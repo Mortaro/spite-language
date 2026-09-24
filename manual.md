@@ -1055,6 +1055,30 @@ repositories.filter_active().sum_stars()
 repositories.each_bump_stars()
 ```
 
+**How the templates are written** (D91, decided by Mortaro; the binding rule is proposed by Claude,
+unconfirmed). They are Symbol codegen templates (above) in `library/list.spite`, each a `while` over the list's
+`Memory` buffer: `func filter_member(member: Symbol): List<$element_type>` answers every `filter_<member>` call.
+In `List<$element_type>` the symbol names a member of the *element*, not of the list (whose own attributes are
+its buffer), and `item.attributes[member]` reads it: the field, or a call to the zero-argument function -- the
+D11 reading, "the value held in that field", applied to D15's members. The generator binds the template to the
+element's member and checks the table above before it compiles the body, so a member that does not fit is still
+the error naming the member, its type and what the template needs; it writes none of the templates' C. Only the
+names a program calls are compiled. A `--repl`/`--repl-port` build compiles every template that fits every
+element class of a list the loop can reach, and lists them as that list's functions, so `monsters.sum_health()`
+works at the prompt. `Dictionary<T>` answers the same names through its values (`inventory.sum_price()` is
+`inventory.values().sum_price()`), and a program's own `list.spite` reopens `List` to add a template of its own.
+
+**Chains are one loop** (D105, decided by Mortaro; the form below is proposed by Claude, unconfirmed).
+Each template takes what the previous one returns, and a chain means exactly its steps written out one by one.
+The compiler runs a chain as one loop over the first list with no list in between: when a template is called
+directly on a `map_`/`filter_` call (on a `map_`/`filter_` call, and so on) of a `List` or `Dictionary`, the
+generator writes one Spite function on the first list's class -- a `while` over its buffer, an `if` per
+`filter_`, a `var` per `map_`, and the last template's step -- and calls that instead. A `map_` in the middle
+must reach a class; anything the rule cannot write (a nullable member, a union) is compiled step by step, which
+means the same. The difference a program can see is only order: a member function in a fused chain runs element
+by element. `conformance/stage6/fused_chain_allocations` pins it: four chains run a thousand times allocate
+nothing (10 allocations in all, against 16 010 step by step).
+
 ## 9. Codegen values (`$`)  **[implemented; the D5/D9 form is planned]**
 
 `$name` means "replaced at code generation". That is its only meaning, everywhere it appears.
@@ -1937,8 +1961,9 @@ insertion, removal, `reverse`, `contains`, `join`, `copy`, and releasing its ele
 `library/dictionary.spite` is a generic class over two lists and a hash index into them; `split` and `lines` moved into
 `library/string.spite`. The syntax stays the compiler's (`[]`, list literals, `List<T>()`), mapped onto those
 classes' functions. Per element type the compiler still supplies four one-line functions a generic class cannot
-write, plus `deep_copy` and the `<member>` templates; the list and the reasons are in the decision log's
-containers row (proposed by Claude, unconfirmed).
+write, plus `deep_copy`; the list and the reasons are in the decision log's containers row (proposed by Claude,
+unconfirmed). The `<member>` templates are Spite in `library/list.spite` too (D91, [Standard library
+metaprogramming](#standard-library-metaprogramming-partial)).
 
 **The web shim is the one honest exception, and its target is zero hand-written lines.** A file that runs in the
 JavaScript virtual machine cannot be Spite by construction -- it is on the far side of a boundary Spite does not
@@ -2690,3 +2715,5 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D103** (decided by Mortaro, on D35): **`Task` is too generic a name, and async waiting and threads are two things.** "we need to make a separation between async/await tasks and plain threaded tasks, unless they all are threads but in that case we need to make sure its efficient. we will later need for the nullstack clone efficient hidden async/await on db calls and so on, but super efficient threaded performance on our game engine." Hidden async/await (D99) for IO and database calls, and a separate, fast threaded form for parallel work. |
 | 2026-09-24 | **D104** (Mortaro, correcting an omission): **`singleton` is a header keyword at the top of the file**, first in D67's enforced order (`singleton`, then `generic` lines, then `enum`, ...), and `func is_singleton(): Bool { return true }` is no longer how a class says it. "you ignored my decision to use the singleton keyword on top of file with the enforced order of declarations." `is_singleton()` stays readable on `Spite.Class` as a getter (D88). |
 | 2026-09-24 | **D105** (decided by Mortaro, on D94's review): **the review's findings are confirmed and get built; the remaining proposals are decided later.** "your findings on while and if already confirmed can be worked on, and we just decide tomorrow the other ones." That covers: rewriting the 31 loops that an existing iterator replaces, flattening the 7 nested `if`/`else` that flatten, and the chains that become a `switch` today. The two proposed rules (`while` over a list, nested `if`/`else`) and `switch` over enums wait (`mortaros_review_while_and_else_if.md`). **Iterators are cumulative**: "keep in mind iterators should be cumulative (and we can optimize them into single loops on compiler time) like `map_repositories().filter_active().sum_stars()`." A chain of member templates reads as separate steps, and the compiler fuses it into one loop with no intermediate lists. |
+| 2026-09-24 | (implements D91; the readings below proposed by Claude, unconfirmed) **The `<member>` templates are Spite in `library/list.spite`, and the generator writes none of their C.** `filter_`, `count_`, `any_`, `all_`, `sum_`, `each_`, `map_`, `find_by_` and `sort_by_` are Symbol codegen templates (`func sum_member(member: Symbol): member.class`) looping over the list's `Memory` buffer with `read_item`. The symbol in a `List` template names a member of the element, read as `item.attributes[member]` (a field, or a call to a zero-argument function); a list's own fields are its implementation, so a template of a container never binds to them. The D15 requirements are checked before the body is compiled, with the same messages, and now also cover `sort_by_` (a number or a `String`), `find_by_` (a number, `Bool`, `String`, `Symbol` or enum) and `map_` (a member that returns something). A `Dictionary` answers the names through `values()`, as before. Tree shaking is the templates' own: only called names are instantiated. A `--repl`/`--repl-port` build instantiates every fitting template for every class element of a list the loop reaches and exposes them as that list's `functions`, so the prompt can call `monsters.sum_health()` (`conformance/stage6/interactive_templates`). A program may add its own by reopening `List` in a `list.spite`. Output and memory are unchanged across the corpus; compiling the compiler is unchanged (it calls no templates). Supersedes item (3) of the containers row. Not done: D61's printing of a list's instantiated templates in `--final-classes` (the templates themselves are now readable Spite in `library/list.spite`). |
+| 2026-09-24 | (implements D105's fusion; proposed by Claude, unconfirmed) **A chain of member templates compiles to one loop.** A template called directly on a `map_`/`filter_` call chain of a `List` or `Dictionary` is compiled as one generated Spite function on the first list's class (`filter_active_then_map_lead_then_sum_age`): one `while` over the buffer, an `if` per `filter_`, a `var` per `map_`, then the last template's step, and no intermediate list. The chain's meaning stays the step-by-step one; a chain the rule cannot write (a `map_` to a member that is not a plain class, a type it cannot spell) is compiled step by step. Only the order in which member functions run differs, element by element. `conformance/stage6/fused_chains` compares chains of two to four steps with the same steps written out, and `conformance/stage6/fused_chain_allocations`, whose `allocations.txt` check.sh now enforces, runs four chains a thousand times in 10 allocations (16 010 step by step). |

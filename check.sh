@@ -75,6 +75,10 @@ for folder in conformance/*/*/ examples/*/; do   # the examples are held to the 
     if [ "$actual" == "$expected" ]; then passed=$((passed+1)); else failed=$((failed+1)); echo "FAILED: $name"; echo "$actual" | head -8; fi
     continue
   fi
+  # allocations.txt pins how many allocations a program makes, so an optimisation that removes them stays removed
+  if [ -f "$folder/allocations.txt" ] && [ "$allocations" != "$(tr -d '\r\n' < "$folder/allocations.txt")" ]; then
+    failed=$((failed+1)); echo "FAILED: $name allocated $allocations times, allocations.txt says $(tr -d '\r\n' < "$folder/allocations.txt")"; continue
+  fi
   if [ "$body" == "$expected" ] && [ -n "$balance" ] && [ "$allocations" == "$frees" ]; then passed=$((passed+1)); else failed=$((failed+1)); echo "FAILED: $name"; echo "$actual" | head -8; fi
 done
 echo "conformance and examples: $passed passed, $failed failed"

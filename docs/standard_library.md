@@ -202,6 +202,60 @@ names a program calls, so a program that never calls `sum_price()` carries no `s
 so `monsters.sum_health()` can be typed at the prompt. `Dictionary<T>` answers the same names through its
 values: `inventory.sum_price()` is `inventory.values().sum_price()`.
 
+## Chains run as one loop
+
+Every template takes what the one before it gives, so they chain: `map_<member>()` turns a list of teams into a
+list of their leads, `filter_<member>()` keeps some of them, and anything else finishes the chain. Read a chain
+as the separate steps it is written as -- that is what it means -- but the compiler runs it as **one loop over
+the first list**, with no list in between: `teams.filter_active().map_lead().sum_age()` visits each team once,
+reads its lead, and adds the age, allocating nothing.
+
+```spite title=fused_chain/person.spite
+var name = ""
+var age = 0
+
+func Person(new_name: String, new_age: Int) {
+    name = new_name
+    age = new_age
+}
+```
+```spite title=fused_chain/team.spite
+var active = false
+var lead = Person("", 0)
+
+func Team(new_active: Bool, new_lead: Person) {
+    active = new_active
+    lead = new_lead
+}
+```
+```spite title=fused_chain/fused_chain.spite entry
+var console = Console()
+
+func FusedChain() {
+    var teams = List<Team>()
+    var ann = Person("ann", 34)
+    teams.append(Team(true, ann))
+    var bob = Person("bob", 67)
+    teams.append(Team(false, bob))
+    var ages = teams.filter_active().map_lead().sum_age()
+    var active = teams.filter_active()
+    var leads = active.map_lead()
+    var ages_step_by_step = leads.sum_age()
+    console.print(ages, ages_step_by_step)
+}
+```
+```output
+34 34
+```
+
+Only a call made directly on another template call is part of the chain: `active.map_lead()` above starts a
+new one, because `active` is a list the program named and kept. The steps in the middle are `map_` (to a member
+that is a class) and `filter_`; the last call can be any template. The one visible difference is order: a
+member function in a fused chain runs element by element, where the steps written out would run it on every
+element before the next step starts. `conformance/stage6/fused_chain_allocations` runs four chains a thousand
+times each and pins its allocation count at 10, the lists and objects it builds before the loop; written step
+by step, the same program allocates 16 010 times.
+
 ## Write your own member template
 
 A program reopens `List` by putting a `list.spite` in its own folder, and a function there with a `Symbol`

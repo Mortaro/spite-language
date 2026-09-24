@@ -1,0 +1,21 @@
+var name = ""
+var age = 0
+var retired = false
+
+func Person(starting_name: String, starting_age: Int, starting_retired: Bool) {
+    name = starting_name
+    age = starting_age
+    retired = starting_retired
+}
+
+func is_adult(): Bool {
+    return age >= 18
+}
+
+func badge(): Badge {
+    return Badge(age / 10)
+}
+
+func birthday() {
+    age = age + 1
+}
