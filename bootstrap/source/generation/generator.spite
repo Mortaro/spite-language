@@ -463,6 +463,7 @@ func generate(
     }
     emit_symbol_table()
     emit_foreign_libraries()
+    emit_allocation_table()
     emit_main(discovery.entry_mangled_name)
     return builder.render()
 }
@@ -2519,6 +2520,63 @@ func number_text_function(name: String, value_type: String): String {
         )
     }
     return function_name
+}
+
+func emit_allocation_table() {
+    var allocation_table = find_class_by_qualified("AllocationTable")
+    crash allocation_table
+    var table = allocation_table.c_name
+    var entered = "{table}* spite_table = spite_allocation_table_enter();"
+    var leave = "spite_allocation_table_busy = false;"
+    var lines = List<String>()
+    lines.append("#ifdef SPITE_DEBUG_MEMORY")
+    lines.append("static {table}* spite_allocation_table = 0;")
+    lines.append("static bool spite_allocation_table_busy = false;")
+    lines.append("static {table}* spite_allocation_table_enter(void) \{")
+    lines.append("spite_allocation_table_busy = true;")
+    lines.append("if (spite_allocation_table == 0) spite_allocation_table = {table}_make();")
+    lines.append("return spite_allocation_table;")
+    lines.append("}")
+    lines.append("void* spite_debug_realloc(void* pointer, size_t size) \{")
+    lines.append("if (spite_allocation_table_busy) return realloc(pointer, size);")
+    lines.append(entered)
+    lines.append(
+        "void* result = (void*)(intptr_t){table}_resize(spite_table, (int64_t)(intptr_t)pointer, (int64_t)size);",
+    )
+    lines.append(leave)
+    lines.append("return result;")
+    lines.append("}")
+    lines.append("void spite_debug_free(void* pointer) \{")
+    lines.append("if (pointer == 0) return;")
+    lines.append("if (spite_allocation_table_busy) \{ free(pointer); return; }")
+    lines.append(entered)
+    lines.append("{table}_free(spite_table, (int64_t)(intptr_t)pointer);")
+    lines.append(leave)
+    lines.append("}")
+    lines.append("void spite_debug_register_object(void* pointer, int32_t class_id) \{")
+    lines.append("if (pointer == 0 || spite_allocation_table_busy) return;")
+    lines.append(entered)
+    lines.append("{table}_register_object(spite_table, (int64_t)(intptr_t)pointer, class_id);")
+    lines.append(leave)
+    lines.append("}")
+    lines.append("void spite_debug_set_class_names(const char* const* names, int64_t count) \{")
+    lines.append(entered)
+    lines.append("{table}_name_classes(spite_table, (int64_t)(intptr_t)names, count);")
+    lines.append(leave)
+    lines.append("}")
+    lines.append("void spite_debug_report(void) \{")
+    lines.append(entered)
+    lines.append("{table}_report(spite_table);")
+    lines.append(leave)
+    lines.append("}")
+    lines.append("int64_t spite_live_allocation_count(void) \{")
+    lines.append(entered)
+    lines.append("int64_t count = {table}_live_allocations(spite_table);")
+    lines.append(leave)
+    lines.append("return count;")
+    lines.append("}")
+    lines.append("#endif")
+    builder.add_support(lines.join("\n"))
 }
 
 func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): String {
@@ -9163,9 +9221,6 @@ func emit_main(entry_mangled_name: String) {
         }
     }
     builder.add_main("#ifdef SPITE_DEBUG_MEMORY")
-    builder.add_main("spite_debug_report_leaks();")
-    builder.add_main(
-        "printf(\"allocations: %lld frees: %lld\\n\", (long long)spite_debug_allocations, (long long)spite_debug_frees);",
-    )
+    builder.add_main("spite_debug_report();")
     builder.add_main("#endif")
 }

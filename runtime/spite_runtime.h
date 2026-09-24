@@ -34,132 +34,20 @@
 
 /* ---- allocation counters (--debug-memory) ---- */
 
+/* Under --debug-memory the live table is Spite (library/allocation_table.spite): these are the functions the
+ * compiler emits to call it, defined after the classes. The table's own memory comes from the C allocator
+ * directly, so tracking never tracks itself. Without --debug-memory an allocation stays one realloc and a
+ * counter, which is the floor every Spite object is built on. */
 #ifdef SPITE_DEBUG_MEMORY
-static int64_t spite_debug_allocations = 0;
-static int64_t spite_debug_frees = 0;
-
-/* A simple growable table of every pointer this program currently owns
- * (B4 in PLAN.md): consulted by spite_debug_free/spite_debug_realloc to
- * catch a double free or a free/realloc of a pointer this allocator never
- * handed out (or already took back). Either one means an ownership mistake
- * slipped past the compiler's move/drop checks, so this aborts immediately
- * with a clear message instead of silently corrupting the heap -- the
- * whole point of running under --debug-memory. A linear scan per
- * free/realloc is fine here: this exists for tests and debugging, not for
- * a program's normal, optimized build.
- *
- * Each record also keeps the pointer's requested size, so the REPL's
- * `memory` command (milestone 6a) can report live bytes, not just a live
- * count -- purely additive: `spite_debug_allocations`/`spite_debug_frees`
- * and their end-of-program printf are unchanged. */
-typedef struct {
-    void* pointer;
-    int64_t size;
-} SpiteDebugRecord;
-static SpiteDebugRecord* spite_debug_live_records = 0;
-static int64_t spite_debug_live_count = 0;
-static int64_t spite_debug_live_capacity = 0;
-static int64_t spite_debug_live_bytes = 0;
-static int64_t spite_debug_live_slots_used = 0;
-#define SPITE_DEBUG_REMOVED ((void*)1)
-
-/* The live table is an open-addressing hash set keyed by pointer, so tracking and untracking cost the same
- * however many objects are live: a program making millions of objects -- the compiler compiling itself --
- * stays fast enough under --debug-memory to be checked on every run. A removed slot keeps a marker so a
- * probe does not stop early; the table is rebuilt without markers whenever it grows. */
-static int64_t spite_debug_slot_of(void* pointer, int64_t capacity) {
-    uint64_t hash = (uint64_t)(uintptr_t)pointer;
-    hash ^= hash >> 33;
-    hash *= 0xff51afd7ed558ccdULL;
-    hash ^= hash >> 33;
-    return (int64_t)(hash & (uint64_t)(capacity - 1));
-}
-
-static void spite_debug_place(SpiteDebugRecord* records, int64_t capacity, void* pointer, int64_t size) {
-    int64_t slot = spite_debug_slot_of(pointer, capacity);
-    while (records[slot].pointer != 0 && records[slot].pointer != SPITE_DEBUG_REMOVED) slot = (slot + 1) & (capacity - 1);
-    records[slot].pointer = pointer;
-    records[slot].size = size;
-}
-
-static void spite_debug_track(void* pointer, int64_t size) {
-    if (pointer == 0) return;
-    if ((spite_debug_live_slots_used + 1) * 2 >= spite_debug_live_capacity) {
-        int64_t new_capacity = spite_debug_live_capacity == 0 ? 1024 : spite_debug_live_capacity * 2;
-        while ((spite_debug_live_count + 1) * 4 >= new_capacity * 3) new_capacity = new_capacity * 2;
-        SpiteDebugRecord* grown = (SpiteDebugRecord*)calloc((size_t)new_capacity, sizeof(SpiteDebugRecord));
-        for (int64_t index = 0; index < spite_debug_live_capacity; index = index + 1) {
-            void* kept = spite_debug_live_records[index].pointer;
-            if (kept != 0 && kept != SPITE_DEBUG_REMOVED) spite_debug_place(grown, new_capacity, kept, spite_debug_live_records[index].size);
-        }
-        free(spite_debug_live_records);
-        spite_debug_live_records = grown;
-        spite_debug_live_capacity = new_capacity;
-        spite_debug_live_slots_used = spite_debug_live_count;
-    }
-    spite_debug_place(spite_debug_live_records, spite_debug_live_capacity, pointer, size);
-    spite_debug_live_count = spite_debug_live_count + 1;
-    spite_debug_live_slots_used = spite_debug_live_slots_used + 1;
-    spite_debug_live_bytes = spite_debug_live_bytes + size;
-}
-
-static int64_t spite_debug_find(void* pointer) {
-    if (spite_debug_live_capacity == 0) return -1;
-    int64_t slot = spite_debug_slot_of(pointer, spite_debug_live_capacity);
-    while (spite_debug_live_records[slot].pointer != 0) {
-        if (spite_debug_live_records[slot].pointer == pointer) return slot;
-        slot = (slot + 1) & (spite_debug_live_capacity - 1);
-    }
-    return -1;
-}
-
-/* Removes `pointer` from the live table if present, reporting whether it
- * was found there at all. */
-static bool spite_debug_untrack(void* pointer) {
-    int64_t slot = spite_debug_find(pointer);
-    if (slot < 0) return false;
-    spite_debug_live_bytes = spite_debug_live_bytes - spite_debug_live_records[slot].size;
-    spite_debug_live_records[slot].pointer = SPITE_DEBUG_REMOVED;
-    spite_debug_live_count = spite_debug_live_count - 1;
-    return true;
-}
-
-/* Checks whether `pointer` is still live, without removing it -- used only
- * by `spite_debug_report_leaks`' by-class summary at the very end of the
- * program. */
-static bool spite_debug_is_live(void* pointer) {
-    return spite_debug_find(pointer) >= 0;
-}
-
-static void* spite_debug_realloc(void* pointer, size_t size) {
-    if (pointer == 0) {
-        spite_debug_allocations = spite_debug_allocations + 1;
-        void* result = realloc(pointer, size);
-        spite_debug_track(result, (int64_t)size);
-        return result;
-    }
-    if (!spite_debug_untrack(pointer)) {
-        fprintf(stderr, "spite: --debug-memory: reallocating a pointer that was already freed (or never allocated) -- an ownership bug\n");
-        abort();
-    }
-    void* result = realloc(pointer, size);
-    spite_debug_track(result, (int64_t)size);
-    return result;
-}
-
-static void spite_debug_free(void* pointer) {
-    if (pointer == 0) return;
-    if (!spite_debug_untrack(pointer)) {
-        fprintf(stderr, "spite: --debug-memory: double free (or freeing an unknown pointer) -- an ownership bug\n");
-        abort();
-    }
-    spite_debug_frees = spite_debug_frees + 1;
-    free(pointer);
-}
+void* spite_debug_realloc(void* pointer, size_t size);
+void spite_debug_free(void* pointer);
+void spite_debug_register_object(void* pointer, int32_t class_id);
+void spite_debug_set_class_names(const char* const* names, int64_t count);
+void spite_debug_report(void);
+int64_t spite_live_allocation_count(void);
 #define SPITE_REALLOC(pointer, size) spite_debug_realloc(pointer, size)
 #define SPITE_FREE(pointer) spite_debug_free(pointer)
 #define SPITE_MALLOC(size) spite_debug_realloc(0, size)
-static int64_t spite_live_allocation_count(void) { return spite_debug_live_count; }
 #else
 static int64_t spite_live_allocations = 0;
 static void* spite_counted_realloc(void* pointer, size_t size) {
@@ -190,76 +78,13 @@ static int64_t spite_live_allocation_count(void) { return spite_live_allocations
  *
  * Each concrete type gets its own small, readable, generated
  * `{Type}_retain`/`{Type}_release` pair; this
- * header only holds what is shared: the header layout itself, and (under
- * `--debug-memory`) a class-id -> name table used to report which classes'
- * objects leaked when allocations and frees do not balance. */
+ * header only holds what is shared: the header layout itself. */
 
 typedef struct SpiteHeader {
     int32_t ref_count;
     int32_t class_id;
 } SpiteHeader;
 
-#ifdef SPITE_DEBUG_MEMORY
-/* A side table mapping every heap object's pointer to its class id, kept
- * only so `spite_debug_report_leaks` (called once, right before `main`
- * returns, when allocations and frees do not balance) can print how many
- * still-live objects belong to each class. Populated by every generated
- * `{Type}_retain`-adjacent "new object" constructor via
- * `spite_debug_register_object`; never removed (this table only exists for
- * one end-of-program report, so there is nothing to reclaim). */
-typedef struct {
-    void* pointer;
-    int32_t class_id;
-} SpiteDebugClassRecord;
-static SpiteDebugClassRecord* spite_debug_class_records = 0;
-static int64_t spite_debug_class_record_count = 0;
-static int64_t spite_debug_class_record_capacity = 0;
-static const char* const* spite_debug_class_names = 0;
-static int64_t spite_debug_class_name_count = 0;
-
-static void spite_debug_set_class_names(const char* const* names, int64_t count) {
-    spite_debug_class_names = names;
-    spite_debug_class_name_count = count;
-}
-
-static void spite_debug_register_object(void* pointer, int32_t class_id) {
-    if (pointer == 0) return;
-    if (spite_debug_class_record_count == spite_debug_class_record_capacity) {
-        int64_t new_capacity = spite_debug_class_record_capacity == 0 ? 64 : spite_debug_class_record_capacity * 2;
-        spite_debug_class_records = (SpiteDebugClassRecord*)realloc(spite_debug_class_records, (size_t)new_capacity * sizeof(SpiteDebugClassRecord));
-        spite_debug_class_record_capacity = new_capacity;
-    }
-    spite_debug_class_records[spite_debug_class_record_count].pointer = pointer;
-    spite_debug_class_records[spite_debug_class_record_count].class_id = class_id;
-    spite_debug_class_record_count = spite_debug_class_record_count + 1;
-}
-
-/* Called once, right before `main` returns, only when allocations and frees
- * do not balance: names which classes' objects are still live. A raw buffer
- * (a List<T>'s items array, a String's byte buffer, ...) has no class id of
- * its own and is not attributed to any class here -- only whole heap
- * objects (registered via `spite_debug_register_object`) are, which is
- * still enough to point at the leaking class in the common case (an
- * un-dropped cycle keeps its own object alive, which is what leaks it). */
-static void spite_debug_report_leaks(void) {
-    if (spite_debug_allocations == spite_debug_frees) return;
-    fprintf(stderr, "spite: --debug-memory: %lld allocation(s) leaked\n", (long long)(spite_debug_allocations - spite_debug_frees));
-    if (spite_debug_class_names == 0) return;
-    for (int64_t class_index = 0; class_index < spite_debug_class_name_count; class_index = class_index + 1) {
-        int64_t leaked_count = 0;
-        for (int64_t record_index = 0; record_index < spite_debug_class_record_count; record_index = record_index + 1) {
-            if (spite_debug_class_records[record_index].class_id != (int32_t)class_index) continue;
-            if (spite_debug_is_live(spite_debug_class_records[record_index].pointer)) leaked_count = leaked_count + 1;
-        }
-        if (leaked_count > 0) fprintf(stderr, "  %s: %lld leaked object(s)\n", spite_debug_class_names[class_index], (long long)leaked_count);
-    }
-}
-#endif
-
-/* Every generated `_release` calls this exactly once, right before freeing a
- * heap object whose reference count reached zero -- kept here (rather than
- * only relying on `SPITE_FREE`'s own live-pointer table) so `spite_debug_free`
- * still catches a double free the same way it always has. */
 
 /* ---- SpiteString: an immutable, reference-counted byte buffer with a
  * length. A literal is compiled into a `static` C global (never allocated,
