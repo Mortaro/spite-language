@@ -1,0 +1,13 @@
+var console = Console()
+
+func SingletonCounts() {
+    var tally = Tally<Int>()
+    tally.counted.append(1)
+    var first_fetcher = Fetcher()
+    var second_fetcher = Fetcher()
+    var first = Parallel(first_fetcher.fetch_many)
+    var second = Parallel(second_fetcher.fetch_many)
+    var first_found = first.wait()
+    var second_found = second.wait()
+    console.print("fetched", first_found + second_found)
+}

@@ -4418,9 +4418,8 @@ func singleton_call(target_class: Analysis.ClassInfo): String {
         builder.add_typedef("static {target_class.c_name}* {function_c_name}_cache = 0;")
         builder.add_prototype("{target_class.c_name}* {function_c_name}(void);")
         builder.add_support(
-            "{target_class.c_name}* {function_c_name}(void) \{\nif ({function_c_name}_cache == 0) {function_c_name}_cache = {target_class.c_name}_make();\nreturn {target_class.c_name}_retain({function_c_name}_cache);\n}",
+            "{target_class.c_name}* {function_c_name}(void) \{\nif ({function_c_name}_cache == 0) \{\n{function_c_name}_cache = {target_class.c_name}_make();\nspite_singleton_created({function_c_name}_cache, (void (*)(void*)){target_class.c_name}_destroy);\n}\nreturn {function_c_name}_cache;\n}",
         )
-        singleton_releases.append("{target_class.c_name}_release({function_c_name}_cache);")
     }
     return "{function_c_name}()"
 }
@@ -7763,7 +7762,6 @@ func generate_library_constructor(arguments_ast: List<Syntax.Expressions.Express
     var accessor = "spite_foreign_library_{library}"
     builder.add_typedef("static DynamicLibrary* {accessor}_cache = 0;")
     builder.add_prototype("DynamicLibrary* {accessor}(void);")
-    singleton_releases.append("DynamicLibrary_release({accessor}_cache);")
     return library_value(library)
 }
 
@@ -8035,6 +8033,44 @@ func owned_c_text(text: String): String {
     return "spite_string_from_cstring_owned(\"{escape_c_string(text)}\")"
 }
 
+func emit_singleton_teardown() {
+    builder.add_prototype("void spite_singleton_created(void* object, void (*destroyer)(void*));")
+    builder.add_prototype("void spite_singletons_destroy(void);")
+    var lines = List<String>()
+    lines.append("static void** spite_singleton_objects = 0;")
+    lines.append("static void (**spite_singleton_destroyers)(void*) = 0;")
+    lines.append("static int32_t spite_singleton_total = 0;")
+    lines.append("static int32_t spite_singleton_capacity = 0;")
+    lines.append("void spite_singleton_created(void* object, void (*destroyer)(void*)) \{")
+    lines.append("#ifdef SPITE_DEBUG_MEMORY")
+    lines.append("if (spite_allocation_table_busy) return;")
+    lines.append("#endif")
+    lines.append("if (spite_singleton_total == spite_singleton_capacity) \{")
+    lines.append("spite_singleton_capacity = spite_singleton_capacity == 0 ? 16 : spite_singleton_capacity * 2;")
+    lines.append(
+        "spite_singleton_objects = (void**)realloc(spite_singleton_objects, (size_t)spite_singleton_capacity * sizeof(void*));",
+    )
+    lines.append(
+        "spite_singleton_destroyers = (void (**)(void*))realloc(spite_singleton_destroyers, (size_t)spite_singleton_capacity * sizeof(void (*)(void*)));",
+    )
+    lines.append("}")
+    lines.append("spite_singleton_objects[spite_singleton_total] = object;")
+    lines.append("spite_singleton_destroyers[spite_singleton_total] = destroyer;")
+    lines.append("spite_singleton_total = spite_singleton_total + 1;")
+    lines.append("}")
+    lines.append("void spite_singletons_destroy(void) \{")
+    lines.append("while (spite_singleton_total > 0) \{")
+    lines.append("spite_singleton_total = spite_singleton_total - 1;")
+    lines.append("spite_singleton_destroyers[spite_singleton_total](spite_singleton_objects[spite_singleton_total]);")
+    lines.append("}")
+    lines.append("free(spite_singleton_objects);")
+    lines.append("free(spite_singleton_destroyers);")
+    lines.append("}")
+    var joined_lines = lines.join("\n")
+    builder.add_support(joined_lines)
+    builder.add_main("spite_singletons_destroy();")
+}
+
 func emit_foreign_libraries() {
     var library = 0
     while library < foreign_library_files.count() {
@@ -8047,6 +8083,7 @@ func emit_foreign_libraries() {
         lines.append(
             "{accessor}_cache = DynamicLibrary_make({owned_c_text(foreign_library_files[library])}, {ensure_symbol(foreign_library_namings[library])}, {owned_c_text(foreign_library_headers[library])});",
         )
+        lines.append("spite_singleton_created({accessor}_cache, (void (*)(void*))DynamicLibrary_destroy);")
         var index = 0
         while index < foreign_symbol_names.count() {
             crash index < foreign_symbol_libraries.count()
@@ -11630,13 +11667,23 @@ func emit_class_support(information: Analysis.ClassInfo) {
         )
         return
     }
-    builder.add_support(
-        "{information.c_name}* {information.c_name}_retain({information.c_name}* self) \{ if (self != 0) SPITE_COUNT_UP(self->header.ref_count); return self; }",
-    )
     var release_lines = List<String>()
-    release_lines.append("void {information.c_name}_release({information.c_name}* self) \{")
+    var retain_body = "if (self != 0) SPITE_COUNT_UP(self->header.ref_count); return self;"
+    var release_name = "release"
+    if information.is_singleton {
+        retain_body = "return self;"
+        release_name = "destroy"
+        builder.add_support("void {information.c_name}_release({information.c_name}* self) \{ (void)self; }")
+        builder.add_prototype("void {information.c_name}_destroy({information.c_name}* self);")
+    }
+    builder.add_support(
+        "{information.c_name}* {information.c_name}_retain({information.c_name}* self) \{ {retain_body} }",
+    )
+    release_lines.append("void {information.c_name}_{release_name}({information.c_name}* self) \{")
     release_lines.append("if (self == 0) return;")
-    release_lines.append("if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;")
+    if not information.is_singleton {
+        release_lines.append("if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;")
+    }
     if information.drop_function {
         release_lines.append("{information.drop_function.c_name}(self);")
     }
@@ -12269,6 +12316,7 @@ func emit_main(launcher_mangled_name: String) {
         builder.add_main("{launcher_class.constructor.c_name}(spite_launcher);")
     }
     builder.add_main("{launcher_class.c_name}_release(spite_launcher);")
+    emit_singleton_teardown()
     var singleton_index = 0
     while singleton_index < singleton_releases.count() {
         builder.add_main(singleton_releases[singleton_index])
