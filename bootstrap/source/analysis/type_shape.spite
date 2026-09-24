@@ -1,76 +1,64 @@
 func as_scalar(spite_type: SpiteType): Analysis.Types.ScalarType? {
-    switch spite_type {
-        Analysis.Types.ScalarType: return spite_type
-        _: return null
+    if spite_type == Analysis.Types.ScalarType {
+        return spite_type
     }
+    return null
 }
 
 func as_class_ref(spite_type: SpiteType): Analysis.Types.ClassRefType? {
-    switch spite_type {
-        Analysis.Types.ClassRefType: return spite_type
-        _: return null
+    if spite_type == Analysis.Types.ClassRefType {
+        return spite_type
     }
+    return null
 }
 
 func as_nullable(spite_type: SpiteType): Analysis.Types.NullableType? {
-    switch spite_type {
-        Analysis.Types.NullableType: return spite_type
-        _: return null
+    if spite_type == Analysis.Types.NullableType {
+        return spite_type
     }
+    return null
 }
 
 func as_enum(spite_type: SpiteType): Analysis.Types.EnumType? {
-    switch spite_type {
-        Analysis.Types.EnumType: return spite_type
-        _: return null
+    if spite_type == Analysis.Types.EnumType {
+        return spite_type
     }
+    return null
 }
 
 func as_list(spite_type: SpiteType): Analysis.Types.ListType? {
-    switch spite_type {
-        Analysis.Types.ListType: return spite_type
-        _: return null
+    if spite_type == Analysis.Types.ListType {
+        return spite_type
     }
+    return null
 }
 
 func as_dictionary(spite_type: SpiteType): Analysis.Types.DictionaryType? {
-    switch spite_type {
-        Analysis.Types.DictionaryType: return spite_type
-        _: return null
+    if spite_type == Analysis.Types.DictionaryType {
+        return spite_type
     }
+    return null
 }
 
 func as_union(spite_type: SpiteType): Analysis.Types.UnionType? {
-    switch spite_type {
-        Analysis.Types.UnionType: return spite_type
-        _: return null
+    if spite_type == Analysis.Types.UnionType {
+        return spite_type
     }
+    return null
 }
 
 func as_string(spite_type: SpiteType): Bool {
-    switch spite_type {
-        Analysis.Types.StringType: return true
-        _: return false
-    }
+    return spite_type == Analysis.Types.StringType
 }
 
 func is_void(spite_type: SpiteType): Bool {
-    switch spite_type {
-        Analysis.Types.VoidType: return true
-        _: return false
-    }
+    return spite_type == Analysis.Types.VoidType
 }
 
 func is_arguments(spite_type: SpiteType): Bool {
-    switch spite_type {
-        Analysis.Types.ArgumentsType: return true
-        _: return false
-    }
+    return spite_type == Analysis.Types.ArgumentsType
 }
 
 func is_symbol(spite_type: SpiteType): Bool {
-    switch spite_type {
-        Analysis.Types.SymbolType: return true
-        _: return false
-    }
+    return spite_type == Analysis.Types.SymbolType
 }

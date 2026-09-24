@@ -31,8 +31,8 @@ func build_chain(length: Int): Node? {
 }
 
 func describe(state: State): String {
-    switch state {
-        Busy: return "busy with {state.jobs} jobs"
-        _: return "not working: {state.class.name}"
+    if state == Busy {
+        return "busy with {state.jobs} jobs"
     }
+    return "not working: {state.class.name}"
 }

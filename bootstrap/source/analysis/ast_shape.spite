@@ -1,258 +1,249 @@
 func as_named_type(type_reference: Syntax.Types.Type): Syntax.Types.NamedType? {
-    switch type_reference {
-        Syntax.Types.NamedType: return type_reference
-        _: return null
+    if type_reference == Syntax.Types.NamedType {
+        return type_reference
     }
+    return null
 }
 
 func as_type_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.TypeArgument? {
-    switch argument {
-        Syntax.Types.TypeArgument: return argument
-        _: return null
+    if argument == Syntax.Types.TypeArgument {
+        return argument
     }
+    return null
 }
 
 func as_identifier(expression: Syntax.Expressions.Expression): Syntax.Expressions.IdentifierExpression? {
-    switch expression {
-        Syntax.Expressions.IdentifierExpression: return expression
-        _: return null
+    if expression == Syntax.Expressions.IdentifierExpression {
+        return expression
     }
+    return null
 }
 
 func as_integer_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.IntegerLiteral? {
-    switch expression {
-        Syntax.Expressions.IntegerLiteral: return expression
-        _: return null
+    if expression == Syntax.Expressions.IntegerLiteral {
+        return expression
     }
+    return null
 }
 
 func as_float_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.FloatLiteral? {
-    switch expression {
-        Syntax.Expressions.FloatLiteral: return expression
-        _: return null
+    if expression == Syntax.Expressions.FloatLiteral {
+        return expression
     }
+    return null
 }
 
 func as_string_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.StringLiteralExpression? {
-    switch expression {
-        Syntax.Expressions.StringLiteralExpression: return expression
-        _: return null
+    if expression == Syntax.Expressions.StringLiteralExpression {
+        return expression
     }
+    return null
 }
 
 func is_true_literal(expression: Syntax.Expressions.Expression): Bool {
-    switch expression {
-        Syntax.Expressions.TrueLiteral: return true
-        _: return false
-    }
+    return expression == Syntax.Expressions.TrueLiteral
 }
 
 func is_false_literal(expression: Syntax.Expressions.Expression): Bool {
-    switch expression {
-        Syntax.Expressions.FalseLiteral: return true
-        _: return false
-    }
+    return expression == Syntax.Expressions.FalseLiteral
 }
 
 func is_null_literal(expression: Syntax.Expressions.Expression): Bool {
-    switch expression {
-        Syntax.Expressions.NullLiteral: return true
-        _: return false
-    }
+    return expression == Syntax.Expressions.NullLiteral
 }
 
 func as_binary(expression: Syntax.Expressions.Expression): Syntax.Expressions.BinaryExpression? {
-    switch expression {
-        Syntax.Expressions.BinaryExpression: return expression
-        _: return null
+    if expression == Syntax.Expressions.BinaryExpression {
+        return expression
     }
+    return null
 }
 
 func as_unary(expression: Syntax.Expressions.Expression): Syntax.Expressions.UnaryExpression? {
-    switch expression {
-        Syntax.Expressions.UnaryExpression: return expression
-        _: return null
+    if expression == Syntax.Expressions.UnaryExpression {
+        return expression
     }
+    return null
 }
 
 func as_call(expression: Syntax.Expressions.Expression): Syntax.Expressions.CallExpression? {
-    switch expression {
-        Syntax.Expressions.CallExpression: return expression
-        _: return null
+    if expression == Syntax.Expressions.CallExpression {
+        return expression
     }
+    return null
 }
 
 func as_member(expression: Syntax.Expressions.Expression): Syntax.Expressions.MemberExpression? {
-    switch expression {
-        Syntax.Expressions.MemberExpression: return expression
-        _: return null
+    if expression == Syntax.Expressions.MemberExpression {
+        return expression
     }
+    return null
 }
 
 func as_function_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.FunctionDeclaration? {
-    switch statement {
-        Syntax.Statements.FunctionDeclaration: return statement
-        _: return null
+    if statement == Syntax.Statements.FunctionDeclaration {
+        return statement
     }
+    return null
 }
 
 func as_variable_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.VariableDeclaration? {
-    switch statement {
-        Syntax.Statements.VariableDeclaration: return statement
-        _: return null
+    if statement == Syntax.Statements.VariableDeclaration {
+        return statement
     }
+    return null
 }
 
 func as_if_statement(statement: Syntax.Statements.Statement): Syntax.Statements.IfStatement? {
-    switch statement {
-        Syntax.Statements.IfStatement: return statement
-        _: return null
+    if statement == Syntax.Statements.IfStatement {
+        return statement
     }
+    return null
 }
 
 func as_while_statement(statement: Syntax.Statements.Statement): Syntax.Statements.WhileStatement? {
-    switch statement {
-        Syntax.Statements.WhileStatement: return statement
-        _: return null
+    if statement == Syntax.Statements.WhileStatement {
+        return statement
     }
+    return null
 }
 
 func as_return_statement(statement: Syntax.Statements.Statement): Syntax.Statements.ReturnStatement? {
-    switch statement {
-        Syntax.Statements.ReturnStatement: return statement
-        _: return null
+    if statement == Syntax.Statements.ReturnStatement {
+        return statement
     }
+    return null
 }
 
 func as_assert_statement(statement: Syntax.Statements.Statement): Syntax.Statements.AssertStatement? {
-    switch statement {
-        Syntax.Statements.AssertStatement: return statement
-        _: return null
+    if statement == Syntax.Statements.AssertStatement {
+        return statement
     }
+    return null
 }
 
 func as_assignment_statement(statement: Syntax.Statements.Statement): Syntax.Statements.AssignmentStatement? {
-    switch statement {
-        Syntax.Statements.AssignmentStatement: return statement
-        _: return null
+    if statement == Syntax.Statements.AssignmentStatement {
+        return statement
     }
+    return null
 }
 
 func as_expression_statement(statement: Syntax.Statements.Statement): Syntax.Statements.ExpressionStatement? {
-    switch statement {
-        Syntax.Statements.ExpressionStatement: return statement
-        _: return null
+    if statement == Syntax.Statements.ExpressionStatement {
+        return statement
     }
+    return null
 }
 
 func as_enum_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.EnumLiteralExpression? {
-    switch expression {
-        Syntax.Expressions.EnumLiteralExpression: return expression
-        _: return null
+    if expression == Syntax.Expressions.EnumLiteralExpression {
+        return expression
     }
+    return null
 }
 
 func as_index(expression: Syntax.Expressions.Expression): Syntax.Expressions.IndexExpression? {
-    switch expression {
-        Syntax.Expressions.IndexExpression: return expression
-        _: return null
+    if expression == Syntax.Expressions.IndexExpression {
+        return expression
     }
+    return null
 }
 
 func as_list_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.ListLiteralExpression? {
-    switch expression {
-        Syntax.Expressions.ListLiteralExpression: return expression
-        _: return null
+    if expression == Syntax.Expressions.ListLiteralExpression {
+        return expression
     }
+    return null
 }
 
 func as_generic_call(expression: Syntax.Expressions.Expression): Syntax.Expressions.GenericCallExpression? {
-    switch expression {
-        Syntax.Expressions.GenericCallExpression: return expression
-        _: return null
+    if expression == Syntax.Expressions.GenericCallExpression {
+        return expression
     }
+    return null
 }
 
 func as_enum_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.EnumDeclaration? {
-    switch statement {
-        Syntax.Statements.EnumDeclaration: return statement
-        _: return null
+    if statement == Syntax.Statements.EnumDeclaration {
+        return statement
     }
+    return null
 }
 
 func as_union_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.UnionDeclaration? {
-    switch statement {
-        Syntax.Statements.UnionDeclaration: return statement
-        _: return null
+    if statement == Syntax.Statements.UnionDeclaration {
+        return statement
     }
+    return null
 }
 
 func as_switch_statement(statement: Syntax.Statements.Statement): Syntax.Statements.SwitchStatement? {
-    switch statement {
-        Syntax.Statements.SwitchStatement: return statement
-        _: return null
+    if statement == Syntax.Statements.SwitchStatement {
+        return statement
     }
+    return null
 }
 
 func as_object_literal(expression: Syntax.Expressions.Expression): Syntax.Expressions.ObjectLiteralExpression? {
-    switch expression {
-        Syntax.Expressions.ObjectLiteralExpression: return expression
-        _: return null
+    if expression == Syntax.Expressions.ObjectLiteralExpression {
+        return expression
     }
+    return null
 }
 
 func as_type_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.TypeDeclaration? {
-    switch statement {
-        Syntax.Statements.TypeDeclaration: return statement
-        _: return null
+    if statement == Syntax.Statements.TypeDeclaration {
+        return statement
     }
+    return null
 }
 
 func as_generic_type(type_reference: Syntax.Types.Type): Syntax.Types.GenericType? {
-    switch type_reference {
-        Syntax.Types.GenericType: return type_reference
-        _: return null
+    if type_reference == Syntax.Types.GenericType {
+        return type_reference
     }
+    return null
 }
 
 func as_generic_identifier(expression: Syntax.Expressions.Expression): Syntax.Expressions.GenericIdentifierExpression? {
-    switch expression {
-        Syntax.Expressions.GenericIdentifierExpression: return expression
-        _: return null
+    if expression == Syntax.Expressions.GenericIdentifierExpression {
+        return expression
     }
+    return null
 }
 
 func as_boolean_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.BoolArgument? {
-    switch argument {
-        Syntax.Types.BoolArgument: return argument
-        _: return null
+    if argument == Syntax.Types.BoolArgument {
+        return argument
     }
+    return null
 }
 
 func as_integer_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.IntegerArgument? {
-    switch argument {
-        Syntax.Types.IntegerArgument: return argument
-        _: return null
+    if argument == Syntax.Types.IntegerArgument {
+        return argument
     }
+    return null
 }
 
 func as_float_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.FloatArgument? {
-    switch argument {
-        Syntax.Types.FloatArgument: return argument
-        _: return null
+    if argument == Syntax.Types.FloatArgument {
+        return argument
     }
+    return null
 }
 
 func as_string_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.StringArgument? {
-    switch argument {
-        Syntax.Types.StringArgument: return argument
-        _: return null
+    if argument == Syntax.Types.StringArgument {
+        return argument
     }
+    return null
 }
 
 func as_enum_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.EnumArgument? {
-    switch argument {
-        Syntax.Types.EnumArgument: return argument
-        _: return null
+    if argument == Syntax.Types.EnumArgument {
+        return argument
     }
+    return null
 }

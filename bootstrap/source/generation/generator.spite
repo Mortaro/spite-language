@@ -7979,6 +7979,57 @@ func is_rest_case(switch_case: Syntax.Statements.SwitchCase): Bool {
     return false
 }
 
+func report_single_case(switch_statement: Syntax.Statements.SwitchStatement) {
+    assert switch_statement.cases.count() == 2 and is_rest_case(switch_statement.cases[1])
+    var class_case = switch_statement.cases[0]
+    crash class_case.type_reference
+    crash switch_statement.subject
+    var printer = Syntax.SourcePrinter()
+    var subject = printer.source_expression(switch_statement.subject)
+    var tested = printer.source_type(class_case.type_reference)
+    assert only_returns(class_case.body) and only_returns(switch_statement.cases[1].body)
+    var answer = returned_boolean(class_case.body)
+    var rest_answer = returned_boolean(switch_statement.cases[1].body)
+    if answer and rest_answer {
+        if answer != rest_answer {
+            var comparison = "=="
+            if answer == "false" {
+                comparison = "!="
+            }
+            report("this switch only asks what class '{subject}' is: write 'return {subject} {comparison} {tested}'")
+            return
+        }
+    }
+    report(
+        "a switch with one case and '_:' is an if: write 'if {subject} == {tested} \{ ... }', returning early, and then what '_:' does",
+    )
+}
+
+func only_returns(body: List<Syntax.Statements.Statement>): Bool {
+    if body.count() != 1 {
+        return false
+    }
+    return body[0] == Syntax.Statements.ReturnStatement
+}
+
+func returned_boolean(body: List<Syntax.Statements.Statement>): String? {
+    if body.count() != 1 {
+        return null
+    }
+    var returned = shape.as_return_statement(body[0])
+    if returned {
+        if returned.value {
+            if shape.is_true_literal(returned.value) {
+                return "true"
+            }
+            if shape.is_false_literal(returned.value) {
+                return "false"
+            }
+        }
+    }
+    return null
+}
+
 func report_repeated_cases(switch_statement: Syntax.Statements.SwitchStatement) {
     var printer = Syntax.SourcePrinter()
     var bodies = List<String>()
@@ -8056,6 +8107,7 @@ func generate_switch_statement(
     builder.add_user("{subject_union.c_name} {subject_temporary} = {subject.code};")
     var subject_identifier = shape.as_identifier(switch_statement.subject)
     report_repeated_cases(switch_statement)
+    report_single_case(switch_statement)
     var covered_names = List<String>()
     var answers_the_rest = false
     var case_index = 0
