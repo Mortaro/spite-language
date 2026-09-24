@@ -36,3 +36,11 @@ manual argues it.
     `Memory.address_of`/`compare_bytes`/`take_text`, the tree shaker, `nan` printing as `nan`, the REPL's
     command names and output, `Environment`'s sources and their order, `--operational_system` (superseded by
     D86), and the containers row.
+
+## From the remote REPL
+
+11. **D37 drain points and the remote REPL.** The remote REPL answers each command the moment it arrives, on its
+    own thread (races accepted as a debug tool). D37 says commands should wait for a drain point, where the program
+    is already waiting. Being built with D35's `Task` now; confirm the drain rule once it lands.
+12. **`Socket` is new public library surface** (`library/socket.spite`), and the REPL's port is fixed at build time.
+
