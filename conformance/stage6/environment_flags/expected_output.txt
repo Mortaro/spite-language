@@ -1,0 +1,3 @@
+serving: given to the compiler, so the other branch was never generated
+workers 3 name server
+the name was read when the program ran

@@ -117,10 +117,14 @@ func remember_folder(folder: String, file_name: String, words: List<String>) {
             folder_must_fail[position] = true
         }
         if word.starts_with("vars=") {
-            var prefix_length = "vars=".length()
-            var word_length = word.length()
-            var variables_text = word.slice(prefix_length, word_length)
-            folder_flags[position] = flags_of(variables_text)
+            var program_flags = flags_of(word, "vars=")
+            crash folder_flags[position]
+            folder_flags[position] = "{folder_flags[position]} -- {program_flags}"
+        }
+        if word.starts_with("build=") {
+            var build_flags = flags_of(word, "build=")
+            crash folder_flags[position]
+            folder_flags[position] = "{build_flags} {folder_flags[position]}"
         }
         word_index = word_index + 1
     }
@@ -137,7 +141,10 @@ func position_of(folder: String): Int {
     return -1
 }
 
-func flags_of(declaration: String): String {
+func flags_of(word: String, prefix: String): String {
+    var prefix_length = prefix.length()
+    var word_length = word.length()
+    var declaration = word.slice(prefix_length, word_length)
     var flags = List<String>()
     var pairs = declaration.split(",")
     var index = 0
@@ -145,7 +152,7 @@ func flags_of(declaration: String): String {
         flags.append("--{pairs[index].replace(":", "=")}")
         index = index + 1
     }
-    return "-- {flags.join(" ")}"
+    return flags.join(" ")
 }
 
 func write_source(folder: String, file_name: String, text: String) {

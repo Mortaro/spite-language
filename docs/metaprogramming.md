@@ -216,3 +216,37 @@ read, so nothing the program does not name is ever loaded. The default's literal
 `false` a `Bool`, `0` an `Int`, `""` a `String` -- and a value that is not one (`--verbose=maybe`) crashes at
 startup. The values are read when the program runs, so `if environment.verbose` is an ordinary `if`: both
 branches are compiled in.
+
+### Settings given to the compiler are hardcoded
+
+A setting given to the **compiler** -- before the `--` -- is not read at run time at all: it becomes part of the
+build. `environment.serve` is the literal `true` everywhere, so `if environment.serve { }` is decided when
+compiling and the branch it does not take is never generated, and the built program ignores `--serve` and
+`SERVE` when it runs. Settings not given to the compiler are read at run time as above, so one build can mix
+both.
+
+```spite title=build_settings/environment.spite
+var serve = false
+var name = "client"
+```
+```spite title=build_settings/build_settings.spite entry build=serve:true vars=serve:false,name:tester
+var console = Console()
+var environment = Environment()
+
+func BuildSettings() {
+    if environment.serve {
+        console.print("serving as", environment.name)
+    } else {
+        console.print("this branch is not in the build")
+    }
+}
+```
+```output
+serving as tester
+```
+
+That is `spite build_settings.spite --serve=true -- --serve=false --name=tester`: `serve` was hardcoded when
+compiling, so the program's own `--serve=false` changes nothing, while `name` is still read when it runs. The
+value has to be one of the setting's type (`--serve=maybe` is a compile error), and a `--name=value` naming no
+setting is a compile error too, so a typo never passes silently. `operational_system`, the setting the standard
+library declares, is always hardcoded: it is the system the program was compiled for.

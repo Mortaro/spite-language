@@ -4,6 +4,7 @@ var last_crash_map = ""
 var formats = true
 var read_evaluate_print_loop = false
 var development = false
+var supplied_settings = Dictionary<String>()
 
 func SpiteCompiler(arguments: Arguments) {
     load("source")
@@ -23,14 +24,7 @@ func SpiteCompiler(arguments: Arguments) {
     formats = not has_flag(arguments, "--no-format")
     read_evaluate_print_loop = has_flag(arguments, "--repl")
     development = has_flag(arguments, "--development")
-    var unknown_flag = unknown_compiler_flag(arguments)
-    if unknown_flag {
-        console.error(
-            "error: '--{unknown_flag}' is not a compiler flag. A program's settings are fields of its Environment, passed to the program after '--': spite program.spite -- --{unknown_flag}=value",
-        )
-        Program().exit(1)
-        return
-    }
+    supplied_settings = settings_from(arguments)
     var content = File(file_argument).read()
     if content {
         run_mode(arguments, file_argument, mode_argument, content)
@@ -128,6 +122,7 @@ func has_debug_memory_flag(arguments: Arguments): Bool {
 func generate_c_or_report(file_argument: String, content: String): String? {
     var discoverer = Discovery.ProgramDiscovery()
     discoverer.formats = formats
+    discoverer.supplied_settings = supplied_settings
     var discovery = discoverer.discover(file_argument, content)
     if discovery.has_error {
         console.error(discovery.error_message)
@@ -211,21 +206,23 @@ func has_flag(arguments: Arguments, flag: String): Bool {
     return false
 }
 
-func unknown_compiler_flag(arguments: Arguments): String? {
-    var reserved = ["file", "mode", "output", "debug_memory", "runtime", "final-classes", "operational_system"]
+func settings_from(arguments: Arguments): Dictionary<String> {
+    var compiler_flags = ["file", "mode", "output", "debug_memory", "runtime", "final-classes"]
+    var settings = Dictionary<String>()
     var index = 0
     while index < compiler_arguments_end(arguments) {
         var argument = arguments.get(index)
         var equals_position = argument.index_of("=")
         if argument.starts_with("--") and equals_position > 2 {
             var name = argument.slice(2, equals_position)
-            if not reserved.contains(name) {
-                return name
+            if not compiler_flags.contains(name) {
+                var argument_length = argument.length()
+                settings[name] = argument.slice(equals_position + 1, argument_length)
             }
         }
         index = index + 1
     }
-    return null
+    return settings
 }
 
 func final_classes_directory(arguments: Arguments): String? {
@@ -249,7 +246,9 @@ func final_classes_directory(arguments: Arguments): String? {
 }
 
 func run_final_classes_mode(file_argument: String, content: String, output_directory: String) {
-    var discovery = Discovery.ProgramDiscovery().discover(file_argument, content)
+    var discoverer = Discovery.ProgramDiscovery()
+    discoverer.supplied_settings = supplied_settings
+    var discovery = discoverer.discover(file_argument, content)
     if discovery.has_error {
         console.error(discovery.error_message)
         Program().exit(1)

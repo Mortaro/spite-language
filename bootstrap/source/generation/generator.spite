@@ -68,6 +68,7 @@ var arguments_parameter_names = List<String>()
 var temporary_counter = 0
 var literal_counter = 0
 var first_discovered_class = 0
+var hardcoded_settings = List<Syntax.Statements.VariableDeclaration>()
 
 func report(message: String) {
     has_error = true
@@ -596,7 +597,11 @@ func generate_codegen_value(name: String, class_information: Analysis.ClassInfo)
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
-func constant_condition(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Bool? {
+func constant_condition(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Bool? {
     var generic_identifier = shape.as_generic_identifier(expression)
     if generic_identifier {
         var bare_name = without_dollar(generic_identifier.name)
@@ -607,11 +612,18 @@ func constant_condition(expression: Syntax.Expressions.Expression, class_informa
         }
         return null
     }
+    var setting_text = hardcoded_setting_text(expression, scope, class_information)
+    if setting_text {
+        if setting_text == "b:true" or setting_text == "b:false" {
+            return setting_text == "b:true"
+        }
+        return null
+    }
     var unary = shape.as_unary(expression)
     if unary {
         if unary.operator == 'logical_not' {
             if unary.operand {
-                var inner = constant_condition(unary.operand, class_information)
+                var inner = constant_condition(unary.operand, scope, class_information)
                 if inner == true {
                     return false
                 }
@@ -628,8 +640,8 @@ func constant_condition(expression: Syntax.Expressions.Expression, class_informa
         if binary.left {
             if binary.right {
                 if binary.operator == 'logical_and' or binary.operator == 'logical_or' {
-                    var left_constant = constant_condition(binary.left, class_information)
-                    var right_constant = constant_condition(binary.right, class_information)
+                    var left_constant = constant_condition(binary.left, scope, class_information)
+                    var right_constant = constant_condition(binary.right, scope, class_information)
                     if (left_constant == true or left_constant == false) and (right_constant == true or right_constant == false) {
                         if binary.operator == 'logical_and' {
                             return left_constant == true and right_constant == true
@@ -639,13 +651,11 @@ func constant_condition(expression: Syntax.Expressions.Expression, class_informa
                     return null
                 }
                 if binary.operator == 'equal' or binary.operator == 'not_equal' {
-                    var left_generic = shape.as_generic_identifier(binary.left)
-                    if left_generic {
-                        var bare_name = without_dollar(left_generic.name)
-                        var left_value = generate_codegen_value(bare_name, class_information)
-                        var right_text = constant_text(binary.right)
+                    var left_text = folded_text(binary.left, scope, class_information)
+                    var right_text = constant_text(binary.right)
+                    if left_text {
                         if right_text {
-                            var same = constant_text_of_code(left_value) == right_text
+                            var same = left_text == right_text
                             if binary.operator == 'equal' {
                                 return same
                             }
@@ -653,6 +663,37 @@ func constant_condition(expression: Syntax.Expressions.Expression, class_informa
                         }
                     }
                 }
+            }
+        }
+    }
+    return null
+}
+
+func folded_text(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String? {
+    var generic_identifier = shape.as_generic_identifier(expression)
+    if generic_identifier {
+        var bare_name = without_dollar(generic_identifier.name)
+        var value = generate_codegen_value(bare_name, class_information)
+        return constant_text_of_code(value)
+    }
+    return hardcoded_setting_text(expression, scope, class_information)
+}
+
+func hardcoded_setting_text(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String? {
+    var member = shape.as_member(expression)
+    if member {
+        if is_hardcoded_setting_name(member.name) {
+            var value = generate_member_read(member, scope, class_information)
+            if not value.constant_text.is_empty() {
+                return value.constant_text
             }
         }
     }
@@ -1686,6 +1727,49 @@ func resolve_field(declaration: Syntax.Statements.VariableDeclaration, informati
     var field_type = infer_declared_type(declaration.type_reference, declaration.value, scope, information)
     var default_code = coerce_for_store(declaration.value, field_type, scope, information)
     information.fields.append(Analysis.FieldInfo(declaration.name, field_type, default_code))
+    if declaration.hardcoded {
+        hardcoded_settings.append(declaration)
+    }
+}
+
+func hardcoded_setting(target_class: Analysis.ClassInfo, name: String): Syntax.Statements.VariableDeclaration? {
+    if target_class.c_name != "Environment" {
+        return null
+    }
+    var index = 0
+    while index < hardcoded_settings.count() {
+        if hardcoded_settings[index].name == name {
+            return hardcoded_settings[index]
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func is_hardcoded_setting_name(name: String): Bool {
+    var index = 0
+    while index < hardcoded_settings.count() {
+        if hardcoded_settings[index].name == name {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func hardcoded_setting_value(
+    setting: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    crash setting.value
+    var value = generate_expression(setting.value, scope, class_information)
+    value.owning_override = false
+    var text = constant_text(setting.value)
+    if text {
+        value.constant_text = text
+    }
+    return value
 }
 
 func symbol_parameter_of(declaration: Syntax.Statements.FunctionDeclaration): String {
@@ -7167,6 +7251,10 @@ func generate_member_read_raw(
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     crash field
+    var hardcoded = hardcoded_setting(target_class, member.name)
+    if hardcoded {
+        return hardcoded_setting_value(hardcoded, scope, class_information)
+    }
     if owns(object_result, member.object) {
         var object_temporary = next_temporary()
         var field_temporary = next_temporary()
@@ -8207,7 +8295,7 @@ func generate_if_statement(
 ) {
     assert if_statement.condition
     report_repeated_branch_call(if_statement)
-    var constant = constant_condition(if_statement.condition, class_information)
+    var constant = constant_condition(if_statement.condition, scope, class_information)
     if constant == true or constant == false {
         builder.add_user("\{")
         if constant == true {

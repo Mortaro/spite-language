@@ -1,0 +1,3 @@
+var serve = false
+var workers = 1
+var name = "client"

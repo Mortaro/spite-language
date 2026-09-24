@@ -6,8 +6,13 @@ var error_message = ""
 var walking_library = false
 var formats = false
 var operational_system = Environment().operational_system
+var supplied_settings = Dictionary<String>()
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
+    choose_operational_system()
+    if has_error {
+        return failure(error_message)
+    }
     var formatted_source = formatted_source(entry_path, entry_source)
     var lexer = Syntax.Lexer(formatted_source)
     if lexer.has_error {
@@ -299,6 +304,19 @@ func is_platform_folder(name: String): Bool {
     return name == "windows" or name == "linux" or name == "mac"
 }
 
+func choose_operational_system() {
+    if supplied_settings["operational_system"] {
+        if is_platform_folder(supplied_settings["operational_system"]) {
+            operational_system = supplied_settings["operational_system"]
+        } else {
+            has_error = true
+            error_message = "error: '--operational_system={supplied_settings["operational_system"]}' names no operating system the library has a folder for: windows, linux or mac"
+        }
+    } else {
+        supplied_settings["operational_system"] = operational_system
+    }
+}
+
 func walk_directory(
     root_folder: String,
     segments: List<String>,
@@ -515,17 +533,23 @@ func read_environment_settings() {
     var environment = environment_file()
     assert environment
     var readings = List<Syntax.Statements.Statement>()
+    var declared = List<String>()
     var index = 0
     while index < environment.statements.count() and not has_error {
         var variable = shape.as_variable_declaration(environment.statements[index])
         if variable {
-            var reading = setting_reading(variable)
-            if reading {
+            declared.append(variable.name)
+            var reader = setting_reader(variable)
+            if supplied_settings.has(variable.name) {
+                hardcode_setting(variable, reader)
+            } else if not has_error {
+                var reading = setting_reading(variable, reader)
                 readings.append(reading)
             }
         }
         index = index + 1
     }
+    check_supplied_settings(declared)
     assert not has_error and not readings.is_empty()
     var constructor = environment_constructor(environment)
     var body_index = 0
@@ -565,14 +589,85 @@ func environment_constructor(environment: Syntax.SourceFile): Syntax.Statements.
     return made
 }
 
-func setting_reading(variable: Syntax.Statements.VariableDeclaration): Syntax.Statements.Statement? {
+func setting_reader(variable: Syntax.Statements.VariableDeclaration): String {
     crash variable.value
-    var reader = setting_reader(variable.value)
+    var reader = literal_reader(variable.value)
     if variable.type_reference or reader.is_empty() {
         has_error = true
-        error_message = "{variable.source_path}:{variable.line}: error: 'Environment.{variable.name}' is a setting, read from the program's command line (--{variable.name}=value) or its environment ({variable.name.upper_case()}), so it is declared with only a literal default, and the literal is its type: 'var {variable.name} = false' (Bool), 'var {variable.name} = 0' (Int) or 'var {variable.name} = \"\"' (String)"
+        error_message = "{variable.source_path}:{variable.line}: error: 'Environment.{variable.name}' is a setting, given to the compiler (--{variable.name}=value, hardcoded into the build) or read when the program runs from its command line or its environment ({variable.name.upper_case()}), so it is declared with only a literal default, and the literal is its type: 'var {variable.name} = false' (Bool), 'var {variable.name} = 0' (Int) or 'var {variable.name} = \"\"' (String)"
+    }
+    return reader
+}
+
+func hardcode_setting(variable: Syntax.Statements.VariableDeclaration, reader: String) {
+    assert not has_error
+    crash supplied_settings[variable.name]
+    var literal = setting_literal(reader, supplied_settings[variable.name])
+    if literal {
+        variable.value = literal
+        variable.hardcoded = true
+    } else {
+        has_error = true
+        error_message = "{variable.source_path}:{variable.line}: error: '--{variable.name}={supplied_settings[variable.name]}' was given to the compiler, but 'Environment.{variable.name}' is {setting_expectation(reader, variable.name)}"
+    }
+}
+
+func setting_expectation(reader: String, name: String): String {
+    if reader == "boolean_setting" {
+        return "a Bool: --{name}=true or --{name}=false"
+    }
+    return "an Int: a whole number, like --{name}=3"
+}
+
+func setting_literal(reader: String, text: String): Syntax.Expressions.Expression? {
+    if reader == "text_setting" {
+        return Syntax.Expressions.StringLiteralExpression(text)
+    }
+    if reader == "boolean_setting" {
+        return boolean_literal(text)
+    }
+    return integer_literal(text)
+}
+
+func boolean_literal(text: String): Syntax.Expressions.Expression? {
+    if text == "true" {
+        return Syntax.Expressions.TrueLiteral()
+    }
+    if text == "false" {
+        return Syntax.Expressions.FalseLiteral()
+    }
+    return null
+}
+
+func integer_literal(text: String): Syntax.Expressions.Expression? {
+    if not Environment().is_whole_number(text) {
         return null
     }
+    if text.starts_with("-") {
+        var text_length = text.length()
+        var magnitude_text = text.slice(1, text_length)
+        var magnitude = magnitude_text.to_long()
+        var operand = Syntax.Expressions.IntegerLiteral(magnitude)
+        return Syntax.Expressions.UnaryExpression('negate', operand)
+    }
+    var value = text.to_long()
+    return Syntax.Expressions.IntegerLiteral(value)
+}
+
+func check_supplied_settings(declared: List<String>) {
+    var supplied_names = supplied_settings.keys()
+    var index = 0
+    while index < supplied_names.count() and not has_error {
+        var name = supplied_names[index]
+        if not declared.contains(name) {
+            has_error = true
+            error_message = "error: '--{name}' is not a compiler flag, and this program's Environment declares no setting '{name}' (it declares {declared.join(", ")}). A setting given to the compiler is hardcoded into the build: declare it in the program's environment.spite with 'var {name} = ...'. To give it to the program when it runs instead, pass it after '--': spite program.spite -- --{name}=value"
+        }
+        index = index + 1
+    }
+}
+
+func setting_reading(variable: Syntax.Statements.VariableDeclaration, reader: String): Syntax.Statements.Statement {
     var arguments = List<Syntax.Expressions.Expression>()
     arguments.append(Syntax.Expressions.StringLiteralExpression(variable.name))
     arguments.append(Syntax.Expressions.IdentifierExpression(variable.name))
@@ -582,7 +677,7 @@ func setting_reading(variable: Syntax.Statements.VariableDeclaration): Syntax.St
     return assignment
 }
 
-func setting_reader(declared: Syntax.Expressions.Expression): String {
+func literal_reader(declared: Syntax.Expressions.Expression): String {
     if shape.is_true_literal(declared) or shape.is_false_literal(declared) {
         return "boolean_setting"
     }

@@ -86,9 +86,18 @@ the `Environment` singleton, whose fields it declares by reopening `Environment`
 spite server/server.spite -- --name=production
 ```
 
-Before the `--`, only the compiler's own `--name=value` flags are accepted: `file`, `mode`, `output`,
-`debug_memory`, `final-classes`, and `runtime` (reserved for compiler work, with no user-facing behavior yet).
-Any other `--name=value` there is an error that shows where it belongs: `spite program.spite -- --name=value`.
+Before the `--`, a `--name=value` is either one of the compiler's own flags (`file`, `mode`, `output`,
+`debug_memory`, `final-classes`, and `runtime`, reserved for compiler work with no user-facing behavior yet) or
+a setting the program's `Environment` declares -- and a setting given to the compiler is **hardcoded into the
+build** instead of read when the program runs
+(see [metaprogramming.md](metaprogramming.md#settings-given-to-the-compiler-are-hardcoded)):
+
+```bash
+spite server/server.spite --serve=true -- --name=production
+```
+
+Any other `--name=value` there is an error that shows both places it could belong. `--operational_system=linux`
+is such a setting: it picks the `library/linux/` folder and writes C for Linux from any machine.
 
 ## Inspect merged classes
 

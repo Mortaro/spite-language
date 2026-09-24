@@ -1,1 +1,1 @@
-error: '--serve' is not a compiler flag. A program's settings are fields of its Environment, passed to the program after '--': spite program.spite -- --serve=value
+error: '--serve' is not a compiler flag, and this program's Environment declares no setting 'serve' (it declares operational_system). A setting given to the compiler is hardcoded into the build: declare it in the program's environment.spite with 'var serve = ...'. To give it to the program when it runs instead, pass it after '--': spite program.spite -- --serve=value

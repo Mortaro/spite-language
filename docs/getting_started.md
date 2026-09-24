@@ -53,8 +53,9 @@ spite file.spite --mode=build --output=file.exe # build without running
 spite file.spite -- --serve=true              # pass the program its own arguments
 ```
 
-Everything after `--` belongs to the program; before it, a `--name=value` that is not a compiler flag is an
-error -- there is no silent typo. A program reads its settings through `Environment` (see
+Everything after `--` belongs to the program; before it, a `--name=value` is a compiler flag or a setting the
+program's `Environment` declares, hardcoded into the build, and anything else is an error -- there is no silent
+typo. A program reads its settings through `Environment` (see
 [metaprogramming.md](metaprogramming.md#program-settings-environment)). Planned flags such as `--development`, `--repl`, and formatting commands are not available yet.
 
 ## Automatic formatting and lints

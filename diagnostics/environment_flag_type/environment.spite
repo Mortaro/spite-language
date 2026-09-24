@@ -1,0 +1,2 @@
+var workers = 1
+var name = "client"

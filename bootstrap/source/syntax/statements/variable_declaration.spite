@@ -4,6 +4,7 @@ var value: Syntax.Expressions.Expression? = null
 var line = 0
 var source_path = ""
 var overrides_declaration = false
+var hardcoded = false
 
 func VariableDeclaration(
     declaration_name: String,

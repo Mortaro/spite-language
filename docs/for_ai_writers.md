@@ -135,7 +135,9 @@ func is_alive(): Bool {
   decided at compile time.
 - Settings: reopen `Environment` in the program's `environment.spite` with one `var` per setting and a literal
   default (`var serve = false`), then read `Environment().serve` anywhere. The value comes from `--serve=true`
-  after `--` on the command line, else the `SERVE` environment variable, else the default.
+  after `--` on the command line, else the `SERVE` environment variable, else the default. Given to the compiler
+  instead (`spite program.spite --serve=true`), it is hardcoded into the build and `if environment.serve { }`
+  is decided at compile time.
 - Reflection: `value.class` (a `Spite.Class`: `.name`, `.namespace` (a `Spite.Namespace?` -- narrow it before
   reading its members: `assert value.class.namespace` narrows the path itself and its prefixes for the rest of
   the block -- `.name_with_namespaces`, `.parent`, `.classes`,
