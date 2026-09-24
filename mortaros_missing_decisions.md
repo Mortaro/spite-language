@@ -21,8 +21,7 @@ manual argues it.
    branch of another `if` with an `else` is an error naming "extract a function".
    D94 review: [mortaros_review_while_and_else_if.md](mortaros_review_while_and_else_if.md), section 3 (16 cases,
    with the `else if` chains and a proposed `switch` over an enum).
-4. **Open question 13: how a class defines its own casts** (`func from_type(type: Symbol, value: type.class)`).
-   You asked to be asked later.
+4. (Answered: D100, `from_type`.)
 5. **Open question 16: two versions of one dependency.** Needs D38 (git dependencies) first.
 6. **Open questions 1, 3, 6, 8, 9, 10, 11**, the older ones: `= null` on a generic field, right-to-left casting
    in comparisons, `_` meaning private and unused, an unrelated `get_x()` intercepting `.x`, `${` in text,
