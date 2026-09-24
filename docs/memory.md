@@ -1,10 +1,12 @@
 # Memory
 
-Spite uses **reference counting**, JavaScript-like. A scalar (`Int`, `Float`, `Bool`,
-an enum value) is a plain value, copied wherever it goes. Everything else -- a class instance, `List<T>`,
-`Dictionary<T>`, `String`, a union, an object literal -- is a **reference**: assigning it, passing it, storing
-it in a field/list/dictionary, and returning it all share the exact same object. There is no `&` and no
-`Heap<T>` -- a reference is just the default, so a self-referential class/union needs nothing special either.
+Spite uses **reference counting**, JavaScript-like. A scalar (a number, a `Bool`, an enum value) is a plain
+value, copied wherever it goes. Everything else -- a class instance, `List<T>`, `Dictionary<T>`, `String`, a
+union, an object literal -- is a **reference**: assigning it, passing it, storing it in a field, a list or a
+dictionary, and returning it all share the exact same object. There is no reference syntax to write: a reference
+is the default. When the last reference to an object goes -- a scope ends, a field is overwritten, an element is
+removed -- the object's `drop()` runs, if it has one, its own references are released, and it is freed. There is
+no garbage collector and no pause.
 
 ## Do: know that sharing is visible
 
@@ -96,8 +98,8 @@ dropped first
 
 ## Self-referential classes and unions just work
 
-A tree, a linked list, or any other recursive structure needs nothing beyond an ordinary field -- no `Heap<T>`,
-no explicit indirection:
+A tree, a linked list, or any other recursive structure needs nothing beyond an ordinary field, since a field of
+a class type already holds a reference:
 
 ```spite title=tree_basics/tree_node.spite
 union TreeNode {
