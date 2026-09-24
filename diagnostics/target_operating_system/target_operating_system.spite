@@ -1,5 +1,6 @@
 var console = Console()
+var build = Build()
 
 func TargetOperatingSystem() {
-    console.print(Build().target_operating_system)
+    console.print(build.target_operating_system)
 }

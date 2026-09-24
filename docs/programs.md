@@ -184,7 +184,7 @@ func UnknownFlagError() {
 
 ### The operating system: `operating_system` and `target_operating_system`
 
-`Build().operating_system` is the system doing the compiling, and `Build().target_operating_system` the one the
+`build.operating_system` is the system doing the compiling, and `build.target_operating_system` the one the
 program is compiled for: `"windows"`, `"linux"` or `"mac"`. The target defaults to the compiling system, and
 `--target_operating_system=linux` compiles for Linux from any machine. Both are constants, so a condition on
 them keeps one branch:
@@ -215,10 +215,12 @@ Nothing about starting a program is hidden in the compiler. Running one is itsel
 `launcher/launcher.spite` at the root of the repository, and its constructor is the whole story:
 
 ```gdscript
+var build = Build()
+
 func Launcher() {
     load("library")
-    load("library/{Build().target_operating_system}")
-    load(Build().program)
+    load("library/{build.target_operating_system}")
+    load(build.program)
 }
 ```
 
@@ -228,7 +230,7 @@ The compiler reads that file first and follows its `load` calls in order:
 2. the folder of the operating system the program is compiled for -- `library/windows/`, `library/linux/` or
    `library/mac/`, each loaded only by name -- whose files reopen the classes that system does differently
    ([foreign_libraries.md](foreign_libraries.md#each-operating-system-reopens-what-it-changes));
-3. the program's own folder, `Build().program`, the folder named on the command line.
+3. the program's own folder, `build.program`, the folder named on the command line.
 
 A `load` in the launcher may use text and the `Build` fields the compiler knows before reading anything; a
 `load` anywhere else takes a literal. Loading the program's folder is what runs it: that one `load` constructs

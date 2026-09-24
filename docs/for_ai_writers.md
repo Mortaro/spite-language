@@ -160,12 +160,13 @@ func is_alive(): Bool {
   arguments say them. The constructor lists none: `func Weapon(damage: $damage_type)`. `$` is for generics only: a
   `$name` with no `generic` line is an error. `if $is_magic { }` is decided at compile time.
 - Settings: reopen `Environment` in the program's `environment.spite` with one `var` per setting and a literal
-  default (`var serve = false`), then read `Environment().serve` anywhere. The value comes from `--serve=true`
-  after `--` on the command line, else the `SERVE` environment variable, else the default.
+  default (`var serve = false`), then bind `var environment = Environment()` and read `environment.serve`. The
+  value comes from `--serve=true` after `--` on the command line, else the `SERVE` environment variable, else the
+  default.
 - Build settings: reopen `Build` in `build.spite` the same way. A `Build` field is decided when compiling --
-  `spite game --serve=true`, else its default -- and is a constant in the program, so `if Build().serve { }`
+  `spite game --serve=true`, else its default -- and is a constant in the program, so `if build.serve { }`
   keeps only one branch. The compiler's own options (`mode`, `optimized`, `debug_memory`, ...) and
-  `Build().target_operating_system` are `Build` fields too.
+  `build.target_operating_system` are `Build` fields too.
 - Reflection: `value.class` (a `Spite.Class`: `.name`, `.namespace` (a `Spite.Namespace?` -- narrow it before
   reading its members: `assert value.class.namespace` narrows the path itself and its prefixes for the rest of
   the block -- `.name_with_namespaces`, `.parent`, `.classes`,
@@ -176,7 +177,9 @@ func is_alive(): Bool {
   `Spite.Class.instances` (every class of the program). `class`, bare inside a class's function, is the class
   of the instance it answers on, and a class name reads its own class object: `Monster.name` is `"Monster"`.
 - A class whose file starts with a `singleton` line has one instance: `Journal()` always returns it, and its
-  constructor takes no arguments.
+  constructor takes no arguments. A singleton is always bound to a `var` first -- `var journal = Journal()` beside
+  the attributes, or in a function -- and used through the name: `Journal().record(entry)`, `Build().program`,
+  `keep(Console())` and `return Console()` are errors.
 - `value.memory` is where a named value lives (`.address`, `.bytes`, `.section`: `'heap'`, `'stack'`,
   `'constant'`). A container of your own is a generic class over `Memory` (`allocate_bytes`, `resize`, `free`,
   `read_long`/`write_long`, ...; the compiler places each allocation) and a `TypedMemory<$value_type>` (`read_value`,
@@ -188,7 +191,8 @@ func is_alive(): Bool {
 `append`, `exists`, `remove`), `Directory(path)` (`path`, `entries(): List<Directory.Entry>` -- each a `Directory` or a `File`, switched on --,
 `files`, `folders`, `exists`, `create`),
 `Process(command, arguments)` (`run(): Int`, `output()`), `Program()` (`exit(code)`, `sleep(milliseconds)`,
-`environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere.
+`environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere, bound once
+as `var console = Console()`.
 `Concurrent(function)` runs a function on a fiber and `Parallel(function)` on a thread: `.wait()` answers what it
 returned, the type is never written, and dropping the handle waits for it. There is no `async`/`await`: a function
 that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can
@@ -219,6 +223,7 @@ round trip, and this list is cheaper to read than to rediscover.
 | `class Monster { }` | nothing: the file *is* the class |
 | `func greet(name: String = "world")` | a second function, or an attribute holding the value |
 | `print(value)` | `var console = Console()` at file level, then `console.print(value)` |
+| `Console().print(value)`, `Build().program` | `var console = Console()`, `var build = Build()`, then `console.print(value)`, `build.program` |
 | `"hello ${name}"`, `"hello " + name` | `"hello {name}"` |
 | `for item in list` | `while index < list.count()`, or `map_`/`filter_`/`each_<member>()` |
 | `value == null` | `if value { } else { }`, `assert value`, `crash value`, or `switch` |

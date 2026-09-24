@@ -221,3 +221,21 @@ Behaviour that does not match the manual. The language was not changed; each is 
     hidden optimisation (D36)?
 56. **Item 13's `to_text()`** would be `to_string()` after D107 ("a value turns into text with `to_string()`"):
     the `Printable` proposal should use that name.
+
+## Singletons bound to a variable (D110; manual sections 8 and 12)
+
+57. **Where the binding lives**: an attribute ("on top") or a local `var` in a function are both accepted, and
+    the error names the attribute. Locals are what `String` uses for `Memory` (a value class has no attribute to
+    spare) and what an error path uses before `program.exit(1)`. Should a local binding be an error outside
+    value classes, so there is one place for it?
+58. **`Program` is a singleton now**: D8 and section 15 said so, but `library/program.spite` had no `singleton`
+    line, so `Program().exit(1)` made a fresh object each time and was not covered by D110. It has the line now
+    and every inline use is bound. Confirm?
+59. **A number's storage is two lines**: `var memory = Memory()` and `var _memory = memory.allocate_bytes(4)`
+    (item 51 was the one-line form). The binding is never a field of the number. The alternative was to exempt
+    `var _memory = Memory().allocate_bytes(4)` from D110, because the compiler reads that line rather than
+    running it; rejected so the file an AI reads to learn memory shows the bound form. Keep it?
+60. **`Build` is a static object**, like `Memory` in item 55: every field folds to a constant, so it holds
+    nothing at run time, and binding it (`var build = Build()` in the launcher and anywhere else) costs no
+    allocation. Reading a field of it any way but by name (reflection over its attributes) would see nothing.
+    Fine as a hidden optimisation (D36)?

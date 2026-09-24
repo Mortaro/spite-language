@@ -202,6 +202,8 @@ What counts, precisely:
 - The holes of a text are not arguments, and each is read like a line of its own:
   `"{word_count} words"` is fine, and so is `"{names.count()} names"`.
 - A call in an `if` or `while` condition, a `return`, an assignment or an index is not an argument.
+- A singleton's constructor is the exception: `greet(Console())` is an error, because a singleton is always bound
+  to a `var` first ([classes_and_files.md](classes_and_files.md#singletons)).
 
 **An `if` and its `else` do not repeat the same work.** When both branches compute the same call, it is
 computed once before the `if`:
@@ -241,6 +243,7 @@ page:
 | `"hello " + name` | `"hello {name}"` | [values_and_types.md](values_and_types.md#string) |
 | `func Holder() { }` | deleting it: a class without a constructor is made from its defaults | [classes_and_files.md](classes_and_files.md#constructors) |
 | `this.name` | `name` | [classes_and_files.md](classes_and_files.md#this) |
+| `Console().print(value)`, `Build().program`, `greet(Console())` | `var console = Console()` beside the attributes, then `console.print(value)` | [classes_and_files.md](classes_and_files.md#singletons) |
 | `enum Job = { 'knight', 'mage' }` | one entry per line, no `=`, no commas | [values_and_types.md](values_and_types.md#enums) |
 
 The reason is the same everywhere: Spite is written mostly by AI and read by people, and a long way round that the

@@ -17,6 +17,6 @@ func EnvironmentSettings() {
     if environment.verbose and environment.workers != 1 {
         console.print("many workers")
     }
-    var workers = Environment().workers
-    console.print("the same instance", workers)
+    var same_environment = Environment()
+    console.print("the same instance", same_environment.workers)
 }

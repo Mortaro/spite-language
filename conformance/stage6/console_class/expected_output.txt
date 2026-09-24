@@ -1,4 +1,4 @@
 true Console |
 written and written again
 a class that keeps a Console shares the one instance
-a Console made on the spot prints too
+a Console bound in a function prints too

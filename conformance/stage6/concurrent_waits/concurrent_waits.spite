@@ -1,4 +1,5 @@
 var console = Console()
+var program = Program()
 var log = List<String>()
 
 func ConcurrentWaits() {
@@ -30,12 +31,12 @@ func read_itself(): String? {
 
 func outer(): Int {
     var inner = Concurrent(inner_count)
-    Program().sleep(5)
+    program.sleep(5)
     return inner.wait() + 1
 }
 
 func inner_count(): Int {
-    Program().sleep(5)
+    program.sleep(5)
     return 41
 }
 
@@ -44,6 +45,6 @@ func ring_and_forget() {
 }
 
 func ring() {
-    Program().sleep(5)
+    program.sleep(5)
     log.append("ring")
 }

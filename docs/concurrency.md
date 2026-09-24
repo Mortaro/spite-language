@@ -3,7 +3,7 @@
 > **What is built:**
 > `Concurrent(function)` runs a function on a fiber of the program's own thread and `Parallel(function)` runs
 > one on a thread of its own; `.wait()` gives back what it returned, and dropping the handle waits for it.
-> Where a program already waits -- `Program().sleep`, `Console.read_line`, reading or writing a `File`, a
+> Where a program already waits -- `Program.sleep`, `Console.read_line`, reading or writing a `File`, a
 > `Socket`'s `accept_client` and `read_line`, waiting on a `Concurrent` or a `Parallel` -- the compiler turns the
 > wait into a suspension, so another fiber runs meanwhile, and a `--repl_port` build answers its commands there.
 > Windows runs all of it; the Linux and macOS folders are held to compiling. **Not built:** a thread pool,
@@ -23,6 +23,7 @@ back what the function returned -- a `String?` for `file.read` -- and the type i
 so it is never written.
 
 ```gdscript title=concurrent_tour/sleeper.spite
+var program = Program()
 var name = ""
 var milliseconds = 0
 var log = List<String>()
@@ -35,7 +36,7 @@ func Sleeper(starting_name: String, starting_milliseconds: Int, shared_log: List
 
 func nap(): String {
     log.append("{name} falls asleep")
-    Program().sleep(milliseconds)
+    program.sleep(milliseconds)
     log.append("{name} wakes up")
     return name
 }
@@ -86,7 +87,7 @@ fibers) runs whatever else is ready:
 
 | The program writes | While it waits |
 |---|---|
-| `Program().sleep(milliseconds)` | the fiber is parked until its time comes |
+| `program.sleep(milliseconds)` | the fiber is parked until its time comes |
 | `Console.read_line()`, reading or writing a `File`, a `Socket`'s `accept_client` or `read_line` | the one blocking system call runs on a short-lived helper thread, and the fiber is parked until it returns |
 | `a_concurrent.wait()`, or dropping it | the fiber is parked until that function returns |
 | `a_parallel.wait()`, or dropping it | the thread is joined, then anything ready runs once |
@@ -108,6 +109,7 @@ result is ever lost or left running in the background: leaving a scope is a join
 
 ```gdscript title=joined_on_drop/joined_on_drop.spite entry
 var console = Console()
+var program = Program()
 
 func JoinedOnDrop() {
     start_and_forget()
@@ -119,7 +121,7 @@ func start_and_forget() {
 }
 
 func ring() {
-    Program().sleep(10)
+    program.sleep(10)
     console.print("ring")
 }
 ```
@@ -178,19 +180,20 @@ cheaper counts. What a `Parallel` function may touch is not checked yet: give it
 A `--repl_port` build (see [repl.md](repl.md)) serves its commands **on the program's own thread, at the same
 waits**. The socket thread only reads a command and hands it over; the scheduler answers it the next time the
 program waits, and hands the answer back. Every command therefore sees the program between two steps, never in
-the middle of one: a frame loop that ends in `Program().sleep` is answered between frames, a tool waiting on
+the middle of one: a frame loop that ends in `program.sleep` is answered between frames, a tool waiting on
 `Console.read_line` is answered while it waits, and once the entry constructor returns, the program waits for
 nothing but commands until a client sends `exit`. None of this is written by the program.
 
 ```gdscript title=frame_loop/frame_loop.spite entry
 var console = Console()
+var program = Program()
 var frame = 0
 var running = true
 
 func FrameLoop() {
     while running and frame < 200 {
         frame = frame + 1
-        Program().sleep(10)
+        program.sleep(10)
     }
     console.print("stopped")
 }
@@ -218,10 +221,10 @@ rule the compiler applies: when none of the program's own code waits anywhere (n
 above), a `while` loop in it may never let the REPL in, and the error points at that loop:
 
 ```
-frames.spite:6: error: a --repl_port build answers its REPL where the program waits (Program().sleep,
+frames.spite:6: error: a --repl_port build answers its REPL where the program waits (Program.sleep,
 Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel) and after the
 entry constructor returns, and this program never waits: if this loop does not end, the REPL never answers.
-Wait somewhere in the loop, such as 'Program().sleep(1)' at the end of a frame
+Wait somewhere in the loop, such as 'program.sleep(1)' at the end of a frame
 ```
 
 A program without a loop always reaches the end of its constructor, where it is served, so it needs no wait.

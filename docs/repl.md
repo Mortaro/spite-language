@@ -87,7 +87,7 @@ Before the constructor runs, the program listens on `127.0.0.1:4000` **only**, a
 one client at a time -- there is **no authentication**. Anyone who can reach that port on that machine can read
 and mutate the running program. This is a local debugging tool for you and an AI on the same machine, never
 something to expose past `127.0.0.1`. The program keeps running while it is served, and each command is answered
-on the program's own thread the next time it waits -- a `Program().sleep`, a `Console.read_line()`, a file or socket
+on the program's own thread the next time it waits -- a `program.sleep`, a `Console.read_line()`, a file or socket
 read -- so a command never sees it halfway through a step ([concurrency.md](concurrency.md) has the details and a
 frame loop served between frames). When the constructor returns the process stays alive until a client sends
 `exit`, which flushes what the program printed and ends it with exit code 0. The port is part of the build: a
