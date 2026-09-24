@@ -296,8 +296,8 @@ new one, because `active` is a list the program named and kept. The steps in the
 that is a class) and `filter_`; the last call can be any template. The one visible difference is order: a
 member function in a fused chain runs element by element, where the steps written out would run it on every
 element before the next step starts. `conformance/stage6/fused_chain_allocations` runs four chains a thousand
-times each and pins its allocation count at 10, the lists and objects it builds before the loop; written step
-by step, the same program allocates 16 010 times.
+times each and pins its allocation count at 11, the lists and objects it builds before the loop and the `Launcher`; written step
+by step, the same program allocates 16 011 times.
 
 ## Write your own member template
 

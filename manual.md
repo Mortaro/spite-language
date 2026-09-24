@@ -1189,7 +1189,7 @@ generator writes one Spite function on the first list's class -- a `while` over 
 must reach a class; anything the rule cannot write (a nullable member, a union) is compiled step by step, which
 means the same. The difference a program can see is only order: a member function in a fused chain runs element
 by element. `conformance/stage6/fused_chain_allocations` pins it: four chains run a thousand times allocate
-nothing (10 allocations in all, against 16 010 step by step).
+nothing (11 allocations in all, the `Launcher` included, against 16 011 step by step).
 
 ## 9. Codegen values (`$`)  **[implemented]**
 
@@ -1954,8 +1954,8 @@ or a text another name or a list also holds) it is copied once, with room to gro
 names never changes under the other one, and a hundred thousand appends take 0.2 s instead of 7 s. It applies to
 a local variable or parameter of type `String` when no piece mentions that variable (`text = "{text}{text}"`
 copies, as before); an attribute is not appended in place, since a call among the pieces could reach it.
-`conformance/stage6/text_building` pins it: 200 000 appends and the sharing cases allocate 31 times, against
-600 043 when every append copied.
+`conformance/stage6/text_building` pins it: 200 000 appends and the sharing cases allocate 32 times (the `Launcher` included), against
+600 044 when every append copied.
 
 | Method | Result | Notes |
 |---|---|---|
