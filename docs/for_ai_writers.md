@@ -150,7 +150,8 @@ func is_alive(): Bool {
 ## Built in classes
 
 `Console()` (`print`, `write`, `error`, `read_line(): String?`), `File(path)` (`read(): String?`, `write`,
-`append`, `exists`, `remove`), `Directory(path)` (`files`, `folders`, `exists`, `create`),
+`append`, `exists`, `remove`), `Directory(path)` (`path`, `entries(): List<Directory.Entry>` -- each a `Directory` or a `File`, switched on --,
+`files`, `folders`, `exists`, `create`),
 `Process(command, arguments)` (`run(): Int`, `output()`), `Program()` (`exit(code)`, `sleep(milliseconds)`,
 `environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere.
 

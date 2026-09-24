@@ -1834,7 +1834,7 @@ directory listing and process spawning).
 | Class | Members |
 |---|---|
 | `File(path)` | `read(): String?`, `write(text): Bool`, `append(text): Bool`, `exists(): Bool`, `remove(): Bool` |
-| `Directory(path)` | `files(): List<String>` (names, sorted), `folders(): List<String>` (sorted), `exists(): Bool`, `create(): Bool` |
+| `Directory(path)` | `path: String`, `entries(): List<Directory.Entry>` (D93: every folder and file inside it, as `Directory` and `File` values whose `path` is joined to this one -- see below), `files(): List<String>` (names, sorted), `folders(): List<String>` (sorted), `exists(): Bool`, `create(): Bool` |
 | `Process(command, arguments)` | `run(): Int` (exit code; `arguments` is a `List<String>`, each shell-quoted), `output(): String` (stdout+stderr merged, valid after `run()`) |
 | `Program()` | `exit(code)`: exits the process immediately with `code` |
 | `Console()` | `print(...)`, `write(...)`, `error(...)`, `read_line(): String?` -- see below |
@@ -1847,6 +1847,45 @@ It has `print(...)` (every argument printed, separated by a space, with a traili
 same without the trailing newline), `error(...)` (the same as `print` but to the error stream), and
 `read_line(): String?` (one line from the input stream without its line break, null only at the end of input
 with nothing read). The entry constructor returning normally is exit code `0`.
+
+**A directory is navigated through its entries** (D93, decided by Mortaro, 2026-09-24).  **[implemented]**
+`Directory` has a `path` exactly as `File` does, and `entries()` answers a `List<Directory.Entry>`, where
+`Directory.Entry` is the union of `Directory` and `File` declared in `library/directory.spite`. Each entry's `path`
+is its parent's joined with its name, so a `switch` tells the two apart and a folder is walked by calling the same
+function on it again (`conformance/stage4/directory_entries`, `docs/standard_library.md`):
+
+```
+func count_files(directory: Directory): Int {
+    var total = 0
+    var entries = directory.entries()
+    var index = 0
+    while index < entries.count() {
+        var entry = entries.get_at(index)
+        switch entry {
+            Directory: total = total + count_files(entry)
+            File: total = total + 1
+        }
+        index = index + 1
+    }
+    return total
+}
+```
+
+What follows is Claude's reading (proposed by Claude, unconfirmed):
+
+- **The name is `Entry`**, namespaced as `Directory.Entry`, because it is what a directory listing calls each of
+  its items and it says nothing the class does not: `DirectoryEntry` would repeat the class it already lives in,
+  and `Path` would claim a text value it is not.
+- **Folders come first, then files, each sorted by name**; `.` and `..` are never listed. It is the order
+  `folders()` then `files()` already give, so the three agree.
+- **`files()` and `folders()` stay**: they answer names rather than values, which is what the compiler's own
+  discovery wants, and each is one line over the same listing. With `entries()` they are redundant, and the
+  proposal is to remove them once nothing in the repository reads names alone.
+- Each operating system's folder still lists a directory its own way (D80); what it supplies is renamed
+  `entry_names(want_folders)`, since `entries()` is now the public listing and Spite has no overloading.
+- Found on the way: a reopened class that declares a `union` again, as `--final-classes` prints `Directory` back
+  out, registered the union twice. A union declared again now replaces the earlier one, as a `type` already did
+  (section 11's rule: the later declaration of a name wins).
 
 ### Pure Spite: dissolving the runtime  **[planned]**
 
@@ -2683,3 +2722,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D97** (decided by Mortaro): **running a program is Spite code that loads it, with nothing hidden.** "running a spite program should have a entrypoint INSIDE our language code, that entrypoint basically just load() the folder the user provides. nothing of the process should be hidden, spite is just itself a spite application that loads the user application, no magic runtime code injected its a must! i should be able to see the project spite is running and completely understand how things are loaded, this project itself is loading the standard library and the current os files." The standard library, the operating system's folder and the user's folder are all loaded by visible `load()` calls in a Spite entry. |
 | 2026-09-24 | **D98** (decided by Mortaro): **`List` and `Dictionary` are only abstractions over `Memory`, and `Memory` handles both heap and stack**, "so anyone can create efficient data structures, we will need efficient data structures for our ECS framework later on." Nothing about the containers is special to the compiler. |
 | 2026-09-24 | (Mortaro, 2026-09-24, on D35/D37) **Hidden async/await must be built and documented**: "Make sure you made good on your promise of hidden async await with injected code into proper pause modes, its a important feature but ive seen not mention of it in documentation." D35's `Task` (no function colouring, join on drop) and D37's injected drain points are decided but not built, and `docs/` does not describe them; the remote REPL answers at once instead of at drain points. |
+| 2026-09-24 | (implements D93; proposed by Claude, unconfirmed) **`Directory.entries()` answers a `List<Directory.Entry>`**, the union of `Directory` and `File` declared in `library/directory.spite`, each with its `path` joined to its parent's; folders first, then files, each sorted by name. `files()` and `folders()` stay, answering names, and are proposed for removal once nothing reads names alone; each operating system's listing is renamed `entry_names(want_folders)`. Section 15, "System classes". |

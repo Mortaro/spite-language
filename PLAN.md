@@ -213,6 +213,10 @@ and balanced allocations.
     time (the tree shaking `$serve` had is gone; `$target` and D13 still need a build-time home), the sources and
     their order, and the literal-default typing are proposals. **Not done:** the compiler still reads its own
     flags through `Arguments` rather than `Environment`.
+20. **Done (2026-09-24): D93, a directory's entries** (manual.md section 15, "System classes"). `Directory.path`
+    and `entries(): List<Directory.Entry>`, a union of `Directory` and `File`
+    (`conformance/stage4/directory_entries`, `docs/standard_library.md`). **Waiting on Mortaro:** the name
+    `Entry`, the order, and removing `files()`/`folders()`.
 
 ## Later, deliberately deferred
 
