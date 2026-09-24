@@ -75,6 +75,7 @@ var bound_symbol_name = ""
 var bound_field_name = ""
 var bound_field_type: Analysis.SpiteType? = null
 var bound_member_owner_c_name = ""
+var bound_through_caller = false
 var arguments_parameter_names = List<String>()
 var temporary_counter = 0
 var literal_counter = 0
@@ -1887,7 +1888,7 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
             if not chosen.range {
                 chosen_owner = ""
             }
-            return instantiate_template(information, chosen, chosen_member, chosen_type, chosen_owner, name)
+            return instantiate_template(information, chosen, chosen_member, chosen_type, chosen_owner, name, "")
         }
     }
     if every {
@@ -2001,6 +2002,7 @@ func instantiate_template(
     member_type: Analysis.SpiteType,
     member_owner_c_name: String,
     call_name: String,
+    caller_c_name: String,
 ): Analysis.FunctionInfo {
     var declaration = template.get_declaration()
     var saved_symbol_name = bound_symbol_name
@@ -2030,6 +2032,10 @@ func instantiate_template(
         }
         parameter_index = parameter_index + 1
     }
+    if not caller_c_name.is_empty() {
+        var caller_type: Analysis.SpiteType = Analysis.Types.ClassRefType(caller_c_name)
+        parameters.append(Analysis.ParamInfo("caller", caller_type))
+    }
     var return_type = void_type()
     if declaration.return_type {
         var resolved_return = resolve_type(declaration.return_type, information.namespace_dotted)
@@ -2049,6 +2055,7 @@ func instantiate_template(
     function.symbol_field_name = member_name
     function.symbol_field_type = member_type
     function.symbol_owner_c_name = member_owner_c_name
+    function.symbol_through_caller = not caller_c_name.is_empty()
     if not declaration.has_body {
         function.has_body = false
         function.supplied_body = "#define {function.c_name}(self, value) (({c_type_name(return_type)})(value))"
@@ -2076,6 +2083,7 @@ func bind_symbol_of(function: Analysis.FunctionInfo) {
     bound_field_name = function.symbol_field_name
     bound_field_type = function.symbol_field_type
     bound_member_owner_c_name = function.symbol_owner_c_name
+    bound_through_caller = function.symbol_through_caller
 }
 
 func is_bound_member_index(index_expression: Syntax.Expressions.IndexExpression): Bool {
@@ -2096,6 +2104,9 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
     var member = shape.as_member(index_expression.object)
     crash member
     crash member.object
+    if bound_through_caller {
+        return caller_call_expression(member.object)
+    }
     var owner = find_class_by_c_name(bound_member_owner_c_name)
     crash owner
     var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(member.object, bound_field_name)
@@ -2109,6 +2120,22 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
         read,
         List<Syntax.Expressions.Expression>(),
     )
+    return called
+}
+
+func is_caller_call(expression: Syntax.Expressions.Expression): Bool {
+    assert bound_through_caller
+    var indexed = shape.as_index(expression)
+    assert indexed
+    return is_bound_member_index(indexed)
+}
+
+func caller_call_expression(element: Syntax.Expressions.Expression): Syntax.Expressions.Expression {
+    var caller: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("caller")
+    var callee: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(caller, bound_field_name)
+    var arguments = List<Syntax.Expressions.Expression>()
+    arguments.append(element)
+    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, arguments)
     return called
 }
 
@@ -4963,34 +4990,56 @@ func generate_list_method(
             return called
         }
     }
-    var element_class_ref = type_shape.as_class_ref(element)
-    if element_class_ref {
-        var element_class = find_class_by_c_name(element_class_ref.c_name)
-        if element_class {
-            var list_class = list_class_of(element)
-            var template = element_template_of(list_class, name)
-            if template {
-                var function = instantiate_element_template(list_class, element_class, template, name)
-                if function {
-                    var parameter_types = parameter_types_of(function.parameters)
-                    var function_return_type = function.get_return_type()
-                    return generate_generic_call(
-                        function.c_name,
-                        object_result,
-                        object_ast,
-                        arguments_ast,
-                        parameter_types,
-                        function_return_type,
-                        scope,
-                        class_information,
-                    )
-                }
-                return ExpressionResult("0", Analysis.Types.VoidType())
-            }
-        }
+    var list_class = list_class_of(element)
+    var template = element_template_of(list_class, name)
+    if not template {
+        report("List has no method '{name}'")
+        return ExpressionResult("0", Analysis.Types.VoidType())
     }
-    report("List has no method '{name}'")
-    return ExpressionResult("0", Analysis.Types.VoidType())
+    crash template
+    var function = instantiate_element_template(list_class, element, template, name, class_information)
+    if not function {
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    crash function
+    var parameter_types = parameter_types_of(function.parameters)
+    var function_return_type = function.get_return_type()
+    var passed = arguments_ast.copy()
+    if function.symbol_through_caller {
+        var caller: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("self")
+        passed.append(caller)
+    }
+    return generate_generic_call(
+        function.c_name,
+        object_result,
+        object_ast,
+        passed,
+        parameter_types,
+        function_return_type,
+        scope,
+        class_information,
+    )
+}
+
+func element_class_of(element: Analysis.SpiteType): Analysis.ClassInfo? {
+    var element_class_ref = type_shape.as_class_ref(element)
+    assert element_class_ref
+    assert not element_class_ref.has_signature
+    return find_class_by_c_name(element_class_ref.c_name)
+}
+
+func caller_function_for(
+    caller: Analysis.ClassInfo,
+    member_name: String,
+    element: Analysis.SpiteType,
+): Analysis.FunctionInfo? {
+    assert not caller.is_value_class and not caller.is_generic_template
+    var function = caller.find_function(member_name)
+    assert function
+    assert not function.is_constructor and function.parameters.count() == 1
+    var parameter_type = function.parameters[0].get_type()
+    assert types_equal(parameter_type, element)
+    return function
 }
 
 func member_type_of(element_class: Analysis.ClassInfo, member_name: String): Analysis.SpiteType? {
@@ -5052,37 +5101,116 @@ func element_template_of(list_class: Analysis.ClassInfo, name: String): Analysis
 
 func instantiate_element_template(
     list_class: Analysis.ClassInfo,
-    element_class: Analysis.ClassInfo,
+    element: Analysis.SpiteType,
     template: Analysis.TemplateInfo,
     name: String,
+    caller: Analysis.ClassInfo,
 ): Analysis.FunctionInfo? {
+    var member_name = template.member_name_for(name)
+    var element_class = element_class_of(element)
+    var member_type: Analysis.SpiteType? = null
+    if element_class {
+        member_type = member_type_of(element_class, member_name)
+    }
+    var caller_function = caller_function_for(caller, member_name, element)
+    var element_label = type_display_name(element)
+    if caller_function {
+        if member_type {
+            report(
+                "'{name}' could call '{member_name}' of each '{element_label}' or this class's own '{member_name}({element_label})': rename one of them so the template names only one",
+            )
+            return null
+        }
+        return instantiate_caller_template(list_class, template, member_name, caller, caller_function, name)
+    }
+    if not member_type {
+        var mismatch = caller_mismatch(caller, member_name, element)
+        report(
+            "'{element_label}' has no attribute or zero argument function '{member_name}' for '{name}', and {mismatch}",
+        )
+        return null
+    }
+    crash element_class
+    crash member_type
     var existing = list_class.find_function(name)
     if existing {
         return existing
     }
-    var member_name = template.member_name_for(name)
-    var member_type = member_type_of(element_class, member_name)
-    if not member_type {
-        report("'{element_class.simple_name}' has no attribute or zero argument function '{member_name}' for '{name}'")
-        return null
-    }
-    var requirement = member_requirement(template.prefix, element_class, member_name, member_type)
+    var is_field = is_field_of(element_class, member_name)
+    var requirement = member_requirement(template.prefix, is_field, member_name, member_type)
     if not requirement.is_empty() {
-        var described = "is a {type_label(member_type)}"
-        if type_shape.is_void(member_type) {
-            described = "returns nothing"
-        }
         report(
-            "'{name}': the member '{member_name}' of '{element_class.simple_name}' {described}, but '{template.prefix}' needs it to {requirement}",
+            "'{name}': the member '{member_name}' of '{element_label}' {described_member(member_type)}, but '{template.prefix}' needs it to {requirement}",
         )
         return null
     }
-    return instantiate_template(list_class, template, member_name, member_type, element_class.c_name, name)
+    return instantiate_template(list_class, template, member_name, member_type, element_class.c_name, name, "")
+}
+
+func instantiate_caller_template(
+    list_class: Analysis.ClassInfo,
+    template: Analysis.TemplateInfo,
+    member_name: String,
+    caller: Analysis.ClassInfo,
+    caller_function: Analysis.FunctionInfo,
+    name: String,
+): Analysis.FunctionInfo? {
+    var instance_name = "{name}_for_{caller.c_name.lower_case()}"
+    var existing = list_class.find_function(instance_name)
+    if existing {
+        return existing
+    }
+    var returned = caller_function.get_return_type()
+    var requirement = member_requirement(template.prefix, false, member_name, returned)
+    if not requirement.is_empty() {
+        report(
+            "'{name}': this class's '{member_name}' {described_member(returned)}, but '{template.prefix}' needs it to {requirement}",
+        )
+        return null
+    }
+    return instantiate_template(
+        list_class,
+        template,
+        member_name,
+        returned,
+        caller.c_name,
+        instance_name,
+        caller.c_name,
+    )
+}
+
+func caller_mismatch(caller: Analysis.ClassInfo, member_name: String, element: Analysis.SpiteType): String {
+    var element_label = type_display_name(element)
+    var function = caller.find_function(member_name)
+    if not function {
+        return "this class has no function '{member_name}' that takes one '{element_label}' and nothing else"
+    }
+    crash function
+    var parameter_count = function.parameters.count()
+    if parameter_count != 1 {
+        return "this class's '{member_name}' takes {parameter_count} arguments, but a template passes each element as the only one"
+    }
+    var parameter = function.parameters.first()
+    var parameter_type = parameter.get_type()
+    return "this class's '{member_name}' takes '{type_display_name(parameter_type)}', not '{element_label}'"
+}
+
+func is_field_of(element_class: Analysis.ClassInfo, member_name: String): Bool {
+    var field = element_class.find_field(member_name)
+    assert field
+    return true
+}
+
+func described_member(member_type: Analysis.SpiteType): String {
+    if type_shape.is_void(member_type) {
+        return "returns nothing"
+    }
+    return "is a {type_label(member_type)}"
 }
 
 func member_requirement(
     template_prefix: String,
-    element_class: Analysis.ClassInfo,
+    is_field: Bool,
     member_name: String,
     member_type: Analysis.SpiteType,
 ): String {
@@ -5096,11 +5224,11 @@ func member_requirement(
     if template_prefix == "sum_" and not is_numeric_type(member_type) {
         return "return a numeric type"
     }
-    if template_prefix == "each_" and element_class.find_field(member_name) {
+    if template_prefix == "each_" and is_field {
         return "be a function: reading an attribute and discarding it does nothing"
     }
     if template_prefix == "map_" and type_shape.is_void(member_type) {
-        return "return a value"
+        return "return a value (to only call it for each element, write 'each_{member_name}()')"
     }
     var ordered = is_numeric_type(member_type) or type_shape.as_string(member_type)
     if template_prefix == "sort_by_" and not ordered {
@@ -5151,10 +5279,11 @@ func instantiate_member_templates_of(list_class: Analysis.ClassInfo) {
             var member_name = member_names[member_index]
             var member_type = member_type_of(element_class, member_name)
             if member_type {
-                var requirement = member_requirement(template.prefix, element_class, member_name, member_type)
+                var is_field = is_field_of(element_class, member_name)
+                var requirement = member_requirement(template.prefix, is_field, member_name, member_type)
                 var name = "{template.prefix}{member_name}{template.suffix}"
                 if requirement.is_empty() and not list_class.find_function(name) {
-                    instantiate_template(list_class, template, member_name, member_type, element_class.c_name, name)
+                    instantiate_template(list_class, template, member_name, member_type, element_class.c_name, name, "")
                 }
             }
             member_index = member_index + 1
@@ -5182,14 +5311,20 @@ func generate_fused_chain(
     var element = chained_element_of(probe_type)
     assert element
     var base_list = list_class_of(element)
-    var fused_name = names.join("_then_")
+    var source = fused_chain_source(base_list, element, names, class_information)
+    assert not source.is_empty()
+    var name_end = source.index_of("(")
+    var fused_name = source.slice(5, name_end)
     var function = base_list.find_function(fused_name)
     if not function {
-        var source = fused_chain_source(base_list, element, names, fused_name)
-        assert not source.is_empty()
         function = register_fused_function(base_list, source, fused_name)
     }
     assert function
+    var passed = arguments_ast.copy()
+    if function.parameters.count() > arguments_ast.count() {
+        var caller: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("self")
+        passed.append(caller)
+    }
     var generated_member_object = generate_member_object(base, scope, class_information)
     var receiver = as_text(generated_member_object)
     var receiver_type = receiver.get_type()
@@ -5215,7 +5350,7 @@ func generate_fused_chain(
         function.c_name,
         receiver,
         base,
-        arguments_ast,
+        passed,
         parameter_types,
         function_return_type,
         scope,
@@ -5252,25 +5387,49 @@ func chained_element_of(receiver_type: Analysis.SpiteType): Analysis.SpiteType? 
     return null
 }
 
-func fused_step(base_list: Analysis.ClassInfo, current_type: Analysis.SpiteType, name: String): FusedStep? {
-    var class_ref = type_shape.as_class_ref(current_type)
-    assert class_ref
-    assert not class_ref.has_signature
-    var element_class = find_class_by_c_name(class_ref.c_name)
+func fused_step(
+    base_list: Analysis.ClassInfo,
+    current_type: Analysis.SpiteType,
+    name: String,
+    caller: Analysis.ClassInfo,
+): FusedStep? {
     var template = element_template_of(base_list, name)
-    assert element_class and template
-    crash element_class
-    crash template
+    assert template
     var member_name = template.member_name_for(name)
+    var caller_function = caller_function_for(caller, member_name, current_type)
+    if caller_function {
+        return fused_caller_step(template.prefix, current_type, member_name, caller_function)
+    }
+    var element_class = element_class_of(current_type)
+    assert element_class
     var member_type = member_type_of(element_class, member_name)
     assert member_type
-    var requirement = member_requirement(template.prefix, element_class, member_name, member_type)
+    var is_field = is_field_of(element_class, member_name)
+    var requirement = member_requirement(template.prefix, is_field, member_name, member_type)
     assert requirement.is_empty()
     var read = "{member_name}()"
-    if element_class.find_field(member_name) {
+    if is_field {
         read = member_name
     }
     return FusedStep(template.prefix, member_type, read)
+}
+
+func fused_caller_step(
+    prefix: String,
+    current_type: Analysis.SpiteType,
+    member_name: String,
+    caller_function: Analysis.FunctionInfo,
+): FusedStep? {
+    var element_class = element_class_of(current_type)
+    if element_class {
+        assert not member_type_of(element_class, member_name)
+    }
+    var returned = caller_function.get_return_type()
+    var requirement = member_requirement(prefix, false, member_name, returned)
+    assert requirement.is_empty()
+    var step = FusedStep(prefix, returned, member_name)
+    step.through_caller = true
+    return step
 }
 
 func fused_type_spelling(spite_type: Analysis.SpiteType): String {
@@ -5302,7 +5461,7 @@ func fused_chain_source(
     base_list: Analysis.ClassInfo,
     element: Analysis.SpiteType,
     names: List<String>,
-    fused_name: String,
+    caller: Analysis.ClassInfo,
 ): String {
     var loop_lines = List<String>()
     var current_type = element
@@ -5310,20 +5469,23 @@ func fused_chain_source(
     var indent = "        "
     var closings = List<String>()
     var mapped_count = 0
+    var uses_caller = false
     var index = 0
     while index < names.count() - 1 {
         var stage_name = names[index]
-        var step = fused_step(base_list, current_type, stage_name)
+        var step = fused_step(base_list, current_type, stage_name, caller)
         assert step
+        uses_caller = uses_caller or step.through_caller
+        var stage_read = step.read_of(current_name)
         if step.prefix == "filter_" {
-            loop_lines.append("{indent}if {current_name}.{step.read} \{")
+            loop_lines.append("{indent}if {stage_read} \{")
             closings.append("{indent}}")
             indent = "{indent}    "
         } else {
             var mapped_type = step.get_member_type()
             var next_name = fused_value_name(mapped_count)
             assert not next_name.is_empty() and not fused_type_spelling(mapped_type).is_empty()
-            loop_lines.append("{indent}var {next_name} = {current_name}.{step.read}")
+            loop_lines.append("{indent}var {next_name} = {stage_read}")
             mapped_count = mapped_count + 1
             current_name = next_name
             current_type = mapped_type
@@ -5331,12 +5493,14 @@ func fused_chain_source(
         index = index + 1
     }
     var last_name = names.last()
-    var last = fused_step(base_list, current_type, last_name)
+    var last = fused_step(base_list, current_type, last_name, caller)
     assert last
+    uses_caller = uses_caller or last.through_caller
     var last_member_type = last.get_member_type()
     var element_spelling = fused_type_spelling(current_type)
     var member_spelling = fused_type_spelling(last_member_type)
-    var read = "{current_name}.{last.read}"
+    var read = last.read_of(current_name)
+    var fused_name = names.join("_then_")
     var parameters = ""
     var returns = ""
     var before = List<String>()
@@ -5387,6 +5551,15 @@ func fused_chain_source(
     }
     var voided = type_shape.is_void(last_member_type)
     assert not element_spelling.is_empty() and (not member_spelling.is_empty() or voided)
+    if uses_caller {
+        assert caller.codegen_names.is_empty()
+        fused_name = "{fused_name}_for_{caller.c_name.lower_case()}"
+        var separator = ""
+        if not parameters.is_empty() {
+            separator = ", "
+        }
+        parameters = "{parameters}{separator}caller: {caller.qualified_dotted}"
+    }
     closings.reverse()
     var lines = List<String>()
     lines.append("func {fused_name}({parameters}){returns} \{")
@@ -5883,7 +6056,7 @@ func emit_functions_function(information: Analysis.ClassInfo) {
     while index < information.functions.count() {
         var function = information.functions[index]
         var listed = not information.is_container or not function.symbol_owner_c_name.is_empty()
-        if listed and not function.is_constructor {
+        if listed and not function.is_constructor and not function.symbol_through_caller {
             lines.append("\{")
             lines.append(
                 "Spite_Function* described = Spite_Function_make({ensure_symbol(function.name)}, {returned_class_object_call(function)});",
@@ -6972,47 +7145,48 @@ func generate_dictionary_method(
             class_information,
         )
     }
-    var value_class_ref = type_shape.as_class_ref(element)
-    if value_class_ref {
-        var value_class = find_class_by_c_name(value_class_ref.c_name)
-        if value_class {
-            var list_class = list_class_of(element)
-            var template = element_template_of(list_class, name)
-            if template {
-                var function = instantiate_element_template(list_class, value_class, template, name)
-                if function {
-                    var no_types = no_types()
-                    var list_type = list_type_of(element)
-                    var values_call = generate_generic_call(
-                        "{dictionary_name}_values",
-                        object_result,
-                        object_ast,
-                        List<Syntax.Expressions.Expression>(),
-                        no_types,
-                        list_type,
-                        scope,
-                        class_information,
-                    )
-                    values_call.owning_override = true
-                    var parameter_types = parameter_types_of(function.parameters)
-                    var function_return_type = function.get_return_type()
-                    return generate_generic_call(
-                        function.c_name,
-                        values_call,
-                        object_ast,
-                        arguments_ast,
-                        parameter_types,
-                        function_return_type,
-                        scope,
-                        class_information,
-                    )
-                }
-                return ExpressionResult("0", Analysis.Types.VoidType())
-            }
-        }
+    var list_class = list_class_of(element)
+    var template = element_template_of(list_class, name)
+    if not template {
+        report("Dictionary has no method '{name}'")
+        return ExpressionResult("0", Analysis.Types.VoidType())
     }
-    report("Dictionary has no method '{name}'")
-    return ExpressionResult("0", Analysis.Types.VoidType())
+    crash template
+    var function = instantiate_element_template(list_class, element, template, name, class_information)
+    if not function {
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    crash function
+    var no_types = no_types()
+    var list_type = list_type_of(element)
+    var values_call = generate_generic_call(
+        "{dictionary_name}_values",
+        object_result,
+        object_ast,
+        List<Syntax.Expressions.Expression>(),
+        no_types,
+        list_type,
+        scope,
+        class_information,
+    )
+    values_call.owning_override = true
+    var parameter_types = parameter_types_of(function.parameters)
+    var function_return_type = function.get_return_type()
+    var passed = arguments_ast.copy()
+    if function.symbol_through_caller {
+        var caller: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("self")
+        passed.append(caller)
+    }
+    return generate_generic_call(
+        function.c_name,
+        values_call,
+        object_ast,
+        passed,
+        parameter_types,
+        function_return_type,
+        scope,
+        class_information,
+    )
 }
 
 func release_statement(spite_type: Analysis.SpiteType, code: String): String {
@@ -8016,7 +8190,7 @@ func try_path_guard(
     class_information: Analysis.ClassInfo,
 ): NullableGuard? {
     var path = operand_text(condition_ast)
-    assert not path.is_empty()
+    assert not path.is_empty() and not is_caller_call(condition_ast)
     var links = path_links(condition_ast, class_information.namespace_dotted)
     var probe_scope = Scope(scope)
     var tests = List<String>()
@@ -8232,11 +8406,7 @@ func report_copy_for_narrowing(
 }
 
 func collect_body_facts(statements: List<Syntax.Statements.Statement>) {
-    var index = 0
-    while index < statements.count() {
-        collect_statement_facts(statements[index])
-        index = index + 1
-    }
+    statements.each_collect_statement_facts()
 }
 
 func collect_statement_facts(statement: Syntax.Statements.Statement) {
@@ -8691,10 +8861,142 @@ func generate_statement_list(
     var index = 0
     var ended_in_return = false
     while index < statements.count() {
+        if index > 0 {
+            report_caller_walk(statements[index - 1], statements[index], scope, class_information)
+        }
         ended_in_return = generate_statement(statements[index], scope, class_information, function_information)
         index = index + 1
     }
     return ended_in_return
+}
+
+func report_caller_walk(
+    before: Syntax.Statements.Statement,
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var loop = shape.as_while_statement(statement)
+    assert loop
+    crash loop.condition
+    var condition = shape.as_binary(loop.condition)
+    assert condition
+    assert condition.operator == 'less'
+    crash condition.left
+    crash condition.right
+    var counter = shape.as_identifier(condition.left)
+    assert counter
+    var counted = shape.as_call(condition.right)
+    assert counted
+    assert counted.arguments.is_empty()
+    crash counted.callee
+    var count_call = shape.as_member(counted.callee)
+    assert count_call
+    assert count_call.name == "count"
+    crash count_call.object
+    var list_text = operand_text(count_call.object)
+    assert not list_text.is_empty()
+    assert starts_at_zero(before, counter.name)
+    var called_name = caller_walk_function(loop.body, counter.name, list_text)
+    assert not called_name.is_empty()
+    var saved_counter = temporary_counter
+    var probe = generate_expression(count_call.object, scope, class_information)
+    temporary_counter = saved_counter
+    var probe_type = probe.get_type()
+    var listed = type_shape.as_list(probe_type)
+    assert listed
+    var element = listed.get_element()
+    var caller_function = caller_function_for(class_information, called_name, element)
+    assert caller_function
+    var element_class = element_class_of(element)
+    if element_class {
+        assert not member_type_of(element_class, called_name)
+    }
+    var saved_line = current_line
+    current_line = loop.line
+    report(
+        "this 'while' only calls '{called_name}' with each element of '{list_text}': write '{list_text}.each_{called_name}()'",
+    )
+    current_line = saved_line
+}
+
+func starts_at_zero(before: Syntax.Statements.Statement, counter: String): Bool {
+    var declared = shape.as_variable_declaration(before)
+    if declared {
+        crash declared.value
+        return declared.name == counter and is_zero_literal(declared.value)
+    }
+    var assigned = shape.as_assignment_statement(before)
+    assert assigned
+    crash assigned.target
+    crash assigned.value
+    var target_text = operand_text(assigned.target)
+    return target_text == counter and is_zero_literal(assigned.value)
+}
+
+func is_zero_literal(expression: Syntax.Expressions.Expression): Bool {
+    var integer = shape.as_integer_literal(expression)
+    assert integer
+    return integer.value == 0
+}
+
+func caller_walk_function(body: List<Syntax.Statements.Statement>, counter: String, list_text: String): String {
+    var statement_count = body.count()
+    assert statement_count == 2 or statement_count == 3
+    var step_position = statement_count - 1
+    var middle = body.get_at(1)
+    if statement_count == 3 and is_counter_step(middle, counter) {
+        step_position = 1
+    }
+    var step = body.get_at(step_position)
+    assert is_counter_step(step, counter)
+    var rest = body.copy()
+    rest.remove_at(step_position)
+    var first = rest.first()
+    if rest.count() == 1 {
+        return single_call_of(first, "{list_text}[{counter}]")
+    }
+    var read = shape.as_variable_declaration(first)
+    assert read
+    crash read.value
+    var read_text = operand_text(read.value)
+    assert read_text == "{list_text}[{counter}]"
+    var last = rest.last()
+    return single_call_of(last, read.name)
+}
+
+func is_counter_step(statement: Syntax.Statements.Statement, counter: String): Bool {
+    var assignment = shape.as_assignment_statement(statement)
+    assert assignment
+    crash assignment.target
+    crash assignment.value
+    var target_text = operand_text(assignment.target)
+    assert target_text == counter
+    var added = shape.as_binary(assignment.value)
+    assert added
+    assert added.operator == 'add'
+    crash added.left
+    crash added.right
+    var left_text = operand_text(added.left)
+    var right = shape.as_integer_literal(added.right)
+    assert right
+    return left_text == counter and right.value == 1
+}
+
+func single_call_of(statement: Syntax.Statements.Statement, argument_text: String): String {
+    var expression_statement = shape.as_expression_statement(statement)
+    assert expression_statement
+    crash expression_statement.value
+    var called = shape.as_call(expression_statement.value)
+    assert called
+    assert called.arguments.count() == 1
+    crash called.callee
+    var callee = shape.as_identifier(called.callee)
+    assert callee
+    var argument = called.arguments.first()
+    var passed_text = operand_text(argument)
+    assert passed_text == argument_text
+    return callee.name
 }
 
 func signature_is_dictated(function: Analysis.FunctionInfo): Bool {

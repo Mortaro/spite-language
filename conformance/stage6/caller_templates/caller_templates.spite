@@ -1,0 +1,65 @@
+var console = Console()
+var greeted = 0
+
+func CallerTemplates() {
+    var names = ["Ada", "Grace", "Barbara", "Edsger"]
+    names.each_say_hello()
+    var lengths = names.map_measure()
+    var joined_lengths = lengths.join(", ")
+    console.print(joined_lengths)
+    var short_names = names.filter_is_short()
+    var joined_short = short_names.join(", ")
+    console.print(joined_short)
+    var short_count = names.count_is_short()
+    var any_short = names.any_is_short()
+    var all_short = names.all_is_short()
+    var total = names.sum_measure()
+    console.print(short_count, any_short, all_short, total)
+    var found = names.find_by_measure(5)
+    crash found
+    console.print(found)
+    names.filter_is_short().each_say_hello()
+    var doubled = names.filter_is_short().map_measure().sum_double_of()
+    console.print(doubled)
+    var people = List<Person>()
+    people.append(Person("Ada", 36))
+    people.append(Person("Alan", 41))
+    people.each_introduce()
+    var short_adults = people.filter_is_adult().map_name().count_is_short()
+    console.print(short_adults)
+    var team = Dictionary<Person>()
+    var grace = Person("Grace", 85)
+    team.set("lead", grace)
+    team.each_introduce()
+    var team_ages = team.sum_age_of()
+    console.print(team_ages)
+    var sorted = names.sort_by_measure()
+    var joined_sorted = sorted.join(", ")
+    console.print(joined_sorted)
+    console.print(greeted)
+}
+
+func age_of(person: Person): Int {
+    return person.age
+}
+
+func say_hello(name: String) {
+    greeted = greeted + 1
+    console.print("hello, {name}")
+}
+
+func measure(name: String): Int {
+    return name.length()
+}
+
+func is_short(name: String): Bool {
+    return name.length() < 6
+}
+
+func double_of(value: Int): Int {
+    return value * 2
+}
+
+func introduce(person: Person) {
+    console.print("{person.name} is {person.age}")
+}

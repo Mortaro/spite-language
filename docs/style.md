@@ -242,6 +242,7 @@ page:
 | `func Holder() { }` | deleting it: a class without a constructor is made from its defaults | [classes_and_files.md](classes_and_files.md#constructors) |
 | `this.name` | `name` | [classes_and_files.md](classes_and_files.md#this) |
 | `enum Job = { 'knight', 'mage' }` | one entry per line, no `=`, no commas | [values_and_types.md](values_and_types.md#enums) |
+| a `while` whose body only passes each element of `names` to `say_hello` | `names.each_say_hello()` | [collections.md](collections.md#a-function-of-yours-for-each-element) |
 
 The reason is the same everywhere: Spite is written mostly by AI and read by people, and a long way round that the
 compiler accepts is a pattern that spreads.

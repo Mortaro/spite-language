@@ -1269,6 +1269,43 @@ by element. `conformance/stage6/fused_chain_allocations` pins it: four chains ru
 nothing (11 allocations in all, the one `TypedMemory` its lists share and the `Launcher` included, against 16 010
 step by step).
 
+**A function of the caller for each element** (D113, decided by Mortaro; the resolution rule, the loop rule's
+exact shape and the reading below are proposed by Claude, unconfirmed).  **[implemented]** The member a template
+names may also be a function of the *caller* -- the class the call is written in -- that takes the element as its
+only argument. With `func say_hello(name: String)` in the class, `names.each_say_hello()` calls `say_hello(name)`
+once per element, in order; `map_` collects what such a function returns (one returning nothing is the `map_`
+error, which now names `each_`); `filter_`, `count_`, `any_` and `all_` take one returning `Bool`, `sum_` one
+returning a number, `find_by_(value)` and `sort_by_` one returning something comparable. D15's table applies
+unchanged, read as "the function's return type". This works on a list or dictionary of anything, `String` and
+numbers included, which have no members of their own for a template to name.
+
+- **Resolution.** The element's own member (field or zero-argument function) is looked up, then a function of
+  the caller with that name, one parameter, and a parameter type equal to the element type. When both exist the
+  call is an error naming both (`'each_is_adult' could call 'is_adult' of each 'Person' or this class's own
+  'is_adult(Person)': rename one of them so the template names only one`), rather than one quietly winning: D59
+  already refuses one name meaning two things, and a silent order would let a new member on the element change
+  what an unrelated caller runs. When neither exists, the error says what the caller's function of that name
+  lacks (no such function, the wrong number of arguments, or another parameter type).
+- **How it is written.** No template changes: the same `library/list.spite` template (`each_member(member:
+  Symbol<$element_type>)`) is instantiated once more per calling class, with a last hidden parameter holding the
+  caller (`self` at the call site), and `item.attributes[member]` reads as `caller.say_hello(item)`. A program's
+  own template in its `list.spite` therefore answers both kinds of member. These instances are not listed among
+  the list's `functions` (they need a caller), nor offered at a `--repl` prompt. A fused chain (D105) may mix
+  both kinds of step; a step through the caller may follow a `map_` to a number or a `String`, and the fused
+  function then takes the caller as its last parameter.
+- **The loop rule.** A `while` is an error naming the template when, exactly: the statement before it sets a
+  counter to `0` (`var index = 0` or `index = 0`); the condition is `counter < list.count()`, with `list` a name or
+  a path of type `List<T>`; and the body is `f(list[counter])` then `counter = counter + 1`, or
+  `var item = list[counter]`, `f(item)` and the increment (the increment may come right after the `var`), with
+  `f` a function of the class taking one `T` and the element having no member `f`. The message is `this 'while'
+  only calls 'say_hello' with each element of 'names': write 'names.each_say_hello()'`
+  (`diagnostics/caller_templates`). The counter may be read after the loop; only the loop is replaced.
+- **Extra arguments are not passed.** A function that needs more than the element (`print_statement(statement,
+  depth)`, the review's typical case) is not a template member, and its `while` stays. Ways to carry `depth` are
+  in `mortaros_missing_decisions.md`; none is built.
+
+`conformance/stage6/caller_templates`, `docs/collections.md`.
+
 ## 9. Codegen values (`$`)  **[implemented]**
 
 `$name` means "replaced at code generation". That is its only meaning, everywhere it appears.
@@ -2128,6 +2165,9 @@ On top of `append`/`prepend`/`count`/index-read/index-write (iterate with `while
 | `each_<member>()` | | `T` a class: calls that zero-argument function on every element, mutating it in place |
 | `map_<member>()` | `List<U>` | an `Int`/`Float`/`Bool`/`String`/enum attribute's values, one per element |
 | `any_<member>()` / `all_<member>()` | `Bool` | a `Bool` attribute, true for at least one / every element |
+
+Every `<member>` above may instead be a function of the calling class that takes one `T` (D113, section 8):
+`names.each_say_hello()` calls `say_hello(name)` for each element, for any `T`.
 
 Naming (second batch item 3, decided 2026-09-19): `add` does not say where, so it is `append` (and `prepend`);
 `pop()` became `remove_last()`, plus `remove_first()` -- writing the old names is a compile error naming the
@@ -3267,3 +3307,5 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D112** (decided by Mortaro): **hot reload has a flag of its own, `--hot_reload`**, "in case we want a simpler --repl without it." `--repl` and `--repl_port` stay plain -- no call table, no file watcher, no `reload` command -- and `--hot_reload` (a `Build` field, spelled with an underscore like every compiler option) turns those on. |
 | 2026-09-24 | (Mortaro asked; the language chosen by Claude, unconfirmed) **Spite code blocks are fenced `gdscript` so GitHub highlights them.** GitHub highlights through Linguist, which only accepts a new language once it is used across a few hundred repositories, so `spite` cannot be added yet. Mortaro suggested Go as a middle ground; rendering one Spite sample through GitHub's own renderer as Go, Swift, Kotlin, TypeScript, Python and GDScript showed GDScript reads it best -- `#` comments, `func`/`var`/`assert`/`not`/`return`, both kinds of quotes and `{}` holes -- while Go treats `#` as text and `'symbol'` as a broken character. Titled blocks are ```` ```gdscript title=... ````; a ```` ```spite ```` fence is now an error in the docs corpus; `.gitattributes` maps `*.spite` to GDScript for the repository view. |
 | 2026-09-24 | **D113** (decided by Mortaro, settling part of D94's `while` rule): **a member template can call a function of the caller for each element, and a `while` written only to do that is an error.** "we should have a way to iterate just for sake of console log for example a function `func say_hello(name: String) {...}` and then instead of say_hello_to_everyone we just map_say_hello() ... whiles created just for a thing that should be a function instead should be a compiler error i suspect it will narrow a lot our whiles." So `names.each_say_hello()` calls the caller's own `say_hello(name)` once per element (`each_` rather than `map_`, since nothing is collected; `map_` does the same and keeps each result when the function returns one). D94's review counted 145 loops of this shape -- the largest group -- so the error names the template to write. |
+| 2026-09-24 | (implements D113; the readings below proposed by Claude, unconfirmed) **A template's member may be a function of the caller that takes the element alone, and the element's own member and such a function never both answer.** The caller is the class the call is written in; its function must have one parameter whose type equals the element type, and D15's requirements apply to its return type (`map_` of one returning nothing is the error, now naming `each_`). It works on a list or dictionary of any element type, `String` and numbers included. **When the element has a member of the same name, the call is an error naming both** rather than an order deciding: D113 allowed either, and an order would let a member added later change what an unrelated caller runs (`mortaros_missing_decisions.md` item 58). No template changed: the `library/list.spite` template is instantiated per calling class with a hidden last parameter for the caller, passed as `self`, and `item.attributes[member]` reads as `caller.<function>(item)`; such instances are not listed in the list's `functions` or offered at the REPL prompt. Fused chains (D105) take these steps too, after a `map_` to any type the fusion can spell, and pass the caller last. Section 8, `conformance/stage6/caller_templates`. |
+| 2026-09-24 | (implements D113's error; the shape proposed by Claude, unconfirmed) **The `while` that only passes each element to a caller function is an error, detected only where the rewrite is exact**: the statement before sets the counter to `0`; the condition is `counter < list.count()` on a name or path of type `List<T>`; the body is `f(list[counter])` or `var item = list[counter]` then `f(item)`, plus `counter = counter + 1` (last, or right after the `var`); `f` is a function of the class taking one `T`, and `T` has no member `f`. The message names the template: `this 'while' only calls 'say_hello' with each element of 'names': write 'names.each_say_hello()'` (`diagnostics/caller_templates`). **2 loops were rewritten**, `generator.spite`'s `collect_body_facts` and `docs/reflection.md`'s `function_reflection`: D94's 145 were almost all loops that pass more than the element (`depth`, `scope`), which D113 does not cover and which stay `while`; how to carry them is `mortaros_missing_decisions.md` item 57. The review file's counts are updated. |
