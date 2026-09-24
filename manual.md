@@ -1301,6 +1301,18 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   a constructor inside a constructor inside the call. Anything else is computed first and named.
 - **An `if` and its `else` do not repeat the same work** (D78): when both branches compute the same thing,
   it is computed once before the `if`. In the example, both branches sliced the same range.
+  **Implemented (2026-09-24) in a narrow form, (proposed by Claude, unconfirmed) beyond the example:** the error
+  is "'source.slice(token_start, end_index)' is computed in both branches: compute it once before the 'if'".
+  It counts a call with at least one argument to a function or method (not a constructor, whose name starts
+  with an upper-case letter) that prints identically in every branch -- both branches of an `if`/`else`, or
+  every branch of an `else if` chain that ends in `else` ("computed in every branch"). A chain where only some
+  branches share the call is not reported, since computing it before the `if` would run it on paths that never
+  did. Only the calls evaluated once and first thing in a branch count: the ones in the branch's statements
+  up to its first nested `if` (whose condition counts), `while` or `switch`, not a call standing alone as a
+  statement (it has no value to compute once), not the right side of `and`/`or`, and not a call that mentions
+  a name the branch declared, assigned, asserted or called a method on before it, or a name the `if`'s
+  conditions may narrow (tested for truth, or compared with `null` or a class). Names, literals, attribute
+  reads and wider repetitions are not reported yet.
 
 ### Formatting
 
@@ -2543,3 +2555,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D78** (decided by Mortaro): **an `if` and its `else` must not repeat the same logic**: "repeating the same logic twice on simple if and else" is hard to read and illegal. Mortaro's fix for `flush()` computes `var token_slice = source.slice(token_start, end_index)` once before the `if`. Which repetitions count (the same call in both branches, or any identical subexpression) is not settled yet. |
 | 2026-09-24 | (proposed by Claude, unconfirmed) **Joining, comparing and slicing text is Spite: `library/text_bytes.spite`, over three more `Memory` floor functions.** `Memory.address_of(text)` lends a string's bytes (the floor already listed it), `compare_bytes(first, second, bytes)` is `memcmp`, and `take_text(address, length)` makes a `String` that owns a buffer Spite filled, so joining copies once. `TextBytes` is a singleton the compiler calls through `SpiteString_concat`, `_equals`, `_less`, `_greater` and `_slice`, which it now emits as three-line wrappers, so nothing that calls them changed. Still C: `length` and `code_at` (a field read and a byte read the compiler could emit inline), making a `String` from bytes, retain and release (the object header is code generation), and the `true`/`false`/`""` constants. |
 | 2026-09-24 | (proposed by Claude, unconfirmed) **`runtime/` is deleted: the C the compiler still needs is written by the compiler, from `bootstrap/source/generation/prelude.spite`.** What was left of the hand-written runtime (the allocator switch, the object header, `String`'s layout and its making and freeing, `Arguments`, and the `Memory` and `DynamicLibrary` floor) is now text the compiler carries, so an installed compiler no longer reads `runtime/*.h` from the directory it runs in, and "what stays C is what the compiler emits" (section 15) holds literally. The prelude is still emitted whole; emitting only the parts a program uses is the next step. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **D78 implemented, narrowly.** The compiler reports a call with arguments (not a constructor) that prints identically in every branch of an `if`/`else` or of an `else if` chain ending in `else`, and only where computing it once before the `if` keeps the program's meaning: the call is among the first things each branch evaluates, mentions nothing the branch changed or the condition narrows, and is not a statement on its own. Which other repetitions count is still Mortaro's to settle. See [One call per line](#one-call-per-line-and-nothing-said-twice--planned). |

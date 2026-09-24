@@ -2,6 +2,7 @@ var condition: Syntax.Expressions.Expression? = null
 var then_branch = List<Statement>()
 var has_else_branch = false
 var else_branch = List<Statement>()
+var follows_else = false
 var line = 0
 
 func IfStatement(

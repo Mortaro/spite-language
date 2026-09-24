@@ -1011,10 +1011,11 @@ func emit_shape_callers(information: Analysis.UnionInfo) {
             while member_index < information.members.count() {
                 var member = information.members[member_index]
                 var call = "{member.c_name}_{name}(({member.c_name}*)self{passed})"
+                var member_test = class_id_test("self", member)
                 if type_shape.is_void(return_type) {
-                    lines.append("if {class_id_test("self", member)} \{ {call}; return; }")
+                    lines.append("if {member_test} \{ {call}; return; }")
                 } else {
-                    lines.append("if {class_id_test("self", member)} return {call};")
+                    lines.append("if {member_test} return {call};")
                 }
                 member_index = member_index + 1
             }
@@ -3933,12 +3934,13 @@ func generate_method_call(
     }
     var object_class_ref = type_shape.as_class_ref(object_result.get_type())
     if not object_class_ref {
+        var object_type_name = type_display_name(object_result.get_type())
         if type_shape.as_nullable(object_result.get_type()) {
             report(
-                "this value may be null (it is a {type_display_name(object_result.get_type())}), so '{member.name}' cannot be called on it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+                "this value may be null (it is a {object_type_name}), so '{member.name}' cannot be called on it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
             )
         } else {
-            report("a {type_display_name(object_result.get_type())} has no function '{member.name}'")
+            report("a {object_type_name} has no function '{member.name}'")
         }
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
@@ -5367,15 +5369,16 @@ func ensure_text_call(information: Analysis.ClassInfo, function: Analysis.Functi
     reflect_function_names.append(function_c_name)
     var call = "{function.c_name}({call_arguments.join(", ")})"
     var returned_type = function.get_return_type()
+    var result_symbol = ensure_symbol("result")
     if type_shape.is_void(returned_type) {
         lines.append("{call};")
         lines.append(
-            "return Spite_Attribute_make({ensure_symbol("result")}, {returned_class_object_call(function)}, (&spite_static_string_empty));",
+            "return Spite_Attribute_make({result_symbol}, {returned_class_object_call(function)}, (&spite_static_string_empty));",
         )
     } else {
         lines.append("{c_type_name(returned_type)} returned = {call};")
         lines.append(
-            "Spite_Attribute* reflected = {ensure_reflect_function(returned_type)}({ensure_symbol("result")}, returned);",
+            "Spite_Attribute* reflected = {ensure_reflect_function(returned_type)}({result_symbol}, returned);",
         )
         if type_needs_drop(returned_type) {
             lines.append("{release_call(returned_type, "returned")};")
@@ -8086,6 +8089,7 @@ func generate_if_statement(
     function_information: Analysis.FunctionInfo,
 ) {
     assert if_statement.condition
+    report_repeated_branch_call(if_statement)
     var constant = constant_condition(if_statement.condition, class_information)
     if constant == true or constant == false {
         builder.add_user("\{")
@@ -8464,6 +8468,342 @@ func report_repeated_cases(switch_statement: Syntax.Statements.SwitchStatement) 
     }
 }
 
+func report_repeated_branch_call(if_statement: Syntax.Statements.IfStatement) {
+    assert not if_statement.follows_else
+    var narrowed = List<String>()
+    var ends_in_else = collect_chain_narrowed_names(if_statement, narrowed)
+    assert ends_in_else
+    var first_calls = List<String>()
+    collect_branch_calls(if_statement.then_branch, narrowed, first_calls)
+    var shared = keep_shared_calls(if_statement, narrowed, first_calls)
+    assert shared[0]
+    var branch_words = "both branches"
+    if chained_if(if_statement) {
+        branch_words = "every branch"
+    }
+    report("'{shared[0]}' is computed in {branch_words}: compute it once before the 'if'")
+}
+
+func collect_chain_narrowed_names(if_statement: Syntax.Statements.IfStatement, names: List<String>): Bool {
+    crash if_statement.condition
+    collect_narrowed_names(if_statement.condition, names)
+    if not if_statement.has_else_branch {
+        return false
+    }
+    var chained = chained_if(if_statement)
+    if chained {
+        return collect_chain_narrowed_names(chained, names)
+    }
+    return true
+}
+
+func chained_if(if_statement: Syntax.Statements.IfStatement): Syntax.Statements.IfStatement? {
+    if if_statement.else_branch.count() != 1 {
+        return null
+    }
+    var chained = shape.as_if_statement(if_statement.else_branch[0])
+    if chained {
+        if chained.follows_else {
+            return chained
+        }
+    }
+    return null
+}
+
+func keep_shared_calls(
+    if_statement: Syntax.Statements.IfStatement,
+    narrowed: List<String>,
+    shared: List<String>,
+): List<String> {
+    var chained = chained_if(if_statement)
+    if chained {
+        var kept = calls_also_in(shared, chained.then_branch, narrowed)
+        return keep_shared_calls(chained, narrowed, kept)
+    }
+    return calls_also_in(shared, if_statement.else_branch, narrowed)
+}
+
+func calls_also_in(
+    shared: List<String>,
+    branch: List<Syntax.Statements.Statement>,
+    narrowed: List<String>,
+): List<String> {
+    var found = List<String>()
+    collect_branch_calls(branch, narrowed, found)
+    var kept = List<String>()
+    var index = 0
+    while index < shared.count() {
+        var call_text = shared[index]
+        if found.contains(call_text) {
+            kept.append(call_text)
+        }
+        index = index + 1
+    }
+    return kept
+}
+
+func copied_names(names: List<String>): List<String> {
+    var copy = List<String>()
+    var index = 0
+    while index < names.count() {
+        copy.append(names[index])
+        index = index + 1
+    }
+    return copy
+}
+
+func collect_narrowed_names(condition: Syntax.Expressions.Expression, names: List<String>) {
+    var unary = shape.as_unary(condition)
+    if unary {
+        crash unary.operand
+        collect_narrowed_names(unary.operand, names)
+        return
+    }
+    var binary = shape.as_binary(condition)
+    if binary {
+        crash binary.left
+        crash binary.right
+        if binary.operator == 'logical_and' or binary.operator == 'logical_or' {
+            collect_narrowed_names(binary.left, names)
+            collect_narrowed_names(binary.right, names)
+        } else if binary.operator == 'equal' or binary.operator == 'not_equal' {
+            var compared_with_class = false
+            var right_member = shape.as_member(binary.right)
+            var right_identifier = shape.as_identifier(binary.right)
+            if right_member {
+                compared_with_class = starts_upper_case(right_member.name)
+            } else if right_identifier {
+                compared_with_class = starts_upper_case(right_identifier.name)
+            }
+            if compared_with_class or shape.is_null_literal(binary.right) {
+                collect_mentioned_names(binary.left, names)
+            }
+        }
+        return
+    }
+    if shape.as_identifier(condition) or shape.as_member(condition) or shape.as_index(condition) {
+        collect_mentioned_names(condition, names)
+    }
+}
+
+func collect_branch_calls(branch: List<Syntax.Statements.Statement>, narrowed: List<String>, calls: List<String>) {
+    var changed = copied_names(narrowed)
+    var index = 0
+    while index < branch.count() {
+        var statement = branch[index]
+        switch statement {
+            Syntax.Statements.VariableDeclaration: {
+                crash statement.value
+                collect_repeatable_calls(statement.value, changed, calls)
+                changed.append(statement.name)
+            }
+            Syntax.Statements.AssignmentStatement: {
+                crash statement.value
+                crash statement.target
+                collect_repeatable_calls(statement.value, changed, calls)
+                collect_mentioned_names(statement.target, changed)
+            }
+            Syntax.Statements.ExpressionStatement: {
+                crash statement.value
+                collect_statement_call_parts(statement.value, changed, calls)
+                collect_mentioned_names(statement.value, changed)
+            }
+            Syntax.Statements.ReturnStatement: {
+                if statement.value {
+                    collect_repeatable_calls(statement.value, changed, calls)
+                }
+            }
+            Syntax.Statements.AssertStatement: {
+                crash statement.value
+                collect_repeatable_calls(statement.value, changed, calls)
+                collect_mentioned_names(statement.value, changed)
+            }
+            Syntax.Statements.IfStatement: {
+                crash statement.condition
+                collect_repeatable_calls(statement.condition, changed, calls)
+                return
+            }
+            _: return
+        }
+        index = index + 1
+    }
+}
+
+func collect_statement_call_parts(
+    expression: Syntax.Expressions.Expression,
+    changed: List<String>,
+    calls: List<String>,
+) {
+    var arguments = List<Syntax.Expressions.Expression>()
+    var callee: Syntax.Expressions.Expression? = null
+    var call = shape.as_call(expression)
+    var generic_call = shape.as_generic_call(expression)
+    if call {
+        callee = call.callee
+        arguments = call.arguments
+    } else if generic_call {
+        callee = generic_call.callee
+        arguments = generic_call.arguments
+    } else {
+        collect_repeatable_calls(expression, changed, calls)
+        return
+    }
+    crash callee
+    collect_repeatable_calls(callee, changed, calls)
+    var index = 0
+    while index < arguments.count() {
+        collect_repeatable_calls(arguments[index], changed, calls)
+        index = index + 1
+    }
+}
+
+func collect_repeatable_calls(expression: Syntax.Expressions.Expression, changed: List<String>, calls: List<String>) {
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            add_repeatable_call(expression, expression.callee, expression.arguments, changed, calls)
+            collect_repeatable_calls(expression.callee, changed, calls)
+            collect_each_repeatable_call(expression.arguments, changed, calls)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            add_repeatable_call(expression, expression.callee, expression.arguments, changed, calls)
+            collect_repeatable_calls(expression.callee, changed, calls)
+            collect_each_repeatable_call(expression.arguments, changed, calls)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            collect_repeatable_calls(expression.left, changed, calls)
+            if expression.operator != 'logical_and' and expression.operator != 'logical_or' {
+                collect_repeatable_calls(expression.right, changed, calls)
+            }
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            collect_repeatable_calls(expression.operand, changed, calls)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            collect_repeatable_calls(expression.object, changed, calls)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            collect_repeatable_calls(expression.object, changed, calls)
+            collect_repeatable_calls(expression.index, changed, calls)
+        }
+        _: return
+    }
+}
+
+func collect_each_repeatable_call(
+    expressions: List<Syntax.Expressions.Expression>,
+    changed: List<String>,
+    calls: List<String>,
+) {
+    var index = 0
+    while index < expressions.count() {
+        collect_repeatable_calls(expressions[index], changed, calls)
+        index = index + 1
+    }
+}
+
+func add_repeatable_call(
+    call: Syntax.Expressions.Expression,
+    callee: Syntax.Expressions.Expression,
+    arguments: List<Syntax.Expressions.Expression>,
+    changed: List<String>,
+    calls: List<String>,
+) {
+    assert not arguments.is_empty()
+    var called_name = ""
+    var identifier = shape.as_identifier(callee)
+    var member = shape.as_member(callee)
+    if identifier {
+        called_name = identifier.name
+    } else if member {
+        called_name = member.name
+    }
+    assert not starts_upper_case(called_name)
+    var mentioned = List<String>()
+    collect_mentioned_names(call, mentioned)
+    var index = 0
+    while index < mentioned.count() {
+        assert not changed.contains(mentioned[index])
+        index = index + 1
+    }
+    calls.append(Syntax.SourcePrinter().source_expression(call))
+}
+
+func starts_upper_case(name: String): Bool {
+    var first_letter = name.slice(0, 1)
+    return first_letter.upper_case() == first_letter and first_letter.lower_case() != first_letter
+}
+
+func collect_mentioned_names(expression: Syntax.Expressions.Expression, names: List<String>) {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: names.append(expression.name)
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            collect_mentioned_names(expression.callee, names)
+            collect_each_mentioned_name(expression.arguments, names)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            collect_mentioned_names(expression.callee, names)
+            collect_each_mentioned_name(expression.arguments, names)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            collect_mentioned_names(expression.left, names)
+            collect_mentioned_names(expression.right, names)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            collect_mentioned_names(expression.operand, names)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            collect_mentioned_names(expression.object, names)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            collect_mentioned_names(expression.object, names)
+            collect_mentioned_names(expression.index, names)
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var index = 0
+            while index < expression.elements.count() {
+                var element_value = expression.elements[index].value
+                crash element_value
+                collect_mentioned_names(element_value, names)
+                index = index + 1
+            }
+        }
+        Syntax.Expressions.ObjectLiteralExpression: {
+            var index = 0
+            while index < expression.fields.count() {
+                var field_value = expression.fields[index].value
+                crash field_value
+                collect_mentioned_names(field_value, names)
+                index = index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func collect_each_mentioned_name(expressions: List<Syntax.Expressions.Expression>, names: List<String>) {
+    var index = 0
+    while index < expressions.count() {
+        collect_mentioned_names(expressions[index], names)
+        index = index + 1
+    }
+}
+
 func generate_switch_statement(
     switch_statement: Syntax.Statements.SwitchStatement,
     scope: Scope,
@@ -8660,10 +9000,11 @@ func generate_union_dispatch(
         if member_index > 0 {
             keyword = "else if "
         }
+        var member_test = class_id_test(object_temporary, member)
         if has_result {
-            lines.append(keyword + "{class_id_test(object_temporary, member)} \{ {result_temporary} = {branch_code}; }")
+            lines.append(keyword + "{member_test} \{ {result_temporary} = {branch_code}; }")
         } else {
-            lines.append(keyword + "{class_id_test(object_temporary, member)} \{ {branch_code}; }")
+            lines.append(keyword + "{member_test} \{ {branch_code}; }")
         }
         member_index = member_index + 1
     }
