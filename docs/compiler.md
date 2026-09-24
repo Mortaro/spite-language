@@ -18,6 +18,46 @@ arguments through `Arguments()`. A path to a `.spite` file still works, which is
 itself (`spite bootstrap/spite_compiler.spite`, whose folder is not named after it) and how `--mode=format`
 names the file to format.
 
+## How a program is loaded
+
+Nothing about starting a program is hidden in the compiler. Running one is itself a Spite program,
+`launcher/launcher.spite` at the root of the repository, and its constructor is the whole story:
+
+```
+func Launcher() {
+    load("library")
+    load("library/{Build().target_operating_system}")
+    load(Build().program)
+}
+```
+
+The compiler reads that file first and follows its `load` calls in order: the standard library, then the folder
+of the operating system the program is compiled for (the folders named `windows`, `linux` and `mac` inside
+`library/` are loaded only by name), then the program's own folder, `Build().program`, which is the folder named
+on the command line. A `load` in the launcher takes text and `Build` fields the compiler already knows, since
+it runs before anything else is read. Loading the program's folder runs it: that `load` constructs the program's
+entry class, and the executable's `main` does nothing but construct `Launcher`.
+
+```spite title=loaded_program/loaded_program.spite entry
+var console = Console()
+var build = Build()
+
+func LoadedProgram() {
+    var named_folder = build.program.ends_with("loaded_program")
+    console.print("loaded from", named_folder)
+    console.print("for this machine", build.target_operating_system == build.operating_system)
+}
+```
+```output
+loaded from true
+for this machine true
+```
+
+`--final_classes` writes `Launcher` out with the rest of the program, so the printed program shows how it is
+loaded too. What `main` still does in C is the floor under this: it hands the command line to `Arguments()`,
+puts the standard output in binary mode on Windows, and, after `Launcher` returns, releases the singletons and
+the class objects and prints the `--debug_memory` balance.
+
 ## Choose an output mode
 
 `--mode=run` is the default. It emits C into `.spite-cache/`, builds an executable, and runs it:

@@ -1,5 +1,6 @@
 var callee: Expression? = null
 var arguments = List<Expression>()
+var runs_program = false
 
 func CallExpression(callee_expression: Expression, call_arguments: List<Expression>) {
     callee = callee_expression

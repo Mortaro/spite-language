@@ -9,6 +9,7 @@ var debug_memory = false
 var final_classes = ""
 var operating_system = ""
 var target_operating_system = ""
+var program = ""
 
 func is_singleton(): Bool {
     return true

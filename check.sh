@@ -210,7 +210,7 @@ for folder in .spite-cache/docs/*/; do
     "$work/generation_two.exe" "$file" --mode=check_format > /dev/null 2>&1 || unformatted="$unformatted docs:$(basename "$folder")/$(basename "$file")"
   done
 done
-for file in $(find bootstrap library tests conformance examples scripts -name "*.spite"); do
+for file in $(find bootstrap launcher library tests conformance examples scripts -name "*.spite"); do
   "$work/generation_two.exe" "$file" --mode=check_format > /dev/null 2>&1 || unformatted="$unformatted $file"
 done
 if [ -n "$unformatted" ]; then echo "FAILED: not formatted (run: bin/spite format <path>):$unformatted"; exit 1; fi

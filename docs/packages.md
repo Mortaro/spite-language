@@ -14,7 +14,9 @@ func Game() {
   and `package/engine/renderer/debug.spite` (a sibling file in the same folder) becomes
   `Engine.Renderer.Debug()`.
 - `load` only ever takes a literal string -- a variable or expression there is a diagnostic, so the compiler
-  always knows every bundle statically.
+  always knows every bundle statically. The one exception is the launcher, the Spite program that loads the
+  standard library and then yours ([compiler.md](compiler.md#how-a-program-is-loaded)): its `load` may also use
+  the `Build` fields the compiler already knows, like `Build().target_operating_system`.
 - Folder names are always lowercase `snake_case`, checked for every folder that actually contains a `.spite`
   file anywhere inside it.
 - Resolving a bare `Name` from inside a class tries, in order: that class's own namespace, its folder, each
@@ -126,7 +128,8 @@ func SpiteNamespaceError() {
 `load` marks where a dynamic library or lazy-loaded bundle could split, the way an async `import()` does in
 webpack -- tree shaking is computed per bundle, and a `load` inside an `if` loads lazily when that line runs.
 **[planned]**: every bundle is linked statically into the one executable for now, and the `load(...)` call
-itself compiles to nothing at runtime.
+itself compiles to nothing at runtime -- except the launcher's `load(Build().program)`, which runs the program by
+constructing its entry class.
 
 ## Final classes
 

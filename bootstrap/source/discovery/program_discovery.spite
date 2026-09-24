@@ -6,93 +6,251 @@ var error_message = ""
 var walking_library = false
 var formats = false
 var host_operating_system = Build().target_operating_system
-var target_operating_system = Build().target_operating_system
 var supplied_settings = Dictionary<String>()
 var bare_settings = List<String>()
 var build_values = Dictionary<String>()
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
     choose_target_operating_system()
+    choose_program(entry_path)
     if has_error {
         return failure(error_message)
     }
+    var launcher = read_launcher()
+    if has_error {
+        return failure(error_message)
+    }
+    crash launcher
+    var loads = launcher_loads(launcher)
+    var index = 0
+    while index < loads.count() and not has_error {
+        load_folder(loads[index], entry_path, entry_source)
+        index = index + 1
+    }
+    if has_error {
+        return failure(error_message)
+    }
+    read_settings()
+    if has_error {
+        return failure(error_message)
+    }
+    mark_program_load()
+    var entry_stem = file_stem(entry_path)
+    var entry_pascal_name = pascal_case(entry_stem)
+    var entry_mangled_name = mangle_dotted(entry_pascal_name)
+    var discovered = DiscoveryResult(class_files, entry_mangled_name, false, "")
+    discovered.build_values = build_values
+    discovered.launcher_mangled_name = "Launcher"
+    return discovered
+}
+
+func choose_program(entry_path: String) {
+    if supplied_settings.has("program") {
+        has_error = true
+        error_message = "error: '--program' cannot be given: the program is the folder named on the command line, 'spite folder', and Build.program is set from it"
+    }
+    supplied_settings["program"] = directory_of(entry_path)
+}
+
+func launcher_path(): String {
+    return "launcher/launcher.spite"
+}
+
+func read_launcher(): Syntax.SourceFile? {
+    var path = launcher_path()
+    var launcher_file = File(path)
+    if not launcher_file.read() {
+        has_error = true
+        error_message = "error: could not read '{path}', the Spite program that loads the standard library and then this program: run spite from the folder that holds it"
+        return null
+    }
+    var no_segments = List<String>()
+    walking_library = true
+    read_and_add_file(path, no_segments)
+    walking_library = false
+    return class_file_named("Launcher")
+}
+
+func launcher_loads(launcher: Syntax.SourceFile): List<Syntax.Expressions.CallExpression> {
+    var loads = List<Syntax.Expressions.CallExpression>()
+    var index = 0
+    while index < launcher.statements.count() {
+        var function = shape.as_function_declaration(launcher.statements[index])
+        if function {
+            if function.name == "Launcher" {
+                collect_loads(function.body, loads)
+            }
+        }
+        index = index + 1
+    }
+    return loads
+}
+
+func collect_loads(statements: List<Syntax.Statements.Statement>, loads: List<Syntax.Expressions.CallExpression>) {
+    var index = 0
+    while index < statements.count() {
+        var expression_statement = shape.as_expression_statement(statements[index])
+        if expression_statement {
+            crash expression_statement.value
+            var call = shape.as_call(expression_statement.value)
+            if call {
+                if is_load_call(call) {
+                    loads.append(call)
+                }
+            }
+        }
+        index = index + 1
+    }
+}
+
+func is_load_call(call: Syntax.Expressions.CallExpression): Bool {
+    crash call.callee
+    var identifier = shape.as_identifier(call.callee)
+    if identifier {
+        return identifier.name == "load" and call.arguments.count() == 1
+    }
+    return false
+}
+
+func load_folder(call: Syntax.Expressions.CallExpression, entry_path: String, entry_source: String) {
+    crash call.arguments[0]
+    var path = load_path(call.arguments[0])
+    if not path {
+        has_error = true
+        error_message = "{launcher_path()}: error: the launcher loads folders known when compiling: text, and Build fields given to the compiler, like load(\"library/\{Build().target_operating_system}\")"
+        return
+    }
+    crash path
+    if path == supplied_settings["program"] {
+        discover_program(entry_path, entry_source)
+        return
+    }
+    var folder = Directory(path)
+    if not folder.exists() {
+        has_error = true
+        error_message = "{launcher_path()}: error: could not find the folder '{path}' it loads"
+        return
+    }
+    var no_segments = List<String>()
+    var no_skip: String? = null
+    var no_exclusions = List<String>()
+    walking_library = true
+    walk_directory(path, no_segments, no_skip, no_exclusions)
+    walking_library = false
+}
+
+func load_path(expression: Syntax.Expressions.Expression): String? {
+    var literal = shape.as_string_literal(expression)
+    if literal {
+        return literal.value
+    }
+    var joined = shape.as_binary(expression)
+    if joined {
+        crash joined.left
+        crash joined.right
+        var left = load_path(joined.left)
+        var right = load_path(joined.right)
+        if left {
+            if right {
+                return "{left}{right}"
+            }
+        }
+        return null
+    }
+    var member = shape.as_member(expression)
+    if member {
+        crash member.object
+        if is_build_call(member.object) {
+            return supplied_settings[member.name]
+        }
+    }
+    return null
+}
+
+func is_build_call(expression: Syntax.Expressions.Expression): Bool {
+    var call = shape.as_call(expression)
+    if call {
+        crash call.callee
+        var identifier = shape.as_identifier(call.callee)
+        if identifier {
+            return identifier.name == "Build" and call.arguments.is_empty()
+        }
+    }
+    return false
+}
+
+func mark_program_load() {
+    var launcher = class_file_named("Launcher")
+    crash launcher
+    var loads = launcher_loads(launcher)
+    var index = 0
+    while index < loads.count() {
+        crash loads[index].arguments[0]
+        var path = load_path(loads[index].arguments[0])
+        if path == supplied_settings["program"] {
+            loads[index].runs_program = true
+        }
+        index = index + 1
+    }
+}
+
+func discover_program(entry_path: String, entry_source: String) {
     var formatted_source = formatted_source(entry_path, entry_source)
     var lexer = Syntax.Lexer(formatted_source)
     if lexer.has_error {
-        var lex_failure = lex_failure(entry_path, lexer)
-        return failure(lex_failure)
+        has_error = true
+        error_message = lex_failure(entry_path, lexer)
+        return
     }
     comment_root = directory_of(entry_path)
     check_comments(entry_path, lexer.tokens)
     check_blank_lines(entry_path, lexer.tokens)
-    if has_error {
-        return failure(error_message)
-    }
+    assert not has_error
     var parser = Syntax.Parser(lexer.tokens)
     var entry_file = parser.parse_file()
     if parser.has_error {
-        return failure("{entry_path}:{parser.error_line}:{parser.error_column}: {parser.error_message}")
+        has_error = true
+        error_message = "{entry_path}:{parser.error_line}:{parser.error_column}: {parser.error_message}"
+        return
     }
     var file_stem = file_stem(entry_path)
     var pascal_case = pascal_case(file_stem)
     check_order(entry_path, entry_file, pascal_case)
     check_entry_constructor(entry_path, entry_file, pascal_case)
-    if has_error {
-        return failure(error_message)
-    }
+    assert not has_error
     var entry_directory = directory_of(entry_path)
     var entry_stem = file_stem(entry_path)
     var entry_basename = basename(entry_path)
     var load_names = List<String>()
     scan_top_level_loads(entry_file, load_names)
     var empty_segments = List<String>()
-    var library_directory = Directory("library")
-    if library_directory.exists() {
-        var no_library_skip: String? = null
-        var no_library_exclusions = List<String>()
-        walking_library = true
-        walk_directory("library", empty_segments, no_library_skip, no_library_exclusions)
-        walking_library = false
-        if has_error {
-            return failure(error_message)
-        }
-    }
     entry_file.path = entry_path
     add_parsed_file(entry_file, empty_segments, entry_stem)
     walk_directory(entry_directory, empty_segments, entry_basename, load_names)
-    if has_error {
-        return failure(error_message)
-    }
     var root_index = 0
-    while root_index < load_names.count() {
-        var root_name = load_names[root_index]
-        if root_name == "spite" {
-            return failure(
-                "{entry_path}: error: 'spite' is reserved for the built-in Spite namespace: name the folder something else",
-            )
-        }
-        var root_folder = "{entry_directory}/{root_name}"
-        var root_directory = Directory(root_folder)
-        if not root_directory.exists() {
-            return failure("could not find the folder '{root_name}' loaded by {entry_path}")
-        }
-        var no_skip: String? = null
-        var no_exclusions = List<String>()
-        walk_directory(root_folder, empty_segments, no_skip, no_exclusions)
-        if has_error {
-            return failure(error_message)
-        }
+    while root_index < load_names.count() and not has_error {
+        load_root(entry_path, entry_directory, load_names[root_index])
         root_index = root_index + 1
     }
-    read_settings()
-    if has_error {
-        return failure(error_message)
+}
+
+func load_root(entry_path: String, entry_directory: String, root_name: String) {
+    if root_name == "spite" {
+        has_error = true
+        error_message = "{entry_path}: error: 'spite' is reserved for the built-in Spite namespace: name the folder something else"
+        return
     }
-    var entry_pascal_name = pascal_case(entry_stem)
-    var entry_mangled_name = mangle_dotted(entry_pascal_name)
-    var discovered = DiscoveryResult(class_files, entry_mangled_name, false, "")
-    discovered.build_values = build_values
-    return discovered
+    var root_folder = "{entry_directory}/{root_name}"
+    var root_directory = Directory(root_folder)
+    if not root_directory.exists() {
+        has_error = true
+        error_message = "could not find the folder '{root_name}' loaded by {entry_path}"
+        return
+    }
+    var empty_segments = List<String>()
+    var no_skip: String? = null
+    var no_exclusions = List<String>()
+    walk_directory(root_folder, empty_segments, no_skip, no_exclusions)
 }
 
 func lex_failure(path: String, lexer: Syntax.Lexer): String {
@@ -331,9 +489,7 @@ func choose_target_operating_system() {
     }
     supplied_settings["operating_system"] = host_operating_system
     if supplied_settings["target_operating_system"] {
-        if is_platform_folder(supplied_settings["target_operating_system"]) {
-            target_operating_system = supplied_settings["target_operating_system"]
-        } else if not has_error {
+        if not is_platform_folder(supplied_settings["target_operating_system"]) and not has_error {
             has_error = true
             error_message = "error: '--target_operating_system={supplied_settings["target_operating_system"]}' names no operating system the library has a folder for: windows, linux or mac"
         }
@@ -384,9 +540,6 @@ func walk_directory(
             excluded = excluded_top_level.contains(folder_name)
             if walking_library and is_platform_folder(folder_name) {
                 excluded = true
-                if folder_name == target_operating_system {
-                    walk_directory("{root_folder}/{folder_name}", segments, skip_basename, excluded_top_level)
-                }
             }
         }
         if not excluded {

@@ -3,6 +3,7 @@ var entry_mangled_name = ""
 var has_error = false
 var error_message = ""
 var build_values = Dictionary<String>()
+var launcher_mangled_name = ""
 
 func DiscoveryResult(
     result_class_files: List<DiscoveredClass>,
