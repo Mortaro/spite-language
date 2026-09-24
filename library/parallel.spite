@@ -1,0 +1,35 @@
+var work: Spite.Function<$result_type>? = null
+var results = List<$result_type>()
+var thread: Long = 0
+
+func Parallel<$result_type>(starting_work: Spite.Function<$result_type>) {
+    work = starting_work
+    var entry = entry_address()
+    var instance = address()
+    thread = start_thread(entry, instance)
+    if thread == 0 {
+        run()
+    }
+}
+
+func run() {
+    assert work
+    var value: $result_type = work()
+    results.append(value)
+}
+
+func wait(): $result_type {
+    join()
+    return results.get_at(0)
+}
+
+func join() {
+    if thread != 0 {
+        join_thread(thread)
+        thread = 0
+    }
+}
+
+func drop() {
+    join()
+}

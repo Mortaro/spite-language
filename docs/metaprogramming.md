@@ -159,11 +159,21 @@ func GenericsBasics() {
     var scoreboard = Pair<String, Int>("Aria", 42)
     var description = scoreboard.describe()
     console.print(description)
+    var inferred = Pair("Hero", 7)
+    var inferred_description = inferred.describe()
+    console.print(inferred_description)
 }
 ```
 ```output
 Aria and 42
+Hero and 7
 ```
+
+When every `$name` appears in the constructor's parameter types, a call may leave the `<...>` out and the
+compiler reads the values from the arguments: `Pair("Hero", 7)` is `Pair<String, Int>`, and a `$name` inside a
+function value's type is read from the function, so `Concurrent(file.read)` is a `Concurrent<String?>`
+([concurrency.md](concurrency.md)). When one cannot be read, the error asks for them between `<` and `>` (proposed
+by Claude, unconfirmed).
 
 `null` on a `$generic`-typed field means that generic's bound type's default value, not a literal `T?`
 -- provisional, see manual.md open question 1.

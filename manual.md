@@ -1574,8 +1574,9 @@ can write. Outside `--repl` they answer an empty list, `false` and `null`. **Sta
 and `spite connect` are built, in Spite, over `Socket` (section 15) through `DynamicLibrary` -- see their
 subsections below; `docs/repl.md`'s worked session is replayed by `check.sh` against a real program. **Not built
 yet:** walking a `Dictionary<T>` or a union, assigning a `T?`, a list element or a whole instance, the meta
-commands `classes`, `describe`, `enums` and `memory`, and D37's drain points (the remote loop answers at once, on
-its own thread). Compiling and executing arbitrary new Spite code inside the running process,
+commands `classes`, `describe`, `enums` and `memory`. D37's drain points are built (2026-09-24): the remote loop's
+commands are answered on the program's thread where it waits -- see "Answered where the program waits" below and
+section 15's "Concurrency". Compiling and executing arbitrary new Spite code inside the running process,
 `Class.instances`, and live reload were blocked on the memory-model decision in [open question
 4](#open-questions), decided as D1 (reference counting, milestone 9a, section 10) -- unblocked, not yet
 started, for milestone 6b (see "Live reload and 6b" below).
@@ -1673,6 +1674,14 @@ will ever unwind back to a clean `main` return, so this does not attempt one).
   instance. Spite starts it and waits for it through the operating system's folder (`CreateThread` and
   `WaitForSingleObject` from `kernel32.dll`; `pthread_create` and `pthread_join` elsewhere). No `Thread` class is
   added to the library: D35 already says how a program is concurrent, and this thread belongs to the REPL.
+- **Answered where the program waits** (D37, built 2026-09-24; proposed by Claude, unconfirmed). The socket thread
+  only reads a command, hands it to the program's scheduler (section 15, "Concurrency") and waits for the answer.
+  The scheduler answers it on the program's thread the next time the program waits -- `Program().sleep`,
+  `Console.read_line()`, a `File` or `Socket` read or write, a `Concurrent` wait, a `Parallel` join -- so a command
+  sees the program between two steps, never in the middle of one, and "data races are accepted" above no longer
+  applies. After the constructor returns, the program waits for nothing but commands. A `--repl-port` build of a
+  program that never waits and has a `while` loop is a compile error naming the loop
+  (`diagnostics/remote_loop_never_waits`); `docs/concurrency.md` replays a frame loop served between frames.
 - **The port is part of the build**, like any flag the compiler folds (D84): `main` listens on it, on the main
   thread, before the constructor runs, so a client that connects any time after the program starts is served. A
   port another program holds stops the program before its constructor with `error: the REPL could not listen on
@@ -1683,8 +1692,8 @@ will ever unwind back to a clean `main` return, so this does not attempt one).
   that returns nothing. Every message the console loop prints as a complaint is `"ok":false` on the wire.
   JSON escapes are `\"`, `\\`, `\n`, `\r`, `\t` and `\u00XX` for any other control character.
 - **`exit`** answers `{"ok":true,"value":"","type":""}`, closes the connection and calls `Program().exit(0)`,
-  which flushes what the program printed. When the constructor returns first, `main` waits for the server
-  thread. With `--repl` too, the console loop runs first, and after its `exit` the process keeps serving.
+  which flushes what the program printed. It is handed over like any command, so the program stops at a wait
+  first. When the constructor returns first, `main` serves commands until then. With `--repl` too, the console loop runs first, and after its `exit` the process keeps serving.
 - `spite program.spite --repl-port 4000` and `--repl-port=4000` both work; anything else after `--repl-port` is
   an error naming the form.
 
@@ -1839,6 +1848,7 @@ directory listing and process spawning).
 | `Program()` | `exit(code)`: exits the process immediately with `code` |
 | `Console()` | `print(...)`, `write(...)`, `error(...)`, `read_line(): String?` -- see below |
 | `Socket()` (proposed by Claude, unconfirmed) | `listen_locally(port): Bool`, `accept_client(): Socket?`, `connect_locally(port): Bool`, `read_line(): String?`, `write_line(text): Bool`, `close()` -- TCP on `127.0.0.1` only, which `--repl-port` and `spite connect` use (section 14) |
+| `Concurrent(function)`, `Parallel(function)` (proposed by Claude, unconfirmed) | `wait()`: what the function returned; dropping the handle waits for it -- see "Concurrency" below |
 | `DynamicLibrary(file_name, naming, header)`  **[planned]** | every foreign function, constant and type of a native library, resolved by Symbol codegen -- see [Foreign libraries](#17-foreign-libraries-planned) |
 
 `Console` is one of them and is a singleton (D52): `Console()` is the same instance everywhere, `Console` is an
@@ -1847,6 +1857,71 @@ It has `print(...)` (every argument printed, separated by a space, with a traili
 same without the trailing newline), `error(...)` (the same as `print` but to the error stream), and
 `read_line(): String?` (one line from the input stream without its line break, null only at the end of input
 with nothing read). The entry constructor returning normally is exit code `0`.
+
+### Concurrency: `Concurrent`, `Parallel` and hidden waiting  **[implemented on Windows; names and mechanism proposed by Claude, unconfirmed]**
+
+D35 (no function colouring, join on drop), D37 (the compiler injects the REPL's drain points where the program
+already waits), D99 (IO never blocks the program by the program's own hand) and D103 (async waiting and threads are
+two things, and `Task` is too generic a name) are built as two classes and one scheduler. `docs/concurrency.md` is
+the user's page for all of it.
+
+- **`Concurrent(function)`** (`library/concurrent.spite`) runs a function value (D17, D39) on a **fiber** of the
+  program's own thread, starting straight away; `.wait()` answers what it returned and `drop()` waits for it, so
+  scope exit is a join point. It is for work that waits: IO, sleeps, database calls later.
+- **`Parallel(function)`** (`library/parallel.spite`) runs one on a thread of its own, with the same `wait()` and
+  join on drop. It is for work that computes. Today it starts one operating-system thread per call; the engine's
+  thread pool and D35's `parallel_each_` templates are not built.
+- The type is never written: `Concurrent(file.read)` is a `Concurrent<String?>`, worked out from the function's
+  return (see the inference row in the decision log). A function that returns nothing gives a `Concurrent<Nothing>`,
+  whose `wait()` answers a `Nothing`.
+
+**The mechanism: stackful fibers, and a helper thread per blocking call.** A C target has no coroutines, so hidden
+async/await has three honest implementations. A *state-machine transform* (what C# and Rust do) rewrites every
+function that can reach a wait into a resumable object; it is the fastest per suspension, but the colour it hides
+is still there inside the compiler -- every such function, and every caller up to the fiber's root, has to be
+transformed, reference-counted locals have to move into the state object, and a suspension inside a
+`List.each_`-style template or a foreign callback has nowhere to go. *Threads* for everything make every wait
+cheap to write but every program multithreaded, which is exactly the hidden cost D36 forbids. *Stackful fibers*
+(`CreateFiber`/`SwitchToFiber` on Windows, `makecontext`/`swapcontext` elsewhere) give each concurrent function its
+own stack on the program's one thread: a function suspends wherever it is, with no transform and no colour, and
+Spite code only ever runs on one thread at a time, so the program's state needs no locks. Their cost is a stack
+per live `Concurrent` (reserved, not committed, on Windows) and a switch of about the cost of a function call. That
+is the one chosen. Files cannot be waited on without blocking on any of the three systems, so a blocking call is
+handed to a short-lived helper thread (what libuv does for files), and the fiber is parked until it returns.
+
+**What the compiler writes.** Each operating system's folder names the calls that block, and the compiler knows
+them by class and function: `Program.sleep`; `Console.read_line_into`, `File.read_into`, `File.write_text`,
+`Socket.accept_handle` and `Socket.receive_into` (the one system call under `Console.read_line()`, `File.read()`,
+`File.write()`/`append()`, `Socket.accept_client()` and `Socket.read_line()`); and `Parallel.join_thread`. In a
+program that uses the scheduler -- one that makes a `Concurrent`, or is built with `--repl-port` -- each of them is
+emitted under a `_waiting` name with a small wrapper in front: a sleep parks the fiber until its time, a blocking
+call runs on a helper thread while the fiber is parked, and a `Parallel` join joins and then lets whatever is ready
+run once. Every other program gets none of it: no wrapper, no scheduler, no fiber, the same C as before.
+
+**Blocking is what the compiler picks when it is faster** (D99). The wrapper asks the scheduler first: when no
+`Concurrent` is alive and no REPL is listening, or the caller is not on the scheduler's thread (a `Parallel`, a
+helper, the REPL's socket thread), nothing else could run meanwhile, so the wrapper makes the plain blocking call.
+
+**The scheduler** (`library/scheduler.spite`, a singleton; each operating system's folder reopens it with the
+fiber, event and clock calls) keeps the ready fibers, the sleeping ones with their wake times and the blocking
+calls in flight. When nothing is ready it answers the REPL's pending command, if any, then waits on one event that
+the helper threads and the REPL's socket thread signal, with the nearest wake time as its timeout. Waiting forever
+on nothing is a deadlock, and a crash.
+
+**Soundness.** A program that starts a thread (a `Concurrent`'s helpers, a `Parallel`, or `--repl-port`) is compiled
+with `SPITE_THREADS`: every retain and release is an atomic operation, and the `--debug-memory` table takes a lock.
+Every other program keeps the plain counts. Spite code on the program's thread only ever changes hands at a wait,
+so fibers need nothing more. What a `Parallel` function may touch is not checked: D35's rule (a parallel member
+reaches only its own instance and its locals) is not built, so two threads writing one field, or one writing a
+field another reads, is still the program's mistake -- and with reference-counted fields it can free a value
+another thread is reading. That rule, or another, waits on Mortaro (`mortaros_missing_decisions.md`).
+Two smaller gaps, untested: a singleton's first use from two threads at once is not guarded (each could make
+one), and a REPL client's `exit` while a helper thread is blocked reading the console may wait on the C runtime's
+lock on that stream when the process exits.
+
+**Not built:** a thread pool, `parallel_each_` templates, HTTP, cancelling a `Concurrent`, a `Concurrent` made on
+a thread that is not the scheduler's (it runs on the spot instead), and running any of this on Linux or macOS,
+whose folders are held to compiling.
 
 ### Pure Spite: dissolving the runtime  **[planned]**
 
@@ -2690,3 +2765,8 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D103** (decided by Mortaro, on D35): **`Task` is too generic a name, and async waiting and threads are two things.** "we need to make a separation between async/await tasks and plain threaded tasks, unless they all are threads but in that case we need to make sure its efficient. we will later need for the nullstack clone efficient hidden async/await on db calls and so on, but super efficient threaded performance on our game engine." Hidden async/await (D99) for IO and database calls, and a separate, fast threaded form for parallel work. |
 | 2026-09-24 | **D104** (Mortaro, correcting an omission): **`singleton` is a header keyword at the top of the file**, first in D67's enforced order (`singleton`, then `generic` lines, then `enum`, ...), and `func is_singleton(): Bool { return true }` is no longer how a class says it. "you ignored my decision to use the singleton keyword on top of file with the enforced order of declarations." `is_singleton()` stays readable on `Spite.Class` as a getter (D88). |
 | 2026-09-24 | **D105** (decided by Mortaro, on D94's review): **the review's findings are confirmed and get built; the remaining proposals are decided later.** "your findings on while and if already confirmed can be worked on, and we just decide tomorrow the other ones." That covers: rewriting the 31 loops that an existing iterator replaces, flattening the 7 nested `if`/`else` that flatten, and the chains that become a `switch` today. The two proposed rules (`while` over a list, nested `if`/`else`) and `switch` over enums wait (`mortaros_review_while_and_else_if.md`). **Iterators are cumulative**: "keep in mind iterators should be cumulative (and we can optimize them into single loops on compiler time) like `map_repositories().filter_active().sum_stars()`." A chain of member templates reads as separate steps, and the compiler fuses it into one loop with no intermediate lists. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; answers D99 and D103) **Hidden async/await is stackful fibers on the program's own thread, and a blocking call runs on a helper thread while its fiber is parked.** Chosen over a state-machine transform (the colour survives inside the compiler: every function that can reach a wait, and every caller up to the fiber's root, is rewritten, and reference-counted locals move into the state object) and over threads for everything (every program multithreaded, the hidden cost D36 forbids). Spite code only ever runs on one thread at a time, so fibers need no locks; files cannot be waited on without blocking anywhere, so the one blocking call goes to a helper thread, as libuv does. The waits the compiler turns into suspensions are named by class and function (`Program.sleep`, and the system call under `Console.read_line()`, `File.read()`/`write()`/`append()`, `Socket.accept_client()` and `Socket.read_line()`), and are wrapped only in a program that uses the scheduler (it makes a `Concurrent` or is built with `--repl-port`); every other program's C is unchanged. **Blocking is what the compiler picks when it is faster (D99):** with no `Concurrent` alive and no REPL listening, or off the scheduler's thread, the wrapper makes the plain call. Built on Windows (`CreateFiber`, `SwitchToFiber`, an event); the Linux and macOS folders use `makecontext`/`swapcontext`, a pipe and `poll`, held to compiling. Section 15, "Concurrency". |
+| 2026-09-24 | (proposed by Claude, unconfirmed; D103 asked for the names) **`Task` is split into `Concurrent` and `Parallel`.** `Concurrent(function)` runs on a fiber of the program's thread and is for work that waits; `Parallel(function)` runs on a thread of its own and is for work that computes. Both answer `.wait()` and join when dropped (D35). The pair is the usual distinction -- concurrency interleaves, parallelism runs at once -- so each name says what the program gets. `Parallel` starts one thread per call today; a pool is the engine's next step. Waiting on Mortaro in `mortaros_missing_decisions.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; builds D37) **The REPL's commands are answered at the scheduler's waits, on the program's thread.** The socket thread only reads a command, hands it over and waits for the answer; the scheduler answers it the next time the program waits (a sleep, a blocking call, a `Concurrent` wait, a `Parallel` join) and, once the entry constructor returns, waits for nothing else until `exit`. So a command sees the program between two steps. `exit` is handed over the same way: the program's thread answers it and stops, and the socket thread writes the answer and calls `Program().exit(0)`. **The compile error D37 asks for, as built:** a `--repl-port` build is an error when none of the program's own (non-library) code calls a wait (`Program().sleep`, `Console.read_line`, `File.read`/`write`/`append`, `Socket.accept_client`/`read_line`, anything on a `Concurrent` or `Parallel`) and the program has a `while` loop, which is named in the error; a program without a loop always reaches the end of its constructor, where it is served. This can reject a loop that does end (`diagnostics/remote_loop_never_waits`). Supersedes the "D37's drain points are not built" part of the REPL answer row above. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **Reference counts are atomic only in a program that starts a thread.** A program that makes a `Concurrent` (its helper threads), a `Parallel`, or is built with `--repl-port` is compiled with `SPITE_THREADS`: retain and release are atomic (`__atomic_add_fetch`/`__atomic_sub_fetch`), the live-allocation counter too, and the `--debug-memory` table takes a spin lock with a per-thread re-entry flag. Every other program keeps plain arithmetic, so the cost exists only where threads do. `Memory` gains `exchange_long`, `read_long_atomically` and `write_long_atomically`, which the scheduler and the REPL's hand-over use. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **A generic class's codegen values are inferred from its constructor's arguments when they are left out.** `Concurrent(file.read)` is `Concurrent<String?>`: each constructor parameter whose declared type mentions a `$name` -- directly, or as an argument or the return of a `Spite.Function<...>` -- is matched against the argument's type. Only when every `$name` is found this way; otherwise the D9 error asks for them between `<` and `>`, as before. A function returning nothing fills a `$name` with `Nothing`, and where a value of type `Nothing` is needed, such a call gives a fresh `Nothing` (so `Concurrent(ring)` works). Mortaro's D35 example writes `Task(file.read)`, which only works this way; D9's "call sites are positional, always" still holds for every value written. |

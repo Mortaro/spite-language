@@ -43,8 +43,28 @@ manual argues it.
 
 ## From the remote REPL
 
-11. **D37 drain points and the remote REPL.** The remote REPL answers each command the moment it arrives, on its
-    own thread (races accepted as a debug tool). D37 says commands should wait for a drain point, where the program
-    is already waiting. Being built with D35's `Task` now; confirm the drain rule once it lands.
+11. **D37 drain points, as built.** The remote REPL's commands are answered on the program's thread at its waits
+    (manual section 14, "Answered where the program waits"). Confirm the compile error's rule: a `--repl-port`
+    build is rejected when none of the program's own code waits and it has a `while` loop -- which also rejects
+    a loop that does end.
 12. **`Socket` is new public library surface** (`library/socket.spite`), and the REPL's port is fixed at build time.
 
+## From hidden async/await (D99, D103)
+
+13. **The names `Concurrent` and `Parallel`** for D103's split (manual section 15, "Concurrency"):
+    `Concurrent(function)` runs on a fiber of the program's thread and is for work that waits, `Parallel(function)`
+    runs on a thread of its own and is for work that computes; both answer `wait()` and join when dropped.
+14. **The mechanism: stackful fibers plus a helper thread per blocking call**, chosen over a state-machine
+    transform and over threads for everything (the decision-log row argues it). Built on Windows; the Linux and
+    macOS folders (`makecontext`/`swapcontext`) are only compiled.
+15. **What a `Parallel` function may touch.** Nothing is checked yet, and with reference-counted fields a race can
+    free a value another thread is reading. Options: D35's syntactic rule (it reaches only its own instance and its
+    locals, which rejects `Parallel(file.read)` because `File` reaches `Memory` and its library through fields);
+    that rule with singletons allowed; or running a `Parallel` on a deep copy of its instance.
+16. **Inferring codegen values from constructor arguments** (`Concurrent(file.read)` without `<String?>`), which
+    D35's own example needs and D9 did not foresee.
+17. **SPITE.md's line on `async`/`await`** says the handle "joins on first use -- no `.wait()` to remember". As
+    built, dropping the handle joins it and `wait()` is how the result is read; there is no implicit wait when the
+    value is first used. Say which you want.
+18. **A thread pool for `Parallel`**, and whether `parallel_each_` templates (D35 item 3) come before the engine
+    needs them.

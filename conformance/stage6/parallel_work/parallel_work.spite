@@ -1,0 +1,51 @@
+var console = Console()
+var names = List<String>()
+
+func ParallelWork() {
+    var small = Summer(1000000)
+    var large = Summer(3000000)
+    var small_sum = Parallel(small.total)
+    var large_sum = Parallel(large.total)
+    var small_total = small_sum.wait()
+    var large_total = large_sum.wait()
+    console.print(small_total, large_total)
+    var greeting = Parallel(greet)
+    var nobody = Parallel(nobody_found)
+    var greeted = greeting.wait()
+    var found = nobody.wait()
+    if found {
+        console.print(found)
+    } else {
+        console.print(greeted, "and nobody")
+    }
+    var index = 0
+    while index < 20 {
+        var naming = Parallel(next_name)
+        var named = naming.wait()
+        names.append(named)
+        index = index + 1
+    }
+    var last_name = names.last()
+    console.print(last_name)
+    count_and_forget()
+}
+
+func greet(): String {
+    return "hello"
+}
+
+func nobody_found(): String? {
+    return null
+}
+
+func next_name(): String {
+    return "name {names.count()}"
+}
+
+func count_and_forget() {
+    var _counting = Parallel(say_done)
+}
+
+func say_done() {
+    console.print("joined when dropped")
+}
