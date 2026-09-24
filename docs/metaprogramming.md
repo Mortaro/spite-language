@@ -263,6 +263,20 @@ naming a type exactly, four names ask for a kind:
 | `$value_type == Null` | any `T?` |
 | `$value_type == Symbol` | an enum (a closed list of symbols), or `Symbol` itself |
 
+What the branch ruled out is not compiled at all, and neither is what only it reaches: a function of a generic
+class is compiled for one instantiation only when code that survives for that instantiation calls it, and the
+statements after an `if` chain whose taken branch returns are not compiled either. So one class may keep a helper
+per kind, and `Field<Int>` never checks the helper that calls `.count()` (`conformance/stage6/folded_helpers`):
+
+```gdscript
+func write(value: $value_type): String {
+    if $value_type == List {
+        return write_list(value)       # compiled only for a List
+    }
+    return write_number(value)         # compiled only when the branch above is not taken
+}
+```
+
 Inside such a branch the types it was built from are named after the container's own codegen values:
 `$value_type.element_type` for a `List<$element_type>`, `$value_type.value_type` for a `Dictionary<$value_type>`
 or a `$value_type?`, and a generic class's own names for one of its instances.

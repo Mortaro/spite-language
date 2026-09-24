@@ -862,6 +862,7 @@ func instantiated_with(
     instance.is_singleton = template.is_singleton
     instance.is_stateless_singleton = template.is_stateless_singleton
     instance.is_container = template.qualified_dotted == "TypedMemory"
+    instance.is_instantiated = true
     classes.append(instance)
     builder.add_typedef("typedef struct {label} {label};")
     var saved_owner = current_owner
@@ -2618,7 +2619,7 @@ func emit_pending_functions() {
                 }
                 var function_index = 0
                 while function_index < information.functions.count() {
-                    if not information.functions[function_index].is_emitted {
+                    if is_pending(information, information.functions[function_index]) {
                         current_owner = information.qualified_dotted
                         emit_user_function(information, information.functions[function_index])
                         emitted_any = true
@@ -2629,6 +2630,14 @@ func emit_pending_functions() {
             class_index = class_index + 1
         }
     }
+}
+
+func is_pending(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Bool {
+    assert not function.is_emitted
+    if not information.is_instantiated {
+        return true
+    }
+    return builder.mentions(function.c_name)
 }
 
 func received_type(parameter: Syntax.Statements.Parameter, resolved: Analysis.SpiteType): Analysis.SpiteType {
@@ -9463,9 +9472,24 @@ func generate_statement_list(
             report_caller_walk(statements[index - 1], statements[index], scope, class_information)
         }
         ended_in_return = generate_statement(statements[index], scope, class_information, function_information)
+        var folded_return = ended_in_return and statements[index] == Syntax.Statements.IfStatement
         index = index + 1
+        if folded_return and index < statements.count() {
+            mark_rest_used(statements, index, scope)
+            return true
+        }
     }
     return ended_in_return
+}
+
+func mark_rest_used(statements: List<Syntax.Statements.Statement>, start: Int, scope: Scope) {
+    var folded_away = List<Syntax.Statements.Statement>()
+    var index = start
+    while index < statements.count() {
+        folded_away.append(statements[index])
+        index = index + 1
+    }
+    mark_folded_names_used(folded_away, scope)
 }
 
 func report_caller_walk(
@@ -10070,22 +10094,40 @@ func generate_if_statement(
     scope: Scope,
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
-) {
+): Bool {
     assert if_statement.condition
     report_repeated_branch_call(if_statement)
     var constant = constant_condition(if_statement.condition, scope, class_information)
     if constant == true or constant == false {
         builder.add_user("\{")
+        var taken = if_statement.then_branch
         if constant == true {
             mark_folded_names_used(if_statement.else_branch, scope)
-            generate_block(if_statement.then_branch, scope, class_information, function_information)
         } else {
             mark_folded_names_used(if_statement.then_branch, scope)
-            generate_block(if_statement.else_branch, scope, class_information, function_information)
+            taken = if_statement.else_branch
         }
+        var taken_scope = Scope(scope)
+        var taken_returns = generate_statement_list(taken, taken_scope, class_information, function_information)
+        if not taken_returns {
+            emit_scope_drops(taken_scope, false)
+        }
+        close_rebindings(taken_scope)
+        report_unused(taken_scope)
         builder.add_user("}")
-        return
+        return taken_returns
     }
+    generate_unfolded_if(if_statement, scope, class_information, function_information)
+    return false
+}
+
+func generate_unfolded_if(
+    if_statement: Syntax.Statements.IfStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    crash if_statement.condition
     report_default_guard(if_statement, function_information)
     var guard = try_nullable_guard(if_statement.condition, scope, class_information)
     if guard {
@@ -11985,8 +12027,7 @@ func generate_statement_kind(
     }
     var if_statement = shape.as_if_statement(statement)
     if if_statement {
-        generate_if_statement(if_statement, scope, class_information, function_information)
-        return false
+        return generate_if_statement(if_statement, scope, class_information, function_information)
     }
     var while_statement = shape.as_while_statement(statement)
     if while_statement {
@@ -12365,6 +12406,7 @@ func emit_class(information: Analysis.ClassInfo) {
     builder.add_typedef(joined_struct_lines)
     emit_class_prototypes(information)
     emit_class_support(information)
+    assert not information.is_instantiated
     var function_index = 0
     while function_index < information.functions.count() {
         emit_user_function(information, information.functions[function_index])
