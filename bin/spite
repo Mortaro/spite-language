@@ -44,7 +44,7 @@ if [ "$1" == "format" ]; then
     case "$target" in /* | [A-Za-z]:*) ;; *) target="$(pwd)/$target" ;; esac
     status=0
     while IFS= read -r file; do
-        (cd "$here" && "$binary" "$file" --mode=$mode) || status=1
+        "$binary" "$file" --mode=$mode || status=1
     done < <(if [ -d "$target" ]; then find "$target" -name "*.spite" -not -path "*/.spite-cache/*"; else echo "$target"; fi)
     exit $status
 fi
@@ -55,10 +55,9 @@ if [ "$1" == "connect" ]; then
 fi
 
 # `spite thing` is the common case; anything starting with - is passed through.
-# The compiler reads runtime/*.h relative to its working directory, so it runs from the
-# repository root and every file argument is made absolute first.
-# A flag that names a path where output goes needs the same treatment, since the working
-# directory it was written against is the caller's, not the repository's.
+# The compiler finds library/ and launcher/ beside its own executable, so it runs, and the program it builds
+# runs, in the caller's working directory: a relative path the program opens is the caller's.
+# File arguments and flags that name a path are made absolute, so messages name them the same way everywhere.
 absolute() {
     case "$1" in
         /* | [A-Za-z]:*) echo "$1" ;;
@@ -81,5 +80,4 @@ for argument in "$@"; do
 done
 case " ${arguments[*]} " in *" --mode="*) ;; *) arguments=("--mode=run" "${arguments[@]}") ;; esac
 
-cd "$here" || exit 1
 exec "$binary" "${arguments[@]}"

@@ -1118,7 +1118,7 @@ func generate_shape_call(
 }
 
 func ensure_shape_caller(information: Analysis.UnionInfo, name: String): String {
-    var function_c_name = "{information.c_name}_call_{name}"
+    var function_c_name = "{information.c_name}___call_{name}"
     if not information.caller_names.contains(name) {
         information.caller_names.append(name)
         var parameter_types = shape_call_parameter_types(information, name)
@@ -1162,18 +1162,18 @@ func shape_function_value(
         var lines = List<String>()
         lines.append("Spite_Function* {maker}({information.c_name} owner) \{")
         lines.append(
-            "Spite_Function* described = Spite_Function_make({ensure_symbol(wanted.name)}, {class_object_call(returned)});",
+            "Spite_Function* described = Spite_Function___make({ensure_symbol(wanted.name)}, {class_object_call(returned)});",
         )
         var parameter_index = 0
         while parameter_index < parameter_types.count() {
             var argument_symbol = ensure_symbol("argument_{parameter_index}")
             lines.append(
-                "{arguments_list_name}_append(described->_arguments, Spite_Argument_make({argument_symbol}, {class_object_call(parameter_types[parameter_index])}));",
+                "{arguments_list_name}_append(described->_arguments, Spite_Argument___make({argument_symbol}, {class_object_call(parameter_types[parameter_index])}));",
             )
             parameter_index = parameter_index + 1
         }
-        lines.append("described->spite_owner = {information.c_name}_retain(owner);")
-        lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}_release;")
+        lines.append("described->spite_owner = {information.c_name}___retain(owner);")
+        lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
         if parameter_types.is_empty() and type_shape.is_void(return_type) {
             lines.append("described->spite_call = (void (*)(void*)){caller};")
         }
@@ -1188,7 +1188,7 @@ func shape_function_value(
     if owns(object_result, object_ast) {
         var owner_temporary = next_temporary()
         var value_temporary = next_temporary()
-        code = "(\{ {information.c_name} {owner_temporary} = {object_result.code}; Spite_Function* {value_temporary} = {maker}({owner_temporary}); {information.c_name}_release({owner_temporary}); {value_temporary}; })"
+        code = "(\{ {information.c_name} {owner_temporary} = {object_result.code}; Spite_Function* {value_temporary} = {maker}({owner_temporary}); {information.c_name}___release({owner_temporary}); {value_temporary}; })"
     }
     var typed: Analysis.SpiteType = signature
     var made = ExpressionResult(code, typed)
@@ -1203,7 +1203,7 @@ func emit_shape_callers(information: Analysis.UnionInfo) {
         var parameter_types = shape_call_parameter_types(information, name)
         var return_type = shape_call_return_type(information, name)
         var lines = List<String>()
-        var signature = "{c_type_name(return_type)} {information.c_name}_call_{name}({information.c_name} self"
+        var signature = "{c_type_name(return_type)} {information.c_name}___call_{name}({information.c_name} self"
         var passed = ""
         var index = 0
         while index < parameter_types.count() {
@@ -1292,7 +1292,7 @@ func admit_to_union(information: Analysis.UnionInfo, candidate: Analysis.ClassIn
 }
 
 func ensure_shape_reader(information: Analysis.UnionInfo, field_name: String, field_type: Analysis.SpiteType): String {
-    var function_c_name = "{information.c_name}_read_{field_name}"
+    var function_c_name = "{information.c_name}___read_{field_name}"
     if not information.accessor_names.contains(field_name) {
         information.accessor_names.append(field_name)
         builder.add_prototype("{c_type_name(field_type)} {function_c_name}({information.c_name} self);")
@@ -1301,7 +1301,7 @@ func ensure_shape_reader(information: Analysis.UnionInfo, field_name: String, fi
 }
 
 func ensure_shape_writer(information: Analysis.UnionInfo, field_name: String, field_type: Analysis.SpiteType): String {
-    var function_c_name = "{information.c_name}_write_{field_name}"
+    var function_c_name = "{information.c_name}___write_{field_name}"
     if not information.writer_names.contains(field_name) {
         information.writer_names.append(field_name)
         builder.add_prototype("void {function_c_name}({information.c_name} self, {c_type_name(field_type)} value);")
@@ -1310,7 +1310,7 @@ func ensure_shape_writer(information: Analysis.UnionInfo, field_name: String, fi
 }
 
 func ensure_union_class_of(information: Analysis.UnionInfo): String {
-    var function_c_name = "{information.c_name}_class_of"
+    var function_c_name = "{information.c_name}___class_of"
     if not information.class_of_used {
         information.class_of_used = true
         builder.add_prototype("Spite_Class* {function_c_name}({information.c_name} self);")
@@ -1324,7 +1324,7 @@ func emit_union_class_of_bodies() {
         var information = unions[index]
         if information.class_of_used {
             var lines = List<String>()
-            lines.append("Spite_Class* {information.c_name}_class_of({information.c_name} self) \{")
+            lines.append("Spite_Class* {information.c_name}___class_of({information.c_name} self) \{")
             var member_index = 0
             while member_index < information.members.count() {
                 var member = information.members[member_index]
@@ -1350,12 +1350,12 @@ func emit_union_class_of_bodies() {
 func emit_union_release(information: Analysis.UnionInfo) {
     var name = information.c_name
     var release_lines = List<String>()
-    release_lines.append("void {name}_release({name} self) \{")
+    release_lines.append("void {name}___release({name} self) \{")
     release_lines.append("if (self == 0) return;")
     var member_index = 0
     while member_index < information.members.count() {
         var member = information.members[member_index]
-        var released = "{member.c_name}_release(({member.c_name}*)self)"
+        var released = "{member.c_name}___release(({member.c_name}*)self)"
         if boxed_value_types.has(member.c_name) {
             released = "spite_box_release(self)"
         }
@@ -1381,7 +1381,7 @@ func emit_shape_bodies() {
                 if field_type {
                     var lines = List<String>()
                     lines.append(
-                        "{c_type_name(field_type)} {information.c_name}_read_{field_name}({information.c_name} self) \{",
+                        "{c_type_name(field_type)} {information.c_name}___read_{field_name}({information.c_name} self) \{",
                     )
                     var member_index = 0
                     while member_index < information.members.count() {
@@ -1405,7 +1405,7 @@ func emit_shape_bodies() {
                 if written_type {
                     var writer_lines = List<String>()
                     writer_lines.append(
-                        "void {information.c_name}_write_{written_name}({information.c_name} self, {c_type_name(written_type)} value) \{",
+                        "void {information.c_name}___write_{written_name}({information.c_name} self, {c_type_name(written_type)} value) \{",
                     )
                     var writer_member_index = 0
                     while writer_member_index < information.members.count() {
@@ -1446,7 +1446,7 @@ func generate_shape_read(
     lines.append("{information.c_name} spite_shaped = {object_result.code};")
     lines.append("{c_type_name(field_type)} spite_shaped_value = {reader}(spite_shaped);")
     if owns(object_result, object_ast) {
-        lines.append("{information.c_name}_release(spite_shaped);")
+        lines.append("{information.c_name}___release(spite_shaped);")
     }
     lines.append("spite_shaped_value;")
     var read = ExpressionResult("(\{ {lines.join(" ")} })", field_type)
@@ -1497,7 +1497,7 @@ func generate_object_literal(
     }
     var lines = List<String>()
     var temporary = next_temporary()
-    lines.append("{label}* {temporary} = {label}_allocate();")
+    lines.append("{label}* {temporary} = {label}___allocate();")
     var assign_index = 0
     while assign_index < names.count() {
         var target = "{temporary}->{names[assign_index]}"
@@ -1541,14 +1541,14 @@ func shape_default(information: Analysis.UnionInfo): String {
         }
         classes.append(created)
         builder.add_typedef("typedef struct {label} {label};")
-        builder.add_prototype("{label}* {label}_default(void);")
+        builder.add_prototype("{label}* {label}___default(void);")
         information_class = created
     }
     crash information_class
     if not information.has_member(label) {
         admit_to_union(information, information_class)
     }
-    return "(({information.c_name}){label}_default())"
+    return "(({information.c_name}){label}___default())"
 }
 
 func resolve_union_members() {
@@ -1755,7 +1755,7 @@ func automatic_debug(information: Analysis.ClassInfo): Analysis.FunctionInfo? {
         false,
     )
     function.has_body = false
-    var body = "{debug_class.c_name}* spite_debug = {singleton_call(debug_class)};\nSpiteString* spite_text = {described.c_name}(spite_debug, {retain_call(debugged_type, "self")});\n{debug_class.c_name}_release(spite_debug);\nreturn spite_text;"
+    var body = "{debug_class.c_name}* spite_debug = {singleton_call(debug_class)};\nSpiteString* spite_text = {described.c_name}(spite_debug, {retain_call(debugged_type, "self")});\n{debug_class.c_name}___release(spite_debug);\nreturn spite_text;"
     function.supplied_body = body
     information.functions.append(function)
     if synthetic_value_types.has(information.c_name) {
@@ -1775,14 +1775,14 @@ func boxed_class_of(from: Analysis.SpiteType): Analysis.ClassInfo? {
         return value_class_of(scalar.kind)
     }
     if type_shape.is_symbol(from) {
-        return synthetic_value_class("SpiteSymbol", from, "return SpiteString_retain(self);")
+        return synthetic_value_class("SpiteSymbol", from, "return SpiteString___retain(self);")
     }
     var enum_type = type_shape.as_enum(from)
     if enum_type {
         return synthetic_value_class(
             enum_type.c_name,
             from,
-            "return spite_string_from_cstring_owned({enum_type.c_name}_name(self));",
+            "return spite_string_from_cstring_owned({enum_type.c_name}___name(self));",
         )
     }
     return null
@@ -1844,10 +1844,10 @@ func emit_unions() {
         var information = unions[index]
         var name = information.c_name
         builder.add_typedef("typedef void* {name};")
-        builder.add_prototype("{name} {name}_retain({name} self);")
-        builder.add_prototype("void {name}_release({name} self);")
+        builder.add_prototype("{name} {name}___retain({name} self);")
+        builder.add_prototype("void {name}___release({name} self);")
         builder.add_support(
-            "{name} {name}_retain({name} self) \{\nif (self != 0) SPITE_COUNT_UP(((SpiteHeader*)self)->ref_count);\nreturn self;\n}",
+            "{name} {name}___retain({name} self) \{\nif (self != 0) SPITE_COUNT_UP(((SpiteHeader*)self)->ref_count);\nreturn self;\n}",
         )
         if not information.is_shape {
             emit_union_release(information)
@@ -1944,7 +1944,7 @@ func emit_enums() {
         var typedef_lines = List<String>()
         typedef_lines.append("typedef enum \{")
         var name_lines = List<String>()
-        name_lines.append("const char* {information.c_name}_name({information.c_name} value) \{")
+        name_lines.append("const char* {information.c_name}___name({information.c_name} value) \{")
         name_lines.append("switch (value) \{")
         var value_index = 0
         while value_index < information.values.count() {
@@ -1959,7 +1959,7 @@ func emit_enums() {
         name_lines.append("}")
         var joined_typedef_lines = typedef_lines.join("\n")
         builder.add_typedef(joined_typedef_lines)
-        builder.add_prototype("const char* {information.c_name}_name({information.c_name} value);")
+        builder.add_prototype("const char* {information.c_name}___name({information.c_name} value);")
         var joined_name_lines = name_lines.join("\n")
         builder.add_support(joined_name_lines)
         index = index + 1
@@ -2757,9 +2757,9 @@ func task_body(information: Analysis.ClassInfo, name: String): String {
     if name == "address" {
         return "return (int64_t)(intptr_t)self;"
     }
-    var entry = "{information.c_name}_thread_entry"
+    var entry = "{information.c_name}___thread_entry"
     if information.qualified_dotted == "Concurrent" {
-        entry = "{information.c_name}_fiber_entry"
+        entry = "{information.c_name}___fiber_entry"
     }
     return "return (int64_t)(intptr_t)&{entry};"
 }
@@ -3451,7 +3451,7 @@ func default_value_for_type(spite_type: Analysis.SpiteType): String {
     }
     var class_ref = type_shape.as_class_ref(spite_type)
     if class_ref {
-        return "{class_ref.c_name}_default()"
+        return "{class_ref.c_name}___default()"
     }
     var enum_type = type_shape.as_enum(spite_type)
     if enum_type {
@@ -3460,12 +3460,12 @@ func default_value_for_type(spite_type: Analysis.SpiteType): String {
     var list_type = type_shape.as_list(spite_type)
     if list_type {
         var list_type_element = list_type.get_element()
-        return "{ensure_list(list_type_element)}_make()"
+        return "{ensure_list(list_type_element)}___make()"
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
         var dictionary_type_element = dictionary_type.get_element()
-        return "{ensure_dictionary(dictionary_type_element)}_make()"
+        return "{ensure_dictionary(dictionary_type_element)}___make()"
     }
     var union_type = type_shape.as_union(spite_type)
     if union_type {
@@ -3474,7 +3474,7 @@ func default_value_for_type(spite_type: Analysis.SpiteType): String {
             if union_information.is_shape {
                 return shape_default(union_information)
             }
-            return "(({union_type.c_name}){union_information.members.first().c_name}_default())"
+            return "(({union_type.c_name}){union_information.members.first().c_name}___default())"
         }
     }
     var nullable = type_shape.as_nullable(spite_type)
@@ -3513,7 +3513,7 @@ func string_conversion(code: String, from: Analysis.SpiteType): String {
     }
     var enum_type = type_shape.as_enum(from)
     if enum_type {
-        return "spite_string_from_cstring_owned({enum_type.c_name}_name({code}))"
+        return "spite_string_from_cstring_owned({enum_type.c_name}___name({code}))"
     }
     return code
 }
@@ -3547,7 +3547,7 @@ func emit_allocation_table() {
     lines.append("while (__atomic_exchange_n(&spite_allocation_table_lock, 1, __ATOMIC_ACQUIRE) != 0) \{}")
     lines.append("#endif")
     lines.append("spite_allocation_table_busy = true;")
-    lines.append("if (spite_allocation_table == 0) spite_allocation_table = {table}_make();")
+    lines.append("if (spite_allocation_table == 0) spite_allocation_table = {table}___make();")
     lines.append("return spite_allocation_table;")
     lines.append("}")
     lines.append("void* spite_debug_realloc(void* pointer, size_t size) \{")
@@ -3619,7 +3619,7 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         var nothing_class = type_shape.as_class_ref(to)
         if nothing_class {
             if nothing_class.c_name == "Nothing" {
-                return "(\{ {code}; Nothing_default(); })"
+                return "(\{ {code}; Nothing___default(); })"
             }
         }
     }
@@ -3738,24 +3738,24 @@ func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType) {
 func retain_call(spite_type: Analysis.SpiteType, code: String): String {
     var class_ref = type_shape.as_class_ref(spite_type)
     if class_ref {
-        return "{class_ref.c_name}_retain({code})"
+        return "{class_ref.c_name}___retain({code})"
     }
     if type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type) {
-        return "SpiteString_retain({code})"
+        return "SpiteString___retain({code})"
     }
     var list_type = type_shape.as_list(spite_type)
     if list_type {
         var list_type_element = list_type.get_element()
-        return "{ensure_list(list_type_element)}_retain({code})"
+        return "{ensure_list(list_type_element)}___retain({code})"
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
         var dictionary_type_element = dictionary_type.get_element()
-        return "{ensure_dictionary(dictionary_type_element)}_retain({code})"
+        return "{ensure_dictionary(dictionary_type_element)}___retain({code})"
     }
     var union_type = type_shape.as_union(spite_type)
     if union_type {
-        return "{union_type.c_name}_retain({code})"
+        return "{union_type.c_name}___retain({code})"
     }
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
@@ -3768,24 +3768,24 @@ func retain_call(spite_type: Analysis.SpiteType, code: String): String {
 func release_call(spite_type: Analysis.SpiteType, code: String): String {
     var class_ref = type_shape.as_class_ref(spite_type)
     if class_ref {
-        return "{class_ref.c_name}_release({code})"
+        return "{class_ref.c_name}___release({code})"
     }
     if type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type) {
-        return "SpiteString_release({code})"
+        return "SpiteString___release({code})"
     }
     var list_type = type_shape.as_list(spite_type)
     if list_type {
         var list_type_element = list_type.get_element()
-        return "{ensure_list(list_type_element)}_release({code})"
+        return "{ensure_list(list_type_element)}___release({code})"
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
         var dictionary_type_element = dictionary_type.get_element()
-        return "{ensure_dictionary(dictionary_type_element)}_release({code})"
+        return "{ensure_dictionary(dictionary_type_element)}___release({code})"
     }
     var union_type = type_shape.as_union(spite_type)
     if union_type {
-        return "{union_type.c_name}_release({code})"
+        return "{union_type.c_name}___release({code})"
     }
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
@@ -4145,31 +4145,31 @@ func generate_string_binary(
     var result_type: Analysis.SpiteType = Analysis.Types.StringType()
     var combine = ""
     if operator == 'add' {
-        combine = "SpiteString_sum({left_temporary}, SpiteString_retain({right_temporary}))"
+        combine = "SpiteString_sum({left_temporary}, SpiteString___retain({right_temporary}))"
     } else {
         result_type = Analysis.Types.ScalarType('boolean_kind')
         if operator == 'equal' {
-            combine = "SpiteString_equals({left_temporary}, SpiteString_retain({right_temporary}))"
+            combine = "SpiteString_equals({left_temporary}, SpiteString___retain({right_temporary}))"
         } else if operator == 'not_equal' {
-            combine = "(!(SpiteString_equals({left_temporary}, SpiteString_retain({right_temporary}))))"
+            combine = "(!(SpiteString_equals({left_temporary}, SpiteString___retain({right_temporary}))))"
         } else if operator == 'less' {
-            combine = "SpiteString_less_than({left_temporary}, SpiteString_retain({right_temporary}))"
+            combine = "SpiteString_less_than({left_temporary}, SpiteString___retain({right_temporary}))"
         } else if operator == 'greater' {
-            combine = "SpiteString_greater_than({left_temporary}, SpiteString_retain({right_temporary}))"
+            combine = "SpiteString_greater_than({left_temporary}, SpiteString___retain({right_temporary}))"
         } else if operator == 'less_equal' {
-            combine = "(!(SpiteString_greater_than({left_temporary}, SpiteString_retain({right_temporary}))))"
+            combine = "(!(SpiteString_greater_than({left_temporary}, SpiteString___retain({right_temporary}))))"
         } else {
-            combine = "(!(SpiteString_less_than({left_temporary}, SpiteString_retain({right_temporary}))))"
+            combine = "(!(SpiteString_less_than({left_temporary}, SpiteString___retain({right_temporary}))))"
         }
     }
     var result_temporary = next_temporary()
     lines.append("{c_type_name(result_type)} {result_temporary} = {combine};")
     if owns(left_result, left_ast) {
-        lines.append("SpiteString_release({left_temporary});")
+        lines.append("SpiteString___release({left_temporary});")
     }
     var right_was_converted = not type_shape.as_string(right_result_type)
     if owns(right_result, right_ast) or right_was_converted {
-        lines.append("SpiteString_release({right_temporary});")
+        lines.append("SpiteString___release({right_temporary});")
     }
     lines.append("{result_temporary};")
     return ExpressionResult("(\{ {lines.join(" ")} })", result_type)
@@ -4722,7 +4722,7 @@ func singleton_call(target_class: Analysis.ClassInfo): String {
         builder.add_typedef("static {target_class.c_name}* {function_c_name}_cache = 0;")
         builder.add_prototype("{target_class.c_name}* {function_c_name}(void);")
         builder.add_support(
-            "{target_class.c_name}* {function_c_name}(void) \{\nif ({function_c_name}_cache == 0) \{\n{function_c_name}_cache = {target_class.c_name}_make();\nspite_singleton_created({function_c_name}_cache, (void (*)(void*)){target_class.c_name}_destroy);\n}\nreturn {function_c_name}_cache;\n}",
+            "{target_class.c_name}* {function_c_name}(void) \{\nif ({function_c_name}_cache == 0) \{\n{function_c_name}_cache = {target_class.c_name}___make();\nspite_singleton_created({function_c_name}_cache, (void (*)(void*)){target_class.c_name}___destroy);\n}\nreturn {function_c_name}_cache;\n}",
         )
     }
     return "{function_c_name}()"
@@ -4764,7 +4764,7 @@ func generate_constructor_call(
         return shared
     }
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
-    var call_code = "{target_class.c_name}_make({argument_codes.join(", ")})"
+    var call_code = "{target_class.c_name}___make({argument_codes.join(", ")})"
     if target_class.is_value_class {
         if not target_class.constructor {
             report(
@@ -4963,19 +4963,19 @@ func function_value(
         var lines = List<String>()
         lines.append("Spite_Function* {maker}({information.c_name}* owner) \{")
         lines.append(
-            "Spite_Function* described = Spite_Function_make({ensure_symbol(function.name)}, {returned_class_object_call(function)});",
+            "Spite_Function* described = Spite_Function___make({ensure_symbol(function.name)}, {returned_class_object_call(function)});",
         )
         var parameter_index = 0
         while parameter_index < function.parameters.count() {
             var parameter = function.parameters[parameter_index]
             var parameter_type = parameter.get_type()
             lines.append(
-                "{arguments_list_name}_append(described->_arguments, Spite_Argument_make({ensure_symbol(parameter.name)}, {class_object_call(parameter_type)}));",
+                "{arguments_list_name}_append(described->_arguments, Spite_Argument___make({ensure_symbol(parameter.name)}, {class_object_call(parameter_type)}));",
             )
             parameter_index = parameter_index + 1
         }
-        lines.append("described->spite_owner = {information.c_name}_retain(owner);")
-        lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}_release;")
+        lines.append("described->spite_owner = {information.c_name}___retain(owner);")
+        lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
         var function_return_type = function.get_return_type()
         if function.parameters.count() == 0 and type_shape.is_void(function_return_type) {
             lines.append("described->spite_call = (void (*)(void*)){function.c_name};")
@@ -4991,7 +4991,7 @@ func function_value(
     if owns(owner, owner_ast) {
         var owner_temporary = next_temporary()
         var value_temporary = next_temporary()
-        code = "(\{ {information.c_name}* {owner_temporary} = {owner.code}; Spite_Function* {value_temporary} = {maker}({owner_temporary}); {information.c_name}_release({owner_temporary}); {value_temporary}; })"
+        code = "(\{ {information.c_name}* {owner_temporary} = {owner.code}; Spite_Function* {value_temporary} = {maker}({owner_temporary}); {information.c_name}___release({owner_temporary}); {value_temporary}; })"
     }
     var signature_of = signature_of(function)
     var made = ExpressionResult(code, signature_of)
@@ -5039,7 +5039,7 @@ func call_function_value(
     var call_code = "(({returned_c} (*)({pointer_parameters.join(", ")})){function_temporary}->spite_typed_call)({call_arguments.join(", ")})"
     var release = ""
     if owns(held, held_ast) {
-        release = " Spite_Function_release({function_temporary});"
+        release = " Spite_Function___release({function_temporary});"
     }
     if type_shape.is_void(returned) {
         return ExpressionResult(
@@ -5418,7 +5418,7 @@ func generate_written_string_call(
     if owns(object_result, object_ast) {
         var object_temporary = next_temporary()
         lines.append("SpiteString* {object_temporary} = {object_result.code};")
-        release = "SpiteString_release({object_temporary});"
+        release = "SpiteString___release({object_temporary});"
         receiver_code = object_temporary
     }
     var parameter_types = parameter_types_of(written.parameters)
@@ -6218,7 +6218,7 @@ func emit_class_object_bodies() {
         lines.append("Spite_Class* {function_c_name}(void) \{")
         lines.append("if ({function_c_name}_cache == 0) \{")
         crash class_object_displays[position]
-        lines.append("{function_c_name}_cache = Spite_Class_make({ensure_symbol(class_object_displays[position])});")
+        lines.append("{function_c_name}_cache = Spite_Class___make({ensure_symbol(class_object_displays[position])});")
         crash class_object_labels[position]
         var described = find_class_by_c_name(class_object_labels[position])
         if described {
@@ -6246,17 +6246,17 @@ func emit_class_object_bodies() {
                 var attribute_list_c_type = c_type_name(list_type)
                 builder.add_prototype("{attribute_list_c_type} {attribute_thunk}(void);")
                 builder.add_support(
-                    "{attribute_list_c_type} {attribute_thunk}(void) \{\n{described.c_name}* fresh = {described.c_name}_default();\n{attribute_list_c_type} listed = {attributes_function}(fresh);\n{described.c_name}_release(fresh);\nreturn listed;\n}",
+                    "{attribute_list_c_type} {attribute_thunk}(void) \{\n{described.c_name}* fresh = {described.c_name}___default();\n{attribute_list_c_type} listed = {attributes_function}(fresh);\n{described.c_name}___release(fresh);\nreturn listed;\n}",
                 )
-                lines.append("{attribute_list_name}_release({function_c_name}_cache->_attributes);")
+                lines.append("{attribute_list_name}___release({function_c_name}_cache->_attributes);")
                 lines.append("{function_c_name}_cache->_attributes = {attribute_thunk}();")
             }
             if class_level_functions_used and describes_members(described) and described.c_name != entry_class_c_name {
                 var functions_function = ensure_functions_function(described)
-                var maker = "{described.c_name}_default()"
+                var maker = "{described.c_name}___default()"
                 if described.constructor {
                     if described.constructor.parameters.count() == 0 {
-                        maker = "{described.c_name}_make()"
+                        maker = "{described.c_name}___make()"
                     }
                 }
                 var thunk = "spite_class_functions_{described.c_name}"
@@ -6269,14 +6269,14 @@ func emit_class_object_bodies() {
                 var listed_c_type = c_type_name(list_type)
                 builder.add_prototype("{listed_c_type} {thunk}(void);")
                 builder.add_support(
-                    "{listed_c_type} {thunk}(void) \{\n{described.c_name}* fresh = {maker};\n{listed_c_type} listed = {functions_function}(fresh);\n{described.c_name}_release(fresh);\nreturn listed;\n}",
+                    "{listed_c_type} {thunk}(void) \{\n{described.c_name}* fresh = {maker};\n{listed_c_type} listed = {functions_function}(fresh);\n{described.c_name}___release(fresh);\nreturn listed;\n}",
                 )
-                lines.append("{listed_name}_release({function_c_name}_cache->_functions);")
+                lines.append("{listed_name}___release({function_c_name}_cache->_functions);")
                 lines.append("{function_c_name}_cache->_functions = {thunk}();")
             }
         }
         lines.append("}")
-        lines.append("return Spite_Class_retain({function_c_name}_cache);")
+        lines.append("return Spite_Class___retain({function_c_name}_cache);")
         lines.append("}")
         var joined_lines = lines.join("\n")
         builder.add_support(joined_lines)
@@ -6291,7 +6291,7 @@ func emit_all_classes_function() {
     var list_name = ensure_list(class_type)
     var lines = List<String>()
     lines.append("{list_name}* spite_all_classes(void) \{")
-    lines.append("{list_name}* result = {list_name}_make();")
+    lines.append("{list_name}* result = {list_name}___make();")
     var index = 0
     while index < classes.count() {
         if is_listed_class(classes[index]) {
@@ -6308,7 +6308,7 @@ func emit_all_classes_function() {
 
 func ensure_live_instances(information: Analysis.ClassInfo): String {
     var name = information.c_name
-    var function_c_name = "{name}_instances"
+    var function_c_name = "{name}___instances"
     if tracked_class_names.contains(name) {
         return function_c_name
     }
@@ -6329,7 +6329,7 @@ func ensure_live_instances(information: Analysis.ClassInfo): String {
         "void spite_untrack_{name}({name}* self) \{\nfor (int64_t spite_index = 0; spite_index < {registry}_count; spite_index = spite_index + 1) \{\nif ({registry}[spite_index] == self) \{\nfor (int64_t spite_shift = spite_index; spite_shift < {registry}_count - 1; spite_shift = spite_shift + 1) \{ {registry}[spite_shift] = {registry}[spite_shift + 1]; }\n{registry}_count = {registry}_count - 1;\nreturn;\n}\n}\n}",
     )
     builder.add_support(
-        "{list_name}* {function_c_name}(void) \{\n{list_name}* result = {list_name}_make();\nfor (int64_t spite_index = 0; spite_index < {registry}_count; spite_index = spite_index + 1) \{ {list_name}_append(result, {name}_retain({registry}[spite_index])); }\nreturn result;\n}",
+        "{list_name}* {function_c_name}(void) \{\n{list_name}* result = {list_name}___make();\nfor (int64_t spite_index = 0; spite_index < {registry}_count; spite_index = spite_index + 1) \{ {list_name}_append(result, {name}___retain({registry}[spite_index])); }\nreturn result;\n}",
     )
     singleton_releases.append("if ({registry} != 0) SPITE_FREE({registry});")
     return function_c_name
@@ -6365,7 +6365,7 @@ func emit_namespace_object_bodies() {
         lines.append("Spite_Namespace* {function_c_name}(void) \{")
         lines.append("if ({function_c_name}_cache == 0) \{")
         lines.append(
-            "{function_c_name}_cache = Spite_Namespace_make({ensure_symbol(namespace_name)}, {ensure_symbol(namespace_dotted)});",
+            "{function_c_name}_cache = Spite_Namespace___make({ensure_symbol(namespace_name)}, {ensure_symbol(namespace_dotted)});",
         )
         if segments.count() > 1 {
             var parent_segments = segments.copy()
@@ -6418,7 +6418,7 @@ func emit_namespace_object_bodies() {
             }
         }
         lines.append("}")
-        lines.append("return Spite_Namespace_retain({function_c_name}_cache);")
+        lines.append("return Spite_Namespace___retain({function_c_name}_cache);")
         lines.append("}")
         var joined_lines = lines.join("\n")
         builder.add_support(joined_lines)
@@ -6518,7 +6518,7 @@ func spite_class_type(): Analysis.SpiteType {
 }
 
 func ensure_attributes_function(information: Analysis.ClassInfo): String {
-    var function_c_name = "{information.c_name}_attributes"
+    var function_c_name = "{information.c_name}___attributes"
     if attributes_function_names.contains(function_c_name) {
         return function_c_name
     }
@@ -6535,7 +6535,7 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
     var list_name = ensure_list(class_type)
     var lines = List<String>()
     lines.append("{list_name}* {function_c_name}({information.c_name}* self) \{")
-    lines.append("{list_name}* result = {list_name}_make();")
+    lines.append("{list_name}* result = {list_name}___make();")
     if read_evaluate_print_loop {
         builder.add_prototype("{list_name}* {function_c_name}({information.c_name}* self);")
         append_live_attributes(information, list_name, lines)
@@ -6549,14 +6549,14 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
         var value_code = "(&spite_static_string_empty)"
         var field_type = field.get_type()
         if type_shape.as_string(field_type) {
-            value_code = "SpiteString_retain(self->{field.name})"
+            value_code = "SpiteString___retain(self->{field.name})"
         } else if type_shape.as_scalar(field_type) {
             value_code = string_conversion("self->{field.name}", field_type)
         } else if is_enum_type(field_type) {
             value_code = string_conversion("self->{field.name}", field_type)
         }
         lines.append(
-            "{list_name}_append(result, Spite_Attribute_make({ensure_symbol(field.name)}, {class_object_call(field_type)}, {value_code}));",
+            "{list_name}_append(result, Spite_Attribute___make({ensure_symbol(field.name)}, {class_object_call(field_type)}, {value_code}));",
         )
         index = index + 1
     }
@@ -6583,7 +6583,7 @@ func returned_class_object_call(function: Analysis.FunctionInfo): String {
 }
 
 func ensure_functions_function(information: Analysis.ClassInfo): String {
-    var function_c_name = "{information.c_name}_functions"
+    var function_c_name = "{information.c_name}___functions"
     if functions_function_names.contains(function_c_name) {
         return function_c_name
     }
@@ -6598,7 +6598,7 @@ func ensure_functions_function(information: Analysis.ClassInfo): String {
 }
 
 func emit_functions_function(information: Analysis.ClassInfo) {
-    var function_c_name = "{information.c_name}_functions"
+    var function_c_name = "{information.c_name}___functions"
     var function_class = find_class_by_c_name("Spite_Function")
     var argument_class = find_class_by_c_name("Spite_Argument")
     if not function_class {
@@ -6624,7 +6624,7 @@ func emit_functions_function(information: Analysis.ClassInfo) {
     }
     var lines = List<String>()
     lines.append("{list_name}* {function_c_name}({information.c_name}* self) \{")
-    lines.append("{list_name}* result = {list_name}_make();")
+    lines.append("{list_name}* result = {list_name}___make();")
     var index = 0
     while index < information.functions.count() {
         var function = information.functions[index]
@@ -6632,19 +6632,19 @@ func emit_functions_function(information: Analysis.ClassInfo) {
         if listed and not function.is_constructor and not function.symbol_through_caller {
             lines.append("\{")
             lines.append(
-                "Spite_Function* described = Spite_Function_make({ensure_symbol(function.name)}, {returned_class_object_call(function)});",
+                "Spite_Function* described = Spite_Function___make({ensure_symbol(function.name)}, {returned_class_object_call(function)});",
             )
             var parameter_index = 0
             while parameter_index < function.parameters.count() {
                 var parameter = function.parameters[parameter_index]
                 var parameter_type = parameter.get_type()
                 lines.append(
-                    "{arguments_list_name}_append(described->_arguments, Spite_Argument_make({ensure_symbol(parameter.name)}, {class_object_call(parameter_type)}));",
+                    "{arguments_list_name}_append(described->_arguments, Spite_Argument___make({ensure_symbol(parameter.name)}, {class_object_call(parameter_type)}));",
                 )
                 parameter_index = parameter_index + 1
             }
-            lines.append("described->spite_owner = {information.c_name}_retain(self);")
-            lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}_release;")
+            lines.append("described->spite_owner = {information.c_name}___retain(self);")
+            lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
             var function_return_type = function.get_return_type()
             var callable = not is_inline_supplied(function)
             if callable and function.parameters.count() == 0 and type_shape.is_void(function_return_type) {
@@ -6691,8 +6691,8 @@ func append_live_attributes(information: Analysis.ClassInfo, list_name: String, 
         lines.append("Spite_Attribute* spite_field = {reflect}({ensure_symbol(field.name)}, self->{field.name});")
         var assign = ensure_assign_function(information, field)
         if not assign.is_empty() {
-            lines.append("spite_field->spite_owner = {information.c_name}_retain(self);")
-            lines.append("spite_field->spite_release_owner = (void (*)(void*)){information.c_name}_release;")
+            lines.append("spite_field->spite_owner = {information.c_name}___retain(self);")
+            lines.append("spite_field->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
             lines.append("spite_field->spite_assign = {assign};")
         }
         lines.append("{list_name}_append(result, spite_field);")
@@ -6726,7 +6726,7 @@ func walkable_class(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
 
 func reflected_text(spite_type: Analysis.SpiteType, code: String): String {
     if type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type) {
-        return "SpiteString_retain({code})"
+        return "SpiteString___retain({code})"
     }
     if type_shape.as_scalar(spite_type) or is_enum_type(spite_type) {
         return string_conversion(code, spite_type)
@@ -6761,12 +6761,12 @@ func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
     var lines = List<String>()
     lines.append("{signature} \{")
     lines.append(
-        "Spite_Attribute* reflected = Spite_Attribute_make(name, {class_object_call(spite_type)}, {reflected_text(spite_type, "value")});",
+        "Spite_Attribute* reflected = Spite_Attribute___make(name, {class_object_call(spite_type)}, {reflected_text(spite_type, "value")});",
     )
     var walked = walkable_class(spite_type)
     if walked {
-        lines.append("reflected->spite_held = {walked.c_name}_retain(value);")
-        lines.append("reflected->spite_release_held = (void (*)(void*)){walked.c_name}_release;")
+        lines.append("reflected->spite_held = {walked.c_name}___retain(value);")
+        lines.append("reflected->spite_release_held = (void (*)(void*)){walked.c_name}___release;")
         lines.append("reflected->spite_held_attributes = (void* (*)(void*)){ensure_attributes_function(walked)};")
         lines.append("reflected->spite_held_functions = (void* (*)(void*)){ensure_functions_function(walked)};")
     }
@@ -6774,8 +6774,8 @@ func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
     if list_type {
         var list_type_element = list_type.get_element()
         var list_name = ensure_list(list_type_element)
-        lines.append("reflected->spite_held = {list_name}_retain(value);")
-        lines.append("reflected->spite_release_held = (void (*)(void*)){list_name}_release;")
+        lines.append("reflected->spite_held = {list_name}___retain(value);")
+        lines.append("reflected->spite_release_held = (void (*)(void*)){list_name}___release;")
         lines.append(
             "reflected->spite_held_attributes = (void* (*)(void*)){ensure_list_attributes_function(list_type_element)};",
         )
@@ -6793,7 +6793,7 @@ func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
 
 func ensure_list_attributes_function(element: Analysis.SpiteType): String {
     var list_name = ensure_list(element)
-    var function_c_name = "{list_name}_attributes"
+    var function_c_name = "{list_name}___attributes"
     if reflect_function_names.contains(function_c_name) {
         return function_c_name
     }
@@ -6806,7 +6806,7 @@ func ensure_list_attributes_function(element: Analysis.SpiteType): String {
     builder.add_prototype("{signature};")
     var reflect = ensure_reflect_function(element)
     builder.add_support(
-        "{signature} \{\n{attributes_list}* result = {attributes_list}_make();\nfor (int64_t spite_index = 0; spite_index < self->item_count; spite_index = spite_index + 1) {attributes_list}_append(result, {reflect}({long_text("spite_index")}, {list_item_code(element, "self", "spite_index")}));\nreturn result;\n}",
+        "{signature} \{\n{attributes_list}* result = {attributes_list}___make();\nfor (int64_t spite_index = 0; spite_index < self->item_count; spite_index = spite_index + 1) {attributes_list}_append(result, {reflect}({long_text("spite_index")}, {list_item_code(element, "self", "spite_index")}));\nreturn result;\n}",
     )
     return function_c_name
 }
@@ -6825,13 +6825,13 @@ func enum_from_text_lines(enum_type: Analysis.Types.EnumType, text: String, targ
 
 func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.FieldInfo): String {
     var field_type = field.get_type()
-    var function_c_name = "{information.c_name}_assign_{field.name}"
+    var function_c_name = "{information.c_name}___assign_{field.name}"
     var assigned_c = c_type_name(field_type)
     var lines = List<String>()
     lines.append("bool {function_c_name}(void* owner, SpiteString* text) \{")
     lines.append("{information.c_name}* self = ({information.c_name}*)owner;")
     switch field_type {
-        Analysis.Types.StringType: lines.append("{assigned_c} assigned = SpiteString_retain(text);")
+        Analysis.Types.StringType: lines.append("{assigned_c} assigned = SpiteString___retain(text);")
         Analysis.Types.ScalarType: {
             var string_type = string_type()
             lines.append("{assigned_c} assigned = {cast("text", string_type, field_type)};")
@@ -6866,7 +6866,7 @@ func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.Fie
 }
 
 func ensure_text_call(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
-    var function_c_name = "{function.c_name}_text_call"
+    var function_c_name = "{function.c_name}___text_call"
     if reflect_function_names.contains(function_c_name) {
         return function_c_name
     }
@@ -6883,7 +6883,7 @@ func ensure_text_call(information: Analysis.ClassInfo, function: Analysis.Functi
         string_type = string_type()
         var item = list_item_code(string_type, "arguments", "{index}")
         switch parameter_type {
-            Analysis.Types.StringType: call_arguments.append("SpiteString_retain({item})")
+            Analysis.Types.StringType: call_arguments.append("SpiteString___retain({item})")
             Analysis.Types.ScalarType: {
                 string_type = string_type()
                 var cast = cast(item, string_type, parameter_type)
@@ -6906,7 +6906,7 @@ func ensure_text_call(information: Analysis.ClassInfo, function: Analysis.Functi
     if type_shape.is_void(returned_type) {
         lines.append("{call};")
         lines.append(
-            "return Spite_Attribute_make({result_symbol}, {returned_class_object_call(function)}, (&spite_static_string_empty));",
+            "return Spite_Attribute___make({result_symbol}, {returned_class_object_call(function)}, (&spite_static_string_empty));",
         )
     } else {
         lines.append("{c_type_name(returned_type)} returned = {call};")
@@ -6944,7 +6944,7 @@ func string_storage_read(
         var held = next_temporary()
         var value = next_temporary()
         return ExpressionResult(
-            "(\{ SpiteString* {held} = {object_result.code}; {c_type_name(field_type)} {value} = {held}->{name}; SpiteString_release({held}); {value}; })",
+            "(\{ SpiteString* {held} = {object_result.code}; {c_type_name(field_type)} {value} = {held}->{name}; SpiteString___release({held}); {value}; })",
             field_type,
         )
     }
@@ -7000,7 +7000,7 @@ func generate_memory_read(
         if not object_result.code.contains("->") {
             section = "Spite_Memory_Section_stack"
         }
-        var scalar_memory = ExpressionResult("Spite_Memory_make({address}, {bytes}, {section})", memory_type)
+        var scalar_memory = ExpressionResult("Spite_Memory___make({address}, {bytes}, {section})", memory_type)
         scalar_memory.owning_override = true
         return scalar_memory
     } else if not type_needs_drop(object_type) or type_shape.as_nullable(object_type) or type_shape.as_union(object_type) {
@@ -7012,7 +7012,7 @@ func generate_memory_read(
         release_object = "{release_call(object_type, held)};"
     }
     var described_memory = ExpressionResult(
-        "(\{ {object_c_type} {held} = {object_result.code}; Spite_Memory* spite_memory = Spite_Memory_make({address}, {bytes}, {section}); {release_object} spite_memory; })",
+        "(\{ {object_c_type} {held} = {object_result.code}; Spite_Memory* spite_memory = Spite_Memory___make({address}, {bytes}, {section}); {release_object} spite_memory; })",
         memory_type,
     )
     described_memory.owning_override = true
@@ -7186,7 +7186,7 @@ func deep_copy_code(spite_type: Analysis.SpiteType, code: String): String {
 }
 
 func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
-    var function_c_name = "{information.c_name}_deep_copy"
+    var function_c_name = "{information.c_name}___deep_copy"
     if deep_copy_names.contains(function_c_name) {
         return function_c_name
     }
@@ -7196,13 +7196,13 @@ func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
     lines.append("{information.c_name}* {function_c_name}({information.c_name}* self) \{")
     lines.append("if (self == 0) return 0;")
     if information.is_singleton {
-        lines.append("return {information.c_name}_retain(self);")
+        lines.append("return {information.c_name}___retain(self);")
         lines.append("}")
         var joined_singleton_lines = lines.join("\n")
         builder.add_support(joined_singleton_lines)
         return function_c_name
     }
-    lines.append("{information.c_name}* copied = {information.c_name}_allocate();")
+    lines.append("{information.c_name}* copied = {information.c_name}___allocate();")
     var index = 0
     while index < information.fields.count() {
         var field = information.fields[index]
@@ -7222,7 +7222,7 @@ func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
 
 func ensure_list_deep_copy(element: Analysis.SpiteType): String {
     var list_name = ensure_list(element)
-    var function_c_name = "{list_name}_deep_copy"
+    var function_c_name = "{list_name}___deep_copy"
     if deep_copy_names.contains(function_c_name) {
         return function_c_name
     }
@@ -7230,14 +7230,14 @@ func ensure_list_deep_copy(element: Analysis.SpiteType): String {
     builder.add_prototype("{list_name}* {function_c_name}({list_name}* self);")
     var list_item_code = list_item_code(element, "self", "spite_index")
     builder.add_support(
-        "{list_name}* {function_c_name}({list_name}* self) \{\nif (self == 0) return 0;\n{list_name}* copied = {list_name}_make();\nfor (int64_t spite_index = 0; spite_index < self->item_count; spite_index = spite_index + 1) \{ {list_name}_append(copied, {deep_copy_code(element, list_item_code)}); }\nreturn copied;\n}",
+        "{list_name}* {function_c_name}({list_name}* self) \{\nif (self == 0) return 0;\n{list_name}* copied = {list_name}___make();\nfor (int64_t spite_index = 0; spite_index < self->item_count; spite_index = spite_index + 1) \{ {list_name}_append(copied, {deep_copy_code(element, list_item_code)}); }\nreturn copied;\n}",
     )
     return function_c_name
 }
 
 func ensure_dictionary_deep_copy(element: Analysis.SpiteType): String {
     var dictionary_name = ensure_dictionary(element)
-    var function_c_name = "{dictionary_name}_deep_copy"
+    var function_c_name = "{dictionary_name}___deep_copy"
     if deep_copy_names.contains(function_c_name) {
         return function_c_name
     }
@@ -7246,7 +7246,7 @@ func ensure_dictionary_deep_copy(element: Analysis.SpiteType): String {
     var string_type = string_type()
     var list_item_code = list_item_code(element, "self->entry_values", "spite_index")
     builder.add_support(
-        "{dictionary_name}* {function_c_name}({dictionary_name}* self) \{\nif (self == 0) return 0;\n{dictionary_name}* copied = {dictionary_name}_make();\nfor (int64_t spite_index = 0; spite_index < self->entry_keys->item_count; spite_index = spite_index + 1) \{ {dictionary_name}_set(copied, SpiteString_retain({list_item_code(string_type, "self->entry_keys", "spite_index")}), {deep_copy_code(element, list_item_code)}); }\nreturn copied;\n}",
+        "{dictionary_name}* {function_c_name}({dictionary_name}* self) \{\nif (self == 0) return 0;\n{dictionary_name}* copied = {dictionary_name}___make();\nfor (int64_t spite_index = 0; spite_index < self->entry_keys->item_count; spite_index = spite_index + 1) \{ {dictionary_name}_set(copied, SpiteString___retain({list_item_code(string_type, "self->entry_keys", "spite_index")}), {deep_copy_code(element, list_item_code)}); }\nreturn copied;\n}",
     )
     return function_c_name
 }
@@ -7260,7 +7260,7 @@ func generate_list_literal(
     var list_name = ensure_list(element)
     var temporary = next_temporary()
     var lines = List<String>()
-    lines.append("{list_name}* {temporary} = {list_name}_make();")
+    lines.append("{list_name}* {temporary} = {list_name}___make();")
     var index = 0
     while index < literal.elements.count() {
         var element_ast = literal.elements[index].value
@@ -7313,14 +7313,14 @@ func generate_generic_constructor(
             )
             if dictionary_element {
                 var dictionary_type = dictionary_type_of(dictionary_element)
-                return ExpressionResult("{ensure_dictionary(dictionary_element)}_make()", dictionary_type)
+                return ExpressionResult("{ensure_dictionary(dictionary_element)}___make()", dictionary_type)
             }
         }
         if callee.name == "List" and generic_call.type_arguments.count() == 1 {
             var element = resolve_generic_argument(generic_call.type_arguments[0], class_information.namespace_dotted)
             if element {
                 var list_type = list_type_of(element)
-                return ExpressionResult("{ensure_list(element)}_make()", list_type)
+                return ExpressionResult("{ensure_list(element)}___make()", list_type)
             }
         }
         var generic_template = find_class(callee.name, class_information.namespace_dotted)
@@ -7535,14 +7535,14 @@ func supply_concurrency_functions(instance: Analysis.ClassInfo) {
     var task = instance.c_name
     if instance.qualified_dotted == "Concurrent" {
         scheduler_used = true
-        builder.add_prototype("static void {task}_fiber_entry(void* task);")
+        builder.add_prototype("static void {task}___fiber_entry(void* task);")
         builder.add_support(
-            "static void {task}_fiber_entry(void* task) \{\n{task}_run(({task}*)task);\n{task}_finish(({task}*)task);\n}",
+            "static void {task}___fiber_entry(void* task) \{\n{task}_run(({task}*)task);\n{task}_finish(({task}*)task);\n}",
         )
         return
     }
-    builder.add_prototype("static void* {task}_thread_entry(void* task);")
-    builder.add_support("static void* {task}_thread_entry(void* task) \{\n{task}_run(({task}*)task);\nreturn 0;\n}")
+    builder.add_prototype("static void* {task}___thread_entry(void* task);")
+    builder.add_support("static void* {task}___thread_entry(void* task) \{\n{task}_run(({task}*)task);\nreturn 0;\n}")
 }
 
 func ensure_dictionary(element: Analysis.SpiteType): String {
@@ -7792,12 +7792,12 @@ func crash_operand_statement(
     if type_shape.as_string(result_type) {
         var release_line = ""
         if owns(result, expression_ast) {
-            release_line = " SpiteString_release({temporary});"
+            release_line = " SpiteString___release({temporary});"
         }
         return "\{ SpiteString* {temporary} = {result.code}; {written}{release_line} }"
     }
     var converted = string_conversion(result.code, result_type)
-    return "\{ SpiteString* {temporary} = {converted}; {written} SpiteString_release({temporary}); }"
+    return "\{ SpiteString* {temporary} = {converted}; {written} SpiteString___release({temporary}); }"
 }
 
 func collect_static_segments(expression: Syntax.Expressions.Expression, out: List<String>): Bool {
@@ -7925,7 +7925,7 @@ func emit_symbol_table() {
     }
     entries.append("0")
     builder.add_support(
-        "static SpiteString* spite_symbol_table[] = \{ {entries.join(", ")} };\nSpiteString* spite_symbol_find(SpiteString* text) \{\nSpiteString* found = 0;\nfor (int64_t index = 0; spite_symbol_table[index] != 0; index = index + 1) \{\nif (SpiteString_equals(text, spite_symbol_table[index])) \{ found = spite_symbol_table[index]; break; }\n}\nSpiteString_release(text);\nreturn found;\n}",
+        "static SpiteString* spite_symbol_table[] = \{ {entries.join(", ")} };\nSpiteString* spite_symbol_find(SpiteString* text) \{\nSpiteString* found = 0;\nfor (int64_t index = 0; spite_symbol_table[index] != 0; index = index + 1) \{\nif (SpiteString_equals(text, spite_symbol_table[index])) \{ found = spite_symbol_table[index]; break; }\n}\nSpiteString___release(text);\nreturn found;\n}",
     )
 }
 
@@ -8028,6 +8028,11 @@ func generate_foreign_call(
     }
     var foreign_symbol_name = foreign_symbol_name(name, foreign_library_namings[library])
     var pointer = ensure_foreign_symbol(library, foreign_symbol_name)
+    crash library < foreign_library_headers.count()
+    var header = foreign_library_headers[library]
+    if not header.is_empty() {
+        ensure_foreign_header(header)
+    }
     var lines = List<String>()
     var releases = List<String>()
     var afters = List<String>()
@@ -8041,22 +8046,17 @@ func generate_foreign_call(
         var argument_type = argument.get_type()
         var scalar = type_shape.as_scalar(argument_type)
         if scalar {
-            if scalar.kind == 'boolean_kind' {
-                parameter_types.append("int")
-                passed.append("(int)({argument.code})")
-            } else {
-                var numeric_c_name = numeric_c_name(scalar.kind)
-                parameter_types.append(numeric_c_name)
-                passed.append(argument.code)
-            }
+            var crossing = foreign_argument_c_name(scalar.kind)
+            parameter_types.append(crossing)
+            passed.append("({crossing})({argument.code})")
         } else if is_enum_type(argument_type) {
-            parameter_types.append("int32_t")
-            passed.append("(int32_t)({argument.code})")
+            parameter_types.append("int64_t")
+            passed.append("(int64_t)({argument.code})")
         } else if type_shape.as_string(argument_type) {
             var text = next_temporary()
             lines.append("SpiteString* {text} = {argument.code};")
             if owns(argument, arguments_ast[index]) {
-                releases.append("SpiteString_release({text});")
+                releases.append("SpiteString___release({text});")
             }
             parameter_types.append("const char*")
             passed.append("(const char*)(intptr_t){text}->_bytes")
@@ -8098,10 +8098,10 @@ func generate_foreign_call(
                 )
             }
             if owns(argument, arguments_ast[index]) {
-                releases.append("{passed_union.c_name}_release({held_shape});")
+                releases.append("{passed_union.c_name}___release({held_shape});")
             }
             parameter_types.append("void*")
-            passed.append("&{struct_value}")
+            passed.append("(void*)&{struct_value}")
         } else {
             report(
                 "a {type_display_name(argument_type)} cannot cross into C: a foreign function takes numbers, Bool, enum values, text and a type whose attributes are all numbers",
@@ -8115,12 +8115,19 @@ func generate_foreign_call(
     if owns(object_result, object_ast) {
         var held = next_temporary()
         lines.append("DynamicLibrary* {held} = {object_result.code};")
-        releases.append("DynamicLibrary_release({held});")
+        releases.append("DynamicLibrary___release({held});")
     }
     var result = next_temporary()
-    lines.append(
-        "{returned_c} {result} = (({returned_c} (*)({parameter_types.join(", ")})){pointer})({passed.join(", ")});",
-    )
+    if header.is_empty() {
+        lines.append(
+            "{returned_c} {result} = (({returned_c} (*)({parameter_types.join(", ")})){pointer})({passed.join(", ")});",
+        )
+    } else {
+        var declared_call = declared_foreign_call(foreign_symbol_name, pointer, passed, returned_c)
+        lines.append("_Pragma(\"GCC diagnostic push\") _Pragma(\"GCC diagnostic ignored \\\"-Wint-conversion\\\"\")")
+        lines.append("{returned_c} {result} = {declared_call};")
+        lines.append("_Pragma(\"GCC diagnostic pop\")")
+    }
     var joined_afters = afters.join(" ")
     lines.append(joined_afters)
     var value = result
@@ -8133,6 +8140,21 @@ func generate_foreign_call(
     )
     called.owning_override = true
     return called
+}
+
+func foreign_argument_c_name(kind: Analysis.Types.NumericKind): String {
+    if kind == 'float_kind' or kind == 'double_kind' {
+        return numeric_c_name(kind)
+    }
+    if kind == 'byte_kind' or kind == 'unsigned_short_kind' or kind == 'unsigned_integer_kind' or kind == 'unsigned_long_kind' {
+        return "uint64_t"
+    }
+    return "int64_t"
+}
+
+func declared_foreign_call(symbol_name: String, pointer: String, passed: List<String>, returned_c: String): String {
+    var call = "((__typeof__(&{symbol_name})){pointer})({passed.join(", ")})"
+    return "({returned_c})__builtin_choose_expr(__builtin_types_compatible_p(__typeof__({call}), void), ({call}, ({returned_c})0), {call})"
 }
 
 func is_reflection_member(name: String): Bool {
@@ -8302,9 +8324,9 @@ func emit_foreign_libraries() {
         lines.append("DynamicLibrary* {accessor}(void) \{")
         lines.append("if ({accessor}_cache == 0) \{")
         lines.append(
-            "{accessor}_cache = DynamicLibrary_make({owned_c_text(foreign_library_files[library])}, {ensure_symbol(foreign_library_namings[library])}, {owned_c_text(foreign_library_headers[library])});",
+            "{accessor}_cache = DynamicLibrary___make({owned_c_text(foreign_library_files[library])}, {ensure_symbol(foreign_library_namings[library])}, {owned_c_text(foreign_library_headers[library])});",
         )
-        lines.append("spite_singleton_created({accessor}_cache, (void (*)(void*))DynamicLibrary_destroy);")
+        lines.append("spite_singleton_created({accessor}_cache, (void (*)(void*))DynamicLibrary___destroy);")
         var index = 0
         while index < foreign_symbol_names.count() {
             crash index < foreign_symbol_libraries.count()
@@ -8317,7 +8339,7 @@ func emit_foreign_libraries() {
             index = index + 1
         }
         lines.append("}")
-        lines.append("return DynamicLibrary_retain({accessor}_cache);")
+        lines.append("return DynamicLibrary___retain({accessor}_cache);")
         lines.append("}")
         var joined_lines = lines.join("\n")
         builder.add_support(joined_lines)
@@ -9135,7 +9157,7 @@ func emit_append_in_place(
         builder.add_user("SpiteString* {temporary} = {piece_code};")
         builder.add_user("{target} = SpiteString_append({target}, {temporary});")
         if owns(piece_result, piece) or not type_shape.as_string(piece_type) {
-            builder.add_user("SpiteString_release({temporary});")
+            builder.add_user("SpiteString___release({temporary});")
         }
         index = index + 1
     }
@@ -9303,7 +9325,7 @@ func generate_store(
                             "{writer}({shaped_temporary}, {coerce_for_store(assignment.value, written_type, scope, class_information)});",
                         )
                         if owns(object_result, member.object) {
-                            builder.add_user("{shaped_union.c_name}_release({shaped_temporary});")
+                            builder.add_user("{shaped_union.c_name}___release({shaped_temporary});")
                         }
                         return
                     }
@@ -9754,6 +9776,12 @@ func check_value_name(name: String, what: String) {
     }
     if not is_lowercase_name(bare) {
         report("the {what} '{name}' must be written in snake_case: lowercase words joined by underscores")
+        return
+    }
+    if bare.starts_with("_") or bare.ends_with("_") or bare.contains("__") {
+        report(
+            "the {what} '{name}' must be written in snake_case: lowercase words joined by one underscore each, with at most one '_' in front to make it private",
+        )
         return
     }
     if bare.length() == 1 {
@@ -11317,7 +11345,7 @@ func generate_union_dispatch(
         member_index = member_index + 1
     }
     if owning_object {
-        lines.append("{information.c_name}_release({object_temporary});")
+        lines.append("{information.c_name}___release({object_temporary});")
     }
     if has_result {
         lines.append("{result_temporary};")
@@ -11926,12 +11954,14 @@ func named_signature(information: Analysis.ClassInfo, function: Analysis.Functio
 }
 
 func emit_class_prototypes(information: Analysis.ClassInfo) {
-    builder.add_prototype("void {information.c_name}_init({information.c_name}* self);")
-    builder.add_prototype("{information.c_name}* {information.c_name}_allocate(void);")
-    builder.add_prototype("{information.c_name}* {information.c_name}_default(void);")
-    builder.add_prototype("{information.c_name}* {information.c_name}_make({constructor_parameter_list(information)});")
-    builder.add_prototype("{information.c_name}* {information.c_name}_retain({information.c_name}* self);")
-    builder.add_prototype("void {information.c_name}_release({information.c_name}* self);")
+    builder.add_prototype("void {information.c_name}___init({information.c_name}* self);")
+    builder.add_prototype("{information.c_name}* {information.c_name}___allocate(void);")
+    builder.add_prototype("{information.c_name}* {information.c_name}___default(void);")
+    builder.add_prototype(
+        "{information.c_name}* {information.c_name}___make({constructor_parameter_list(information)});",
+    )
+    builder.add_prototype("{information.c_name}* {information.c_name}___retain({information.c_name}* self);")
+    builder.add_prototype("void {information.c_name}___release({information.c_name}* self);")
     if not information.find_function("copy") {
         builder.add_prototype("{information.c_name}* {information.c_name}_copy({information.c_name}* self);")
     }
@@ -11950,9 +11980,9 @@ func emit_class_prototypes(information: Analysis.ClassInfo) {
 func emit_class_support(information: Analysis.ClassInfo) {
     var class_id_text = "{information.class_id}"
     var initialize_lines = List<String>()
-    var initialize_name = "{information.c_name}_init"
+    var initialize_name = "{information.c_name}___init"
     if is_hot_class(information) {
-        initialize_name = "{information.c_name}_init_hot"
+        initialize_name = "{information.c_name}___init___hot"
         add_hot_initialize_slot(information)
     }
     initialize_lines.append("void {initialize_name}({information.c_name}* self) \{")
@@ -11978,7 +12008,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
     var joined_initialize_lines = initialize_lines.join("\n")
     builder.add_support(joined_initialize_lines)
     var allocate_lines = List<String>()
-    allocate_lines.append("{information.c_name}* {information.c_name}_allocate(void) \{")
+    allocate_lines.append("{information.c_name}* {information.c_name}___allocate(void) \{")
     allocate_lines.append(
         "{information.c_name}* self = ({information.c_name}*)SPITE_MALLOC(sizeof({information.c_name}));",
     )
@@ -11987,7 +12017,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
     allocate_lines.append("#ifdef SPITE_DEBUG_MEMORY")
     allocate_lines.append("spite_debug_register_object(self, {class_id_text});")
     allocate_lines.append("#endif")
-    allocate_lines.append("{information.c_name}_init(self);")
+    allocate_lines.append("{information.c_name}___init(self);")
     allocate_lines.append("#ifdef SPITE_TRACKS_{information.c_name}")
     allocate_lines.append("spite_track_{information.c_name}(self);")
     allocate_lines.append("#endif")
@@ -11995,14 +12025,14 @@ func emit_class_support(information: Analysis.ClassInfo) {
     allocate_lines.append("}")
     var joined_allocate_lines = allocate_lines.join("\n")
     builder.add_support(joined_allocate_lines)
-    var default_instance = "{information.c_name}_allocate()"
+    var default_instance = "{information.c_name}___allocate()"
     if information.is_stateless_singleton {
         default_instance = singleton_call(information)
     }
-    builder.add_support("{information.c_name}* {information.c_name}_default(void) \{ return {default_instance}; }")
+    builder.add_support("{information.c_name}* {information.c_name}___default(void) \{ return {default_instance}; }")
     var make_lines = List<String>()
-    make_lines.append("{information.c_name}* {information.c_name}_make({constructor_parameter_list(information)}) \{")
-    make_lines.append("{information.c_name}* self = {information.c_name}_allocate();")
+    make_lines.append("{information.c_name}* {information.c_name}___make({constructor_parameter_list(information)}) \{")
+    make_lines.append("{information.c_name}* self = {information.c_name}___allocate();")
     if information.constructor {
         var arguments = information.constructor.parameters.map_name()
         arguments.prepend("self")
@@ -12014,9 +12044,9 @@ func emit_class_support(information: Analysis.ClassInfo) {
     builder.add_support(joined_make_lines)
     if information.is_stateless_singleton {
         builder.add_support(
-            "{information.c_name}* {information.c_name}_retain({information.c_name}* self) \{ return self; }",
+            "{information.c_name}* {information.c_name}___retain({information.c_name}* self) \{ return self; }",
         )
-        builder.add_support("void {information.c_name}_release({information.c_name}* self) \{ (void)self; }")
+        builder.add_support("void {information.c_name}___release({information.c_name}* self) \{ (void)self; }")
         builder.add_support(
             "{information.c_name}* {information.c_name}_copy({information.c_name}* self) \{ return self; }",
         )
@@ -12028,13 +12058,13 @@ func emit_class_support(information: Analysis.ClassInfo) {
     if information.is_singleton {
         retain_body = "return self;"
         release_name = "destroy"
-        builder.add_support("void {information.c_name}_release({information.c_name}* self) \{ (void)self; }")
-        builder.add_prototype("void {information.c_name}_destroy({information.c_name}* self);")
+        builder.add_support("void {information.c_name}___release({information.c_name}* self) \{ (void)self; }")
+        builder.add_prototype("void {information.c_name}___destroy({information.c_name}* self);")
     }
     builder.add_support(
-        "{information.c_name}* {information.c_name}_retain({information.c_name}* self) \{ {retain_body} }",
+        "{information.c_name}* {information.c_name}___retain({information.c_name}* self) \{ {retain_body} }",
     )
-    release_lines.append("void {information.c_name}_{release_name}({information.c_name}* self) \{")
+    release_lines.append("void {information.c_name}___{release_name}({information.c_name}* self) \{")
     release_lines.append("if (self == 0) return;")
     if not information.is_singleton {
         release_lines.append("if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;")
@@ -12074,7 +12104,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
     assert not information.find_function("copy")
     if information.is_singleton {
         builder.add_support(
-            "{information.c_name}* {information.c_name}_copy({information.c_name}* self) \{ return {information.c_name}_retain(self); }",
+            "{information.c_name}* {information.c_name}_copy({information.c_name}* self) \{ return {information.c_name}___retain(self); }",
         )
         return
     }
@@ -12152,7 +12182,7 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
     }
     var defined_name = function.c_name
     if is_hot_class(information) {
-        defined_name = "{function.c_name}_hot"
+        defined_name = "{function.c_name}___hot"
         add_hot_slot(information, function)
     }
     builder.add_user("{named_signature(information, function, defined_name)} \{")
@@ -12282,16 +12312,16 @@ func emit_string_support(information: Analysis.ClassInfo) {
     crash memory_text
     var memory = singleton_call(memory_class)
     var constructor_parameters = constructor_parameter_list(information)
-    builder.add_prototype("void SpiteString_init(SpiteString* self);")
-    builder.add_prototype("SpiteString* SpiteString_allocate(void);")
-    builder.add_prototype("SpiteString* SpiteString_make({constructor_parameters});")
-    builder.add_prototype("SpiteString* SpiteString_retain(SpiteString* self);")
-    builder.add_prototype("void SpiteString_release(SpiteString* self);")
+    builder.add_prototype("void SpiteString___init(SpiteString* self);")
+    builder.add_prototype("SpiteString* SpiteString___allocate(void);")
+    builder.add_prototype("SpiteString* SpiteString___make({constructor_parameters});")
+    builder.add_prototype("SpiteString* SpiteString___retain(SpiteString* self);")
+    builder.add_prototype("void SpiteString___release(SpiteString* self);")
     builder.add_prototype("SpiteString* SpiteString_append(SpiteString* left, SpiteString* right);")
     builder.add_prototype("SpiteString* spite_string_from_bytes(const char* bytes, int64_t length);")
     builder.add_prototype("SpiteString* spite_string_from_cstring_owned(const char* text);")
     var initialize_lines = List<String>()
-    initialize_lines.append("void SpiteString_init(SpiteString* self) \{")
+    initialize_lines.append("void SpiteString___init(SpiteString* self) \{")
     var field_index = 0
     while field_index < information.fields.count() {
         var field = information.fields[field_index]
@@ -12302,24 +12332,24 @@ func emit_string_support(information: Analysis.ClassInfo) {
     var joined_initialize_lines = initialize_lines.join("\n")
     builder.add_support(joined_initialize_lines)
     builder.add_support(
-        "SpiteString* SpiteString_allocate(void) \{\nSpiteString* self = (SpiteString*)SPITE_MALLOC(sizeof(SpiteString));\nself->header.ref_count = 1;\nself->header.class_id = {information.class_id};\n#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(self, {information.class_id});\n#endif\nSpiteString_init(self);\nreturn self;\n}",
+        "SpiteString* SpiteString___allocate(void) \{\nSpiteString* self = (SpiteString*)SPITE_MALLOC(sizeof(SpiteString));\nself->header.ref_count = 1;\nself->header.class_id = {information.class_id};\n#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(self, {information.class_id});\n#endif\nSpiteString___init(self);\nreturn self;\n}",
     )
     var arguments = information.constructor.parameters.map_name()
     arguments.prepend("self")
     builder.add_support(
-        "SpiteString* SpiteString_make({constructor_parameters}) \{\nSpiteString* self = SpiteString_allocate();\n{information.constructor.c_name}({arguments.join(", ")});\nreturn self;\n}",
+        "SpiteString* SpiteString___make({constructor_parameters}) \{\nSpiteString* self = SpiteString___allocate();\n{information.constructor.c_name}({arguments.join(", ")});\nreturn self;\n}",
     )
     builder.add_support(
-        "SpiteString* SpiteString_retain(SpiteString* self) \{\nif (self != 0 && self->_section != Spite_Memory_Section_constant) SPITE_COUNT_UP(self->header.ref_count);\nreturn self;\n}",
+        "SpiteString* SpiteString___retain(SpiteString* self) \{\nif (self != 0 && self->_section != Spite_Memory_Section_constant) SPITE_COUNT_UP(self->header.ref_count);\nreturn self;\n}",
     )
     builder.add_support(
-        "void SpiteString_release(SpiteString* self) \{\nif (self == 0 || self->_section == Spite_Memory_Section_constant) return;\nif (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;\n{information.drop_function.c_name}(self);\nSPITE_FREE(self);\n}",
+        "void SpiteString___release(SpiteString* self) \{\nif (self == 0 || self->_section == Spite_Memory_Section_constant) return;\nif (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;\n{information.drop_function.c_name}(self);\nSPITE_FREE(self);\n}",
     )
     builder.add_support(
-        "SpiteString* SpiteString_append(SpiteString* left, SpiteString* right) \{\nif (left->_section == Spite_Memory_Section_constant || left->header.ref_count != 1) \{\nSpiteString* alone = {unshared.c_name}(left);\nSpiteString_release(left);\nleft = alone;\n}\n{append_in_place.c_name}(left, SpiteString_retain(right));\nreturn left;\n}",
+        "SpiteString* SpiteString_append(SpiteString* left, SpiteString* right) \{\nif (left->_section == Spite_Memory_Section_constant || left->header.ref_count != 1) \{\nSpiteString* alone = {unshared.c_name}(left);\nSpiteString___release(left);\nleft = alone;\n}\n{append_in_place.c_name}(left, SpiteString___retain(right));\nreturn left;\n}",
     )
     builder.add_support(
-        "SpiteString* spite_string_from_bytes(const char* bytes, int64_t length) \{\nMemory* spite_memory = {memory};\nSpiteString* spite_text = {memory_text.c_name}(spite_memory, (int64_t)(intptr_t)bytes, length);\nMemory_release(spite_memory);\nreturn spite_text;\n}",
+        "SpiteString* spite_string_from_bytes(const char* bytes, int64_t length) \{\nMemory* spite_memory = {memory};\nSpiteString* spite_text = {memory_text.c_name}(spite_memory, (int64_t)(intptr_t)bytes, length);\nMemory___release(spite_memory);\nreturn spite_text;\n}",
     )
     builder.add_support(
         "SpiteString* spite_string_from_cstring_owned(const char* text) \{\nreturn spite_string_from_bytes(text, (int64_t)strlen(text));\n}",
@@ -12538,7 +12568,7 @@ func finish_waiting_points() {
         var function = waiting_functions[index]
         var position = waiting_positions.get_at(index)
         var kind = waiting_kinds.get_at(index)
-        var waited_name = "{function.c_name}_waiting"
+        var waited_name = "{function.c_name}___waiting"
         var waited_signature = named_signature(information, function, waited_name)
         builder.replace_user(position, "{waited_signature} \{")
         builder.add_prototype("{waited_signature};")
@@ -12560,20 +12590,20 @@ func emit_waiting_wrapper(
         arguments.append(function.parameters[index].name)
         index = index + 1
     }
-    var waited = "{function.c_name}_waiting({arguments.join(", ")})"
+    var waited = "{function.c_name}___waiting({arguments.join(", ")})"
     var lines = List<String>()
     lines.append("{function_signature(information, function)} \{")
     lines.append("Scheduler* spite_scheduler = {scheduler};")
     if kind == "yield" {
         lines.append("{waited};")
         lines.append("if (Scheduler_suspends_here(spite_scheduler)) Scheduler_yield_now(spite_scheduler);")
-        lines.append("Scheduler_release(spite_scheduler);")
+        lines.append("Scheduler___release(spite_scheduler);")
     } else if kind == "sleep" {
         crash function.parameters[0]
         lines.append(
             "if (Scheduler_suspends_here(spite_scheduler)) Scheduler_sleep(spite_scheduler, {function.parameters[0].name}); else {waited};",
         )
-        lines.append("Scheduler_release(spite_scheduler);")
+        lines.append("Scheduler___release(spite_scheduler);")
     } else {
         var offloaded = offloaded_call_lines(information, function, arguments, waited)
         lines.append(offloaded)
@@ -12589,7 +12619,7 @@ func offloaded_call_lines(
     arguments: List<String>,
     waited: String,
 ): String {
-    var call_type = "{function.c_name}_call"
+    var call_type = "{function.c_name}___call"
     var return_type = function.get_return_type()
     var returns = not type_shape.is_void(return_type)
     var fields = List<String>()
@@ -12606,28 +12636,28 @@ func offloaded_call_lines(
         index = index + 1
     }
     var stored = ""
-    var blocked = "{waited}; Scheduler_release(spite_scheduler); return;"
+    var blocked = "{waited}; Scheduler___release(spite_scheduler); return;"
     var answered = "return;"
     if returns {
         fields.append("{c_type_name(return_type)} result;")
         stored = "call->result = "
-        blocked = "Scheduler_release(spite_scheduler); return {waited};"
+        blocked = "Scheduler___release(spite_scheduler); return {waited};"
         answered = "return spite_call.result;"
     }
     builder.add_typedef("typedef struct {call_type} \{ {fields.join(" ")} } {call_type};")
-    builder.add_prototype("static void {function.c_name}_perform(void* raw);")
+    builder.add_prototype("static void {function.c_name}___perform(void* raw);")
     builder.add_support(
-        "static void {function.c_name}_perform(void* raw) \{\n{call_type}* call = ({call_type}*)raw;\n{stored}{function.c_name}_waiting({passed.join(", ")});\n}",
+        "static void {function.c_name}___perform(void* raw) \{\n{call_type}* call = ({call_type}*)raw;\n{stored}{function.c_name}___waiting({passed.join(", ")});\n}",
     )
     var lines = List<String>()
     lines.append("if (!Scheduler_suspends_here(spite_scheduler)) \{ {blocked} }")
     lines.append(
-        "{call_type} spite_call = \{ \{ 0, &{function.c_name}_perform, spite_scheduler }, {arguments.join(", ")} };",
+        "{call_type} spite_call = \{ \{ 0, &{function.c_name}___perform, spite_scheduler }, {arguments.join(", ")} };",
     )
     lines.append(
         "if (!Scheduler_offload(spite_scheduler, (int64_t)(intptr_t)&spite_call, (int64_t)(intptr_t)&spite_offload_thread)) \{ {blocked} }",
     )
-    lines.append("Scheduler_release(spite_scheduler);")
+    lines.append("Scheduler___release(spite_scheduler);")
     lines.append(answered)
     return lines.join("\n")
 }
@@ -12639,7 +12669,7 @@ func remote_loop_start(entry_class: Analysis.ClassInfo, lines: List<String>) {
         "static ReadEvaluatePrintLoop* spite_remote_loop = 0;\nstatic {entry_class.c_name}* spite_remote_program = 0;\nstatic void* spite_remote_loop_thread(void* unused) \{\n(void)unused;\nReadEvaluatePrintLoop_serve(spite_remote_loop, spite_reflect_{entry_class.c_name}({program_symbol}, spite_remote_program));\nreturn 0;\n}",
     )
     lines.append("spite_remote_program = spite_entry_instance;")
-    lines.append("spite_remote_loop = ReadEvaluatePrintLoop_make();")
+    lines.append("spite_remote_loop = ReadEvaluatePrintLoop___make();")
     lines.append(
         "ReadEvaluatePrintLoop_listen_in_background(spite_remote_loop, {remote_loop_port}, (int64_t)(intptr_t)&spite_remote_loop_thread);",
     )
@@ -12649,7 +12679,7 @@ func program_run_code(): String {
     var entry_class = find_class_by_c_name(entry_class_c_name)
     crash entry_class
     var lines = List<String>()
-    lines.append("{entry_class.c_name}* spite_entry_instance = {entry_class.c_name}_allocate();")
+    lines.append("{entry_class.c_name}* spite_entry_instance = {entry_class.c_name}___allocate();")
     if remote_loop_port > 0 {
         remote_loop_start(entry_class, lines)
     }
@@ -12666,17 +12696,17 @@ func program_run_code(): String {
     if console_loop {
         var program_symbol = ensure_symbol("program")
         lines.append(
-            "\{ ReadEvaluatePrintLoop* spite_loop = ReadEvaluatePrintLoop_make(); while (ReadEvaluatePrintLoop_step(spite_loop, spite_reflect_{entry_class.c_name}({program_symbol}, spite_entry_instance))) \{} ReadEvaluatePrintLoop_release(spite_loop); }",
+            "\{ ReadEvaluatePrintLoop* spite_loop = ReadEvaluatePrintLoop___make(); while (ReadEvaluatePrintLoop_step(spite_loop, spite_reflect_{entry_class.c_name}({program_symbol}, spite_entry_instance))) \{} ReadEvaluatePrintLoop___release(spite_loop); }",
         )
     }
     if remote_loop_port > 0 {
         lines.append("ReadEvaluatePrintLoop_wait_for_exit(spite_remote_loop);")
-        lines.append("ReadEvaluatePrintLoop_release(spite_remote_loop);")
+        lines.append("ReadEvaluatePrintLoop___release(spite_remote_loop);")
     }
     if hot_reload {
-        lines.append("HotReload_release(spite_hot_reload);")
+        lines.append("HotReload___release(spite_hot_reload);")
     }
-    lines.append("{entry_class.c_name}_release(spite_entry_instance);")
+    lines.append("{entry_class.c_name}___release(spite_entry_instance);")
     return "(\{ {lines.join(" ")} (void)0; })"
 }
 
@@ -12687,11 +12717,11 @@ func emit_main(launcher_mangled_name: String) {
     builder.add_main("static const char* spite_debug_class_name_table[] = {debug_memory_class_name_table()};")
     builder.add_main("spite_debug_set_class_names(spite_debug_class_name_table, {class_names_by_id.count()});")
     builder.add_main("#endif")
-    builder.add_main("{launcher_class.c_name}* spite_launcher = {launcher_class.c_name}_allocate();")
+    builder.add_main("{launcher_class.c_name}* spite_launcher = {launcher_class.c_name}___allocate();")
     if launcher_class.constructor {
         builder.add_main("{launcher_class.constructor.c_name}(spite_launcher);")
     }
-    builder.add_main("{launcher_class.c_name}_release(spite_launcher);")
+    builder.add_main("{launcher_class.c_name}___release(spite_launcher);")
     emit_singleton_teardown()
     var singleton_index = 0
     while singleton_index < singleton_releases.count() {
@@ -12717,18 +12747,18 @@ func emit_main(launcher_mangled_name: String) {
         var cache = "{class_object_names[cache_index]}_cache"
         if not listed_name.is_empty() {
             builder.add_main(
-                "if ({cache} != 0) \{ {listed_name}_release({cache}->_functions); {cache}->_functions = 0; }",
+                "if ({cache} != 0) \{ {listed_name}___release({cache}->_functions); {cache}->_functions = 0; }",
             )
         }
         if not attribute_listed_name.is_empty() {
             builder.add_main(
-                "if ({cache} != 0) \{ {attribute_listed_name}_release({cache}->_attributes); {cache}->_attributes = 0; }",
+                "if ({cache} != 0) \{ {attribute_listed_name}___release({cache}->_attributes); {cache}->_attributes = 0; }",
             )
         }
         builder.add_main(
-            "if ({cache} != 0 && {cache}->_namespace != 0) \{ Spite_Namespace_release({cache}->_namespace); {cache}->_namespace = 0; }",
+            "if ({cache} != 0 && {cache}->_namespace != 0) \{ Spite_Namespace___release({cache}->_namespace); {cache}->_namespace = 0; }",
         )
-        builder.add_main("Spite_Class_release({cache});")
+        builder.add_main("Spite_Class___release({cache});")
         cache_index = cache_index + 1
     }
     if namespace_read_used {
@@ -12744,7 +12774,7 @@ func emit_main(launcher_mangled_name: String) {
         while parent_position < namespace_object_keys.count() {
             var parent_cache = "spite_namespace_object_{namespace_object_keys[parent_position].replace(".", "_")}_cache"
             builder.add_main(
-                "if ({parent_cache} != 0 && {parent_cache}->_parent != 0) \{ Spite_Namespace_release({parent_cache}->_parent); {parent_cache}->_parent = 0; }",
+                "if ({parent_cache} != 0 && {parent_cache}->_parent != 0) \{ Spite_Namespace___release({parent_cache}->_parent); {parent_cache}->_parent = 0; }",
             )
             parent_position = parent_position + 1
         }
@@ -12752,9 +12782,9 @@ func emit_main(launcher_mangled_name: String) {
         while namespace_position < namespace_object_keys.count() {
             var namespace_cache = "spite_namespace_object_{namespace_object_keys[namespace_position].replace(".", "_")}_cache"
             builder.add_main(
-                "if ({namespace_cache} != 0) \{ {classes_list_name}_release({namespace_cache}->_classes); {namespace_cache}->_classes = 0; {namespaces_list_name}_release({namespace_cache}->_namespaces); {namespace_cache}->_namespaces = 0; }",
+                "if ({namespace_cache} != 0) \{ {classes_list_name}___release({namespace_cache}->_classes); {namespace_cache}->_classes = 0; {namespaces_list_name}___release({namespace_cache}->_namespaces); {namespace_cache}->_namespaces = 0; }",
             )
-            builder.add_main("Spite_Namespace_release({namespace_cache});")
+            builder.add_main("Spite_Namespace___release({namespace_cache});")
             namespace_position = namespace_position + 1
         }
     }
@@ -12769,9 +12799,9 @@ func is_hot_class(information: Analysis.ClassInfo): Bool {
 }
 
 func add_hot_slot(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
-    var hot_name = "{function.c_name}_hot"
+    var hot_name = "{function.c_name}___hot"
     builder.add_prototype("{named_signature(information, function, hot_name)};")
-    var slot_declarator = "(*{function.c_name}_slot)"
+    var slot_declarator = "(*{function.c_name}___slot)"
     builder.add_slot(function.c_name, "static {named_signature(information, function, slot_declarator)} = {hot_name};")
     var arguments = List<String>()
     arguments.append("self")
@@ -12786,7 +12816,7 @@ func add_hot_slot(information: Analysis.ClassInfo, function: Analysis.FunctionIn
         returned = ""
     }
     builder.add_user(
-        "{function_signature(information, function)} \{\n{returned}{function.c_name}_slot({arguments.join(", ")});\n}",
+        "{function_signature(information, function)} \{\n{returned}{function.c_name}___slot({arguments.join(", ")});\n}",
     )
     hot_slot_names.append(function.c_name)
     hot_slot_owners.append(information.c_name)
@@ -12794,13 +12824,13 @@ func add_hot_slot(information: Analysis.ClassInfo, function: Analysis.FunctionIn
 }
 
 func add_hot_initialize_slot(information: Analysis.ClassInfo) {
-    var initialize_name = "{information.c_name}_init"
-    builder.add_prototype("void {initialize_name}_hot({information.c_name}* self);")
+    var initialize_name = "{information.c_name}___init"
+    builder.add_prototype("void {initialize_name}___hot({information.c_name}* self);")
     builder.add_slot(
         initialize_name,
-        "static void (*{initialize_name}_slot)({information.c_name}* self) = {initialize_name}_hot;",
+        "static void (*{initialize_name}___slot)({information.c_name}* self) = {initialize_name}___hot;",
     )
-    builder.add_support("void {initialize_name}({information.c_name}* self) \{\n{initialize_name}_slot(self);\n}")
+    builder.add_support("void {initialize_name}({information.c_name}* self) \{\n{initialize_name}___slot(self);\n}")
     hot_slot_names.append(initialize_name)
     hot_slot_owners.append(information.c_name)
     hot_slot_displays.append("{information.qualified_dotted}'s attribute defaults")
@@ -12839,7 +12869,7 @@ func emit_hot_reload_support() {
     builder.add_prototype("void* spite_hot_realloc(void* pointer, size_t size);")
     builder.add_prototype("void spite_hot_free(void* pointer);")
     builder.add_support(
-        "static void* spite_hot_reload_thread(void* unused) \{\n(void)unused;\nHotReload* spite_hot_reload = {hot_reload_instance};\nHotReload_watch(spite_hot_reload);\nHotReload_release(spite_hot_reload);\nreturn 0;\n}",
+        "static void* spite_hot_reload_thread(void* unused) \{\n(void)unused;\nHotReload* spite_hot_reload = {hot_reload_instance};\nHotReload_watch(spite_hot_reload);\nHotReload___release(spite_hot_reload);\nreturn 0;\n}",
     )
     builder.add_support(
         "void* spite_hot_realloc(void* pointer, size_t size) \{\nreturn SPITE_REALLOC(pointer, size);\n}",
@@ -12850,7 +12880,7 @@ func emit_hot_reload_support() {
     var index = 0
     while index < hot_slot_names.count() {
         names.append("\"{hot_slot_names[index]}\"")
-        cells.append("(void**)&{hot_slot_names[index]}_slot")
+        cells.append("(void**)&{hot_slot_names[index]}___slot")
         index = index + 1
     }
     names.append("0")
