@@ -27,6 +27,10 @@ func Game() {
   annotation, a generic argument (`Remove<Component.Requested>`), a `type` or `union` member, a `==` class test
   and an enum inside a class (`Component.Requested.Size`) -- so from `window/system/` the name reaches
   `window/component/requested.spite` without writing `Window.` (`conformance/stage6/relative_namespaces`).
+- A generic class is found the same way, so it may live in any folder: `Asset.Pack<Asset.Texture>("textures")`
+  and, from inside `game/`, `Pack<Rule>("rules")` for `game/pack.spite` both work
+  (`conformance/stage6/namespaced_generics`). A generic name that finds nothing is one error, and the lines that
+  use what it would have made are not reported again (`diagnostics/failed_constructor`).
 
 ## Monkey patching (mods)
 

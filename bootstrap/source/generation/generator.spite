@@ -74,6 +74,8 @@ var nullable_scalar_labels = List<String>()
 var has_error = false
 var error_message = ""
 var error_lines = List<String>()
+var statement_poisoned = false
+var poisoned_names = List<String>()
 var current_function = ""
 var current_class: Analysis.ClassInfo? = null
 var discovered_classes = List<Discovery.DiscoveredClass>()
@@ -101,6 +103,7 @@ var synthetic_value_types = Dictionary<Analysis.SpiteType>()
 
 func report(message: String) {
     has_error = true
+    assert not statement_poisoned
     var line = "{current_path}:{current_line}: error: {message} (in {current_owner}.{current_function})"
     assert not error_lines.contains(line)
     if error_lines.count() == 25 {
@@ -7323,23 +7326,66 @@ func generate_generic_constructor(
                 return ExpressionResult("{ensure_list(element)}_make()", list_type)
             }
         }
-        var generic_template = find_class(callee.name, class_information.namespace_dotted)
-        if generic_template {
-            if generic_template.is_generic_template {
-                var generic_class = instantiate_generic(
-                    generic_template,
-                    generic_call.type_arguments,
-                    class_information.namespace_dotted,
-                )
-                if generic_class {
-                    return generate_constructor_call(generic_class, generic_call.arguments, scope, class_information)
-                }
-                return ExpressionResult("0", Analysis.Types.VoidType())
-            }
-        }
     }
-    report("this generic constructor is not supported in this stage")
+    var generic_template = try_resolve_static_path(generic_call.callee, class_information.namespace_dotted)
+    if generic_template {
+        if generic_template.is_generic_template {
+            var generic_class = instantiate_generic(
+                generic_template,
+                generic_call.type_arguments,
+                class_information.namespace_dotted,
+            )
+            if generic_class {
+                return generate_constructor_call(generic_class, generic_call.arguments, scope, class_information)
+            }
+            poison_statement()
+            return ExpressionResult("0", Analysis.Types.VoidType())
+        }
+        report(
+            "'{generic_template.simple_name}' takes no codegen values: write '{generic_template.simple_name}(...)' without '<...>'",
+        )
+        poison_statement()
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    var printer = Syntax.SourcePrinter()
+    var callee_text = printer.source_expression(generic_call.callee)
+    report(
+        "there is no generic class '{callee_text}' here: a name is looked up in this class's own namespace, its folder, each parent folder, then the whole program",
+    )
+    poison_statement()
     return ExpressionResult("0", Analysis.Types.VoidType())
+}
+
+func poison_statement() {
+    statement_poisoned = true
+}
+
+func poisoned_key(name: String): String {
+    return "{current_path}:{current_owner}.{current_function}:{name}"
+}
+
+func mentions_poisoned(statement: Syntax.Statements.Statement, names: List<String>): Bool {
+    if not poisoned_names.is_empty() {
+        collect_statement_head_names(statement, names)
+    }
+    var index = 0
+    while index < names.count() {
+        var key = poisoned_key(names[index])
+        if poisoned_names.contains(key) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func collect_statement_head_names(statement: Syntax.Statements.Statement, names: List<String>) {
+    switch statement {
+        Syntax.Statements.IfStatement: collect_optional_names(statement.condition, names)
+        Syntax.Statements.WhileStatement: collect_optional_names(statement.condition, names)
+        Syntax.Statements.SwitchStatement: collect_optional_names(statement.subject, names)
+        _: collect_statement_names(statement, names)
+    }
 }
 
 func generate_index_read(
@@ -11842,6 +11888,37 @@ func generate_statement(
     function_information: Analysis.FunctionInfo,
 ): Bool {
     current_line = statement.line
+    var saved_poisoned = statement_poisoned
+    var mentioned = List<String>()
+    if mentions_poisoned(statement, mentioned) {
+        statement_poisoned = true
+        mark_each_used(mentioned, scope)
+    }
+    var ended_in_return = generate_statement_kind(statement, scope, class_information, function_information)
+    var declared = shape.as_variable_declaration(statement)
+    if declared and statement_poisoned {
+        var key = poisoned_key(declared.name)
+        poisoned_names.append(key)
+        scope.mark_used(declared.name)
+    }
+    statement_poisoned = saved_poisoned
+    return ended_in_return
+}
+
+func mark_each_used(names: List<String>, scope: Scope) {
+    var index = 0
+    while index < names.count() {
+        scope.mark_used(names[index])
+        index = index + 1
+    }
+}
+
+func generate_statement_kind(
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+): Bool {
     report_nested_calls(statement, class_information)
     var variable_declaration = shape.as_variable_declaration(statement)
     if variable_declaration {

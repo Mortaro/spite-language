@@ -1,0 +1,14 @@
+var console = Console()
+
+func FailedConstructor() {
+    var textures = Asset.Pak<Asset.Texture>()
+    var grass = Asset.Texture()
+    var count = textures.keep(grass)
+    var doubled = count * 2
+    console.print(doubled)
+    var sounds = Asset.Pack<Asset.Texture, Int>()
+    console.print(sounds.items)
+    var notes = Asset.Texture<Int>()
+    console.print(notes.path)
+    var forgotten = 3
+}

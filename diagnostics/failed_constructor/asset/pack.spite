@@ -1,0 +1,8 @@
+generic $item_type
+
+var items = List<$item_type>()
+
+func keep(item: $item_type): Int {
+    items.append(item)
+    return items.count()
+}

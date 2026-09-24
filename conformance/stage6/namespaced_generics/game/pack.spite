@@ -1,0 +1,14 @@
+generic $item_type
+
+var label = ""
+var items = List<$item_type>()
+
+func Pack(new_label: String) {
+    label = new_label
+}
+
+func keep(item: $item_type): String {
+    items.append(item)
+    var count = items.count()
+    return "game {label} {count} {item.name}"
+}

@@ -1,0 +1,4 @@
+textures 1 grass
+level textures 1 stone
+level sounds 1 step
+game rules 1 gravity
