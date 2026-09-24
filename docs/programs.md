@@ -212,7 +212,9 @@ section.
 ## How a program is loaded
 
 Nothing about starting a program is hidden in the compiler. Running one is itself a Spite program,
-`launcher/launcher.spite` at the root of the repository, and its constructor is the whole story:
+`launcher/launcher.spite` at the root of the repository, and its constructor is the whole story. Its `load`
+paths are relative to the repository, which the compiler finds from its own executable; the program itself runs
+in the folder `spite` was run from ([compiler.md](compiler.md#where-it-runs)).
 
 ```gdscript
 var build = Build()

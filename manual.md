@@ -1909,6 +1909,16 @@ gives an error, nothing is left to the user's taste. The only printout that used
   function that happens to share its own class's name -- the constructor -- is exempt from the function-naming
   check for the same reason). Enum values: lowercase `snake_case`. File and folder names: lowercase
   `snake_case` (folder names were already checked this way since milestone 5; file names are new).
+- **One underscore between words** (proposed by Claude, unconfirmed; implemented 2026-09-24): a snake_case name
+  joins its words with one `_` each and may start with one `_` to be private, so `hit__count`, `__strike` and
+  `strike_` are errors (`diagnostics/doubled_underscore`). The C the compiler writes for a class or function of
+  its own -- `Pool___allocate`, `Pool___make`, `Pool___retain`, `Pool___release`, a singleton's `___destroy`, `Pool___init`,
+  `Pool___default`, `Pool___class_of`, `Pool___attributes`, `Pool___functions`, `Pool___instances`,
+  `Pool___deep_copy`, `Pool___read_<attribute>`, an enum's `___name`, a function's `___hot`, `___slot`,
+  `___waiting`, `___perform` -- joins with `___`, which no Spite name can produce, so none of those words is
+  reserved: a class may declare `allocate`, `make` or `release` (`conformance/stage6/generated_names`). A class's
+  `copy()`, `to_string()` and `to_debug()` are Spite functions every class answers and a class may declare, and
+  keep their plain names.
 - Single-letter names are always errors -- no exceptions -- because they read either as a stray leftover or as
   a puzzle for whoever reads the code next.
 - **Abbreviations.** An identifier is split into `_`-separated words and each word is checked against a
@@ -1986,6 +1996,14 @@ file.
 `arguments.player` reads `--player=...`, and `Environment` reads the settings it declares -- and none of it is
 read as a compiler flag or a file to compile. A program's own `Arguments` stops at `--` the same way, which is the ordinary meaning of `--`.
 Before this, a program run by the compiler received no arguments at all (`conformance/stage6/program_arguments`).
+
+**Where a program runs** (proposed by Claude, unconfirmed; implemented 2026-09-24): in the folder `spite` was run
+from. The compiler finds `launcher/` and `library/` from its own executable -- the first folder above it that
+holds `launcher/launcher.spite` -- and never from the working directory, so `bin/spite` no longer changes
+directory, and a relative path a program opens (`File`, `Directory`, a cache folder) is the caller's. The
+launcher's `load` paths are relative to that folder; the build cache is its `.spite-cache/`, so running a program
+leaves nothing in the caller's folder. Before this, every program ran with the repository as its working
+directory (`check.sh` runs `conformance/stage6/working_directory` from another folder).
 
 - Before the `--`, a `--name=value` sets the `Build` field of that name, and one that names no field is an error
   that shows both places a setting can belong -- `build.spite` to decide it while compiling, `environment.spite`
@@ -2602,7 +2620,9 @@ Spite above them:
 
 1. **`Memory`**, a built-in singleton whose functions the compiler emits as single C expressions: `allocate_bytes(bytes:
    Long): Long`, `resize(address: Long, bytes: Long): Long`, `free(address: Long)`, `read_byte`/`read_int`/
-   `read_long`/`read_double(address: Long, offset: Long)`, the matching `write_*(address, offset, value)`, and
+   `read_long`/`read_double(address: Long, offset: Long)` -- and since 2026-09-24 `read_short`,
+   `read_unsigned_short`, `read_unsigned_int` and `read_float` (proposed by Claude, unconfirmed), so a C struct's
+   2-byte, unsigned and `float` fields need no `TypedMemory` -- the matching `write_*(address, offset, value)`, and
    `copy_bytes(from: Long, to: Long, bytes: Long)`. An address is a `Long`, as section 17 already says a handle is --
    there is still no `Pointer` type, and nothing outside the standard library needs `Memory` at all.
    **Since D82** `Memory` is `library/memory.spite` (its `singleton` line) plus these functions as the compiler's
@@ -2975,6 +2995,15 @@ func _send(event: UnsignedInt, wheel_amount: UnsignedInt) {
 | a scalar-only `type` | a struct, by address | zero |
 | `List<T>` of scalars | the element array, by address | zero |
 | a class instance | -- | never. Its layout (`SpiteHeader`, ref count) is the compiler's business |
+
+**Argument widths** (proposed by Claude, unconfirmed; implemented 2026-09-24). With a header, a call goes through
+the header's prototype (`__typeof__(&Symbol)`), so C checks the argument count and converts each argument to its
+parameter's type; integer-to-pointer conversion is allowed, because a handle is a `Long`, and a `void` function's
+call reads as `0`. Without one, every integer-like argument (`Tiny`..`Long`, `Bool`, enum values) is passed as
+`int64_t`, and every unsigned one as `uint64_t`: the width x64 and 64-bit ARM pass in a register or stack slot
+anyway, so a literal `0` for a 64-bit parameter no longer leaves the upper half of the register undefined.
+`Float` and `Double` pass as themselves. Left open: a `Double` where C wants `float`, and Apple ARM's stack
+arguments past the eighth, which it packs at their own width -- both need the header.
 
 **Return types.** A foreign call returns `Int` (integer/pointer width) and section 4's right-to-left casting takes
 it from there. A `Double` comes back in a different register and cannot be inferred from context, so it is asked
@@ -3546,4 +3575,8 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (proposed by Claude, unconfirmed; D109's printable, applied to text) **A text hole calls `to_string()`.** `"{attribute.class}"` was "a Class cannot be used where a String is needed" though the docs said it prints like the type name. A value in a `{}` hole whose class declares `to_string()` with no arguments is now turned into text by it, as `console.print` already does. `conformance/stage6/class_text`, `docs/metaprogramming.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's `potion` example) **No file may reopen the program's entry class.** An entry `potion/potion.spite` that loads a bundle holding its own `potion.spite` merged the bundle's class into the entry class `Potion`, so the entry's `Potion()` call recursed with no error. Another file of the entry class's name is now an error naming both files. `diagnostics/entry_class_reopened`, `docs/packages.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine had no way to time a frame) **`Clock()` reads time.** A singleton with `elapsed_nanoseconds()` and `elapsed_milliseconds()` (monotonic, for measuring) and `unix_milliseconds()` (the wall clock since 1970 UTC); each system reopens it with its own reading through `DynamicLibrary` -- `QueryPerformanceCounter` and `GetSystemTimeAsFileTime` on Windows, `clock_gettime` on Linux and macOS. The names, and whether a calendar breakdown (year, month, day) belongs here, wait on Mortaro. `conformance/stage6/clock_reading`, `docs/standard_library.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; a bug found building SlopEngine's Vulkan renderer) **A program runs in the folder `spite` was run from.** The compiler finds `launcher/` and `library/` from its own executable (the first folder above it holding `launcher/launcher.spite`, falling back to the working directory), reads the launcher's `load` paths against that folder while keeping `library/...` as the names every message and crash report shows, and builds into that folder's `.spite-cache/`. `bin/spite` stops changing directory. Section 13, `docs/compiler.md`; `check.sh` runs `conformance/stage6/working_directory` from another folder. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; a bug found building SlopEngine) **The compiler's own C names join with `___`, and a Spite name has one `_` between words.** A method named `allocate` failed in clang ("conflicting types for 'X_allocate'") because the generator wrote `<Class>_allocate` beside the class's `<Class>_<function>`. Instead of reserving each word, every name the generator makes for a class or function of its own -- allocate, init, default, make, retain, release, class_of, attributes, functions, instances, deep_copy, read_/write_/assign_/call_ accessors, an enum's name, and a function's hot, slot, waiting, perform, call and text_call -- is now `<owner>___<helper>`, and the naming lint rejects `__` inside a name, a trailing `_`, and more than one leading `_`, so no Spite name produces `___`. `copy`, `to_string` and `to_debug` keep their plain names: they are Spite functions every class answers and may declare. `init` stays an error as an abbreviation and `default` as a C keyword. Section 12; `conformance/stage6/generated_names`, `diagnostics/doubled_underscore`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; a bug found building SlopEngine's Vulkan renderer) **A foreign call's arguments cross at the width C wants.** `vkMapMemory(device, memory, 0, size, 0, out)` passed the literal `0` as a 32-bit `int` where C wanted a 64-bit `VkDeviceSize`, leaving the register's upper half undefined, silently. With a header, the call now goes through the header's prototype (`__typeof__(&Symbol)`, with `__builtin_choose_expr` for a `void` result), so C checks the count and converts every argument, allowing only integer-to-pointer conversion (a handle is a `Long`); without one, every signed integer, `Bool` and enum value is passed as `int64_t` and every unsigned one as `uint64_t`, which is what x64 and 64-bit ARM pass in a register or 8-byte slot anyway. Section 17, `docs/foreign_libraries.md`; `conformance/stage6/foreign_library` passes -1 to a `long long` with and without a header, a `Double` to a `float`, a `Long` to a `void*` and calls a `void` function. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; found building SlopEngine's Vulkan renderer, which needed `TypedMemory<Float>` to write a float into a C struct) **`Memory` reads and writes every width a C struct uses**: `read_short`/`write_short` (`Short`), `read_unsigned_short`/`write_unsigned_short` (`UnsignedShort`), `read_unsigned_int`/`write_unsigned_int` (`UnsignedInt`) and `read_float`/`write_float` (`Float`) join the byte, int, long and double ones as bodiless functions the compiler supplies, and lend an address the way the others do (D108). `Tiny` and `UnsignedLong` are left out: `read_byte` and `read_long` hold the same bits, and a cast reads them. Section 15, `docs/memory.md`; `conformance/stage6/memory_floor`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's Vulkan examples segfaulted at exit after the row above that stopped counting singletons) **Libraries are unloaded after every singleton, and a `drop()` cannot use a singleton already destroyed.** Singletons were already destroyed newest first, counted from when a constructor finishes, but `DynamicLibrary("vulkan-1.dll")` was first fetched in `Renderer.ensure()`, after `Renderer` was made, so it was unloaded first and `Renderer.drop()` called `vkDeviceWaitIdle` through an unloaded library; the count used to keep such things alive by accident. Every `DynamicLibrary` is now unloaded after all singletons, since anything may call through one and it calls nothing back. For any other singleton first made after the one whose `drop()` uses it there is no right order to find, so the fetch halts naming it and saying to keep it in an attribute, where it is made first. Standard output is flushed before teardown, so a crash in a `drop()` keeps what was printed. `conformance/stage6/singleton_teardown`, `conformance/stage6/singleton_used_after_exit`, `docs/classes_and_files.md`. |

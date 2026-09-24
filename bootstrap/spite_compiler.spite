@@ -7,6 +7,7 @@ var build_values = Dictionary<String>()
 var building_output = ""
 var last_hot_manifest = ""
 var last_hot_state = ""
+var language_folder = "."
 
 func SpiteCompiler() {
     load("source")
@@ -15,6 +16,7 @@ func SpiteCompiler() {
         run_connect(arguments)
         return
     }
+    language_folder = folder_holding_launcher()
     read_supplied_settings(arguments)
     var file_argument = file_to_compile(arguments)
     if file_argument.is_empty() {
@@ -31,6 +33,24 @@ func SpiteCompiler() {
         console.error("error: could not read '{file_argument}'")
         program.exit(1)
     }
+}
+
+func folder_holding_launcher(): String {
+    var executable_path = program.executable_path()
+    var folders = executable_path.replace("\\", "/").split("/")
+    folders.remove_last()
+    while not folders.is_empty() {
+        var folder = folders.join("/")
+        if File("{folder}/launcher/launcher.spite").exists() {
+            return folder
+        }
+        folders.remove_last()
+    }
+    return "."
+}
+
+func cache_folder(): String {
+    return "{language_folder}/.spite-cache"
 }
 
 func run_mode(file_argument: String, content: String) {
@@ -145,6 +165,7 @@ func supplied_or(name: String, fallback: String): String {
 
 func discovered_program(file_argument: String, content: String): Discovery.DiscoveryResult? {
     var discoverer = Discovery.ProgramDiscovery()
+    discoverer.language_folder = language_folder
     discoverer.formats = supplied_or("format", "true") == "true"
     discoverer.supplied_settings = supplied_settings
     discoverer.bare_settings = bare_settings
@@ -487,10 +508,11 @@ func build_to_path(file_argument: String, discovery: Discovery.DiscoveryResult, 
     building_output = output_path
     var code = generate_c_or_report(discovery)
     assert code
-    var directory = Directory(".spite-cache")
+    var cache_folder = cache_folder()
+    var directory = Directory(cache_folder)
     directory.create()
     var class_name = computed_class_name(file_argument)
-    var c_path = ".spite-cache/{class_name}_gen1.c"
+    var c_path = "{cache_folder}/{class_name}_gen1.c"
     var c_file = File(c_path)
     var wrote = c_file.write(code)
     crash wrote
@@ -708,7 +730,7 @@ func build_library(code: String, c_path: String, library_path: String): Bool {
 }
 
 func run_run_mode(file_argument: String, discovery: Discovery.DiscoveryResult, passed: List<String>) {
-    var output_path = ".spite-cache/{computed_class_name(file_argument)}_gen1.exe"
+    var output_path = "{cache_folder()}/{computed_class_name(file_argument)}_gen1.exe"
     var built = build_to_path(file_argument, discovery, output_path)
     if not built {
         program.exit(1)

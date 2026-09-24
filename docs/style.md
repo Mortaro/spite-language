@@ -54,6 +54,10 @@ searching for the old name. These are errors, each with the fix:
   and the error spells the name out. `id` is allowed.
 - **Not a word C reserves**: a name such as `unsigned`, `static` or `stdout` means something else in the C a
   program compiles to, so it is an error asking for a name of your own.
+- **One underscore between words**, and at most one in front to make a name private: `hit__count`, `__strike`
+  and `strike_` are errors. That is what keeps the C the compiler makes for a class -- how it allocates, counts
+  and releases one, under names with `___` in them -- out of the way of yours, so `allocate`, `make`, `release`
+  or `class_of` are ordinary function names.
 - **Names say what they do.** The standard library follows the same rule: `append` and `prepend` rather than
   `add`, `upper_case()` rather than `upper()`, `remove_last()` rather than `pop()`.
 

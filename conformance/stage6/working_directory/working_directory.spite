@@ -1,0 +1,10 @@
+var console = Console()
+
+func WorkingDirectory() {
+    var greeting = File("greeting.txt").read()
+    if greeting {
+        console.print("read {greeting.trim()} from the folder spite was run in")
+        return
+    }
+    console.print("no greeting.txt in the folder spite was run in")
+}

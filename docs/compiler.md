@@ -48,9 +48,18 @@ The compiler reads `launcher/launcher.spite` first -- a Spite class whose constr
 target operating system's folder of it, then the program's folder -- and follows its `load` calls in order.
 [programs.md](programs.md#how-a-program-is-loaded) walks through it.
 
+## Where it runs
+
+The compiler finds `launcher/` and `library/` from its own executable, looking in each folder above it, and
+never from the working directory. So `spite` runs, and the program it builds runs, in the folder you ran it from:
+a relative path the program opens -- `File("save.txt")`, `Directory("levels")`, a cache folder -- is relative to
+that folder, not to the language's repository. The build itself goes to the repository's `.spite-cache/`, so
+running a program leaves nothing behind in your folder. A foreign library's header named by a relative path
+(`DynamicLibrary`'s third argument) is looked for in the working directory as well.
+
 ## Choose an output mode
 
-`--mode=run` is the default. It emits C into `.spite-cache/`, builds an executable, and runs it:
+`--mode=run` is the default. It emits C into the repository's `.spite-cache/`, builds an executable, and runs it:
 
 ```bash
 spite game

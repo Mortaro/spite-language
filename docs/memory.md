@@ -225,8 +225,9 @@ free. `Memory` is bound to `memory` first, as every singleton is
   allocation at all, and a larger request there still goes to the heap at run time. Anything else is on the
   heap. The program writes the same `allocate_bytes` and `free` either way; there is no second way to ask for
   the stack.
-- **Typed values:** `read_byte`/`read_int`/`read_long`/`read_double` and the matching `write_*` read and write
-  numbers at an address. For values of any type -- a class, a `String`, a nullable number -- a generic class
+- **Typed values:** `read_byte`, `read_short`, `read_unsigned_short`, `read_int`, `read_unsigned_int`,
+  `read_long`, `read_float` and `read_double`, each `(address, offset)`, and the matching `write_*(address,
+  offset, value)` read and write numbers at an address -- every width a C struct's fields use. For values of any type -- a class, a `String`, a nullable number -- a generic class
   holds a `TypedMemory<$value_type>`, whose `read_value(address, index)`, `write_value(address, index, value)`,
   `release_value(address, index)` and `value_bytes()` keep reference counts right for that type. It is one
   shared instance per type, and it is exactly what `library/list.spite` uses for its elements.
