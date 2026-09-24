@@ -1,0 +1,5 @@
+func TypedMemory<$value_type>() {}
+
+func is_singleton(): Bool {
+    return true
+}

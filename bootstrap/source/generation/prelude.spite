@@ -18,7 +18,11 @@ func header(): String {
         "#include <io.h>"
         "#include <direct.h>"
         "#include <windows.h>"
+        "#include <malloc.h>"
+        "#define SPITE_ALLOCA(size) _alloca(size)"
         "#else"
+        "#include <alloca.h>"
+        "#define SPITE_ALLOCA(size) alloca(size)"
         "#include <dirent.h>"
         "#include <sys/stat.h>"
         "#include <time.h>"
@@ -227,7 +231,7 @@ func path(): String {
 }
 
 func reopened_classes(): List<String> {
-    return ["memory", "dynamic_library", "spite/attribute", "spite/function"]
+    return ["memory", "typed_memory", "dynamic_library", "spite/attribute", "spite/function"]
 }
 
 func reopening(stem: String): String {
@@ -259,6 +263,9 @@ func supplied_members(stem: String): List<String> {
     if stem == "memory" {
         return memory_members()
     }
+    if stem == "typed_memory" {
+        return typed_memory_members()
+    }
     if stem == "dynamic_library" {
         return dynamic_library_members()
     }
@@ -279,6 +286,8 @@ func memory_members(): List<String> {
         "return (int64_t)(intptr_t)SPITE_REALLOC((void*)(intptr_t)address, (size_t)bytes);"
         "func free(address: Long)"
         "SPITE_FREE((void*)(intptr_t)address);"
+        "func allocate_stack_bytes(bytes: Long): Long"
+        "#define Memory_allocate_stack_bytes(self, bytes) ((int64_t)(intptr_t)SPITE_ALLOCA((size_t)(bytes)))"
         "func read_byte(address: Long, offset: Long): Byte"
         "return ((uint8_t*)(intptr_t)address)[offset];"
         "func read_int(address: Long, offset: Long): Int"
@@ -307,6 +316,19 @@ func memory_members(): List<String> {
         "int64_t address = (int64_t)(intptr_t)text->data; SpiteString_release(text); return address;"
         "func live_allocations(): Int"
         "return (int32_t)spite_live_allocation_count();"
+    ]
+}
+
+func typed_memory_members(): List<String> {
+    return [
+        "func read_value(address: Long, index: Int): $value_type"
+        "written per value type by the generator"
+        "func write_value(address: Long, index: Int, value: $value_type)"
+        "written per value type by the generator"
+        "func release_value(address: Long, index: Int)"
+        "written per value type by the generator"
+        "func value_bytes(): Long"
+        "written per value type by the generator"
     ]
 }
 

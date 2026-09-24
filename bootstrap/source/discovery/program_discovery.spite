@@ -482,6 +482,10 @@ func declared_name(statement: Syntax.Statements.Statement): String {
     if variable {
         return "var {variable.name}"
     }
+    var enumeration = shape.as_enum_declaration(statement)
+    if enumeration {
+        return "enum {enumeration.name}"
+    }
     return ""
 }
 

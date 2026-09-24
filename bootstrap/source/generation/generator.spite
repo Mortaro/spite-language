@@ -1825,6 +1825,10 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     information.functions.append(function)
 }
 
+func is_inline_supplied(function: Analysis.FunctionInfo): Bool {
+    return not function.has_body and function.supplied_body.starts_with("#define")
+}
+
 func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
     function.has_body = false
     var segments = information.qualified_dotted.split(".")
@@ -1839,12 +1843,32 @@ func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInf
     var class_path = folders.join("/")
     var supplied = Prelude().supplied_body(class_path, function.name)
     if supplied {
+        assert not information.is_generic_template
         function.supplied_body = supplied
+        if class_path == "typed_memory" {
+            function.supplied_body = typed_memory_body(information, function.name)
+        }
         return
     }
     report(
         "'{information.simple_name}.{function.name}' has no body, and only a function whose body the compiler supplies is written without one: give it a body",
     )
+}
+
+func typed_memory_body(information: Analysis.ClassInfo, name: String): String {
+    crash information.codegen_types[0]
+    var value_type = information.codegen_types[0]
+    var slot = "(({c_type_name(value_type)}*)(intptr_t)address)[index]"
+    if name == "read_value" {
+        return "return {retain_call(value_type, slot)};"
+    }
+    if name == "write_value" {
+        return "{slot} = value;"
+    }
+    if name == "release_value" {
+        return release_statement(value_type, slot)
+    }
+    return "return (int64_t)sizeof({c_type_name(value_type)});"
 }
 
 func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String): Analysis.SpiteType? {
@@ -5171,11 +5195,14 @@ func emit_functions_function(information: Analysis.ClassInfo) {
             lines.append("described->spite_owner = {information.c_name}_retain(self);")
             lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}_release;")
             var function_return_type = function.get_return_type()
-            if function.parameters.count() == 0 and type_shape.is_void(function_return_type) {
+            var callable = not is_inline_supplied(function)
+            if callable and function.parameters.count() == 0 and type_shape.is_void(function_return_type) {
                 lines.append("described->spite_call = (void (*)(void*)){function.c_name};")
             }
-            lines.append("described->spite_typed_call = (void*){function.c_name};")
-            if read_evaluate_print_loop {
+            if callable {
+                lines.append("described->spite_typed_call = (void*){function.c_name};")
+            }
+            if callable and read_evaluate_print_loop {
                 var text_call = ensure_text_call(information, function)
                 if not text_call.is_empty() {
                     lines.append("described->spite_text_call = (void*){text_call};")
@@ -5447,6 +5474,71 @@ func ensure_text_call(information: Analysis.ClassInfo, function: Analysis.Functi
     var joined_lines = lines.join("\n")
     builder.add_support(joined_lines)
     return function_c_name
+}
+
+func generate_memory_read(
+    object_result: ExpressionResult,
+    object_ast: Syntax.Expressions.Expression,
+): ExpressionResult? {
+    var object_type = object_result.get_type()
+    var described_ref = type_shape.as_class_ref(object_type)
+    if described_ref {
+        var described = find_class_by_c_name(described_ref.c_name)
+        if described {
+            if described.find_field("memory") {
+                return null
+            }
+            if described.find_function("get_memory") {
+                return null
+            }
+        }
+    }
+    var memory_class = find_class_by_qualified("Spite.Memory")
+    if not memory_class {
+        report(
+            "reflection needs the standard library: library/spite/memory.spite was not found from the working directory",
+        )
+        return null
+    }
+    crash memory_class
+    var memory_type = class_type_of(memory_class)
+    var object_c_type = c_type_name(object_type)
+    var owned = owns(object_result, object_ast) and type_needs_drop(object_type)
+    var held = "spite_described"
+    var address = "(int64_t)(intptr_t)({held})"
+    var bytes = "(int64_t)sizeof(*({held}))"
+    var section = "Spite_Memory_Section_heap"
+    if type_shape.as_string(object_type) {
+        address = "(int64_t)(intptr_t)({held})->data"
+        bytes = "({held})->length"
+        section = "(({held})->is_static ? Spite_Memory_Section_constant : Spite_Memory_Section_heap)"
+    } else if type_shape.as_scalar(object_type) or is_enum_type(object_type) {
+        if owned or is_owning_shape(object_ast) {
+            report("only a named value has memory of its own: give this value a name with 'var' first")
+            return null
+        }
+        address = "(int64_t)(intptr_t)&({object_result.code})"
+        bytes = "(int64_t)sizeof({object_c_type})"
+        if not object_result.code.contains("->") {
+            section = "Spite_Memory_Section_stack"
+        }
+        var scalar_memory = ExpressionResult("Spite_Memory_make({address}, {bytes}, {section})", memory_type)
+        scalar_memory.owning_override = true
+        return scalar_memory
+    } else if not type_needs_drop(object_type) or type_shape.as_nullable(object_type) or type_shape.as_union(object_type) {
+        report("a {type_display_name(object_type)} has no memory of its own to describe")
+        return null
+    }
+    var release_object = ""
+    if owned {
+        release_object = "{release_call(object_type, held)};"
+    }
+    var described_memory = ExpressionResult(
+        "(\{ {object_c_type} {held} = {object_result.code}; Spite_Memory* spite_memory = Spite_Memory_make({address}, {bytes}, {section}); {release_object} spite_memory; })",
+        memory_type,
+    )
+    described_memory.owning_override = true
+    return described_memory
 }
 
 func generate_reflection_read(
@@ -6997,6 +7089,12 @@ func generate_member_read_raw(
             if tree_receiver.c_name == "Spite_Namespace" {
                 namespace_tree_used = true
             }
+        }
+    }
+    if member.name == "memory" {
+        var memory_read = generate_memory_read(object_result, member.object)
+        if memory_read {
+            return memory_read
         }
     }
     var reflection = generate_reflection_read(member.name, object_result, member.object)
@@ -9832,7 +9930,9 @@ func emit_class_prototypes(information: Analysis.ClassInfo) {
     }
     var function_index = 0
     while function_index < information.functions.count() {
-        builder.add_prototype("{function_signature(information, information.functions[function_index])};")
+        if not is_inline_supplied(information.functions[function_index]) {
+            builder.add_prototype("{function_signature(information, information.functions[function_index])};")
+        }
         function_index = function_index + 1
     }
 }
@@ -9989,6 +10089,10 @@ func emit_class_support(information: Analysis.ClassInfo) {
 func emit_user_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
     assert not function.is_emitted
     function.is_emitted = true
+    if is_inline_supplied(function) {
+        builder.add_typedef(function.supplied_body)
+        return
+    }
     if not function.has_body {
         builder.add_user("{function_signature(information, function)} \{\n{function.supplied_body}\n}")
         return
