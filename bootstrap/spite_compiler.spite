@@ -3,10 +3,15 @@ var optimized = false
 var last_crash_map = ""
 var formats = true
 var read_evaluate_print_loop = false
+var remote_loop_port = 0
 var development = false
 
 func SpiteCompiler(arguments: Arguments) {
     load("source")
+    if arguments.count() > 0 and arguments.get(0) == "connect" {
+        run_connect(arguments)
+        return
+    }
     var file_argument = file_to_compile(arguments)
     if file_argument.is_empty() {
         console.error("usage: spite program.spite [--optimized] [--debug_memory=true] [-- program arguments ...]")
@@ -22,6 +27,12 @@ func SpiteCompiler(arguments: Arguments) {
     optimized = has_flag(arguments, "--optimized")
     formats = not has_flag(arguments, "--no-format")
     read_evaluate_print_loop = has_flag(arguments, "--repl")
+    remote_loop_port = remote_loop_port_of(arguments)
+    if remote_loop_port < 0 {
+        console.error("error: --repl-port takes a port number from 1 to 65535: spite program.spite --repl-port=4000")
+        Program().exit(1)
+        return
+    }
     development = has_flag(arguments, "--development")
     var unknown_flag = unknown_compiler_flag(arguments)
     if unknown_flag {
@@ -135,8 +146,7 @@ func generate_c_or_report(file_argument: String, content: String): String? {
     }
     var prelude = Generation.Prelude()
     var generator = Generation.Generator()
-    generator.read_evaluate_print_loop = read_evaluate_print_loop
-    generator.development = development
+    configure(generator)
     var header = prelude.header()
     var structs = prelude.structs()
     var prototypes = prelude.prototypes()
@@ -148,6 +158,13 @@ func generate_c_or_report(file_argument: String, content: String): String? {
     }
     last_crash_map = generator.crash_map()
     return code
+}
+
+func configure(generator: Generation.Generator) {
+    generator.read_evaluate_print_loop = read_evaluate_print_loop or remote_loop_port > 0
+    generator.console_loop = read_evaluate_print_loop
+    generator.remote_loop_port = remote_loop_port
+    generator.development = development
 }
 
 func file_to_compile(arguments: Arguments): String {
@@ -212,7 +229,16 @@ func has_flag(arguments: Arguments, flag: String): Bool {
 }
 
 func unknown_compiler_flag(arguments: Arguments): String? {
-    var reserved = ["file", "mode", "output", "debug_memory", "runtime", "final-classes", "operational_system"]
+    var reserved = [
+        "file"
+        "mode"
+        "output"
+        "debug_memory"
+        "runtime"
+        "final-classes"
+        "operational_system"
+        "repl-port"
+    ]
     var index = 0
     while index < compiler_arguments_end(arguments) {
         var argument = arguments.get(index)
@@ -289,8 +315,7 @@ func run_final_classes_mode(file_argument: String, content: String, output_direc
 func final_classes_generator(discovery: Discovery.DiscoveryResult): Generation.Generator? {
     var prelude = Generation.Prelude()
     var generator = Generation.Generator()
-    generator.read_evaluate_print_loop = read_evaluate_print_loop
-    generator.development = development
+    configure(generator)
     var header = prelude.header()
     var structs = prelude.structs()
     var prototypes = prelude.prototypes()
@@ -533,7 +558,7 @@ func run_run_mode(file_argument: String, content: String, debug_memory: Bool, pa
     }
     var replaced_output_path = output_path.replace("/", "\\")
     var runner = Process(replaced_output_path, passed)
-    if read_evaluate_print_loop {
+    if read_evaluate_print_loop or remote_loop_port > 0 {
         console.flush()
         var run_attached = runner.run_attached()
         Program().exit(run_attached)
@@ -576,4 +601,160 @@ func print_tokens(tokens: List<Syntax.Token>) {
         console.print("{token.line}:{token.column} {token.kind_text()} '{token.lexeme}'")
         index = index + 1
     }
+}
+
+func remote_loop_port_of(arguments: Arguments): Int {
+    var end = compiler_arguments_end(arguments)
+    var index = 0
+    while index < end {
+        var argument = arguments.get(index)
+        if argument.starts_with("--repl-port=") {
+            var argument_length = argument.length()
+            var number = argument.slice(12, argument_length)
+            return port_number(number)
+        }
+        if argument == "--repl-port" {
+            if index + 1 < end {
+                var number = arguments.get(index + 1)
+                return port_number(number)
+            }
+            return -1
+        }
+        index = index + 1
+    }
+    return 0
+}
+
+func port_number(text: String): Int {
+    if text.is_empty() or text.length() > 5 {
+        return -1
+    }
+    var index = 0
+    while index < text.length() {
+        var code = text.code_at(index)
+        if code < 48 or code > 57 {
+            return -1
+        }
+        index = index + 1
+    }
+    var number = text.to_int()
+    if number < 1 or number > 65535 {
+        return -1
+    }
+    return number
+}
+
+func run_connect(arguments: Arguments) {
+    var port_text = ""
+    if arguments.count() > 1 {
+        port_text = arguments.get(1)
+    }
+    var port = port_number(port_text)
+    if port < 0 {
+        console.error(
+            "usage: spite connect <port>                    talk to a program started with --repl-port=<port>",
+        )
+        console.error("       spite connect <port> --command=\"...\"    send one command and print its JSON answer")
+        Program().exit(1)
+        return
+    }
+    var connection = Socket()
+    if not connection.connect_locally(port) {
+        console.error("error: nothing is listening on 127.0.0.1:{port}: run a program with --repl-port={port} first")
+        Program().exit(1)
+        return
+    }
+    if arguments.command {
+        send_one_command(connection, arguments.command)
+        return
+    }
+    var talking = true
+    while talking {
+        console.write("spite> ")
+        var line = console.read_line()
+        if line {
+            talking = connection.write_line(line)
+            var response = connection.read_line()
+            if response {
+                var pretty_response = pretty_response(response)
+                if not pretty_response.is_empty() {
+                    console.print(pretty_response)
+                }
+            } else {
+                talking = false
+            }
+            if line.trim() == "exit" {
+                talking = false
+            }
+        } else {
+            console.print("")
+            talking = false
+        }
+    }
+    connection.close()
+}
+
+func send_one_command(connection: Socket, command: String) {
+    connection.write_line(command)
+    var response = connection.read_line()
+    connection.close()
+    if response {
+        console.print(response)
+        return
+    }
+    console.error("error: the program closed the connection without answering")
+    Program().exit(1)
+}
+
+func pretty_response(response: String): String {
+    var failed_prefix = "\{\"ok\":false,\"error\":\""
+    var succeeded_prefix = "\{\"ok\":true,\"value\":\""
+    if response.starts_with(failed_prefix) {
+        var failed_prefix_length = failed_prefix.length()
+        var message = json_string_at(response, failed_prefix_length)
+        return "error: {message}"
+    }
+    if not response.starts_with(succeeded_prefix) {
+        return response
+    }
+    var succeeded_prefix_length = succeeded_prefix.length()
+    var value = json_string_at(response, succeeded_prefix_length)
+    var class_name = response.split("\",\"type\":\"").last()
+    var class_name_length = class_name.length()
+    if class_name_length <= 2 or class_name.starts_with("Nothing\"") {
+        return value
+    }
+    return "{value} ({class_name.slice(0, class_name_length - 2)})"
+}
+
+func json_string_at(text: String, start: Int): String {
+    var pieces = List<String>()
+    var text_length = text.length()
+    var index = start
+    while index < text_length and text.code_at(index) != 34 {
+        var character = text.character_at(index)
+        if character == "\\" and index + 1 < text_length {
+            index = index + 1
+            var escaped = text.character_at(index)
+            var unescaped = unescaped(escaped)
+            pieces.append(unescaped)
+        } else {
+            pieces.append(character)
+        }
+        index = index + 1
+    }
+    return pieces.join("")
+}
+
+func unescaped(escaped: String): String {
+    if escaped == "n" {
+        return "\n"
+    }
+    if escaped == "r" {
+        return "\r"
+    }
+    if escaped == "t" {
+        return "\t"
+    }
+    return escaped
 }

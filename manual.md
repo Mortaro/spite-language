@@ -1570,9 +1570,12 @@ unconfirmed): `value_attributes()` and `value_functions()` read the value's own 
 list's attributes are its elements, named `0`, `1`, ...), `assign(text)` writes a number, Bool, text or enum
 value into it and answers whether it could, and a `Spite.Function`'s `call_with_text(arguments)` calls it with
 literal arguments and answers its result as a `Spite.Attribute?` -- `null` when an argument is not one the loop
-can write. Outside `--repl` they answer an empty list, `false` and `null`. **Not built yet:** walking a
-`Dictionary<T>` or a union, assigning a `T?`, a list element or a whole instance, the meta commands `classes`,
-`describe`, `enums`, `memory`, and `--repl-port`, which needs sockets through `DynamicLibrary`. Compiling and executing arbitrary new Spite code inside the running process,
+can write. Outside `--repl` they answer an empty list, `false` and `null`. **Status (2026-09-24):** `--repl-port`
+and `spite connect` are built, in Spite, over `Socket` (section 15) through `DynamicLibrary` -- see their
+subsections below; `docs/repl.md`'s worked session is replayed by `check.sh` against a real program. **Not built
+yet:** walking a `Dictionary<T>` or a union, assigning a `T?`, a list element or a whole instance, the meta
+commands `classes`, `describe`, `enums` and `memory`, and D37's drain points (the remote loop answers at once, on
+its own thread). Compiling and executing arbitrary new Spite code inside the running process,
 `Class.instances`, and live reload were blocked on the memory-model decision in [open question
 4](#open-questions), decided as D1 (reference counting, milestone 9a, section 10) -- unblocked, not yet
 started, for milestone 6b (see "Live reload and 6b" below).
@@ -1634,14 +1637,14 @@ entry class's own Spite name):
   `set_<attribute>` that refused it shows the old one; a call that returns `Nothing` prints nothing; `functions`
   prints `name(argument: Class, ...): Returns`; a text literal has no escapes yet.
 
-### `--repl`  **[planned]**
+### `--repl`  **[implemented]**
 
 Runs the entry constructor normally; when it returns, instead of dropping the entry instance and
 exiting, reads commands from stdin with a `spite> ` prompt until `exit` or end of input, then drops and
 exits normally (memory balanced -- checked by its own end-to-end test the same way `--debug-memory`'s
 own tests are).
 
-### `--repl-port <port>`  **[planned]**
+### `--repl-port <port>`  **[implemented]**
 
 Also accepts `--repl-port=<port>`. Before the entry constructor runs, starts a background thread with a
 TCP server bound to `127.0.0.1:<port>` **only** -- it never listens on any other interface, and there is
@@ -1656,17 +1659,45 @@ wire bytes). The program keeps running (data races with it are accepted -- this 
 clients connect and disconnect one at a time; when the entry constructor returns, the process stays alive
 serving the REPL until a client sends `exit`, at which point the server thread calls `exit(0)` directly
 (there is no guarantee the main thread, possibly still inside the entry constructor's own `while` loop,
-will ever unwind back to a clean `main` return, so this does not attempt one). Implemented with Win32
-threads and Winsock under `_WIN32`, pthreads and BSD sockets otherwise; `ws2_32` is only linked when a
-REPL mode is actually requested.
+will ever unwind back to a clean `main` return, so this does not attempt one).
 
-### `spite connect <port>`  **[planned]**
+**As built (2026-09-24; the choices below proposed by Claude, unconfirmed):**
 
-A tiny client built into the compiler binary itself (built in, using the platform sockets -- no libc socket
-calls needed on the compiler's own side): with no `--command`, an interactive prompt that sends each
-typed line and pretty-prints the JSON response (`value (type)` or `error: message`); with
-`--command="..."`, sends that one command, prints the raw JSON response line, and exits -- this is the
-form tests and AI clients use.
+- **Spite, over `Socket`.** The server is `ReadEvaluatePrintLoop.serve` in `library/read_evaluate_print_loop.spite`,
+  over the `Socket` class (section 15), whose operating-system members live in `library/windows/socket.spite`
+  (`ws2_32.dll`), `library/linux/socket.spite` (`libc.so.6`) and `library/mac/socket.spite` (`libSystem.dylib`),
+  reopened per D80. `Socket` has no way to bind anything but `127.0.0.1`, so "loopback only" holds by
+  construction. `ws2_32.dll` is opened when the first `Socket` is made, so a program without a REPL never loads it.
+- **The thread.** The one piece of C this adds is written by the compiler, only in a `--repl-port` build: a
+  two-line thread entry, `spite_remote_loop_thread`, that calls `ReadEvaluatePrintLoop.serve` with the entry
+  instance. Spite starts it and waits for it through the operating system's folder (`CreateThread` and
+  `WaitForSingleObject` from `kernel32.dll`; `pthread_create` and `pthread_join` elsewhere). No `Thread` class is
+  added to the library: D35 already says how a program is concurrent, and this thread belongs to the REPL.
+- **The port is part of the build**, like any flag the compiler folds (D84): `main` listens on it, on the main
+  thread, before the constructor runs, so a client that connects any time after the program starts is served. A
+  port another program holds stops the program before its constructor with `error: the REPL could not listen on
+  127.0.0.1:<port>` and exit code 1.
+- **The answer is shared with `--repl`.** `answer(command, program)` returns a `ReadEvaluatePrintLoop.Answer`
+  (`succeeded`, `text`, `class_name`); the console loop prints `text`, and the socket loop writes it as JSON:
+  `"type"` is the class of the value, empty for `help`, `attributes` and `functions`, and `Nothing` for a call
+  that returns nothing. Every message the console loop prints as a complaint is `"ok":false` on the wire.
+  JSON escapes are `\"`, `\\`, `\n`, `\r`, `\t` and `\u00XX` for any other control character.
+- **`exit`** answers `{"ok":true,"value":"","type":""}`, closes the connection and calls `Program().exit(0)`,
+  which flushes what the program printed. When the constructor returns first, `main` waits for the server
+  thread. With `--repl` too, the console loop runs first, and after its `exit` the process keeps serving.
+- `spite program.spite --repl-port 4000` and `--repl-port=4000` both work; anything else after `--repl-port` is
+  an error naming the form.
+
+### `spite connect <port>`  **[implemented]**
+
+A tiny client built into the compiler binary itself, over the same `Socket` class: with no `--command`, an
+interactive prompt that sends each typed line and pretty-prints the JSON response (`value (type)`, just `value`
+when the type is empty or `Nothing`, or `error: message`); with `--command="..."`, sends that one command, prints
+the raw JSON response line, and exits -- this is the form tests and AI clients use. Nothing listening on the port
+is `error: nothing is listening on 127.0.0.1:<port>` and exit code 1. `check.sh` replays every ` ```wire ` block
+in `docs/` this way (`scripts/docs_corpus.spite` writes it out beside its program): the program is built with
+`--repl-port`, each `$ spite connect ... --command="..."` line is sent, and each answer must be the line written
+under it, the program must end with exit code 0 after `exit`, and what it printed must be its ` ```output `.
 
 ### Live reload and 6b  **[planned]**
 
@@ -1807,6 +1838,7 @@ directory listing and process spawning).
 | `Process(command, arguments)` | `run(): Int` (exit code; `arguments` is a `List<String>`, each shell-quoted), `output(): String` (stdout+stderr merged, valid after `run()`) |
 | `Program()` | `exit(code)`: exits the process immediately with `code` |
 | `Console()` | `print(...)`, `write(...)`, `error(...)`, `read_line(): String?` -- see below |
+| `Socket()` (proposed by Claude, unconfirmed) | `listen_locally(port): Bool`, `accept_client(): Socket?`, `connect_locally(port): Bool`, `read_line(): String?`, `write_line(text): Bool`, `close()` -- TCP on `127.0.0.1` only, which `--repl-port` and `spite connect` use (section 14) |
 | `DynamicLibrary(file_name, naming, header)`  **[planned]** | every foreign function, constant and type of a native library, resolved by Symbol codegen -- see [Foreign libraries](#17-foreign-libraries-planned) |
 
 `Console` is one of them and is a singleton (D52): `Console()` is the same instance everywhere, `Console` is an
@@ -2632,3 +2664,7 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D83** (decided by Mortaro, answering D79): **a number is a class whose methods call its internal members, with a `this` keyword if needed.** "if needed add a this keyword but it should be able to just call methods from its internal class, a number in the end is just a nice wrapper around a memory in stack or heap so it has some internal representation." `Int`, `Long`, `Float` and the rest are library classes like `String`: their methods call the value's own members unqualified, and `this` names the value itself where a method needs to pass or return it. |
 | 2026-09-24 | **D84** (decided by Mortaro, settling D76's open question): **an `Environment` field supplied as a flag when compiling is hardcoded into the build; every other field is read at run time.** "Variables supplied as flags during compilation stay hardcoded the others are runtime." So `spite program.spite --serve=true` folds `environment.serve` to `true` (and its branches are tree-shaken), while a field not given to the compiler is read from the program's own arguments or environment when it runs. Mortaro asked to be reminded later that this may split into two kinds of environment, one for run time and one for compile time. |
 | 2026-09-24 | (decided by Mortaro) **Markup is out of scope for now**: "we dont need to worry about any markup code now we dont have usage for it yet." D18's `html.div(...)` example conflicting with D77 is left as it is until there is a use for it. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **`--repl-port` and `spite connect` are Spite, over a new `Socket` library class.** `library/socket.spite` (`listen_locally`, `accept_client`, `connect_locally`, `read_line`, `write_line`, `close`) holds what every system shares, including the `127.0.0.1` address, so nothing can bind another interface; `library/windows/socket.spite` (`ws2_32.dll`), `library/linux/socket.spite` (`libc.so.6`) and `library/mac/socket.spite` (`libSystem.dylib`) reopen it per D80. The server thread is started from Spite (`CreateThread`/`pthread_create` in each system's `read_evaluate_print_loop.spite`); its C entry point is two lines the compiler writes only in a `--repl-port` build, since a thread needs a C function address and Spite has none. No `Thread` class: D35 is how a program is concurrent, and this thread belongs to the REPL. The port is folded into the build (as D84 folds compile flags); `main` listens before the constructor and stops with exit code 1 when the port is taken; after the constructor it waits for the server thread, and `exit` from a client answers, then `Program().exit(0)`. Details in section 14. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **The console and socket loops share one `answer(command, program): ReadEvaluatePrintLoop.Answer`** (`succeeded`, `text`, `class_name`, a `type` declared in the loop's file so it takes no global name). A complaint the console loop prints is `"ok":false` on the wire; `"type"` is the value's class, empty for `help`, `attributes` and `functions`, `Nothing` for a call that returns nothing. **D37's drain points are not built:** the remote loop evaluates each command on its own thread the moment it arrives, as section 14's "data races are accepted" allows; a queue drained where the program waits is still D37's design and would replace this without changing the wire. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **A ` ```wire <folder> ` block in `docs/` is a remote REPL session `check.sh` replays** against that folder's documented program built with `--repl-port` (the port from the run's process id): every `$ spite connect <port> --command="..."` line is sent by the compiler's own client and must be answered with the line under it; the program must then exit 0 and have printed its ` ```output `. `docs/repl.md`'s worked session is the first. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **A `type` declared again in a reopening of its class replaces the earlier one**, as a function does, instead of being emitted twice. Found because `--final-classes` prints `ReadEvaluatePrintLoop` (with its `Answer`) beside the library's own, and compiling the printed program reopened it. Enums declared again still register twice; nothing reopens one yet. |

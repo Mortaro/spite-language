@@ -1,0 +1,101 @@
+var handle: Long = -1
+var pending = ""
+var memory = Memory()
+
+func listen_locally(port: Int): Bool {
+    start_sockets()
+    handle = open_socket()
+    if handle == -1 {
+        return false
+    }
+    var address = local_address(port)
+    var bound = bind_address(address)
+    memory.free(address)
+    return bound and listen_for_clients()
+}
+
+func connect_locally(port: Int): Bool {
+    start_sockets()
+    handle = open_socket()
+    if handle == -1 {
+        return false
+    }
+    var address = local_address(port)
+    var connected = connect_address(address)
+    memory.free(address)
+    return connected
+}
+
+func accept_client(): Socket? {
+    var accepted = accept_handle()
+    if accepted == -1 {
+        return null
+    }
+    var client = Socket()
+    client.handle = accepted
+    return client
+}
+
+func read_line(): String? {
+    var buffer = memory.allocate_bytes(4096)
+    var newline = pending.index_of("\n")
+    var open = true
+    while newline < 0 and open {
+        var received = receive_into(buffer, 4096)
+        if received > 0 {
+            pending = "{pending}{memory.text(buffer, received)}"
+            newline = pending.index_of("\n")
+        } else {
+            open = false
+        }
+    }
+    memory.free(buffer)
+    if newline < 0 {
+        return null
+    }
+    var line = pending.slice(0, newline)
+    var pending_length = pending.length()
+    pending = pending.slice(newline + 1, pending_length)
+    if line.ends_with("\r") {
+        var line_length = line.length()
+        return line.slice(0, line_length - 1)
+    }
+    return line
+}
+
+func write_line(text: String): Bool {
+    var line = "{text}\n"
+    var line_length = line.length()
+    var written = 0
+    while written < line_length {
+        var rest = line.slice(written, line_length)
+        var sent = send_text(rest)
+        if sent <= 0 {
+            return false
+        }
+        written = written + sent
+    }
+    return true
+}
+
+func close() {
+    if handle != -1 {
+        close_handle()
+        handle = -1
+    }
+}
+
+func local_address(port: Int): Long {
+    var address = memory.allocate_bytes(16)
+    var index = 0
+    while index < 16 {
+        memory.write_byte(address, index, 0)
+        index = index + 1
+    }
+    write_family(address)
+    memory.write_byte(address, 2, port / 256)
+    memory.write_byte(address, 3, port % 256)
+    memory.write_byte(address, 4, 127)
+    memory.write_byte(address, 7, 1)
+    return address
+}

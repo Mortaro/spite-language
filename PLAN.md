@@ -151,7 +151,10 @@ and balanced allocations.
       per element type is in the decision log's containers row. Wants milestone 8b first -- a compiler in Spite makes this natural
       rather than heroic -- and it is what finally makes standard library classes reopenable (section 16 item 7).
     - **15d. Done (2026-09-24).** The REPL is `library/read_evaluate_print_loop.spite` (D72): paths, assignment
-      and calls with literal arguments; `spite_repl.h` is deleted. `--repl-port` is not built.
+      and calls with literal arguments; `spite_repl.h` is deleted. `--repl-port` and `spite connect` -- **done
+      (2026-09-24)**: the same `answer` over a `Socket` (`library/socket.spite`, reopened per operating system)
+      on a thread the compiler's two-line C entry starts; `check.sh` replays `docs/repl.md`'s ` ```wire ` session
+      against the real program. Linux and macOS sockets and threads compile but have not run.
     - **15e.** The web shim: drive the hand-written portion to zero by generating the imports from `external js`
       declarations and the command-buffer drain loop from its opcode table (milestone 12). It cannot become
       Spite -- it runs in the JavaScript virtual machine -- but it can stop being authored. Goal, not a
