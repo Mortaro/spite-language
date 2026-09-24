@@ -1473,6 +1473,45 @@ func generate_object_literal(
     return built
 }
 
+func shape_default(information: Analysis.UnionInfo): String {
+    var names = List<String>()
+    var types = List<Analysis.SpiteType>()
+    var label = "Object"
+    var index = 0
+    while index < information.shape_fields.count() {
+        var field = information.shape_fields[index]
+        if field.is_function {
+            return "0"
+        }
+        var field_type = shape_field_type(information, field.name)
+        crash field_type
+        names.append(field.name)
+        types.append(field_type)
+        label = "{label}_{field.name}_{type_label(field_type)}"
+        index = index + 1
+    }
+    var information_class = find_class_by_c_name(label)
+    if not information_class {
+        var class_id = allocate_class_id(label)
+        var created = Analysis.ClassInfo(label, "Object", "", label, class_id)
+        var field_index = 0
+        while field_index < names.count() {
+            var default_value_for_type = default_value_for_type(types[field_index])
+            created.fields.append(Analysis.FieldInfo(names[field_index], types[field_index], default_value_for_type))
+            field_index = field_index + 1
+        }
+        classes.append(created)
+        builder.add_typedef("typedef struct {label} {label};")
+        builder.add_prototype("{label}* {label}_default(void);")
+        information_class = created
+    }
+    crash information_class
+    if not information.has_member(label) {
+        admit_to_union(information, information_class)
+    }
+    return "(({information.c_name}){label}_default())"
+}
+
 func resolve_union_members() {
     var index = 0
     while index < unions.count() {
@@ -3167,7 +3206,7 @@ func default_value_for_type(spite_type: Analysis.SpiteType): String {
         var union_information = find_union_by_c_name(union_type.c_name)
         if union_information {
             if union_information.is_shape {
-                return "0"
+                return shape_default(union_information)
             }
             return "(({union_type.c_name}){union_information.members.first().c_name}_default())"
         }

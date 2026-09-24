@@ -1,0 +1,15 @@
+generic $first_type
+generic $second_type
+
+var function: Spite.Function<$first_type, $second_type, Nothing>? = null
+var first: $first_type = null
+var second: $second_type = null
+
+func Each(new_function: Spite.Function<$first_type, $second_type, Nothing>) {
+    function = new_function
+}
+
+func run() {
+    assert function
+    function(first, second)
+}

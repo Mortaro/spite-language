@@ -1,0 +1,9 @@
+var console = Console()
+
+func ShapeDefaults() {
+    var system = ConsumePotion()
+    var each = Each(system.run_each)
+    each.run()
+    each.run()
+    console.print("kept", each.second.health.amount, each.second.class.name)
+}

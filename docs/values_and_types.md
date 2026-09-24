@@ -358,6 +358,10 @@ answers `Object`.
 This is what makes fast, JSON-shaped code possible: accept a `type`, and both a real class instance and a
 plain `{ key: value }` literal work.
 
+A `type` of attributes only has a default like a class does: the object literal with each attribute at its own
+default, whose `.class` answers `Object`. So `var target: $target_type = null` in a generic class bound to such a
+`type` holds a real object, and what is written through it stays written.
+
 A `type` may require functions as well as attributes. A required function names the types it takes and returns,
 never the names of its parameters -- `render(Int): String` -- because the name a class gives its own parameter
 does not matter to the shape. Any class with a function of that signature fits, which is how a list holds "any
