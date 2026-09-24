@@ -2,8 +2,31 @@
 
 `spite` compiles one program. A program is a folder, and its entry file is the one named after the folder:
 `spite game` compiles `game/game.spite`, whose class `Game` is constructed to start the program. Every option is
-a field of the [`Build`](metaprogramming.md#build-settings-build) singleton, given as `--name=value` (a `Bool`
+a field of the [`Build`](programs.md#compile-time-settings-build) singleton, given as `--name=value` (a `Bool`
 option may be given bare, `--optimized`). The default action is to build and run the program.
+
+```
+spite program                         build and run the program in the folder program/
+spite program --optimized             an optimized build
+spite program --development           keep everything (no tree shaking), for live reload
+spite program --debug_memory          count allocations and frees, and print the balance at the end
+spite program --repl                  run it, then open a REPL on the running program
+spite program --repl_port=4000        serve a REPL on 127.0.0.1:4000 while it runs
+spite program --serve=true            decide a Build field the program declares, while compiling
+spite program -- --serve=true         run it with a setting its Environment declares
+spite program --mode=c                print the C instead of running it
+spite program --final_classes=folder  write the program back out as Spite, every class as it ended up
+spite program --format=false          skip the automatic formatting
+spite program --target_operating_system=linux --mode=c   write the C for another system
+spite format <file-or-folder>         format without compiling
+spite format --check <path>           rewrite nothing; fail listing every file that would change
+spite connect 4000                    talk to a running --repl_port program
+spite connect 4000 --command="..."    send one REPL command and print its JSON answer
+```
+
+Flags mix freely -- a production build may keep the REPL -- and building and running are the same command.
+`bin/spite` is the command itself: it builds the compiler from `bootstrap/seed/spite_compiler.c` the first time
+(and again whenever the seed changes), finds a C compiler, and passes everything else through.
 
 ## Name the program
 
@@ -20,43 +43,9 @@ names the file to format.
 
 ## How a program is loaded
 
-Nothing about starting a program is hidden in the compiler. Running one is itself a Spite program,
-`launcher/launcher.spite` at the root of the repository, and its constructor is the whole story:
-
-```
-func Launcher() {
-    load("library")
-    load("library/{Build().target_operating_system}")
-    load(Build().program)
-}
-```
-
-The compiler reads that file first and follows its `load` calls in order: the standard library, then the folder
-of the operating system the program is compiled for (the folders named `windows`, `linux` and `mac` inside
-`library/` are loaded only by name), then the program's own folder, `Build().program`, which is the folder named
-on the command line. A `load` in the launcher takes text and `Build` fields the compiler already knows, since
-it runs before anything else is read. Loading the program's folder runs it: that `load` constructs the program's
-entry class, and the executable's `main` does nothing but construct `Launcher`.
-
-```spite title=loaded_program/loaded_program.spite entry
-var console = Console()
-var build = Build()
-
-func LoadedProgram() {
-    var named_folder = build.program.ends_with("loaded_program")
-    console.print("loaded from", named_folder)
-    console.print("for this machine", build.target_operating_system == build.operating_system)
-}
-```
-```output
-loaded from true
-for this machine true
-```
-
-`--final_classes` writes `Launcher` out with the rest of the program, so the printed program shows how it is
-loaded too. What `main` still does in C is the floor under this: it hands the command line to `Arguments()`,
-puts the standard output in binary mode on Windows, and, after `Launcher` returns, releases the singletons and
-the class objects and prints the `--debug_memory` balance.
+The compiler reads `launcher/launcher.spite` first -- a Spite class whose constructor loads `library/`, then the
+target operating system's folder of it, then the program's folder -- and follows its `load` calls in order.
+[programs.md](programs.md#how-a-program-is-loaded) walks through it.
 
 ## Choose an output mode
 
@@ -137,7 +126,7 @@ spite bootstrap/spite_compiler.spite --mode=c --target_operating_system=linux > 
 
 Everything after the first bare `--` belongs to the program, not the compiler. A program reads its run-time
 settings from the `Environment` singleton, whose fields it declares by reopening `Environment` in its own
-`environment.spite` (see [metaprogramming.md](metaprogramming.md#program-settings-environment)):
+`environment.spite` (see [programs.md](programs.md#run-time-settings-environment)):
 
 ```bash
 spite server -- --name=production
@@ -152,6 +141,29 @@ spite server --serve=true -- --name=production
 
 A flag naming a field of `Environment` is an error that says to pass it after `--`, and a flag naming no field
 at all is an error listing the fields `Build` has, so typos never pass silently.
+
+## Formatting
+
+**The compiler is the formatter.** Every compile first rewrites the program's own files -- the entry folder and
+every `load`-ed root, not `library/` -- to the one style, printing `formatted <path>` for each file it changed;
+`--format=false` skips it. `spite format` runs the same formatter without compiling, on one file or recursively
+on a folder, and `spite format --check` rewrites nothing and exits 1 listing every file that would change. What
+it rewrites, and what it refuses to (naming), is [style.md](style.md).
+
+## Development builds and tree shaking
+
+A normal build keeps only what the program uses: a condition on a codegen value or a `Build` field keeps one
+branch, a template exists only for the names called, and reflection only where it is read
+([metaprogramming.md](metaprogramming.md#tree-shaking)). `--development` keeps everything instead, so a
+condition on a codegen value becomes a run-time `if` that live reload could flip, and every class in the folder is
+emitted.
+
+## Counting memory: `--debug_memory`
+
+`--debug_memory` builds the program with an allocation table and prints `allocations: N frees: N` when it ends.
+The two numbers differ only when something leaked, and then the report names the classes whose instances are
+still alive, which is how a leaked cycle shows up ([memory.md](memory.md#cycles-leak)). Every program in
+`conformance/`, `examples/` and these pages is run this way by `check.sh`, and must balance.
 
 ## Inspect merged classes
 
@@ -168,28 +180,29 @@ each of its instantiations is.
 Every class the program names comes from a file in `library/`, including `Memory`, `DynamicLibrary`, `String`
 and the numbers (`Int`, `Long`, `Double`, ...), so every one of them is printed like a class of your own. A
 function whose body the compiler supplies -- the floor that stays C, such as `Memory.allocate_bytes` -- is added
-to its class as the compiler's own reopening (D82), and is printed as a declaration without a body:
+to its class as the compiler's own reopening, and is printed as a declaration without a body. The printed
+`memory.spite` begins:
 
 ```
+singleton
+
 func allocate_bytes(bytes: Long): Long
 func resize(address: Long, bytes: Long): Long
 func free(address: Long)
-
-func is_singleton(): Bool {
-    return true
-}
+func allocate_stack_bytes(bytes: Long): Long
 ```
 
 A declaration without a body is what the compiler reads back, so the printed program still compiles: the
 printed `memory.spite` reopens `Memory` with the same members, and the compiler supplies the same bodies again.
 Anywhere else, a `func` with no body is an error, because only the compiler can supply one.
 
-`instantiated/` holds one file per generic instantiation, named for the values it was given (`WeaponIntTrue`,
-`PairStringInt`), written as `type` declarations.
+`instantiated/` holds one file per generic instantiation, named for the values it was given
+(`weapon_int_true.spite`, class `WeaponIntTrue`), written as a `type` with the members that instantiation has.
+`Build` is printed with its declared defaults, and `Launcher` with the rest.
 
 Which root supplied each declaration is **not** shown yet. It cannot be a comment, since a comment is only ever
-a link to a markdown heading (manual.md section 12), so it needs a form of its own -- see manual.md's open
-questions.
+a link to a markdown heading ([style.md](style.md#comments-are-links)), so it needs a form of its own
+([manual, open question 10](../manual.md#open-questions)).
 
 ```bash
 spite game --final_classes=.spite-cache/final

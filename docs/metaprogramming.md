@@ -1,8 +1,13 @@
 # Metaprogramming
 
-Everything is a class, including classes. There are no macros -- Spite's answer to "generate code for every
-attribute" is `Symbol` codegen, and its answer to "inspect a value at runtime" is a small set of `Spite.*`
-reflection types. Both are resolved at compile time wherever possible.
+There are no macros. Spite's answer to "write this for every attribute" is **Symbol codegen**: a function whose
+name has a hole in it, which the compiler fills once for every name a program calls. Its answer to "one class for
+many types" is **generics**, codegen values declared with `generic` lines. Both are ordinary functions and
+classes, so what they generate is typed, visible in `--final_classes`, and removed when nothing calls it.
+
+Reading a program's structure at run time -- `.class`, `.attributes`, `.functions` -- is
+[reflection.md](reflection.md). The standard library's member templates (`filter_<member>()`,
+`sum_<member>()`, ...) are Symbol codegen written in Spite, in [collections.md](collections.md).
 
 ## Symbol codegen, step by step
 
@@ -105,110 +110,15 @@ The member may also be a function that takes no arguments: `label.attributes[att
 In a generic class the class inside the `Symbol` is usually a codegen value. `List<$element_type>` writes its
 member templates over `member: Symbol<$element_type>`, so `item.attributes[member]` reads a member of the element
 -- that is how `filter_<member>()`, `sum_<member>()` and the rest are written, in Spite, in `library/list.spite`
-([standard_library.md](standard_library.md#how-the-member-templates-are-written)) -- and the standard library's
+([standard_library.md](collections.md#how-the-member-templates-are-written)) -- and the standard library's
 [`Json`](json.md) writes and reads any class over `attribute: Symbol<$value_type>`.
-
-Before milestone 9a's reference-counting model, generating (or writing) a `get_<attribute>()` for an owning
-attribute (`String`/`List<T>`/`Dictionary<T>`) and calling it -- including implicitly, the way `person.name`
-above does -- double-freed at runtime; see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) item 3 for that history. It is
-fixed now: scalar/enum/owning attributes all intercept safely in both directions.
-
-## Reflection: `Spite.Class` and `Spite.Attribute`
-
-`value.class` is a `Spite.Class` (`.name`, a `Symbol` -- text from the program's own symbol table, which reads as text anywhere text is expected -- and `.namespace` -- a `Spite.Namespace?` with `.name`, `.name_with_namespaces`,
-`.parent`, `.classes` and `.namespaces`, `null` for a global class; printing a namespace prints its `.name_with_namespaces`);
-printing a class prints just its `.name`. `value.attributes`
-is a real, runtime `List<Spite.Attribute>` (`.name`, `.class`, `.value` -- all `String`), built only for a class
-that actually uses `.attributes`:
-
-```spite title=reflection_basics/gadget.spite
-var name = ""
-var power = 0
-
-func Gadget(new_name: String, new_power: Int) {
-    name = new_name
-    power = new_power
-}
-```
-```spite title=reflection_basics/reflection_basics.spite entry
-var console = Console()
-
-func ReflectionBasics() {
-    describe(Gadget("wrench", 3))
-}
-
-func describe(gadget: Gadget) {
-    console.print("class", gadget.class)
-    console.print("class name", gadget.class.name)
-    console.print("own class", class.name)
-    console.print("declared name", Gadget.name)
-    var attributes = gadget.attributes
-    var index = 0
-    while index < attributes.count() {
-        var attribute = attributes[index]
-        console.print(attribute.name, attribute.class, attribute.value)
-        index = index + 1
-    }
-}
-```
-```output
-class Gadget
-class name Gadget
-own class ReflectionBasics
-declared name Gadget
-name String wrench
-power Int 3
-```
-
-`class` is an ordinary identifier, not a keyword: inside any function of a class it is the class of the
-instance that function answers on -- an inherited attribute every instance has -- so `own class` above names
-the class the function was written in, and an attribute explicitly named `class` shadows it. A class name read
-directly reads the same class object member by member: `declared name` is `"Gadget"` with no instance anywhere.
-`.namespace` is the one `Spite.Namespace?`, so it needs narrowing before its members are read. Assert the path
-itself, `assert Gadget.namespace`, and every read of that path and its prefixes is a plain value for the rest
-of the block -- the attribute is an ordinary nullable value, so it follows the ordinary narrowing rules like
-any other. Copying it into a local just to narrow the local is a compile error (D63), and comparing needs no
-narrowing at all: `Gadget.namespace == "Shop"` is false when there is no namespace (D69).
-
-**Reflection is read-only** (D88). `.name`, `.namespace`, `.attributes`, `.functions` and the rest are
-getter functions -- `get_name()`, `get_namespace()`, ... in `library/spite/class.spite` and its neighbours --
-with no setter, so reading `.name` works through the ordinary attribute read and writing it is an error. The
-values live in private fields (`_name`, `_namespace`): a name starting with `_` is used only inside its own
-class, which is how a reopening of `Spite.Class` reads them (see [packages.md](packages.md)). Everything
-reflection offers is ordinary code in `library/spite/`, so it is reachable by name at run time, from the REPL
-too; the few functions only the compiler can write -- `value_attributes()`, `value_functions()`, `assign(text)`,
-`call_function()` and `call_with_text(arguments)`, which reach the live value behind a `Spite.Attribute` or a
-`Spite.Function` -- are the compiler's reopening of those classes, printed by `--final_classes` like any other
-member (see [compiler.md](compiler.md)).
-
-```spite title=reflection_read_only/reflection_read_only.spite entry error
-var console = Console()
-
-func ReflectionReadOnly() {
-    var described = console.class
-    described.name = "Terminal"
-}
-```
-```diagnostic
-'name' is read-only
-```
-
-A class of the standard library describes its members the same way: `Memory.functions.map_name()` lists
-`allocate_bytes`, `resize`, `free` and the rest, including the ones whose bodies the compiler supplies.
-
-`attributes[symbol]` inside a class (used by Symbol codegen above) and `.attributes` from outside are
-different things reading the same data: the former is compile-time only, indexed by a `Symbol`; the latter is
-an ordinary runtime `List<T>`, walked with `while` like any other list.
-
-`Person.instances` is every instance of `Person` that is alive at that moment, in the order they were made.
-`Spite.Class.instances` is every class in the program, because a class is an instance of `Spite.Class`.
 
 ## Generics and codegen values (`$`)
 
 `$name` means "replaced at code generation", and it is for generics only. A class declares each one on a
 `generic` line of its own at the top of the file, and a caller gives the values positionally, in the order of
 those lines: `Pair<String, Int>(...)`. A `$name` with no `generic` line is an error that points at
-[`Environment`](#program-settings-environment), which is where a program's settings live.
+[`Environment`](programs.md#run-time-settings-environment), which is where a program's settings live.
 
 ```spite title=generics_basics/pair.spite
 generic $left_type
@@ -243,19 +153,69 @@ Aria and 42
 Hero and 7
 ```
 
-The `generic` lines come first in the file, before enums, unions, types and variables. A generic class needs
-no constructor of its own: `library/list.spite` is `generic $element_type` and its functions, and
-`List<Int>()` is made from its defaults. Writing the old `func Pair<$left_type, $right_type>(...)` form is a
-parse error that names the `generic` lines to write instead.
+- **One line per value**, after a `singleton` line and before everything else, so skimming the top of a file
+  shows what a class accepts. A comma on a `generic` line is an error naming the next line to write, and so is
+  listing the values on the constructor, `func Pair<$left_type, $right_type>(...)`.
+- **Call sites are positional, always**, in the order of the lines. Reordering the lines changes what every call
+  means; where the values are of different kinds the compiler notices, and where they are not, the tests have to.
+- **Every hole is filled.** There are no defaults: the wrong number of values is an error naming the class's
+  values in order, and a `$name` with no `generic` line is an error too.
+- **A generic class needs no constructor.** `library/list.spite` is `generic $element_type` and its functions,
+  and `List<Int>()` is made from its defaults.
+- **The values can be read from the arguments.** When every `$name` appears in the constructor's parameter
+  types, a call may leave the `<...>` out: `Pair("Hero", 7)` is `Pair<String, Int>`, and a `$name` inside a
+  function value's type is read from the function, so `Concurrent(file.read)` is a `Concurrent<String?>`
+  ([concurrency.md](concurrency.md)). When one cannot be read, the error asks for them between `<` and `>`.
+- `null` as the default of a field typed by a codegen value means that type's own default, not a `T?`
+  (provisional: [manual, open question 1](../manual.md#open-questions)).
 
-When every `$name` appears in the constructor's parameter types, a call may leave the `<...>` out and the
-compiler reads the values from the arguments: `Pair("Hero", 7)` is `Pair<String, Int>`, and a `$name` inside a
-function value's type is read from the function, so `Concurrent(file.read)` is a `Concurrent<String?>`
-([concurrency.md](concurrency.md)). When one cannot be read, the error asks for them between `<` and `>` (proposed
-by Claude, unconfirmed).
+A codegen value may be a value rather than a type. A condition on it is decided while compiling, so each set of
+values is its own class with only its own branch in it:
 
-`null` on a `$generic`-typed field means that generic's bound type's default value, not a literal `T?`
--- provisional, see manual.md open question 1.
+```spite title=codegen_values_doc/weapon.spite
+generic $damage_type
+generic $is_magic
+
+var damage: $damage_type = 0
+
+func Weapon(new_damage: $damage_type) {
+    damage = new_damage
+}
+
+func hit(): $damage_type {
+    if $is_magic {
+        return damage * 2
+    }
+    return damage
+}
+```
+```spite title=codegen_values_doc/codegen_values_doc.spite entry
+var console = Console()
+
+func CodegenValuesDoc() {
+    var staff = Weapon<Int, true>(10)
+    var club = Weapon<Float, false>(2.5)
+    var staff_hit = staff.hit()
+    var club_hit = club.hit()
+    console.print(staff_hit, club_hit)
+}
+```
+```output
+20 2.5
+```
+
+```spite title=codegen_count_error/codegen_count_error.spite entry error
+var console = Console()
+
+func CodegenCountError() {
+    var pairs = List<String, Int>()
+    var pairs_count = pairs.count()
+    console.print(pairs_count)
+}
+```
+```diagnostic
+takes 1 codegen value(s), in this order: $element_type
+```
 
 ### Asking what a generic was given
 
@@ -319,103 +279,25 @@ something else
 A test on a type always decides at compile time, `--development` included, since the branch it rules out would
 not compile.
 
-Text also becomes an enum value by assignment, the way it becomes a number: `var course: Recipe.Course = name`
-is the value spelled `name`, or the enum's first value when there is none, as `"x"` becomes `0` for an `Int`.
-
 ## Tree shaking
 
-Conditions on codegen values and on [`Build`](#build-settings-build) fields are decided **at compile time**, and
-the untaken branch is removed from the generated C entirely: `Weapon<Int, true>` and `Weapon<Int, false>` are two classes, and each keeps only the
-branch of `if $is_magic { }` that it takes. This is tree shaking, not just dead-code elimination at the C
-compiler level.
+Spite removes what a program does not use, and it can do so exactly, because everything it generates is decided
+at compile time:
 
-`--development` disables all of this: every codegen-value condition becomes a real runtime `if` (both branches
-compiled in, so live reload can flip it without recompiling), and every class in the folder is emitted instead
-of only the ones reachable from the entry class.
+- A **condition on a codegen value** or on a [`Build`](programs.md#compile-time-settings-build) field is decided
+  while compiling, and the branch not taken is never generated: `Weapon<Int, true>` and `Weapon<Int, false>` are
+  two classes, and each keeps only the branch of `if $is_magic { }` that it takes.
+- A **Symbol codegen template** is compiled only for the names a program calls: a program that never calls
+  `sum_price()` has no `sum_price`.
+- **Reflection** is built only where it is read ([reflection.md](reflection.md)), and a generic class such as
+  [`Json`](json.md) exists only for the types a program uses it with.
+- A **class** nothing reaches is not emitted.
+- The **concurrency scheduler**, fibers and atomic reference counts exist only in a program that makes a
+  `Concurrent` or a `Parallel`, or is built with `--repl_port` ([concurrency.md](concurrency.md)).
 
-## Program settings: `Environment`
+This is tree shaking over the program's own model, not dead-code elimination left to the C compiler.
 
-A program's settings are the fields of `Environment`, a singleton in the standard library. The program reopens
-it with a file of its own named `environment.spite`, holding one `var` per setting with a literal default, and
-reads it with `Environment()` anywhere -- the entry constructor does not have to receive the command line and
-pass it down.
-
-```spite title=program_settings/environment.spite
-var endpoint = "local"
-var workers = 1
-var verbose = false
-```
-```spite title=program_settings/program_settings.spite entry vars=endpoint:production,verbose:true
-var console = Console()
-var environment = Environment()
-
-func ProgramSettings() {
-    if environment.endpoint == "production" {
-        console.print("using the production endpoint")
-    } else {
-        console.print("using the local endpoint")
-    }
-    console.print("workers", environment.workers, "verbose", environment.verbose)
-}
-```
-```output
-using the production endpoint
-workers 1 verbose true
-```
-
-Each field is read once, when `Environment()` is first made: from `--endpoint=production` on the program's
-command line (after `--` when the compiler runs it: `spite program_settings -- --endpoint=production`),
-otherwise from the `ENDPOINT` environment variable, otherwise the declared default. Only declared fields are
-read, so nothing the program does not name is ever loaded. The default's literal is the setting's type --
-`false` a `Bool`, `0` an `Int`, `""` a `String` -- and a value that is not one (`--verbose=maybe`) crashes at
-startup. The values are read when the program runs, so `if environment.verbose` is an ordinary `if`: both
-branches are compiled in.
-
-## Build settings: `Build`
-
-`Environment` is read when the program **runs**. `Build` is its twin for when the program is **compiled**: a
-singleton in the standard library whose fields are decided by the compiler and written into the program as
-constants. Every compiler option is one of them -- `mode`, `output`, `optimized`, `development`, `repl`,
-`repl_port`, `format`, `debug_memory`, `final_classes`, and the two operating systems below -- and a program adds
-its own by reopening `Build` in a file named `build.spite`:
-
-```spite title=build_settings/build.spite
-var serve = false
-```
-```spite title=build_settings/environment.spite
-var name = "client"
-```
-```spite title=build_settings/build_settings.spite entry build=serve:true vars=serve:false,name:tester
-var console = Console()
-var build = Build()
-var environment = Environment()
-
-func BuildSettings() {
-    if build.serve {
-        console.print("serving as", environment.name)
-    } else {
-        console.print("this branch is not in the build")
-    }
-}
-```
-```output
-serving as tester
-```
-
-That is `spite build_settings --serve=true -- --serve=false --name=tester`. A `--name=value` given to the
-**compiler** -- before the `--` -- sets the `Build` field of that name; a field nobody sets keeps the default
-it was declared with. Either way `build.serve` is the literal `true` in the built program: `if build.serve { }`
-is decided while compiling, the branch it does not take is never generated, and the program's own
-`--serve=false` changes nothing. `name` belongs to `Environment`, so it is still read when the program runs.
-
-- A `Bool` field may be given bare: `--optimized` is `--optimized=true`.
-- The value has to be of the field's type (`--workers=many` for an `Int` is a compile error), a flag naming a
-  field of `Environment` is a compile error that says to pass it after `--`, and a flag naming no field at all
-  is a compile error listing the fields `Build` has. A typo never passes silently.
-- A program's own `build.spite` may also give a compiler option a different default: `var optimized = true`
-  builds it optimized unless `--optimized=false` is given. `mode` and `format` are the exceptions: the compiler
-  needs them before it has read the program, so only the flag changes them.
-- `Build().operating_system` is the system doing the compiling, and `Build().target_operating_system` the one
-  the program is compiled for. The target defaults to the compiling system; `--target_operating_system=linux`
-  compiles for Linux from any machine, loads `library/linux/` instead of this machine's folder, and folds, so
-  `if build.target_operating_system == "windows" { }` keeps only the branch for the target.
+`--development` keeps everything instead: a condition on a codegen value becomes a real run-time `if`, with
+both branches compiled in, so live reload can flip it without recompiling, and every class in the folder is
+emitted rather than only the ones reachable from the entry class. A test on a *type* (`$value_type == List`)
+still folds under `--development`, because the branch it rules out would not compile.

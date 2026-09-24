@@ -15,27 +15,6 @@ switch enemy {
 `assert`-narrowing section) -- `if value and other_condition { }` narrows too. Add an `else` for what runs when
 `value` is null:
 
-```spite title=if_narrowing/if_narrowing.spite entry
-var console = Console()
-
-func IfNarrowing() {
-    var name = find_name(false)
-    if name {
-        console.print("found", name)
-    } else {
-        console.print("missing")
-    }
-}
-
-func find_name(missing: Bool): String? {
-    assert not missing
-    return "kal"
-}
-```
-```output
-found kal
-```
-
 ## `while` is the only loop
 
 There is no `for`. The language owner's call: "only the while loop, no for; that makes people favor the
