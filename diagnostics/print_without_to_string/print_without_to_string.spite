@@ -1,0 +1,16 @@
+enum Weather {
+    'sunny'
+    'rainy'
+}
+
+var console = Console()
+
+func PrintWithoutToString() {
+    var crate = Crate()
+    console.print("crate", crate)
+    var sizes = [1, 2, 3]
+    console.print(sizes)
+    var weather: Weather = 'sunny'
+    var shouted = weather.upper_case()
+    console.print(shouted)
+}

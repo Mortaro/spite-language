@@ -537,9 +537,16 @@ log()                     # lines is empty
 As implemented (proposed by Claude, unconfirmed): **passing a whole list to a `...` parameter is an error** that
 says to pass the elements, because the caller writes them one by one and there is no spread operator to ask for
 the other reading -- unless the element type is itself a list. Zero values is a legal call, giving an empty list.
-`Console.print`, `write` and `error` still take their values through the generator's own special case rather than
-through `...values: List<Printable>`: which values count as printable is a language decision
-(`mortaros_missing_decisions.md`).
+`Console.print`, `write` and `error` are ordinary variadic functions taking `...values: List<Printable>` (D109,
+section 15).
+
+**A number, a `Bool` or an enum value fits a `type` too** (proposed by Claude, unconfirmed; built for D109). A
+shape holds class instances, and these are plain values, so passing one where a `type` is wanted puts it in a
+small box the compiler allocates and frees like any object, and a call through the shape reaches its class's
+function (`Int.to_string()`, for an `Int`). `String` and `Symbol` need no box. An enum value answers exactly one
+function, `to_string()`, its name as text -- `weather.to_string()` works on any enum value -- so that is all a shape
+can ask of one. `.class` read through the shape names the value's own class (`Int`, the enum), as it does for a
+class instance.
 
 ### Failure: three outcomes and no others  **[partial]**
 
@@ -1266,8 +1273,8 @@ generator writes one Spite function on the first list's class -- a `while` over 
 must reach a class; anything the rule cannot write (a nullable member, a union) is compiled step by step, which
 means the same. The difference a program can see is only order: a member function in a fused chain runs element
 by element. `conformance/stage6/fused_chain_allocations` pins it: four chains run a thousand times allocate
-nothing (11 allocations in all, the one `TypedMemory` its lists share and the `Launcher` included, against 16 010
-step by step).
+nothing (17 allocations in all, the one `TypedMemory` its lists share, the `Launcher` and printing the total
+included, against more than 16 000 step by step).
 
 ## 9. Codegen values (`$`)  **[implemented]**
 
@@ -2198,7 +2205,7 @@ directory listing and process spawning).
 | `Directory(path)` | `path: String`, `entries(): List<Directory.Entry>` (D93: every folder and file inside it, as `Directory` and `File` values whose `path` is joined to this one -- see below), `files(): List<String>` (names, sorted), `folders(): List<String>` (sorted), `exists(): Bool`, `create(): Bool` |
 | `Process(command, arguments)` | `run(): Int` (exit code; `arguments` is a `List<String>`, each shell-quoted), `output(): String` (stdout+stderr merged, valid after `run()`) |
 | `Program()` | `exit(code)`: exits the process immediately with `code` |
-| `Console()` | `print(...)`, `write(...)`, `error(...)`, `read_line(): String?` -- see below |
+| `Console()` | `print(...values)`, `write(...values)`, `error(...values)`, `flush()`, `read_line(): String?` -- see below |
 | `Socket()` (proposed by Claude, unconfirmed) | `listen_locally(port): Bool`, `accept_client(): Socket?`, `connect_locally(port): Bool`, `read_line(): String?`, `write_line(text): Bool`, `close()` -- TCP on `127.0.0.1` only, which `--repl_port` and `spite connect` use (section 14) |
 | `Concurrent(function)`, `Parallel(function)` (proposed by Claude, unconfirmed) | `wait()`: what the function returned; dropping the handle waits for it -- see "Concurrency" below |
 | `DynamicLibrary(file_name, naming, header)` | every foreign function, constant and type of a native library -- see [Foreign libraries](#17-foreign-libraries-planned). `library/dynamic_library.spite` holds its `file_name` and `handle`, its constructor and `drop()`; opening, closing and finding a symbol are the compiler's reopening (D82) |
@@ -2207,10 +2214,36 @@ directory listing and process spawning).
 
 `Console` is one of them and is a singleton (D52): `Console()` is the same instance everywhere, `Console` is an
 ordinary class name rather than a reserved word, and `console.class.name` is `"Console"` like any other class.
-It has `print(...)` (every argument printed, separated by a space, with a trailing newline), `write(...)` (the
-same without the trailing newline), `error(...)` (the same as `print` but to the error stream), and
-`read_line(): String?` (one line from the input stream without its line break, null only at the end of input
-with nothing read). The entry constructor returning normally is exit code `0`.
+It has `print(...values)` (each value's `to_string()`, separated by a space, with a trailing newline),
+`write(...values)` (the same without the trailing newline), `error(...values)` (the same as `print` but to the
+error stream), `flush()`, and `read_line(): String?` (one line from the input stream without its line break, null
+only at the end of input with nothing read). The entry constructor returning normally is exit code `0`.
+
+**Printing is `to_string()`** (D109, decided by Mortaro; implemented). `print`, `write` and `error` are Spite in
+`library/console.spite`, taking `...values: List<Printable>`, where
+
+```gdscript
+type Printable {
+    to_string(): String
+}
+```
+
+Every number, `Bool`, `String` (whose `to_string()` answers itself), `Symbol`, enum value, `Spite.Class` (its
+`.name`) and `Spite.Namespace` (its `.name_with_namespaces`) answers it, so everything that printed before prints
+the same. A class of your own prints once it declares `func to_string(): String`, and passing one that does not is
+the ordinary shape error, naming the function: `'Pet' does not fit type 'Printable': it has no function
+'to_string'` (`diagnostics/print_without_to_string`, `conformance/stage6/printable_values`). Mortaro wrote the
+member as `to_string: Spite.Function<String>`; a `type` writes a required function as `to_string(): String` today,
+and which form a shape uses is open question 11. What stays the compiler's is only the floor: `_write_output(text)`,
+`_write_error(text)` and `flush()` have no body in Spite, and `Prelude` supplies their C (`fwrite` and `fflush`),
+as it does `Memory`'s.
+
+As implemented (proposed by Claude, unconfirmed): printing a value costs what the call says -- the list of values
+is a `List` like any variadic call's, a number goes through its box and its `to_string()`, and the text is written
+with its length rather than up to its first zero byte. `conformance/stage6/text_building` and
+`fused_chain_allocations` pin those allocations. A `crash` still writes its operands itself, through each value's
+`to_string()`, because it reports on the way out of a program that is stopping. `flush()` no longer writes a line
+break after flushing, which the special case it replaces did.
 
 **A directory is navigated through its entries** (D93, decided by Mortaro, 2026-09-24).  **[implemented]**
 `Directory` has a `path` exactly as `File` does, and `entries()` answers a `List<Directory.Entry>`, where
@@ -2377,7 +2410,8 @@ Spite above them:
    only the header can make: a `'constant'` text is never counted, and `text = text + piece` grows the text in
    place only when its count is one (`SpiteString_append` asks, then calls `String._unshared()` and
    `String._append_in_place(piece)`, which are Spite).
-4. **Entry and exit**: `main` is emitted by the compiler, and so is printing, so the floor also has
+4. **Entry and exit**: `main` is emitted by the compiler, and so is writing text out (`Console._write_output`,
+   `_write_error`; D109 moved everything else about printing into Spite), so the floor also has
    `Console.flush()`: exiting through the C runtime's `exit` would drop what the program's own `stdout` still
    buffers, which is why `Program.exit` flushes first (found when every corpus program printed nothing).
 5. **The C runtime through Spite, one operating system at a time** (D71 replaced Claude's `"c"` alias; D80
@@ -3267,3 +3301,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D112** (decided by Mortaro): **hot reload has a flag of its own, `--hot_reload`**, "in case we want a simpler --repl without it." `--repl` and `--repl_port` stay plain -- no call table, no file watcher, no `reload` command -- and `--hot_reload` (a `Build` field, spelled with an underscore like every compiler option) turns those on. |
 | 2026-09-24 | (Mortaro asked; the language chosen by Claude, unconfirmed) **Spite code blocks are fenced `gdscript` so GitHub highlights them.** GitHub highlights through Linguist, which only accepts a new language once it is used across a few hundred repositories, so `spite` cannot be added yet. Mortaro suggested Go as a middle ground; rendering one Spite sample through GitHub's own renderer as Go, Swift, Kotlin, TypeScript, Python and GDScript showed GDScript reads it best -- `#` comments, `func`/`var`/`assert`/`not`/`return`, both kinds of quotes and `{}` holes -- while Go treats `#` as text and `'symbol'` as a broken character. Titled blocks are ```` ```gdscript title=... ````; a ```` ```spite ```` fence is now an error in the docs corpus; `.gitattributes` maps `*.spite` to GDScript for the repository view. |
 | 2026-09-24 | **D113** (decided by Mortaro, settling part of D94's `while` rule): **a member template can call a function of the caller for each element, and a `while` written only to do that is an error.** "we should have a way to iterate just for sake of console log for example a function `func say_hello(name: String) {...}` and then instead of say_hello_to_everyone we just map_say_hello() ... whiles created just for a thing that should be a function instead should be a compiler error i suspect it will narrow a lot our whiles." So `names.each_say_hello()` calls the caller's own `say_hello(name)` once per element (`each_` rather than `map_`, since nothing is collected; `map_` does the same and keeps each result when the function returns one). D94's review counted 145 loops of this shape -- the largest group -- so the error names the template to write. |
+| 2026-09-24 | (implements D109's `print`; the readings below proposed by Claude, unconfirmed) **`Console.print`, `write` and `error` are Spite, taking `...values: List<Printable>`, and the generator's printing special case is gone.** `type Printable { to_string(): String }` lives in `library/console.spite`, written with the form a `type` has today rather than Mortaro's `to_string: Spite.Function<String>` (open question 11). `String.to_string()` answers itself, `Spite.Class` its `.name`, `Spite.Namespace` its `.name_with_namespaces`, and every enum value answers `to_string()`, its name. For numbers, `Bool` and enum values to fit a `type` at all, **a plain value passed where a shape is wanted is boxed** -- one allocation, released like an object -- and a call through the shape reaches its class's function; `String` and `Symbol` are objects already. What the compiler still writes is the floor: `Console._write_output`, `_write_error` and `flush` are bodiless and `Prelude` supplies `fwrite`/`fflush`, and a `crash` writes its own operands. Output is byte for byte what it was, except that `flush()` no longer writes a stray line break; the self-compile time is unchanged within noise, and the two allocation pins moved (29 to 50, 11 to 17) because a variadic call builds a `List` (`mortaros_missing_decisions.md` 57 to 59). |

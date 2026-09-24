@@ -225,6 +225,10 @@ func shifted_case(first: Int, last: Int, shift: Int): String {
     return result
 }
 
+func to_string(): String {
+    return this
+}
+
 func to_long(): Long {
     var index = 0
     while index < length() and is_space_at(index) {

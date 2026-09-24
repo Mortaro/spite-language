@@ -1,0 +1,12 @@
+3 -3 9000000000 2.5 0.1 9000000000000000000 200 true false
+literal hero hero 3 wing rainy
+A12 for 3 Ticket
+Pack
+
+written 1 and 2.5
+rainy
+3 Int
+rainy Weather
+hero String
+A12 for 3 Ticket
+3 A12 for 3

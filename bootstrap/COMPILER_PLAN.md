@@ -478,3 +478,13 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   functions into Spite could not be compiled by the seed over the new `library/` (its prelude and `emit_text_bytes`
   defined the same C names), so generation 2 was built from the new compiler sources over the committed `library/`,
   and generation 2 compiled the real tree; declaring the attributes first needed a seed that tolerated them.
+- 2026-09-24 (D109, printing): `generate_console_call`, `printed_statement_for` and the `Console` interception are
+  gone; `print`, `write` and `error` are Spite in `library/console.spite` over `...values: List<Printable>`, and
+  `Prelude.console_members` supplies the bodiless `_write_output`, `_write_error` and `flush`. `shaped_value` in
+  `cast` boxes a number, `Bool` or enum value that meets a shape (`ensure_box` writes one `SpiteBox_<class>` per
+  kind, and `spite_box_release`; the value class gets a class id the first time it is boxed), and
+  `enum_value_class` gives each enum a class holding only `to_string()`. `class_id_test` accepts a `String` by
+  `class_id <= 0`, since a constant text is `-1`. A `crash` writes its operands with `crash_operand_statement`.
+  Bootstrap notes: the seed could not compile the new `library/console.spite` (its floor functions were unknown to
+  the old prelude), so generation 2 was built from compiler sources that knew the floor and boxing but still
+  intercepted `print` whenever `Console` declared none; that compiler compiled the real tree.

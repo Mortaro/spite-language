@@ -192,10 +192,43 @@ output "build finished"
 
 | Member | Does |
 |---|---|
-| `print(...)` | every argument as text, separated by a space, then a line break |
-| `write(...)` | the same without the line break |
-| `error(...)` | like `print`, to the error stream |
+| `print(...values)` | each value's `to_string()`, separated by a space, then a line break |
+| `write(...values)` | the same without the line break |
+| `error(...values)` | like `print`, to the error stream |
+| `flush()` | writes out whatever the output and error streams still hold |
 | `read_line()` | one line of input without its line break, as a `String?`: `null` only at the end of the input |
+
+`print`, `write` and `error` are ordinary functions in `library/console.spite`, taking
+`...values: List<Printable>`, where `Printable` is a `type` that requires `to_string(): String`. Every number,
+`Bool`, `String`, `Symbol`, enum value, `Spite.Class` and `Spite.Namespace` answers it, and a class of yours
+prints once it declares `to_string()`. Passing one that does not is a compile error naming `to_string`. Writing
+the characters out is the compiler's part (`_write_output`, `_write_error` and `flush` have no body in Spite).
+
+```gdscript title=printable_doc/ticket.spite
+var code = ""
+var seats = 0
+
+func Ticket(starting_code: String, starting_seats: Int) {
+    code = starting_code
+    seats = starting_seats
+}
+
+func to_string(): String {
+    return "{code} for {seats}"
+}
+```
+```gdscript title=printable_doc/printable_doc.spite entry
+var console = Console()
+
+func PrintableDoc() {
+    var ticket = Ticket("A12", 3)
+    var boarding: Symbol = 'boarding'
+    console.print("next:", ticket, boarding, true, 2.5, ticket.class)
+}
+```
+```output
+next: A12 for 3 boarding true 2.5 Ticket
+```
 
 ```gdscript title=console_input_doc/console_input_doc.spite entry
 var console = Console()

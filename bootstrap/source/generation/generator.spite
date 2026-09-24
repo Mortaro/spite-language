@@ -86,6 +86,8 @@ var placed_names = List<String>()
 var placed_frames = List<String>()
 var placed_receiver_names = List<String>()
 var placed_receiver_codes = List<String>()
+var boxed_value_types = Dictionary<Analysis.SpiteType>()
+var enum_value_classes = List<Analysis.ClassInfo>()
 
 func report(message: String) {
     has_error = true
@@ -1112,7 +1114,11 @@ func emit_shape_callers(information: Analysis.UnionInfo) {
             var member_index = 0
             while member_index < information.members.count() {
                 var member = information.members[member_index]
-                var call = "{member.c_name}_{name}(({member.c_name}*)self{passed})"
+                var receiver = "({member.c_name}*)self"
+                if boxed_value_types.has(member.c_name) {
+                    receiver = "((SpiteBox_{member.c_name}*)self)->value"
+                }
+                var call = "{member.c_name}_{name}({receiver}{passed})"
                 var member_test = class_id_test("self", member)
                 if type_shape.is_void(return_type) {
                     lines.append("if {member_test} \{ {call}; return; }")
@@ -1221,6 +1227,10 @@ func emit_union_class_of_bodies() {
             while member_index < information.members.count() {
                 var member = information.members[member_index]
                 var class_type = class_type_of(member)
+                if boxed_value_types.has(member.c_name) {
+                    crash boxed_value_types[member.c_name]
+                    class_type = boxed_value_types[member.c_name]
+                }
                 lines.append("if {class_id_test("self", member)} return {class_object_call(class_type)};")
                 member_index = member_index + 1
             }
@@ -1243,9 +1253,11 @@ func emit_union_release(information: Analysis.UnionInfo) {
     var member_index = 0
     while member_index < information.members.count() {
         var member = information.members[member_index]
-        release_lines.append(
-            "if {class_id_test("self", member)} \{ {member.c_name}_release(({member.c_name}*)self); return; }",
-        )
+        var released = "{member.c_name}_release(({member.c_name}*)self)"
+        if boxed_value_types.has(member.c_name) {
+            released = "spite_box_release(self)"
+        }
+        release_lines.append("if {class_id_test("self", member)} \{ {released}; return; }")
         member_index = member_index + 1
     }
     release_lines.append("}")
@@ -1474,7 +1486,108 @@ func class_type_of(information: Analysis.ClassInfo): Analysis.SpiteType {
 }
 
 func class_id_test(code: String, information: Analysis.ClassInfo): String {
+    if information.c_name == "SpiteString" {
+        return "(((SpiteHeader*)({code}))->class_id <= 0)"
+    }
     return "(((SpiteHeader*)({code}))->class_id == {information.class_id})"
+}
+
+func shaped_value(
+    code: String,
+    from: Analysis.SpiteType,
+    to: Analysis.SpiteType,
+    information: Analysis.UnionInfo,
+): String {
+    if type_shape.as_string(from) or type_shape.is_symbol(from) {
+        var string_class = find_class_by_c_name("SpiteString")
+        crash string_class
+        admit_to_union(information, string_class)
+        return "(({information.c_name})({code}))"
+    }
+    var boxed_class = boxed_class_of(from)
+    if boxed_class {
+        admit_to_union(information, boxed_class)
+        return "{ensure_box(boxed_class, from)}({code})"
+    }
+    if not type_shape.as_union(from) {
+        report_mismatch(from, to)
+    }
+    return "(({information.c_name})({code}))"
+}
+
+func is_boxed_into_shape(from: Analysis.SpiteType, to: Analysis.SpiteType): Bool {
+    var to_union = type_shape.as_union(to)
+    assert to_union
+    var information = find_union_by_c_name(to_union.c_name)
+    assert information
+    assert information.is_shape
+    var boxed_class = boxed_class_of(from)
+    if boxed_class {
+        return true
+    }
+    return false
+}
+
+func boxed_class_of(from: Analysis.SpiteType): Analysis.ClassInfo? {
+    var scalar = type_shape.as_scalar(from)
+    if scalar {
+        return value_class_of(scalar.kind)
+    }
+    var enum_type = type_shape.as_enum(from)
+    if enum_type {
+        return enum_value_class(enum_type.c_name, from)
+    }
+    return null
+}
+
+func enum_value_class(enum_c_name: String, enum_type: Analysis.SpiteType): Analysis.ClassInfo {
+    var existing = enum_value_classes.find_by_c_name(enum_c_name)
+    if existing {
+        return existing
+    }
+    var display_name = type_display_name(enum_type)
+    var created = Analysis.ClassInfo(enum_c_name, display_name, "", display_name, 0)
+    created.is_value_class = true
+    var string_type = string_type()
+    var to_string = Analysis.FunctionInfo(
+        "to_string",
+        "{enum_c_name}_to_string",
+        List<Analysis.ParamInfo>(),
+        string_type,
+        List<Syntax.Statements.Statement>(),
+        false,
+    )
+    to_string.is_emitted = true
+    created.functions.append(to_string)
+    enum_value_classes.append(created)
+    builder.add_prototype("SpiteString* {enum_c_name}_to_string({enum_c_name} self);")
+    builder.add_support(
+        "SpiteString* {enum_c_name}_to_string({enum_c_name} self) \{\nreturn spite_string_from_cstring_owned({enum_c_name}_name(self));\n}",
+    )
+    return created
+}
+
+func ensure_box(member: Analysis.ClassInfo, value_type: Analysis.SpiteType): String {
+    var maker = "spite_box_{member.c_name}"
+    if boxed_value_types.has(member.c_name) {
+        return maker
+    }
+    if boxed_value_types.count() == 0 {
+        builder.add_prototype("void spite_box_release(void* self);")
+        builder.add_support(
+            "void spite_box_release(void* self) \{\nif (SPITE_COUNT_DOWN(((SpiteHeader*)self)->ref_count) > 0) return;\nSPITE_FREE(self);\n}",
+        )
+    }
+    boxed_value_types[member.c_name] = value_type
+    member.class_id = allocate_class_id(member.simple_name)
+    var box = "SpiteBox_{member.c_name}"
+    var value_c_type = c_type_name(value_type)
+    builder.add_typedef("typedef struct {box} \{ SpiteHeader header; {value_c_type} value; } {box};")
+    builder.add_prototype("void* {maker}({value_c_type} value);")
+    builder.add_support(
+        "void* {maker}({value_c_type} value) \{\n{box}* self = ({box}*)SPITE_MALLOC(sizeof({box}));\nself->header.ref_count = 1;\nself->header.class_id = {member.class_id};\n#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(self, {member.class_id});\n#endif\nself->value = value;\nreturn self;\n}",
+    )
+    return maker
 }
 
 func emit_unions() {
@@ -3164,6 +3277,13 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
                     admit_to_union(admitted_union, admitted_class)
                 }
             }
+            return "(({to_union.c_name})({code}))"
+        }
+        var shaped_union = find_union_by_c_name(to_union.c_name)
+        if shaped_union {
+            if shaped_union.is_shape {
+                return shaped_value(code, from, to, shaped_union)
+            }
         }
         return "(({to_union.c_name})({code}))"
     }
@@ -3381,7 +3501,7 @@ func coerce_for_store(
     var result_type = result.get_type()
     var casted = cast(result.code, result_type, expected_type)
     if type_needs_drop(expected_type) {
-        if owns(result, expression_ast) {
+        if owns(result, expression_ast) or is_boxed_into_shape(result_type, expected_type) {
             return casted
         }
         return retain_call(expected_type, casted)
@@ -4127,9 +4247,10 @@ func generate_spread_arguments(
         }
         index = index + 1
     }
-    if passes_whole_list(elements, variadic, scope, class_information) {
+    var whole_list = whole_list_passed(elements, variadic, scope, class_information)
+    if whole_list {
         report(
-            "this call passes a whole {type_display_name(variadic)}, but the last parameter is written with '...', so it takes the values one by one: pass the elements themselves, separated by commas",
+            "this call passes a whole {type_display_name(whole_list)}, but the last parameter is written with '...', so it takes the values one by one: pass the elements themselves, separated by commas",
         )
         return result
     }
@@ -4139,12 +4260,12 @@ func generate_spread_arguments(
     return result
 }
 
-func passes_whole_list(
+func whole_list_passed(
     elements: List<Syntax.Expressions.ListElement>,
     variadic: Analysis.SpiteType,
     scope: Scope,
     class_information: Analysis.ClassInfo,
-): Bool {
+): Analysis.SpiteType? {
     assert elements.count() == 1
     var variadic_list = type_shape.as_list(variadic)
     crash variadic_list
@@ -4153,12 +4274,9 @@ func passes_whole_list(
     var only = elements.first()
     crash only.value
     var passed_type = lookup_static_type(only.value, scope, class_information)
-    if passed_type {
-        if type_shape.as_list(passed_type) {
-            return true
-        }
-    }
-    return false
+    assert passed_type
+    assert type_shape.as_list(passed_type)
+    return passed_type
 }
 
 func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.SpiteType> {
@@ -4741,6 +4859,10 @@ func generate_method_call(
             class_information,
         )
     }
+    var object_enum = type_shape.as_enum(object_result_type)
+    if object_enum {
+        return generate_enum_method(object_enum.c_name, object_result_type, member.name, object_result, arguments_ast)
+    }
     var object_class_ref = type_shape.as_class_ref(object_result_type)
     if not object_class_ref {
         var object_type_name = type_display_name(object_result_type)
@@ -4805,6 +4927,25 @@ func generate_method_call(
         scope,
         class_information,
     )
+}
+
+func generate_enum_method(
+    enum_c_name: String,
+    enum_type: Analysis.SpiteType,
+    name: String,
+    object_result: ExpressionResult,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+): ExpressionResult {
+    var enum_class = enum_value_class(enum_c_name, enum_type)
+    var function = enum_class.find_function(name)
+    if function {
+        if arguments_ast.is_empty() {
+            var function_return_type = function.get_return_type()
+            return ExpressionResult("{function.c_name}({object_result.code})", function_return_type)
+        }
+    }
+    report("a {type_display_name(enum_type)} value has no function '{name}': an enum value answers 'to_string()'")
+    return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
 func generate_value_method(
@@ -7026,147 +7167,25 @@ func joins_as_text(element: Analysis.SpiteType): Bool {
     return type_shape.as_string(element) or type_shape.is_symbol(element) or type_shape.as_scalar(element) or is_enum_type(element)
 }
 
-func printed_statement_for(
+func crash_operand_statement(
     expression_ast: Syntax.Expressions.Expression,
-    stream: String,
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): String {
     var generated_expression = generate_expression(expression_ast, scope, class_information)
     var result = as_text(generated_expression)
     var result_type = result.get_type()
-    var scalar = type_shape.as_scalar(result_type)
-    if scalar {
-        if scalar.kind == 'boolean_kind' {
-            return "fprintf({stream}, \"%s\", ({result.code}) ? \"true\" : \"false\");"
-        }
-        if is_float_kind(scalar.kind) {
-            var temporary = next_temporary()
-            var converted = string_conversion(result.code, result_type)
-            return "\{ SpiteString* {temporary} = {converted}; fprintf({stream}, \"%s\", (const char*)(intptr_t){temporary}->_bytes); SpiteString_release({temporary}); }"
-        }
-        if scalar.kind == 'unsigned_long_kind' {
-            return "fprintf({stream}, \"%llu\", (unsigned long long)({result.code}));"
-        }
-        return "fprintf({stream}, \"%lld\", (long long)({result.code}));"
-    }
+    var temporary = next_temporary()
+    var written = "fwrite((const char*)(intptr_t){temporary}->_bytes, 1, (size_t){temporary}->_length, stderr);"
     if type_shape.as_string(result_type) {
-        var temporary = next_temporary()
         var release_line = ""
         if owns(result, expression_ast) {
             release_line = " SpiteString_release({temporary});"
         }
-        return "\{ SpiteString* {temporary} = {result.code}; fprintf({stream}, \"%s\", (const char*)(intptr_t)({temporary})->_bytes);{release_line} }"
+        return "\{ SpiteString* {temporary} = {result.code}; {written}{release_line} }"
     }
-    var printed_class = type_shape.as_class_ref(result_type)
-    if printed_class {
-        if printed_class.c_name == "Spite_Class" {
-            var class_temporary = next_temporary()
-            var class_release = ""
-            if owns(result, expression_ast) {
-                class_release = " Spite_Class_release({class_temporary});"
-            }
-            return "\{ Spite_Class* {class_temporary} = {result.code}; fprintf({stream}, \"%s\", (const char*)(intptr_t){class_temporary}->_name->_bytes);{class_release} }"
-        }
-        if printed_class.c_name == "Spite_Namespace" {
-            var namespace_temporary = next_temporary()
-            var namespace_release = ""
-            if owns(result, expression_ast) {
-                namespace_release = " Spite_Namespace_release({namespace_temporary});"
-            }
-            return "\{ Spite_Namespace* {namespace_temporary} = {result.code}; fprintf({stream}, \"%s\", (const char*)(intptr_t){namespace_temporary}->_name_with_namespaces->_bytes);{namespace_release} }"
-        }
-    }
-    var printed_enum = type_shape.as_enum(result_type)
-    if printed_enum {
-        return "fprintf({stream}, \"%s\", {printed_enum.c_name}_name({result.code}));"
-    }
-    assert not type_shape.is_void(result_type) or not has_error
-    if type_shape.as_nullable(result_type) {
-        report(
-            "this value may be null (it is a {type_display_name(result_type)}), so it cannot be printed yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
-        )
-        return ""
-    }
-    report(
-        "Console cannot print a {type_display_name(result_type)}: print one of its attributes, or give it a function that returns a String",
-    )
-    return ""
-}
-
-func is_console_reference(spite_type: Analysis.SpiteType): Bool {
-    var console_reference = type_shape.as_class_ref(spite_type)
-    if console_reference {
-        return console_reference.c_name == "Console"
-    }
-    return false
-}
-
-func receives_on_console(
-    object_ast: Syntax.Expressions.Expression,
-    scope: Scope,
-    class_information: Analysis.ClassInfo,
-): Bool {
-    var static_type = lookup_static_type(object_ast, scope, class_information)
-    if static_type {
-        return is_console_reference(static_type)
-    }
-    var made = shape.as_call(object_ast)
-    if made {
-        crash made.callee
-        var made_class = try_resolve_static_path(made.callee, class_information.namespace_dotted)
-        if made_class {
-            return made_class.c_name == "Console"
-        }
-    }
-    return false
-}
-
-func is_console_printer(method_name: String): Bool {
-    return method_name == "print" or method_name == "write" or method_name == "error" or method_name == "flush"
-}
-
-func generate_console_call(
-    object_ast: Syntax.Expressions.Expression,
-    method_name: String,
-    arguments_ast: List<Syntax.Expressions.Expression>,
-    scope: Scope,
-    class_information: Analysis.ClassInfo,
-): ExpressionResult {
-    var stream = "stdout"
-    var trailing_newline = true
-    if method_name == "error" {
-        stream = "stderr"
-    } else if method_name == "write" {
-        trailing_newline = false
-    }
-    var console_result = generate_expression(object_ast, scope, class_information)
-    var console_temporary = next_temporary()
-    var console_release = ""
-    if owns(console_result, object_ast) {
-        console_release = "Console_release({console_temporary});"
-    }
-    var lines = List<String>()
-    lines.append("\{ Console* {console_temporary} = {console_result.code}; (void){console_temporary};")
-    if method_name == "flush" {
-        lines.append("fflush(stdout); fflush(stderr);")
-    }
-    var index = 0
-    while index < arguments_ast.count() {
-        if index > 0 {
-            lines.append("fprintf({stream}, \" \");")
-        }
-        var printed_statement_for = printed_statement_for(arguments_ast[index], stream, scope, class_information)
-        lines.append(printed_statement_for)
-        index = index + 1
-    }
-    if trailing_newline {
-        lines.append("fprintf({stream}, \"\\n\");")
-    }
-    lines.append(console_release)
-    lines.append("}")
-    var joined_lines = lines.join(" ")
-    return ExpressionResult(joined_lines, Analysis.Types.VoidType())
+    var converted = string_conversion(result.code, result_type)
+    return "\{ SpiteString* {temporary} = {converted}; {written} SpiteString_release({temporary}); }"
 }
 
 func collect_static_segments(expression: Syntax.Expressions.Expression, out: List<String>): Bool {
@@ -7650,9 +7669,6 @@ func generate_call(
     var member = shape.as_member(call.callee)
     if member {
         crash member.object
-        if is_console_printer(member.name) and receives_on_console(member.object, scope, class_information) {
-            return generate_console_call(member.object, member.name, call.arguments, scope, class_information)
-        }
         return generate_method_call(member, member.object, call.arguments, scope, class_information)
     }
     var identifier = shape.as_identifier(call.callee)
@@ -10460,8 +10476,8 @@ func emit_crash_operand(
     }
     assert printable
     builder.add_user("fputs(\"\\t{escape_c_string(name)}=\", stderr);")
-    var printed_statement_for = printed_statement_for(expression, "stderr", scope, class_information)
-    builder.add_user(printed_statement_for)
+    var crash_operand_statement = crash_operand_statement(expression, scope, class_information)
+    builder.add_user(crash_operand_statement)
 }
 
 func emit_crash_operands(
