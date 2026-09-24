@@ -80,3 +80,8 @@ manual argues it.
     value is first used. Say which you want.
 20. **A thread pool for `Parallel`**, and whether `parallel_each_` templates (D35 item 3) come before the engine
     needs them.
+
+## What the standard library offers
+
+21. **Go's standard library against Spite's**, package by package, with a suggested order of what to add:
+    [mortaros_go_standard_library_comparison.md](mortaros_go_standard_library_comparison.md).
