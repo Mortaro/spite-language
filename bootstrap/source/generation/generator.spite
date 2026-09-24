@@ -1575,11 +1575,8 @@ func resolve_union_members() {
 func class_of_type_reference(type_reference: Syntax.Types.Type, current_namespace: String): Analysis.ClassInfo? {
     var named = shape.as_named_type(type_reference)
     if named {
-        if named.path.count() == 1 {
-            return find_class(named.path[0], current_namespace)
-        }
         var joined_path = named.path.join(".")
-        return find_class_by_qualified(joined_path)
+        return find_class(joined_path, current_namespace)
     }
     return null
 }
@@ -2932,6 +2929,10 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
     owner_path.remove_last()
     var joined_owner_path = owner_path.join(".")
     var last_segment = named.path.last()
+    var owner_class = find_class(joined_owner_path, current_namespace)
+    if owner_class {
+        joined_owner_path = owner_class.qualified_dotted
+    }
     var qualified_enum = find_enum_qualified(joined_owner_path, last_segment)
     if qualified_enum {
         return enum_type_of(qualified_enum)
@@ -2940,8 +2941,16 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
     if qualified_union {
         return union_type_of(qualified_union)
     }
-    var qualified_class = find_class_by_qualified(joined)
+    var qualified_class = find_class(joined, current_namespace)
     if qualified_class {
+        if qualified_class.is_generic_template {
+            var generic_instance = instantiate_generic(qualified_class, named.arguments, current_namespace)
+            if generic_instance {
+                return class_type_of(generic_instance)
+            }
+            return null
+        }
+        joined = qualified_class.qualified_dotted
         var owned_union = find_union_qualified(joined, last_segment)
         if owned_union {
             return union_type_of(owned_union)
@@ -4084,6 +4093,36 @@ func binary_operator_symbol(operator: Syntax.Expressions.BinaryOperator): String
     return "||"
 }
 
+func text_converter(value_type: Analysis.SpiteType): Analysis.FunctionInfo? {
+    var class_ref = type_shape.as_class_ref(value_type)
+    assert class_ref
+    assert not class_ref.has_signature
+    var described = find_class_by_c_name(class_ref.c_name)
+    assert described
+    var converter = described.find_function("to_string")
+    assert converter
+    assert converter.parameters.is_empty()
+    return converter
+}
+
+func text_of_class(
+    value_ast: Syntax.Expressions.Expression,
+    value: ExpressionResult,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var value_type = value.get_type()
+    if not text_converter(value_type) {
+        return value
+    }
+    var callee: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(value_ast, "to_string")
+    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(
+        callee,
+        List<Syntax.Expressions.Expression>(),
+    )
+    return generate_expression(called, scope, class_information)
+}
+
 func generate_string_binary(
     operator: Syntax.Expressions.BinaryOperator,
     left_result: ExpressionResult,
@@ -4093,6 +4132,9 @@ func generate_string_binary(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     var right_result = generate_expression(right_ast, scope, class_information)
+    if operator == 'add' {
+        right_result = text_of_class(right_ast, right_result, scope, class_information)
+    }
     var right_result_type = right_result.get_type()
     var right_code_casted = cast(right_result.code, right_result_type, Analysis.Types.StringType())
     var left_temporary = next_temporary()
@@ -8093,6 +8135,10 @@ func generate_foreign_call(
     return called
 }
 
+func is_reflection_member(name: String): Bool {
+    return name == "class" or name == "attributes" or name == "functions" or name == "memory"
+}
+
 func generate_foreign_constant(foreign: Analysis.Types.ClassRefType, name: String): ExpressionResult {
     if foreign.foreign_library < 0 {
         report("a foreign constant is read through the attribute or variable that holds its DynamicLibrary(...)")
@@ -8401,7 +8447,7 @@ func generate_member_read_raw(
     var object_result_type = object_result.get_type()
     var foreign = type_shape.as_class_ref(object_result_type)
     if foreign {
-        if foreign.c_name == "DynamicLibrary" {
+        if foreign.c_name == "DynamicLibrary" and not is_reflection_member(member.name) {
             return generate_foreign_constant(foreign, member.name)
         }
     }
@@ -8827,7 +8873,7 @@ func placed_in_frame(
     return true
 }
 
-func freed_from_frame(expression_statement: Syntax.Statements.ExpressionStatement): Bool {
+func freed_from_frame(expression_statement: Syntax.Statements.ExpressionStatement, scope: Scope): Bool {
     crash expression_statement.value
     var index = placed_names.count() - 1
     while index >= 0 {
@@ -8836,6 +8882,7 @@ func freed_from_frame(expression_statement: Syntax.Statements.ExpressionStatemen
         if freed == placed_names.get_at(index) {
             var frame = placed_frames.get_at(index)
             var receiver_code = placed_receiver_codes.get_at(index)
+            scope.mark_used(freed)
             builder.add_user("if ({freed} != (int64_t)(intptr_t){frame}) Memory_free({receiver_code}, {freed});")
             return true
         }
@@ -9956,8 +10003,10 @@ func generate_if_statement(
     if constant == true or constant == false {
         builder.add_user("\{")
         if constant == true {
+            mark_folded_names_used(if_statement.else_branch, scope)
             generate_block(if_statement.then_branch, scope, class_information, function_information)
-        } else if if_statement.has_else_branch {
+        } else {
+            mark_folded_names_used(if_statement.then_branch, scope)
             generate_block(if_statement.else_branch, scope, class_information, function_information)
         }
         builder.add_user("}")
@@ -9979,6 +10028,7 @@ func generate_if_statement(
         }
         return
     }
+    assert not generate_and_narrowing_if(if_statement, scope, class_information, function_information)
     if not generate_class_narrowing_if(if_statement, scope, class_information, function_information) {
         generate_plain_if(if_statement, scope, class_information, function_information)
     }
@@ -10624,6 +10674,60 @@ func collect_mentioned_names(expression: Syntax.Expressions.Expression, names: L
         }
         _: return
     }
+}
+
+func mark_folded_names_used(statements: List<Syntax.Statements.Statement>, scope: Scope) {
+    var names = List<String>()
+    collect_block_names(statements, names)
+    var index = 0
+    while index < names.count() {
+        scope.mark_used(names[index])
+        index = index + 1
+    }
+}
+
+func collect_block_names(statements: List<Syntax.Statements.Statement>, names: List<String>) {
+    var index = 0
+    while index < statements.count() {
+        collect_statement_names(statements[index], names)
+        index = index + 1
+    }
+}
+
+func collect_statement_names(statement: Syntax.Statements.Statement, names: List<String>) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: collect_optional_names(statement.value, names)
+        Syntax.Statements.AssignmentStatement: {
+            collect_optional_names(statement.target, names)
+            collect_optional_names(statement.value, names)
+        }
+        Syntax.Statements.IfStatement: {
+            collect_optional_names(statement.condition, names)
+            collect_block_names(statement.then_branch, names)
+            collect_block_names(statement.else_branch, names)
+        }
+        Syntax.Statements.WhileStatement: {
+            collect_optional_names(statement.condition, names)
+            collect_block_names(statement.body, names)
+        }
+        Syntax.Statements.SwitchStatement: {
+            collect_optional_names(statement.subject, names)
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                collect_block_names(statement.cases[case_index].body, names)
+                case_index = case_index + 1
+            }
+        }
+        Syntax.Statements.AssertStatement: collect_optional_names(statement.value, names)
+        Syntax.Statements.ReturnStatement: collect_optional_names(statement.value, names)
+        Syntax.Statements.ExpressionStatement: collect_optional_names(statement.value, names)
+        _: return
+    }
+}
+
+func collect_optional_names(expression: Syntax.Expressions.Expression?, names: List<String>) {
+    assert expression
+    collect_mentioned_names(expression, names)
 }
 
 func collect_each_mentioned_name(expressions: List<Syntax.Expressions.Expression>, names: List<String>) {
@@ -11542,6 +11646,65 @@ func newline_text(): String {
     return "\\n"
 }
 
+func collect_and_sides(expression: Syntax.Expressions.Expression, sides: List<Syntax.Expressions.Expression>) {
+    var joined = shape.as_binary(expression)
+    if joined {
+        if joined.operator == 'logical_and' {
+            crash joined.left
+            crash joined.right
+            collect_and_sides(joined.left, sides)
+            collect_and_sides(joined.right, sides)
+            return
+        }
+    }
+    sides.append(expression)
+}
+
+func generate_and_narrowing_if(
+    if_statement: Syntax.Statements.IfStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+): Bool {
+    crash if_statement.condition
+    var sides = List<Syntax.Expressions.Expression>()
+    collect_and_sides(if_statement.condition, sides)
+    assert sides.count() > 1
+    var then_scope = Scope(scope)
+    var tests = List<String>()
+    var index = 0
+    while index < sides.count() {
+        var side_test = and_side_test(sides[index], then_scope, class_information)
+        tests.append(side_test)
+        index = index + 1
+    }
+    builder.add_user("if ({tests.join(" && ")}) \{")
+    generate_block_in_scope(if_statement.then_branch, then_scope, class_information, function_information)
+    builder.add_user("}")
+    if if_statement.has_else_branch {
+        builder.add_user("else \{")
+        generate_block(if_statement.else_branch, scope, class_information, function_information)
+        builder.add_user("}")
+    }
+    return true
+}
+
+func and_side_test(
+    side: Syntax.Expressions.Expression,
+    then_scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var guard = try_nullable_guard(side, then_scope, class_information)
+    if guard {
+        narrow_by_guard(then_scope, guard)
+        return "({guard.guard_code})"
+    }
+    var side_result = generate_expression(side, then_scope, class_information)
+    check_condition(side_result, "if")
+    narrow_proven_indices(side, then_scope)
+    return "({owned_truth(side_result, side)})"
+}
+
 func generate_assert_statement(
     assert_statement: Syntax.Statements.AssertStatement,
     scope: Scope,
@@ -11549,6 +11712,21 @@ func generate_assert_statement(
     function_information: Analysis.FunctionInfo,
 ) {
     assert assert_statement.value
+    var sides = List<Syntax.Expressions.Expression>()
+    collect_and_sides(assert_statement.value, sides)
+    if sides.count() > 1 {
+        var side_index = 0
+        while side_index < sides.count() {
+            var side_text = Syntax.SourcePrinter().source_expression(sides[side_index])
+            var side_statement = Syntax.Statements.AssertStatement(sides[side_index])
+            side_statement.is_crash = assert_statement.is_crash
+            side_statement.condition_text = side_text
+            side_statement.line = assert_statement.line
+            generate_assert_statement(side_statement, scope, class_information, function_information)
+            side_index = side_index + 1
+        }
+        return
+    }
     var guard = try_nullable_guard(assert_statement.value, scope, class_information)
     var guard_code = ""
     if guard {
@@ -11639,7 +11817,7 @@ func generate_expression_statement(
     class_information: Analysis.ClassInfo,
 ) {
     assert expression_statement.value
-    assert not freed_from_frame(expression_statement)
+    assert not freed_from_frame(expression_statement, scope)
     var result = generate_expression(expression_statement.value, scope, class_information)
     var result_type = result.get_type()
     if type_shape.is_void(result_type) {

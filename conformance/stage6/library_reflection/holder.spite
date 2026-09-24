@@ -1,0 +1,1 @@
+var fixture = DynamicLibrary("conformance/stage6/foreign_library/fixture.dll", 'identity', "")

@@ -19,7 +19,8 @@ A parameter of type `Symbol` whose name is a segment of its own function's name 
 Inside the template, the `Symbol` names that attribute two different ways: written as a **type**
 (`value: attribute.class`, `): attribute.class`), it *is* the attribute's real type; written as an
 **expression**, `attribute.class` is a `Spite.Class` naming that type (it prints just like the type name
-would). `attributes[attribute]` is a separate, compile-time-only form: that same field, indexed by the
+would, in `console.print` and inside a text's `{}` alike: a value in a hole whose class has `to_string()` is
+turned into text by it). `attributes[attribute]` is a separate, compile-time-only form: that same field, indexed by the
 `Symbol`.
 
 ```gdscript title=symbol_codegen/person.spite

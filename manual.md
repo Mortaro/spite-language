@@ -348,6 +348,9 @@ console.print(class.namespace.namespace.name)
 One `assert` proves the whole path, so `class.namespace` and `class.namespace.namespace` are both plain values
 for the rest of that block and any block nested inside it. It is the same rule section 5 already has for
 `assert value and other_condition`, applied along a member chain instead of across an `and`.  **[implemented]**
+Across an `and`, every side narrows, for `assert`, `crash` and `if` alike, since each side is known true when the
+whole is: `crash names[position] and ages[position]` proves both elements, as two `crash` lines would (proposed by
+Claude, unconfirmed, 2026-09-24; `conformance/stage6/and_narrowing`).
 
 - It narrows the path asserted **and its prefixes**, nothing else. A sibling path stays `T?`: asserting
   `class.namespace.namespace` says nothing about `other_class.namespace`.
@@ -1199,7 +1202,9 @@ There are no macros. A parameter of class `Symbol` whose name is a segment of it
 for every name that fits: below, `set_attribute` answers `set_age`, `set_name`, and so on, for each attribute of the class.
 Inside, the symbol names that attribute: written as a type (`value: attribute.class`, `): attribute.class`), it
 is the attribute's actual type; written as an expression, `attribute.class` is a `Spite.Class`
-naming that type, printing just like the type name would.
+naming that type, printing just like the type name would -- `"{attribute.class}"` included, since a text hole
+holding a value whose class declares `to_string()` calls it (D109's reading of printable, applied to text;
+proposed by Claude, unconfirmed, 2026-09-24; `conformance/stage6/class_text`).
 
 ```person.spite
 func set_attribute(attribute: Symbol, value: attribute.class) {
@@ -1677,6 +1682,10 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
 - Resolving an unqualified `Name` from inside a class tries, in order: that class's own namespace (so a nested enum/type/union
   resolves by its plain name from inside its own class), the same folder's namespace, each parent folder's namespace, then the
   whole program globally. Ambiguity *between roots* at the same level is never an error, because of the next rule.
+  A dotted name (`Component.Requested`) takes the same walk, in every position a name is written -- constructor
+  call, parameter, return type, attribute or local annotation, generic argument, `type`/`union` member, class test
+  and a class's enum (proposed by Claude, unconfirmed, 2026-09-24; before, only a call took the walk and every
+  type position needed the full path; `conformance/stage6/relative_namespaces`).
 - Every loaded root merges into the same namespaces. A second root with the same folder structure and file name **reopens** the
   class: this is how monkey patching and game mods work -- later `func`/`var` with the same name replaces the earlier one (in
   load order: the entry folder first, then loads in the order they were discovered), a `var`'s replacement type must match, and
@@ -3518,3 +3527,10 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (proposed by Claude, unconfirmed; the ECS runs systems held in a `List` of a `type`) **A shape's required function is a function value, and a `List` of a shape has member templates.** `Parallel(stage[index].run_once)` on a `List<Runnable>` read `run_once` as an attribute, so the codegen value could not be inferred; it is now a `Spite.Function` bound to the value, whose call goes through the shape's dispatcher. `stages.map_name()`, `filter_active()` and the other templates range over the shape's attributes and argument-free required functions, read through the shape. `conformance/stage6/shape_members`, `docs/values_and_types.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; open question 1 applied to a shape, found building an ECS) **The default of a `type` is an object.** `var second: $second_type = null` with `$second_type` bound to `type Target { health: Health }` held a null pointer, so every read made a fresh default `Health` and every write was lost. The default is now the object literal of the type's attributes, each at its own default, admitted to the shape: reads and writes through it are kept, and the plural Symbol template fills it. A `type` that requires a function keeps no default object. `conformance/stage6/shape_defaults`, `docs/values_and_types.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; D36, measured on the ECS's hot path) **A singleton is not reference counted.** Every fetch retained and released the one shared object, atomically once a program makes a `Parallel`, so two threads using `Memory()` or `Slot<Position>()` contended on one counter. A singleton never dies before the program ends, so its retain and release are now empty; its accessor records it when it is first made, and the program destroys every singleton in reverse creation order at exit (before, the counts decided the order). Measured: two threads fetching a generic singleton 20 million times each, 0.8 s before and 0.04 s after. `conformance/stage6/singleton_counts` pins that fetching allocates nothing and that `drop()` still runs at exit. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; found in SlopEngine's `window/system` and a Vulkan renderer) **A dotted name resolves relative to the class's folder in every position.** `Component.Created()` found `Window.Component.Created` from `Window.System`, but `Remove<Component.Requested>` and a parameter `swapchain: Component.Swapchain` were "unknown type": a type with a dot was only looked up as a full path. Types, generic arguments, union members and a class's enums now take the constructor's walk -- own namespace, folder, parents, program -- and a generic class named by a dotted path is instantiated. `conformance/stage6/relative_namespaces`, `docs/packages.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **Each side of an `and` narrows.** `crash a[position] and b[position]` narrowed neither path while two `crash` lines narrowed both. `assert` and `crash` over an `and` now check each side in order as its own statement (the crash line names the side that failed), and an `if` over an `and` tests each side in turn, narrowing the then-branch by every side. `conformance/stage6/and_narrowing`, `docs/failure.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's `Slot.fetch`) **A use in a branch a codegen test rules out counts.** The unused check ran after `if $slot_type == Entity { ... }` was folded away, so a parameter read only there was "never used" in every other instantiation. The untaken branch's names are now marked used before it is dropped, so the source is judged, not one instantiation. `conformance/stage6/folded_uses`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **Reflection members win over a library's constants.** `current.class` on a `DynamicLibrary` (a generic instantiated over an attribute's type) was read as a foreign constant; `.class`, `.attributes`, `.functions` and `.memory` now always mean what they mean on any value. `conformance/stage6/library_reflection`, `docs/foreign_libraries.md`. |
+| 2026-09-24 | (fixes D108's placement; proposed by Claude, unconfirmed) **A block placed in the frame is used by its `free`.** `var block = memory.allocate_bytes(4)` then `memory.free(block)` reported `block` as never used, because the placed `free` was written without reading the name; it now marks it used. `conformance/stage6/placed_free`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **A word Spite reads as a mistake cannot name a value.** `var none: Long = 0` was accepted, and every use of it was then "the empty value is written 'null'". `none`, `nil`, `undefined`, `self`, `new`, `import`, `require` and `elif` are now rejected where a variable or parameter is named, with the same lesson. `diagnostics/borrowed_name`, `docs/for_ai_writers.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; D109's printable, applied to text) **A text hole calls `to_string()`.** `"{attribute.class}"` was "a Class cannot be used where a String is needed" though the docs said it prints like the type name. A value in a `{}` hole whose class declares `to_string()` with no arguments is now turned into text by it, as `console.print` already does. `conformance/stage6/class_text`, `docs/metaprogramming.md`. |

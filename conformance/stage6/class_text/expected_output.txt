@@ -1,0 +1,3 @@
+text is String, copies is Int
+Label
+Label

@@ -1,0 +1,16 @@
+var console = Console()
+
+func ClassText() {
+    var label = Label()
+    var lines = List<String>()
+    show_attributes(label, lines)
+    var joined = lines.join(", ")
+    console.print(joined)
+    var named = label.class
+    console.print("{named}")
+    console.print(named)
+}
+
+func show_attribute(attribute: Symbol<Label>, label: Label, lines: List<String>) {
+    lines.append("{attribute.name} is {attribute.class}")
+}

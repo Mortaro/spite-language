@@ -345,6 +345,7 @@ func parse_generic_declaration(): Syntax.Statements.Statement {
 
 func parse_variable_declaration(): Syntax.Statements.Statement {
     advance()
+    reject_borrowed_name("variable")
     var name = expect('identifier', "a variable name")
     var type_reference: Syntax.Types.Type? = null
     if check('colon') {
@@ -448,8 +449,17 @@ func parameter_name(): String {
         advance()
         return "type"
     }
+    reject_borrowed_name("parameter")
     var name = expect('identifier', "a parameter name")
     return name.text
+}
+
+func reject_borrowed_name(kind: String) {
+    assert check('identifier')
+    var lexeme = current().lexeme
+    var lesson = borrowed_word_lesson(lexeme)
+    assert not lesson.is_empty()
+    fail("'{lexeme}' cannot name a {kind}, because Spite reads the word as a mistake anywhere it is used: {lesson}")
 }
 
 func parse_type_name_hint(): String {

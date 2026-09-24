@@ -325,3 +325,28 @@ Behaviour that does not match the manual. The language was not changed; each is 
 80. **The names**: `Console.debug`, `type Debuggable { to_debug(): String }` beside `Printable`,
     `Spite.Debug<$value_type>` for the text of any value and `Spite.DebugInstance<$value_type>` for walking a
     class instance -- in `Spite` because they are reflection, and so a program cannot reopen them by accident.
+
+## From the SlopEngine bug batches (manual sections 5, 7, 8, 9 and 11)
+
+81. **A Symbol template and another class's private attributes.** `func fill_attribute(attribute:
+    Symbol<Target>, ...)` in `Query` cannot read `target._cache`: `_` is private to `Target`, and the template
+    belongs to `Query`, so the single call `fill__cache(...)` is the privacy error and the plural skips `_cache`
+    (item 78's change). A template is metaprogramming acting on `Target`'s shape, so it could be allowed to see
+    what `Target` sees -- or privacy could stay absolute, as today. The rule is unchanged; which one?
+82. **Reopening a class from the program root when a loaded folder declares it.** The program's folder is
+    merged first and each `load("package")` after it, so a root `monster.spite` reopening `package/monster.spite`
+    keeps its new attributes and functions but loses its constructor (and any function both declare) to the
+    loaded folder's version: "later replaces" means loaded after, never "the program wins". `docs/packages.md`
+    now says so. Should the program root win over what it loads (merge the root last), or should a name declared
+    in both be an error unless it is in a folder loaded for the purpose, like `mods`?
+83. **Item 75 answered provisionally**: a text hole now calls a class's `to_string()` (`"{ticket}"` works, and
+    `"{attribute.class}"` prints the type's name), the way `console.print` does. Keep it, or require the call to
+    be written?
+84. **The default of a `type` is an object literal** (manual open question 1): `var row: $row_type = null` bound
+    to `type Target { health: Health }` now holds `{health: Health()}`, whose `.class` answers `Object`. A `type`
+    that requires a function has no default object and stays a null pointer that reads defaults. Should that
+    case be a compile error naming the field instead?
+85. **A singleton is no longer reference counted** (D36; measured 0.8 s to 0.04 s for two threads fetching a
+    generic singleton 20 million times each). Singletons are destroyed at exit in the order they were made,
+    reversed; before, the counts decided it. One visible difference: a singleton still referenced by a leaked
+    object is destroyed anyway. Fine?

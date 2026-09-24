@@ -1,0 +1,33 @@
+var console = Console()
+var nickname: String? = null
+
+func AndNarrowing() {
+    var names = ["ann", "bea"]
+    var ages = [30, 40]
+    show(names, ages, 1)
+    var shown = shown_if_both(names, ages, 0)
+    console.print(shown)
+    var missing = shown_if_both(names, ages, 5)
+    console.print(missing)
+    var before = long_nickname()
+    nickname = "bumblebee"
+    var after = long_nickname()
+    console.print(before, after)
+}
+
+func show(names: List<String>, ages: List<Int>, position: Int) {
+    crash names[position] and ages[position]
+    console.print(names[position], ages[position])
+}
+
+func shown_if_both(names: List<String>, ages: List<Int>, position: Int): String {
+    if names[position] and ages[position] {
+        return "{names[position]} is {ages[position]}"
+    }
+    return "missing"
+}
+
+func long_nickname(): String {
+    assert nickname and nickname.length() > 3
+    return nickname
+}
