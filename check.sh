@@ -138,6 +138,46 @@ done
 echo "documentation: $documented passed, $undocumented failed"
 [ "$undocumented" == "0" ] || exit 1
 
+# A ```wire block in docs/ is a remote REPL session: its program runs with --repl-port, every
+# `$ spite connect <port> --command="..."` line is sent with the compiler's own client, and each answer must be
+# the JSON line written under it. The port comes from this run's process id, so two runs do not share one.
+sessions=0
+for wire in .spite-cache/docs/*/wire.txt; do
+  [ -f "$wire" ] || continue
+  folder=$(dirname "$wire"); name=$(basename "$folder")
+  entry=$(tr -d '\r\n' < "$folder/entry.txt")
+  port=$((20000 + $$ % 20000))
+  "$work/generation_two.exe" --file="$folder/$entry" --mode=build --no-format --repl-port=$port --output="$work/wire_$name.exe" > "$work/c_errors.txt" 2>&1 || {
+    echo "FAILED wire: $name does not build with --repl-port"; head -5 "$work/c_errors.txt"; exit 1; }
+  "$work/wire_$name.exe" > "$work/wire_$name.txt" 2>&1 < /dev/null &
+  served=$!
+  listening=false
+  for attempt in $(seq 1 100); do   # the program listens before its constructor runs; wait up to 20 seconds
+    timeout 10 "$work/generation_two.exe" connect $port --command=help > /dev/null 2>&1 && { listening=true; break; }
+    kill -0 $served 2>/dev/null || break
+    sleep 0.2
+  done
+  if ! $listening; then kill $served 2>/dev/null; echo "FAILED wire: $name never listened on $port"; cat "$work/wire_$name.txt" | head -5; exit 1; fi
+  expected=$(tr -d '\r' < "$wire" | grep -v '^#' | grep -v '^$')
+  actual=$(tr -d '\r' < "$wire" | grep '^\$ spite connect ' | while IFS= read -r line; do
+    command=$(echo "$line" | sed -E 's/^\$ spite connect [0-9]+ --command="(.*)"$/\1/')
+    echo "$line"
+    timeout 10 "$work/generation_two.exe" connect $port --command="$command" 2>&1 | tr -d '\r'
+  done)
+  for attempt in $(seq 1 50); do kill -0 $served 2>/dev/null || break; sleep 0.2; done
+  if kill -0 $served 2>/dev/null; then kill $served; echo "FAILED wire: $name kept running after exit"; exit 1; fi
+  wait $served; exit_code=$?
+  if [ "$actual" != "$expected" ] || [ "$exit_code" != "0" ]; then
+    echo "FAILED wire: $name (exit code $exit_code)"; diff <(echo "$expected") <(echo "$actual") | head -10; exit 1
+  fi
+  if [ "$(tr -d '\r' < "$work/wire_$name.txt")" != "$(tr -d '\r' < "$folder/expected_output.txt")" ]; then
+    echo "FAILED wire: $name printed something else while it was served"; head -5 "$work/wire_$name.txt"; exit 1
+  fi
+  sessions=$((sessions+1))
+done
+[ "$sessions" -gt 0 ] || { echo "FAILED wire: docs/ has no remote REPL session to replay"; exit 1; }
+echo "remote REPL: $sessions documented sessions answered exactly"
+
 # --final-classes writes the program back out as Spite source. What it writes has to be a program:
 # printing a corpus program and running what came out must print the same thing. symbol_codegen proves the
 # functions Spite made from a template are printed as real functions (D61).
