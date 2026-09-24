@@ -404,3 +404,11 @@ Behaviour that does not match the manual. The language was not changed; each is 
     later than the one whose `drop()` fetches it has already been destroyed, so the fetch halts with a message
     saying to keep it in an attribute (where it is made first). The alternatives: make a fresh one silently and
     destroy it after, or run every `drop()` before freeing anything. Halting, as now?
+96. **Naming a root class that a nearer one shadows.** Inside `click_test/`, `Plugin()` finds `ClickTest.Plugin`
+    first (the walk goes from the class's own namespace outward), so a `ClickTest.Composition` that wants both the
+    game's root `Plugin` and its own `ClickTest.Plugin` cannot name the root one; SlopEngine renamed its own to
+    `TestPlugin`. The reporter's two options: (a) a root qualifier, some spelling that starts the walk at the whole
+    program (a leading `Root.` or `.`, say); or (b) fall through to the next match when the nearer class would be
+    a reference to the class itself (`var counter = Plugin()` written inside `ClickTest.Plugin`). (b) needs no
+    syntax but only covers the self-reference case, and a name then means different things in different files.
+    Nothing is built; which, if either?
