@@ -380,22 +380,6 @@ int64_t SpiteString_code_at(SpiteString* self, int64_t index) {
     return (int64_t)(unsigned char)self->data[index];
 }
 
-int64_t SpiteString_to_int(SpiteString* self) {
-    if (self->length == 0) return 0;
-    char* end = 0;
-    long long value = strtoll(self->data, &end, 10);
-    if (end == self->data) return 0;
-    return (int64_t)value;
-}
-
-double SpiteString_to_float(SpiteString* self) {
-    if (self->length == 0) return 0.0;
-    char* end = 0;
-    double value = strtod(self->data, &end);
-    if (end == self->data) return 0.0;
-    return value;
-}
-
 SpiteString* spite_string_from_int(int64_t value) {
     char temporary[32];
     int written = snprintf(temporary, sizeof(temporary), "%lld", (long long)value);

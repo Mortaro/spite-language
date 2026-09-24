@@ -57,3 +57,11 @@ func test_trim_and_case() {
     crash "spite".character_at(9) == ""
     crash "".is_empty()
 }
+
+func test_parsing_reads_a_sign_and_stops_at_the_first_non_digit() {
+    crash " -12".to_int() == -12
+    crash "+7 days".to_int() == 7
+    crash "9000000000".to_long() == 9000000000
+    crash "2.5".to_double() == 2.5
+    crash "nothing".to_double() == 0.0
+}

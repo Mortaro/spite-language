@@ -103,6 +103,10 @@ func read_line_into(buffer: Long, bytes: Int): Bool {
     return library.fgets_as_long(buffer, bytes, input) != 0
 }
 
+func parse_double(text: String): Double {
+    return library.strtod_as_double(text, 0)
+}
+
 func is_singleton(): Bool {
     return true
 }

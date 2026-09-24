@@ -1859,7 +1859,8 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
             "'{declaration.name}' has an empty constructor: delete it. A class without a constructor is already made from its defaults",
         )
     }
-    if not is_constructor {
+    var is_conversion = information.is_value_class and declaration.name.starts_with("to_")
+    if not is_constructor and not is_conversion {
         check_value_name(declaration.name, "function")
     }
     var c_name = "{information.c_name}_{declaration.name}"
@@ -2564,9 +2565,9 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         var to_scalar = type_shape.as_scalar(to)
         if to_scalar {
             if is_float_kind(to_scalar.kind) {
-                return "(({c_type_name(to)})(SpiteString_to_float({code})))"
+                return "(({c_type_name(to)})(SpiteString_to_double({code})))"
             }
-            return "(({c_type_name(to)})(SpiteString_to_int({code})))"
+            return "(({c_type_name(to)})(SpiteString_to_long({code})))"
         }
     }
     var to_scalar_plain = type_shape.as_scalar(to)
