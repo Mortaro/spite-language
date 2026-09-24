@@ -162,42 +162,13 @@ void SpiteString_release(SpiteString* self) {
     }
 }
 
-SpiteString* SpiteString_concat(SpiteString* left, SpiteString* right) {
-    int64_t total = left->length + right->length;
-    char* buffer = (char*)SPITE_MALLOC((size_t)total + 1);
-    if (left->length > 0) memcpy(buffer, left->data, (size_t)left->length);
-    if (right->length > 0) memcpy(buffer + left->length, right->data, (size_t)right->length);
-    buffer[total] = '\0';
-    return spite_string_take(buffer, total);
-}
-
-bool SpiteString_equals(SpiteString* a, SpiteString* b) {
-    if (a == b) return true;
-    if (a->length != b->length) return false;
-    if (a->length == 0) return true;
-    return memcmp(a->data, b->data, (size_t)a->length) == 0;
-}
-
-bool SpiteString_less(SpiteString* a, SpiteString* b) {
-    int64_t shortest = a->length < b->length ? a->length : b->length;
-    int comparison = shortest > 0 ? memcmp(a->data, b->data, (size_t)shortest) : 0;
-    if (comparison != 0) return comparison < 0;
-    return a->length < b->length;
-}
-
-bool SpiteString_greater(SpiteString* a, SpiteString* b) {
-    return SpiteString_less(b, a);
-}
-
+SpiteString* SpiteString_concat(SpiteString* left, SpiteString* right);
+bool SpiteString_equals(SpiteString* left, SpiteString* right);
+bool SpiteString_less(SpiteString* left, SpiteString* right);
+bool SpiteString_greater(SpiteString* left, SpiteString* right);
+SpiteString* SpiteString_slice(SpiteString* text, int64_t start, int64_t end);
 int64_t SpiteString_length(SpiteString* self) {
     return self->length;
-}
-
-SpiteString* SpiteString_slice(SpiteString* self, int64_t start, int64_t end) {
-    int64_t clamped_start = start < 0 ? 0 : (start > self->length ? self->length : start);
-    int64_t clamped_end = end < 0 ? 0 : (end > self->length ? self->length : end);
-    if (clamped_end <= clamped_start) return spite_string_from_bytes("", 0);
-    return spite_string_from_bytes(self->data + clamped_start, clamped_end - clamped_start);
 }
 
 int64_t SpiteString_code_at(SpiteString* self, int64_t index) {

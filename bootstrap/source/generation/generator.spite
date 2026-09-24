@@ -471,6 +471,7 @@ func generate(
         emit_pending_functions()
         final_settle = final_settle + 1
     }
+    emit_text_bytes()
     emit_symbol_table()
     emit_foreign_libraries()
     emit_allocation_table()
@@ -2472,6 +2473,27 @@ func string_conversion(code: String, from: Analysis.SpiteType): String {
         return "spite_string_from_cstring_static({enum_type.c_name}_name({code}))"
     }
     return code
+}
+
+func emit_text_bytes() {
+    var text_bytes = find_class_by_qualified("TextBytes")
+    crash text_bytes
+    var instance = singleton_call(text_bytes)
+    builder.add_support(
+        "SpiteString* SpiteString_concat(SpiteString* left, SpiteString* right) \{\nTextBytes* spite_text_bytes = {instance};\nSpiteString* spite_result = TextBytes_concat(spite_text_bytes, SpiteString_retain(left), SpiteString_retain(right));\nTextBytes_release(spite_text_bytes);\nreturn spite_result;\n}",
+    )
+    builder.add_support(
+        "bool SpiteString_equals(SpiteString* left, SpiteString* right) \{\nif (left == right) return true;\nTextBytes* spite_text_bytes = {instance};\nbool spite_result = TextBytes_equals(spite_text_bytes, SpiteString_retain(left), SpiteString_retain(right));\nTextBytes_release(spite_text_bytes);\nreturn spite_result;\n}",
+    )
+    builder.add_support(
+        "bool SpiteString_less(SpiteString* left, SpiteString* right) \{\nTextBytes* spite_text_bytes = {instance};\nbool spite_result = TextBytes_less(spite_text_bytes, SpiteString_retain(left), SpiteString_retain(right));\nTextBytes_release(spite_text_bytes);\nreturn spite_result;\n}",
+    )
+    builder.add_support(
+        "bool SpiteString_greater(SpiteString* left, SpiteString* right) \{\nreturn SpiteString_less(right, left);\n}",
+    )
+    builder.add_support(
+        "SpiteString* SpiteString_slice(SpiteString* text, int64_t start, int64_t end) \{\nTextBytes* spite_text_bytes = {instance};\nSpiteString* spite_result = TextBytes_slice(spite_text_bytes, SpiteString_retain(text), (int32_t)start, (int32_t)end);\nTextBytes_release(spite_text_bytes);\nreturn spite_result;\n}",
+    )
 }
 
 func number_text_function(name: String, value_type: String): String {
