@@ -1,7 +1,8 @@
 var pieces = List<String>()
 var piece_names = List<String>()
 var kept = List<Bool>()
-var functions = Dictionary<Int>()
+var slot_names = List<String>()
+var slot_positions = List<Int>()
 var waiting = List<Int>()
 var in_comment = false
 
@@ -52,14 +53,23 @@ func kept_prototypes(prototypes: String): String {
 }
 
 func is_kept_name(name: String): Bool {
-    if functions[name] {
-        return kept[functions[name]] == true
+    var position = find_function(name, 0, name.length())
+    if position < 0 {
+        return true
     }
-    return true
+    return kept[position] == true
 }
 
 func split_pieces(body: String) {
     var lines = body.split("\n")
+    var capacity = 1024
+    while capacity < lines.count() * 2 {
+        capacity = capacity * 2
+    }
+    while slot_names.count() < capacity {
+        slot_names.append("")
+        slot_positions.append(-1)
+    }
     var depth = 0
     var current = List<String>()
     var index = 0
@@ -82,11 +92,11 @@ func split_pieces(body: String) {
 func add_piece(lines: List<String>) {
     crash lines[0]
     var name = defined_name(lines[0])
-    if not name.is_empty() and functions.has(name) {
+    if not name.is_empty() and find_function(name, 0, name.length()) >= 0 {
         name = ""
     }
     if not name.is_empty() {
-        functions[name] = pieces.count()
+        add_function(name, pieces.count())
     }
     pieces.append(lines.join("\n"))
     piece_names.append(name)
@@ -188,7 +198,7 @@ func keep_named_in(text: String) {
             while index < text.length() and is_name_code(text.code_at(index)) {
                 index = index + 1
             }
-            keep_function(text.slice(start, index))
+            keep_function(find_function(text, start, index))
         } else {
             index = index + 1
         }
@@ -214,10 +224,56 @@ func line_end(text: String, start: Int): Int {
     return index
 }
 
-func keep_function(name: String) {
-    assert functions[name]
-    if kept[functions[name]] == false {
-        kept[functions[name]] = true
-        waiting.append(functions[name])
+func keep_function(position: Int) {
+    assert position >= 0
+    if kept[position] == false {
+        kept[position] = true
+        waiting.append(position)
     }
+}
+
+func slot_of(text: String, start: Int, end: Int): Int {
+    var hash: Long = 0
+    var index = start
+    while index < end {
+        hash = (hash * 31 + text.code_at(index)) % 1000000007
+        index = index + 1
+    }
+    return hash % slot_names.count()
+}
+
+func add_function(name: String, position: Int) {
+    var slot = slot_of(name, 0, name.length())
+    while slot_positions[slot] != -1 {
+        slot = (slot + 1) % slot_names.count()
+    }
+    slot_names[slot] = name
+    slot_positions[slot] = position
+}
+
+func find_function(text: String, start: Int, end: Int): Int {
+    var slot = slot_of(text, start, end)
+    while slot_positions[slot] != -1 {
+        if same_name(slot_names[slot], text, start, end) {
+            crash slot_positions[slot]
+            return slot_positions[slot]
+        }
+        slot = (slot + 1) % slot_names.count()
+    }
+    return -1
+}
+
+func same_name(name: String?, text: String, start: Int, end: Int): Bool {
+    crash name
+    if name.length() != end - start {
+        return false
+    }
+    var index = 0
+    while index < name.length() {
+        if name.code_at(index) != text.code_at(start + index) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
 }
