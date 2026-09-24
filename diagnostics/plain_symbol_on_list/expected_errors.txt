@@ -1,0 +1,1 @@
+diagnostics/plain_symbol_on_list/list.spite:1: error: 'total_member' is a template on List, whose own attributes are its buffer, so a plain 'Symbol' answers nothing: write 'member: Symbol<$element_type>' to name a member of the element (in List.total_member)

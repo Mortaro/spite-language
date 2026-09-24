@@ -340,6 +340,35 @@ func ListAverage() {
 3.5
 ```
 
+The `<$element_type>` is what makes it a member of the element. A plain `member: Symbol` would name one of the
+list's own attributes, which are its buffer, so it is an error that says what to write:
+
+```spite title=plain_symbol_template/list.spite
+func total_member(member: Symbol): Int {
+    var total = 0
+    var index = 0
+    while index < item_count {
+        var item = read_item(index)
+        total = total + item.attributes[member]
+        index = index + 1
+    }
+    return total
+}
+```
+```spite title=plain_symbol_template/plain_symbol_template.spite entry error
+var console = Console()
+
+func PlainSymbolTemplate() {
+    var scores = List<Int>()
+    scores.append(3)
+    var count = scores.count()
+    console.print(count)
+}
+```
+```diagnostic
+write 'member: Symbol<$element_type>' to name a member of the element
+```
+
 ## `Console`
 
 `print(...)` (space-separated, trailing newline), `error(...)` (stderr, trailing newline), `write(...)`

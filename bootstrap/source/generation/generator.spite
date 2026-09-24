@@ -1818,6 +1818,14 @@ func register_template(declaration: Syntax.Statements.FunctionDeclaration, infor
     var suffix = declaration.name.slice(position + symbol_parameter_length, name_length)
     var template = Analysis.TemplateInfo(declaration, symbol_parameter, prefix, suffix)
     template.range = symbol_range_of(declaration, symbol_parameter)
+    if not template.range and information.qualified_dotted == "List" {
+        var saved_function = current_function
+        current_function = declaration.name
+        report(
+            "'{declaration.name}' is a template on List, whose own attributes are its buffer, so a plain 'Symbol' answers nothing: write '{symbol_parameter}: Symbol<$element_type>' to name a member of the element",
+        )
+        current_function = saved_function
+    }
     information.templates.append(template)
     return true
 }
@@ -8340,6 +8348,74 @@ func generate_assignment(
     forget_narrowing_under(assignment.target, assignment.value, scope, class_information)
 }
 
+func appends_to_itself(
+    value: Syntax.Expressions.Expression,
+    target: String,
+    pieces: List<Syntax.Expressions.Expression>,
+): Bool {
+    assert text_base_is(value, target, pieces) and not pieces.is_empty()
+    var mentioned = List<String>()
+    collect_each_mentioned_name(pieces, mentioned)
+    return not mentioned.contains(target)
+}
+
+func text_base_is(
+    value: Syntax.Expressions.Expression,
+    target: String,
+    pieces: List<Syntax.Expressions.Expression>,
+): Bool {
+    if is_identifier_named(value, target) {
+        return true
+    }
+    var binary = shape.as_binary(value)
+    if binary {
+        if binary.operator == 'add' {
+            crash binary.left
+            crash binary.right
+            var written = shape.as_string_literal(binary.left)
+            if written {
+                return written.value.is_empty() and is_identifier_named(binary.right, target)
+            }
+            if text_base_is(binary.left, target, pieces) {
+                pieces.append(binary.right)
+                return true
+            }
+        }
+    }
+    return false
+}
+
+func is_identifier_named(value: Syntax.Expressions.Expression, name: String): Bool {
+    var identifier = shape.as_identifier(value)
+    if identifier {
+        return identifier.name == name
+    }
+    return false
+}
+
+func emit_append_in_place(
+    target: String,
+    pieces: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var index = 0
+    while index < pieces.count() {
+        var piece = pieces[index]
+        var piece_result = generate_expression(piece, scope, class_information)
+        var piece_type = piece_result.get_type()
+        var string_type = string_type()
+        var piece_code = cast(piece_result.code, piece_type, string_type)
+        var temporary = next_temporary()
+        builder.add_user("SpiteString* {temporary} = {piece_code};")
+        builder.add_user("{target} = SpiteString_append({target}, {temporary});")
+        if owns(piece_result, piece) or not type_shape.as_string(piece_type) {
+            builder.add_user("SpiteString_release({temporary});")
+        }
+        index = index + 1
+    }
+}
+
 func generate_store(
     assignment: Syntax.Statements.AssignmentStatement,
     scope: Scope,
@@ -8364,6 +8440,13 @@ func generate_store(
                     if narrowed_field {
                         storage_type = narrowed_field.get_type()
                     }
+                }
+            }
+            if not override and type_shape.as_string(scope_type) {
+                var pieces = List<Syntax.Expressions.Expression>()
+                if appends_to_itself(assignment.value, identifier.name, pieces) {
+                    emit_append_in_place(identifier.name, pieces, scope, class_information)
+                    return
                 }
             }
             emit_owning_assignment(target_code, storage_type, assignment.value, scope, class_information)
