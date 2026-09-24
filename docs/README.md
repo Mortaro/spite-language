@@ -15,7 +15,7 @@ open while you write.
   `assert` narrowing, enums, unions, inline types and duck typing.
 - [functions_and_operators.md](functions_and_operators.md) -- operators as functions, setter/getter interception.
 - [control_flow.md](control_flow.md) -- `while` is the only loop, and how to avoid it.
-- [metaprogramming.md](metaprogramming.md) -- Symbol codegen, reflection, codegen values (`$`), generics, flags, tree shaking.
+- [metaprogramming.md](metaprogramming.md) -- Symbol codegen, reflection, codegen values (`$`), generics, tree shaking, program settings (`Environment`).
 - [memory.md](memory.md) -- the current ownership rules, with do/don't examples.
 - [packages.md](packages.md) -- `load`, namespaces, monkey patching, final classes.
 - [repl.md](repl.md) -- local and remote REPL, the wire protocol, a worked debugging session.

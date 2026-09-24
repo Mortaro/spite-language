@@ -1,0 +1,60 @@
+func setting(name: String): String? {
+    var arguments = Arguments()
+    var flag = "--{name}="
+    var index = 0
+    while index < arguments.count() and arguments.get(index) != "--" {
+        var argument = arguments.get(index)
+        if argument.starts_with(flag) {
+            return argument.slice(flag.length(), argument.length())
+        }
+        index = index + 1
+    }
+    return Program().environment(name.upper_case())
+}
+
+func boolean_setting(name: String, declared: Bool): Bool {
+    var text = setting(name)
+    if text {
+        crash text == "true" or text == "false"
+        return text == "true"
+    }
+    return declared
+}
+
+func integer_setting(name: String, declared: Int): Int {
+    var text = setting(name)
+    if text {
+        crash is_whole_number(text)
+        return text.to_int()
+    }
+    return declared
+}
+
+func text_setting(name: String, declared: String): String {
+    var text = setting(name)
+    if text {
+        return text
+    }
+    return declared
+}
+
+func is_whole_number(text: String): Bool {
+    var index = 0
+    if text.starts_with("-") {
+        index = 1
+    }
+    if index == text.length() {
+        return false
+    }
+    while index < text.length() {
+        if text.code_at(index) < 48 or text.code_at(index) > 57 {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func is_singleton(): Bool {
+    return true
+}

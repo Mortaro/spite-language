@@ -1,0 +1,21 @@
+var console = Console()
+var environment = Environment()
+
+func EnvironmentSettings() {
+    console.print(
+        environment.name,
+        environment.workers + 1,
+        environment.verbose,
+        environment.region,
+        environment.retries,
+    )
+    if environment.name == "server" {
+        console.print("listening")
+    } else {
+        console.print("rendering")
+    }
+    if environment.verbose and environment.workers != 1 {
+        console.print("many workers")
+    }
+    console.print("the same instance", Environment().workers)
+}

@@ -1,0 +1,6 @@
+var console = Console()
+var environment = Environment()
+
+func EnvironmentSetting() {
+    console.print(environment.serve, environment.port)
+}

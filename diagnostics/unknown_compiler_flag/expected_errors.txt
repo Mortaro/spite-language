@@ -1,0 +1,1 @@
+error: '--serve' is not a compiler flag. A program's settings are fields of its Environment, passed to the program after '--': spite program.spite -- --serve=value

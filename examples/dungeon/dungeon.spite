@@ -5,6 +5,7 @@ var monsters = List<Monster>()
 var settings = Dictionary<Int>()
 var target: Monster? = null
 var tick = 0
+var environment = Environment()
 
 func Dungeon() {
     monsters.append(Monster("Goblin", 30))
@@ -13,7 +14,7 @@ func Dungeon() {
     settings.set("difficulty", 2)
     target = Monster("Boss", 200)
     console.print("player age", player.age)
-    if $serve {
+    if environment.serve {
         while tick < 3 {
             console.print("tick", tick)
             tick = tick + 1

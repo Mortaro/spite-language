@@ -57,8 +57,6 @@ var error_lines = List<String>()
 var current_function = ""
 var current_class: Analysis.ClassInfo? = null
 var discovered_classes = List<Discovery.DiscoveredClass>()
-var program_values = Dictionary<String>()
-var used_program_values = List<String>()
 var current_path = ""
 var current_line = 0
 var bound_symbol_name = ""
@@ -532,27 +530,6 @@ func codegen_index(information: Analysis.ClassInfo, name: String): Int {
     return 0 - 1
 }
 
-func program_value_type(text: String): Analysis.SpiteType {
-    if text == "true" or text == "false" {
-        return boolean_type()
-    }
-    if not text.is_empty() {
-        var digits = true
-        var index = 0
-        while index < text.length() {
-            var code = text.code_at(index)
-            if code < 48 or code > 57 {
-                digits = false
-            }
-            index = index + 1
-        }
-        if digits {
-            return integer_type()
-        }
-    }
-    return string_type()
-}
-
 func generate_codegen_value(name: String, class_information: Analysis.ClassInfo): ExpressionResult {
     var bound = codegen_index(class_information, name)
     if bound >= 0 {
@@ -571,30 +548,8 @@ func generate_codegen_value(name: String, class_information: Analysis.ClassInfo)
         bound_value.constant_text = class_information.codegen_texts[bound]
         return bound_value
     }
-    if program_values.has(name) {
-        if not used_program_values.contains(name) {
-            used_program_values.append(name)
-        }
-        crash program_values[name]
-        var text = program_values[name]
-        var value_type = program_value_type(text)
-        var code = text
-        if type_shape.as_string(value_type) {
-            code = render_string_literal(text)
-        }
-        var program_value = ExpressionResult(code, value_type)
-        program_value.owning_override = false
-        program_value.constant_text = "s:{text}"
-        if is_boolean_type(value_type) {
-            program_value.constant_text = "b:{text}"
-        }
-        if is_numeric_type(value_type) {
-            program_value.constant_text = "i:{text}"
-        }
-        return program_value
-    }
     report(
-        "'${name}' has no value: '{class_information.simple_name}' does not declare it on its constructor, so it must come from a compiler flag: --{name}=value",
+        "'${name}' is not declared on the constructor of '{class_information.simple_name}', and '$' is for generics only: a program's settings are fields of Environment -- reopen it in environment.spite with 'var {name} = ...' and read it as Environment().{name}",
     )
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
@@ -6532,6 +6487,9 @@ func generate_call(
         if callee_identifier.name == "Symbol" {
             return generate_symbol_lookup(call.arguments, scope, class_information)
         }
+        if callee_identifier.name == "Arguments" and call.arguments.is_empty() {
+            return ExpressionResult("spite_program_arguments", Analysis.Types.ArgumentsType())
+        }
     }
     var member = shape.as_member(call.callee)
     if member {
@@ -8950,9 +8908,7 @@ func emit_main(entry_mangled_name: String) {
         var index = 0
         while index < entry_class.constructor.parameters.count() {
             if type_shape.is_arguments(entry_class.constructor.parameters[index].get_type()) {
-                arguments.append(
-                    "((SpiteArguments)\{ .count = argument_count - 1, .items = (const char**)(argument_values + 1) })",
-                )
+                arguments.append("spite_program_arguments")
             } else {
                 arguments.append(default_value_for_type(entry_class.constructor.parameters[index].get_type()))
             }

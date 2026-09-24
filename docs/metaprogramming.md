@@ -134,9 +134,9 @@ an ordinary runtime `List<T>`, walked with `while` like any other list.
 
 ## Generics and codegen values (`$`)
 
-`$name` means "replaced at code generation." Two sources feed it: the codegen values a constructor declares
-between `<` and `>`, given positionally at the call site, and compiler flags (`--name=value`), which set `$name`
-for the whole program. A `$name` that no constructor declares is flag-fed.
+`$name` means "replaced at code generation", and it is for generics only: its values are the ones a constructor
+declares between `<` and `>`, given positionally at the call site. A `$name` that no constructor declares is an
+error that points at [`Environment`](#program-settings-environment), which is where a program's settings live.
 
 ```spite title=generics_basics/pair.spite
 var left: $left_type = null
@@ -166,33 +166,51 @@ Aria and 42
 `null` on a `$generic`-typed field means that generic's bound type's default value, not a literal `T?`
 -- provisional, see manual.md open question 1.
 
-## Compiler flags and tree shaking
+## Tree shaking
 
-```spite title=compiler_flags/compiler_flags.spite entry vars=environment:production
+Conditions on codegen values are decided **at compile time**, and the untaken branch is removed from the
+generated C entirely: `Weapon<Int, true>` and `Weapon<Int, false>` are two classes, and each keeps only the
+branch of `if $is_magic { }` that it takes. This is tree shaking, not just dead-code elimination at the C
+compiler level.
+
+`--development` disables all of this: every codegen-value condition becomes a real runtime `if` (both branches
+compiled in, so live reload can flip it without recompiling), and every class in the folder is emitted instead
+of only the ones reachable from the entry class.
+
+## Program settings: `Environment`
+
+A program's settings are the fields of `Environment`, a singleton in the standard library. The program reopens
+it with a file of its own named `environment.spite`, holding one `var` per setting with a literal default, and
+reads it with `Environment()` anywhere -- the entry constructor does not have to receive the command line and
+pass it down.
+
+```spite title=program_settings/environment.spite
+var endpoint = "local"
+var workers = 1
+var verbose = false
+```
+```spite title=program_settings/program_settings.spite entry vars=endpoint:production,verbose:true
 var console = Console()
+var environment = Environment()
 
-func CompilerFlags() {
-    if $environment == "production" {
+func ProgramSettings() {
+    if environment.endpoint == "production" {
         console.print("using the production endpoint")
     } else {
         console.print("using the local endpoint")
     }
+    console.print("workers", environment.workers, "verbose", environment.verbose)
 }
 ```
 ```output
 using the production endpoint
+workers 1 verbose true
 ```
 
-Conditions on codegen values -- both the ones a constructor declares and `--name=value` flags -- are decided
-**at compile time**, and the untaken branch is removed from the generated C entirely: this is tree shaking, not
-just dead-code elimination at the C compiler level. Compiling the program above with `--environment=production --emit-c`
-shows the string `"using the local endpoint"` nowhere in the generated C; compiling with
-`--environment=staging` instead flips which branch survives and prints `using the local endpoint`. A
-`--name=value` flag that matches no `$name` anywhere in the program is a compile error, so a typo in the flag
-name is caught immediately rather than silently doing nothing.
-
-`--development` disables all of this: every codegen-value condition becomes a real runtime `if` (both branches
-compiled in, so live reload can flip the flag without recompiling), and every class in the folder is emitted
-instead of only the ones reachable from the entry class. It trades binary size and tree-shaking for the
-ability to swap `$name` values while the program keeps running -- reach for it during development, drop it for
-a release build.
+Each field is read once, when `Environment()` is first made: from `--endpoint=production` on the program's
+command line (after `--` when the compiler runs it: `spite program_settings.spite -- --endpoint=production`),
+otherwise from the `ENDPOINT` environment variable, otherwise the declared default. Only declared fields are
+read, so nothing the program does not name is ever loaded. The default's literal is the setting's type --
+`false` a `Bool`, `0` an `Int`, `""` a `String` -- and a value that is not one (`--verbose=maybe`) crashes at
+startup. The values are read when the program runs, so `if environment.verbose` is an ordinary `if`: both
+branches are compiled in.

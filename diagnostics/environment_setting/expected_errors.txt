@@ -1,0 +1,1 @@
+diagnostics/environment_setting/environment.spite:2: error: 'Environment.port' is a setting, read from the program's command line (--port=value) or its environment (PORT), so it is declared with only a literal default, and the literal is its type: 'var port = false' (Bool), 'var port = 0' (Int) or 'var port = ""' (String)

@@ -4,5 +4,5 @@ func CodegenValues() {
     var first = Box<Int>(1)
     var second = Box<Int, String>(2)
     var third = Box(3)
-    console.print($environmnt, first.held)
+    console.print($environment, first.held)
 }

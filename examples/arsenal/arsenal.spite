@@ -1,9 +1,10 @@
 var console = Console()
+var environment = Environment()
 
 func Arsenal(arguments: Arguments) {
     var sword = Weapon<Int, true>(10)
     sword.hit()
-    if $environment == "server" {
+    if environment.name == "server" {
         console.print("environment is server")
     } else {
         console.print("environment is not server")

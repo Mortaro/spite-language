@@ -1,0 +1,4 @@
+server 5 true local -1
+listening
+many workers
+the same instance 4

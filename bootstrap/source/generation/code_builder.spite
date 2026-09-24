@@ -31,7 +31,7 @@ func render(): String {
     text = text + "{support_bodies.join("\n")}\n"
     text = text + "{user_bodies.join("\n")}\n"
     text = "{text}int main(int argument_count, char** argument_values) \{\n"
-    text = "{text}(void)argument_count; (void)argument_values;\n"
+    text = "{text}spite_program_arguments = (SpiteArguments)\{ .count = argument_count - 1, .items = (const char**)(argument_values + 1) };\n"
     text = "{text}#ifdef _WIN32\n_setmode(_fileno(stdout), _O_BINARY);\n#endif\n"
     text = text + "{main_lines.join("\n")}\n"
     text = "{text}return 0;\n}\n"
