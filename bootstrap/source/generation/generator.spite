@@ -3734,6 +3734,36 @@ func maybe_null_only_on_the_right(
     return type_shape.as_nullable(right_probe_type) and not type_shape.as_nullable(left_probe_type)
 }
 
+func tested_class_of(
+    expression: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var named = shape.as_generic_call(expression)
+    if named {
+        assert named.names_class
+        crash named.callee
+        var template = try_resolve_static_path(named.callee, class_information.namespace_dotted)
+        assert template
+        if not template.is_generic_template {
+            report(
+                "'{template.simple_name}' takes no codegen values: write '{template.simple_name}' alone to test for it",
+            )
+            return null
+        }
+        return instantiate_generic(template, named.type_arguments, class_information.namespace_dotted)
+    }
+    return try_resolve_static_path(expression, class_information.namespace_dotted)
+}
+
+func check_tested_member(information: Analysis.UnionInfo, tested_class: Analysis.ClassInfo) {
+    assert not information.has_member(tested_class.c_name)
+    if information.is_shape {
+        admit_to_union(information, tested_class)
+        return
+    }
+    report("'{tested_class.simple_name}' is not a member of union '{information.simple_name}', so this is never true")
+}
+
 func generate_class_test(
     binary: Syntax.Expressions.BinaryExpression,
     tested_class: Analysis.ClassInfo,
@@ -3753,11 +3783,7 @@ func generate_class_test(
     if tested_union {
         var union_information = find_union_by_c_name(tested_union.c_name)
         if union_information {
-            if not union_information.has_member(tested_class.c_name) {
-                report(
-                    "'{tested_class.simple_name}' is not a member of union '{union_information.simple_name}', so this is never true",
-                )
-            }
+            check_tested_member(union_information, tested_class)
         }
     } else if not type_shape.as_class_ref(value_type) {
         report("'==' with a class asks what class a value is, and a {type_display_name(value_type)} is not an object")
@@ -3793,7 +3819,7 @@ func generate_binary(
     crash binary.left
     crash binary.right
     if binary.operator == 'equal' or binary.operator == 'not_equal' {
-        var tested_class = try_resolve_static_path(binary.right, class_information.namespace_dotted)
+        var tested_class = tested_class_of(binary.right, class_information)
         if tested_class {
             if not try_resolve_static_path(binary.left, class_information.namespace_dotted) {
                 return generate_class_test(binary, tested_class, scope, class_information)
@@ -6613,6 +6639,12 @@ func generate_generic_constructor(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     crash generic_call.callee
+    if generic_call.names_class {
+        report(
+            "a generic class written without '(...)' names the class, which only the right side of '==' or '!=' reads: call it to make one",
+        )
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
     var callee = shape.as_identifier(generic_call.callee)
     if callee {
         if callee.name == "Dictionary" and generic_call.type_arguments.count() == 1 {
@@ -9295,7 +9327,7 @@ func generate_class_narrowing_if(
     crash binary.right
     var subject_identifier = shape.as_identifier(binary.left)
     assert subject_identifier
-    var tested_class = try_resolve_static_path(binary.right, class_information.namespace_dotted)
+    var tested_class = tested_class_of(binary.right, class_information)
     assert tested_class
     var subject = generate_expression(binary.left, scope, class_information)
     var subject_type = subject.get_type()
@@ -9309,11 +9341,7 @@ func generate_class_narrowing_if(
     assert subject_union
     var union_information = find_union_by_c_name(subject_union.c_name)
     if union_information {
-        if not union_information.has_member(tested_class.c_name) {
-            report(
-                "'{tested_class.simple_name}' is not a member of union '{union_information.simple_name}', so this is never true",
-            )
-        }
+        check_tested_member(union_information, tested_class)
     }
     var subject_temporary = next_temporary()
     builder.add_user("\{")

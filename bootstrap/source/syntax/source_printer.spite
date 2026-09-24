@@ -155,6 +155,7 @@ func broken_expression(expression: Syntax.Expressions.Expression, depth: Int): S
     }
     var generic_call = shape.as_generic_call(expression)
     if generic_call {
+        assert not generic_call.names_class
         return broken_call(
             generic_call.callee,
             generic_call.arguments,
@@ -570,6 +571,10 @@ func source_call(
 }
 
 func source_generic_call(expression: Syntax.Expressions.GenericCallExpression): String {
+    if expression.names_class {
+        crash expression.callee
+        return "{source_receiver(expression.callee)}<{generic_arguments_text(expression)}>"
+    }
     return source_call(expression.callee, expression.arguments, "<{generic_arguments_text(expression)}>")
 }
 
