@@ -396,3 +396,20 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   self-compile, formatted tree. **Waiting on Mortaro:** D68 vs D10, open questions 12-20, whether the REPL is
   C or Spite (section 14), and milestone 11a's decisions (singleton key, `#` binding comments vs D34, how a
   platform-specific library is tested).
+- 2026-09-23 (evening, Claude Opus 5.5, Mortaro: "do not wait for me, while we have tasks open keep implementing"):
+  **D70 symbols** (Mortaro's answer to D68 vs D10): `SymbolType` joined `SpiteType`; a symbol literal where a
+  `Symbol` is expected is a static entry of a table written only for used symbols (`ensure_symbol`), a `Symbol`
+  decays to `String` wherever text is expected (`as_text`), `Symbol(text)` searches the table
+  (`spite_symbol_find`), and every reflection name -- class, function, argument, attribute, namespace -- is a
+  symbol; `T? == value` also takes the `T?` on the right. **Milestone 11a/11b**: `DynamicLibrary` is a built-in
+  class whose literal constructor arguments pick one library per file and naming rule; foreign calls bind
+  through `spite_foreign_<library>_<symbol>` pointers resolved when the library opens; 'identity', 'camel_case'
+  and 'windows' naming (the abbreviation table read backwards: `abbreviated_words`/`unabbreviated_words`);
+  numbers, Bool, enums, text, lists of numbers and number-only `type` values (by address, written back) cross;
+  `_as_long`/`_as_double`/`_as_text`; header constants; a `_Static_assert` layout check under 'windows'.
+  check.sh builds `fixture.c` files into libraries (gitignored). **15a proposed** in manual.md section 15, with
+  `Memory` and `DynamicLibrary("c", ...)` built additively. Also: `spite <folder>`; storing into a narrowed name
+  writes its `T?` and un-narrows it (walking a chain used to be rejected, and `x = null` stored a default
+  object); `while value` narrows its body; a getter with no attribute is a read-only attribute. Bootstrap note:
+  a new built-in class's runtime C must be wrapped in `#ifdef SPITE_CLASS_ID_<NAME>` for the first seed
+  generation (the old compiler does not define the id), then unwrapped.
