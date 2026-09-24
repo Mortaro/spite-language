@@ -9,12 +9,15 @@ every error in one run as `path:line: error: message (in Class.function)`, and n
 ```
 spite program                           compile and run the folder program/
 spite program --optimized               optimized build (a Build field)
+spite program --debug_memory            print the allocation balance at the end
+spite program --repl_port=4000          serve the REPL; spite connect 4000 --command="..." asks it
 spite program --mode=c                  print the C instead
 spite program -- --serve=true           the program's own arguments, read by Environment
 bash check.sh                           the compiler still compiles itself, and every corpus passes
 ```
 
-A program lives in its own folder. Running `game/game.spite` loads `game/` as a package: every sub folder is a
+A program lives in its own folder, and `spite game` runs it: `launcher/launcher.spite` loads `library/`, then the
+target system's folder of it, then `game/`, whose every sub folder is a
 namespace (`game/engine/renderer/debug.spite` is `Engine.Renderer.Debug`; a file named like its folder is the
 folder's own class). `load("folder")` inside a function loads another package; a file at the same namespace path
 reopens the class: same-named functions and attributes replace, the rest are added.
@@ -40,9 +43,9 @@ func is_alive(): Bool {
 }
 ```
 
-- The file name is the class name (`monster.spite` is `Monster`). Only `generic`, `var`, `func`, `enum`, `union`
-  and `type` may appear at file level, and in that order: `generic` lines, enums, unions, types, variables, the
-  constructor, then functions. Every `var` has a default value.
+- The file name is the class name (`monster.spite` is `Monster`). A file holds declarations only, in this
+  order: a `singleton` line, `generic $name` lines, enums, unions, types, variables, the constructor, then
+  functions. Every `var` has a default value. A name starting with `_` is private to its class.
 - The function named like the class is the constructor. Do not write an empty one: a class without a constructor
   is made from its defaults, and `func Monster() { }` is an error.
 - A program is a folder, and it starts by constructing the class of the file named after the folder
@@ -50,11 +53,17 @@ func is_alive(): Bool {
   `Build()` below, and `Arguments()` is the raw command line anywhere (`.count()`, `.get(0)`, and `.player` for
   `--player=value`, a `String?`).
 - `return` is always written. The return type is written `(): Type`. No return type means it returns `Nothing`.
-- Only `while` exists. There is no `for`, `break` or `continue`. Prefer the member templates below.
+- Only `while` exists. There is no `for`, `break` or `continue`: an early exit is part of the loop's condition.
+  Prefer the member templates below.
+- There is no `self.`: members are read by name. `this` is the instance itself, for handing it to something
+  (`registry.record(this)`); `this.name` is an error.
+- One function per name, no overloading: an argument is cast to the parameter's type. The last parameter may be
+  `...values: List<Type>`, and the caller writes the values one by one.
 - A call is never passed straight into another call: compute it first into a named `var` and pass the name --
   `var token_text = source.slice(start, end)`, then `tokens.append(Token("number", token_text))`. Only a
   constructor may be an argument, one level deep (`Token("number", Text(token_text))` inside `append` is an
   error). The holes of a text are not arguments: `"{names.count()} names"` is fine.
+- The two branches of an `if`/`else` never compute the same call: compute it once before the `if`.
 
 ## Names, comments, unused things
 
@@ -81,10 +90,11 @@ func is_alive(): Bool {
   goes. Two objects that refer to each other leak: clear one side.
 - `List<T>`: `[1, 2, 3]`, `append`, `prepend`, `insert`, `remove_at`, `remove_last`, `remove_first`, `first`,
   `last`, `count`, `contains`, `is_empty`, `clear`, `reverse`, `join` (text, numbers, `Bool` and enum values
-  all join), `list[index]` (a `T?`: out of range
-  gives nothing -- `crash names[index]` narrows it like a path, `crash names.count() == 3` proves `names[0]` to
-  `names[2]`, and `while index < names.count()` proves `names[index]` in the loop body). `Dictionary<T>` (String keys): `set`, `get` (a `T?`), `has`, `remove`, `count`, `keys`, `values`,
-  `dictionary["key"]` (a `T?`, like `list[index]`).
+  all join), `list[index]` (a `T?`: out of range gives nothing -- `crash names[index]` narrows it like a path,
+  `crash names.count() == 3` proves `names[0]` to `names[2]`, and `while index < names.count()` proves
+  `names[index]` in the loop body). `Dictionary<T>` (String keys, insertion order): `set`, `get` (a `T?`), `has`,
+  `remove`, `count`, `keys`, `values`, `dictionary["key"]` (a `T?`, like `list[index]`).
+- A chain of templates, `teams.filter_active().map_lead().sum_age()`, runs as one loop with no list in between.
 - On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Bool` member),
   `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<member>()`,
   `each_<member>()` (a function). A member is an attribute or a function that takes nothing.
@@ -108,12 +118,15 @@ func is_alive(): Bool {
 ## Nothing, null, and failure
 
 - `Monster?` is a value that may be `null`. It must be narrowed before use: `if target { }` (with `else`),
-  `assert target`, `crash target`, or `switch target { Monster: ... Null: ... }`.
+  `assert target`, `crash target`, `while target { }`, or `switch target { Monster: ... Null: ... }`. One
+  `assert a.b.c` narrows the whole path. `null` is never compared against: `value == null` is an error.
   Narrow the name or the path itself -- `assert target`, `assert target.weapon` -- never a local copied from it,
   which is an error. Comparing needs no narrowing: `target.name == "rat"` needs `target` narrowed, but
   `maybe_name == "rat"` is simply false when it is null.
-- A `switch` covers every member; `_:` as the last case answers for the rest, and two cases doing the same thing
-  are an error: write it once as `_:`.
+- A `switch` is over a union or a `T?` and covers every member; `_:` as the last case answers for the rest, and
+  two cases doing the same thing are an error: write it once as `_:`. An enum is compared with `==`, not switched.
+- `value == Monster` is a class test (false for `null`), and `if value == Monster { }` narrows `value` inside. A
+  switch that is one class case and `_:`, each a `return`, is an error: write the `if`, or `return value == Monster`.
 - There are no exceptions and no error values. Three outcomes only:
   - the compiler can know it: a compile error;
   - absence is fine: `assert condition` returns the function's default quietly (`false`, `0`, `""`, `null`,
@@ -121,7 +134,7 @@ func is_alive(): Bool {
     whose body only returns the default -- is an error: write `assert not x`;
   - absence is a bug: `crash condition` halts with
     `spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition<TAB>name=value...`, followed by the
-    asserts that failed before it. A bare `crash` marks a branch that cannot happen.
+    asserts that failed before it. `crash false` marks a branch that cannot happen.
 - A test is a function named `test_...` that crashes when wrong. `tests/tests.spite` finds them all by itself.
 
 ## Metaprogramming
@@ -129,14 +142,20 @@ func is_alive(): Bool {
 - A `Symbol` parameter named inside its function's name answers every attribute:
   `func set_attribute(attribute: Symbol, value: attribute.class) { attributes[attribute] = value }` makes
   `person.set_age(2)` and `person.set_name("x")` work. An exact function always wins.
+- `attribute: Symbol<Label>` ranges over another class's members, read as `label.attributes[attribute]`, and the
+  plural (`show_attributes(label)` for `show_attribute`) calls the template once per attribute, in order.
+- In a generic class, `if $value_type == List { }` (also `Dictionary`, `Null` for any `T?`, `Symbol` for any enum,
+  or an exact type) is decided while compiling, and `$value_type.element_type` names what the type holds.
+- A getter with no setter makes a read-only attribute: `get_fahrenheit()` answers `.fahrenheit`, and assigning
+  it is an error.
 - `person.age = 1` calls `set_age(1)` and `person.age` calls `get_age()` when the class has them.
 - Operators are functions a class may define: `sum`, `subtract`, `multiply`, `divide`, `remainder`, `equals`,
   `less_than`, `greater_than`, `negate`, `get_at(index)`, `set_at(index, value)`. Without `equals`, `==` compares
   identity.
 - Codegen values: `generic $damage_type` and `generic $is_magic`, one per line at the top of `weapon.spite`, and
-  `Weapon<Int, true>(10)` supplies them in that order. The constructor lists none: `func Weapon(damage:
-  $damage_type)`. `$` is for generics only: a `$name` with no `generic` line is an error. `if $is_magic { }` is
-  decided at compile time.
+  `Weapon<Int, true>(10)` supplies them in that order; `Pair("a", 1)` may leave them out when the constructor's
+  arguments say them. The constructor lists none: `func Weapon(damage: $damage_type)`. `$` is for generics only: a
+  `$name` with no `generic` line is an error. `if $is_magic { }` is decided at compile time.
 - Settings: reopen `Environment` in the program's `environment.spite` with one `var` per setting and a literal
   default (`var serve = false`), then read `Environment().serve` anywhere. The value comes from `--serve=true`
   after `--` on the command line, else the `SERVE` environment variable, else the default.
@@ -153,7 +172,12 @@ func is_alive(): Bool {
   `Spite.Function<String, String>` bound to `shouter`, called as `change(text)`), `Monster.instances` (live instances), and
   `Spite.Class.instances` (every class of the program). `class`, bare inside a class's function, is the class
   of the instance it answers on, and a class name reads its own class object: `Monster.name` is `"Monster"`.
-- A class whose file starts with a `singleton` line has one instance: `Journal()` always returns it.
+- A class whose file starts with a `singleton` line has one instance: `Journal()` always returns it, and its
+  constructor takes no arguments.
+- `value.memory` is where a named value lives (`.address`, `.bytes`, `.section`: `'heap'`, `'stack'`,
+  `'constant'`). A container of your own is a generic class over `Memory` (`allocate_bytes`, `resize`, `free`,
+  `allocate_stack_bytes`, `read_long`/`write_long`, ...) and a `TypedMemory<$value_type>` (`read_value`,
+  `write_value`, `release_value`, `value_bytes`), exactly as `library/list.spite` is.
 
 ## Built in classes
 
@@ -169,6 +193,11 @@ run ([concurrency.md](concurrency.md)).
 `Json<T>()` (`write(value): String`, `read(text): T?`, `read_or_crash(text): T`) converts any class, list,
 dictionary, enum, number, `Bool`, `String` or `T?` to JSON and back; `read` skips unknown keys, keeps defaults for
 missing ones, and is `null` on a value of the wrong kind (docs/json.md).
+`DynamicLibrary("ucrtbase.dll", 'identity', "")` calls a native library's functions as members
+(`c_runtime.strlen(text)`, `_as_long`/`_as_double`/`_as_text` for wider results); the standard library's
+`library/windows/`, `linux/` and `mac/` folders reopen the classes each system changes (docs/foreign_libraries.md).
+Every class here, the numbers and `List` included, is a Spite file in `library/`, and a program's own file of the
+same name reopens it: `list.spite` adds a member template, `int.spite` a function on every `Int`.
 
 ## Habits from other languages that Spite rejects
 
