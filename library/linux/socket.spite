@@ -1,0 +1,49 @@
+var library = DynamicLibrary("libc.so.6", 'identity', "")
+
+func start_sockets() {}
+
+func open_socket(): Long {
+    var opened = library.socket(2, 1, 6)
+    if opened >= 0 {
+        var enabled = memory.allocate_bytes(4)
+        memory.write_int(enabled, 0, 1)
+        library.setsockopt(opened, 1, 2, enabled, 4)
+        memory.free(enabled)
+    }
+    return opened
+}
+
+func write_family(address: Long) {
+    memory.write_byte(address, 0, 2)
+}
+
+func bind_address(address: Long): Bool {
+    return library.bind(handle, address, 16) == 0
+}
+
+func listen_for_clients(): Bool {
+    return library.listen(handle, 1) == 0
+}
+
+func accept_handle(): Long {
+    var no_address: Long = 0
+    return library.accept(handle, no_address, no_address)
+}
+
+func connect_address(address: Long): Bool {
+    return library.connect(handle, address, 16) == 0
+}
+
+func receive_into(buffer: Long, bytes: Int): Int {
+    var wanted: Long = bytes
+    return library.recv_as_long(handle, buffer, wanted, 0)
+}
+
+func send_text(text: String): Int {
+    var text_length: Long = text.length()
+    return library.send_as_long(handle, text, text_length, 16384)
+}
+
+func close_handle() {
+    library.close(handle)
+}

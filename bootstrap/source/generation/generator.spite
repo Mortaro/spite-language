@@ -23,6 +23,8 @@ var foreign_symbol_wanted = List<String>()
 var foreign_headers_included = List<String>()
 var function_value_makers = List<String>()
 var read_evaluate_print_loop = false
+var console_loop = false
+var remote_loop_port = 0
 var development = false
 var reflect_function_names = List<String>()
 var body_narrowed_names = List<String>()
@@ -749,10 +751,26 @@ func register_shapes(entry: Discovery.DiscoveredClass) {
             )
             information.is_shape = true
             information.shape_fields = declaration.fields
-            unions.append(information)
+            var reopened = shape_position(information.c_name)
+            if reopened < 0 {
+                unions.append(information)
+            } else {
+                unions[reopened] = information
+            }
         }
         statement_index = statement_index + 1
     }
+}
+
+func shape_position(c_name: String): Int {
+    var index = 0
+    while index < unions.count() {
+        if unions[index].c_name == c_name {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
 }
 
 func shape_field_type(information: Analysis.UnionInfo, field_name: String): Analysis.SpiteType? {
@@ -10109,6 +10127,18 @@ func debug_memory_class_name_table(): String {
     return "\{ {names.join(", ")} }"
 }
 
+func emit_remote_loop_start(entry_class: Analysis.ClassInfo) {
+    var program_symbol = ensure_symbol("program")
+    builder.add_support(
+        "static ReadEvaluatePrintLoop* spite_remote_loop = 0;\nstatic {entry_class.c_name}* spite_remote_program = 0;\nstatic void* spite_remote_loop_thread(void* unused) \{\n(void)unused;\nReadEvaluatePrintLoop_serve(spite_remote_loop, spite_reflect_{entry_class.c_name}({program_symbol}, spite_remote_program));\nreturn 0;\n}",
+    )
+    builder.add_main("spite_remote_program = spite_entry_instance;")
+    builder.add_main("spite_remote_loop = ReadEvaluatePrintLoop_make();")
+    builder.add_main(
+        "ReadEvaluatePrintLoop_listen_in_background(spite_remote_loop, {remote_loop_port}, (int64_t)(intptr_t)&spite_remote_loop_thread);",
+    )
+}
+
 func emit_main(entry_mangled_name: String) {
     var entry_class = find_class_by_c_name(entry_mangled_name)
     assert entry_class
@@ -10117,6 +10147,9 @@ func emit_main(entry_mangled_name: String) {
     builder.add_main("spite_debug_set_class_names(spite_debug_class_name_table, {class_names_by_id.count()});")
     builder.add_main("#endif")
     builder.add_main("{entry_class.c_name}* spite_entry_instance = {entry_class.c_name}_allocate();")
+    if remote_loop_port > 0 {
+        emit_remote_loop_start(entry_class)
+    }
     if entry_class.constructor {
         var arguments = List<String>()
         arguments.append("spite_entry_instance")
@@ -10133,10 +10166,14 @@ func emit_main(entry_mangled_name: String) {
         }
         builder.add_main("{entry_class.constructor.c_name}({arguments.join(", ")});")
     }
-    if read_evaluate_print_loop {
+    if console_loop {
         builder.add_main(
             "\{ ReadEvaluatePrintLoop* spite_loop = ReadEvaluatePrintLoop_make(); while (ReadEvaluatePrintLoop_step(spite_loop, spite_reflect_{entry_class.c_name}({ensure_symbol("program")}, spite_entry_instance))) \{} ReadEvaluatePrintLoop_release(spite_loop); }",
         )
+    }
+    if remote_loop_port > 0 {
+        builder.add_main("ReadEvaluatePrintLoop_wait_for_exit(spite_remote_loop);")
+        builder.add_main("ReadEvaluatePrintLoop_release(spite_remote_loop);")
     }
     builder.add_main("{entry_class.c_name}_release(spite_entry_instance);")
     var singleton_index = 0

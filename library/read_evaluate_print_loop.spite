@@ -1,11 +1,24 @@
+type Answer {
+    succeeded: Bool
+    text: String
+    class_name: String
+}
+
 var console = Console()
+var unresolved = ""
+var server = Socket()
+var thread: Long = 0
 
 func step(program: Spite.Attribute): Bool {
     console.write("spite> ")
     var line = console.read_line()
     if line {
         var trimmed_line = line.trim()
-        if answer(trimmed_line, program) {
+        if trimmed_line != "exit" {
+            var answer = answer(trimmed_line, program)
+            if not answer.text.is_empty() or answer.class_name != "" and answer.class_name != "Nothing" {
+                console.print(answer.text)
+            }
             return true
         }
     }
@@ -13,33 +26,151 @@ func step(program: Spite.Attribute): Bool {
     return false
 }
 
-func answer(command: String, program: Spite.Attribute): Bool {
-    if command == "exit" {
-        return false
+func listen_in_background(port: Int, entry: Long) {
+    if not server.listen_locally(port) {
+        console.error("error: the REPL could not listen on 127.0.0.1:{port}")
+        Program().exit(1)
+        return
     }
-    if command == "help" {
-        console.print(
-            "attributes, functions, a path such as player.health, a path = a literal, a call such as player.heal(3), help, exit",
-        )
-    } else if command == "attributes" {
-        var value_attributes = program.value_attributes()
-        list_attributes(value_attributes)
-    } else if command == "functions" {
-        var value_functions = program.value_functions()
-        list_functions(value_functions)
-    } else if is_assignment(command) {
-        assign(command, program)
-    } else if command.ends_with(")") and command.contains("(") {
-        call(command, program)
-    } else if not command.is_empty() {
-        var path_of = path_of(command)
-        var found = resolve(program, path_of, 0)
-        if found {
-            var shown = shown(found, false)
-            console.print(shown)
+    thread = start_thread(entry)
+    if thread == 0 {
+        console.error("error: the REPL could not start its thread")
+        Program().exit(1)
+    }
+}
+
+func wait_for_exit() {
+    join_thread(thread)
+}
+
+func serve(program: Spite.Attribute) {
+    var serving = true
+    while serving {
+        var client = server.accept_client()
+        if client {
+            serve_client(client, program)
+        } else {
+            serving = false
         }
     }
-    return true
+}
+
+func serve_client(client: Socket, program: Spite.Attribute) {
+    var connected = true
+    while connected {
+        var line = client.read_line()
+        if line {
+            var trimmed_line = line.trim()
+            if trimmed_line == "exit" {
+                client.write_line("\{\"ok\":true,\"value\":\"\",\"type\":\"\"}")
+                client.close()
+                Program().exit(0)
+                return
+            }
+            var answer = answer(trimmed_line, program)
+            var json_line = json_line(answer)
+            connected = client.write_line(json_line)
+        } else {
+            connected = false
+        }
+    }
+    client.close()
+}
+
+func json_line(answer: Answer): String {
+    var text = json_text(answer.text)
+    if answer.succeeded {
+        var class_name = json_text(answer.class_name)
+        return "\{\"ok\":true,\"value\":\"{text}\",\"type\":\"{class_name}\"}"
+    }
+    return "\{\"ok\":false,\"error\":\"{text}\"}"
+}
+
+func json_text(text: String): String {
+    var pieces = List<String>()
+    var start = 0
+    var index = 0
+    var text_length = text.length()
+    while index < text_length {
+        var code = text.code_at(index)
+        var escape = json_escape(code)
+        if not escape.is_empty() {
+            var piece = text.slice(start, index)
+            pieces.append(piece)
+            pieces.append(escape)
+            start = index + 1
+        }
+        index = index + 1
+    }
+    var rest = text.slice(start, text_length)
+    pieces.append(rest)
+    return pieces.join("")
+}
+
+func json_escape(code: Int): String {
+    if code == 34 {
+        return "\\\""
+    }
+    if code == 92 {
+        return "\\\\"
+    }
+    if code == 10 {
+        return "\\n"
+    }
+    if code == 13 {
+        return "\\r"
+    }
+    if code == 9 {
+        return "\\t"
+    }
+    if code < 0 or code >= 32 {
+        return ""
+    }
+    var digits = "0123456789abcdef"
+    return "\\u00{digits.character_at(code / 16)}{digits.character_at(code % 16)}"
+}
+
+func success(text: String, class_name: String): Answer {
+    return {succeeded: true, text: text, class_name: class_name}
+}
+
+func failure(text: String): Answer {
+    return {succeeded: false, text: text, class_name: ""}
+}
+
+func answer(command: String, program: Spite.Attribute): Answer {
+    if command == "help" {
+        return success(
+            "attributes, functions, a path such as player.health, a path = a literal, a call such as player.heal(3), help, exit",
+            "",
+        )
+    }
+    if command == "attributes" {
+        var value_attributes = program.value_attributes()
+        var listed_attributes = listed_attributes(value_attributes)
+        return success(listed_attributes, "")
+    }
+    if command == "functions" {
+        var value_functions = program.value_functions()
+        var listed_functions = listed_functions(value_functions)
+        return success(listed_functions, "")
+    }
+    if is_assignment(command) {
+        return assign(command, program)
+    }
+    if command.ends_with(")") and command.contains("(") {
+        return call(command, program)
+    }
+    if command.is_empty() {
+        return success("", "")
+    }
+    var path_of = path_of(command)
+    var found = resolve(program, path_of, 0)
+    if found {
+        var shown = shown(found, false)
+        return success(shown, found.class.name)
+    }
+    return failure(unresolved)
 }
 
 func is_assignment(command: String): Bool {
@@ -48,15 +179,18 @@ func is_assignment(command: String): Bool {
     return equals >= 0 and (opening < 0 or equals < opening)
 }
 
-func list_attributes(attributes: List<Spite.Attribute>) {
+func listed_attributes(attributes: List<Spite.Attribute>): String {
+    var lines = List<String>()
     var index = 0
     while index < attributes.count() {
-        console.print("{attributes[index].name}: {attributes[index].class.name} = {shown(attributes[index], true)}")
+        lines.append("{attributes[index].name}: {attributes[index].class.name} = {shown(attributes[index], true)}")
         index = index + 1
     }
+    return lines.join("\n")
 }
 
-func list_functions(functions: List<Spite.Function>) {
+func listed_functions(functions: List<Spite.Function>): String {
+    var lines = List<String>()
     var index = 0
     while index < functions.count() {
         var arguments = List<String>()
@@ -66,9 +200,10 @@ func list_functions(functions: List<Spite.Function>) {
             arguments.append("{argument.name}: {argument.class.name}")
             position = position + 1
         }
-        console.print("{functions[index].name}({arguments.join(", ")}): {functions[index].returns.name}")
+        lines.append("{functions[index].name}({arguments.join(", ")}): {functions[index].returns.name}")
         index = index + 1
     }
+    return lines.join("\n")
 }
 
 func path_of(text: String): List<String> {
@@ -101,11 +236,11 @@ func resolve_child(current: Spite.Attribute, path: List<String>, index: Int): Sp
         position = position + 1
     }
     if kind_of(current) == "list" {
-        console.print("index {path[index]} is out of range: {current.name} holds {current.value}")
+        unresolved = "index {path[index]} is out of range: {current.name} holds {current.value}"
     } else if names.is_empty() {
-        console.print("{current.name} is {described(current.class.name)}, which has no attributes")
+        unresolved = "{current.name} is {described(current.class.name)}, which has no attributes"
     } else {
-        console.print("no attribute '{path[index]}' in {current.name}: {names.join(", ")}")
+        unresolved = "no attribute '{path[index]}' in {current.name}: {names.join(", ")}"
     }
     return null
 }
@@ -221,86 +356,85 @@ func is_number(literal: String, fraction: Bool): Bool {
     return digits > 0 and points <= 1
 }
 
-func assign(command: String, program: Spite.Attribute) {
+func assign(command: String, program: Spite.Attribute): Answer {
     var equals = command.index_of("=")
     var target = command.slice(0, equals).trim()
     var command_length = command.length()
     var literal = command.slice(equals + 1, command_length).trim()
     var path = path_of(target)
     if path.is_empty() {
-        console.print("program itself cannot be assigned: name one of its attributes")
-        return
+        return failure("program itself cannot be assigned: name one of its attributes")
     }
     var found = resolve(program, path, 0)
-    assert found
+    if not found {
+        return failure(unresolved)
+    }
+    crash found
     var kind = kind_of(found)
     if kind != "scalar" and kind != "text" {
-        console.print("{target} is {described(found.class.name)}, which the loop cannot assign")
-        return
+        return failure("{target} is {described(found.class.name)}, which the loop cannot assign")
     }
     var text = literal_text(literal, found.class.name)
-    if text {
-        if found.assign(text) {
-            var updated = resolve(program, path, 0)
-            if updated {
-                var shown = shown(updated, false)
-                console.print(shown)
-            }
-        } else {
-            console.print("{literal} is not {described(found.class.name)}, or {target} cannot be assigned")
-        }
-    } else {
-        console.print("type mismatch: {target} is {described(found.class.name)}, and {literal} is not one")
+    if not text {
+        return failure("type mismatch: {target} is {described(found.class.name)}, and {literal} is not one")
     }
+    crash text
+    if not found.assign(text) {
+        return failure("{literal} is not {described(found.class.name)}, or {target} cannot be assigned")
+    }
+    var updated = resolve(program, path, 0)
+    if updated {
+        var shown = shown(updated, false)
+        return success(shown, updated.class.name)
+    }
+    return failure(unresolved)
 }
 
-func call(command: String, program: Spite.Attribute) {
+func call(command: String, program: Spite.Attribute): Answer {
     var opening = command.index_of("(")
     var callee = command.slice(0, opening).trim()
     var command_length = command.length()
     var inside = command.slice(opening + 1, command_length - 1).trim()
     var path = path_of(callee)
     if path.is_empty() {
-        console.print("program is not callable")
-        return
+        return failure("program is not callable")
     }
     var name = path.last()
     path.remove_last()
     var owner = resolve(program, path, 0)
-    assert owner
+    if not owner {
+        return failure(unresolved)
+    }
+    crash owner
     var literals = split_arguments(inside)
     var functions = owner.value_functions()
     var index = 0
     while index < functions.count() {
         if functions[index].name == name {
-            call_found(functions[index], literals)
-            return
+            return call_found(functions[index], literals)
         }
         index = index + 1
     }
     var kind = kind_of(owner)
     if name == "count" and literals.is_empty() and (kind == "list" or kind == "dictionary") {
-        console.print(owner.value)
-        return
+        return success(owner.value, "Int")
     }
     var attributes = owner.value_attributes()
     index = 0
     while index < attributes.count() {
         if attributes[index].name == name {
-            console.print("{callee} is not callable")
-            return
+            return failure("{callee} is not callable")
         }
         index = index + 1
     }
-    console.print("no function '{name}' in {owner.name}: 'functions' lists them")
+    return failure("no function '{name}' in {owner.name}: 'functions' lists them")
 }
 
-func call_found(function: Spite.Function, literals: List<String>) {
+func call_found(function: Spite.Function, literals: List<String>): Answer {
     if literals.count() != function.arguments.count() {
-        console.print(
+        return failure(
             "'{function.name}' takes {function.arguments.count()} argument(s), and this call passes {literals.count()}",
         )
-        return
     }
     var texts = List<String>()
     var index = 0
@@ -310,24 +444,24 @@ func call_found(function: Spite.Function, literals: List<String>) {
         if text {
             texts.append(text)
         } else {
-            console.print(
+            return failure(
                 "type mismatch: {argument.name} is {described(argument.class.name)}, and {literals[index]} is not one",
             )
-            return
         }
         index = index + 1
     }
     var result = function.call_with_text(texts)
-    if result {
-        if result.class.name != "Nothing" {
-            var shown = shown(result, false)
-            console.print(shown)
-        }
-    } else {
-        console.print(
+    if not result {
+        return failure(
             "'{function.name}' cannot take ({literals.join(", ")}): the loop writes numbers, Bool, text and an enum's own values",
         )
     }
+    crash result
+    if result.class.name == "Nothing" {
+        return success("", "Nothing")
+    }
+    var shown = shown(result, false)
+    return success(shown, result.class.name)
 }
 
 func split_arguments(inside: String): List<String> {
