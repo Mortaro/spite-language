@@ -37,8 +37,8 @@ progress log, and `conformance/` is the part that demonstrably works.
 - `Name` (uppercase first letter) is a class or type, including the whole standard library.
 - `$name` is a codegen value: it is replaced at code generation time (see [Codegen values](#9-codegen-values-)).
 - `_name` is private. (This may change.)
-- Keywords: `var func return if else while switch type enum union generic assert crash and or not null true false`
-  (`generic` since D87), plus `singleton`, which is a keyword only as a line of its own at the top of a file
+- Keywords: `var func return if else while switch type enum union generic assert crash and or not null true false this`
+  (`generic` since D87, `this` since D83: the value a function answers on, section 4), plus `singleton`, which is a keyword only as a line of its own at the top of a file
   (D104; it stays usable as a name, since `Spite.Class` has an attribute called `singleton`) — there is
   no `do` (second batch item 2, decided 2026-09-19: with `for` gone, `if value do name` had nothing to match, so
   `if value { } else { }` narrows in place instead, section 5). Writing `do` is a parse error naming the
@@ -176,6 +176,32 @@ does not make an ordinary value like `0.1` print with ugly trailing noise (`0.10
 `%.17g` (`%.9g` for `Float`) instead, as `1e+21` or `1.0000000000000001e-05`; infinity prints `inf` and not a
 number prints `nan` on every platform. **PROVISIONAL** because the exact widths were not explicitly
 confirmed by Mortaro; revisit if a different mapping is wanted.
+
+### Numbers are classes, and `this`  **[implemented]**
+
+D83 (decided by Mortaro, 2026-09-24): every type in the table above, and `Bool`, is a class in `library/`
+(`library/int.spite`, `library/double.spite`, ...), the way `String` is. A number is still a plain C value in
+the emitted code -- the class gives it functions, not a header -- and a function of `Int` receives its `int32_t`
+as the receiver. Inside it, **`this`** is that value: `func doubled(): Int { return this * 2 }`, and
+`count.doubled()` calls it. A number class is reopened like any other (section 11), by a file named after it.
+
+- **Writing a number as text is its `text()`**, in Spite: `Long.text()` writes the digits, `Double.text()` is the
+  shortest-round-trip formatting above (over the digit arithmetic in `library/number_text.spite`), and the
+  smaller types widen and call `Long.text()`. Interpolation (`"{count}"`) calls it. Printing an integer with
+  `console.print` is written straight to the stream by the compiler, with the same digits (proposed by Claude,
+  unconfirmed: a hidden optimisation, D36).
+- **Casting is a function of the class cast to** (D100, decided by Mortaro): each number class has
+  `func from_type(type: Symbol, value: type.class)`, a Symbol codegen function whose symbol ranges over the
+  program's types, so the right-to-left cast of an `Int` into a `Float` is `Float.from_int(value)`. Its body is
+  the compiler's (a C cast, emitted inline, so a cast costs what it did), and `--final-classes` prints the
+  declaration in every number class. `type` may name a parameter and begin a type path for this, although it is
+  a keyword elsewhere (proposed by Claude, unconfirmed).
+- **`this` works in every class** (proposed by Claude, unconfirmed): it is the instance a function answers on,
+  for handing itself to something -- `registry.append(this)`. Reading your own member through it is an error,
+  because a class already reads its members by name: `this.name` is reported as "write 'name', not
+  'this.name'", and `this.text()` as "write 'text()'".
+- A decimal literal is written to the C as a decimal (`1.0`, not `1`), so `1.0 / 3.0` divides as decimals
+  (found on the way: it used to divide integers).
 
 ## 5. Functions  **[implemented]**
 
@@ -831,6 +857,31 @@ nothing in it can be mistaken for a user class. **[implemented]**
 | `Spite.Argument` | `.name: String`, `.class: Spite.Class` |
 | `Spite.Attribute` | `.name: String`, `.class: Spite.Class`, `.value: String` |
 | `Spite.Namespace` | `.name: String` (the segment), `.name_with_namespaces: String` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
+| `Spite.Memory` | `.address: Long`, `.bytes: Long`, `.section: Spite.Memory.Section` (`'heap'`, `'stack'`, `'constant'`) -- what `value.memory` answers (D101) |
+
+**Every member above is a getter, and none has a setter** (D88, decided by Mortaro; built 2026-09-24).
+`library/spite/class.spite` and its neighbours keep the data in private fields (`_name`, `_namespace`,
+`_attributes`, ...) and answer `get_name()`, `get_namespace()` and so on, so `klass.name` reads through the
+ordinary getter interception and `klass.name = ...` is "'name' is read-only" (`diagnostics/reflection_read_only`).
+Everything reflection offers is ordinary code in `library/spite/`, reachable by name at run time and from the
+REPL (D92). The members only the compiler can write -- `value_attributes()`, `value_functions()` and
+`assign(text)` on `Spite.Attribute`, `call_function()` and `call_with_text(arguments)` on `Spite.Function` -- are
+the compiler's reopening of those classes (D82, section 11), printed by `--final-classes` like any member. A class
+of the standard library describes its members too: `Memory.functions` lists every function `Memory` has,
+supplied ones included.
+
+**A name starting with `_` is private** (proposed by Claude, unconfirmed, 2026-09-24; section 2 said so without
+a rule): it is read, written or called only inside its own class (a reopening is inside), and from anywhere
+else it is an error naming the getter when there is one -- "'_name' is private to 'Class': ... and 'name' reads
+it from outside". Without the rule, `klass._name = ...` would undo D88.
+
+**`value.memory` is where a named value lives** (D101, decided by Mortaro; built 2026-09-24, the shape proposed
+by Claude, unconfirmed): a class instance, a list or a dictionary answers with its object, a `String` with its
+characters (`'constant'` for a literal, which is part of the program), and a number held in a local with the
+local itself (`'stack'`) or in an attribute with that attribute (`'heap'`). Only a named value has an address: a
+number computed on the spot is an error. It is built only where a program reads it. A class with an attribute
+of its own named `memory` -- most of the standard library holds one -- answers that attribute instead, the way
+an attribute named `class` shadows `.class`.
 
 **What `.functions` contains** (proposed by Claude, unconfirmed): the functions a class declares, plus the
 Symbol-codegen instances that were actually generated for it -- because those are functions of the class in the
@@ -1433,6 +1484,20 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   replaced) -- see `--final-classes` in [Command line](#13-command-line). The language server reads it too.
   **[planned: an instantiated Symbol codegen function and a used `List<T>`/`Dictionary<T>` helper signature do not appear here
   yet -- only the source classes are declared with]**
+- **What the compiler supplies is a reopening too** (D82, decided by Mortaro: "spite writes that function as if it
+  was reopening that class, so in --final-classes it should show the actual content of that class"). The members
+  whose bodies stay C -- `Memory`'s floor, `DynamicLibrary`'s opening and symbol lookup, `TypedMemory`'s typed
+  slots, a number's `from_type`, the REPL's hooks on `Spite.Attribute`/`Spite.Function`, and the entry addresses of
+  `Concurrent` and `Parallel` -- are declarations the compiler merges into their classes right after `library/` (and
+  its operating system's folder), exactly as a later root merges a file, so a program can still reopen them.
+  Nothing is registered by hand any more (D81). **The form** (proposed by Claude, unconfirmed): **a `func` with a
+  signature and no block** is a member whose body the compiler supplies, which is how `--final-classes` prints it
+  (`func allocate_bytes(bytes: Long): Long`), and reading that back is what lets the printed program compile. It
+  borrows the shape a `type` already uses for a member without a body. Anywhere the compiler supplies nothing by
+  that name, a bodiless `func` is an error ("give it a body"), so it is not a way to declare anything else. The
+  compiler's own reopening is Spite source in `bootstrap/source/generation/prelude.spite`, beside the C each body
+  is; a body the compiler writes per instantiation (`TypedMemory<Int>`, `Float.from_int`) is written by the
+  generator. Supplied names skip the naming lint (`read_int` names the type `Int`), as conversions already did.
 
 ## 12. Style  **[implemented]**
 
@@ -1984,7 +2049,9 @@ directory listing and process spawning).
 | `Console()` | `print(...)`, `write(...)`, `error(...)`, `read_line(): String?` -- see below |
 | `Socket()` (proposed by Claude, unconfirmed) | `listen_locally(port): Bool`, `accept_client(): Socket?`, `connect_locally(port): Bool`, `read_line(): String?`, `write_line(text): Bool`, `close()` -- TCP on `127.0.0.1` only, which `--repl-port` and `spite connect` use (section 14) |
 | `Concurrent(function)`, `Parallel(function)` (proposed by Claude, unconfirmed) | `wait()`: what the function returned; dropping the handle waits for it -- see "Concurrency" below |
-| `DynamicLibrary(file_name, naming, header)`  **[planned]** | every foreign function, constant and type of a native library, resolved by Symbol codegen -- see [Foreign libraries](#17-foreign-libraries-planned) |
+| `DynamicLibrary(file_name, naming, header)` | every foreign function, constant and type of a native library -- see [Foreign libraries](#17-foreign-libraries-planned). `library/dynamic_library.spite` holds its `file_name` and `handle`, its constructor and `drop()`; opening, closing and finding a symbol are the compiler's reopening (D82) |
+| `Memory()` | the floor every other type is built on (D98, D101): `allocate_bytes`, `resize`, `free`, `allocate_stack_bytes`, the typed reads and writes, `copy_bytes`, ... -- see "The floor, named" below. `library/memory.spite` is only the `singleton` line; every function is the compiler's reopening |
+| `TypedMemory<$value_type>()` | `read_value(address, index)`, `write_value(address, index, value)`, `release_value(address, index)`, `value_bytes()`: values of any type in raw memory, reference counts kept right; what `List<T>` keeps its elements with, and what a container of your own uses (D98) |
 
 `Console` is one of them and is a singleton (D52): `Console()` is the same instance everywhere, `Console` is an
 ordinary class name rather than a reserved word, and `console.class.name` is `"Console"` like any other class.
@@ -2140,6 +2207,13 @@ Spite above them:
    `read_long`/`read_double(address: Long, offset: Long)`, the matching `write_*(address, offset, value)`, and
    `copy_bytes(from: Long, to: Long, bytes: Long)`. An address is a `Long`, as section 17 already says a handle is --
    there is still no `Pointer` type, and nothing outside the standard library needs `Memory` at all.
+   **Since D82** `Memory` is `library/memory.spite` (its `singleton` line) plus these functions as the compiler's
+   reopening, declared without a body. **Since D98/D101 it has sections** (built 2026-09-24; the names proposed by
+   Claude, unconfirmed): the heap above, and `allocate_stack_bytes(bytes: Long): Long`, which takes bytes in the
+   calling function's own frame (the compiler emits it inline, as `alloca`) and is gone when that function
+   returns -- the same reads and writes work on either. `TypedMemory<$value_type>` puts values of any type in
+   memory, and `List<T>` is written with it, so nothing about a container is the compiler's any more except its
+   syntax (`[]`, list literals) and the few C paths listed in the containers row of the decision log.
 2. **Text from memory and back**: `Memory.text(address: Long, length: Long): String` copies bytes into a `String`,
    and `Memory.address_of(text: String): Long` lends a string's bytes to C for the length of a call. Literals stay
    static data the compiler writes, as symbols already are (D70).
@@ -2411,6 +2485,13 @@ func drop() {
 `_open`/`_call`/`_resolve`/`_close` are compiler intrinsics; everything above them is ordinary Spite, and
 `--final-classes` prints the whole class with every generated binding, exactly as section 16 item 2 requires of
 all reflection.
+
+**What is built** (2026-09-24, D81/D82): `library/dynamic_library.spite` is the `singleton` line, `file_name` and
+`handle`, a constructor that stores the file and calls `open_library(file)`, and a `drop()` that calls
+`close_library(handle)`; `open_library`, `close_library` and `find_symbol(name, wanted_by)` are the compiler's
+reopening, declared without a body. The naming rule and the calls themselves are still the compiler's
+(`missing_function`/`missing_attribute` are not built), and every call through a `DynamicLibrary` value is a
+foreign call, since `remove` and `exit` are names both a class and a C library could have.
 
 - **`missing_function` and `missing_attribute` are the only two new names in the entire foreign function
   interface.** They are Ruby's `method_missing` resolved at compile time: section 8's rule ("a parameter of class
@@ -3002,3 +3083,8 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (for D95; proposed by Claude, unconfirmed) **The metaprogramming `Json` needs, built as general features.** (1) `attribute: Symbol<Label>` makes a Symbol codegen template range over `Label`'s attributes, with `label.attributes[attribute]` reading and writing that attribute; (2) calling a template by the plural of its symbol (`show_attributes`) calls it once for every attribute in declaration order, as a generated function of those calls, and requires the template to return nothing; (3) `$value_type == X` on a type-bound codegen value folds at compile time, with `List`, `Dictionary`, `Null` (any `T?`) and `Symbol` (any enum) naming kinds and a union naming its members; (4) `$value_type.element_type` / `.value_type` read the codegen values a type was built from; (5) text casts to an enum by name, the first value when none matches. Fixed on the way: a generic instance's name now tells `Int?` from `Sailor?` (both were `Value`, so `Json<Int?>` reused `Json<Sailor?>`), a `T?` of an enum has a C type, and `--final-classes` no longer prints a generic instance's generated functions into the generic's file. Sections 4, 8 and 9. |
 | 2026-09-24 | (implements D95; proposed by Claude, unconfirmed) **`Json<T>` is `library/json.spite`**, with `write(value): String`, `read(text): T?` and `read_or_crash(text): T`, written with the metaprogramming of the previous row and reading through `JsonReader`. Reading skips keys the class does not have, keeps the default of an attribute the text omits, and answers `null` (or crashes, naming the position and what was expected) on a value of the wrong kind or text that is not JSON. Numbers read through the ordinary text cast; `inf`/`nan` and `Symbol` attributes are not handled yet. Section 15, "JSON is reflection, not a library"; `docs/json.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; unifies the D91 and D95 rows above) **One mechanism for a template over another class's members: `Symbol<Class>`.** The `List` templates are now written `member: Symbol<$element_type>`, the same form `Json` uses (`attribute: Symbol<$value_type>`), so which class a symbol ranges over is always written where the symbol is declared and never implied by the class it sits in; a container's template without the range answers nothing. The member may be an attribute or a function that takes no arguments, for any `Symbol<Class>` template, and `x.attributes[member]` reads the field or calls the function (and writes a field). What `List` adds on top is its own: the D15 requirement checks, the `--repl` instantiation of every fitting template, and chain fusion. The generator keeps one representation (the instance records its member's type and owning class) and one reader of `x.attributes[member]`. The plural call (`show_attributes`) still walks attributes only. Sections 8 and 15. |
+| 2026-09-24 | (implements D81/D82; the form proposed by Claude, unconfirmed) **The compiler registers no classes: what it supplies is a reopening, and a supplied member is a `func` without a body.** `register_system_classes` and `add_builtin_function` are gone. `Memory`, `DynamicLibrary` and `TypedMemory` are `library/` files, and the members whose bodies stay C are Spite declarations with no block -- `func allocate_bytes(bytes: Long): Long` -- that the compiler merges into their classes right after `library/`, the same merge a later root gets (section 11), so a program can reopen them and `--final-classes` prints them. Reading a bodiless `func` back is what keeps the printed program compiling (check.sh's round trip). A bodiless `func` the compiler supplies nothing for is an error; supplied names skip the naming lint. The same form now covers the REPL's hooks on `Spite.Attribute`/`Spite.Function` (D92), `Concurrent`/`Parallel`'s `entry_address()`/`address()`, a number's `from_type` (D100) and `TypedMemory`'s slots, whose bodies the generator writes per instantiation. A supplied body starting `#define` is emitted inline (`Memory.allocate_stack_bytes`). A reopening that repeats an `enum`, a `generic` line or the `singleton` line replaces it instead of declaring it twice. A singleton's `copy()` and `deep_copy()` answer itself. Section 11, and section 17 for `DynamicLibrary`. |
+| 2026-09-24 | (implements D79/D83; the readings proposed by Claude, unconfirmed) **Numbers are value classes in `library/`, and `this` is a keyword.** `library/int.spite`, `long`, `float`, `double`, `bool`, `tiny`, `short`, `byte`, `unsigned_short`, `unsigned_int` and `unsigned_long` are classes whose functions take the plain C value as their receiver; `this` names it (and, in any class, the instance itself: `registry.append(this)`), while `this.member` is an error naming the plain form. `text()` is Spite on `Long`, `UnsignedLong` and `Double` (the shortest-round-trip digits, over `library/number_text.spite`'s arithmetic), and interpolation calls the class's `text()`; `library/number_text.spite`'s `long_text`/`double_text` are gone. `String` gained the `to_tiny()` ... `to_unsigned_long()` the manual already promised (they did not exist), and casting text into a number calls them. Found on the way: a decimal literal such as `1.0` was written to C as `1`, so `1.0 / 3.0` divided integers; it is written as a decimal now. Compiling the compiler takes the same time as before. Section 4. |
+| 2026-09-24 | (implements D88 and D92; proposed by Claude, unconfirmed) **Reflection keeps its data in private fields behind getters, and `_` means private.** `Spite.Class`, `Spite.Attribute`, `Spite.Function`, `Spite.Argument` and `Spite.Namespace` hold `_name`, `_namespace`, `_attributes`, ... and answer `get_name()` and the rest with no setter, so a write is the read-only error (`diagnostics/reflection_read_only`). A name starting with `_` is used only inside its own class -- the manual said `_name` is private without a rule, and without one `klass._name = ...` would undo D88. A member template's member may be a getter (`functions.map_name()`), and the REPL's templates list getters rather than private fields. A class of the standard library lists its functions through reflection (`Memory.functions`), where before only a program's own classes did. Section 8. |
+| 2026-09-24 | (implements D98 and D101; the names proposed by Claude, unconfirmed) **`Memory` has a stack section, `TypedMemory<$value_type>` holds values of any type, and `value.memory` is where a named value lives.** `Memory.allocate_stack_bytes(bytes)` takes bytes in the calling function's frame (inline `alloca`, gone when the function returns). `TypedMemory`'s `read_value`, `write_value`, `release_value` and `value_bytes` keep reference counts right for their type, one shared instance per type; `List<T>` keeps its elements with it, so the compiler no longer adds `read_item`/`write_item`/`release_item`/`item_bytes` to every list, and `fused_chain_allocations` counts the one `TypedMemory` its lists share (11, was 10). `value.memory` answers a `Spite.Memory` (`library/spite/memory.spite`) with `address`, `bytes` and `section` (`'heap'`, `'stack'`, `'constant'`; `static` is a C word the name lint refuses). `docs/memory.md` builds a ring buffer and a stack sum on them. Sections 8 and 15. |
+| 2026-09-24 | (implements D100; proposed by Claude, unconfirmed) **A Symbol parameter named `type` ranges over the program's types, and the number casts go through `from_type`.** Every number class has the compiler's `func from_type(type: Symbol, value: type.class)`; `from_int`, `from_unsigned_long` and the rest are instantiated when a cast needs them, with a body that is an inline C cast, and a right-to-left cast between two numbers calls the target's. `type` may name a parameter and begin a type path (`type.class`) for this, although it is a keyword elsewhere. The instances are not printed by `--final-classes` (the template is). A cast written before its target class is resolved (an attribute default in a class discovered earlier) still emits the plain C cast; the value is the same. Section 4. |

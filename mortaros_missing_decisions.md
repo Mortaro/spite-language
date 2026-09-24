@@ -103,3 +103,33 @@ manual argues it.
 26. **The number test is ten comparisons** (`$value_type == Int or $value_type == Long or ...`) because a union of
     number types is not allowed (a union's members are classes). A `Number` kind like `List` would read better,
     but it would be a name that is not a class. Which do you prefer, or should unions admit numbers?
+
+## From D82, D83, D88, D92, D98, D100 and D101 (the compiler's reopening, numbers, reflection, memory)
+
+27. **A `func` without a body** is how a member the compiler supplies is written, in its reopening and in
+    `--final-classes` (`func allocate_bytes(bytes: Long): Long`); anywhere else it is an error. It borrows the
+    shape a `type` uses for a member without a body. The alternative is a marker of some other kind; say if you
+    want one. Manual section 11, "What the compiler supplies is a reopening too".
+28. **`_` now means private, enforced**: a `_name` is read, written or called only inside its own class. D88
+    needed it (otherwise `klass._name = ...` undoes the read-only getters), and section 2 already said `_name` is
+    private. Open question 6 (whether `_` means private *and* unused) is still yours.
+29. **`this` in every class**, not only numbers (`registry.append(this)`), with `this.member` an error. D83 said
+    "if needed"; say if it should stay number-only.
+30. **`value.memory` is shadowed by an attribute named `memory`**, and most of the standard library holds
+    `var memory = Memory()`. Either rename those attributes (`heap`?) or give the reflection another name.
+    Also the names: `Spite.Memory`, its sections `'heap'`, `'stack'`, `'constant'` (`static` is a C word).
+31. **Stack memory is `memory.allocate_stack_bytes(bytes)`**, gone when the calling function returns. The lifetime
+    rule is C's `alloca`: nothing stops a program from keeping the address, and each call inside a loop takes
+    more of the frame. A safer form would be a region a function declares (a typed local the compiler sizes);
+    that is syntax, so it waits for you.
+32. **`TypedMemory<$value_type>`** is the name of what reads and writes values of any type in raw memory
+    (`read_value`, `write_value`, `release_value`, `value_bytes`), one shared instance per type.
+33. **`from_type` is an instance function on the class cast to** (as D100 wrote it), so calling it by hand reads
+    `0.0.from_int(count)`; the compiler calls it for every number cast. A cast written in Spite inside a reopened
+    `from_type` would call itself, so a reopening can only replace it with the same C cast. A class-level form
+    (`Float.from_int(count)`, D6's class object) would read better.
+34. **Printing an integer** with `console.print` writes the digits directly rather than calling `Int.text()`, so a
+    program that reopens `Int.text()` changes interpolation but not printing. It is the faster path; say if a
+    reopened `text()` should win everywhere.
+35. **Unions of numbers**: item 26 asked whether unions should admit numbers. With D83 every number is a class in
+    `library/`, so a union of number classes is no longer a union of names that are not classes.
