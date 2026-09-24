@@ -1,0 +1,8 @@
+generic $held_type
+
+var console = Console()
+
+func describe() {
+    var element = Holder<$held_type.value_type>()
+    console.print(element.class)
+}

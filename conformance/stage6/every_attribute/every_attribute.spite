@@ -1,0 +1,23 @@
+var console = Console()
+
+func EveryAttribute() {
+    var recipe = Recipe()
+    var describer = Describer<Recipe>()
+    var description = describer.describe(recipe)
+    console.print(description)
+    recipe.title = "stew"
+    recipe.servings = 9
+    recipe.course = 'feast'
+    describer.reset_title(recipe, Recipe())
+    console.print(recipe.title, recipe.servings, recipe.course)
+    describer.reset_attributes(recipe, Recipe())
+    console.print(recipe.title, recipe.servings, recipe.course)
+    var named: Recipe.Course = "dessert"
+    var unknown: Recipe.Course = "brunch"
+    console.print(named, unknown)
+    var portion_lines = List<String>()
+    describer.describe_portions(recipe, portion_lines)
+    var portion_line = portion_lines.first()
+    var shown = describer.show_portions(recipe)
+    console.print(portion_line, shown)
+}

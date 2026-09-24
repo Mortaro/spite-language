@@ -80,3 +80,26 @@ manual argues it.
     value is first used. Say which you want.
 20. **A thread pool for `Parallel`**, and whether `parallel_each_` templates (D35 item 3) come before the engine
     needs them.
+
+## What the standard library offers
+
+21. **Go's standard library against Spite's**, package by package, with a suggested order of what to add:
+    [mortaros_go_standard_library_comparison.md](mortaros_go_standard_library_comparison.md).
+
+## From D93 and D95 (directories and JSON)
+
+22. **`Directory.Entry`** is the name of the union of `Directory` and `File` that `entries()` answers; folders
+    come first, then files, each sorted. Should `files()` and `folders()` go now that `entries()` exists (the
+    compiler's own discovery still reads names)? Manual section 15, "System classes".
+23. **`Json<T>`'s API**: `Json<Order>().write(order)`, `.read(text)` (`Order?`) and `.read_or_crash(text)`. This
+    settles D22's open naming pair as `read`/`read_or_crash`, unless you prefer `to_json`/`to_crashing_json` or
+    `parse_json`/`parse_json_or_crash`. Also `Json` itself: JSON is an abbreviation, but it is the format's name.
+24. **Reading foreign JSON**: unknown keys are skipped, missing attributes keep their defaults, and a value of the
+    wrong kind makes the whole read `null`. The alternative for missing attributes is to fail as well.
+25. **The metaprogramming `Json` needed** (manual sections 4, 8, 9): `attribute: Symbol<Label>` for a template
+    over another class's attributes; the plural (`show_attributes`) to call a template for every attribute;
+    `$value_type == List` / `Dictionary` / `Null` / `Symbol` as compile-time type tests; `$value_type.element_type`
+    to name what a container holds; text casting to an enum by name. Each is a new form, so each wants a yes or no.
+26. **The number test is ten comparisons** (`$value_type == Int or $value_type == Long or ...`) because a union of
+    number types is not allowed (a union's members are classes). A `Number` kind like `List` would read better,
+    but it would be a name that is not a class. Which do you prefer, or should unions admit numbers?

@@ -135,6 +135,10 @@ func sum(a: Int, b: Float): Int {
 
 This applies to binary operations, assignment, arguments (toward the parameter type) and `return` (toward the return type).
 
+**Text casts to an enum by its name** (proposed by Claude, unconfirmed; built for D95's `Json`, 2026-09-24):
+`var course: Recipe.Course = name` is the value spelled `name`, or the enum's first value when none is, exactly as
+text that does not parse becomes `0` for an `Int`. Compare `"{course}" == name` to tell the two apart. **[implemented]**
+
 ### Numeric types  **[implemented, PROVISIONAL]**
 
 All the basic types a language has, with written names (decided 2026-09-19:
@@ -1093,6 +1097,31 @@ retained, independent value, so a generated getter is now exactly as safe as an 
 lets D15 (next subsection) treat a field and a zero-argument function as the same member. See `docs/KNOWN_ISSUES.md`
 item 2, closed.
 
+**Another class's attributes, and every attribute at once** (proposed by Claude, unconfirmed; built for D95's
+`Json`, 2026-09-24).  **[implemented]** Two additions, both needed to write JSON with the metaprogramming rather
+than beside it:
+
+- **`attribute: Symbol<Label>` ranges over `Label`'s members** instead of the template's own class: its
+  attributes, and its functions that take no arguments (D15). Inside, `label.attributes[attribute]` is that member
+  of the `Label` passed in -- the field, read or written, or a call to the function -- and `attribute.name` and
+  `attribute.class` mean what they always did. `List`'s member templates are written this way,
+  `member: Symbol<$element_type>` (D91). In a generic class the class is usually the codegen value,
+  `Symbol<$value_type>`; when that value is not a class the template answers nothing.
+- **The plural calls it for every attribute.** `show_attributes(label, lines)`, for a template `show_attribute`
+  whose symbol is `attribute`, calls `show_<name>(label, lines)` once per attribute, in declaration order. It is
+  an ordinary generated function whose body is those calls, so it is typed, visible and shaken like any other,
+  and the template it repeats must return nothing (`diagnostics/every_attribute`). The plural is the word
+  `attributes` already means "all of them" in, which is why it was chosen over a new keyword or loop form: the
+  old compile-time-unrolled `for instance.attributes` went with `for`, and this is its replacement without one.
+
+```
+func show_attribute(attribute: Symbol<Label>, label: Label, lines: List<String>) {
+    lines.append("{attribute.name}: {label.attributes[attribute]}")
+}
+```
+
+`conformance/stage6/every_attribute`, `docs/metaprogramming.md`.
+
 ### Standard library metaprogramming  **[partial]**
 
 D15 (decided by Mortaro, 2026-09-19): **every standard library template names a `<member>`, and a member is a
@@ -1133,9 +1162,10 @@ repositories.each_bump_stars()
 
 **How the templates are written** (D91, decided by Mortaro; the binding rule is proposed by Claude,
 unconfirmed). They are Symbol codegen templates (above) in `library/list.spite`, each a `while` over the list's
-`Memory` buffer: `func filter_member(member: Symbol): List<$element_type>` answers every `filter_<member>` call.
-In `List<$element_type>` the symbol names a member of the *element*, not of the list (whose own attributes are
-its buffer), and `item.attributes[member]` reads it: the field, or a call to the zero-argument function -- the
+`Memory` buffer: `func filter_member(member: Symbol<$element_type>): List<$element_type>` answers every
+`filter_<member>` call. The symbol names a member of the *element*, not of the list (whose own attributes are
+its buffer), because it says so -- `Symbol<$element_type>` is section 8's `Symbol<Label>`, one mechanism for both
+-- and `item.attributes[member]` reads it: the field, or a call to the zero-argument function -- the
 D11 reading, "the value held in that field", applied to D15's members. The generator binds the template to the
 element's member and checks the table above before it compiles the body, so a member that does not fit is still
 the error naming the member, its type and what the template needs; it writes none of the templates' C. Only the
@@ -1212,6 +1242,29 @@ var sword = Weapon<Magic, true>(10)
 
 Conditions on codegen values are decided at compile time and the untaken branch is removed (tree shaking).
 In development mode they are kept as runtime values so live reload can change them.
+
+**Asking what type a generic was given** (proposed by Claude, unconfirmed; built for D95's `Json`, 2026-09-24).
+**[implemented]** When a codegen value is a type, `$value_type == String` is decided at compile time like any
+other condition on a codegen value, and only the branch taken is compiled -- so each branch may use what only
+that type has, which is what lets one generic class treat text, numbers, lists and classes differently. It is
+section 7's class test (D75) asked of a type instead of a value. A type name asks for exactly that type; four
+names ask for a kind, since the type has arguments the test does not want to spell:
+
+| Test | True when the type is |
+|---|---|
+| `$value_type == List` | any `List<T>` |
+| `$value_type == Dictionary` | any `Dictionary<T>` |
+| `$value_type == Null` | any `T?` -- `Null` is a member of the union a `T?` is (D45) |
+| `$value_type == Symbol` | an enum, or `Symbol` -- an enum is a closed list of symbols (D10) |
+
+A union name is true for any of its members. Such a test always folds, `--development` included, because the
+branch it rules out would not compile.
+
+**The types a type was built from are read by their codegen names**: `$value_type.element_type` for a
+`List<$element_type>`, `$value_type.value_type` for a `Dictionary<$value_type>` or a `$value_type?`, and a generic
+class's own names for one of its instances -- the names this section already gives the containers. Reading a name
+the type does not have is an error listing them (`diagnostics/every_attribute`).
+`conformance/stage6/every_attribute`, `docs/metaprogramming.md`.
 
 **How this got here.** The `generics` header line existed to give positional call sites an order to follow;
 Mortaro's objection (2026-09-19) was that a bare first-line declaration "feels outside of our patterns". Three
@@ -1949,7 +2002,7 @@ directory listing and process spawning).
 | Class | Members |
 |---|---|
 | `File(path)` | `read(): String?`, `write(text): Bool`, `append(text): Bool`, `exists(): Bool`, `remove(): Bool` |
-| `Directory(path)` | `files(): List<String>` (names, sorted), `folders(): List<String>` (sorted), `exists(): Bool`, `create(): Bool` |
+| `Directory(path)` | `path: String`, `entries(): List<Directory.Entry>` (D93: every folder and file inside it, as `Directory` and `File` values whose `path` is joined to this one -- see below), `files(): List<String>` (names, sorted), `folders(): List<String>` (sorted), `exists(): Bool`, `create(): Bool` |
 | `Process(command, arguments)` | `run(): Int` (exit code; `arguments` is a `List<String>`, each shell-quoted), `output(): String` (stdout+stderr merged, valid after `run()`) |
 | `Program()` | `exit(code)`: exits the process immediately with `code` |
 | `Console()` | `print(...)`, `write(...)`, `error(...)`, `read_line(): String?` -- see below |
@@ -1964,6 +2017,44 @@ same without the trailing newline), `error(...)` (the same as `print` but to the
 `read_line(): String?` (one line from the input stream without its line break, null only at the end of input
 with nothing read). The entry constructor returning normally is exit code `0`.
 
+**A directory is navigated through its entries** (D93, decided by Mortaro, 2026-09-24).  **[implemented]**
+`Directory` has a `path` exactly as `File` does, and `entries()` answers a `List<Directory.Entry>`, where
+`Directory.Entry` is the union of `Directory` and `File` declared in `library/directory.spite`. Each entry's `path`
+is its parent's joined with its name, so a `switch` tells the two apart and a folder is walked by calling the same
+function on it again (`conformance/stage4/directory_entries`, `docs/standard_library.md`):
+
+```
+func count_files(directory: Directory): Int {
+    var total = 0
+    var entries = directory.entries()
+    var index = 0
+    while index < entries.count() {
+        var entry = entries.get_at(index)
+        switch entry {
+            Directory: total = total + count_files(entry)
+            File: total = total + 1
+        }
+        index = index + 1
+    }
+    return total
+}
+```
+
+What follows is Claude's reading (proposed by Claude, unconfirmed):
+
+- **The name is `Entry`**, namespaced as `Directory.Entry`, because it is what a directory listing calls each of
+  its items and it says nothing the class does not: `DirectoryEntry` would repeat the class it already lives in,
+  and `Path` would claim a text value it is not.
+- **Folders come first, then files, each sorted by name**; `.` and `..` are never listed. It is the order
+  `folders()` then `files()` already give, so the three agree.
+- **`files()` and `folders()` stay**: they answer names rather than values, which is what the compiler's own
+  discovery wants, and each is one line over the same listing. With `entries()` they are redundant, and the
+  proposal is to remove them once nothing in the repository reads names alone.
+- Each operating system's folder still lists a directory its own way (D80); what it supplies is renamed
+  `entry_names(want_folders)`, since `entries()` is now the public listing and Spite has no overloading.
+- Found on the way: a reopened class that declares a `union` again, as `--final-classes` prints `Directory` back
+  out, registered the union twice. A union declared again now replaces the earlier one, as a `type` already did
+  (section 11's rule: the later declaration of a name wins).
 ### Concurrency: `Concurrent`, `Parallel` and hidden waiting  **[implemented on Windows; names and mechanism proposed by Claude, unconfirmed]**
 
 D35 (no function colouring, join on drop), D37 (the compiler injects the REPL's drain points where the program
@@ -2131,7 +2222,7 @@ nothing in the repository is written in a second language and nothing rots out o
 150-300 hand-written lines; generating it fully is a goal, not a day-one requirement, and it shrinks on its own
 as wasm proposals land.
 
-### JSON is reflection, not a library  **[planned]**
+### JSON is reflection, not a library  **[implemented]**
 
 D22 and D23 (decided by Mortaro, 2026-09-19), amended by D31: writing JSON is walking a value's attributes and
 reading it is a series of symbol keyed writes, so JSON needs no machinery of its own: a `type` shape is the JSON
@@ -2144,6 +2235,52 @@ not what Spite programs send each other (see [The wire format](#the-wire-format-
   succeed returns a `T?`, and a variant that crashes exists for callers who want the report instead.
 - Open: the names of that pair. Mortaro sketched `to_json`/`to_crashing_json`; Claude prefers
   `parse_json()`/`parse_json_or_crash()` (unconfirmed).
+
+**`Json<T>`** (D95, decided by Mortaro, 2026-09-24: "json with a generic should be part of our standard library
+using metaprograming to easily convert to and from json").  **[implemented]** `library/json.spite` is one generic
+class, and every conversion it makes is a function the compiler writes from it for the types a program actually
+uses, so a program that never names `Json` carries none of it (D42).
+
+```
+var json = Json<Order>()
+var text = json.write(order)            # String: never fails
+var read = json.read(text)              # Order?: null on text that is not an Order
+var order = json.read_or_crash(text)    # Order: halts, naming the position and what was expected
+```
+
+- **What it is written with** is section 8 and section 9's metaprogramming and nothing else: `if $value_type ==
+  List { }` chooses what a type becomes at compile time, `Json<$value_type.element_type>()` recurses into what a
+  container holds, and a class is walked by a Symbol codegen template over `Symbol<$value_type>`, called for every
+  attribute at once by its plural (`write_attributes`, `read_attributes`). Reading keeps a `JsonReader`
+  (`library/json_reader.spite`), a cursor over the text holding the first failure.
+- **What each type becomes:** `String` is text (`"`, `\` and control characters escaped, `\uXXXX` read back as
+  UTF-8, surrogate pairs included); every number type is a number; `Bool` is `true`/`false`; an enum is its value's
+  name as text; a class is an object with one key per attribute in declaration order; `List<T>` is an array;
+  `Dictionary<T>` is an object; `T?` is `null` or what `T` becomes. Nested classes, lists of lists and
+  dictionaries of classes are the same rules again.
+
+What follows is Claude's reading where D22 and D95 are not specific (proposed by Claude, unconfirmed):
+
+- **The API is a class you make once per type**, `Json<Order>()`, with `write`, `read` and `read_or_crash`. The
+  generic is on the class because that is where Spite puts generics, and naming the type once at the top reads
+  better than naming it on every call. The pair D22 asked for is `read`/`read_or_crash`, following the suffix
+  Claude proposed for `parse_json_or_crash`; `write` needs no pair, since it cannot fail.
+- **Reading input is strict about what it cannot use and lenient about what it does not need** (section 5's
+  three outcomes). A key the class does not have is skipped, whatever it holds, because foreign systems send more
+  than a program asks for. An attribute the text does not mention keeps the default its class declares, which is
+  the value section 4 already gives anything never set. A value of the wrong kind -- text for a number, `null` for
+  an attribute that is not a `T?`, an enum name the enum lacks, a missing brace, anything after the value -- makes
+  `read` answer `null`: the object would be wrong, and a wrong object that looks right is the surprise D27 exists
+  to prevent. `read_or_crash` crashes on the same inputs, and its crash line carries
+  `failure=expected <what> at character <n>`.
+- **A number reads into whatever number type the attribute has** through the ordinary text-to-number cast, so
+  `3.7` read into an `Int` is `3`; JSON has one number type and the class already says which one it wants.
+- **Not handled yet:** a `Float` or `Double` holding infinity or not-a-number is written as `inf`/`nan`, which is
+  not JSON; a `Symbol` attribute (as opposed to an enum) does not read, since text becomes a `Symbol` only through
+  `Symbol(text)` (D70); and `--final-classes` does not print the functions `Json<Order>` generated, because a
+  generic class's file is shared by all its instances.
+
+`tests/json_tests.spite`, `conformance/stage6/json_crash`, `docs/json.md`.
 
 ### examples/calculator  **[implemented]**
 
@@ -2885,4 +3022,8 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D106** (decided by Mortaro, overriding D27's limit where they meet): **an `if` whose whole body returns the default value is an `assert`, and the compiler forces it.** "how comes we keep getting away with `if handle == -1 { return false }` -- compiler should be as pissed at you as i am right now it should force `assert handle != -1`." An `if` with no `else` whose body is only `return` with the return type's default (`false`, `0`, `""`, `null`, or nothing) is an error naming the `assert` of the opposite condition, wherever it stands in the function, not only as its last statement. `assert` therefore works in a function returning any type and returns that type's default, which relaxes D27 ("assert only in functions returning nothing or `T?`"). |
 | 2026-09-24 | (Mortaro) **A comparison of Go's standard library with Spite's**, "so i decide what we offer": `mortaros_go_standard_library_comparison.md`. |
 | 2026-09-24 | (Mortaro, correcting his own spelling) **`operating_system`, not `operational_system`**: "i think the correct term is operating_system and i misspelled this, correct me when i misspell." Every `operational_system` (the `Environment` field of D80, the compiler flag) becomes `operating_system`, which D86 already uses. |
-| 2026-09-24 | **D106 as built** (interpretations proposed by Claude, unconfirmed): **the defaults the rule covers are the literals `false`, `0`, `0.0`, `""` and `null`, and a bare `return`** -- `null` only in a function returning `T?`, where it is the default, and not an enum's first value, an empty list or a fresh object, which are defaults too but are not written as one literal. **The condition is turned around by swapping the comparison** (`==`/`!=`, `<`/`>=`, `>`/`<=`), dropping a leading `not`, adding `not` otherwise, and by De Morgan for `and`/`or`, side by side (`a and b or not c` becomes `(not a or not b) and c`), which reads better than `not (...)` wrapping when the sides are comparisons, as they mostly are. **An `else if` whose body only returns the default is covered too**, as the parser's older bare-`return` rule already did; that rule moved from the parser into the generator, which knows the return type. **In a constructor the message names `crash`**, since D28 still bans `assert` there. The D27 error is gone. **134 sites were rewritten** across `bootstrap/`, `library/` (the linux and mac folders included), `examples/`, `conformance/` and `docs/`, plus the `all_` step of fused chains, which the compiler writes as Spite and now writes as `assert`; 18 `crash x` and `assert x` lines and one `if x` that repeated an `assert x` the rewrite had just made were removed or unwrapped, since they proved nothing. **Every rewritten guard is now an `assert` site**: a failed one enters the D25 trace ring, and a crash after it reports it; no expected output in the repository changed. |
+| 2026-09-24 | (implements D93; proposed by Claude, unconfirmed) **`Directory.entries()` answers a `List<Directory.Entry>`**, the union of `Directory` and `File` declared in `library/directory.spite`, each with its `path` joined to its parent's; folders first, then files, each sorted by name. `files()` and `folders()` stay, answering names, and are proposed for removal once nothing reads names alone; each operating system's listing is renamed `entry_names(want_folders)`. Section 15, "System classes". |
+| 2026-09-24 | (for D95; proposed by Claude, unconfirmed) **The metaprogramming `Json` needs, built as general features.** (1) `attribute: Symbol<Label>` makes a Symbol codegen template range over `Label`'s attributes, with `label.attributes[attribute]` reading and writing that attribute; (2) calling a template by the plural of its symbol (`show_attributes`) calls it once for every attribute in declaration order, as a generated function of those calls, and requires the template to return nothing; (3) `$value_type == X` on a type-bound codegen value folds at compile time, with `List`, `Dictionary`, `Null` (any `T?`) and `Symbol` (any enum) naming kinds and a union naming its members; (4) `$value_type.element_type` / `.value_type` read the codegen values a type was built from; (5) text casts to an enum by name, the first value when none matches. Fixed on the way: a generic instance's name now tells `Int?` from `Sailor?` (both were `Value`, so `Json<Int?>` reused `Json<Sailor?>`), a `T?` of an enum has a C type, and `--final-classes` no longer prints a generic instance's generated functions into the generic's file. Sections 4, 8 and 9. |
+| 2026-09-24 | (implements D95; proposed by Claude, unconfirmed) **`Json<T>` is `library/json.spite`**, with `write(value): String`, `read(text): T?` and `read_or_crash(text): T`, written with the metaprogramming of the previous row and reading through `JsonReader`. Reading skips keys the class does not have, keeps the default of an attribute the text omits, and answers `null` (or crashes, naming the position and what was expected) on a value of the wrong kind or text that is not JSON. Numbers read through the ordinary text cast; `inf`/`nan` and `Symbol` attributes are not handled yet. Section 15, "JSON is reflection, not a library"; `docs/json.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; unifies the D91 and D95 rows above) **One mechanism for a template over another class's members: `Symbol<Class>`.** The `List` templates are now written `member: Symbol<$element_type>`, the same form `Json` uses (`attribute: Symbol<$value_type>`), so which class a symbol ranges over is always written where the symbol is declared and never implied by the class it sits in; a container's template without the range answers nothing. The member may be an attribute or a function that takes no arguments, for any `Symbol<Class>` template, and `x.attributes[member]` reads the field or calls the function (and writes a field). What `List` adds on top is its own: the D15 requirement checks, the `--repl` instantiation of every fitting template, and chain fusion. The generator keeps one representation (the instance records its member's type and owning class) and one reader of `x.attributes[member]`. The plural call (`show_attributes`) still walks attributes only. Sections 8 and 15. |
+| 2026-09-24 | **D106 as built** (interpretations proposed by Claude, unconfirmed): **the defaults the rule covers are the literals `false`, `0`, `0.0`, `""` and `null`, and a bare `return`** -- `null` only in a function returning `T?`, where it is the default, and not an enum's first value, an empty list or a fresh object, which are defaults too but are not written as one literal. **The condition is turned around by swapping the comparison** (`==`/`!=`, `<`/`>=`, `>`/`<=`), dropping a leading `not`, adding `not` otherwise, and by De Morgan for `and`/`or`, side by side (`a and b or not c` becomes `(not a or not b) and c`), which reads better than `not (...)` wrapping when the sides are comparisons, as they mostly are. **An `else if` whose body only returns the default is covered too**, as the parser's older bare-`return` rule already did; that rule moved from the parser into the generator, which knows the return type. **In a constructor the message names `crash`**, since D28 still bans `assert` there. The D27 error is gone. **137 sites were rewritten** across `bootstrap/`, `library/` (the linux and mac folders included), `examples/`, `conformance/` and `docs/`, plus the `all_` step of fused chains, which the compiler writes as Spite and now writes as `assert`; 19 `crash x` and `assert x` lines and one `if x` that repeated an `assert x` the rewrite had just made were removed or unwrapped, since they proved nothing. **Every rewritten guard is now an `assert` site**: a failed one enters the D25 trace ring, and a crash after it reports it. That showed at once in `conformance/stage6/json_crash`: `TextBytes.equals` had become `assert left.length() == right.length()`, so every comparison of two texts of different lengths wrote a line into the ring and the crash report grew one. A length mismatch is the answer `false`, not a guard, so `equals` now returns `left_length == right.length() and ...` as one expression, and no expected output changed. **Open (proposed by Claude):** the library still has predicate asserts on hot paths that fail routinely (`String.matches_at`, `TextBytes.slice`, `Dictionary` probing), which will crowd the 32-entry ring in a long-running program; either the ring should skip asserts in `library/`, or those should be written as expressions like `equals`. |

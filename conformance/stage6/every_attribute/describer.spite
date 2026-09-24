@@ -1,0 +1,21 @@
+generic $described_type
+
+func describe(value: $described_type): String {
+    var lines = List<String>()
+    describe_attributes(value, lines)
+    return lines.join(", ")
+}
+
+func describe_attribute(attribute: Symbol<$described_type>, value: $described_type, lines: List<String>) {
+    var kind = Kind<attribute.class>()
+    var kind_name = kind.name()
+    lines.append("{attribute.name} is {kind_name}")
+}
+
+func reset_attribute(attribute: Symbol<$described_type>, value: $described_type, fresh: $described_type) {
+    value.attributes[attribute] = fresh.attributes[attribute]
+}
+
+func show_attribute(attribute: Symbol<$described_type>, value: $described_type): String {
+    return "{attribute.name} = {value.attributes[attribute]}"
+}

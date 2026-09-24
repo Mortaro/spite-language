@@ -1,0 +1,9 @@
+var console = Console()
+
+func JsonCrash() {
+    var json = Json<Tally>()
+    var tally = json.read_or_crash("\{\"count\": 3}")
+    console.print("count", tally.count)
+    json.read_or_crash("\{\"count\": three}")
+    console.print("never printed")
+}

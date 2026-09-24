@@ -15,11 +15,10 @@ func concat(left: String, right: String): String {
 }
 
 func equals(left: String, right: String): Bool {
-    assert left.length() == right.length()
     var left_address = memory.address_of(left)
     var right_address = memory.address_of(right)
     var left_length = left.length()
-    return memory.compare_bytes(left_address, right_address, left_length) == 0
+    return left_length == right.length() and memory.compare_bytes(left_address, right_address, left_length) == 0
 }
 
 func less(left: String, right: String): Bool {

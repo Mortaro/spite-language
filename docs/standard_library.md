@@ -1,9 +1,9 @@
 # Standard library, task by task
 
-Nothing in the standard library uses true reference counting; ownership follows the same single-owner rule as
-everywhere else (see [memory.md](memory.md)). Every method below returns a default instead of crashing when
-the operation cannot succeed (an out-of-range index, a key that is not present, a `String` that does not
-parse).
+The standard library is ordinary Spite in `library/`, written over `Memory`, and its values are reference
+counted like every other object (see [memory.md](memory.md)). When an operation cannot succeed it says so in
+its type rather than crashing: an index or a key that is not there reads as `T?`, a file that cannot be read
+answers `null`, and text that does not parse as a number reads as `0`.
 
 ## Read a file
 
@@ -58,6 +58,49 @@ has hello true
 ```
 
 `files()`/`folders()` return sorted `List<String>` of names (not full paths).
+
+## Walk a directory tree
+
+A `Directory` has a `path`, the way a `File` does, and `entries()` lists what is inside it as a
+`List<Directory.Entry>`: each entry is a `Directory` or a `File` whose `path` is already joined to its parent's,
+so a `switch` tells them apart and a folder is walked by calling the same function again.
+
+```spite title=directory_walk/directory_walk.spite entry
+var console = Console()
+
+func DirectoryWalk() {
+    var root = Directory(".spite-cache/documentation_walk")
+    var inner = Directory("{root.path}/inner")
+    root.create()
+    inner.create()
+    File("{root.path}/top.txt").write("top")
+    File("{inner.path}/deep.txt").write("deep")
+    walk(root)
+}
+
+func walk(folder: Directory) {
+    var entries: List<Directory.Entry> = folder.entries()
+    var index = 0
+    while index < entries.count() {
+        var entry = entries.get_at(index)
+        switch entry {
+            Directory: {
+                console.print("folder", entry.path)
+                walk(entry)
+            }
+            File: console.print("file", entry.path)
+        }
+        index = index + 1
+    }
+}
+```
+```output
+folder .spite-cache/documentation_walk/inner
+file .spite-cache/documentation_walk/inner/deep.txt
+file .spite-cache/documentation_walk/top.txt
+```
+
+Folders come first, then files, each sorted by name, and `.` and `..` are never listed.
 
 ## Run a process
 
@@ -175,13 +218,13 @@ returns the element itself or `null`. A member is a field or a function that tak
 ## How the member templates are written
 
 The templates are ordinary Spite in `library/list.spite`, over the list's own `Memory` buffer. Each one is a
-Symbol codegen template (see [metaprogramming.md](metaprogramming.md)) whose `Symbol` parameter is named
-`member`; in a list, that symbol names a member of the *element*, and `item.attributes[member]` reads it -- the
-field itself, or a call to the zero-argument function. `filter_member` answers `filter_in_stock`,
+Symbol codegen template (see [metaprogramming.md](metaprogramming.md)) whose parameter is
+`member: Symbol<$element_type>`: the symbol names a member of the *element*, and `item.attributes[member]` reads
+it -- the field itself, or a call to the zero-argument function. `filter_member` answers `filter_in_stock`,
 `filter_is_popular` and every other `filter_<member>` call:
 
 ```
-func filter_member(member: Symbol): List<$element_type> {
+func filter_member(member: Symbol<$element_type>): List<$element_type> {
     var filtered = List<$element_type>()
     var index = 0
     while index < item_count {
@@ -258,11 +301,12 @@ by step, the same program allocates 16 010 times.
 
 ## Write your own member template
 
-A program reopens `List` by putting a `list.spite` in its own folder, and a function there with a `Symbol`
-parameter named after a segment of its name becomes one more template, exactly like the library's:
+A program reopens `List` by putting a `list.spite` in its own folder, and a function there with a
+`Symbol<$element_type>` parameter named after a segment of its name becomes one more template, exactly like the
+library's:
 
 ```spite title=list_average/list.spite
-func average_member(member: Symbol): Float {
+func average_member(member: Symbol<$element_type>): Float {
     assert item_count != 0
     var total = 0.0
     var index = 0
