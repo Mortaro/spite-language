@@ -4729,14 +4729,20 @@ func singleton_call(target_class: Analysis.ClassInfo): String {
         lines.append("{function_c_name}_destroyed = true;")
         lines.append("{target_class.c_name}___destroy(object);")
         lines.append("}")
+        lines.append("static int32_t {function_c_name}_lock = 0;")
         lines.append("{target_class.c_name}* {function_c_name}(void) \{")
+        lines.append("{target_class.c_name}* found = SPITE_SINGLETON_FOUND({function_c_name}_cache);")
+        lines.append("if (found != 0) return found;")
+        lines.append("SPITE_LOCK({function_c_name}_lock);")
         lines.append("if ({function_c_name}_cache == 0) \{")
         lines.append(
             "if ({function_c_name}_destroyed) spite_singleton_used_after_exit(\"{escape_c_string(target_class.qualified_dotted)}\");",
         )
-        lines.append("{function_c_name}_cache = {target_class.c_name}___make();")
+        lines.append("{target_class.c_name}* made = {target_class.c_name}___make();")
         lines.append("spite_singleton_created({function_c_name}_teardown);")
+        lines.append("SPITE_SINGLETON_PUBLISH({function_c_name}_cache, made);")
         lines.append("}")
+        lines.append("SPITE_UNLOCK({function_c_name}_lock);")
         lines.append("return {function_c_name}_cache;")
         lines.append("}")
         var joined_lines = lines.join("\n")
@@ -8303,6 +8309,7 @@ func emit_singleton_teardown() {
     lines.append("static void (**spite_singleton_teardowns)(void) = 0;")
     lines.append("static int32_t spite_singleton_total = 0;")
     lines.append("static int32_t spite_singleton_capacity = 0;")
+    lines.append("static int32_t spite_singleton_list_lock = 0;")
     lines.append("bool spite_singleton_tracked(void) \{")
     lines.append("#ifdef SPITE_DEBUG_MEMORY")
     lines.append("return !spite_allocation_table_busy;")
@@ -8312,6 +8319,7 @@ func emit_singleton_teardown() {
     lines.append("}")
     lines.append("void spite_singleton_created(void (*teardown)(void)) \{")
     lines.append("if (!spite_singleton_tracked()) return;")
+    lines.append("SPITE_LOCK(spite_singleton_list_lock);")
     lines.append("if (spite_singleton_total == spite_singleton_capacity) \{")
     lines.append("spite_singleton_capacity = spite_singleton_capacity == 0 ? 16 : spite_singleton_capacity * 2;")
     lines.append(
@@ -8320,6 +8328,7 @@ func emit_singleton_teardown() {
     lines.append("}")
     lines.append("spite_singleton_teardowns[spite_singleton_total] = teardown;")
     lines.append("spite_singleton_total = spite_singleton_total + 1;")
+    lines.append("SPITE_UNLOCK(spite_singleton_list_lock);")
     lines.append("}")
     lines.append("void spite_singleton_used_after_exit(const char* name) \{")
     lines.append("fflush(stdout);")
@@ -8354,10 +8363,14 @@ func emit_foreign_libraries() {
         crash library < foreign_library_namings.count()
         crash library < foreign_library_headers.count()
         var lines = List<String>()
+        lines.append("static int32_t {accessor}_lock = 0;")
         lines.append("DynamicLibrary* {accessor}(void) \{")
+        lines.append("DynamicLibrary* found = SPITE_SINGLETON_FOUND({accessor}_cache);")
+        lines.append("if (found != 0) return found;")
+        lines.append("SPITE_LOCK({accessor}_lock);")
         lines.append("if ({accessor}_cache == 0) \{")
         lines.append(
-            "{accessor}_cache = DynamicLibrary___make({owned_c_text(foreign_library_files[library])}, {ensure_symbol(foreign_library_namings[library])}, {owned_c_text(foreign_library_headers[library])});",
+            "DynamicLibrary* made = DynamicLibrary___make({owned_c_text(foreign_library_files[library])}, {ensure_symbol(foreign_library_namings[library])}, {owned_c_text(foreign_library_headers[library])});",
         )
         lines.append("{accessor}_tracked = spite_singleton_tracked();")
         var index = 0
@@ -8366,13 +8379,15 @@ func emit_foreign_libraries() {
             crash index < foreign_symbol_wanted.count()
             if foreign_symbol_libraries[index] == library {
                 lines.append(
-                    "spite_foreign_{library}_{index} = (void*)(intptr_t)DynamicLibrary_find_symbol({accessor}_cache, {owned_c_text(foreign_symbol_names[index])}, {owned_c_text(foreign_symbol_wanted[index])});",
+                    "spite_foreign_{library}_{index} = (void*)(intptr_t)DynamicLibrary_find_symbol(made, {owned_c_text(foreign_symbol_names[index])}, {owned_c_text(foreign_symbol_wanted[index])});",
                 )
             }
             index = index + 1
         }
+        lines.append("SPITE_SINGLETON_PUBLISH({accessor}_cache, made);")
         lines.append("}")
-        lines.append("return DynamicLibrary___retain({accessor}_cache);")
+        lines.append("SPITE_UNLOCK({accessor}_lock);")
+        lines.append("return {accessor}_cache;")
         lines.append("}")
         var joined_lines = lines.join("\n")
         builder.add_support(joined_lines)
