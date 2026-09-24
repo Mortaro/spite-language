@@ -929,8 +929,8 @@ nothing in it can be mistaken for a user class. **[implemented]**
 
 | Object | Members |
 |---|---|
-| `Spite.Class` | `.name: Symbol` (D68), `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, plus the class-level functions a class may override ([above](#class-level-functions-and-why-there-are-no-static-functions-planned)) |
-| `Spite.Function` | `.name: String`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `.owner`, `call_function()` |
+| `Spite.Class` | `.name: Symbol` (D68), `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `has_function(name)` (D114; folds on a codegen type), plus the class-level functions a class may override ([above](#class-level-functions-and-why-there-are-no-static-functions-planned)) |
+| `Spite.Function` | `.name: String`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `.owner`, `call_function()`, `name_fits(pattern)` (D116) |
 | `Spite.Argument` | `.name: String`, `.class: Spite.Class` |
 | `Spite.Attribute` | `.name: String`, `.class: Spite.Class`, `.value: String` |
 | `Spite.Namespace` | `.name: String` (the segment), `.name_with_namespaces: String` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
@@ -1260,6 +1260,76 @@ func show_attribute(attribute: Symbol<Label>, label: Label, lines: List<String>)
 ```
 
 `conformance/stage6/every_attribute`, `docs/metaprogramming.md`.
+
+### A class's functions, a folder's classes and a name's pattern  **[implemented; the spellings proposed by Claude, unconfirmed]**
+
+D114, D115 and D116 (decided by Mortaro in the SlopEngine session) are one mechanism: the Symbol templates above,
+ranging over three more things a program already has -- a function's arguments, a folder's classes, and the
+functions whose names fit a pattern -- plus one question a generic asks of its type. Everything is decided while
+compiling: there is no registry, no list walked at run time, and nothing is generated for a name no program
+calls. The spellings below are Claude's (2026-09-24), chosen to be the existing forms read one step further:
+
+- **`$system_type.has_function('run_each')` in a condition folds like `if $is_magic`** (D114). The name is a
+  literal -- a symbol, or text holding a pattern such as `"<phase>_each"` (D116), which is true when some
+  function's name fits it with a non-empty middle. Only the taken branch is compiled, so it may call what only
+  that type has; any other argument is an error (`diagnostics/function_reflection`). It is an ordinary member of
+  `Spite.Class` (`library/spite/class.spite`, D92), so `klass.has_function("boost")` also answers at run time,
+  from `.functions`. Folded, it counts the functions the class declares: not its constructor, not a `_`
+  function, and not what a template generated for it.
+- **`argument: Symbol<$system_type.run_each>` ranges over the arguments of `run_each`** (D114). A `Symbol<X>`
+  already ranged over X's members; a function's members are its arguments. Inside, `argument.name` is the
+  argument's name and `argument.class` its type, written as a type (`Query<argument.class>()`,
+  `): argument.class`, and `argument.class.element_type` for a `List<Row>` argument) or read as a
+  `Spite.Class`. The plural (`count_arguments()`) calls the template once per argument, in order. When
+  `$system_type` has no `run_each`, the template answers nothing and the plural calls nothing.
+- **A template over arguments that returns a value fills a call** (D114): its plural, written as the whole
+  argument list of a call to that same function, passes one value per argument --
+  `system.run_each(row_arguments())` is `system.run_each(row_potion(), row_target())`, evaluated left to
+  right. That is how one generic calls a function of any arity without variadic generics. Anywhere else such a
+  plural is an error naming the call it belongs in, and so is passing it to a different function
+  (`diagnostics/function_reflection`). D77's one-level rule does not apply to it: the call it stands for is
+  written by the compiler.
+- **`system: Symbol<System>` ranges over the classes of every folder named `system`** (D115): `System.Heal`,
+  `Ui.System.Interact` -- a range that names no class or type is read as the end of a dotted namespace, and the
+  classes of every namespace ending in it are walked in order of their dotted names. Inside, `system.class` is
+  the class (so `Runner<system.class>()` instantiates the generic per class) and `system.name` its dotted name;
+  the single instance is named after the whole path (`add_system_ui_system_interact`). A generic class there is
+  skipped, since it has no values to be made with. A range that matches no folder at all is an error, so a typo
+  is not a silent empty walk.
+- **`phase: Symbol<$system_type.phase_each>` ranges over the functions whose names fit `<phase>_each`** (D116):
+  when the parameter's own name is a word of the function name in the range, that word is the hole, exactly as
+  it is in a template's own name. `update_each` gives `phase` = `'update'`; `run_each_before_phase` would match
+  `run_each_before_render`. The plural (`run_phases_each()`) walks the matching functions in declaration order.
+  Inside, `phase.name` is the matched text, and the pattern written as a member -- `system.phase_each(...)` --
+  calls the matched function; another template ranging over `$system_type.phase_each` from inside walks that
+  function's arguments, its instances named for it (`row_potion_in_update_each`) so two matched functions never
+  share one. The engine owns the list of phases and decides what they mean; the language only reads the name.
+
+```gdscript
+func add_system(system: Symbol<System>) {
+    var runner = Runner<system.class>()
+    runners.append(runner)
+}
+
+func run_phase_each(phase: Symbol<$system_type.phase_each>) {
+    counts.clear()
+    count_arguments()
+    ...
+    system.phase_each(row_arguments())
+}
+
+func row_argument(argument: Symbol<$system_type.phase_each>): argument.class {
+    var query = Query<argument.class>()
+    ...
+}
+```
+
+`--final_classes` shows the result as ordinary functions: `add_system_drink_potion()` holding
+`Runner<System.DrinkPotion>()`, and `RunnerDrinkPotion` with `run_update_each()`, `row_potion_in_update_each():
+Potion` and the rest. `conformance/stage6/system_functions` (a `run_each` of two rows and a `run_all` of a list,
+chosen by `has_function`), `conformance/stage6/system_folder` (`system/` and `ui/system/` found with no list),
+`conformance/stage6/system_phases` (two phases run in the engine's order, not the folder's),
+`docs/metaprogramming.md`, `docs/reflection.md`.
 
 ### Standard library metaprogramming  **[partial]**
 
@@ -3570,3 +3640,7 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (proposed by Claude, unconfirmed; a bug found building SlopEngine) **The compiler's own C names join with `___`, and a Spite name has one `_` between words.** A method named `allocate` failed in clang ("conflicting types for 'X_allocate'") because the generator wrote `<Class>_allocate` beside the class's `<Class>_<function>`. Instead of reserving each word, every name the generator makes for a class or function of its own -- allocate, init, default, make, retain, release, class_of, attributes, functions, instances, deep_copy, read_/write_/assign_/call_ accessors, an enum's name, and a function's hot, slot, waiting, perform, call and text_call -- is now `<owner>___<helper>`, and the naming lint rejects `__` inside a name, a trailing `_`, and more than one leading `_`, so no Spite name produces `___`. `copy`, `to_string` and `to_debug` keep their plain names: they are Spite functions every class answers and may declare. `init` stays an error as an abbreviation and `default` as a C keyword. Section 12; `conformance/stage6/generated_names`, `diagnostics/doubled_underscore`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; a bug found building SlopEngine's Vulkan renderer) **A foreign call's arguments cross at the width C wants.** `vkMapMemory(device, memory, 0, size, 0, out)` passed the literal `0` as a 32-bit `int` where C wanted a 64-bit `VkDeviceSize`, leaving the register's upper half undefined, silently. With a header, the call now goes through the header's prototype (`__typeof__(&Symbol)`, with `__builtin_choose_expr` for a `void` result), so C checks the count and converts every argument, allowing only integer-to-pointer conversion (a handle is a `Long`); without one, every signed integer, `Bool` and enum value is passed as `int64_t` and every unsigned one as `uint64_t`, which is what x64 and 64-bit ARM pass in a register or 8-byte slot anyway. Section 17, `docs/foreign_libraries.md`; `conformance/stage6/foreign_library` passes -1 to a `long long` with and without a header, a `Double` to a `float`, a `Long` to a `void*` and calls a `void` function. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; found building SlopEngine's Vulkan renderer, which needed `TypedMemory<Float>` to write a float into a C struct) **`Memory` reads and writes every width a C struct uses**: `read_short`/`write_short` (`Short`), `read_unsigned_short`/`write_unsigned_short` (`UnsignedShort`), `read_unsigned_int`/`write_unsigned_int` (`UnsignedInt`) and `read_float`/`write_float` (`Float`) join the byte, int, long and double ones as bodiless functions the compiler supplies, and lend an address the way the others do (D108). `Tiny` and `UnsignedLong` are left out: `read_byte` and `read_long` hold the same bits, and a cast reads them. Section 15, `docs/memory.md`; `conformance/stage6/memory_floor`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; the spelling D114 left open) **A generic asks its type for a function with `$system_type.has_function('run_each')`, and `Symbol<$system_type.run_each>` ranges over that function's arguments.** `has_function` is an ordinary member of `Spite.Class` (it also answers at run time), and in a condition on a codegen type with a literal name it folds like `if $is_magic`; a non-literal name there is an error. `Symbol<X>` already ranged over X's members, so a function's are its arguments: `argument.name`, `argument.class` as a type or a `Spite.Class`, `argument.class.element_type`, and the plural calling the template per argument in order. A template over arguments that returns a value has one use for its plural: the whole argument list of a call to that function, `system.run_each(row_arguments())`, which passes one value per argument, evaluated left to right, and is exempt from D77 because the compiler writes the call. `has` was not taken alone (vague, SPITE.md), nor `$system_type.run_each.arguments` (a run-time list read at compile time, with no way to reach a call). Section 8; `conformance/stage6/system_functions`, `diagnostics/function_reflection`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; the spelling D115 left open) **`Symbol<System>` ranges over the classes of every folder named `system`.** A range naming no class or type is the end of a dotted namespace, and the classes of every namespace ending in it (`System`, `Ui.System`) are walked in order of their dotted names, generic classes skipped; `system.class` is the class and `system.name` its dotted name, and a range matching no folder is an error. A folder's members are its classes, as a function's are its arguments. `Symbol<Spite.Namespace>` was not taken because `Symbol<Spite.Class>` already means `Spite.Class`'s own attributes, nor a `classes` plural keyword, which would be a second loop form beside the plural. Section 8; `conformance/stage6/system_folder`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; the grammar D116 left open) **A name pattern is written the way a template's own name is: the parameter's name is the hole.** `phase: Symbol<$system_type.phase_each>` ranges over the functions whose names fit `<phase>_each`, `phase.name` is the matched text, `system.phase_each(...)` inside calls the matched function, and a template over `$system_type.phase_each` called from inside walks that function's arguments, its instances named for it (`row_potion_in_update_each`). `has_function("<phase>_each")` asks the same question as a condition. The pattern grammar is only this one hole; what `_each`, `_all` or `run_each_before_<phase>` mean is the engine's, which owns the list of phases. Section 8; `conformance/stage6/system_phases`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; found writing `Sprinkler.has_function('drain')`) **A symbol literal passed where text is wanted is that text, when no enum has a value by that name.** A `Symbol` already read as text everywhere; the literal `'drain'` did not, because an unknown literal was taken for an enum value and failed with "cannot tell which enum". A literal an enum does name keeps meaning that enum value. Section 8, `docs/reflection.md`. |

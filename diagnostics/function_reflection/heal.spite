@@ -1,0 +1,10 @@
+var console = Console()
+
+func run_each(amount: Int, name: String) {
+    console.print(name, amount)
+}
+
+func run_all(amounts: List<Int>) {
+    var amounts_count = amounts.count()
+    console.print(amounts_count)
+}

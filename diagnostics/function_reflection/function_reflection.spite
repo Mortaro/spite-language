@@ -1,0 +1,10 @@
+func FunctionReflection() {
+    var runner = Runner<Heal>()
+    runner.run()
+    find_systems()
+}
+
+func find_system(system: Symbol<Nowhere>) {
+    var runner = Runner<system.class>()
+    runner.run()
+}

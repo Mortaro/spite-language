@@ -151,6 +151,12 @@ func instantiated_function_source(information: Analysis.ClassInfo, function: Ana
     if field {
         var field_spite_type = field.get_type()
         field_type = type_display_name(field_spite_type)
+    } else if function.symbol_field_type {
+        field_type = type_source_name(function.symbol_field_type)
+    }
+    var shown_name = function.symbol_field_name
+    if not function.symbol_display_name.is_empty() {
+        shown_name = function.symbol_display_name
     }
     var parameters = List<String>()
     var index = 0
@@ -168,11 +174,25 @@ func instantiated_function_source(information: Analysis.ClassInfo, function: Ana
     var symbol = function.symbol_name
     var body = Syntax.SourcePrinter().source_statement_list(function.body, 1)
     body = body.replace("attributes[{symbol}]", function.symbol_field_name)
-    body = body.replace("\{{symbol}.name}", function.symbol_field_name)
-    body = body.replace("{symbol}.name", "\"{function.symbol_field_name}\"")
+    body = body.replace("\{{symbol}.name}", shown_name)
+    body = body.replace("{symbol}.name", "\"{shown_name}\"")
     body = body.replace("{symbol}.class", field_type)
+    if not function.symbol_pattern.is_empty() {
+        body = body.replace(".{function.symbol_pattern}(", ".{function.symbol_function_name}(")
+    }
     body = replace_word(body, symbol, "'{function.symbol_field_name}'")
     return "func {function.name}({parameters.join(", ")}){returns} \{\n{body}\n}"
+}
+
+func type_source_name(spite_type: Analysis.SpiteType): String {
+    var class_ref = type_shape.as_class_ref(spite_type)
+    if class_ref {
+        var described = find_class_by_c_name(class_ref.c_name)
+        if described {
+            return described.qualified_dotted
+        }
+    }
+    return type_display_name(spite_type)
 }
 
 func replace_word(text: String, word: String, replacement: String): String {
@@ -1991,6 +2011,17 @@ func find_enum_qualified(owner_qualified: String, name: String): Analysis.EnumIn
     return null
 }
 
+func any_enum_has(value: String): Bool {
+    var index = 0
+    while index < enums.count() {
+        if enums[index].has_value(value) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
 func find_enum_with_value(value: String): Analysis.EnumInfo? {
     var found: Analysis.EnumInfo? = null
     var matches = 0
@@ -2748,7 +2779,7 @@ func instantiate_every_attribute(
         if kind == "function" {
             var range = range_path(template)
             report(
-                "'{template.prefix}{template.symbol_parameter}s{template.suffix}' calls '{declaration.name}' once for every argument of '{range.last()}', and a value for each is only somewhere to go as that call's whole argument list: write 'value.{range.last()}({template.prefix}{template.symbol_parameter}s{template.suffix}(...))', or make '{declaration.name}' return nothing",
+                "'{template.prefix}{template.symbol_parameter}s{template.suffix}' makes one value for each argument of '{range.last()}', so it can only be the whole argument list of a call to '{range.last()}', as in '{range.last()}({template.prefix}{template.symbol_parameter}s{template.suffix}())' -- or '{declaration.name}' has to return nothing",
             )
             return null
         }
@@ -2758,6 +2789,12 @@ func instantiate_every_attribute(
         return null
     }
     var attribute_names = template_attribute_names(information, template)
+    if kind == "namespace" and attribute_names.is_empty() {
+        var range = range_path(template)
+        report(
+            "'{range.join(".")}' in '{declaration.name}' names no class, type or folder: a 'Symbol' over a folder's name walks the classes of every folder by that name, and the program has none",
+        )
+    }
     var saved_class = current_class
     var saved_owner = current_owner
     current_class = information
@@ -4280,6 +4317,10 @@ func coerce_for_store(
         if type_shape.is_symbol(expected_type_without_nullable) {
             return ensure_symbol(enum_literal.value)
         }
+        if type_shape.as_string(expected_type_without_nullable) and not any_enum_has(enum_literal.value) {
+            var symbol_text = ensure_symbol(enum_literal.value)
+            return cast(symbol_text, expected_type_without_nullable, expected_type)
+        }
         var expected_enum = expected_enum_of(expected_type)
         if expected_enum {
             var enum_value_code = enum_value_code(enum_literal, expected_enum)
@@ -5775,6 +5816,9 @@ func generate_method_call(
     var spread = spread_template(arguments_ast, class_information)
     if spread {
         var passed = spread_into(arguments_ast, spread, target_class, function, class_information)
+        if passed.count() != function.parameters.count() {
+            return ExpressionResult("0", Analysis.Types.VoidType())
+        }
         return generate_sequenced_call(
             function.c_name,
             object_result,
@@ -5887,7 +5931,7 @@ func spread_into(
         report(
             "'{passed_text}' fills the arguments of '{range.last()}', one value per argument, so it is only the whole argument list of a call to '{range.last()}', not of '{function.name}'",
         )
-        return arguments_ast
+        return List<Syntax.Expressions.Expression>()
     }
     var expanded = List<Syntax.Expressions.Expression>()
     var index = 0

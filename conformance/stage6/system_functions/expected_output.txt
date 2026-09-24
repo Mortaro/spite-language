@@ -1,0 +1,4 @@
+2 patients with 30 health
+ann drinks tonic and has 15
+bob drinks tonic and has 25
+2 patients with 40 health

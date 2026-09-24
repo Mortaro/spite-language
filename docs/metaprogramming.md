@@ -338,6 +338,251 @@ func CodegenClassName() {
 a column of String
 ```
 
+## A class's functions, a folder's classes and a name's pattern
+
+The templates above range over a class's attributes. They range over three more things a program already has:
+the arguments of one function, the classes of every folder with a given name, and the functions whose names fit
+a pattern. With `has_function`, which asks a generic's type a question while compiling, this is how an engine
+finds its systems and calls them with nothing registered. It all happens at compile time, and only what a program
+calls is generated. These spellings are proposals (manual section 8), not yet confirmed.
+
+### Asking for a function, and walking its arguments
+
+`$target_type.has_function('run_each')` in a condition is decided while compiling, like `if $is_magic`. Only the
+branch taken is compiled, so it may call what only that type has. The name must be written as a literal.
+
+`argument: Symbol<$target_type.run_each>` ranges over the arguments of `run_each`. Inside, `argument.name` is the
+argument's name and `argument.class` is its type. The plural, `describe_arguments()`, calls the template once per
+argument, in order. A template like this that returns a value has one more use: its plural, written as the whole
+argument list of a call to that same function, passes one value per argument. So `target.run_each(made_arguments())`
+means `target.run_each(made_hero(), made_pet())`, evaluated left to right, and one generic calls a function of
+any arity.
+
+```gdscript title=function_arguments/hero.spite
+var name = "Ann"
+```
+```gdscript title=function_arguments/pet.spite
+var name = "Rex"
+```
+```gdscript title=function_arguments/walk.spite
+var console = Console()
+
+func run_each(hero: Hero, pet: Pet) {
+    console.print(hero.name, "walks", pet.name)
+}
+```
+```gdscript title=function_arguments/caller.spite
+generic $target_type
+
+var target: $target_type = null
+var console = Console()
+
+func call() {
+    if $target_type.has_function('run_each') {
+        describe_arguments()
+        target.run_each(made_arguments())
+    } else {
+        var name = $target_type.name
+        console.print(name, "has no run_each")
+    }
+}
+
+func describe_argument(argument: Symbol<$target_type.run_each>) {
+    console.print(argument.name, "is a", argument.class)
+}
+
+func made_argument(argument: Symbol<$target_type.run_each>): argument.class {
+    var made: argument.class = null
+    return made
+}
+```
+```gdscript title=function_arguments/function_arguments.spite entry
+func FunctionArguments() {
+    var walking = Caller<Walk>()
+    walking.call()
+    var heroic = Caller<Hero>()
+    heroic.call()
+}
+```
+```output
+hero is a Hero
+pet is a Pet
+Ann walks Rex
+Hero has no run_each
+```
+
+`Caller<Hero>` keeps only its `else` branch, and the templates over `run_each` are never generated for it. An
+argument of type `List<Row>` names its row type as `argument.class.element_type`. Asking with a name that is not
+written in the code cannot be decided while compiling:
+
+```gdscript title=function_name_error/asker.spite
+generic $target_type
+
+var wanted = "run_each"
+
+func check() {
+    if $target_type.has_function(wanted) {
+        return
+    }
+}
+```
+```gdscript title=function_name_error/function_name_error.spite entry error
+func FunctionNameError() {
+    var asker = Asker<Console>()
+    asker.check()
+}
+```
+```diagnostic
+is decided while compiling, so the name it asks for is written as a literal
+```
+
+### Every class in a folder
+
+`system: Symbol<System>` ranges over the classes of every folder named `system`, however deep:
+`System.Greet` and `Tools.System.Sweep`, in order of their dotted names. A range that names no class or type is
+read as the end of a folder's namespace. Inside, `system.class` is the class, as a type or as a value, and
+`system.name` is its dotted name. The plural calls the template for each class, so adding a file to a `system/`
+folder is how a system is added, with no list anywhere. A range that matches no folder at all is an error.
+
+```gdscript title=folder_walk/system/greet.spite
+var console = Console()
+
+func run() {
+    console.print("greet runs")
+}
+```
+```gdscript title=folder_walk/tools/system/sweep.spite
+var console = Console()
+
+func run() {
+    console.print("sweep runs")
+}
+```
+```gdscript title=folder_walk/tools/broom.spite
+var bristles = 40
+```
+```gdscript title=folder_walk/folder_walk.spite entry
+type Runnable {
+    run()
+}
+
+var runners = List<Runnable>()
+var console = Console()
+
+func FolderWalk() {
+    add_systems()
+    runners.each_run()
+}
+
+func add_system(system: Symbol<System>) {
+    var made: system.class = null
+    runners.append(made)
+    console.print("found", system.name)
+}
+```
+```output
+found System.Greet
+found Tools.System.Sweep
+greet runs
+sweep runs
+```
+
+`Tools.Broom` is not in a `system` folder, so it is not walked. Written with a generic,
+`Runner<system.class>()` makes one `Runner` per class found.
+
+### A name that says when it runs
+
+When the parameter's own name is a word of the function named in the range, that word is a hole, exactly as it
+is in a template's own name: `phase: Symbol<$system_type.phase_all>` ranges over the functions whose names fit
+`<phase>_all`. For `update_all`, `phase.name` is `"update"`. Inside the template, the pattern written as a
+member, `system.phase_all()`, calls the matched function. Another template ranging over
+`$system_type.phase_all` that is called from inside walks the matched function's arguments. The engine owns the
+list of phases, so systems run in the engine's order, whatever order their files are in:
+
+```gdscript title=name_phases/system/draw.spite
+var console = Console()
+
+func render_all() {
+    console.print("draw")
+}
+```
+```gdscript title=name_phases/system/move.spite
+var console = Console()
+
+func update_all() {
+    console.print("move")
+}
+```
+```gdscript title=name_phases/runner.spite
+generic $system_type
+
+var system: $system_type = null
+var placed_in = ""
+
+func Runner() {
+    place_phases_all()
+}
+
+func place_phase_all(phase: Symbol<$system_type.phase_all>) {
+    placed_in = phase.name
+}
+
+func run() {
+    run_phases_all()
+}
+
+func run_phase_all(phase: Symbol<$system_type.phase_all>) {
+    system.phase_all()
+}
+```
+```gdscript title=name_phases/name_phases.spite entry
+type Runnable {
+    placed_in: String
+    run()
+}
+
+var phases = ["update", "render"]
+var runners = List<Runnable>()
+var console = Console()
+
+func NamePhases() {
+    add_systems()
+    phases.each_run_phase()
+}
+
+func add_system(system: Symbol<System>) {
+    var runner = Runner<system.class>()
+    runners.append(runner)
+    console.print(system.name, "runs in", runner.placed_in)
+}
+
+func run_phase(phase: String) {
+    var index = 0
+    while index < runners.count() {
+        run_placed(runners[index], phase)
+        index = index + 1
+    }
+}
+
+func run_placed(runner: Runnable, phase: String) {
+    if runner.placed_in == phase {
+        runner.run()
+    }
+}
+```
+```output
+System.Draw runs in render
+System.Move runs in update
+move
+draw
+```
+
+`--final_classes` shows what was made: `RunnerMove` has `place_update_all()` and `run_update_all()`, and
+`add_systems()` calls `add_system_system_draw()` and `add_system_system_move()`. As a condition,
+`$system_type.has_function("<phase>_all")` asks whether any function fits the pattern. A fuller engine, with
+rows queried per argument and `run_each` called once per combination, is
+`conformance/stage6/system_phases`.
+
 ## Tree shaking
 
 Spite removes what a program does not use, and it can do so exactly, because everything it generates is decided
@@ -348,6 +593,8 @@ at compile time:
   two classes, and each keeps only the branch of `if $is_magic { }` that it takes.
 - A **Symbol codegen template** is compiled only for the names a program calls: a program that never calls
   `sum_price()` has no `sum_price`.
+- **`has_function`** is decided while compiling, and templates over a function's arguments, a folder's classes
+  or a name pattern are expanded into ordinary calls. No list of functions or classes exists at run time.
 - **Reflection** is built only where it is read ([reflection.md](reflection.md)), and a generic class such as
   [`Json`](json.md) exists only for the types a program uses it with.
 - A **class** nothing reaches is not emitted.
