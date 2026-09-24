@@ -1,4 +1,5 @@
 var memory = Memory()
+var values = TypedMemory<$element_type>()
 var items: Long = 0
 var item_count = 0
 var capacity = 0
@@ -15,7 +16,7 @@ func is_empty(): Bool {
 
 func append(value: $element_type) {
     make_room()
-    write_item(item_count, value)
+    values.write_value(items, item_count, value)
     item_count = item_count + 1
 }
 
@@ -33,33 +34,33 @@ func insert(index: Int, value: $element_type) {
     }
     make_room()
     move_items(position, position + 1, item_count - position)
-    write_item(position, value)
+    values.write_value(items, position, value)
     item_count = item_count + 1
 }
 
 func get_at(index: Int): $element_type {
     if index >= 0 and index < item_count {
-        return read_item(index)
+        return values.read_value(items, index)
     }
 }
 
 func find_at(index: Int): $element_type? {
     if index >= 0 and index < item_count {
-        return read_item(index)
+        return values.read_value(items, index)
     }
     return null
 }
 
 func set_at(index: Int, value: $element_type) {
     if index >= 0 and index < item_count {
-        release_item(index)
-        write_item(index, value)
+        values.release_value(items, index)
+        values.write_value(items, index, value)
     }
 }
 
 func remove_at(index: Int) {
     if index >= 0 and index < item_count {
-        release_item(index)
+        values.release_value(items, index)
         move_items(index + 1, index, item_count - index - 1)
         item_count = item_count - 1
     }
@@ -67,8 +68,8 @@ func remove_at(index: Int) {
 
 func remove_last(): $element_type {
     if item_count > 0 {
-        var last_item = read_item(item_count - 1)
-        release_item(item_count - 1)
+        var last_item = values.read_value(items, item_count - 1)
+        values.release_value(items, item_count - 1)
         item_count = item_count - 1
         return last_item
     }
@@ -76,7 +77,7 @@ func remove_last(): $element_type {
 
 func remove_first(): $element_type {
     if item_count > 0 {
-        var first_item = read_item(0)
+        var first_item = values.read_value(items, 0)
         remove_at(0)
         return first_item
     }
@@ -84,20 +85,20 @@ func remove_first(): $element_type {
 
 func first(): $element_type {
     if item_count > 0 {
-        return read_item(0)
+        return values.read_value(items, 0)
     }
 }
 
 func last(): $element_type {
     if item_count > 0 {
-        return read_item(item_count - 1)
+        return values.read_value(items, item_count - 1)
     }
 }
 
 func clear() {
     var index = 0
     while index < item_count {
-        release_item(index)
+        values.release_value(items, index)
         index = index + 1
     }
     item_count = 0
@@ -105,7 +106,7 @@ func clear() {
 
 func reverse() {
     if item_count > 1 {
-        var bytes = item_bytes()
+        var bytes = values.value_bytes()
         var spare = memory.allocate_bytes(bytes)
         var front: Long = 0
         var back: Long = item_count - 1
@@ -123,7 +124,7 @@ func reverse() {
 func contains(value: $element_type): Bool {
     var index = 0
     while index < item_count {
-        if read_item(index) == value {
+        if values.read_value(items, index) == value {
             return true
         }
         index = index + 1
@@ -136,7 +137,7 @@ func join(separator: String): String {
     var total: Long = 0
     var index = 0
     while index < item_count {
-        var piece: String = read_item(index)
+        var piece: String = values.read_value(items, index)
         total = total + piece.length()
         pieces.append(piece)
         index = index + 1
@@ -174,7 +175,7 @@ func copy(): List<$element_type> {
     var copied = List<$element_type>()
     var index = 0
     while index < item_count {
-        var item = read_item(index)
+        var item = values.read_value(items, index)
         copied.append(item)
         index = index + 1
     }
@@ -192,13 +193,13 @@ func make_room() {
         if capacity == 0 {
             grown = 4
         }
-        var bytes = item_bytes()
+        var bytes = values.value_bytes()
         items = memory.resize(items, bytes * grown)
         capacity = grown
     }
 }
 
 func move_items(from: Int, to: Int, moved_count: Int) {
-    var bytes = item_bytes()
+    var bytes = values.value_bytes()
     memory.copy_bytes(items + bytes * from, items + bytes * to, bytes * moved_count)
 }

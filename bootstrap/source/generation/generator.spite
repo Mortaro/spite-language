@@ -89,27 +89,6 @@ func allocate_class_id(debug_name: String): Int {
     return class_names_by_id.count() - 1
 }
 
-func no_parameters(): List<Analysis.ParamInfo> {
-    return List<Analysis.ParamInfo>()
-}
-
-func two_parameters(
-    first_name: String,
-    first_type: Analysis.SpiteType,
-    second_name: String,
-    second_type: Analysis.SpiteType,
-): List<Analysis.ParamInfo> {
-    var parameters = one_parameter(first_name, first_type)
-    parameters.append(Analysis.ParamInfo(second_name, second_type))
-    return parameters
-}
-
-func one_parameter(name: String, spite_type: Analysis.SpiteType): List<Analysis.ParamInfo> {
-    var result = List<Analysis.ParamInfo>()
-    result.append(Analysis.ParamInfo(name, spite_type))
-    return result
-}
-
 func generated_functions_source(qualified: String): String {
     var text = ""
     var index = 0
@@ -687,6 +666,7 @@ func instantiated_with(
     instance.codegen_types = types
     instance.codegen_codes = codes
     instance.codegen_texts = texts
+    instance.is_container = template.qualified_dotted == "TypedMemory"
     classes.append(instance)
     builder.add_typedef("typedef struct {label} {label};")
     var saved_owner = current_owner
@@ -6053,40 +6033,6 @@ func supply_list_functions(list_class: Analysis.ClassInfo, element: Analysis.Spi
         index = index + 1
     }
     list_class.functions = kept
-    var integer_type = integer_type()
-    var index_parameter = one_parameter("index", integer_type)
-    var slot = list_item_code(element, "self", "index")
-    supply_function(list_class, "read_item", index_parameter, element, "return {retain_call(element, slot)};")
-    integer_type = integer_type()
-    var write_parameters = two_parameters("index", integer_type, "value", element)
-    var void_type = void_type()
-    supply_function(list_class, "write_item", write_parameters, void_type, "{slot} = value;")
-    void_type = void_type()
-    supply_function(list_class, "release_item", index_parameter, void_type, "{release_statement(element, slot)}")
-    var bytes = "return (int64_t)sizeof({c_type_name(element)});"
-    var no_parameters = no_parameters()
-    var long_type = long_type()
-    supply_function(list_class, "item_bytes", no_parameters, long_type, bytes)
-}
-
-func supply_function(
-    information: Analysis.ClassInfo,
-    name: String,
-    parameters: List<Analysis.ParamInfo>,
-    return_type: Analysis.SpiteType,
-    body: String,
-) {
-    var function = Analysis.FunctionInfo(
-        name,
-        "{information.c_name}_{name}",
-        parameters,
-        return_type,
-        List<Syntax.Statements.Statement>(),
-        false,
-    )
-    function.is_emitted = true
-    information.functions.append(function)
-    builder.add_support("{function_signature(information, function)} \{\n{body}\n}")
 }
 
 func ensure_dictionary(element: Analysis.SpiteType): String {

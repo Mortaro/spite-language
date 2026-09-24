@@ -184,7 +184,7 @@ lays out (D98, D101). A container of your own is written the same way, with noth
   numbers at an address. For values of any type -- a class, a `String`, a nullable number -- a generic class
   holds a `TypedMemory<$value_type>`, whose `read_value(address, index)`, `write_value(address, index, value)`,
   `release_value(address, index)` and `value_bytes()` keep reference counts right for that type. It is one
-  shared instance per type.
+  shared instance per type, and it is exactly what `library/list.spite` uses for its elements.
 
 A ring buffer that keeps the last few values it was given, over the heap, and a sum over the stack:
 
