@@ -6,6 +6,7 @@ var optimized = false
 var development = false
 var repl = false
 var repl_port = 0
+var hot_reload = false
 var format = true
 var debug_memory = false
 var final_classes = ""

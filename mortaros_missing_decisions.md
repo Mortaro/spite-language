@@ -262,33 +262,61 @@ Behaviour that does not match the manual. The language was not changed; each is 
     allocation. Reading a field of it any way but by name (reflection over its attributes) would see nothing.
     Fine as a hidden optimisation (D36)?
 
+## Live reload (D111, D112; manual section 14, "Live reload and 6b")
+
+64. **A changed attribute or enum is refused, with an error saying to restart.** D111 says a change rebuilds "what
+    depends on their layout", but instances already in memory have the old layout. Migrating them -- a new object
+    per instance, attributes copied by name, new ones taking their defaults -- needs every live instance and every
+    reference to each, which nothing finds today (`Class.instances` is not built, and references would have to be
+    re-pointed). Keep refusing, build migration (and how should references be found: a per-class instance list, or
+    one level of indirection per object in `--hot_reload` builds), or something else?
+65. **The REPL keeps the functions the program started with.** A function added by a reload is called by the new
+    code but not listed by `functions` or callable at the prompt until a restart. Should reflection follow reloads?
+66. **The program waits while the library compiles** (under a second for a small program; a game drops frames).
+    Compiling on a helper thread and swapping at the first wait after it finishes costs a second copy of the
+    watcher's flag and nothing else. Worth it now?
+67. **Only the program's own folder is watched**, flat on every system like discovery, not the folders it `load`s;
+    `reload` picks those up. Watch every loaded root too?
+68. **Names**: `reload` and `last_reload` at the prompt, `--mode=reload` for the compiler, and `rebuilt A, B` /
+    `removed A.f` / `nothing changed since the code the program runs` as answers. When the watcher swapped a save
+    in before `reload` arrived, `reload` answers `nothing changed`, and `last_reload` tells what happened. Keep?
+69. **A reload library is never unloaded**, since values it made (its text literals, function values) may still be
+    referenced: each reload leaves a small library loaded. Fine for development builds?
+
+## From D114 (compile-time function reflection, for SlopEngine)
+
+70. **The spelling of D114**: `if $system_type.has('run_each')` and `$system_type.run_each.arguments` (each entry's
+    `.class` as a type, `.name` as a `Symbol`). The mechanism is yours; the spelling was the SlopEngine session's.
+71. **Finding every function named `*_system` across the program** -- the same reflection over the program's
+    classes. Not decided.
+
 ## From D109 (printing through `to_string()`, `Console.debug`; manual sections 5, 8 and 15)
 
-64. **A number, `Bool`, `Symbol` or enum value passed where a `type` is wanted is boxed**: one small allocation,
+72. **A number, `Bool`, `Symbol` or enum value passed where a `type` is wanted is boxed**: one small allocation,
     freed like any object, so `print(count)` costs a box and the `String` its `to_string()` makes, and every
     `print` costs the `List` its values arrive in. The self-compile did not slow measurably, and the two corpus
     programs that pin allocations moved from 29 to 50 and from 11 to 17. Is that an acceptable visible cost, or
     should a variadic list the callee only reads live in the caller's frame (the D108 placement rule, one step
     further)?
-65. **Interpolation does not call a class's `to_string()`**: `console.print(ticket)` prints a `Ticket` that
+73. **Interpolation does not call a class's `to_string()`**: `console.print(ticket)` prints a `Ticket` that
     declares one, and `"{ticket}"` is still the error "a Ticket cannot be used where a String is needed", so text
     is written `"{ticket.to_string()}"`. D107 says interpolation calls `to_string()`; should it for a class too?
-66. **An enum value answers `to_string()` and `to_debug()` and nothing else**, which is what lets it be
+74. **An enum value answers `to_string()` and `to_debug()` and nothing else**, which is what lets it be
     `Printable` and `Debuggable`. Should an enum be able to declare more, the way a number's class does (a file
     per enum is not a thing yet)?
-67. **The cycle rule for `to_debug()`**: an object already being shown further up is written `Name {...}`, found
+75. **The cycle rule for `to_debug()`**: an object already being shown further up is written `Name {...}`, found
     by `==` against the objects of its class being shown (identity, unless the class defines `equals`). A tree of
     distinct objects is shown whole however deep. The alternatives were a depth limit, or `{...}` for any object
     of a class already on the way down (which would cut a linked list after one node).
-68. **What `to_debug()` writes**: `Name { attribute: value }` and `Name {}`, `[a, b]`, `{"key": value}`, text in
+76. **What `to_debug()` writes**: `Name { attribute: value }` and `Name {}`, `[a, b]`, `{"key": value}`, text in
     double quotes with `\"`, `\\` and `\n` escaped, a `Symbol` or enum value as `'name'`, numbers and `Bool` as
     printed, `null`, a `Spite.Class` as its name, a `DynamicLibrary` as its `file_name`. Private `_` attributes
     are left out, because the plural attribute template now skips another class's private attributes instead of
     failing on them, which changes `Json` the same way. Show them instead (a reflection read the plural is
     allowed and nothing else is)?
-69. **The REPL could show values with `to_debug()`**: today it shows `Player { name: hero, ... }` (text unquoted,
+77. **The REPL could show values with `to_debug()`**: today it shows `Player { name: hero, ... }` (text unquoted,
     nested objects as `Name {...}`, lists as `List<String>(...)`) from `Spite.Attribute`'s text, and the
     documented sessions depend on that. Switching means quoting text and nesting fully in every answer. Want it?
-70. **The names**: `Console.debug`, `type Debuggable { to_debug(): String }` beside `Printable`,
+78. **The names**: `Console.debug`, `type Debuggable { to_debug(): String }` beside `Printable`,
     `Spite.Debug<$value_type>` for the text of any value and `Spite.DebugInstance<$value_type>` for walking a
     class instance -- in `Spite` because they are reflection, and so a program cannot reopen them by accident.

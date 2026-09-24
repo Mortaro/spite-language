@@ -11,3 +11,12 @@ func exit_process(code: Int) {
 func environment_address(name: String): Long {
     return library.getenv_as_long(name)
 }
+
+func executable_path(): String {
+    var buffer = memory.allocate_bytes(1032)
+    memory.write_int(buffer, 1024, 1024)
+    library._NSGetExecutablePath(buffer, buffer + 1024)
+    var path = memory.terminated_text(buffer)
+    memory.free(buffer)
+    return path
+}

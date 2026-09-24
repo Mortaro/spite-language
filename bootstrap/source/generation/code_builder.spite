@@ -3,8 +3,12 @@ var prototypes = List<String>()
 var support_bodies = List<String>()
 var user_bodies = List<String>()
 var main_lines = List<String>()
+var slot_lines = List<String>()
+var slot_names = List<String>()
 var shakes = true
 var threads = false
+var hot_reload = false
+var host = HotReloadLibrary()
 
 func add_typedef(line: String) {
     typedefs.append(line)
@@ -20,6 +24,11 @@ func replace_typedef(position: Int, line: String) {
 
 func add_prototype(line: String) {
     prototypes.append(line)
+}
+
+func add_slot(name: String, line: String) {
+    slot_names.append(name)
+    slot_lines.append(line)
 }
 
 func add_support(line: String) {
@@ -55,7 +64,7 @@ func render(): String {
     var main_function = main_text.join("\n")
     var typedef_text = typedefs.join("\n")
     var prototype_lines = prototypes.join("\n")
-    var bodies = "{support_bodies.join("\n")}\n{user_bodies.join("\n")}"
+    var bodies = bodies_text()
     if shakes {
         var shaker = TreeShaker()
         bodies = shaker.shake("{typedef_text}\n{main_function}", bodies)
@@ -65,5 +74,16 @@ func render(): String {
     if threads {
         threads_line = "#define SPITE_THREADS\n"
     }
-    return "{threads_line}{typedef_text}\n{prototype_lines}\n{bodies}\n{main_function}\n"
+    var slot_text = ""
+    if hot_reload {
+        slot_text = "{slot_lines.join("\n")}\n"
+        host.record_host(prototype_lines, bodies)
+        var symbol_table = host.symbol_table()
+        bodies = "{bodies}\n{symbol_table}"
+    }
+    return "{threads_line}{typedef_text}\n{prototype_lines}\n{slot_text}{bodies}\n{main_function}\n"
+}
+
+func bodies_text(): String {
+    return "{support_bodies.join("\n")}\n{user_bodies.join("\n")}"
 }

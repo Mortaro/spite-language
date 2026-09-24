@@ -36,6 +36,14 @@ var unwaiting_loop_line = 0
 var unwaiting_loop_owner = ""
 var unwaiting_loop_function = ""
 var development = false
+var hot_reload = false
+var hot_reload_compiler = ""
+var hot_reload_arguments = ""
+var hot_reload_program_file = ""
+var hot_slot_names = List<String>()
+var hot_slot_owners = List<String>()
+var hot_slot_displays = List<String>()
+var seeded_class_ids = Dictionary<Int>()
 var reflect_function_names = List<String>()
 var body_narrowed_names = List<String>()
 var body_assigned_paths = List<String>()
@@ -106,6 +114,9 @@ func report(message: String) {
 func allocate_class_id(debug_name: String): Int {
     if class_names_by_id.is_empty() {
         class_names_by_id.append("String")
+    }
+    if seeded_class_ids[debug_name] {
+        return seeded_class_ids[debug_name]
     }
     class_names_by_id.append(debug_name)
     return class_names_by_id.count() - 1
@@ -364,13 +375,15 @@ func generate(
     emit_foreign_libraries()
     emit_symbol_table()
     emit_allocation_table()
-    if scheduler_used or remote_loop_port > 0 {
+    if scheduler_used or remote_loop_port > 0 or hot_reload {
         finish_waiting_points()
     }
     emit_main(discovery.launcher_mangled_name)
     emit_pending_functions()
+    emit_hot_reload_support()
     check_remote_loop_waits()
     builder.shakes = not development
+    builder.hot_reload = hot_reload
     return builder.render()
 }
 
@@ -2555,6 +2568,9 @@ func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInf
         }
         if class_path == "concurrent" or class_path == "parallel" {
             function.supplied_body = task_body(information, function.name)
+        }
+        if class_path == "hot_reload" and function.name != "open" {
+            function.supplied_body = hot_reload_body(function.name)
         }
         return
     }
@@ -11454,7 +11470,12 @@ func emit_class_prototypes(information: Analysis.ClassInfo) {
 func emit_class_support(information: Analysis.ClassInfo) {
     var class_id_text = "{information.class_id}"
     var initialize_lines = List<String>()
-    initialize_lines.append("void {information.c_name}_init({information.c_name}* self) \{")
+    var initialize_name = "{information.c_name}_init"
+    if is_hot_class(information) {
+        initialize_name = "{information.c_name}_init_hot"
+        add_hot_initialize_slot(information)
+    }
+    initialize_lines.append("void {initialize_name}({information.c_name}* self) \{")
     var field_index = 0
     while field_index < information.fields.count() {
         var field = information.fields[field_index]
@@ -11639,7 +11660,12 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         var user_count = builder.user_count()
         waiting_positions.append(user_count)
     }
-    builder.add_user("{function_signature(information, function)} \{")
+    var defined_name = function.c_name
+    if is_hot_class(information) {
+        defined_name = "{function.c_name}_hot"
+        add_hot_slot(information, function)
+    }
+    builder.add_user("{named_signature(information, function, defined_name)} \{")
     var scope = Scope(null)
     arguments_parameter_names.clear()
     var parameter_index = 0
@@ -11969,11 +11995,17 @@ func note_waiting_call(target_class: Analysis.ClassInfo, name: String, caller: A
 }
 
 func check_remote_loop_waits() {
-    assert remote_loop_port > 0 and not program_waits and not unwaiting_loop_path.is_empty()
+    assert (remote_loop_port > 0 or hot_reload) and not program_waits and not unwaiting_loop_path.is_empty()
     current_path = unwaiting_loop_path
     current_line = unwaiting_loop_line
     current_owner = unwaiting_loop_owner
     current_function = unwaiting_loop_function
+    if remote_loop_port == 0 {
+        report(
+            "a --hot_reload build swaps its code where the program waits (Program().sleep, Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel), and this program never waits: if this loop does not end, no change ever reaches it. Wait somewhere in the loop, such as 'Program().sleep(1)' at the end of a frame",
+        )
+        return
+    }
     report(
         "a --repl_port build answers its REPL where the program waits (Program.sleep, Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel) and after the entry constructor returns, and this program never waits: if this loop does not end, the REPL never answers. Wait somewhere in the loop, such as 'program.sleep(1)' at the end of a frame",
     )
@@ -11998,7 +12030,7 @@ func waiting_kind(information: Analysis.ClassInfo, function: Analysis.FunctionIn
 }
 
 func finish_waiting_points() {
-    assert scheduler_used or remote_loop_port > 0
+    assert scheduler_used or remote_loop_port > 0 or hot_reload
     builder.threads = true
     var scheduler_class = find_class_by_qualified("Scheduler")
     crash scheduler_class
@@ -12131,6 +12163,13 @@ func program_run_code(): String {
     if remote_loop_port > 0 {
         remote_loop_start(entry_class, lines)
     }
+    var hot_reload_class = find_class_by_qualified("HotReload")
+    if hot_reload {
+        crash hot_reload_class
+        lines.append(
+            "HotReload* spite_hot_reload = {singleton_call(hot_reload_class)}; HotReload_start(spite_hot_reload);",
+        )
+    }
     if entry_class.constructor {
         lines.append("{entry_class.constructor.c_name}(spite_entry_instance);")
     }
@@ -12143,6 +12182,9 @@ func program_run_code(): String {
     if remote_loop_port > 0 {
         lines.append("ReadEvaluatePrintLoop_wait_for_exit(spite_remote_loop);")
         lines.append("ReadEvaluatePrintLoop_release(spite_remote_loop);")
+    }
+    if hot_reload {
+        lines.append("HotReload_release(spite_hot_reload);")
     }
     lines.append("{entry_class.c_name}_release(spite_entry_instance);")
     return "(\{ {lines.join(" ")} (void)0; })"
@@ -12228,4 +12270,196 @@ func emit_main(launcher_mangled_name: String) {
     builder.add_main("#ifdef SPITE_DEBUG_MEMORY")
     builder.add_main("spite_debug_report();")
     builder.add_main("#endif")
+}
+
+func is_hot_class(information: Analysis.ClassInfo): Bool {
+    var program_class = not information.source_path.is_empty() and not is_library_class(information)
+    return hot_reload and program_class and not information.is_value_class
+}
+
+func add_hot_slot(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    var hot_name = "{function.c_name}_hot"
+    builder.add_prototype("{named_signature(information, function, hot_name)};")
+    var slot_declarator = "(*{function.c_name}_slot)"
+    builder.add_slot(function.c_name, "static {named_signature(information, function, slot_declarator)} = {hot_name};")
+    var arguments = List<String>()
+    arguments.append("self")
+    var index = 0
+    while index < function.parameters.count() {
+        arguments.append(function.parameters[index].name)
+        index = index + 1
+    }
+    var returned = "return "
+    var function_return_type = function.get_return_type()
+    if type_shape.is_void(function_return_type) {
+        returned = ""
+    }
+    builder.add_user(
+        "{function_signature(information, function)} \{\n{returned}{function.c_name}_slot({arguments.join(", ")});\n}",
+    )
+    hot_slot_names.append(function.c_name)
+    hot_slot_owners.append(information.c_name)
+    hot_slot_displays.append("{information.qualified_dotted}.{function.name}")
+}
+
+func add_hot_initialize_slot(information: Analysis.ClassInfo) {
+    var initialize_name = "{information.c_name}_init"
+    builder.add_prototype("void {initialize_name}_hot({information.c_name}* self);")
+    builder.add_slot(
+        initialize_name,
+        "static void (*{initialize_name}_slot)({information.c_name}* self) = {initialize_name}_hot;",
+    )
+    builder.add_support("void {initialize_name}({information.c_name}* self) \{\n{initialize_name}_slot(self);\n}")
+    hot_slot_names.append(initialize_name)
+    hot_slot_owners.append(information.c_name)
+    hot_slot_displays.append("{information.qualified_dotted}'s attribute defaults")
+}
+
+func hot_reload_body(name: String): String {
+    if name == "compiler" {
+        return "return {owned_c_text(hot_reload_compiler)};"
+    }
+    if name == "build_arguments" {
+        return "return {owned_c_text(hot_reload_arguments)};"
+    }
+    if name == "program_file" {
+        return "return {owned_c_text(hot_reload_program_file)};"
+    }
+    if name == "watcher_entry" and hot_reload {
+        return "return (int64_t)(intptr_t)&spite_hot_reload_thread;"
+    }
+    if name == "watcher_entry" {
+        return "return 0;"
+    }
+    if not hot_reload {
+        return "(void)library;\nreturn spite_string_from_cstring_owned(\"this program was not built with --hot_reload\");"
+    }
+    return "typedef const char* (*SpiteHotBind)(void* (*)(const char*), int32_t (*)(const char*, void*));\n#ifdef _WIN32\nSpiteHotBind bind = (SpiteHotBind)(void*)GetProcAddress((HMODULE)(intptr_t)library, \"spite_reload_bind\");\n#else\nSpiteHotBind bind = (SpiteHotBind)dlsym((void*)(intptr_t)library, \"spite_reload_bind\");\n#endif\nif (bind == 0) return spite_string_from_cstring_owned(\"spite_reload_bind\");\nconst char* missing = bind(spite_hot_find, spite_hot_install);\nreturn spite_string_from_cstring_owned(missing == 0 ? \"\" : missing);"
+}
+
+func emit_hot_reload_support() {
+    assert hot_reload
+    var hot_reload_class = find_class_by_qualified("HotReload")
+    crash hot_reload_class
+    var hot_reload_instance = singleton_call(hot_reload_class)
+    builder.add_prototype("static void* spite_hot_reload_thread(void* unused);")
+    builder.add_prototype("static void* spite_hot_find(const char* name);")
+    builder.add_prototype("static int32_t spite_hot_install(const char* name, void* address);")
+    builder.add_prototype("void* spite_hot_realloc(void* pointer, size_t size);")
+    builder.add_prototype("void spite_hot_free(void* pointer);")
+    builder.add_support(
+        "static void* spite_hot_reload_thread(void* unused) \{\n(void)unused;\nHotReload* spite_hot_reload = {hot_reload_instance};\nHotReload_watch(spite_hot_reload);\nHotReload_release(spite_hot_reload);\nreturn 0;\n}",
+    )
+    builder.add_support(
+        "void* spite_hot_realloc(void* pointer, size_t size) \{\nreturn SPITE_REALLOC(pointer, size);\n}",
+    )
+    builder.add_support("void spite_hot_free(void* pointer) \{\nSPITE_FREE(pointer);\n}")
+    var names = List<String>()
+    var cells = List<String>()
+    var index = 0
+    while index < hot_slot_names.count() {
+        names.append("\"{hot_slot_names[index]}\"")
+        cells.append("(void**)&{hot_slot_names[index]}_slot")
+        index = index + 1
+    }
+    names.append("0")
+    cells.append("0")
+    builder.add_support(
+        "static const char* spite_hot_slot_names[] = \{ {names.join(", ")} };\nstatic void** spite_hot_slot_cells[] = \{ {cells.join(", ")} };\nstatic int32_t spite_hot_install(const char* name, void* address) \{\nfor (int64_t index = 0; spite_hot_slot_names[index] != 0; index = index + 1) \{\nif (strcmp(spite_hot_slot_names[index], name) == 0) \{ __atomic_store_n(spite_hot_slot_cells[index], address, __ATOMIC_SEQ_CST); return 1; }\n}\nreturn 0;\n}",
+    )
+}
+
+func seed_class_names(names: List<String>) {
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        class_names_by_id.append(name)
+        if not seeded_class_ids.has(name) {
+            seeded_class_ids[name] = index
+        }
+        index = index + 1
+    }
+}
+
+func hot_manifest(): String {
+    return builder.host.host_manifest(hot_slot_names, hot_slot_displays, class_names_by_id, builder.typedefs)
+}
+
+func program_source_paths(): List<String> {
+    var paths = List<String>()
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        if is_hot_class(information) {
+            append_new_path(paths, information.source_path)
+            var function_index = 0
+            while function_index < information.functions.count() {
+                append_new_path(paths, information.functions[function_index].source_path)
+                function_index = function_index + 1
+            }
+        }
+        index = index + 1
+    }
+    return paths
+}
+
+func append_new_path(paths: List<String>, path: String) {
+    if not path.is_empty() and not paths.contains(path) {
+        paths.append(path)
+    }
+}
+
+func classes_of_paths(paths: List<String>): List<String> {
+    var owners = List<String>()
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        var class_paths = List<String>()
+        append_new_path(class_paths, information.source_path)
+        var function_index = 0
+        while function_index < information.functions.count() {
+            append_new_path(class_paths, information.functions[function_index].source_path)
+            function_index = function_index + 1
+        }
+        var path_index = 0
+        while path_index < class_paths.count() {
+            if is_hot_class(information) and paths.contains(class_paths[path_index]) and not owners.contains(information.c_name) {
+                owners.append(information.c_name)
+            }
+            path_index = path_index + 1
+        }
+        index = index + 1
+    }
+    return owners
+}
+
+func reload_library(reload: HotReloadLibrary, changed_paths: List<String>, rebuilt: List<String>): String {
+    var owners = classes_of_paths(changed_paths)
+    var prototype_text = builder.prototypes.join("\n")
+    var bodies = builder.bodies_text()
+    var growing = true
+    while growing {
+        var changed_signatures = reload.changed_signatures(
+            hot_slot_names,
+            hot_slot_owners,
+            owners,
+            prototype_text,
+            bodies,
+        )
+        var callers = reload.callers_of(changed_signatures, hot_slot_names, hot_slot_owners, owners, bodies)
+        growing = not callers.is_empty()
+        var caller_index = 0
+        while caller_index < callers.count() {
+            owners.append(callers[caller_index])
+            caller_index = caller_index + 1
+        }
+    }
+    var index = 0
+    while index < owners.count() {
+        var owner = find_class_by_c_name(owners[index])
+        crash owner
+        rebuilt.append(owner.qualified_dotted)
+        index = index + 1
+    }
+    return reload.library(builder, hot_slot_names, hot_slot_owners, owners)
 }
