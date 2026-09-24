@@ -4242,7 +4242,7 @@ func generate_string_method(
     if name == "split" {
         ensure_list(string_type())
         return generate_borrowing_call(
-            function_c_name,
+            "spite_emitted_split",
             object_result,
             object_ast,
             arguments_ast,
@@ -4255,7 +4255,7 @@ func generate_string_method(
     if name == "lines" {
         ensure_list(string_type())
         return generate_borrowing_call(
-            function_c_name,
+            "spite_emitted_lines",
             object_result,
             object_ast,
             arguments_ast,
@@ -5736,20 +5736,6 @@ func generate_generic_constructor(
     crash generic_call.callee
     var callee = shape.as_identifier(generic_call.callee)
     if callee {
-        var generic_template = find_class(callee.name, class_information.namespace_dotted)
-        if generic_template {
-            if generic_template.is_generic_template {
-                var generic_class = instantiate_generic(
-                    generic_template,
-                    generic_call.type_arguments,
-                    class_information.namespace_dotted,
-                )
-                if generic_class {
-                    return generate_constructor_call(generic_class, generic_call.arguments, scope, class_information)
-                }
-                return ExpressionResult("0", Analysis.Types.VoidType())
-            }
-        }
         if callee.name == "Dictionary" and generic_call.type_arguments.count() == 1 {
             var dictionary_element = resolve_generic_argument(
                 generic_call.type_arguments[0],
@@ -5766,6 +5752,20 @@ func generate_generic_constructor(
             var element = resolve_generic_argument(generic_call.type_arguments[0], class_information.namespace_dotted)
             if element {
                 return ExpressionResult("{ensure_list(element)}_make()", list_type_of(element))
+            }
+        }
+        var generic_template = find_class(callee.name, class_information.namespace_dotted)
+        if generic_template {
+            if generic_template.is_generic_template {
+                var generic_class = instantiate_generic(
+                    generic_template,
+                    generic_call.type_arguments,
+                    class_information.namespace_dotted,
+                )
+                if generic_class {
+                    return generate_constructor_call(generic_class, generic_call.arguments, scope, class_information)
+                }
+                return ExpressionResult("0", Analysis.Types.VoidType())
             }
         }
     }
@@ -6251,13 +6251,13 @@ func emit_list_support(list_name: String, element: Analysis.SpiteType, class_id:
         )
     }
     if type_shape.as_string(element) {
-        builder.add_prototype("List_String* SpiteString_split(SpiteString* self, SpiteString* separator);")
-        builder.add_prototype("List_String* SpiteString_lines(SpiteString* self);")
+        builder.add_prototype("List_String* spite_emitted_split(SpiteString* self, SpiteString* separator);")
+        builder.add_prototype("List_String* spite_emitted_lines(SpiteString* self);")
         builder.add_support(
-            "List_String* SpiteString_split(SpiteString* self, SpiteString* separator) \{\nList_String* result = List_String_make();\nif (separator->length == 0) \{\nfor (int64_t index = 0; index < self->length; index = index + 1) \{ List_String_add(result, SpiteString_character_at(self, index)); }\nreturn result;\n}\nint64_t piece_start = 0;\nint64_t index = 0;\nwhile (index <= self->length - separator->length) \{\nif (memcmp(self->data + index, separator->data, (size_t)separator->length) == 0) \{\nList_String_add(result, SpiteString_slice(self, piece_start, index));\nindex = index + separator->length;\npiece_start = index;\n} else \{\nindex = index + 1;\n}\n}\nList_String_add(result, SpiteString_slice(self, piece_start, self->length));\nreturn result;\n}",
+            "List_String* spite_emitted_split(SpiteString* self, SpiteString* separator) \{\nList_String* result = List_String_make();\nif (separator->length == 0) \{\nfor (int64_t index = 0; index < self->length; index = index + 1) \{ List_String_add(result, SpiteString_character_at(self, index)); }\nreturn result;\n}\nint64_t piece_start = 0;\nint64_t index = 0;\nwhile (index <= self->length - separator->length) \{\nif (memcmp(self->data + index, separator->data, (size_t)separator->length) == 0) \{\nList_String_add(result, SpiteString_slice(self, piece_start, index));\nindex = index + separator->length;\npiece_start = index;\n} else \{\nindex = index + 1;\n}\n}\nList_String_add(result, SpiteString_slice(self, piece_start, self->length));\nreturn result;\n}",
         )
         builder.add_support(
-            "List_String* SpiteString_lines(SpiteString* self) \{\nSpiteString* spite_newline = spite_string_from_cstring_owned(\"\\n\");\nList_String* result = SpiteString_split(self, spite_newline);\nSpiteString_release(spite_newline);\nreturn result;\n}",
+            "List_String* spite_emitted_lines(SpiteString* self) \{\nSpiteString* spite_newline = spite_string_from_cstring_owned(\"\\n\");\nList_String* result = spite_emitted_split(self, spite_newline);\nSpiteString_release(spite_newline);\nreturn result;\n}",
         )
     }
     if joins_as_text(element) {
