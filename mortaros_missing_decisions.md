@@ -350,3 +350,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     generic singleton 20 million times each). Singletons are destroyed at exit in the order they were made,
     reversed; before, the counts decided it. One visible difference: a singleton still referenced by a leaked
     object is destroyed anyway. Fine?
+86. **`Clock()`'s names**: `elapsed_nanoseconds()`, `elapsed_milliseconds()` (monotonic) and
+    `unix_milliseconds()` (wall clock). Keep them? And should the current date broken into year, month, day,
+    hour, minute and second live here too, or is the Unix time enough until something needs a calendar?

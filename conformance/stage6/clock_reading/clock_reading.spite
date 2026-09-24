@@ -1,0 +1,13 @@
+var console = Console()
+var clock = Clock()
+var program = Program()
+
+func ClockReading() {
+    var started = clock.elapsed_nanoseconds()
+    program.sleep(20)
+    var finished = clock.elapsed_nanoseconds()
+    var waited = (finished - started) / 1000000
+    var after_2020 = clock.unix_milliseconds() > 1577836800000
+    var milliseconds = clock.elapsed_milliseconds()
+    console.print(waited >= 19, waited < 5000, after_2020, milliseconds > 0)
+}

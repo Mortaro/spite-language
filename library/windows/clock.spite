@@ -1,0 +1,21 @@
+var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+
+func elapsed_nanoseconds(): Long {
+    var counter = memory.allocate_bytes(8)
+    var frequency = memory.allocate_bytes(8)
+    kernel.QueryPerformanceCounter(counter)
+    kernel.QueryPerformanceFrequency(frequency)
+    var ticks = memory.read_long(counter, 0)
+    var per_second = memory.read_long(frequency, 0)
+    memory.free(counter)
+    memory.free(frequency)
+    return ticks / per_second * 1000000000 + ticks % per_second * 1000000000 / per_second
+}
+
+func unix_milliseconds(): Long {
+    var file_time = memory.allocate_bytes(8)
+    kernel.GetSystemTimeAsFileTime(file_time)
+    var hundreds_of_nanoseconds = memory.read_long(file_time, 0)
+    memory.free(file_time)
+    return hundreds_of_nanoseconds / 10000 - 11644473600000
+}

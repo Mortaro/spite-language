@@ -22,6 +22,7 @@ reopen the classes each system does differently, and the launcher loads the one 
 | `File`, `Directory` | files and folders | [below](#read-and-write-a-file) |
 | `Process` | run another program | [below](#run-a-process) |
 | `Program` | this program: exit, sleep, environment variables | [below](#program) |
+| `Clock` | elapsed time for measuring, and the wall clock | [below](#clock) |
 | `Environment`, `Build`, `Arguments` | settings and the command line | [programs.md](programs.md) |
 | `Json<T>` | any value to JSON text and back | [json.md](json.md) |
 | `Concurrent`, `Parallel` | run a function while waiting, or on a thread | [concurrency.md](concurrency.md) |
@@ -320,6 +321,36 @@ func ProgramBasics() {
 ```output
 not set
 slept
+```
+
+## `Clock`
+
+`Clock()` is a singleton with two readings (the names are proposed, not yet confirmed):
+
+| Member | Does |
+|---|---|
+| `elapsed_nanoseconds(): Long` | a monotonic clock with an arbitrary start: subtract two readings to measure |
+| `elapsed_milliseconds(): Long` | the same, in milliseconds |
+| `unix_milliseconds(): Long` | the wall clock: milliseconds since 1970-01-01 UTC |
+
+Each system reads its own clock, in `library/windows/clock.spite` (`QueryPerformanceCounter`,
+`GetSystemTimeAsFileTime`) and the `linux` and `mac` folders (`clock_gettime`), through `DynamicLibrary`.
+
+```gdscript title=clock_basics/clock_basics.spite entry
+var console = Console()
+var clock = Clock()
+var program = Program()
+
+func ClockBasics() {
+    var started = clock.elapsed_nanoseconds()
+    program.sleep(5)
+    var finished = clock.elapsed_nanoseconds()
+    var waited = (finished - started) / 1000000
+    console.print("waited at least 4 ms:", waited >= 4)
+}
+```
+```output
+waited at least 4 ms: true
 ```
 
 ## `Socket`
