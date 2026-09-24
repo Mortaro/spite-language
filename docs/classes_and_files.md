@@ -193,6 +193,35 @@ declaring it yourself is an error that names the `singleton` line. `DynamicLibra
 takes arguments: it has one instance per distinct list of literal arguments
 ([foreign_libraries.md](foreign_libraries.md)).
 
+A singleton with `generic` lines has one instance per set of codegen values, the way `DynamicLibrary` has one
+per argument list: `Column<Health>()` is the same object everywhere, and `Column<Label>()` is a second one. This
+is what per-type storage is written with.
+
+```gdscript title=generic_singleton/column.spite
+singleton
+
+generic $component_type
+
+var values = List<$component_type>()
+```
+```gdscript title=generic_singleton/generic_singleton.spite entry
+var console = Console()
+
+func GenericSingleton() {
+    var numbers = Column<Int>()
+    numbers.values.append(1)
+    var again = Column<Int>()
+    again.values.append(2)
+    var words = Column<String>()
+    var number_count = again.values.count()
+    var word_count = words.values.count()
+    console.print(numbers == again, number_count, word_count)
+}
+```
+```output
+true 2 0
+```
+
 ## Classes are references
 
 A scalar (`Int`, `Float`, `Bool`, an enum value) is passed by value, copied at the call site. Everything else --

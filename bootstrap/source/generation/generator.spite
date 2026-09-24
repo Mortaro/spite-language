@@ -836,6 +836,8 @@ func instantiated_with(
     instance.codegen_types = types
     instance.codegen_codes = codes
     instance.codegen_texts = texts
+    instance.is_singleton = template.is_singleton
+    instance.is_stateless_singleton = template.is_stateless_singleton
     instance.is_container = template.qualified_dotted == "TypedMemory"
     classes.append(instance)
     builder.add_typedef("typedef struct {label} {label};")

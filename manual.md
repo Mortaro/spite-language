@@ -1126,6 +1126,10 @@ the default `Spite.Class` declares; what follows still holds for the line.
   `DynamicLibrary("user32.dll", 'windows', "windows.h")` is one object however many classes ask for it, and
   `"gdi32.dll"` is a second one. The compiler emits one static slot per distinct argument list, so there is no
   runtime registry walk -- only a guarded branch the first time.
+- **A generic singleton has one instance per set of codegen values** (proposed by Claude, unconfirmed; the
+  reading of "one per literal argument list" for `generic` lines, 2026-09-24): `Column<Health>()` is one object
+  wherever it is called and `Column<Label>()` is another, since codegen values are literals too. It was accepted
+  and silently made a new instance per call before (`conformance/stage6/generic_singletons`).
 - **Memory:** the slot holds one reference, so the count never reaches zero; `drop()` runs at program exit, in
   reverse creation order, and `--debug-memory` counts singletons as roots, never as leaks.
 - **Standard library:** `Console`, `Program` and `DynamicLibrary` are singletons. `File`, `Directory` and
@@ -1266,7 +1270,7 @@ generator writes one Spite function on the first list's class -- a `while` over 
 must reach a class; anything the rule cannot write (a nullable member, a union) is compiled step by step, which
 means the same. The difference a program can see is only order: a member function in a fused chain runs element
 by element. `conformance/stage6/fused_chain_allocations` pins it: four chains run a thousand times allocate
-nothing (11 allocations in all, the one `TypedMemory` its lists share and the `Launcher` included, against 16 010
+nothing (10 allocations in all, the `Launcher` included -- the `TypedMemory` its lists share is a static singleton -- against 16 010
 step by step).
 
 ## 9. Codegen values (`$`)  **[implemented]**
@@ -3267,3 +3271,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D112** (decided by Mortaro): **hot reload has a flag of its own, `--hot_reload`**, "in case we want a simpler --repl without it." `--repl` and `--repl_port` stay plain -- no call table, no file watcher, no `reload` command -- and `--hot_reload` (a `Build` field, spelled with an underscore like every compiler option) turns those on. |
 | 2026-09-24 | (Mortaro asked; the language chosen by Claude, unconfirmed) **Spite code blocks are fenced `gdscript` so GitHub highlights them.** GitHub highlights through Linguist, which only accepts a new language once it is used across a few hundred repositories, so `spite` cannot be added yet. Mortaro suggested Go as a middle ground; rendering one Spite sample through GitHub's own renderer as Go, Swift, Kotlin, TypeScript, Python and GDScript showed GDScript reads it best -- `#` comments, `func`/`var`/`assert`/`not`/`return`, both kinds of quotes and `{}` holes -- while Go treats `#` as text and `'symbol'` as a broken character. Titled blocks are ```` ```gdscript title=... ````; a ```` ```spite ```` fence is now an error in the docs corpus; `.gitattributes` maps `*.spite` to GDScript for the repository view. |
 | 2026-09-24 | **D113** (decided by Mortaro, settling part of D94's `while` rule): **a member template can call a function of the caller for each element, and a `while` written only to do that is an error.** "we should have a way to iterate just for sake of console log for example a function `func say_hello(name: String) {...}` and then instead of say_hello_to_everyone we just map_say_hello() ... whiles created just for a thing that should be a function instead should be a compiler error i suspect it will narrow a lot our whiles." So `names.each_say_hello()` calls the caller's own `say_hello(name)` once per element (`each_` rather than `map_`, since nothing is collected; `map_` does the same and keeps each result when the function returns one). D94's review counted 145 loops of this shape -- the largest group -- so the error names the template to write. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; reads D104/D8 for `generic` lines, found building an ECS) **A generic singleton has one instance per set of codegen values.** `singleton` with `generic $component_type` was accepted, but each instantiation lost the line, so every `Column<Health>()` made a new object. Codegen values are literals like D8's constructor arguments, so each distinct set gets its own static slot: `Column<Health>() == Column<Health>()` and `Column<Label>()` is another. `TypedMemory<T>`, the one generic singleton in the library, is now one stateless static object per element type instead of an allocation per list. `conformance/stage6/generic_singletons`. |
