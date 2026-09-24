@@ -84,6 +84,17 @@ done
 echo "conformance and examples: $passed passed, $failed failed"
 [ "$failed" == "0" ] || exit 1
 
+# A program runs in the folder spite was run from, not the language's: the compiler finds library/ and launcher/
+# from its own executable, so a relative path the program opens is the caller's, and its build cache stays here.
+repository=$(pwd)
+mkdir -p "$work/elsewhere"
+echo "hello" > "$work/elsewhere/greeting.txt"
+elsewhere=$(cd "$work/elsewhere" && "$repository/$work/generation_two.exe" "$repository/conformance/stage6/working_directory" --mode=run 2>&1 | tr -d '\r')
+if [ "$elsewhere" != "read hello from the folder spite was run in" ] || [ -e "$work/elsewhere/.spite-cache" ]; then
+  echo "FAILED: a program run from another folder does not open its relative paths there"; echo "$elsewhere" | head -5; exit 1
+fi
+echo "working directory: a program opens relative paths in the folder spite was run from"
+
 # The tests: a package that crashes (D46). No framework: a test is a function, and `crash` is the assertion.
 test_output=$("$work/generation_two.exe" tests --mode=run --debug_memory=true < /dev/null 2>&1 | tr -d '\r')
 if echo "$test_output" | grep -q "failed to check cache"; then

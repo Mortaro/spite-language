@@ -250,7 +250,7 @@ func callers_of(
     var index = 0
     while index < slot_names.count() and index < slot_owners.count() {
         var owner = slot_owners[index]
-        var hot_name = "{slot_names[index]}_hot"
+        var hot_name = "{slot_names[index]}___hot"
         var hot_name_length = hot_name.length()
         var position = shaker.find_function(hot_name, 0, hot_name_length)
         if position >= 0 and not rebuilt.contains(owner) and not callers.contains(owner) {
@@ -286,7 +286,7 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
     var index = 0
     while index < slot_names.count() and index < slot_owners.count() {
         var name = slot_names[index]
-        var hot_name = "{name}_hot"
+        var hot_name = "{name}___hot"
         var hot_name_length = hot_name.length()
         var position = shaker.find_function(hot_name, 0, hot_name_length)
         var running = host_prototypes[name]
@@ -333,7 +333,7 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
             redirected.append(shaker.piece_names[next])
         } else {
             shaker.keep_named_in(shaker.pieces[next])
-            var hot_name = "{shaker.piece_names[next]}_hot"
+            var hot_name = "{shaker.piece_names[next]}___hot"
             var hot_name_length = hot_name.length()
             var hot_position = shaker.find_function(hot_name, 0, hot_name_length)
             if hot_position >= 0 {
@@ -406,7 +406,7 @@ func bind_function(redirected: List<String>): String {
     index = 0
     while index < installed.count() {
         var name = installed[index]
-        lines.append("if (install(\"{name}\", (void*)&{name}_hot) == 0) return \"{name}\";")
+        lines.append("if (install(\"{name}\", (void*)&{name}___hot) == 0) return \"{name}\";")
         index = index + 1
     }
     lines.append("return 0;")

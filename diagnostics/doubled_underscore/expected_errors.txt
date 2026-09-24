@@ -1,0 +1,3 @@
+diagnostics/doubled_underscore/doubled_underscore.spite:10: error: the function '__strike' must be written in snake_case: lowercase words joined by one underscore each, with at most one '_' in front to make it private (in DoubledUnderscore.)
+diagnostics/doubled_underscore/doubled_underscore.spite:14: error: the function 'strike_' must be written in snake_case: lowercase words joined by one underscore each, with at most one '_' in front to make it private (in DoubledUnderscore.)
+diagnostics/doubled_underscore/doubled_underscore.spite:2: error: the attribute 'hit__count' must be written in snake_case: lowercase words joined by one underscore each, with at most one '_' in front to make it private (in DoubledUnderscore.)

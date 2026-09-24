@@ -91,7 +91,7 @@ func header(): String {
         " * section 10)."
         " *"
         " * Each concrete type gets its own small, readable, generated"
-        " * `\{Type}_retain`/`\{Type}_release` pair; this"
+        " * `\{Type}___retain`/`\{Type}___release` pair; this"
         " * header only holds what is shared: the header layout itself. */"
         ""
         "typedef struct SpiteHeader \{"
@@ -269,9 +269,9 @@ func supplied_members(stem: String): List<String> {
 func console_members(): List<String> {
     return [
         "func _write_output(text: String)"
-        "fwrite((const char*)(intptr_t)text->_bytes, 1, (size_t)text->_length, stdout);\nSpiteString_release(text);"
+        "fwrite((const char*)(intptr_t)text->_bytes, 1, (size_t)text->_length, stdout);\nSpiteString___release(text);"
         "func _write_error(text: String)"
-        "fwrite((const char*)(intptr_t)text->_bytes, 1, (size_t)text->_length, stderr);\nSpiteString_release(text);"
+        "fwrite((const char*)(intptr_t)text->_bytes, 1, (size_t)text->_length, stderr);\nSpiteString___release(text);"
         "func flush()"
         "fflush(stdout);\nfflush(stderr);"
     ]
@@ -293,6 +293,14 @@ func memory_members(): List<String> {
         "int64_t value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value;"
         "func read_double(address: Long, offset: Long): Double"
         "double value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value;"
+        "func read_short(address: Long, offset: Long): Short"
+        "int16_t value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value;"
+        "func read_unsigned_short(address: Long, offset: Long): UnsignedShort"
+        "uint16_t value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value;"
+        "func read_unsigned_int(address: Long, offset: Long): UnsignedInt"
+        "uint32_t value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value;"
+        "func read_float(address: Long, offset: Long): Float"
+        "float value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value;"
         "func write_byte(address: Long, offset: Long, value: Byte)"
         "((uint8_t*)(intptr_t)address)[offset] = value;"
         "func write_int(address: Long, offset: Long, value: Int)"
@@ -300,6 +308,14 @@ func memory_members(): List<String> {
         "func write_long(address: Long, offset: Long, value: Long)"
         "memcpy((char*)(intptr_t)address + offset, &value, sizeof(value));"
         "func write_double(address: Long, offset: Long, value: Double)"
+        "memcpy((char*)(intptr_t)address + offset, &value, sizeof(value));"
+        "func write_short(address: Long, offset: Long, value: Short)"
+        "memcpy((char*)(intptr_t)address + offset, &value, sizeof(value));"
+        "func write_unsigned_short(address: Long, offset: Long, value: UnsignedShort)"
+        "memcpy((char*)(intptr_t)address + offset, &value, sizeof(value));"
+        "func write_unsigned_int(address: Long, offset: Long, value: UnsignedInt)"
+        "memcpy((char*)(intptr_t)address + offset, &value, sizeof(value));"
+        "func write_float(address: Long, offset: Long, value: Float)"
         "memcpy((char*)(intptr_t)address + offset, &value, sizeof(value));"
         "func copy_bytes(from: Long, to: Long, bytes: Long)"
         "memmove((void*)(intptr_t)to, (void*)(intptr_t)from, (size_t)bytes);"
@@ -341,9 +357,9 @@ func typed_memory_members(): List<String> {
 func dynamic_library_members(): List<String> {
     return [
         "func open_library(file: String): Long"
-        "#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA((const char*)(intptr_t)file->_bytes);\n#else\nvoid* opened = dlopen((const char*)(intptr_t)file->_bytes, RTLD_NOW);\n#endif\nif (opened == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: could not open the library '%s'\\n\", (const char*)(intptr_t)file->_bytes);\nexit(1);\n}\nSpiteString_release(file);\nreturn (int64_t)(intptr_t)opened;"
+        "#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA((const char*)(intptr_t)file->_bytes);\n#else\nvoid* opened = dlopen((const char*)(intptr_t)file->_bytes, RTLD_NOW);\n#endif\nif (opened == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: could not open the library '%s'\\n\", (const char*)(intptr_t)file->_bytes);\nexit(1);\n}\nSpiteString___release(file);\nreturn (int64_t)(intptr_t)opened;"
         "func find_symbol(name: String, wanted_by: String): Long"
-        "#ifdef _WIN32\nvoid* found = (void*)GetProcAddress((HMODULE)(intptr_t)self->handle, (const char*)(intptr_t)name->_bytes);\n#else\nvoid* found = dlsym((void*)(intptr_t)self->handle, (const char*)(intptr_t)name->_bytes);\n#endif\nif (found == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: the library '%s' has no '%s', which %s calls\\n\", (const char*)(intptr_t)self->file_name->_bytes, (const char*)(intptr_t)name->_bytes, (const char*)(intptr_t)wanted_by->_bytes);\nexit(1);\n}\nSpiteString_release(name);\nSpiteString_release(wanted_by);\nreturn (int64_t)(intptr_t)found;"
+        "#ifdef _WIN32\nvoid* found = (void*)GetProcAddress((HMODULE)(intptr_t)self->handle, (const char*)(intptr_t)name->_bytes);\n#else\nvoid* found = dlsym((void*)(intptr_t)self->handle, (const char*)(intptr_t)name->_bytes);\n#endif\nif (found == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: the library '%s' has no '%s', which %s calls\\n\", (const char*)(intptr_t)self->file_name->_bytes, (const char*)(intptr_t)name->_bytes, (const char*)(intptr_t)wanted_by->_bytes);\nexit(1);\n}\nSpiteString___release(name);\nSpiteString___release(wanted_by);\nreturn (int64_t)(intptr_t)found;"
         "func close_library(opened: Long)"
         "if (opened == 0) return;\n#ifdef _WIN32\nFreeLibrary((HMODULE)(intptr_t)opened);\n#else\ndlclose((void*)(intptr_t)opened);\n#endif"
     ]
@@ -360,7 +376,7 @@ func hot_reload_members(): List<String> {
         "func watcher_entry(): Long"
         "written per build by the generator: the address of the watcher thread's entry"
         "func open(file: String): Long"
-        "#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA((const char*)(intptr_t)file->_bytes);\n#else\nvoid* opened = dlopen((const char*)(intptr_t)file->_bytes, RTLD_NOW);\n#endif\nSpiteString_release(file);\nreturn (int64_t)(intptr_t)opened;"
+        "#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA((const char*)(intptr_t)file->_bytes);\n#else\nvoid* opened = dlopen((const char*)(intptr_t)file->_bytes, RTLD_NOW);\n#endif\nSpiteString___release(file);\nreturn (int64_t)(intptr_t)opened;"
         "func install(library: Long): String"
         "written per build by the generator: binds the library to the program and swaps its functions in"
     ]
@@ -369,11 +385,11 @@ func hot_reload_members(): List<String> {
 func attribute_members(): List<String> {
     return [
         "func value_attributes(): List<Spite.Attribute>"
-        "if (self->spite_held != 0 && self->spite_held_attributes != 0) return self->spite_held_attributes(self->spite_held);\nreturn List_Spite_Attribute_make();"
+        "if (self->spite_held != 0 && self->spite_held_attributes != 0) return self->spite_held_attributes(self->spite_held);\nreturn List_Spite_Attribute___make();"
         "func value_functions(): List<Spite.Function>"
-        "if (self->spite_held != 0 && self->spite_held_functions != 0) return self->spite_held_functions(self->spite_held);\nreturn List_Spite_Function_make();"
+        "if (self->spite_held != 0 && self->spite_held_functions != 0) return self->spite_held_functions(self->spite_held);\nreturn List_Spite_Function___make();"
         "func assign(text: String): Bool"
-        "bool assigned = false;\nif (self->spite_owner != 0 && self->spite_assign != 0) assigned = self->spite_assign(self->spite_owner, text);\nSpiteString_release(text);\nreturn assigned;"
+        "bool assigned = false;\nif (self->spite_owner != 0 && self->spite_assign != 0) assigned = self->spite_assign(self->spite_owner, text);\nSpiteString___release(text);\nreturn assigned;"
     ]
 }
 
@@ -382,6 +398,6 @@ func function_members(): List<String> {
         "func call_function()"
         "if (self->spite_call != 0) self->spite_call(self->spite_owner);"
         "func call_with_text(arguments: List<String>): Spite.Attribute?"
-        "Spite_Attribute* result = 0;\nif (self->spite_text_call != 0) result = ((Spite_Attribute* (*)(void*, List_String*))self->spite_text_call)(self->spite_owner, arguments);\nList_String_release(arguments);\nreturn result;"
+        "Spite_Attribute* result = 0;\nif (self->spite_text_call != 0) result = ((Spite_Attribute* (*)(void*, List_String*))self->spite_text_call)(self->spite_owner, arguments);\nList_String___release(arguments);\nreturn result;"
     ]
 }

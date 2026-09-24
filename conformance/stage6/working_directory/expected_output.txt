@@ -1,0 +1,1 @@
+no greeting.txt in the folder spite was run in
