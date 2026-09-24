@@ -2146,8 +2146,7 @@ func resolve_nullable_argument(named: Syntax.Types.NamedType, current_namespace:
     assert type_argument.value
     var inner = resolve_type(type_argument.value, current_namespace)
     if inner {
-        var resolved: Analysis.SpiteType = Analysis.Types.NullableType(inner)
-        return resolved
+        return nullable_type_of(inner)
     }
     return null
 }
@@ -5856,6 +5855,9 @@ func dictionary_type_of(element: Analysis.SpiteType): Analysis.SpiteType {
 }
 
 func nullable_type_of(inner: Analysis.SpiteType): Analysis.SpiteType {
+    if type_shape.as_nullable(inner) {
+        return inner
+    }
     var resolved: Analysis.SpiteType = Analysis.Types.NullableType(inner)
     return resolved
 }
