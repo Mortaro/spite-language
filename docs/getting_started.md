@@ -2,23 +2,28 @@
 
 ## Build the compiler
 
-Spite compiles itself, so the only thing you need is a C compiler. From the repository root:
+Spite compiles itself, so the only thing you need is a C compiler -- `cc`, `clang` or `gcc`; on Windows, the
+clang that ships with Visual Studio is found on its own. From the repository root:
 
+```bash
+bin/spite examples/hello
 ```
+
+`bin/spite` builds the compiler from `bootstrap/seed/spite_compiler.c` the first time it runs (and again whenever
+that file changes), then compiles and runs the program. The seed is the C the Spite compiler emits for its own
+sources, so building it by hand is one command too:
+
+```bash
 cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite
 ```
 
-That builds `spite` from `bootstrap/seed/spite_compiler.c`, the committed C that the Spite compiler emits for
-itself. Compiling and running a program is one command:
-
-```
-./spite path/to/program
-```
-
-`bash check.sh` from the repository root proves the compiler still reproduces itself and still passes every
-program in `conformance/`.
+The compiler writes C and builds it with the compiler named by the `CC` environment variable, or the first of
+`cc`, `clang` and `gcc` it finds. `bash check.sh` proves the compiler still reproduces itself and still runs every
+program in `conformance/`, `examples/`, `tests/` and these pages ([self_hosting.md](self_hosting.md)).
 
 ## Hello world
+
+A program is a folder, and its entry file is the file named after the folder. Make `hello_world/hello_world.spite`:
 
 ```spite title=hello_world/hello_world.spite entry
 var console = Console()
@@ -31,82 +36,72 @@ func HelloWorld() {
 Hello, Spite!
 ```
 
-Run it:
-
-```
-./spite hello_world
-```
-
-A program is a folder, and building and running are the same command -- there is no separate "compile" step to
-remember. The file named after the folder is the entry file, and its class (`HelloWorld`, from
-`hello_world.spite` PascalCased) is constructed with no arguments: that's the whole program, no `main`, no entry
-point declaration.
-
-## The command line
-
-The complete, current command-line reference is [compiler.md](compiler.md). The shortest useful forms are:
+and run it:
 
 ```bash
-spite program                                 # build and run
-spite program --optimized                     # build and run with C optimization
-spite program --mode=c > program.c            # print generated C
-spite program --mode=build --output=program.exe # build without running
-spite program -- --serve=true                 # pass the program its own arguments
+spite hello_world
 ```
 
-Everything after `--` belongs to the program, which reads it through `Environment` (see
-[metaprogramming.md](metaprogramming.md#program-settings-environment)). Before it, a `--name=value` sets a field
-of `Build`, the compile-time settings every compiler option belongs to, and a name that is not one is an error
--- there is no silent typo.
+A file is a class, named by its file name: `hello_world.spite` is the class `HelloWorld`. There is no `main`: the
+program runs by constructing the entry class, so its constructor -- the function named like the class -- is the
+whole program. Building and running are the same command; there is no separate compile step to remember.
 
-## Automatic formatting and lints
+## A second class
 
-**The compiler is the formatter.** Every `spite program` run first rewrites every `.spite` file belonging to
-the program (the entry folder's own files, plus every `load(...)`-ed root, recursively) to the one true style,
-printing `formatted <path>` to stderr for each file it touched, before compiling the up-to-date text. Style is
-not configurable: 4-space indentation, K&R braces, one blank line between file-level declarations, minimum
-necessary parentheses, list/call bodies broken past 120 columns. `--format=false` skips this (useful for a script
-that asserts diagnostic positions against a fixture kept deliberately unformatted). Run it standalone with
-`spite format <path>` (rewrites) or `spite format --check <path>` (lists what would change, changes nothing,
-exits 1 if the list is non-empty) -- this is the check every sample on these documentation pages passes.
+Every other `.spite` file in the folder is another class. Classes hold `var` fields (their state, each with a
+default) and `func`s (their behaviour); an `enum` declared in a file is namespaced under it (`Person.Job`, though
+`'knight'` alone is usually enough). A `List<T>` holds them:
 
-What the formatter **will** rewrite: indentation, brace placement, blank lines, spacing around operators,
-unnecessary parentheses, and whether a list/call is one line or many. It never reorders code or drops a
-comment -- if it cannot prove a rewrite is lossless, it leaves the file untouched and reports an internal
-formatter error instead of guessing.
+```spite title=tour_classes/person.spite
+enum Job {
+    'knight'
+    'mage'
+}
 
-What the compiler **refuses** to auto-fix: naming. Renaming a symbol can change what a program means to
-someone who searches for its old name, so these are compile errors instead, each with a suggested fix:
+var age = 0
+var job: Job = 'knight'
 
-- Non-`snake_case` variables/attributes/functions/parameters, non-`PascalCase` classes/types/enums/unions,
-  non-`snake_case` enum values and file/folder names.
-- Single-letter names, always -- no exceptions.
-- Abbreviations, checked word-by-word against a denylist (`msg` -> `message`, `cfg` -> `configuration`, and
-  around fifty more -- see manual.md section 12 for the full table). `id` is explicitly allowed.
-
-```spite title=lint_error/lint_error.spite entry error
-var console = Console()
-var msg = ""
-
-func LintError() {
-    console.print(msg)
+func Person(new_age: Int, new_job: Job) {
+    age = new_age
+    job = new_job
 }
 ```
-```diagnostic
-'msg' abbreviates: write 'message' instead of 'msg'
-```
-
-```spite title=single_letter/single_letter.spite entry error
+```spite title=tour_classes/tour_classes.spite entry
 var console = Console()
-var x = 0
 
-func SingleLetter() {
-    console.print(x)
+func TourClasses() {
+    var party = List<Person>()
+    party.append(Person(22, 'knight'))
+    party.append(Person(19, 'mage'))
+    var index = 0
+    while index < party.count() {
+        console.print("member", party[index].age, party[index].job)
+        index = index + 1
+    }
+    var sum_age = party.sum_age()
+    console.print("total age", sum_age)
 }
 ```
-```diagnostic
-is a single letter: give it a name that says what it holds
+```output
+member 22 knight
+member 19 mage
+total age 41
 ```
 
-There is no `--no-lint` -- manual.md section 12 puts it plainly: "the compiler already **is** the linter." Fix
-the name; there is no flag to silence it.
+That last line is not a loop anyone wrote: `sum_age()` exists because `Person` has an `age`
+([collections.md](collections.md#member-templates-loops-you-do-not-write)). This is the whole idea of Spite:
+reach for a function with the member's name in it before reaching for a loop.
+
+## What the compiler will do to your file
+
+The first time you run a program, the compiler may rewrite its files: it is the formatter, and there is one
+style ([style.md](style.md)). It will also refuse things other languages accept -- an abbreviated name, an unused
+variable, a blank line inside a function, a call passed straight into another call -- each with an error that
+says exactly what to write instead. Read the error and do what it says; there is no flag to silence it.
+
+## Where to go next
+
+Read [classes_and_files.md](classes_and_files.md), [programs.md](programs.md) and
+[values_and_types.md](values_and_types.md) next, then [failure.md](failure.md): together they are most of the
+language. Keep [for_ai_writers.md](for_ai_writers.md) at hand while writing -- it is the whole language on one
+page -- and [compiler.md](compiler.md) for every command-line option.
