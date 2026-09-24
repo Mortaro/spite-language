@@ -146,7 +146,7 @@ func is_alive(): Bool {
   `Spite.Function<String, String>` bound to `shouter`, called as `change(text)`), `Monster.instances` (live instances), and
   `Spite.Class.instances` (every class of the program). `class`, bare inside a class's function, is the class
   of the instance it answers on, and a class name reads its own class object: `Monster.name` is `"Monster"`.
-- A class with `func is_singleton(): Bool { return true }` has one instance: `Journal()` always returns it.
+- A class whose file starts with a `singleton` line has one instance: `Journal()` always returns it.
 
 ## Built in classes
 

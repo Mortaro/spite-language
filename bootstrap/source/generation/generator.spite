@@ -1954,8 +1954,10 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         is_constructor,
     )
     function.source_path = declaration.source_path
-    if declares_singleton(declaration) {
-        information.is_singleton = true
+    if declaration.name == "is_singleton" and information.qualified_dotted != "Spite.Class" {
+        report(
+            "a class says it is a singleton with a 'singleton' line at the top of its file, not with a function: delete 'is_singleton()' and write 'singleton' as the file's first line",
+        )
     }
     function.line = declaration.line
     if is_constructor {
@@ -3716,19 +3718,6 @@ func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.Spi
         index = index + 1
     }
     return result
-}
-
-func declares_singleton(declaration: Syntax.Statements.FunctionDeclaration): Bool {
-    if declaration.name != "is_singleton" or declaration.parameters.count() != 0 or declaration.body.count() != 1 {
-        return false
-    }
-    var only = shape.as_return_statement(declaration.body[0])
-    if only {
-        if only.value {
-            return shape.is_true_literal(only.value)
-        }
-    }
-    return false
 }
 
 func singleton_call(target_class: Analysis.ClassInfo): String {

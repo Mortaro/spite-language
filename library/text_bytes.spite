@@ -1,3 +1,5 @@
+singleton
+
 var memory = Memory()
 
 func concat(left: String, right: String): String {
@@ -55,8 +57,4 @@ func clamped(position: Int, length: Int): Int {
         return length
     }
     return position
-}
-
-func is_singleton(): Bool {
-    return true
 }
