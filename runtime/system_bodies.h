@@ -450,34 +450,12 @@ DynamicLibrary* DynamicLibrary_default(void) {
     return DynamicLibrary_allocate();
 }
 
-/* A file name with no extension gets the platform's own, so one Spite source names a library on every
- * platform. A library that cannot be opened stops the program, naming the file. */
+/* Opens the file exactly as named (D71: a Spite wrapper names the real file). A library that cannot be
+ * opened stops the program, naming the file. */
 DynamicLibrary* DynamicLibrary_make(SpiteString* file_name) {
     DynamicLibrary* self = DynamicLibrary_allocate();
     self->file_name = file_name;
-    const char* base = file_name->data;
-    for (const char* cursor = file_name->data; *cursor != '\0'; cursor = cursor + 1) {
-        if (*cursor == '/' || *cursor == '\\') base = cursor + 1;
-    }
-    char path[1024];
-#ifdef _WIN32
-    const char* extension = ".dll";
-#elif defined(__APPLE__)
-    const char* extension = ".dylib";
-#else
-    const char* extension = ".so";
-#endif
-    snprintf(path, sizeof(path), "%s%s", file_name->data, strchr(base, '.') == 0 ? extension : "");
-    /* "c" is the platform's own C runtime, so the standard library can be written once over it. */
-    if (strcmp(file_name->data, "c") == 0) {
-#ifdef _WIN32
-        snprintf(path, sizeof(path), "ucrtbase.dll");
-#elif defined(__APPLE__)
-        snprintf(path, sizeof(path), "libSystem.dylib");
-#else
-        snprintf(path, sizeof(path), "libc.so.6");
-#endif
-    }
+    const char* path = file_name->data;
 #ifdef _WIN32
     self->handle = (void*)LoadLibraryA(path);
 #else

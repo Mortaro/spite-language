@@ -1,5 +1,5 @@
 var console = Console()
-var runtime = DynamicLibrary("c", 'identity', "")
+var measurer = DynamicLibrary("conformance/stage6/memory_floor/fixture.dll", 'identity', "")
 var memory = Memory()
 
 func MemoryFloor() {
@@ -15,7 +15,7 @@ func run() {
         index = index + 1
     }
     memory.write_byte(address, word.length(), 0)
-    console.print(runtime.strlen_as_long(address), memory.text(address, word.length()))
+    console.print(measurer.measure_as_long(address), memory.text(address, word.length()))
     memory.write_long(address, 0, 5000000000)
     console.print(memory.read_long(address, 0), memory.read_byte(address, 5))
     var copy = memory.allocate_bytes(8)

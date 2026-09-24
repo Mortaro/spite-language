@@ -4,10 +4,10 @@ type PointPair {
 }
 
 var console = Console()
-var plain = DynamicLibrary("conformance/stage6/foreign_library/fixture", 'identity', "")
-var camel = DynamicLibrary("conformance/stage6/foreign_library/fixture", 'camel_case', "")
+var plain = DynamicLibrary("conformance/stage6/foreign_library/fixture.dll", 'identity', "")
+var camel = DynamicLibrary("conformance/stage6/foreign_library/fixture.dll", 'camel_case', "")
 var windows = DynamicLibrary(
-    "conformance/stage6/foreign_library/fixture",
+    "conformance/stage6/foreign_library/fixture.dll",
     'windows',
     "conformance/stage6/foreign_library/fixture.h",
 )

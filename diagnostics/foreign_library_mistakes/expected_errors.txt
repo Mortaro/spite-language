@@ -1,2 +1,3 @@
+diagnostics/foreign_library_mistakes/foreign_library_mistakes.spite:3: error: 'fixture' has no extension: name the library file exactly as it is on disk, like "user32.dll" or "libc.so.6" -- a wrapper for another platform names that platform's file (in ForeignLibraryMistakes.)
 diagnostics/foreign_library_mistakes/foreign_library_mistakes.spite:3: error: 'shouting' is not a naming rule: a library's functions are named 'identity', 'windows' or 'camel_case' (in ForeignLibraryMistakes.)
 diagnostics/foreign_library_mistakes/foreign_library_mistakes.spite:4: error: DynamicLibrary(...) takes three literals the compiler reads while it compiles: the file, the naming rule ('identity', 'windows' or 'camel_case') and the header (in ForeignLibraryMistakes.)

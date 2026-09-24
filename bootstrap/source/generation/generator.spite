@@ -6038,6 +6038,11 @@ func generate_library_constructor(arguments_ast: List<Syntax.Expressions.Express
     crash file
     crash naming
     crash header
+    if not file.value.replace("\\", "/").split("/").last().contains(".") {
+        report(
+            "'{file.value}' has no extension: name the library file exactly as it is on disk, like \"user32.dll\" or \"libc.so.6\" -- a wrapper for another platform names that platform's file",
+        )
+    }
     if naming.value != "identity" and naming.value != "windows" and naming.value != "camel_case" {
         report(
             "'{naming.value}' is not a naming rule: a library's functions are named 'identity', 'windows' or 'camel_case'",

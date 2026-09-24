@@ -1696,20 +1696,20 @@ Spite above them:
 3. **The object header**: retain, release and the class id are code the compiler emits, not functions anyone
    calls, so they are part of code generation rather than a library.
 4. **Entry and exit**: `main` is emitted by the compiler; `Program.exit` is a foreign call like any other.
-5. **The C runtime by one name**: `DynamicLibrary("c", 'identity', "")` names the platform's own C runtime
-   (`ucrtbase` on Windows, `libc.so.6` on Linux, `libSystem` on macOS), so `File`, `Directory`, `Process` and the
-   allocator are written once in Spite over `fopen`/`malloc`/`popen` instead of once per platform.
+5. **The C runtime through Spite wrappers** (D71 replaced Claude's `"c"` alias): one small wrapper per platform names
+   its real file (`ucrtbase.dll`, `libc.so.6`, `libSystem.dylib`), and `File`, `Directory`, `Process` and the
+   allocator are written once in Spite over the wrapper's functions.
 6. **On wasm**, `Memory.allocate` grows linear memory with `memory.grow`, and the C runtime library is the
    JavaScript host's, which is the web shim below.
 
 That is the whole floor: `String`, `List<T>` and `Dictionary<T>` become Spite over `Memory`; `File`, `Directory`,
-`Process` and `Program` become Spite over `DynamicLibrary("c", ...)`; the `--debug-memory` live table becomes Spite
+`Process` and `Program` become Spite over the C runtime's wrappers; the `--debug-memory` live table becomes Spite
 over `Memory`; and float formatting is a foreign call to `snprintf` until a Spite shortest-round-trip formatter
 replaces it. What stays in C is exactly what the compiler emits, never a file someone maintains.
 
 **Built so far, additively (2026-09-23):** items 1, 2's `Memory.text` and 5 -- `Memory` with `allocate_bytes`,
-`resize`, `free`, the typed reads and writes and `copy_bytes`, and `DynamicLibrary("c", ...)`
-(`conformance/stage6/memory_floor`). Nothing has moved onto them yet: moving `String`, `File` and the rest waits on this
+`resize`, `free`, the typed reads and writes and `copy_bytes` (`conformance/stage6/memory_floor`); the `"c"` alias
+built beside it was removed by D71. Nothing has moved onto them yet: moving `String`, `File` and the rest waits on this
 proposal being accepted, since that is where changing the floor later would cost a rewrite.
 
 **The web shim is the one honest exception, and its target is zero hand-written lines.** A file that runs in the
@@ -1790,9 +1790,9 @@ library opens, and a program-stopping message naming the file, or the symbol and
 it, when either is missing (`conformance/stage6/foreign_library`, `diagnostics/foreign_library_mistakes`,
 `diagnostics/foreign_call_mistakes`). What crosses is the table below, minus structs and lists. Choices Claude made
 while building it (proposed, unconfirmed): one library per distinct file and naming rule, following D8's
-"one instance per literal argument list", opened on first use and closed at exit; a file name with no extension
-gets the platform's own (`.dll`, `.so`, `.dylib`), so one source names a library everywhere -- which is also
-how `check.sh` tests it, building the fixture's C into a library beside the program; `_as_long` beside
+"one instance per literal argument list", opened on first use and closed at exit; the file is named exactly as it is on disk and a name without an
+extension is a compile error (D71 -- a wrapper for another platform names that platform's file), which `check.sh`
+meets by building each fixture's C into `fixture.dll` beside its program on every platform; `_as_long` beside
 `_as_double` and `_as_text`, since a plain call returns a 32-bit `Int` and a handle or pointer needs 64; the
 naming rule is a symbol literal (D70); a foreign function is called only through the attribute or variable that
 holds its `DynamicLibrary(...)`, so the compiler knows which table binds it; and `--final-classes` writes no
