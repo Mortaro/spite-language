@@ -9,7 +9,7 @@ source, so both ends already know every type (manual section 15, "The wire forma
 
 ## Write and read a class
 
-```spite title=json_basics/order.spite
+```gdscript title=json_basics/order.spite
 enum Status {
     'open'
     'shipped'
@@ -22,7 +22,7 @@ var status: Status = 'open'
 var items = List<Item>()
 var note: String? = null
 ```
-```spite title=json_basics/item.spite
+```gdscript title=json_basics/item.spite
 var name = ""
 var count = 1
 
@@ -31,7 +31,7 @@ func Item(starting_name: String, starting_count: Int) {
     count = starting_count
 }
 ```
-```spite title=json_basics/json_basics.spite entry
+```gdscript title=json_basics/json_basics.spite entry
 var console = Console()
 
 func JsonBasics() {
@@ -88,12 +88,12 @@ about what it does not need:
 - **A value of the wrong kind makes the whole read `null`**: text where a number belongs, `null` for an
   attribute that is not a `T?`, an enum name the enum does not have.
 
-```spite title=json_input/reading.spite
+```gdscript title=json_input/reading.spite
 var name = "unnamed"
 var level = 1
 var tags = List<String>()
 ```
-```spite title=json_input/json_input.spite entry
+```gdscript title=json_input/json_input.spite entry
 var console = Console()
 
 func JsonInput() {
@@ -126,7 +126,7 @@ unclosed object
 
 `Json` takes any type, not only classes: `Json<List<Int>>`, `Json<Dictionary<Item>>`, `Json<String>`.
 
-```spite title=json_values/json_values.spite entry
+```gdscript title=json_values/json_values.spite entry
 var console = Console()
 
 func JsonValues() {
@@ -158,7 +158,7 @@ func JsonValues() {
 - A class is written by a Symbol codegen template that ranges over `T`'s attributes, called for every one of them
   at once by its plural:
 
-```
+```gdscript
 func write_attribute(attribute: Symbol<$value_type>, value: $value_type, members: List<String>) {
     var attribute_json = Json<attribute.class>()
     var attribute_text = attribute_json.write(value.attributes[attribute])

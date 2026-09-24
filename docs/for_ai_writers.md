@@ -4,6 +4,9 @@ Everything here is enforced by the compiler. When it rejects something it says w
 every error in one run as `path:line: error: message (in Class.function)`, and never warns: it errors or it is fine.
 `manual.md` is the reference; this page is the working set.
 
+Code blocks are fenced as `gdscript` only so GitHub colours them: GitHub has no Spite highlighter yet. Every
+one of them is Spite, not GDScript -- write `.spite` files.
+
 ## Run it
 
 ```
@@ -24,7 +27,7 @@ reopens the class: same-named functions and attributes replace, the rest are add
 
 ## A file is a class
 
-```spite
+```gdscript
 var name = ""
 var health = 10
 var target: Monster? = null

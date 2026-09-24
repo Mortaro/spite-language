@@ -10,6 +10,9 @@ checks that it fails with the error written under it -- and requires its memory 
 pages, it works. Where something is decided but not built, the page says so in a line and links the
 [manual](../manual.md), which is the normative reference and wins wherever the two disagree.
 
+The code blocks are fenced as `gdscript` because GitHub cannot highlight Spite yet and GDScript's highlighter
+reads it best (`func`, `var`, `name: Type`, `#` comments). The code is Spite throughout.
+
 ## Reading order
 
 **Getting started**

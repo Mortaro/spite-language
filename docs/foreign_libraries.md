@@ -8,7 +8,7 @@ so what a program can do with it, the library already does.
 
 ## Calling a function
 
-```spite title=foreign_call/foreign_call.spite entry
+```gdscript title=foreign_call/foreign_call.spite entry
 var console = Console()
 var build = Build()
 
@@ -92,7 +92,7 @@ There is no platform layer. `library/` holds what every system shares, and `libr
 and `library/mac/` hold only what differs: each reopens the classes it changes, with a `DynamicLibrary` of its own
 naming the system's real file. `library/windows/program.spite` is all of `Program`'s Windows side:
 
-```
+```gdscript
 var library = DynamicLibrary("ucrtbase.dll", 'identity', "")
 var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
 

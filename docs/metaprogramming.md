@@ -22,7 +22,7 @@ Inside the template, the `Symbol` names that attribute two different ways: writt
 would). `attributes[attribute]` is a separate, compile-time-only form: that same field, indexed by the
 `Symbol`.
 
-```spite title=symbol_codegen/person.spite
+```gdscript title=symbol_codegen/person.spite
 var age = 0
 var name = ""
 
@@ -50,7 +50,7 @@ exact function, and an exact function always wins over a template -- but only fo
 one name: writing `person.name` goes through `set_name`, while reading it still goes through the
 `get_attribute` template, since no exact `get_name` exists.
 
-```spite title=symbol_codegen/symbol_codegen.spite entry
+```gdscript title=symbol_codegen/symbol_codegen.spite entry
 var console = Console()
 
 func SymbolCodegen() {
@@ -78,12 +78,12 @@ for `show_attribute` -- calls it once for every attribute, in the order they are
 to return nothing. It is how a class walks another one attribute by attribute without a loop or reflection at
 run time: every call is an ordinary typed function the compiler wrote.
 
-```spite title=every_attribute/label.spite
+```gdscript title=every_attribute/label.spite
 var text = "fragile"
 var copies = 2
 var urgent = true
 ```
-```spite title=every_attribute/every_attribute.spite entry
+```gdscript title=every_attribute/every_attribute.spite entry
 var console = Console()
 
 func EveryAttribute() {
@@ -120,7 +120,7 @@ member templates over `member: Symbol<$element_type>`, so `item.attributes[membe
 those lines: `Pair<String, Int>(...)`. A `$name` with no `generic` line is an error that points at
 [`Environment`](programs.md#run-time-settings-environment), which is where a program's settings live.
 
-```spite title=generics_basics/pair.spite
+```gdscript title=generics_basics/pair.spite
 generic $left_type
 generic $right_type
 
@@ -136,7 +136,7 @@ func describe(): String {
     return "{left} and {right}"
 }
 ```
-```spite title=generics_basics/generics_basics.spite entry
+```gdscript title=generics_basics/generics_basics.spite entry
 var console = Console()
 
 func GenericsBasics() {
@@ -172,7 +172,7 @@ Hero and 7
 A codegen value may be a value rather than a type. A condition on it is decided while compiling, so each set of
 values is its own class with only its own branch in it:
 
-```spite title=codegen_values_doc/weapon.spite
+```gdscript title=codegen_values_doc/weapon.spite
 generic $damage_type
 generic $is_magic
 
@@ -189,7 +189,7 @@ func hit(): $damage_type {
     return damage
 }
 ```
-```spite title=codegen_values_doc/codegen_values_doc.spite entry
+```gdscript title=codegen_values_doc/codegen_values_doc.spite entry
 var console = Console()
 
 func CodegenValuesDoc() {
@@ -204,7 +204,7 @@ func CodegenValuesDoc() {
 20 2.5
 ```
 
-```spite title=codegen_count_error/codegen_count_error.spite entry error
+```gdscript title=codegen_count_error/codegen_count_error.spite entry error
 var console = Console()
 
 func CodegenCountError() {
@@ -234,7 +234,7 @@ Inside such a branch the types it was built from are named after the container's
 `$value_type.element_type` for a `List<$element_type>`, `$value_type.value_type` for a `Dictionary<$value_type>`
 or a `$value_type?`, and a generic class's own names for one of its instances.
 
-```spite title=describe_kind/kind.spite
+```gdscript title=describe_kind/kind.spite
 generic $kind_type
 
 func name(): String {
@@ -255,7 +255,7 @@ func name(): String {
     }
 }
 ```
-```spite title=describe_kind/describe_kind.spite entry
+```gdscript title=describe_kind/describe_kind.spite entry
 var console = Console()
 
 func DescribeKind() {

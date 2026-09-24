@@ -6,7 +6,7 @@ A test is an ordinary function whose name starts with `test_`, in a class whose 
 operands and the file and line ([failure.md](failure.md#what-a-crash-reports)), which is everything needed to fix
 it. A run that prints nothing passed.
 
-```
+```gdscript
 func test_append_and_prepend_keep_order() {
     var numbers = [2, 3]
     numbers.append(4)
@@ -23,7 +23,7 @@ func test_append_and_prepend_keep_order() {
 program, and each class's `.functions` its functions ([reflection.md](reflection.md)). Nothing registers a test,
 and there is no manifest to keep in step. A runner of the same shape:
 
-```spite title=test_package/text_tests.spite
+```gdscript title=test_package/text_tests.spite
 func test_trim_removes_the_spaces_around_text() {
     var trimmed = "  spite  ".trim()
     crash trimmed == "spite"
@@ -34,7 +34,7 @@ func test_split_keeps_empty_pieces() {
     crash pieces.count() == 3
 }
 ```
-```spite title=test_package/test_package.spite entry
+```gdscript title=test_package/test_package.spite entry
 var console = Console()
 
 func TestPackage() {

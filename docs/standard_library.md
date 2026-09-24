@@ -63,7 +63,7 @@ Assigning text to a number calls the matching `to_<type>()`: `var age: Int = "42
 | `write(text)` / `append(text)` | `Bool` | replaces the content / adds to its end |
 | `exists()` / `remove()` | `Bool` | |
 
-```spite title=file_tasks/file_tasks.spite entry
+```gdscript title=file_tasks/file_tasks.spite entry
 var console = Console()
 
 func FileTasks() {
@@ -101,7 +101,7 @@ constructor uses `crash`, because `assert` is not allowed in a constructor.
 | `folders()` / `files()` | `List<String>` | names only, sorted |
 | `exists()` / `create()` | `Bool` | |
 
-```spite title=directory_tasks/directory_tasks.spite entry
+```gdscript title=directory_tasks/directory_tasks.spite entry
 var console = Console()
 
 func DirectoryTasks() {
@@ -127,7 +127,7 @@ A `Directory` has a `path`, the way a `File` does, and `entries()` lists what is
 `List<Directory.Entry>`: each entry is a `Directory` or a `File` whose `path` is already joined to its parent's,
 so a `switch` tells them apart and a folder is walked by calling the same function again.
 
-```spite title=directory_walk/directory_walk.spite entry
+```gdscript title=directory_walk/directory_walk.spite entry
 var console = Console()
 
 func DirectoryWalk() {
@@ -166,7 +166,7 @@ Folders come first, then files, each sorted by name, and `.` and `..` are never 
 
 ## Run a process
 
-```spite title=process_tasks/process_tasks.spite entry
+```gdscript title=process_tasks/process_tasks.spite entry
 var console = Console()
 
 func ProcessTasks() {
@@ -197,7 +197,7 @@ output "build finished"
 | `error(...)` | like `print`, to the error stream |
 | `read_line()` | one line of input without its line break, as a `String?`: `null` only at the end of the input |
 
-```spite title=console_input_doc/console_input_doc.spite entry
+```gdscript title=console_input_doc/console_input_doc.spite entry
 var console = Console()
 
 func ConsoleInputDoc() {
@@ -227,7 +227,7 @@ name? no input
 
 The entry constructor returning normally is exit code `0`.
 
-```spite title=program_basics/program_basics.spite entry
+```gdscript title=program_basics/program_basics.spite entry
 var console = Console()
 
 func ProgramBasics() {

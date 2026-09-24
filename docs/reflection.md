@@ -30,7 +30,7 @@ expected (every `String` function answers on it) and costs no allocation to pass
 `List<Spite.Attribute>`, one entry per field, each with its `.name`, its `.class`, and its `.value` rendered as
 text (`""` for a field with no plain textual form, such as a class or a list):
 
-```spite title=reflection_basics/gadget.spite
+```gdscript title=reflection_basics/gadget.spite
 var name = ""
 var power = 0
 
@@ -39,7 +39,7 @@ func Gadget(new_name: String, new_power: Int) {
     power = new_power
 }
 ```
-```spite title=reflection_basics/reflection_basics.spite entry
+```gdscript title=reflection_basics/reflection_basics.spite entry
 var console = Console()
 
 func ReflectionBasics() {
@@ -89,10 +89,10 @@ dotted `.name_with_namespaces`. `.parent` walks up the tree and `.classes` and `
 Comparing needs no narrowing: a namespace compares with text through its `name_with_namespaces`, and a class
 with no namespace simply compares unequal.
 
-```spite title=namespace_walk/shop/tools/hammer.spite
+```gdscript title=namespace_walk/shop/tools/hammer.spite
 var weight = 2
 ```
-```spite title=namespace_walk/namespace_walk.spite entry
+```gdscript title=namespace_walk/namespace_walk.spite entry
 var console = Console()
 
 func NamespaceWalk() {
@@ -125,7 +125,7 @@ instance, it makes one. A function named without calling it is a `Spite.Function
 ([functions_and_operators.md](functions_and_operators.md#functions-are-values)), so the value and its
 reflection are the same object.
 
-```spite title=function_reflection/gadget.spite
+```gdscript title=function_reflection/gadget.spite
 var name = ""
 var power = 0
 
@@ -142,7 +142,7 @@ func reset() {
     power = 0
 }
 ```
-```spite title=function_reflection/function_reflection.spite entry
+```gdscript title=function_reflection/function_reflection.spite entry
 var console = Console()
 
 func FunctionReflection() {
@@ -179,14 +179,14 @@ A class of the standard library describes itself the same way: `Memory.functions
 `Spite.Class.instances` is every class in the program, because a class is an instance of `Spite.Class`. That
 is how the test package finds its tests without being told about them ([testing.md](testing.md)).
 
-```spite title=live_registry/monster.spite
+```gdscript title=live_registry/monster.spite
 var name = ""
 
 func Monster(starting_name: String) {
     name = starting_name
 }
 ```
-```spite title=live_registry/live_registry.spite entry
+```gdscript title=live_registry/live_registry.spite entry
 var console = Console()
 var kept = List<Monster>()
 
@@ -222,7 +222,7 @@ Every member above is a getter with no setter: `library/spite/class.spite` keeps
 reads through the ordinary attribute interception and writing it is an error. A name starting with `_` is used
 only inside its own class, so the private fields cannot be written from outside either.
 
-```spite title=reflection_read_only/reflection_read_only.spite entry error
+```gdscript title=reflection_read_only/reflection_read_only.spite entry error
 var console = Console()
 
 func ReflectionReadOnly() {

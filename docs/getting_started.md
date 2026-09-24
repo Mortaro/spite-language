@@ -25,7 +25,7 @@ program in `conformance/`, `examples/`, `tests/` and these pages ([self_hosting.
 
 A program is a folder, and its entry file is the file named after the folder. Make `hello_world/hello_world.spite`:
 
-```spite title=hello_world/hello_world.spite entry
+```gdscript title=hello_world/hello_world.spite entry
 var console = Console()
 
 func HelloWorld() {
@@ -52,7 +52,7 @@ Every other `.spite` file in the folder is another class. Classes hold `var` fie
 default) and `func`s (their behaviour); an `enum` declared in a file is namespaced under it (`Person.Job`, though
 `'knight'` alone is usually enough). A `List<T>` holds them:
 
-```spite title=tour_classes/person.spite
+```gdscript title=tour_classes/person.spite
 enum Job {
     'knight'
     'mage'
@@ -66,7 +66,7 @@ func Person(new_age: Int, new_job: Job) {
     job = new_job
 }
 ```
-```spite title=tour_classes/tour_classes.spite entry
+```gdscript title=tour_classes/tour_classes.spite entry
 var console = Console()
 
 func TourClasses() {

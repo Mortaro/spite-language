@@ -9,7 +9,7 @@ exactly what a list does; write your own container the same way ([memory.md](mem
 
 A list literal is written with commas on one line, or one entry per line with no commas:
 
-```
+```gdscript
 var primes = [2, 3, 5, 7]
 var names = [
     "ada"
@@ -52,7 +52,7 @@ time however many keys there are -- it is a hash table over two lists.
 | `keys()` / `values()` | `List<String>` / `List<T>` | a fresh list, in insertion order |
 | `copy()` / `deep_copy()` | `Dictionary<T>` | |
 
-```spite title=dictionary_tasks/dictionary_tasks.spite entry
+```gdscript title=dictionary_tasks/dictionary_tasks.spite entry
 var console = Console()
 
 func DictionaryTasks() {
@@ -110,7 +110,7 @@ names a program calls.
 A member that does not fit is a compile error naming the member, what it is, and what the template needs.
 `count_` on a number is one of them, and names `sum_` instead: `count()` is only ever a collection's size.
 
-```spite title=list_helpers/chore.spite
+```gdscript title=list_helpers/chore.spite
 var title = ""
 var done = false
 
@@ -123,7 +123,7 @@ func finish() {
     done = true
 }
 ```
-```spite title=list_helpers/list_helpers.spite entry
+```gdscript title=list_helpers/list_helpers.spite entry
 var console = Console()
 
 func ListHelpers() {
@@ -153,7 +153,7 @@ first title write docs
 all done now true
 ```
 
-```spite title=list_query/item.spite
+```gdscript title=list_query/item.spite
 var name = ""
 var price = 0
 var in_stock = false
@@ -164,7 +164,7 @@ func Item(new_name: String, new_price: Int, new_in_stock: Bool) {
     in_stock = new_in_stock
 }
 ```
-```spite title=list_query/list_query.spite entry
+```gdscript title=list_query/list_query.spite entry
 var console = Console()
 
 func ListQuery() {
@@ -201,10 +201,10 @@ sword 50
 once more, not copied. A `Dictionary<T>` answers every template through its values: `inventory.sum_price()` is
 `inventory.values().sum_price()`.
 
-```spite title=template_mistake/repository.spite
+```gdscript title=template_mistake/repository.spite
 var stars = 0
 ```
-```spite title=template_mistake/template_mistake.spite entry error
+```gdscript title=template_mistake/template_mistake.spite entry error
 var console = Console()
 
 func TemplateMistake() {
@@ -225,7 +225,7 @@ as the separate steps it is written as -- that is what it means -- but the compi
 the first list**, with no list in between: `teams.filter_active().map_lead().sum_age()` visits each team once,
 reads its lead, and adds the age, allocating nothing.
 
-```spite title=fused_chain/person.spite
+```gdscript title=fused_chain/person.spite
 var name = ""
 var age = 0
 
@@ -234,7 +234,7 @@ func Person(new_name: String, new_age: Int) {
     age = new_age
 }
 ```
-```spite title=fused_chain/team.spite
+```gdscript title=fused_chain/team.spite
 var active = false
 var lead = Person("", 0)
 
@@ -243,7 +243,7 @@ func Team(new_active: Bool, new_lead: Person) {
     lead = new_lead
 }
 ```
-```spite title=fused_chain/fused_chain.spite entry
+```gdscript title=fused_chain/fused_chain.spite entry
 var console = Console()
 
 func FusedChain() {
@@ -279,7 +279,7 @@ Symbol codegen template ([metaprogramming.md](metaprogramming.md)) whose paramet
 it -- the field itself, or a call to the zero-argument function. `filter_member` answers `filter_in_stock`,
 `filter_is_popular` and every other `filter_<member>` call:
 
-```
+```gdscript
 func filter_member(member: Symbol<$element_type>): List<$element_type> {
     var filtered = List<$element_type>()
     var index = 0
@@ -306,7 +306,7 @@ A program reopens `List` by putting a `list.spite` in its own folder, and a func
 `Symbol<$element_type>` parameter named after a segment of its name becomes one more template, exactly like the
 library's:
 
-```spite title=list_average/list.spite
+```gdscript title=list_average/list.spite
 func average_member(member: Symbol<$element_type>): Float {
     assert item_count != 0
     var total = 0.0
@@ -319,14 +319,14 @@ func average_member(member: Symbol<$element_type>): Float {
     return total / item_count
 }
 ```
-```spite title=list_average/score.spite
+```gdscript title=list_average/score.spite
 var points = 0
 
 func Score(new_points: Int) {
     points = new_points
 }
 ```
-```spite title=list_average/list_average.spite entry
+```gdscript title=list_average/list_average.spite entry
 var console = Console()
 
 func ListAverage() {
@@ -344,7 +344,7 @@ func ListAverage() {
 The `<$element_type>` is what makes it a member of the element. A plain `member: Symbol` would name one of the
 list's own attributes, which are its buffer, so it is an error that says what to write:
 
-```spite title=plain_symbol_template/list.spite
+```gdscript title=plain_symbol_template/list.spite
 func total_member(member: Symbol): Int {
     var total = 0
     var index = 0
@@ -356,7 +356,7 @@ func total_member(member: Symbol): Int {
     return total
 }
 ```
-```spite title=plain_symbol_template/plain_symbol_template.spite entry error
+```gdscript title=plain_symbol_template/plain_symbol_template.spite entry error
 var console = Console()
 
 func PlainSymbolTemplate() {

@@ -22,7 +22,7 @@ place: inside the block it is a plain value, and the `else` runs exactly when it
 ([failure.md](failure.md#narrowing)). `else if` is written on one line; the formatter joins an `else { if }` into
 it.
 
-```spite title=if_chains/if_chains.spite entry
+```gdscript title=if_chains/if_chains.spite entry
 var console = Console()
 
 func IfChains() {
@@ -59,7 +59,7 @@ it ([failure.md](failure.md#an-if-that-only-returns-the-default-is-an-assert)).
 There is no `for`: "only the while loop, no for; that makes people favor the metaprogramming." Writing `for` is a
 parse error that names the fix instead of silently doing something else:
 
-```spite title=for_rejected/for_rejected.spite entry error
+```gdscript title=for_rejected/for_rejected.spite entry error
 var console = Console()
 
 func ForRejected() {
@@ -76,7 +76,7 @@ Spite only has 'while' loops
 When you do need to walk a list by hand, index it. The loop's condition `index < numbers.count()` proves
 `numbers[index]` inside the body, so the read needs no narrowing:
 
-```spite title=while_basics/while_basics.spite entry
+```gdscript title=while_basics/while_basics.spite entry
 var console = Console()
 
 func WhileBasics() {
@@ -97,7 +97,7 @@ total 60
 There is no `break` and no `continue`. A loop that stops early says so in its own condition, with a flag or with
 the bound itself:
 
-```spite title=early_exit/early_exit.spite entry
+```gdscript title=early_exit/early_exit.spite entry
 var console = Console()
 
 func EarlyExit() {
@@ -124,12 +124,12 @@ stopped at 2
 A `switch` is over a union -- or a `T?`, which is the union of a type and `Null` -- and must cover every member.
 Inside each case the value is narrowed to that member. A case is one statement on its line, or a block in `{ }`.
 
-```spite title=switch_cases/cat.spite
+```gdscript title=switch_cases/cat.spite
 func sound(): String {
     return "meow"
 }
 ```
-```spite title=switch_cases/dog.spite
+```gdscript title=switch_cases/dog.spite
 func sound(): String {
     return "woof"
 }
@@ -138,10 +138,10 @@ func fetch(): String {
     return "fetches the stick"
 }
 ```
-```spite title=switch_cases/fish.spite
+```gdscript title=switch_cases/fish.spite
 var fins = 2
 ```
-```spite title=switch_cases/switch_cases.spite entry
+```gdscript title=switch_cases/switch_cases.spite entry
 union Creature {
     Cat
     Dog
@@ -191,13 +191,13 @@ is a `Fish`. A `T?` that is null is no class, so the test is false. Naming a cla
 value's union is an error, since the answer could only be `false`. `if value == Class { }` narrows the value
 inside the block, the way a switch case does:
 
-```spite title=class_test_doc/cat.spite
+```gdscript title=class_test_doc/cat.spite
 var lives = 9
 ```
-```spite title=class_test_doc/fish.spite
+```gdscript title=class_test_doc/fish.spite
 var fins = 2
 ```
-```spite title=class_test_doc/class_test_doc.spite entry
+```gdscript title=class_test_doc/class_test_doc.spite entry
 union Creature {
     Cat
     Fish
@@ -236,13 +236,13 @@ a cat's fins 0
 `return`, says no more than `if value == Class { return ... }` followed by what `_:` returns -- and when both
 return `Bool` literals, it is `return value == Class`. The error names the form to write:
 
-```spite title=single_case_switch_error/cat.spite
+```gdscript title=single_case_switch_error/cat.spite
 var lives = 9
 ```
-```spite title=single_case_switch_error/fish.spite
+```gdscript title=single_case_switch_error/fish.spite
 var fins = 2
 ```
-```spite title=single_case_switch_error/single_case_switch_error.spite entry error
+```gdscript title=single_case_switch_error/single_case_switch_error.spite entry error
 union Creature {
     Cat
     Fish
