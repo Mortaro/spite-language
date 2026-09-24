@@ -2,17 +2,6 @@ int64_t SpiteArguments_count(SpiteArguments* self);
 SpiteString* SpiteArguments_get(SpiteArguments* self, int64_t index);
 SpiteString* SpiteArguments_lookup(SpiteArguments* self, const char* key);
 
-void Process_init(Process* self);
-Process* Process_allocate(void);
-Process* Process_default(void);
-Process* Process_make(SpiteString* command, List_String* arguments);
-Process* Process_retain(Process* self);
-void Process_release(Process* self);
-Process* Process_copy(Process* self);
-Process* Process_deep_copy(Process* self);
-void Process_Process(Process* self, SpiteString* command, List_String* arguments);
-int32_t Process_run(Process* self);
-SpiteString* Process_output(Process* self);
 void Program_init(Program* self);
 Program* Program_allocate(void);
 Program* Program_default(void);

@@ -61,6 +61,18 @@ func create_directory(path: String): Bool {
     return library.mkdir(path, 511) == 0 or directory_exists(path)
 }
 
+func open_process(line: String): Long {
+    return library.popen_as_long(line, "r")
+}
+
+func close_process(handle: Long): Int {
+    return library.pclose(handle) / 256 % 256
+}
+
+func shell_line(line: String, _command_is_quoted: Bool): String {
+    return line
+}
+
 func is_singleton(): Bool {
     return true
 }

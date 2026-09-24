@@ -3,14 +3,6 @@ typedef struct {
     const char** items;
 } SpiteArguments;
 
-typedef struct Process Process;
-struct Process {
-    SpiteHeader header;
-    SpiteString* command;
-    List_String* arguments;
-    SpiteString* last_output;
-};
-
 typedef struct Program Program;
 struct Program {
     SpiteHeader header;

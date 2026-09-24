@@ -588,13 +588,6 @@ SpiteString* spite_console_read_line(bool* ok) {
  * Directory listing and process spawning
  * branch on `_WIN32`; everything else is plain stdio/stdlib. */
 
-bool spite_file_exists(SpiteString* path) {
-    FILE* handle = fopen(path->data, "rb");
-    if (handle == 0) return false;
-    fclose(handle);
-    return true;
-}
-
 /* `Program().sleep(milliseconds)` (milestone 6a, for a `$serve` loop that
  * ticks on an interval instead of spinning): pauses the calling thread. */
 void spite_sleep_milliseconds(int64_t milliseconds) {
@@ -607,41 +600,4 @@ void spite_sleep_milliseconds(int64_t milliseconds) {
     duration.tv_nsec = (milliseconds % 1000) * 1000000;
     nanosleep(&duration, 0);
 #endif
-}
-
-/* Runs `command` (already containing its arguments, shell-quoted) and
- * captures stdout+stderr merged. `*exit_code` receives the process's exit
- * status. `_popen`/`popen` is the portable, minimal way to spawn a process
- * and read its output on both Windows and POSIX. */
-SpiteString* spite_process_run(const char* command, int* exit_code) {
-#ifdef _WIN32
-    FILE* pipe = _popen(command, "r");
-#else
-    FILE* pipe = popen(command, "r");
-#endif
-    if (pipe == 0) {
-        *exit_code = -1;
-        return &spite_static_string_empty;
-    }
-    int64_t capacity = 4096;
-    int64_t used = 0;
-    char* buffer = (char*)SPITE_MALLOC((size_t)capacity);
-    size_t read_count;
-    char chunk[4096];
-    while ((read_count = fread(chunk, 1, sizeof(chunk), pipe)) > 0) {
-        if (used + (int64_t)read_count + 1 > capacity) {
-            capacity = (used + (int64_t)read_count + 1) * 2;
-            buffer = (char*)SPITE_REALLOC(buffer, (size_t)capacity);
-        }
-        memcpy(buffer + used, chunk, read_count);
-        used = used + (int64_t)read_count;
-    }
-    buffer[used] = '\0';
-#ifdef _WIN32
-    int status = _pclose(pipe);
-#else
-    int status = pclose(pipe);
-#endif
-    *exit_code = status;
-    return spite_string_take(buffer, used);
 }

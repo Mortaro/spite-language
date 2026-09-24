@@ -145,12 +145,6 @@ func one_parameter(name: String, spite_type: Analysis.SpiteType): List<Analysis.
 }
 
 func register_system_classes() {
-    var process = register_system_class("Process")
-    var process_parameters = one_parameter("command", string_type())
-    process_parameters.append(Analysis.ParamInfo("arguments", list_type_of(string_type())))
-    add_builtin_function(process, "Process", process_parameters, void_type())
-    add_builtin_function(process, "run", no_parameters(), integer_type())
-    add_builtin_function(process, "output", no_parameters(), string_type())
     var console = register_system_class("Console")
     console.is_singleton = true
     add_builtin_function(console, "Console", no_parameters(), void_type())
