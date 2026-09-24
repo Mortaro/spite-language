@@ -1,0 +1,10 @@
+started
+spite> console: Console = 
+count: Int = 1
+label: String = counter
+spite> spite> spite> 3
+spite> increment(): Nothing
+doubled(): Int
+spite> 'doubled' takes arguments or returns a value, which this loop cannot call yet
+spite> no attribute 'missing': 'attributes' lists them
+spite> 

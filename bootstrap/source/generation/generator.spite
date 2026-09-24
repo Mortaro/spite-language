@@ -23,6 +23,7 @@ var foreign_symbol_wanted = List<String>()
 var foreign_headers_included = List<String>()
 var function_value_makers = List<String>()
 var written_in_spite = List<String>()
+var read_evaluate_print_loop = false
 var body_narrowed_names = List<String>()
 var body_assigned_paths = List<String>()
 var singleton_names = List<String>()
@@ -438,6 +439,13 @@ func generate(
     }
     emit_pending_functions()
     emit_all_classes_function()
+    if read_evaluate_print_loop {
+        var looped_class = find_class_by_c_name(discovery.entry_mangled_name)
+        if looped_class {
+            ensure_attributes_function(looped_class)
+            ensure_functions_function(looped_class)
+        }
+    }
     var settle = 0
     while settle < 4 {
         emit_class_object_bodies()
@@ -8781,6 +8789,11 @@ func emit_main(entry_mangled_name: String) {
             index = index + 1
         }
         builder.add_main("{entry_class.constructor.c_name}({arguments.join(", ")});")
+    }
+    if read_evaluate_print_loop {
+        builder.add_main(
+            "\{ ReadEvaluatePrintLoop* spite_loop = ReadEvaluatePrintLoop_make(); while (ReadEvaluatePrintLoop_step(spite_loop, {entry_class.c_name}_attributes(spite_entry_instance), {entry_class.c_name}_functions(spite_entry_instance))) \{} ReadEvaluatePrintLoop_release(spite_loop); }",
+        )
     }
     builder.add_main("{entry_class.c_name}_release(spite_entry_instance);")
     var singleton_index = 0

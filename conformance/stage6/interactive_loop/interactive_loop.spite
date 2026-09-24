@@ -1,0 +1,15 @@
+var console = Console()
+var count = 1
+var label = "counter"
+
+func InteractiveLoop() {
+    console.print("started")
+}
+
+func increment() {
+    count = count + 1
+}
+
+func doubled(): Int {
+    return count * 2
+}

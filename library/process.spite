@@ -27,6 +27,10 @@ func run(): Int {
     return runtime.close_process(handle)
 }
 
+func run_attached(): Int {
+    return runtime.run_attached(command_line())
+}
+
 func output(): String {
     return last_output
 }

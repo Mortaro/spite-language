@@ -1,0 +1,75 @@
+var console = Console()
+
+func step(attributes: List<Spite.Attribute>, functions: List<Spite.Function>): Bool {
+    console.write("spite> ")
+    var line = console.read_line()
+    if line {
+        if answer(line.trim(), attributes, functions) {
+            return true
+        }
+    }
+    console.print("")
+    return false
+}
+
+func answer(command: String, attributes: List<Spite.Attribute>, functions: List<Spite.Function>): Bool {
+    if command == "exit" {
+        return false
+    }
+    if command == "help" {
+        console.print("attributes, functions, an attribute's name, a function's name followed by (), help, exit")
+    } else if command == "attributes" {
+        list_attributes(attributes)
+    } else if command == "functions" {
+        list_functions(functions)
+    } else if command.ends_with("()") {
+        call(command.slice(0, command.length() - 2), functions)
+    } else if not command.is_empty() {
+        show(command, attributes)
+    }
+    return true
+}
+
+func list_attributes(attributes: List<Spite.Attribute>) {
+    var index = 0
+    while index < attributes.count() {
+        console.print("{attributes[index].name}: {attributes[index].class.name} = {attributes[index].value}")
+        index = index + 1
+    }
+}
+
+func list_functions(functions: List<Spite.Function>) {
+    var index = 0
+    while index < functions.count() {
+        console.print("{functions[index].name}(): {functions[index].returns.name}")
+        index = index + 1
+    }
+}
+
+func show(name: String, attributes: List<Spite.Attribute>) {
+    var index = 0
+    while index < attributes.count() {
+        if attributes[index].name == name {
+            console.print(attributes[index].value)
+            return
+        }
+        index = index + 1
+    }
+    console.print("no attribute '{name}': 'attributes' lists them")
+}
+
+func call(name: String, functions: List<Spite.Function>) {
+    var index = 0
+    while index < functions.count() {
+        if functions[index].name == name {
+            if functions[index].arguments.is_empty() and functions[index].returns.name == "Nothing" {
+                functions[index].call_function()
+            } else {
+                console.print("'{name}' takes arguments or returns a value, which this loop cannot call yet")
+            }
+            return
+        }
+        index = index + 1
+    }
+    console.print("no function '{name}': 'functions' lists them")
+}

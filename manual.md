@@ -1400,15 +1400,18 @@ Before this, a program run by the compiler received no arguments at all (`confor
   found is formatted, unconditionally). `--check` rewrites nothing and instead lists (to stdout) every file
   that would change, exiting 1 if that list is non-empty (0 if the whole tree is already clean).
 
-## 14. REPL and live reload  **[planned]**
+## 14. REPL and live reload  **[partial]**
 
 Milestone 6a: a REPL that inspects and drives the *running* program, local (`--repl`) and remote
-(`--repl-port`). **Status (2026-09-23): none of this section is built in the Spite compiler.**
-`runtime/spite_repl.h` is the interpreter this section describes, written in C and not wired in; the
-subsections below keep the design. **Open for Mortaro:** wire that C in now, or write the REPL in Spite over
-the reflection that milestone 10b made real (`Spite.Class.attributes`, `.functions`, typed function values) --
-which is what milestone 15d asks for, and what D14's "nothing above the floor is hand-written C" implies.
-Claude would write it in Spite, since the C version would be the next thing 15d deletes. Compiling and executing arbitrary new Spite code inside the running process,
+(`--repl-port`). **Status (2026-09-23), D72:** the REPL is written in Spite -- `library/read_evaluate_print_loop.spite` -- and
+`runtime/spite_repl.h`, the C interpreter the subsections below were first designed around, is deleted. `spite
+program.spite --repl` runs the entry constructor, then loops on `spite> `: `attributes` and an attribute's name show
+the entry instance's current values, `functions` lists its functions, `name()` calls one that takes nothing and
+returns nothing, `help`, `exit` (`conformance/stage6/interactive_loop`). The emitted `main` hands the loop fresh
+reflection lists before every command, and `--mode=run` runs the program attached to the terminal instead of
+capturing its output. **Not built yet:** walking into nested values (`program.monsters[0].health`), assignment,
+calling a function that takes arguments or returns a value, and `--repl-port` -- the first three need reflection to
+read an attribute as a live value rather than as text, and the last needs sockets through `DynamicLibrary`. Compiling and executing arbitrary new Spite code inside the running process,
 `Class.instances`, and live reload were blocked on the memory-model decision in [open question
 4](#open-questions), decided as D1 (reference counting, milestone 9a, section 10) -- unblocked, not yet
 started, for milestone 6b (see "Live reload and 6b" below).

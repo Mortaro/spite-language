@@ -89,6 +89,10 @@ func platform(): String {
     return "mac"
 }
 
+func run_attached(line: String): Int {
+    return library.system(line)
+}
+
 func is_singleton(): Bool {
     return true
 }

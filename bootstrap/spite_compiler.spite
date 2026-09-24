@@ -3,6 +3,7 @@ var program_values = Dictionary<String>()
 var optimized = false
 var last_crash_map = ""
 var formats = true
+var read_evaluate_print_loop = false
 
 func SpiteCompiler(arguments: Arguments) {
     load("source")
@@ -20,6 +21,7 @@ func SpiteCompiler(arguments: Arguments) {
     }
     optimized = has_flag(arguments, "--optimized")
     formats = not has_flag(arguments, "--no-format")
+    read_evaluate_print_loop = has_flag(arguments, "--repl")
     collect_program_values(arguments)
     var content = File(file_argument).read()
     if content {
@@ -129,6 +131,7 @@ func generate_c_or_report(file_argument: String, content: String): String? {
     assert system_bodies
     var generator = Generation.Generator()
     generator.program_values = program_values
+    generator.read_evaluate_print_loop = read_evaluate_print_loop
     var code = generator.generate(discovery, runtime_header, system_structs, system_prototypes, system_bodies)
     if generator.has_error {
         console.error(generator.error_message)
@@ -291,6 +294,7 @@ func final_classes_generator(discovery: Discovery.DiscoveryResult): Generation.G
     assert system_bodies
     var generator = Generation.Generator()
     generator.program_values = program_values
+    generator.read_evaluate_print_loop = read_evaluate_print_loop
     generator.generate(discovery, runtime_header, system_structs, system_prototypes, system_bodies)
     if generator.has_error {
         console.error(generator.error_message)
@@ -542,6 +546,11 @@ func run_run_mode(file_argument: String, content: String, debug_memory: Bool, pa
         return
     }
     var runner = Process(output_path.replace("/", "\\"), passed)
+    if read_evaluate_print_loop {
+        console.flush()
+        Program().exit(runner.run_attached())
+        return
+    }
     var exit_code = runner.run()
     console.write(runner.output())
     var program = Program()
