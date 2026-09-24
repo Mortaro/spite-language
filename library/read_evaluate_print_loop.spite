@@ -194,9 +194,12 @@ func failure(text: String): Answer {
 func answer(command: String, program: Spite.Attribute): Answer {
     if command == "help" {
         return success(
-            "attributes, functions, a path such as player.health, a path = a literal, a call such as player.heal(3), help, exit",
+            "attributes, functions, a path such as player.health, a path = a literal, a call such as player.heal(3), reload, last_reload, help, exit",
             "",
         )
+    }
+    if command == "reload" or command == "last_reload" {
+        return reloaded(command)
     }
     if command == "attributes" {
         var value_attributes = program.value_attributes()
@@ -224,6 +227,27 @@ func answer(command: String, program: Spite.Attribute): Answer {
         return success(shown, found.class.name)
     }
     return failure(unresolved)
+}
+
+func reloaded(command: String): Answer {
+    var build = Build()
+    if build.hot_reload {
+        var hot_reload = HotReload()
+        if command == "reload" {
+            hot_reload.reload()
+            if hot_reload.answered {
+                return success(hot_reload.answer, "")
+            }
+            return failure(hot_reload.answer)
+        }
+        if hot_reload.succeeded {
+            return success(hot_reload.last, "")
+        }
+        return failure(hot_reload.last)
+    }
+    return failure(
+        "'{command}' answers in a program built with --hot_reload, which swaps its code while it runs, and this one was not",
+    )
 }
 
 func is_assignment(command: String): Bool {

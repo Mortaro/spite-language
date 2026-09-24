@@ -44,8 +44,15 @@ func header(): String {
         "/* Under --debug-memory the live table is Spite (library/allocation_table.spite): these are the functions the"
         " * compiler emits to call it, defined after the classes. The table's own memory comes from the C allocator"
         " * directly, so tracking never tracks itself. Without --debug-memory an allocation stays one realloc and a"
-        " * counter, which is the floor every Spite object is built on. */"
-        "#ifdef SPITE_DEBUG_MEMORY"
+        " * counter, which is the floor every Spite object is built on. A library --hot_reload compiles for a running"
+        " * program (SPITE_RELOADED) allocates through that program, which it is handed when it is loaded. */"
+        "#ifdef SPITE_RELOADED"
+        "static void* (*spite_host_realloc)(void* pointer, size_t size) = 0;"
+        "static void (*spite_host_free)(void* pointer) = 0;"
+        "#define SPITE_REALLOC(pointer, size) spite_host_realloc(pointer, size)"
+        "#define SPITE_FREE(pointer) spite_host_free(pointer)"
+        "#define SPITE_MALLOC(size) spite_host_realloc(0, size)"
+        "#elif defined(SPITE_DEBUG_MEMORY)"
         "void* spite_debug_realloc(void* pointer, size_t size);"
         "void spite_debug_free(void* pointer);"
         "void spite_debug_register_object(void* pointer, int32_t class_id);"
@@ -151,9 +158,11 @@ func path(): String {
 
 func reopened_classes(): List<String> {
     var classes = [
+        "console"
         "memory"
         "typed_memory"
         "dynamic_library"
+        "hot_reload"
         "concurrent"
         "parallel"
         "spite/attribute"
@@ -226,6 +235,9 @@ func supplied_body(stem: String, name: String): String? {
 }
 
 func supplied_members(stem: String): List<String> {
+    if stem == "console" {
+        return console_members()
+    }
     if stem == "memory" {
         return memory_members()
     }
@@ -242,6 +254,9 @@ func supplied_members(stem: String): List<String> {
     if stem == "dynamic_library" {
         return dynamic_library_members()
     }
+    if stem == "hot_reload" {
+        return hot_reload_members()
+    }
     if stem == "spite/attribute" {
         return attribute_members()
     }
@@ -249,6 +264,17 @@ func supplied_members(stem: String): List<String> {
         return function_members()
     }
     return List<String>()
+}
+
+func console_members(): List<String> {
+    return [
+        "func _write_output(text: String)"
+        "fwrite((const char*)(intptr_t)text->_bytes, 1, (size_t)text->_length, stdout);\nSpiteString_release(text);"
+        "func _write_error(text: String)"
+        "fwrite((const char*)(intptr_t)text->_bytes, 1, (size_t)text->_length, stderr);\nSpiteString_release(text);"
+        "func flush()"
+        "fflush(stdout);\nfflush(stderr);"
+    ]
 }
 
 func memory_members(): List<String> {
@@ -320,6 +346,23 @@ func dynamic_library_members(): List<String> {
         "#ifdef _WIN32\nvoid* found = (void*)GetProcAddress((HMODULE)(intptr_t)self->handle, (const char*)(intptr_t)name->_bytes);\n#else\nvoid* found = dlsym((void*)(intptr_t)self->handle, (const char*)(intptr_t)name->_bytes);\n#endif\nif (found == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: the library '%s' has no '%s', which %s calls\\n\", (const char*)(intptr_t)self->file_name->_bytes, (const char*)(intptr_t)name->_bytes, (const char*)(intptr_t)wanted_by->_bytes);\nexit(1);\n}\nSpiteString_release(name);\nSpiteString_release(wanted_by);\nreturn (int64_t)(intptr_t)found;"
         "func close_library(opened: Long)"
         "if (opened == 0) return;\n#ifdef _WIN32\nFreeLibrary((HMODULE)(intptr_t)opened);\n#else\ndlclose((void*)(intptr_t)opened);\n#endif"
+    ]
+}
+
+func hot_reload_members(): List<String> {
+    return [
+        "func compiler(): String"
+        "written per build by the generator: the compiler that built the program"
+        "func build_arguments(): String"
+        "written per build by the generator: what that compiler was given, one per line"
+        "func program_file(): String"
+        "written per build by the generator: the executable it wrote"
+        "func watcher_entry(): Long"
+        "written per build by the generator: the address of the watcher thread's entry"
+        "func open(file: String): Long"
+        "#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA((const char*)(intptr_t)file->_bytes);\n#else\nvoid* opened = dlopen((const char*)(intptr_t)file->_bytes, RTLD_NOW);\n#endif\nSpiteString_release(file);\nreturn (int64_t)(intptr_t)opened;"
+        "func install(library: Long): String"
+        "written per build by the generator: binds the library to the program and swaps its functions in"
     ]
 }
 

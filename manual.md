@@ -539,9 +539,17 @@ log()                     # lines is empty
 As implemented (proposed by Claude, unconfirmed): **passing a whole list to a `...` parameter is an error** that
 says to pass the elements, because the caller writes them one by one and there is no spread operator to ask for
 the other reading -- unless the element type is itself a list. Zero values is a legal call, giving an empty list.
-`Console.print`, `write` and `error` still take their values through the generator's own special case rather than
-through `...values: List<Printable>`: which values count as printable is a language decision
-(`mortaros_missing_decisions.md`).
+`Console.print`, `write` and `error` are ordinary variadic functions taking `...values: List<Printable>` (D109,
+section 15).
+
+**A number, a `Bool` or an enum value fits a `type` too** (proposed by Claude, unconfirmed; built for D109). A
+shape holds class instances, and these are plain values, so passing one where a `type` is wanted puts it in a
+small box the compiler allocates and frees like any object, and a call through the shape reaches its class's
+function (`Int.to_string()`, for an `Int`). A `String` needs no box; a `Symbol` gets one so that it keeps its
+class. An enum value answers two functions, `to_string()` (its name as text -- `weather.to_string()` works on
+any enum value) and `to_debug()`, so that is all a shape can ask of one. `.class` read through the shape names the
+value's own class (`Int`, `Symbol`, the enum), as it does for a class instance. A value of a union passed where a
+`type` is wanted brings the union's members into the shape.
 
 ### Failure: three outcomes and no others  **[partial]**
 
@@ -1236,6 +1244,9 @@ than beside it:
   and the template it repeats must return nothing (`diagnostics/every_attribute`). The plural is the word
   `attributes` already means "all of them" in, which is why it was chosen over a new keyword or loop form: the
   old compile-time-unrolled `for instance.attributes` went with `for`, and this is its replacement without one.
+  Over another class's attributes it calls only the ones that class lets others read: a private `_` attribute
+  is skipped rather than being the private error (proposed by Claude, unconfirmed; found by D109's
+  `to_debug()`).
 
 ```gdscript
 func show_attribute(attribute: Symbol<Label>, label: Label, lines: List<String>) {
@@ -1309,8 +1320,8 @@ generator writes one Spite function on the first list's class -- a `while` over 
 must reach a class; anything the rule cannot write (a nullable member, a union) is compiled step by step, which
 means the same. The difference a program can see is only order: a member function in a fused chain runs element
 by element. `conformance/stage6/fused_chain_allocations` pins it: four chains run a thousand times allocate
-nothing (10 allocations in all, the `Launcher` included -- the `TypedMemory` its lists share is a static singleton -- against 16 010
-step by step).
+nothing (15 allocations in all, the `Launcher` and printing the total included -- the `TypedMemory` its lists
+share is a static singleton -- against more than 16 000 step by step).
 
 **A function of the caller for each element** (D113, decided by Mortaro; the resolution rule, the loop rule's
 exact shape and the reading below are proposed by Claude, unconfirmed).  **[implemented]** The member a template
@@ -1931,6 +1942,7 @@ gives an error, nothing is left to the user's taste. The only printout that used
 spite program                         build and run the program in the folder program/ (section 3)
 spite program --optimized             optimized build
 spite program --development           keep everything (no tree shaking), for live reload
+spite program --hot_reload            swap changed classes into the running program (implies --development)
 spite program --repl                  run with an in-place REPL
 spite program --repl_port=4000        run with a remote REPL an AI can connect to, to explore memory and debug
 spite program --serve=true            decide a Build field the program declares while compiling (section 9)
@@ -1997,10 +2009,9 @@ subsections below; `docs/repl.md`'s worked session is replayed by `check.sh` aga
 yet:** walking a `Dictionary<T>` or a union, assigning a `T?`, a list element or a whole instance, the meta
 commands `classes`, `describe`, `enums` and `memory`. D37's drain points are built (2026-09-24): the remote loop's
 commands are answered on the program's thread where it waits -- see "Answered where the program waits" below and
-section 15's "Concurrency". Compiling and executing arbitrary new Spite code inside the running process,
-`Class.instances`, and live reload were blocked on the memory-model decision in [open question
-4](#open-questions), decided as D1 (reference counting, milestone 9a, section 10) -- unblocked, not yet
-started, for milestone 6b (see "Live reload and 6b" below).
+section 15's "Concurrency". **Status (2026-09-24), milestone 6b:** live reload is built behind `--hot_reload`
+(D111, D112) on Windows, with the Linux and macOS folders held to compiling -- see "Live reload and 6b" below.
+Compiling and executing new Spite code typed at the prompt, and `Class.instances`, are not started.
 
 ### Reflection tables  **[planned]**
 
@@ -2129,12 +2140,76 @@ in `docs/` this way (`scripts/docs_corpus.spite` writes it out beside its progra
 `--repl_port`, each `$ spite connect ... --command="..."` line is sent, and each answer must be the line written
 under it, the program must end with exit code 0 after `exit`, and what it printed must be its ` ```output `.
 
-### Live reload and 6b  **[planned]**
+### Live reload and 6b  **[implemented on Windows; the mechanism and the rules below proposed by Claude, unconfirmed]**
 
-Moved from the milestone list; was blocked on [open question 4](#open-questions) (reference semantics),
-now decided as D1 (reference counting, milestone 9a, section 10) and therefore unblocked, but not yet
-started: compiling and executing arbitrary new Spite code inside the running process, `Class.instances`,
-and swapping code while the program runs.
+D111 (a change is seen through the operating system and only what changed is rebuilt) and D112 (`--hot_reload`, a
+flag of its own) as built on 2026-09-24. `docs/repl.md` ("Live reload") is the user's page, and `check.sh` runs its
+session against a copy of the program it edits. Still not started: compiling new Spite code typed at the prompt,
+and `Class.instances`.
+
+- **The flag.** `hot_reload` is a `Build` field (default `false`). It **implies** `--development` rather than
+  requiring it, since a new version of a class may call a function nothing called before. It works without a REPL:
+  the watcher still swaps, and each swap or refusal is one line on the program's error output (`spite: rebuilt
+  Monster`); an explicit rebuild needs `--repl` or `--repl_port`, whose `reload` swaps in what changed and answers
+  what it rebuilt, and whose `last_reload` answers what the last swap (the watcher's included) did. A build without
+  it has no slots, no watcher and no reload code: `reload` answers `'reload' answers in a program built with
+  --hot_reload, which swaps its code while it runs, and this one was not`, from a branch folded on the `Build`
+  constant. As with `--repl_port`, a `--hot_reload` build whose code never waits and has a `while` loop is a compile
+  error naming the loop, since the swap happens where the program waits. `spite program --hot_reload` runs the
+  program attached to the terminal, like a REPL build.
+- **The swap mechanism: one slot per function.** In a `--hot_reload` build every function of the program's own
+  classes (not `library/` or `launcher/`), and each such class's `_init` (its attribute defaults), is written as
+  `<name>_hot`, with a function pointer `<name>_slot` holding it, and `<name>` becomes a one-line forwarder through
+  the slot. Every call site, function value and REPL thunk still names `<name>`, so all of them follow a swap;
+  library functions stay direct calls. Any other build is unchanged: direct calls and tree shaking. The cost is one
+  indirect call that the C compiler cannot inline, about a nanosecond: 200 million calls to a one-line function
+  took about 0.62 s instead of 0.44 s at `-O0` and 0.40 s instead of 0.18 s with `--optimized` (Windows, clang).
+- **What the build records.** Beside the executable, `<program>.reload_host` lists every function the executable
+  defines with its C prototype, its slots, its class ids in order and the C layout of every class and enum;
+  `<program>.reload_files` holds a generation number and a hash of each of the program's files. The executable
+  holds a table of its functions' addresses by name, the path of the compiler that built it and that compiler's
+  options, so it must run from the directory it was built from.
+- **Rebuilding: `--mode=reload --output=<program>`.** A reload runs that compiler with those options and this mode.
+  It reads the whole program again (milliseconds), with the class ids seeded from the manifest so every class keeps
+  the id its instances carry, and compares file hashes: nothing changed answers `unchanged`. The rebuilt set is the
+  classes the changed files declare, plus every class whose code calls a function of the set that the running
+  program has with another prototype or does not have at all (the running caller would still call the old one),
+  repeated until nothing is added. It writes C only for the rebuilt classes' functions and what they reach that the
+  running program lacks, reaching every other function through a pointer the library is handed when it is loaded,
+  and compiles `<program>_reload_<n>.dll` (`.so`, `.dylib`). It prints `rebuilt A, B`, `removed A.f` when a function
+  the running program has is gone, and the library's path.
+- **Swapping at a drain point** (D37). The running program opens the library with `LoadLibraryA`/`dlopen`, the
+  calls `DynamicLibrary` opens a library with, and calls its `spite_reload_bind`, which looks up each running
+  function it uses by name (the allocator included, so the library allocates and frees through the program) and then
+  re-points the slots of the rebuilt functions whose prototypes are unchanged, with an atomic store. `reload` is a
+  REPL command, so it runs where the program waits; the watcher's signal is handled in the scheduler's idle, beside
+  the REPL's commands. While a reload runs, waits block instead of suspending, so nothing else runs until the swap
+  is done; the program waits for the compile (under a second for a small program). After a swap the file hashes
+  are updated. A library is never unloaded: values it made, such as its text literals, may still be referenced.
+- **What reloads.** A function body (the next call runs it; a call already running finishes the old one). A new
+  function or a new class (the new code calls it; the REPL's `functions` and reflection keep what the program
+  started with). A changed parameter list or return type (a new function: the rebuilt class and its callers are
+  rebuilt). A deleted function keeps its last code for whatever still holds it, a function value or the REPL, and
+  the answer names it. An attribute's default value (through the `_init` slot, for instances made afterwards).
+- **What needs a restart: a class's attributes or enums.** When the layout of a class or enum the running
+  program has differs, the reload is refused -- `the attributes of Monster changed, and the running program's
+  instances were made with the old ones: restart the program to change a class's attributes or enums, or undo that
+  part of the change to reload the rest` -- and the program keeps all of its code. Migrating instances by attribute
+  name (new attributes taking their defaults) needs every live instance and every reference to it, which the
+  program cannot find today; `mortaros_missing_decisions.md` asks which to build. A file that does not compile is
+  refused the same way, with the compiler's error, so a save caught half-written is harmless.
+- **Watching** (D111). Each operating system's folder reopens `HotReload` (`library/hot_reload.spite`) with
+  `watch_folder` and `wait_for_change`: `FindFirstChangeNotificationA`, `WaitForSingleObject` and
+  `FindNextChangeNotification` from `kernel32.dll` on Windows, `inotify` and `poll` from `libc.so.6` on Linux, and
+  `kqueue`/`kevent` on the folder and each of its files from `libSystem.dylib` on macOS -- no polling. The watcher
+  runs on a thread of its own, waits until 100 ms pass without a change, then sets a flag and wakes the scheduler.
+  Only the program's own folder is watched, not the folders it `load`s; `reload` picks those up.
+- **Windows' C runtime.** When the C compiler targets MSVC (its `-dumpmachine`), the program and its libraries are
+  built against the C runtime DLL (`-fms-runtime-lib=dll`) so they share one heap and one standard output.
+- **Untested:** Linux and macOS -- their watchers, `.so`/`.dylib` libraries and `Program.executable_path` (which
+  the compiler uses to record itself) -- are held to compiling by `check.sh`, and are written the same way as
+  Windows'. A crash inside reloaded code reports the library's own assert trace. A `Parallel` running a function
+  whose slot is re-pointed finishes the old code.
 
 ## 15. Standard library  **[partial]**
 
@@ -2288,7 +2363,7 @@ directory listing and process spawning).
 | `Directory(path)` | `path: String`, `entries(): List<Directory.Entry>` (D93: every folder and file inside it, as `Directory` and `File` values whose `path` is joined to this one -- see below), `files(): List<String>` (names, sorted), `folders(): List<String>` (sorted), `exists(): Bool`, `create(): Bool` |
 | `Process(command, arguments)` | `run(): Int` (exit code; `arguments` is a `List<String>`, each shell-quoted), `output(): String` (stdout+stderr merged, valid after `run()`) |
 | `Program()` | `exit(code)`: exits the process immediately with `code` |
-| `Console()` | `print(...)`, `write(...)`, `error(...)`, `read_line(): String?` -- see below |
+| `Console()` | `print(...values)`, `write(...values)`, `error(...values)`, `flush()`, `read_line(): String?` -- see below |
 | `Socket()` (proposed by Claude, unconfirmed) | `listen_locally(port): Bool`, `accept_client(): Socket?`, `connect_locally(port): Bool`, `read_line(): String?`, `write_line(text): Bool`, `close()` -- TCP on `127.0.0.1` only, which `--repl_port` and `spite connect` use (section 14) |
 | `Concurrent(function)`, `Parallel(function)` (proposed by Claude, unconfirmed) | `wait()`: what the function returned; dropping the handle waits for it -- see "Concurrency" below |
 | `DynamicLibrary(file_name, naming, header)` | every foreign function, constant and type of a native library -- see [Foreign libraries](#17-foreign-libraries-planned). `library/dynamic_library.spite` holds its `file_name` and `handle`, its constructor and `drop()`; opening, closing and finding a symbol are the compiler's reopening (D82) |
@@ -2297,10 +2372,72 @@ directory listing and process spawning).
 
 `Console` is one of them and is a singleton (D52): `Console()` is the same instance everywhere, `Console` is an
 ordinary class name rather than a reserved word, and `console.class.name` is `"Console"` like any other class.
-It has `print(...)` (every argument printed, separated by a space, with a trailing newline), `write(...)` (the
-same without the trailing newline), `error(...)` (the same as `print` but to the error stream), and
-`read_line(): String?` (one line from the input stream without its line break, null only at the end of input
-with nothing read). The entry constructor returning normally is exit code `0`.
+It has `print(...values)` (each value's `to_string()`, separated by a space, with a trailing newline),
+`write(...values)` (the same without the trailing newline), `error(...values)` (the same as `print` but to the
+error stream), `flush()`, and `read_line(): String?` (one line from the input stream without its line break, null
+only at the end of input with nothing read). The entry constructor returning normally is exit code `0`.
+
+**Printing is `to_string()`** (D109, decided by Mortaro; implemented). `print`, `write` and `error` are Spite in
+`library/console.spite`, taking `...values: List<Printable>`, where
+
+```gdscript
+type Printable {
+    to_string(): String
+}
+```
+
+Every number, `Bool`, `String` (whose `to_string()` answers itself), `Symbol`, enum value, `Spite.Class` (its
+`.name`) and `Spite.Namespace` (its `.name_with_namespaces`) answers it, so everything that printed before prints
+the same. A class of your own prints once it declares `func to_string(): String`, and passing one that does not is
+the ordinary shape error, naming the function: `'Pet' does not fit type 'Printable': it has no function
+'to_string'` (`diagnostics/print_without_to_string`, `conformance/stage6/printable_values`). Mortaro wrote the
+member as `to_string: Spite.Function<String>`; a `type` writes a required function as `to_string(): String` today,
+and which form a shape uses is open question 11. What stays the compiler's is only the floor: `_write_output(text)`,
+`_write_error(text)` and `flush()` have no body in Spite, and `Prelude` supplies their C (`fwrite` and `fflush`),
+as it does `Memory`'s.
+
+As implemented (proposed by Claude, unconfirmed): printing a value costs what the call says -- the list of values
+is a `List` like any variadic call's, a number goes through its box and its `to_string()`, and the text is written
+with its length rather than up to its first zero byte. `conformance/stage6/text_building` and
+`fused_chain_allocations` pin those allocations. A `crash` still writes its operands itself, through each value's
+`to_string()`, because it reports on the way out of a program that is stopping. `flush()` no longer writes a line
+break after flushing, which the special case it replaces did.
+
+**`Console.debug` and `to_debug()`** (D109, decided by Mortaro: "each class has an automatic to_debug(): String
+that returns something like `Class {attribute: value, other: value}` by nesting to_debugs"; Claude chose `debug`
+over `print_json`; implemented). `debug(...values: List<Debuggable>)`, where `type Debuggable { to_debug():
+String }`, writes each value's `to_debug()` separated by a space, then a line break. Every value answers it:
+
+```text
+Player { name: "hero", scores: [3, 7], bag: {"gold": 2}, partner: null, mood: 'calm' }
+```
+
+What follows is Claude's reading (proposed by Claude, unconfirmed):
+
+- **A class shows its name and its attributes**, in declaration order, as `Name { attribute: value }`, and
+  `Name {}` when it has none to show. An attribute that is a class is shown by *its* `to_debug()`, so a class that
+  declares its own is shown by it wherever it appears. A `List` is `[a, b]`, a `Dictionary` is `{"key": value}`,
+  text is quoted with `\"`, `\\` and `\n` escaped, a `Symbol` or enum value is written the way Spite writes it
+  (`'calm'`), a number and a `Bool` as they print, and an absent `T?` is `null`. A `Spite.Class` is its name.
+- **Private attributes are left out.** The walk is the plural attribute template (section 8) run from
+  `Spite.DebugInstance`, and a plural over another class's attributes now ranges over the ones that class lets
+  others read: a `_` attribute is its own business, and reading it from outside would be the ordinary private
+  error. `Json` follows the same rule.
+- **A cycle ends at an object already being shown**: it is written `Name {...}`, so `first.next.next` pointing
+  back at `first` shows `Node { value: 1, next: Node { value: 2, next: Node {...} } }`. Each class keeps the
+  objects it is in the middle of showing, compared with `==` (identity, unless the class defines `equals`), and
+  a tree of distinct objects is shown whole however deep it goes.
+- **It is Spite, and it costs nothing unused.** `library/spite/debug.spite` (`Spite.Debug<$value_type>`) turns any
+  value into its text, and `library/spite/debug_instance.spite` (`Spite.DebugInstance<$value_type>`) walks a class
+  instance. The generator's whole part is that asking a class for a `to_debug()` it does not declare answers one
+  that calls them, created only when something asks, so a program that never debugs a class compiles nothing for
+  it. A `type` or union that does not require `to_debug()` still answers it, dispatched to the class the value is.
+- **The REPL keeps its own display** (`Player { name: hero, ... }`: text unquoted, nested objects as `Name {...}`,
+  lists as `List<String>(...)`), because it reads a running program through `Spite.Attribute`, whose values are
+  already text, and the documented sessions depend on it. Proposal: make it `to_debug()` of the value once
+  reflection can hand the loop a typed value (`mortaros_missing_decisions.md`).
+
+`conformance/stage6/debug_values`, `docs/standard_library.md`.
 
 **A directory is navigated through its entries** (D93, decided by Mortaro, 2026-09-24).  **[implemented]**
 `Directory` has a `path` exactly as `File` does, and `entries()` answers a `List<Directory.Entry>`, where
@@ -2467,7 +2604,8 @@ Spite above them:
    only the header can make: a `'constant'` text is never counted, and `text = text + piece` grows the text in
    place only when its count is one (`SpiteString_append` asks, then calls `String._unshared()` and
    `String._append_in_place(piece)`, which are Spite).
-4. **Entry and exit**: `main` is emitted by the compiler, and so is printing, so the floor also has
+4. **Entry and exit**: `main` is emitted by the compiler, and so is writing text out (`Console._write_output`,
+   `_write_error`; D109 moved everything else about printing into Spite), so the floor also has
    `Console.flush()`: exiting through the C runtime's `exit` would drop what the program's own `stdout` still
    buffers, which is why `Program.exit` flushes first (found when every corpus program printed nothing).
 5. **The C runtime through Spite, one operating system at a time** (D71 replaced Claude's `"c"` alias; D80
@@ -3364,6 +3502,15 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (implements D113; the readings below proposed by Claude, unconfirmed) **A template's member may be a function of the caller that takes the element alone, and the element's own member and such a function never both answer.** The caller is the class the call is written in; its function must have one parameter whose type equals the element type, and D15's requirements apply to its return type (`map_` of one returning nothing is the error, now naming `each_`). It works on a list or dictionary of any element type, `String` and numbers included. **When the element has a member of the same name, the call is an error naming both** rather than an order deciding: D113 allowed either, and an order would let a member added later change what an unrelated caller runs (`mortaros_missing_decisions.md` item 58). No template changed: the `library/list.spite` template is instantiated per calling class with a hidden last parameter for the caller, passed as `self`, and `item.attributes[member]` reads as `caller.<function>(item)`; such instances are not listed in the list's `functions` or offered at the REPL prompt. Fused chains (D105) take these steps too, after a `map_` to any type the fusion can spell, and pass the caller last. Section 8, `conformance/stage6/caller_templates`. |
 | 2026-09-24 | (implements D113's error; the shape proposed by Claude, unconfirmed) **The `while` that only passes each element to a caller function is an error, detected only where the rewrite is exact**: the statement before sets the counter to `0`; the condition is `counter < list.count()` on a name or path of type `List<T>`; the body is `f(list[counter])` or `var item = list[counter]` then `f(item)`, plus `counter = counter + 1` (last, or right after the `var`); `f` is a function of the class taking one `T`, and `T` has no member `f`. The message names the template: `this 'while' only calls 'say_hello' with each element of 'names': write 'names.each_say_hello()'` (`diagnostics/caller_templates`). **2 loops were rewritten**, `generator.spite`'s `collect_body_facts` and `docs/reflection.md`'s `function_reflection`: D94's 145 were almost all loops that pass more than the element (`depth`, `scope`), which D113 does not cover and which stay `while`; how to carry them is `mortaros_missing_decisions.md` item 57. The review file's counts are updated. |
 | 2026-09-24 | (implements D110; the readings proposed by Claude, unconfirmed) **A singleton's constructor call may only be the whole value of a `var`.** A call constructing a class with a `singleton` line (a generic one too) that is anything else -- the receiver of a member read or call, an argument, a returned or assigned value, an operand, a list element -- is an error: "'Build' is a singleton: bind it once beside the attributes, 'var build = Build()', and use 'build.target_operating_system'" (or "and use 'console'" when nothing is read from it). The binding may be an attribute or a local `var`: `String` keeps `Memory` in locals because a value class has no attribute to spare, and an error path binds `Program` where it exits. D77's constructor-as-argument does not extend to singletons. Checked on every statement the compiler generates and every attribute default, beside D77's check (`diagnostics/inline_singleton`, `diagnostics/inline_singleton_attribute`). On the way: **`Program` has its `singleton` line** -- D8 and section 15 already called it a singleton, but its file never said so, so every `Program().exit(1)` made an object; **`Build` is a static object** like `Memory` (D108's third row), since each of its fields is folded and it holds nothing at run time, so the launcher's `var build = Build()` costs no allocation and no allocation count changed; **the launcher** reads `load("library/{build.target_operating_system}")` and `load(build.program)` through a launcher `var` bound to `Build()`; **a number declares its storage in two lines**, `var memory = Memory()` and `var _memory = memory.allocate_bytes(4)`, where the binding is never a field and the compiler requires the allocation to go through it -- chosen over exempting `var _memory = Memory().allocate_bytes(4)`, because a number's file is where an AI learns how memory is declared. 58 sites were rewritten in `bootstrap/`, `launcher/`, `library/` (the eleven numbers, `environment`, the REPL), `scripts/`, `conformance/`, `diagnostics/` and `docs/`, 16 of them the compiler's own `Program()` calls. Sections 3, 8 to 12 and 14. |
+| 2026-09-24 | **D114** (decided by Mortaro, in the SlopEngine session, relayed by that session): **a generic class reflects on a class's functions at compile time.** SlopEngine's two gaps -- an engine cannot tell whether a system class has `run_each` or `run_all`, and one generic cannot cover functions of different arity -- are closed by compile-time function reflection, "not variadic generics and not engine workarounds." Inside a generic class, asking whether `$system_type` has a function of a given name is decided at compile time and folds like `if $is_magic`; that function's `.arguments` is a compile-time list whose entries give a `.class` usable as a type and a `.name` usable as a `Symbol`, walked by a plural template the way attributes are, so one `Runner<$system_type>` runs a `run_each` of any arity. The engine's systems are `run_each(potion: Potion, target: Target)` (once per matching combination) or `run_all(potions: List<Potion>, targets: List<Target>)` (once with every match -- Mortaro chose lists of rows), the rows being `type`s declared in the system's file, and the engine derives its queries from those parameter types with nothing registered. **The spelling** -- `$system_type.has('run_each')` and `$system_type.run_each.arguments` -- was proposed by that session and is not yet confirmed. Scheduled after the SlopEngine HIGH bugs. |
+| 2026-09-24 | (implements D111 and D112; the mechanism proposed by Claude, unconfirmed) **Live reload swaps functions through a slot per function, and rebuilds changed classes into a library the program loads.** In a `--hot_reload` build every function of the program's own classes, and each class's `_init`, is called through a function pointer the program can re-point, behind a forwarder with the function's own name; other builds keep direct calls and tree shaking. About a nanosecond per call. The build writes `<program>.reload_host` (functions and prototypes, slots, class ids, layouts) and `<program>.reload_files` (file hashes). A reload runs the compiler that built the program with its options and `--mode=reload --output=<program>`, which seeds class ids from the manifest, rebuilds the classes whose files changed plus the callers of any of their functions the running program has with another prototype or lacks, repeated to a fixed point, writes C only for those and what they reach that the program lacks, and compiles `<program>_reload_<n>.dll`/`.so`/`.dylib`. The program opens it with `LoadLibraryA`/`dlopen`, hands it its functions by name (the allocator included), and re-points the slots, at a drain point (D37), with waits blocking until the swap is done. Libraries are never unloaded. Section 14, "Live reload and 6b"; `docs/repl.md`; `check.sh`'s live reload step. |
+| 2026-09-24 | (on D111; the rule proposed by Claude, unconfirmed) **A change to a class's attributes or enums is refused with an error saying to restart, and the program keeps all of its code**; so is a file that does not compile. D111 says a change rebuilds "what depends on their layout", but the instances already in memory have the old layout, and migrating them by attribute name needs every live instance and every reference to it, which nothing finds yet (`mortaros_missing_decisions.md` item 64). A new function or class, a changed signature (a new function, whose callers are rebuilt), a changed default (through `_init`) reload; a deleted function keeps its last code for whatever still holds it, a function value or the REPL, and the answer names it (`removed Monster.roar`). The REPL's reflection keeps the functions the program started with. |
+| 2026-09-24 | (on D112; proposed by Claude, unconfirmed) **`--hot_reload` implies `--development`, works without a REPL, and is answered by two REPL commands.** Without a REPL the watcher still swaps and each swap or refusal is one line on standard error (`spite: rebuilt Monster`). With `--repl`/`--repl_port`, `reload` rebuilds and swaps what changed and answers `rebuilt A, B` (or `nothing changed since the code the program runs`, or the refusal), and `last_reload` answers what the last swap did, the watcher's included. A non-hot build answers both with an error naming `--hot_reload`. A `--hot_reload` build whose code never waits and has a `while` is a compile error, like `--repl_port`'s. |
+| 2026-09-24 | (implements D111's watcher; proposed by Claude, unconfirmed) **Each operating system's folder reopens `HotReload` with `watch_folder` and `wait_for_change`**: `FindFirstChangeNotificationA` on Windows (D111 named `ReadDirectoryChangesW`; which file changed is found by hash, so the simpler call is enough), `inotify` on Linux, `kqueue` on the folder and each file on macOS (not FSEvents, which needs a run loop). The watcher thread waits until 100 ms pass without a change, then flags the scheduler; only the program's own folder is watched, not `load`ed folders. On Windows, a program and its libraries built by an MSVC-targeting clang share the C runtime DLL. `Program.executable_path()` is added to each folder so the compiler can record itself. |
+| 2026-09-24 | **D115** (decided by Mortaro, in the SlopEngine session, relayed; extends D114): **a program finds its parts by folder convention, through compile-time reflection over its classes.** SlopEngine finds every system with no list: a system is every class whose namespace ends in `System` (a `system/` folder, e.g. `Ui.System.Interact`), and the program is its entry file, so plugin and composition files go. The language need is a compile-time plural template over the program's classes, filtered by namespace, instantiating a generic (`Runner<ThatClass>`) for each -- a sibling of D114's function reflection. The mechanism is decided; the spelling is open (the SlopEngine session proposed `Symbol<Spite.Namespace>` or a `classes` plural over a namespace pattern). |
+| 2026-09-24 | **D116** (decided by Mortaro, in the SlopEngine session, relayed; extends D114): **a function's name can say when it runs, and a template reads that name.** Instead of a generic `run_each`, a system's function name places it: `update_each`, `render_all`, `run_each_before_input`. The engine owns a list of phases and a template matches the name pattern -- descriptive names as the ordering mechanism, with no hand-written after/before lists and no plugin order; within one phase, systems with no conflicts run in parallel. The language need is D114's `has(...)` taking a name pattern, with the matched part (the phase) available at compile time as a `Symbol` or text. The grammar (`<phase>_each` / `<phase>_all`, `run_each_before_<phase>` / `run_each_after_<phase>`) was proposed by the SlopEngine session and is for Mortaro to settle. |
+| 2026-09-24 | (implements D109's `print`; the readings below proposed by Claude, unconfirmed) **`Console.print`, `write` and `error` are Spite, taking `...values: List<Printable>`, and the generator's printing special case is gone.** `type Printable { to_string(): String }` lives in `library/console.spite`, written with the form a `type` has today rather than Mortaro's `to_string: Spite.Function<String>` (open question 11). `String.to_string()` answers itself, `Spite.Class` its `.name`, `Spite.Namespace` its `.name_with_namespaces`, and every enum value answers `to_string()`, its name. For numbers, `Bool` and enum values to fit a `type` at all, **a plain value passed where a shape is wanted is boxed** -- one allocation, released like an object -- and a call through the shape reaches its class's function; `String` and `Symbol` are objects already. What the compiler still writes is the floor: `Console._write_output`, `_write_error` and `flush` are bodiless and `Prelude` supplies `fwrite`/`fflush`, and a `crash` writes its own operands. Output is byte for byte what it was, except that `flush()` no longer writes a stray line break; the self-compile time is unchanged within noise, and the two allocation pins moved (29 to 50, 11 to 17) because a variadic call builds a `List` (`mortaros_missing_decisions.md` 72 to 74). |
+| 2026-09-24 | (implements D109's `debug`; the readings below proposed by Claude, unconfirmed) **`Console.debug(...values: List<Debuggable>)` writes each value's `to_debug()`, and every value has one.** A class that does not declare `to_debug()` answers one the moment something asks, and it calls `Spite.DebugInstance<$value_type>` (`library/spite/debug_instance.spite`), which walks the attributes with the plural template; every other value goes through `Spite.Debug<$value_type>` (`library/spite/debug.spite`). The format: `Name { attribute: value }` (`Name {}` when empty), `[a, b]`, `{"key": value}`, text quoted and escaped, a `Symbol` or enum value written `'name'`, a number or `Bool` as printed, `null`. **Cycles:** an object already being shown further up is written `Name {...}`, found by `==` against the objects its class is in the middle of showing. **Private attributes are left out**, because a plural over another class's attributes now skips the `_` ones instead of failing on them (`Json` too). Along the way: a `Symbol` passed to a `type` is boxed like an enum value, so it keeps its class; a union value passed to a `type` admits the union's members; a `type` or union answers `to_debug()` even when it does not require it; and a `DynamicLibrary`'s own declared functions (`to_debug`) are called as Spite rather than as foreign symbols. The REPL's display is unchanged, and becoming `to_debug()` is a proposal. `conformance/stage6/debug_values`; `mortaros_missing_decisions.md` 75 to 78. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; reads D104/D8 for `generic` lines, found building an ECS) **A generic singleton has one instance per set of codegen values.** `singleton` with `generic $component_type` was accepted, but each instantiation lost the line, so every `Column<Health>()` made a new object. Codegen values are literals like D8's constructor arguments, so each distinct set gets its own static slot: `Column<Health>() == Column<Health>()` and `Column<Label>()` is another. `TypedMemory<T>`, the one generic singleton in the library, is now one stateless static object per element type instead of an allocation per list. `conformance/stage6/generic_singletons`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; found building an ECS whose query rows are `type`s) **A Symbol template may range over a `type`.** `attribute: Symbol<$row_type>` with `$row_type` bound to `type Target { health: Health  alive: Alive }` answered nothing, so `fill_attributes(row, store)` was "no function". A shape now ranges like a class: its attributes, plus required functions that take no arguments for a single name; `row.attributes[attribute]` goes through the shape's reader, writer or caller; the plural walks its attributes in declaration order. `conformance/stage6/shape_attributes`, `docs/metaprogramming.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; extends D75) **`value == Storage<Health>` names a generic class without calling it.** `Storage<Health> {` used to parse as a comparison chain ending in an object literal, and with a `$` argument the object-literal loop never advanced past its first error, so the compiler hung. The right side of `==`/`!=` now reads `Name<values>` without parentheses as the class, `$` values included, so `if found == Storage<$component_type> { return found }` narrows a shape back to the generic class; the form anywhere else is an error saying to call it. A test through a `type` admits a fitting class to it. Every parser loop now stops at its first error, so a parse error can no longer hang (`diagnostics/generic_class_in_comparison`). `conformance/stage6/generic_class_test`, `docs/control_flow.md`. |

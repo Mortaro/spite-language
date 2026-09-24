@@ -340,6 +340,38 @@ Inside a function of a number class, `this` is the number itself ([values_and_ty
 Likewise `class`, written bare inside any function, is the instance's own `Spite.Class`
 ([reflection.md](reflection.md)).
 
+## Printing a class
+
+`console.print` writes each value's `to_string()`, so a class prints once it says how, and printing one that does
+not is a compile error naming `to_string`. `console.debug` needs nothing: every class has a `to_debug()` that shows
+its name and attributes ([standard_library.md](standard_library.md#console)).
+
+```gdscript title=printing_a_class/lamp.spite
+var room = ""
+var lit = false
+
+func Lamp(starting_room: String) {
+    room = starting_room
+}
+
+func to_string(): String {
+    return "the {room} lamp"
+}
+```
+```gdscript title=printing_a_class/printing_a_class.spite entry
+var console = Console()
+
+func PrintingAClass() {
+    var lamp = Lamp("hall")
+    console.print(lamp)
+    console.debug(lamp)
+}
+```
+```output
+the hall lamp
+Lamp { room: "hall", lit: false }
+```
+
 ## Private names
 
 A name starting with `_` is private: it is read, written or called only inside its own class -- a reopening of

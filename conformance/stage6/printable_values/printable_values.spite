@@ -1,0 +1,49 @@
+enum Weather {
+    'sunny'
+    'rainy'
+}
+
+type Labeled {
+    to_string(): String
+}
+
+var console = Console()
+
+func PrintableValues() {
+    var count = 3
+    var wide: Long = 9000000000
+    var ratio = 2.5
+    var small: Float = 0.1
+    var huge: UnsignedLong = 9000000000000000000
+    var little: Byte = 200
+    console.print(count, -count, wide, ratio, small, huge, little, true, false)
+    var name = "hero"
+    var tag: Symbol = 'wing'
+    var weather: Weather = 'rainy'
+    console.print("literal", name, "{name} {count}", tag, weather)
+    var ticket = Pack.Ticket("A12", 3)
+    console.print(ticket, ticket.class)
+    crash ticket.class.namespace
+    console.print(ticket.class.namespace)
+    console.print()
+    console.write("written", 1)
+    console.write(" and", 2.5)
+    console.print("")
+    var said = weather.to_string()
+    console.print(said)
+    var labels = List<Labeled>()
+    labels.append(count)
+    labels.append(weather)
+    labels.append(name)
+    labels.append(ticket)
+    var index = 0
+    while index < labels.count() {
+        var label = labels[index]
+        var text = label.to_string()
+        console.print(text, label.class)
+        index = index + 1
+    }
+    var first = labels.first()
+    var last = labels.last()
+    console.print(first, last)
+}

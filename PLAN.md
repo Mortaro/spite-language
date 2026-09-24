@@ -264,8 +264,8 @@ and balanced allocations.
     private `_` fields behind getters, and `_` is enforced as private. `Memory.allocate_stack_bytes`,
     `TypedMemory<$value_type>` (which `List<T>` now uses) and `value.memory` (`Spite.Memory`) are built, with a
     ring buffer in `docs/memory.md` (`conformance/stage6/numbers_are_classes`, `diagnostics/reflection_read_only`).
-    **Waiting on Mortaro:** `mortaros_missing_decisions.md` 28-36. **Not done:** `Console`'s printing and
-    `Arguments` are still the generator's; `String`'s `length`, `code_at` and `slice` are still emitted by name
+    **Waiting on Mortaro:** `mortaros_missing_decisions.md` 28-36. **Not done:** `Arguments` is still the
+    generator's (`Console`'s printing is Spite since D109); `String`'s `length`, `code_at` and `slice` are still emitted by name
     rather than declared in its reopening; `missing_function`/`missing_attribute` for `DynamicLibrary`; a
     user generic instantiated with `Int` prints as `...Int` in `instantiated/`, which the name lint rejects on
     the way back.
@@ -279,6 +279,14 @@ and balanced allocations.
     frame, constant, heap) and `allocate_stack_bytes` is removed; `Memory` is a static object. **Waiting on
     Mortaro:** `mortaros_missing_decisions.md` 50-56. **Not done:** `Arguments` is still C in the prelude; a
     `List` or `Dictionary` does not declare a layout the compiler reads (they are ordinary classes already).
+25. **Done on Windows (2026-09-24): milestone 6b, live reload -- D111 and D112** (manual.md section 14, "Live
+    reload and 6b"; `docs/repl.md`). `--hot_reload` calls the program's functions through re-pointable slots,
+    rebuilds the classes whose files changed (and the callers of their changed signatures) into a library with
+    `--mode=reload`, and swaps it in at a drain point, from the REPL's `reload` or the operating system's file
+    watcher. A change to attributes or enums is refused until a restart. `check.sh` edits a copy of docs' program
+    and checks both paths keep its state. **Not done:** Linux and macOS are only compiled; instance migration,
+    reflection that follows reloads, and compiling off the program's thread wait on
+    `mortaros_missing_decisions.md` 64-69.
 
 ## Later, deliberately deferred
 

@@ -1,0 +1,138 @@
+singleton
+
+var console = Console()
+var memory = Memory()
+var scheduler = Scheduler()
+var folder = ""
+var changes: Long = 0
+var reloading = false
+var succeeded = false
+var last = "nothing has been reloaded yet"
+var answered = false
+var answer = ""
+var reported = false
+
+func start() {
+    var build = Build()
+    folder = build.program
+    changes = memory.allocate_bytes(8)
+    memory.write_long(changes, 0, 0)
+    scheduler.start()
+    scheduler.serving = true
+    scheduler.reloads = reload_if_changed
+    var entry = watcher_entry()
+    var no_argument: Long = 0
+    scheduler.start_thread(entry, no_argument)
+}
+
+func drop() {
+    if changes != 0 {
+        memory.free(changes)
+    }
+}
+
+func watch() {
+    var watched = watch_folder(folder)
+    assert watched != -1
+    while true {
+        wait_for_change(watched, -1)
+        var settling = true
+        while settling {
+            settling = wait_for_change(watched, 100)
+        }
+        memory.write_long_atomically(changes, 0, 1)
+        scheduler.signal()
+    }
+}
+
+func reload_if_changed() {
+    assert not reloading and memory.read_long_atomically(changes, 0) == 1
+    memory.write_long_atomically(changes, 0, 0)
+    reload()
+    if reported {
+        console.error("spite: {answer}")
+    }
+}
+
+func reload() {
+    reported = false
+    if reloading {
+        answered = false
+        answer = "a reload is already running"
+        return
+    }
+    reloading = true
+    scheduler.paused = true
+    rebuild()
+    scheduler.paused = false
+    reloading = false
+}
+
+func tell(worked: Bool, text: String) {
+    answered = worked
+    answer = text
+    succeeded = worked
+    last = text
+    reported = true
+}
+
+func rebuild() {
+    var arguments = build_arguments().split("\n")
+    var running = program_file()
+    arguments.append("--mode=reload")
+    arguments.append("--output={running}")
+    var compiler_path = compiler()
+    var rebuilding = Process(compiler_path, arguments)
+    var exit_code = rebuilding.run()
+    var output = rebuilding.output().trim()
+    if exit_code != 0 {
+        tell(false, "the program keeps the code it runs: {output}")
+        return
+    }
+    if output == "unchanged" {
+        answered = true
+        answer = "nothing changed since the code the program runs"
+        return
+    }
+    var told = List<String>()
+    var library_path = ""
+    var state_path = ""
+    var lines = output.split("\n")
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index].trim()
+        var line_length = line.length()
+        if line.starts_with("library ") {
+            library_path = line.slice(8, line_length)
+        } else if line.starts_with("state ") {
+            state_path = line.slice(6, line_length)
+        } else {
+            told.append(line)
+        }
+        index = index + 1
+    }
+    var library = open(library_path)
+    if library == 0 {
+        tell(false, "the program keeps the code it runs: '{library_path}' could not be loaded")
+        return
+    }
+    var missing = install(library)
+    if not missing.is_empty() {
+        tell(false, "the program keeps the code it runs: it has no '{missing}', which the new code calls")
+        return
+    }
+    commit(running, state_path)
+    var joined = told.join("\n")
+    tell(true, joined)
+}
+
+func commit(running: String, state_path: String) {
+    var state = File(state_path).read()
+    assert state
+    var base = running
+    if running.ends_with(".exe") {
+        var running_length = running.length()
+        base = running.slice(0, running_length - 4)
+    }
+    File("{base}.reload_files").write(state)
+}

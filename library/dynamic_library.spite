@@ -11,3 +11,8 @@ func DynamicLibrary(file: String, _naming: Symbol, _header: String) {
 func drop() {
     close_library(handle)
 }
+
+func to_debug(): String {
+    var quoted_file_name = file_name.to_debug()
+    return "DynamicLibrary \{ file_name: {quoted_file_name} }"
+}

@@ -36,6 +36,14 @@ var unwaiting_loop_line = 0
 var unwaiting_loop_owner = ""
 var unwaiting_loop_function = ""
 var development = false
+var hot_reload = false
+var hot_reload_compiler = ""
+var hot_reload_arguments = ""
+var hot_reload_program_file = ""
+var hot_slot_names = List<String>()
+var hot_slot_owners = List<String>()
+var hot_slot_displays = List<String>()
+var seeded_class_ids = Dictionary<Int>()
 var reflect_function_names = List<String>()
 var body_narrowed_names = List<String>()
 var body_assigned_paths = List<String>()
@@ -87,6 +95,9 @@ var placed_names = List<String>()
 var placed_frames = List<String>()
 var placed_receiver_names = List<String>()
 var placed_receiver_codes = List<String>()
+var boxed_value_types = Dictionary<Analysis.SpiteType>()
+var synthetic_value_classes = List<Analysis.ClassInfo>()
+var synthetic_value_types = Dictionary<Analysis.SpiteType>()
 
 func report(message: String) {
     has_error = true
@@ -103,6 +114,9 @@ func report(message: String) {
 func allocate_class_id(debug_name: String): Int {
     if class_names_by_id.is_empty() {
         class_names_by_id.append("String")
+    }
+    if seeded_class_ids[debug_name] {
+        return seeded_class_ids[debug_name]
     }
     class_names_by_id.append(debug_name)
     return class_names_by_id.count() - 1
@@ -361,13 +375,15 @@ func generate(
     emit_foreign_libraries()
     emit_symbol_table()
     emit_allocation_table()
-    if scheduler_used or remote_loop_port > 0 {
+    if scheduler_used or remote_loop_port > 0 or hot_reload {
         finish_waiting_points()
     }
     emit_main(discovery.launcher_mangled_name)
     emit_pending_functions()
+    emit_hot_reload_support()
     check_remote_loop_waits()
     builder.shakes = not development
+    builder.hot_reload = hot_reload
     return builder.render()
 }
 
@@ -967,7 +983,8 @@ func fit_subject(candidate: Analysis.ClassInfo): String {
     if candidate.c_name.starts_with("Object_") {
         return "this object literal"
     }
-    return "'{candidate.simple_name}'"
+    var debugged_type = instance_type_of(candidate)
+    return "'{type_display_name(debugged_type)}'"
 }
 
 func required_parameter_types(
@@ -1053,6 +1070,20 @@ func required_function_problem(
     return ""
 }
 
+func shape_call_parameter_types(information: Analysis.UnionInfo, name: String): List<Analysis.SpiteType> {
+    var wanted = find_required_function(information, name)
+    assert wanted
+    return required_parameter_types(information, wanted)
+}
+
+func shape_call_return_type(information: Analysis.UnionInfo, name: String): Analysis.SpiteType {
+    var wanted = find_required_function(information, name)
+    if wanted {
+        return required_return_type(information, wanted)
+    }
+    return string_type()
+}
+
 func generate_shape_call(
     information: Analysis.UnionInfo,
     name: String,
@@ -1063,16 +1094,15 @@ func generate_shape_call(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     var wanted = find_required_function(information, name)
-    if not wanted {
+    if not wanted and name != "to_debug" {
         report(
             "type '{information.simple_name}' does not require a function '{name}', so it cannot be called through it",
         )
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
-    crash wanted
-    var parameter_types = required_parameter_types(information, wanted)
-    var return_type = required_return_type(information, wanted)
-    var function_c_name = ensure_shape_caller(information, wanted)
+    var parameter_types = shape_call_parameter_types(information, name)
+    var return_type = shape_call_return_type(information, name)
+    var function_c_name = ensure_shape_caller(information, name)
     var called = generate_generic_call(
         function_c_name,
         object_result,
@@ -1087,12 +1117,12 @@ func generate_shape_call(
     return called
 }
 
-func ensure_shape_caller(information: Analysis.UnionInfo, wanted: Syntax.Statements.FieldDeclaration): String {
-    var function_c_name = "{information.c_name}_call_{wanted.name}"
-    if not information.caller_names.contains(wanted.name) {
-        information.caller_names.append(wanted.name)
-        var parameter_types = required_parameter_types(information, wanted)
-        var return_type = required_return_type(information, wanted)
+func ensure_shape_caller(information: Analysis.UnionInfo, name: String): String {
+    var function_c_name = "{information.c_name}_call_{name}"
+    if not information.caller_names.contains(name) {
+        information.caller_names.append(name)
+        var parameter_types = shape_call_parameter_types(information, name)
+        var return_type = shape_call_return_type(information, name)
         var signature = "{c_type_name(return_type)} {function_c_name}({information.c_name} self"
         var index = 0
         while index < parameter_types.count() {
@@ -1110,7 +1140,7 @@ func shape_function_value(
     object_result: ExpressionResult,
     object_ast: Syntax.Expressions.Expression,
 ): ExpressionResult {
-    var caller = ensure_shape_caller(information, wanted)
+    var caller = ensure_shape_caller(information, wanted.name)
     var parameter_types = required_parameter_types(information, wanted)
     var return_type = required_return_type(information, wanted)
     var signature = Analysis.Types.ClassRefType("Spite_Function")
@@ -1170,45 +1200,48 @@ func emit_shape_callers(information: Analysis.UnionInfo) {
     var caller_index = 0
     while caller_index < information.caller_names.count() {
         var name = information.caller_names[caller_index]
-        var wanted = find_required_function(information, name)
-        if wanted {
-            var parameter_types = required_parameter_types(information, wanted)
-            var return_type = required_return_type(information, wanted)
-            var lines = List<String>()
-            var signature = "{c_type_name(return_type)} {information.c_name}_call_{name}({information.c_name} self"
-            var passed = ""
-            var index = 0
-            while index < parameter_types.count() {
-                signature = "{signature}, {c_type_name(parameter_types[index])} argument_{index}"
-                passed = "{passed}, argument_{index}"
-                index = index + 1
-            }
-            lines.append("{signature}) \{")
-            var member_index = 0
-            while member_index < information.members.count() {
-                var member = information.members[member_index]
-                var call = "{member.c_name}_{name}(({member.c_name}*)self{passed})"
-                var member_test = class_id_test("self", member)
-                if type_shape.is_void(return_type) {
-                    lines.append("if {member_test} \{ {call}; return; }")
-                } else {
-                    lines.append("if {member_test} return {call};")
-                }
-                member_index = member_index + 1
-            }
-            index = 0
-            while index < parameter_types.count() {
-                var release_statement = release_statement(parameter_types[index], "argument_{index}")
-                lines.append(release_statement)
-                index = index + 1
-            }
-            if not type_shape.is_void(return_type) {
-                lines.append("return {default_value_for_type(return_type)};")
-            }
-            lines.append("}")
-            var joined_lines = lines.join("\n")
-            builder.add_support(joined_lines)
+        var parameter_types = shape_call_parameter_types(information, name)
+        var return_type = shape_call_return_type(information, name)
+        var lines = List<String>()
+        var signature = "{c_type_name(return_type)} {information.c_name}_call_{name}({information.c_name} self"
+        var passed = ""
+        var index = 0
+        while index < parameter_types.count() {
+            signature = "{signature}, {c_type_name(parameter_types[index])} argument_{index}"
+            passed = "{passed}, argument_{index}"
+            index = index + 1
         }
+        lines.append("{signature}) \{")
+        var member_index = 0
+        while member_index < information.members.count() {
+            var member = information.members[member_index]
+            var receiver = "({member.c_name}*)self"
+            if boxed_value_types.has(member.c_name) {
+                receiver = "((SpiteBox_{member.c_name}*)self)->value"
+            }
+            var called_function = find_or_instantiate_function(member, name)
+            crash called_function
+            var call = "{called_function.c_name}({receiver}{passed})"
+            var member_test = class_id_test("self", member)
+            if type_shape.is_void(return_type) {
+                lines.append("if {member_test} \{ {call}; return; }")
+            } else {
+                lines.append("if {member_test} return {call};")
+            }
+            member_index = member_index + 1
+        }
+        index = 0
+        while index < parameter_types.count() {
+            var release_statement = release_statement(parameter_types[index], "argument_{index}")
+            lines.append(release_statement)
+            index = index + 1
+        }
+        if not type_shape.is_void(return_type) {
+            lines.append("return {default_value_for_type(return_type)};")
+        }
+        lines.append("}")
+        var joined_lines = lines.join("\n")
+        builder.add_support(joined_lines)
         caller_index = caller_index + 1
     }
 }
@@ -1296,6 +1329,10 @@ func emit_union_class_of_bodies() {
             while member_index < information.members.count() {
                 var member = information.members[member_index]
                 var class_type = class_type_of(member)
+                if boxed_value_types.has(member.c_name) {
+                    crash boxed_value_types[member.c_name]
+                    class_type = boxed_value_types[member.c_name]
+                }
                 lines.append("if {class_id_test("self", member)} return {class_object_call(class_type)};")
                 member_index = member_index + 1
             }
@@ -1318,9 +1355,11 @@ func emit_union_release(information: Analysis.UnionInfo) {
     var member_index = 0
     while member_index < information.members.count() {
         var member = information.members[member_index]
-        release_lines.append(
-            "if {class_id_test("self", member)} \{ {member.c_name}_release(({member.c_name}*)self); return; }",
-        )
+        var released = "{member.c_name}_release(({member.c_name}*)self)"
+        if boxed_value_types.has(member.c_name) {
+            released = "spite_box_release(self)"
+        }
+        release_lines.append("if {class_id_test("self", member)} \{ {released}; return; }")
         member_index = member_index + 1
     }
     release_lines.append("}")
@@ -1588,7 +1627,218 @@ func class_type_of(information: Analysis.ClassInfo): Analysis.SpiteType {
 }
 
 func class_id_test(code: String, information: Analysis.ClassInfo): String {
+    if information.c_name == "SpiteString" {
+        return "(((SpiteHeader*)({code}))->class_id <= 0)"
+    }
     return "(((SpiteHeader*)({code}))->class_id == {information.class_id})"
+}
+
+func shaped_value(
+    code: String,
+    from: Analysis.SpiteType,
+    to: Analysis.SpiteType,
+    information: Analysis.UnionInfo,
+): String {
+    if type_shape.as_string(from) {
+        var string_class = find_class_by_c_name("SpiteString")
+        crash string_class
+        admit_to_union(information, string_class)
+        return "(({information.c_name})({code}))"
+    }
+    var boxed_class = boxed_class_of(from)
+    if boxed_class {
+        admit_to_union(information, boxed_class)
+        return "{ensure_box(boxed_class, from)}({code})"
+    }
+    var container_class = container_class_of(from)
+    if container_class {
+        admit_to_union(information, container_class)
+        return "(({information.c_name})({code}))"
+    }
+    var from_union = type_shape.as_union(from)
+    if from_union {
+        var from_information = find_union_by_c_name(from_union.c_name)
+        if from_information {
+            var member_index = 0
+            while member_index < from_information.members.count() {
+                admit_to_union(information, from_information.members[member_index])
+                member_index = member_index + 1
+            }
+        }
+    } else {
+        report_mismatch(from, to)
+    }
+    return "(({information.c_name})({code}))"
+}
+
+func is_boxed_into_shape(from: Analysis.SpiteType, to: Analysis.SpiteType): Bool {
+    var to_union = type_shape.as_union(to)
+    assert to_union
+    var information = find_union_by_c_name(to_union.c_name)
+    assert information
+    assert information.is_shape
+    var boxed_class = boxed_class_of(from)
+    if boxed_class {
+        return true
+    }
+    return false
+}
+
+func is_shape_type(spite_type: Analysis.SpiteType): Bool {
+    var union_type = type_shape.as_union(spite_type)
+    assert union_type
+    var information = find_union_by_c_name(union_type.c_name)
+    assert information
+    return information.is_shape
+}
+
+func container_class_of(from: Analysis.SpiteType): Analysis.ClassInfo? {
+    var list_type = type_shape.as_list(from)
+    if list_type {
+        var element = list_type.get_element()
+        return list_class_of(element)
+    }
+    var dictionary_type = type_shape.as_dictionary(from)
+    if dictionary_type {
+        var dictionary_element = dictionary_type.get_element()
+        var ensured_dictionary = ensure_dictionary(dictionary_element)
+        return find_class_by_c_name(ensured_dictionary)
+    }
+    return null
+}
+
+func instance_type_of(information: Analysis.ClassInfo): Analysis.SpiteType {
+    if synthetic_value_types.has(information.c_name) {
+        crash synthetic_value_types[information.c_name]
+        return synthetic_value_types[information.c_name]
+    }
+    if information.qualified_dotted == "List" and information.codegen_types.count() == 1 {
+        return list_type_of(information.codegen_types[0])
+    }
+    if information.qualified_dotted == "Dictionary" and information.codegen_types.count() == 1 {
+        return dictionary_type_of(information.codegen_types[0])
+    }
+    return value_class_type(information)
+}
+
+func debug_class_of(debugged_type: Analysis.SpiteType): Analysis.ClassInfo {
+    var template_name = "Spite.Debug"
+    if type_shape.as_class_ref(debugged_type) {
+        template_name = "Spite.DebugInstance"
+    }
+    var debug_template = find_class_by_qualified(template_name)
+    crash debug_template
+    var label = "{debug_template.c_name}__{exact_type_label(debugged_type)}"
+    var existing = find_class_by_c_name(label)
+    if existing {
+        return existing
+    }
+    var types = List<Analysis.SpiteType>()
+    types.append(debugged_type)
+    var codes = List<String>()
+    codes.append("")
+    var texts = List<String>()
+    texts.append("")
+    return instantiated_with(debug_template, types, codes, texts, label)
+}
+
+func automatic_debug(information: Analysis.ClassInfo): Analysis.FunctionInfo? {
+    assert not information.is_generic_template
+    var debugged_type = instance_type_of(information)
+    var debug_class = debug_class_of(debugged_type)
+    var described = find_or_instantiate_function(debug_class, "text")
+    crash described
+    var string_type = string_type()
+    var function = Analysis.FunctionInfo(
+        "to_debug",
+        "{information.c_name}_to_debug",
+        List<Analysis.ParamInfo>(),
+        string_type,
+        List<Syntax.Statements.Statement>(),
+        false,
+    )
+    function.has_body = false
+    var body = "{debug_class.c_name}* spite_debug = {singleton_call(debug_class)};\nSpiteString* spite_text = {described.c_name}(spite_debug, {retain_call(debugged_type, "self")});\n{debug_class.c_name}_release(spite_debug);\nreturn spite_text;"
+    function.supplied_body = body
+    information.functions.append(function)
+    if synthetic_value_types.has(information.c_name) {
+        function.is_emitted = true
+        var signature = "SpiteString* {function.c_name}({c_type_name(debugged_type)} self)"
+        builder.add_prototype("{signature};")
+        builder.add_support("{signature} \{\n{body}\n}")
+        return function
+    }
+    builder.add_prototype("{function_signature(information, function)};")
+    return function
+}
+
+func boxed_class_of(from: Analysis.SpiteType): Analysis.ClassInfo? {
+    var scalar = type_shape.as_scalar(from)
+    if scalar {
+        return value_class_of(scalar.kind)
+    }
+    if type_shape.is_symbol(from) {
+        return synthetic_value_class("SpiteSymbol", from, "return SpiteString_retain(self);")
+    }
+    var enum_type = type_shape.as_enum(from)
+    if enum_type {
+        return synthetic_value_class(
+            enum_type.c_name,
+            from,
+            "return spite_string_from_cstring_owned({enum_type.c_name}_name(self));",
+        )
+    }
+    return null
+}
+
+func synthetic_value_class(c_name: String, value_type: Analysis.SpiteType, to_string_body: String): Analysis.ClassInfo {
+    var existing = synthetic_value_classes.find_by_c_name(c_name)
+    if existing {
+        return existing
+    }
+    var display_name = type_display_name(value_type)
+    var created = Analysis.ClassInfo(c_name, display_name, "", display_name, 0)
+    created.is_value_class = true
+    var string_type = string_type()
+    var to_string = Analysis.FunctionInfo(
+        "to_string",
+        "{c_name}_to_string",
+        List<Analysis.ParamInfo>(),
+        string_type,
+        List<Syntax.Statements.Statement>(),
+        false,
+    )
+    to_string.is_emitted = true
+    created.functions.append(to_string)
+    synthetic_value_classes.append(created)
+    synthetic_value_types[c_name] = value_type
+    var signature = "SpiteString* {c_name}_to_string({c_type_name(value_type)} self)"
+    builder.add_prototype("{signature};")
+    builder.add_support("{signature} \{\n{to_string_body}\n}")
+    return created
+}
+
+func ensure_box(member: Analysis.ClassInfo, value_type: Analysis.SpiteType): String {
+    var maker = "spite_box_{member.c_name}"
+    if boxed_value_types.has(member.c_name) {
+        return maker
+    }
+    if boxed_value_types.count() == 0 {
+        builder.add_prototype("void spite_box_release(void* self);")
+        builder.add_support(
+            "void spite_box_release(void* self) \{\nif (SPITE_COUNT_DOWN(((SpiteHeader*)self)->ref_count) > 0) return;\nSPITE_FREE(self);\n}",
+        )
+    }
+    boxed_value_types[member.c_name] = value_type
+    member.class_id = allocate_class_id(member.simple_name)
+    var box = "SpiteBox_{member.c_name}"
+    var value_c_type = c_type_name(value_type)
+    builder.add_typedef("typedef struct {box} \{ SpiteHeader header; {value_c_type} value; } {box};")
+    builder.add_prototype("void* {maker}({value_c_type} value);")
+    builder.add_support(
+        "void* {maker}({value_c_type} value) \{\n{box}* self = ({box}*)SPITE_MALLOC(sizeof({box}));\nself->header.ref_count = 1;\nself->header.class_id = {member.class_id};\n#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(self, {member.class_id});\n#endif\nself->value = value;\nreturn self;\n}",
+    )
+    return maker
 }
 
 func emit_unions() {
@@ -2060,7 +2310,8 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
     if every {
         return instantiate_every_attribute(information, every, name)
     }
-    return null
+    assert name == "to_debug"
+    return automatic_debug(information)
 }
 
 func type_named_by(member_name: String): Analysis.SpiteType? {
@@ -2131,23 +2382,26 @@ func instantiate_every_attribute(
     current_owner = saved_owner
     var body = List<Syntax.Statements.Statement>()
     var field_index = 0
+    var private_readable = template_range_owner(information, template) == information.c_name
     while field_index < attribute_names.count() {
         var attribute_name = attribute_names[field_index]
-        var arguments = List<Syntax.Expressions.Expression>()
-        var argument_index = 0
-        while argument_index < parameters.count() {
-            var argument: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(
-                parameters[argument_index].name,
+        if private_readable or not attribute_name.starts_with("_") {
+            var arguments = List<Syntax.Expressions.Expression>()
+            var argument_index = 0
+            while argument_index < parameters.count() {
+                var argument: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(
+                    parameters[argument_index].name,
+                )
+                arguments.append(argument)
+                argument_index = argument_index + 1
+            }
+            var callee: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(
+                "{template.prefix}{attribute_name}{template.suffix}",
             )
-            arguments.append(argument)
-            argument_index = argument_index + 1
+            var call: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, arguments)
+            var statement: Syntax.Statements.Statement = Syntax.Statements.ExpressionStatement(call)
+            body.append(statement)
         }
-        var callee: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(
-            "{template.prefix}{attribute_name}{template.suffix}",
-        )
-        var call: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, arguments)
-        var statement: Syntax.Statements.Statement = Syntax.Statements.ExpressionStatement(call)
-        body.append(statement)
         field_index = field_index + 1
     }
     var returns_nothing = void_type()
@@ -2491,6 +2745,9 @@ func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInf
         }
         if class_path == "concurrent" or class_path == "parallel" {
             function.supplied_body = task_body(information, function.name)
+        }
+        if class_path == "hot_reload" and function.name != "open" {
+            function.supplied_body = hot_reload_body(function.name)
         }
         return
     }
@@ -3377,6 +3634,13 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
                     admit_to_union(admitted_union, admitted_class)
                 }
             }
+            return "(({to_union.c_name})({code}))"
+        }
+        var shaped_union = find_union_by_c_name(to_union.c_name)
+        if shaped_union {
+            if shaped_union.is_shape {
+                return shaped_value(code, from, to, shaped_union)
+            }
         }
         return "(({to_union.c_name})({code}))"
     }
@@ -3594,7 +3858,7 @@ func coerce_for_store(
     var result_type = result.get_type()
     var casted = cast(result.code, result_type, expected_type)
     if type_needs_drop(expected_type) {
-        if owns(result, expression_ast) {
+        if owns(result, expression_ast) or is_boxed_into_shape(result_type, expected_type) {
             return casted
         }
         return retain_call(expected_type, casted)
@@ -4366,9 +4630,10 @@ func generate_spread_arguments(
         }
         index = index + 1
     }
-    if passes_whole_list(elements, variadic, scope, class_information) {
+    var whole_list = whole_list_passed(elements, variadic, scope, class_information)
+    if whole_list {
         report(
-            "this call passes a whole {type_display_name(variadic)}, but the last parameter is written with '...', so it takes the values one by one: pass the elements themselves, separated by commas",
+            "this call passes a whole {type_display_name(whole_list)}, but the last parameter is written with '...', so it takes the values one by one: pass the elements themselves, separated by commas",
         )
         return result
     }
@@ -4378,26 +4643,23 @@ func generate_spread_arguments(
     return result
 }
 
-func passes_whole_list(
+func whole_list_passed(
     elements: List<Syntax.Expressions.ListElement>,
     variadic: Analysis.SpiteType,
     scope: Scope,
     class_information: Analysis.ClassInfo,
-): Bool {
+): Analysis.SpiteType? {
     assert elements.count() == 1
     var variadic_list = type_shape.as_list(variadic)
     crash variadic_list
     var element_type = variadic_list.get_element()
-    assert not type_shape.as_list(element_type)
+    assert not type_shape.as_list(element_type) and not is_shape_type(element_type)
     var only = elements.first()
     crash only.value
     var passed_type = lookup_static_type(only.value, scope, class_information)
-    if passed_type {
-        if type_shape.as_list(passed_type) {
-            return true
-        }
-    }
-    return false
+    assert passed_type
+    assert type_shape.as_list(passed_type)
+    return passed_type
 }
 
 func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.SpiteType> {
@@ -4898,7 +5160,7 @@ func generate_method_call(
     var object_result_type = object_result.get_type()
     var foreign = type_shape.as_class_ref(object_result_type)
     if foreign {
-        if foreign.c_name == "DynamicLibrary" {
+        if foreign.c_name == "DynamicLibrary" and not declared_by_dynamic_library(member.name) {
             return generate_foreign_call(
                 foreign,
                 object_result,
@@ -4979,6 +5241,10 @@ func generate_method_call(
             class_information,
         )
     }
+    var object_enum = type_shape.as_enum(object_result_type)
+    if object_enum {
+        return generate_enum_method(object_result_type, member.name, object_result, arguments_ast)
+    }
     var object_class_ref = type_shape.as_class_ref(object_result_type)
     if not object_class_ref {
         var object_type_name = type_display_name(object_result_type)
@@ -5043,6 +5309,27 @@ func generate_method_call(
         scope,
         class_information,
     )
+}
+
+func generate_enum_method(
+    enum_type: Analysis.SpiteType,
+    name: String,
+    object_result: ExpressionResult,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+): ExpressionResult {
+    var enum_class = boxed_class_of(enum_type)
+    crash enum_class
+    var function = find_or_instantiate_function(enum_class, name)
+    if function {
+        if arguments_ast.is_empty() {
+            var function_return_type = function.get_return_type()
+            return ExpressionResult("{function.c_name}({object_result.code})", function_return_type)
+        }
+    }
+    report(
+        "a {type_display_name(enum_type)} value has no function '{name}': an enum value answers 'to_string()' and 'to_debug()'",
+    )
+    return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
 func generate_value_method(
@@ -7450,147 +7737,25 @@ func joins_as_text(element: Analysis.SpiteType): Bool {
     return type_shape.as_string(element) or type_shape.is_symbol(element) or type_shape.as_scalar(element) or is_enum_type(element)
 }
 
-func printed_statement_for(
+func crash_operand_statement(
     expression_ast: Syntax.Expressions.Expression,
-    stream: String,
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): String {
     var generated_expression = generate_expression(expression_ast, scope, class_information)
     var result = as_text(generated_expression)
     var result_type = result.get_type()
-    var scalar = type_shape.as_scalar(result_type)
-    if scalar {
-        if scalar.kind == 'boolean_kind' {
-            return "fprintf({stream}, \"%s\", ({result.code}) ? \"true\" : \"false\");"
-        }
-        if is_float_kind(scalar.kind) {
-            var temporary = next_temporary()
-            var converted = string_conversion(result.code, result_type)
-            return "\{ SpiteString* {temporary} = {converted}; fprintf({stream}, \"%s\", (const char*)(intptr_t){temporary}->_bytes); SpiteString_release({temporary}); }"
-        }
-        if scalar.kind == 'unsigned_long_kind' {
-            return "fprintf({stream}, \"%llu\", (unsigned long long)({result.code}));"
-        }
-        return "fprintf({stream}, \"%lld\", (long long)({result.code}));"
-    }
+    var temporary = next_temporary()
+    var written = "fwrite((const char*)(intptr_t){temporary}->_bytes, 1, (size_t){temporary}->_length, stderr);"
     if type_shape.as_string(result_type) {
-        var temporary = next_temporary()
         var release_line = ""
         if owns(result, expression_ast) {
             release_line = " SpiteString_release({temporary});"
         }
-        return "\{ SpiteString* {temporary} = {result.code}; fprintf({stream}, \"%s\", (const char*)(intptr_t)({temporary})->_bytes);{release_line} }"
+        return "\{ SpiteString* {temporary} = {result.code}; {written}{release_line} }"
     }
-    var printed_class = type_shape.as_class_ref(result_type)
-    if printed_class {
-        if printed_class.c_name == "Spite_Class" {
-            var class_temporary = next_temporary()
-            var class_release = ""
-            if owns(result, expression_ast) {
-                class_release = " Spite_Class_release({class_temporary});"
-            }
-            return "\{ Spite_Class* {class_temporary} = {result.code}; fprintf({stream}, \"%s\", (const char*)(intptr_t){class_temporary}->_name->_bytes);{class_release} }"
-        }
-        if printed_class.c_name == "Spite_Namespace" {
-            var namespace_temporary = next_temporary()
-            var namespace_release = ""
-            if owns(result, expression_ast) {
-                namespace_release = " Spite_Namespace_release({namespace_temporary});"
-            }
-            return "\{ Spite_Namespace* {namespace_temporary} = {result.code}; fprintf({stream}, \"%s\", (const char*)(intptr_t){namespace_temporary}->_name_with_namespaces->_bytes);{namespace_release} }"
-        }
-    }
-    var printed_enum = type_shape.as_enum(result_type)
-    if printed_enum {
-        return "fprintf({stream}, \"%s\", {printed_enum.c_name}_name({result.code}));"
-    }
-    assert not type_shape.is_void(result_type) or not has_error
-    if type_shape.as_nullable(result_type) {
-        report(
-            "this value may be null (it is a {type_display_name(result_type)}), so it cannot be printed yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
-        )
-        return ""
-    }
-    report(
-        "Console cannot print a {type_display_name(result_type)}: print one of its attributes, or give it a function that returns a String",
-    )
-    return ""
-}
-
-func is_console_reference(spite_type: Analysis.SpiteType): Bool {
-    var console_reference = type_shape.as_class_ref(spite_type)
-    if console_reference {
-        return console_reference.c_name == "Console"
-    }
-    return false
-}
-
-func receives_on_console(
-    object_ast: Syntax.Expressions.Expression,
-    scope: Scope,
-    class_information: Analysis.ClassInfo,
-): Bool {
-    var static_type = lookup_static_type(object_ast, scope, class_information)
-    if static_type {
-        return is_console_reference(static_type)
-    }
-    var made = shape.as_call(object_ast)
-    if made {
-        crash made.callee
-        var made_class = try_resolve_static_path(made.callee, class_information.namespace_dotted)
-        if made_class {
-            return made_class.c_name == "Console"
-        }
-    }
-    return false
-}
-
-func is_console_printer(method_name: String): Bool {
-    return method_name == "print" or method_name == "write" or method_name == "error" or method_name == "flush"
-}
-
-func generate_console_call(
-    object_ast: Syntax.Expressions.Expression,
-    method_name: String,
-    arguments_ast: List<Syntax.Expressions.Expression>,
-    scope: Scope,
-    class_information: Analysis.ClassInfo,
-): ExpressionResult {
-    var stream = "stdout"
-    var trailing_newline = true
-    if method_name == "error" {
-        stream = "stderr"
-    } else if method_name == "write" {
-        trailing_newline = false
-    }
-    var console_result = generate_expression(object_ast, scope, class_information)
-    var console_temporary = next_temporary()
-    var console_release = ""
-    if owns(console_result, object_ast) {
-        console_release = "Console_release({console_temporary});"
-    }
-    var lines = List<String>()
-    lines.append("\{ Console* {console_temporary} = {console_result.code}; (void){console_temporary};")
-    if method_name == "flush" {
-        lines.append("fflush(stdout); fflush(stderr);")
-    }
-    var index = 0
-    while index < arguments_ast.count() {
-        if index > 0 {
-            lines.append("fprintf({stream}, \" \");")
-        }
-        var printed_statement_for = printed_statement_for(arguments_ast[index], stream, scope, class_information)
-        lines.append(printed_statement_for)
-        index = index + 1
-    }
-    if trailing_newline {
-        lines.append("fprintf({stream}, \"\\n\");")
-    }
-    lines.append(console_release)
-    lines.append("}")
-    var joined_lines = lines.join(" ")
-    return ExpressionResult(joined_lines, Analysis.Types.VoidType())
+    var converted = string_conversion(result.code, result_type)
+    return "\{ SpiteString* {temporary} = {converted}; {written} SpiteString_release({temporary}); }"
 }
 
 func collect_static_segments(expression: Syntax.Expressions.Expression, out: List<String>): Bool {
@@ -7771,6 +7936,16 @@ func library_value(library: Int): ExpressionResult {
     var value = ExpressionResult("spite_foreign_library_{library}()", library_type)
     value.owning_override = true
     return value
+}
+
+func declared_by_dynamic_library(name: String): Bool {
+    var library_class = find_class_by_c_name("DynamicLibrary")
+    assert library_class
+    var declared = library_class.find_function(name)
+    if declared {
+        return true
+    }
+    return false
 }
 
 func generate_foreign_call(
@@ -8135,9 +8310,6 @@ func generate_call(
     var member = shape.as_member(call.callee)
     if member {
         crash member.object
-        if is_console_printer(member.name) and receives_on_console(member.object, scope, class_information) {
-            return generate_console_call(member.object, member.name, call.arguments, scope, class_information)
-        }
         return generate_method_call(member, member.object, call.arguments, scope, class_information)
     }
     var identifier = shape.as_identifier(call.callee)
@@ -10966,7 +11138,7 @@ func generate_union_dispatch(
     var result_type = void_type()
     var expected_types = no_types()
     if is_call {
-        var first_function = first_member.find_function(member_name)
+        var first_function = find_or_instantiate_function(first_member, member_name)
         if not first_function {
             report(
                 "'{first_member.simple_name}' does not define '{member_name}', so it cannot be called on union '{information.simple_name}'",
@@ -11012,7 +11184,7 @@ func generate_union_dispatch(
         var casted_object = "(({member.c_name}*){object_temporary})"
         var branch_code = ""
         if is_call {
-            var member_function = member.find_function(member_name)
+            var member_function = find_or_instantiate_function(member, member_name)
             if member_function {
                 var call_arguments = argument_temporaries.copy()
                 call_arguments.prepend(casted_object)
@@ -11238,8 +11410,8 @@ func emit_crash_operand(
     }
     assert printable
     builder.add_user("fputs(\"\\t{escape_c_string(name)}=\", stderr);")
-    var printed_statement_for = printed_statement_for(expression, "stderr", scope, class_information)
-    builder.add_user(printed_statement_for)
+    var crash_operand_statement = crash_operand_statement(expression, scope, class_information)
+    builder.add_user(crash_operand_statement)
 }
 
 func emit_crash_operands(
@@ -11600,7 +11772,12 @@ func emit_class_prototypes(information: Analysis.ClassInfo) {
 func emit_class_support(information: Analysis.ClassInfo) {
     var class_id_text = "{information.class_id}"
     var initialize_lines = List<String>()
-    initialize_lines.append("void {information.c_name}_init({information.c_name}* self) \{")
+    var initialize_name = "{information.c_name}_init"
+    if is_hot_class(information) {
+        initialize_name = "{information.c_name}_init_hot"
+        add_hot_initialize_slot(information)
+    }
+    initialize_lines.append("void {initialize_name}({information.c_name}* self) \{")
     var field_index = 0
     while field_index < information.fields.count() {
         var field = information.fields[field_index]
@@ -11795,7 +11972,12 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         var user_count = builder.user_count()
         waiting_positions.append(user_count)
     }
-    builder.add_user("{function_signature(information, function)} \{")
+    var defined_name = function.c_name
+    if is_hot_class(information) {
+        defined_name = "{function.c_name}_hot"
+        add_hot_slot(information, function)
+    }
+    builder.add_user("{named_signature(information, function, defined_name)} \{")
     var scope = Scope(null)
     arguments_parameter_names.clear()
     var parameter_index = 0
@@ -12125,11 +12307,17 @@ func note_waiting_call(target_class: Analysis.ClassInfo, name: String, caller: A
 }
 
 func check_remote_loop_waits() {
-    assert remote_loop_port > 0 and not program_waits and not unwaiting_loop_path.is_empty()
+    assert (remote_loop_port > 0 or hot_reload) and not program_waits and not unwaiting_loop_path.is_empty()
     current_path = unwaiting_loop_path
     current_line = unwaiting_loop_line
     current_owner = unwaiting_loop_owner
     current_function = unwaiting_loop_function
+    if remote_loop_port == 0 {
+        report(
+            "a --hot_reload build swaps its code where the program waits (Program().sleep, Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel), and this program never waits: if this loop does not end, no change ever reaches it. Wait somewhere in the loop, such as 'Program().sleep(1)' at the end of a frame",
+        )
+        return
+    }
     report(
         "a --repl_port build answers its REPL where the program waits (Program.sleep, Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel) and after the entry constructor returns, and this program never waits: if this loop does not end, the REPL never answers. Wait somewhere in the loop, such as 'program.sleep(1)' at the end of a frame",
     )
@@ -12154,7 +12342,7 @@ func waiting_kind(information: Analysis.ClassInfo, function: Analysis.FunctionIn
 }
 
 func finish_waiting_points() {
-    assert scheduler_used or remote_loop_port > 0
+    assert scheduler_used or remote_loop_port > 0 or hot_reload
     builder.threads = true
     var scheduler_class = find_class_by_qualified("Scheduler")
     crash scheduler_class
@@ -12287,6 +12475,13 @@ func program_run_code(): String {
     if remote_loop_port > 0 {
         remote_loop_start(entry_class, lines)
     }
+    var hot_reload_class = find_class_by_qualified("HotReload")
+    if hot_reload {
+        crash hot_reload_class
+        lines.append(
+            "HotReload* spite_hot_reload = {singleton_call(hot_reload_class)}; HotReload_start(spite_hot_reload);",
+        )
+    }
     if entry_class.constructor {
         lines.append("{entry_class.constructor.c_name}(spite_entry_instance);")
     }
@@ -12299,6 +12494,9 @@ func program_run_code(): String {
     if remote_loop_port > 0 {
         lines.append("ReadEvaluatePrintLoop_wait_for_exit(spite_remote_loop);")
         lines.append("ReadEvaluatePrintLoop_release(spite_remote_loop);")
+    }
+    if hot_reload {
+        lines.append("HotReload_release(spite_hot_reload);")
     }
     lines.append("{entry_class.c_name}_release(spite_entry_instance);")
     return "(\{ {lines.join(" ")} (void)0; })"
@@ -12385,4 +12583,196 @@ func emit_main(launcher_mangled_name: String) {
     builder.add_main("#ifdef SPITE_DEBUG_MEMORY")
     builder.add_main("spite_debug_report();")
     builder.add_main("#endif")
+}
+
+func is_hot_class(information: Analysis.ClassInfo): Bool {
+    var program_class = not information.source_path.is_empty() and not is_library_class(information)
+    return hot_reload and program_class and not information.is_value_class
+}
+
+func add_hot_slot(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    var hot_name = "{function.c_name}_hot"
+    builder.add_prototype("{named_signature(information, function, hot_name)};")
+    var slot_declarator = "(*{function.c_name}_slot)"
+    builder.add_slot(function.c_name, "static {named_signature(information, function, slot_declarator)} = {hot_name};")
+    var arguments = List<String>()
+    arguments.append("self")
+    var index = 0
+    while index < function.parameters.count() {
+        arguments.append(function.parameters[index].name)
+        index = index + 1
+    }
+    var returned = "return "
+    var function_return_type = function.get_return_type()
+    if type_shape.is_void(function_return_type) {
+        returned = ""
+    }
+    builder.add_user(
+        "{function_signature(information, function)} \{\n{returned}{function.c_name}_slot({arguments.join(", ")});\n}",
+    )
+    hot_slot_names.append(function.c_name)
+    hot_slot_owners.append(information.c_name)
+    hot_slot_displays.append("{information.qualified_dotted}.{function.name}")
+}
+
+func add_hot_initialize_slot(information: Analysis.ClassInfo) {
+    var initialize_name = "{information.c_name}_init"
+    builder.add_prototype("void {initialize_name}_hot({information.c_name}* self);")
+    builder.add_slot(
+        initialize_name,
+        "static void (*{initialize_name}_slot)({information.c_name}* self) = {initialize_name}_hot;",
+    )
+    builder.add_support("void {initialize_name}({information.c_name}* self) \{\n{initialize_name}_slot(self);\n}")
+    hot_slot_names.append(initialize_name)
+    hot_slot_owners.append(information.c_name)
+    hot_slot_displays.append("{information.qualified_dotted}'s attribute defaults")
+}
+
+func hot_reload_body(name: String): String {
+    if name == "compiler" {
+        return "return {owned_c_text(hot_reload_compiler)};"
+    }
+    if name == "build_arguments" {
+        return "return {owned_c_text(hot_reload_arguments)};"
+    }
+    if name == "program_file" {
+        return "return {owned_c_text(hot_reload_program_file)};"
+    }
+    if name == "watcher_entry" and hot_reload {
+        return "return (int64_t)(intptr_t)&spite_hot_reload_thread;"
+    }
+    if name == "watcher_entry" {
+        return "return 0;"
+    }
+    if not hot_reload {
+        return "(void)library;\nreturn spite_string_from_cstring_owned(\"this program was not built with --hot_reload\");"
+    }
+    return "typedef const char* (*SpiteHotBind)(void* (*)(const char*), int32_t (*)(const char*, void*));\n#ifdef _WIN32\nSpiteHotBind bind = (SpiteHotBind)(void*)GetProcAddress((HMODULE)(intptr_t)library, \"spite_reload_bind\");\n#else\nSpiteHotBind bind = (SpiteHotBind)dlsym((void*)(intptr_t)library, \"spite_reload_bind\");\n#endif\nif (bind == 0) return spite_string_from_cstring_owned(\"spite_reload_bind\");\nconst char* missing = bind(spite_hot_find, spite_hot_install);\nreturn spite_string_from_cstring_owned(missing == 0 ? \"\" : missing);"
+}
+
+func emit_hot_reload_support() {
+    assert hot_reload
+    var hot_reload_class = find_class_by_qualified("HotReload")
+    crash hot_reload_class
+    var hot_reload_instance = singleton_call(hot_reload_class)
+    builder.add_prototype("static void* spite_hot_reload_thread(void* unused);")
+    builder.add_prototype("static void* spite_hot_find(const char* name);")
+    builder.add_prototype("static int32_t spite_hot_install(const char* name, void* address);")
+    builder.add_prototype("void* spite_hot_realloc(void* pointer, size_t size);")
+    builder.add_prototype("void spite_hot_free(void* pointer);")
+    builder.add_support(
+        "static void* spite_hot_reload_thread(void* unused) \{\n(void)unused;\nHotReload* spite_hot_reload = {hot_reload_instance};\nHotReload_watch(spite_hot_reload);\nHotReload_release(spite_hot_reload);\nreturn 0;\n}",
+    )
+    builder.add_support(
+        "void* spite_hot_realloc(void* pointer, size_t size) \{\nreturn SPITE_REALLOC(pointer, size);\n}",
+    )
+    builder.add_support("void spite_hot_free(void* pointer) \{\nSPITE_FREE(pointer);\n}")
+    var names = List<String>()
+    var cells = List<String>()
+    var index = 0
+    while index < hot_slot_names.count() {
+        names.append("\"{hot_slot_names[index]}\"")
+        cells.append("(void**)&{hot_slot_names[index]}_slot")
+        index = index + 1
+    }
+    names.append("0")
+    cells.append("0")
+    builder.add_support(
+        "static const char* spite_hot_slot_names[] = \{ {names.join(", ")} };\nstatic void** spite_hot_slot_cells[] = \{ {cells.join(", ")} };\nstatic int32_t spite_hot_install(const char* name, void* address) \{\nfor (int64_t index = 0; spite_hot_slot_names[index] != 0; index = index + 1) \{\nif (strcmp(spite_hot_slot_names[index], name) == 0) \{ __atomic_store_n(spite_hot_slot_cells[index], address, __ATOMIC_SEQ_CST); return 1; }\n}\nreturn 0;\n}",
+    )
+}
+
+func seed_class_names(names: List<String>) {
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        class_names_by_id.append(name)
+        if not seeded_class_ids.has(name) {
+            seeded_class_ids[name] = index
+        }
+        index = index + 1
+    }
+}
+
+func hot_manifest(): String {
+    return builder.host.host_manifest(hot_slot_names, hot_slot_displays, class_names_by_id, builder.typedefs)
+}
+
+func program_source_paths(): List<String> {
+    var paths = List<String>()
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        if is_hot_class(information) {
+            append_new_path(paths, information.source_path)
+            var function_index = 0
+            while function_index < information.functions.count() {
+                append_new_path(paths, information.functions[function_index].source_path)
+                function_index = function_index + 1
+            }
+        }
+        index = index + 1
+    }
+    return paths
+}
+
+func append_new_path(paths: List<String>, path: String) {
+    if not path.is_empty() and not paths.contains(path) {
+        paths.append(path)
+    }
+}
+
+func classes_of_paths(paths: List<String>): List<String> {
+    var owners = List<String>()
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        var class_paths = List<String>()
+        append_new_path(class_paths, information.source_path)
+        var function_index = 0
+        while function_index < information.functions.count() {
+            append_new_path(class_paths, information.functions[function_index].source_path)
+            function_index = function_index + 1
+        }
+        var path_index = 0
+        while path_index < class_paths.count() {
+            if is_hot_class(information) and paths.contains(class_paths[path_index]) and not owners.contains(information.c_name) {
+                owners.append(information.c_name)
+            }
+            path_index = path_index + 1
+        }
+        index = index + 1
+    }
+    return owners
+}
+
+func reload_library(reload: HotReloadLibrary, changed_paths: List<String>, rebuilt: List<String>): String {
+    var owners = classes_of_paths(changed_paths)
+    var prototype_text = builder.prototypes.join("\n")
+    var bodies = builder.bodies_text()
+    var growing = true
+    while growing {
+        var changed_signatures = reload.changed_signatures(
+            hot_slot_names,
+            hot_slot_owners,
+            owners,
+            prototype_text,
+            bodies,
+        )
+        var callers = reload.callers_of(changed_signatures, hot_slot_names, hot_slot_owners, owners, bodies)
+        growing = not callers.is_empty()
+        var caller_index = 0
+        while caller_index < callers.count() {
+            owners.append(callers[caller_index])
+            caller_index = caller_index + 1
+        }
+    }
+    var index = 0
+    while index < owners.count() {
+        var owner = find_class_by_c_name(owners[index])
+        crash owner
+        rebuilt.append(owner.qualified_dotted)
+        index = index + 1
+    }
+    return reload.library(builder, hot_slot_names, hot_slot_owners, owners)
 }

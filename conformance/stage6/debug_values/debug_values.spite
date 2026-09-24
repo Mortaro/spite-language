@@ -1,0 +1,49 @@
+enum Weather {
+    'sunny'
+    'rainy'
+}
+
+union Cargo {
+    Crate
+    Badge
+}
+
+var console = Console()
+
+func DebugValues() {
+    var hero = Player("hero")
+    hero.scores.append(3)
+    hero.scores.append(7)
+    hero.bag["gold"] = 2
+    var sidekick = Player("side\nkick \"two\"")
+    hero.partner = sidekick
+    console.debug(hero)
+    var weather: Weather = 'rainy'
+    var ratio = 2.5
+    var greeting = "hi"
+    console.debug(3, greeting, true, weather, ratio)
+    var sizes = [1, 2]
+    var crates = [Crate(), Crate()]
+    console.debug(sizes, crates)
+    var labels = Dictionary<Badge>()
+    labels["first"] = Badge("gold")
+    console.debug(labels)
+    console.debug(hero.class)
+    var cargo: Cargo = Crate()
+    var tag: Symbol = 'wing'
+    var point = {x: 1, y: 2}
+    console.debug(cargo, tag, point)
+    var first = Node(1)
+    var second = Node(2)
+    first.next = second
+    second.next = first
+    console.debug(first)
+    second.next = null
+    var described = hero.to_debug()
+    console.print(described)
+    var count = 4
+    var counted = count.to_debug()
+    var seen = weather.to_debug()
+    var quoted = greeting.to_debug()
+    console.print(counted, seen, quoted)
+}
