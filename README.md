@@ -8,28 +8,27 @@ outright instead of silently accepting it.
 
 ## Status
 
-`manual.md` is the normative reference; every status tag below is taken from it directly.
+`manual.md` is the normative reference, and `docs/` teaches the language as it is today: every titled program
+in it is compiled and run by `bash check.sh`.
 
 | Area | Status |
 |---|---|
-| Lexer, parser, files-as-classes | implemented |
-| Variables, values, numeric types | implemented (exact numeric widths marked PROVISIONAL) |
-| Functions, `assert` narrowing, operators-as-functions | implemented |
-| Control flow (`while` only, no `for`) | implemented |
-| Enums, unions, inline types (duck typing) | implemented |
-| Metaprogramming: `Symbol` codegen | implemented |
-| Metaprogramming: reflection (`.class`/`.attributes`) | partial (`Class.instances`, D6 class-level functions, D10 symbol literals and D11 two-level reflection planned) |
-| Codegen values (`$`), generics, compiler flags, tree shaking | implemented (D87: `generic $name` lines at the top of the file, positional call sites; manual.md section 9) |
-| Memory (reference counting, `drop()`, `copy()`/`deep_copy()`) | implemented (D1; cycles leak by design, weak references planned) |
-| Packages, namespaces, monkey patching, `--final_classes` | partial (bundles always linked statically for now) |
-| Style: formatter + linter | implemented |
-| REPL (`--repl`, `--repl_port`, `spite connect`) | partial (live reload / in-process codegen is milestone 6b) |
-| Standard library (`String`, `List<T>`, `Dictionary<T>`, `File`/`Directory`/`Process`/`Program`) | implemented |
-| Foreign libraries (`DynamicLibrary`: C, `.dll`/`.so`/`.dylib`) | planned -- see manual.md section 17 |
-| Web target (wasm + generated JS glue, `$target`, D13 isomorphic classes) | planned -- see manual.md section 17 |
-| Self hosting (`bootstrap/`) | partial -- front end (lexer/parser/AST) done, semantic analysis + C codegen not started |
-| Documentation (`docs/`) | done |
-| `cookie_clicker` port | not started -- its original source is not in this repository |
+| Files as classes, `singleton` and `generic $name` header lines, enforced file order | implemented |
+| Values, numbers as classes (`this`, `from_type` casts), `T?` narrowing, `assert` and `crash` | implemented |
+| Functions as values, variadic `...args: List<T>`, operators as functions | implemented |
+| Enums, unions, shapes (`type`), `value == Class` tests | implemented |
+| Metaprogramming: `Symbol` templates, `Symbol<Class>`, compile-time type tests, fused member-template chains | implemented |
+| Reflection (`Spite.Class`, `Spite.Attribute`, `Spite.Function`, `Spite.Namespace`), read-only | implemented |
+| Memory: reference counting, `Memory` (heap and stack), `TypedMemory`, tree-shaken output | implemented |
+| `Build` (compile time) and `Environment` (run time), the visible launcher | implemented |
+| Standard library in Spite: `String`, `List`, `Dictionary`, `Json<T>`, `File`, `Directory`, `Process`, `Program`, `Console`, `Socket` | implemented |
+| Concurrency: `Concurrent` (fibers, hidden async IO) and `Parallel` (threads) | implemented on Windows; `Parallel` safety rules open |
+| Foreign libraries (`DynamicLibrary`), one folder per operating system | implemented; Linux and macOS folders compile but have never run |
+| REPL: `--repl`, `--repl_port`, `spite connect` | implemented; live reload planned |
+| Self hosting | done: the compiler is Spite, and the only hand-written C is `bootstrap/source/generation/prelude.spite` |
+| Web target, isomorphic classes, live reload | planned -- see manual.md sections 14 and 17 |
+
+Decisions waiting on Mortaro are collected in [`mortaros_missing_decisions.md`](mortaros_missing_decisions.md).
 
 ## Build and run
 
@@ -57,7 +56,7 @@ Build the compiler once, then point it at a file:
 ```
 cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite
 export CC=cc                     # the compiler shells out to this to build the C it emits
-./spite path/to/thing
+./spite path/to/folder
 ```
 
 `--mode=c` prints the generated C instead of running it.
@@ -72,7 +71,8 @@ export CC="$(cygpath -d "$CL") -Wno-deprecated-declarations"
 ./spite.exe path/to/thing
 ```
 
-A file is a class named after it, and its constructor is the entry point, so `greeter.spite`:
+A file is a class named after it, a program is a folder, and the file named after the folder is the entry:
+its constructor runs the program. So `greeter/greeter.spite`:
 
 ```spite
 var console = Console()
@@ -83,36 +83,26 @@ func Greeter() {
     names.append("grace")
     var people = names.count()
     console.print("greeting", people, "people")
-    say_hello_to_everyone()
-}
-
-func say_hello_to_everyone() {
-    var index = 0
-    while index < names.count() {
-        console.print("hello", names[index])
-        index = index + 1
-    }
+    var everyone = names.join(" and ")
+    console.print("hello", everyone)
 }
 ```
 
 ```
 greeting 2 people
-hello ada
-hello grace
+hello ada and grace
 ```
 
-**Put each program in its own folder.** Running a script loads its parent folder (manual.md section 11), so
-every `.spite` file beside it becomes part of the same program -- a scratch directory with several unrelated
-programs in it will not compile.
+**Put each program in its own folder.** `spite greeter` loads the whole `greeter` folder (manual.md section 11),
+so every `.spite` file in it is part of the same program.
 
 **Save as UTF-8 without a byte order mark.** The lexer rejects a file that starts with one, and PowerShell's
 `Set-Content -Encoding utf8` writes one by default: use `-Encoding utf8NoBOM`, or an editor set to UTF-8
 without BOM.
 
-**The manual describes more of the language than the compiler implements yet.** `conformance/` is the
-ground truth: every program in it passes, so anything used there works today. `examples/` is the same,
-at program scale. When something in `manual.md` does not compile, that is the compiler being behind,
-not you being wrong -- `bootstrap/COMPILER_PLAN.md` lists what is missing.
+**`docs/` is the ground truth for what works today**: every titled program in it, and every program in
+`conformance/` and `examples/`, is compiled and checked by `bash check.sh`. `manual.md` also records what is
+decided but not built yet, marked as such.
 
 ## Where to look
 
