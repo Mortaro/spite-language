@@ -146,11 +146,6 @@ func one_parameter(name: String, spite_type: Analysis.SpiteType): List<Analysis.
 }
 
 func register_system_classes() {
-    var console = register_system_class("Console")
-    console.is_singleton = true
-    add_builtin_function(console, "Console", no_parameters(), void_type())
-    add_builtin_function(console, "read_line", no_parameters(), nullable_type_of(string_type()))
-    add_builtin_function(console, "flush", no_parameters(), void_type())
     var dynamic_library = register_system_class("DynamicLibrary")
     var library_parameters = one_parameter("file_name", string_type())
     library_parameters.append(Analysis.ParamInfo("naming", Analysis.Types.SymbolType()))
@@ -5891,7 +5886,7 @@ func receives_on_console(
 }
 
 func is_console_printer(method_name: String): Bool {
-    return method_name == "print" or method_name == "write" or method_name == "error"
+    return method_name == "print" or method_name == "write" or method_name == "error" or method_name == "flush"
 }
 
 func generate_console_call(
@@ -5916,6 +5911,9 @@ func generate_console_call(
     }
     var lines = List<String>()
     lines.append("\{ Console* {console_temporary} = {console_result.code}; (void){console_temporary};")
+    if method_name == "flush" {
+        lines.append("fflush(stdout); fflush(stderr);")
+    }
     var index = 0
     while index < arguments_ast.count() {
         if index > 0 {

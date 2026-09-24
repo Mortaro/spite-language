@@ -555,34 +555,6 @@ SpiteString* spite_string_from_bool(bool value) {
     return value ? &spite_static_string_true : &spite_static_string_false;
 }
 
-/* Reads one line from stdin (without the trailing newline), growing a
- * malloc'd buffer as needed. `*ok` is false only at end of file with
- * nothing read at all. */
-SpiteString* spite_console_read_line(bool* ok) {
-    int64_t capacity = 128;
-    int64_t used = 0;
-    char* buffer = (char*)SPITE_MALLOC((size_t)capacity);
-    int character = fgetc(stdin);
-    if (character == EOF) {
-        SPITE_FREE(buffer);
-        *ok = false;
-        return &spite_static_string_empty;
-    }
-    while (character != EOF && character != '\n') {
-        if (used + 1 >= capacity) {
-            capacity = capacity * 2;
-            buffer = (char*)SPITE_REALLOC(buffer, (size_t)capacity);
-        }
-        buffer[used] = (char)character;
-        used = used + 1;
-        character = fgetc(stdin);
-    }
-    if (used > 0 && buffer[used - 1] == '\r') used = used - 1;
-    buffer[used] = '\0';
-    *ok = true;
-    return spite_string_take(buffer, used);
-}
-
 /* ---- File/Directory/Process support: portable-C leaf helpers used by the
  * File/Directory/Process/Program built-in classes (runtime/system_bodies.h).
  * Directory listing and process spawning

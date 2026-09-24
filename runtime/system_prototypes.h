@@ -2,16 +2,6 @@ int64_t SpiteArguments_count(SpiteArguments* self);
 SpiteString* SpiteArguments_get(SpiteArguments* self, int64_t index);
 SpiteString* SpiteArguments_lookup(SpiteArguments* self, const char* key);
 
-void Console_flush(Console* self);
-void Console_init(Console* self);
-Console* Console_allocate(void);
-Console* Console_default(void);
-Console* Console_make(void);
-Console* Console_retain(Console* self);
-void Console_release(Console* self);
-Console* Console_copy(Console* self);
-Console* Console_deep_copy(Console* self);
-SpiteString* Console_read_line(Console* self);
 void DynamicLibrary_init(DynamicLibrary* self);
 DynamicLibrary* DynamicLibrary_allocate(void);
 DynamicLibrary* DynamicLibrary_default(void);

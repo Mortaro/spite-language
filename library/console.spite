@@ -1,0 +1,33 @@
+var runtime = CRuntime()
+var memory = Memory()
+var foreign_text = ForeignText()
+
+func read_line(): String? {
+    var buffer = memory.allocate_bytes(256)
+    var line = ""
+    var read_anything = false
+    var more = runtime.read_line_into(buffer, 256)
+    while more {
+        read_anything = true
+        var piece = foreign_text.read(buffer)
+        if piece.ends_with("\n") {
+            line = "{line}{piece.slice(0, piece.length() - 1)}"
+            more = false
+        } else {
+            line = "{line}{piece}"
+            more = runtime.read_line_into(buffer, 256)
+        }
+    }
+    memory.free(buffer)
+    if not read_anything {
+        return null
+    }
+    if line.ends_with("\r") {
+        return line.slice(0, line.length() - 1)
+    }
+    return line
+}
+
+func is_singleton(): Bool {
+    return true
+}

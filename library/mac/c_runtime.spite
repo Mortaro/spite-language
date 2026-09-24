@@ -1,6 +1,7 @@
 var library = DynamicLibrary("libSystem.dylib", 'identity', "")
 var memory = Memory()
 var foreign_text = ForeignText()
+var input: Long = 0
 
 func open_file(path: String, mode: String): Long {
     return library.fopen_as_long(path, mode)
@@ -91,6 +92,13 @@ func platform(): String {
 
 func run_attached(line: String): Int {
     return library.system(line)
+}
+
+func read_line_into(buffer: Long, bytes: Int): Bool {
+    if input == 0 {
+        input = library.fdopen_as_long(0, "r")
+    }
+    return library.fgets_as_long(buffer, bytes, input) != 0
 }
 
 func is_singleton(): Bool {
