@@ -155,6 +155,42 @@ func to_int(): Int {
     return to_long()
 }
 
+func to_tiny(): Tiny {
+    return to_long()
+}
+
+func to_short(): Short {
+    return to_long()
+}
+
+func to_byte(): Byte {
+    return to_long()
+}
+
+func to_unsigned_short(): UnsignedShort {
+    return to_long()
+}
+
+func to_unsigned_int(): UnsignedInt {
+    return to_long()
+}
+
+func to_unsigned_long(): UnsignedLong {
+    var index = 0
+    while index < length() and is_space_at(index) {
+        index = index + 1
+    }
+    if index < length() and code_at(index) == 43 {
+        index = index + 1
+    }
+    var value: UnsignedLong = 0
+    while index < length() and code_at(index) >= 48 and code_at(index) <= 57 {
+        value = value * 10 + code_at(index) - 48
+        index = index + 1
+    }
+    return value
+}
+
 func to_float(): Float {
     return to_double()
 }

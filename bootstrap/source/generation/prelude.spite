@@ -170,13 +170,7 @@ func header(): String {
         "    return (int64_t)(unsigned char)self->data[index];"
         "}"
         ""
-        "static SpiteString spite_static_string_true = SPITE_STATIC_STRING(\"true\", 4);"
-        "static SpiteString spite_static_string_false = SPITE_STATIC_STRING(\"false\", 5);"
         "static SpiteString spite_static_string_empty = SPITE_STATIC_STRING(\"\", 0);"
-        ""
-        "SpiteString* spite_string_from_bool(bool value) \{"
-        "    return value ? &spite_static_string_true : &spite_static_string_false;"
-        "}"
     ]
     return lines.join("\n")
 }
@@ -307,23 +301,11 @@ func memory_members(): List<String> {
         "int64_t address = (int64_t)(intptr_t)text->data; SpiteString_release(text); return address;"
         "func live_allocations(): Int"
         "return (int32_t)spite_live_allocation_count();"
-        "func is_singleton(): Bool \{\n    return true\n}"
-        ""
     ]
 }
 
 func dynamic_library_members(): List<String> {
     return [
-        "var file_name = \"\""
-        ""
-        "var handle: Long = 0"
-        ""
-        "func DynamicLibrary(file: String, _naming: Symbol, _header: String) \{\n    file_name = file\n    handle = open_library(file)\n}"
-        ""
-        "func is_singleton(): Bool \{\n    return true\n}"
-        ""
-        "func drop() \{\n    close_library(handle)\n}"
-        ""
         "func open_library(file: String): Long"
         "#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA(file->data);\n#else\nvoid* opened = dlopen(file->data, RTLD_NOW);\n#endif\nif (opened == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: could not open the library '%s'\\n\", file->data);\nexit(1);\n}\nSpiteString_release(file);\nreturn (int64_t)(intptr_t)opened;"
         "func find_symbol(name: String, wanted_by: String): Long"

@@ -1,0 +1,4 @@
+func text(): String {
+    var wide: Long = this
+    return wide.text()
+}

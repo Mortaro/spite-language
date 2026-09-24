@@ -1,0 +1,4 @@
+func text(): String {
+    var wide: Double = this
+    return wide.shortest_text(16777216, -149, 9)
+}

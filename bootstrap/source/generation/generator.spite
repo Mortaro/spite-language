@@ -2479,19 +2479,10 @@ func string_conversion(code: String, from: Analysis.SpiteType): String {
                 return "{text_function.c_name}({code})"
             }
         }
-        if scalar.kind == 'boolean_kind' {
-            return "spite_string_from_bool({code})"
-        }
-        if scalar.kind == 'float_kind' {
-            return "{number_text_function("float_text", "float")}({code})"
-        }
-        if scalar.kind == 'double_kind' {
-            return "{number_text_function("double_text", "double")}({code})"
-        }
-        if scalar.kind == 'unsigned_long_kind' {
-            return "{number_text_function("unsigned_text", "uint64_t")}({code})"
-        }
-        return "{number_text_function("long_text", "int64_t")}((int64_t)({code}))"
+        report(
+            "a {type_display_name(from)} becomes text through the text() function of its class in library/, and that class declares none",
+        )
+        return "(&spite_static_string_empty)"
     }
     var enum_type = type_shape.as_enum(from)
     if enum_type {
@@ -2524,21 +2515,6 @@ func emit_text_bytes() {
 func long_text(code: String): String {
     var wide_type = long_type()
     return string_conversion("((int64_t)({code}))", wide_type)
-}
-
-func number_text_function(name: String, value_type: String): String {
-    var number_text = find_class_by_qualified("NumberText")
-    crash number_text
-    var function_name = "spite_{name}"
-    if not singleton_names.contains(function_name) {
-        singleton_names.append(function_name)
-        var instance = singleton_call(number_text)
-        builder.add_prototype("SpiteString* {function_name}({value_type} value);")
-        builder.add_support(
-            "SpiteString* {function_name}({value_type} value) \{\nNumberText* spite_number_text = {instance};\nSpiteString* spite_text = NumberText_{name}(spite_number_text, value);\nNumberText_release(spite_number_text);\nreturn spite_text;\n}",
-        )
-    }
-    return function_name
 }
 
 func emit_allocation_table() {
@@ -2657,6 +2633,12 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
     if type_shape.as_string(from) {
         var to_scalar = type_shape.as_scalar(to)
         if to_scalar {
+            var target_label = type_label(to)
+            var conversion_name = words_of(target_label).join("_")
+            var conversion = written_string_function("to_{conversion_name}")
+            if conversion {
+                return "{conversion.c_name}({code})"
+            }
             if is_float_kind(to_scalar.kind) {
                 return "(({c_type_name(to)})(SpiteString_to_double({code})))"
             }
@@ -7191,7 +7173,11 @@ func generate_expression(
     }
     var float_literal = shape.as_float_literal(expression)
     if float_literal {
-        return ExpressionResult("{float_literal.value}", Analysis.Types.ScalarType('float_kind'))
+        var literal_code = float_literal.value.text()
+        if not literal_code.contains(".") and not literal_code.contains("e") {
+            literal_code = "{literal_code}.0"
+        }
+        return ExpressionResult(literal_code, Analysis.Types.ScalarType('float_kind'))
     }
     var string_literal = shape.as_string_literal(expression)
     if string_literal {

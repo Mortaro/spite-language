@@ -1,0 +1,17 @@
+func text(): String {
+    if this == 0 {
+        return "0"
+    }
+    var memory = Memory()
+    var address = memory.allocate_bytes(24)
+    var position: Long = 24
+    var rest = this
+    while rest != 0 {
+        position = position - 1
+        memory.write_byte(address, position, 48 + rest % 10)
+        rest = rest / 10
+    }
+    var text = memory.text(address + position, 24 - position)
+    memory.free(address)
+    return text
+}
