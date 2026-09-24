@@ -24,6 +24,7 @@ var foreign_headers_included = List<String>()
 var function_value_makers = List<String>()
 var written_in_spite = List<String>()
 var read_evaluate_print_loop = false
+var development = false
 var reflect_function_names = List<String>()
 var live_reflection_emitted = false
 var body_narrowed_names = List<String>()
@@ -477,6 +478,7 @@ func generate(
     emit_allocation_table()
     emit_main(discovery.entry_mangled_name)
     emit_pending_functions()
+    builder.shakes = not development
     return builder.render()
 }
 
