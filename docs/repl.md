@@ -111,7 +111,7 @@ Commands are a small subset of Spite expressions:
 
 This is illustrative wire traffic for the program above, running with `--repl-port 4000` -- not re-executed by
 this repository's test suite (there is no single expected stdout for an interactive session), but every
-response shape matches what `src/runtime/spite_repl.h` actually implements per manual.md section 13.
+response shape is the one manual.md section 14 specifies.
 
 ```text
 $ spite connect 4000 --command="program.player_name"

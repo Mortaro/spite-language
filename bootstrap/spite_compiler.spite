@@ -127,17 +127,16 @@ func generate_c_or_report(file_argument: String, content: String): String? {
         console.error(discovery.error_message)
         return null
     }
-    var runtime_header = read_runtime_header()
-    assert runtime_header
-    var system_structs = File("runtime/system_structs.h").read()
-    assert system_structs
-    var system_prototypes = File("runtime/system_prototypes.h").read()
-    assert system_prototypes
-    var system_bodies = File("runtime/system_bodies.h").read()
-    assert system_bodies
+    var prelude = Generation.Prelude()
     var generator = Generation.Generator()
     generator.read_evaluate_print_loop = read_evaluate_print_loop
-    var code = generator.generate(discovery, runtime_header, system_structs, system_prototypes, system_bodies)
+    var code = generator.generate(
+        discovery,
+        prelude.header(),
+        prelude.structs(),
+        prelude.prototypes(),
+        prelude.bodies(),
+    )
     if generator.has_error {
         console.error(generator.error_message)
         return null
@@ -283,17 +282,10 @@ func run_final_classes_mode(file_argument: String, content: String, output_direc
 }
 
 func final_classes_generator(discovery: Discovery.DiscoveryResult): Generation.Generator? {
-    var runtime_header = read_runtime_header()
-    assert runtime_header
-    var system_structs = File("runtime/system_structs.h").read()
-    assert system_structs
-    var system_prototypes = File("runtime/system_prototypes.h").read()
-    assert system_prototypes
-    var system_bodies = File("runtime/system_bodies.h").read()
-    assert system_bodies
+    var prelude = Generation.Prelude()
     var generator = Generation.Generator()
     generator.read_evaluate_print_loop = read_evaluate_print_loop
-    generator.generate(discovery, runtime_header, system_structs, system_prototypes, system_bodies)
+    generator.generate(discovery, prelude.header(), prelude.structs(), prelude.prototypes(), prelude.bodies())
     if generator.has_error {
         console.error(generator.error_message)
         Program().exit(1)
@@ -401,11 +393,6 @@ func create_final_class_directory(path: String) {
         Directory(current).create()
         index = index + 1
     }
-}
-
-func read_runtime_header(): String? {
-    var header_file = File("runtime/spite_runtime.h")
-    return header_file.read()
 }
 
 func run_c_mode(file_argument: String, content: String) {

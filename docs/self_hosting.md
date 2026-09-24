@@ -35,10 +35,9 @@ bootstrap/spite_compiler.spite   the entry class
 bootstrap/source/syntax/         lexer, parser, AST
 bootstrap/source/discovery/      finding classes, loading roots, merging reopened classes
 bootstrap/source/analysis/       types, classes, functions, templates
-bootstrap/source/generation/     C generation
+bootstrap/source/generation/     C generation, including prelude.spite: the only C the compiler writes by hand
 bootstrap/seed/spite_compiler.c  the committed fixpoint
 library/                         Spite.Class, Spite.Attribute and the rest, as ordinary Spite source
-runtime/                         the C runtime the generated code includes
 ```
 
 `library/` is the beginning of the standard library becoming Spite rather than hand-written C -- see

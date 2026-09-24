@@ -11,7 +11,6 @@ bootstrap/spite_compiler.spite   entry: the compiler's own entry class
 bootstrap/source/                the compiler, in Spite
 bootstrap/seed/spite_compiler.c  the committed fixpoint C; a C compiler turns it back into the compiler
 bootstrap/COMPILER_PLAN.md       the compiler's own plan and progress log
-runtime/                         the C runtime the generated code includes
 library/                         Spite.Class, Spite.Attribute and the rest, as ordinary Spite source
 conformance/                     programs the compiler must handle exactly, checked by check.sh
 examples/                        sample programs, each run by check.sh against its expected output
