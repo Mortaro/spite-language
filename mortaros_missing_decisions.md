@@ -288,4 +288,9 @@ Behaviour that does not match the manual. The language was not changed; each is 
     `.class` as a type, `.name` as a `Symbol`). The mechanism is yours; the spelling was the SlopEngine session's.
 71. **Finding every function named `*_system` across the program** -- the same reflection over the program's
     classes. Not decided.
+72. **The spelling of D115** (finding classes by namespace at compile time): `Symbol<Spite.Namespace>`, or a
+    `classes` plural over a namespace pattern -- the SlopEngine session's proposals.
+73. **The grammar of D116** (ordering by function name): `<phase>_each` / `<phase>_all` plus
+    `run_each_before_<phase>` / `run_each_after_<phase>`, and how a template spells a name pattern whose matched
+    part it can read.
 
