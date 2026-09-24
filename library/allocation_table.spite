@@ -1,0 +1,184 @@
+var memory = Memory()
+var console = Console()
+var foreign_text = ForeignText()
+var slots: Long = 0
+var capacity: Long = 0
+var divisor: UnsignedLong = 0
+var live_count: Long = 0
+var used_count: Long = 0
+var allocations: Long = 0
+var frees: Long = 0
+var objects: Long = 0
+var object_count: Long = 0
+var object_capacity: Long = 0
+var class_names: Long = 0
+var class_name_count: Long = 0
+
+func resize(address: Long, bytes: Long): Long {
+    if address == 0 {
+        allocations = allocations + 1
+    } else {
+        forget_live(address, "reallocating a pointer that was already freed (or never allocated)")
+    }
+    var result = memory.resize(address, bytes)
+    if result != 0 {
+        remember(result)
+    }
+    return result
+}
+
+func free(address: Long) {
+    forget_live(address, "double free (or freeing an unknown pointer)")
+    frees = frees + 1
+    memory.free(address)
+}
+
+func live_allocations(): Long {
+    return live_count
+}
+
+func register_object(address: Long, class_id: Int) {
+    if object_count == object_capacity {
+        var new_capacity: Long = 64
+        if object_capacity > 0 {
+            new_capacity = object_capacity * 2
+        }
+        objects = memory.resize(objects, new_capacity * 16)
+        object_capacity = new_capacity
+    }
+    memory.write_long(objects, object_count * 16, address)
+    memory.write_long(objects, object_count * 16 + 8, class_id)
+    object_count = object_count + 1
+}
+
+func name_classes(names: Long, count: Long) {
+    class_names = names
+    class_name_count = count
+}
+
+func report() {
+    if allocations != frees {
+        report_leaks()
+    }
+    console.print("allocations:", allocations, "frees:", frees)
+}
+
+func report_leaks() {
+    console.error("spite: --debug-memory:", allocations - frees, "allocation(s) leaked")
+    var class_id: Long = 0
+    while class_id < class_name_count {
+        var leaked: Long = 0
+        var record: Long = 0
+        while record < object_count {
+            if memory.read_long(objects, record * 16 + 8) == class_id and find(memory.read_long(objects, record * 16)) >= 0 {
+                leaked = leaked + 1
+            }
+            record = record + 1
+        }
+        if leaked > 0 {
+            console.error(
+                "  {foreign_text.read(memory.read_long(class_names, class_id * 8))}:",
+                leaked,
+                "leaked object(s)",
+            )
+        }
+        class_id = class_id + 1
+    }
+}
+
+func forget_live(address: Long, mistake: String) {
+    var was_live = forget(address)
+    if not was_live {
+        console.error("spite: --debug-memory: {mistake} -- an ownership bug")
+    }
+    crash was_live
+}
+
+func remember(address: Long) {
+    if (used_count + 1) * 2 >= capacity {
+        grow()
+    }
+    place(address)
+    live_count = live_count + 1
+    used_count = used_count + 1
+}
+
+func forget(address: Long): Bool {
+    var slot = find(address)
+    if slot < 0 {
+        return false
+    }
+    memory.write_long(slots, slot * 8, 1)
+    live_count = live_count - 1
+    return true
+}
+
+func find(address: Long): Long {
+    if capacity == 0 {
+        return -1
+    }
+    var slot = slot_of(address)
+    var kept = memory.read_long(slots, slot * 8)
+    while kept != 0 {
+        if kept == address {
+            return slot
+        }
+        slot = next_slot(slot)
+        kept = memory.read_long(slots, slot * 8)
+    }
+    return -1
+}
+
+func place(address: Long) {
+    var slot = slot_of(address)
+    var kept = memory.read_long(slots, slot * 8)
+    while kept != 0 and kept != 1 {
+        slot = next_slot(slot)
+        kept = memory.read_long(slots, slot * 8)
+    }
+    memory.write_long(slots, slot * 8, address)
+}
+
+func grow() {
+    var new_capacity: Long = 1024
+    if capacity > 0 {
+        new_capacity = capacity * 2
+    }
+    while (live_count + 1) * 4 >= new_capacity * 3 {
+        new_capacity = new_capacity * 2
+    }
+    var old_slots = slots
+    var old_capacity = capacity
+    slots = memory.allocate_bytes(new_capacity * 8)
+    capacity = new_capacity
+    var span: UnsignedLong = new_capacity
+    var largest: UnsignedLong = 0 - 1
+    divisor = largest / span + 1
+    var index: Long = 0
+    while index < new_capacity {
+        memory.write_long(slots, index * 8, 0)
+        index = index + 1
+    }
+    index = 0
+    while index < old_capacity {
+        var kept = memory.read_long(old_slots, index * 8)
+        if kept != 0 and kept != 1 {
+            place(kept)
+        }
+        index = index + 1
+    }
+    memory.free(old_slots)
+    used_count = live_count
+}
+
+func slot_of(address: Long): Long {
+    var hashed: UnsignedLong = address
+    return hashed * 6364136223846793005 / divisor
+}
+
+func next_slot(slot: Long): Long {
+    if slot + 1 == capacity {
+        return 0
+    }
+    return slot + 1
+}
