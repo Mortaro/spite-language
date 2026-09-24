@@ -1,11 +1,67 @@
-# Standard library, task by task
+# Standard library
 
-The standard library is ordinary Spite in `library/`, written over `Memory`, and its values are reference
-counted like every other object (see [memory.md](memory.md)). When an operation cannot succeed it says so in
-its type rather than crashing: an index or a key that is not there reads as `T?`, a file that cannot be read
-answers `null`, and text that does not parse as a number reads as `0`.
+The standard library is ordinary Spite in `library/`, and a program reads it the way it reads its own code:
+every class a program can name -- `String`, `List`, `Int`, `File`, `Memory` -- is a file there, and
+`--final_classes` prints each one as the program uses it. Its values are reference counted like every other
+object ([memory.md](memory.md)). When an operation cannot succeed it says so in its type rather than crashing:
+an index or a key that is not there reads as `T?`, a file that cannot be read answers `null`, and text that does
+not parse as a number reads as `0`.
 
-## Read a file
+`library/` holds what every operating system shares; `library/windows/`, `library/linux/` and `library/mac/`
+reopen the classes each system does differently, and the launcher loads the one the program is compiled for
+([foreign_libraries.md](foreign_libraries.md#each-operating-system-reopens-what-it-changes)).
+
+## What is in it
+
+| Class | What it is | Page |
+|---|---|---|
+| `String` | immutable text | [below](#string) |
+| `Int`, `Long`, `Float`, `Double`, `Bool`, ... | numbers, as classes | [values_and_types.md](values_and_types.md#numbers-are-classes) |
+| `List<T>`, `Dictionary<T>` | containers, and the member templates | [collections.md](collections.md) |
+| `Console` | the terminal: print, read a line | [below](#console) |
+| `File`, `Directory` | files and folders | [below](#read-and-write-a-file) |
+| `Process` | run another program | [below](#run-a-process) |
+| `Program` | this program: exit, sleep, environment variables | [below](#program) |
+| `Environment`, `Build`, `Arguments` | settings and the command line | [programs.md](programs.md) |
+| `Json<T>` | any value to JSON text and back | [json.md](json.md) |
+| `Concurrent`, `Parallel` | run a function while waiting, or on a thread | [concurrency.md](concurrency.md) |
+| `Socket` | TCP on `127.0.0.1`, which the remote REPL uses | [below](#socket) |
+| `Memory`, `TypedMemory<T>` | raw memory, the floor every other type is built on | [memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it) |
+| `DynamicLibrary` | call a native library | [foreign_libraries.md](foreign_libraries.md) |
+| `Spite.Class`, `Spite.Function`, ... | reflection | [reflection.md](reflection.md) |
+
+## `String`
+
+Immutable and reference counted. A value is placed inside written text, `"hello {name}"`, and two values join
+with `+` ([values_and_types.md](values_and_types.md#string)). `==`, `!=`, `<` and `>` compare by content.
+
+| Member | Result | Notes |
+|---|---|---|
+| `length()` / `is_empty()` | `Int` / `Bool` | |
+| `slice(start, end)` | `String` | clamped; `""` for an empty or invalid range |
+| `character_at(index)` | `String` | `""` out of range |
+| `code_at(index)` | `Int` | the byte's value; `0` out of range |
+| `contains(text)` / `starts_with(text)` / `ends_with(text)` | `Bool` | |
+| `index_of(text)` | `Int` | `-1` when absent |
+| `replace(from, to)` | `String` | every occurrence |
+| `trim()` / `upper_case()` / `lower_case()` | `String` | |
+| `split(separator)` | `List<String>` | an empty separator splits into single characters |
+| `lines()` | `List<String>` | split on `
+` |
+| `to_int()`, `to_long()`, `to_double()`, ... | a number | one per number type; `0` when it does not parse |
+
+Assigning text to a number calls the matching `to_<type>()`: `var age: Int = "42"` is `42`.
+
+## Read and write a file
+
+`File(path)` is a value -- a path -- and several may exist at once.
+
+| Member | Result | Notes |
+|---|---|---|
+| `path` | `String` | |
+| `read()` | `String?` | `null` when the file cannot be read |
+| `write(text)` / `append(text)` | `Bool` | replaces the content / adds to its end |
+| `exists()` / `remove()` | `Bool` | |
 
 ```spite title=file_tasks/file_tasks.spite entry
 var console = Console()
@@ -32,12 +88,18 @@ removed true
 exists after remove false
 ```
 
-`read()` is a `String?` (`null` when the file does not exist) -- narrow it with `if ... { }`, with `assert`
-(which returns quietly from a function that returns nothing), or with `crash` (which halts), exactly like any
-other `T?`. This entry constructor uses `crash`: `assert` is not allowed in a constructor, because a
-constructor is setup rather than logic.
+`read()` is a `String?` -- narrow it with `if content { }`, `assert content` (which returns the function's
+default) or `crash content` (which halts), exactly like any other `T?` ([failure.md](failure.md)). This entry
+constructor uses `crash`, because `assert` is not allowed in a constructor.
 
 ## List a directory
+
+| Member | Result | Notes |
+|---|---|---|
+| `path` | `String` | |
+| `entries()` | `List<Directory.Entry>` | every folder and file inside it, as `Directory` and `File` values |
+| `folders()` / `files()` | `List<String>` | names only, sorted |
+| `exists()` / `create()` | `Bool` | |
 
 ```spite title=directory_tasks/directory_tasks.spite entry
 var console = Console()
@@ -57,7 +119,7 @@ exists true
 has hello true
 ```
 
-`files()`/`folders()` return sorted `List<String>` of names (not full paths).
+`files()` and `folders()` answer names, not paths; `entries()` answers values you can walk.
 
 ## Walk a directory tree
 
@@ -124,260 +186,70 @@ output "build finished"
 `run()` -- and it includes the child process's own trailing newline, which is why the example above calls
 `.trim()`.
 
-## Group things in a `Dictionary`
-
-```spite title=dictionary_tasks/dictionary_tasks.spite entry
-var console = Console()
-
-func DictionaryTasks() {
-    var inventory = Dictionary<Int>()
-    inventory.set("sword", 1)
-    inventory.set("potion", 4)
-    inventory.set("potion", 6)
-    var inventory_count = inventory.count()
-    console.print("count", inventory_count)
-    var has_shield = inventory.has("shield")
-    console.print("has shield", has_shield)
-    crash inventory["potion"]
-    console.print("potions", inventory["potion"])
-    console.print("shields", inventory["shield"] == 0)
-    var total = 0
-    var values = inventory.values()
-    var index = 0
-    while index < values.count() {
-        total = total + values[index]
-        index = index + 1
-    }
-    console.print("total items", total)
-}
-```
-```output
-count 2
-has shield false
-potions 6
-shields false
-total items 7
-```
-
-`set(key, value)` replaces an existing key's value rather than adding a duplicate -- there is exactly one entry
-per key, insertion-ordered. `dictionary["missing_key"]` reads as the value type's default (`0` for
-`Dictionary<Int>`), never a crash; `get(key)` is the `T?` form when you need to tell "absent" apart
-from "present but zero."
-
-## Query a list of classes
-
-```spite title=list_query/item.spite
-var name = ""
-var price = 0
-var in_stock = false
-
-func Item(new_name: String, new_price: Int, new_in_stock: Bool) {
-    name = new_name
-    price = new_price
-    in_stock = new_in_stock
-}
-```
-```spite title=list_query/list_query.spite entry
-var console = Console()
-
-func ListQuery() {
-    var items = List<Item>()
-    items.append(Item("sword", 50, true))
-    items.append(Item("shield", 30, false))
-    items.append(Item("potion", 10, true))
-    var in_stock_count = items.filter_in_stock().count()
-    console.print("in stock count", in_stock_count)
-    var in_stock_price = items.filter_in_stock().sum_price()
-    console.print("in stock price total", in_stock_price)
-    var found = items.find_by_name("shield")
-    if found {
-        console.print("found", found.name, found.price)
-    }
-    var by_price = items.sort_by_price()
-    var index = 0
-    while index < by_price.count() {
-        console.print(by_price[index].name, by_price[index].price)
-        index = index + 1
-    }
-}
-```
-```output
-in stock count 2
-in stock price total 60
-found shield 30
-potion 10
-shield 30
-sword 50
-```
-
-`filter_<member>()` and `sort_by_<member>()` return a new list holding the same elements (each one counted
-once more, not copied), so you can chain freely (`items.filter_in_stock().sum_price()`); `find_by_<member>(value)`
-returns the element itself or `null`. A member is a field or a function that takes no arguments
-(`map_label()` calls `label()` on every element); what each template needs of it is in the manual's section 8.
-
-## How the member templates are written
-
-The templates are ordinary Spite in `library/list.spite`, over the list's own `Memory` buffer. Each one is a
-Symbol codegen template (see [metaprogramming.md](metaprogramming.md)) whose parameter is
-`member: Symbol<$element_type>`: the symbol names a member of the *element*, and `item.attributes[member]` reads
-it -- the field itself, or a call to the zero-argument function. `filter_member` answers `filter_in_stock`,
-`filter_is_popular` and every other `filter_<member>` call:
-
-```
-func filter_member(member: Symbol<$element_type>): List<$element_type> {
-    var filtered = List<$element_type>()
-    var index = 0
-    while index < item_count {
-        var item = values.read_value(items, index)
-        if item.attributes[member] {
-            filtered.append(item)
-        }
-        index = index + 1
-    }
-    return filtered
-}
-```
-
-`values` is the list's `TypedMemory<$element_type>`: `values.read_value(items, index)` reads the element in slot
-`index` of the list's buffer, retained, the same way a container of your own would (see
-[memory.md](memory.md)); everything else is written in the file. A template is compiled only for the
-names a program calls, so a program that never calls `sum_price()` carries no `sum_price` at all. A build with
-`--repl` or `--repl_port` compiles every template that fits every element class of a list the loop can reach,
-so `monsters.sum_health()` can be typed at the prompt. `Dictionary<T>` answers the same names through its
-values: `inventory.sum_price()` is `inventory.values().sum_price()`.
-
-## Chains run as one loop
-
-Every template takes what the one before it gives, so they chain: `map_<member>()` turns a list of teams into a
-list of their leads, `filter_<member>()` keeps some of them, and anything else finishes the chain. Read a chain
-as the separate steps it is written as -- that is what it means -- but the compiler runs it as **one loop over
-the first list**, with no list in between: `teams.filter_active().map_lead().sum_age()` visits each team once,
-reads its lead, and adds the age, allocating nothing.
-
-```spite title=fused_chain/person.spite
-var name = ""
-var age = 0
-
-func Person(new_name: String, new_age: Int) {
-    name = new_name
-    age = new_age
-}
-```
-```spite title=fused_chain/team.spite
-var active = false
-var lead = Person("", 0)
-
-func Team(new_active: Bool, new_lead: Person) {
-    active = new_active
-    lead = new_lead
-}
-```
-```spite title=fused_chain/fused_chain.spite entry
-var console = Console()
-
-func FusedChain() {
-    var teams = List<Team>()
-    var ann = Person("ann", 34)
-    teams.append(Team(true, ann))
-    var bob = Person("bob", 67)
-    teams.append(Team(false, bob))
-    var ages = teams.filter_active().map_lead().sum_age()
-    var active = teams.filter_active()
-    var leads = active.map_lead()
-    var ages_step_by_step = leads.sum_age()
-    console.print(ages, ages_step_by_step)
-}
-```
-```output
-34 34
-```
-
-Only a call made directly on another template call is part of the chain: `active.map_lead()` above starts a
-new one, because `active` is a list the program named and kept. The steps in the middle are `map_` (to a member
-that is a class) and `filter_`; the last call can be any template. The one visible difference is order: a
-member function in a fused chain runs element by element, where the steps written out would run it on every
-element before the next step starts. `conformance/stage6/fused_chain_allocations` runs four chains a thousand
-times each and pins its allocation count at 12, the lists and objects it builds before the loop, the one
-`TypedMemory` its lists share and the `Launcher`; written step by step, the same program allocates 16 011 times.
-
-## Write your own member template
-
-A program reopens `List` by putting a `list.spite` in its own folder, and a function there with a
-`Symbol<$element_type>` parameter named after a segment of its name becomes one more template, exactly like the
-library's:
-
-```spite title=list_average/list.spite
-func average_member(member: Symbol<$element_type>): Float {
-    assert item_count != 0
-    var total = 0.0
-    var index = 0
-    while index < item_count {
-        var item = values.read_value(items, index)
-        total = total + item.attributes[member]
-        index = index + 1
-    }
-    return total / item_count
-}
-```
-```spite title=list_average/score.spite
-var points = 0
-
-func Score(new_points: Int) {
-    points = new_points
-}
-```
-```spite title=list_average/list_average.spite entry
-var console = Console()
-
-func ListAverage() {
-    var scores = List<Score>()
-    scores.append(Score(3))
-    scores.append(Score(4))
-    var average = scores.average_points()
-    console.print(average)
-}
-```
-```output
-3.5
-```
-
-The `<$element_type>` is what makes it a member of the element. A plain `member: Symbol` would name one of the
-list's own attributes, which are its buffer, so it is an error that says what to write:
-
-```spite title=plain_symbol_template/list.spite
-func total_member(member: Symbol): Int {
-    var total = 0
-    var index = 0
-    while index < item_count {
-        var item = read_item(index)
-        total = total + item.attributes[member]
-        index = index + 1
-    }
-    return total
-}
-```
-```spite title=plain_symbol_template/plain_symbol_template.spite entry error
-var console = Console()
-
-func PlainSymbolTemplate() {
-    var scores = List<Int>()
-    scores.append(3)
-    var count = scores.count()
-    console.print(count)
-}
-```
-```diagnostic
-write 'member: Symbol<$element_type>' to name a member of the element
-```
-
 ## `Console`
 
-`print(...)` (space-separated, trailing newline), `error(...)` (stderr, trailing newline), `write(...)`
-(stdout, no trailing newline), `read_line(): String?` (one line from stdin; `null` only at end of
-file with nothing read).
+`Console()` is a singleton: the same instance everywhere, so every file holds `var console = Console()`.
+
+| Member | Does |
+|---|---|
+| `print(...)` | every argument as text, separated by a space, then a line break |
+| `write(...)` | the same without the line break |
+| `error(...)` | like `print`, to the error stream |
+| `read_line()` | one line of input without its line break, as a `String?`: `null` only at the end of the input |
+
+```spite title=console_input_doc/console_input_doc.spite entry
+var console = Console()
+
+func ConsoleInputDoc() {
+    console.write("name? ")
+    var name = console.read_line()
+    if name {
+        console.print("hello", name)
+    } else {
+        console.print("no input")
+    }
+}
+```
+```output
+name? no input
+```
 
 ## `Program`
 
-`Program().exit(code)` exits the process immediately with `code`; the entry constructor returning normally is
-exit code `0`. See [getting_started.md](getting_started.md) for the full method tables (`String`, `List<T>`,
-`Dictionary<T>`) if the task you need isn't above.
+`Program()` is this running program.
+
+| Member | Does |
+|---|---|
+| `exit(code)` | flushes what was printed and ends the process with `code` |
+| `sleep(milliseconds)` | waits; other `Concurrent` work runs meanwhile ([concurrency.md](concurrency.md)) |
+| `environment(name)` | the process environment variable, as a `String?` |
+| `live_allocations()` | how many allocations are alive, under `--debug_memory` |
+
+The entry constructor returning normally is exit code `0`.
+
+```spite title=program_basics/program_basics.spite entry
+var console = Console()
+
+func ProgramBasics() {
+    var program = Program()
+    var missing = program.environment("SPITE_DOCUMENTATION_UNSET_VARIABLE")
+    if missing {
+        console.print("set to", missing)
+    } else {
+        console.print("not set")
+    }
+    program.sleep(1)
+    console.print("slept")
+}
+```
+```output
+not set
+slept
+```
+
+## `Socket`
+
+`Socket()` is a TCP connection on `127.0.0.1` and nowhere else, which is what `--repl_port` and `spite connect`
+are written with: `listen_locally(port)`, `accept_client(): Socket?`, `connect_locally(port)`,
+`read_line(): String?`, `write_line(text)` and `close()`. A program that uses it waits in `accept_client` and
+`read_line` the way it waits anywhere, so other `Concurrent` work runs meanwhile. HTTP is not built.
