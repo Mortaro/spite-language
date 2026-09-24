@@ -64,3 +64,12 @@ func test_a_list_is_shared_not_copied() {
     same.append(2)
     crash original.count() == 2
 }
+
+func test_a_list_can_hold_nothing() {
+    var values = List<Int?>()
+    values.append(3)
+    values.append(null)
+    crash values.count() == 2
+    crash values[0] == 3
+    crash not values[1]
+}

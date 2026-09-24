@@ -3,6 +3,7 @@ var optimized = false
 var last_crash_map = ""
 var formats = true
 var read_evaluate_print_loop = false
+var development = false
 
 func SpiteCompiler(arguments: Arguments) {
     load("source")
@@ -21,6 +22,7 @@ func SpiteCompiler(arguments: Arguments) {
     optimized = has_flag(arguments, "--optimized")
     formats = not has_flag(arguments, "--no-format")
     read_evaluate_print_loop = has_flag(arguments, "--repl")
+    development = has_flag(arguments, "--development")
     var unknown_flag = unknown_compiler_flag(arguments)
     if unknown_flag {
         console.error(
@@ -134,6 +136,7 @@ func generate_c_or_report(file_argument: String, content: String): String? {
     var prelude = Generation.Prelude()
     var generator = Generation.Generator()
     generator.read_evaluate_print_loop = read_evaluate_print_loop
+    generator.development = development
     var header = prelude.header()
     var structs = prelude.structs()
     var prototypes = prelude.prototypes()
@@ -287,6 +290,7 @@ func final_classes_generator(discovery: Discovery.DiscoveryResult): Generation.G
     var prelude = Generation.Prelude()
     var generator = Generation.Generator()
     generator.read_evaluate_print_loop = read_evaluate_print_loop
+    generator.development = development
     var header = prelude.header()
     var structs = prelude.structs()
     var prototypes = prelude.prototypes()

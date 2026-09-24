@@ -3,6 +3,7 @@ var prototypes = List<String>()
 var support_bodies = List<String>()
 var user_bodies = List<String>()
 var main_lines = List<String>()
+var shakes = true
 
 func add_typedef(line: String) {
     typedefs.append(line)
@@ -36,12 +37,12 @@ func render(): String {
     main_text.append("return 0;\n}")
     var main_function = main_text.join("\n")
     var typedef_text = typedefs.join("\n")
-    var shaker = TreeShaker()
-    var bodies = shaker.shake(
-        "{typedef_text}\n{main_function}",
-        "{support_bodies.join("\n")}\n{user_bodies.join("\n")}",
-    )
-    var joined_prototypes = prototypes.join("\n")
-    var prototype_text = shaker.kept_prototypes(joined_prototypes)
-    return "{typedef_text}\n{prototype_text}\n{bodies}\n{main_function}\n"
+    var prototype_lines = prototypes.join("\n")
+    var bodies = "{support_bodies.join("\n")}\n{user_bodies.join("\n")}"
+    if shakes {
+        var shaker = TreeShaker()
+        bodies = shaker.shake("{typedef_text}\n{main_function}", bodies)
+        prototype_lines = shaker.kept_prototypes(prototype_lines)
+    }
+    return "{typedef_text}\n{prototype_lines}\n{bodies}\n{main_function}\n"
 }

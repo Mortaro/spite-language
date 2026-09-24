@@ -25,6 +25,23 @@ func long_text(value: Long): String {
     return text
 }
 
+func unsigned_text(value: UnsignedLong): String {
+    if value == 0 {
+        return "0"
+    }
+    var address = memory.allocate_bytes(24)
+    var position: Long = 24
+    var rest = value
+    while rest != 0 {
+        position = position - 1
+        memory.write_byte(address, position, 48 + rest % 10)
+        rest = rest / 10
+    }
+    var text = memory.text(address + position, 24 - position)
+    memory.free(address)
+    return text
+}
+
 func double_text(value: Double): String {
     return decimal_text(value, 9007199254740992, -1074, 17)
 }

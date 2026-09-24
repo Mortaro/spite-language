@@ -24,6 +24,7 @@ var foreign_headers_included = List<String>()
 var function_value_makers = List<String>()
 var written_in_spite = List<String>()
 var read_evaluate_print_loop = false
+var development = false
 var reflect_function_names = List<String>()
 var live_reflection_emitted = false
 var body_narrowed_names = List<String>()
@@ -498,6 +499,7 @@ func generate(
     emit_allocation_table()
     emit_main(discovery.entry_mangled_name)
     emit_pending_functions()
+    builder.shakes = not development
     return builder.render()
 }
 
@@ -2203,8 +2205,7 @@ func resolve_nullable_argument(named: Syntax.Types.NamedType, current_namespace:
     assert type_argument.value
     var inner = resolve_type(type_argument.value, current_namespace)
     if inner {
-        var resolved: Analysis.SpiteType = Analysis.Types.NullableType(inner)
-        return resolved
+        return nullable_type_of(inner)
     }
     return null
 }
@@ -2549,6 +2550,9 @@ func string_conversion(code: String, from: Analysis.SpiteType): String {
         }
         if scalar.kind == 'double_kind' {
             return "{number_text_function("double_text", "double")}({code})"
+        }
+        if scalar.kind == 'unsigned_long_kind' {
+            return "{number_text_function("unsigned_text", "uint64_t")}({code})"
         }
         return "{number_text_function("long_text", "int64_t")}((int64_t)({code}))"
     }
@@ -6107,6 +6111,9 @@ func dictionary_type_of(element: Analysis.SpiteType): Analysis.SpiteType {
 }
 
 func nullable_type_of(inner: Analysis.SpiteType): Analysis.SpiteType {
+    if type_shape.as_nullable(inner) {
+        return inner
+    }
     var resolved: Analysis.SpiteType = Analysis.Types.NullableType(inner)
     return resolved
 }

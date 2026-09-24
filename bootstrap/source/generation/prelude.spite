@@ -1,12 +1,7 @@
 func header(): String {
     var lines = [
-        "/* Spite compiler runtime prelude, pasted at the top of every generated C"
-        " * file. Self-contained: no"
-        " * function here calls a monomorphized List<T>/Dictionary<T>/Nullable<T>"
-        " * function, so this whole block can be emitted before any of those are"
-        " * generated. Nothing here is `static`, matching the rest of the generated"
-        " * output (an unused `static` function is flagged by `-Wunused-function`"
-        " * under `-Wall`; an unused ordinary one is not). */"
+        "/* The floor: the only C the Spite compiler writes by hand. Everything above it"
+        " * is Spite from library/, and the tree shaker drops what a program never calls. */"
         ""
         "#include <stdint.h>"
         "#include <stdbool.h>"
@@ -16,9 +11,6 @@ func header(): String {
         "#include <ctype.h>"
         ""
         "#ifdef _WIN32"
-        "/* Excludes <winsock.h> from <windows.h> so a REPL-mode build (spite_repl.h,"
-        " * included after this file) can safely include <winsock2.h> itself without"
-        " * the classic \"winsock.h already included\" conflict. */"
         "#ifndef WIN32_LEAN_AND_MEAN"
         "#define WIN32_LEAN_AND_MEAN"
         "#endif"
@@ -185,11 +177,6 @@ func header(): String {
         "SpiteString* spite_string_from_bool(bool value) \{"
         "    return value ? &spite_static_string_true : &spite_static_string_false;"
         "}"
-        ""
-        "/* ---- File/Directory/Process support: portable-C leaf helpers used by the"
-        " * File/Directory/Process/Program built-in classes (runtime/system_bodies.h)."
-        " * Directory listing and process spawning"
-        " * branch on `_WIN32`; everything else is plain stdio/stdlib. */"
     ]
     return lines.join("\n")
 }
