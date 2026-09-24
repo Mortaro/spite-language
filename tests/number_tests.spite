@@ -31,3 +31,10 @@ func test_a_long_holds_what_an_integer_cannot() {
     var big: Long = 3000000000
     crash big > 2147483647
 }
+
+func test_a_whole_number_reads_as_its_digits() {
+    var smallest: Long = -9223372036854775807 - 1
+    crash "{0}" == "0"
+    crash "{-305}" == "-305"
+    crash "{smallest}" == "-9223372036854775808"
+}

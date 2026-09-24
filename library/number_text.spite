@@ -1,0 +1,30 @@
+var memory = Memory()
+
+func long_text(value: Long): String {
+    if value == 0 {
+        return "0"
+    }
+    var address = memory.allocate_bytes(24)
+    var position: Long = 24
+    var rest = value
+    while rest != 0 {
+        var digit = rest % 10
+        if digit < 0 {
+            digit = -digit
+        }
+        position = position - 1
+        memory.write_byte(address, position, 48 + digit)
+        rest = rest / 10
+    }
+    if value < 0 {
+        position = position - 1
+        memory.write_byte(address, position, 45)
+    }
+    var text = memory.text(address + position, 24 - position)
+    memory.free(address)
+    return text
+}
+
+func is_singleton(): Bool {
+    return true
+}

@@ -380,20 +380,6 @@ int64_t SpiteString_code_at(SpiteString* self, int64_t index) {
     return (int64_t)(unsigned char)self->data[index];
 }
 
-SpiteString* spite_string_from_int(int64_t value) {
-    char temporary[32];
-    int written = snprintf(temporary, sizeof(temporary), "%lld", (long long)value);
-    return spite_string_from_bytes(temporary, (int64_t)written);
-}
-
-/* `Byte`/`UnsignedShort`/`UnsignedInt`/`UnsignedLong` format unsigned, so a
- * large value never reads as negative the way a plain `int64_t` cast would. */
-SpiteString* spite_string_from_unsigned(uint64_t value) {
-    char temporary[32];
-    int written = snprintf(temporary, sizeof(temporary), "%llu", (unsigned long long)value);
-    return spite_string_from_bytes(temporary, (int64_t)written);
-}
-
 static bool spite_text_has_exponent(const char* text) {
     for (const char* cursor = text; *cursor != '\0'; cursor = cursor + 1) {
         if (*cursor == 'e' || *cursor == 'E') return true;

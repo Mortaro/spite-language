@@ -2497,13 +2497,27 @@ func string_conversion(code: String, from: Analysis.SpiteType): String {
         if scalar.kind == 'double_kind' {
             return "spite_string_from_float64({code})"
         }
-        return "spite_string_from_int((int64_t)({code}))"
+        return "{long_text_function()}((int64_t)({code}))"
     }
     var enum_type = type_shape.as_enum(from)
     if enum_type {
         return "spite_string_from_cstring_static({enum_type.c_name}_name({code}))"
     }
     return code
+}
+
+func long_text_function(): String {
+    var number_text = find_class_by_qualified("NumberText")
+    crash number_text
+    if not singleton_names.contains("spite_long_text") {
+        singleton_names.append("spite_long_text")
+        var instance = singleton_call(number_text)
+        builder.add_prototype("SpiteString* spite_long_text(int64_t value);")
+        builder.add_support(
+            "SpiteString* spite_long_text(int64_t value) \{\nNumberText* spite_number_text = {instance};\nSpiteString* spite_text = NumberText_long_text(spite_number_text, value);\nNumberText_release(spite_number_text);\nreturn spite_text;\n}",
+        )
+    }
+    return "spite_long_text"
 }
 
 func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): String {
