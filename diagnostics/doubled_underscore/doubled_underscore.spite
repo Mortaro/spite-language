@@ -1,0 +1,16 @@
+var console = Console()
+var hit__count = 0
+
+func DoubledUnderscore() {
+    __strike(1)
+    strike_(2)
+    console.print(hit__count)
+}
+
+func __strike(amount: Int) {
+    hit__count = hit__count + amount
+}
+
+func strike_(amount: Int) {
+    hit__count = hit__count + amount
+}
