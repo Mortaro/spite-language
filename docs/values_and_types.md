@@ -62,10 +62,35 @@ a crash), and every numeric type gets a `to_<name>()` method (`to_int()`, `to_lo
 
 ## `String`
 
-Immutable, length-prefixed (not a bare `char*`), single-owner. A value is placed inside written text rather
+Immutable, length-prefixed (not a bare `char*`), reference counted. A value is placed inside written text rather
 than joined to it with `+`: `"hello {name}"`, where `{ }` holds one value of any type (every numeric type,
 `Bool`, and enum format themselves) and `\{` is a brace meant literally. Two values still join with `+`, and
 joining written text with `+` is an error naming the form above. `==`/`!=`/`<`/`>` compare by content.
+
+Building text a piece at a time costs what the pieces cost, not the text so far: `text = "{text}{piece}"` (or
+`text = text + piece`) on a local variable appends in place when nothing else holds that text, and copies it
+once when something does, so the other holder still sees the text it had.
+
+```spite title=text_building/text_building.spite entry
+var console = Console()
+
+func TextBuilding() {
+    var line = "count:"
+    var index = 0
+    while index < 3 {
+        line = "{line} {index}"
+        index = index + 1
+    }
+    var before = line
+    line = "{line} done"
+    console.print(before)
+    console.print(line)
+}
+```
+```output
+count: 0 1 2
+count: 0 1 2 done
+```
 
 ```spite title=string_basics/string_basics.spite entry
 var console = Console()
