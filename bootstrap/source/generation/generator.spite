@@ -5030,9 +5030,6 @@ func find_getter(
     if target_class.is_builtin {
         return null
     }
-    if not target_class.find_field(attribute_name) {
-        return null
-    }
     var getter_name = "get_{attribute_name}"
     if target_class.c_name == calling_class.c_name and current_function == getter_name {
         return null
@@ -7137,7 +7134,13 @@ func generate_store(
         }
         var field = target_class.find_field(member.name)
         if not field {
-            report("'{target_class.simple_name}' has no attribute '{member.name}' to assign to")
+            if find_getter(target_class, member.name, class_information) {
+                report(
+                    "'{member.name}' is read-only: '{target_class.simple_name}' answers it through get_{member.name}() and has no set_{member.name}(value)",
+                )
+            } else {
+                report("'{target_class.simple_name}' has no attribute '{member.name}' to assign to")
+            }
             return
         }
         assert field

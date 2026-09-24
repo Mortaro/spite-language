@@ -1,0 +1,1 @@
+diagnostics/read_only_attribute/read_only_attribute.spite:5: error: 'number' is read-only: 'Badge' answers it through get_number() and has no set_number(value) (in ReadOnlyAttribute.ReadOnlyAttribute)

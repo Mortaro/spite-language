@@ -1,0 +1,5 @@
+var _number = 7
+
+func get_number(): Int {
+    return _number
+}

@@ -2238,7 +2238,7 @@ payloads to JSON on demand, since the compiler knows the schema.
     error. What the compiler needs (Claude, unconfirmed): a read of `.name` that finds no attribute but finds
     `get_name()` is an attribute read, and a write to it with no `set_name()` is an error saying the attribute
     is read-only. The storage behind it is a private `_attributes`, which the compiler fills as it fills
-    `attributes` today.
+    `attributes` today. **The mechanism is built (2026-09-23):** a read that finds no attribute but finds `get_name()` reads through it, and a write with no `set_name()` is an error calling the attribute read-only (`tests/interception_tests`, `diagnostics/read_only_attribute`). Moving `Spite.Class`'s own members onto it is left for Mortaro to confirm.
 20. **Whether a nested `if`/`else` is an error** (Mortaro, 2026-09-23: "we should discuss"). Claude's view: nesting
     is where generated code becomes unreadable, and the language already removes the common cases -- a
     precondition is `assert` (D54), a choice between kinds is a `switch` over a union or enum. What remains is a

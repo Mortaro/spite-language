@@ -15,3 +15,8 @@ func test_the_explicit_call_form_is_the_same_thing() {
     ledger.set_balance(7)
     crash ledger.get_balance() == 7
 }
+
+func test_a_getter_alone_is_a_read_only_attribute() {
+    var badge = Badge()
+    crash badge.number == 7
+}
