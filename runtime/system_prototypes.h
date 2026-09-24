@@ -13,6 +13,7 @@ Program* Program_deep_copy(Program* self);
 void Program_exit(Program* self, int32_t code);
 void Program_sleep(Program* self, int32_t milliseconds);
 SpiteString* Program_environment(Program* self, SpiteString* name);
+void Console_flush(Console* self);
 int32_t Program_live_allocations(Program* self);
 SpiteString* Program_platform(Program* self);
 void Console_init(Console* self);
@@ -54,3 +55,4 @@ void Memory_write_long(Memory* self, int64_t address, int64_t offset, int64_t va
 void Memory_write_double(Memory* self, int64_t address, int64_t offset, double value);
 void Memory_copy_bytes(Memory* self, int64_t from, int64_t to, int64_t bytes);
 SpiteString* Memory_text(Memory* self, int64_t address, int64_t length);
+int32_t Memory_live_allocations(Memory* self);

@@ -149,6 +149,7 @@ func register_system_classes() {
     console.is_singleton = true
     add_builtin_function(console, "Console", no_parameters(), void_type())
     add_builtin_function(console, "read_line", no_parameters(), nullable_type_of(string_type()))
+    add_builtin_function(console, "flush", no_parameters(), void_type())
     var program = register_system_class("Program")
     add_builtin_function(program, "Program", no_parameters(), void_type())
     add_builtin_function(program, "exit", one_parameter("code", integer_type()), void_type())
@@ -195,6 +196,7 @@ func register_system_classes() {
     copy_parameters.append(Analysis.ParamInfo("bytes", long_type()))
     add_builtin_function(memory, "copy_bytes", copy_parameters, void_type())
     add_builtin_function(memory, "text", two_parameters("address", long_type(), "length", long_type()), string_type())
+    add_builtin_function(memory, "live_allocations", no_parameters(), integer_type())
 }
 
 func built_in_class_sources(): List<String> {

@@ -298,3 +298,5 @@ void Memory_write_long(Memory* self, int64_t address, int64_t offset, int64_t va
 void Memory_write_double(Memory* self, int64_t address, int64_t offset, double value) { (void)self; memcpy((char*)(intptr_t)address + offset, &value, sizeof(value)); }
 void Memory_copy_bytes(Memory* self, int64_t from, int64_t to, int64_t bytes) { (void)self; memmove((void*)(intptr_t)to, (void*)(intptr_t)from, (size_t)bytes); }
 SpiteString* Memory_text(Memory* self, int64_t address, int64_t length) { (void)self; return spite_string_from_bytes((const char*)(intptr_t)address, length); }
+int32_t Memory_live_allocations(Memory* self) { (void)self; return (int32_t)spite_live_allocation_count(); }
+void Console_flush(Console* self) { (void)self; fflush(stdout); fflush(stderr); }

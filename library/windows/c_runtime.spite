@@ -75,6 +75,22 @@ func shell_line(line: String, command_is_quoted: Bool): String {
     return line
 }
 
+func exit_program(code: Int) {
+    library.exit(code)
+}
+
+func environment_value(name: String): Long {
+    return library.getenv_as_long(name)
+}
+
+func pause(milliseconds: Int) {
+    system.Sleep(milliseconds)
+}
+
+func platform(): String {
+    return "windows"
+}
+
 func is_singleton(): Bool {
     return true
 }
