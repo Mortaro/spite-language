@@ -1,0 +1,5 @@
+var console = Console()
+
+func UnknownCompilerFlag() {
+    console.print("never compiled")
+}

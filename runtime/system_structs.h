@@ -3,6 +3,8 @@ typedef struct {
     const char** items;
 } SpiteArguments;
 
+static SpiteArguments spite_program_arguments;
+
 typedef struct DynamicLibrary DynamicLibrary;
 struct DynamicLibrary {
     SpiteHeader header;

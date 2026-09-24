@@ -50,11 +50,12 @@ spite file.spite                              # build and run
 spite file.spite --optimized                  # build and run with C optimization
 spite file.spite --mode=c > file.c            # print generated C
 spite file.spite --mode=build --output=file.exe # build without running
-spite file.spite --environment=server         # supply $environment at compile time
+spite file.spite -- --serve=true              # pass the program its own arguments
 ```
 
-A `--name=value` flag that matches no `$name` used anywhere in the program is a compile error -- there is no
-silent typo. Planned flags such as `--development`, `--repl`, and formatting commands are not available yet.
+Everything after `--` belongs to the program; before it, a `--name=value` that is not a compiler flag is an
+error -- there is no silent typo. A program reads its settings through `Environment` (see
+[metaprogramming.md](metaprogramming.md#program-settings-environment)). Planned flags such as `--development`, `--repl`, and formatting commands are not available yet.
 
 ## Automatic formatting and lints
 

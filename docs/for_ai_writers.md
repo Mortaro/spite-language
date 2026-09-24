@@ -10,7 +10,7 @@ every error in one run as `path:line: error: message (in Class.function)`, and n
 spite program.spite                     compile and run
 spite program.spite --optimized         optimized build
 spite program.spite --mode=c            print the C instead
-spite program.spite --environment=server   sets $environment for the whole program
+spite program.spite -- --serve=true      the program's own arguments, read by Environment
 bash check.sh                           the compiler still compiles itself, and every corpus passes
 ```
 
@@ -127,8 +127,11 @@ func is_alive(): Bool {
   `less_than`, `greater_than`, `negate`, `get_at(index)`, `set_at(index, value)`. Without `equals`, `==` compares
   identity.
 - Codegen values: `func Weapon<$damage_type, $is_magic>(damage: $damage_type)` is called `Weapon<Int, true>(10)`.
-  A `$name` the constructor does not declare comes from a flag (`--environment=server`). `if $is_magic { }` is
+  `$` is for generics only: a `$name` the constructor does not declare is an error. `if $is_magic { }` is
   decided at compile time.
+- Settings: reopen `Environment` in the program's `environment.spite` with one `var` per setting and a literal
+  default (`var serve = false`), then read `Environment().serve` anywhere. The value comes from `--serve=true`
+  after `--` on the command line, else the `SERVE` environment variable, else the default.
 - Reflection: `value.class` (a `Spite.Class`: `.name`, `.namespace` (a `Spite.Namespace?` -- narrow it before
   reading its members: `assert value.class.namespace` narrows the path itself and its prefixes for the rest of
   the block -- `.name_with_namespaces`, `.parent`, `.classes`,

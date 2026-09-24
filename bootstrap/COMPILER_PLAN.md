@@ -24,7 +24,7 @@ progress log before it ends. `manual.md` is the language; this file is the compi
 - `bash check.sh --update-seed` refreshes the committed seed after an intended compiler change.
 - One feature = one conformance (or diagnostics) program = one commit. Run `check.sh` per feature, not per file.
 - `conformance/<stage>/<name>/<name>.spite` plus `expected_output.txt`; `diagnostics/<name>/<name>.spite` plus
-  `expected_errors.txt`; either may carry `flags.txt` with compiler flags such as `--environment=server`, and a
+  `expected_errors.txt`; either may carry `flags.txt` with the command line after the file, such as `-- --name=server` for a program's `Environment`, and a
   conformance program may carry `input.txt` for what it reads from the console.
 - A documentation program is a fenced block in `docs/` headed `spite title=<folder>/<file>.spite [entry] [error]
   [vars=name:value]`, followed by an ```output or ```diagnostic block. `scripts/docs_corpus.spite` writes them
@@ -413,3 +413,8 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   object); `while value` narrows its body; a getter with no attribute is a read-only attribute. Bootstrap note:
   a new built-in class's runtime C must be wrapped in `#ifdef SPITE_CLASS_ID_<NAME>` for the first seed
   generation (the old compiler does not define the id), then unwrapped.
+- 2026-09-24: D76. `$name` program variables are gone: `library/environment.spite` is a singleton a program
+  reopens, and discovery prepends one `name = boolean_setting("name", name)` (or `integer_setting`/`text_setting`)
+  per declared field to its constructor. `Arguments()` answers `spite_program_arguments`, set first thing in
+  `main`. Bootstrap note: the seed checks every library class, so `Arguments()` had to reach the seed before
+  `library/environment.spite` could use it -- the seed was refreshed with the file moved aside, then it went back.

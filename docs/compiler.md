@@ -76,20 +76,19 @@ The compiler uses the `CC` environment variable when set; otherwise it tries `cc
 CC=clang spite game/game.spite --optimized
 ```
 
-## Supply compile-time values
+## Pass settings to the program
 
-Any unreserved `--name=value` sets the compile-time `$name` value used by the program. A value that no `$name`
-uses is an error, which makes misspelled flags visible:
+Everything after the first bare `--` belongs to the program, not the compiler. A program reads its settings from
+the `Environment` singleton, whose fields it declares by reopening `Environment` in its own `environment.spite`
+(see [metaprogramming.md](metaprogramming.md#program-settings-environment)):
 
 ```bash
-spite server/server.spite --environment=production
+spite server/server.spite -- --name=production
 ```
 
-The program receives compiler arguments through `Arguments` only where the language has implemented that path;
-`--name=value` is primarily a compile-time codegen value, not a general runtime argument channel.
-
-These names belong to the compiler and cannot be used as `$` values: `file`, `mode`, `output`, `debug_memory`,
-`final-classes`, and `runtime`. `runtime` is reserved for compiler work and has no user-facing behavior yet.
+Before the `--`, only the compiler's own `--name=value` flags are accepted: `file`, `mode`, `output`,
+`debug_memory`, `final-classes`, and `runtime` (reserved for compiler work, with no user-facing behavior yet).
+Any other `--name=value` there is an error that shows where it belongs: `spite program.spite -- --name=value`.
 
 ## Inspect merged classes
 
@@ -126,5 +125,5 @@ takes precedence over `--mode`: it discovers and writes classes without generati
 ## Errors and usage
 
 With no entry file, the compiler prints its usage text and exits unsuccessfully. An unreadable entry file, an
-unknown `--mode`, a missing `--output` for build mode, or an unused compile-time flag is also an error. The
+unknown `--mode`, a missing `--output` for build mode, or a `--name=value` before `--` that is not a compiler flag is also an error. The
 compiler does not accept planned flags such as `--development`, `--repl`, `--format`, or `--no-format` yet.

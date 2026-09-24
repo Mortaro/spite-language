@@ -1,3 +1,0 @@
-server 5 true
-listening
-many workers

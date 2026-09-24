@@ -99,7 +99,8 @@ and balanced allocations.
     (writing it becomes a parse error naming the new form) and move the ordered list into the constructor --
     `func Weapon<$damage_type, $is_magic>(new_damage: $damage_type)`, called `Weapon<Magic, true>(10)`. Every
     codegen value a caller supplies is declared, even a single one; call sites stay positional with no named
-    form; a `$name` used but not declared is a flag-fed program variable (`$serve`, `$environment`), which is
+    form; a `$name` used but not declared is a flag-fed program variable (`$serve`, `$environment`; superseded by
+    D76, milestone 19: that is now an error and settings live in `Environment`), which is
     the rule that separates the two kinds; a class taking codegen values always has a constructor, even one that
     exists only to declare them; and the built-in containers declare theirs the same way (`List<$element_type>`,
     `Dictionary<$value_type>`, `$value_type?`). A wrong-arity or wrong-kind call is an error naming the
@@ -193,6 +194,15 @@ and balanced allocations.
 18. **Done (2026-09-23): the formatter** (manual.md sections 12 and 13): `bin/spite format [--check]`, a
     safety check that refuses any rewrite that changes the program or loses a comment, and a tree kept in one
     style by `check.sh`. Not built: formatting on every compile, long list literals, `docs/` code blocks.
+19. **Done (2026-09-24): D76, `$` for generics only and `Environment` for settings** (manual.md section 9,
+    "Program settings"). `library/environment.spite` is a singleton a program reopens in its own
+    `environment.spite`; each declared field is read at run time from the program's `--name=value`, else the
+    upper-case environment variable, else its literal default. An undeclared `$name` is an error pointing at
+    `Environment`; a non-compiler `--name=value` before `--` is an error; `Arguments()` answers the command line
+    anywhere. This supersedes the flag-fed half of milestone 13. **Waiting on Mortaro:** run time versus compile
+    time (the tree shaking `$serve` had is gone; `$target` and D13 still need a build-time home), the sources and
+    their order, and the literal-default typing are proposals. **Not done:** the compiler still reads its own
+    flags through `Arguments` rather than `Environment`.
 
 ## Later, deliberately deferred
 

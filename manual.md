@@ -1086,18 +1086,18 @@ var sword = Weapon<Magic, true>(10)
   one is still a list.
 - **Call sites are positional, always.** There is no named form: the constructor fixes the order, so nothing has
   to be restated at the call. `List<Int>()`, `Weapon<Magic, true>(10)`.
-- **(Superseded by D76: `$` is for generics only; a program's settings come from the `Environment` singleton.)**
-- **Declared means supplied by the caller; undeclared means supplied by a compiler flag.** A `$name` used in a
-  class but absent from its constructor is a program variable filled by `--name=value` for the whole program
-  (`$serve`, `$environment`), never something a call site passes. This is what tells the two apart, and it is why
-  the constructor list is exactly "what a caller must pass".
+- **`$` is for generics only** (D76, decided by Mortaro, 2026-09-23, superseding D9's "undeclared means supplied
+  by a compiler flag"). Every `$name` a class uses is declared on its constructor and supplied by the caller, so
+  the constructor list is exactly "what a caller must pass". A `$name` the constructor does not declare is a
+  compile error pointing at [`Environment`](#program-settings-environment), which is where a program's settings
+  live now (`diagnostics/codegen_values`).
 - A class that takes codegen values therefore has a constructor, even if it only exists to declare them
   (`func Pair<$left_type, $right_type>() { }`). The built-in containers declare theirs the same way:
   `List<$element_type>`, `Dictionary<$value_type>`, `$value_type?`.
 - **Every hole must be filled.** There are no defaults. A call supplying the wrong number is a compile error
   naming the class's codegen values, in order, so the mistake is corrected from the message rather than by
-  opening the class. A `$name` that is neither declared nor supplied by a flag is the same error -- which is what
-  a typo like `$is_magik` produces.
+  opening the class. A `$name` that is not declared is an error too -- which is what a typo like `$is_magik`
+  produces.
 - Reordering a constructor's `<...>` changes what every existing positional call site means. Where the values
   have different kinds (a class versus a `Bool`) the compiler catches it immediately; where they are the same
   kind (`Pair<Int, String>` swapped) it compiles and means something else, and the tests are what catch it. This
@@ -1118,6 +1118,67 @@ knew); and a class-level `generics()` function returning a list of symbols (the 
 functions answer questions *about* a class, while codegen values are inputs to constructing one, and it needed a
 second list of names kept in sync with the real holes). The constructor was where the ordered list belonged the
 whole time.
+
+### Program settings: `Environment`  **[implemented]**
+
+D76 (decided by Mortaro, 2026-09-23): "using $variables for both command line environment setup and generics was
+a bad idea from my end, lets use it just for generics. instead lets have a singleton for dealing with Environment
+arguments so entrypoint is not forced to receive the args of the console." `Environment` is a standard library
+singleton (`library/environment.spite`), and a program **reopens** it (section 11) with a file of its own named
+`environment.spite` to declare the settings it has:
+
+```environment.spite
+var serve = false
+var name = "client"
+var workers = 1
+```
+
+```
+var environment = Environment()
+
+func Dungeon() {
+    if environment.serve {
+        ...
+    }
+}
+```
+
+`Environment()` works anywhere, so the entry constructor no longer has to receive `Arguments` only to pass them
+down. Only the declared fields are read: nothing the program does not name is loaded, which is what makes it a
+deterministic replacement for packages like Node's dotenv. It mirrors Nullstack's `context.environment`, and it is
+how a program such as the game engine gets several environments.
+
+What follows is how it is implemented (proposed by Claude, unconfirmed):
+
+- **Where a value comes from.** Each field is read once, when the singleton is first made, from the first of:
+  the program's own command line, `--serve=true` (what the program receives -- after `--` when the compiler runs
+  it, section 13 -- and stopping at the program's own `--`); the process environment variable named by the field
+  in upper case, `SERVE`; the declared default. The command line wins because it is the more deliberate of the
+  two. An argument that names no field is left alone for `Arguments` to read.
+- **The default's literal is the type.** A setting is declared with nothing but a literal default: `false`/`true`
+  is a `Bool`, a whole number (negative too) an `Int`, `""` a `String`. A type annotation, or any other default,
+  is a compile error naming the three forms (`diagnostics/environment_setting`). Text that is not a value of the
+  setting's type (`--serve=maybe`, `--workers=many`) **crashes** when the singleton is made (D24: a malformed
+  setting is a bug in how the program was started, and there is nothing sensible to continue with).
+- **How the fields get filled.** The compiler prepends one assignment per declared field to `Environment`'s
+  constructor -- `serve = boolean_setting("serve", serve)` -- where `boolean_setting`, `integer_setting` and
+  `text_setting` are ordinary Spite functions in `library/environment.spite`. The reading itself is Spite; the
+  compiler only writes the calls, the way it writes a Symbol codegen function.
+- **`Arguments()` is the command line, anywhere.** `library/environment.spite` reads the command line through
+  `Arguments()`, which the compiler now answers in any function with the same arguments the entry constructor
+  receives. It is available to programs too.
+
+**Runtime, not compile time -- the trade-off** (proposed by Claude, unconfirmed). `$serve` was folded at compile
+time, so `if $serve { }` removed the untaken branch (section 9 tree shaking) and the built program could not be
+told otherwise. The `Environment` values are read when the program **runs**: `if environment.serve { }` is an
+ordinary `if`, both branches are compiled in, and one built executable serves every setting. That is what D76
+asks for -- the entry constructor stops receiving the console's arguments, and the environment variables a
+dotenv user expects are only there at run time -- and it is the only reading that lets the compiler, which reads
+its own flags at run time, use `Environment` too. The cost is the tree shaking: a server-only branch now ships in
+the client binary. Where that matters (D13's isomorphic split, the `$target` choice in section 17) the value is
+a property of the **build**, not of the run, and it still needs a compile-time home. A natural one, not built:
+an `Environment` field the compiler itself fills and folds, such as `Environment().target`, so a build fact and a
+run fact are read the same way but only the build fact is shaken.
 
 ## 10. Memory  **[implemented]**
 
@@ -1202,7 +1263,8 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   class: this is how monkey patching and game mods work -- later `func`/`var` with the same name replaces the earlier one (in
   load order: the entry folder first, then loads in the order they were discovered), a `var`'s replacement type must match, and
   a new `func`/`var`/`enum`/`type` not seen before is simply added. The standard library (`Console`, `String`, `List<T>`, `File`,
-  ...) cannot be reopened yet -- a clear diagnostic names it instead. Your foot to shoot. That includes `Spite.Class` once it lands (D7, section 8): reopening it moves a class-level default for the whole program.
+  ...) cannot be reopened yet -- a clear diagnostic names it instead. `Environment` is the exception, made to be
+  reopened: a program's own `environment.spite` adds its settings to it (D76, section 9). Your foot to shoot. That includes `Spite.Class` once it lands (D7, section 8): reopening it moves a class-level default for the whole program.
 - `load` takes a literal string, so the compiler always knows every bundle; anything else (a variable, an expression) is a
   diagnostic. The compiler finds every `load` reachable from the entry file's own constructor at compile time (a `load` inside
   already-loaded code counts too), and records each root as a bundle (its name and whether the `load` that introduced it sits
@@ -1382,7 +1444,7 @@ spite file.spite --optimized          optimized build
 spite file.spite --development        keep everything (no tree shaking), for live reload
 spite file.spite --repl               run with an in-place REPL
 spite file.spite --repl-port 4000     run with a remote REPL an AI can connect to, to explore memory and debug
-spite file.spite --environment=server set $environment
+spite file.spite -- --serve=true      run it with a setting its Environment declares (section 9)
 spite file.spite --final-classes=folder write the final class folder (bare --final-classes defaults to .spite-cache/final/ when --development is set)
 spite connect 4000                    talk to a running --repl-port program (see section 14)
 spite connect 4000 --command="..."    send one REPL command, print its raw JSON response line, and exit
@@ -1396,12 +1458,14 @@ Flags mix freely (a production build may keep the REPL). Building and running ar
 
 **Where the compiler's flags end** (proposed by Claude, unconfirmed; implemented 2026-09-23): at the first bare
 `--`. Everything after it reaches the program's `Arguments` verbatim -- `arguments.get(0)` is the first,
-`arguments.player` reads `--player=...` -- and none of it is read as a compiler flag, a file to compile or a
-`$name` value. A program's own `Arguments` stops at `--` the same way, which is the ordinary meaning of `--`.
+`arguments.player` reads `--player=...`, and `Environment` reads the settings it declares -- and none of it is
+read as a compiler flag or a file to compile. A program's own `Arguments` stops at `--` the same way, which is the ordinary meaning of `--`.
 Before this, a program run by the compiler received no arguments at all (`conformance/stage6/program_arguments`).
 
-- Compiler flag names are reserved and can not be used as codegen value names.
-- A `--name=value` flag that matches no `$name` used in the program is an error, so typos never pass silently.
+- Before the `--`, a `--name=value` that is not one of the compiler's own (`file`, `mode`, `output`,
+  `debug_memory`, `final-classes`, `runtime`) is an error that shows where it belongs --
+  `spite program.spite -- --serve=value` -- so typos never pass silently (`diagnostics/unknown_compiler_flag`;
+  D76 removed the `$name` program variables these flags used to fill).
 - **Automatic formatting (milestone 7a).** Every `spite file.spite ...` compile first formats every `.spite`
   file that belongs to the program -- the entry file's own folder (flat, matching section 11's discovery
   rule), plus every `load(...)`-ed root, recursively -- rewriting a file only when its formatted text differs
@@ -2050,7 +2114,9 @@ loading and reopening, plus a codegen value.
   compiler already generates C.
 - Which classes exist on which target is not a special rule: a class declares it (see [Targets](#targets-planned)),
   so `File`, `Directory` and `Process` on the web are a compile error like any other class used off its target.
-- The isomorphic direction (`$environment=server|client`, already in `examples/arsenal`) is what the next section
+- **(D76 ended `$target` as a program variable; the build-time home it needs is open -- see [Program
+  settings](#program-settings-environment).)**
+- The isomorphic direction (`Environment().name` of `server` or `client` in `examples/arsenal`) is what the next section
   describes: a class compiled into both bundles, whose server-only functions become a network call on the client
   and a route registration on the server.
 
@@ -2457,3 +2523,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (proposed by Claude, unconfirmed) **Writing a `Float` or `Double` as text is Spite too: `double_text` and `float_text` in `library/number_text.spite`, and the C that called `snprintf("%g")` and `strtod` is deleted.** No foreign call: `snprintf` is variadic, and calling it through a plain function pointer is undefined for doubles on Windows x64. The value's bits come from `Memory`, its exact decimal expansion (up to 768 digits for the smallest subnormal) is built in base 10^9 limbs, and each precision from 1 to 17 (9 for `Float`) is rounded half to even and kept if it lies strictly between the value and its neighbours' midpoints (or on one, when the significand is even: what `strtod` does). The text is the same as before for every finite value -- checked against the C on 1.4 million values -- except that not a number prints `nan` everywhere, where the C printed the platform's spelling (`-nan(ind)` on Windows). Compiling the compiler takes the same time as before. |
 | 2026-09-24 | (proposed by Claude, unconfirmed) **The `--debug-memory` live table is Spite: `library/allocation_table.spite`; the allocator itself stays what the compiler emits.** `AllocationTable` holds the live allocations (an open-addressing hash set with Fibonacci hashing, since Spite has no bit operators), the class id of every object for the leak summary, and the counts, and prints `allocations: N frees: N` and the leak report in the same format as before. Under `--debug-memory` the compiler emits `spite_debug_realloc`, `spite_debug_free`, `spite_debug_register_object`, `spite_debug_set_class_names`, `spite_debug_report` and `spite_live_allocation_count` as one call each into the table, around a busy flag: while the table runs, an allocation goes straight to the C allocator, so the table's own memory is never tracked and tracking never recurses. **What stays C, and why:** (1) the allocator macros and those six entry points, because generated C and the prelude call them before any Spite object exists, and the first allocation of a program is what creates the table; (2) the counted allocator of an ordinary build (`realloc` and a counter behind `SPITE_MALLOC`), because it runs on every allocation of every program and is the floor itself -- a Spite function there would need a Spite object to exist before the first allocation, for no gain over one C increment. Found on the way: the table holds the `Memory`, `Console` and `ForeignText` singletons it uses (and `Console` holds `CRuntime` and its libraries), so they are made by the table on the first allocation and are no longer counted in `allocations: N frees: N` -- the totals are lower by those objects, and still balance. The cost of that: if one of those singletons ever keeps a growing `List` or `String`, the program resizing it would reach the table with a pointer it never saw and crash, so the table should keep depending only on stateless classes. A reallocation or free of an unknown pointer prints the same message and then halts with a `crash` report instead of `abort()`. |
 | 2026-09-23 | (proposed by Claude, unconfirmed) **In a `--repl` build a `Spite.Attribute` stays linked to the live value it describes, so the REPL written in Spite (D72) walks, assigns and calls through reflection alone.** Four functions the compiler supplies, because only it knows the layout: `value_attributes()` and `value_functions()` on `Spite.Attribute` (a list's attributes are its elements, named `0`, `1`, ...), `assign(text): Bool` for a number, Bool, text or enum attribute -- through `set_<attribute>` when the class declares one, per section 14 -- and `call_with_text(arguments: List<String>): Spite.Attribute?` on `Spite.Function`. The emitted `main` hands the loop one `Spite.Attribute` named `program` for the entry instance instead of two lists. The loop parses the literals in Spite; the compiler only converts checked text into the attribute's type. The REPL's own output choices where section 14 is silent are listed there under the command language. Outside `--repl` the four functions answer an empty list, `false` and `null`, and ordinary reflection emits exactly what it did before. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **D76 implemented, with the settings read at run time.** `library/environment.spite` is the `Environment` singleton; a program reopens it in its own `environment.spite` with one `var` per setting and a literal default that is the setting's type (`false` Bool, `0` Int, `""` String; anything else is a compile error). Each field is read once, when the singleton is made, from the program's own `--name=value` (after `--` when the compiler runs it), else the upper-case environment variable (`SERVE`), else the default; text that is not of the type crashes. The compiler prepends `name = boolean_setting("name", name)` (or `integer_setting`/`text_setting`) to `Environment`'s constructor, and `Arguments()` answers the command line in any function. Values are runtime, so `if environment.serve` is no longer tree-shaken: the trade-off, and the compile-time home that `$target` and D13 still need, are in [Program settings](#program-settings-environment). An undeclared `$name` is an error pointing at `Environment`, and a `--name=value` before `--` that is not a compiler flag is an error showing where it belongs; `examples/arsenal`, `examples/dungeon`, the docs and the corpus moved over. |

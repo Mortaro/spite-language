@@ -1,0 +1,5 @@
+var name = "client"
+var workers = 1
+var verbose = false
+var region = "local"
+var retries = -1

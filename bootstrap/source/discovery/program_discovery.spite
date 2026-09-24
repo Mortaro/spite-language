@@ -71,6 +71,10 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
         }
         root_index = root_index + 1
     }
+    read_environment_settings()
+    if has_error {
+        return failure(error_message)
+    }
     var entry_mangled_name = mangle_dotted(pascal_case(entry_stem))
     return DiscoveryResult(class_files, entry_mangled_name, false, "")
 }
@@ -490,6 +494,97 @@ func mark_reopened(statement: Syntax.Statements.Statement) {
     var variable = shape.as_variable_declaration(statement)
     assert variable
     variable.overrides_declaration = true
+}
+
+func read_environment_settings() {
+    var environment = environment_file()
+    assert environment
+    var readings = List<Syntax.Statements.Statement>()
+    var index = 0
+    while index < environment.statements.count() and not has_error {
+        var variable = shape.as_variable_declaration(environment.statements[index])
+        if variable {
+            var reading = setting_reading(variable)
+            if reading {
+                readings.append(reading)
+            }
+        }
+        index = index + 1
+    }
+    assert not has_error and not readings.is_empty()
+    var constructor = environment_constructor(environment)
+    var body_index = 0
+    while body_index < constructor.body.count() {
+        readings.append(constructor.body[body_index])
+        body_index = body_index + 1
+    }
+    constructor.body = readings
+}
+
+func environment_file(): Syntax.SourceFile? {
+    var index = 0
+    while index < class_files.count() {
+        if class_files[index].qualified_dotted == "Environment" {
+            return class_files[index].get_file()
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func environment_constructor(environment: Syntax.SourceFile): Syntax.Statements.FunctionDeclaration {
+    var index = 0
+    while index < environment.statements.count() {
+        var function = shape.as_function_declaration(environment.statements[index])
+        if function {
+            if function.name == "Environment" {
+                return function
+            }
+        }
+        index = index + 1
+    }
+    var no_parameters = List<Syntax.Statements.Parameter>()
+    var no_statements = List<Syntax.Statements.Statement>()
+    var made = Syntax.Statements.FunctionDeclaration("Environment", no_parameters, null, no_statements)
+    environment.statements.append(made)
+    return made
+}
+
+func setting_reading(variable: Syntax.Statements.VariableDeclaration): Syntax.Statements.Statement? {
+    crash variable.value
+    var reader = setting_reader(variable.value)
+    if variable.type_reference or reader.is_empty() {
+        has_error = true
+        error_message = "{variable.source_path}:{variable.line}: error: 'Environment.{variable.name}' is a setting, read from the program's command line (--{variable.name}=value) or its environment ({variable.name.upper_case()}), so it is declared with only a literal default, and the literal is its type: 'var {variable.name} = false' (Bool), 'var {variable.name} = 0' (Int) or 'var {variable.name} = \"\"' (String)"
+        return null
+    }
+    var arguments = List<Syntax.Expressions.Expression>()
+    arguments.append(Syntax.Expressions.StringLiteralExpression(variable.name))
+    arguments.append(Syntax.Expressions.IdentifierExpression(variable.name))
+    var call = Syntax.Expressions.CallExpression(Syntax.Expressions.IdentifierExpression(reader), arguments)
+    var assignment = Syntax.Statements.AssignmentStatement(Syntax.Expressions.IdentifierExpression(variable.name), call)
+    assignment.line = variable.line
+    return assignment
+}
+
+func setting_reader(declared: Syntax.Expressions.Expression): String {
+    if shape.is_true_literal(declared) or shape.is_false_literal(declared) {
+        return "boolean_setting"
+    }
+    if shape.as_string_literal(declared) {
+        return "text_setting"
+    }
+    if shape.as_integer_literal(declared) {
+        return "integer_setting"
+    }
+    var negated = shape.as_unary(declared)
+    if negated {
+        crash negated.operand
+        if negated.operator == 'negate' and shape.as_integer_literal(negated.operand) {
+            return "integer_setting"
+        }
+    }
+    return ""
 }
 
 func scan_top_level_loads(file: Syntax.SourceFile, found: List<String>) {

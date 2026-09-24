@@ -1,1 +1,1 @@
---environment=server
+-- --name=server
