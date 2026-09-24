@@ -98,12 +98,13 @@ Every option is a `Build` field with a literal default, declared in `library/bui
 | `optimized` | `false` | asks the C compiler for `-O2` instead of `-O0` |
 | `development` | `false` | keeps everything, no tree shaking, for live reload |
 | `repl` | `false` | runs the program with an in-place REPL |
-| `repl_port` | `0` | reserved for the remote REPL |
+| `repl_port` | `0` | serves the remote REPL on this port (see [repl.md](repl.md)) |
 | `format` | `true` | formats the program's files before compiling; `--format=false` skips it |
 | `debug_memory` | `false` | counts allocations and frees and prints them when the program ends |
 | `final_classes` | `""` | writes the merged classes to this folder instead of compiling |
 | `operating_system` | the compiling machine | cannot be given: it is the system doing the compiling |
 | `target_operating_system` | `operating_system` | the system the program is compiled for |
+| `program` | the folder named | cannot be given: it is the folder on the command line, which the launcher loads |
 
 ```bash
 spite game --optimized
