@@ -3031,6 +3031,54 @@ func maybe_null_only_on_the_right(
     return type_shape.as_nullable(right_probe.get_type()) and not type_shape.as_nullable(left_probe.get_type())
 }
 
+func generate_class_test(
+    binary: Syntax.Expressions.BinaryExpression,
+    tested_class: Analysis.ClassInfo,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    crash binary.left
+    var tested = generate_expression(binary.left, scope, class_information)
+    var value_type = tested.get_type()
+    var is_nullable = false
+    var nullable = type_shape.as_nullable(value_type)
+    if nullable {
+        value_type = nullable.get_inner()
+        is_nullable = true
+    }
+    var tested_union = type_shape.as_union(value_type)
+    if tested_union {
+        var union_information = find_union_by_c_name(tested_union.c_name)
+        if union_information {
+            if not union_information.has_member(tested_class.c_name) {
+                report(
+                    "'{tested_class.simple_name}' is not a member of union '{union_information.simple_name}', so this is never true",
+                )
+            }
+        }
+    } else if not type_shape.as_class_ref(value_type) {
+        report("'==' with a class asks what class a value is, and a {type_display_name(value_type)} is not an object")
+        return ExpressionResult("false", boolean_type())
+    }
+    var temporary = next_temporary()
+    var lines = List<String>()
+    lines.append("{c_type_name(tested.get_type())} {temporary} = {tested.code};")
+    var test = class_id_test(temporary, tested_class)
+    if is_nullable {
+        test = "({temporary} != 0 && {test})"
+    }
+    if binary.operator == 'not_equal' {
+        test = "(!{test})"
+    }
+    var result_temporary = next_temporary()
+    lines.append("bool {result_temporary} = {test};")
+    if owns(tested, binary.left) {
+        lines.append("{release_call(tested.get_type(), temporary)};")
+    }
+    lines.append("{result_temporary};")
+    return ExpressionResult("(\{ {lines.join(" ")} })", boolean_type())
+}
+
 func generate_binary(
     binary: Syntax.Expressions.BinaryExpression,
     scope: Scope,
@@ -3039,6 +3087,12 @@ func generate_binary(
     crash binary.left
     crash binary.right
     if binary.operator == 'equal' or binary.operator == 'not_equal' {
+        var tested_class = try_resolve_static_path(binary.right, class_information.namespace_dotted)
+        if tested_class {
+            if not try_resolve_static_path(binary.left, class_information.namespace_dotted) {
+                return generate_class_test(binary, tested_class, scope, class_information)
+            }
+        }
         if maybe_null_only_on_the_right(binary, scope, class_information) {
             var mirrored: Syntax.Expressions.Expression = Syntax.Expressions.BinaryExpression(
                 binary.operator,

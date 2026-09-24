@@ -1,0 +1,18 @@
+union Shape {
+    Circle
+    Square
+}
+
+var console = Console()
+var favorite: Shape? = null
+
+func ClassTest() {
+    var shape: Shape = Circle()
+    console.print(shape == Circle)
+    console.print(shape == Square)
+    console.print(shape != Square)
+    console.print(favorite == Circle)
+    favorite = Square()
+    console.print(favorite == Square)
+    console.print(Circle() == Circle)
+}
