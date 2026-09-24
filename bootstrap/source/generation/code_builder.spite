@@ -25,15 +25,21 @@ func add_main(line: String) {
 }
 
 func render(): String {
-    var text = ""
-    text = text + "{typedefs.join("\n")}\n"
-    text = text + "{prototypes.join("\n")}\n"
-    text = text + "{support_bodies.join("\n")}\n"
-    text = text + "{user_bodies.join("\n")}\n"
-    text = "{text}int main(int argument_count, char** argument_values) \{\n"
-    text = "{text}spite_program_arguments = (SpiteArguments)\{ .count = argument_count - 1, .items = (const char**)(argument_values + 1) };\n"
-    text = "{text}#ifdef _WIN32\n_setmode(_fileno(stdout), _O_BINARY);\n#endif\n"
-    text = text + "{main_lines.join("\n")}\n"
-    text = "{text}return 0;\n}\n"
-    return text
+    var main_text = List<String>()
+    main_text.append("int main(int argument_count, char** argument_values) \{")
+    main_text.append(
+        "spite_program_arguments = (SpiteArguments)\{ .count = argument_count - 1, .items = (const char**)(argument_values + 1) };",
+    )
+    main_text.append("#ifdef _WIN32\n_setmode(_fileno(stdout), _O_BINARY);\n#endif")
+    main_text.append(main_lines.join("\n"))
+    main_text.append("return 0;\n}")
+    var main_function = main_text.join("\n")
+    var typedef_text = typedefs.join("\n")
+    var shaker = TreeShaker()
+    var bodies = shaker.shake(
+        "{typedef_text}\n{main_function}",
+        "{support_bodies.join("\n")}\n{user_bodies.join("\n")}",
+    )
+    var prototype_text = shaker.kept_prototypes(prototypes.join("\n"))
+    return "{typedef_text}\n{prototype_text}\n{bodies}\n{main_function}\n"
 }
