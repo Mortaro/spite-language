@@ -1,5 +1,9 @@
 var entry_keys = List<String>()
 var entry_values = List<$value_type>()
+var memory = Memory()
+var slots: Long = 0
+var slot_count = 0
+var used_slots = 0
 
 func Dictionary<$value_type>() {}
 
@@ -8,6 +12,9 @@ func set(key: String, value: $value_type) {
     if existing >= 0 {
         entry_values.set_at(existing, value)
     } else {
+        make_room()
+        var position = entry_keys.count()
+        place(key, position)
         entry_keys.append(key)
         entry_values.append(value)
     }
@@ -22,14 +29,18 @@ func get(key: String): $value_type? {
 }
 
 func has(key: String): Bool {
-    return index_of_key(key) >= 0
+    var existing = index_of_key(key)
+    return existing >= 0
 }
 
 func remove(key: String) {
-    var existing = index_of_key(key)
-    if existing >= 0 {
-        entry_values.remove_at(existing)
-        entry_keys.remove_at(existing)
+    var slot = find_slot(key)
+    if slot >= 0 {
+        var position = memory.read_int(slots, slot * 4) - 1
+        memory.write_int(slots, slot * 4, -1)
+        entry_values.remove_at(position)
+        entry_keys.remove_at(position)
+        close_gap(position)
     }
 }
 
@@ -57,13 +68,103 @@ func copy(): Dictionary<$value_type> {
     return copied
 }
 
+func drop() {
+    if slots != 0 {
+        memory.free(slots)
+    }
+}
+
 func index_of_key(key: String): Int {
-    var index = 0
-    while index < entry_keys.count() {
-        if entry_keys.get_at(index) == key {
-            return index
+    var slot = find_slot(key)
+    if slot < 0 {
+        return -1
+    }
+    return memory.read_int(slots, slot * 4) - 1
+}
+
+func find_slot(key: String): Int {
+    if slot_count == 0 {
+        return -1
+    }
+    var slot = home_slot(key)
+    var stored = memory.read_int(slots, slot * 4)
+    while stored != 0 {
+        if stored > 0 and entry_keys.get_at(stored - 1) == key {
+            return slot
         }
-        index = index + 1
+        slot = next_slot(slot)
+        stored = memory.read_int(slots, slot * 4)
     }
     return -1
+}
+
+func place(key: String, position: Int) {
+    var slot = home_slot(key)
+    var stored = memory.read_int(slots, slot * 4)
+    while stored > 0 {
+        slot = next_slot(slot)
+        stored = memory.read_int(slots, slot * 4)
+    }
+    if stored == 0 {
+        used_slots = used_slots + 1
+    }
+    memory.write_int(slots, slot * 4, position + 1)
+}
+
+func close_gap(position: Int) {
+    var slot = 0
+    while slot < slot_count {
+        var stored = memory.read_int(slots, slot * 4)
+        if stored > position + 1 {
+            memory.write_int(slots, slot * 4, stored - 1)
+        }
+        slot = slot + 1
+    }
+}
+
+func make_room() {
+    if (used_slots + 1) * 2 > slot_count {
+        rebuild_slots()
+    }
+}
+
+func rebuild_slots() {
+    var grown = 8
+    while grown < (entry_keys.count() + 1) * 4 {
+        grown = grown * 2
+    }
+    if slots != 0 {
+        memory.free(slots)
+    }
+    slots = memory.allocate_bytes(grown * 4)
+    slot_count = grown
+    used_slots = 0
+    var slot = 0
+    while slot < slot_count {
+        memory.write_int(slots, slot * 4, 0)
+        slot = slot + 1
+    }
+    var position = 0
+    while position < entry_keys.count() {
+        var key = entry_keys.get_at(position)
+        place(key, position)
+        position = position + 1
+    }
+}
+
+func home_slot(key: String): Int {
+    var hash: Long = 0
+    var index = 0
+    while index < key.length() {
+        hash = (hash * 31 + key.code_at(index)) % 1000000007
+        index = index + 1
+    }
+    return hash % slot_count
+}
+
+func next_slot(slot: Int): Int {
+    if slot + 1 == slot_count {
+        return 0
+    }
+    return slot + 1
 }
