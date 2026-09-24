@@ -1,0 +1,1 @@
+diagnostics/number_memory/int.spite:1: error: 'Int' declares 8 bytes of memory, and the compiler lays it out as int32_t, which is 4 (in Int._memory)

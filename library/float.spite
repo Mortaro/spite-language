@@ -1,3 +1,5 @@
+var _memory = Memory().allocate_bytes(4)
+
 func to_string(): String {
     var wide: Double = this
     return wide.shortest_text(16777216, -149, 9)

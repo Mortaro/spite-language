@@ -1,3 +1,5 @@
+var _memory = Memory().allocate_bytes(2)
+
 func to_string(): String {
     var wide: Long = this
     return wide.to_string()

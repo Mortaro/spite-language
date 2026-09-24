@@ -1,0 +1,7 @@
+var console = Console()
+
+func NumberMemory() {
+    var count = 21
+    var doubled = count.doubled()
+    console.print(doubled)
+}

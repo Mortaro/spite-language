@@ -1,3 +1,8 @@
+var _bytes: Long = 0
+var _length: Long = 0
+var _section: Spite.Memory.Section = 'heap'
+var _capacity: Long = 0
+
 func is_empty(): Bool {
     return length() == 0
 }

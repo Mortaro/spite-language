@@ -175,9 +175,40 @@ balance.
 ## `Memory` is the floor, and you can build on it
 
 Every type in the standard library is Spite over one class, `Memory` (`library/memory.spite`): `String`,
-`List<T>` and `Dictionary<T>` keep their bytes in memory it hands out, and the numbers are values the compiler
-lays out. A container of your own is written the same way, with nothing the compiler does for `List<T>` that it
-would not do for yours -- read `library/list.spite` for a complete one.
+`List<T>` and `Dictionary<T>` keep their bytes in memory it hands out, and each number says in its own file how
+much memory it is. A container of your own is written the same way, with nothing the compiler does for `List<T>`
+that it would not do for yours -- read `library/list.spite` for a complete one.
+
+### Where `String` and `Int` keep their memory
+
+A type's storage is attributes at the top of its file (D108). `library/string.spite` starts with the memory a
+`String` holds:
+
+```spite
+var _bytes: Long = 0
+var _length: Long = 0
+var _section: Spite.Memory.Section = 'heap'
+var _capacity: Long = 0
+```
+
+`_bytes` is the address of its characters, which `Memory` handed out (with a 0 after the last one, for C);
+`_length` is how many there are; `_capacity` is how many fit before the bytes have to grow, which only building
+text in a loop uses; and `_section` is where the compiler placed them: `'heap'`, or `'constant'` for a literal,
+whose characters are part of the program and are never counted or freed. The compiler writes the C layout of a
+`String` from these declarations, in this order, after the header every object has (its reference count and its
+class); the functions of `String` read them by name.
+
+`library/int.spite` starts with the memory an `Int` is:
+
+```spite
+var _memory = Memory().allocate_bytes(4)
+```
+
+Four bytes, allocated through `Memory` like everything else, and placed by the compiler: a number's memory is a
+register (or wherever the C compiler keeps an `int32_t`), so there is no address behind `this` and nothing to
+free. Every number file says the same with its own width (`Long` 8, `Short` 2, `Byte` 1, `Bool` 1, `Double` 8,
+...), the compiler checks it against the C type it emits, and `count.memory.bytes` reads it. Inside a number,
+`this` is the value itself: reading `_memory` is an error saying so.
 
 - **Heap:** `memory.allocate_bytes(bytes)` returns an address (a `Long`); `resize` grows it and `free` gives it
   back. Nothing frees it for you: a class that allocates frees in its `drop()`.

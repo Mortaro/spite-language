@@ -10,6 +10,14 @@ func add_typedef(line: String) {
     typedefs.append(line)
 }
 
+func typedef_count(): Int {
+    return typedefs.count()
+}
+
+func replace_typedef(position: Int, line: String) {
+    typedefs.set_at(position, line)
+}
+
 func add_prototype(line: String) {
     prototypes.append(line)
 }

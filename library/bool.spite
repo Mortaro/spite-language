@@ -1,3 +1,5 @@
+var _memory = Memory().allocate_bytes(1)
+
 func to_string(): String {
     if this {
         return "true"

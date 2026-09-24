@@ -1,0 +1,3 @@
+func doubled(): Int {
+    return _memory * 2
+}

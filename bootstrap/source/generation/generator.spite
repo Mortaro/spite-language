@@ -299,6 +299,13 @@ func generate(
     )
     register_classes(discovery.class_files)
     emit_enums()
+    var string_layout_position = builder.typedef_count()
+    builder.add_typedef("")
+    var prelude = Prelude()
+    var string_prototypes = prelude.string_prototypes()
+    builder.add_prototype(string_prototypes)
+    var string_bodies = prelude.string_bodies()
+    builder.add_support(string_bodies)
     var forward_index = 0
     while forward_index < classes.count() {
         if not classes[forward_index].is_value_class {
@@ -310,6 +317,9 @@ func generate(
     resolve_union_members()
     emit_unions()
     resolve_classes(discovery.class_files)
+    var string_layout = string_layout()
+    builder.replace_typedef(string_layout_position, string_layout)
+    check_number_memory()
     assert not has_error
     var index = 0
     while index < classes.count() {
@@ -1683,6 +1693,14 @@ func resolve_field(declaration: Syntax.Statements.VariableDeclaration, informati
     assert declaration.value
     check_value_name(declaration.name, "attribute")
     report_nested_calls_in(declaration.value)
+    if information.is_value_class and information.c_name != "SpiteString" {
+        information.memory_bytes = declared_memory_bytes(declaration)
+        information.memory_path = current_path
+        information.memory_line = current_line
+        var address_type = long_type()
+        information.fields.append(Analysis.FieldInfo(declaration.name, address_type, "0"))
+        return
+    }
     var field_type = infer_declared_type(declaration.type_reference, declaration.value, scope, information)
     var default_code = coerce_for_store(declaration.value, field_type, scope, information)
     if declaration.hardcoded_value {
@@ -3505,6 +3523,12 @@ func generate_identifier(
     if field {
         if identifier.name == "_namespace" and class_information.c_name == "Spite_Class" {
             namespace_read_used = true
+        }
+        if class_information.is_value_class and class_information.c_name != "SpiteString" {
+            report(
+                "'{identifier.name}' is the memory {class_information.simple_name} is kept in, and the compiler keeps the value itself there: write 'this'",
+            )
+            return ExpressionResult("0", Analysis.Types.VoidType())
         }
         var field_type = field.get_type()
         return ExpressionResult("self->{identifier.name}", field_type)
@@ -6391,9 +6415,9 @@ func generate_memory_read(
     var bytes = "(int64_t)sizeof(*({held}))"
     var section = "Spite_Memory_Section_heap"
     if type_shape.as_string(object_type) {
-        address = "(int64_t)(intptr_t)({held})->data"
-        bytes = "({held})->length"
-        section = "(({held})->is_static ? Spite_Memory_Section_constant : Spite_Memory_Section_heap)"
+        address = "({held})->_bytes"
+        bytes = "({held})->_length"
+        section = "({held})->_section"
     } else if type_shape.as_scalar(object_type) or is_enum_type(object_type) {
         if owned or is_owning_shape(object_ast) {
             report("only a named value has memory of its own: give this value a name with 'var' first")
@@ -6401,6 +6425,13 @@ func generate_memory_read(
         }
         address = "(int64_t)(intptr_t)&({object_result.code})"
         bytes = "(int64_t)sizeof({object_c_type})"
+        var scalar_described = type_shape.as_scalar(object_type)
+        if scalar_described {
+            var number_class = value_class_of(scalar_described.kind)
+            if number_class {
+                bytes = "(int64_t){number_class.memory_bytes}"
+            }
+        }
         if not object_result.code.contains("->") {
             section = "Spite_Memory_Section_stack"
         }
@@ -7193,7 +7224,7 @@ func printed_statement_for(
         if is_float_kind(scalar.kind) {
             var temporary = next_temporary()
             var converted = string_conversion(result.code, result_type)
-            return "\{ SpiteString* {temporary} = {converted}; fprintf({stream}, \"%s\", {temporary}->data); SpiteString_release({temporary}); }"
+            return "\{ SpiteString* {temporary} = {converted}; fprintf({stream}, \"%s\", (const char*)(intptr_t){temporary}->_bytes); SpiteString_release({temporary}); }"
         }
         if scalar.kind == 'unsigned_long_kind' {
             return "fprintf({stream}, \"%llu\", (unsigned long long)({result.code}));"
@@ -7206,7 +7237,7 @@ func printed_statement_for(
         if owns(result, expression_ast) {
             release_line = " SpiteString_release({temporary});"
         }
-        return "\{ SpiteString* {temporary} = {result.code}; fprintf({stream}, \"%s\", ({temporary})->data);{release_line} }"
+        return "\{ SpiteString* {temporary} = {result.code}; fprintf({stream}, \"%s\", (const char*)(intptr_t)({temporary})->_bytes);{release_line} }"
     }
     var printed_class = type_shape.as_class_ref(result_type)
     if printed_class {
@@ -7216,7 +7247,7 @@ func printed_statement_for(
             if owns(result, expression_ast) {
                 class_release = " Spite_Class_release({class_temporary});"
             }
-            return "\{ Spite_Class* {class_temporary} = {result.code}; fprintf({stream}, \"%s\", {class_temporary}->_name->data);{class_release} }"
+            return "\{ Spite_Class* {class_temporary} = {result.code}; fprintf({stream}, \"%s\", (const char*)(intptr_t){class_temporary}->_name->_bytes);{class_release} }"
         }
         if printed_class.c_name == "Spite_Namespace" {
             var namespace_temporary = next_temporary()
@@ -7224,7 +7255,7 @@ func printed_statement_for(
             if owns(result, expression_ast) {
                 namespace_release = " Spite_Namespace_release({namespace_temporary});"
             }
-            return "\{ Spite_Namespace* {namespace_temporary} = {result.code}; fprintf({stream}, \"%s\", {namespace_temporary}->_name_with_namespaces->data);{namespace_release} }"
+            return "\{ Spite_Namespace* {namespace_temporary} = {result.code}; fprintf({stream}, \"%s\", (const char*)(intptr_t){namespace_temporary}->_name_with_namespaces->_bytes);{namespace_release} }"
         }
     }
     var printed_enum = type_shape.as_enum(result_type)
@@ -7546,7 +7577,7 @@ func generate_foreign_call(
                 releases.append("SpiteString_release({text});")
             }
             parameter_types.append("const char*")
-            passed.append("{text}->data")
+            passed.append("(const char*)(intptr_t){text}->_bytes")
         } else if passes_as_array(argument_type) {
             var held_list = next_temporary()
             lines.append("{c_type_name(argument_type)} {held_list} = {argument.code};")
@@ -11168,6 +11199,115 @@ func emit_value_class(information: Analysis.ClassInfo) {
         emit_user_function(information, information.functions[function_index])
         function_index = function_index + 1
     }
+}
+
+func declared_memory_bytes(declaration: Syntax.Statements.VariableDeclaration): Int {
+    crash declaration.value
+    var allocation = shape.as_call(declaration.value)
+    if allocation {
+        crash allocation.callee
+        var allocating = shape.as_member(allocation.callee)
+        if allocating {
+            crash allocating.object
+            var memory_call = shape.as_call(allocating.object)
+            if allocating.name == "allocate_bytes" and memory_call and allocation.arguments.count() == 1 {
+                var bytes = shape.as_integer_literal(allocation.arguments[0])
+                if bytes {
+                    return bytes.value
+                }
+            }
+        }
+    }
+    report(
+        "a number declares its memory as 'var _memory = Memory().allocate_bytes(bytes)', with the bytes written out: the compiler places that memory, and a number's is a register",
+    )
+    return 0
+}
+
+func scalar_c_bytes(c_type: String): Int {
+    if c_type == "int8_t" or c_type == "uint8_t" or c_type == "bool" {
+        return 1
+    }
+    if c_type == "int16_t" or c_type == "uint16_t" {
+        return 2
+    }
+    if c_type == "int32_t" or c_type == "uint32_t" or c_type == "float" {
+        return 4
+    }
+    return 8
+}
+
+func check_number_memory() {
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        if information.is_value_class and information.c_name != "SpiteString" {
+            current_path = information.source_path
+            current_line = 1
+            if not information.memory_path.is_empty() {
+                current_path = information.memory_path
+                current_line = information.memory_line
+            }
+            current_owner = information.qualified_dotted
+            current_function = "_memory"
+            var number_type = value_class_type(information)
+            var c_type = c_type_name(number_type)
+            var laid_out = scalar_c_bytes(c_type)
+            if not information.find_field("_memory") {
+                report(
+                    "'{information.simple_name}' declares no memory: its file says what it is with 'var _memory = Memory().allocate_bytes({laid_out})', the {laid_out} bytes the compiler keeps it in",
+                )
+            } else if information.memory_bytes != laid_out {
+                report(
+                    "'{information.simple_name}' declares {information.memory_bytes} bytes of memory, and the compiler lays it out as {c_type}, which is {laid_out}",
+                )
+            }
+        }
+        index = index + 1
+    }
+}
+
+func string_layout(): String {
+    var string_class = find_class_by_c_name("SpiteString")
+    crash string_class
+    current_path = string_class.source_path
+    current_owner = "String"
+    current_function = ""
+    var storage = ["_bytes", "_length", "_section"]
+    var storage_types = ["int64_t", "int64_t", "Spite_Memory_Section"]
+    var storage_index = 0
+    while storage_index < storage.count() {
+        var name = storage[storage_index]
+        var wanted = storage_types[storage_index]
+        var field = string_class.find_field(name)
+        var declared = ""
+        if field {
+            var field_type = field.get_type()
+            declared = c_type_name(field_type)
+        }
+        if declared != wanted {
+            report(
+                "library/string.spite declares the memory a String holds, and needs '_bytes: Long' (the address of its characters), '_length: Long' and '_section: Spite.Memory.Section' (where the compiler placed them): '{name}' is missing or has another type",
+            )
+        }
+        storage_index = storage_index + 1
+    }
+    var lines = List<String>()
+    lines.append("struct SpiteString \{")
+    lines.append("SpiteHeader header;")
+    var field_index = 0
+    while field_index < string_class.fields.count() {
+        var field = string_class.fields[field_index]
+        var field_type = field.get_type()
+        lines.append("{c_type_name(field_type)} {field.name};")
+        field_index = field_index + 1
+    }
+    lines.append("};")
+    lines.append(
+        "#define SPITE_STATIC_STRING(text, length) \{ .header = \{ 0, -1 }, ._bytes = (int64_t)(intptr_t)(text), ._length = (length), ._section = Spite_Memory_Section_constant }",
+    )
+    lines.append("static SpiteString spite_static_string_empty = SPITE_STATIC_STRING(\"\", 0);")
+    return lines.join("\n")
 }
 
 func written_string_function(name: String): Analysis.FunctionInfo? {
