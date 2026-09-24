@@ -4,6 +4,7 @@ var memory = Memory()
 
 func MemoryFloor() {
     run()
+    widths()
 }
 
 func run() {
@@ -29,5 +30,24 @@ func run() {
     var copied_number = memory.read_long(copy, 0)
     console.print(copied_number == 5000000000)
     memory.free(copy)
+    memory.free(address)
+}
+
+func widths() {
+    var address = memory.allocate_bytes(12)
+    memory.write_float(address, 0, 1.5)
+    memory.write_short(address, 4, -2)
+    memory.write_unsigned_int(address, 8, 4000000000)
+    var stored_float = memory.read_float(address, 0)
+    var float_bits = memory.read_int(address, 0)
+    console.print(stored_float, float_bits)
+    var stored_short = memory.read_short(address, 4)
+    var short_bits = memory.read_unsigned_short(address, 4)
+    console.print(stored_short, short_bits)
+    memory.write_unsigned_short(address, 6, 65535)
+    var stored_unsigned_short = memory.read_unsigned_short(address, 6)
+    var stored_unsigned = memory.read_unsigned_int(address, 8)
+    var unsigned_bits = memory.read_int(address, 8)
+    console.print(stored_unsigned_short, stored_unsigned, unsigned_bits)
     memory.free(address)
 }
