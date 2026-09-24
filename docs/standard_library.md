@@ -167,10 +167,82 @@ shield 30
 sword 50
 ```
 
-`filter_<attribute>()`, `find_by_<attribute>(value)`, and `sort_by_<attribute>()` all return **views**:
-shallow-copied elements the source `List<T>` still owns. Only the view's own wrapper is ever dropped, never the
-elements inside it -- you can chain freely (`items.filter_in_stock().sum_price()`) without worrying about a
-double free.
+`filter_<member>()` and `sort_by_<member>()` return a new list holding the same elements (each one counted
+once more, not copied), so you can chain freely (`items.filter_in_stock().sum_price()`); `find_by_<member>(value)`
+returns the element itself or `null`. A member is a field or a function that takes no arguments
+(`map_label()` calls `label()` on every element); what each template needs of it is in the manual's section 8.
+
+## How the member templates are written
+
+The templates are ordinary Spite in `library/list.spite`, over the list's own `Memory` buffer. Each one is a
+Symbol codegen template (see [metaprogramming.md](metaprogramming.md)) whose `Symbol` parameter is named
+`member`; in a list, that symbol names a member of the *element*, and `item.attributes[member]` reads it -- the
+field itself, or a call to the zero-argument function. `filter_member` answers `filter_in_stock`,
+`filter_is_popular` and every other `filter_<member>` call:
+
+```
+func filter_member(member: Symbol): List<$element_type> {
+    var filtered = List<$element_type>()
+    var index = 0
+    while index < item_count {
+        var item = read_item(index)
+        if item.attributes[member] {
+            filtered.append(item)
+        }
+        index = index + 1
+    }
+    return filtered
+}
+```
+
+`read_item(index)` is one of the four functions the compiler supplies per element type (it reads the slot at
+`items + index * item_bytes()`); everything else is written in the file. A template is compiled only for the
+names a program calls, so a program that never calls `sum_price()` carries no `sum_price` at all. A build with
+`--repl` or `--repl-port` compiles every template that fits every element class of a list the loop can reach,
+so `monsters.sum_health()` can be typed at the prompt. `Dictionary<T>` answers the same names through its
+values: `inventory.sum_price()` is `inventory.values().sum_price()`.
+
+## Write your own member template
+
+A program reopens `List` by putting a `list.spite` in its own folder, and a function there with a `Symbol`
+parameter named after a segment of its name becomes one more template, exactly like the library's:
+
+```spite title=list_average/list.spite
+func average_member(member: Symbol): Float {
+    if item_count == 0 {
+        return 0.0
+    }
+    var total = 0.0
+    var index = 0
+    while index < item_count {
+        var item = read_item(index)
+        total = total + item.attributes[member]
+        index = index + 1
+    }
+    return total / item_count
+}
+```
+```spite title=list_average/score.spite
+var points = 0
+
+func Score(new_points: Int) {
+    points = new_points
+}
+```
+```spite title=list_average/list_average.spite entry
+var console = Console()
+
+func ListAverage() {
+    var scores = List<Score>()
+    scores.append(Score(3))
+    scores.append(Score(4))
+    var average = scores.average_points()
+    console.print(average)
+}
+```
+```output
+3.5
+```
 
 ## `Console`
 

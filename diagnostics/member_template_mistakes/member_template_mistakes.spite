@@ -1,0 +1,13 @@
+var console = Console()
+var repositories = List<Repository>()
+
+func MemberTemplateMistakes() {
+    repositories.append(Repository("engine", 10, true))
+    var names = repositories.sum_name()
+    var counted = repositories.count_stars()
+    repositories.each_name()
+    var missing = repositories.filter_nothing()
+    var bumped = repositories.map_bump_stars()
+    var sorted = repositories.sort_by_active()
+    console.print(names, counted, missing, bumped, sorted)
+}

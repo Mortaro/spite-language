@@ -1,0 +1,25 @@
+var name = ""
+var stars = 0
+var active = false
+
+func Repository(starting_name: String, starting_stars: Int, starting_active: Bool) {
+    name = starting_name
+    stars = starting_stars
+    active = starting_active
+}
+
+func get_attribute(attribute: Symbol): attribute.class {
+    return attributes[attribute]
+}
+
+func label(): String {
+    return "{name}!"
+}
+
+func is_popular(): Bool {
+    return stars > 5
+}
+
+func bump_stars() {
+    stars = stars + 1
+}
