@@ -155,6 +155,18 @@ and balanced allocations.
       (2026-09-24)**: the same `answer` over a `Socket` (`library/socket.spite`, reopened per operating system)
       on a thread the compiler's two-line C entry starts; `check.sh` replays `docs/repl.md`'s ` ```wire ` session
       against the real program. Linux and macOS sockets and threads compile but have not run.
+      D37's drain points -- **done (2026-09-24)**: commands are answered on the program's thread where it waits,
+      through the scheduler below; a `--repl-port` build of a loop that never waits is a compile error.
+    - **15f. Hidden async/await and threads (D35, D37, D99, D103) -- done on Windows (2026-09-24).**
+      `Concurrent(function)` runs on a fiber (`library/concurrent.spite`, `library/scheduler.spite`, each system's
+      folder for fibers, an event and a clock); `Parallel(function)` on a thread (`library/parallel.spite`). The
+      compiler wraps the blocking calls (`Program.sleep`, and the system call under `Console.read_line`, `File`
+      reads and writes, `Socket.accept_client`/`read_line`) in programs that use the scheduler, blocks when nothing
+      else could run, and counts references atomically only in programs that start a thread. Codegen values are
+      inferred from constructor arguments. `docs/concurrency.md`, `conformance/stage6/concurrent_waits`,
+      `conformance/stage6/parallel_work`. **Next:** a thread pool and `parallel_each_` templates for the engine,
+      D35's race rule, HTTP and database calls through the same waits, and running the Linux and macOS folders.
+      Names and mechanism wait on Mortaro (`mortaros_missing_decisions.md` 13-18).
     - **15e.** The web shim: drive the hand-written portion to zero by generating the imports from `external js`
       declarations and the command-buffer drain loop from its opcode table (milestone 12). It cannot become
       Spite -- it runs in the JavaScript virtual machine -- but it can stop being authored. Goal, not a
@@ -213,6 +225,14 @@ and balanced allocations.
     time (the tree shaking `$serve` had is gone; `$target` and D13 still need a build-time home), the sources and
     their order, and the literal-default typing are proposals. **Not done:** the compiler still reads its own
     flags through `Arguments` rather than `Environment`.
+20. **Done (2026-09-24): D87, D90 and D104, the header lines and variadic arguments** (manual.md sections 5, 8
+    and 9). `generic $name` lines replace the constructor's `<...>` list (a parse error now), so a generic class
+    needs no constructor; `singleton` is a header line and `func is_singleton()` an error outside
+    `Spite.Class`; D67's order starts with both. `...name: List<Type>` gathers the remaining arguments into a
+    list, over a class or a `type`. **Waiting on Mortaro:** the interpretations in the three 2026-09-24
+    "implements" rows, and whether `Console.print` takes `...values: List<Printable>` (what `Printable`
+    requires). **Not done:** the named-constraint form open question 12 argued for (`generic $sub_type:
+    Openable`), which D87 did not decide.
 
 ## Later, deliberately deferred
 
@@ -227,4 +247,8 @@ and balanced allocations.
   later root may reopen it; and it depends on the compile time evaluator of milestone 10.
 - **Standard library templates name a `<member>`** (D15) is done in the compiler: `map_`, `filter_`, `sum_`,
   `sort_by_`, `find_by_`, `any_`, `all_`, `count_` and `each_` accept an attribute or a function that takes
-  nothing, on `List<T>` and on `Dictionary<T>`.
+  nothing, on `List<T>` and on `Dictionary<T>`. **D91 done (2026-09-24):** they are Spite templates in
+  `library/list.spite` (`item.attributes[member]` reads the element's member), the generator writes none of
+  their C, and a `--repl` build lists them on a list. **D105 fusion done (2026-09-24):** a chain of them compiles
+  to one loop with no intermediate list (`conformance/stage6/fused_chains`, `fused_chain_allocations`).
+  Open: printing a list's instantiated templates in `--final-classes` (D61).

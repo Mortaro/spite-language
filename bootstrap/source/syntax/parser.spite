@@ -133,7 +133,8 @@ func parse_file(): Syntax.SourceFile {
 
 func is_declaration(statement: Syntax.Statements.Statement): Bool {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: return true
+        Syntax.Statements.SingletonDeclaration: return true
+        Syntax.Statements.GenericDeclaration: return true
         Syntax.Statements.VariableDeclaration: return true
         Syntax.Statements.FunctionDeclaration: return true
         Syntax.Statements.TypeDeclaration: return true
@@ -153,7 +154,7 @@ func parse_top_level_statements(): List<Syntax.Statements.Statement> {
         } else {
             var line = current().line
             var column = current().column
-            var statement = parse_statement()
+            var statement = parse_top_level_statement()
             if not is_declaration(statement) and not has_error {
                 fail(
                     "a file holds declarations and nothing else: move this statement into a function, or into the class's constructor",
@@ -167,12 +168,35 @@ func parse_top_level_statements(): List<Syntax.Statements.Statement> {
     return statements
 }
 
+func parse_top_level_statement(): Syntax.Statements.Statement {
+    if not at_singleton_line() {
+        return parse_statement()
+    }
+    var line = current().line
+    advance()
+    consume_statement_terminator()
+    var declaration = Syntax.Statements.SingletonDeclaration()
+    declaration.line = line
+    return declaration
+}
+
+func at_singleton_line(): Bool {
+    if not check('identifier') or current().lexeme != "singleton" {
+        return false
+    }
+    var following = next_kind()
+    return following == 'newline' or following == 'end_of_file' or following == 'comment'
+}
+
 func parse_statement_list_until(stop_kind: TokenKind): List<Syntax.Statements.Statement> {
     var statements = List<Syntax.Statements.Statement>()
     var finished = false
     while not finished {
         skip_trivia()
         if check('end_of_file') or check(stop_kind) or has_error {
+            finished = true
+        } else if check('keyword_generic') {
+            fail("a 'generic' line declares a codegen value of the whole class: move it to the top of the file")
             finished = true
         } else {
             var parsed_statement = parse_statement()
@@ -261,6 +285,9 @@ func parse_statement_without_line(): Syntax.Statements.Statement {
     if check('keyword_generics') {
         return parse_generics_declaration()
     }
+    if check('keyword_generic') {
+        return parse_generic_declaration()
+    }
     if check('variable_keyword') {
         return parse_variable_declaration()
     }
@@ -299,22 +326,22 @@ func parse_statement_without_line(): Syntax.Statements.Statement {
 
 func parse_generics_declaration(): Syntax.Statements.Statement {
     fail(
-        "the 'generics' line was removed: a constructor declares the codegen values its callers supply, like 'func Weapon<$damage_type, $is_magic>(new_damage: $damage_type)'",
+        "there is no 'generics' list: a class declares each codegen value on its own line at the top of the file, like 'generic $damage_type'",
     )
+    return dummy_statement()
+}
+
+func parse_generic_declaration(): Syntax.Statements.Statement {
     advance()
-    var names = List<String>()
-    var expect_more = true
-    while expect_more and not check('end_of_file') {
-        var token = expect('generic_identifier', "a generic name (e.g. $name)")
-        names.append("{token.text}")
-        if check('comma') {
-            advance()
-        } else {
-            expect_more = false
-        }
+    var name = expect('generic_identifier', "a codegen value name after 'generic', like 'generic $element_type'")
+    if check('comma') {
+        fail(
+            "a 'generic' line declares one codegen value: write 'generic ${name.text}' and put the next one on its own line",
+        )
+        return dummy_statement()
     }
     consume_statement_terminator()
-    return Syntax.Statements.GenericsDeclaration(names)
+    return Syntax.Statements.GenericDeclaration("{name.text}")
 }
 
 func parse_variable_declaration(): Syntax.Statements.Statement {
@@ -334,25 +361,18 @@ func parse_variable_declaration(): Syntax.Statements.Statement {
 func parse_function_declaration(): Syntax.Statements.Statement {
     advance()
     var name = expect('identifier', "a function name")
-    var codegen_names = List<String>()
     if check('less') {
-        advance()
-        var expect_more_names = true
-        while expect_more_names and not check('end_of_file') {
-            var codegen_token = expect('generic_identifier', "a codegen value name (e.g. $name)")
-            codegen_names.append("{codegen_token.text}")
-            if check('comma') {
-                advance()
-            } else {
-                expect_more_names = false
-            }
-        }
-        expect('greater', "'>' to close the codegen value list")
+        reject_constructor_codegen_list(name.text)
+        return dummy_statement()
     }
     expect('left_paren', "'(' to start the parameter list")
     var parameters = List<Syntax.Statements.Parameter>()
     var expect_more = not check('right_paren')
     while expect_more and not check('end_of_file') {
+        var is_variadic = check('ellipsis')
+        if is_variadic {
+            advance()
+        }
         var parameter_name = parameter_name()
         expect('colon', "':' followed by the parameter's type")
         var parameter_type = parse_type()
@@ -361,12 +381,24 @@ func parse_function_declaration(): Syntax.Statements.Statement {
                 "a parameter has no default value in Spite: every argument is written at the call site, or the class holds the value as an attribute",
             )
         }
-        parameters.append(Syntax.Statements.Parameter(parameter_name, parameter_type))
+        if is_variadic and not is_list_type(parameter_type) {
+            fail(
+                "'...{parameter_name}' receives the arguments as a list: write '...{parameter_name}: List<Type>', where Type is a class or a type every argument fits",
+            )
+        }
+        var parameter = Syntax.Statements.Parameter(parameter_name, parameter_type)
+        parameter.is_variadic = is_variadic
+        parameters.append(parameter)
         if check('comma') {
             advance()
             expect_more = not check('right_paren')
         } else {
             expect_more = false
+        }
+        if is_variadic and expect_more {
+            fail(
+                "'...{parameter_name}' takes every argument from here on, so it is the last parameter: move it to the end",
+            )
         }
     }
     expect('right_paren', "')' to close the parameter list")
@@ -381,13 +413,35 @@ func parse_function_declaration(): Syntax.Statements.Statement {
         var no_body = List<Syntax.Statements.Statement>()
         var supplied = Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, no_body)
         supplied.has_body = false
-        supplied.codegen_names = codegen_names
         return supplied
     }
     var body = parse_block()
-    var declaration = Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
-    declaration.codegen_names = codegen_names
-    return declaration
+    return Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
+}
+
+func is_list_type(type_reference: Syntax.Types.Type): Bool {
+    var named = shape.as_named_type(type_reference)
+    if named {
+        return named.path.count() == 1 and named.path.join("") == "List" and named.arguments.count() == 1
+    }
+    return false
+}
+
+func reject_constructor_codegen_list(function_name: String) {
+    var opening = advance()
+    var lines = List<String>()
+    while check('generic_identifier') {
+        var codegen_token = advance()
+        lines.append("generic ${codegen_token.text}")
+        if check('comma') {
+            advance()
+        }
+    }
+    fail(
+        "a function no longer lists codegen values between '<' and '>': declare each at the top of the file on its own line ('{lines.join("', '")}'), and write 'func {function_name}(' here",
+    )
+    error_line = opening.line
+    error_column = opening.column
 }
 
 func parameter_name(): String {

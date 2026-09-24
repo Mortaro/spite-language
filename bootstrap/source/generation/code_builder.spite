@@ -4,6 +4,7 @@ var support_bodies = List<String>()
 var user_bodies = List<String>()
 var main_lines = List<String>()
 var shakes = true
+var threads = false
 
 func add_typedef(line: String) {
     typedefs.append(line)
@@ -19,6 +20,14 @@ func add_support(line: String) {
 
 func add_user(line: String) {
     user_bodies.append(line)
+}
+
+func user_count(): Int {
+    return user_bodies.count()
+}
+
+func replace_user(position: Int, line: String) {
+    user_bodies.set_at(position, line)
 }
 
 func add_main(line: String) {
@@ -44,5 +53,9 @@ func render(): String {
         bodies = shaker.shake("{typedef_text}\n{main_function}", bodies)
         prototype_lines = shaker.kept_prototypes(prototype_lines)
     }
-    return "{typedef_text}\n{prototype_lines}\n{bodies}\n{main_function}\n"
+    var threads_line = ""
+    if threads {
+        threads_line = "#define SPITE_THREADS\n"
+    }
+    return "{threads_line}{typedef_text}\n{prototype_lines}\n{bodies}\n{main_function}\n"
 }

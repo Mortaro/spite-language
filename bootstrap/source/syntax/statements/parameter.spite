@@ -1,5 +1,6 @@
 var name = ""
 var type_reference: Syntax.Types.Type? = null
+var is_variadic = false
 
 func Parameter(parameter_name: String, parameter_type: Syntax.Types.Type) {
     name = parameter_name

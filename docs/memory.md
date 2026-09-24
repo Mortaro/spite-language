@@ -189,6 +189,8 @@ lays out (D98, D101). A container of your own is written the same way, with noth
 A ring buffer that keeps the last few values it was given, over the heap, and a sum over the stack:
 
 ```spite title=ring_buffer_program/ring_buffer.spite
+generic $value_type
+
 var memory = Memory()
 var values = TypedMemory<$value_type>()
 var slots: Long = 0
@@ -196,7 +198,7 @@ var capacity = 0
 var start = 0
 var used = 0
 
-func RingBuffer<$value_type>(starting_capacity: Int) {
+func RingBuffer(starting_capacity: Int) {
     capacity = starting_capacity
     var value_bytes = values.value_bytes()
     slots = memory.allocate_bytes(value_bytes * capacity)

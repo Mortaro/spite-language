@@ -1,0 +1,9 @@
+var charges = 0
+
+func Gadget(new_charges: Int) {
+    charges = new_charges
+}
+
+func describe(): String {
+    return "gadget with {charges} charges"
+}

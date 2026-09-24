@@ -97,7 +97,16 @@ func comment_lesson(): String {
 }
 
 func check_order(path: String, file: Syntax.SourceFile, class_name: String) {
-    var kinds = ["an enum", "a union", "a type", "a variable", "the constructor", "a function"]
+    var kinds = [
+        "the singleton line"
+        "a generic line"
+        "an enum"
+        "a union"
+        "a type"
+        "a variable"
+        "the constructor"
+        "a function"
+    ]
     var reached = 0
     var index = 0
     while index < file.statements.count() {
@@ -107,7 +116,7 @@ func check_order(path: String, file: Syntax.SourceFile, class_name: String) {
             has_error = true
             crash kinds[rank]
             crash kinds[reached]
-            error_message = "{path}:{statement_line(statement)}: error: {kinds[rank]} comes after {kinds[reached]} here, but a file is ordered: enums, unions, types, variables, the constructor, then functions"
+            error_message = "{path}:{statement_line(statement)}: error: {kinds[rank]} comes after {kinds[reached]} here, but a file is ordered: the singleton line, generic lines, enums, unions, types, variables, the constructor, then functions"
         }
         if rank > reached {
             reached = rank
@@ -117,24 +126,30 @@ func check_order(path: String, file: Syntax.SourceFile, class_name: String) {
 }
 
 func order_rank(statement: Syntax.Statements.Statement, class_name: String): Int {
-    if shape.as_enum_declaration(statement) {
+    if shape.as_singleton_declaration(statement) {
         return 0
     }
-    if shape.as_union_declaration(statement) {
+    if shape.as_generic_declaration(statement) {
         return 1
     }
-    if shape.as_type_declaration(statement) {
+    if shape.as_enum_declaration(statement) {
         return 2
     }
-    if shape.as_variable_declaration(statement) {
+    if shape.as_union_declaration(statement) {
         return 3
+    }
+    if shape.as_type_declaration(statement) {
+        return 4
+    }
+    if shape.as_variable_declaration(statement) {
+        return 5
     }
     var function = shape.as_function_declaration(statement)
     if function {
         if function.name == class_name {
-            return 4
+            return 6
         }
-        return 5
+        return 7
     }
     return -1
 }
@@ -159,6 +174,14 @@ func statement_line(statement: Syntax.Statements.Statement): Int {
     var function = shape.as_function_declaration(statement)
     if function {
         return function.line
+    }
+    var generic_line = shape.as_generic_declaration(statement)
+    if generic_line {
+        return generic_line.line
+    }
+    var singleton_line = shape.as_singleton_declaration(statement)
+    if singleton_line {
+        return singleton_line.line
     }
     return 0
 }
@@ -357,13 +380,7 @@ func walk_directory(
 }
 
 func copy_segments(segments: List<String>): List<String> {
-    var result = List<String>()
-    var index = 0
-    while index < segments.count() {
-        result.append(segments[index])
-        index = index + 1
-    }
-    return result
+    return segments.copy()
 }
 
 func formatted_source(path: String, source: String): String {
@@ -437,14 +454,11 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
     var simple_name = compute_simple_name(segments, stem)
     var namespace_dotted = compute_namespace(segments, stem)
     var qualified_dotted = compute_qualified(segments, stem)
-    var existing_index = 0
-    while existing_index < class_files.count() {
-        if class_files[existing_index].qualified_dotted == qualified_dotted {
-            var class_file_file = class_files[existing_index].get_file()
-            reopen_class(class_file_file, parsed_file)
-            return
-        }
-        existing_index = existing_index + 1
+    var existing = class_files.find_by_qualified_dotted(qualified_dotted)
+    if existing {
+        var class_file_file = existing.get_file()
+        reopen_class(class_file_file, parsed_file)
+        return
     }
     if not walking_library and qualified_dotted.starts_with("Spite.") {
         has_error = true
@@ -485,6 +499,13 @@ func declared_name(statement: Syntax.Statements.Statement): String {
     var enumeration = shape.as_enum_declaration(statement)
     if enumeration {
         return "enum {enumeration.name}"
+    }
+    var generic_line = shape.as_generic_declaration(statement)
+    if generic_line {
+        return "generic {generic_line.name}"
+    }
+    if shape.as_singleton_declaration(statement) {
+        return "singleton"
     }
     return ""
 }
@@ -561,12 +582,9 @@ func read_environment_settings() {
 }
 
 func environment_file(): Syntax.SourceFile? {
-    var index = 0
-    while index < class_files.count() {
-        if class_files[index].qualified_dotted == "Environment" {
-            return class_files[index].get_file()
-        }
-        index = index + 1
+    var environment_class = class_files.find_by_qualified_dotted("Environment")
+    if environment_class {
+        return environment_class.get_file()
     }
     return null
 }
@@ -732,12 +750,8 @@ func compute_qualified(segments: List<String>, stem: String): String {
 }
 
 func all_but_last(segments: List<String>): List<String> {
-    var result = List<String>()
-    var index = 0
-    while index < segments.count() - 1 {
-        result.append(segments[index])
-        index = index + 1
-    }
+    var result = segments.copy()
+    result.remove_last()
     return result
 }
 

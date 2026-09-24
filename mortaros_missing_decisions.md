@@ -39,12 +39,49 @@ manual argues it.
 10. **Rows marked "(proposed by Claude, unconfirmed)"** in the decision log from 2026-09-23 and 2026-09-24:
     `Memory.address_of`/`compare_bytes`/`take_text`, the tree shaker, `nan` printing as `nan`, the REPL's
     command names and output, `Environment`'s sources and their order, `--operational_system` (superseded by
-    D86), and the containers row.
+    D86), the containers row, and the D91/D105 rows (a `List` template's symbol names the element's member;
+    how a chain fuses).
 
 ## From the remote REPL
 
-11. **D37 drain points and the remote REPL.** The remote REPL answers each command the moment it arrives, on its
-    own thread (races accepted as a debug tool). D37 says commands should wait for a drain point, where the program
-    is already waiting. Being built with D35's `Task` now; confirm the drain rule once it lands.
+11. **D37 drain points, as built.** The remote REPL's commands are answered on the program's thread at its waits
+    (manual section 14, "Answered where the program waits"). Confirm the compile error's rule: a `--repl-port`
+    build is rejected when none of the program's own code waits and it has a `while` loop -- which also rejects
+    a loop that does end.
 12. **`Socket` is new public library surface** (`library/socket.spite`), and the REPL's port is fixed at build time.
 
+## Variadic arguments
+
+13. **Whether `Console.print` takes `...values: List<Printable>`** (D90, manual section 5 "Variadic arguments").
+    It fits the mechanism, but it needs a `type Printable` that every printable value satisfies, and today the
+    generator decides printability itself: numbers, `Bool`, `String`, `Symbol`, enum values, `Spite.Class` and
+    `Spite.Namespace` print, and any other class is an error naming its attributes. Proposal (Claude):
+    `type Printable { to_text(): String }`, with numbers and `Bool` answering it once D83 makes them classes,
+    so a class prints once it declares `to_text()`.
+14. **Whether a generic line can name a constraint**, `generic $sub_type: Openable` (open question 12's own
+    proposal). D87 decided the lines and not this half.
+
+## From hidden async/await (D99, D103)
+
+15. **The names `Concurrent` and `Parallel`** for D103's split (manual section 15, "Concurrency"):
+    `Concurrent(function)` runs on a fiber of the program's thread and is for work that waits, `Parallel(function)`
+    runs on a thread of its own and is for work that computes; both answer `wait()` and join when dropped.
+16. **The mechanism: stackful fibers plus a helper thread per blocking call**, chosen over a state-machine
+    transform and over threads for everything (the decision-log row argues it). Built on Windows; the Linux and
+    macOS folders (`makecontext`/`swapcontext`) are only compiled.
+17. **What a `Parallel` function may touch.** Nothing is checked yet, and with reference-counted fields a race can
+    free a value another thread is reading. Options: D35's syntactic rule (it reaches only its own instance and its
+    locals, which rejects `Parallel(file.read)` because `File` reaches `Memory` and its library through fields);
+    that rule with singletons allowed; or running a `Parallel` on a deep copy of its instance.
+18. **Inferring codegen values from constructor arguments** (`Concurrent(file.read)` without `<String?>`), which
+    D35's own example needs and D9 did not foresee.
+19. **SPITE.md's line on `async`/`await`** says the handle "joins on first use -- no `.wait()` to remember". As
+    built, dropping the handle joins it and `wait()` is how the result is read; there is no implicit wait when the
+    value is first used. Say which you want.
+20. **A thread pool for `Parallel`**, and whether `parallel_each_` templates (D35 item 3) come before the engine
+    needs them.
+
+## What the standard library offers
+
+21. **Go's standard library against Spite's**, package by package, with a suggested order of what to add:
+    [mortaros_go_standard_library_comparison.md](mortaros_go_standard_library_comparison.md).

@@ -1,3 +1,5 @@
+singleton
+
 var memory = Memory()
 
 func exact_digits(multiplier: Long, exponent: Long): String {
@@ -220,8 +222,4 @@ func scientific_text(digits: String, exponent: Long): String {
         padding = "0"
     }
     return "{mantissa}e{sign}{padding}{magnitude}"
-}
-
-func is_singleton(): Bool {
-    return true
 }

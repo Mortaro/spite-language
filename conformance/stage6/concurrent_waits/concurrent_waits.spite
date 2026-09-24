@@ -1,0 +1,49 @@
+var console = Console()
+var log = List<String>()
+
+func ConcurrentWaits() {
+    var slow_sleeper = Sleeper("slow", 150, log)
+    var fast_sleeper = Sleeper("fast", 10, log)
+    var slow = Concurrent(slow_sleeper.nap)
+    var fast = Concurrent(fast_sleeper.nap)
+    log.append("both are waiting")
+    var slow_name = slow.wait()
+    var fast_name = fast.wait()
+    log.append("{slow_name} and {fast_name} are back")
+    var reading = Concurrent(read_itself)
+    var content = reading.wait()
+    if content {
+        log.append("read itself: {content.starts_with("var console")}")
+    }
+    var nested = Concurrent(outer)
+    var nested_count = nested.wait()
+    log.append("outer counted {nested_count}")
+    ring_and_forget()
+    log.append("ring was joined when its handle was dropped")
+    var joined_log = log.join("\n")
+    console.print(joined_log)
+}
+
+func read_itself(): String? {
+    return File("conformance/stage6/concurrent_waits/concurrent_waits.spite").read()
+}
+
+func outer(): Int {
+    var inner = Concurrent(inner_count)
+    Program().sleep(5)
+    return inner.wait() + 1
+}
+
+func inner_count(): Int {
+    Program().sleep(5)
+    return 41
+}
+
+func ring_and_forget() {
+    var _ringing = Concurrent(ring)
+}
+
+func ring() {
+    Program().sleep(5)
+    log.append("ring")
+}

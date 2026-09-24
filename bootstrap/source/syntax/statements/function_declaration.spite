@@ -3,7 +3,6 @@ var parameters = List<Parameter>()
 var return_type: Syntax.Types.Type? = null
 var body = List<Statement>()
 var has_body = true
-var codegen_names = List<String>()
 var source_path = ""
 var overrides_declaration = false
 var line = 0

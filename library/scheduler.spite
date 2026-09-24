@@ -1,0 +1,174 @@
+singleton
+
+var memory = Memory()
+var started = false
+var scheduler_thread: Long = 0
+var current: Long = 0
+var runnable = List<Long>()
+var sleepers = List<Long>()
+var wake_times = List<Long>()
+var offloads = List<Long>()
+var offload_fibers = List<Long>()
+var fibers_alive = 0
+var serving = false
+var commands: Spite.Function<Nothing>? = null
+var wake: Long = 0
+
+func start() {
+    if not started {
+        started = true
+        scheduler_thread = current_thread()
+        current = convert_thread()
+        wake = create_event()
+    }
+}
+
+func suspends_here(): Bool {
+    if not started or fibers_alive == 0 and not serving {
+        return false
+    }
+    return current_thread() == scheduler_thread
+}
+
+func current_fiber(): Long {
+    return current
+}
+
+func spawn(entry: Long, argument: Long): Long {
+    start()
+    if current_thread() != scheduler_thread {
+        return 0
+    }
+    var fiber = create_fiber(entry, argument)
+    if fiber == 0 {
+        return 0
+    }
+    fibers_alive = fibers_alive + 1
+    runnable.prepend(current)
+    switch_to(fiber)
+    return fiber
+}
+
+func suspend() {
+    while runnable.is_empty() {
+        idle()
+    }
+    var next = runnable.remove_first()
+    if next != current {
+        switch_to(next)
+    }
+}
+
+func switch_to(fiber: Long) {
+    var previous = current
+    current = fiber
+    switch_fiber(previous, fiber)
+}
+
+func finish_fiber(waiter: Long) {
+    fibers_alive = fibers_alive - 1
+    if waiter != 0 {
+        runnable.append(waiter)
+    }
+    suspend()
+}
+
+func yield_now() {
+    if commands {
+        commands()
+    }
+    wake_finished()
+    if not runnable.is_empty() {
+        runnable.append(current)
+        suspend()
+    }
+}
+
+func sleep(milliseconds: Int) {
+    var now = clock()
+    sleepers.append(current)
+    wake_times.append(now + milliseconds)
+    suspend()
+}
+
+func offload(call: Long, entry: Long): Bool {
+    var thread = start_thread(entry, call)
+    if thread == 0 {
+        return false
+    }
+    offloads.append(call)
+    offload_fibers.append(current)
+    suspend()
+    end_thread(thread)
+    return true
+}
+
+func offload_done(call: Long) {
+    memory.write_long_atomically(call, 0, 1)
+    signal()
+}
+
+func signal() {
+    signal_event()
+}
+
+func idle() {
+    if commands {
+        commands()
+    }
+    wake_finished()
+    if runnable.is_empty() {
+        var timeout = timeout()
+        crash timeout >= 0 or not offloads.is_empty() or serving
+        wait_event(timeout)
+        wake_finished()
+    }
+}
+
+func wake_finished() {
+    var index = 0
+    while index < offloads.count() {
+        var call = offloads.get_at(index)
+        if memory.read_long_atomically(call, 0) == 1 {
+            var fiber = offload_fibers.get_at(index)
+            runnable.append(fiber)
+            offloads.remove_at(index)
+            offload_fibers.remove_at(index)
+        } else {
+            index = index + 1
+        }
+    }
+    var now = clock()
+    index = 0
+    while index < sleepers.count() {
+        var wake_time = wake_times.get_at(index)
+        if wake_time <= now {
+            var fiber = sleepers.get_at(index)
+            runnable.append(fiber)
+            sleepers.remove_at(index)
+            wake_times.remove_at(index)
+        } else {
+            index = index + 1
+        }
+    }
+}
+
+func timeout(): Int {
+    if sleepers.is_empty() {
+        return -1
+    }
+    var now = clock()
+    var earliest = wake_times.get_at(0)
+    var index = 1
+    while index < wake_times.count() {
+        var wake_time = wake_times.get_at(index)
+        if wake_time < earliest {
+            earliest = wake_time
+        }
+        index = index + 1
+    }
+    if earliest < now {
+        return 0
+    }
+    return earliest - now
+}

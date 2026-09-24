@@ -1,0 +1,10 @@
+var console = Console()
+
+func VariadicNotLast() {
+    log("one", "two", "done")
+}
+
+func log(...lines: List<String>, ending: String) {
+    var joined = lines.join(" ")
+    console.print(joined, ending)
+}

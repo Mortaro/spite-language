@@ -11,6 +11,8 @@ var line = 0
 var source_path = ""
 var symbol_name = ""
 var symbol_field_name = ""
+var symbol_field_type: SpiteType? = null
+var symbol_owner_c_name = ""
 
 func FunctionInfo(
     starting_name: String,

@@ -1,0 +1,14 @@
+var prefix = ""
+var member_type: Analysis.SpiteType? = null
+var read = ""
+
+func FusedStep(starting_prefix: String, starting_member_type: Analysis.SpiteType, starting_read: String) {
+    prefix = starting_prefix
+    member_type = starting_member_type
+    read = starting_read
+}
+
+func get_member_type(): Analysis.SpiteType {
+    crash member_type
+    return member_type
+}

@@ -1,6 +1,9 @@
+generic $damage_type
+generic $is_magic
+
 var damage: $damage_type = null
 
-func Weapon<$damage_type, $is_magic>(new_damage: $damage_type) {
+func Weapon(new_damage: $damage_type) {
     damage = new_damage
 }
 

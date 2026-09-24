@@ -1,0 +1,19 @@
+var library = DynamicLibrary("libc.so.6", 'identity', "")
+var memory = Memory()
+
+func start_thread(entry: Long, argument: Long): Long {
+    var slot = memory.allocate_bytes(8)
+    var no_value: Long = 0
+    var created = library.pthread_create(slot, no_value, entry, argument)
+    var started = memory.read_long(slot, 0)
+    memory.free(slot)
+    if created != 0 {
+        return 0
+    }
+    return started
+}
+
+func join_thread(started: Long) {
+    var no_value: Long = 0
+    library.pthread_join(started, no_value)
+}

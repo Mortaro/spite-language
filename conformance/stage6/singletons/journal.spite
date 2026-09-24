@@ -1,12 +1,10 @@
+singleton
+
 var entries = List<String>()
 var opened = 0
 
 func Journal() {
     opened = opened + 1
-}
-
-func is_singleton(): Bool {
-    return true
 }
 
 func record(entry: String) {

@@ -30,6 +30,18 @@ func header(): String {
         "#include <dlfcn.h>"
         "#endif"
         ""
+        "/* A program that starts a thread (a Task, or a --repl-port build) counts references atomically, and the"
+        " * compiler defines SPITE_THREADS for it; every other program counts them with plain arithmetic. */"
+        "#ifdef SPITE_THREADS"
+        "#define SPITE_COUNT_UP(count) __atomic_add_fetch(&(count), 1, __ATOMIC_RELAXED)"
+        "#define SPITE_COUNT_DOWN(count) __atomic_sub_fetch(&(count), 1, __ATOMIC_ACQ_REL)"
+        "#define SPITE_THREAD_LOCAL _Thread_local"
+        "#else"
+        "#define SPITE_COUNT_UP(count) ((count) = (count) + 1)"
+        "#define SPITE_COUNT_DOWN(count) ((count) = (count) - 1)"
+        "#define SPITE_THREAD_LOCAL"
+        "#endif"
+        ""
         "/* ---- allocation counters (--debug-memory) ---- */"
         ""
         "/* Under --debug-memory the live table is Spite (library/allocation_table.spite): these are the functions the"
@@ -50,12 +62,12 @@ func header(): String {
         "static int64_t spite_live_allocations = 0;"
         "static void* spite_counted_realloc(void* pointer, size_t size) \{"
         "    void* result = realloc(pointer, size);"
-        "    if (pointer == 0 && result != 0) spite_live_allocations = spite_live_allocations + 1;"
+        "    if (pointer == 0 && result != 0) SPITE_COUNT_UP(spite_live_allocations);"
         "    return result;"
         "}"
         "static void spite_counted_free(void* pointer) \{"
         "    if (pointer == 0) return;"
-        "    spite_live_allocations = spite_live_allocations - 1;"
+        "    SPITE_COUNT_DOWN(spite_live_allocations);"
         "    free(pointer);"
         "}"
         "static int64_t spite_live_allocation_count(void) \{ return spite_live_allocations; }"
@@ -147,14 +159,13 @@ func header(): String {
         "}"
         ""
         "SpiteString* SpiteString_retain(SpiteString* self) \{"
-        "    if (self != 0 && !self->is_static) self->header.ref_count = self->header.ref_count + 1;"
+        "    if (self != 0 && !self->is_static) SPITE_COUNT_UP(self->header.ref_count);"
         "    return self;"
         "}"
         ""
         "void SpiteString_release(SpiteString* self) \{"
         "    if (self == 0 || self->is_static) return;"
-        "    self->header.ref_count = self->header.ref_count - 1;"
-        "    if (self->header.ref_count <= 0) \{"
+        "    if (SPITE_COUNT_DOWN(self->header.ref_count) <= 0) \{"
         "        if (self->data != 0) SPITE_FREE((void*)self->data);"
         "        SPITE_FREE(self);"
         "    }"
@@ -231,7 +242,15 @@ func path(): String {
 }
 
 func reopened_classes(): List<String> {
-    var classes = ["memory", "typed_memory", "dynamic_library", "spite/attribute", "spite/function"]
+    var classes = [
+        "memory"
+        "typed_memory"
+        "dynamic_library"
+        "concurrent"
+        "parallel"
+        "spite/attribute"
+        "spite/function"
+    ]
     var numbers = number_classes()
     var index = 0
     while index < numbers.count() {
@@ -305,6 +324,9 @@ func supplied_members(stem: String): List<String> {
     if stem == "typed_memory" {
         return typed_memory_members()
     }
+    if stem == "concurrent" or stem == "parallel" {
+        return task_members()
+    }
     var numbers = number_classes()
     if numbers.contains(stem) {
         return number_members(stem)
@@ -359,6 +381,21 @@ func memory_members(): List<String> {
         "int64_t address = (int64_t)(intptr_t)text->data; SpiteString_release(text); return address;"
         "func live_allocations(): Int"
         "return (int32_t)spite_live_allocation_count();"
+        "func exchange_long(address: Long, offset: Long, value: Long): Long"
+        "return __atomic_exchange_n((int64_t*)(intptr_t)(address + offset), value, __ATOMIC_SEQ_CST);"
+        "func read_long_atomically(address: Long, offset: Long): Long"
+        "return __atomic_load_n((int64_t*)(intptr_t)(address + offset), __ATOMIC_SEQ_CST);"
+        "func write_long_atomically(address: Long, offset: Long, value: Long)"
+        "__atomic_store_n((int64_t*)(intptr_t)(address + offset), value, __ATOMIC_SEQ_CST);"
+    ]
+}
+
+func task_members(): List<String> {
+    return [
+        "func entry_address(): Long"
+        "written per instantiation by the generator: the address of its fiber or thread entry"
+        "func address(): Long"
+        "written per instantiation by the generator: the address of the task itself"
     ]
 }
 
