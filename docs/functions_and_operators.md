@@ -61,7 +61,13 @@ shout AGAIN!
 ```
 
 A value that holds a function bound to the instance holding it is a cycle, and leaks like any other: clear one
-side (see [memory.md](memory.md)).
+side (see [memory.md](memory.md)). An ordinary call -- `shouter.shout("hi")` -- is a direct call and builds no
+function value; only a function used *as a value* goes through `call_function()`. A function that returns
+nothing returns `Nothing`, which is what its type and its `.returns` say.
+
+**Not built yet:** reading a function value's `.owner`, calling a function found through reflection with
+arguments, and an attribute whose default is a function value
+([manual section 5](../manual.md#calling-one)).
 
 ## Variadic arguments
 
@@ -254,10 +260,79 @@ balance 120
 owner BOB
 ```
 
-One restriction on the read half: if a getter's return type *owns* something (a `String`, `List<T>`, or a
-class that owns one), reading `person.field` stays a raw field read even when a matching getter exists --
-otherwise a getter that hands back a fresh owned value would leak, since a plain `.field` read is exactly what
-every ownership-tracking part of the compiler expects not to need dropping. Call a String/List-returning getter
-explicitly (`person.get_full_name()`) instead; that call is an ordinary method call and has no such
-restriction. Inside a class's own functions, a bare `age = 1` (no receiver) always stays raw -- interception
-only applies to `receiver.field` written from outside.
+Inside a class's own functions, a bare `age = 1` (no receiver) always stays a plain field write --
+interception only applies to `receiver.field` written from outside. A getter's result is an ordinary retained
+value, so a getter may compute and hand back a fresh `String` or `List` as safely as it returns a field.
+
+**A getter with no setter makes a read-only attribute.** A read of `.name` that finds no attribute but finds
+`get_name()` reads through it, and a write finds no `set_name()` and is an error calling the attribute
+read-only. That is how reflection keeps `Spite.Class.name` from being overwritten
+([reflection.md](reflection.md#reflection-is-read-only)):
+
+```spite title=read_only_doc/temperature.spite
+var _celsius = 0.0
+
+func Temperature(starting_celsius: Float) {
+    _celsius = starting_celsius
+}
+
+func get_fahrenheit(): Float {
+    return _celsius * 9.0 / 5.0 + 32.0
+}
+```
+```spite title=read_only_doc/read_only_doc.spite entry
+var console = Console()
+
+func ReadOnlyDoc() {
+    var boiling = Temperature(100.0)
+    console.print(boiling.fahrenheit)
+}
+```
+```output
+212
+```
+
+```spite title=read_only_error/temperature.spite
+var _celsius = 0.0
+
+func get_fahrenheit(): Float {
+    return _celsius * 9.0 / 5.0 + 32.0
+}
+```
+```spite title=read_only_error/read_only_error.spite entry error
+func ReadOnlyError() {
+    var boiling = Temperature()
+    boiling.fahrenheit = 50.0
+}
+```
+```diagnostic
+'fahrenheit' is read-only
+```
+
+## One name, one function
+
+There is no overloading: one name is one function. An argument is cast to its parameter's type by the ordinary
+right-to-left rule ([values_and_types.md](values_and_types.md#numeric-types-and-the-casting-rule)), so a
+function that takes a `Float` takes an `Int` too:
+
+```spite title=argument_casting/argument_casting.spite entry
+var console = Console()
+
+func ArgumentCasting() {
+    var whole = 7
+    var halved = half_of(whole)
+    console.print(halved)
+}
+
+func half_of(value: Float): Float {
+    return value / 2.0
+}
+```
+```output
+3.5
+```
+
+A class that wants to accept several kinds of value takes a `type` or a union and says so in one signature.
+Parameters that are never read are an error, as every unused name is ([style.md](style.md#nothing-unused)), except
+where the signature is dictated from outside: an operator function's, a template's, a setter's, and a function
+that replaces one in a reopened class.
