@@ -33,3 +33,6 @@ void Memory_write_double(Memory* self, int64_t address, int64_t offset, double v
 void Memory_copy_bytes(Memory* self, int64_t from, int64_t to, int64_t bytes);
 SpiteString* Memory_text(Memory* self, int64_t address, int64_t length);
 int32_t Memory_live_allocations(Memory* self);
+int64_t Memory_address_of(Memory* self, SpiteString* text);
+int32_t Memory_compare_bytes(Memory* self, int64_t first, int64_t second, int64_t bytes);
+SpiteString* Memory_take_text(Memory* self, int64_t address, int64_t length);

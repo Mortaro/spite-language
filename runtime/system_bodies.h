@@ -143,3 +143,6 @@ void Memory_write_double(Memory* self, int64_t address, int64_t offset, double v
 void Memory_copy_bytes(Memory* self, int64_t from, int64_t to, int64_t bytes) { (void)self; memmove((void*)(intptr_t)to, (void*)(intptr_t)from, (size_t)bytes); }
 SpiteString* Memory_text(Memory* self, int64_t address, int64_t length) { (void)self; return spite_string_from_bytes((const char*)(intptr_t)address, length); }
 int32_t Memory_live_allocations(Memory* self) { (void)self; return (int32_t)spite_live_allocation_count(); }
+int64_t Memory_address_of(Memory* self, SpiteString* text) { (void)self; int64_t address = (int64_t)(intptr_t)text->data; SpiteString_release(text); return address; }
+int32_t Memory_compare_bytes(Memory* self, int64_t first, int64_t second, int64_t bytes) { (void)self; return bytes > 0 ? (int32_t)memcmp((const void*)(intptr_t)first, (const void*)(intptr_t)second, (size_t)bytes) : 0; }
+SpiteString* Memory_take_text(Memory* self, int64_t address, int64_t length) { (void)self; ((char*)(intptr_t)address)[length] = 0; return spite_string_take((char*)(intptr_t)address, length); }

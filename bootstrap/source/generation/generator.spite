@@ -186,6 +186,16 @@ func register_system_classes() {
     add_builtin_function(memory, "copy_bytes", copy_parameters, void_type())
     add_builtin_function(memory, "text", two_parameters("address", long_type(), "length", long_type()), string_type())
     add_builtin_function(memory, "live_allocations", no_parameters(), integer_type())
+    add_builtin_function(memory, "address_of", one_parameter("text", string_type()), long_type())
+    var compare_parameters = two_parameters("first", long_type(), "second", long_type())
+    compare_parameters.append(Analysis.ParamInfo("bytes", long_type()))
+    add_builtin_function(memory, "compare_bytes", compare_parameters, integer_type())
+    add_builtin_function(
+        memory,
+        "take_text",
+        two_parameters("address", long_type(), "length", long_type()),
+        string_type(),
+    )
 }
 
 func built_in_class_sources(): List<String> {
