@@ -5,7 +5,6 @@ var classes = List<Analysis.ClassInfo>()
 var enums = List<Analysis.EnumInfo>()
 var unions = List<Analysis.UnionInfo>()
 var list_names = List<String>()
-var list_template_names = List<String>()
 var class_object_names = List<String>()
 var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
@@ -76,6 +75,7 @@ var current_line = 0
 var bound_symbol_name = ""
 var bound_field_name = ""
 var bound_field_type: Analysis.SpiteType? = null
+var bound_member_owner_c_name = ""
 var arguments_parameter_names = List<String>()
 var temporary_counter = 0
 var literal_counter = 0
@@ -243,7 +243,7 @@ func generated_functions_source(qualified: String): String {
             var function_index = 0
             while function_index < information.functions.count() {
                 var function = information.functions[function_index]
-                if not function.symbol_name.is_empty() {
+                if not function.symbol_name.is_empty() and function.symbol_owner_c_name.is_empty() {
                     text = "{text}\n\n{instantiated_function_source(information, function)}"
                 }
                 function_index = function_index + 1
@@ -856,7 +856,9 @@ func instantiated_with(
     var saved_symbol_name = bound_symbol_name
     var saved_field_name = bound_field_name
     var saved_field_type = bound_field_type
+    var saved_member_owner = bound_member_owner_c_name
     bound_symbol_name = ""
+    bound_member_owner_c_name = ""
     crash discovered_classes[template.entry_index]
     resolve_class_body(discovered_classes[template.entry_index], instance, true)
     resolve_class_body(discovered_classes[template.entry_index], instance, false)
@@ -866,6 +868,7 @@ func instantiated_with(
     bound_symbol_name = saved_symbol_name
     bound_field_name = saved_field_name
     bound_field_type = saved_field_type
+    bound_member_owner_c_name = saved_member_owner
     current_owner = saved_owner
     current_class = saved_class
     current_function = saved_function
@@ -1798,7 +1801,8 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
     }
     if chosen {
         if chosen_field {
-            return instantiate_template(information, chosen, chosen_field, name)
+            var chosen_field_type = chosen_field.get_type()
+            return instantiate_template(information, chosen, chosen_field.name, chosen_field_type, "", name)
         }
     }
     return null
@@ -1807,18 +1811,24 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
 func instantiate_template(
     information: Analysis.ClassInfo,
     template: Analysis.TemplateInfo,
-    field: Analysis.FieldInfo,
+    member_name: String,
+    member_type: Analysis.SpiteType,
+    member_owner_c_name: String,
     call_name: String,
 ): Analysis.FunctionInfo {
     var declaration = template.get_declaration()
     var saved_symbol_name = bound_symbol_name
     var saved_field_name = bound_field_name
     var saved_field_type = bound_field_type
+    var saved_member_owner = bound_member_owner_c_name
     var saved_owner = current_owner
+    var saved_class = current_class
     bound_symbol_name = template.symbol_parameter
-    bound_field_name = field.name
-    bound_field_type = field.get_type()
+    bound_field_name = member_name
+    bound_field_type = member_type
+    bound_member_owner_c_name = member_owner_c_name
     current_owner = information.qualified_dotted
+    current_class = information
     var parameters = List<Analysis.ParamInfo>()
     var parameter_index = 0
     while parameter_index < declaration.parameters.count() {
@@ -1850,30 +1860,71 @@ func instantiate_template(
         false,
     )
     function.symbol_name = template.symbol_parameter
-    function.symbol_field_name = field.name
+    function.symbol_field_name = member_name
+    function.symbol_field_type = member_type
+    function.symbol_owner_c_name = member_owner_c_name
     information.functions.append(function)
     builder.add_prototype("{function_signature(information, function)};")
     bound_symbol_name = saved_symbol_name
     bound_field_name = saved_field_name
     bound_field_type = saved_field_type
+    bound_member_owner_c_name = saved_member_owner
     current_owner = saved_owner
+    current_class = saved_class
     return function
 }
 
-func bind_symbol_of(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+func bind_symbol_of(function: Analysis.FunctionInfo) {
     bound_symbol_name = function.symbol_name
     bound_field_name = function.symbol_field_name
-    bound_field_type = null
-    if not function.symbol_field_name.is_empty() {
-        var field = information.find_field(function.symbol_field_name)
-        if field {
-            bound_field_type = field.get_type()
+    bound_field_type = function.symbol_field_type
+    bound_member_owner_c_name = function.symbol_owner_c_name
+}
+
+func is_bound_member_index(index_expression: Syntax.Expressions.IndexExpression): Bool {
+    if bound_member_owner_c_name.is_empty() {
+        return false
+    }
+    crash index_expression.object
+    crash index_expression.index
+    var member = shape.as_member(index_expression.object)
+    var index_identifier = shape.as_identifier(index_expression.index)
+    if member {
+        if index_identifier {
+            return member.name == "attributes" and index_identifier.name == bound_symbol_name
         }
     }
+    return false
+}
+
+func bound_member_expression(index_expression: Syntax.Expressions.IndexExpression): Syntax.Expressions.Expression {
+    var member = shape.as_member(index_expression.object)
+    crash member
+    crash member.object
+    var owner = find_class_by_c_name(bound_member_owner_c_name)
+    crash owner
+    var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(member.object, bound_field_name)
+    if owner.find_field(bound_field_name) {
+        return read
+    }
+    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(
+        read,
+        List<Syntax.Expressions.Expression>(),
+    )
+    return called
+}
+
+func generate_bound_member_read(
+    index_expression: Syntax.Expressions.IndexExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var read = bound_member_expression(index_expression)
+    return generate_expression(read, scope, class_information)
 }
 
 func is_bound_attributes_index(index_expression: Syntax.Expressions.IndexExpression): Bool {
-    if bound_symbol_name.is_empty() {
+    if bound_symbol_name.is_empty() or not bound_member_owner_c_name.is_empty() {
         return false
     }
     if index_expression.object {
@@ -2914,6 +2965,10 @@ func is_owning_shape(expression: Syntax.Expressions.Expression): Bool {
     if indexed {
         if is_bound_attributes_index(indexed) {
             return false
+        }
+        if is_bound_member_index(indexed) {
+            var read = bound_member_expression(indexed)
+            return is_owning_shape(read)
         }
     }
     var member = shape.as_member(expression)
@@ -4240,6 +4295,10 @@ func generate_method_call(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     forget_indices_if_shrinking(member.name, object_ast, scope)
+    var fused = generate_fused_chain(member, object_ast, arguments_ast, scope, class_information)
+    if fused {
+        return fused
+    }
     if member.name == "call_function" {
         var saved_counter = temporary_counter
         var called_probe = generate_expression(object_ast, scope, class_information)
@@ -4733,7 +4792,6 @@ func generate_list_method(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
-    var list_name = ensure_list(element)
     if name == "deep_copy" {
         var ensured_list_deep_copy = ensure_list_deep_copy(element)
         var no_types = no_types()
@@ -4795,38 +4853,25 @@ func generate_list_method(
     if element_class_ref {
         var element_class = find_class_by_c_name(element_class_ref.c_name)
         if element_class {
-            var template_prefixes = [
-                "find_by_"
-                "sort_by_"
-                "filter_"
-                "count_"
-                "sum_"
-                "each_"
-                "map_"
-                "any_"
-                "all_"
-            ]
-            var prefix_index = 0
-            while prefix_index < template_prefixes.count() {
-                var template_prefix = template_prefixes[prefix_index]
-                if name.starts_with(template_prefix) and name.length() > template_prefix.length() {
-                    var template_prefix_length = template_prefix.length()
-                    var name_length = name.length()
-                    var member_name = name.slice(template_prefix_length, name_length)
-                    return generate_list_template(
-                        element,
-                        element_class,
-                        list_name,
-                        template_prefix,
-                        member_name,
+            var list_class = list_class_of(element)
+            var template = element_template_of(list_class, name)
+            if template {
+                var function = instantiate_element_template(list_class, element_class, template, name)
+                if function {
+                    var parameter_types = parameter_types_of(function.parameters)
+                    var function_return_type = function.get_return_type()
+                    return generate_generic_call(
+                        function.c_name,
                         object_result,
                         object_ast,
                         arguments_ast,
+                        parameter_types,
+                        function_return_type,
                         scope,
                         class_information,
                     )
                 }
-                prefix_index = prefix_index + 1
+                return ExpressionResult("0", Analysis.Types.VoidType())
             }
         }
     }
@@ -4848,20 +4893,6 @@ func member_type_of(element_class: Analysis.ClassInfo, member_name: String): Ana
     return null
 }
 
-func member_is_function(element_class: Analysis.ClassInfo, member_name: String): Bool {
-    if element_class.find_field(member_name) {
-        return false
-    }
-    return true
-}
-
-func member_read_code(element_class: Analysis.ClassInfo, member_name: String, item_code: String): String {
-    if element_class.find_field(member_name) {
-        return "{item_code}->{member_name}"
-    }
-    return "{element_class.c_name}_{member_name}({item_code})"
-}
-
 func is_numeric_type(spite_type: Analysis.SpiteType): Bool {
     var scalar = type_shape.as_scalar(spite_type)
     if scalar {
@@ -4878,132 +4909,440 @@ func is_boolean_type(spite_type: Analysis.SpiteType): Bool {
     return false
 }
 
-func generate_list_template(
-    element: Analysis.SpiteType,
+func element_template_of(list_class: Analysis.ClassInfo, name: String): Analysis.TemplateInfo? {
+    var index = 0
+    while index < list_class.templates.count() {
+        var template = list_class.templates[index]
+        var member_name = template.member_name_for(name)
+        if not member_name.is_empty() {
+            return template
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func instantiate_element_template(
+    list_class: Analysis.ClassInfo,
     element_class: Analysis.ClassInfo,
-    list_name: String,
+    template: Analysis.TemplateInfo,
+    name: String,
+): Analysis.FunctionInfo? {
+    var existing = list_class.find_function(name)
+    if existing {
+        return existing
+    }
+    var member_name = template.member_name_for(name)
+    var member_type = member_type_of(element_class, member_name)
+    if not member_type {
+        report("'{element_class.simple_name}' has no attribute or zero argument function '{member_name}' for '{name}'")
+        return null
+    }
+    var requirement = member_requirement(template.prefix, element_class, member_name, member_type)
+    if not requirement.is_empty() {
+        var described = "is a {type_label(member_type)}"
+        if type_shape.is_void(member_type) {
+            described = "returns nothing"
+        }
+        report(
+            "'{name}': the member '{member_name}' of '{element_class.simple_name}' {described}, but '{template.prefix}' needs it to {requirement}",
+        )
+        return null
+    }
+    return instantiate_template(list_class, template, member_name, member_type, element_class.c_name, name)
+}
+
+func member_requirement(
     template_prefix: String,
+    element_class: Analysis.ClassInfo,
     member_name: String,
-    object_result: ExpressionResult,
+    member_type: Analysis.SpiteType,
+): String {
+    var wants_boolean = template_prefix == "filter_" or template_prefix == "any_" or template_prefix == "all_" or template_prefix == "count_"
+    if wants_boolean and not is_boolean_type(member_type) {
+        if template_prefix == "count_" and is_numeric_type(member_type) {
+            return "return Bool (to add up a numeric member use 'sum_{member_name}')"
+        }
+        return "return Bool"
+    }
+    if template_prefix == "sum_" and not is_numeric_type(member_type) {
+        return "return a numeric type"
+    }
+    if template_prefix == "each_" and element_class.find_field(member_name) {
+        return "be a function: reading an attribute and discarding it does nothing"
+    }
+    if template_prefix == "map_" and type_shape.is_void(member_type) {
+        return "return a value"
+    }
+    var ordered = is_numeric_type(member_type) or type_shape.as_string(member_type)
+    if template_prefix == "sort_by_" and not ordered {
+        return "return something ordered: a number or a String"
+    }
+    if template_prefix == "find_by_" and not joins_as_text(member_type) {
+        return "return something comparable: a number, Bool, String, Symbol or enum value"
+    }
+    return ""
+}
+
+func instantiate_member_templates_of(list_class: Analysis.ClassInfo) {
+    var element = list_class.codegen_types.first()
+    var element_class_ref = type_shape.as_class_ref(element)
+    assert element_class_ref
+    var element_class = find_class_by_c_name(element_class_ref.c_name)
+    assert element_class
+    var member_names = List<String>()
+    var index = 0
+    while index < element_class.fields.count() {
+        member_names.append(element_class.fields[index].name)
+        index = index + 1
+    }
+    index = 0
+    while index < element_class.functions.count() {
+        var function = element_class.functions[index]
+        if not function.is_constructor and function.parameters.is_empty() {
+            member_names.append(function.name)
+        }
+        index = index + 1
+    }
+    var template_index = 0
+    while template_index < list_class.templates.count() {
+        var template = list_class.templates[template_index]
+        var member_index = 0
+        while member_index < member_names.count() {
+            var member_name = member_names[member_index]
+            var member_type = member_type_of(element_class, member_name)
+            if member_type {
+                var requirement = member_requirement(template.prefix, element_class, member_name, member_type)
+                var name = "{template.prefix}{member_name}{template.suffix}"
+                if requirement.is_empty() and not list_class.find_function(name) {
+                    instantiate_template(list_class, template, member_name, member_type, element_class.c_name, name)
+                }
+            }
+            member_index = member_index + 1
+        }
+        template_index = template_index + 1
+    }
+}
+
+func generate_fused_chain(
+    member: Syntax.Expressions.MemberExpression,
     object_ast: Syntax.Expressions.Expression,
     arguments_ast: List<Syntax.Expressions.Expression>,
     scope: Scope,
     class_information: Analysis.ClassInfo,
-): ExpressionResult {
-    var member_type = member_type_of(element_class, member_name)
-    if not member_type {
-        report(
-            "'{element_class.simple_name}' has no attribute or zero argument function '{member_name}' for '{template_prefix}{member_name}'",
+): ExpressionResult? {
+    var names = List<String>()
+    var base = chain_base(object_ast, names)
+    if names.is_empty() {
+        return null
+    }
+    names.reverse()
+    names.append(member.name)
+    var saved_counter = temporary_counter
+    var probe = generate_expression(base, scope, class_information)
+    temporary_counter = saved_counter
+    var probe_type = probe.get_type()
+    var element = chained_element_of(probe_type)
+    if not element {
+        return null
+    }
+    crash element
+    var base_list = list_class_of(element)
+    var fused_name = names.join("_then_")
+    var function = base_list.find_function(fused_name)
+    if not function {
+        var source = fused_chain_source(base_list, element, names, fused_name)
+        if source.is_empty() {
+            return null
+        }
+        function = register_fused_function(base_list, source, fused_name)
+    }
+    if not function {
+        return null
+    }
+    crash function
+    var generated_member_object = generate_member_object(base, scope, class_information)
+    var receiver = as_text(generated_member_object)
+    var receiver_type = receiver.get_type()
+    if type_shape.as_dictionary(receiver_type) {
+        var dictionary_name = ensure_dictionary(element)
+        var no_types = no_types()
+        var list_type = list_type_of(element)
+        receiver = generate_generic_call(
+            "{dictionary_name}_values",
+            receiver,
+            base,
+            List<Syntax.Expressions.Expression>(),
+            no_types,
+            list_type,
+            scope,
+            class_information,
         )
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        receiver.owning_override = true
     }
-    crash member_type
-    var function_c_name = "{list_name}_{template_prefix}{member_name}"
-    var item = c_type_name(element)
-    var member_c_type = c_type_name(member_type)
-    var computed = member_is_function(element_class, member_name)
-    var owned_member = computed and type_needs_drop(member_type)
-    var read = "{member_c_type} member = {member_read_code(element_class, member_name, "item")};"
-    var release_member = ""
-    if owned_member {
-        release_member = "{release_call(member_type, "member")};"
-    }
-    var loop_open = "for (int64_t spite_index = 0; spite_index < self->item_count; spite_index = spite_index + 1) \{\n{item} item = (({item}*)(intptr_t)self->items)[spite_index];\n"
-    var self_parameter = "{list_name}* self"
-    var requirement = ""
-    var return_type = void_type()
-    var parameter_types = no_types()
-    var body = ""
-    if template_prefix == "filter_" or template_prefix == "any_" or template_prefix == "all_" or template_prefix == "count_" {
-        if not is_boolean_type(member_type) {
-            requirement = "return Bool"
-            if template_prefix == "count_" and is_numeric_type(member_type) {
-                requirement = "return Bool (to add up a numeric member use 'sum_{member_name}')"
-            }
-        }
-    }
-    if template_prefix == "sum_" and not is_numeric_type(member_type) {
-        requirement = "return a numeric type"
-    }
-    if template_prefix == "each_" and not computed {
-        requirement = "be a function: reading an attribute and discarding it does nothing"
-    }
-    if not requirement.is_empty() {
-        report(
-            "'{template_prefix}{member_name}': the member '{member_name}' of '{element_class.simple_name}' is a {type_label(member_type)}, but '{template_prefix}' needs it to {requirement}",
-        )
-        return ExpressionResult("0", Analysis.Types.VoidType())
-    }
-    if template_prefix == "filter_" {
-        return_type = list_type_of(element)
-        body = "{list_name}* result = {list_name}_make();\n{loop_open}{read}\nif (member) {list_name}_append(result, {retain_call(element, "item")});\n}\nreturn result;"
-    } else if template_prefix == "any_" {
-        return_type = boolean_type()
-        body = loop_open + "{read}\nif (member) return true;\n}\nreturn false;"
-    } else if template_prefix == "all_" {
-        return_type = boolean_type()
-        body = loop_open + "{read}\nif (!member) return false;\n}\nreturn true;"
-    } else if template_prefix == "count_" {
-        return_type = integer_type()
-        body = "int32_t result = 0;\n{loop_open}{read}\nif (member) result = result + 1;\n}\nreturn result;"
-    } else if template_prefix == "sum_" {
-        return_type = member_type
-        body = "{member_c_type} result = 0;\n{loop_open}{read}\nresult = result + member;\n}\nreturn result;"
-    } else if template_prefix == "each_" {
-        if type_shape.is_void(member_type) {
-            body = loop_open + "{member_read_code(element_class, member_name, "item")};\n}"
-        } else {
-            body = loop_open + "{read}\n{release_member}\n(void)member;\n}"
-        }
-    } else if template_prefix == "map_" {
-        return_type = list_type_of(member_type)
-        var mapped_list = ensure_list(member_type)
-        var stored = "member"
-        if type_needs_drop(member_type) and not computed {
-            stored = retain_call(member_type, "member")
-        }
-        body = "{mapped_list}* result = {mapped_list}_make();\n{loop_open}{read}\n{mapped_list}_append(result, {stored});\n}\nreturn result;"
-    } else if template_prefix == "find_by_" {
-        return_type = nullable_type_of(element)
-        parameter_types = one_type(member_type)
-        var equal = "member == value"
-        if type_shape.as_string(member_type) {
-            equal = "SpiteString_equals(member, value)"
-        }
-        var release_value = release_statement(member_type, "value")
-        body = loop_open + "{read}\nbool spite_found = {equal};\n{release_member}\nif (spite_found) \{ {release_value} return {retain_call(element, "item")}; }\n}\n{release_value}\nreturn 0;"
-    } else {
-        return_type = list_type_of(element)
-        var before = "keys[spite_inner - 1] > key"
-        if type_shape.as_string(member_type) {
-            before = "SpiteString_greater(keys[spite_inner - 1], key)"
-        }
-        var release_keys = ""
-        if owned_member {
-            release_keys = "for (int64_t spite_index = 0; spite_index < self->item_count; spite_index = spite_index + 1) \{ {release_call(member_type, "keys[spite_index]")}; }\n"
-        }
-        body = "{list_name}* result = {list_name}_make();\n{member_c_type}* keys = ({member_c_type}*)SPITE_MALLOC(sizeof({member_c_type}) * (size_t)(self->item_count + 1));\n{loop_open}{read}\n{list_name}_append(result, {retain_call(element, "item")});\nkeys[spite_index] = member;\n}\nfor (int64_t spite_outer = 1; spite_outer < self->item_count; spite_outer = spite_outer + 1) \{\n{member_c_type} key = keys[spite_outer];\n{item} moved = (({item}*)(intptr_t)result->items)[spite_outer];\nint64_t spite_inner = spite_outer;\nwhile (spite_inner > 0 && {before}) \{\nkeys[spite_inner] = keys[spite_inner - 1];\n(({item}*)(intptr_t)result->items)[spite_inner] = (({item}*)(intptr_t)result->items)[spite_inner - 1];\nspite_inner = spite_inner - 1;\n}\nkeys[spite_inner] = key;\n(({item}*)(intptr_t)result->items)[spite_inner] = moved;\n}\n{release_keys}SPITE_FREE(keys);\nreturn result;"
-    }
-    if not list_template_names.contains(function_c_name) {
-        list_template_names.append(function_c_name)
-        var signature = "{c_type_name(return_type)} {function_c_name}({self_parameter}"
-        if template_prefix == "find_by_" {
-            signature = "{signature}, {member_c_type} value"
-        }
-        signature = "{signature})"
-        builder.add_prototype("{signature};")
-        builder.add_support("{signature} \{\n{body}\n}")
-    }
+    var parameter_types = parameter_types_of(function.parameters)
+    var function_return_type = function.get_return_type()
     return generate_generic_call(
-        function_c_name,
-        object_result,
-        object_ast,
+        function.c_name,
+        receiver,
+        base,
         arguments_ast,
         parameter_types,
-        return_type,
+        function_return_type,
         scope,
         class_information,
     )
+}
+
+func chain_base(expression: Syntax.Expressions.Expression, names: List<String>): Syntax.Expressions.Expression {
+    var called = shape.as_call(expression)
+    if called {
+        crash called.callee
+        var callee = shape.as_member(called.callee)
+        if callee {
+            var streams = callee.name.starts_with("map_") or callee.name.starts_with("filter_")
+            if streams and called.arguments.is_empty() {
+                names.append(callee.name)
+                crash callee.object
+                return chain_base(callee.object, names)
+            }
+        }
+    }
+    return expression
+}
+
+func chained_element_of(receiver_type: Analysis.SpiteType): Analysis.SpiteType? {
+    var listed = type_shape.as_list(receiver_type)
+    if listed {
+        return listed.get_element()
+    }
+    var dictionary = type_shape.as_dictionary(receiver_type)
+    if dictionary {
+        return dictionary.get_element()
+    }
+    return null
+}
+
+func fused_step(base_list: Analysis.ClassInfo, current_type: Analysis.SpiteType, name: String): FusedStep? {
+    var class_ref = type_shape.as_class_ref(current_type)
+    if not class_ref {
+        return null
+    }
+    crash class_ref
+    if class_ref.has_signature {
+        return null
+    }
+    var element_class = find_class_by_c_name(class_ref.c_name)
+    var template = element_template_of(base_list, name)
+    if not element_class or not template {
+        return null
+    }
+    crash element_class
+    crash template
+    var member_name = template.member_name_for(name)
+    var member_type = member_type_of(element_class, member_name)
+    if not member_type {
+        return null
+    }
+    crash member_type
+    var requirement = member_requirement(template.prefix, element_class, member_name, member_type)
+    if not requirement.is_empty() {
+        return null
+    }
+    var read = "{member_name}()"
+    if element_class.find_field(member_name) {
+        read = member_name
+    }
+    return FusedStep(template.prefix, member_type, read)
+}
+
+func fused_type_spelling(spite_type: Analysis.SpiteType): String {
+    var class_ref = type_shape.as_class_ref(spite_type)
+    if class_ref {
+        var described = find_class_by_c_name(class_ref.c_name)
+        if described {
+            if not class_ref.has_signature {
+                return described.qualified_dotted
+            }
+        }
+        return ""
+    }
+    if type_shape.as_string(spite_type) or type_shape.as_scalar(spite_type) {
+        return type_display_name(spite_type)
+    }
+    return ""
+}
+
+func fused_value_name(mapped_count: Int): String {
+    var names = ["mapped", "second_mapped", "third_mapped", "fourth_mapped", "fifth_mapped", "sixth_mapped"]
+    if mapped_count < names.count() {
+        return names[mapped_count]
+    }
+    return ""
+}
+
+func fused_chain_source(
+    base_list: Analysis.ClassInfo,
+    element: Analysis.SpiteType,
+    names: List<String>,
+    fused_name: String,
+): String {
+    var loop_lines = List<String>()
+    var current_type = element
+    var current_name = "item"
+    var indent = "        "
+    var closings = List<String>()
+    var mapped_count = 0
+    var index = 0
+    while index < names.count() - 1 {
+        var stage_name = names[index]
+        var step = fused_step(base_list, current_type, stage_name)
+        if not step {
+            return ""
+        }
+        crash step
+        if step.prefix == "filter_" {
+            loop_lines.append("{indent}if {current_name}.{step.read} \{")
+            closings.append("{indent}}")
+            indent = "{indent}    "
+        } else {
+            var mapped_type = step.get_member_type()
+            var next_name = fused_value_name(mapped_count)
+            if next_name.is_empty() or fused_type_spelling(mapped_type).is_empty() {
+                return ""
+            }
+            loop_lines.append("{indent}var {next_name} = {current_name}.{step.read}")
+            mapped_count = mapped_count + 1
+            current_name = next_name
+            current_type = mapped_type
+        }
+        index = index + 1
+    }
+    var last_name = names.last()
+    var last = fused_step(base_list, current_type, last_name)
+    if not last {
+        return ""
+    }
+    crash last
+    var last_member_type = last.get_member_type()
+    var element_spelling = fused_type_spelling(current_type)
+    var member_spelling = fused_type_spelling(last_member_type)
+    var read = "{current_name}.{last.read}"
+    var parameters = ""
+    var returns = ""
+    var before = List<String>()
+    var after = List<String>()
+    if last.prefix == "sum_" {
+        returns = ": {member_spelling}"
+        before.append("    var total: {member_spelling} = 0")
+        loop_lines.append("{indent}total = total + {read}")
+        after.append("    return total")
+    } else if last.prefix == "count_" {
+        returns = ": Int"
+        before.append("    var counted = 0")
+        loop_lines.append("{indent}if {read} \{\n{indent}    counted = counted + 1\n{indent}}")
+        after.append("    return counted")
+    } else if last.prefix == "any_" {
+        returns = ": Bool"
+        loop_lines.append("{indent}if {read} \{\n{indent}    return true\n{indent}}")
+        after.append("    return false")
+    } else if last.prefix == "all_" {
+        returns = ": Bool"
+        loop_lines.append("{indent}if not {read} \{\n{indent}    return false\n{indent}}")
+        after.append("    return true")
+    } else if last.prefix == "find_by_" {
+        parameters = "value: {member_spelling}"
+        returns = ": {element_spelling}?"
+        loop_lines.append("{indent}if {read} == value \{\n{indent}    return {current_name}\n{indent}}")
+        after.append("    return null")
+    } else if last.prefix == "each_" {
+        loop_lines.append("{indent}{read}")
+    } else if last.prefix == "map_" {
+        returns = ": List<{member_spelling}>"
+        before.append("    var collected = List<{member_spelling}>()")
+        loop_lines.append("{indent}var value = {read}\n{indent}collected.append(value)")
+        after.append("    return collected")
+    } else if last.prefix == "filter_" {
+        returns = ": List<{element_spelling}>"
+        before.append("    var collected = List<{element_spelling}>()")
+        loop_lines.append("{indent}if {read} \{\n{indent}    collected.append({current_name})\n{indent}}")
+        after.append("    return collected")
+    } else {
+        returns = ": List<{element_spelling}>"
+        before.append("    var sorted = List<{element_spelling}>()")
+        before.append("    var keys = List<{member_spelling}>()")
+        loop_lines.append(
+            "{indent}var key = {read}\n{indent}var position = keys.count()\n{indent}while position > 0 and keys.get_at(position - 1) > key \{\n{indent}    position = position - 1\n{indent}}\n{indent}keys.insert(position, key)\n{indent}sorted.insert(position, {current_name})",
+        )
+        after.append("    return sorted")
+    }
+    var voided = type_shape.is_void(last_member_type)
+    if element_spelling.is_empty() or member_spelling.is_empty() and not voided {
+        return ""
+    }
+    closings.reverse()
+    var lines = List<String>()
+    lines.append("func {fused_name}({parameters}){returns} \{")
+    append_lines(lines, before)
+    lines.append("    var index = 0")
+    lines.append("    while index < item_count \{")
+    lines.append("        var item = read_item(index)")
+    lines.append("        index = index + 1")
+    append_lines(lines, loop_lines)
+    append_lines(lines, closings)
+    lines.append("    }")
+    append_lines(lines, after)
+    lines.append("}")
+    lines.append("")
+    return lines.join("\n")
+}
+
+func append_lines(lines: List<String>, added: List<String>) {
+    var index = 0
+    while index < added.count() {
+        var line = added[index]
+        lines.append(line)
+        index = index + 1
+    }
+}
+
+func register_fused_function(
+    base_list: Analysis.ClassInfo,
+    source: String,
+    fused_name: String,
+): Analysis.FunctionInfo? {
+    var lexer = Syntax.Lexer(source)
+    var parser = Syntax.Parser(lexer.tokens)
+    var file = parser.parse_file()
+    if lexer.has_error or parser.has_error or file.statements.is_empty() {
+        return null
+    }
+    var first_statement = file.statements.first()
+    var declaration = shape.as_function_declaration(first_statement)
+    if not declaration {
+        return null
+    }
+    crash declaration
+    declaration.source_path = base_list.source_path
+    var saved_owner = current_owner
+    var saved_class = current_class
+    var saved_path = current_path
+    var saved_line = current_line
+    var saved_function = current_function
+    current_owner = base_list.qualified_dotted
+    current_class = base_list
+    current_path = base_list.source_path
+    resolve_function(declaration, base_list)
+    current_owner = saved_owner
+    current_class = saved_class
+    current_path = saved_path
+    current_line = saved_line
+    current_function = saved_function
+    var function = base_list.find_function(fused_name)
+    if function {
+        builder.add_prototype("{function_signature(base_list, function)};")
+    }
+    return function
 }
 
 func is_listed_class(information: Analysis.ClassInfo): Bool {
@@ -5437,13 +5776,17 @@ func emit_functions_function(information: Analysis.ClassInfo) {
     var list_name = ensure_list(class_type)
     var argument_class_type = class_type_of(argument_class)
     var arguments_list_name = ensure_list(argument_class_type)
+    if information.is_container {
+        instantiate_member_templates_of(information)
+    }
     var lines = List<String>()
     lines.append("{list_name}* {function_c_name}({information.c_name}* self) \{")
     lines.append("{list_name}* result = {list_name}_make();")
     var index = 0
     while index < information.functions.count() {
         var function = information.functions[index]
-        if not function.is_constructor {
+        var listed = not information.is_container or not function.symbol_owner_c_name.is_empty()
+        if listed and not function.is_constructor {
             lines.append("\{")
             lines.append(
                 "Spite_Function* described = Spite_Function_make({ensure_symbol(function.name)}, {returned_class_object_call(function)});",
@@ -5594,6 +5937,10 @@ func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
         lines.append(
             "reflected->spite_held_attributes = (void* (*)(void*)){ensure_list_attributes_function(list_type_element)};",
         )
+        if read_evaluate_print_loop and type_shape.as_class_ref(list_type_element) {
+            var list_class = list_class_of(list_type_element)
+            lines.append("reflected->spite_held_functions = (void* (*)(void*)){ensure_functions_function(list_class)};")
+        }
     }
     lines.append("return reflected;")
     lines.append("}")
@@ -6151,6 +6498,9 @@ func generate_index_read(
 ): ExpressionResult {
     crash index_expression.object
     crash index_expression.index
+    if is_bound_member_index(index_expression) {
+        return generate_bound_member_read(index_expression, scope, class_information)
+    }
     if is_bound_attributes_index(index_expression) {
         crash bound_field_type
         return ExpressionResult("self->{bound_field_name}", bound_field_type)
@@ -6578,21 +6928,11 @@ func generate_dictionary_method(
     if value_class_ref {
         var value_class = find_class_by_c_name(value_class_ref.c_name)
         if value_class {
-            var template_prefixes = [
-                "find_by_"
-                "sort_by_"
-                "filter_"
-                "count_"
-                "sum_"
-                "each_"
-                "map_"
-                "any_"
-                "all_"
-            ]
-            var prefix_index = 0
-            while prefix_index < template_prefixes.count() {
-                var template_prefix = template_prefixes[prefix_index]
-                if name.starts_with(template_prefix) and name.length() > template_prefix.length() {
+            var list_class = list_class_of(element)
+            var template = element_template_of(list_class, name)
+            if template {
+                var function = instantiate_element_template(list_class, value_class, template, name)
+                if function {
                     var no_types = no_types()
                     var list_type = list_type_of(element)
                     var values_call = generate_generic_call(
@@ -6606,24 +6946,20 @@ func generate_dictionary_method(
                         class_information,
                     )
                     values_call.owning_override = true
-                    var ensured_list = ensure_list(element)
-                    var template_prefix_length = template_prefix.length()
-                    var name_length = name.length()
-                    var name_slice = name.slice(template_prefix_length, name_length)
-                    return generate_list_template(
-                        element,
-                        value_class,
-                        ensured_list,
-                        template_prefix,
-                        name_slice,
+                    var parameter_types = parameter_types_of(function.parameters)
+                    var function_return_type = function.get_return_type()
+                    return generate_generic_call(
+                        function.c_name,
                         values_call,
                         object_ast,
                         arguments_ast,
+                        parameter_types,
+                        function_return_type,
                         scope,
                         class_information,
                     )
                 }
-                prefix_index = prefix_index + 1
+                return ExpressionResult("0", Analysis.Types.VoidType())
             }
         }
     }
@@ -10388,7 +10724,7 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
     if not function.source_path.is_empty() {
         current_path = function.source_path
     }
-    bind_symbol_of(information, function)
+    bind_symbol_of(function)
     var waiting = waiting_kind(information, function)
     if not waiting.is_empty() {
         waiting_classes.append(information)

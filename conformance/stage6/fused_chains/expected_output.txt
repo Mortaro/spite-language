@@ -1,0 +1,13 @@
+filter then sum 11 11
+map then sum 187 187
+map then all false false
+filter, map, count 1 1
+map, filter, find dee 71
+map, filter, find: cid is not an adult
+filter, map, filter, any true true
+filter, map, map, sum 11 11
+filter, map names red,green,gold
+map, filter ann,bob,dee
+map, sort cid,ann,bob,dee
+dictionary filter, map, sum 40
+after birthdays 191

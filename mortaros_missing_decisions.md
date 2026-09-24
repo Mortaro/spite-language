@@ -39,7 +39,8 @@ manual argues it.
 10. **Rows marked "(proposed by Claude, unconfirmed)"** in the decision log from 2026-09-23 and 2026-09-24:
     `Memory.address_of`/`compare_bytes`/`take_text`, the tree shaker, `nan` printing as `nan`, the REPL's
     command names and output, `Environment`'s sources and their order, `--operational_system` (superseded by
-    D86), and the containers row.
+    D86), the containers row, and the D91/D105 rows (a `List` template's symbol names the element's member;
+    how a chain fuses).
 
 ## From the remote REPL
 

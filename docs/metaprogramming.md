@@ -64,6 +64,10 @@ name BEA
 
 `set_age` and `get_age` are generated on demand by those two calls.
 
+In `List<T>` the symbol names a member of the element rather than of the list, and the template reads it with
+`item.attributes[member]`: that is how `filter_<member>()`, `sum_<member>()` and the rest are written, in
+Spite, in `library/list.spite` ([standard_library.md](standard_library.md#how-the-member-templates-are-written)).
+
 Before milestone 9a's reference-counting model, generating (or writing) a `get_<attribute>()` for an owning
 attribute (`String`/`List<T>`/`Dictionary<T>`) and calling it -- including implicitly, the way `person.name`
 above does -- double-freed at runtime; see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) item 3 for that history. It is

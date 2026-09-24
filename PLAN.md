@@ -247,4 +247,8 @@ and balanced allocations.
   later root may reopen it; and it depends on the compile time evaluator of milestone 10.
 - **Standard library templates name a `<member>`** (D15) is done in the compiler: `map_`, `filter_`, `sum_`,
   `sort_by_`, `find_by_`, `any_`, `all_`, `count_` and `each_` accept an attribute or a function that takes
-  nothing, on `List<T>` and on `Dictionary<T>`.
+  nothing, on `List<T>` and on `Dictionary<T>`. **D91 done (2026-09-24):** they are Spite templates in
+  `library/list.spite` (`item.attributes[member]` reads the element's member), the generator writes none of
+  their C, and a `--repl` build lists them on a list. **D105 fusion done (2026-09-24):** a chain of them compiles
+  to one loop with no intermediate list (`conformance/stage6/fused_chains`, `fused_chain_allocations`).
+  Open: printing a list's instantiated templates in `--final-classes` (D61).
