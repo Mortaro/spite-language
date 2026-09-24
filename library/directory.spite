@@ -1,0 +1,43 @@
+var path = ""
+var runtime = CRuntime()
+
+func Directory(starting_path: String) {
+    path = starting_path
+}
+
+func files(): List<String> {
+    return sorted(runtime.directory_entries(path, false))
+}
+
+func folders(): List<String> {
+    return sorted(runtime.directory_entries(path, true))
+}
+
+func exists(): Bool {
+    return runtime.directory_exists(path)
+}
+
+func create(): Bool {
+    return runtime.create_directory(path)
+}
+
+func sorted(names: List<String>): List<String> {
+    var result = List<String>()
+    var index = 0
+    while index < names.count() {
+        var position = result.count()
+        var placed = false
+        while position > 0 and not placed {
+            var before = position - 1
+            crash before < result.count()
+            if result[before] > names[index] {
+                position = before
+            } else {
+                placed = true
+            }
+        }
+        result.insert(position, names[index])
+        index = index + 1
+    }
+    return result
+}

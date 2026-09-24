@@ -1709,7 +1709,12 @@ replaces it. What stays in C is exactly what the compiler emits, never a file so
 
 **Built so far, additively (2026-09-23):** items 1, 2's `Memory.text` and 5 -- `Memory` with `allocate_bytes`,
 `resize`, `free`, the typed reads and writes and `copy_bytes` (`conformance/stage6/memory_floor`); the `"c"` alias
-built beside it was removed by D71. Nothing has moved onto them yet: moving `String`, `File` and the rest waits on this
+built beside it was removed by D71. **Moving onto it (D73):** `File` and `Directory` are Spite in `library/`, over
+`library/<platform>/c_runtime.spite` (`CRuntime`) and `Memory`, and their C is deleted. Only the Windows wrapper is
+tested here; the Linux and macOS ones follow `dirent`'s layout on those systems and are untested until `check.sh` runs
+there. Found on the way: the `'windows'` naming rule is lossy -- Win32 abbreviates some names (`SetCursorPos`) and
+not others (`GetFileAttributesA`, which the rule would call `GetFileAttrsA`) -- so the wrapper names kernel32's
+functions with `'identity'`. Nothing has moved onto them yet: moving `String`, `File` and the rest waits on this
 proposal being accepted, since that is where changing the floor later would cost a rewrite.
 
 **The web shim is the one honest exception, and its target is zero hand-written lines.** A file that runs in the

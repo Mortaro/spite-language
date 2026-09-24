@@ -1,4 +1,6 @@
 var library = DynamicLibrary("libSystem.dylib", 'identity', "")
+var memory = Memory()
+var foreign_text = ForeignText()
 
 func open_file(path: String, mode: String): Long {
     return library.fopen_as_long(path, mode)
@@ -26,6 +28,37 @@ func write_text(text: String, handle: Long): Long {
 
 func remove_file(path: String): Int {
     return library.remove(path)
+}
+
+func directory_entries(path: String, want_folders: Bool): List<String> {
+    var entries = List<String>()
+    var directory = library.opendir_as_long(path)
+    if directory != 0 {
+        var entry = library.readdir_as_long(directory)
+        while entry != 0 {
+            var is_folder = memory.read_byte(entry, 20) == 4
+            var name = foreign_text.read(entry + 21)
+            if is_folder == want_folders and name != "." and name != ".." {
+                entries.append(name)
+            }
+            entry = library.readdir_as_long(directory)
+        }
+        library.closedir(directory)
+    }
+    return entries
+}
+
+func directory_exists(path: String): Bool {
+    var directory = library.opendir_as_long(path)
+    if directory == 0 {
+        return false
+    }
+    library.closedir(directory)
+    return true
+}
+
+func create_directory(path: String): Bool {
+    return library.mkdir(path, 511) == 0 or directory_exists(path)
 }
 
 func is_singleton(): Bool {

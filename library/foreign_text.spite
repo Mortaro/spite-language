@@ -1,0 +1,13 @@
+var memory = Memory()
+
+func read(address: Long): String {
+    var length: Long = 0
+    while memory.read_byte(address, length) != 0 {
+        length = length + 1
+    }
+    return memory.text(address, length)
+}
+
+func is_singleton(): Bool {
+    return true
+}

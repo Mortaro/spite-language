@@ -1,4 +1,7 @@
 var library = DynamicLibrary("ucrtbase.dll", 'identity', "")
+var system = DynamicLibrary("kernel32.dll", 'identity', "")
+var memory = Memory()
+var foreign_text = ForeignText()
 
 func open_file(path: String, mode: String): Long {
     return library.fopen_as_long(path, mode)
@@ -26,6 +29,35 @@ func write_text(text: String, handle: Long): Long {
 
 func remove_file(path: String): Int {
     return library.remove(path)
+}
+
+func directory_entries(path: String, want_folders: Bool): List<String> {
+    var entries = List<String>()
+    var found = memory.allocate_bytes(600)
+    var search = system.FindFirstFileA_as_long("{path}/*", found)
+    if search != -1 {
+        var more = true
+        while more {
+            var is_folder = memory.read_int(found, 0) % 32 >= 16
+            var name = foreign_text.read(found + 44)
+            if is_folder == want_folders and name != "." and name != ".." {
+                entries.append(name)
+            }
+            more = system.FindNextFileA(search, found) != 0
+        }
+        system.FindClose(search)
+    }
+    memory.free(found)
+    return entries
+}
+
+func directory_exists(path: String): Bool {
+    var attributes = system.GetFileAttributesA(path)
+    return attributes != -1 and attributes % 32 >= 16
+}
+
+func create_directory(path: String): Bool {
+    return system.CreateDirectoryA(path, 0) != 0 or directory_exists(path)
 }
 
 func is_singleton(): Bool {

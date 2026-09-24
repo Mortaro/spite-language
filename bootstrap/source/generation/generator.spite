@@ -145,12 +145,6 @@ func one_parameter(name: String, spite_type: Analysis.SpiteType): List<Analysis.
 }
 
 func register_system_classes() {
-    var directory = register_system_class("Directory")
-    add_builtin_function(directory, "Directory", one_parameter("path", string_type()), void_type())
-    add_builtin_function(directory, "files", no_parameters(), list_type_of(string_type()))
-    add_builtin_function(directory, "folders", no_parameters(), list_type_of(string_type()))
-    add_builtin_function(directory, "exists", no_parameters(), boolean_type())
-    add_builtin_function(directory, "create", no_parameters(), boolean_type())
     var process = register_system_class("Process")
     var process_parameters = one_parameter("command", string_type())
     process_parameters.append(Analysis.ParamInfo("arguments", list_type_of(string_type())))
