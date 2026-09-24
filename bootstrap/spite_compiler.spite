@@ -177,9 +177,7 @@ func configure(generator: Generation.Generator) {
 
 func remote_loop_port(): Int {
     var port_text = option("repl_port")
-    if port_text == "0" {
-        return 0
-    }
+    assert port_text != "0"
     return port_number(port_text)
 }
 
@@ -434,10 +432,7 @@ func pascal_case_class_name(snake: String): String {
 
 func build_to_path(file_argument: String, discovery: Discovery.DiscoveryResult, output_path: String): Bool {
     var code = generate_c_or_report(discovery)
-    if not code {
-        return false
-    }
-    crash code
+    assert code
     var directory = Directory(".spite-cache")
     directory.create()
     var class_name = computed_class_name(file_argument)

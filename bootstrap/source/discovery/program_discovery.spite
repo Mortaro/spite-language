@@ -308,9 +308,7 @@ func check_entry_constructor(path: String, file: Syntax.SourceFile, class_name: 
 }
 
 func order_rank(statement: Syntax.Statements.Statement, class_name: String): Int {
-    if shape.as_singleton_declaration(statement) {
-        return 0
-    }
+    assert not shape.as_singleton_declaration(statement)
     if shape.as_generic_declaration(statement) {
         return 1
     }
@@ -870,9 +868,7 @@ func boolean_literal(text: String): Syntax.Expressions.Expression? {
 }
 
 func integer_literal(text: String): Syntax.Expressions.Expression? {
-    if not Environment().is_whole_number(text) {
-        return null
-    }
+    assert Environment().is_whole_number(text)
     if text.starts_with("-") {
         var text_length = text.length()
         var magnitude_text = text.slice(1, text_length)
@@ -1026,9 +1022,7 @@ func pascal_join(segments: List<String>): String {
 }
 
 func compute_namespace(segments: List<String>, stem: String): String {
-    if segments.is_empty() {
-        return ""
-    }
+    assert not segments.is_empty()
     var last_segment = segments[segments.count() - 1]
     if last_segment == stem {
         var all_but_last = all_but_last(segments)

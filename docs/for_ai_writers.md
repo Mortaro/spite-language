@@ -116,8 +116,9 @@ func is_alive(): Bool {
   are an error: write it once as `_:`.
 - There are no exceptions and no error values. Three outcomes only:
   - the compiler can know it: a compile error;
-  - absence is fine: `assert condition` returns quietly. Legal only in a function that returns nothing or a `T?`,
-    never in a constructor;
+  - absence is fine: `assert condition` returns the function's default quietly (`false`, `0`, `""`, `null`,
+    nothing), in a function returning any type, never in a constructor. `if x { return false }` -- an `if`
+    whose body only returns the default -- is an error: write `assert not x`;
   - absence is a bug: `crash condition` halts with
     `spite.crash<TAB>id<TAB>path:line<TAB>Class<TAB>function<TAB>condition<TAB>name=value...`, followed by the
     asserts that failed before it. A bare `crash` marks a branch that cannot happen.

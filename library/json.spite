@@ -90,9 +90,7 @@ func parse(reader: JsonReader): $value_type {
         }
         return symbol
     } else if $value_type == Null {
-        if reader.read_null() {
-            return null
-        }
+        assert not reader.read_null()
         var inner = Json<$value_type.value_type>()
         return inner.parse(reader)
     } else if $value_type == List {
@@ -192,9 +190,7 @@ func escape_of(code: Int): String {
     if code == 9 {
         return "\\t"
     }
-    if code >= 32 {
-        return ""
-    }
+    assert code < 32
     var digits = "0123456789abcdef"
     var high = digits.character_at(code / 16)
     var low = digits.character_at(code % 16)

@@ -7,14 +7,10 @@ func character_at(index: Int): String {
 }
 
 func matches_at(text: String, start: Int): Bool {
-    if start < 0 or start + text.length() > length() {
-        return false
-    }
+    assert start >= 0 and start + text.length() <= length()
     var index = 0
     while index < text.length() {
-        if code_at(start + index) != text.code_at(index) {
-            return false
-        }
+        assert code_at(start + index) == text.code_at(index)
         index = index + 1
     }
     return true

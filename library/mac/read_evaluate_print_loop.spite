@@ -7,9 +7,7 @@ func start_thread(entry: Long): Long {
     var created = library.pthread_create(slot, no_value, entry, no_value)
     var started = memory.read_long(slot, 0)
     memory.free(slot)
-    if created != 0 {
-        return 0
-    }
+    assert created == 0
     return started
 }
 
