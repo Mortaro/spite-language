@@ -522,6 +522,7 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
         classes.last().source_path = entry.get_file().path
         classes.last().entry_index = index
         classes.last().codegen_names = declared_codegen_names(entry)
+        classes.last().is_singleton = has_singleton_line(entry)
         classes.last().is_generic_template = not classes.last().codegen_names.is_empty()
         discovered_classes.append(entry)
         register_enums(entry)
@@ -529,6 +530,18 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
         register_shapes(entry)
         index = index + 1
     }
+}
+
+func has_singleton_line(entry: Discovery.DiscoveredClass): Bool {
+    var file = entry.get_file()
+    var statement_index = 0
+    while statement_index < file.statements.count() {
+        if shape.as_singleton_declaration(file.statements[statement_index]) {
+            return true
+        }
+        statement_index = statement_index + 1
+    }
+    return false
 }
 
 func declared_codegen_names(entry: Discovery.DiscoveredClass): List<String> {

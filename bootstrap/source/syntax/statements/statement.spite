@@ -1,4 +1,5 @@
 union Statement {
+    Syntax.Statements.SingletonDeclaration
     Syntax.Statements.GenericDeclaration
     Syntax.Statements.VariableDeclaration
     Syntax.Statements.FunctionDeclaration

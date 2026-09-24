@@ -206,6 +206,7 @@ func broken_call(
 func source_statement_line(statement: Syntax.Statements.Statement, depth: Int): String {
     var indent = source_indent(depth)
     switch statement {
+        Syntax.Statements.SingletonDeclaration: return "{indent}singleton"
         Syntax.Statements.GenericDeclaration: return "{indent}generic ${statement.name}"
         Syntax.Statements.VariableDeclaration: {
             var type_text = ""

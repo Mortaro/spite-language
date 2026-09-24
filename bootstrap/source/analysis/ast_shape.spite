@@ -206,6 +206,13 @@ func as_generic_type(type_reference: Syntax.Types.Type): Syntax.Types.GenericTyp
     return null
 }
 
+func as_singleton_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.SingletonDeclaration? {
+    if statement == Syntax.Statements.SingletonDeclaration {
+        return statement
+    }
+    return null
+}
+
 func as_generic_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.GenericDeclaration? {
     if statement == Syntax.Statements.GenericDeclaration {
         return statement

@@ -133,6 +133,7 @@ func parse_file(): Syntax.SourceFile {
 
 func is_declaration(statement: Syntax.Statements.Statement): Bool {
     switch statement {
+        Syntax.Statements.SingletonDeclaration: return true
         Syntax.Statements.GenericDeclaration: return true
         Syntax.Statements.VariableDeclaration: return true
         Syntax.Statements.FunctionDeclaration: return true
@@ -153,7 +154,7 @@ func parse_top_level_statements(): List<Syntax.Statements.Statement> {
         } else {
             var line = current().line
             var column = current().column
-            var statement = parse_statement()
+            var statement = parse_top_level_statement()
             if not is_declaration(statement) and not has_error {
                 fail(
                     "a file holds declarations and nothing else: move this statement into a function, or into the class's constructor",
@@ -165,6 +166,26 @@ func parse_top_level_statements(): List<Syntax.Statements.Statement> {
         }
     }
     return statements
+}
+
+func parse_top_level_statement(): Syntax.Statements.Statement {
+    if not at_singleton_line() {
+        return parse_statement()
+    }
+    var line = current().line
+    advance()
+    consume_statement_terminator()
+    var declaration = Syntax.Statements.SingletonDeclaration()
+    declaration.line = line
+    return declaration
+}
+
+func at_singleton_line(): Bool {
+    if not check('identifier') or current().lexeme != "singleton" {
+        return false
+    }
+    var following = next_kind()
+    return following == 'newline' or following == 'end_of_file' or following == 'comment'
 }
 
 func parse_statement_list_until(stop_kind: TokenKind): List<Syntax.Statements.Statement> {
