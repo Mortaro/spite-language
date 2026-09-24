@@ -1,0 +1,2 @@
+diagnostics/repeated_branch_call/repeated_branch_call.spite:12: error: 'source.slice(0, end_index)' is computed in both branches: compute it once before the 'if' (in RepeatedBranchCall.flush)
+diagnostics/repeated_branch_call/repeated_branch_call.spite:20: error: 'source.slice(0, count)' is computed in every branch: compute it once before the 'if' (in RepeatedBranchCall.describe)

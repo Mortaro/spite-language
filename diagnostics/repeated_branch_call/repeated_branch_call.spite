@@ -1,0 +1,61 @@
+var console = Console()
+var source = "12 apples"
+var words = List<String>()
+
+func RepeatedBranchCall() {
+    flush(true, 2)
+    describe(3)
+    allowed(true, 2)
+}
+
+func flush(is_number: Bool, end_index: Int) {
+    if is_number {
+        words.append("number {source.slice(0, end_index)}")
+    } else {
+        words.append("word {source.slice(0, end_index)}")
+    }
+}
+
+func describe(count: Int) {
+    if count == 0 {
+        console.print("none of {source.slice(0, count)}")
+    } else if count == 1 {
+        console.print("one of {source.slice(0, count)}")
+    } else {
+        console.print("many of {source.slice(0, count)}")
+    }
+    if count == 0 {
+        console.print("nothing")
+    } else if count == 1 {
+        console.print("one: {source.slice(0, count)}")
+    } else if count == 2 {
+        console.print("two: {source.slice(0, count)}")
+    } else {
+        console.print("more: {source.slice(0, count)}")
+    }
+}
+
+func allowed(is_number: Bool, end_index: Int) {
+    if is_number {
+        words.append("number {source.slice(0, end_index)}")
+    } else {
+        words.append("word {source.slice(1, end_index)}")
+    }
+    if is_number {
+        words.append("number")
+        console.print("checked")
+    } else {
+        words.append("word")
+        console.print("checked")
+    }
+    if is_number {
+        var start = 0
+        words.append(source.slice(start, end_index))
+    } else {
+        var start = 1
+        words.append(source.slice(start, end_index))
+    }
+    if is_number {
+        words.append(source.slice(0, end_index))
+    }
+}

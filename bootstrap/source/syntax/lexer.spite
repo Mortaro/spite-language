@@ -171,22 +171,11 @@ func scan_number(): Bool {
             advance_character()
         }
     }
+    var number_text = source.slice(start_index, index)
     if is_float {
-        push_token(
-            'float_literal',
-            source.slice(start_index, index),
-            source.slice(start_index, index),
-            token_line,
-            token_column,
-        )
+        push_token('float_literal', number_text, number_text, token_line, token_column)
     } else {
-        push_token(
-            'integer_literal',
-            source.slice(start_index, index),
-            source.slice(start_index, index),
-            token_line,
-            token_column,
-        )
+        push_token('integer_literal', number_text, number_text, token_line, token_column)
     }
     return false
 }

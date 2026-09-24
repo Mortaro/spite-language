@@ -569,6 +569,9 @@ func parse_if_rest(condition: Syntax.Expressions.Expression): Syntax.Statements.
         has_else_branch = true
         if check('keyword_if') {
             var nested = parse_if_statement()
+            var chained = shape.as_if_statement(nested)
+            crash chained
+            chained.follows_else = true
             var wrapped = List<Syntax.Statements.Statement>()
             wrapped.append(nested)
             else_branch = wrapped

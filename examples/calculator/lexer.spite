@@ -49,10 +49,11 @@ func consume(character: String, index: Int) {
 
 func flush(end_index: Int) {
     assert not (token_start < 0)
+    var token_slice = source.slice(token_start, end_index)
     if buffer_is_number {
-        tokens.append(Token('number', source.slice(token_start, end_index)))
+        tokens.append(Token('number', token_slice))
     } else {
-        tokens.append(Token('identifier', source.slice(token_start, end_index)))
+        tokens.append(Token('identifier', token_slice))
     }
     token_start = -1
 }

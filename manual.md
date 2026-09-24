@@ -1301,6 +1301,18 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   a constructor inside a constructor inside the call. Anything else is computed first and named.
 - **An `if` and its `else` do not repeat the same work** (D78): when both branches compute the same thing,
   it is computed once before the `if`. In the example, both branches sliced the same range.
+  **Implemented (2026-09-24) in a narrow form, (proposed by Claude, unconfirmed) beyond the example:** the error
+  is "'source.slice(token_start, end_index)' is computed in both branches: compute it once before the 'if'".
+  It counts a call with at least one argument to a function or method (not a constructor, whose name starts
+  with an upper-case letter) that prints identically in every branch -- both branches of an `if`/`else`, or
+  every branch of an `else if` chain that ends in `else` ("computed in every branch"). A chain where only some
+  branches share the call is not reported, since computing it before the `if` would run it on paths that never
+  did. Only the calls evaluated once and first thing in a branch count: the ones in the branch's statements
+  up to its first nested `if` (whose condition counts), `while` or `switch`, not a call standing alone as a
+  statement (it has no value to compute once), not the right side of `and`/`or`, and not a call that mentions
+  a name the branch declared, assigned, asserted or called a method on before it, or a name the `if`'s
+  conditions may narrow (tested for truth, or compared with `null` or a class). Names, literals, attribute
+  reads and wider repetitions are not reported yet.
 
 ### Formatting
 
@@ -2541,3 +2553,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (proposed by Claude, unconfirmed) **D76 implemented, with the settings read at run time.** `library/environment.spite` is the `Environment` singleton; a program reopens it in its own `environment.spite` with one `var` per setting and a literal default that is the setting's type (`false` Bool, `0` Int, `""` String; anything else is a compile error). Each field is read once, when the singleton is made, from the program's own `--name=value` (after `--` when the compiler runs it), else the upper-case environment variable (`SERVE`), else the default; text that is not of the type crashes. The compiler prepends `name = boolean_setting("name", name)` (or `integer_setting`/`text_setting`) to `Environment`'s constructor, and `Arguments()` answers the command line in any function. Values are runtime, so `if environment.serve` is no longer tree-shaken: the trade-off, and the compile-time home that `$target` and D13 still need, are in [Program settings](#program-settings-environment). An undeclared `$name` is an error pointing at `Environment`, and a `--name=value` before `--` that is not a compiler flag is an error showing where it belongs; `examples/arsenal`, `examples/dungeon`, the docs and the corpus moved over. |
 | 2026-09-24 | **D77** (decided by Mortaro): **only a constructor call may be an argument, one level deep.** From `flush()` in the tokenizer: "having functions called inline during the same line that passes it as parameter is ugly." Asked which nesting is illegal: "only constructors can be used as arguments of a call, any other functions need to be done outside, even in constructor case a 1 depth limit is needed." So `append(Token(kind, text))` is legal, `append(Token(kind, source.slice(a, b)))` is not, and a method or function call as an argument is always an error. See [One call per line](#one-call-per-line-and-nothing-said-twice--planned). |
 | 2026-09-24 | **D78** (decided by Mortaro): **an `if` and its `else` must not repeat the same logic**: "repeating the same logic twice on simple if and else" is hard to read and illegal. Mortaro's fix for `flush()` computes `var token_slice = source.slice(token_start, end_index)` once before the `if`. Which repetitions count (the same call in both branches, or any identical subexpression) is not settled yet. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **D78 implemented, narrowly.** The compiler reports a call with arguments (not a constructor) that prints identically in every branch of an `if`/`else` or of an `else if` chain ending in `else`, and only where computing it once before the `if` keeps the program's meaning: the call is among the first things each branch evaluates, mentions nothing the branch changed or the condition narrows, and is not a statement on its own. Which other repetitions count is still Mortaro's to settle. See [One call per line](#one-call-per-line-and-nothing-said-twice--planned). |
