@@ -103,3 +103,11 @@ manual argues it.
 26. **The number test is ten comparisons** (`$value_type == Int or $value_type == Long or ...`) because a union of
     number types is not allowed (a union's members are classes). A `Number` kind like `List` would read better,
     but it would be a name that is not a class. Which do you prefer, or should unions admit numbers?
+
+## From D106 (assert guards)
+
+27. **Library asserts in the crash trace.** Since D106 made `assert` the only way to write a default-returning
+    guard, library functions that fail a guard routinely (`String.matches_at`, `TextBytes.slice`) fill the
+    32-entry trace ring a crash prints. Either the ring skips asserts in `library/`, or those functions are
+    written as plain expressions the way `TextBytes.equals` now is.
+
