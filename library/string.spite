@@ -117,11 +117,6 @@ func to_int(): Int {
     return to_long()
 }
 
-func to_double(): Double {
-    var runtime = CRuntime()
-    return runtime.parse_double(slice(0, length()))
-}
-
 func to_float(): Float {
     return to_double()
 }

@@ -5,7 +5,7 @@ var comment_root = ""
 var error_message = ""
 var walking_library = false
 var formats = false
-var host_platform = Program().platform()
+var operational_system = Environment().operational_system
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
     var lexer = Syntax.Lexer(formatted_source(entry_path, entry_source))
@@ -332,7 +332,7 @@ func walk_directory(
             excluded = excluded_top_level.contains(folder_name)
             if walking_library and is_platform_folder(folder_name) {
                 excluded = true
-                if folder_name == host_platform {
+                if folder_name == operational_system {
                     walk_directory("{root_folder}/{folder_name}", segments, skip_basename, excluded_top_level)
                 }
             }

@@ -134,7 +134,11 @@ and balanced allocations.
       the rest, because it decides what "pure" means precisely enough to check.
     - **15b.** `File`/`Directory`/`Process`/`Program.sleep` become `DynamicLibrary` calls over libc and
       `kernel32` instead of built-in classes with hand-written bodies. Needs milestone 11a/11b. ~150 lines leave
-      the runtime and the system-class special case in the generator goes with them.
+      the runtime and the system-class special case in the generator goes with them. **D80 done (2026-09-24):**
+      no `CRuntime` wrapper; `library/windows/`, `library/linux/` and `library/mac/` each reopen `File`,
+      `Directory`, `Process`, `Program`, `Console`, `String` and `Environment` with only what differs, chosen by
+      `Environment().operational_system` (the compiler's `--operational_system=` writes C for another system).
+      Only Windows runs here; `check.sh` holds the linux and mac folders to compiling.
     - **15c.** `String`, `List<T>`, `Dictionary<T>` and the retain/release helpers move to `.spite` sources under
       a `spite/` standard library root: ~400 lines, pure algorithms over memory, expressible in the language as
       it stands. `Spite.Class`/`Spite.Function`/`Spite.Argument`/`Spite.Attribute` (D12) are written here as

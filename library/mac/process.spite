@@ -1,0 +1,21 @@
+var library = DynamicLibrary("libSystem.dylib", 'identity', "")
+
+func run_attached(): Int {
+    return library.system(command_line())
+}
+
+func open_process(line: String): Long {
+    return library.popen_as_long(line, "r")
+}
+
+func read_into(buffer: Long, bytes: Long, handle: Long): Long {
+    return library.fread_as_long(buffer, 1, bytes, handle)
+}
+
+func close_process(handle: Long): Int {
+    return library.pclose(handle) / 256 % 256
+}
+
+func shell_line(line: String, _command_is_quoted: Bool): String {
+    return line
+}

@@ -1167,6 +1167,13 @@ What follows is how it is implemented (proposed by Claude, unconfirmed):
 - **`Arguments()` is the command line, anywhere.** `library/environment.spite` reads the command line through
   `Arguments()`, which the compiler now answers in any function with the same arguments the entry constructor
   receives. It is available to programs too.
+- **`operational_system` is declared by the standard library** (D80; proposed by Claude, unconfirmed). Each
+  operating system's folder reopens `Environment` with one line, `var operational_system = "linux"` (`"windows"`,
+  `"mac"`), so every program has the setting and its default is the system it was built for. The compiler is
+  the program that uses it: discovery loads `library/<operational_system>/`, so the compiler's own
+  `--operational_system=linux` (or `OPERATIONAL_SYSTEM=linux`) writes C for Linux from Windows, and `check.sh`
+  uses that to hold the folders it cannot run to compiling. The price is the run-time trade-off below: a built
+  program asked `--operational_system=mac` believes it, although it was compiled for the system it runs on.
 
 **Runtime, not compile time -- the trade-off** (proposed by Claude, unconfirmed). `$serve` was folded at compile
 time, so `if $serve { }` removed the untaken branch (section 9 tree shaking) and the built program could not be
@@ -1262,9 +1269,23 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
 - Every loaded root merges into the same namespaces. A second root with the same folder structure and file name **reopens** the
   class: this is how monkey patching and game mods work -- later `func`/`var` with the same name replaces the earlier one (in
   load order: the entry folder first, then loads in the order they were discovered), a `var`'s replacement type must match, and
-  a new `func`/`var`/`enum`/`type` not seen before is simply added. The standard library (`Console`, `String`, `List<T>`, `File`,
-  ...) cannot be reopened yet -- a clear diagnostic names it instead. `Environment` is the exception, made to be
-  reopened: a program's own `environment.spite` adds its settings to it (D76, section 9). Your foot to shoot. That includes `Spite.Class` once it lands (D7, section 8): reopening it moves a class-level default for the whole program.
+  a new `func`/`var`/`enum`/`type` not seen before is simply added. The standard library (`library/`) is discovered
+  before the program, so a program's own file reopens `Console`, `String`, `File` and the rest the same way.
+  `Environment` is made to be reopened: a program's own `environment.spite` adds its settings to it (D76, section 9).
+  Your foot to shoot. That includes `Spite.Class` (D7, section 8): reopening it moves a class-level default for the whole program.
+- **Each operating system reopens the classes it changes** (D80). `library/` holds what every system shares, and
+  `library/windows/`, `library/linux/` and `library/mac/` hold only what differs: `library/linux/file.spite` reopens
+  `File` with the functions that call `libc.so.6`, `library/windows/file.spite` the same functions over
+  `ucrtbase.dll`, and so on for `Directory`, `Process`, `Program`, `Console`, `String` (`to_double`) and
+  `Environment`. There is no wrapper class in between: a platform file holds its own
+  `DynamicLibrary("libc.so.6", 'identity', "")`, which is one shared instance per literal argument list (D8), and
+  a one-line foreign call two classes both need is written in both. The compiler walks `library/` first and then
+  the one folder named by `Environment().operational_system`; that folder adds no namespace segment, and its files
+  are read after `library/`'s own, so they replace or add members by the reopening rule above. `--final-classes`
+  prints each class as it came out, platform functions included. Because exactly one folder is loaded,
+  `library/file.spite` calls `open_file` without declaring it: every system's folder defines it, with the same
+  signature.  **[implemented; only `library/windows/` runs here -- `check.sh` holds the linux and mac
+  folders to compiling, by writing the compiler out once with each]**
 - `load` takes a literal string, so the compiler always knows every bundle; anything else (a variable, an expression) is a
   diagnostic. The compiler finds every `load` reachable from the entry file's own constructor at compile time (a `load` inside
   already-loaded code counts too), and records each root as a bundle (its name and whether the `load` that introduced it sits
@@ -1477,6 +1498,7 @@ spite connect 4000                    talk to a running --repl-port program (see
 spite connect 4000 --command="..."    send one REPL command, print its raw JSON response line, and exit
 spite file.spite -- ada --player=x    run it, passing everything after -- to the program's Arguments
 spite file.spite --no-format          skip the automatic formatting pass below
+spite file.spite --mode=c --operational_system=linux   write the C for another system (section 11, D80)
 spite format <file-or-folder>         format without compiling (recursive on a folder)
 spite format --check <path>           rewrite nothing; exit 1 listing (to stdout) every file that would change
 ```
@@ -1490,7 +1512,7 @@ read as a compiler flag or a file to compile. A program's own `Arguments` stops 
 Before this, a program run by the compiler received no arguments at all (`conformance/stage6/program_arguments`).
 
 - Before the `--`, a `--name=value` that is not one of the compiler's own (`file`, `mode`, `output`,
-  `debug_memory`, `final-classes`, `runtime`) is an error that shows where it belongs --
+  `debug_memory`, `final-classes`, `runtime`, and `operational_system`, the compiler's own `Environment` setting) is an error that shows where it belongs --
   `spite program.spite -- --serve=value` -- so typos never pass silently (`diagnostics/unknown_compiler_flag`;
   D76 removed the `$name` program variables these flags used to fill).
 - **Automatic formatting (milestone 7a).** Every `spite file.spite ...` compile first formats every `.spite`
@@ -1820,25 +1842,31 @@ Spite above them:
 4. **Entry and exit**: `main` is emitted by the compiler, and so is printing, so the floor also has
    `Console.flush()`: exiting through the C runtime's `exit` would drop what the program's own `stdout` still
    buffers, which is why `Program.exit` flushes first (found when every corpus program printed nothing).
-5. **The C runtime through Spite wrappers** (D71 replaced Claude's `"c"` alias): one small wrapper per platform names
-   its real file (`ucrtbase.dll`, `libc.so.6`, `libSystem.dylib`), and `File`, `Directory`, `Process` and the
-   allocator are written once in Spite over the wrapper's functions.
+5. **The C runtime through Spite, one operating system at a time** (D71 replaced Claude's `"c"` alias; D80
+   replaced the one wrapper class per platform): each operating system's folder reopens the classes it changes
+   and names its real file (`ucrtbase.dll`, `libc.so.6`, `libSystem.dylib`) in their own `DynamicLibrary`
+   attributes, and what `File`, `Directory` and `Process` do on every system is written once in `library/`.
 6. **On wasm**, `Memory.allocate` grows linear memory with `memory.grow`, and the C runtime library is the
    JavaScript host's, which is the web shim below.
 
 That is the whole floor: `String`, `List<T>` and `Dictionary<T>` become Spite over `Memory`; `File`, `Directory`,
-`Process` and `Program` become Spite over the C runtime's wrappers; the `--debug-memory` live table becomes Spite
+`Process` and `Program` become Spite over the C runtime, reached from each operating system's folder; the `--debug-memory` live table becomes Spite
 over `Memory`; and float formatting is Spite over `Memory` (`library/number_text.spite`, 2026-09-24). What stays in C is exactly what the compiler emits, never a file someone maintains.
 
 **Built so far, additively (2026-09-23):** items 1, 2's `Memory.text` and 5 -- `Memory` with `allocate_bytes`,
 `resize`, `free`, the typed reads and writes and `copy_bytes` (`conformance/stage6/memory_floor`); the `"c"` alias
 built beside it was removed by D71. **Moving onto it (D73):** `File`, `Directory`, `Process`, `Program` and `Console` are Spite in `library/`, over
-`library/<platform>/c_runtime.spite` (`CRuntime`) and `Memory`, and their C is deleted. `Console`'s `print`, `write`, `error` and
+`Memory` and the C runtime, and their C is deleted. Since D80 there is no `CRuntime` class in between: `library/file.spite`
+holds what `File` does everywhere, and `library/windows/file.spite`, `library/linux/file.spite` and
+`library/mac/file.spite` reopen it with the few functions that call the system's library (section 11), and the same
+for `directory`, `process`, `program`, `console`, `string` (`to_double` through `strtod`) and `environment`
+(`operational_system`). `Console`'s `print`, `write`, `error` and
 `flush` stay operations the compiler emits (they are variadic, and they must reach the program's own `stdout`),
-while `read_line` is Spite over the wrapper's `fgets` on its own handle of the input stream. Only the Windows wrapper is
-tested here; the Linux and macOS ones follow `dirent`'s layout on those systems and are untested until `check.sh` runs
-there. Found on the way: the `'windows'` naming rule is lossy -- Win32 abbreviates some names (`SetCursorPos`) and
-not others (`GetFileAttributesA`, which the rule would call `GetFileAttrsA`) -- so the wrapper names kernel32's
+while `read_line` is Spite over `fgets` on the console's own handle of the input stream. Only `library/windows/` runs
+here; the Linux and macOS folders have the same functions with the same signatures, follow `dirent`'s layout on those
+systems, and are held only to compiling (`check.sh` writes the compiler out with each) until `check.sh` runs there.
+Found on the way: the `'windows'` naming rule is lossy -- Win32 abbreviates some names (`SetCursorPos`) and
+not others (`GetFileAttributesA`, which the rule would call `GetFileAttrsA`) -- so the Windows files name kernel32's
 functions with `'identity'`. Nothing has moved onto them yet: moving `String`, `File` and the rest waits on this
 proposal being accepted, since that is where changing the floor later would cost a rewrite.
 The `--debug-memory` live table is Spite too: `library/allocation_table.spite` (`AllocationTable`) keeps the
@@ -2559,3 +2587,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D79** (decided by Mortaro): **`List`, `Dictionary`, `Int` and the rest are classes in `library/`**, "so people learning spite can see all the things that come with it out of the box." Every type a program can name is read from a Spite file in `library/`, the way `String`'s methods now are (`library/string.spite`), instead of being a shape the generator knows by name. How a number's method names the number itself is not decided yet. |
 | 2026-09-24 | **D80** (decided by Mortaro): **no single C-runtime wrapper per operating system; each operating system reopens the classes it changes.** "we shouldnt have one big CRuntime per OS, instead each OS should reopen each class that they need to change so for example Linux would have its own definition of File ... if a thing needs a class for each environment do it." The compiler loads `library/`, then the folder of the target operating system chosen by `Environment().operational_system`, whose files add to or replace members of the same classes (section 11 reopening), and `--final-classes` shows the result. Supersedes the `CRuntime` wrappers of D71's implementation; D71's rule (a wrapper names its real library file) stands. |
 | 2026-09-24 | **D81** (decided by Mortaro): **the compiler registers no classes by hand.** `register_system_class("DynamicLibrary")` with `one_parameter(...)` lists "is weird, it should just have those classes written in spite, everything should be transparent just like our metaprogramming." `DynamicLibrary` and `Memory` are declared in `library/` like everything else. How a Spite file declares a function whose body the compiler supplies (the floor that stays C) is not decided yet. |
+| 2026-09-24 | (implements D80; the choices below proposed by Claude, unconfirmed) **`CRuntime` is gone: each operating system's folder reopens the classes it changes.** `library/<system>/` holds `file`, `directory`, `process`, `program`, `console`, `string` and `environment`, each reopening the class of that name with only the members that differ, and each holding its own `DynamicLibrary(...)` attribute (`String` has no attributes, so its `to_double` makes the library in a local). What is the same everywhere stays in `library/<class>.spite` and calls the platform functions (`open_file`, `entries`, `exit_process`, `read_line_into`, ...) without declaring them, since exactly one folder is loaded; a platform file defines public members directly where the whole member differs (`Directory.exists`, `create`; `Process.run_attached`; `Program.sleep`; `File.remove`). `Program.platform()` is removed. The folder is chosen by `Environment().operational_system`, a setting the platform folder declares (`var operational_system = "windows"`), and the compiler reads its own: `--operational_system=linux` (a compiler flag now) writes C for another system, and `check.sh` does so for all three to hold the folders it cannot run to compiling. Because settings are read at run time (D76), a built program's `Environment().operational_system` can be overridden too; a compile-time home for build facts is still the open part of section 9. `--final-classes` prints the merged classes but still not which folder supplied each member (open question 10). |

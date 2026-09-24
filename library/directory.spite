@@ -1,24 +1,15 @@
 var path = ""
-var runtime = CRuntime()
 
 func Directory(starting_path: String) {
     path = starting_path
 }
 
 func files(): List<String> {
-    return sorted(runtime.directory_entries(path, false))
+    return sorted(entries(false))
 }
 
 func folders(): List<String> {
-    return sorted(runtime.directory_entries(path, true))
-}
-
-func exists(): Bool {
-    return runtime.directory_exists(path)
-}
-
-func create(): Bool {
-    return runtime.create_directory(path)
+    return sorted(entries(true))
 }
 
 func sorted(names: List<String>): List<String> {

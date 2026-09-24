@@ -1,0 +1,13 @@
+var library = DynamicLibrary("libSystem.dylib", 'identity', "")
+
+func sleep(milliseconds: Int) {
+    library.usleep(milliseconds * 1000)
+}
+
+func exit_process(code: Int) {
+    library.exit(code)
+}
+
+func environment_address(name: String): Long {
+    return library.getenv_as_long(name)
+}

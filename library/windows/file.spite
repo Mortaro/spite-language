@@ -1,0 +1,29 @@
+var library = DynamicLibrary("ucrtbase.dll", 'identity', "")
+
+func open_file(mode: String): Long {
+    return library.fopen_as_long(path, mode)
+}
+
+func close_file(handle: Long) {
+    library.fclose(handle)
+}
+
+func seek(handle: Long, offset: Long, origin: Int) {
+    library.fseek(handle, offset, origin)
+}
+
+func tell(handle: Long): Long {
+    return library.ftell(handle)
+}
+
+func read_into(buffer: Long, bytes: Long, handle: Long): Long {
+    return library.fread_as_long(buffer, 1, bytes, handle)
+}
+
+func write_text(text: String, handle: Long): Long {
+    return library.fwrite_as_long(text, 1, text.length(), handle)
+}
+
+func remove(): Bool {
+    return library.remove(path) == 0
+}

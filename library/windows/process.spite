@@ -1,0 +1,24 @@
+var library = DynamicLibrary("ucrtbase.dll", 'identity', "")
+
+func run_attached(): Int {
+    return library.system(command_line())
+}
+
+func open_process(line: String): Long {
+    return library._popen_as_long(line, "r")
+}
+
+func read_into(buffer: Long, bytes: Long, handle: Long): Long {
+    return library.fread_as_long(buffer, 1, bytes, handle)
+}
+
+func close_process(handle: Long): Int {
+    return library._pclose(handle)
+}
+
+func shell_line(line: String, command_is_quoted: Bool): String {
+    if command_is_quoted {
+        return "\"{line}\""
+    }
+    return line
+}
