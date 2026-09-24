@@ -1,0 +1,26 @@
+var console = Console()
+var runtime = DynamicLibrary("c", 'identity', "")
+var memory = Memory()
+
+func MemoryFloor() {
+    run()
+}
+
+func run() {
+    var word = "spite"
+    var address = memory.allocate_bytes(word.length() + 1)
+    var index = 0
+    while index < word.length() {
+        memory.write_byte(address, index, word.code_at(index))
+        index = index + 1
+    }
+    memory.write_byte(address, word.length(), 0)
+    console.print(runtime.strlen_as_long(address), memory.text(address, word.length()))
+    memory.write_long(address, 0, 5000000000)
+    console.print(memory.read_long(address, 0), memory.read_byte(address, 5))
+    var copy = memory.allocate_bytes(8)
+    memory.copy_bytes(address, copy, 8)
+    console.print(memory.read_long(copy, 0) == 5000000000)
+    memory.free(copy)
+    memory.free(address)
+}

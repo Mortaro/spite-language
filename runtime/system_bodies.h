@@ -468,6 +468,16 @@ DynamicLibrary* DynamicLibrary_make(SpiteString* file_name) {
     const char* extension = ".so";
 #endif
     snprintf(path, sizeof(path), "%s%s", file_name->data, strchr(base, '.') == 0 ? extension : "");
+    /* "c" is the platform's own C runtime, so the standard library can be written once over it. */
+    if (strcmp(file_name->data, "c") == 0) {
+#ifdef _WIN32
+        snprintf(path, sizeof(path), "ucrtbase.dll");
+#elif defined(__APPLE__)
+        snprintf(path, sizeof(path), "libSystem.dylib");
+#else
+        snprintf(path, sizeof(path), "libc.so.6");
+#endif
+    }
 #ifdef _WIN32
     self->handle = (void*)LoadLibraryA(path);
 #else
@@ -524,3 +534,44 @@ void* DynamicLibrary_symbol(DynamicLibrary* self, const char* name, const char* 
     }
     return found;
 }
+
+/* The floor of a standard library written in Spite (manual.md section 15, "The floor, named"): raw memory,
+ * addressed by a Long, through the same allocator every Spite object uses, so --debug-memory counts it. */
+void Memory_init(Memory* self) {
+    (void)self;
+}
+
+Memory* Memory_allocate(void) {
+    Memory* self = (Memory*)SPITE_MALLOC(sizeof(Memory));
+    self->header.ref_count = 1;
+    self->header.class_id = SPITE_CLASS_ID_MEMORY;
+    #ifdef SPITE_DEBUG_MEMORY
+    spite_debug_register_object(self, SPITE_CLASS_ID_MEMORY);
+    #endif
+    return self;
+}
+
+Memory* Memory_default(void) { return Memory_allocate(); }
+Memory* Memory_make(void) { return Memory_allocate(); }
+Memory* Memory_retain(Memory* self) { if (self != 0) self->header.ref_count = self->header.ref_count + 1; return self; }
+void Memory_release(Memory* self) {
+    if (self == 0) return;
+    self->header.ref_count = self->header.ref_count - 1;
+    if (self->header.ref_count > 0) return;
+    SPITE_FREE(self);
+}
+Memory* Memory_copy(Memory* self) { return Memory_retain(self); }
+Memory* Memory_deep_copy(Memory* self) { return Memory_retain(self); }
+int64_t Memory_allocate_bytes(Memory* self, int64_t bytes) { (void)self; return (int64_t)(intptr_t)SPITE_MALLOC((size_t)bytes); }
+int64_t Memory_resize(Memory* self, int64_t address, int64_t bytes) { (void)self; return (int64_t)(intptr_t)SPITE_REALLOC((void*)(intptr_t)address, (size_t)bytes); }
+void Memory_free(Memory* self, int64_t address) { (void)self; SPITE_FREE((void*)(intptr_t)address); }
+uint8_t Memory_read_byte(Memory* self, int64_t address, int64_t offset) { (void)self; return ((uint8_t*)(intptr_t)address)[offset]; }
+int32_t Memory_read_int(Memory* self, int64_t address, int64_t offset) { (void)self; int32_t value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value; }
+int64_t Memory_read_long(Memory* self, int64_t address, int64_t offset) { (void)self; int64_t value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value; }
+double Memory_read_double(Memory* self, int64_t address, int64_t offset) { (void)self; double value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value; }
+void Memory_write_byte(Memory* self, int64_t address, int64_t offset, uint8_t value) { (void)self; ((uint8_t*)(intptr_t)address)[offset] = value; }
+void Memory_write_int(Memory* self, int64_t address, int64_t offset, int32_t value) { (void)self; memcpy((char*)(intptr_t)address + offset, &value, sizeof(value)); }
+void Memory_write_long(Memory* self, int64_t address, int64_t offset, int64_t value) { (void)self; memcpy((char*)(intptr_t)address + offset, &value, sizeof(value)); }
+void Memory_write_double(Memory* self, int64_t address, int64_t offset, double value) { (void)self; memcpy((char*)(intptr_t)address + offset, &value, sizeof(value)); }
+void Memory_copy_bytes(Memory* self, int64_t from, int64_t to, int64_t bytes) { (void)self; memmove((void*)(intptr_t)to, (void*)(intptr_t)from, (size_t)bytes); }
+SpiteString* Memory_text(Memory* self, int64_t address, int64_t length) { (void)self; return spite_string_from_bytes((const char*)(intptr_t)address, length); }

@@ -118,6 +118,23 @@ func no_parameters(): List<Analysis.ParamInfo> {
     return List<Analysis.ParamInfo>()
 }
 
+func two_parameters(
+    first_name: String,
+    first_type: Analysis.SpiteType,
+    second_name: String,
+    second_type: Analysis.SpiteType,
+): List<Analysis.ParamInfo> {
+    var parameters = one_parameter(first_name, first_type)
+    parameters.append(Analysis.ParamInfo(second_name, second_type))
+    return parameters
+}
+
+func memory_write_parameters(value_type: Analysis.SpiteType): List<Analysis.ParamInfo> {
+    var parameters = two_parameters("address", long_type(), "offset", long_type())
+    parameters.append(Analysis.ParamInfo("value", value_type))
+    return parameters
+}
+
 func one_parameter(name: String, spite_type: Analysis.SpiteType): List<Analysis.ParamInfo> {
     var result = List<Analysis.ParamInfo>()
     result.append(Analysis.ParamInfo(name, spite_type))
@@ -159,6 +176,40 @@ func register_system_classes() {
     library_parameters.append(Analysis.ParamInfo("naming", Analysis.Types.SymbolType()))
     library_parameters.append(Analysis.ParamInfo("header", string_type()))
     add_builtin_function(dynamic_library, "DynamicLibrary", library_parameters, void_type())
+    var memory = register_system_class("Memory")
+    memory.is_singleton = true
+    var byte_type: Analysis.SpiteType = Analysis.Types.ScalarType('byte_kind')
+    add_builtin_function(memory, "Memory", no_parameters(), void_type())
+    add_builtin_function(memory, "allocate_bytes", one_parameter("bytes", long_type()), long_type())
+    add_builtin_function(memory, "resize", two_parameters("address", long_type(), "bytes", long_type()), long_type())
+    add_builtin_function(memory, "free", one_parameter("address", long_type()), void_type())
+    add_builtin_function(memory, "read_byte", two_parameters("address", long_type(), "offset", long_type()), byte_type)
+    add_builtin_function(
+        memory,
+        "read_int",
+        two_parameters("address", long_type(), "offset", long_type()),
+        integer_type(),
+    )
+    add_builtin_function(
+        memory,
+        "read_long",
+        two_parameters("address", long_type(), "offset", long_type()),
+        long_type(),
+    )
+    add_builtin_function(
+        memory,
+        "read_double",
+        two_parameters("address", long_type(), "offset", long_type()),
+        double_type(),
+    )
+    add_builtin_function(memory, "write_byte", memory_write_parameters(byte_type), void_type())
+    add_builtin_function(memory, "write_int", memory_write_parameters(integer_type()), void_type())
+    add_builtin_function(memory, "write_long", memory_write_parameters(long_type()), void_type())
+    add_builtin_function(memory, "write_double", memory_write_parameters(double_type()), void_type())
+    var copy_parameters = two_parameters("from", long_type(), "to", long_type())
+    copy_parameters.append(Analysis.ParamInfo("bytes", long_type()))
+    add_builtin_function(memory, "copy_bytes", copy_parameters, void_type())
+    add_builtin_function(memory, "text", two_parameters("address", long_type(), "length", long_type()), string_type())
 }
 
 func built_in_class_sources(): List<String> {

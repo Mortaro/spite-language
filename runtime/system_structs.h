@@ -39,3 +39,8 @@ struct DynamicLibrary {
     SpiteString* file_name;
     void* handle;
 };
+
+typedef struct Memory Memory;
+struct Memory {
+    SpiteHeader header;
+};

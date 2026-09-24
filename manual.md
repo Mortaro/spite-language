@@ -1685,10 +1685,10 @@ emitted C needs before any Spite exists). Everything above that line is Spite.
 (section 17), the floor is small enough to list. Everything the runtime does today is either one of these, or
 Spite above them:
 
-1. **`Memory`**, a built-in singleton whose functions the compiler emits as single C expressions: `allocate(bytes:
+1. **`Memory`**, a built-in singleton whose functions the compiler emits as single C expressions: `allocate_bytes(bytes:
    Long): Long`, `resize(address: Long, bytes: Long): Long`, `free(address: Long)`, `read_byte`/`read_int`/
    `read_long`/`read_double(address: Long, offset: Long)`, the matching `write_*(address, offset, value)`, and
-   `copy(from: Long, to: Long, bytes: Long)`. An address is a `Long`, as section 17 already says a handle is --
+   `copy_bytes(from: Long, to: Long, bytes: Long)`. An address is a `Long`, as section 17 already says a handle is --
    there is still no `Pointer` type, and nothing outside the standard library needs `Memory` at all.
 2. **Text from memory and back**: `Memory.text(address: Long, length: Long): String` copies bytes into a `String`,
    and `Memory.address_of(text: String): Long` lends a string's bytes to C for the length of a call. Literals stay
@@ -1706,6 +1706,11 @@ That is the whole floor: `String`, `List<T>` and `Dictionary<T>` become Spite ov
 `Process` and `Program` become Spite over `DynamicLibrary("c", ...)`; the `--debug-memory` live table becomes Spite
 over `Memory`; and float formatting is a foreign call to `snprintf` until a Spite shortest-round-trip formatter
 replaces it. What stays in C is exactly what the compiler emits, never a file someone maintains.
+
+**Built so far, additively (2026-09-23):** items 1, 2's `Memory.text` and 5 -- `Memory` with `allocate_bytes`,
+`resize`, `free`, the typed reads and writes and `copy_bytes`, and `DynamicLibrary("c", ...)`
+(`conformance/stage6/memory_floor`). Nothing has moved onto them yet: moving `String`, `File` and the rest waits on this
+proposal being accepted, since that is where changing the floor later would cost a rewrite.
 
 **The web shim is the one honest exception, and its target is zero hand-written lines.** A file that runs in the
 JavaScript virtual machine cannot be Spite by construction -- it is on the far side of a boundary Spite does not
