@@ -2,5 +2,5 @@ var console = Console()
 var environment = Environment()
 
 func EnvironmentSetting() {
-    console.print(environment.serve, environment.port)
+    console.print(environment.serve, environment.workers)
 }
