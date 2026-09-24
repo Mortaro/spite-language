@@ -36,4 +36,15 @@ func ForeignLibrary() {
     plain.double_values(values, values_count)
     var joined_values = values.join(",")
     console.print(joined_values)
+    wide_arguments()
+}
+
+func wide_arguments() {
+    var guessed_sum = plain.wide_sum_as_long(-1, 0)
+    var declared_sum = windows.wide_sum_as_long(-1, 3)
+    var scaled = windows.scaled(1.5, 4)
+    var handle: Long = 21
+    var handle_twice = windows.handle_twice_as_long(handle)
+    windows.forget(1)
+    console.print(guessed_sum, declared_sum, scaled, handle_twice)
 }
