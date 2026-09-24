@@ -27,7 +27,7 @@ progress log before it ends. `manual.md` is the language; this file is the compi
   `expected_errors.txt`; either may carry `flags.txt` with the command line after the file, such as `-- --name=server` for a program's `Environment`, and a
   conformance program may carry `input.txt` for what it reads from the console.
 - A documentation program is a fenced block in `docs/` headed `spite title=<folder>/<file>.spite [entry] [error]
-  [vars=name:value]`, followed by an ```output or ```diagnostic block. `scripts/docs_corpus.spite` writes them
+  [vars=name:value] [build=name:value]` (`vars` go to the program after `--`, `build` to the compiler), followed by an ```output or ```diagnostic block. `scripts/docs_corpus` writes them
   out; `check.sh` runs them.
 - `scripts/patch_tool.py` applies a file of OLD/NEW blocks; `scripts/regenerate_type_shape.py` regenerates the
   `SpiteType` union and its narrowing helpers when a kind of type is added.

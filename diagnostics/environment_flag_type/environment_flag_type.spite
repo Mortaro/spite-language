@@ -1,6 +1,0 @@
-var console = Console()
-var environment = Environment()
-
-func EnvironmentFlagType() {
-    console.print(environment.name, environment.workers)
-}

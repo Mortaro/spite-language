@@ -170,8 +170,8 @@ Aria and 42
 
 ## Tree shaking
 
-Conditions on codegen values are decided **at compile time**, and the untaken branch is removed from the
-generated C entirely: `Weapon<Int, true>` and `Weapon<Int, false>` are two classes, and each keeps only the
+Conditions on codegen values and on [`Build`](#build-settings-build) fields are decided **at compile time**, and
+the untaken branch is removed from the generated C entirely: `Weapon<Int, true>` and `Weapon<Int, false>` are two classes, and each keeps only the
 branch of `if $is_magic { }` that it takes. This is tree shaking, not just dead-code elimination at the C
 compiler level.
 
@@ -210,31 +210,34 @@ workers 1 verbose true
 ```
 
 Each field is read once, when `Environment()` is first made: from `--endpoint=production` on the program's
-command line (after `--` when the compiler runs it: `spite program_settings.spite -- --endpoint=production`),
+command line (after `--` when the compiler runs it: `spite program_settings -- --endpoint=production`),
 otherwise from the `ENDPOINT` environment variable, otherwise the declared default. Only declared fields are
 read, so nothing the program does not name is ever loaded. The default's literal is the setting's type --
 `false` a `Bool`, `0` an `Int`, `""` a `String` -- and a value that is not one (`--verbose=maybe`) crashes at
 startup. The values are read when the program runs, so `if environment.verbose` is an ordinary `if`: both
 branches are compiled in.
 
-### Settings given to the compiler are hardcoded
+## Build settings: `Build`
 
-A setting given to the **compiler** -- before the `--` -- is not read at run time at all: it becomes part of the
-build. `environment.serve` is the literal `true` everywhere, so `if environment.serve { }` is decided when
-compiling and the branch it does not take is never generated, and the built program ignores `--serve` and
-`SERVE` when it runs. Settings not given to the compiler are read at run time as above, so one build can mix
-both.
+`Environment` is read when the program **runs**. `Build` is its twin for when the program is **compiled**: a
+singleton in the standard library whose fields are decided by the compiler and written into the program as
+constants. Every compiler option is one of them -- `mode`, `output`, `optimized`, `development`, `repl`,
+`repl_port`, `format`, `debug_memory`, `final_classes`, and the two operating systems below -- and a program adds
+its own by reopening `Build` in a file named `build.spite`:
 
-```spite title=build_settings/environment.spite
+```spite title=build_settings/build.spite
 var serve = false
+```
+```spite title=build_settings/environment.spite
 var name = "client"
 ```
 ```spite title=build_settings/build_settings.spite entry build=serve:true vars=serve:false,name:tester
 var console = Console()
+var build = Build()
 var environment = Environment()
 
 func BuildSettings() {
-    if environment.serve {
+    if build.serve {
         console.print("serving as", environment.name)
     } else {
         console.print("this branch is not in the build")
@@ -245,8 +248,20 @@ func BuildSettings() {
 serving as tester
 ```
 
-That is `spite build_settings.spite --serve=true -- --serve=false --name=tester`: `serve` was hardcoded when
-compiling, so the program's own `--serve=false` changes nothing, while `name` is still read when it runs. The
-value has to be one of the setting's type (`--serve=maybe` is a compile error), and a `--name=value` naming no
-setting is a compile error too, so a typo never passes silently. `operational_system`, the setting the standard
-library declares, is always hardcoded: it is the system the program was compiled for.
+That is `spite build_settings --serve=true -- --serve=false --name=tester`. A `--name=value` given to the
+**compiler** -- before the `--` -- sets the `Build` field of that name; a field nobody sets keeps the default
+it was declared with. Either way `build.serve` is the literal `true` in the built program: `if build.serve { }`
+is decided while compiling, the branch it does not take is never generated, and the program's own
+`--serve=false` changes nothing. `name` belongs to `Environment`, so it is still read when the program runs.
+
+- A `Bool` field may be given bare: `--optimized` is `--optimized=true`.
+- The value has to be of the field's type (`--workers=many` for an `Int` is a compile error), a flag naming a
+  field of `Environment` is a compile error that says to pass it after `--`, and a flag naming no field at all
+  is a compile error listing the fields `Build` has. A typo never passes silently.
+- A program's own `build.spite` may also give a compiler option a different default: `var optimized = true`
+  builds it optimized unless `--optimized=false` is given. `mode` and `format` are the exceptions: the compiler
+  needs them before it has read the program, so only the flag changes them.
+- `Build().operating_system` is the system doing the compiling, and `Build().target_operating_system` the one
+  the program is compiled for. The target defaults to the compiling system; `--target_operating_system=linux`
+  compiles for Linux from any machine, loads `library/linux/` instead of this machine's folder, and folds, so
+  `if build.target_operating_system == "windows" { }` keeps only the branch for the target.

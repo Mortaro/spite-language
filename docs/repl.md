@@ -1,6 +1,6 @@
 # REPL and live reload
 
-> **What is built** (D72): `spite program.spite --repl` runs the program, then answers `attributes`,
+> **What is built** (D72): `spite program --repl` runs the program, then answers `attributes`,
 > `functions`, `help`, `exit`, paths such as `monsters[0].health` or `program.player_name`, assignment of a
 > number, Bool, text or enum literal (`monsters[0].health = 5`, which prints the value read back), and calls with
 > literal arguments that print what they return (`monsters[0].roar()`, `monsters.count()`), written in Spite
@@ -65,7 +65,7 @@ costs nothing when you are not debugging.
 ## Local: `--repl`
 
 ```
-spite repl_program.spite --repl
+spite repl_program --repl
 ```
 
 Runs the constructor normally; when it returns, instead of exiting, reads commands from stdin with a
@@ -75,7 +75,7 @@ like a normal run).
 ## Remote: `--repl-port`
 
 ```
-spite repl_program.spite --repl-port 4000
+spite repl_program --repl_port=4000
 ```
 
 Starts a background TCP server on `127.0.0.1:4000` **only**, before the constructor runs -- there is **no

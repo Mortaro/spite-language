@@ -160,7 +160,7 @@ reference type is the intended real fix; not implemented yet.
 
 ## `--debug-memory`
 
-`spite program.spite --debug-memory` builds with an allocation counter and prints `allocations: N frees: N`
+`spite program --debug_memory` builds with an allocation counter and prints `allocations: N frees: N`
 right before the program exits. A mismatch means something leaked or double-freed; when it does not balance,
 it also prints a **leaked-object summary by class name**, naming which classes' instances are still live --
 exactly what makes a leaked cycle visible instead of an unexplained non-zero count.

@@ -1,0 +1,1 @@
+diagnostics/build_setting_type/build.spite:1: error: '--workers=many' was given to the compiler, but 'Build.workers' is an Int: a whole number, like --workers=3

@@ -1,1 +1,0 @@
-diagnostics/environment_flag_type/environment.spite:1: error: '--workers=many' was given to the compiler, but 'Environment.workers' is an Int: a whole number, like --workers=3

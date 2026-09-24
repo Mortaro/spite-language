@@ -1,0 +1,18 @@
+var console = Console()
+var build = Build()
+var environment = Environment()
+
+func BuildSettings() {
+    if build.serve {
+        console.print("serving: given to the compiler, so the other branch was never generated")
+    } else {
+        console.print("rendering")
+    }
+    console.print("workers", build.workers, "name", environment.name, "mode", build.mode)
+    if environment.name == "server" and build.workers == 3 {
+        console.print("the name was read when the program ran")
+    }
+    if build.target_operating_system == build.operating_system {
+        console.print("built for the system that compiled it")
+    }
+}

@@ -5,11 +5,14 @@ var comment_root = ""
 var error_message = ""
 var walking_library = false
 var formats = false
-var operational_system = Environment().operational_system
+var host_operating_system = Build().target_operating_system
+var target_operating_system = Build().target_operating_system
 var supplied_settings = Dictionary<String>()
+var bare_settings = List<String>()
+var build_values = Dictionary<String>()
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
-    choose_operational_system()
+    choose_target_operating_system()
     if has_error {
         return failure(error_message)
     }
@@ -33,6 +36,7 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     var file_stem = file_stem(entry_path)
     var pascal_case = pascal_case(file_stem)
     check_order(entry_path, entry_file, pascal_case)
+    check_entry_constructor(entry_path, entry_file, pascal_case)
     if has_error {
         return failure(error_message)
     }
@@ -80,13 +84,15 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
         }
         root_index = root_index + 1
     }
-    read_environment_settings()
+    read_settings()
     if has_error {
         return failure(error_message)
     }
     var entry_pascal_name = pascal_case(entry_stem)
     var entry_mangled_name = mangle_dotted(entry_pascal_name)
-    return DiscoveryResult(class_files, entry_mangled_name, false, "")
+    var discovered = DiscoveryResult(class_files, entry_mangled_name, false, "")
+    discovered.build_values = build_values
+    return discovered
 }
 
 func lex_failure(path: String, lexer: Syntax.Lexer): String {
@@ -115,6 +121,20 @@ func check_order(path: String, file: Syntax.SourceFile, class_name: String) {
         }
         if rank > reached {
             reached = rank
+        }
+        index = index + 1
+    }
+}
+
+func check_entry_constructor(path: String, file: Syntax.SourceFile, class_name: String) {
+    var index = 0
+    while index < file.statements.count() and not has_error {
+        var function = shape.as_function_declaration(file.statements[index])
+        if function {
+            if function.name == class_name and not function.parameters.is_empty() {
+                has_error = true
+                error_message = "{path}:{function.line}: error: '{class_name}' is the entry constructor, and it takes no arguments: a program reads its run-time settings through Environment() (declared in its environment.spite, given after '--'), what its build decided through Build(), and the raw command line through Arguments(), anywhere"
+            }
         }
         index = index + 1
     }
@@ -304,16 +324,21 @@ func is_platform_folder(name: String): Bool {
     return name == "windows" or name == "linux" or name == "mac"
 }
 
-func choose_operational_system() {
-    if supplied_settings["operational_system"] {
-        if is_platform_folder(supplied_settings["operational_system"]) {
-            operational_system = supplied_settings["operational_system"]
-        } else {
+func choose_target_operating_system() {
+    if supplied_settings.has("operating_system") {
+        has_error = true
+        error_message = "error: '--operating_system' cannot be given: Build.operating_system is the system doing the compiling ({host_operating_system}). To write the program for another system, give --target_operating_system=linux (or windows, or mac)"
+    }
+    supplied_settings["operating_system"] = host_operating_system
+    if supplied_settings["target_operating_system"] {
+        if is_platform_folder(supplied_settings["target_operating_system"]) {
+            target_operating_system = supplied_settings["target_operating_system"]
+        } else if not has_error {
             has_error = true
-            error_message = "error: '--operational_system={supplied_settings["operational_system"]}' names no operating system the library has a folder for: windows, linux or mac"
+            error_message = "error: '--target_operating_system={supplied_settings["target_operating_system"]}' names no operating system the library has a folder for: windows, linux or mac"
         }
     } else {
-        supplied_settings["operational_system"] = operational_system
+        supplied_settings["target_operating_system"] = host_operating_system
     }
 }
 
@@ -359,7 +384,7 @@ func walk_directory(
             excluded = excluded_top_level.contains(folder_name)
             if walking_library and is_platform_folder(folder_name) {
                 excluded = true
-                if folder_name == operational_system {
+                if folder_name == target_operating_system {
                     walk_directory("{root_folder}/{folder_name}", segments, skip_basename, excluded_top_level)
                 }
             }
@@ -529,9 +554,39 @@ func mark_reopened(statement: Syntax.Statements.Statement) {
     variable.overrides_declaration = true
 }
 
-func read_environment_settings() {
-    var environment = environment_file()
-    assert environment
+func read_settings() {
+    var build = class_file_named("Build")
+    crash build
+    var build_names = hardcode_build(build)
+    var environment = class_file_named("Environment")
+    crash environment
+    var environment_names = read_environment(environment)
+    check_supplied_settings(build_names, environment_names)
+}
+
+func hardcode_build(build: Syntax.SourceFile): List<String> {
+    var declared = List<String>()
+    var index = 0
+    while index < build.statements.count() and not has_error {
+        var variable = shape.as_variable_declaration(build.statements[index])
+        if variable {
+            declared.append(variable.name)
+            var reader = setting_reader(variable, "Build")
+            variable.hardcoded_value = variable.value
+            if supplied_settings.has(variable.name) and not has_error {
+                hardcode_setting(variable, reader)
+            }
+            if not has_error {
+                crash variable.hardcoded_value
+                build_values[variable.name] = literal_text(variable.hardcoded_value)
+            }
+        }
+        index = index + 1
+    }
+    return declared
+}
+
+func read_environment(environment: Syntax.SourceFile): List<String> {
     var readings = List<Syntax.Statements.Statement>()
     var declared = List<String>()
     var index = 0
@@ -539,18 +594,15 @@ func read_environment_settings() {
         var variable = shape.as_variable_declaration(environment.statements[index])
         if variable {
             declared.append(variable.name)
-            var reader = setting_reader(variable)
-            if supplied_settings.has(variable.name) {
-                hardcode_setting(variable, reader)
-            } else if not has_error {
-                var reading = setting_reading(variable, reader)
-                readings.append(reading)
-            }
+            var reader = setting_reader(variable, "Environment")
+            var reading = setting_reading(variable, reader)
+            readings.append(reading)
         }
         index = index + 1
     }
-    check_supplied_settings(declared)
-    assert not has_error and not readings.is_empty()
+    if has_error or readings.is_empty() {
+        return declared
+    }
     var constructor = environment_constructor(environment)
     var body_index = 0
     while body_index < constructor.body.count() {
@@ -558,12 +610,13 @@ func read_environment_settings() {
         body_index = body_index + 1
     }
     constructor.body = readings
+    return declared
 }
 
-func environment_file(): Syntax.SourceFile? {
+func class_file_named(qualified_name: String): Syntax.SourceFile? {
     var index = 0
     while index < class_files.count() {
-        if class_files[index].qualified_dotted == "Environment" {
+        if class_files[index].qualified_dotted == qualified_name {
             return class_files[index].get_file()
         }
         index = index + 1
@@ -589,32 +642,47 @@ func environment_constructor(environment: Syntax.SourceFile): Syntax.Statements.
     return made
 }
 
-func setting_reader(variable: Syntax.Statements.VariableDeclaration): String {
+func setting_reader(variable: Syntax.Statements.VariableDeclaration, class_name: String): String {
     crash variable.value
     var reader = literal_reader(variable.value)
     if variable.type_reference or reader.is_empty() {
         has_error = true
-        error_message = "{variable.source_path}:{variable.line}: error: 'Environment.{variable.name}' is a setting, given to the compiler (--{variable.name}=value, hardcoded into the build) or read when the program runs from its command line or its environment ({variable.name.upper_case()}), so it is declared with only a literal default, and the literal is its type: 'var {variable.name} = false' (Bool), 'var {variable.name} = 0' (Int) or 'var {variable.name} = \"\"' (String)"
+        error_message = "{variable.source_path}:{variable.line}: error: '{class_name}.{variable.name}' is {setting_source(variable.name, class_name)}, so it is declared with only a literal default, and the literal is its type: 'var {variable.name} = false' (Bool), 'var {variable.name} = 0' (Int) or 'var {variable.name} = \"\"' (String)"
     }
     return reader
 }
 
+func setting_source(name: String, class_name: String): String {
+    if class_name == "Build" {
+        return "decided when compiling, by the compiler's --{name}=value"
+    }
+    return "a setting, read from the program's command line (--{name}=value) or its environment ({name.upper_case()})"
+}
+
 func hardcode_setting(variable: Syntax.Statements.VariableDeclaration, reader: String) {
-    assert not has_error
     crash supplied_settings[variable.name]
     var literal = setting_literal(reader, supplied_settings[variable.name])
+    var given = "--{variable.name}={supplied_settings[variable.name]}"
+    if bare_settings.contains(variable.name) {
+        given = "--{variable.name}"
+        if reader != "boolean_setting" {
+            literal = null
+        }
+    }
     if literal {
-        variable.value = literal
-        variable.hardcoded = true
+        variable.hardcoded_value = literal
     } else {
         has_error = true
-        error_message = "{variable.source_path}:{variable.line}: error: '--{variable.name}={supplied_settings[variable.name]}' was given to the compiler, but 'Environment.{variable.name}' is {setting_expectation(reader, variable.name)}"
+        error_message = "{variable.source_path}:{variable.line}: error: '{given}' was given to the compiler, but 'Build.{variable.name}' is {setting_expectation(reader, variable.name)}"
     }
 }
 
 func setting_expectation(reader: String, name: String): String {
     if reader == "boolean_setting" {
-        return "a Bool: --{name}=true or --{name}=false"
+        return "a Bool: --{name}, --{name}=true or --{name}=false"
+    }
+    if reader == "text_setting" {
+        return "a String: --{name}=text"
     }
     return "an Int: a whole number, like --{name}=3"
 }
@@ -654,14 +722,40 @@ func integer_literal(text: String): Syntax.Expressions.Expression? {
     return Syntax.Expressions.IntegerLiteral(value)
 }
 
-func check_supplied_settings(declared: List<String>) {
+func literal_text(literal: Syntax.Expressions.Expression): String {
+    if shape.is_true_literal(literal) {
+        return "true"
+    }
+    if shape.is_false_literal(literal) {
+        return "false"
+    }
+    var text = shape.as_string_literal(literal)
+    if text {
+        return text.value
+    }
+    var whole_number = shape.as_integer_literal(literal)
+    if whole_number {
+        return "{whole_number.value}"
+    }
+    var negated = shape.as_unary(literal)
+    crash negated
+    crash negated.operand
+    var magnitude = shape.as_integer_literal(negated.operand)
+    crash magnitude
+    return "-{magnitude.value}"
+}
+
+func check_supplied_settings(build_names: List<String>, environment_names: List<String>) {
     var supplied_names = supplied_settings.keys()
     var index = 0
     while index < supplied_names.count() and not has_error {
         var name = supplied_names[index]
-        if not declared.contains(name) {
+        if environment_names.contains(name) and not build_names.contains(name) {
             has_error = true
-            error_message = "error: '--{name}' is not a compiler flag, and this program's Environment declares no setting '{name}' (it declares {declared.join(", ")}). A setting given to the compiler is hardcoded into the build: declare it in the program's environment.spite with 'var {name} = ...'. To give it to the program when it runs instead, pass it after '--': spite program.spite -- --{name}=value"
+            error_message = "error: '--{name}' was given to the compiler, but 'Environment.{name}' is read when the program runs: give it to the program after '--' (spite program -- --{name}=value), or, to decide it when compiling, declare it in the program's build.spite instead"
+        } else if not build_names.contains(name) {
+            has_error = true
+            error_message = "error: '--{name}' is not a compiler option, and this program's Build declares no setting '{name}' (it declares {build_names.join(", ")}). To decide it when compiling, reopen Build in the program's build.spite with 'var {name} = ...'; to read it when the program runs, declare it in environment.spite and give it after '--': spite program -- --{name}=value"
         }
         index = index + 1
     }

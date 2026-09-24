@@ -21,7 +21,7 @@ outright instead of silently accepting it.
 | Metaprogramming: reflection (`.class`/`.attributes`) | partial (`Class.instances`, D6 class-level functions, D10 symbol literals and D11 two-level reflection planned) |
 | Codegen values (`$`), generics, compiler flags, tree shaking | implemented (D5/D9's constructor-declared form -- `func Weapon<$a, $b>(...)`, positional call sites -- is planned; manual.md section 9) |
 | Memory (reference counting, `drop()`, `copy()`/`deep_copy()`) | implemented (D1; cycles leak by design, weak references planned) |
-| Packages, namespaces, monkey patching, `--final-classes` | partial (bundles always linked statically for now) |
+| Packages, namespaces, monkey patching, `--final_classes` | partial (bundles always linked statically for now) |
 | Style: formatter + linter | implemented |
 | REPL (`--repl`, `--repl-port`, `spite connect`) | partial (live reload / in-process codegen is milestone 6b) |
 | Standard library (`String`, `List<T>`, `Dictionary<T>`, `File`/`Directory`/`Process`/`Program`) | implemented |
@@ -38,7 +38,7 @@ needs nothing but a C compiler.
 
 ```
 cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite
-./spite --file=examples/hello/hello.spite --mode=run
+./spite examples/hello
 ```
 
 Check the compiler: `check.sh` builds the seed, requires generation 2 and generation 3 to be byte identical,
@@ -57,7 +57,7 @@ Build the compiler once, then point it at a file:
 ```
 cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite
 export CC=cc                     # the compiler shells out to this to build the C it emits
-./spite --file=path/to/thing.spite --mode=run
+./spite path/to/thing
 ```
 
 `--mode=c` prints the generated C instead of running it.
@@ -69,7 +69,7 @@ contains spaces, so use the short form:
 CL="/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/x64/bin/clang.exe"
 "$CL" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations bootstrap/seed/spite_compiler.c -o spite.exe
 export CC="$(cygpath -d "$CL") -Wno-deprecated-declarations"
-./spite.exe --file=path/to/thing.spite --mode=run
+./spite.exe path/to/thing
 ```
 
 A file is a class named after it, and its constructor is the entry point, so `greeter.spite`:

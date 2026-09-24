@@ -1,0 +1,6 @@
+var console = Console()
+var build = Build()
+
+func BuildSettingType() {
+    console.print(build.name, build.workers)
+}

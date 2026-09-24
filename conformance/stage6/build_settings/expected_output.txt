@@ -1,3 +1,4 @@
 serving: given to the compiler, so the other branch was never generated
-workers 3 name server
+workers 3 name server mode run
 the name was read when the program ran
+built for the system that compiled it

@@ -10,7 +10,7 @@ C -- a fixpoint.
 
 ```
 cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite
-./spite --file=bootstrap/spite_compiler.spite --mode=c > next.c    # equal to the committed seed
+./spite bootstrap/spite_compiler.spite --mode=c > next.c    # equal to the committed seed
 ```
 
 So the only thing needed to build Spite from nothing is a C compiler. The seed is committed, and `check.sh`

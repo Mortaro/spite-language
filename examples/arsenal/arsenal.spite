@@ -1,7 +1,8 @@
 var console = Console()
 var environment = Environment()
 
-func Arsenal(arguments: Arguments) {
+func Arsenal() {
+    var arguments = Arguments()
     var sword = Weapon<Int, true>(10)
     sword.hit()
     if environment.name == "server" {

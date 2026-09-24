@@ -1,79 +1,78 @@
 var console = Console()
-var optimized = false
 var last_crash_map = ""
-var formats = true
-var read_evaluate_print_loop = false
-var development = false
 var supplied_settings = Dictionary<String>()
+var bare_settings = List<String>()
+var build_values = Dictionary<String>()
 
-func SpiteCompiler(arguments: Arguments) {
+func SpiteCompiler() {
     load("source")
+    var arguments = Arguments()
+    read_supplied_settings(arguments)
     var file_argument = file_to_compile(arguments)
     if file_argument.is_empty() {
-        console.error("usage: spite program.spite [--optimized] [--debug_memory=true] [-- program arguments ...]")
-        console.error("       spite program.spite --mode=c                  print the C instead of running")
-        console.error("       spite program.spite --mode=build --output=path  build without running")
+        console.error("usage: spite program_folder [--optimized] [--debug_memory] [-- program arguments ...]")
+        console.error("       spite program_folder --mode=c                  print the C instead of running")
+        console.error("       spite program_folder --mode=build --output=path  build without running")
         Program().exit(1)
         return
     }
-    var mode_argument = "run"
-    if arguments.mode {
-        mode_argument = arguments.mode
-    }
-    optimized = has_flag(arguments, "--optimized")
-    formats = not has_flag(arguments, "--no-format")
-    read_evaluate_print_loop = has_flag(arguments, "--repl")
-    development = has_flag(arguments, "--development")
-    supplied_settings = settings_from(arguments)
     var content = File(file_argument).read()
     if content {
-        run_mode(arguments, file_argument, mode_argument, content)
+        run_mode(file_argument, content)
     } else {
         console.error("error: could not read '{file_argument}'")
         Program().exit(1)
     }
 }
 
-func run_mode(arguments: Arguments, file_argument: String, mode_argument: String, content: String) {
-    if mode_argument == "canonical" {
+func run_mode(file_argument: String, content: String) {
+    var requested_mode = supplied_or("mode", "run")
+    if requested_mode == "canonical" {
         run_canonical_mode(content)
         return
     }
-    if mode_argument == "format" or mode_argument == "check_format" {
-        run_format_mode(file_argument, content, mode_argument == "check_format")
+    if requested_mode == "format" or requested_mode == "check_format" {
+        run_format_mode(file_argument, content, requested_mode == "check_format")
         return
     }
-    if mode_argument == "tokens" {
+    if requested_mode == "tokens" {
         run_tokens_mode(content)
         return
     }
-    if mode_argument == "tree" {
+    if requested_mode == "tree" {
         run_tree_mode(file_argument, content)
         return
     }
-    var final_classes_directory = final_classes_directory(arguments)
-    if final_classes_directory {
-        run_final_classes_mode(file_argument, content, final_classes_directory)
+    var discovery = discovered_program(file_argument, content)
+    if discovery {
+        run_discovered(file_argument, discovery)
+    } else {
+        Program().exit(1)
+    }
+}
+
+func run_discovered(file_argument: String, discovery: Discovery.DiscoveryResult) {
+    var final_classes_directory = option("final_classes")
+    if not final_classes_directory.is_empty() {
+        run_final_classes_mode(discovery, final_classes_directory)
         return
     }
-    if mode_argument == "c" {
-        run_c_mode(file_argument, content)
+    var mode = option("mode")
+    if mode == "c" {
+        run_c_mode(discovery)
         return
     }
-    if mode_argument == "build" {
-        crash arguments.output
-        var has_debug_memory_flag = has_debug_memory_flag(arguments)
-        run_build_mode(file_argument, content, arguments.output, has_debug_memory_flag)
+    if mode == "build" {
+        run_build_mode(file_argument, discovery)
         return
     }
-    if mode_argument == "run" {
-        var has_debug_memory_flag = has_debug_memory_flag(arguments)
-        var program_arguments = program_arguments(arguments)
-        run_run_mode(file_argument, content, has_debug_memory_flag, program_arguments)
+    if mode == "run" {
+        var program_arguments = program_arguments()
+        run_run_mode(file_argument, discovery, program_arguments)
         return
     }
     console.error(
-        "unknown --mode '{mode_argument}' (expected 'tokens', 'tree', 'c', 'build', 'run', 'format' or 'check_format')",
+        "unknown --mode '{mode}' (expected 'tokens', 'tree', 'c', 'build', 'run', 'format' or 'check_format')",
     )
     var program = Program()
     program.exit(1)
@@ -112,26 +111,41 @@ func run_format_mode(file_argument: String, content: String, only_check: Bool) {
     console.error("formatted {file_argument}")
 }
 
-func has_debug_memory_flag(arguments: Arguments): Bool {
-    if arguments.debug_memory {
-        return arguments.debug_memory == "true"
-    }
-    return false
+func option(name: String): String {
+    crash build_values[name]
+    return build_values[name]
 }
 
-func generate_c_or_report(file_argument: String, content: String): String? {
+func is_on(name: String): Bool {
+    return option(name) == "true"
+}
+
+func supplied_or(name: String, fallback: String): String {
+    if supplied_settings[name] {
+        return supplied_settings[name]
+    }
+    return fallback
+}
+
+func discovered_program(file_argument: String, content: String): Discovery.DiscoveryResult? {
     var discoverer = Discovery.ProgramDiscovery()
-    discoverer.formats = formats
+    discoverer.formats = supplied_or("format", "true") == "true"
     discoverer.supplied_settings = supplied_settings
+    discoverer.bare_settings = bare_settings
     var discovery = discoverer.discover(file_argument, content)
     if discovery.has_error {
         console.error(discovery.error_message)
         return null
     }
+    build_values = discovery.build_values
+    return discovery
+}
+
+func generate_c_or_report(discovery: Discovery.DiscoveryResult): String? {
     var prelude = Generation.Prelude()
     var generator = Generation.Generator()
-    generator.read_evaluate_print_loop = read_evaluate_print_loop
-    generator.development = development
+    generator.read_evaluate_print_loop = is_on("repl")
+    generator.development = is_on("development")
     var header = prelude.header()
     var structs = prelude.structs()
     var prototypes = prelude.prototypes()
@@ -146,13 +160,10 @@ func generate_c_or_report(file_argument: String, content: String): String? {
 }
 
 func file_to_compile(arguments: Arguments): String {
-    if arguments.file {
-        return entry_file_of(arguments.file)
-    }
     var index = 0
     while index < compiler_arguments_end(arguments) {
         var argument = arguments.get(index)
-        if not argument.starts_with("--") and (argument.ends_with(".spite") or Directory(argument).exists()) {
+        if not argument.starts_with("-") {
             return entry_file_of(argument)
         }
         index = index + 1
@@ -184,7 +195,8 @@ func compiler_arguments_end(arguments: Arguments): Int {
     return arguments.count()
 }
 
-func program_arguments(arguments: Arguments): List<String> {
+func program_arguments(): List<String> {
+    var arguments = Arguments()
     var passed = List<String>()
     var index = compiler_arguments_end(arguments) + 1
     while index < arguments.count() {
@@ -195,65 +207,25 @@ func program_arguments(arguments: Arguments): List<String> {
     return passed
 }
 
-func has_flag(arguments: Arguments, flag: String): Bool {
-    var index = 0
-    while index < compiler_arguments_end(arguments) {
-        if arguments.get(index) == flag {
-            return true
-        }
-        index = index + 1
-    }
-    return false
-}
-
-func settings_from(arguments: Arguments): Dictionary<String> {
-    var compiler_flags = ["file", "mode", "output", "debug_memory", "runtime", "final-classes"]
-    var settings = Dictionary<String>()
+func read_supplied_settings(arguments: Arguments) {
     var index = 0
     while index < compiler_arguments_end(arguments) {
         var argument = arguments.get(index)
         var equals_position = argument.index_of("=")
+        var argument_length = argument.length()
         if argument.starts_with("--") and equals_position > 2 {
             var name = argument.slice(2, equals_position)
-            if not compiler_flags.contains(name) {
-                var argument_length = argument.length()
-                settings[name] = argument.slice(equals_position + 1, argument_length)
-            }
+            supplied_settings[name] = argument.slice(equals_position + 1, argument_length)
+        } else if argument.starts_with("--") and argument_length > 2 {
+            var name = argument.slice(2, argument_length)
+            supplied_settings[name] = "true"
+            bare_settings.append(name)
         }
         index = index + 1
     }
-    return settings
 }
 
-func final_classes_directory(arguments: Arguments): String? {
-    var index = 0
-    while index < compiler_arguments_end(arguments) {
-        var argument = arguments.get(index)
-        if argument == "--final-classes" {
-            return ".spite-cache/final"
-        }
-        if argument.starts_with("--final-classes=") {
-            var argument_length = argument.length()
-            var directory = argument.slice(16, argument_length)
-            if directory.is_empty() {
-                return ".spite-cache/final"
-            }
-            return directory
-        }
-        index = index + 1
-    }
-    return null
-}
-
-func run_final_classes_mode(file_argument: String, content: String, output_directory: String) {
-    var discoverer = Discovery.ProgramDiscovery()
-    discoverer.supplied_settings = supplied_settings
-    var discovery = discoverer.discover(file_argument, content)
-    if discovery.has_error {
-        console.error(discovery.error_message)
-        Program().exit(1)
-        return
-    }
+func run_final_classes_mode(discovery: Discovery.DiscoveryResult, output_directory: String) {
     var generator = final_classes_generator(discovery)
     assert generator
     var kept = generator.emitted_qualified_names()
@@ -288,8 +260,8 @@ func run_final_classes_mode(file_argument: String, content: String, output_direc
 func final_classes_generator(discovery: Discovery.DiscoveryResult): Generation.Generator? {
     var prelude = Generation.Prelude()
     var generator = Generation.Generator()
-    generator.read_evaluate_print_loop = read_evaluate_print_loop
-    generator.development = development
+    generator.read_evaluate_print_loop = is_on("repl")
+    generator.development = is_on("development")
     var header = prelude.header()
     var structs = prelude.structs()
     var prototypes = prelude.prototypes()
@@ -405,8 +377,8 @@ func create_final_class_directory(path: String) {
     }
 }
 
-func run_c_mode(file_argument: String, content: String) {
-    var code = generate_c_or_report(file_argument, content)
+func run_c_mode(discovery: Discovery.DiscoveryResult) {
+    var code = generate_c_or_report(discovery)
     if code {
         console.write(code)
         return
@@ -445,8 +417,8 @@ func pascal_case_class_name(snake: String): String {
     return result
 }
 
-func build_to_path(file_argument: String, content: String, output_path: String, debug_memory: Bool): Bool {
-    var code = generate_c_or_report(file_argument, content)
+func build_to_path(file_argument: String, discovery: Discovery.DiscoveryResult, output_path: String): Bool {
+    var code = generate_c_or_report(discovery)
     if not code {
         return false
     }
@@ -466,14 +438,14 @@ func build_to_path(file_argument: String, content: String, output_path: String, 
         return false
     }
     var process_arguments = List<String>()
-    if optimized {
+    if is_on("optimized") {
         process_arguments.append("-O2")
     } else {
         process_arguments.append("-O0")
     }
     process_arguments.append("-Wno-parentheses-equality")
     process_arguments.append("-I.")
-    if debug_memory {
+    if is_on("debug_memory") {
         process_arguments.append("-DSPITE_DEBUG_MEMORY")
     }
     process_arguments.append(c_path)
@@ -514,17 +486,23 @@ func find_c_compiler(): String {
     return ""
 }
 
-func run_build_mode(file_argument: String, content: String, output_path: String, debug_memory: Bool) {
-    var built = build_to_path(file_argument, content, output_path, debug_memory)
+func run_build_mode(file_argument: String, discovery: Discovery.DiscoveryResult) {
+    var output_path = option("output")
+    if output_path.is_empty() {
+        console.error("error: --mode=build writes the program to --output=path, and no path was given")
+        Program().exit(1)
+        return
+    }
+    var built = build_to_path(file_argument, discovery, output_path)
     if not built {
         var program = Program()
         program.exit(1)
     }
 }
 
-func run_run_mode(file_argument: String, content: String, debug_memory: Bool, passed: List<String>) {
+func run_run_mode(file_argument: String, discovery: Discovery.DiscoveryResult, passed: List<String>) {
     var output_path = ".spite-cache/{computed_class_name(file_argument)}_gen1.exe"
-    var built = build_to_path(file_argument, content, output_path, debug_memory)
+    var built = build_to_path(file_argument, discovery, output_path)
     if not built {
         var program = Program()
         program.exit(1)
@@ -532,7 +510,7 @@ func run_run_mode(file_argument: String, content: String, debug_memory: Bool, pa
     }
     var replaced_output_path = output_path.replace("/", "\\")
     var runner = Process(replaced_output_path, passed)
-    if read_evaluate_print_loop {
+    if is_on("repl") {
         console.flush()
         var run_attached = runner.run_attached()
         Program().exit(run_attached)

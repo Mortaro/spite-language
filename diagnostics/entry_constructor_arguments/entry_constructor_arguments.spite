@@ -1,0 +1,5 @@
+var console = Console()
+
+func EntryConstructorArguments(arguments: Arguments) {
+    console.print(arguments.count())
+}

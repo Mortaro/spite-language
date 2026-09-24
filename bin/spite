@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs the Spite compiler, rebuilding it first if the sources moved on.
-#   spite thing.spite            compile and run
-#   spite thing.spite --mode=c   print the C instead
+#   spite thing                  compile and run the program in the folder thing/
+#   spite thing --mode=c         print the C instead
 here="$(cd "$(dirname "$0")/.." && pwd)"
 seed="$here/bootstrap/seed/spite_compiler.c"
 binary="$here/.spite-cache/spite.exe"   # not in bin/, or it would shadow this launcher on PATH
@@ -44,12 +44,12 @@ if [ "$1" == "format" ]; then
     case "$target" in /* | [A-Za-z]:*) ;; *) target="$(pwd)/$target" ;; esac
     status=0
     while IFS= read -r file; do
-        (cd "$here" && "$binary" --file="$file" --mode=$mode) || status=1
+        (cd "$here" && "$binary" "$file" --mode=$mode) || status=1
     done < <(if [ -d "$target" ]; then find "$target" -name "*.spite" -not -path "*/.spite-cache/*"; else echo "$target"; fi)
     exit $status
 fi
 
-# `spite thing.spite` is the common case; anything starting with - is passed through.
+# `spite thing` is the common case; anything starting with - is passed through.
 # The compiler reads runtime/*.h relative to its working directory, so it runs from the
 # repository root and every file argument is made absolute first.
 # A flag that names a path where output goes needs the same treatment, since the working
@@ -66,12 +66,12 @@ for argument in "$@"; do
     if $passing; then arguments+=("$argument"); continue; fi
     case "$argument" in
         --)                 passing=true; arguments+=("--") ;;
-        --final-classes=* ) arguments+=("--final-classes=$(absolute "${argument#*=}")") ;;
+        --final_classes=* ) arguments+=("--final_classes=$(absolute "${argument#*=}")") ;;
         --output=*)         arguments+=("--output=$(absolute "${argument#*=}")") ;;
         -*)                 arguments+=("$argument") ;;
-        /*)                 arguments+=("--file=$argument") ;;
-        [A-Za-z]:*)         arguments+=("--file=$(cygpath -u "$argument" 2>/dev/null || echo "$argument")") ;;
-        *)                  arguments+=("--file=$(pwd)/$argument") ;;
+        /*)                 arguments+=("$argument") ;;
+        [A-Za-z]:*)         arguments+=("$(cygpath -u "$argument" 2>/dev/null || echo "$argument")") ;;
+        *)                  arguments+=("$(pwd)/$argument") ;;
     esac
 done
 case " ${arguments[*]} " in *" --mode="*) ;; *) arguments=("--mode=run" "${arguments[@]}") ;; esac

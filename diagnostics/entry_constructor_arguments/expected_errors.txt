@@ -1,0 +1,1 @@
+diagnostics/entry_constructor_arguments/entry_constructor_arguments.spite:3: error: 'EntryConstructorArguments' is the entry constructor, and it takes no arguments: a program reads its run-time settings through Environment() (declared in its environment.spite, given after '--'), what its build decided through Build(), and the raw command line through Arguments(), anywhere

@@ -1726,14 +1726,15 @@ func resolve_field(declaration: Syntax.Statements.VariableDeclaration, informati
     report_nested_calls_in(declaration.value)
     var field_type = infer_declared_type(declaration.type_reference, declaration.value, scope, information)
     var default_code = coerce_for_store(declaration.value, field_type, scope, information)
-    information.fields.append(Analysis.FieldInfo(declaration.name, field_type, default_code))
-    if declaration.hardcoded {
+    if declaration.hardcoded_value {
+        default_code = coerce_for_store(declaration.hardcoded_value, field_type, scope, information)
         hardcoded_settings.append(declaration)
     }
+    information.fields.append(Analysis.FieldInfo(declaration.name, field_type, default_code))
 }
 
 func hardcoded_setting(target_class: Analysis.ClassInfo, name: String): Syntax.Statements.VariableDeclaration? {
-    if target_class.c_name != "Environment" {
+    if target_class.c_name != "Build" {
         return null
     }
     var index = 0
@@ -1762,10 +1763,10 @@ func hardcoded_setting_value(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
-    crash setting.value
-    var value = generate_expression(setting.value, scope, class_information)
+    crash setting.hardcoded_value
+    var value = generate_expression(setting.hardcoded_value, scope, class_information)
     value.owning_override = false
-    var text = constant_text(setting.value)
+    var text = constant_text(setting.hardcoded_value)
     if text {
         value.constant_text = text
     }

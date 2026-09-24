@@ -120,16 +120,18 @@ greater true
 
 Missing the function is a diagnostic that names exactly what to define:
 
-```spite title=operator_missing_error/operator_missing_error.spite entry error
-var console = Console()
+```spite title=operator_missing_error/money.spite
 var cents = 0
 
-func OperatorMissingError(starting_cents: Int) {
+func Money(starting_cents: Int) {
     cents = starting_cents
 }
+```
+```spite title=operator_missing_error/operator_missing_error.spite entry error
+var console = Console()
 
-func use_it() {
-    console.print(OperatorMissingError(1) + OperatorMissingError(2))
+func OperatorMissingError() {
+    console.print(Money(1) + Money(2))
 }
 ```
 ```diagnostic

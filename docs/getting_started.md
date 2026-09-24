@@ -12,7 +12,7 @@ That builds `spite` from `bootstrap/seed/spite_compiler.c`, the committed C that
 itself. Compiling and running a program is one command:
 
 ```
-./spite --file=path/to/file.spite --mode=run
+./spite path/to/program
 ```
 
 `bash check.sh` from the repository root proves the compiler still reproduces itself and still passes every
@@ -34,37 +34,38 @@ Hello, Spite!
 Run it:
 
 ```
-./spite --file=hello_world.spite --mode=run
+./spite hello_world
 ```
 
-Building and running are the same command -- there is no separate "compile" step to remember. The file's class
-name (`HelloWorld`, from `hello_world.spite` PascalCased) is constructed and that's the whole program: no
-`main`, no entry point declaration.
+A program is a folder, and building and running are the same command -- there is no separate "compile" step to
+remember. The file named after the folder is the entry file, and its class (`HelloWorld`, from
+`hello_world.spite` PascalCased) is constructed with no arguments: that's the whole program, no `main`, no entry
+point declaration.
 
 ## The command line
 
 The complete, current command-line reference is [compiler.md](compiler.md). The shortest useful forms are:
 
 ```bash
-spite file.spite                              # build and run
-spite file.spite --optimized                  # build and run with C optimization
-spite file.spite --mode=c > file.c            # print generated C
-spite file.spite --mode=build --output=file.exe # build without running
-spite file.spite -- --serve=true              # pass the program its own arguments
+spite program                                 # build and run
+spite program --optimized                     # build and run with C optimization
+spite program --mode=c > program.c            # print generated C
+spite program --mode=build --output=program.exe # build without running
+spite program -- --serve=true                 # pass the program its own arguments
 ```
 
-Everything after `--` belongs to the program; before it, a `--name=value` is a compiler flag or a setting the
-program's `Environment` declares, hardcoded into the build, and anything else is an error -- there is no silent
-typo. A program reads its settings through `Environment` (see
-[metaprogramming.md](metaprogramming.md#program-settings-environment)). Planned flags such as `--development`, `--repl`, and formatting commands are not available yet.
+Everything after `--` belongs to the program, which reads it through `Environment` (see
+[metaprogramming.md](metaprogramming.md#program-settings-environment)). Before it, a `--name=value` sets a field
+of `Build`, the compile-time settings every compiler option belongs to, and a name that is not one is an error
+-- there is no silent typo.
 
 ## Automatic formatting and lints
 
-**The compiler is the formatter.** Every `spite file.spite` run first rewrites every `.spite` file belonging to
+**The compiler is the formatter.** Every `spite program` run first rewrites every `.spite` file belonging to
 the program (the entry folder's own files, plus every `load(...)`-ed root, recursively) to the one true style,
 printing `formatted <path>` to stderr for each file it touched, before compiling the up-to-date text. Style is
 not configurable: 4-space indentation, K&R braces, one blank line between file-level declarations, minimum
-necessary parentheses, list/call bodies broken past 120 columns. `--no-format` skips this (useful for a script
+necessary parentheses, list/call bodies broken past 120 columns. `--format=false` skips this (useful for a script
 that asserts diagnostic positions against a fixture kept deliberately unformatted). Run it standalone with
 `spite format <path>` (rewrites) or `spite format --check <path>` (lists what would change, changes nothing,
 exits 1 if the list is non-empty) -- this is the check every sample on these documentation pages passes.
