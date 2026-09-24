@@ -4,12 +4,16 @@ var greeted = List<String>()
 func TypedFunctions() {
     var shouter = Shouter("!")
     var loud = shouter.shout
-    console.print(loud.name, loud.arguments.count(), loud.returns.name)
-    console.print(apply(loud, "hi"), apply(shouter.whisper, "HI"))
+    var arguments_count = loud.arguments.count()
+    console.print(loud.name, arguments_count, loud.returns.name)
+    var apply = apply(loud, "hi")
+    var whispered = apply(shouter.whisper, "HI")
+    console.print(apply, whispered)
     var remember = remember_greeting
     remember("ada")
     remember.call_function("grace")
-    console.print(greeted.join(","))
+    var joined_greeted = greeted.join(",")
+    console.print(joined_greeted)
     var button = Button()
     button.on_press = ring
     button.press()
@@ -17,7 +21,9 @@ func TypedFunctions() {
     var every = List<Spite.Function<String, String>>()
     every.append(shouter.shout)
     every.append(shouter.whisper)
-    console.print(every.count(), run_all(every, "Yo"))
+    var every_count = every.count()
+    var run_all = run_all(every, "Yo")
+    console.print(every_count, run_all)
 }
 
 func apply(change: Spite.Function<String, String>, text: String): String {
@@ -36,7 +42,8 @@ func run_all(changes: List<Spite.Function<String, String>>, text: String): Strin
     var results = List<String>()
     var index = 0
     while index < changes.count() {
-        results.append(changes[index].call_function(text))
+        var call_function = changes[index].call_function(text)
+        results.append(call_function)
         index = index + 1
     }
     return results.join(" ")

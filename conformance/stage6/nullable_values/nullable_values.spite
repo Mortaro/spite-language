@@ -7,8 +7,10 @@ func NullableValues() {
     target = Monster("rat")
     bonus = 7
     report()
-    describe(find("rat"))
-    describe(find("nobody"))
+    var rat = find("rat")
+    describe(rat)
+    var nobody = find("nobody")
+    describe(nobody)
     var names = Dictionary<String>()
     names.set("first", "ada")
     var found: String? = names.get("first")

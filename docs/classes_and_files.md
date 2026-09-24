@@ -57,7 +57,8 @@ func TeamRoster() {
     var members = List<Member>()
     members.append(Member())
     members.append(Member())
-    console.print("count", members.count())
+    var members_count = members.count()
+    console.print("count", members_count)
     crash members.count() == 2
     console.print("first name", members[0].name, "level", members[0].level)
 }

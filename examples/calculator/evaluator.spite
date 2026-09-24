@@ -51,14 +51,17 @@ func process_line(line: String) {
     if line.contains("=") {
         var parts = line.split("=")
         crash parts.count() > 1
-        var parser = Parser(Lexer(parts[1]).tokens)
+        var tokens = Lexer(parts[1]).tokens
+        var parser = Parser(tokens)
         var tree = parser.parse()
         var value = evaluate_tree(tree)
-        console.print(parts[0].trim(), "=", value)
-        assign(parts[0].trim(), value)
+        var trimmed_part = parts[0].trim()
+        console.print(trimmed_part, "=", value)
+        assign(trimmed_part, value)
         return
     }
-    var parser = Parser(Lexer(line).tokens)
+    var tokens = Lexer(line).tokens
+    var parser = Parser(tokens)
     var tree = parser.parse()
     var value = evaluate_tree(tree)
     console.print("=>", value)

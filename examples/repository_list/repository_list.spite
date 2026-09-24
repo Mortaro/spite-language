@@ -8,8 +8,10 @@ func RepositoryList() {
     crash repositories[0]
     var first = repositories[0]
     first.set_stars(15)
-    console.print("first stars", first.get_stars())
-    console.print("active stars", repositories.filter_active().sum_stars())
+    var first_stars = first.get_stars()
+    console.print("first stars", first_stars)
+    var sum_stars = repositories.filter_active().sum_stars()
+    console.print("active stars", sum_stars)
     var found = repositories.find_by_name("compiler")
     if found {
         console.print("found", found.name, found.stars)

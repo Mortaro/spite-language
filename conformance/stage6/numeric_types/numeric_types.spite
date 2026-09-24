@@ -14,12 +14,14 @@ func NumericTypes() {
     var total: Int = level + octet
     var ratio: Double = 1.5
     var rounded: Short = ratio * 3
-    console.print(total, rounded, "port {port}", add_bytes(250, 10))
+    var add_bytes = add_bytes(250, 10)
+    console.print(total, rounded, "port {port}", add_bytes)
     var ports = List<UnsignedShort>()
     ports.append(port)
     ports.append(70000)
     crash ports.count() == 2
-    console.print(ports[0], ports[1], ports.count())
+    var ports_count = ports.count()
+    console.print(ports[0], ports[1], ports_count)
 }
 
 func add_bytes(first: Byte, second: Byte): Byte {

@@ -31,7 +31,8 @@ func render(): String {
         "spite_program_arguments = (SpiteArguments)\{ .count = argument_count - 1, .items = (const char**)(argument_values + 1) };",
     )
     main_text.append("#ifdef _WIN32\n_setmode(_fileno(stdout), _O_BINARY);\n#endif")
-    main_text.append(main_lines.join("\n"))
+    var joined_main_lines = main_lines.join("\n")
+    main_text.append(joined_main_lines)
     main_text.append("return 0;\n}")
     var main_function = main_text.join("\n")
     var typedef_text = typedefs.join("\n")
@@ -40,6 +41,7 @@ func render(): String {
         "{typedef_text}\n{main_function}",
         "{support_bodies.join("\n")}\n{user_bodies.join("\n")}",
     )
-    var prototype_text = shaker.kept_prototypes(prototypes.join("\n"))
+    var joined_prototypes = prototypes.join("\n")
+    var prototype_text = shaker.kept_prototypes(joined_prototypes)
     return "{typedef_text}\n{prototype_text}\n{bodies}\n{main_function}\n"
 }

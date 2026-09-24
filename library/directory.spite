@@ -5,11 +5,13 @@ func Directory(starting_path: String) {
 }
 
 func files(): List<String> {
-    return sorted(entries(false))
+    var entries = entries(false)
+    return sorted(entries)
 }
 
 func folders(): List<String> {
-    return sorted(entries(true))
+    var entries = entries(true)
+    return sorted(entries)
 }
 
 func sorted(names: List<String>): List<String> {

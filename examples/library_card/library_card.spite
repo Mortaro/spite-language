@@ -4,7 +4,8 @@ var books = List<Book>()
 func LibraryCard() {
     stock()
     console.print("{books.count()} books, {books.count_is_available()} available")
-    console.print(books.map_label().join("; "))
+    var joined_map_label = books.map_label().join("; ")
+    console.print(joined_map_label)
     lend("Dune", "ada")
     console.print("after lending: {books.count_is_available()} available")
     report_by_shelf()
@@ -45,5 +46,7 @@ func report_by_shelf() {
         }
         index = index + 1
     }
-    console.print(counts.keys().join(","), counts.values().join(","))
+    var joined_keys = counts.keys().join(",")
+    var joined_values = counts.values().join(",")
+    console.print(joined_keys, joined_values)
 }

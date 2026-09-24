@@ -8,19 +8,26 @@ func MemoryFloor() {
 
 func run() {
     var word = "spite"
-    var address = memory.allocate_bytes(word.length() + 1)
+    var word_length = word.length()
+    var address = memory.allocate_bytes(word_length + 1)
     var index = 0
     while index < word.length() {
-        memory.write_byte(address, index, word.code_at(index))
+        var code = word.code_at(index)
+        memory.write_byte(address, index, code)
         index = index + 1
     }
-    memory.write_byte(address, word.length(), 0)
-    console.print(measurer.measure_as_long(address), memory.text(address, word.length()))
+    memory.write_byte(address, word_length, 0)
+    var measure_as_long = measurer.measure_as_long(address)
+    var text = memory.text(address, word_length)
+    console.print(measure_as_long, text)
     memory.write_long(address, 0, 5000000000)
-    console.print(memory.read_long(address, 0), memory.read_byte(address, 5))
+    var stored_number = memory.read_long(address, 0)
+    var stored_byte = memory.read_byte(address, 5)
+    console.print(stored_number, stored_byte)
     var copy = memory.allocate_bytes(8)
     memory.copy_bytes(address, copy, 8)
-    console.print(memory.read_long(copy, 0) == 5000000000)
+    var copied_number = memory.read_long(copy, 0)
+    console.print(copied_number == 5000000000)
     memory.free(copy)
     memory.free(address)
 }

@@ -6,7 +6,11 @@ func ProcessPaths() {
     var script = File(".spite-cache/folder with spaces/hello.cmd")
     script.write("@echo hello from a spaced path %1\r\n")
     var spaced = Process(".spite-cache/folder with spaces/hello.cmd", ["argument one"])
-    console.print(spaced.run(), spaced.output().trim())
+    var run = spaced.run()
+    var trimmed_output = spaced.output().trim()
+    console.print(run, trimmed_output)
     var with_arguments = Process("git --version", List<String>())
-    console.print(with_arguments.run(), with_arguments.output().starts_with("git version"))
+    var with_arguments_run = with_arguments.run()
+    var output_starts_with = with_arguments.output().starts_with("git version")
+    console.print(with_arguments_run, output_starts_with)
 }

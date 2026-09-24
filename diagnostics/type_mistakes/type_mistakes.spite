@@ -7,7 +7,8 @@ func TypeMistakes() {
     other = "a string"
     feed("not a pet")
     var count: Int = other
-    console.print(count, give_back())
+    var given = give_back()
+    console.print(count, given)
     var names = List<String>()
     names.append(other)
 }

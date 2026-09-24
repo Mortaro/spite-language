@@ -49,7 +49,8 @@ func ReplProgram() {
     monsters.append(Monster("Goblin", 30))
     monsters.append(Monster("Orc", 50))
     console.print("player", player_name, "age", player_age)
-    console.print("monster count", monsters.count())
+    var monsters_count = monsters.count()
+    console.print("monster count", monsters_count)
 }
 ```
 ```output

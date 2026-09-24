@@ -12,23 +12,30 @@ func Unions() {
     shapes.append(Square(3))
     var index = 0
     while index < shapes.count() {
-        console.print(describe(shapes[index]), shapes[index].area(), shapes[index].name)
+        var describe = describe(shapes[index])
+        var area = shapes[index].area()
+        console.print(describe, area, shapes[index].name)
         index = index + 1
     }
     var shape: Shape = Square(4)
     grow(shape)
-    console.print(describe(shape))
+    var describe = describe(shape)
+    console.print(describe)
     favorite = shape
     var current = favorite
     if current {
-        console.print("favorite", current.area())
+        var area = current.area()
+        console.print("favorite", area)
     }
-    console.print(pick(true).name, pick(false).name)
+    var name = pick(true).name
+    var pick_name = pick(false).name
+    console.print(name, pick_name)
     var lookup = Dictionary<Shape>()
     lookup.set("round", Circle(1))
     var found = lookup.get("round")
     if found {
-        console.print(describe(found))
+        var found_description = describe(found)
+        console.print(found_description)
     }
     console.print("done")
 }

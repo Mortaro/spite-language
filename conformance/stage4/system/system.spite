@@ -1,19 +1,29 @@
 var console = Console()
 
 func System(arguments: Arguments) {
-    console.print(arguments.count(), "{arguments.get(3)}|")
+    var arguments_count = arguments.count()
+    console.print(arguments_count, "{arguments.get(3)}|")
     if arguments.nothing_here {
         console.print("unexpected", arguments.nothing_here)
     } else {
         console.print("no such argument")
     }
     var folder = Directory(".spite-cache/conformance_system")
-    console.print(folder.create(), folder.exists())
+    var create = folder.create()
+    var exists = folder.exists()
+    console.print(create, exists)
     var file = File(".spite-cache/conformance_system/note.txt")
-    console.print(file.write("first line\n"), file.append("second line"), file.exists())
+    var write = file.write("first line\n")
+    var append = file.append("second line")
+    var file_exists = file.exists()
+    console.print(write, append, file_exists)
     report(file)
-    console.print(folder.files().join(","), folder.folders().count())
-    console.print(file.remove(), file.exists())
+    var joined_files = folder.files().join(",")
+    var folders_count = folder.folders().count()
+    console.print(joined_files, folders_count)
+    var remove = file.remove()
+    file_exists = file.exists()
+    console.print(remove, file_exists)
     report(file)
     var c_compiler = Program().environment("CC")
     if c_compiler {
@@ -27,7 +37,8 @@ func System(arguments: Arguments) {
     }
     var process = Process("git", ["--version"])
     var exit_code = process.run()
-    console.print(exit_code, process.output().trim().is_empty())
+    var trim_is_empty = process.output().trim().is_empty()
+    console.print(exit_code, trim_is_empty)
     Program().sleep(1)
     console.print("done")
 }
@@ -35,7 +46,9 @@ func System(arguments: Arguments) {
 func report(file: File) {
     var content = file.read()
     if content {
-        console.print(content.lines().count(), content.lines().last())
+        var lines_count = content.lines().count()
+        var last_line = content.lines().last()
+        console.print(lines_count, last_line)
     } else {
         console.print("cannot read")
     }

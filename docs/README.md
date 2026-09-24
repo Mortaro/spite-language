@@ -73,7 +73,8 @@ func TourClasses() {
         console.print("member", party[index].age, party[index].job)
         index = index + 1
     }
-    console.print("total age", party.sum_age())
+    var sum_age = party.sum_age()
+    console.print("total age", sum_age)
 }
 ```
 ```output

@@ -32,7 +32,8 @@ func NamespaceObjects() {
         index = index + 1
     }
     crash found_cog
-    console.print(tree_classes.count())
+    var tree_classes_count = tree_classes.count()
+    console.print(tree_classes_count)
     var child_namespaces = gadget.class.namespace.parent.namespaces
     var found_widgets = false
     index = 0
@@ -43,5 +44,6 @@ func NamespaceObjects() {
         index = index + 1
     }
     crash found_widgets
-    console.print(child_namespaces.count())
+    var child_namespaces_count = child_namespaces.count()
+    console.print(child_namespaces_count)
 }

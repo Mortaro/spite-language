@@ -39,9 +39,12 @@ var console = Console()
 
 func FunctionValuesDoc() {
     var shouter = Shouter()
-    console.print(apply(shouter.shout, "hi"), apply(quiet, "HI"))
+    var shouted = apply(shouter.shout, "hi")
+    var quieted = apply(quiet, "HI")
+    console.print(shouted, quieted)
     var remembered = shouter.shout
-    console.print(remembered.name, remembered.call_function("again"))
+    var repeated = remembered.call_function("again")
+    console.print(remembered.name, repeated)
 }
 
 func apply(change: Spite.Function<String, String>, text: String): String {
@@ -104,7 +107,8 @@ func OperatorsAsFunctions() {
     var found = Money(50)
     var total = wallet + found
     console.print("total cents", total.cents)
-    console.print("equal", total.equals(Money(200)))
+    var is_two_hundred = total.equals(Money(200))
+    console.print("equal", is_two_hundred)
     console.print("greater", total > wallet)
 }
 ```

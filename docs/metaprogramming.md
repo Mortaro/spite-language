@@ -50,7 +50,8 @@ var console = Console()
 
 func SymbolCodegen() {
     var person = Person(20, "ann")
-    person.set_age(person.get_age() + 1)
+    var person_age = person.get_age()
+    person.set_age(person_age + 1)
     console.print("age", person.age)
     person.set_name("bea")
     console.print("name", person.name)
@@ -156,7 +157,8 @@ var console = Console()
 
 func GenericsBasics() {
     var scoreboard = Pair<String, Int>("Aria", 42)
-    console.print(scoreboard.describe())
+    var description = scoreboard.describe()
+    console.print(description)
 }
 ```
 ```output

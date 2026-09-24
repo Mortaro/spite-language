@@ -49,6 +49,10 @@ func is_alive(): Bool {
   line: `arguments.count()`, `arguments.get(0)`, and `arguments.player` for `--player=value` (a `String?`).
 - `return` is always written. The return type is written `(): Type`. No return type means it returns `Nothing`.
 - Only `while` exists. There is no `for`, `break` or `continue`. Prefer the member templates below.
+- A call is never passed straight into another call: compute it first into a named `var` and pass the name --
+  `var token_text = source.slice(start, end)`, then `tokens.append(Token("number", token_text))`. Only a
+  constructor may be an argument, one level deep (`Token("number", Text(token_text))` inside `append` is an
+  error). The holes of a text are not arguments: `"{names.count()} names"` is fine.
 
 ## Names, comments, unused things
 

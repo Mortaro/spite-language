@@ -13,12 +13,14 @@ func ShapeFunctions() {
     var index = 0
     while index < parts.count() {
         parts[index].resize(2)
-        console.print(parts[index].label, parts[index].render())
+        var render = parts[index].render()
+        console.print(parts[index].label, render)
         index = index + 1
     }
     show(Button("direct"))
 }
 
 func show(part: Renderable) {
-    console.print(part.render().upper_case())
+    var upper_case_render = part.render().upper_case()
+    console.print(upper_case_render)
 }

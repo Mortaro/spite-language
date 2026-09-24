@@ -5,13 +5,27 @@ func MemberTemplates() {
     repositories.append(Repository("engine", 10, true))
     repositories.append(Repository("cookie_clicker", 3, false))
     repositories.append(Repository("compiler", 20, true))
-    console.print(repositories.filter_active().sum_stars(), repositories.count_active(), repositories.sum_stars())
-    console.print(repositories.any_active(), repositories.all_active(), repositories.filter_active().all_active())
-    console.print(repositories.map_name().join(","), repositories.map_label().join(","))
-    console.print(repositories.sort_by_stars().map_name().join(","), repositories.sort_by_name().map_name().join(","))
-    console.print(repositories.sort_by_label().first().name, repositories.filter_is_popular().map_name().join(","))
+    var active_stars = repositories.filter_active().sum_stars()
+    var active_count = repositories.count_active()
+    var all_stars = repositories.sum_stars()
+    console.print(active_stars, active_count, all_stars)
+    var any_active = repositories.any_active()
+    var all_active = repositories.all_active()
+    var active_all_active = repositories.filter_active().all_active()
+    console.print(any_active, all_active, active_all_active)
+    var names = repositories.map_name().join(",")
+    var labels = repositories.map_label().join(",")
+    console.print(names, labels)
+    var names_by_stars = repositories.sort_by_stars().map_name().join(",")
+    var names_by_name = repositories.sort_by_name().map_name().join(",")
+    console.print(names_by_stars, names_by_name)
+    var first_by_label = repositories.sort_by_label().first().name
+    var popular_names = repositories.filter_is_popular().map_name().join(",")
+    console.print(first_by_label, popular_names)
     repositories.each_bump_stars()
-    console.print(repositories.sum_stars(), repositories.map_get_stars().count())
+    all_stars = repositories.sum_stars()
+    var stars_count = repositories.map_get_stars().count()
+    console.print(all_stars, stars_count)
     var found = repositories.find_by_name("compiler")
     if found {
         console.print("found", found.name, found.stars)
@@ -23,12 +37,11 @@ func MemberTemplates() {
     var by_name = Dictionary<Repository>()
     by_name.set("engine", Repository("engine", 10, true))
     by_name.set("idle", Repository("idle", 4, false))
-    console.print(
-        by_name.sum_stars(),
-        by_name.filter_active().map_name().join(","),
-        by_name.any_active(),
-        by_name.sort_by_stars().first().name,
-    )
+    var stars_by_name = by_name.sum_stars()
+    var active_names = by_name.filter_active().map_name().join(",")
+    var any_active_by_name = by_name.any_active()
+    var first_by_stars = by_name.sort_by_stars().first().name
+    console.print(stars_by_name, active_names, any_active_by_name, first_by_stars)
     var missing = repositories.find_by_stars(999)
     if missing {
         console.print("unexpected")

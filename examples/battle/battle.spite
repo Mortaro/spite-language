@@ -17,7 +17,8 @@ func Battle() {
     var index = 0
     while index < enemies.count() {
         var enemy = enemies[index]
-        console.print("health", enemy.health, "alive", enemy.is_alive())
+        var enemy_is_alive = enemy.is_alive()
+        console.print("health", enemy.health, "alive", enemy_is_alive)
         index = index + 1
     }
     var duelist: Enemy = Player(10, "knight")

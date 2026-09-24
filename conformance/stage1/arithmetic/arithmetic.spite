@@ -19,9 +19,12 @@ func Arithmetic() {
     var widened: Long = 2000000000
     widened = widened + 2000000000
     console.print(widened)
-    console.print(negate(5))
-    console.print(is_positive(4))
-    console.print(is_positive(-4))
+    var negated = negate(5)
+    console.print(negated)
+    var four_is_positive = is_positive(4)
+    console.print(four_is_positive)
+    var minus_four_is_positive = is_positive(-4)
+    console.print(minus_four_is_positive)
 }
 
 func add(left: Int, right: Int): Int {

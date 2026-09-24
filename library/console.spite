@@ -10,7 +10,8 @@ func read_line(): String? {
         read_anything = true
         var piece = foreign_text.read(buffer)
         if piece.ends_with("\n") {
-            line = "{line}{piece.slice(0, piece.length() - 1)}"
+            var piece_length = piece.length()
+            line = "{line}{piece.slice(0, piece_length - 1)}"
             more = false
         } else {
             line = "{line}{piece}"
@@ -22,7 +23,8 @@ func read_line(): String? {
         return null
     }
     if line.ends_with("\r") {
-        return line.slice(0, line.length() - 1)
+        var line_length = line.length()
+        return line.slice(0, line_length - 1)
     }
     return line
 }

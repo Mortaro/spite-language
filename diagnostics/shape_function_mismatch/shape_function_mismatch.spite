@@ -10,5 +10,6 @@ func ShapeFunctionMismatch() {
 }
 
 func show(part: Renderable) {
-    console.print(part.render())
+    var rendered = part.render()
+    console.print(rendered)
 }

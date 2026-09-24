@@ -24,5 +24,6 @@ func set_name(new_name: String) {
 }
 
 func birthday() {
-    set_age(get_age() + 1)
+    var current_age = get_age()
+    set_age(current_age + 1)
 }

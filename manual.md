@@ -212,7 +212,8 @@ scope).
 ```
 var content = program_file.read()
 assert content
-console.print(content.length())        # content is a String here, not String?
+var length = content.length()          # content is a String here, not String?
+console.print(length)
 ```
 
 `if` on a `T?` narrows the same way, in place, for the whole block: `if value { } else { }` runs the
@@ -1308,7 +1309,9 @@ is **(proposed by Claude, unconfirmed)** except where noted -- revisit any of th
 and `spite format` are documented in [Command line](#13-command-line); the naming/abbreviation lints that
 cannot be auto-fixed are their own subsection below.
 
-### One call per line, and nothing said twice  **[planned]**
+<a id="one-call-per-line-and-nothing-said-twice--planned"></a>
+
+### One call per line, and nothing said twice  **[implemented]**
 
 Decided by Mortaro (D77, D78, 2026-09-24), from the tokenizer's `flush()`:
 
@@ -1320,6 +1323,28 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   arguments of a call, any other functions need to be done outside, even in constructor case a 1 depth limit is
   needed." `tokens.append(Token('number', token_slice))` is legal; `source.slice(...)` inside it is not, and neither is
   a constructor inside a constructor inside the call. Anything else is computed first and named.
+  **Implemented (2026-09-24).** The error names the call and the call it is passed to: "'source.slice(0, 2)' is
+  called inside an argument of 'console.print': compute it first into a named 'var' and pass the name. Only a
+  constructor may be an argument, and only one level deep", or, one level down, "'Text(source)' is passed to
+  'Token', which is itself passed to 'tokens.append': ...". A constructor is a call whose callee's last name
+  starts with an upper-case letter (`Token(...)`, `List<String>()`, `Syntax.Expressions.IdentifierExpression(...)`).
+  The readings below are **(proposed by Claude, unconfirmed)**:
+  - The rule is the same for every call, a constructor included: `var token = Token(kind, Text(x))` is legal
+    (`Text(x)` is one level deep), `var token = Token(kind, source.slice(a, b))` is not.
+  - Anything inside an argument counts, not only the argument itself: `counts.append(count_words(text) + 1)`,
+    `print(names[index_of(name)])` and `print(first == Vector(1, 2))` put a call inside an argument, and only the
+    last is legal (the one constructor level may sit inside an operator, a list or an index).
+  - A method called on a call's result is not an argument: `source.slice(0, 2).upper_case()` is fine on its own,
+    and an error only when it is itself passed to something.
+  - A text with holes is not a call argument, and each hole is read like a line of its own:
+    `console.print("{count_words(text)} words")` is legal, `console.print("{shout(count_words(text))}")` is not.
+  - A call in an `if` or `while` condition, a `return`, an assignment or an index is not an argument.
+  - Open for Mortaro: D18's markup nests tag calls (`html.div({ class: "card" }, html.h1(title), ...)` in
+    [Markup](#markup--planned)), which this rule forbids as written unless a tag counts as a constructor.
+  - Where the call sat on the right of `and`/`or` or in a `while` condition, the compiler's own sources compute it
+    before the condition only when that is harmless (a getter, `length()`, or `code_at`, which answers 0 past the
+    end), and update it at the end of the loop body; nothing in the repository needed an `if` to keep a call from
+    running.
 - **An `if` and its `else` do not repeat the same work** (D78): when both branches compute the same thing,
   it is computed once before the `if`. In the example, both branches sliced the same range.
   **Implemented (2026-09-24) in a narrow form, (proposed by Claude, unconfirmed) beyond the example:** the error
@@ -2041,11 +2066,13 @@ func symbol_name(symbol: Symbol): String {
 }
 
 func missing_function(function: Symbol, arguments: Arguments): Int {
-    return _call(_handle, symbol_name(function), arguments)
+    var name = symbol_name(function)
+    return _call(_handle, name, arguments)
 }
 
 func missing_attribute(attribute: Symbol): attribute.class {
-    return _resolve(symbol_name(attribute))
+    var name = symbol_name(attribute)
+    return _resolve(name)
 }
 
 func drop() {
@@ -2597,3 +2624,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (proposed by Claude, unconfirmed) **The generated C is tree-shaken: a function nothing reaches is not written.** `bootstrap/source/generation/tree_shaker.spite` splits the emitted bodies into top-level pieces, keeps every piece that is not a function (tables, statics, preprocessor lines) and every function named from `main`, the declarations or a kept piece, and drops the prototypes of the rest. Names inside strings and comments do not count. It applies to everything the compiler writes -- the prelude, library classes, reflection helpers -- so a program carries only what it calls: the compiler's own C shrank by a tenth. `--development` (section 13: keep everything) should turn it off; that flag is not built yet. |
 | 2026-09-24 | (proposed by Claude, unconfirmed) **`List<T>` and `Dictionary<T>` are Spite: `library/list.spite` and `library/dictionary.spite`; per element type the compiler supplies only typed slot access.** A `List<$element_type>` keeps its elements in a `Memory` buffer (`items`, `item_count`, `capacity`), and growth, insertion and removal move bytes with `copy_bytes`; a `Dictionary<$value_type>` is two lists, keys and values, searched in order as before. The syntax stays the compiler's: `[]`, list literals and `List<T>()` are mapped onto those classes' functions, and a program can only call the documented ones. A generic class cannot read or write a `$element_type` at an address -- `Memory` reads bytes, `Int`, `Long` and `Double`, while an element may be a class, a `String`, a nullable number or a union -- so the compiler supplies four functions on each instantiated list, and on nothing else: `read_item(index)` (the element, retained), `write_item(index, value)`, `release_item(index)` and `item_bytes()`. **What stays C, and why:** (1) those four; (2) `deep_copy()`, because copying an element deeply is chosen by its type, as retain and release are; (3) the `<member>` templates (`filter_`, `sort_by_`, ...), because Symbol codegen binds to a class's own attributes and these read the element's; (4) the reflection and foreign-call code that reads a list's buffer directly. `contains` and `join` exist only for the element types that had them before: every function of a generic class is compiled for every type it is instantiated with, so the compiler drops those two from a list whose element cannot be compared or written as text. A class that declares its own `copy()` no longer also gets a generated one (before, that was a C error). Found on the way: `join` concatenated one piece at a time, copying the text so far at every step; writing each piece once into one buffer takes compiling the compiler from about 13 s to 0.7 s. A container's index and count are `Int` now, superseding the `int64_t` storage row of 2026-09-19. |
 | 2026-09-24 | (implements D80; the choices below proposed by Claude, unconfirmed) **`CRuntime` is gone: each operating system's folder reopens the classes it changes.** `library/<system>/` holds `file`, `directory`, `process`, `program`, `console`, `string` and `environment`, each reopening the class of that name with only the members that differ, and each holding its own `DynamicLibrary(...)` attribute (`String` has no attributes, so its `to_double` makes the library in a local). What is the same everywhere stays in `library/<class>.spite` and calls the platform functions (`open_file`, `entries`, `exit_process`, `read_line_into`, ...) without declaring them, since exactly one folder is loaded; a platform file defines public members directly where the whole member differs (`Directory.exists`, `create`; `Process.run_attached`; `Program.sleep`; `File.remove`). `Program.platform()` is removed. The folder is chosen by `Environment().operational_system`, a setting the platform folder declares (`var operational_system = "windows"`), and the compiler reads its own: `--operational_system=linux` (a compiler flag now) writes C for another system, and `check.sh` does so for all three to hold the folders it cannot run to compiling. Because settings are read at run time (D76), a built program's `Environment().operational_system` can be overridden too; a compile-time home for build facts is still the open part of section 9. `--final-classes` prints the merged classes but still not which folder supplied each member (open question 10). |
+| 2026-09-24 | (implements D77; the readings below proposed by Claude, unconfirmed) **A call passed as an argument is a compile error, except a constructor, one level deep.** The generator checks every statement and attribute value: inside an argument, a call whose callee's last name is not upper-case is an error, and so is any call inside the arguments of a constructor that is itself an argument, the same for every call, a constructor included (`var token = Token(kind, Text(x))` is legal, `Token(kind, source.slice(a, b))` is not). Anything inside an argument counts (`append(count() + 1)` is an error), a text with holes is not an argument and each hole is read like a line of its own, and a method called on a call's result is not an argument. The whole repository was rewritten to it -- the compiler, `library/`, the corpus, the examples, `docs/` and the diagnostics programs, about a thousand calls, each computed first into a named `var` -- keeping every output and the memory balance; where the call sat on the right of `and`/`or` or in a `while` condition it was computed before the condition only where that is harmless (a getter, `length()`, `code_at`, which answers 0 past the end). An `else if` now carries its own line, so an error in its condition names it. See [One call per line](#one-call-per-line-and-nothing-said-twice--implemented). |

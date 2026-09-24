@@ -4,14 +4,18 @@ func Accessors() {
     var account = Account("ada")
     account.balance = 50
     account.balance = 0 - 20
-    console.print(account.balance, account.owner, account.owner.length())
+    var owner_length = account.owner.length()
+    console.print(account.balance, account.owner, owner_length)
     account.owner = "grace"
-    console.print(account.owner, account.history.join(","))
+    var joined_history = account.history.join(",")
+    console.print(account.owner, joined_history)
     var plain = Plain()
     plain.label = "direct"
     plain.size = plain.size + 2
     console.print(plain.label, plain.size)
-    console.print(make_account().owner, make_account().balance)
+    var owner = make_account().owner
+    var balance = make_account().balance
+    console.print(owner, balance)
 }
 
 func make_account(): Account {

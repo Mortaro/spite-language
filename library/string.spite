@@ -40,7 +40,9 @@ func starts_with(text: String): Bool {
 }
 
 func ends_with(text: String): Bool {
-    return matches_at(text, length() - text.length())
+    var own_length = length()
+    var text_length = text.length()
+    return matches_at(text, own_length - text_length)
 }
 
 func split(separator: String): List<String> {
@@ -66,7 +68,8 @@ func split(separator: String): List<String> {
             index = index + 1
         }
     }
-    var rest = slice(piece_start, length())
+    var own_length = length()
+    var rest = slice(piece_start, own_length)
     pieces.append(rest)
     return pieces
 }
@@ -77,7 +80,8 @@ func lines(): List<String> {
 
 func replace(from: String, to: String): String {
     if from.is_empty() {
-        return slice(0, length())
+        var own_length = length()
+        return slice(0, own_length)
     }
     return split(from).join(to)
 }
@@ -109,7 +113,8 @@ func lower_case(): String {
 
 func shifted_case(first: Int, last: Int, shift: Int): String {
     var memory = Memory()
-    var address = memory.allocate_bytes(length() + 1)
+    var own_length = length()
+    var address = memory.allocate_bytes(own_length + 1)
     var index = 0
     while index < length() {
         var code = code_at(index)
@@ -119,7 +124,8 @@ func shifted_case(first: Int, last: Int, shift: Int): String {
         memory.write_byte(address, index, code)
         index = index + 1
     }
-    var result = memory.text(address, length())
+    own_length = length()
+    var result = memory.text(address, own_length)
     memory.free(address)
     return result
 }

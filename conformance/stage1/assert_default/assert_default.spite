@@ -1,8 +1,10 @@
 var console = Console()
 
 func AssertDefault() {
-    report(safe_divide(10, 2))
-    report(safe_divide(10, 0))
+    var ten_by_two = safe_divide(10, 2)
+    report(ten_by_two)
+    var ten_by_zero = safe_divide(10, 0)
+    report(ten_by_zero)
     announce(0 - 5)
     announce(5)
 }

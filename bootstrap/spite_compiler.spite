@@ -66,11 +66,14 @@ func run_mode(arguments: Arguments, file_argument: String, mode_argument: String
     }
     if mode_argument == "build" {
         crash arguments.output
-        run_build_mode(file_argument, content, arguments.output, has_debug_memory_flag(arguments))
+        var has_debug_memory_flag = has_debug_memory_flag(arguments)
+        run_build_mode(file_argument, content, arguments.output, has_debug_memory_flag)
         return
     }
     if mode_argument == "run" {
-        run_run_mode(file_argument, content, has_debug_memory_flag(arguments), program_arguments(arguments))
+        var has_debug_memory_flag = has_debug_memory_flag(arguments)
+        var program_arguments = program_arguments(arguments)
+        run_run_mode(file_argument, content, has_debug_memory_flag, program_arguments)
         return
     }
     console.error(
@@ -86,7 +89,8 @@ func run_canonical_mode(content: String) {
     var file = parser.parse_file()
     var printer = Syntax.SourcePrinter()
     printer.explicit_grouping = true
-    console.print(printer.source_file(file))
+    var source_file = printer.source_file(file)
+    console.print(source_file)
 }
 
 func run_format_mode(file_argument: String, content: String, only_check: Bool) {
@@ -130,13 +134,11 @@ func generate_c_or_report(file_argument: String, content: String): String? {
     var prelude = Generation.Prelude()
     var generator = Generation.Generator()
     generator.read_evaluate_print_loop = read_evaluate_print_loop
-    var code = generator.generate(
-        discovery,
-        prelude.header(),
-        prelude.structs(),
-        prelude.prototypes(),
-        prelude.bodies(),
-    )
+    var header = prelude.header()
+    var structs = prelude.structs()
+    var prototypes = prelude.prototypes()
+    var bodies = prelude.bodies()
+    var code = generator.generate(discovery, header, structs, prototypes, bodies)
     if generator.has_error {
         console.error(generator.error_message)
         return null
@@ -166,7 +168,8 @@ func entry_file_of(path: String): String {
     }
     var folder = path
     while folder.ends_with("/") or folder.ends_with("\\") {
-        folder = folder.slice(0, folder.length() - 1)
+        var folder_length = folder.length()
+        folder = folder.slice(0, folder_length - 1)
     }
     var name = folder.replace("\\", "/").split("/").last()
     return "{folder}/{name}.spite"
@@ -187,7 +190,8 @@ func program_arguments(arguments: Arguments): List<String> {
     var passed = List<String>()
     var index = compiler_arguments_end(arguments) + 1
     while index < arguments.count() {
-        passed.append(arguments.get(index))
+        var argument = arguments.get(index)
+        passed.append(argument)
         index = index + 1
     }
     return passed
@@ -229,7 +233,8 @@ func final_classes_directory(arguments: Arguments): String? {
             return ".spite-cache/final"
         }
         if argument.starts_with("--final-classes=") {
-            var directory = argument.slice(16, argument.length())
+            var argument_length = argument.length()
+            var directory = argument.slice(16, argument_length)
             if directory.is_empty() {
                 return ".spite-cache/final"
             }
@@ -255,11 +260,14 @@ func run_final_classes_mode(file_argument: String, content: String, output_direc
         var class_file = discovery.class_files[index]
         if kept.contains(class_file.qualified_dotted) {
             var path = final_class_path(output_directory, class_file.qualified_dotted)
-            create_final_class_directory(final_class_directory(path))
-            var ordered = in_file_order(class_file.get_file(), class_file.simple_name)
+            var final_class_directory = final_class_directory(path)
+            create_final_class_directory(final_class_directory)
+            var class_file_file = class_file.get_file()
+            var ordered = in_file_order(class_file_file, class_file.simple_name)
             var source = "{Syntax.SourcePrinter().source_file(ordered)}{generator.generated_functions_source(class_file.qualified_dotted)}"
             var output = File(path)
-            if not output.write(formatted_or_as_printed(source)) {
+            var formatted_or_as_printed = formatted_or_as_printed(source)
+            if not output.write(formatted_or_as_printed) {
                 console.error("error: could not write '{path}'")
                 Program().exit(1)
                 return
@@ -267,25 +275,23 @@ func run_final_classes_mode(file_argument: String, content: String, output_direc
         }
         index = index + 1
     }
-    write_class_views(
-        output_directory,
-        "built_in",
-        generator.built_in_class_names(),
-        generator.built_in_class_sources(),
-    )
-    write_class_views(
-        output_directory,
-        "instantiated",
-        generator.instantiated_class_names(),
-        generator.instantiated_class_sources(),
-    )
+    var built_in_class_names = generator.built_in_class_names()
+    var built_in_class_sources = generator.built_in_class_sources()
+    write_class_views(output_directory, "built_in", built_in_class_names, built_in_class_sources)
+    var instantiated_class_names = generator.instantiated_class_names()
+    var instantiated_class_sources = generator.instantiated_class_sources()
+    write_class_views(output_directory, "instantiated", instantiated_class_names, instantiated_class_sources)
 }
 
 func final_classes_generator(discovery: Discovery.DiscoveryResult): Generation.Generator? {
     var prelude = Generation.Prelude()
     var generator = Generation.Generator()
     generator.read_evaluate_print_loop = read_evaluate_print_loop
-    generator.generate(discovery, prelude.header(), prelude.structs(), prelude.prototypes(), prelude.bodies())
+    var header = prelude.header()
+    var structs = prelude.structs()
+    var prototypes = prelude.prototypes()
+    var bodies = prelude.bodies()
+    generator.generate(discovery, header, structs, prototypes, bodies)
     if generator.has_error {
         console.error(generator.error_message)
         Program().exit(1)
@@ -328,7 +334,8 @@ func write_class_views(output_directory: String, folder: String, names: List<Str
         var path = "{directory}/{final_class_file_name(names[index])}.spite"
         var output = File(path)
         crash sources[index]
-        if not output.write(formatted_or_as_printed(sources[index])) {
+        var formatted_or_as_printed = formatted_or_as_printed(sources[index])
+        if not output.write(formatted_or_as_printed) {
             console.error("error: could not write '{path}'")
             Program().exit(1)
             return
@@ -410,7 +417,8 @@ func computed_class_name(file_argument: String): String {
     var basename = segments.last()
     var stem = basename
     if basename.ends_with(".spite") {
-        stem = basename.slice(0, basename.length() - 6)
+        var basename_length = basename.length()
+        stem = basename.slice(0, basename_length - 6)
     }
     return pascal_case_class_name(stem)
 }
@@ -471,12 +479,14 @@ func build_to_path(file_argument: String, content: String, output_path: String, 
     var process = Process(c_compiler, process_arguments)
     var exit_code = process.run()
     if exit_code != 0 {
-        console.error(process.output())
+        var output = process.output()
+        console.error(output)
         return false
     }
     var map_path = output_path
     if map_path.ends_with(".exe") {
-        map_path = map_path.slice(0, map_path.length() - 4)
+        var map_path_length = map_path.length()
+        map_path = map_path.slice(0, map_path_length - 4)
     }
     File("{map_path}.crashes").write(last_crash_map)
     return true
@@ -517,14 +527,17 @@ func run_run_mode(file_argument: String, content: String, debug_memory: Bool, pa
         program.exit(1)
         return
     }
-    var runner = Process(output_path.replace("/", "\\"), passed)
+    var replaced_output_path = output_path.replace("/", "\\")
+    var runner = Process(replaced_output_path, passed)
     if read_evaluate_print_loop {
         console.flush()
-        Program().exit(runner.run_attached())
+        var run_attached = runner.run_attached()
+        Program().exit(run_attached)
         return
     }
     var exit_code = runner.run()
-    console.write(runner.output())
+    var output = runner.output()
+    console.write(output)
     var program = Program()
     program.exit(exit_code)
 }
@@ -539,7 +552,8 @@ func run_tokens_mode(content: String) {
 }
 
 func run_tree_mode(file_argument: String, content: String) {
-    var parser = Syntax.Parser(Syntax.Lexer(content).tokens)
+    var tokens = Syntax.Lexer(content).tokens
+    var parser = Syntax.Parser(tokens)
     var file = parser.parse_file()
     if parser.has_error {
         console.error("{file_argument}:{parser.error_line}:{parser.error_column}: error: {parser.error_message}")

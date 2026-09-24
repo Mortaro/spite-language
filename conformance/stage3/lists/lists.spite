@@ -6,38 +6,58 @@ func Lists() {
     names.append("ada")
     names.append("grace")
     names.prepend("alan")
-    console.print(names.count(), names.first(), names.last())
-    console.print(names.join(", "))
-    console.print(names.contains("ada"), names.contains("bob"))
+    var names_count = names.count()
+    var first_name = names.first()
+    var last_name = names.last()
+    console.print(names_count, first_name, last_name)
+    var joined_names = names.join(", ")
+    console.print(joined_names)
+    var has_ada = names.contains("ada")
+    var has_bob = names.contains("bob")
+    console.print(has_ada, has_bob)
     names.insert(1, "edsger")
     names.remove_at(0)
-    console.print(names.join(" "))
-    console.print(names.remove_last(), names.remove_first(), names.count())
+    var spaced_names = names.join(" ")
+    console.print(spaced_names)
+    var removed_last = names.remove_last()
+    var removed_first = names.remove_first()
+    names_count = names.count()
+    console.print(removed_last, removed_first, names_count)
     names[0] = "barbara"
     crash names.count() == 1
     console.print(names[0], names[7] == "")
     names.clear()
-    console.print(names.is_empty())
+    var names_is_empty = names.is_empty()
+    console.print(names_is_empty)
     scores.append(10)
     scores.reverse()
     crash scores.count() == 4
-    console.print(total(scores), scores[0], scores[99] == 0)
-    console.print(scores.contains(10), scores.contains(11))
+    var total = total(scores)
+    console.print(total, scores[0], scores[99] == 0)
+    var has_ten = scores.contains(10)
+    var has_eleven = scores.contains(11)
+    console.print(has_ten, has_eleven)
     var items = build_items(3)
     crash items.count() == 3
     var index = 0
     while index < items.count() {
-        console.print(items[index].describe())
+        var description = items[index].describe()
+        console.print(description)
         index = index + 1
     }
     items[1].quantity = 50
-    console.print(items[1].describe(), items.last().describe())
+    var second_description = items[1].describe()
+    var last_description = items.last().describe()
+    console.print(second_description, last_description)
     var holder = Holder()
     holder.keep(items)
     holder.keep_one(Item("extra", 9))
-    console.print(holder.items.count(), holder.items.last().name)
+    var items_count = holder.items.count()
+    var extra_name = holder.items.last().name
+    console.print(items_count, extra_name)
     var words = ["one", "two"]
-    console.print(words.join("+"))
+    var joined_words = words.join("+")
+    console.print(joined_words)
 }
 
 func total(values: List<Int>): Int {

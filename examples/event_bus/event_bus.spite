@@ -8,7 +8,8 @@ func EventBus() {
     bus.publish(Arrival("ada"))
     bus.publish(Departure("ada", 3))
     bus.publish(Arrival("grace"))
-    console.print(counter.seen, counter.names.join(","))
+    var joined_names = counter.names.join(",")
+    console.print(counter.seen, joined_names)
     report(counter)
 }
 

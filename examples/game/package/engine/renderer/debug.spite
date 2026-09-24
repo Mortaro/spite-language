@@ -4,5 +4,6 @@ func log(message: String): String {
 
 func render_and_log(): String {
     var renderer = Renderer()
-    return log(renderer.render())
+    var render = renderer.render()
+    return log(render)
 }

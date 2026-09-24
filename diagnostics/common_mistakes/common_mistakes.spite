@@ -6,13 +6,16 @@ func CommonMistakes() {
     pet.missing = 3
     undefined_name = 4
     score = pet.nothing_here
-    console.print(pet.bark(1, 2))
+    var barked = pet.bark(1, 2)
+    console.print(barked)
     var number = 5
     number.explode()
     var text = "abc"
-    console.print(text.no_such_method())
+    var missing = text.no_such_method()
+    console.print(missing)
     var list = [1, 2]
     list.push(3)
-    console.print(unknown_function(), Unknown())
+    var unknown = unknown_function()
+    console.print(unknown, Unknown())
     console.print(score, number)
 }

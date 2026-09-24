@@ -8,7 +8,10 @@ func Dictionaries() {
     ages["alan"] = 41
     ages.set("ada", 37)
     crash ages["ada"]
-    console.print(ages.count(), ages.has("ada"), ages.has("bob"), ages["ada"], ages["bob"] == 0)
+    var ages_count = ages.count()
+    var has_ada = ages.has("ada")
+    var has_bob = ages.has("bob")
+    console.print(ages_count, has_ada, has_bob, ages["ada"], ages["bob"] == 0)
     var found = ages.get("grace")
     if found {
         console.print("grace is", found)
@@ -20,16 +23,22 @@ func Dictionaries() {
         console.print("nobody is missing")
     }
     ages.remove("grace")
-    console.print(ages.keys().join(","), ages.count())
+    var joined_keys = ages.keys().join(",")
+    ages_count = ages.count()
+    console.print(joined_keys, ages_count)
     var values = ages.values()
     crash values.count() == 2
-    console.print(values.count(), values[0] + values[1])
+    var values_count = values.count()
+    console.print(values_count, values[0] + values[1])
     labels.set("x{1}", "first{1}")
     labels["y"] = "second"
     crash labels["x1"]
     crash labels["y"]
-    console.print(labels["x1"], labels["y"], labels["z"] == "", labels.keys().count())
-    console.print(lookup("y"), lookup("q"))
+    var keys_count = labels.keys().count()
+    console.print(labels["x1"], labels["y"], labels["z"] == "", keys_count)
+    var y_label = lookup("y")
+    var q_label = lookup("q")
+    console.print(y_label, q_label)
     var pets = Dictionary<Animal>()
     pets.set("rex", Animal("dog"))
     pets.set("tom", Animal("cat"))
@@ -38,9 +47,12 @@ func Dictionaries() {
         console.print(rex.kind)
     }
     crash pets["tom"]
-    console.print(pets["tom"].kind, pets.values().count())
+    var pet_values_count = pets.values().count()
+    console.print(pets["tom"].kind, pet_values_count)
     pets.remove("rex")
-    console.print(pets.count(), pets.has("rex"))
+    var pets_count = pets.count()
+    var has_rex = pets.has("rex")
+    console.print(pets_count, has_rex)
 }
 
 func lookup(key: String): String {

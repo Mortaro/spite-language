@@ -140,8 +140,10 @@ func total(): Int {
 var console = Console()
 
 func TreeBasics() {
-    var tree: TreeNode = Branch(Branch(Leaf(1), Leaf(2)), Leaf(3))
-    console.print("total", tree.total())
+    var small_branch = Branch(Leaf(1), Leaf(2))
+    var tree: TreeNode = Branch(small_branch, Leaf(3))
+    var total = tree.total()
+    console.print("total", total)
 }
 ```
 ```output

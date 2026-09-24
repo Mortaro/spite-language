@@ -114,14 +114,18 @@ func ListHelpers() {
     tasks.append(Task("write docs", false))
     tasks.append(Task("ship release", false))
     tasks.append(Task("rest", true))
-    console.print("done count", tasks.count_done())
-    console.print("any done", tasks.any_done())
-    console.print("all done", tasks.all_done())
+    var done_count = tasks.count_done()
+    console.print("done count", done_count)
+    var any_done = tasks.any_done()
+    console.print("any done", any_done)
+    var all_done = tasks.all_done()
+    console.print("all done", all_done)
     var titles = tasks.map_title()
     crash titles[0]
     console.print("first title", titles[0])
     tasks.each_finish()
-    console.print("all done now", tasks.all_done())
+    all_done = tasks.all_done()
+    console.print("all done now", all_done)
 }
 ```
 ```output

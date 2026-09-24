@@ -1,5 +1,6 @@
 var console = Console()
 
 func UpperIsUpperCase() {
-    console.print("spite".upper())
+    var shouted = "spite".upper()
+    console.print(shouted)
 }

@@ -10,8 +10,10 @@ var mood: Mood = 'calm'
 func Enums() {
     console.print(mood)
     mood = 'angry'
-    console.print(describe(mood))
-    console.print(describe('asleep'))
+    var mood_description = describe(mood)
+    console.print(mood_description)
+    var asleep_description = describe('asleep')
+    console.print(asleep_description)
     if mood == 'angry' {
         console.print("still angry")
     }
@@ -19,9 +21,11 @@ func Enums() {
         console.print("not calm: {mood}")
     }
     var pet = Pet('hungry')
-    console.print(pet.report())
+    var report = pet.report()
+    console.print(report)
     pet.state = 'full'
-    console.print(pet.report())
+    report = pet.report()
+    console.print(report)
 }
 
 func describe(value: Mood): String {

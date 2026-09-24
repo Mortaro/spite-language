@@ -4,6 +4,9 @@ func Reopening() {
     load("package")
     load("mod")
     var monster = Creatures.Monster("rat")
-    console.print(monster.describe())
-    console.print(monster.roar(), monster.taunt(), monster.health, monster.armor)
+    var description = monster.describe()
+    console.print(description)
+    var roar = monster.roar()
+    var taunt = monster.taunt()
+    console.print(roar, taunt, monster.health, monster.armor)
 }

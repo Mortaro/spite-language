@@ -5,11 +5,14 @@ func setting(name: String): String? {
     while index < arguments.count() and arguments.get(index) != "--" {
         var argument = arguments.get(index)
         if argument.starts_with(flag) {
-            return argument.slice(flag.length(), argument.length())
+            var flag_length = flag.length()
+            var argument_length = argument.length()
+            return argument.slice(flag_length, argument_length)
         }
         index = index + 1
     }
-    return Program().environment(name.upper_case())
+    var upper_case_name = name.upper_case()
+    return Program().environment(upper_case_name)
 }
 
 func boolean_setting(name: String, declared: Bool): Bool {

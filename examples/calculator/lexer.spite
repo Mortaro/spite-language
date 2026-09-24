@@ -15,7 +15,8 @@ func scan() {
         consume(characters[index], index)
         index = index + 1
     }
-    flush(characters.count())
+    var characters_count = characters.count()
+    flush(characters_count)
 }
 
 func consume(character: String, index: Int) {

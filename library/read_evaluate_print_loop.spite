@@ -4,7 +4,8 @@ func step(program: Spite.Attribute): Bool {
     console.write("spite> ")
     var line = console.read_line()
     if line {
-        if answer(line.trim(), program) {
+        var trimmed_line = line.trim()
+        if answer(trimmed_line, program) {
             return true
         }
     }
@@ -21,17 +22,21 @@ func answer(command: String, program: Spite.Attribute): Bool {
             "attributes, functions, a path such as player.health, a path = a literal, a call such as player.heal(3), help, exit",
         )
     } else if command == "attributes" {
-        list_attributes(program.value_attributes())
+        var value_attributes = program.value_attributes()
+        list_attributes(value_attributes)
     } else if command == "functions" {
-        list_functions(program.value_functions())
+        var value_functions = program.value_functions()
+        list_functions(value_functions)
     } else if is_assignment(command) {
         assign(command, program)
     } else if command.ends_with(")") and command.contains("(") {
         call(command, program)
     } else if not command.is_empty() {
-        var found = resolve(program, path_of(command), 0)
+        var path_of = path_of(command)
+        var found = resolve(program, path_of, 0)
         if found {
-            console.print(shown(found, false))
+            var shown = shown(found, false)
+            console.print(shown)
         }
     }
     return true
@@ -135,7 +140,8 @@ func shown(attribute: Spite.Attribute, nested: Bool): String {
         return attribute.value
     }
     if class_name.ends_with("?") {
-        class_name = class_name.slice(0, class_name.length() - 1)
+        var class_name_length = class_name.length()
+        class_name = class_name.slice(0, class_name_length - 1)
     }
     if nested {
         return "{class_name} \{...}"
@@ -156,7 +162,8 @@ func shown(attribute: Spite.Attribute, nested: Bool): String {
 func literal_text(literal: String, class_name: String): String? {
     if class_name == "String" {
         if literal.length() >= 2 and literal.starts_with("\"") and literal.ends_with("\"") {
-            return literal.slice(1, literal.length() - 1)
+            var literal_length = literal.length()
+            return literal.slice(1, literal_length - 1)
         }
         return null
     }
@@ -182,7 +189,8 @@ func literal_text(literal: String, class_name: String): String? {
         return null
     }
     if literal.length() >= 2 and literal.starts_with("'") and literal.ends_with("'") {
-        return literal.slice(1, literal.length() - 1)
+        var literal_length = literal.length()
+        return literal.slice(1, literal_length - 1)
     }
     return null
 }
@@ -216,7 +224,8 @@ func is_number(literal: String, fraction: Bool): Bool {
 func assign(command: String, program: Spite.Attribute) {
     var equals = command.index_of("=")
     var target = command.slice(0, equals).trim()
-    var literal = command.slice(equals + 1, command.length()).trim()
+    var command_length = command.length()
+    var literal = command.slice(equals + 1, command_length).trim()
     var path = path_of(target)
     if path.is_empty() {
         console.print("program itself cannot be assigned: name one of its attributes")
@@ -234,7 +243,8 @@ func assign(command: String, program: Spite.Attribute) {
         if found.assign(text) {
             var updated = resolve(program, path, 0)
             if updated {
-                console.print(shown(updated, false))
+                var shown = shown(updated, false)
+                console.print(shown)
             }
         } else {
             console.print("{literal} is not {described(found.class.name)}, or {target} cannot be assigned")
@@ -247,7 +257,8 @@ func assign(command: String, program: Spite.Attribute) {
 func call(command: String, program: Spite.Attribute) {
     var opening = command.index_of("(")
     var callee = command.slice(0, opening).trim()
-    var inside = command.slice(opening + 1, command.length() - 1).trim()
+    var command_length = command.length()
+    var inside = command.slice(opening + 1, command_length - 1).trim()
     var path = path_of(callee)
     if path.is_empty() {
         console.print("program is not callable")
@@ -309,7 +320,8 @@ func call_found(function: Spite.Function, literals: List<String>) {
     var result = function.call_with_text(texts)
     if result {
         if result.class.name != "Nothing" {
-            console.print(shown(result, false))
+            var shown = shown(result, false)
+            console.print(shown)
         }
     } else {
         console.print(
@@ -331,12 +343,15 @@ func split_arguments(inside: String): List<String> {
         if code == 34 {
             quoted = not quoted
         } else if code == 44 and not quoted {
-            literals.append(inside.slice(start, index).trim())
+            var trimmed_slice = inside.slice(start, index).trim()
+            literals.append(trimmed_slice)
             start = index + 1
         }
         index = index + 1
     }
-    literals.append(inside.slice(start, inside.length()).trim())
+    var inside_length = inside.length()
+    var trimmed_slice = inside.slice(start, inside_length).trim()
+    literals.append(trimmed_slice)
     return literals
 }
 
@@ -345,7 +360,8 @@ func described(class_name: String): String {
         return "a value"
     }
     var vowels = ["A", "E", "I", "O", "U"]
-    if vowels.contains(class_name.character_at(0)) {
+    var first_letter = class_name.character_at(0)
+    if vowels.contains(first_letter) {
         return "an {class_name}"
     }
     return "a {class_name}"

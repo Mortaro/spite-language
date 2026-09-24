@@ -53,7 +53,8 @@ func kept_prototypes(prototypes: String): String {
 }
 
 func is_kept_name(name: String): Bool {
-    var position = find_function(name, 0, name.length())
+    var name_length = name.length()
+    var position = find_function(name, 0, name_length)
     if position < 0 {
         return true
     }
@@ -92,15 +93,19 @@ func split_pieces(body: String) {
 func add_piece(lines: List<String>) {
     crash lines[0]
     var name = defined_name(lines[0])
-    if not name.is_empty() and find_function(name, 0, name.length()) >= 0 {
+    var name_length = name.length()
+    if not name.is_empty() and find_function(name, 0, name_length) >= 0 {
         name = ""
     }
     if not name.is_empty() {
-        add_function(name, pieces.count())
+        var pieces_count = pieces.count()
+        add_function(name, pieces_count)
     }
-    pieces.append(lines.join("\n"))
+    var joined_lines = lines.join("\n")
+    pieces.append(joined_lines)
     piece_names.append(name)
-    kept.append(name.is_empty())
+    var name_is_empty = name.is_empty()
+    kept.append(name_is_empty)
 }
 
 func defined_name(line: String): String {
@@ -130,8 +135,10 @@ func declared_name(line: String): String {
 
 func name_before(text: String, end: Int): String {
     var start = end
-    while start > 0 and is_name_code(text.code_at(start - 1)) {
+    var code = text.code_at(start - 1)
+    while start > 0 and is_name_code(code) {
         start = start - 1
+        code = text.code_at(start - 1)
     }
     return text.slice(start, end)
 }
@@ -195,10 +202,13 @@ func keep_named_in(text: String) {
             index = line_end(text, index)
         } else if is_name_code(code) {
             var start = index
-            while index < text.length() and is_name_code(text.code_at(index)) {
+            var name_code = text.code_at(index)
+            while index < text.length() and is_name_code(name_code) {
                 index = index + 1
+                name_code = text.code_at(index)
             }
-            keep_function(find_function(text, start, index))
+            var function = find_function(text, start, index)
+            keep_function(function)
         } else {
             index = index + 1
         }
@@ -243,7 +253,8 @@ func slot_of(text: String, start: Int, end: Int): Int {
 }
 
 func add_function(name: String, position: Int) {
-    var slot = slot_of(name, 0, name.length())
+    var name_length = name.length()
+    var slot = slot_of(name, 0, name_length)
     while slot_positions[slot] != -1 {
         slot = (slot + 1) % slot_names.count()
     }

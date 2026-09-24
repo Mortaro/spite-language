@@ -1,5 +1,6 @@
 var console = Console()
 
 func report(subject: Spite.Class) {
-    console.print(subject.name, subject.is_singleton())
+    var subject_is_singleton = subject.is_singleton()
+    console.print(subject.name, subject_is_singleton)
 }

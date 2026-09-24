@@ -70,17 +70,15 @@ func report_leaks() {
         var leaked: Long = 0
         var record: Long = 0
         while record < object_count {
-            if memory.read_long(objects, record * 16 + 8) == class_id and find(memory.read_long(objects, record * 16)) >= 0 {
+            var object_address = memory.read_long(objects, record * 16)
+            if memory.read_long(objects, record * 16 + 8) == class_id and find(object_address) >= 0 {
                 leaked = leaked + 1
             }
             record = record + 1
         }
         if leaked > 0 {
-            console.error(
-                "  {foreign_text.read(memory.read_long(class_names, class_id * 8))}:",
-                leaked,
-                "leaked object(s)",
-            )
+            var class_name_address = memory.read_long(class_names, class_id * 8)
+            console.error("  {foreign_text.read(class_name_address)}:", leaked, "leaked object(s)")
         }
         class_id = class_id + 1
     }

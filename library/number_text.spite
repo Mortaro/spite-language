@@ -133,7 +133,8 @@ func exact_digits(multiplier: Long, exponent: Long): String {
         if step > 30 {
             step = 30
         }
-        count = multiplied(limbs, count, power(2, step))
+        var power_of_two = power(2, step)
+        count = multiplied(limbs, count, power_of_two)
         twos = twos - step
     }
     while fives > 0 {
@@ -141,7 +142,8 @@ func exact_digits(multiplier: Long, exponent: Long): String {
         if step > 13 {
             step = 13
         }
-        count = multiplied(limbs, count, power(5, step))
+        var power_of_five = power(5, step)
+        count = multiplied(limbs, count, power_of_five)
         fives = fives - step
     }
     var size = count * 9
@@ -212,7 +214,8 @@ func rounded_digits(digits: String, count: Long): String {
     memory.write_byte(address, 0, 48)
     var index: Long = 0
     while index < count {
-        memory.write_byte(address, index + 1, digits.code_at(index))
+        var digit_code = digits.code_at(index)
+        memory.write_byte(address, index + 1, digit_code)
         index = index + 1
     }
     if rounds_up(digits, count) {
@@ -221,7 +224,8 @@ func rounded_digits(digits: String, count: Long): String {
             memory.write_byte(address, position, 48)
             position = position - 1
         }
-        memory.write_byte(address, position, memory.read_byte(address, position) + 1)
+        var digit_byte = memory.read_byte(address, position)
+        memory.write_byte(address, position, digit_byte + 1)
     }
     var start: Long = 1
     if memory.read_byte(address, 0) != 48 {
@@ -303,15 +307,18 @@ func fixed_text(digits: String, exponent: Long): String {
         return "0.{zeros(-exponent - 1)}{digits}"
     }
     if digits.length() <= exponent + 1 {
-        return "{digits}{zeros(exponent + 1 - digits.length())}"
+        var digits_length = digits.length()
+        return "{digits}{zeros(exponent + 1 - digits_length)}"
     }
-    return "{digits.slice(0, exponent + 1)}.{digits.slice(exponent + 1, digits.length())}"
+    var digits_length = digits.length()
+    return "{digits.slice(0, exponent + 1)}.{digits.slice(exponent + 1, digits_length)}"
 }
 
 func scientific_text(digits: String, exponent: Long): String {
     var mantissa = digits.slice(0, 1)
     if digits.length() > 1 {
-        mantissa = "{mantissa}.{digits.slice(1, digits.length())}"
+        var digits_length = digits.length()
+        mantissa = "{mantissa}.{digits.slice(1, digits_length)}"
     }
     var sign = "+"
     var magnitude = exponent

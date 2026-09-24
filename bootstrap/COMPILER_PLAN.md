@@ -428,3 +428,9 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   to check `List`/`Dictionary` first, and the C `split` had to change its name, in a seed of their own before the
   library files could land. Compiling the compiler dropped from about 13 s to 0.7 s: `join` no longer
   concatenates piece by piece.
+- 2026-09-24: D77. A call passed as an argument is an error unless it is a constructor, one level deep
+  (`report_nested_calls` in the generator, run on every statement and attribute value). About a thousand calls
+  across the repository were moved into named `var`s first, by a throwaway pass over the parser's tree printed back
+  through the formatter, then reviewed by hand; the conditions on the right of `and`/`or` and in `while` loops
+  were rewritten by hand. The check went in with the rewritten sources in one step, since generation 2 checks the
+  compiler's own code. An `else if` now keeps its line number, which errors in its condition used to lose.

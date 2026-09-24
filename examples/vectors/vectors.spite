@@ -4,7 +4,9 @@ func Vectors() {
     var first_vector = Vector(1.0, 2.0)
     var second_vector = Vector(3.0, 4.0)
     var total = first_vector + second_vector
-    console.print("sum", total.get_at(0), total.get_at(1))
+    var total_at = total.get_at(0)
+    var at = total.get_at(1)
+    console.print("sum", total_at, at)
     var difference = second_vector - first_vector
     console.print("difference", difference[0], difference[1])
     console.print("equal", first_vector == Vector(1.0, 2.0))
@@ -14,5 +16,6 @@ func Vectors() {
     first_vector[0] = 10.0
     first_vector.set_at(1, 20.0)
     console.print("mutated", first_vector[0], first_vector[1])
-    console.print("length squared", second_vector.length_squared())
+    var length_squared = second_vector.length_squared()
+    console.print("length squared", length_squared)
 }

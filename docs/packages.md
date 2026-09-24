@@ -62,10 +62,13 @@ func PackageDemo() {
     load("package")
     load("mods")
     var renderer = Engine.Renderer()
-    console.print(renderer.render())
+    var rendered = renderer.render()
+    console.print(rendered)
     var monster = Monster(10)
-    console.print(monster.describe())
-    console.print(monster.taunt())
+    var description = monster.describe()
+    console.print(description)
+    var taunt = monster.taunt()
+    console.print(taunt)
 }
 ```
 ```output
@@ -96,7 +99,8 @@ func name_with_namespaces(): String {
 var console = Console()
 
 func ReopenSpiteClass() {
-    console.print(console.class.name_with_namespaces())
+    var console_class_name = console.class.name_with_namespaces()
+    console.print(console_class_name)
 }
 ```
 ```output

@@ -81,7 +81,8 @@ var names = List<String>()
 func Greeter() {
     names.append("ada")
     names.append("grace")
-    console.print("greeting", names.count(), "people")
+    var people = names.count()
+    console.print("greeting", people, "people")
     say_hello_to_everyone()
 }
 

@@ -14,12 +14,15 @@ func FileTasks() {
     var log_file = File(".spite-cache/documentation_demo_log.txt")
     log_file.write("first line")
     log_file.append(", second line")
-    console.print("exists", log_file.exists())
+    var log_exists = log_file.exists()
+    console.print("exists", log_exists)
     var content = log_file.read()
     crash content
     console.print("content", content)
-    console.print("removed", log_file.remove())
-    console.print("exists after remove", log_file.exists())
+    var removed = log_file.remove()
+    console.print("removed", removed)
+    log_exists = log_file.exists()
+    console.print("exists after remove", log_exists)
 }
 ```
 ```output
@@ -42,9 +45,11 @@ var console = Console()
 func DirectoryTasks() {
     var target = Directory(".spite-cache/documentation_demo_dir")
     target.create()
-    console.print("exists", target.exists())
+    var target_exists = target.exists()
+    console.print("exists", target_exists)
     var examples = Directory("examples")
-    console.print("has hello", examples.folders().contains("hello"))
+    var has_hello = examples.folders().contains("hello")
+    console.print("has hello", has_hello)
 }
 ```
 ```output
@@ -63,7 +68,8 @@ func ProcessTasks() {
     var listing = Process("echo", ["build finished"])
     var code = listing.run()
     console.print("exit code", code)
-    console.print("output", listing.output().trim())
+    var trimmed_output = listing.output().trim()
+    console.print("output", trimmed_output)
 }
 ```
 ```output
@@ -85,8 +91,10 @@ func DictionaryTasks() {
     inventory.set("sword", 1)
     inventory.set("potion", 4)
     inventory.set("potion", 6)
-    console.print("count", inventory.count())
-    console.print("has shield", inventory.has("shield"))
+    var inventory_count = inventory.count()
+    console.print("count", inventory_count)
+    var has_shield = inventory.has("shield")
+    console.print("has shield", has_shield)
     crash inventory["potion"]
     console.print("potions", inventory["potion"])
     console.print("shields", inventory["shield"] == 0)
@@ -134,8 +142,10 @@ func ListQuery() {
     items.append(Item("sword", 50, true))
     items.append(Item("shield", 30, false))
     items.append(Item("potion", 10, true))
-    console.print("in stock count", items.filter_in_stock().count())
-    console.print("in stock price total", items.filter_in_stock().sum_price())
+    var in_stock_count = items.filter_in_stock().count()
+    console.print("in stock count", in_stock_count)
+    var in_stock_price = items.filter_in_stock().sum_price()
+    console.print("in stock price total", in_stock_price)
     var found = items.find_by_name("shield")
     if found {
         console.print("found", found.name, found.price)

@@ -8,9 +8,11 @@ var formats = false
 var operational_system = Environment().operational_system
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
-    var lexer = Syntax.Lexer(formatted_source(entry_path, entry_source))
+    var formatted_source = formatted_source(entry_path, entry_source)
+    var lexer = Syntax.Lexer(formatted_source)
     if lexer.has_error {
-        return failure(lex_failure(entry_path, lexer))
+        var lex_failure = lex_failure(entry_path, lexer)
+        return failure(lex_failure)
     }
     comment_root = directory_of(entry_path)
     check_comments(entry_path, lexer.tokens)
@@ -23,7 +25,9 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     if parser.has_error {
         return failure("{entry_path}:{parser.error_line}:{parser.error_column}: {parser.error_message}")
     }
-    check_order(entry_path, entry_file, pascal_case(file_stem(entry_path)))
+    var file_stem = file_stem(entry_path)
+    var pascal_case = pascal_case(file_stem)
+    check_order(entry_path, entry_file, pascal_case)
     if has_error {
         return failure(error_message)
     }
@@ -75,7 +79,8 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     if has_error {
         return failure(error_message)
     }
-    var entry_mangled_name = mangle_dotted(pascal_case(entry_stem))
+    var entry_pascal_name = pascal_case(entry_stem)
+    var entry_mangled_name = mangle_dotted(entry_pascal_name)
     return DiscoveryResult(class_files, entry_mangled_name, false, "")
 }
 
@@ -169,7 +174,8 @@ func check_comments(path: String, tokens: List<Syntax.Token>) {
             depth = depth - 1
         }
         if token.kind == 'comment' and not has_error {
-            var problem = comment_problem(token.text.trim(), depth)
+            var trimmed_text = token.text.trim()
+            var problem = comment_problem(trimmed_text, depth)
             if not problem.is_empty() {
                 has_error = true
                 error_message = "{path}:{token.line}: error: {problem}"
@@ -224,7 +230,8 @@ func comment_problem(text: String, depth: Int): String {
         return "this comment is not a link: {comment_lesson()}"
     }
     var markdown_path = text.slice(0, hash_position)
-    var anchor = text.slice(hash_position + 1, text.length())
+    var text_length = text.length()
+    var anchor = text.slice(hash_position + 1, text_length)
     var content = File("{comment_root}/{markdown_path}").read()
     if not content {
         return "this comment links to '{markdown_path}', which does not exist (the path is relative to the entry file's folder, like load)"
@@ -246,9 +253,11 @@ func markdown_anchors(content: String): List<String> {
         if line.starts_with("#") {
             var heading = line
             while heading.starts_with("#") {
-                heading = heading.slice(1, heading.length())
+                var heading_length = heading.length()
+                heading = heading.slice(1, heading_length)
             }
-            var anchor = heading_anchor(heading.trim())
+            var trimmed_heading = heading.trim()
+            var anchor = heading_anchor(trimmed_heading)
             var candidate = anchor
             var suffix = 1
             while anchors.contains(candidate) {
@@ -391,7 +400,8 @@ func read_and_add_file(path: String, segments: List<String>) {
     var program_file = File(path)
     var content = program_file.read()
     if content {
-        var lexer = Syntax.Lexer(formatted_source(path, content))
+        var formatted_source = formatted_source(path, content)
+        var lexer = Syntax.Lexer(formatted_source)
         if lexer.has_error {
             has_error = true
             error_message = lex_failure(path, lexer)
@@ -408,9 +418,12 @@ func read_and_add_file(path: String, segments: List<String>) {
             return
         }
         parsed_file.path = path
-        check_order(path, parsed_file, pascal_case(file_stem(path)))
+        var file_stem = file_stem(path)
+        var pascal_case = pascal_case(file_stem)
+        check_order(path, parsed_file, pascal_case)
         assert not has_error
-        add_parsed_file(parsed_file, segments, file_stem(path))
+        file_stem = file_stem(path)
+        add_parsed_file(parsed_file, segments, file_stem)
     } else {
         has_error = true
         error_message = "could not read '{path}'"
@@ -418,14 +431,16 @@ func read_and_add_file(path: String, segments: List<String>) {
 }
 
 func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, stem: String) {
-    var mangled_name = mangle_dotted(compute_qualified(segments, stem))
+    var qualified = compute_qualified(segments, stem)
+    var mangled_name = mangle_dotted(qualified)
     var simple_name = compute_simple_name(segments, stem)
     var namespace_dotted = compute_namespace(segments, stem)
     var qualified_dotted = compute_qualified(segments, stem)
     var existing_index = 0
     while existing_index < class_files.count() {
         if class_files[existing_index].qualified_dotted == qualified_dotted {
-            reopen_class(class_files[existing_index].get_file(), parsed_file)
+            var class_file_file = class_files[existing_index].get_file()
+            reopen_class(class_file_file, parsed_file)
             return
         }
         existing_index = existing_index + 1
@@ -665,7 +680,8 @@ func compute_namespace(segments: List<String>, stem: String): String {
     }
     var last_segment = segments[segments.count() - 1]
     if last_segment == stem {
-        return pascal_join(all_but_last(segments))
+        var all_but_last = all_but_last(segments)
+        return pascal_join(all_but_last)
     }
     return pascal_join(segments)
 }
@@ -706,7 +722,8 @@ func directory_of(path: String): String {
     if segments.count() <= 1 {
         return "."
     }
-    return join_with_slash(all_but_last(segments))
+    var all_but_last = all_but_last(segments)
+    return join_with_slash(all_but_last)
 }
 
 func join_with_slash(segments: List<String>): String {
@@ -730,7 +747,8 @@ func basename(path: String): String {
 func file_stem(path: String): String {
     var base = basename(path)
     if base.ends_with(".spite") {
-        return base.slice(0, base.length() - 6)
+        var base_length = base.length()
+        return base.slice(0, base_length - 6)
     }
     return base
 }

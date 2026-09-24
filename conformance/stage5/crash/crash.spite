@@ -3,9 +3,12 @@ var names = Dictionary<String>()
 
 func Crash() {
     names.set("ada", "Ada Lovelace")
-    console.print(name_length("ada"))
-    console.print(describe(3))
-    console.print(describe(0 - 1))
+    var name_length = name_length("ada")
+    console.print(name_length)
+    var three_description = describe(3)
+    console.print(three_description)
+    var minus_one_description = describe(0 - 1)
+    console.print(minus_one_description)
 }
 
 func name_length(key: String): Int {

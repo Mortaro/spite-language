@@ -50,12 +50,15 @@ func allowed(is_number: Bool, end_index: Int) {
     }
     if is_number {
         var start = 0
-        words.append(source.slice(start, end_index))
+        var word = source.slice(start, end_index)
+        words.append(word)
     } else {
         var start = 1
-        words.append(source.slice(start, end_index))
+        var word = source.slice(start, end_index)
+        words.append(word)
     }
     if is_number {
-        words.append(source.slice(0, end_index))
+        var number = source.slice(0, end_index)
+        words.append(number)
     }
 }

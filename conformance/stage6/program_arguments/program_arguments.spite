@@ -5,7 +5,9 @@ func ProgramArguments(arguments: Arguments) {
 }
 
 func greet(arguments: Arguments) {
-    console.print(arguments.count(), arguments.get(0))
+    var arguments_count = arguments.count()
+    var argument = arguments.get(0)
+    console.print(arguments_count, argument)
     assert arguments.player
     console.print("player", arguments.player)
 }

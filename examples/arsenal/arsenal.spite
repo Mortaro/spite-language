@@ -12,6 +12,8 @@ func Arsenal(arguments: Arguments) {
     if arguments.player {
         console.print("player", arguments.player)
     }
-    console.print("argument count", arguments.count())
-    console.print("first argument", arguments.get(0))
+    var arguments_count = arguments.count()
+    console.print("argument count", arguments_count)
+    var argument = arguments.get(0)
+    console.print("first argument", argument)
 }

@@ -1,12 +1,15 @@
 var console = Console()
 
 func FunctionValueMistakes() {
-    console.print(apply(ring, "x"))
+    var rung = apply(ring, "x")
+    console.print(rung)
     var change = shout
-    console.print(change("a", "b"))
+    var changed = change("a", "b")
+    console.print(changed)
     var described = FunctionValueMistakes.functions
     crash described[0]
-    console.print(apply(described[0], "y"))
+    var applied = apply(described[0], "y")
+    console.print(applied)
 }
 
 func apply(change: Spite.Function<String, String>, text: String): String {

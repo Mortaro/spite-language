@@ -14,8 +14,12 @@ func run() {
         current = current.next
         walked = walked + 1
     }
-    console.print(walked, steps.join(" -> "))
-    console.print(describe(Idle()), describe(Busy(3)), describe(Broken("fuse")))
+    var joined_steps = steps.join(" -> ")
+    console.print(walked, joined_steps)
+    var idle_description = describe(Idle())
+    var busy_description = describe(Busy(3))
+    var broken_description = describe(Broken("fuse"))
+    console.print(idle_description, busy_description, broken_description)
 }
 
 func build_chain(length: Int): Node? {

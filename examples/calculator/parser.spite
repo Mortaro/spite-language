@@ -26,27 +26,31 @@ func parse(): Expression {
 }
 
 func parse_expression(): Expression {
-    return parse_expression_rest(parse_term())
+    var parsed_term = parse_term()
+    return parse_expression_rest(parsed_term)
 }
 
 func parse_expression_rest(left: Expression): Expression {
     if is_kind('plus') or is_kind('minus') {
         var operator_kind = current().kind
         advance()
-        return parse_expression_rest(BinaryExpression(operator_kind, left, parse_term()))
+        var parsed_term = parse_term()
+        return parse_expression_rest(BinaryExpression(operator_kind, left, parsed_term))
     }
     return left
 }
 
 func parse_term(): Expression {
-    return parse_term_rest(parse_factor())
+    var parsed_factor = parse_factor()
+    return parse_term_rest(parsed_factor)
 }
 
 func parse_term_rest(left: Expression): Expression {
     if is_kind('star') or is_kind('slash') {
         var operator_kind = current().kind
         advance()
-        return parse_term_rest(BinaryExpression(operator_kind, left, parse_factor()))
+        var parsed_factor = parse_factor()
+        return parse_term_rest(BinaryExpression(operator_kind, left, parsed_factor))
     }
     return left
 }
@@ -54,7 +58,8 @@ func parse_term_rest(left: Expression): Expression {
 func parse_factor(): Expression {
     if is_kind('minus') {
         advance()
-        return BinaryExpression('minus', NumberExpression(0.0), parse_factor())
+        var parsed_factor = parse_factor()
+        return BinaryExpression('minus', NumberExpression(0.0), parsed_factor)
     }
     if is_kind('left_paren') {
         advance()
@@ -67,7 +72,8 @@ func parse_factor(): Expression {
         advance()
         return NumberExpression(value)
     }
-    return VariableExpression(consume_name())
+    var consume_name = consume_name()
+    return VariableExpression(consume_name)
 }
 
 func consume_name(): String {

@@ -74,15 +74,21 @@ func StringBasics() {
     var subject = "Spite"
     var greeting = "Hello, {subject}"
     console.print(greeting)
-    console.print("length", greeting.length())
-    console.print("upper", greeting.upper_case())
-    console.print("contains", greeting.contains("Spite"))
+    var greeting_length = greeting.length()
+    console.print("length", greeting_length)
+    var upper_case_greeting = greeting.upper_case()
+    console.print("upper", upper_case_greeting)
+    var mentions_spite = greeting.contains("Spite")
+    console.print("contains", mentions_spite)
     var parts = greeting.split(", ")
-    console.print("parts count", parts.count())
-    console.print("joined", parts.join(" - "))
+    var parts_count = parts.count()
+    console.print("parts count", parts_count)
+    var joined_parts = parts.join(" - ")
+    console.print("joined", joined_parts)
     var age: Int = "42"
     console.print("parsed", age)
-    console.print("bad parse", "not a number".to_int())
+    var not_a_number = "not a number".to_int()
+    console.print("bad parse", not_a_number)
 }
 ```
 ```output
@@ -220,7 +226,8 @@ var console = Console()
 func EnumBasics() {
     var hero = Player('mage')
     console.print("job", hero.job)
-    console.print("is knight", hero.is_knight())
+    var hero_is_knight = hero.is_knight()
+    console.print("is knight", hero_is_knight)
 }
 ```
 ```output
@@ -275,7 +282,8 @@ func UnionBasics() {
         Player: console.print("a player", enemy.health)
         Monster: console.print("a monster", enemy.health)
     }
-    console.print("alive", enemy.is_alive())
+    var enemy_is_alive = enemy.is_alive()
+    console.print("alive", enemy_is_alive)
 }
 ```
 ```output

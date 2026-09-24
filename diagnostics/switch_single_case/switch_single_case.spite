@@ -7,9 +7,10 @@ union Creature {
 var console = Console()
 
 func SwitchSingleCase() {
-    console.print(is_fish(Cat()))
-    console.print(fins_of(Cat()))
-    console.print(allowed(Cat()))
+    var cat_is_fish = is_fish(Cat())
+    var cat_fins = fins_of(Cat())
+    var cat_allowed = allowed(Cat())
+    console.print(cat_is_fish, cat_fins, cat_allowed)
 }
 
 func is_fish(creature: Creature): Bool {

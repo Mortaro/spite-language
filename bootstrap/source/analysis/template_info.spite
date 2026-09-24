@@ -30,5 +30,8 @@ func member_name_for(call_name: String): String {
     if not call_name.ends_with(suffix) {
         return ""
     }
-    return call_name.slice(prefix.length(), call_name.length() - suffix.length())
+    var prefix_length = prefix.length()
+    var call_name_length = call_name.length()
+    var suffix_length = suffix.length()
+    return call_name.slice(prefix_length, call_name_length - suffix_length)
 }

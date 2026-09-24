@@ -9,17 +9,19 @@ func Party() {
     members.append(hero)
     members.append(Person(2, 'mage'))
     members.append(Person(3, 'archer'))
-    console.print("member count", members.count())
+    var members_count = members.count()
+    console.print("member count", members_count)
     var index = 0
     while index < members.count() {
         var member = members[index]
         console.print("member age", member.age, "job", member.job)
         index = index + 1
     }
-    console.print("an eleventh member", members.count() > 10)
+    console.print("an eleventh member", members_count > 10)
     var scores = [10, 20, 30]
     crash scores.count() == 3
-    console.print("score count", scores.count())
+    var scores_count = scores.count()
+    console.print("score count", scores_count)
     console.print("second score", scores[1])
     var nearby = find_monster(false)
     if nearby {

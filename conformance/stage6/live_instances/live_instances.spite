@@ -2,20 +2,28 @@ var console = Console()
 var kept = List<Monster>()
 
 func LiveInstances() {
-    console.print(Monster.instances.count())
+    var instances_count = Monster.instances.count()
+    console.print(instances_count)
     kept.append(Monster("rat"))
     kept.append(Monster("bat"))
     spawn_and_forget()
-    console.print(Monster.instances.count(), Monster.instances.map_name().join(","))
+    instances_count = Monster.instances.count()
+    var joined_map_name = Monster.instances.map_name().join(",")
+    console.print(instances_count, joined_map_name)
     crash kept[0]
     var copied = kept[0].copy()
     copied.name = "copy of rat"
-    console.print(Monster.instances.count(), Monster.instances.last().name)
+    instances_count = Monster.instances.count()
+    var name = Monster.instances.last().name
+    console.print(instances_count, name)
     kept.clear()
-    console.print(Monster.instances.count(), Monster.instances.first().name)
+    instances_count = Monster.instances.count()
+    var first_name = Monster.instances.first().name
+    console.print(instances_count, first_name)
 }
 
 func spawn_and_forget() {
     var temporary = Monster("ghost")
-    console.print("while alive:", Monster.instances.count(), temporary.name)
+    var instances_count = Monster.instances.count()
+    console.print("while alive:", instances_count, temporary.name)
 }

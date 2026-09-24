@@ -9,5 +9,6 @@ func run() {
     boxes[3].label = "x"
     var outer = Box()
     outer.inner.label = "y"
-    console.print(boxes.count())
+    var box_count = boxes.count()
+    console.print(box_count)
 }

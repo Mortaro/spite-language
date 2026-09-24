@@ -15,8 +15,10 @@ func ClassTest() {
     favorite = Square()
     console.print(favorite == Square)
     console.print(Circle() == Circle)
-    console.print(describe(Circle()))
-    console.print(describe(Square()))
+    var circle_description = describe(Circle())
+    console.print(circle_description)
+    var square_description = describe(Square())
+    console.print(square_description)
 }
 
 func describe(shape: Shape): String {

@@ -21,7 +21,8 @@ func read_into(buffer: Long, bytes: Long, handle: Long): Long {
 }
 
 func write_text(text: String, handle: Long): Long {
-    return library.fwrite_as_long(text, 1, text.length(), handle)
+    var text_length = text.length()
+    return library.fwrite_as_long(text, 1, text_length, handle)
 }
 
 func remove(): Bool {

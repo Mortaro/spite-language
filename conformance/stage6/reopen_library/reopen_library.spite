@@ -3,11 +3,14 @@ var console = Console()
 func ReopenLibrary() {
     var monster = Monster("rat")
     var rat = Creatures.Rat(2)
-    console.print(monster.class.name_with_namespaces(), rat.class.name_with_namespaces())
+    var monster_class_name = monster.class.name_with_namespaces()
+    var rat_class_name = rat.class.name_with_namespaces()
+    console.print(monster_class_name, rat_class_name)
     var classes = Spite.Class.instances
     var index = 0
     while index < classes.count() {
-        console.print(classes[index].name_with_namespaces())
+        var class_name = classes[index].name_with_namespaces()
+        console.print(class_name)
         index = index + 1
     }
 }

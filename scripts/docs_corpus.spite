@@ -15,7 +15,8 @@ func DocsCorpus() {
     }
     read_every_page(documentation)
     write_manifest()
-    console.print(folder_names.count(), "documentation programs")
+    var folder_names_count = folder_names.count()
+    console.print(folder_names_count, "documentation programs")
 }
 
 func read_every_page(documentation: Directory) {
@@ -46,7 +47,9 @@ func read_page(path: String) {
 }
 
 func read_block(lines: List<String>, opening_index: Int, opening: String): Int {
-    var header = opening.slice("```spite title=".length(), opening.length())
+    var marker_length = "```spite title=".length()
+    var opening_length = opening.length()
+    var header = opening.slice(marker_length, opening_length)
     var words = header.split(" ")
     crash words[0]
     var title = words[0]
@@ -57,7 +60,8 @@ func read_block(lines: List<String>, opening_index: Int, opening: String): Int {
         return opening_index + 1
     }
     var folder = title.slice(0, separator)
-    var file_name = title.slice(separator + 1, title.length())
+    var title_length = title.length()
+    var file_name = title.slice(separator + 1, title_length)
     var index = opening_index + 1
     var body = List<String>()
     while index < lines.count() and lines[index].trim() != "```" {
@@ -113,7 +117,10 @@ func remember_folder(folder: String, file_name: String, words: List<String>) {
             folder_must_fail[position] = true
         }
         if word.starts_with("vars=") {
-            folder_flags[position] = flags_of(word.slice("vars=".length(), word.length()))
+            var prefix_length = "vars=".length()
+            var word_length = word.length()
+            var variables_text = word.slice(prefix_length, word_length)
+            folder_flags[position] = flags_of(variables_text)
         }
         word_index = word_index + 1
     }

@@ -118,7 +118,8 @@ func dummy_expression(): Syntax.Expressions.Expression {
 }
 
 func dummy_statement(): Syntax.Statements.Statement {
-    return Syntax.Statements.ExpressionStatement(dummy_expression())
+    var dummy_expression = dummy_expression()
+    return Syntax.Statements.ExpressionStatement(dummy_expression)
 }
 
 func dummy_type(): Syntax.Types.Type {
@@ -126,7 +127,8 @@ func dummy_type(): Syntax.Types.Type {
 }
 
 func parse_file(): Syntax.SourceFile {
-    return Syntax.SourceFile(parse_top_level_statements())
+    var parsed_top_level_statements = parse_top_level_statements()
+    return Syntax.SourceFile(parsed_top_level_statements)
 }
 
 func is_declaration(statement: Syntax.Statements.Statement): Bool {
@@ -173,7 +175,8 @@ func parse_statement_list_until(stop_kind: TokenKind): List<Syntax.Statements.St
         if check('end_of_file') or check(stop_kind) or has_error {
             finished = true
         } else {
-            statements.append(parse_statement())
+            var parsed_statement = parse_statement()
+            statements.append(parsed_statement)
         }
     }
     return statements
@@ -398,9 +401,11 @@ func parse_required_function(name: String): Syntax.Statements.FieldDeclaration {
             fail(
                 "a shape names the types it needs, not the names they are given: write '{parse_type_name_hint()}' where '{named.text}: ...' is, since a class satisfies it whatever it calls its parameters",
             )
-            return Syntax.Statements.FieldDeclaration(name, dummy_type())
+            var dummy_type = dummy_type()
+            return Syntax.Statements.FieldDeclaration(name, dummy_type)
         }
-        parameter_types.append(parse_type())
+        var parsed_type = parse_type()
+        parameter_types.append(parsed_type)
         if check('comma') {
             advance()
         } else {
@@ -472,7 +477,8 @@ func parse_type_declaration(): Syntax.Statements.Statement {
     while not finished {
         var field_name = expect('identifier', "a field name")
         if check('left_paren') {
-            fields.append(parse_required_function(field_name.text))
+            var parsed_required_function = parse_required_function(field_name.text)
+            fields.append(parsed_required_function)
         } else {
             expect('colon', "':' followed by the field's type")
             var field_type = parse_type()
@@ -547,7 +553,8 @@ func reject_returning_guard(statement: Syntax.Statements.Statement, condition_te
     assert not returned
     var proven = condition_text
     if proven.starts_with("not ") {
-        proven = proven.slice(4, proven.length())
+        var proven_length = proven.length()
+        proven = proven.slice(4, proven_length)
     } else {
         proven = "not ({proven})"
     }
@@ -568,10 +575,12 @@ func parse_if_rest(condition: Syntax.Expressions.Expression): Syntax.Statements.
         advance()
         has_else_branch = true
         if check('keyword_if') {
+            var else_if_line = current().line
             var nested = parse_if_statement()
             var chained = shape.as_if_statement(nested)
             crash chained
             chained.follows_else = true
+            chained.line = else_if_line
             var wrapped = List<Syntax.Statements.Statement>()
             wrapped.append(nested)
             else_branch = wrapped
@@ -615,7 +624,8 @@ func parse_switch_case_body(): List<Syntax.Statements.Statement> {
         return parse_block()
     }
     var single = List<Syntax.Statements.Statement>()
-    single.append(parse_statement())
+    var parsed_statement = parse_statement()
+    single.append(parsed_statement)
     return single
 }
 
@@ -693,7 +703,8 @@ func parse_return_statement(): Syntax.Statements.Statement {
 }
 
 func parse_expression_or_assignment_statement(): Syntax.Statements.Statement {
-    return parse_expression_or_assignment_statement_with(parse_expression())
+    var parsed_expression = parse_expression()
+    return parse_expression_or_assignment_statement_with(parsed_expression)
 }
 
 func parse_expression_or_assignment_statement_with(
@@ -710,7 +721,8 @@ func parse_expression_or_assignment_statement_with(
 }
 
 func parse_type(): Syntax.Types.Type {
-    return with_nullable_suffix(parse_type_without_suffix())
+    var parsed_type_without_suffix = parse_type_without_suffix()
+    return with_nullable_suffix(parsed_type_without_suffix)
 }
 
 func with_nullable_suffix(type_reference: Syntax.Types.Type): Syntax.Types.Type {
@@ -729,7 +741,8 @@ func with_nullable_suffix(type_reference: Syntax.Types.Type): Syntax.Types.Type 
 func parse_type_without_suffix(): Syntax.Types.Type {
     if check('ampersand') {
         advance()
-        return Syntax.Types.ReferenceType(parse_type())
+        var parsed_type = parse_type()
+        return Syntax.Types.ReferenceType(parsed_type)
     }
     if check('generic_identifier') {
         var token = advance()
@@ -760,7 +773,8 @@ func parse_type_without_suffix(): Syntax.Types.Type {
         advance()
         var expect_more = true
         while expect_more and not check('end_of_file') {
-            arguments.append(parse_generic_argument())
+            var parsed_generic_argument = parse_generic_argument()
+            arguments.append(parsed_generic_argument)
             if check('comma') {
                 advance()
             } else {
@@ -825,12 +839,14 @@ func try_parse_generic_argument_list_quiet(): List<Syntax.Types.GenericArgument>
 func try_parse_generic_argument_quiet(): Syntax.Types.GenericArgument? {
     if check('integer_literal') {
         var token = advance()
-        var argument: Syntax.Types.GenericArgument = Syntax.Types.IntegerArgument(token.text.to_long())
+        var text_number = token.text.to_long()
+        var argument: Syntax.Types.GenericArgument = Syntax.Types.IntegerArgument(text_number)
         return argument
     }
     if check('float_literal') {
         var token = advance()
-        var argument: Syntax.Types.GenericArgument = Syntax.Types.FloatArgument(token.text.to_double())
+        var text_number = token.text.to_double()
+        var argument: Syntax.Types.GenericArgument = Syntax.Types.FloatArgument(text_number)
         return argument
     }
     if check('string_literal') {
@@ -989,18 +1005,21 @@ func binary_operator_for(kind: TokenKind): Syntax.Expressions.BinaryOperator {
 }
 
 func parse_binary_expression(minimum_precedence: Int): Syntax.Expressions.Expression {
-    return parse_binary_expression_rest(parse_unary(), minimum_precedence)
+    var parsed_unary = parse_unary()
+    return parse_binary_expression_rest(parsed_unary, minimum_precedence)
 }
 
 func parse_binary_expression_rest(
     left: Syntax.Expressions.Expression,
     minimum_precedence: Int,
 ): Syntax.Expressions.Expression {
-    var precedence = binary_operator_precedence(current_kind())
+    var current_kind = current_kind()
+    var precedence = binary_operator_precedence(current_kind)
     if precedence < 0 or precedence < minimum_precedence {
         return left
     }
-    var operator = binary_operator_for(current_kind())
+    current_kind = current_kind()
+    var operator = binary_operator_for(current_kind)
     var joining = check('plus')
     advance()
     var right = parse_binary_expression(precedence + 1)
@@ -1043,7 +1062,8 @@ func parse_unary(): Syntax.Expressions.Expression {
 }
 
 func parse_postfix(): Syntax.Expressions.Expression {
-    return parse_postfix_rest(parse_primary())
+    var parsed_primary = parse_primary()
+    return parse_postfix_rest(parsed_primary)
 }
 
 func parse_postfix_rest(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression {
@@ -1078,7 +1098,8 @@ func parse_argument_list(): List<Syntax.Expressions.Expression> {
     var arguments = List<Syntax.Expressions.Expression>()
     var expect_more = not check('right_paren')
     while expect_more and not check('end_of_file') {
-        arguments.append(parse_expression())
+        var parsed_expression = parse_expression()
+        arguments.append(parsed_expression)
         if check('comma') {
             advance()
             expect_more = not check('right_paren')
@@ -1093,11 +1114,13 @@ func parse_argument_list(): List<Syntax.Expressions.Expression> {
 func parse_primary(): Syntax.Expressions.Expression {
     if check('integer_literal') {
         var token = advance()
-        return Syntax.Expressions.IntegerLiteral(token.text.to_long())
+        var text_number = token.text.to_long()
+        return Syntax.Expressions.IntegerLiteral(text_number)
     }
     if check('float_literal') {
         var token = advance()
-        var float_literal = Syntax.Expressions.FloatLiteral(token.text.to_double())
+        var text_number = token.text.to_double()
+        var float_literal = Syntax.Expressions.FloatLiteral(text_number)
         float_literal.written = token.lexeme
         return float_literal
     }
@@ -1106,7 +1129,8 @@ func parse_primary(): Syntax.Expressions.Expression {
         var text: Syntax.Expressions.Expression = Syntax.Expressions.StringLiteralExpression(token.text)
         while check('interpolation') {
             var hole = advance()
-            var joined = Syntax.Expressions.BinaryExpression('add', text, parse_interpolation(hole))
+            var parsed_interpolation = parse_interpolation(hole)
+            var joined = Syntax.Expressions.BinaryExpression('add', text, parsed_interpolation)
             joined.is_text_join = true
             text = joined
             var following = expect('string_literal', "the rest of the text after '}'")
@@ -1140,7 +1164,8 @@ func parse_primary(): Syntax.Expressions.Expression {
         return Syntax.Expressions.FalseLiteral()
     }
     if check('identifier') {
-        var borrowed = borrowed_word_lesson(current().lexeme)
+        var lexeme = current().lexeme
+        var borrowed = borrowed_word_lesson(lexeme)
         if not borrowed.is_empty() {
             fail(borrowed)
             advance()

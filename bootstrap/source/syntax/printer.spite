@@ -12,7 +12,8 @@ func indent_text(depth: Int): String {
 }
 
 func print_line(depth: Int, text: String) {
-    console.print(indent_text(depth) + text)
+    var indent_text = indent_text(depth)
+    console.print(indent_text + text)
 }
 
 func print_file(file: Syntax.SourceFile) {
@@ -80,7 +81,8 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
             print_line(depth, "UnionDecl {statement.name}")
             var index = 0
             while index < statement.members.count() {
-                print_line(depth + 1, inline_type(statement.members[index]))
+                var inline_type = inline_type(statement.members[index])
+                print_line(depth + 1, inline_type)
                 index = index + 1
             }
         }

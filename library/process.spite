@@ -9,7 +9,8 @@ func Process(starting_command: String, starting_arguments: List<String>) {
 }
 
 func run(): Int {
-    var handle = open_process(command_line())
+    var command_line = command_line()
+    var handle = open_process(command_line)
     if handle == 0 {
         last_output = ""
         return -1

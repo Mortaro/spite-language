@@ -1,7 +1,8 @@
 var library = DynamicLibrary("libc.so.6", 'identity', "")
 
 func run_attached(): Int {
-    return library.system(command_line())
+    var command_line = command_line()
+    return library.system(command_line)
 }
 
 func open_process(line: String): Long {

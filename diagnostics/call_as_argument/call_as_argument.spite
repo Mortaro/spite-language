@@ -1,0 +1,34 @@
+var console = Console()
+var source = "12 apples"
+var tokens = List<Token>()
+var counts = List<Int>()
+
+func CallAsArgument() {
+    rejected()
+    allowed()
+}
+
+func rejected() {
+    console.print(count_words(source))
+    counts.append(count_words(source) + 1)
+    tokens.append(Token("number", Text(source.slice(0, 2))))
+    tokens.append(Token("word", Text(source)))
+    var token = Token("word", Text(source.slice(3, 9)))
+    console.print(token.kind, source.slice(0, 2).upper_case())
+}
+
+func allowed() {
+    var token_slice = source.slice(0, 2)
+    var number = Text(token_slice)
+    tokens.append(Token("number", number))
+    var word = Token("word", Text(source))
+    tokens.append(word)
+    var word_count = count_words(source)
+    counts.append(word_count + 1)
+    console.print("{count_words(source)} words, the first is {source.slice(0, 2).upper_case()}")
+}
+
+func count_words(text: String): Int {
+    var words = text.split(" ")
+    return words.count()
+}

@@ -3,8 +3,12 @@ var memory = Memory()
 func concat(left: String, right: String): String {
     var total = left.length() + right.length()
     var address = memory.allocate_bytes(total + 1)
-    memory.copy_bytes(memory.address_of(left), address, left.length())
-    memory.copy_bytes(memory.address_of(right), address + left.length(), right.length())
+    var left_address = memory.address_of(left)
+    var left_length = left.length()
+    memory.copy_bytes(left_address, address, left_length)
+    var right_address = memory.address_of(right)
+    var right_length = right.length()
+    memory.copy_bytes(right_address, address + left_length, right_length)
     return memory.take_text(address, total)
 }
 
@@ -12,7 +16,10 @@ func equals(left: String, right: String): Bool {
     if left.length() != right.length() {
         return false
     }
-    return memory.compare_bytes(memory.address_of(left), memory.address_of(right), left.length()) == 0
+    var left_address = memory.address_of(left)
+    var right_address = memory.address_of(right)
+    var left_length = left.length()
+    return memory.compare_bytes(left_address, right_address, left_length) == 0
 }
 
 func less(left: String, right: String): Bool {
@@ -20,7 +27,9 @@ func less(left: String, right: String): Bool {
     if right.length() < shortest {
         shortest = right.length()
     }
-    var comparison = memory.compare_bytes(memory.address_of(left), memory.address_of(right), shortest)
+    var left_address = memory.address_of(left)
+    var right_address = memory.address_of(right)
+    var comparison = memory.compare_bytes(left_address, right_address, shortest)
     if comparison != 0 {
         return comparison < 0
     }
@@ -28,12 +37,14 @@ func less(left: String, right: String): Bool {
 }
 
 func slice(text: String, start: Int, end: Int): String {
-    var first = clamped(start, text.length())
-    var last = clamped(end, text.length())
+    var text_length = text.length()
+    var first = clamped(start, text_length)
+    var last = clamped(end, text_length)
     if last <= first {
         return ""
     }
-    return memory.text(memory.address_of(text) + first, last - first)
+    var text_address = memory.address_of(text)
+    return memory.text(text_address + first, last - first)
 }
 
 func clamped(position: Int, length: Int): Int {

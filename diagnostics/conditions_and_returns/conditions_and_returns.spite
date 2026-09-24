@@ -8,7 +8,9 @@ func ConditionsAndReturns() {
     while "text" {
         count = count - 1
     }
-    console.print(silent(), loud())
+    var quiet = silent()
+    var noisy = loud()
+    console.print(quiet, noisy)
 }
 
 func silent() {

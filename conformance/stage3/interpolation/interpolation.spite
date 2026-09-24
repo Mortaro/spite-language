@@ -2,7 +2,8 @@ var console = Console()
 
 func Interpolation() {
     var person = Person("ada", 36)
-    console.print(person.greeting())
+    var greeting = person.greeting()
+    console.print(greeting)
     console.print("{person.name} is {person.age}")
     console.print("next year {person.age + 1}, twice {person.age * 2}")
     var numbers = [1, 2, 3]
