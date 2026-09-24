@@ -1,5 +1,4 @@
 var memory = Memory()
-var foreign_text = ForeignText()
 var console = Console()
 
 func exit(code: Int) {
@@ -10,7 +9,7 @@ func exit(code: Int) {
 func environment(name: String): String? {
     var address = environment_address(name)
     assert address != 0
-    return foreign_text.read(address)
+    return memory.terminated_text(address)
 }
 
 func live_allocations(): Int {

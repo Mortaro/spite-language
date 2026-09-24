@@ -192,6 +192,14 @@ func text(address: Long, length: Long): String {
     return String(bytes, length)
 }
 
+func terminated_text(address: Long): String {
+    var length: Long = 0
+    while read_byte(address, length) != 0 {
+        length = length + 1
+    }
+    return text(address, length)
+}
+
 func allocate_bytes(bytes: Long): Long
 func resize(address: Long, bytes: Long): Long
 func free(address: Long)

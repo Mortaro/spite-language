@@ -1,6 +1,5 @@
 var library = DynamicLibrary("libSystem.dylib", 'identity', "")
 var memory = Memory()
-var foreign_text = ForeignText()
 
 func exists(): Bool {
     var directory = library.opendir_as_long(path)
@@ -20,7 +19,7 @@ func entry_names(want_folders: Bool): List<String> {
         var entry = library.readdir_as_long(directory)
         while entry != 0 {
             var is_folder = memory.read_byte(entry, 20) == 4
-            var name = foreign_text.read(entry + 21)
+            var name = memory.terminated_text(entry + 21)
             if is_folder == want_folders and name != "." and name != ".." {
                 names.append(name)
             }

@@ -1,6 +1,5 @@
 var memory = Memory()
 var console = Console()
-var foreign_text = ForeignText()
 var slots: Long = 0
 var capacity: Long = 0
 var divisor: UnsignedLong = 0
@@ -78,7 +77,7 @@ func report_leaks() {
         }
         if leaked > 0 {
             var class_name_address = memory.read_long(class_names, class_id * 8)
-            console.error("  {foreign_text.read(class_name_address)}:", leaked, "leaked object(s)")
+            console.error("  {memory.terminated_text(class_name_address)}:", leaked, "leaked object(s)")
         }
         class_id = class_id + 1
     }

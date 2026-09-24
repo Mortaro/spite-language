@@ -1,6 +1,5 @@
 var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
 var memory = Memory()
-var foreign_text = ForeignText()
 
 func exists(): Bool {
     var attributes = kernel.GetFileAttributesA(path)
@@ -19,7 +18,7 @@ func entry_names(want_folders: Bool): List<String> {
         var more = true
         while more {
             var is_folder = memory.read_int(found, 0) % 32 >= 16
-            var name = foreign_text.read(found + 44)
+            var name = memory.terminated_text(found + 44)
             if is_folder == want_folders and name != "." and name != ".." {
                 names.append(name)
             }

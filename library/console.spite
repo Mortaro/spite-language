@@ -1,7 +1,6 @@
 singleton
 
 var memory = Memory()
-var foreign_text = ForeignText()
 
 func read_line(): String? {
     var buffer = memory.allocate_bytes(256)
@@ -10,7 +9,7 @@ func read_line(): String? {
     var more = read_line_into(buffer, 256)
     while more {
         read_anything = true
-        var piece = foreign_text.read(buffer)
+        var piece = memory.terminated_text(buffer)
         if piece.ends_with("\n") {
             var piece_length = piece.length()
             line = "{line}{piece.slice(0, piece_length - 1)}"
