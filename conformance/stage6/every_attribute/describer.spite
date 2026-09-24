@@ -1,4 +1,4 @@
-func Describer<$described_type>() {}
+generic $described_type
 
 func describe(value: $described_type): String {
     var lines = List<String>()

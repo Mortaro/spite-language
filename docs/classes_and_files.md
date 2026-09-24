@@ -3,9 +3,10 @@
 Every `.spite` file is exactly one class, named by PascalCasing the file name: `person.spite` is `Person`. This
 cannot be changed -- there is no `class` keyword and no way to put two classes in one file.
 
-A file contains only declarations: an optional `generics` line (first line, see
-[metaprogramming.md](metaprogramming.md)), `var` fields, `func`s, and namespaced `type`/`enum`/`union`
-declarations. **No file-level statements** -- no loop, `if`, or call outside a function body:
+A file contains only declarations, in this order: a `singleton` line if the class has one instance, `generic
+$name` lines for the codegen values a caller supplies (see [metaprogramming.md](metaprogramming.md)),
+namespaced `enum`/`union`/`type` declarations, `var` fields, the constructor, then the other `func`s. Anything
+out of that order is an error. **No file-level statements** -- no loop, `if`, or call outside a function body:
 
 ```spite title=file_scope_error/file_scope_error.spite entry error
 var console = Console()
@@ -71,6 +72,40 @@ first name unnamed level 1
 Every value has a default: `Int` is `0`, `Float` `0.0`, `Bool` `false`, `String` `""`, and a class's default is
 its fields' defaults. There is no `null` for anything but a `T?` (see
 [values_and_types.md](values_and_types.md)).
+
+## Singletons
+
+A file whose first line is `singleton` has one instance: calling its constructor anywhere answers that same
+instance, made the first time it is asked for, and the constructor takes no arguments. `Console` and
+`Environment` are singletons.
+
+```spite title=singleton_basics/scoreboard.spite
+singleton
+
+var points = 0
+
+func score(amount: Int) {
+    points = points + amount
+}
+```
+```spite title=singleton_basics/singleton_basics.spite entry
+var console = Console()
+
+func SingletonBasics() {
+    var home = Scoreboard()
+    home.score(2)
+    var away = Scoreboard()
+    away.score(3)
+    var is_singleton = Scoreboard.is_singleton()
+    console.print(home.points, home == away, is_singleton)
+}
+```
+```output
+5 true true
+```
+
+Declaring `func is_singleton(): Bool` in a class is an error that names the `singleton` line; `Spite.Class`
+answers `is_singleton()` for every class.
 
 ## Classes are references
 

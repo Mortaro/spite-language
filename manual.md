@@ -37,7 +37,9 @@ progress log, and `conformance/` is the part that demonstrably works.
 - `Name` (uppercase first letter) is a class or type, including the whole standard library.
 - `$name` is a codegen value: it is replaced at code generation time (see [Codegen values](#9-codegen-values-)).
 - `_name` is private. (This may change.)
-- Keywords: `var func return if else while switch type enum union assert crash and or not null true false` — there is
+- Keywords: `var func return if else while switch type enum union generic assert crash and or not null true false`
+  (`generic` since D87), plus `singleton`, which is a keyword only as a line of its own at the top of a file
+  (D104; it stays usable as a name, since `Spite.Class` has an attribute called `singleton`) — there is
   no `do` (second batch item 2, decided 2026-09-19: with `for` gone, `if value do name` had nothing to match, so
   `if value { } else { }` narrows in place instead, section 5). Writing `do` is a parse error naming the
   `if value { }` form.
@@ -49,6 +51,8 @@ This cannot be changed.
 
 A file contains only declarations:
 
+- a `singleton` line, when the class has one instance (section 8, D104)
+- `generic $name` lines: the codegen values a caller supplies (section 9, D87)
 - `var` declarations: the attributes of the class
 - `func` declarations: the functions of the class
 - `type`, `enum` and `union` declarations, which are namespaced under the class (`Player.Job`)
@@ -383,8 +387,8 @@ of the language held alongside it and becomes the language describing itself -- 
 class, including classes" (section 8) has always claimed. A function value carries `.name`, `.arguments` and
 `.returns` because it *is* the reflection object.
 
-This is the language's first **variadic** generic. `List<T>` and the rest take a fixed count declared on the
-constructor (section 9); `Spite.Function` is a compiler built-in and takes as many as the signature has.
+This is the language's first **variadic** generic. `List<T>` and the rest take a fixed count declared by their
+`generic` lines (section 9); `Spite.Function` is a compiler built-in and takes as many as the signature has.
 
 #### Calling one
 
@@ -425,6 +429,39 @@ function with arguments; and a class attribute initialised with a function value
 notation invented for the type syntax -- it fills a hole the reflection already had. A function whose body falls
 off the end still returns nothing in the ordinary sense (section 5); `Nothing` is how that is *named* when a
 signature or a reflection object has to say it.
+
+### Variadic arguments  **[implemented]**
+
+D90 (decided by Mortaro, 2026-09-24, answering open question 14): "variadic arguments are going to be mapped to a
+generic list so something like: `...args: List<Type or Class>`." The last parameter may be written with `...`, and
+the caller then writes its values one by one; the function receives them as an ordinary `List`:
+
+```
+func log(...lines: List<String>) {
+    var joined = lines.join(" ")
+    console.print(joined)
+}
+
+log("a", "b", "c")        # lines is ["a", "b", "c"]
+log()                     # lines is empty
+```
+
+- **The element type may be a class or a `type`** (section 7). With a `type`, each argument is whatever class
+  fits the shape, and a call on an element is dispatched to the class it really is, exactly as a `List<Shape>`
+  already dispatches: `func announce(...things: List<Describable>)` takes `announce(Widget("gear"), Gadget(3))`.
+- **Only the last parameter**, and it must be written `List<Type>`: anything else is a parse error naming the
+  form (`diagnostics/variadic_not_last`). Parameters before it are ordinary and positional.
+- Each value is an argument in every sense: it casts toward the element type like any argument (section 4), and
+  D77 still applies to it, so only a constructor may be one, one level deep (`diagnostics/variadic_mistakes`).
+- A function value keeps the spread: naming `log` and calling the value with `("x", "y")` gathers them the same
+  way (`conformance/stage6/variadic_arguments`).
+
+As implemented (proposed by Claude, unconfirmed): **passing a whole list to a `...` parameter is an error** that
+says to pass the elements, because the caller writes them one by one and there is no spread operator to ask for
+the other reading -- unless the element type is itself a list. Zero values is a legal call, giving an empty list.
+`Console.print`, `write` and `error` still take their values through the generator's own special case rather than
+through `...values: List<Printable>`: which values count as printable is a language decision
+(`mortaros_missing_decisions.md`).
 
 ### Failure: three outcomes and no others  **[partial]**
 
@@ -767,6 +804,11 @@ responds to `render()`" -- a list of components, section 17 -- without a union n
 and it makes the respond-to check section 16 item 9 promises expressible as an ordinary type rather than as
 reflection.
 
+**A `type` can be the element of a variadic parameter** (D90): `...children: List<Renderable>` takes any number
+of values of any classes that fit, written one by one, "a generic can be done over both a type or a class, but in
+the end monomorphised into each class". Each class that is passed is admitted to the shape, and each call on an
+element is compiled once per admitted class (section 5, [Variadic arguments](#variadic-arguments-implemented)).
+
 
 ## 8. Metaprogramming
 
@@ -923,6 +965,9 @@ func is_singleton(): Bool {
 }
 ```
 
+Since D104 a singleton is no longer said this way: `singleton` is a header line (below), and declaring
+`is_singleton()` in a class is an error naming it. `is_singleton()` stays the member `Spite.Class` answers.
+
 - **The set of class-level hooks is exactly the set of functions `Spite.Class` declares.** There is no keyword
   and no marker: if the name is one of those, the definition belongs to the class object; otherwise it is an
   ordinary instance function, as every function in a file has always been. Reading `Spite.Class` in the standard
@@ -954,14 +999,20 @@ compute one, and it costs the language nothing because functions already exist.
 
 ### Singletons  **[implemented]**
 
-D8 (decided by Mortaro, 2026-09-19): a singleton is declared with a class-level function (above), overriding the
-default `Spite.Class` declares.
+D104 (Mortaro, 2026-09-24, correcting an omission; superseding D8's function form): **a singleton says so with a
+`singleton` line at the top of its file**, first in D67's order -- before `generic` lines, enums, unions, types,
+variables, the constructor and functions. `is_singleton()` stays readable on `Spite.Class` (D88), answered from
+the line.
 
 ```console.spite
-func is_singleton(): Bool {
-    return true
-}
+singleton
+
+var memory = Memory()
 ```
+
+Declaring `func is_singleton()` in any class but `Spite.Class` is an error naming the line
+(`diagnostics/singleton_function`). D8 (2026-09-19) had declared it with that class-level function, overriding
+the default `Spite.Class` declares; what follows still holds for the line.
 
 - **Call sites never change.** `var console = Console()` everywhere, exactly as it reads today. A human skimming
   a call site is never told and never needs to know; the AI writing the code learns it from the class file and
@@ -977,12 +1028,13 @@ func is_singleton(): Bool {
   `Process` are not -- they are values (a path, a spawned command), and several may exist at once.
 - A later root reopening the class (section 11) may not disagree about it; that is a diagnostic. Reopening
   `Spite.Class` itself to move the default for every class at once is allowed and is D7's foot to shoot.
-- A class wanting an ordinary instance function named `is_singleton` hits the collision rule above: a diagnostic
-  naming `Spite.Class`.
+- A class wanting an ordinary instance function named `is_singleton` gets the error above, which names the
+  `singleton` line.
 
 Rejected on the way here, each for a reason worth keeping: `$singleton = true` and `$instances = 1` (`$` means
 "replaced at code generation", and a directive the compiler reads and deletes is never replaced by anything); a
-bare `singleton` first line (the file-top declaration shape D5 removed for `generics`); `func Console(): Console`
+bare `singleton` first line (the file-top declaration shape D5 removed for `generics` -- adopted after all by D67
+and D104, once `generic` lines made the header a pattern); `func Console(): Console`
 or `func Console(): Spite.Singleton` (the constructor's return type carrying the meaning -- quiet, and the second
 makes the return type describe how rather than what); `func shared_instance(): Console` (loudest and most honest,
 but "the constructor is named after the class" stops being one rule); a private constructor `func _Console()`
@@ -1082,18 +1134,20 @@ repositories.filter_active().sum_stars()
 repositories.each_bump_stars()
 ```
 
-## 9. Codegen values (`$`)  **[implemented; the D5/D9 form is planned]**
+## 9. Codegen values (`$`)  **[implemented]**
 
 `$name` means "replaced at code generation". That is its only meaning, everywhere it appears.
 
-D5 (decided by Mortaro, 2026-09-19): the `generics` header line is removed. D9 (decided by Mortaro, 2026-09-19):
-**the constructor declares every codegen value a caller supplies, always, even when there is only one**, in a
-`<...>` list that mirrors the call exactly.
+D87 (decided by Mortaro, 2026-09-24, superseding D9's constructor list): **a class declares each codegen value on
+a `generic` line of its own, at the top of the file**, "instead of constructor":
 
 ```weapon.spite
+generic $damage_type
+generic $is_magic
+
 var damage: $damage_type = 0
 
-func Weapon<$damage_type, $is_magic>(new_damage: $damage_type) {
+func Weapon(new_damage: $damage_type) {
     damage = new_damage
 }
 
@@ -1109,30 +1163,31 @@ func hit(): Int {
 var sword = Weapon<Magic, true>(10)
 ```
 
-- **The declaration and the call are the same shape**, so one is read against the other. The reason for declaring
-  even a single value (Mortaro): skimming a constructor is how a human sees what a class accepts, and a list of
-  one is still a list.
-- **Call sites are positional, always.** There is no named form: the constructor fixes the order, so nothing has
-  to be restated at the call. `List<Int>()`, `Weapon<Magic, true>(10)`.
+- **Every value is declared, even a single one**, so skimming the top of a file is how a human sees what a class
+  accepts. The lines come after a `singleton` line and before everything else (D67); one line declares one value.
+- **Call sites are positional, always, in the order of the lines.** There is no named form: `List<Int>()`,
+  `Weapon<Magic, true>(10)`.
 - **`$` is for generics only** (D76, decided by Mortaro, 2026-09-23, superseding D9's "undeclared means supplied
-  by a compiler flag"). Every `$name` a class uses is declared on its constructor and supplied by the caller, so
-  the constructor list is exactly "what a caller must pass". A `$name` the constructor does not declare is a
-  compile error pointing at [`Environment`](#program-settings-environment), which is where a program's settings
-  live now (`diagnostics/codegen_values`).
-- A class that takes codegen values therefore has a constructor, even if it only exists to declare them
-  (`func Pair<$left_type, $right_type>() { }`). The built-in containers declare theirs the same way:
-  `List<$element_type>`, `Dictionary<$value_type>`, `$value_type?`.
+  by a compiler flag"). Every `$name` a class uses has a `generic` line and is supplied by the caller, so the
+  lines are exactly "what a caller must pass". A `$name` with no line is a compile error pointing at
+  [`Environment`](#program-settings-environment), which is where a program's settings live now
+  (`diagnostics/codegen_values`).
+- **A class needs no constructor to take codegen values.** That was D9's cost, and the reason for D87:
+  `library/list.spite` is `generic $element_type` and its functions, and `library/dictionary.spite` is `generic
+  $value_type`; an empty constructor is still an error.
 - **Every hole must be filled.** There are no defaults. A call supplying the wrong number is a compile error
   naming the class's codegen values, in order, so the mistake is corrected from the message rather than by
   opening the class. A `$name` that is not declared is an error too -- which is what a typo like `$is_magik`
   produces.
-- Reordering a constructor's `<...>` changes what every existing positional call site means. Where the values
+- Reordering the `generic` lines changes what every existing positional call site means. Where the values
   have different kinds (a class versus a `Bool`) the compiler catches it immediately; where they are the same
   kind (`Pair<Int, String>` swapped) it compiles and means something else, and the tests are what catch it. This
   is a deliberate, accepted trade (Mortaro, 2026-09-19).
 - `--final-classes` prints each class with its codegen values already bound, which is where `true` reads as
   `is_magic` again.
-- Writing `generics` is a parse error naming this form (as `for`, `&` and `Heap<T>` already are).
+- Writing `generics` is a parse error naming this form (as `for`, `&` and `Heap<T>` already are), and so is D9's
+  `func Weapon<$damage_type, $is_magic>(...)`: the message lists the `generic` lines to write
+  (`diagnostics/constructor_codegen_list`). A `generic` line inside a function is an error too.
 
 Conditions on codegen values are decided at compile time and the untaken branch is removed (tree shaking).
 In development mode they are kept as runtime values so live reload can change them.
@@ -1167,8 +1222,10 @@ its own sake -- a codegen value is a hole, not a variable); no declaration at al
 values (`Weapon<$damage_type: Magic, $is_magic: true>`, which made every call site restate what the class already
 knew); and a class-level `generics()` function returning a list of symbols (the wrong category -- class-level
 functions answer questions *about* a class, while codegen values are inputs to constructing one, and it needed a
-second list of names kept in sync with the real holes). The constructor was where the ordered list belonged the
-whole time.
+second list of names kept in sync with the real holes). D9 then put the ordered list on the constructor, which
+forced a constructor on every generic class, even an empty one only there to hold the list; D87 moved it to one
+`generic` line per value, which is a declaration like `var` rather than a header list, and made the header a
+pattern shared with `singleton` (D104).
 
 ### Program settings: `Environment`  **[implemented]**
 
@@ -1432,10 +1489,11 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   `--final-classes` writes its classes already formatted. A list or object literal over 120 columns is written
   one entry per line with no commas. Every documentation program not marked `error` is formatted too, and `check.sh`
   keeps it so.
-- **A file is ordered** (D67, decided by Mortaro, 2026-09-23): enums, unions, types, variables, the constructor,
-  then functions. Anything out of that order is a compile error naming what came before it
-  (`diagnostics/declaration_order`). Where `union` goes was not said; beside `enum` and before `type` is
-  Claude's placement (unconfirmed). `singleton` and `generic` lines come first if open question 12 adds them.
+- **A file is ordered** (D67, decided by Mortaro, 2026-09-23): the `singleton` line (D104), `generic` lines
+  (D87), enums, unions, types, variables, the constructor, then functions. Anything out of that order is a
+  compile error naming what came before it (`diagnostics/declaration_order`). Where `union` goes was not said;
+  beside `enum` and before `type` is Claude's placement (unconfirmed). Consecutive `generic` lines stay together
+  with no blank line between them; one blank line follows the `singleton` line and the last `generic` line.
   **[implemented]**
 - One blank line between declarations at file level, except that consecutive `var` declarations may stay
   grouped with no blank line between them if they were already written that way (a blank line the source did
@@ -1624,8 +1682,9 @@ can write. Outside `--repl` they answer an empty list, `false` and `null`. **Sta
 and `spite connect` are built, in Spite, over `Socket` (section 15) through `DynamicLibrary` -- see their
 subsections below; `docs/repl.md`'s worked session is replayed by `check.sh` against a real program. **Not built
 yet:** walking a `Dictionary<T>` or a union, assigning a `T?`, a list element or a whole instance, the meta
-commands `classes`, `describe`, `enums` and `memory`, and D37's drain points (the remote loop answers at once, on
-its own thread). Compiling and executing arbitrary new Spite code inside the running process,
+commands `classes`, `describe`, `enums` and `memory`. D37's drain points are built (2026-09-24): the remote loop's
+commands are answered on the program's thread where it waits -- see "Answered where the program waits" below and
+section 15's "Concurrency". Compiling and executing arbitrary new Spite code inside the running process,
 `Class.instances`, and live reload were blocked on the memory-model decision in [open question
 4](#open-questions), decided as D1 (reference counting, milestone 9a, section 10) -- unblocked, not yet
 started, for milestone 6b (see "Live reload and 6b" below).
@@ -1723,6 +1782,14 @@ will ever unwind back to a clean `main` return, so this does not attempt one).
   instance. Spite starts it and waits for it through the operating system's folder (`CreateThread` and
   `WaitForSingleObject` from `kernel32.dll`; `pthread_create` and `pthread_join` elsewhere). No `Thread` class is
   added to the library: D35 already says how a program is concurrent, and this thread belongs to the REPL.
+- **Answered where the program waits** (D37, built 2026-09-24; proposed by Claude, unconfirmed). The socket thread
+  only reads a command, hands it to the program's scheduler (section 15, "Concurrency") and waits for the answer.
+  The scheduler answers it on the program's thread the next time the program waits -- `Program().sleep`,
+  `Console.read_line()`, a `File` or `Socket` read or write, a `Concurrent` wait, a `Parallel` join -- so a command
+  sees the program between two steps, never in the middle of one, and "data races are accepted" above no longer
+  applies. After the constructor returns, the program waits for nothing but commands. A `--repl-port` build of a
+  program that never waits and has a `while` loop is a compile error naming the loop
+  (`diagnostics/remote_loop_never_waits`); `docs/concurrency.md` replays a frame loop served between frames.
 - **The port is part of the build**, like any flag the compiler folds (D84): `main` listens on it, on the main
   thread, before the constructor runs, so a client that connects any time after the program starts is served. A
   port another program holds stops the program before its constructor with `error: the REPL could not listen on
@@ -1733,8 +1800,8 @@ will ever unwind back to a clean `main` return, so this does not attempt one).
   that returns nothing. Every message the console loop prints as a complaint is `"ok":false` on the wire.
   JSON escapes are `\"`, `\\`, `\n`, `\r`, `\t` and `\u00XX` for any other control character.
 - **`exit`** answers `{"ok":true,"value":"","type":""}`, closes the connection and calls `Program().exit(0)`,
-  which flushes what the program printed. When the constructor returns first, `main` waits for the server
-  thread. With `--repl` too, the console loop runs first, and after its `exit` the process keeps serving.
+  which flushes what the program printed. It is handed over like any command, so the program stops at a wait
+  first. When the constructor returns first, `main` serves commands until then. With `--repl` too, the console loop runs first, and after its `exit` the process keeps serving.
 - `spite program.spite --repl-port 4000` and `--repl-port=4000` both work; anything else after `--repl-port` is
   an error naming the form.
 
@@ -1889,6 +1956,7 @@ directory listing and process spawning).
 | `Program()` | `exit(code)`: exits the process immediately with `code` |
 | `Console()` | `print(...)`, `write(...)`, `error(...)`, `read_line(): String?` -- see below |
 | `Socket()` (proposed by Claude, unconfirmed) | `listen_locally(port): Bool`, `accept_client(): Socket?`, `connect_locally(port): Bool`, `read_line(): String?`, `write_line(text): Bool`, `close()` -- TCP on `127.0.0.1` only, which `--repl-port` and `spite connect` use (section 14) |
+| `Concurrent(function)`, `Parallel(function)` (proposed by Claude, unconfirmed) | `wait()`: what the function returned; dropping the handle waits for it -- see "Concurrency" below |
 | `DynamicLibrary(file_name, naming, header)`  **[planned]** | every foreign function, constant and type of a native library, resolved by Symbol codegen -- see [Foreign libraries](#17-foreign-libraries-planned) |
 
 `Console` is one of them and is a singleton (D52): `Console()` is the same instance everywhere, `Console` is an
@@ -1936,6 +2004,70 @@ What follows is Claude's reading (proposed by Claude, unconfirmed):
 - Found on the way: a reopened class that declares a `union` again, as `--final-classes` prints `Directory` back
   out, registered the union twice. A union declared again now replaces the earlier one, as a `type` already did
   (section 11's rule: the later declaration of a name wins).
+### Concurrency: `Concurrent`, `Parallel` and hidden waiting  **[implemented on Windows; names and mechanism proposed by Claude, unconfirmed]**
+
+D35 (no function colouring, join on drop), D37 (the compiler injects the REPL's drain points where the program
+already waits), D99 (IO never blocks the program by the program's own hand) and D103 (async waiting and threads are
+two things, and `Task` is too generic a name) are built as two classes and one scheduler. `docs/concurrency.md` is
+the user's page for all of it.
+
+- **`Concurrent(function)`** (`library/concurrent.spite`) runs a function value (D17, D39) on a **fiber** of the
+  program's own thread, starting straight away; `.wait()` answers what it returned and `drop()` waits for it, so
+  scope exit is a join point. It is for work that waits: IO, sleeps, database calls later.
+- **`Parallel(function)`** (`library/parallel.spite`) runs one on a thread of its own, with the same `wait()` and
+  join on drop. It is for work that computes. Today it starts one operating-system thread per call; the engine's
+  thread pool and D35's `parallel_each_` templates are not built.
+- The type is never written: `Concurrent(file.read)` is a `Concurrent<String?>`, worked out from the function's
+  return (see the inference row in the decision log). A function that returns nothing gives a `Concurrent<Nothing>`,
+  whose `wait()` answers a `Nothing`.
+
+**The mechanism: stackful fibers, and a helper thread per blocking call.** A C target has no coroutines, so hidden
+async/await has three honest implementations. A *state-machine transform* (what C# and Rust do) rewrites every
+function that can reach a wait into a resumable object; it is the fastest per suspension, but the colour it hides
+is still there inside the compiler -- every such function, and every caller up to the fiber's root, has to be
+transformed, reference-counted locals have to move into the state object, and a suspension inside a
+`List.each_`-style template or a foreign callback has nowhere to go. *Threads* for everything make every wait
+cheap to write but every program multithreaded, which is exactly the hidden cost D36 forbids. *Stackful fibers*
+(`CreateFiber`/`SwitchToFiber` on Windows, `makecontext`/`swapcontext` elsewhere) give each concurrent function its
+own stack on the program's one thread: a function suspends wherever it is, with no transform and no colour, and
+Spite code only ever runs on one thread at a time, so the program's state needs no locks. Their cost is a stack
+per live `Concurrent` (reserved, not committed, on Windows) and a switch of about the cost of a function call. That
+is the one chosen. Files cannot be waited on without blocking on any of the three systems, so a blocking call is
+handed to a short-lived helper thread (what libuv does for files), and the fiber is parked until it returns.
+
+**What the compiler writes.** Each operating system's folder names the calls that block, and the compiler knows
+them by class and function: `Program.sleep`; `Console.read_line_into`, `File.read_into`, `File.write_text`,
+`Socket.accept_handle` and `Socket.receive_into` (the one system call under `Console.read_line()`, `File.read()`,
+`File.write()`/`append()`, `Socket.accept_client()` and `Socket.read_line()`); and `Parallel.join_thread`. In a
+program that uses the scheduler -- one that makes a `Concurrent`, or is built with `--repl-port` -- each of them is
+emitted under a `_waiting` name with a small wrapper in front: a sleep parks the fiber until its time, a blocking
+call runs on a helper thread while the fiber is parked, and a `Parallel` join joins and then lets whatever is ready
+run once. Every other program gets none of it: no wrapper, no scheduler, no fiber, the same C as before.
+
+**Blocking is what the compiler picks when it is faster** (D99). The wrapper asks the scheduler first: when no
+`Concurrent` is alive and no REPL is listening, or the caller is not on the scheduler's thread (a `Parallel`, a
+helper, the REPL's socket thread), nothing else could run meanwhile, so the wrapper makes the plain blocking call.
+
+**The scheduler** (`library/scheduler.spite`, a singleton; each operating system's folder reopens it with the
+fiber, event and clock calls) keeps the ready fibers, the sleeping ones with their wake times and the blocking
+calls in flight. When nothing is ready it answers the REPL's pending command, if any, then waits on one event that
+the helper threads and the REPL's socket thread signal, with the nearest wake time as its timeout. Waiting forever
+on nothing is a deadlock, and a crash.
+
+**Soundness.** A program that starts a thread (a `Concurrent`'s helpers, a `Parallel`, or `--repl-port`) is compiled
+with `SPITE_THREADS`: every retain and release is an atomic operation, and the `--debug-memory` table takes a lock.
+Every other program keeps the plain counts. Spite code on the program's thread only ever changes hands at a wait,
+so fibers need nothing more. What a `Parallel` function may touch is not checked: D35's rule (a parallel member
+reaches only its own instance and its locals) is not built, so two threads writing one field, or one writing a
+field another reads, is still the program's mistake -- and with reference-counted fields it can free a value
+another thread is reading. That rule, or another, waits on Mortaro (`mortaros_missing_decisions.md`).
+Two smaller gaps, untested: a singleton's first use from two threads at once is not guarded (each could make
+one), and a REPL client's `exit` while a helper thread is blocked reading the console may wait on the C runtime's
+lock on that stream when the process exits.
+
+**Not built:** a thread pool, `parallel_each_` templates, HTTP, cancelling a `Concurrent`, a `Concurrent` made on
+a thread that is not the scheduler's (it runs on the spot instead), and running any of this on Linux or macOS,
+whose folders are held to compiling.
 
 ### Pure Spite: dissolving the runtime  **[planned]**
 
@@ -2537,7 +2669,7 @@ payloads to JSON on demand, since the compiler knows the schema.
     - For: one kind of member, and it composes -- a shape could then require a function value it will *store*,
       which `hit(): Int` cannot express.
 
-12. **(Answered by D87: `generic $name` header lines.)** **A header form for generics, with constraints** (Mortaro, 2026-09-23, asked to be argued with). The proposal:
+12. **(Answered by D87: `generic $name` header lines. Built 2026-09-24, section 9.)** **A header form for generics, with constraints** (Mortaro, 2026-09-23, asked to be argued with). The proposal:
     `generic $type` lines at the top of the file beside `singleton`, and a described generic
     `generic $sub_type { initial_value: Spite.Function<$sub_type> }` that narrows what may be supplied. The
     problem it solves is real: a class that takes codegen values must have a constructor to declare them, even
@@ -2562,7 +2694,7 @@ payloads to JSON on demand, since the compiler knows the schema.
     (Mortaro, 2026-09-23: "a thing for you to ask me later"). Example shape: `func from_type(type: Symbol, value:
     type.class)`. Not argued yet; waiting to be asked. D59 (arguments cast to their parameter type) is where it
     will first matter.
-14. **(Answered by D90: `...args: List<Type or Class>`.)** **An ABI for variadic arguments** (Mortaro, 2026-09-23, "fight me on this before we implement"). Proposed:
+14. **(Answered by D90: `...args: List<Type or Class>`. Built 2026-09-24, section 5.)** **An ABI for variadic arguments** (Mortaro, 2026-09-23, "fight me on this before we implement"). Proposed:
     `func hello(world: String, ...args: List<Spite.Argument<String>>)`, which would make `Spite.Argument` generic.
     Claude argues against the `Spite.Argument` part (proposed by Claude, unconfirmed): `Spite.Argument` is the
     *reflection* of a parameter -- a name and a class, known at compile time -- and a variadic argument is a
@@ -2818,6 +2950,21 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D97** (decided by Mortaro): **running a program is Spite code that loads it, with nothing hidden.** "running a spite program should have a entrypoint INSIDE our language code, that entrypoint basically just load() the folder the user provides. nothing of the process should be hidden, spite is just itself a spite application that loads the user application, no magic runtime code injected its a must! i should be able to see the project spite is running and completely understand how things are loaded, this project itself is loading the standard library and the current os files." The standard library, the operating system's folder and the user's folder are all loaded by visible `load()` calls in a Spite entry. |
 | 2026-09-24 | **D98** (decided by Mortaro): **`List` and `Dictionary` are only abstractions over `Memory`, and `Memory` handles both heap and stack**, "so anyone can create efficient data structures, we will need efficient data structures for our ECS framework later on." Nothing about the containers is special to the compiler. |
 | 2026-09-24 | (Mortaro, 2026-09-24, on D35/D37) **Hidden async/await must be built and documented**: "Make sure you made good on your promise of hidden async await with injected code into proper pause modes, its a important feature but ive seen not mention of it in documentation." D35's `Task` (no function colouring, join on drop) and D37's injected drain points are decided but not built, and `docs/` does not describe them; the remote REPL answers at once instead of at drain points. |
+| 2026-09-24 | **D99** (decided by Mortaro, sharpening D35): **IO never blocks the program by the program's own hand: waiting on IO is hidden async/await.** "io async await is EXTREMELY IMPORTANT, user should not be able to block himself, unless compiler judges for some scripts its an optimization to block instead of await, but user does not know compiler does the fast thing, same for http and so on." A file read, a socket, an HTTP call is written as an ordinary call and the compiler turns the wait into a suspension; blocking is only what the compiler picks when it is faster, never something the user chooses or sees. |
+| 2026-09-24 | **D100** (decided by Mortaro, answering open question 13): **a class defines its casts with `func from_type(type: Symbol, value: type.class)`**, "lets go with this approach for now and implement it in the standard library so we convert the internal memory of a int to a float and so on." The numeric conversions are written this way in the number classes, over their internal memory. |
+| 2026-09-24 | **D101** (decided by Mortaro, extending D98): **`Memory` is the one real basic type, with visible addresses and sections.** "we need some kind of abstraction on Memory so memory can have an address people can see, and each variable can see its own memory address by meta relating to memory, and memory can have multiple memory sections, of course all of this can be optimized away and tree shaken but user does not need to think about this, they just create their efficient wrappers just like our standard library does for all basic types, the only real basic type is Memory everything else composes on it." Every value can reach its memory through reflection, `Memory` has an address and sections, and every other type -- numbers, `String`, `List`, `Dictionary` -- is a wrapper over it; the compiler optimises the abstraction away. |
+| 2026-09-24 | **D102** (decided by Mortaro): **every change to the code updates the documentation in the same change.** "make sure agents always update documentation when updating the code, eventually plan and my notes goes away and docs is all that we have left the plan becomes git history when all is done." `docs/` is the lasting record; `PLAN.md` and the notes files are temporary. |
+| 2026-09-24 | **D103** (decided by Mortaro, on D35): **`Task` is too generic a name, and async waiting and threads are two things.** "we need to make a separation between async/await tasks and plain threaded tasks, unless they all are threads but in that case we need to make sure its efficient. we will later need for the nullstack clone efficient hidden async/await on db calls and so on, but super efficient threaded performance on our game engine." Hidden async/await (D99) for IO and database calls, and a separate, fast threaded form for parallel work. |
+| 2026-09-24 | **D104** (Mortaro, correcting an omission): **`singleton` is a header keyword at the top of the file**, first in D67's enforced order (`singleton`, then `generic` lines, then `enum`, ...), and `func is_singleton(): Bool { return true }` is no longer how a class says it. "you ignored my decision to use the singleton keyword on top of file with the enforced order of declarations." `is_singleton()` stays readable on `Spite.Class` as a getter (D88). |
+| 2026-09-24 | **D105** (decided by Mortaro, on D94's review): **the review's findings are confirmed and get built; the remaining proposals are decided later.** "your findings on while and if already confirmed can be worked on, and we just decide tomorrow the other ones." That covers: rewriting the 31 loops that an existing iterator replaces, flattening the 7 nested `if`/`else` that flatten, and the chains that become a `switch` today. The two proposed rules (`while` over a list, nested `if`/`else`) and `switch` over enums wait (`mortaros_review_while_and_else_if.md`). **Iterators are cumulative**: "keep in mind iterators should be cumulative (and we can optimize them into single loops on compiler time) like `map_repositories().filter_active().sum_stars()`." A chain of member templates reads as separate steps, and the compiler fuses it into one loop with no intermediate lists. |
+| 2026-09-24 | (implements D87; details proposed by Claude, unconfirmed) **`generic $name` lines are built.** `generic` is a reserved keyword; each line declares exactly one value (a comma is an error naming the next line to write); the lines come after `singleton` and before enums in D67's order; the constructor's `<...>` list is a parse error listing the `generic` lines to write; a `generic` line inside a function is an error; a generic class needs no constructor, so `library/list.spite` and `library/dictionary.spite` lost their empty ones. The seed learned the lines before `library/` used them, and the constructor form was removed a generation later. |
+| 2026-09-24 | (implements D90; details proposed by Claude, unconfirmed) **`...name: List<Type>` is built.** `...` is its own token; only the last parameter may take it, and its type must be written `List<...>`; a call gathers every argument from that position on into a new list, zero included; passing a whole list to it is an error unless the element type is itself a list; a function value keeps the spread; D77 applies to each value. `Console.print`/`write`/`error` stay special-cased, because `...values: List<Printable>` needs a decision on what `Printable` requires (`mortaros_missing_decisions.md`). |
+| 2026-09-24 | (implements D104; details proposed by Claude, unconfirmed) **the `singleton` line is built.** It is a keyword only as a file-level line holding nothing else, and stays usable as a name, since `Spite.Class` keeps an attribute called `singleton` behind `is_singleton()`; declaring `is_singleton()` in any class but `Spite.Class` is an error naming the line; a reopening may add the line. Every standard library singleton (`Console`, `Environment`, `ForeignText`, `NumberText`, `TextBytes`) moved to it. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; answers D99 and D103) **Hidden async/await is stackful fibers on the program's own thread, and a blocking call runs on a helper thread while its fiber is parked.** Chosen over a state-machine transform (the colour survives inside the compiler: every function that can reach a wait, and every caller up to the fiber's root, is rewritten, and reference-counted locals move into the state object) and over threads for everything (every program multithreaded, the hidden cost D36 forbids). Spite code only ever runs on one thread at a time, so fibers need no locks; files cannot be waited on without blocking anywhere, so the one blocking call goes to a helper thread, as libuv does. The waits the compiler turns into suspensions are named by class and function (`Program.sleep`, and the system call under `Console.read_line()`, `File.read()`/`write()`/`append()`, `Socket.accept_client()` and `Socket.read_line()`), and are wrapped only in a program that uses the scheduler (it makes a `Concurrent` or is built with `--repl-port`); every other program's C is unchanged. **Blocking is what the compiler picks when it is faster (D99):** with no `Concurrent` alive and no REPL listening, or off the scheduler's thread, the wrapper makes the plain call. Built on Windows (`CreateFiber`, `SwitchToFiber`, an event); the Linux and macOS folders use `makecontext`/`swapcontext`, a pipe and `poll`, held to compiling. Section 15, "Concurrency". |
+| 2026-09-24 | (proposed by Claude, unconfirmed; D103 asked for the names) **`Task` is split into `Concurrent` and `Parallel`.** `Concurrent(function)` runs on a fiber of the program's thread and is for work that waits; `Parallel(function)` runs on a thread of its own and is for work that computes. Both answer `.wait()` and join when dropped (D35). The pair is the usual distinction -- concurrency interleaves, parallelism runs at once -- so each name says what the program gets. `Parallel` starts one thread per call today; a pool is the engine's next step. Waiting on Mortaro in `mortaros_missing_decisions.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; builds D37) **The REPL's commands are answered at the scheduler's waits, on the program's thread.** The socket thread only reads a command, hands it over and waits for the answer; the scheduler answers it the next time the program waits (a sleep, a blocking call, a `Concurrent` wait, a `Parallel` join) and, once the entry constructor returns, waits for nothing else until `exit`. So a command sees the program between two steps. `exit` is handed over the same way: the program's thread answers it and stops, and the socket thread writes the answer and calls `Program().exit(0)`. **The compile error D37 asks for, as built:** a `--repl-port` build is an error when none of the program's own (non-library) code calls a wait (`Program().sleep`, `Console.read_line`, `File.read`/`write`/`append`, `Socket.accept_client`/`read_line`, anything on a `Concurrent` or `Parallel`) and the program has a `while` loop, which is named in the error; a program without a loop always reaches the end of its constructor, where it is served. This can reject a loop that does end (`diagnostics/remote_loop_never_waits`). Supersedes the "D37's drain points are not built" part of the REPL answer row above. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **Reference counts are atomic only in a program that starts a thread.** A program that makes a `Concurrent` (its helper threads), a `Parallel`, or is built with `--repl-port` is compiled with `SPITE_THREADS`: retain and release are atomic (`__atomic_add_fetch`/`__atomic_sub_fetch`), the live-allocation counter too, and the `--debug-memory` table takes a spin lock with a per-thread re-entry flag. Every other program keeps plain arithmetic, so the cost exists only where threads do. `Memory` gains `exchange_long`, `read_long_atomically` and `write_long_atomically`, which the scheduler and the REPL's hand-over use. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **A generic class's codegen values are inferred from its constructor's arguments when they are left out.** `Concurrent(file.read)` is `Concurrent<String?>`: each constructor parameter whose declared type mentions a `$name` -- directly, or as an argument or the return of a `Spite.Function<...>` -- is matched against the argument's type. Only when every `$name` is found this way; otherwise the D9 error asks for them between `<` and `>`, as before. A function returning nothing fills a `$name` with `Nothing`, and where a value of type `Nothing` is needed, such a call gives a fresh `Nothing` (so `Concurrent(ring)` works). Mortaro's D35 example writes `Task(file.read)`, which only works this way; D9's "call sites are positional, always" still holds for every value written. |
 | 2026-09-24 | (implements D93; proposed by Claude, unconfirmed) **`Directory.entries()` answers a `List<Directory.Entry>`**, the union of `Directory` and `File` declared in `library/directory.spite`, each with its `path` joined to its parent's; folders first, then files, each sorted by name. `files()` and `folders()` stay, answering names, and are proposed for removal once nothing reads names alone; each operating system's listing is renamed `entry_names(want_folders)`. Section 15, "System classes". |
 | 2026-09-24 | (for D95; proposed by Claude, unconfirmed) **The metaprogramming `Json` needs, built as general features.** (1) `attribute: Symbol<Label>` makes a Symbol codegen template range over `Label`'s attributes, with `label.attributes[attribute]` reading and writing that attribute; (2) calling a template by the plural of its symbol (`show_attributes`) calls it once for every attribute in declaration order, as a generated function of those calls, and requires the template to return nothing; (3) `$value_type == X` on a type-bound codegen value folds at compile time, with `List`, `Dictionary`, `Null` (any `T?`) and `Symbol` (any enum) naming kinds and a union naming its members; (4) `$value_type.element_type` / `.value_type` read the codegen values a type was built from; (5) text casts to an enum by name, the first value when none matches. Fixed on the way: a generic instance's name now tells `Int?` from `Sailor?` (both were `Value`, so `Json<Int?>` reused `Json<Sailor?>`), a `T?` of an enum has a C type, and `--final-classes` no longer prints a generic instance's generated functions into the generic's file. Sections 4, 8 and 9. |
 | 2026-09-24 | (implements D95; proposed by Claude, unconfirmed) **`Json<T>` is `library/json.spite`**, with `write(value): String`, `read(text): T?` and `read_or_crash(text): T`, written with the metaprogramming of the previous row and reading through `JsonReader`. Reading skips keys the class does not have, keeps the default of an attribute the text omits, and answers `null` (or crashes, naming the position and what was expected) on a value of the wrong kind or text that is not JSON. Numbers read through the ordinary text cast; `inf`/`nan` and `Symbol` attributes are not handled yet. Section 15, "JSON is reflection, not a library"; `docs/json.md`. |

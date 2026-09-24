@@ -1,9 +1,7 @@
+singleton
+
 var name = ""
 
 func Registry(starting_name: String) {
     name = starting_name
-}
-
-func is_singleton(): Bool {
-    return true
 }

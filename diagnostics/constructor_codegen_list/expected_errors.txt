@@ -1,0 +1,1 @@
+diagnostics/constructor_codegen_list/weapon.spite:3:12: a function no longer lists codegen values between '<' and '>': declare each at the top of the file on its own line ('generic $damage_type', 'generic $is_magic'), and write 'func Weapon(' here

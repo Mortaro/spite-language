@@ -155,6 +155,18 @@ and balanced allocations.
       (2026-09-24)**: the same `answer` over a `Socket` (`library/socket.spite`, reopened per operating system)
       on a thread the compiler's two-line C entry starts; `check.sh` replays `docs/repl.md`'s ` ```wire ` session
       against the real program. Linux and macOS sockets and threads compile but have not run.
+      D37's drain points -- **done (2026-09-24)**: commands are answered on the program's thread where it waits,
+      through the scheduler below; a `--repl-port` build of a loop that never waits is a compile error.
+    - **15f. Hidden async/await and threads (D35, D37, D99, D103) -- done on Windows (2026-09-24).**
+      `Concurrent(function)` runs on a fiber (`library/concurrent.spite`, `library/scheduler.spite`, each system's
+      folder for fibers, an event and a clock); `Parallel(function)` on a thread (`library/parallel.spite`). The
+      compiler wraps the blocking calls (`Program.sleep`, and the system call under `Console.read_line`, `File`
+      reads and writes, `Socket.accept_client`/`read_line`) in programs that use the scheduler, blocks when nothing
+      else could run, and counts references atomically only in programs that start a thread. Codegen values are
+      inferred from constructor arguments. `docs/concurrency.md`, `conformance/stage6/concurrent_waits`,
+      `conformance/stage6/parallel_work`. **Next:** a thread pool and `parallel_each_` templates for the engine,
+      D35's race rule, HTTP and database calls through the same waits, and running the Linux and macOS folders.
+      Names and mechanism wait on Mortaro (`mortaros_missing_decisions.md` 13-18).
     - **15e.** The web shim: drive the hand-written portion to zero by generating the imports from `external js`
       declarations and the command-buffer drain loop from its opcode table (milestone 12). It cannot become
       Spite -- it runs in the JavaScript virtual machine -- but it can stop being authored. Goal, not a
@@ -213,11 +225,19 @@ and balanced allocations.
     time (the tree shaking `$serve` had is gone; `$target` and D13 still need a build-time home), the sources and
     their order, and the literal-default typing are proposals. **Not done:** the compiler still reads its own
     flags through `Arguments` rather than `Environment`.
-20. **Done (2026-09-24): D93, a directory's entries** (manual.md section 15, "System classes"). `Directory.path`
+20. **Done (2026-09-24): D87, D90 and D104, the header lines and variadic arguments** (manual.md sections 5, 8
+    and 9). `generic $name` lines replace the constructor's `<...>` list (a parse error now), so a generic class
+    needs no constructor; `singleton` is a header line and `func is_singleton()` an error outside
+    `Spite.Class`; D67's order starts with both. `...name: List<Type>` gathers the remaining arguments into a
+    list, over a class or a `type`. **Waiting on Mortaro:** the interpretations in the three 2026-09-24
+    "implements" rows, and whether `Console.print` takes `...values: List<Printable>` (what `Printable`
+    requires). **Not done:** the named-constraint form open question 12 argued for (`generic $sub_type:
+    Openable`), which D87 did not decide.
+21. **Done (2026-09-24): D93, a directory's entries** (manual.md section 15, "System classes"). `Directory.path`
     and `entries(): List<Directory.Entry>`, a union of `Directory` and `File`
     (`conformance/stage4/directory_entries`, `docs/standard_library.md`). **Waiting on Mortaro:** the name
     `Entry`, the order, and removing `files()`/`folders()`.
-21. **Done (2026-09-24): D95, `Json<T>`** (manual.md section 15, "JSON is reflection, not a library"; sections 8
+22. **Done (2026-09-24): D95, `Json<T>`** (manual.md section 15, "JSON is reflection, not a library"; sections 8
     and 9 for the metaprogramming it needed). `library/json.spite` and `library/json_reader.spite`, written with
     `Symbol<$value_type>` templates called for every attribute by their plural, compile-time type tests
     (`$value_type == List`) and `$value_type.element_type`; text casts to an enum by name

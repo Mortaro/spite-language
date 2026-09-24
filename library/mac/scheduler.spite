@@ -1,0 +1,91 @@
+var library = DynamicLibrary("libSystem.dylib", 'identity', "")
+var signal_ending = 0
+var signal_byte: Long = 0
+
+func current_thread(): Long {
+    return library.pthread_self_as_long()
+}
+
+func convert_thread(): Long {
+    var context = memory.allocate_bytes(2056)
+    library.getcontext(context)
+    memory.write_long(context, 2048, 0)
+    return context
+}
+
+func create_fiber(entry: Long, argument: Long): Long {
+    var context = memory.allocate_bytes(2056)
+    library.getcontext(context)
+    var stack = memory.allocate_bytes(262144)
+    var no_value: Long = 0
+    var stack_bytes: Long = 262144
+    memory.write_long(context, 8, stack)
+    memory.write_long(context, 16, stack_bytes)
+    memory.write_int(context, 24, 0)
+    memory.write_long(context, 32, no_value)
+    memory.write_long(context, 2048, stack)
+    library.makecontext(context, entry, 1, argument)
+    return context
+}
+
+func switch_fiber(previous: Long, next: Long) {
+    library.swapcontext(previous, next)
+}
+
+func delete_fiber(fiber: Long) {
+    var stack = memory.read_long(fiber, 2048)
+    memory.free(stack)
+    memory.free(fiber)
+}
+
+func create_event(): Long {
+    var ends = memory.allocate_bytes(8)
+    library.pipe(ends)
+    var reading = memory.read_int(ends, 0)
+    signal_ending = memory.read_int(ends, 4)
+    memory.free(ends)
+    signal_byte = memory.allocate_bytes(8)
+    return reading
+}
+
+func signal_event() {
+    library.write(signal_ending, signal_byte, 1)
+}
+
+func wait_event(milliseconds: Int) {
+    var watched = memory.allocate_bytes(8)
+    memory.write_int(watched, 0, wake)
+    memory.write_int(watched, 4, 1)
+    if library.poll(watched, 1, milliseconds) > 0 {
+        var drained = memory.allocate_bytes(64)
+        library.read(wake, drained, 64)
+        memory.free(drained)
+    }
+    memory.free(watched)
+}
+
+func clock(): Long {
+    var time = memory.allocate_bytes(16)
+    library.clock_gettime(6, time)
+    var seconds = memory.read_long(time, 0)
+    var nanoseconds = memory.read_long(time, 8)
+    memory.free(time)
+    return seconds * 1000 + nanoseconds / 1000000
+}
+
+func start_thread(entry: Long, argument: Long): Long {
+    var slot = memory.allocate_bytes(8)
+    var no_value: Long = 0
+    var created = library.pthread_create(slot, no_value, entry, argument)
+    var thread = memory.read_long(slot, 0)
+    memory.free(slot)
+    if created != 0 {
+        return 0
+    }
+    return thread
+}
+
+func end_thread(thread: Long) {
+    var no_value: Long = 0
+    library.pthread_join(thread, no_value)
+}

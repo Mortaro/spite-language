@@ -1,7 +1,10 @@
+generic $left_type
+generic $right_type
+
 var left: $left_type = null
 var right: $right_type = null
 
-func Pair<$left_type, $right_type>(new_left: $left_type, new_right: $right_type) {
+func Pair(new_left: $left_type, new_right: $right_type) {
     left = new_left
     right = new_right
 }

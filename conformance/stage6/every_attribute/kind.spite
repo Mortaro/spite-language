@@ -1,4 +1,4 @@
-func Kind<$kind_type>() {}
+generic $kind_type
 
 func name(): String {
     if $kind_type == String {

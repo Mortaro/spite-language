@@ -234,6 +234,9 @@ func keyword_kind(text: String): TokenKind {
     if text == "generics" {
         return 'keyword_generics'
     }
+    if text == "generic" {
+        return 'keyword_generic'
+    }
     if text == "assert" {
         return 'keyword_assert'
     }
@@ -492,6 +495,10 @@ func scan_operator(): Bool {
         kind = 'less'
     } else if code == 62 {
         kind = 'greater'
+    } else if code == 46 and peek_code(0) == 46 and peek_code(1) == 46 {
+        advance_character()
+        advance_character()
+        kind = 'ellipsis'
     } else if code == 46 {
         kind = 'dot'
     } else if code == 44 {

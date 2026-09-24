@@ -1,4 +1,4 @@
-func Json<$value_type>() {}
+generic $value_type
 
 func write(value: $value_type): String {
     if $value_type == String {

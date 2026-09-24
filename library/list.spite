@@ -1,9 +1,9 @@
+generic $element_type
+
 var memory = Memory()
 var items: Long = 0
 var item_count = 0
 var capacity = 0
-
-func List<$element_type>() {}
 
 func count(): Int {
     return item_count

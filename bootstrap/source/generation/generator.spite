@@ -26,6 +26,16 @@ var written_in_spite = List<String>()
 var read_evaluate_print_loop = false
 var console_loop = false
 var remote_loop_port = 0
+var program_waits = false
+var scheduler_used = false
+var waiting_classes = List<Analysis.ClassInfo>()
+var waiting_functions = List<Analysis.FunctionInfo>()
+var waiting_kinds = List<String>()
+var waiting_positions = List<Int>()
+var unwaiting_loop_path = ""
+var unwaiting_loop_line = 0
+var unwaiting_loop_owner = ""
+var unwaiting_loop_function = ""
 var development = false
 var reflect_function_names = List<String>()
 var live_reflection_emitted = false
@@ -203,6 +213,12 @@ func register_system_classes() {
     add_builtin_function(memory, "compare_bytes", compare_parameters, integer_number_type)
     var take_text_parameters = two_parameters("address", address_type, "length", address_type)
     add_builtin_function(memory, "take_text", take_text_parameters, text_type)
+    var exchange_parameters = memory_write_parameters(address_type)
+    add_builtin_function(memory, "exchange_long", exchange_parameters, address_type)
+    var read_atomically_parameters = two_parameters("address", address_type, "offset", address_type)
+    add_builtin_function(memory, "read_long_atomically", read_atomically_parameters, address_type)
+    var write_atomically_parameters = memory_write_parameters(address_type)
+    add_builtin_function(memory, "write_long_atomically", write_atomically_parameters, nothing_type)
 }
 
 func built_in_class_sources(): List<String> {
@@ -500,8 +516,12 @@ func generate(
     emit_symbol_table()
     emit_foreign_libraries()
     emit_allocation_table()
+    if scheduler_used or remote_loop_port > 0 {
+        finish_waiting_points()
+    }
     emit_main(discovery.entry_mangled_name)
     emit_pending_functions()
+    check_remote_loop_waits()
     builder.shakes = not development
     return builder.render()
 }
@@ -522,7 +542,8 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
         }
         classes.last().source_path = entry.get_file().path
         classes.last().entry_index = index
-        classes.last().codegen_names = constructor_codegen_names(entry)
+        classes.last().codegen_names = declared_codegen_names(entry)
+        classes.last().is_singleton = has_singleton_line(entry)
         classes.last().is_generic_template = not classes.last().codegen_names.is_empty()
         discovered_classes.append(entry)
         register_enums(entry)
@@ -532,26 +553,31 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
     }
 }
 
-func constructor_codegen_names(entry: Discovery.DiscoveredClass): List<String> {
+func has_singleton_line(entry: Discovery.DiscoveredClass): Bool {
     var file = entry.get_file()
     var statement_index = 0
     while statement_index < file.statements.count() {
-        var declaration = shape.as_function_declaration(file.statements[statement_index])
-        if declaration {
-            if declaration.name == entry.simple_name {
-                var names = List<String>()
-                var index = 0
-                while index < declaration.codegen_names.count() {
-                    var bare_name = without_dollar(declaration.codegen_names[index])
-                    names.append(bare_name)
-                    index = index + 1
-                }
-                return names
-            }
+        if shape.as_singleton_declaration(file.statements[statement_index]) {
+            return true
         }
         statement_index = statement_index + 1
     }
-    return List<String>()
+    return false
+}
+
+func declared_codegen_names(entry: Discovery.DiscoveredClass): List<String> {
+    var file = entry.get_file()
+    var declared = List<String>()
+    var statement_index = 0
+    while statement_index < file.statements.count() {
+        var generic_line = shape.as_generic_declaration(file.statements[statement_index])
+        if generic_line {
+            var bare_name = without_dollar(generic_line.name)
+            declared.append(bare_name)
+        }
+        statement_index = statement_index + 1
+    }
+    return declared
 }
 
 func without_dollar(name: String): String {
@@ -594,7 +620,7 @@ func generate_codegen_value(name: String, class_information: Analysis.ClassInfo)
         return bound_value
     }
     report(
-        "'${name}' is not declared on the constructor of '{class_information.simple_name}', and '$' is for generics only: a program's settings are fields of Environment -- reopen it in environment.spite with 'var {name} = ...' and read it as Environment().{name}",
+        "'{class_information.simple_name}' has no 'generic ${name}' line, and '$' is for generics only: a program's settings are fields of Environment -- reopen it in environment.spite with 'var {name} = ...' and read it as Environment().{name}",
     )
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
@@ -920,6 +946,9 @@ func instantiated_with(
     crash discovered_classes[template.entry_index]
     resolve_class_body(discovered_classes[template.entry_index], instance, true)
     resolve_class_body(discovered_classes[template.entry_index], instance, false)
+    if template.qualified_dotted == "Concurrent" or template.qualified_dotted == "Parallel" {
+        supply_concurrency_functions(instance)
+    }
     bound_symbol_name = saved_symbol_name
     bound_field_name = saved_field_name
     bound_field_type = saved_field_type
@@ -1556,7 +1585,7 @@ func emit_unions() {
         builder.add_prototype("{name} {name}_retain({name} self);")
         builder.add_prototype("void {name}_release({name} self);")
         builder.add_support(
-            "{name} {name}_retain({name} self) \{\nif (self != 0) ((SpiteHeader*)self)->ref_count = ((SpiteHeader*)self)->ref_count + 1;\nreturn self;\n}",
+            "{name} {name}_retain({name} self) \{\nif (self != 0) SPITE_COUNT_UP(((SpiteHeader*)self)->ref_count);\nreturn self;\n}",
         )
         if not information.is_shape {
             emit_union_release(information)
@@ -2013,7 +2042,8 @@ func instantiate_template(
             if parameter.type_reference {
                 var parameter_type = resolve_type(parameter.type_reference, information.namespace_dotted)
                 if parameter_type {
-                    parameters.append(Analysis.ParamInfo(parameter.name, parameter_type))
+                    var received_type = received_type(parameter, parameter_type)
+                    parameters.append(Analysis.ParamInfo(parameter.name, received_type))
                 }
             }
         }
@@ -2136,6 +2166,21 @@ func emit_pending_functions() {
     }
 }
 
+func received_type(parameter: Syntax.Statements.Parameter, resolved: Analysis.SpiteType): Analysis.SpiteType {
+    if not parameter.is_variadic {
+        return resolved
+    }
+    var listed = type_shape.as_list(resolved)
+    if listed {
+        var element = listed.get_element()
+        var spread = Analysis.Types.ListType(element)
+        spread.is_variadic = true
+        var typed: Analysis.SpiteType = spread
+        return typed
+    }
+    return resolved
+}
+
 func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, information: Analysis.ClassInfo) {
     assert not register_template(declaration, information)
     var parameters = List<Analysis.ParamInfo>()
@@ -2146,7 +2191,8 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         assert parameter.type_reference
         var parameter_type = resolve_type(parameter.type_reference, information.namespace_dotted)
         if parameter_type {
-            parameters.append(Analysis.ParamInfo(parameter.name, parameter_type))
+            var received_type = received_type(parameter, parameter_type)
+            parameters.append(Analysis.ParamInfo(parameter.name, received_type))
         } else {
             var void_type = void_type()
             parameters.append(Analysis.ParamInfo(parameter.name, void_type))
@@ -2161,7 +2207,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         }
     }
     var is_constructor = declaration.name == information.simple_name
-    if is_constructor and declaration.parameters.is_empty() and declaration.codegen_names.is_empty() and declaration.body.is_empty() {
+    if is_constructor and declaration.parameters.is_empty() and declaration.body.is_empty() {
         report(
             "'{declaration.name}' has an empty constructor: delete it. A class without a constructor is already made from its defaults",
         )
@@ -2180,8 +2226,10 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         is_constructor,
     )
     function.source_path = declaration.source_path
-    if declares_singleton(declaration) {
-        information.is_singleton = true
+    if declaration.name == "is_singleton" and information.qualified_dotted != "Spite.Class" {
+        report(
+            "a class says it is a singleton with a 'singleton' line at the top of its file, not with a function: delete 'is_singleton()' and write 'singleton' as the file's first line",
+        )
     }
     function.line = declaration.line
     if is_constructor {
@@ -2219,7 +2267,7 @@ func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String):
                 return null
             }
         }
-        report("'${generic_name}' is not declared on this class's constructor, so it cannot be used as a type")
+        report("this class has no 'generic ${generic_name}' line, so '${generic_name}' cannot be used as a type")
         return null
     }
     var named = shape.as_named_type(type_reference)
@@ -2740,6 +2788,11 @@ func type_label(spite_type: Analysis.SpiteType): String {
     if union_type {
         return union_type.c_name
     }
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        var nullable_inner = nullable.get_inner()
+        return "Nullable_{type_label(nullable_inner)}"
+    }
     return "Value"
 }
 
@@ -2930,12 +2983,24 @@ func emit_allocation_table() {
     crash allocation_table
     var table = allocation_table.c_name
     var entered = "{table}* spite_table = spite_allocation_table_enter();"
-    var leave = "spite_allocation_table_busy = false;"
+    var leave = "spite_allocation_table_leave();"
     var lines = List<String>()
     lines.append("#ifdef SPITE_DEBUG_MEMORY")
     lines.append("static {table}* spite_allocation_table = 0;")
-    lines.append("static bool spite_allocation_table_busy = false;")
+    lines.append("static SPITE_THREAD_LOCAL bool spite_allocation_table_busy = false;")
+    lines.append("#ifdef SPITE_THREADS")
+    lines.append("static int32_t spite_allocation_table_lock = 0;")
+    lines.append("#endif")
+    lines.append("static void spite_allocation_table_leave(void) \{")
+    lines.append("spite_allocation_table_busy = false;")
+    lines.append("#ifdef SPITE_THREADS")
+    lines.append("__atomic_store_n(&spite_allocation_table_lock, 0, __ATOMIC_RELEASE);")
+    lines.append("#endif")
+    lines.append("}")
     lines.append("static {table}* spite_allocation_table_enter(void) \{")
+    lines.append("#ifdef SPITE_THREADS")
+    lines.append("while (__atomic_exchange_n(&spite_allocation_table_lock, 1, __ATOMIC_ACQUIRE) != 0) \{}")
+    lines.append("#endif")
     lines.append("spite_allocation_table_busy = true;")
     lines.append("if (spite_allocation_table == 0) spite_allocation_table = {table}_make();")
     lines.append("return spite_allocation_table;")
@@ -3002,6 +3067,14 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         if to_function {
             if from_function.has_signature and not to_function.has_signature and to_function.c_name == "Spite_Function" {
                 return code
+            }
+        }
+    }
+    if type_shape.is_void(from) {
+        var nothing_class = type_shape.as_class_ref(to)
+        if nothing_class {
+            if nothing_class.c_name == "Nothing" {
+                return "(\{ {code}; Nothing_default(); })"
             }
         }
     }
@@ -3906,6 +3979,10 @@ func generate_argument_list(
     class_information: Analysis.ClassInfo,
 ): List<String> {
     var result = List<String>()
+    var variadic = variadic_list(expected_types)
+    if variadic {
+        return generate_spread_arguments(arguments_ast, expected_types, variadic, scope, class_information)
+    }
     if arguments_ast.count() != expected_types.count() {
         report("this call passes {arguments_ast.count()} argument(s), but {expected_types.count()} are expected")
         return result
@@ -3919,6 +3996,85 @@ func generate_argument_list(
     return result
 }
 
+func variadic_list(expected_types: List<Analysis.SpiteType>): Analysis.SpiteType? {
+    assert not expected_types.is_empty()
+    var last_type = expected_types.last()
+    var listed = type_shape.as_list(last_type)
+    if listed {
+        if listed.is_variadic {
+            return last_type
+        }
+    }
+    return null
+}
+
+func generate_spread_arguments(
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    expected_types: List<Analysis.SpiteType>,
+    variadic: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): List<String> {
+    var result = List<String>()
+    var fixed_count = expected_types.count() - 1
+    if arguments_ast.count() < fixed_count {
+        report("this call passes {arguments_ast.count()} argument(s), but at least {fixed_count} are expected")
+        return result
+    }
+    var elements = List<Syntax.Expressions.ListElement>()
+    var index = 0
+    while index < arguments_ast.count() {
+        if index < expected_types.count() - 1 {
+            var coerce_for_store = coerce_for_store(
+                arguments_ast[index],
+                expected_types[index],
+                scope,
+                class_information,
+            )
+            result.append(coerce_for_store)
+        } else {
+            elements.append(Syntax.Expressions.ListElement(arguments_ast[index]))
+        }
+        index = index + 1
+    }
+    if passes_whole_list(elements, variadic, scope, class_information) {
+        report(
+            "this call passes a whole {type_display_name(variadic)}, but the last parameter is written with '...', so it takes the values one by one: pass the elements themselves, separated by commas",
+        )
+        return result
+    }
+    var gathered: Syntax.Expressions.Expression = Syntax.Expressions.ListLiteralExpression(elements)
+    var gathered_code = coerce_for_store(gathered, variadic, scope, class_information)
+    result.append(gathered_code)
+    return result
+}
+
+func passes_whole_list(
+    elements: List<Syntax.Expressions.ListElement>,
+    variadic: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Bool {
+    if elements.count() != 1 {
+        return false
+    }
+    var variadic_list = type_shape.as_list(variadic)
+    crash variadic_list
+    var element_type = variadic_list.get_element()
+    if type_shape.as_list(element_type) {
+        return false
+    }
+    var only = elements.first()
+    crash only.value
+    var passed_type = lookup_static_type(only.value, scope, class_information)
+    if passed_type {
+        if type_shape.as_list(passed_type) {
+            return true
+        }
+    }
+    return false
+}
+
 func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.SpiteType> {
     var result = List<Analysis.SpiteType>()
     var index = 0
@@ -3928,19 +4084,6 @@ func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.Spi
         index = index + 1
     }
     return result
-}
-
-func declares_singleton(declaration: Syntax.Statements.FunctionDeclaration): Bool {
-    if declaration.name != "is_singleton" or declaration.parameters.count() != 0 or declaration.body.count() != 1 {
-        return false
-    }
-    var only = shape.as_return_statement(declaration.body[0])
-    if only {
-        if only.value {
-            return shape.is_true_literal(only.value)
-        }
-    }
-    return false
 }
 
 func singleton_call(target_class: Analysis.ClassInfo): String {
@@ -3967,11 +4110,16 @@ func generate_constructor_call(
         return generate_library_constructor(arguments_ast)
     }
     if target_class.is_generic_template {
+        var inferred_class = inferred_instance(target_class, arguments_ast, scope, class_information)
+        if inferred_class {
+            return generate_constructor_call(inferred_class, arguments_ast, scope, class_information)
+        }
         report(
             "'{target_class.simple_name}' takes {target_class.codegen_names.count()} codegen value(s), in this order: ${target_class.codegen_names.join(", $")} -- write them between < and > before the arguments",
         )
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
+    note_waiting_call(target_class, target_class.simple_name, class_information)
     var expected_types = List<Analysis.SpiteType>()
     if target_class.constructor {
         expected_types = parameter_types_of(target_class.constructor.parameters)
@@ -3990,6 +4138,115 @@ func generate_constructor_call(
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
     var call_code = "{target_class.c_name}_make({argument_codes.join(", ")})"
     return ExpressionResult(call_code, Analysis.Types.ClassRefType(target_class.c_name))
+}
+
+func inferred_instance(
+    template: Analysis.ClassInfo,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var constructor = template_constructor(template)
+    assert constructor
+    assert constructor.parameters.count() == arguments_ast.count()
+    var inferred = Dictionary<Analysis.SpiteType>()
+    var index = 0
+    while index < constructor.parameters.count() {
+        var declared = constructor.parameters[index].type_reference
+        crash arguments_ast[index]
+        if declared and not shape.is_null_literal(arguments_ast[index]) {
+            var saved_counter = temporary_counter
+            var probe = generate_expression(arguments_ast[index], scope, class_information)
+            temporary_counter = saved_counter
+            var probe_type = probe.get_type()
+            infer_codegen_values(declared, probe_type, inferred)
+        }
+        index = index + 1
+    }
+    var types = List<Analysis.SpiteType>()
+    var codes = List<String>()
+    var texts = List<String>()
+    var label = "{template.c_name}_"
+    index = 0
+    while index < template.codegen_names.count() {
+        var found = inferred.get(template.codegen_names[index])
+        if not found {
+            return null
+        }
+        types.append(found)
+        codes.append("")
+        texts.append("")
+        label = "{label}_{type_label(found)}"
+        index = index + 1
+    }
+    var existing = find_class_by_c_name(label)
+    if existing {
+        return existing
+    }
+    return instantiated_with(template, types, codes, texts, label)
+}
+
+func template_constructor(template: Analysis.ClassInfo): Syntax.Statements.FunctionDeclaration? {
+    crash discovered_classes[template.entry_index]
+    var file = discovered_classes[template.entry_index].get_file()
+    var statement_index = 0
+    while statement_index < file.statements.count() {
+        var declaration = shape.as_function_declaration(file.statements[statement_index])
+        if declaration {
+            if declaration.name == template.simple_name {
+                return declaration
+            }
+        }
+        statement_index = statement_index + 1
+    }
+    return null
+}
+
+func infer_codegen_values(
+    declared: Syntax.Types.Type,
+    given: Analysis.SpiteType,
+    inferred: Dictionary<Analysis.SpiteType>,
+) {
+    var generic_type = shape.as_generic_type(declared)
+    if generic_type {
+        var bare_name = without_dollar(generic_type.name)
+        if not type_shape.is_void(given) {
+            inferred.set(bare_name, given)
+        }
+        return
+    }
+    var named = shape.as_named_type(declared)
+    assert named
+    var given_function = type_shape.as_class_ref(given)
+    assert given_function
+    var declared_path = named.path.join(".")
+    assert given_function.has_signature and declared_path == "Spite.Function"
+    var index = 0
+    while index < named.arguments.count() {
+        var type_argument = shape.as_type_argument(named.arguments[index])
+        if type_argument {
+            if type_argument.value {
+                if index == named.arguments.count() - 1 {
+                    var returns = returned_type(given_function)
+                    infer_codegen_values(type_argument.value, returns, inferred)
+                } else if index < given_function.arguments.count() {
+                    infer_codegen_values(type_argument.value, given_function.arguments[index], inferred)
+                }
+            }
+        }
+        index = index + 1
+    }
+}
+
+func returned_type(function: Analysis.Types.ClassRefType): Analysis.SpiteType {
+    var nothing_class = find_class_by_qualified("Nothing")
+    if function.returns {
+        if not type_shape.is_void(function.returns) {
+            return function.returns
+        }
+    }
+    crash nothing_class
+    return class_type_of(nothing_class)
 }
 
 func function_type_from(named: Syntax.Types.NamedType, current_namespace: String): Analysis.SpiteType? {
@@ -4482,6 +4739,7 @@ func generate_method_call(
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     crash function
+    note_waiting_call(target_class, member.name, class_information)
     var parameter_types = parameter_types_of(function.parameters)
     var function_return_type = function.get_return_type()
     return generate_generic_call(
@@ -6425,6 +6683,38 @@ func supply_function(
     function.is_emitted = true
     information.functions.append(function)
     builder.add_support("{function_signature(information, function)} \{\n{body}\n}")
+}
+
+func supply_concurrency_functions(instance: Analysis.ClassInfo) {
+    builder.threads = true
+    var task = instance.c_name
+    if instance.qualified_dotted == "Concurrent" {
+        scheduler_used = true
+        builder.add_prototype("static void {task}_fiber_entry(void* task);")
+        builder.add_support(
+            "static void {task}_fiber_entry(void* task) \{\n{task}_run(({task}*)task);\n{task}_finish(({task}*)task);\n}",
+        )
+        supply_addresses(instance, "{task}_fiber_entry")
+        return
+    }
+    builder.add_prototype("static void* {task}_thread_entry(void* task);")
+    builder.add_support("static void* {task}_thread_entry(void* task) \{\n{task}_run(({task}*)task);\nreturn 0;\n}")
+    supply_addresses(instance, "{task}_thread_entry")
+}
+
+func supply_addresses(instance: Analysis.ClassInfo, entry: String) {
+    var no_parameters = no_parameters()
+    var long_type = long_type()
+    supply_function(
+        instance,
+        "entry_address",
+        no_parameters,
+        long_type,
+        "(void)self;\nreturn (int64_t)(intptr_t)&{entry};",
+    )
+    no_parameters = no_parameters()
+    long_type = long_type()
+    supply_function(instance, "address", no_parameters, long_type, "return (int64_t)(intptr_t)self;")
 }
 
 func ensure_dictionary(element: Analysis.SpiteType): String {
@@ -9814,6 +10104,7 @@ func generate_while_statement(
     function_information: Analysis.FunctionInfo,
 ) {
     assert while_statement.condition
+    note_user_loop(class_information, while_statement.line)
     var guard = try_nullable_guard(while_statement.condition, scope, class_information)
     if guard {
         builder.add_user("while ({guard.guard_code}) \{")
@@ -10239,6 +10530,10 @@ func constructor_parameter_list(information: Analysis.ClassInfo): String {
 }
 
 func function_signature(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    return named_signature(information, function, function.c_name)
+}
+
+func named_signature(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, c_name: String): String {
     var parts = List<String>()
     parts.append("{information.c_name}* self")
     var index = 0
@@ -10249,7 +10544,7 @@ func function_signature(information: Analysis.ClassInfo, function: Analysis.Func
         index = index + 1
     }
     var function_return_type = function.get_return_type()
-    return "{c_type_name(function_return_type)} {function.c_name}({parts.join(", ")})"
+    return "{c_type_name(function_return_type)} {c_name}({parts.join(", ")})"
 }
 
 func emit_class_prototypes(information: Analysis.ClassInfo) {
@@ -10336,13 +10631,12 @@ func emit_class_support(information: Analysis.ClassInfo) {
     var joined_make_lines = make_lines.join("\n")
     builder.add_support(joined_make_lines)
     builder.add_support(
-        "{information.c_name}* {information.c_name}_retain({information.c_name}* self) \{ if (self != 0) self->header.ref_count = self->header.ref_count + 1; return self; }",
+        "{information.c_name}* {information.c_name}_retain({information.c_name}* self) \{ if (self != 0) SPITE_COUNT_UP(self->header.ref_count); return self; }",
     )
     var release_lines = List<String>()
     release_lines.append("void {information.c_name}_release({information.c_name}* self) \{")
     release_lines.append("if (self == 0) return;")
-    release_lines.append("self->header.ref_count = self->header.ref_count - 1;")
-    release_lines.append("if (self->header.ref_count > 0) return;")
+    release_lines.append("if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;")
     if information.drop_function {
         release_lines.append("{information.drop_function.c_name}(self);")
     }
@@ -10427,6 +10721,14 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         current_path = function.source_path
     }
     bind_symbol_of(information, function)
+    var waiting = waiting_kind(information, function)
+    if not waiting.is_empty() {
+        waiting_classes.append(information)
+        waiting_functions.append(function)
+        waiting_kinds.append(waiting)
+        var user_count = builder.user_count()
+        waiting_positions.append(user_count)
+    }
     builder.add_user("{function_signature(information, function)} \{")
     var scope = Scope(null)
     arguments_parameter_names.clear()
@@ -10558,7 +10860,175 @@ func debug_memory_class_name_table(): String {
     return "\{ {names.join(", ")} }"
 }
 
+func is_library_class(information: Analysis.ClassInfo): Bool {
+    return information.source_path.starts_with("library/")
+}
+
+func note_user_loop(class_information: Analysis.ClassInfo, line: Int) {
+    assert unwaiting_loop_path.is_empty() and not is_library_class(class_information)
+    unwaiting_loop_path = current_path
+    unwaiting_loop_line = line
+    unwaiting_loop_owner = current_owner
+    unwaiting_loop_function = current_function
+}
+
+func note_waiting_call(target_class: Analysis.ClassInfo, name: String, caller: Analysis.ClassInfo) {
+    assert not is_library_class(caller)
+    var owner = target_class.qualified_dotted
+    var sleeps = owner == "Program" and name == "sleep"
+    var reads = (owner == "Console" or owner == "Socket") and name == "read_line"
+    var accepts = owner == "Socket" and name == "accept_client"
+    var files = owner == "File" and (name == "read" or name == "write" or name == "append")
+    var tasks = owner == "Concurrent" or owner == "Parallel"
+    if sleeps or reads or accepts or files or tasks {
+        program_waits = true
+    }
+}
+
+func check_remote_loop_waits() {
+    assert remote_loop_port > 0 and not program_waits and not unwaiting_loop_path.is_empty()
+    current_path = unwaiting_loop_path
+    current_line = unwaiting_loop_line
+    current_owner = unwaiting_loop_owner
+    current_function = unwaiting_loop_function
+    report(
+        "a --repl-port build answers its REPL where the program waits (Program().sleep, Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel) and after the entry constructor returns, and this program never waits: if this loop does not end, the REPL never answers. Wait somewhere in the loop, such as 'Program().sleep(1)' at the end of a frame",
+    )
+}
+
+func waiting_kind(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    var owner = information.qualified_dotted
+    var name = function.name
+    if owner == "Program" and name == "sleep" {
+        return "sleep"
+    }
+    if owner == "Parallel" and name == "join_thread" {
+        return "yield"
+    }
+    var reads = owner == "Console" and name == "read_line_into"
+    var receives = owner == "Socket" and (name == "accept_handle" or name == "receive_into")
+    var files = owner == "File" and (name == "read_into" or name == "write_text")
+    if reads or receives or files {
+        return "offload"
+    }
+    return ""
+}
+
+func finish_waiting_points() {
+    assert scheduler_used or remote_loop_port > 0
+    builder.threads = true
+    var scheduler_class = find_class_by_qualified("Scheduler")
+    crash scheduler_class
+    var scheduler = singleton_call(scheduler_class)
+    builder.add_typedef(
+        "typedef struct SpiteOffload \{ int64_t done; void (*perform)(void*); void* scheduler; } SpiteOffload;",
+    )
+    builder.add_prototype("static void* spite_offload_thread(void* call);")
+    builder.add_support(
+        "static void* spite_offload_thread(void* call) \{\nSpiteOffload* offload = (SpiteOffload*)call;\noffload->perform(call);\nScheduler_offload_done((Scheduler*)offload->scheduler, (int64_t)(intptr_t)call);\nreturn 0;\n}",
+    )
+    var index = 0
+    while index < waiting_functions.count() {
+        var information = waiting_classes.get_at(index)
+        var function = waiting_functions[index]
+        var position = waiting_positions.get_at(index)
+        var kind = waiting_kinds.get_at(index)
+        var waited_name = "{function.c_name}_waiting"
+        var waited_signature = named_signature(information, function, waited_name)
+        builder.replace_user(position, "{waited_signature} \{")
+        builder.add_prototype("{waited_signature};")
+        emit_waiting_wrapper(information, function, kind, scheduler)
+        index = index + 1
+    }
+}
+
+func emit_waiting_wrapper(
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    kind: String,
+    scheduler: String,
+) {
+    var arguments = List<String>()
+    arguments.append("self")
+    var index = 0
+    while index < function.parameters.count() {
+        arguments.append(function.parameters[index].name)
+        index = index + 1
+    }
+    var waited = "{function.c_name}_waiting({arguments.join(", ")})"
+    var lines = List<String>()
+    lines.append("{function_signature(information, function)} \{")
+    lines.append("Scheduler* spite_scheduler = {scheduler};")
+    if kind == "yield" {
+        lines.append("{waited};")
+        lines.append("if (Scheduler_suspends_here(spite_scheduler)) Scheduler_yield_now(spite_scheduler);")
+        lines.append("Scheduler_release(spite_scheduler);")
+    } else if kind == "sleep" {
+        crash function.parameters[0]
+        lines.append(
+            "if (Scheduler_suspends_here(spite_scheduler)) Scheduler_sleep(spite_scheduler, {function.parameters[0].name}); else {waited};",
+        )
+        lines.append("Scheduler_release(spite_scheduler);")
+    } else {
+        var offloaded = offloaded_call_lines(information, function, arguments, waited)
+        lines.append(offloaded)
+    }
+    lines.append("}")
+    var joined_lines = lines.join("\n")
+    builder.add_user(joined_lines)
+}
+
+func offloaded_call_lines(
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    arguments: List<String>,
+    waited: String,
+): String {
+    var call_type = "{function.c_name}_call"
+    var return_type = function.get_return_type()
+    var returns = not type_shape.is_void(return_type)
+    var fields = List<String>()
+    fields.append("SpiteOffload offload;")
+    fields.append("{information.c_name}* self;")
+    var passed = List<String>()
+    passed.append("call->self")
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var parameter_type = parameter.get_type()
+        fields.append("{c_type_name(parameter_type)} {parameter.name};")
+        passed.append("call->{parameter.name}")
+        index = index + 1
+    }
+    var stored = ""
+    var blocked = "{waited}; Scheduler_release(spite_scheduler); return;"
+    var answered = "return;"
+    if returns {
+        fields.append("{c_type_name(return_type)} result;")
+        stored = "call->result = "
+        blocked = "Scheduler_release(spite_scheduler); return {waited};"
+        answered = "return spite_call.result;"
+    }
+    builder.add_typedef("typedef struct {call_type} \{ {fields.join(" ")} } {call_type};")
+    builder.add_prototype("static void {function.c_name}_perform(void* raw);")
+    builder.add_support(
+        "static void {function.c_name}_perform(void* raw) \{\n{call_type}* call = ({call_type}*)raw;\n{stored}{function.c_name}_waiting({passed.join(", ")});\n}",
+    )
+    var lines = List<String>()
+    lines.append("if (!Scheduler_suspends_here(spite_scheduler)) \{ {blocked} }")
+    lines.append(
+        "{call_type} spite_call = \{ \{ 0, &{function.c_name}_perform, spite_scheduler }, {arguments.join(", ")} };",
+    )
+    lines.append(
+        "if (!Scheduler_offload(spite_scheduler, (int64_t)(intptr_t)&spite_call, (int64_t)(intptr_t)&spite_offload_thread)) \{ {blocked} }",
+    )
+    lines.append("Scheduler_release(spite_scheduler);")
+    lines.append(answered)
+    return lines.join("\n")
+}
+
 func emit_remote_loop_start(entry_class: Analysis.ClassInfo) {
+    builder.threads = true
     var program_symbol = ensure_symbol("program")
     builder.add_support(
         "static ReadEvaluatePrintLoop* spite_remote_loop = 0;\nstatic {entry_class.c_name}* spite_remote_program = 0;\nstatic void* spite_remote_loop_thread(void* unused) \{\n(void)unused;\nReadEvaluatePrintLoop_serve(spite_remote_loop, spite_reflect_{entry_class.c_name}({program_symbol}, spite_remote_program));\nreturn 0;\n}",

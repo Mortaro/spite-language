@@ -1,0 +1,6 @@
+var console = Console()
+
+func ConstructorCodegenList() {
+    var sword = Weapon<Int, true>(10)
+    console.print(sword.damage)
+}

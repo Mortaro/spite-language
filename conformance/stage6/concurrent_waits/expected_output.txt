@@ -1,0 +1,10 @@
+slow falls asleep
+fast falls asleep
+both are waiting
+fast wakes up
+slow wakes up
+slow and fast are back
+read itself: true
+outer counted 42
+ring
+ring was joined when its handle was dropped
