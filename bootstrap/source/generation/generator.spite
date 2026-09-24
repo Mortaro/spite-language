@@ -294,15 +294,7 @@ func is_word_character_at(text: String, index: Int): Bool {
 }
 
 func built_in_class_names(): List<String> {
-    var names = List<String>()
-    var index = 0
-    while index < classes.count() {
-        if classes[index].is_builtin {
-            names.append(classes[index].simple_name)
-        }
-        index = index + 1
-    }
-    return names
+    return classes.filter_is_builtin().map_simple_name()
 }
 
 func class_view_source(information: Analysis.ClassInfo, display_name: String): String {
@@ -438,11 +430,7 @@ func generate(
     builder.add_typedef(
         "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_kept = spite_assert_total < 32 ? spite_assert_total : 32;\nfor (int64_t spite_index = spite_assert_total - spite_kept; spite_index < spite_assert_total; spite_index = spite_index + 1) \{ fputs(spite_assert_trace[spite_index % 32], stderr); }\nif (spite_assert_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_assert_total - 32)); }\n}",
     )
-    var discovered_index = 0
-    while discovered_index < discovery.class_files.count() {
-        written_in_spite.append(discovery.class_files[discovered_index].qualified_dotted)
-        discovered_index = discovered_index + 1
-    }
+    written_in_spite = discovery.class_files.map_qualified_dotted()
     register_system_classes()
     register_classes(discovery.class_files)
     emit_enums()
@@ -1427,14 +1415,7 @@ func find_union_qualified(owner_qualified: String, name: String): Analysis.Union
 }
 
 func find_union_by_c_name(c_name: String): Analysis.UnionInfo? {
-    var index = 0
-    while index < unions.count() {
-        if unions[index].c_name == c_name {
-            return unions[index]
-        }
-        index = index + 1
-    }
-    return null
+    return unions.find_by_c_name(c_name)
 }
 
 func union_type_of(information: Analysis.UnionInfo): Analysis.SpiteType {
@@ -1580,25 +1561,11 @@ func emit_enums() {
 }
 
 func find_class_by_qualified(qualified: String): Analysis.ClassInfo? {
-    var index = 0
-    while index < classes.count() {
-        if classes[index].qualified_dotted == qualified {
-            return classes[index]
-        }
-        index = index + 1
-    }
-    return null
+    return classes.find_by_qualified_dotted(qualified)
 }
 
 func find_class_by_c_name(c_name: String): Analysis.ClassInfo? {
-    var index = 0
-    while index < classes.count() {
-        if classes[index].c_name == c_name {
-            return classes[index]
-        }
-        index = index + 1
-    }
-    return null
+    return classes.find_by_c_name(c_name)
 }
 
 func find_class(name: String, current_namespace: String): Analysis.ClassInfo? {
@@ -2097,12 +2064,8 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
         return null
     }
     var joined = named.path.join(".")
-    var owner_path = List<String>()
-    var path_index = 0
-    while path_index < named.path.count() - 1 {
-        owner_path.append(named.path[path_index])
-        path_index = path_index + 1
-    }
+    var owner_path = named.path.copy()
+    owner_path.remove_last()
     var joined_owner_path = owner_path.join(".")
     var last_segment = named.path.last()
     var qualified_enum = find_enum_qualified(joined_owner_path, last_segment)
@@ -3602,14 +3565,7 @@ func generate_argument_list(
 }
 
 func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.SpiteType> {
-    var result = List<Analysis.SpiteType>()
-    var index = 0
-    while index < parameters.count() {
-        var parameter_type = parameters[index].get_type()
-        result.append(parameter_type)
-        index = index + 1
-    }
-    return result
+    return parameters.map_get_type()
 }
 
 func declares_singleton(declaration: Syntax.Statements.FunctionDeclaration): Bool {
@@ -3832,13 +3788,8 @@ func call_function_value(
         returned_c = c_type_name(returned)
     }
     var function_temporary = next_temporary()
-    var call_arguments = List<String>()
-    call_arguments.append("{function_temporary}->spite_owner")
-    index = 0
-    while index < argument_codes.count() {
-        call_arguments.append(argument_codes[index])
-        index = index + 1
-    }
+    var call_arguments = argument_codes.copy()
+    call_arguments.prepend("{function_temporary}->spite_owner")
     var call_code = "(({returned_c} (*)({pointer_parameters.join(", ")})){function_temporary}->spite_typed_call)({call_arguments.join(", ")})"
     var release = ""
     if owns(held, held_ast) {
@@ -3908,13 +3859,8 @@ func generate_own_function_call(
     crash function
     var parameter_types = parameter_types_of(function.parameters)
     var argument_codes = generate_argument_list(arguments_ast, parameter_types, scope, class_information)
-    var full_arguments = List<String>()
-    full_arguments.append("self")
-    var index = 0
-    while index < argument_codes.count() {
-        full_arguments.append(argument_codes[index])
-        index = index + 1
-    }
+    var full_arguments = argument_codes.copy()
+    full_arguments.prepend("self")
     var function_return_type = function.get_return_type()
     return ExpressionResult("{function.c_name}({full_arguments.join(", ")})", function_return_type)
 }
@@ -3935,13 +3881,8 @@ func generate_generic_call(
         var lines = List<String>()
         var object_result_type = object_result.get_type()
         lines.append("{c_type_name(object_result_type)} {object_temporary} = {object_result.code};")
-        var full_arguments = List<String>()
-        full_arguments.append(object_temporary)
-        var index = 0
-        while index < argument_codes.count() {
-            full_arguments.append(argument_codes[index])
-            index = index + 1
-        }
+        var full_arguments = argument_codes.copy()
+        full_arguments.prepend(object_temporary)
         var call_code = "{function_c_name}({full_arguments.join(", ")})"
         if type_shape.is_void(return_type) {
             lines.append("{call_code};")
@@ -3954,13 +3895,8 @@ func generate_generic_call(
         lines.append("{call_temporary};")
         return ExpressionResult("(\{ {lines.join(" ")} })", return_type)
     }
-    var full_arguments = List<String>()
-    full_arguments.append(object_result.code)
-    var index = 0
-    while index < argument_codes.count() {
-        full_arguments.append(argument_codes[index])
-        index = index + 1
-    }
+    var full_arguments = argument_codes.copy()
+    full_arguments.prepend(object_result.code)
     return ExpressionResult("{function_c_name}({full_arguments.join(", ")})", return_type)
 }
 
@@ -4231,22 +4167,17 @@ func generate_written_string_call(
 ): ExpressionResult {
     var lines = List<String>()
     var release = ""
-    var full_arguments = List<String>()
+    var receiver_code = object_result.code
     if owns(object_result, object_ast) {
         var object_temporary = next_temporary()
         lines.append("SpiteString* {object_temporary} = {object_result.code};")
         release = "SpiteString_release({object_temporary});"
-        full_arguments.append(object_temporary)
-    } else {
-        full_arguments.append(object_result.code)
+        receiver_code = object_temporary
     }
     var parameter_types = parameter_types_of(written.parameters)
     var argument_codes = generate_argument_list(arguments_ast, parameter_types, scope, class_information)
-    var index = 0
-    while index < argument_codes.count() {
-        full_arguments.append(argument_codes[index])
-        index = index + 1
-    }
+    var full_arguments = argument_codes.copy()
+    full_arguments.prepend(receiver_code)
     var call = "{written.c_name}({full_arguments.join(", ")})"
     if release.is_empty() {
         var written_return_type = written.get_return_type()
@@ -4921,12 +4852,8 @@ func emit_namespace_object_bodies() {
             "{function_c_name}_cache = Spite_Namespace_make({ensure_symbol(namespace_name)}, {ensure_symbol(namespace_dotted)});",
         )
         if segments.count() > 1 {
-            var parent_segments = List<String>()
-            var segment_index = 0
-            while segment_index < segments.count() - 1 {
-                parent_segments.append(segments[segment_index])
-                segment_index = segment_index + 1
-            }
+            var parent_segments = segments.copy()
+            parent_segments.remove_last()
             var joined_parent_segments = parent_segments.join(".")
             lines.append("{function_c_name}_cache->parent = {ensure_namespace_object(joined_parent_segments)}();")
         }
@@ -5039,12 +4966,9 @@ func type_display_name(spite_type: Analysis.SpiteType): String {
     }
     var enum_type = type_shape.as_enum(spite_type)
     if enum_type {
-        var enum_index = 0
-        while enum_index < enums.count() {
-            if enums[enum_index].c_name == enum_type.c_name {
-                return enums[enum_index].simple_name
-            }
-            enum_index = enum_index + 1
+        var enum_information = enums.find_by_c_name(enum_type.c_name)
+        if enum_information {
+            return enum_information.simple_name
         }
     }
     var union_type = type_shape.as_union(spite_type)
@@ -8686,13 +8610,7 @@ func calls_also_in(
 }
 
 func copied_names(names: List<String>): List<String> {
-    var copy = List<String>()
-    var index = 0
-    while index < names.count() {
-        copy.append(names[index])
-        index = index + 1
-    }
-    return copy
+    return names.copy()
 }
 
 func collect_narrowed_names(condition: Syntax.Expressions.Expression, names: List<String>) {
@@ -9338,13 +9256,8 @@ func generate_union_dispatch(
         if is_call {
             var member_function = member.find_function(member_name)
             if member_function {
-                var call_arguments = List<String>()
-                call_arguments.append(casted_object)
-                var copy_index = 0
-                while copy_index < argument_temporaries.count() {
-                    call_arguments.append(argument_temporaries[copy_index])
-                    copy_index = copy_index + 1
-                }
+                var call_arguments = argument_temporaries.copy()
+                call_arguments.prepend(casted_object)
                 branch_code = "{member_function.c_name}({call_arguments.join(", ")})"
             } else {
                 report(
@@ -9990,13 +9903,8 @@ func emit_class_support(information: Analysis.ClassInfo) {
     make_lines.append("{information.c_name}* {information.c_name}_make({constructor_parameter_list(information)}) \{")
     make_lines.append("{information.c_name}* self = {information.c_name}_allocate();")
     if information.constructor {
-        var arguments = List<String>()
-        arguments.append("self")
-        var parameter_index = 0
-        while parameter_index < information.constructor.parameters.count() {
-            arguments.append(information.constructor.parameters[parameter_index].name)
-            parameter_index = parameter_index + 1
-        }
+        var arguments = information.constructor.parameters.map_name()
+        arguments.prepend("self")
         make_lines.append("{information.constructor.c_name}({arguments.join(", ")});")
     }
     make_lines.append("return self;")
