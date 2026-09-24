@@ -353,3 +353,15 @@ Behaviour that does not match the manual. The language was not changed; each is 
 86. **`Clock()`'s names**: `elapsed_nanoseconds()`, `elapsed_milliseconds()` (monotonic) and
     `unix_milliseconds()` (wall clock). Keep them? And should the current date broken into year, month, day,
     hour, minute and second live here too, or is the Unix time enough until something needs a calendar?
+
+## From porting PSD, zstd and .blend to Spite (SlopEngine)
+
+87. **Bitwise operators** (shift, and, or, exclusive or). Every binary format needs them -- zstd's bit readers,
+    FSE, Huffman, PSD flags, Win32 packed values -- and the ports wrote them as `/` and `%` by powers of two, which
+    is slower, harder to read, and wrong for negatives. The session suggests spelled-out names in Spite's style
+    (`value.shifted_right(3)`, `value.bits_and(mask)`) rather than symbols. Also first in
+    `mortaros_go_standard_library_comparison.md`.
+88. **Arithmetic takes the left operand's type** (open question 3, "right-to-left casting"): an `Int` times a
+    `Long` is an `Int` multiply, so `253 * 2^24` silently overflowed in a little-endian reader even though the result
+    was stored in a `Long`. Widen to the wider operand, or make a wider right-hand side a compile error?
+
