@@ -1849,6 +1849,54 @@ func template_range_class(information: Analysis.ClassInfo, template: Analysis.Te
     return range_class
 }
 
+func template_range_shape(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): Analysis.UnionInfo? {
+    assert template.range
+    var saved_class = current_class
+    current_class = information
+    var range_type = resolve_type(template.range, information.namespace_dotted)
+    current_class = saved_class
+    assert range_type
+    var range_union = type_shape.as_union(range_type)
+    assert range_union
+    var shaped = find_union_by_c_name(range_union.c_name)
+    assert shaped
+    assert shaped.is_shape
+    return shaped
+}
+
+func template_range_owner(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): String {
+    var range_class = template_range_class(information, template)
+    if range_class {
+        return range_class.c_name
+    }
+    var range_shape = template_range_shape(information, template)
+    if range_shape {
+        return range_shape.c_name
+    }
+    return ""
+}
+
+func shape_member_type(shaped: Analysis.UnionInfo, member_name: String): Analysis.SpiteType? {
+    var required = find_required_function(shaped, member_name)
+    if required {
+        assert required.parameter_types.is_empty()
+        return required_return_type(shaped, required)
+    }
+    return shape_field_type(shaped, member_name)
+}
+
+func template_attribute_names(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): List<String> {
+    var range_class = template_range_class(information, template)
+    if range_class {
+        return range_class.fields.map_name()
+    }
+    var range_shape = template_range_shape(information, template)
+    if range_shape {
+        return range_shape.shape_fields.filter_is_attribute().map_name()
+    }
+    return List<String>()
+}
+
 func find_or_instantiate_function(information: Analysis.ClassInfo, name: String): Analysis.FunctionInfo? {
     var existing = information.find_function(name)
     if existing {
@@ -1864,15 +1912,14 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
     while index < information.templates.count() {
         var template = information.templates[index]
         var member_name = template.member_name_for(name)
-        var range_class = template_range_class(information, template)
-        if not member_name.is_empty() and not information.is_container and range_class {
-            crash range_class
-            var member_type = template_member_type(information, template, range_class, member_name)
+        var range_owner = template_range_owner(information, template)
+        if not member_name.is_empty() and not information.is_container and not range_owner.is_empty() {
+            var member_type = template_member_type(information, template, member_name)
             if member_type {
                 chosen = template
                 chosen_member = member_name
                 chosen_type = member_type
-                chosen_owner = range_class.c_name
+                chosen_owner = range_owner
                 matches = matches + 1
             } else if member_name == "{template.symbol_parameter}s" {
                 every = template
@@ -1914,11 +1961,16 @@ func type_named_by(member_name: String): Analysis.SpiteType? {
 func template_member_type(
     information: Analysis.ClassInfo,
     template: Analysis.TemplateInfo,
-    range_class: Analysis.ClassInfo,
     member_name: String,
 ): Analysis.SpiteType? {
     if template.range {
-        return member_type_of(range_class, member_name)
+        var range_class = template_range_class(information, template)
+        if range_class {
+            return member_type_of(range_class, member_name)
+        }
+        var range_shape = template_range_shape(information, template)
+        crash range_shape
+        return shape_member_type(range_shape, member_name)
     }
     if template.symbol_parameter == "type" {
         return type_named_by(member_name)
@@ -1940,8 +1992,7 @@ func instantiate_every_attribute(
         )
         return null
     }
-    var range_class = template_range_class(information, template)
-    assert range_class
+    var attribute_names = template_attribute_names(information, template)
     var saved_class = current_class
     var saved_owner = current_owner
     current_class = information
@@ -1962,8 +2013,8 @@ func instantiate_every_attribute(
     current_owner = saved_owner
     var body = List<Syntax.Statements.Statement>()
     var field_index = 0
-    while field_index < range_class.fields.count() {
-        var field = range_class.fields[field_index]
+    while field_index < attribute_names.count() {
+        var attribute_name = attribute_names[field_index]
         var arguments = List<Syntax.Expressions.Expression>()
         var argument_index = 0
         while argument_index < parameters.count() {
@@ -1974,7 +2025,7 @@ func instantiate_every_attribute(
             argument_index = argument_index + 1
         }
         var callee: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(
-            "{template.prefix}{field.name}{template.suffix}",
+            "{template.prefix}{attribute_name}{template.suffix}",
         )
         var call: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, arguments)
         var statement: Syntax.Statements.Statement = Syntax.Statements.ExpressionStatement(call)
@@ -2098,13 +2149,8 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
     var member = shape.as_member(index_expression.object)
     crash member
     crash member.object
-    var owner = find_class_by_c_name(bound_member_owner_c_name)
-    crash owner
     var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(member.object, bound_field_name)
-    if owner.find_field(bound_field_name) {
-        return read
-    }
-    if not owner.find_function(bound_field_name) {
+    if not bound_member_is_function() {
         return read
     }
     var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(
@@ -2112,6 +2158,19 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
         List<Syntax.Expressions.Expression>(),
     )
     return called
+}
+
+func bound_member_is_function(): Bool {
+    var owner = find_class_by_c_name(bound_member_owner_c_name)
+    if owner {
+        assert not owner.find_field(bound_field_name)
+        assert owner.find_function(bound_field_name)
+        return true
+    }
+    var owner_shape = find_union_by_c_name(bound_member_owner_c_name)
+    crash owner_shape
+    assert find_required_function(owner_shape, bound_field_name)
+    return true
 }
 
 func generate_bound_member_read(

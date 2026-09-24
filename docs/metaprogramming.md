@@ -113,6 +113,38 @@ member templates over `member: Symbol<$element_type>`, so `item.attributes[membe
 ([standard_library.md](collections.md#how-the-member-templates-are-written)) -- and the standard library's
 [`Json`](json.md) writes and reads any class over `attribute: Symbol<$value_type>`.
 
+The class inside the `Symbol` may also be a `type`. The template then ranges over the attributes the type names,
+and over the functions it requires that take no arguments; `row.attributes[attribute]` reads or writes that member
+of whatever class the value really is, and the plural calls the template once per attribute the type lists, in
+its order. This is how a query row declared as a `type` is filled attribute by attribute.
+
+```gdscript title=shape_attributes/filler.spite
+generic $row_type
+
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, source: $row_type) {
+    row.attributes[attribute] = source.attributes[attribute]
+}
+```
+```gdscript title=shape_attributes/shape_attributes.spite entry
+type Position {
+    x: Int
+    y: Int
+}
+
+var console = Console()
+
+func ShapeAttributes() {
+    var filler = Filler<Position>()
+    var row = {x: 0, y: 0, name: "row"}
+    var source = {x: 3, y: 4}
+    filler.fill_attributes(row, source)
+    console.print(row.x, row.y, row.name)
+}
+```
+```output
+3 4 row
+```
+
 ## Generics and codegen values (`$`)
 
 `$name` means "replaced at code generation", and it is for generics only. A class declares each one on a

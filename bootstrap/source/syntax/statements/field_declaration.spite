@@ -8,3 +8,7 @@ func FieldDeclaration(field_name: String, field_type: Syntax.Types.Type) {
     name = field_name
     type_reference = field_type
 }
+
+func is_attribute(): Bool {
+    return not is_function
+}

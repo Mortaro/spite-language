@@ -1,0 +1,2 @@
+var health = Health()
+var alive = Alive()
