@@ -7724,6 +7724,18 @@ func generate_if_statement(
         }
         return
     }
+    if not generate_class_narrowing_if(if_statement, scope, class_information, function_information) {
+        generate_plain_if(if_statement, scope, class_information, function_information)
+    }
+}
+
+func generate_plain_if(
+    if_statement: Syntax.Statements.IfStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    crash if_statement.condition
     var condition_result = generate_expression(if_statement.condition, scope, class_information)
     check_condition(condition_result, "if")
     builder.add_user("if ({owned_truth(condition_result, if_statement.condition)}) \{")
@@ -7736,6 +7748,76 @@ func generate_if_statement(
         generate_block(if_statement.else_branch, scope, class_information, function_information)
         builder.add_user("}")
     }
+}
+
+func generate_class_narrowing_if(
+    if_statement: Syntax.Statements.IfStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+): Bool {
+    crash if_statement.condition
+    var binary = shape.as_binary(if_statement.condition)
+    if not binary {
+        return false
+    }
+    crash binary
+    if binary.operator != 'equal' {
+        return false
+    }
+    crash binary.left
+    crash binary.right
+    var subject_identifier = shape.as_identifier(binary.left)
+    if not subject_identifier {
+        return false
+    }
+    var tested_class = try_resolve_static_path(binary.right, class_information.namespace_dotted)
+    if not tested_class {
+        return false
+    }
+    crash tested_class
+    crash subject_identifier
+    var subject = generate_expression(binary.left, scope, class_information)
+    var subject_type = subject.get_type()
+    var is_nullable = false
+    var nullable = type_shape.as_nullable(subject_type)
+    if nullable {
+        subject_type = nullable.get_inner()
+        is_nullable = true
+    }
+    var subject_union = type_shape.as_union(subject_type)
+    if not subject_union {
+        return false
+    }
+    crash subject_union
+    var union_information = find_union_by_c_name(subject_union.c_name)
+    if union_information {
+        if not union_information.has_member(tested_class.c_name) {
+            report(
+                "'{tested_class.simple_name}' is not a member of union '{union_information.simple_name}', so this is never true",
+            )
+        }
+    }
+    var subject_temporary = next_temporary()
+    builder.add_user("\{")
+    builder.add_user("{c_type_name(subject.get_type())} {subject_temporary} = {subject.code};")
+    var test = class_id_test(subject_temporary, tested_class)
+    if is_nullable {
+        test = "({subject_temporary} != 0 && {test})"
+    }
+    builder.add_user("if ({test}) \{")
+    var case_scope = Scope(scope)
+    case_scope.declare(subject_identifier.name, class_type_of(tested_class))
+    case_scope.set_override(subject_identifier.name, "(({tested_class.c_name}*){subject_temporary})")
+    generate_block_in_scope(if_statement.then_branch, case_scope, class_information, function_information)
+    builder.add_user("}")
+    if if_statement.has_else_branch {
+        builder.add_user("else \{")
+        generate_block(if_statement.else_branch, scope, class_information, function_information)
+        builder.add_user("}")
+    }
+    builder.add_user("}")
+    return true
 }
 
 func generate_nullable_switch(

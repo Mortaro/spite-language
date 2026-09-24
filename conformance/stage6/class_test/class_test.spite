@@ -15,4 +15,13 @@ func ClassTest() {
     favorite = Square()
     console.print(favorite == Square)
     console.print(Circle() == Circle)
+    console.print(describe(Circle()))
+    console.print(describe(Square()))
+}
+
+func describe(shape: Shape): String {
+    if shape == Circle {
+        return "a circle of radius {shape.radius}"
+    }
+    return "not a circle"
 }
