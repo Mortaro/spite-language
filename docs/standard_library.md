@@ -1,9 +1,9 @@
 # Standard library, task by task
 
-Nothing in the standard library uses true reference counting; ownership follows the same single-owner rule as
-everywhere else (see [memory.md](memory.md)). Every method below returns a default instead of crashing when
-the operation cannot succeed (an out-of-range index, a key that is not present, a `String` that does not
-parse).
+The standard library is ordinary Spite in `library/`, written over `Memory`, and its values are reference
+counted like every other object (see [memory.md](memory.md)). When an operation cannot succeed it says so in
+its type rather than crashing: an index or a key that is not there reads as `T?`, a file that cannot be read
+answers `null`, and text that does not parse as a number reads as `0`.
 
 ## Read a file
 
