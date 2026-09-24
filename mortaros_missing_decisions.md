@@ -163,3 +163,31 @@ manual argues it.
 43. **An unset `Build` field folds to its default** rather than being read at run time, so no `Build` value is
     ever read when the program runs. D84's words were "the others are runtime"; D85 moved run time to
     `Environment`, which is how this reads it.
+
+## Found while auditing docs/ against the manual (2026-09-24)
+
+Behaviour that does not match the manual. The language was not changed; each is pinned or noted in
+`docs/KNOWN_ISSUES.md` so a fix shows up there.
+
+44. **Reading `.functions` makes an instance.** `Gadget.functions` on a class with functions builds its
+    `Spite.Function` values bound to a default `Gadget`, which stays alive, so `Gadget.instances.count()` is one
+    more than the program made. Section 8 says `.instances` is every live instance; is the owner of a reflected
+    function meant to be an instance at all (D40's `.owner` is not built)? Repro: `docs/KNOWN_ISSUES.md` item 1.
+45. **A program class named like a nested library type hides it.** A program with its own `entry.spite` makes
+    `library/directory.spite` resolve `Entry` to the program's class instead of `Directory.Entry`, and the program
+    stops compiling ("a Directory cannot be used where a Entry is needed"). Sections 7 and 11 say a name resolves
+    in the using class's own namespace first. Repro: `docs/KNOWN_ISSUES.md` item 2.
+46. **Singletons with arguments.** Section 8 ("Singletons") says one instance per distinct literal argument list;
+    the compiler rejects any singleton constructor with parameters (`diagnostics/singleton_arguments`) except
+    `DynamicLibrary`'s, which keeps the per-argument-list behaviour. Which is the rule, and is `DynamicLibrary` the
+    exception or the rule?
+47. **The manual under-reports crashes.** Section 5 ("What a crash reports", "Current implementation") says the
+    crash ids, the `<output-name>.crashes` map and the assert trace are not built; all three are
+    (`conformance/stage5/crash_report` prints ids and `spite.assert` lines, and every build writes a `.crashes`
+    file). `docs/failure.md` describes them as built. The manual paragraph wants updating.
+48. **A bare `crash` is formatted to `crash false`.** Section 5 describes bare `crash` as the form for an
+    unreachable branch; the formatter rewrites it, so formatted code never shows it. Keep bare `crash` (and teach
+    the formatter), or make `crash false` the one form?
+49. **Diagnostics name the file they are in.** Section 12's "known limitation" (every diagnostic reported
+    against the entry file's path) no longer holds: errors name the real file (`registry.spite:3`). Only the
+    manual needs the line removed.
