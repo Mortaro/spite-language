@@ -1,6 +1,6 @@
 # Memory
 
-D1 (manual.md section 10): Spite uses **reference counting**, JavaScript-like. A scalar (`Int`, `Float`, `Bool`,
+Spite uses **reference counting**, JavaScript-like. A scalar (`Int`, `Float`, `Bool`,
 an enum value) is a plain value, copied wherever it goes. Everything else -- a class instance, `List<T>`,
 `Dictionary<T>`, `String`, a union, an object literal -- is a **reference**: assigning it, passing it, storing
 it in a field/list/dictionary, and returning it all share the exact same object. There is no `&` and no
@@ -158,22 +158,20 @@ hand when you are done with it (clear a `T?` field that closes the loop, ideally
 logic on whichever side runs last) if it matters for a long-running program. **[planned]** A future opt-in weak
 reference type is the intended real fix; not implemented yet.
 
-## `--debug-memory`
+## `--debug_memory`
 
-`spite program --debug_memory` builds with an allocation counter and prints `allocations: N frees: N`
-right before the program exits. A mismatch means something leaked or double-freed; when it does not balance,
-it also prints a **leaked-object summary by class name**, naming which classes' instances are still live --
-exactly what makes a leaked cycle visible instead of an unexplained non-zero count.
-
-**Known limitation:** a `person.age`-shaped read answered by a getter (not a raw field) is not always released
-when used directly as a call/print argument rather than stored -- see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+`spite program --debug_memory` builds with an allocation table and prints `allocations: N frees: N` right before
+the program exits. A mismatch means something leaked; when the two do not balance, it also prints a
+**leaked-object summary by class name**, naming which classes' instances are still alive -- which is what makes a
+leaked cycle visible instead of an unexplained count. Every program on these pages is run this way, and must
+balance.
 
 ## `Memory` is the floor, and you can build on it
 
 Every type in the standard library is Spite over one class, `Memory` (`library/memory.spite`): `String`,
 `List<T>` and `Dictionary<T>` keep their bytes in memory it hands out, and the numbers are values the compiler
-lays out (D98, D101). A container of your own is written the same way, with nothing the compiler does for
-`List<T>` that it would not do for yours.
+lays out. A container of your own is written the same way, with nothing the compiler does for `List<T>` that it
+would not do for yours -- read `library/list.spite` for a complete one.
 
 - **Heap:** `memory.allocate_bytes(bytes)` returns an address (a `Long`); `resize` grows it and `free` gives it
   back. Nothing frees it for you: a class that allocates frees in its `drop()`.

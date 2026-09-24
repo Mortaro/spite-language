@@ -9,6 +9,8 @@ func Game() {
 }
 ```
 
+- The program's own folder is a root like any loaded one: every folder inside it is a namespace, recursively,
+  with no `load` needed ([programs.md](programs.md)).
 - The loaded folder itself does **not** appear in the namespace; folders *inside* it do. A file named like its
   folder is that folder's entry point: `package/engine/renderer/renderer.spite` becomes `Engine.Renderer()`,
   and `package/engine/renderer/debug.spite` (a sibling file in the same folder) becomes
@@ -81,11 +83,35 @@ the modded monster taunts you
 ```
 
 `mods/monster.spite` never redeclares `health` -- reopening only needs the names it actually adds or replaces.
-A `var`'s replacement must keep the same type; the built-in classes (`Console`, `String`, ...) cannot be
-reopened at all, and get their own clear diagnostic instead. `List<T>` is Spite in `library/list.spite`, and a
-program's own `list.spite` reopens it to add a member template (see
-[standard_library.md](standard_library.md#write-your-own-member-template)). Your foot to shoot with everything
-else.
+A `var`'s replacement must keep the same type. Within one file each name is declared once; replacing is what a
+*later* file does.
+
+The standard library is loaded before the program, so a program's own file reopens any class of it the same way:
+`environment.spite` adds settings to `Environment` ([programs.md](programs.md#run-time-settings-environment)),
+`list.spite` adds a member template to `List` ([collections.md](collections.md#write-your-own-member-template)),
+`int.spite` adds a function to every `Int` ([values_and_types.md](values_and_types.md#numbers-are-classes)), and
+`string.spite` could replace how `String` trims. Your foot to shoot. Each operating system's folder of the library
+is built the same way: it reopens the classes that system does differently
+([foreign_libraries.md](foreign_libraries.md#each-operating-system-reopens-what-it-changes)).
+
+```spite title=reopen_string/string.spite
+func shouted(): String {
+    var upper = upper_case()
+    return "{upper}!"
+}
+```
+```spite title=reopen_string/reopen_string.spite entry
+var console = Console()
+
+func ReopenString() {
+    var greeting = "hello"
+    var shouted = greeting.shouted()
+    console.print(shouted)
+}
+```
+```output
+HELLO!
+```
 
 ## The `Spite` namespace is reserved
 
@@ -131,15 +157,18 @@ func SpiteNamespaceError() {
 ## `load` is a bundle boundary
 
 `load` marks where a dynamic library or lazy-loaded bundle could split, the way an async `import()` does in
-webpack -- tree shaking is computed per bundle, and a `load` inside an `if` loads lazily when that line runs.
-**[planned]**: every bundle is linked statically into the one executable for now, and the `load(...)` call
-itself compiles to nothing at runtime -- except the launcher's `load(Build().program)`, which runs the program by
-constructing its entry class.
+webpack. Today every root is linked into the one executable, and a `load(...)` call compiles to nothing at run
+time -- except the launcher's `load(Build().program)`, which runs the program by constructing its entry class.
+Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are decided but not built
+([manual section 11](../manual.md#11-packages-namespaces-and-loading--partial)).
+
+A dependency will be a git URL pinned to a commit in the `load` call itself --
+`load("github.com/mortaro/engine@a3f2c91")` -- fetched by the ordinary compile, with no package manager, registry
+or lockfile. That is decided and not built ([manual, D38](../manual.md#decision-log)).
 
 ## Final classes
 
-Because patching is dangerous to read silently, `--final_classes=folder` writes one `.spite` file per class,
-after every `load`-ed root is merged and every reopened class resolved to its winning declarations -- each
-replaced declaration preceded by a `#` comment naming the source file it came from. This is the file to read when
-you are not sure which mod actually won for a declaration. See [compiler.md](compiler.md) for every command-line
-option.
+Because patching is dangerous to read silently, `--final_classes=folder` writes every class as it ended up, after
+every root is merged and every reopening resolved, as a program that runs the same as the one it was printed from
+([compiler.md](compiler.md#inspect-merged-classes)). This is the file to read when you are not sure which mod won.
+Which root supplied each declaration is not printed yet.
