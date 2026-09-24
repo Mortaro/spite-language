@@ -1,0 +1,1 @@
+diagnostics/bitwise_on_float/bitwise_on_float.spite:5: error: a Float has no function 'shifted_right': the bitwise functions are on the whole numbers, Tiny to UnsignedLong. Cast it first, like 'var whole: Long = value' (in BitwiseOnFloat.BitwiseOnFloat)

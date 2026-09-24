@@ -1,0 +1,10 @@
+var console = Console()
+
+func NegativeShift() {
+    var flags: UnsignedShort = 40
+    var count = 3
+    console.print("shifted {flags.shifted_right(count)}")
+    count = count - 5
+    console.print("shifted {flags.shifted_right(count)}")
+    console.print("never printed")
+}

@@ -396,3 +396,17 @@ Behaviour that does not match the manual. The language was not changed; each is 
     `read_float` and their `write_*`, beside `read_int`. `Tiny` and `UnsignedLong` have none, since `read_byte`
     and `read_long` hold the same bits. A variable cannot be named `unsigned_int_bits` (`int` abbreviates), but
     these follow the type names, as `read_int` already did. Keep, or `read_unsigned_integer`?
+
+## From adding the bitwise functions (D117)
+
+95. **The bitwise names** (proposed by Claude, unconfirmed): `shifted_left(count)`, `shifted_right(count)`,
+    `bits_and(other)`, `bits_or(other)`, `bits_exclusive_or(other)`, `bits_inverted()`, and the extras
+    `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()`. `bits_` because `and`/`or`/`not` are
+    keywords and `xor` abbreviates. Keep them, or another family (`and_bits`, `shift_left`, `inverted_bits`)?
+96. **Shift counts outside 0 to width - 1**: a count of the width or more shifts every bit out (0, or -1 for a
+    negative value shifted right, as Go does), and a negative count halts with a report naming the function and
+    the count. The alternative was masking the count to the width (Java, C#, what x86 does), which is branch-free
+    but makes an `Int`'s `shifted_left(32)` answer the value unchanged. Fine?
+97. **The other operand is cast to the receiver's type**: a `Byte`'s `bits_and` of a `Long` answers a `Byte` from
+    the `Long`'s low 8 bits, and the count is always an `Int`. This is the ordinary argument cast, so it holds
+    whatever item 88 decides for arithmetic. Should a narrowing here be an error instead?
