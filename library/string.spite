@@ -229,6 +229,11 @@ func to_string(): String {
     return this
 }
 
+func to_debug(): String {
+    var escaped = replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
+    return "\"{escaped}\""
+}
+
 func to_long(): Long {
     var index = 0
     while index < length() and is_space_at(index) {

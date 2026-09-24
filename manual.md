@@ -543,10 +543,11 @@ section 15).
 **A number, a `Bool` or an enum value fits a `type` too** (proposed by Claude, unconfirmed; built for D109). A
 shape holds class instances, and these are plain values, so passing one where a `type` is wanted puts it in a
 small box the compiler allocates and frees like any object, and a call through the shape reaches its class's
-function (`Int.to_string()`, for an `Int`). `String` and `Symbol` need no box. An enum value answers exactly one
-function, `to_string()`, its name as text -- `weather.to_string()` works on any enum value -- so that is all a shape
-can ask of one. `.class` read through the shape names the value's own class (`Int`, the enum), as it does for a
-class instance.
+function (`Int.to_string()`, for an `Int`). A `String` needs no box; a `Symbol` gets one so that it keeps its
+class. An enum value answers two functions, `to_string()` (its name as text -- `weather.to_string()` works on
+any enum value) and `to_debug()`, so that is all a shape can ask of one. `.class` read through the shape names the
+value's own class (`Int`, `Symbol`, the enum), as it does for a class instance. A value of a union passed where a
+`type` is wanted brings the union's members into the shape.
 
 ### Failure: three outcomes and no others  **[partial]**
 
@@ -1200,6 +1201,9 @@ than beside it:
   and the template it repeats must return nothing (`diagnostics/every_attribute`). The plural is the word
   `attributes` already means "all of them" in, which is why it was chosen over a new keyword or loop form: the
   old compile-time-unrolled `for instance.attributes` went with `for`, and this is its replacement without one.
+  Over another class's attributes it calls only the ones that class lets others read: a private `_` attribute
+  is skipped rather than being the private error (proposed by Claude, unconfirmed; found by D109's
+  `to_debug()`).
 
 ```gdscript
 func show_attribute(attribute: Symbol<Label>, label: Label, lines: List<String>) {
@@ -2244,6 +2248,42 @@ with its length rather than up to its first zero byte. `conformance/stage6/text_
 `fused_chain_allocations` pin those allocations. A `crash` still writes its operands itself, through each value's
 `to_string()`, because it reports on the way out of a program that is stopping. `flush()` no longer writes a line
 break after flushing, which the special case it replaces did.
+
+**`Console.debug` and `to_debug()`** (D109, decided by Mortaro: "each class has an automatic to_debug(): String
+that returns something like `Class {attribute: value, other: value}` by nesting to_debugs"; Claude chose `debug`
+over `print_json`; implemented). `debug(...values: List<Debuggable>)`, where `type Debuggable { to_debug():
+String }`, writes each value's `to_debug()` separated by a space, then a line break. Every value answers it:
+
+```text
+Player { name: "hero", scores: [3, 7], bag: {"gold": 2}, partner: null, mood: 'calm' }
+```
+
+What follows is Claude's reading (proposed by Claude, unconfirmed):
+
+- **A class shows its name and its attributes**, in declaration order, as `Name { attribute: value }`, and
+  `Name {}` when it has none to show. An attribute that is a class is shown by *its* `to_debug()`, so a class that
+  declares its own is shown by it wherever it appears. A `List` is `[a, b]`, a `Dictionary` is `{"key": value}`,
+  text is quoted with `\"`, `\\` and `\n` escaped, a `Symbol` or enum value is written the way Spite writes it
+  (`'calm'`), a number and a `Bool` as they print, and an absent `T?` is `null`. A `Spite.Class` is its name.
+- **Private attributes are left out.** The walk is the plural attribute template (section 8) run from
+  `Spite.DebugInstance`, and a plural over another class's attributes now ranges over the ones that class lets
+  others read: a `_` attribute is its own business, and reading it from outside would be the ordinary private
+  error. `Json` follows the same rule.
+- **A cycle ends at an object already being shown**: it is written `Name {...}`, so `first.next.next` pointing
+  back at `first` shows `Node { value: 1, next: Node { value: 2, next: Node {...} } }`. Each class keeps the
+  objects it is in the middle of showing, compared with `==` (identity, unless the class defines `equals`), and
+  a tree of distinct objects is shown whole however deep it goes.
+- **It is Spite, and it costs nothing unused.** `library/spite/debug.spite` (`Spite.Debug<$value_type>`) turns any
+  value into its text, and `library/spite/debug_instance.spite` (`Spite.DebugInstance<$value_type>`) walks a class
+  instance. The generator's whole part is that asking a class for a `to_debug()` it does not declare answers one
+  that calls them, created only when something asks, so a program that never debugs a class compiles nothing for
+  it. A `type` or union that does not require `to_debug()` still answers it, dispatched to the class the value is.
+- **The REPL keeps its own display** (`Player { name: hero, ... }`: text unquoted, nested objects as `Name {...}`,
+  lists as `List<String>(...)`), because it reads a running program through `Spite.Attribute`, whose values are
+  already text, and the documented sessions depend on it. Proposal: make it `to_debug()` of the value once
+  reflection can hand the loop a typed value (`mortaros_missing_decisions.md`).
+
+`conformance/stage6/debug_values`, `docs/standard_library.md`.
 
 **A directory is navigated through its entries** (D93, decided by Mortaro, 2026-09-24).  **[implemented]**
 `Directory` has a `path` exactly as `File` does, and `entries()` answers a `List<Directory.Entry>`, where
@@ -3302,3 +3342,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (Mortaro asked; the language chosen by Claude, unconfirmed) **Spite code blocks are fenced `gdscript` so GitHub highlights them.** GitHub highlights through Linguist, which only accepts a new language once it is used across a few hundred repositories, so `spite` cannot be added yet. Mortaro suggested Go as a middle ground; rendering one Spite sample through GitHub's own renderer as Go, Swift, Kotlin, TypeScript, Python and GDScript showed GDScript reads it best -- `#` comments, `func`/`var`/`assert`/`not`/`return`, both kinds of quotes and `{}` holes -- while Go treats `#` as text and `'symbol'` as a broken character. Titled blocks are ```` ```gdscript title=... ````; a ```` ```spite ```` fence is now an error in the docs corpus; `.gitattributes` maps `*.spite` to GDScript for the repository view. |
 | 2026-09-24 | **D113** (decided by Mortaro, settling part of D94's `while` rule): **a member template can call a function of the caller for each element, and a `while` written only to do that is an error.** "we should have a way to iterate just for sake of console log for example a function `func say_hello(name: String) {...}` and then instead of say_hello_to_everyone we just map_say_hello() ... whiles created just for a thing that should be a function instead should be a compiler error i suspect it will narrow a lot our whiles." So `names.each_say_hello()` calls the caller's own `say_hello(name)` once per element (`each_` rather than `map_`, since nothing is collected; `map_` does the same and keeps each result when the function returns one). D94's review counted 145 loops of this shape -- the largest group -- so the error names the template to write. |
 | 2026-09-24 | (implements D109's `print`; the readings below proposed by Claude, unconfirmed) **`Console.print`, `write` and `error` are Spite, taking `...values: List<Printable>`, and the generator's printing special case is gone.** `type Printable { to_string(): String }` lives in `library/console.spite`, written with the form a `type` has today rather than Mortaro's `to_string: Spite.Function<String>` (open question 11). `String.to_string()` answers itself, `Spite.Class` its `.name`, `Spite.Namespace` its `.name_with_namespaces`, and every enum value answers `to_string()`, its name. For numbers, `Bool` and enum values to fit a `type` at all, **a plain value passed where a shape is wanted is boxed** -- one allocation, released like an object -- and a call through the shape reaches its class's function; `String` and `Symbol` are objects already. What the compiler still writes is the floor: `Console._write_output`, `_write_error` and `flush` are bodiless and `Prelude` supplies `fwrite`/`fflush`, and a `crash` writes its own operands. Output is byte for byte what it was, except that `flush()` no longer writes a stray line break; the self-compile time is unchanged within noise, and the two allocation pins moved (29 to 50, 11 to 17) because a variadic call builds a `List` (`mortaros_missing_decisions.md` 57 to 59). |
+| 2026-09-24 | (implements D109's `debug`; the readings below proposed by Claude, unconfirmed) **`Console.debug(...values: List<Debuggable>)` writes each value's `to_debug()`, and every value has one.** A class that does not declare `to_debug()` answers one the moment something asks, and it calls `Spite.DebugInstance<$value_type>` (`library/spite/debug_instance.spite`), which walks the attributes with the plural template; every other value goes through `Spite.Debug<$value_type>` (`library/spite/debug.spite`). The format: `Name { attribute: value }` (`Name {}` when empty), `[a, b]`, `{"key": value}`, text quoted and escaped, a `Symbol` or enum value written `'name'`, a number or `Bool` as printed, `null`. **Cycles:** an object already being shown further up is written `Name {...}`, found by `==` against the objects its class is in the middle of showing. **Private attributes are left out**, because a plural over another class's attributes now skips the `_` ones instead of failing on them (`Json` too). Along the way: a `Symbol` passed to a `type` is boxed like an enum value, so it keeps its class; a union value passed to a `type` admits the union's members; a `type` or union answers `to_debug()` even when it does not require it; and a `DynamicLibrary`'s own declared functions (`to_debug`) are called as Spite rather than as foreign symbols. The REPL's display is unchanged, and becoming `to_debug()` is a proposal. `conformance/stage6/debug_values`. |

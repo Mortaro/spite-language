@@ -1,0 +1,49 @@
+singleton
+
+generic $value_type
+
+func text(value: $value_type): String {
+    if $value_type == String {
+        return value.to_debug()
+    } else if $value_type == Bool or $value_type == Int or $value_type == Long or $value_type == Float or $value_type == Double or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInt or $value_type == UnsignedLong {
+        return "{value}"
+    } else if $value_type == Symbol {
+        return "'{value}'"
+    } else if $value_type == Null {
+        if value {
+            var inner = Debug<$value_type.value_type>()
+            return inner.text(value)
+        }
+        return "null"
+    } else if $value_type == List {
+        var element_debug = Debug<$value_type.element_type>()
+        var elements = List<String>()
+        var index = 0
+        while index < value.count() {
+            var element = value.get_at(index)
+            var element_text = element_debug.text(element)
+            elements.append(element_text)
+            index = index + 1
+        }
+        var joined_elements = elements.join(", ")
+        return "[{joined_elements}]"
+    } else if $value_type == Dictionary {
+        var entry_debug = Debug<$value_type.value_type>()
+        var keys = value.keys()
+        var values = value.values()
+        var entries = List<String>()
+        var index = 0
+        while index < keys.count() {
+            var key = keys.get_at(index)
+            var quoted_key = key.to_debug()
+            var entry = values.get_at(index)
+            var entry_text = entry_debug.text(entry)
+            entries.append("{quoted_key}: {entry_text}")
+            index = index + 1
+        }
+        var joined_entries = entries.join(", ")
+        return "\{{joined_entries}}"
+    } else {
+        return value.to_debug()
+    }
+}

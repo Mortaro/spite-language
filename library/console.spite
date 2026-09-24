@@ -9,6 +9,10 @@ type Printable {
     to_string(): String
 }
 
+type Debuggable {
+    to_debug(): String
+}
+
 var memory = Memory()
 
 func print(...values: List<Printable>) {
@@ -23,6 +27,19 @@ func write(...values: List<Printable>) {
 func error(...values: List<Printable>) {
     _write_values(values, 'error')
     _write_error("\n")
+}
+
+func debug(...values: List<Debuggable>) {
+    var index = 0
+    while index < values.count() {
+        if index > 0 {
+            _write_output(" ")
+        }
+        var text = values[index].to_debug()
+        _write_output(text)
+        index = index + 1
+    }
+    _write_output("\n")
 }
 
 func _write_values(values: List<Printable>, stream: Stream) {

@@ -31,3 +31,7 @@ func is_singleton(): Bool {
 func to_string(): String {
     return _name
 }
+
+func to_debug(): String {
+    return _name
+}

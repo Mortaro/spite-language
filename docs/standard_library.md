@@ -195,6 +195,7 @@ output "build finished"
 | `print(...values)` | each value's `to_string()`, separated by a space, then a line break |
 | `write(...values)` | the same without the line break |
 | `error(...values)` | like `print`, to the error stream |
+| `debug(...values)` | each value's `to_debug()`, separated by a space, then a line break |
 | `flush()` | writes out whatever the output and error streams still hold |
 | `read_line()` | one line of input without its line break, as a `String?`: `null` only at the end of the input |
 
@@ -228,6 +229,46 @@ func PrintableDoc() {
 ```
 ```output
 next: A12 for 3 boarding true 2.5 Ticket
+```
+
+`debug` is for a person or an AI reading a program's state rather than for its output. It takes
+`...values: List<Debuggable>` (`to_debug(): String`), and every value answers that without writing anything: a
+class shows its name and every attribute, nesting into the attributes that are classes, a `List` shows `[a, b]`, a
+`Dictionary` `{"key": value}`, text is quoted, a `Symbol` or enum value is written `'like_this'`, and an absent
+`T?` is `null`. An object already being shown further up is written `Name {...}`, so a cycle ends. A class that
+declares its own `to_debug()` is shown by it wherever it appears, and a class nothing asks to show gets none:
+the automatic one is `Spite.Debug<$value_type>` in `library/spite/debug.spite`, compiled only for the classes a
+program debugs.
+
+```gdscript title=debug_doc/crew.spite
+var captain = ""
+var sailors = List<String>()
+var ship: Ship? = null
+```
+```gdscript title=debug_doc/ship.spite
+var name = ""
+var crew: Crew? = null
+
+func Ship(starting_name: String) {
+    name = starting_name
+}
+```
+```gdscript title=debug_doc/debug_doc.spite entry
+var console = Console()
+
+func DebugDoc() {
+    var crew = Crew()
+    crew.captain = "Ana"
+    crew.sailors.append("Bo")
+    var ship = Ship("Gull")
+    crew.ship = ship
+    ship.crew = crew
+    console.debug(crew, 3, "done")
+    ship.crew = null
+}
+```
+```output
+Crew { captain: "Ana", sailors: ["Bo"], ship: Ship { name: "Gull", crew: Crew {...} } } 3 "done"
 ```
 
 ```gdscript title=console_input_doc/console_input_doc.spite entry

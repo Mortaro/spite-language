@@ -488,3 +488,10 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   Bootstrap notes: the seed could not compile the new `library/console.spite` (its floor functions were unknown to
   the old prelude), so generation 2 was built from compiler sources that knew the floor and boxing but still
   intercepted `print` whenever `Console` declared none; that compiler compiled the real tree.
+- 2026-09-24 (D109, debugging): `find_or_instantiate_function` answers a missing `to_debug` with `automatic_debug`,
+  a bodiless function whose supplied C calls the `text` of a `Spite.DebugInstance<T>` singleton (a class) or of a
+  `Spite.Debug<T>` (anything else), found by `debug_class_of`. `instance_type_of` gives the type a class's values
+  have (`List<T>` for a list instance, the enum for a synthetic class). `synthetic_value_class` makes the classes
+  an enum or a `Symbol` is boxed as. `shape_call_parameter_types`/`shape_call_return_type` let a shape call
+  `to_debug` without requiring it; `emit_shape_callers` and the union dispatch find each member's function with
+  `find_or_instantiate_function`. `instantiate_every_attribute` skips `_` attributes of another class.

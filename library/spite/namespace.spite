@@ -36,3 +36,7 @@ func equals(other: String): Bool {
 func to_string(): String {
     return _name_with_namespaces
 }
+
+func to_debug(): String {
+    return _name_with_namespaces
+}

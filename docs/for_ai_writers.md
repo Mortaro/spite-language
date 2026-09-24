@@ -184,8 +184,9 @@ func is_alive(): Bool {
 
 ## Built in classes
 
-`Console()` (`print`, `write`, `error`, `read_line(): String?`; each value printed is its `to_string()`, so a class
-prints once it declares `func to_string(): String`), `File(path)` (`read(): String?`, `write`,
+`Console()` (`print`, `write`, `error`, `debug`, `read_line(): String?`; each value printed is its `to_string()`, so
+a class prints once it declares `func to_string(): String`, and `debug` shows any value's state, a class as
+`Name { attribute: value }`, through the `to_debug()` every value has), `File(path)` (`read(): String?`, `write`,
 `append`, `exists`, `remove`), `Directory(path)` (`path`, `entries(): List<Directory.Entry>` -- each a `Directory` or a `File`, switched on --,
 `files`, `folders`, `exists`, `create`),
 `Process(command, arguments)` (`run(): Int`, `output()`), `Program()` (`exit(code)`, `sleep(milliseconds)`,
@@ -221,6 +222,7 @@ round trip, and this list is cheaper to read than to rediscover.
 | `func greet(name: String = "world")` | a second function, or an attribute holding the value |
 | `print(value)` | `var console = Console()` at file level, then `console.print(value)` |
 | `toString()`, `__str__`, `Display` | `func to_string(): String` in the class, which `console.print` calls; inside text, write `"{value.to_string()}"` |
+| `console.log(object)`, `dbg!`, `__repr__`, `{:?}` | `console.debug(value)`: every value has `to_debug()`, and a class may declare its own |
 | `"hello ${name}"`, `"hello " + name` | `"hello {name}"` |
 | `for item in list` | `while index < list.count()`, or `map_`/`filter_`/`each_<member>()` |
 | `value == null` | `if value { } else { }`, `assert value`, `crash value`, or `switch` |
