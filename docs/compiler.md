@@ -104,7 +104,7 @@ spite game --mode=build --output=build/game.exe --debug_memory
 A program may give an option a different default by reopening `Build` in its own `build.spite`
 (`var optimized = true`), and add options of its own the same way. `mode` and `format` are read from the flag
 only, because the compiler needs them before it has read the program. Every `Build` field is a constant in the
-built program, so `if Build().debug_memory { }` keeps one branch.
+built program, so with `var build = Build()` beside the attributes, `if build.debug_memory { }` keeps one branch.
 
 The compiler uses the `CC` environment variable when set; otherwise it tries `cc`, `clang`, then `gcc`:
 
@@ -115,7 +115,7 @@ CC=clang spite game --optimized
 ## Compile for another system
 
 `--target_operating_system=linux` (or `windows`, or `mac`) compiles for that system from any machine: it loads
-`library/linux/` instead of this machine's folder, and `Build().target_operating_system` is `"linux"` in the
+`library/linux/` instead of this machine's folder, and `build.target_operating_system` is `"linux"` in the
 program. `check.sh` uses it to hold the folders it cannot run to compiling:
 
 ```bash

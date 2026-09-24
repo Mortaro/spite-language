@@ -1,0 +1,19 @@
+var console = Console()
+
+func InlineSingleton() {
+    console.print("built for {Build().target_operating_system}")
+    Console().print("printed on the spot")
+    var local_console = Console()
+    local_console.print("bound in the function, which is allowed")
+    greet(Console())
+    var copied = shared()
+    copied.print("copied")
+}
+
+func greet(greeted: Console) {
+    greeted.print("hello")
+}
+
+func shared(): Console {
+    return Console()
+}

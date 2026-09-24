@@ -432,7 +432,10 @@ func holds_nothing(entry: Discovery.DiscoveredClass): Bool {
     var statement_index = 0
     while statement_index < file.statements.count() {
         var statement = file.statements[statement_index]
-        assert not shape.as_variable_declaration(statement)
+        var declaration = shape.as_variable_declaration(statement)
+        if declaration {
+            assert declaration.hardcoded_value
+        }
         var function_declaration = shape.as_function_declaration(statement)
         if function_declaration {
             assert function_declaration.name != "drop"
@@ -501,7 +504,7 @@ func generate_codegen_value(name: String, class_information: Analysis.ClassInfo)
         return bound_value
     }
     report(
-        "'{class_information.simple_name}' has no 'generic ${name}' line, and '$' is for generics only: a program's settings are fields of Environment -- reopen it in environment.spite with 'var {name} = ...' and read it as Environment().{name}",
+        "'{class_information.simple_name}' has no 'generic ${name}' line, and '$' is for generics only: a program's settings are fields of Environment -- reopen it in environment.spite with 'var {name} = ...' and read it through 'var environment = Environment()' as 'environment.{name}'",
     )
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
@@ -1727,8 +1730,14 @@ func resolve_field(declaration: Syntax.Statements.VariableDeclaration, informati
     assert declaration.value
     check_value_name(declaration.name, "attribute")
     report_nested_calls_in(declaration.value)
+    report_singletons_in_declared(declaration.value, information)
     if information.is_value_class and information.c_name != "SpiteString" {
-        information.memory_bytes = declared_memory_bytes(declaration)
+        var bound_singleton = constructed_singleton(declaration.value, information)
+        if bound_singleton {
+            information.memory_binding = declaration.name
+            return
+        }
+        information.memory_bytes = declared_memory_bytes(declaration, information)
         information.memory_path = current_path
         information.memory_line = current_line
         var address_type = long_type()
@@ -10171,45 +10180,210 @@ func collect_each_mentioned_name(expressions: List<Syntax.Expressions.Expression
     }
 }
 
-func report_nested_calls(statement: Syntax.Statements.Statement) {
+func report_nested_calls(statement: Syntax.Statements.Statement, class_information: Analysis.ClassInfo) {
     switch statement {
         Syntax.Statements.VariableDeclaration: {
             crash statement.value
             report_nested_calls_in(statement.value)
+            report_singletons_in_declared(statement.value, class_information)
         }
         Syntax.Statements.AssignmentStatement: {
             crash statement.target
             crash statement.value
             report_nested_calls_in(statement.target)
             report_nested_calls_in(statement.value)
+            report_inline_singletons(statement.target, class_information)
+            report_inline_singletons(statement.value, class_information)
         }
         Syntax.Statements.ExpressionStatement: {
             crash statement.value
             report_nested_calls_in(statement.value)
+            report_inline_singletons(statement.value, class_information)
         }
         Syntax.Statements.ReturnStatement: {
             if statement.value {
                 report_nested_calls_in(statement.value)
+                report_inline_singletons(statement.value, class_information)
             }
         }
         Syntax.Statements.AssertStatement: {
             crash statement.value
             report_nested_calls_in(statement.value)
+            report_inline_singletons(statement.value, class_information)
         }
         Syntax.Statements.IfStatement: {
             crash statement.condition
             report_nested_calls_in(statement.condition)
+            report_inline_singletons(statement.condition, class_information)
         }
         Syntax.Statements.WhileStatement: {
             crash statement.condition
             report_nested_calls_in(statement.condition)
+            report_inline_singletons(statement.condition, class_information)
         }
         Syntax.Statements.SwitchStatement: {
             crash statement.subject
             report_nested_calls_in(statement.subject)
+            report_inline_singletons(statement.subject, class_information)
         }
         _: return
     }
+}
+
+func report_singletons_in_declared(value: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo) {
+    var singleton = constructed_singleton(value, class_information)
+    if singleton {
+        report_singleton_arguments(value, class_information)
+        return
+    }
+    report_inline_singletons(value, class_information)
+}
+
+func report_inline_singletons(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo) {
+    var singleton = constructed_singleton(expression, class_information)
+    if singleton {
+        report_unbound_singleton(singleton, expression, "")
+        report_singleton_arguments(expression, class_information)
+        return
+    }
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            report_inline_singletons(expression.callee, class_information)
+            report_inline_singletons_each(expression.arguments, class_information)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            report_inline_singletons(expression.callee, class_information)
+            report_inline_singletons_each(expression.arguments, class_information)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            var receiver = constructed_singleton(expression.object, class_information)
+            if receiver {
+                report_unbound_singleton(receiver, expression.object, expression.name)
+                report_singleton_arguments(expression.object, class_information)
+                return
+            }
+            report_inline_singletons(expression.object, class_information)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            report_inline_singletons(expression.left, class_information)
+            report_inline_singletons(expression.right, class_information)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            report_inline_singletons(expression.operand, class_information)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            report_inline_singletons(expression.object, class_information)
+            report_inline_singletons(expression.index, class_information)
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var index = 0
+            while index < expression.elements.count() {
+                var element_value = expression.elements[index].value
+                crash element_value
+                report_inline_singletons(element_value, class_information)
+                index = index + 1
+            }
+        }
+        Syntax.Expressions.ObjectLiteralExpression: {
+            var index = 0
+            while index < expression.fields.count() {
+                var field_value = expression.fields[index].value
+                crash field_value
+                report_inline_singletons(field_value, class_information)
+                index = index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func report_inline_singletons_each(
+    expressions: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+) {
+    var index = 0
+    while index < expressions.count() {
+        report_inline_singletons(expressions[index], class_information)
+        index = index + 1
+    }
+}
+
+func report_singleton_arguments(construction: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo) {
+    var call = shape.as_call(construction)
+    if call {
+        report_inline_singletons_each(call.arguments, class_information)
+        return
+    }
+    var generic_call = shape.as_generic_call(construction)
+    assert generic_call
+    report_inline_singletons_each(generic_call.arguments, class_information)
+}
+
+func constructed_singleton(
+    expression: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var call = shape.as_call(expression)
+    if call {
+        crash call.callee
+        return singleton_named(call.callee, class_information)
+    }
+    var generic_call = shape.as_generic_call(expression)
+    if generic_call {
+        crash generic_call.callee
+        return singleton_named(generic_call.callee, class_information)
+    }
+    return null
+}
+
+func singleton_named(
+    callee: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var named_class = try_resolve_static_path(callee, class_information.namespace_dotted)
+    assert named_class
+    assert named_class.is_singleton
+    return named_class
+}
+
+func report_unbound_singleton(
+    singleton: Analysis.ClassInfo,
+    construction: Syntax.Expressions.Expression,
+    member: String,
+) {
+    var printer = Syntax.SourcePrinter()
+    var construction_text = printer.source_expression(construction)
+    var variable = variable_name_for(singleton.simple_name)
+    var use = variable
+    if not member.is_empty() {
+        use = "{variable}.{member}"
+    }
+    report(
+        "'{singleton.simple_name}' is a singleton: bind it once beside the attributes, 'var {variable} = {construction_text}', and use '{use}'",
+    )
+}
+
+func variable_name_for(class_name: String): String {
+    var name = ""
+    var index = 0
+    while index < class_name.length() {
+        var letter = class_name.slice(index, index + 1)
+        var lower = letter.lower_case()
+        if index > 0 and lower != letter {
+            name = "{name}_"
+        }
+        name = name + lower
+        index = index + 1
+    }
+    return name
 }
 
 func report_nested_calls_in(expression: Syntax.Expressions.Expression) {
@@ -11032,7 +11206,7 @@ func generate_statement(
     function_information: Analysis.FunctionInfo,
 ): Bool {
     current_line = statement.line
-    report_nested_calls(statement)
+    report_nested_calls(statement, class_information)
     var variable_declaration = shape.as_variable_declaration(statement)
     if variable_declaration {
         generate_variable_declaration(variable_declaration, scope, class_information)
@@ -11425,7 +11599,7 @@ func emit_value_class(information: Analysis.ClassInfo) {
     if information.qualified_dotted != "String" and not information.fields.is_empty() and not declares_only_memory {
         current_path = information.source_path
         report(
-            "'{information.simple_name}' is a value the compiler keeps in one piece of memory, so its only attribute is that memory, 'var _memory = Memory().allocate_bytes(bytes)': keep what a function needs in its locals",
+            "'{information.simple_name}' is a value the compiler keeps in one piece of memory, so it declares only that memory, 'var memory = Memory()' and then 'var _memory = memory.allocate_bytes(bytes)': keep what a function needs in its locals",
         )
         return
     }
@@ -11506,7 +11680,7 @@ func emit_string_support(information: Analysis.ClassInfo) {
     )
 }
 
-func declared_memory_bytes(declaration: Syntax.Statements.VariableDeclaration): Int {
+func declared_memory_bytes(declaration: Syntax.Statements.VariableDeclaration, information: Analysis.ClassInfo): Int {
     crash declaration.value
     var allocation = shape.as_call(declaration.value)
     if allocation {
@@ -11514,8 +11688,12 @@ func declared_memory_bytes(declaration: Syntax.Statements.VariableDeclaration): 
         var allocating = shape.as_member(allocation.callee)
         if allocating {
             crash allocating.object
-            var memory_call = shape.as_call(allocating.object)
-            if allocating.name == "allocate_bytes" and memory_call and allocation.arguments.count() == 1 {
+            var memory = shape.as_identifier(allocating.object)
+            var through_memory = false
+            if memory {
+                through_memory = memory.name == information.memory_binding
+            }
+            if allocating.name == "allocate_bytes" and through_memory and allocation.arguments.count() == 1 {
                 var bytes = shape.as_integer_literal(allocation.arguments[0])
                 if bytes {
                     return bytes.value
@@ -11524,7 +11702,7 @@ func declared_memory_bytes(declaration: Syntax.Statements.VariableDeclaration): 
         }
     }
     report(
-        "a number declares its memory as 'var _memory = Memory().allocate_bytes(bytes)', with the bytes written out: the compiler places that memory, and a number's is a register",
+        "a number declares its memory as 'var memory = Memory()' and then 'var _memory = memory.allocate_bytes(bytes)', with the bytes written out: the compiler places that memory, and a number's is a register",
     )
     return 0
 }
@@ -11560,7 +11738,7 @@ func check_number_memory() {
             var laid_out = scalar_c_bytes(c_type)
             if not information.find_field("_memory") {
                 report(
-                    "'{information.simple_name}' declares no memory: its file says what it is with 'var _memory = Memory().allocate_bytes({laid_out})', the {laid_out} bytes the compiler keeps it in",
+                    "'{information.simple_name}' declares no memory: its file says what it is with 'var memory = Memory()' and then 'var _memory = memory.allocate_bytes({laid_out})', the {laid_out} bytes the compiler keeps it in",
                 )
             } else if information.memory_bytes != laid_out {
                 report(
@@ -11673,7 +11851,7 @@ func check_remote_loop_waits() {
         return
     }
     report(
-        "a --repl_port build answers its REPL where the program waits (Program().sleep, Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel) and after the entry constructor returns, and this program never waits: if this loop does not end, the REPL never answers. Wait somewhere in the loop, such as 'Program().sleep(1)' at the end of a frame",
+        "a --repl_port build answers its REPL where the program waits (Program.sleep, Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel) and after the entry constructor returns, and this program never waits: if this loop does not end, the REPL never answers. Wait somewhere in the loop, such as 'program.sleep(1)' at the end of a frame",
     )
 }
 

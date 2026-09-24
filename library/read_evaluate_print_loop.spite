@@ -35,7 +35,8 @@ func step(program: Spite.Attribute): Bool {
 func listen_in_background(port: Int, entry: Long) {
     if not server.listen_locally(port) {
         console.error("error: the REPL could not listen on 127.0.0.1:{port}")
-        Program().exit(1)
+        var program = Program()
+        program.exit(1)
         return
     }
     handover = memory.allocate_bytes(16)
@@ -47,7 +48,8 @@ func listen_in_background(port: Int, entry: Long) {
     thread = start_thread(entry)
     if thread == 0 {
         console.error("error: the REPL could not start its thread")
-        Program().exit(1)
+        var program = Program()
+        program.exit(1)
     }
 }
 
@@ -91,7 +93,8 @@ func serve_client(client: Socket) {
             if trimmed_line == "exit" {
                 client.write_line("\{\"ok\":true,\"value\":\"\",\"type\":\"\"}")
                 client.close()
-                Program().exit(0)
+                var program = Program()
+                program.exit(0)
                 return
             }
             var json_line = json_line(answer)

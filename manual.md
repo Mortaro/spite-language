@@ -89,18 +89,20 @@ itself Spite: `launcher/launcher.spite`, at the root of the repository, is the c
 constructs, and its constructor is the whole of how a program is loaded:
 
 ```launcher.spite
+var build = Build()
+
 func Launcher() {
     load("library")
-    load("library/{Build().target_operating_system}")
-    load(Build().program)
+    load("library/{build.target_operating_system}")
+    load(build.program)
 }
 ```
 
 The compiler reads the launcher first and follows its `load` calls in order, instead of walking the standard
 library by a rule of its own: `library/`, then the folder of the operating system the program is compiled for
 (`library/windows/`, `library/linux/` and `library/mac/` are loaded only by name), then the program's folder,
-`Build().program`, the folder named on the command line. A `load` in the launcher may use text and the `Build`
-fields the compiler knows before reading anything (`target_operating_system`, `operating_system`, `program`, and
+`build.program`, the folder named on the command line. A `load` in the launcher may use text and the `Build`
+fields the compiler knows before reading anything, read through a `var` of the launcher bound to `Build()` (D110) (`target_operating_system`, `operating_system`, `program`, and
 the ones given as flags); anywhere else `load` still takes a literal. Loading the program's folder is what runs
 it: that one `load` constructs the program's entry class, runs a `--repl` loop on it, and releases it. `main`
 keeps only the floor -- it hands `argv` to `Arguments()`, puts standard output in binary mode on Windows, and after
@@ -1134,6 +1136,24 @@ the default `Spite.Class` declares; what follows still holds for the line.
   `Spite.Class` itself to move the default for every class at once is allowed and is D7's foot to shoot.
 - A class wanting an ordinary instance function named `is_singleton` gets the error above, which names the
   `singleton` line.
+- **A singleton is always bound to a variable before it is used** (D110, decided by Mortaro): "always force
+  singletons to be used as variables first so AI does not get tempted to inline it." A singleton's constructor
+  call may only be the whole value of a `var`; a member read or call on it, passing it, returning it, assigning
+  it or putting it in an operation is an error naming the fix (`diagnostics/inline_singleton`,
+  `diagnostics/inline_singleton_attribute`):
+
+  ```
+  console.print(Build().target_operating_system)
+  # error: 'Build' is a singleton: bind it once beside the attributes, 'var build = Build()', and use
+  # 'build.target_operating_system'
+  ```
+
+  The readings below are **(proposed by Claude, unconfirmed)**: the binding may be an attribute ("on top", which
+  the message names) or a local `var` in a function -- a value class such as `String` has no attribute to
+  spare, and an error path (`var program = Program()` before `program.exit(1)`) need not hold the program for
+  the object's whole life. D77 lets a constructor be an argument; a singleton's constructor is the exception
+  (`greet(Console())` is an error). A generic singleton (`TypedMemory<Int>()`) is covered the same way. As
+  with D77, only code the compiler generates is checked: a function nothing calls is not.
 
 Rejected on the way here, each for a reason worth keeping: `$singleton = true` and `$instances = 1` (`$` means
 "replaced at code generation", and a directive the compiler reads and deletes is never replaced by anything); a
@@ -1503,7 +1523,7 @@ is how it is built (proposed by Claude, unconfirmed, except where a decision is 
   so `if build.target_operating_system == "windows" { }` keeps one branch. Each system's folder reopens `Build`
   with `var target_operating_system = "linux"`, which is only the default a compiler that does not fold `Build`
   sees -- the seed while bootstrapping. The compiler learns which system it runs on from its own
-  `Build().target_operating_system`, folded when it was built.
+  `build.target_operating_system`, folded when it was built.
 - **`program`** is the folder named on the command line, which the launcher loads; the compiler supplies it and
   giving it is an error.
 - **`--final_classes` prints `Build` with its declared defaults**, not the values one build folded, so running the
@@ -1569,8 +1589,8 @@ compiler decides best use placement." A program has one way to ask for memory, `
 one way to give it back, `free`; where the bytes live is the compiler's choice, and the program's text is the
 same whichever it makes:
 
-- **Register:** a number's own memory, declared in its file as `var _memory = Memory().allocate_bytes(4)` (for
-  `Int`). The wrapper is flattened: a number is its C scalar, and `this` is the value.
+- **Register:** a number's own memory, declared in its file as `var memory = Memory()` and then
+  `var _memory = memory.allocate_bytes(4)` (for `Int`; the `memory` binding is never a field, D110). The wrapper is flattened: a number is its C scalar, and `this` is the value.
 - **Frame:** `var name = memory.allocate_bytes(bytes)` in a function, when a later statement of the same block
   is `memory.free(name)` and every other use of `name` hands it to `memory`'s reads, writes, `copy_bytes`,
   `compare_bytes` or `text` -- it is never stored, returned, assigned, resized or passed to anything else, and
@@ -1632,7 +1652,7 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   `Build` (`target_operating_system`). There is no wrapper class in between: a platform file holds its own
   `DynamicLibrary("libc.so.6", 'identity', "")`, which is one shared instance per literal argument list (D8), and
   a one-line foreign call two classes both need is written in both. The launcher (section 3) loads `library/`
-  first and then the one folder named by `Build().target_operating_system`; that folder adds no namespace segment,
+  first and then the one folder named by `build.target_operating_system`; that folder adds no namespace segment,
   and its files are read after `library/`'s own, so they replace or add members by the reopening rule above. `--final_classes`
   prints each class as it came out, platform functions included. Because exactly one folder is loaded,
   `library/file.spite` calls `open_file` without declaring it: every system's folder defines it, with the same
@@ -1704,6 +1724,8 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   - A text with holes is not a call argument, and each hole is read like a line of its own:
     `console.print("{count_words(text)} words")` is legal, `console.print("{shout(count_words(text))}")` is not.
   - A call in an `if` or `while` condition, a `return`, an assignment or an index is not an argument.
+  - A singleton's constructor is never an argument, nor anywhere but the whole value of a `var` (D110,
+    [Singletons](#singletons--implemented)).
   - Open for Mortaro: D18's markup nests tag calls (`html.div({ class: "card" }, html.h1(title), ...)` in
     [Markup](#markup--planned)), which this rule forbids as written unless a tag counts as a constructor.
   - Where the call sat on the right of `and`/`or` or in a `while` condition, the compiler's own sources compute it
@@ -2047,7 +2069,7 @@ will ever unwind back to a clean `main` return, so this does not attempt one).
   added to the library: D35 already says how a program is concurrent, and this thread belongs to the REPL.
 - **Answered where the program waits** (D37, built 2026-09-24; proposed by Claude, unconfirmed). The socket thread
   only reads a command, hands it to the program's scheduler (section 15, "Concurrency") and waits for the answer.
-  The scheduler answers it on the program's thread the next time the program waits -- `Program().sleep`,
+  The scheduler answers it on the program's thread the next time the program waits -- `program.sleep`,
   `Console.read_line()`, a `File` or `Socket` read or write, a `Concurrent` wait, a `Parallel` join -- so a command
   sees the program between two steps, never in the middle of one, and "data races are accepted" above no longer
   applies. After the constructor returns, the program waits for nothing but commands. A `--repl_port` build of a
@@ -2062,7 +2084,7 @@ will ever unwind back to a clean `main` return, so this does not attempt one).
   `"type"` is the class of the value, empty for `help`, `attributes` and `functions`, and `Nothing` for a call
   that returns nothing. Every message the console loop prints as a complaint is `"ok":false` on the wire.
   JSON escapes are `\"`, `\\`, `\n`, `\r`, `\t` and `\u00XX` for any other control character.
-- **`exit`** answers `{"ok":true,"value":"","type":""}`, closes the connection and calls `Program().exit(0)`,
+- **`exit`** answers `{"ok":true,"value":"","type":""}`, closes the connection and calls `program.exit(0)`,
   which flushes what the program printed. It is handed over like any command, so the program stops at a wait
   first. When the constructor returns first, `main` serves commands until then. With `--repl` too, the console loop runs first, and after its `exit` the process keeps serving.
 - `spite program --repl_port=4000` is the form, as for every `Build` field; a port outside 1 to 65535 is an
@@ -2812,7 +2834,7 @@ loading and reopening, plus a codegen value.
   so `File`, `Directory` and `Process` on the web are a compile error like any other class used off its target.
 - **(D76 ended `$target` as a program variable; its build-time home is a `Build` field, D85 -- see [Build
   settings](#build-settings-build--implemented).)**
-- The isomorphic direction (`Environment().name` of `server` or `client` in `examples/arsenal`) is what the next section
+- The isomorphic direction (`environment.name` of `server` or `client` in `examples/arsenal`) is what the next section
   describes: a class compiled into both bundles, whose server-only functions become a network call on the client
   and a route registration on the server.
 
@@ -3309,3 +3331,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D113** (decided by Mortaro, settling part of D94's `while` rule): **a member template can call a function of the caller for each element, and a `while` written only to do that is an error.** "we should have a way to iterate just for sake of console log for example a function `func say_hello(name: String) {...}` and then instead of say_hello_to_everyone we just map_say_hello() ... whiles created just for a thing that should be a function instead should be a compiler error i suspect it will narrow a lot our whiles." So `names.each_say_hello()` calls the caller's own `say_hello(name)` once per element (`each_` rather than `map_`, since nothing is collected; `map_` does the same and keeps each result when the function returns one). D94's review counted 145 loops of this shape -- the largest group -- so the error names the template to write. |
 | 2026-09-24 | (implements D113; the readings below proposed by Claude, unconfirmed) **A template's member may be a function of the caller that takes the element alone, and the element's own member and such a function never both answer.** The caller is the class the call is written in; its function must have one parameter whose type equals the element type, and D15's requirements apply to its return type (`map_` of one returning nothing is the error, now naming `each_`). It works on a list or dictionary of any element type, `String` and numbers included. **When the element has a member of the same name, the call is an error naming both** rather than an order deciding: D113 allowed either, and an order would let a member added later change what an unrelated caller runs (`mortaros_missing_decisions.md` item 58). No template changed: the `library/list.spite` template is instantiated per calling class with a hidden last parameter for the caller, passed as `self`, and `item.attributes[member]` reads as `caller.<function>(item)`; such instances are not listed in the list's `functions` or offered at the REPL prompt. Fused chains (D105) take these steps too, after a `map_` to any type the fusion can spell, and pass the caller last. Section 8, `conformance/stage6/caller_templates`. |
 | 2026-09-24 | (implements D113's error; the shape proposed by Claude, unconfirmed) **The `while` that only passes each element to a caller function is an error, detected only where the rewrite is exact**: the statement before sets the counter to `0`; the condition is `counter < list.count()` on a name or path of type `List<T>`; the body is `f(list[counter])` or `var item = list[counter]` then `f(item)`, plus `counter = counter + 1` (last, or right after the `var`); `f` is a function of the class taking one `T`, and `T` has no member `f`. The message names the template: `this 'while' only calls 'say_hello' with each element of 'names': write 'names.each_say_hello()'` (`diagnostics/caller_templates`). **2 loops were rewritten**, `generator.spite`'s `collect_body_facts` and `docs/reflection.md`'s `function_reflection`: D94's 145 were almost all loops that pass more than the element (`depth`, `scope`), which D113 does not cover and which stay `while`; how to carry them is `mortaros_missing_decisions.md` item 57. The review file's counts are updated. |
+| 2026-09-24 | (implements D110; the readings proposed by Claude, unconfirmed) **A singleton's constructor call may only be the whole value of a `var`.** A call constructing a class with a `singleton` line (a generic one too) that is anything else -- the receiver of a member read or call, an argument, a returned or assigned value, an operand, a list element -- is an error: "'Build' is a singleton: bind it once beside the attributes, 'var build = Build()', and use 'build.target_operating_system'" (or "and use 'console'" when nothing is read from it). The binding may be an attribute or a local `var`: `String` keeps `Memory` in locals because a value class has no attribute to spare, and an error path binds `Program` where it exits. D77's constructor-as-argument does not extend to singletons. Checked on every statement the compiler generates and every attribute default, beside D77's check (`diagnostics/inline_singleton`, `diagnostics/inline_singleton_attribute`). On the way: **`Program` has its `singleton` line** -- D8 and section 15 already called it a singleton, but its file never said so, so every `Program().exit(1)` made an object; **`Build` is a static object** like `Memory` (D108's third row), since each of its fields is folded and it holds nothing at run time, so the launcher's `var build = Build()` costs no allocation and no allocation count changed; **the launcher** reads `load("library/{build.target_operating_system}")` and `load(build.program)` through a launcher `var` bound to `Build()`; **a number declares its storage in two lines**, `var memory = Memory()` and `var _memory = memory.allocate_bytes(4)`, where the binding is never a field and the compiler requires the allocation to go through it -- chosen over exempting `var _memory = Memory().allocate_bytes(4)`, because a number's file is where an AI learns how memory is declared. 58 sites were rewritten in `bootstrap/`, `launcher/`, `library/` (the eleven numbers, `environment`, the REPL), `scripts/`, `conformance/`, `diagnostics/` and `docs/`, 16 of them the compiler's own `Program()` calls. Sections 3, 8 to 12 and 14. |

@@ -14,7 +14,8 @@ func setting(name: String): String? {
         index = index + 1
     }
     var upper_case_name = name.upper_case()
-    return Program().environment(upper_case_name)
+    var program = Program()
+    return program.environment(upper_case_name)
 }
 
 func boolean_setting(name: String, declared: Bool): Bool {

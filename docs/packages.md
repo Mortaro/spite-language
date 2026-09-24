@@ -18,7 +18,7 @@ func Game() {
 - `load` only ever takes a literal string -- a variable or expression there is a diagnostic, so the compiler
   always knows every bundle statically. The one exception is the launcher, the Spite program that loads the
   standard library and then yours ([programs.md](programs.md#how-a-program-is-loaded)): its `load` may also use
-  the `Build` fields the compiler already knows, like `Build().target_operating_system`.
+  the `Build` fields the compiler already knows, like `build.target_operating_system` after `var build = Build()`.
 - Folder names are always lowercase `snake_case`, checked for every folder that actually contains a `.spite`
   file anywhere inside it.
 - Resolving a bare `Name` from inside a class tries, in order: that class's own namespace, its folder, each
@@ -158,7 +158,7 @@ func SpiteNamespaceError() {
 
 `load` marks where a dynamic library or lazy-loaded bundle could split, the way an async `import()` does in
 webpack. Today every root is linked into the one executable, and a `load(...)` call compiles to nothing at run
-time -- except the launcher's `load(Build().program)`, which runs the program by constructing its entry class.
+time -- except the launcher's `load(build.program)`, which runs the program by constructing its entry class.
 Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are decided but not built
 ([manual section 11](../manual.md#11-packages-namespaces-and-loading--partial)).
 

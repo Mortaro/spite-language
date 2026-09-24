@@ -5,7 +5,9 @@ var comment_root = ""
 var error_message = ""
 var walking_library = false
 var formats = false
-var host_operating_system = Build().target_operating_system
+var console = Console()
+var build = Build()
+var host_operating_system = build.target_operating_system
 var supplied_settings = Dictionary<String>()
 var bare_settings = List<String>()
 var build_values = Dictionary<String>()
@@ -117,7 +119,7 @@ func load_folder(call: Syntax.Expressions.CallExpression, entry_path: String, en
     var path = load_path(call.arguments[0])
     if not path {
         has_error = true
-        error_message = "{launcher_path()}: error: the launcher loads folders known when compiling: text, and Build fields given to the compiler, like load(\"library/\{Build().target_operating_system}\")"
+        error_message = "{launcher_path()}: error: the launcher loads folders known when compiling: text, and Build fields given to the compiler, like load(\"library/\{build.target_operating_system}\") beside 'var build = Build()'"
         return
     }
     crash path
@@ -160,11 +162,48 @@ func load_path(expression: Syntax.Expressions.Expression): String? {
     var member = shape.as_member(expression)
     if member {
         crash member.object
-        if is_build_call(member.object) {
-            return supplied_settings[member.name]
+        var receiver = shape.as_identifier(member.object)
+        if receiver {
+            if launcher_binds_build(receiver.name) {
+                return supplied_settings[member.name]
+            }
         }
     }
     return null
+}
+
+func launcher_binds_build(name: String): Bool {
+    var launcher = class_file_named("Launcher")
+    crash launcher
+    if declares_build(launcher.statements, name) {
+        return true
+    }
+    var index = 0
+    while index < launcher.statements.count() {
+        var function = shape.as_function_declaration(launcher.statements[index])
+        if function {
+            if function.name == "Launcher" {
+                return declares_build(function.body, name)
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func declares_build(statements: List<Syntax.Statements.Statement>, name: String): Bool {
+    var index = 0
+    while index < statements.count() {
+        var declaration = shape.as_variable_declaration(statements[index])
+        if declaration {
+            crash declaration.value
+            if declaration.name == name and is_build_call(declaration.value) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func is_build_call(expression: Syntax.Expressions.Expression): Bool {
@@ -592,7 +631,7 @@ func formatted_source(path: String, source: String): String {
     var formatted = formatter.format(source)
     if not formatted {
         if not formatter.refusal.contains("parse") and not formatter.refusal.contains("lex") {
-            Console().error("{path}: not formatted: {formatter.refusal}")
+            console.error("{path}: not formatted: {formatter.refusal}")
         }
         return source
     }
@@ -603,7 +642,7 @@ func formatted_source(path: String, source: String): String {
     if not File(path).write(formatted) {
         return source
     }
-    Console().error("formatted {path}")
+    console.error("formatted {path}")
     return formatted
 }
 
@@ -899,7 +938,8 @@ func boolean_literal(text: String): Syntax.Expressions.Expression? {
 }
 
 func integer_literal(text: String): Syntax.Expressions.Expression? {
-    assert Environment().is_whole_number(text)
+    var environment = Environment()
+    assert environment.is_whole_number(text)
     if text.starts_with("-") {
         var text_length = text.length()
         var magnitude_text = text.slice(1, text_length)

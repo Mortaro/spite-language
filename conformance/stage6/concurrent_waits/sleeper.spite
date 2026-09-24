@@ -1,3 +1,4 @@
+var program = Program()
 var name = ""
 var milliseconds = 0
 var log = List<String>()
@@ -10,7 +11,7 @@ func Sleeper(starting_name: String, starting_milliseconds: Int, shared_log: List
 
 func nap(): String {
     log.append("{name} falls asleep")
-    Program().sleep(milliseconds)
+    program.sleep(milliseconds)
     log.append("{name} wakes up")
     return name
 }
