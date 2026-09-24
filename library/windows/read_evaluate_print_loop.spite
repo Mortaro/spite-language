@@ -8,3 +8,7 @@ func start_thread(entry: Long): Long {
 func join_thread(started: Long) {
     kernel.WaitForSingleObject(started, -1)
 }
+
+func pause_briefly() {
+    kernel.Sleep(1)
+}

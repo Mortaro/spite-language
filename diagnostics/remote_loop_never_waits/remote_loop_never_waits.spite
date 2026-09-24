@@ -1,0 +1,10 @@
+var console = Console()
+var frame = 0
+var running = true
+
+func RemoteLoopNeverWaits() {
+    while running {
+        frame = frame + 1
+    }
+    console.print("stopped")
+}

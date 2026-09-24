@@ -154,6 +154,10 @@ func is_alive(): Bool {
 `append`, `exists`, `remove`), `Directory(path)` (`files`, `folders`, `exists`, `create`),
 `Process(command, arguments)` (`run(): Int`, `output()`), `Program()` (`exit(code)`, `sleep(milliseconds)`,
 `environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere.
+`Concurrent(function)` runs a function on a fiber and `Parallel(function)` on a thread: `.wait()` answers what it
+returned, the type is never written, and dropping the handle waits for it. There is no `async`/`await`: a function
+that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can
+run ([concurrency.md](concurrency.md)).
 
 ## Habits from other languages that Spite rejects
 

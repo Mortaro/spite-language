@@ -155,6 +155,18 @@ and balanced allocations.
       (2026-09-24)**: the same `answer` over a `Socket` (`library/socket.spite`, reopened per operating system)
       on a thread the compiler's two-line C entry starts; `check.sh` replays `docs/repl.md`'s ` ```wire ` session
       against the real program. Linux and macOS sockets and threads compile but have not run.
+      D37's drain points -- **done (2026-09-24)**: commands are answered on the program's thread where it waits,
+      through the scheduler below; a `--repl-port` build of a loop that never waits is a compile error.
+    - **15f. Hidden async/await and threads (D35, D37, D99, D103) -- done on Windows (2026-09-24).**
+      `Concurrent(function)` runs on a fiber (`library/concurrent.spite`, `library/scheduler.spite`, each system's
+      folder for fibers, an event and a clock); `Parallel(function)` on a thread (`library/parallel.spite`). The
+      compiler wraps the blocking calls (`Program.sleep`, and the system call under `Console.read_line`, `File`
+      reads and writes, `Socket.accept_client`/`read_line`) in programs that use the scheduler, blocks when nothing
+      else could run, and counts references atomically only in programs that start a thread. Codegen values are
+      inferred from constructor arguments. `docs/concurrency.md`, `conformance/stage6/concurrent_waits`,
+      `conformance/stage6/parallel_work`. **Next:** a thread pool and `parallel_each_` templates for the engine,
+      D35's race rule, HTTP and database calls through the same waits, and running the Linux and macOS folders.
+      Names and mechanism wait on Mortaro (`mortaros_missing_decisions.md` 13-18).
     - **15e.** The web shim: drive the hand-written portion to zero by generating the imports from `external js`
       declarations and the command-buffer drain loop from its opcode table (milestone 12). It cannot become
       Spite -- it runs in the JavaScript virtual machine -- but it can stop being authored. Goal, not a
