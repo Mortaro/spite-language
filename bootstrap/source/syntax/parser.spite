@@ -230,8 +230,8 @@ func borrowed_word_lesson(word: String): String {
     if word == "new" {
         return "there is no 'new' in Spite: a class is made by calling its own name, like 'Creature(\"rat\")'"
     }
-    if word == "this" or word == "self" {
-        return "a class reads its own attributes by name: write 'name', not '{word}.name'"
+    if word == "self" {
+        return "there is no 'self': a class reads its own attributes by name ('name', not 'self.name'), and 'this' is the value itself"
     }
     if word == "import" or word == "require" {
         return "there are no imports: 'load(\"folder\")' inside a function brings a folder into the program, and everything shares one namespace"
@@ -374,8 +374,15 @@ func parse_function_declaration(): Syntax.Statements.Statement {
     if check('colon') {
         advance()
         return_type = parse_type()
-    } else if not check('left_brace') {
+    } else if not check('left_brace') and not at_statement_end() {
         fail("a return type is written '(): {current().lexeme}': add the ':' after the parameter list")
+    }
+    if at_statement_end() {
+        var no_body = List<Syntax.Statements.Statement>()
+        var supplied = Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, no_body)
+        supplied.has_body = false
+        supplied.codegen_names = codegen_names
+        return supplied
     }
     var body = parse_block()
     var declaration = Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
@@ -1163,6 +1170,9 @@ func parse_primary(): Syntax.Expressions.Expression {
         advance()
         return Syntax.Expressions.FalseLiteral()
     }
+    if check('keyword_this') {
+        return parse_this()
+    }
     if check('identifier') {
         var lexeme = current().lexeme
         var borrowed = borrowed_word_lesson(lexeme)
@@ -1187,6 +1197,30 @@ func parse_primary(): Syntax.Expressions.Expression {
         return parse_object_literal()
     }
     fail("expected an expression but found '{current().lexeme}'")
+    return dummy_expression()
+}
+
+func parse_this(): Syntax.Expressions.Expression {
+    if next_kind() != 'dot' {
+        advance()
+        return Syntax.Expressions.IdentifierExpression("this")
+    }
+    var following = position + 2
+    var after = position + 3
+    var member = "name"
+    var called = false
+    if following < tokens.count() {
+        member = tokens[following].lexeme
+    }
+    if after < tokens.count() {
+        called = tokens[after].kind == 'left_paren'
+    }
+    if called {
+        fail("a class calls its own functions by name: write '{member}()', not 'this.{member}()'")
+    } else {
+        fail("a class reads its own attributes by name: write '{member}', not 'this.{member}'")
+    }
+    advance()
     return dummy_expression()
 }
 

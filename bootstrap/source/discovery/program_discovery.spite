@@ -48,6 +48,7 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
             return failure(error_message)
         }
     }
+    reopen_with_supplied_members()
     entry_file.path = entry_path
     add_parsed_file(entry_file, empty_segments, entry_stem)
     walk_directory(entry_directory, empty_segments, entry_basename, load_names)
@@ -451,6 +452,24 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
         return
     }
     class_files.append(DiscoveredClass(mangled_name, simple_name, namespace_dotted, qualified_dotted, parsed_file))
+}
+
+func reopen_with_supplied_members() {
+    var prelude = Generation.Prelude()
+    var stems = prelude.reopened_classes()
+    var index = 0
+    while index < stems.count() {
+        var stem = stems[index]
+        var source = prelude.reopening(stem)
+        var lexer = Syntax.Lexer(source)
+        var parser = Syntax.Parser(lexer.tokens)
+        var parsed_file = parser.parse_file()
+        crash not parser.has_error
+        parsed_file.path = prelude.path()
+        var no_segments = List<String>()
+        add_parsed_file(parsed_file, no_segments, stem)
+        index = index + 1
+    }
 }
 
 func declared_name(statement: Syntax.Statements.Statement): String {

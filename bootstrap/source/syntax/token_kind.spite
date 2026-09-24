@@ -26,6 +26,7 @@ enum TokenKind {
     'keyword_null'
     'keyword_true'
     'keyword_false'
+    'keyword_this'
     'plus'
     'minus'
     'star'

@@ -83,6 +83,13 @@ func stands_apart(previous: Syntax.Statements.Statement, next: Syntax.Statements
     if previous_attribute and next_attribute {
         return false
     }
+    var previous_function = shape.as_function_declaration(previous)
+    var next_function = shape.as_function_declaration(next)
+    if previous_function {
+        if next_function {
+            return previous_function.has_body or next_function.has_body
+        }
+    }
     return true
 }
 
@@ -283,6 +290,9 @@ func source_function(function: Syntax.Statements.FunctionDeclaration, depth: Int
         returns = ": {source_type(function.return_type)}"
     }
     var header = "{source_indent(depth)}func {function.name}{codegen}({parameters}){returns} \{"
+    if not function.has_body {
+        return "{source_indent(depth)}func {function.name}{codegen}({parameters}){returns}"
+    }
     if header.length() > 120 {
         var listed = ""
         index = 0

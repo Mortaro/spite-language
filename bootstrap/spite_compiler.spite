@@ -278,9 +278,6 @@ func run_final_classes_mode(file_argument: String, content: String, output_direc
         }
         index = index + 1
     }
-    var built_in_class_names = generator.built_in_class_names()
-    var built_in_class_sources = generator.built_in_class_sources()
-    write_class_views(output_directory, "built_in", built_in_class_names, built_in_class_sources)
     var instantiated_class_names = generator.instantiated_class_names()
     var instantiated_class_sources = generator.instantiated_class_sources()
     write_class_views(output_directory, "instantiated", instantiated_class_names, instantiated_class_sources)

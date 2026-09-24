@@ -22,7 +22,6 @@ var foreign_symbol_names = List<String>()
 var foreign_symbol_wanted = List<String>()
 var foreign_headers_included = List<String>()
 var function_value_makers = List<String>()
-var written_in_spite = List<String>()
 var read_evaluate_print_loop = false
 var development = false
 var reflect_function_names = List<String>()
@@ -89,37 +88,6 @@ func allocate_class_id(debug_name: String): Int {
     return class_names_by_id.count() - 1
 }
 
-func register_system_class(name: String): Analysis.ClassInfo {
-    var class_id = allocate_class_id(name)
-    var information = Analysis.ClassInfo(name, name, "", name, class_id)
-    information.is_builtin = true
-    if not written_in_spite.contains(name) {
-        classes.append(information)
-    }
-    return information
-}
-
-func add_builtin_function(
-    information: Analysis.ClassInfo,
-    name: String,
-    parameters: List<Analysis.ParamInfo>,
-    return_type: Analysis.SpiteType,
-) {
-    var is_constructor = name == information.simple_name
-    var function = Analysis.FunctionInfo(
-        name,
-        "{information.c_name}_{name}",
-        parameters,
-        return_type,
-        List<Syntax.Statements.Statement>(),
-        is_constructor,
-    )
-    if is_constructor {
-        information.constructor = function
-    }
-    information.functions.append(function)
-}
-
 func no_parameters(): List<Analysis.ParamInfo> {
     return List<Analysis.ParamInfo>()
 }
@@ -135,85 +103,10 @@ func two_parameters(
     return parameters
 }
 
-func memory_write_parameters(value_type: Analysis.SpiteType): List<Analysis.ParamInfo> {
-    var address_type = long_type()
-    var parameters = two_parameters("address", address_type, "offset", address_type)
-    parameters.append(Analysis.ParamInfo("value", value_type))
-    return parameters
-}
-
 func one_parameter(name: String, spite_type: Analysis.SpiteType): List<Analysis.ParamInfo> {
     var result = List<Analysis.ParamInfo>()
     result.append(Analysis.ParamInfo(name, spite_type))
     return result
-}
-
-func register_system_classes() {
-    var text_type = string_type()
-    var nothing_type = void_type()
-    var address_type = long_type()
-    var integer_number_type = integer_type()
-    var double_number_type = double_type()
-    var symbol_type = Analysis.Types.SymbolType()
-    var dynamic_library = register_system_class("DynamicLibrary")
-    var library_parameters = one_parameter("file_name", text_type)
-    library_parameters.append(Analysis.ParamInfo("naming", symbol_type))
-    library_parameters.append(Analysis.ParamInfo("header", text_type))
-    add_builtin_function(dynamic_library, "DynamicLibrary", library_parameters, nothing_type)
-    var memory = register_system_class("Memory")
-    memory.is_singleton = true
-    var byte_type: Analysis.SpiteType = Analysis.Types.ScalarType('byte_kind')
-    var constructor_parameters = no_parameters()
-    add_builtin_function(memory, "Memory", constructor_parameters, nothing_type)
-    var allocate_parameters = one_parameter("bytes", address_type)
-    add_builtin_function(memory, "allocate_bytes", allocate_parameters, address_type)
-    var resize_parameters = two_parameters("address", address_type, "bytes", address_type)
-    add_builtin_function(memory, "resize", resize_parameters, address_type)
-    var free_parameters = one_parameter("address", address_type)
-    add_builtin_function(memory, "free", free_parameters, nothing_type)
-    var read_byte_parameters = two_parameters("address", address_type, "offset", address_type)
-    add_builtin_function(memory, "read_byte", read_byte_parameters, byte_type)
-    var read_integer_parameters = two_parameters("address", address_type, "offset", address_type)
-    add_builtin_function(memory, "read_int", read_integer_parameters, integer_number_type)
-    var read_long_parameters = two_parameters("address", address_type, "offset", address_type)
-    add_builtin_function(memory, "read_long", read_long_parameters, address_type)
-    var read_double_parameters = two_parameters("address", address_type, "offset", address_type)
-    add_builtin_function(memory, "read_double", read_double_parameters, double_number_type)
-    var write_byte_parameters = memory_write_parameters(byte_type)
-    add_builtin_function(memory, "write_byte", write_byte_parameters, nothing_type)
-    var write_integer_parameters = memory_write_parameters(integer_number_type)
-    add_builtin_function(memory, "write_int", write_integer_parameters, nothing_type)
-    var write_long_parameters = memory_write_parameters(address_type)
-    add_builtin_function(memory, "write_long", write_long_parameters, nothing_type)
-    var write_double_parameters = memory_write_parameters(double_number_type)
-    add_builtin_function(memory, "write_double", write_double_parameters, nothing_type)
-    var copy_parameters = two_parameters("from", address_type, "to", address_type)
-    copy_parameters.append(Analysis.ParamInfo("bytes", address_type))
-    add_builtin_function(memory, "copy_bytes", copy_parameters, nothing_type)
-    var text_parameters = two_parameters("address", address_type, "length", address_type)
-    add_builtin_function(memory, "text", text_parameters, text_type)
-    var live_allocations_parameters = no_parameters()
-    add_builtin_function(memory, "live_allocations", live_allocations_parameters, integer_number_type)
-    var address_of_parameters = one_parameter("text", text_type)
-    add_builtin_function(memory, "address_of", address_of_parameters, address_type)
-    var compare_parameters = two_parameters("first", address_type, "second", address_type)
-    compare_parameters.append(Analysis.ParamInfo("bytes", address_type))
-    add_builtin_function(memory, "compare_bytes", compare_parameters, integer_number_type)
-    var take_text_parameters = two_parameters("address", address_type, "length", address_type)
-    add_builtin_function(memory, "take_text", take_text_parameters, text_type)
-}
-
-func built_in_class_sources(): List<String> {
-    var sources = List<String>()
-    var index = 0
-    while index < classes.count() {
-        if classes[index].is_builtin {
-            var class_view_source = class_view_source(classes[index], classes[index].simple_name)
-            sources.append(class_view_source)
-        }
-        index = index + 1
-    }
-    return sources
 }
 
 func generated_functions_source(qualified: String): String {
@@ -289,18 +182,6 @@ func is_word_character_at(text: String, index: Int): Bool {
     }
     var character = text.slice(index, index + 1)
     return character == "_" or character == "." or character.lower_case() != character.upper_case() or "0123456789".contains(character)
-}
-
-func built_in_class_names(): List<String> {
-    var names = List<String>()
-    var index = 0
-    while index < classes.count() {
-        if classes[index].is_builtin {
-            names.append(classes[index].simple_name)
-        }
-        index = index + 1
-    }
-    return names
 }
 
 func class_view_source(information: Analysis.ClassInfo, display_name: String): String {
@@ -381,7 +262,7 @@ func emitted_qualified_names(): List<String> {
     var index = 0
     while index < classes.count() {
         var information = classes[index]
-        if information.is_emitted and not information.is_builtin and not is_instantiated_class(information) {
+        if information.is_emitted and not is_instantiated_class(information) {
             names.append(information.qualified_dotted)
         }
         index = index + 1
@@ -409,16 +290,6 @@ func built_in_signature(function: Analysis.FunctionInfo): String {
 func emit_system_classes(system_structs: String, system_prototypes: String, system_bodies: String) {
     var string_type = string_type()
     ensure_list(string_type)
-    var defines = List<String>()
-    var index = 0
-    while index < classes.count() {
-        if classes[index].is_builtin {
-            defines.append("#define SPITE_CLASS_ID_{classes[index].simple_name.upper_case()} {classes[index].class_id}")
-        }
-        index = index + 1
-    }
-    var joined_defines = defines.join("\n")
-    builder.add_typedef(joined_defines)
     builder.add_typedef(system_structs)
     builder.add_prototype(system_prototypes)
     builder.add_support(system_bodies)
@@ -436,12 +307,6 @@ func generate(
     builder.add_typedef(
         "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_kept = spite_assert_total < 32 ? spite_assert_total : 32;\nfor (int64_t spite_index = spite_assert_total - spite_kept; spite_index < spite_assert_total; spite_index = spite_index + 1) \{ fputs(spite_assert_trace[spite_index % 32], stderr); }\nif (spite_assert_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_assert_total - 32)); }\n}",
     )
-    var discovered_index = 0
-    while discovered_index < discovery.class_files.count() {
-        written_in_spite.append(discovery.class_files[discovered_index].qualified_dotted)
-        discovered_index = discovered_index + 1
-    }
-    register_system_classes()
     register_classes(discovery.class_files)
     emit_enums()
     var forward_index = 0
@@ -460,7 +325,7 @@ func generate(
     }
     var index = 0
     while index < classes.count() {
-        if not classes[index].is_builtin and not classes[index].is_generic_template {
+        if not classes[index].is_generic_template {
             emit_class(classes[index])
         }
         index = index + 1
@@ -494,8 +359,8 @@ func generate(
         final_settle = final_settle + 1
     }
     emit_text_bytes()
-    emit_symbol_table()
     emit_foreign_libraries()
+    emit_symbol_table()
     emit_allocation_table()
     emit_main(discovery.entry_mangled_name)
     emit_pending_functions()
@@ -508,8 +373,11 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
     var index = 0
     while index < discovered.count() {
         var entry = discovered[index]
-        if entry.qualified_dotted == "String" {
-            classes.append(Analysis.ClassInfo("SpiteString", "String", "", "String", 0))
+        var value_type = value_type_named(entry.qualified_dotted)
+        if value_type {
+            classes.append(
+                Analysis.ClassInfo("Spite{entry.qualified_dotted}", entry.qualified_dotted, "", entry.qualified_dotted, 0),
+            )
             classes.last().is_value_class = true
         } else {
             var class_id = allocate_class_id(entry.mangled_name)
@@ -1849,7 +1717,7 @@ func emit_pending_functions() {
         var class_index = 0
         while class_index < classes.count() {
             var information = classes[class_index]
-            if not information.is_builtin and not information.is_generic_template {
+            if not information.is_generic_template {
                 if not information.is_emitted {
                     emit_class(information)
                     emitted_any = true
@@ -1900,7 +1768,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         )
     }
     var is_conversion = information.is_value_class and declaration.name.starts_with("to_")
-    if not is_constructor and not is_conversion {
+    if not is_constructor and not is_conversion and declaration.has_body {
         check_value_name(declaration.name, "function")
     }
     var c_name = "{information.c_name}_{declaration.name}"
@@ -1913,6 +1781,9 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         is_constructor,
     )
     function.source_path = declaration.source_path
+    if not declaration.has_body {
+        supply_body(information, function)
+    }
     if declares_singleton(declaration) {
         information.is_singleton = true
     }
@@ -1935,6 +1806,21 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         existing = existing + 1
     }
     information.functions.append(function)
+}
+
+func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    function.has_body = false
+    var stem = words_of(information.simple_name).join("_")
+    var supplied = Prelude().supplied_body(stem, function.name)
+    if supplied {
+        if information.namespace_dotted.is_empty() {
+            function.supplied_body = supplied
+            return
+        }
+    }
+    report(
+        "'{information.simple_name}.{function.name}' has no body, and only a function whose body the compiler supplies is written without one: give it a body",
+    )
 }
 
 func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String): Analysis.SpiteType? {
@@ -2152,6 +2038,50 @@ func boolean_type(): Analysis.SpiteType {
 func string_type(): Analysis.SpiteType {
     var resolved: Analysis.SpiteType = Analysis.Types.StringType()
     return resolved
+}
+
+func value_class_names(): List<String> {
+    return [
+        "Int"
+        "Long"
+        "Float"
+        "Double"
+        "Bool"
+        "Tiny"
+        "Short"
+        "Byte"
+        "UnsignedShort"
+        "UnsignedInt"
+        "UnsignedLong"
+    ]
+}
+
+func value_type_named(name: String): Analysis.SpiteType? {
+    if name == "String" {
+        return string_type()
+    }
+    var names = value_class_names()
+    if not names.contains(name) {
+        return null
+    }
+    var no_arguments = List<Syntax.Types.GenericArgument>()
+    var named = Syntax.Types.NamedType([name], no_arguments)
+    return resolve_named_type(named, "")
+}
+
+func value_class_of(kind: Analysis.Types.NumericKind): Analysis.ClassInfo? {
+    var scalar_type: Analysis.SpiteType = Analysis.Types.ScalarType(kind)
+    var name = type_label(scalar_type)
+    return find_class_by_c_name("Spite{name}")
+}
+
+func value_class_type(information: Analysis.ClassInfo): Analysis.SpiteType {
+    var value_type = value_type_named(information.qualified_dotted)
+    if value_type {
+        return value_type
+    }
+    var class_type: Analysis.SpiteType = Analysis.Types.ClassRefType(information.c_name)
+    return class_type
 }
 
 func long_type(): Analysis.SpiteType {
@@ -2542,6 +2472,13 @@ func is_float_kind(kind: Analysis.Types.NumericKind): Bool {
 func string_conversion(code: String, from: Analysis.SpiteType): String {
     var scalar = type_shape.as_scalar(from)
     if scalar {
+        var value_class = value_class_of(scalar.kind)
+        if value_class {
+            var text_function = value_class.find_function("text")
+            if text_function {
+                return "{text_function.c_name}({code})"
+            }
+        }
         if scalar.kind == 'boolean_kind' {
             return "spite_string_from_bool({code})"
         }
@@ -2582,6 +2519,11 @@ func emit_text_bytes() {
     builder.add_support(
         "SpiteString* SpiteString_slice(SpiteString* text, int64_t start, int64_t end) \{\nTextBytes* spite_text_bytes = {instance};\nSpiteString* spite_result = TextBytes_slice(spite_text_bytes, SpiteString_retain(text), (int32_t)start, (int32_t)end);\nTextBytes_release(spite_text_bytes);\nreturn spite_result;\n}",
     )
+}
+
+func long_text(code: String): String {
+    var wide_type = long_type()
+    return string_conversion("((int64_t)({code}))", wide_type)
 }
 
 func number_text_function(name: String, value_type: String): String {
@@ -2976,6 +2918,9 @@ func lookup_static_type(
         var self_type: Analysis.SpiteType = Analysis.Types.ClassRefType(class_information.c_name)
         return self_type
     }
+    if identifier.name == "this" {
+        return value_class_type(class_information)
+    }
     var scope_type = scope.lookup_type(identifier.name)
     if scope_type {
         return scope_type
@@ -3002,6 +2947,10 @@ func generate_identifier(
 ): ExpressionResult {
     if identifier.name == "self" {
         return ExpressionResult("self", Analysis.Types.ClassRefType(class_information.c_name))
+    }
+    if identifier.name == "this" {
+        var receiver_type = value_class_type(class_information)
+        return ExpressionResult("self", receiver_type)
     }
     var override = scope.lookup_override(identifier.name)
     var scope_type = scope.lookup_type(identifier.name)
@@ -3865,7 +3814,7 @@ func generate_own_function_call(
             }
         }
     }
-    if not function and class_information.is_value_class {
+    if not function and class_information.c_name == "SpiteString" {
         var receiver: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("self")
         var string_type = string_type()
         return generate_string_method(
@@ -4027,6 +3976,17 @@ func generate_method_call(
         report("Arguments has no method '{member.name}'")
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
+    var object_scalar = type_shape.as_scalar(object_result_type)
+    if object_scalar {
+        return generate_value_method(
+            object_scalar.kind,
+            member.name,
+            object_result,
+            arguments_ast,
+            scope,
+            class_information,
+        )
+    }
     var object_union = type_shape.as_union(object_result_type)
     if object_union {
         var union_information = find_union_by_c_name(object_union.c_name)
@@ -4158,6 +4118,30 @@ func generate_method_call(
         scope,
         class_information,
     )
+}
+
+func generate_value_method(
+    kind: Analysis.Types.NumericKind,
+    name: String,
+    object_result: ExpressionResult,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var value_class = value_class_of(kind)
+    if value_class {
+        var function = find_or_instantiate_function(value_class, name)
+        if function {
+            var parameter_types = parameter_types_of(function.parameters)
+            var argument_codes = generate_argument_list(arguments_ast, parameter_types, scope, class_information)
+            argument_codes.prepend(object_result.code)
+            var function_return_type = function.get_return_type()
+            return ExpressionResult("{function.c_name}({argument_codes.join(", ")})", function_return_type)
+        }
+    }
+    var object_result_type = object_result.get_type()
+    report("a {type_display_name(object_result_type)} has no function '{name}'")
+    return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
 func generate_borrowing_call(
@@ -4731,13 +4715,14 @@ func generate_list_template(
 }
 
 func is_listed_class(information: Analysis.ClassInfo): Bool {
-    if information.is_builtin or information.is_generic_template {
+    if information.is_generic_template {
         return false
     }
     if information.c_name.starts_with("Object_") or information.c_name.starts_with("Spite_") {
         return false
     }
-    if information.source_path.starts_with("library/") {
+    var prelude_path = Prelude().path()
+    if information.source_path.starts_with("library/") or information.source_path == prelude_path {
         return false
     }
     return information.c_name != "Nothing"
@@ -5257,7 +5242,7 @@ func walkable_class(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
     }
     var described = find_class_by_c_name(class_ref.c_name)
     assert described
-    if described.is_builtin or described.is_value_class or described.is_generic_template {
+    if described.is_value_class or described.is_generic_template {
         return null
     }
     return described
@@ -5271,12 +5256,12 @@ func reflected_text(spite_type: Analysis.SpiteType, code: String): String {
         return string_conversion(code, spite_type)
     }
     if type_shape.as_list(spite_type) {
-        return "{number_text_function("long_text", "int64_t")}({code}->item_count)"
+        return long_text("{code}->item_count")
     }
     var reflected_dictionary = type_shape.as_dictionary(spite_type)
     if reflected_dictionary {
         var reflected_dictionary_element = reflected_dictionary.get_element()
-        return "{number_text_function("long_text", "int64_t")}((int64_t){ensure_dictionary(reflected_dictionary_element)}_count({code}))"
+        return long_text("{ensure_dictionary(reflected_dictionary_element)}_count({code})")
     }
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
@@ -5341,7 +5326,7 @@ func ensure_list_attributes_function(element: Analysis.SpiteType): String {
     builder.add_prototype("{signature};")
     var reflect = ensure_reflect_function(element)
     builder.add_support(
-        "{signature} \{\n{attributes_list}* result = {attributes_list}_make();\nfor (int64_t spite_index = 0; spite_index < self->item_count; spite_index = spite_index + 1) {attributes_list}_append(result, {reflect}({number_text_function("long_text", "int64_t")}(spite_index), {list_item_code(element, "self", "spite_index")}));\nreturn result;\n}",
+        "{signature} \{\n{attributes_list}* result = {attributes_list}_make();\nfor (int64_t spite_index = 0; spite_index < self->item_count; spite_index = spite_index + 1) {attributes_list}_append(result, {reflect}({long_text("spite_index")}, {list_item_code(element, "self", "spite_index")}));\nreturn result;\n}",
     )
     return function_c_name
 }
@@ -5650,9 +5635,6 @@ func find_getter(
     attribute_name: String,
     calling_class: Analysis.ClassInfo,
 ): Analysis.FunctionInfo? {
-    if target_class.is_builtin {
-        return null
-    }
     var getter_name = "get_{attribute_name}"
     if target_class.c_name == calling_class.c_name and current_function == getter_name {
         return null
@@ -5671,9 +5653,6 @@ func find_setter(
     attribute_name: String,
     calling_class: Analysis.ClassInfo,
 ): Analysis.FunctionInfo? {
-    if target_class.is_builtin {
-        return null
-    }
     if not target_class.find_field(attribute_name) {
         return null
     }
@@ -5695,7 +5674,7 @@ func deep_copy_code(spite_type: Analysis.SpiteType, code: String): String {
     if class_ref {
         var copied_class = find_class_by_c_name(class_ref.c_name)
         if copied_class {
-            if not copied_class.is_builtin {
+            if not copied_class.is_singleton {
                 return "{ensure_class_deep_copy(copied_class)}({code})"
             }
         }
@@ -5734,6 +5713,13 @@ func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
     var lines = List<String>()
     lines.append("{information.c_name}* {function_c_name}({information.c_name}* self) \{")
     lines.append("if (self == 0) return 0;")
+    if information.is_singleton {
+        lines.append("return {information.c_name}_retain(self);")
+        lines.append("}")
+        var joined_singleton_lines = lines.join("\n")
+        builder.add_support(joined_singleton_lines)
+        return function_c_name
+    }
     lines.append("{information.c_name}* copied = {information.c_name}_allocate();")
     var index = 0
     while index < information.fields.count() {
@@ -6334,11 +6320,6 @@ func joins_as_text(element: Analysis.SpiteType): Bool {
     return type_shape.as_string(element) or type_shape.is_symbol(element) or type_shape.as_scalar(element) or is_enum_type(element)
 }
 
-func print_float_statement(code: String, stream: String, converter: String): String {
-    var temporary = next_temporary()
-    return "\{ SpiteString* {temporary} = {converter}({code}); fprintf({stream}, \"%s\", {temporary}->data); SpiteString_release({temporary}); }"
-}
-
 func printed_statement_for(
     expression_ast: Syntax.Expressions.Expression,
     stream: String,
@@ -6353,13 +6334,10 @@ func printed_statement_for(
         if scalar.kind == 'boolean_kind' {
             return "fprintf({stream}, \"%s\", ({result.code}) ? \"true\" : \"false\");"
         }
-        if scalar.kind == 'float_kind' {
-            var number_text_function = number_text_function("float_text", "float")
-            return print_float_statement(result.code, stream, number_text_function)
-        }
-        if scalar.kind == 'double_kind' {
-            var number_text_function = number_text_function("double_text", "double")
-            return print_float_statement(result.code, stream, number_text_function)
+        if is_float_kind(scalar.kind) {
+            var temporary = next_temporary()
+            var converted = string_conversion(result.code, result_type)
+            return "\{ SpiteString* {temporary} = {converted}; fprintf({stream}, \"%s\", {temporary}->data); SpiteString_release({temporary}); }"
         }
         if scalar.kind == 'unsigned_long_kind' {
             return "fprintf({stream}, \"%llu\", (unsigned long long)({result.code}));"
@@ -6920,15 +6898,21 @@ func abbreviated(word: String): String {
     return word
 }
 
+func owned_c_text(text: String): String {
+    return "spite_string_from_cstring_owned(\"{escape_c_string(text)}\")"
+}
+
 func emit_foreign_libraries() {
     var library = 0
     while library < foreign_library_files.count() {
         var accessor = "spite_foreign_library_{library}"
+        crash library < foreign_library_namings.count()
+        crash library < foreign_library_headers.count()
         var lines = List<String>()
         lines.append("DynamicLibrary* {accessor}(void) \{")
         lines.append("if ({accessor}_cache == 0) \{")
         lines.append(
-            "{accessor}_cache = DynamicLibrary_make(spite_string_from_cstring_owned(\"{escape_c_string(foreign_library_files[library])}\"));",
+            "{accessor}_cache = DynamicLibrary_make({owned_c_text(foreign_library_files[library])}, {ensure_symbol(foreign_library_namings[library])}, {owned_c_text(foreign_library_headers[library])});",
         )
         var index = 0
         while index < foreign_symbol_names.count() {
@@ -6936,7 +6920,7 @@ func emit_foreign_libraries() {
             crash index < foreign_symbol_wanted.count()
             if foreign_symbol_libraries[index] == library {
                 lines.append(
-                    "spite_foreign_{library}_{index} = DynamicLibrary_symbol({accessor}_cache, \"{escape_c_string(foreign_symbol_names[index])}\", \"{escape_c_string(foreign_symbol_wanted[index])}\");",
+                    "spite_foreign_{library}_{index} = (void*)(intptr_t)DynamicLibrary_find_symbol({accessor}_cache, {owned_c_text(foreign_symbol_names[index])}, {owned_c_text(foreign_symbol_wanted[index])});",
                 )
             }
             index = index + 1
@@ -7042,7 +7026,7 @@ func generate_member_read_raw(
                 every_class.owning_override = true
                 return every_class
             }
-            if named_class.is_builtin or named_class.is_generic_template {
+            if named_class.is_generic_template {
                 report("'{named_class.simple_name}.instances' is not available for this class")
                 return ExpressionResult("0", Analysis.Types.VoidType())
             }
@@ -9890,7 +9874,8 @@ func constructor_parameter_list(information: Analysis.ClassInfo): String {
 
 func function_signature(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
     var parts = List<String>()
-    parts.append("{information.c_name}* self")
+    var receiver_type = value_class_type(information)
+    parts.append("{c_type_name(receiver_type)} self")
     var index = 0
     while index < function.parameters.count() {
         var parameter = function.parameters[index]
@@ -10026,6 +10011,12 @@ func emit_class_support(information: Analysis.ClassInfo) {
     var joined_release_lines = release_lines.join("\n")
     builder.add_support(joined_release_lines)
     assert not information.find_function("copy")
+    if information.is_singleton {
+        builder.add_support(
+            "{information.c_name}* {information.c_name}_copy({information.c_name}* self) \{ return {information.c_name}_retain(self); }",
+        )
+        return
+    }
     var copy_lines = List<String>()
     copy_lines.append("{information.c_name}* {information.c_name}_copy({information.c_name}* self) \{")
     copy_lines.append(
@@ -10068,6 +10059,10 @@ func emit_class_support(information: Analysis.ClassInfo) {
 func emit_user_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
     assert not function.is_emitted
     function.is_emitted = true
+    if not function.has_body {
+        builder.add_user("{function_signature(information, function)} \{\n{function.supplied_body}\n}")
+        return
+    }
     site_ordinal = 0
     current_class = information
     current_function = function.name
