@@ -7723,6 +7723,11 @@ func generate_foreign_call(
     }
     var foreign_symbol_name = foreign_symbol_name(name, foreign_library_namings[library])
     var pointer = ensure_foreign_symbol(library, foreign_symbol_name)
+    crash library < foreign_library_headers.count()
+    var header = foreign_library_headers[library]
+    if not header.is_empty() {
+        ensure_foreign_header(header)
+    }
     var lines = List<String>()
     var releases = List<String>()
     var afters = List<String>()
@@ -7736,17 +7741,12 @@ func generate_foreign_call(
         var argument_type = argument.get_type()
         var scalar = type_shape.as_scalar(argument_type)
         if scalar {
-            if scalar.kind == 'boolean_kind' {
-                parameter_types.append("int")
-                passed.append("(int)({argument.code})")
-            } else {
-                var numeric_c_name = numeric_c_name(scalar.kind)
-                parameter_types.append(numeric_c_name)
-                passed.append(argument.code)
-            }
+            var crossing = foreign_argument_c_name(scalar.kind)
+            parameter_types.append(crossing)
+            passed.append("({crossing})({argument.code})")
         } else if is_enum_type(argument_type) {
-            parameter_types.append("int32_t")
-            passed.append("(int32_t)({argument.code})")
+            parameter_types.append("int64_t")
+            passed.append("(int64_t)({argument.code})")
         } else if type_shape.as_string(argument_type) {
             var text = next_temporary()
             lines.append("SpiteString* {text} = {argument.code};")
@@ -7796,7 +7796,7 @@ func generate_foreign_call(
                 releases.append("{passed_union.c_name}___release({held_shape});")
             }
             parameter_types.append("void*")
-            passed.append("&{struct_value}")
+            passed.append("(void*)&{struct_value}")
         } else {
             report(
                 "a {type_display_name(argument_type)} cannot cross into C: a foreign function takes numbers, Bool, enum values, text and a type whose attributes are all numbers",
@@ -7813,9 +7813,16 @@ func generate_foreign_call(
         releases.append("DynamicLibrary___release({held});")
     }
     var result = next_temporary()
-    lines.append(
-        "{returned_c} {result} = (({returned_c} (*)({parameter_types.join(", ")})){pointer})({passed.join(", ")});",
-    )
+    if header.is_empty() {
+        lines.append(
+            "{returned_c} {result} = (({returned_c} (*)({parameter_types.join(", ")})){pointer})({passed.join(", ")});",
+        )
+    } else {
+        var declared_call = declared_foreign_call(foreign_symbol_name, pointer, passed, returned_c)
+        lines.append("_Pragma(\"GCC diagnostic push\") _Pragma(\"GCC diagnostic ignored \\\"-Wint-conversion\\\"\")")
+        lines.append("{returned_c} {result} = {declared_call};")
+        lines.append("_Pragma(\"GCC diagnostic pop\")")
+    }
     var joined_afters = afters.join(" ")
     lines.append(joined_afters)
     var value = result
@@ -7828,6 +7835,21 @@ func generate_foreign_call(
     )
     called.owning_override = true
     return called
+}
+
+func foreign_argument_c_name(kind: Analysis.Types.NumericKind): String {
+    if kind == 'float_kind' or kind == 'double_kind' {
+        return numeric_c_name(kind)
+    }
+    if kind == 'byte_kind' or kind == 'unsigned_short_kind' or kind == 'unsigned_integer_kind' or kind == 'unsigned_long_kind' {
+        return "uint64_t"
+    }
+    return "int64_t"
+}
+
+func declared_foreign_call(symbol_name: String, pointer: String, passed: List<String>, returned_c: String): String {
+    var call = "((__typeof__(&{symbol_name})){pointer})({passed.join(", ")})"
+    return "({returned_c})__builtin_choose_expr(__builtin_types_compatible_p(__typeof__({call}), void), ({call}, ({returned_c})0), {call})"
 }
 
 func generate_foreign_constant(foreign: Analysis.Types.ClassRefType, name: String): ExpressionResult {

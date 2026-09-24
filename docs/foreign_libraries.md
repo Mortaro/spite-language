@@ -65,7 +65,7 @@ what the standard library does where Win32's own abbreviations follow no rule.
 
 | Spite | C |
 |---|---|
-| every number type, `Bool` | the same C type -- a number already is one |
+| every number type, `Bool` | the same C type -- a number already is one, and see the widths below |
 | `String`, as an argument | `const char*`, at no cost |
 | an enum value | its integer |
 | `List<T>` of numbers | its element array, by address; C's writes come back into the list |
@@ -84,7 +84,33 @@ struct has the size of the header's struct of the derived name (`PointPair` agai
 padding field fails the build at the Spite line. A header path that exists relative to the working directory is
 included as a file; anything else as a system header.
 
-`conformance/stage6/foreign_library` calls a library of every kind above, built from its own `fixture.c`.
+### Argument widths
+
+**With a header**, the call goes through the header's own prototype: the function has to be declared there, the
+number of arguments is checked, and each argument is converted to its parameter's type the way C converts one --
+an `Int` literal where C wants a 64-bit `VkDeviceSize`, a `Double` where it wants a `float`. A `Long` handle goes
+where C wants a pointer, since Spite has no pointer type; that integer-to-pointer conversion is the one C
+complaint the call silences. A C function that returns `void` is called the same way, and its call reads as `0`.
+
+**Without a header**, the compiler knows only the Spite types, so it passes what the platform's calling convention
+passes anyway:
+
+| Spite argument | Passed as |
+|---|---|
+| `Tiny`, `Short`, `Int`, `Long`, `Bool`, an enum value | `int64_t`, sign-extended |
+| `Byte`, `UnsignedShort`, `UnsignedInt`, `UnsignedLong` | `uint64_t`, zero-extended |
+| `Float` | `float` |
+| `Double` | `double` |
+| `String`, `List<T>` of numbers, a number-only `type` | an address |
+
+On x64 (Windows and System V) and on 64-bit ARM, every integer argument travels in a 64-bit register or an 8-byte
+stack slot, and a C function reads the low bits of the width it declared, so a literal `0` reaches a `uint64_t`
+parameter as a clean zero and a `-1` reaches an `int64_t` one as -1. What a missing header cannot fix: a `Double`
+where C wants a `float` (write a `Float`), and on macOS for ARM, integer arguments after the eighth, which Apple
+passes on the stack at their own width -- name the header there.
+
+`conformance/stage6/foreign_library` calls a library of every kind above, built from its own `fixture.c`, with and
+without a header.
 
 ## Each operating system reopens what it changes
 
