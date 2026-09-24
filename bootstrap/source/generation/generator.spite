@@ -11537,7 +11537,32 @@ func index_key_text(key: Syntax.Expressions.Expression): String {
     if text {
         return "\"{text.value}\""
     }
-    return ""
+    assert is_structural_key(key)
+    var printer = Syntax.SourcePrinter()
+    return printer.source_expression(key)
+}
+
+func is_structural_key(key: Syntax.Expressions.Expression): Bool {
+    switch key {
+        Syntax.Expressions.IdentifierExpression: return true
+        Syntax.Expressions.IntegerLiteral: return true
+        Syntax.Expressions.TrueLiteral: return true
+        Syntax.Expressions.FalseLiteral: return true
+        Syntax.Expressions.EnumLiteralExpression: return true
+        Syntax.Expressions.UnaryExpression: return is_structural_part(key.operand)
+        Syntax.Expressions.BinaryExpression: {
+            assert not key.is_text_join
+            return is_structural_part(key.left) and is_structural_part(key.right)
+        }
+        Syntax.Expressions.MemberExpression: return is_structural_part(key.object)
+        Syntax.Expressions.IndexExpression: return is_structural_part(key.object) and is_structural_part(key.index)
+        _: return false
+    }
+}
+
+func is_structural_part(part: Syntax.Expressions.Expression?): Bool {
+    assert part
+    return is_structural_key(part)
 }
 
 func operand_text(expression: Syntax.Expressions.Expression): String {

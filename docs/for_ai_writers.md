@@ -99,6 +99,7 @@ func is_alive(): Bool {
 - `List<T>`: `[1, 2, 3]`, `append`, `prepend`, `insert`, `remove_at`, `remove_last`, `remove_first`, `first`,
   `last`, `count`, `contains`, `is_empty`, `clear`, `reverse`, `join` (text, numbers, `Bool` and enum values
   all join), `list[index]` (a `T?`: out of range gives nothing -- `crash names[index]` narrows it like a path,
+  and so does `crash glyphs[code - 32]`, any index with no call in it, with no copy into a local first,
   `crash names.count() == 3` proves `names[0]` to `names[2]`, and `while index < names.count()` proves
   `names[index]` in the loop body). `Dictionary<T>` (String keys, insertion order): `set`, `get` (a `T?`), `has`,
   `remove`, `count`, `keys`, `values`, `dictionary["key"]` (a `T?`, like `list[index]`).

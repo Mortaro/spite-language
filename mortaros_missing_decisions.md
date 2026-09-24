@@ -396,3 +396,8 @@ Behaviour that does not match the manual. The language was not changed; each is 
     `read_float` and their `write_*`, beside `read_int`. `Tiny` and `UnsignedLong` have none, since `read_byte`
     and `read_long` hold the same bits. A variable cannot be named `unsigned_int_bits` (`int` abbreviates), but
     these follow the type names, as `read_int` already did. Keep, or `read_unsigned_integer`?
+95. **Does a call between a check and a read undo a proven `list[...]`?** `crash glyphs[code - 32]` now proves
+    `glyphs[code - 32]` like `glyphs[index]`, and assigning `code` or `glyphs` undoes it. A call in between does
+    not, for either form, although a call could change a field the index reads or clear a list held in a field;
+    the read still checks its bounds, so the cost is a default value, not memory. Keep it, or should a call
+    undo every proven read whose list or index is a field?
