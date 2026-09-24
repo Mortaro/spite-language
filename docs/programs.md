@@ -167,6 +167,17 @@ changes nothing. `name` belongs to `Environment`, so it is still read when the p
 - The value has to be of the field's type (`--workers=many` for an `Int` is a compile error), a flag naming a
   field of `Environment` is a compile error that says to pass it after `--`, and a flag naming no field at all is
   a compile error listing the fields `Build` has. A typo never passes silently.
+```spite title=unknown_flag_error/unknown_flag_error.spite entry error build=verbos:true
+var console = Console()
+
+func UnknownFlagError() {
+    console.print("never built")
+}
+```
+```diagnostic
+'--verbos' is not a compiler option, and this program's Build declares no setting 'verbos'
+```
+
 - A program's own `build.spite` may give a compiler option a different default: `var optimized = true` builds it
   optimized unless `--optimized=false` is given. `mode` and `format` are the exceptions: the compiler needs them
   before it has read the program, so only the flag changes them.

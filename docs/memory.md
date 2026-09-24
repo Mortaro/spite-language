@@ -34,6 +34,10 @@ func SharingBasics() {
 original label b
 ```
 
+`==` on two class instances calls the class's `equals` when it has one
+([functions_and_operators.md](functions_and_operators.md#every-operator-is-a-function)); otherwise it asks
+whether they are the same object. A `String` always compares by content.
+
 ## Do: call `copy()`/`deep_copy()` for an independent object
 
 `copy()` makes a fresh object with the same attributes (still shared references for any attribute that is
