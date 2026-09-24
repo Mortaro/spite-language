@@ -1,0 +1,27 @@
+var runtime = CRuntime()
+var memory = Memory()
+var foreign_text = ForeignText()
+var console = Console()
+
+func exit(code: Int) {
+    console.flush()
+    runtime.exit_program(code)
+}
+
+func sleep(milliseconds: Int) {
+    runtime.pause(milliseconds)
+}
+
+func environment(name: String): String? {
+    var address = runtime.environment_value(name)
+    assert address != 0
+    return foreign_text.read(address)
+}
+
+func live_allocations(): Int {
+    return memory.live_allocations()
+}
+
+func platform(): String {
+    return runtime.platform()
+}

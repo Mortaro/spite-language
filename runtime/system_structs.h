@@ -3,11 +3,6 @@ typedef struct {
     const char** items;
 } SpiteArguments;
 
-typedef struct Program Program;
-struct Program {
-    SpiteHeader header;
-};
-
 typedef struct Console Console;
 struct Console {
     SpiteHeader header;

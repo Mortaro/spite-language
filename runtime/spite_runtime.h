@@ -587,17 +587,3 @@ SpiteString* spite_console_read_line(bool* ok) {
  * File/Directory/Process/Program built-in classes (runtime/system_bodies.h).
  * Directory listing and process spawning
  * branch on `_WIN32`; everything else is plain stdio/stdlib. */
-
-/* `Program().sleep(milliseconds)` (milestone 6a, for a `$serve` loop that
- * ticks on an interval instead of spinning): pauses the calling thread. */
-void spite_sleep_milliseconds(int64_t milliseconds) {
-    if (milliseconds <= 0) return;
-#ifdef _WIN32
-    Sleep((DWORD)milliseconds);
-#else
-    struct timespec duration;
-    duration.tv_sec = milliseconds / 1000;
-    duration.tv_nsec = (milliseconds % 1000) * 1000000;
-    nanosleep(&duration, 0);
-#endif
-}
