@@ -7628,6 +7628,10 @@ struct Dictionary_Int {
 SpiteHeader header;
 List_String* entry_keys;
 List_Int* entry_values;
+Memory* memory;
+int64_t slots;
+int32_t slot_count;
+int32_t used_slots;
 };
 struct List_Int {
 SpiteHeader header;
@@ -9492,11 +9496,19 @@ Dictionary_Int* Dictionary_Int_default(void);
 Dictionary_Int* Dictionary_Int_make(void);
 Dictionary_Int* Dictionary_Int_retain(Dictionary_Int* self);
 void Dictionary_Int_release(Dictionary_Int* self);
+void Dictionary_Int_drop(Dictionary_Int* self);
 void Dictionary_Int_Dictionary(Dictionary_Int* self);
 void Dictionary_Int_set(Dictionary_Int* self, SpiteString* key, int32_t value);
 Nullable_Int Dictionary_Int_get(Dictionary_Int* self, SpiteString* key);
 bool Dictionary_Int_has(Dictionary_Int* self, SpiteString* key);
+void Dictionary_Int_drop(Dictionary_Int* self);
 int32_t Dictionary_Int_index_of_key(Dictionary_Int* self, SpiteString* key);
+int32_t Dictionary_Int_find_slot(Dictionary_Int* self, SpiteString* key);
+void Dictionary_Int_place(Dictionary_Int* self, SpiteString* key, int32_t position);
+void Dictionary_Int_make_room(Dictionary_Int* self);
+void Dictionary_Int_rebuild_slots(Dictionary_Int* self);
+int32_t Dictionary_Int_home_slot(Dictionary_Int* self, SpiteString* key);
+int32_t Dictionary_Int_next_slot(Dictionary_Int* self, int32_t slot);
 void List_Int_init(List_Int* self);
 List_Int* List_Int_allocate(void);
 List_Int* List_Int_default(void);
@@ -14701,6 +14713,10 @@ SPITE_FREE(self);
 void Dictionary_Int_init(Dictionary_Int* self) {
 self->entry_keys = List_String_make();
 self->entry_values = List_Int_make();
+self->memory = spite_singleton_Memory();
+self->slots = ((int64_t)(0));
+self->slot_count = 0;
+self->used_slots = 0;
 }
 Dictionary_Int* Dictionary_Int_allocate(void) {
 Dictionary_Int* self = (Dictionary_Int*)SPITE_MALLOC(sizeof(Dictionary_Int));
@@ -14726,8 +14742,10 @@ void Dictionary_Int_release(Dictionary_Int* self) {
 if (self == 0) return;
 self->header.ref_count = self->header.ref_count - 1;
 if (self->header.ref_count > 0) return;
+Dictionary_Int_drop(self);
 List_String_release(self->entry_keys);
 List_Int_release(self->entry_values);
+Memory_release(self->memory);
 #ifdef SPITE_TRACKS_Dictionary_Int
 spite_untrack_Dictionary_Int(self);
 #endif
@@ -41973,6 +41991,9 @@ if (((existing >= 0))) {
 List_Int_set_at(self->entry_values, existing, value);
 }
 else {
+Dictionary_Int_make_room(self);
+int32_t position = List_String_count(self->entry_keys);
+Dictionary_Int_place(self, SpiteString_retain(key), position);
 List_String_append(self->entry_keys, SpiteString_retain(key));
 List_Int_append(self->entry_values, value);
 }
@@ -41990,33 +42011,118 @@ SpiteString_release(key);
 return spite_temp_17413;
 }
 bool Dictionary_Int_has(Dictionary_Int* self, SpiteString* key) {
-bool spite_temp_17414 = (Dictionary_Int_index_of_key(self, SpiteString_retain(key)) >= 0);
+int32_t existing = Dictionary_Int_index_of_key(self, SpiteString_retain(key));
+bool spite_temp_17414 = (existing >= 0);
 SpiteString_release(key);
 return spite_temp_17414;
 }
-int32_t Dictionary_Int_index_of_key(Dictionary_Int* self, SpiteString* key) {
-int32_t index = 0;
-while (((index < List_String_count(self->entry_keys)))) {
-if ((({ SpiteString* spite_temp_17419 = List_String_get_at(self->entry_keys, index); SpiteString* spite_temp_17420 = key; bool spite_temp_17421 = SpiteString_equals(spite_temp_17419, spite_temp_17420); SpiteString_release(spite_temp_17419); spite_temp_17421; }))) {
-int32_t spite_temp_17422 = index;
-SpiteString_release(key);
-return spite_temp_17422;
+void Dictionary_Int_drop(Dictionary_Int* self) {
+if (((self->slots != ((int64_t)(0))))) {
+Memory_free(self->memory, self->slots);
 }
+}
+int32_t Dictionary_Int_index_of_key(Dictionary_Int* self, SpiteString* key) {
+int32_t slot = Dictionary_Int_find_slot(self, SpiteString_retain(key));
+if (((slot < 0))) {
+int32_t spite_temp_17419 = (-(1));
+SpiteString_release(key);
+return spite_temp_17419;
+}
+int32_t spite_temp_17420 = (Memory_read_int(self->memory, self->slots, ((int64_t)((slot * 4)))) - 1);
+SpiteString_release(key);
+return spite_temp_17420;
+}
+int32_t Dictionary_Int_find_slot(Dictionary_Int* self, SpiteString* key) {
+if (((self->slot_count == 0))) {
+int32_t spite_temp_17421 = (-(1));
+SpiteString_release(key);
+return spite_temp_17421;
+}
+int32_t slot = Dictionary_Int_home_slot(self, SpiteString_retain(key));
+int32_t stored = Memory_read_int(self->memory, self->slots, ((int64_t)((slot * 4))));
+while (((stored != 0))) {
+if (((((stored > 0)) && (({ SpiteString* spite_temp_17422 = List_String_get_at(self->entry_keys, (stored - 1)); SpiteString* spite_temp_17423 = key; bool spite_temp_17424 = SpiteString_equals(spite_temp_17422, spite_temp_17423); SpiteString_release(spite_temp_17422); spite_temp_17424; }))))) {
+int32_t spite_temp_17425 = slot;
+SpiteString_release(key);
+return spite_temp_17425;
+}
+slot = Dictionary_Int_next_slot(self, slot);
+stored = Memory_read_int(self->memory, self->slots, ((int64_t)((slot * 4))));
+}
+int32_t spite_temp_17426 = (-(1));
+SpiteString_release(key);
+return spite_temp_17426;
+}
+void Dictionary_Int_place(Dictionary_Int* self, SpiteString* key, int32_t position) {
+int32_t slot = Dictionary_Int_home_slot(self, SpiteString_retain(key));
+int32_t stored = Memory_read_int(self->memory, self->slots, ((int64_t)((slot * 4))));
+while (((stored > 0))) {
+slot = Dictionary_Int_next_slot(self, slot);
+stored = Memory_read_int(self->memory, self->slots, ((int64_t)((slot * 4))));
+}
+if (((stored == 0))) {
+self->used_slots = (self->used_slots + 1);
+}
+Memory_write_int(self->memory, self->slots, ((int64_t)((slot * 4))), (position + 1));
+SpiteString_release(key);
+}
+void Dictionary_Int_make_room(Dictionary_Int* self) {
+if (((((self->used_slots + 1) * 2) > self->slot_count))) {
+Dictionary_Int_rebuild_slots(self);
+}
+}
+void Dictionary_Int_rebuild_slots(Dictionary_Int* self) {
+int32_t grown = 8;
+while (((grown < ((List_String_count(self->entry_keys) + 1) * 4)))) {
+grown = (grown * 2);
+}
+if (((self->slots != ((int64_t)(0))))) {
+Memory_free(self->memory, self->slots);
+}
+self->slots = Memory_allocate_bytes(self->memory, ((int64_t)((grown * 4))));
+self->slot_count = grown;
+self->used_slots = 0;
+int32_t slot = 0;
+while (((slot < self->slot_count))) {
+Memory_write_int(self->memory, self->slots, ((int64_t)((slot * 4))), 0);
+slot = (slot + 1);
+}
+int32_t position = 0;
+while (((position < List_String_count(self->entry_keys)))) {
+SpiteString* key = List_String_get_at(self->entry_keys, position);
+Dictionary_Int_place(self, SpiteString_retain(key), position);
+position = (position + 1);
+SpiteString_release(key);
+}
+}
+int32_t Dictionary_Int_home_slot(Dictionary_Int* self, SpiteString* key) {
+int64_t hash = ((int64_t)(0));
+int32_t index = 0;
+while (((index < ({ int32_t spite_temp_17427 = SpiteString_length(key);  spite_temp_17427; })))) {
+hash = (((hash * ((int64_t)(31))) + ((int64_t)(({ int32_t spite_temp_17428 = SpiteString_code_at(key, index);  spite_temp_17428; })))) % ((int64_t)(1000000007)));
 index = (index + 1);
 }
-int32_t spite_temp_17423 = (-(1));
+int32_t spite_temp_17429 = ((int32_t)((hash % ((int64_t)(self->slot_count)))));
 SpiteString_release(key);
-return spite_temp_17423;
+return spite_temp_17429;
+}
+int32_t Dictionary_Int_next_slot(Dictionary_Int* self, int32_t slot) {
+if ((((slot + 1) == self->slot_count))) {
+int32_t spite_temp_17430 = 0;
+return spite_temp_17430;
+}
+int32_t spite_temp_17431 = (slot + 1);
+return spite_temp_17431;
 }
 void List_Int_List(List_Int* self) {
 }
 int32_t List_Int_count(List_Int* self) {
-int32_t spite_temp_17424 = self->item_count;
-return spite_temp_17424;
+int32_t spite_temp_17432 = self->item_count;
+return spite_temp_17432;
 }
 bool List_Int_is_empty(List_Int* self) {
-bool spite_temp_17425 = (self->item_count == 0);
-return spite_temp_17425;
+bool spite_temp_17433 = (self->item_count == 0);
+return spite_temp_17433;
 }
 void List_Int_append(List_Int* self, int32_t value) {
 List_Int_make_room(self);
@@ -42025,18 +42131,18 @@ self->item_count = (self->item_count + 1);
 }
 int32_t List_Int_get_at(List_Int* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-int32_t spite_temp_17426 = List_Int_read_item(self, index);
-return spite_temp_17426;
+int32_t spite_temp_17434 = List_Int_read_item(self, index);
+return spite_temp_17434;
 }
 return 0;
 }
 Nullable_Int List_Int_find_at(List_Int* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-Nullable_Int spite_temp_17427 = ((Nullable_Int){ .has_value = true, .value = List_Int_read_item(self, index) });
-return spite_temp_17427;
+Nullable_Int spite_temp_17435 = ((Nullable_Int){ .has_value = true, .value = List_Int_read_item(self, index) });
+return spite_temp_17435;
 }
-Nullable_Int spite_temp_17428 = ((Nullable_Int){ .has_value = false, .value = 0 });
-return spite_temp_17428;
+Nullable_Int spite_temp_17436 = ((Nullable_Int){ .has_value = false, .value = 0 });
+return spite_temp_17436;
 }
 void List_Int_set_at(List_Int* self, int32_t index, int32_t value) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
@@ -42056,15 +42162,15 @@ if (((self->item_count > 0))) {
 int32_t last_item = List_Int_read_item(self, (self->item_count - 1));
 List_Int_release_item(self, (self->item_count - 1));
 self->item_count = (self->item_count - 1);
-int32_t spite_temp_17429 = last_item;
-return spite_temp_17429;
+int32_t spite_temp_17437 = last_item;
+return spite_temp_17437;
 }
 return 0;
 }
 int32_t List_Int_last(List_Int* self) {
 if (((self->item_count > 0))) {
-int32_t spite_temp_17432 = List_Int_read_item(self, (self->item_count - 1));
-return spite_temp_17432;
+int32_t spite_temp_17440 = List_Int_read_item(self, (self->item_count - 1));
+return spite_temp_17440;
 }
 return 0;
 }
@@ -42098,8 +42204,8 @@ Memory_copy_bytes(self->memory, (self->items + (bytes * ((int64_t)(from)))), (se
 void List_Bool_List(List_Bool* self) {
 }
 int32_t List_Bool_count(List_Bool* self) {
-int32_t spite_temp_17444 = self->item_count;
-return spite_temp_17444;
+int32_t spite_temp_17452 = self->item_count;
+return spite_temp_17452;
 }
 void List_Bool_append(List_Bool* self, bool value) {
 List_Bool_make_room(self);
@@ -42108,18 +42214,18 @@ self->item_count = (self->item_count + 1);
 }
 bool List_Bool_get_at(List_Bool* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-bool spite_temp_17446 = List_Bool_read_item(self, index);
-return spite_temp_17446;
+bool spite_temp_17454 = List_Bool_read_item(self, index);
+return spite_temp_17454;
 }
 return false;
 }
 Nullable_Bool List_Bool_find_at(List_Bool* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-Nullable_Bool spite_temp_17447 = ((Nullable_Bool){ .has_value = true, .value = List_Bool_read_item(self, index) });
-return spite_temp_17447;
+Nullable_Bool spite_temp_17455 = ((Nullable_Bool){ .has_value = true, .value = List_Bool_read_item(self, index) });
+return spite_temp_17455;
 }
-Nullable_Bool spite_temp_17448 = ((Nullable_Bool){ .has_value = false, .value = false });
-return spite_temp_17448;
+Nullable_Bool spite_temp_17456 = ((Nullable_Bool){ .has_value = false, .value = false });
+return spite_temp_17456;
 }
 void List_Bool_set_at(List_Bool* self, int32_t index, bool value) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
@@ -42164,8 +42270,8 @@ Memory_copy_bytes(self->memory, (self->items + (bytes * ((int64_t)(from)))), (se
 void List_Generation_OwnedLocal_List(List_Generation_OwnedLocal* self) {
 }
 int32_t List_Generation_OwnedLocal_count(List_Generation_OwnedLocal* self) {
-int32_t spite_temp_17464 = self->item_count;
-return spite_temp_17464;
+int32_t spite_temp_17472 = self->item_count;
+return spite_temp_17472;
 }
 void List_Generation_OwnedLocal_append(List_Generation_OwnedLocal* self, Generation_OwnedLocal* value) {
 List_Generation_OwnedLocal_make_room(self);
@@ -42175,18 +42281,18 @@ Generation_OwnedLocal_release(value);
 }
 Generation_OwnedLocal* List_Generation_OwnedLocal_get_at(List_Generation_OwnedLocal* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-Generation_OwnedLocal* spite_temp_17466 = List_Generation_OwnedLocal_read_item(self, index);
-return spite_temp_17466;
+Generation_OwnedLocal* spite_temp_17474 = List_Generation_OwnedLocal_read_item(self, index);
+return spite_temp_17474;
 }
 return Generation_OwnedLocal_default();
 }
 Generation_OwnedLocal* List_Generation_OwnedLocal_find_at(List_Generation_OwnedLocal* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-Generation_OwnedLocal* spite_temp_17467 = List_Generation_OwnedLocal_read_item(self, index);
-return spite_temp_17467;
+Generation_OwnedLocal* spite_temp_17475 = List_Generation_OwnedLocal_read_item(self, index);
+return spite_temp_17475;
 }
-Generation_OwnedLocal* spite_temp_17468 = 0;
-return spite_temp_17468;
+Generation_OwnedLocal* spite_temp_17476 = 0;
+return spite_temp_17476;
 }
 void List_Generation_OwnedLocal_clear(List_Generation_OwnedLocal* self) {
 int32_t index = 0;
@@ -42214,12 +42320,12 @@ self->capacity = grown;
 void List_Syntax_Token_List(List_Syntax_Token* self) {
 }
 int32_t List_Syntax_Token_count(List_Syntax_Token* self) {
-int32_t spite_temp_17479 = self->item_count;
-return spite_temp_17479;
+int32_t spite_temp_17487 = self->item_count;
+return spite_temp_17487;
 }
 bool List_Syntax_Token_is_empty(List_Syntax_Token* self) {
-bool spite_temp_17480 = (self->item_count == 0);
-return spite_temp_17480;
+bool spite_temp_17488 = (self->item_count == 0);
+return spite_temp_17488;
 }
 void List_Syntax_Token_append(List_Syntax_Token* self, Syntax_Token* value) {
 List_Syntax_Token_make_room(self);
@@ -42229,23 +42335,23 @@ Syntax_Token_release(value);
 }
 Syntax_Token* List_Syntax_Token_get_at(List_Syntax_Token* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-Syntax_Token* spite_temp_17481 = List_Syntax_Token_read_item(self, index);
-return spite_temp_17481;
+Syntax_Token* spite_temp_17489 = List_Syntax_Token_read_item(self, index);
+return spite_temp_17489;
 }
 return Syntax_Token_default();
 }
 Syntax_Token* List_Syntax_Token_find_at(List_Syntax_Token* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-Syntax_Token* spite_temp_17482 = List_Syntax_Token_read_item(self, index);
-return spite_temp_17482;
+Syntax_Token* spite_temp_17490 = List_Syntax_Token_read_item(self, index);
+return spite_temp_17490;
 }
-Syntax_Token* spite_temp_17483 = 0;
-return spite_temp_17483;
+Syntax_Token* spite_temp_17491 = 0;
+return spite_temp_17491;
 }
 Syntax_Token* List_Syntax_Token_last(List_Syntax_Token* self) {
 if (((self->item_count > 0))) {
-Syntax_Token* spite_temp_17487 = List_Syntax_Token_read_item(self, (self->item_count - 1));
-return spite_temp_17487;
+Syntax_Token* spite_temp_17495 = List_Syntax_Token_read_item(self, (self->item_count - 1));
+return spite_temp_17495;
 }
 return Syntax_Token_default();
 }
@@ -42275,12 +42381,12 @@ self->capacity = grown;
 void List_Syntax_Expressions_Expression_Expression_List(List_Syntax_Expressions_Expression_Expression* self) {
 }
 int32_t List_Syntax_Expressions_Expression_Expression_count(List_Syntax_Expressions_Expression_Expression* self) {
-int32_t spite_temp_17494 = self->item_count;
-return spite_temp_17494;
+int32_t spite_temp_17502 = self->item_count;
+return spite_temp_17502;
 }
 bool List_Syntax_Expressions_Expression_Expression_is_empty(List_Syntax_Expressions_Expression_Expression* self) {
-bool spite_temp_17495 = (self->item_count == 0);
-return spite_temp_17495;
+bool spite_temp_17503 = (self->item_count == 0);
+return spite_temp_17503;
 }
 void List_Syntax_Expressions_Expression_Expression_append(List_Syntax_Expressions_Expression_Expression* self, Syntax_Expressions_Expression_Expression value) {
 List_Syntax_Expressions_Expression_Expression_make_room(self);
@@ -42290,18 +42396,18 @@ Syntax_Expressions_Expression_Expression_release(value);
 }
 Syntax_Expressions_Expression_Expression List_Syntax_Expressions_Expression_Expression_get_at(List_Syntax_Expressions_Expression_Expression* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-Syntax_Expressions_Expression_Expression spite_temp_17496 = List_Syntax_Expressions_Expression_Expression_read_item(self, index);
-return spite_temp_17496;
+Syntax_Expressions_Expression_Expression spite_temp_17504 = List_Syntax_Expressions_Expression_Expression_read_item(self, index);
+return spite_temp_17504;
 }
 return ((Syntax_Expressions_Expression_Expression)Syntax_Expressions_NullLiteral_default());
 }
 Syntax_Expressions_Expression_Expression List_Syntax_Expressions_Expression_Expression_find_at(List_Syntax_Expressions_Expression_Expression* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-Syntax_Expressions_Expression_Expression spite_temp_17497 = List_Syntax_Expressions_Expression_Expression_read_item(self, index);
-return spite_temp_17497;
+Syntax_Expressions_Expression_Expression spite_temp_17505 = List_Syntax_Expressions_Expression_Expression_read_item(self, index);
+return spite_temp_17505;
 }
-Syntax_Expressions_Expression_Expression spite_temp_17498 = 0;
-return spite_temp_17498;
+Syntax_Expressions_Expression_Expression spite_temp_17506 = 0;
+return spite_temp_17506;
 }
 void List_Syntax_Expressions_Expression_Expression_clear(List_Syntax_Expressions_Expression_Expression* self) {
 int32_t index = 0;
@@ -42329,12 +42435,12 @@ self->capacity = grown;
 void List_Syntax_Types_GenericArgument_GenericArgument_List(List_Syntax_Types_GenericArgument_GenericArgument* self) {
 }
 int32_t List_Syntax_Types_GenericArgument_GenericArgument_count(List_Syntax_Types_GenericArgument_GenericArgument* self) {
-int32_t spite_temp_17509 = self->item_count;
-return spite_temp_17509;
+int32_t spite_temp_17517 = self->item_count;
+return spite_temp_17517;
 }
 bool List_Syntax_Types_GenericArgument_GenericArgument_is_empty(List_Syntax_Types_GenericArgument_GenericArgument* self) {
-bool spite_temp_17510 = (self->item_count == 0);
-return spite_temp_17510;
+bool spite_temp_17518 = (self->item_count == 0);
+return spite_temp_17518;
 }
 void List_Syntax_Types_GenericArgument_GenericArgument_append(List_Syntax_Types_GenericArgument_GenericArgument* self, Syntax_Types_GenericArgument_GenericArgument value) {
 List_Syntax_Types_GenericArgument_GenericArgument_make_room(self);
@@ -42344,18 +42450,18 @@ Syntax_Types_GenericArgument_GenericArgument_release(value);
 }
 Syntax_Types_GenericArgument_GenericArgument List_Syntax_Types_GenericArgument_GenericArgument_get_at(List_Syntax_Types_GenericArgument_GenericArgument* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-Syntax_Types_GenericArgument_GenericArgument spite_temp_17511 = List_Syntax_Types_GenericArgument_GenericArgument_read_item(self, index);
-return spite_temp_17511;
+Syntax_Types_GenericArgument_GenericArgument spite_temp_17519 = List_Syntax_Types_GenericArgument_GenericArgument_read_item(self, index);
+return spite_temp_17519;
 }
 return ((Syntax_Types_GenericArgument_GenericArgument)Syntax_Types_TypeArgument_default());
 }
 Syntax_Types_GenericArgument_GenericArgument List_Syntax_Types_GenericArgument_GenericArgument_find_at(List_Syntax_Types_GenericArgument_GenericArgument* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-Syntax_Types_GenericArgument_GenericArgument spite_temp_17512 = List_Syntax_Types_GenericArgument_GenericArgument_read_item(self, index);
-return spite_temp_17512;
+Syntax_Types_GenericArgument_GenericArgument spite_temp_17520 = List_Syntax_Types_GenericArgument_GenericArgument_read_item(self, index);
+return spite_temp_17520;
 }
-Syntax_Types_GenericArgument_GenericArgument spite_temp_17513 = 0;
-return spite_temp_17513;
+Syntax_Types_GenericArgument_GenericArgument spite_temp_17521 = 0;
+return spite_temp_17521;
 }
 void List_Syntax_Types_GenericArgument_GenericArgument_clear(List_Syntax_Types_GenericArgument_GenericArgument* self) {
 int32_t index = 0;
@@ -42383,12 +42489,12 @@ self->capacity = grown;
 void List_Syntax_Expressions_ListElement_List(List_Syntax_Expressions_ListElement* self) {
 }
 int32_t List_Syntax_Expressions_ListElement_count(List_Syntax_Expressions_ListElement* self) {
-int32_t spite_temp_17524 = self->item_count;
-return spite_temp_17524;
+int32_t spite_temp_17532 = self->item_count;
+return spite_temp_17532;
 }
 bool List_Syntax_Expressions_ListElement_is_empty(List_Syntax_Expressions_ListElement* self) {
-bool spite_temp_17525 = (self->item_count == 0);
-return spite_temp_17525;
+bool spite_temp_17533 = (self->item_count == 0);
+return spite_temp_17533;
 }
 void List_Syntax_Expressions_ListElement_append(List_Syntax_Expressions_ListElement* self, Syntax_Expressions_ListElement* value) {
 List_Syntax_Expressions_ListElement_make_room(self);
@@ -42398,18 +42504,18 @@ Syntax_Expressions_ListElement_release(value);
 }
 Syntax_Expressions_ListElement* List_Syntax_Expressions_ListElement_get_at(List_Syntax_Expressions_ListElement* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-Syntax_Expressions_ListElement* spite_temp_17526 = List_Syntax_Expressions_ListElement_read_item(self, index);
-return spite_temp_17526;
+Syntax_Expressions_ListElement* spite_temp_17534 = List_Syntax_Expressions_ListElement_read_item(self, index);
+return spite_temp_17534;
 }
 return Syntax_Expressions_ListElement_default();
 }
 Syntax_Expressions_ListElement* List_Syntax_Expressions_ListElement_find_at(List_Syntax_Expressions_ListElement* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-Syntax_Expressions_ListElement* spite_temp_17527 = List_Syntax_Expressions_ListElement_read_item(self, index);
-return spite_temp_17527;
+Syntax_Expressions_ListElement* spite_temp_17535 = List_Syntax_Expressions_ListElement_read_item(self, index);
+return spite_temp_17535;
 }
-Syntax_Expressions_ListElement* spite_temp_17528 = 0;
-return spite_temp_17528;
+Syntax_Expressions_ListElement* spite_temp_17536 = 0;
+return spite_temp_17536;
 }
 void List_Syntax_Expressions_ListElement_clear(List_Syntax_Expressions_ListElement* self) {
 int32_t index = 0;
@@ -42437,12 +42543,12 @@ self->capacity = grown;
 void List_Syntax_Expressions_ObjectField_List(List_Syntax_Expressions_ObjectField* self) {
 }
 int32_t List_Syntax_Expressions_ObjectField_count(List_Syntax_Expressions_ObjectField* self) {
-int32_t spite_temp_17539 = self->item_count;
-return spite_temp_17539;
+int32_t spite_temp_17547 = self->item_count;
+return spite_temp_17547;
 }
 bool List_Syntax_Expressions_ObjectField_is_empty(List_Syntax_Expressions_ObjectField* self) {
-bool spite_temp_17540 = (self->item_count == 0);
-return spite_temp_17540;
+bool spite_temp_17548 = (self->item_count == 0);
+return spite_temp_17548;
 }
 void List_Syntax_Expressions_ObjectField_append(List_Syntax_Expressions_ObjectField* self, Syntax_Expressions_ObjectField* value) {
 List_Syntax_Expressions_ObjectField_make_room(self);
@@ -42452,8 +42558,8 @@ Syntax_Expressions_ObjectField_release(value);
 }
 Syntax_Expressions_ObjectField* List_Syntax_Expressions_ObjectField_get_at(List_Syntax_Expressions_ObjectField* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-Syntax_Expressions_ObjectField* spite_temp_17541 = List_Syntax_Expressions_ObjectField_read_item(self, index);
-return spite_temp_17541;
+Syntax_Expressions_ObjectField* spite_temp_17549 = List_Syntax_Expressions_ObjectField_read_item(self, index);
+return spite_temp_17549;
 }
 return Syntax_Expressions_ObjectField_default();
 }
@@ -42483,12 +42589,12 @@ self->capacity = grown;
 void List_Syntax_Statements_Parameter_List(List_Syntax_Statements_Parameter* self) {
 }
 int32_t List_Syntax_Statements_Parameter_count(List_Syntax_Statements_Parameter* self) {
-int32_t spite_temp_17554 = self->item_count;
-return spite_temp_17554;
+int32_t spite_temp_17562 = self->item_count;
+return spite_temp_17562;
 }
 bool List_Syntax_Statements_Parameter_is_empty(List_Syntax_Statements_Parameter* self) {
-bool spite_temp_17555 = (self->item_count == 0);
-return spite_temp_17555;
+bool spite_temp_17563 = (self->item_count == 0);
+return spite_temp_17563;
 }
 void List_Syntax_Statements_Parameter_append(List_Syntax_Statements_Parameter* self, Syntax_Statements_Parameter* value) {
 List_Syntax_Statements_Parameter_make_room(self);
@@ -42498,8 +42604,8 @@ Syntax_Statements_Parameter_release(value);
 }
 Syntax_Statements_Parameter* List_Syntax_Statements_Parameter_get_at(List_Syntax_Statements_Parameter* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-Syntax_Statements_Parameter* spite_temp_17556 = List_Syntax_Statements_Parameter_read_item(self, index);
-return spite_temp_17556;
+Syntax_Statements_Parameter* spite_temp_17564 = List_Syntax_Statements_Parameter_read_item(self, index);
+return spite_temp_17564;
 }
 return Syntax_Statements_Parameter_default();
 }
@@ -42529,8 +42635,8 @@ self->capacity = grown;
 void List_Syntax_Statements_SwitchCase_List(List_Syntax_Statements_SwitchCase* self) {
 }
 int32_t List_Syntax_Statements_SwitchCase_count(List_Syntax_Statements_SwitchCase* self) {
-int32_t spite_temp_17569 = self->item_count;
-return spite_temp_17569;
+int32_t spite_temp_17577 = self->item_count;
+return spite_temp_17577;
 }
 void List_Syntax_Statements_SwitchCase_append(List_Syntax_Statements_SwitchCase* self, Syntax_Statements_SwitchCase* value) {
 List_Syntax_Statements_SwitchCase_make_room(self);
@@ -42540,8 +42646,8 @@ Syntax_Statements_SwitchCase_release(value);
 }
 Syntax_Statements_SwitchCase* List_Syntax_Statements_SwitchCase_get_at(List_Syntax_Statements_SwitchCase* self, int32_t index) {
 if (((((index >= 0)) && ((index < self->item_count))))) {
-Syntax_Statements_SwitchCase* spite_temp_17571 = List_Syntax_Statements_SwitchCase_read_item(self, index);
-return spite_temp_17571;
+Syntax_Statements_SwitchCase* spite_temp_17579 = List_Syntax_Statements_SwitchCase_read_item(self, index);
+return spite_temp_17579;
 }
 return Syntax_Statements_SwitchCase_default();
 }

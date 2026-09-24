@@ -28,3 +28,74 @@ func test_remove_forgets_the_key() {
     ages.remove("ada")
     crash not ages.has("ada")
 }
+
+func test_growth_keeps_every_key_and_its_order() {
+    var squares = Dictionary<Int>()
+    var index = 0
+    while index < 1000 {
+        squares.set("number {index}", index * index)
+        index = index + 1
+    }
+    crash squares.count() == 1000
+    var keys = squares.keys()
+    index = 0
+    while index < 1000 {
+        var expected = "number {index}"
+        crash keys[index] == expected
+        crash squares[expected] == index * index
+        index = index + 1
+    }
+    crash not squares.has("number 1000")
+}
+
+func test_removal_keeps_the_order_of_the_rest() {
+    var ages = Dictionary<Int>()
+    ages.set("grace", 85)
+    ages.set("ada", 36)
+    ages.set("alan", 41)
+    ages.set("edsger", 72)
+    ages.remove("ada")
+    ages.remove("nobody")
+    crash ages.keys().join(",") == "grace,alan,edsger"
+    crash ages["alan"] == 41
+    crash ages["edsger"] == 72
+}
+
+func test_a_removed_key_comes_back_at_the_end() {
+    var ages = Dictionary<Int>()
+    ages.set("grace", 85)
+    ages.set("ada", 36)
+    ages.set("alan", 41)
+    ages.remove("grace")
+    ages.set("grace", 86)
+    crash ages.keys().join(",") == "ada,alan,grace"
+    crash ages["grace"] == 86
+    crash ages.count() == 3
+}
+
+func test_many_removals_and_insertions_stay_consistent() {
+    var numbers = Dictionary<Int>()
+    var index = 0
+    while index < 500 {
+        numbers.set("key {index}", index)
+        index = index + 1
+    }
+    index = 0
+    while index < 500 {
+        numbers.remove("key {index}")
+        numbers.set("again {index}", index)
+        index = index + 2
+    }
+    crash numbers.count() == 500
+    var keys = numbers.keys()
+    crash keys[0] == "key 1"
+    crash keys[249] == "key 499"
+    crash keys[250] == "again 0"
+    crash keys[499] == "again 498"
+    crash not numbers.has("key 0")
+    crash numbers["key 3"] == 3
+    crash numbers["again 4"] == 4
+    var copied = numbers.copy()
+    crash copied.keys().join(",") == keys.join(",")
+    crash copied["key 7"] == 7
+}
