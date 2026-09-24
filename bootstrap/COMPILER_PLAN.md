@@ -428,3 +428,15 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   to check `List`/`Dictionary` first, and the C `split` had to change its name, in a seed of their own before the
   library files could land. Compiling the compiler dropped from about 13 s to 0.7 s: `join` no longer
   concatenates piece by piece.
+- 2026-09-24: the rest of D73, and D75/D78. `Console`, `String`'s methods (`library/string.spite` is a value
+  class: its functions are named `SpiteString_<name>` and reach the receiver through `length()`/`code_at()`),
+  number parsing and formatting (`library/number_text.spite`), and joining/comparing/slicing text
+  (`library/text_bytes.spite`, over `Memory.address_of`/`compare_bytes`/`take_text`) are Spite. `runtime/` is
+  deleted: `prelude.spite` holds the C the compiler still writes, and `tree_shaker.spite` drops every emitted
+  function `main` does not reach (off under `--development`; it keeps its own hash table, since a `Dictionary`
+  scan cost seconds). `value == Class` is a class test and `if value == Class` narrows; a one-case switch that is
+  one early return is an error (D75), and so is a call repeated in every branch of an `if` (D78). Parallel
+  worktree agents built floats, the debug-memory table, REPL paths, `Environment`, containers, per-OS classes
+  (D80) and the `Dictionary` hash table. Bootstrap note: merging agent branches always conflicts on the seed;
+  when neither side's seed compiles the merge, hide the file the old seed cannot read, build g2 and g3 by hand,
+  and copy g3 over the seed.
