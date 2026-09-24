@@ -1,0 +1,69 @@
+var entry_keys = List<String>()
+var entry_values = List<$value_type>()
+
+func Dictionary<$value_type>() {}
+
+func set(key: String, value: $value_type) {
+    var existing = index_of_key(key)
+    if existing >= 0 {
+        entry_values.set_at(existing, value)
+    } else {
+        entry_keys.append(key)
+        entry_values.append(value)
+    }
+}
+
+func get(key: String): $value_type? {
+    var existing = index_of_key(key)
+    if existing >= 0 {
+        return entry_values.get_at(existing)
+    }
+    return null
+}
+
+func has(key: String): Bool {
+    return index_of_key(key) >= 0
+}
+
+func remove(key: String) {
+    var existing = index_of_key(key)
+    if existing >= 0 {
+        entry_values.remove_at(existing)
+        entry_keys.remove_at(existing)
+    }
+}
+
+func count(): Int {
+    return entry_keys.count()
+}
+
+func keys(): List<String> {
+    return entry_keys.copy()
+}
+
+func values(): List<$value_type> {
+    return entry_values.copy()
+}
+
+func copy(): Dictionary<$value_type> {
+    var copied = Dictionary<$value_type>()
+    var index = 0
+    while index < entry_keys.count() {
+        var key = entry_keys.get_at(index)
+        var value = entry_values.get_at(index)
+        copied.set(key, value)
+        index = index + 1
+    }
+    return copied
+}
+
+func index_of_key(key: String): Int {
+    var index = 0
+    while index < entry_keys.count() {
+        if entry_keys.get_at(index) == key {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}

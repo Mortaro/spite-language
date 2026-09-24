@@ -43,6 +43,38 @@ func ends_with(text: String): Bool {
     return matches_at(text, length() - text.length())
 }
 
+func split(separator: String): List<String> {
+    var pieces = List<String>()
+    if separator.is_empty() {
+        var character_index = 0
+        while character_index < length() {
+            var character = character_at(character_index)
+            pieces.append(character)
+            character_index = character_index + 1
+        }
+        return pieces
+    }
+    var piece_start = 0
+    var index = 0
+    while index <= length() - separator.length() {
+        if matches_at(separator, index) {
+            var piece = slice(piece_start, index)
+            pieces.append(piece)
+            index = index + separator.length()
+            piece_start = index
+        } else {
+            index = index + 1
+        }
+    }
+    var rest = slice(piece_start, length())
+    pieces.append(rest)
+    return pieces
+}
+
+func lines(): List<String> {
+    return split("\n")
+}
+
 func replace(from: String, to: String): String {
     if from.is_empty() {
         return slice(0, length())

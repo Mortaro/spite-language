@@ -1,0 +1,204 @@
+var memory = Memory()
+var items: Long = 0
+var item_count = 0
+var capacity = 0
+
+func List<$element_type>() {}
+
+func count(): Int {
+    return item_count
+}
+
+func is_empty(): Bool {
+    return item_count == 0
+}
+
+func append(value: $element_type) {
+    make_room()
+    write_item(item_count, value)
+    item_count = item_count + 1
+}
+
+func prepend(value: $element_type) {
+    insert(0, value)
+}
+
+func insert(index: Int, value: $element_type) {
+    var position = index
+    if position < 0 {
+        position = 0
+    }
+    if position > item_count {
+        position = item_count
+    }
+    make_room()
+    move_items(position, position + 1, item_count - position)
+    write_item(position, value)
+    item_count = item_count + 1
+}
+
+func get_at(index: Int): $element_type {
+    if index >= 0 and index < item_count {
+        return read_item(index)
+    }
+}
+
+func find_at(index: Int): $element_type? {
+    if index >= 0 and index < item_count {
+        return read_item(index)
+    }
+    return null
+}
+
+func set_at(index: Int, value: $element_type) {
+    if index >= 0 and index < item_count {
+        release_item(index)
+        write_item(index, value)
+    }
+}
+
+func remove_at(index: Int) {
+    if index >= 0 and index < item_count {
+        release_item(index)
+        move_items(index + 1, index, item_count - index - 1)
+        item_count = item_count - 1
+    }
+}
+
+func remove_last(): $element_type {
+    if item_count > 0 {
+        var last_item = read_item(item_count - 1)
+        release_item(item_count - 1)
+        item_count = item_count - 1
+        return last_item
+    }
+}
+
+func remove_first(): $element_type {
+    if item_count > 0 {
+        var first_item = read_item(0)
+        remove_at(0)
+        return first_item
+    }
+}
+
+func first(): $element_type {
+    if item_count > 0 {
+        return read_item(0)
+    }
+}
+
+func last(): $element_type {
+    if item_count > 0 {
+        return read_item(item_count - 1)
+    }
+}
+
+func clear() {
+    var index = 0
+    while index < item_count {
+        release_item(index)
+        index = index + 1
+    }
+    item_count = 0
+}
+
+func reverse() {
+    if item_count > 1 {
+        var bytes = item_bytes()
+        var spare = memory.allocate_bytes(bytes)
+        var front: Long = 0
+        var back: Long = item_count - 1
+        while front < back {
+            memory.copy_bytes(items + front * bytes, spare, bytes)
+            memory.copy_bytes(items + back * bytes, items + front * bytes, bytes)
+            memory.copy_bytes(spare, items + back * bytes, bytes)
+            front = front + 1
+            back = back - 1
+        }
+        memory.free(spare)
+    }
+}
+
+func contains(value: $element_type): Bool {
+    var index = 0
+    while index < item_count {
+        if read_item(index) == value {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func join(separator: String): String {
+    var pieces = List<String>()
+    var total: Long = 0
+    var index = 0
+    while index < item_count {
+        var piece: String = read_item(index)
+        total = total + piece.length()
+        pieces.append(piece)
+        index = index + 1
+    }
+    if item_count > 1 {
+        total = total + separator.length() * (item_count - 1)
+    }
+    var address = memory.allocate_bytes(total + 1)
+    var position: Long = 0
+    index = 0
+    while index < pieces.count() {
+        if index > 0 {
+            position = write_text(separator, address, position)
+        }
+        var next_piece = pieces.get_at(index)
+        position = write_text(next_piece, address, position)
+        index = index + 1
+    }
+    var joined = memory.text(address, total)
+    memory.free(address)
+    return joined
+}
+
+func write_text(text: String, address: Long, position: Long): Long {
+    var index = 0
+    while index < text.length() {
+        var code = text.code_at(index)
+        memory.write_byte(address, position + index, code)
+        index = index + 1
+    }
+    return position + text.length()
+}
+
+func copy(): List<$element_type> {
+    var copied = List<$element_type>()
+    var index = 0
+    while index < item_count {
+        var item = read_item(index)
+        copied.append(item)
+        index = index + 1
+    }
+    return copied
+}
+
+func drop() {
+    clear()
+    memory.free(items)
+}
+
+func make_room() {
+    if item_count == capacity {
+        var grown = capacity * 2
+        if capacity == 0 {
+            grown = 4
+        }
+        var bytes = item_bytes()
+        items = memory.resize(items, bytes * grown)
+        capacity = grown
+    }
+}
+
+func move_items(from: Int, to: Int, moved_count: Int) {
+    var bytes = item_bytes()
+    memory.copy_bytes(items + bytes * from, items + bytes * to, bytes * moved_count)
+}
