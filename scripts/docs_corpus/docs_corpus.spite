@@ -40,6 +40,8 @@ func read_page(path: String) {
         var opening = lines[index]
         if opening.starts_with("```spite title=") {
             index = read_block(lines, index, opening)
+        } else if opening.starts_with("```wire ") {
+            index = read_wire(lines, index, opening)
         } else {
             index = index + 1
         }
@@ -95,6 +97,21 @@ func read_expectation(lines: List<String>, first_index: Int, folder: String, is_
         name = "expected_output.txt"
     }
     File("{root}/{folder}/{name}").write("{expected.join("\n")}\n")
+    return index + 1
+}
+
+func read_wire(lines: List<String>, opening_index: Int, opening: String): Int {
+    var marker_length = "```wire ".length()
+    var opening_length = opening.length()
+    var folder = opening.slice(marker_length, opening_length).trim()
+    var index = opening_index + 1
+    var session = List<String>()
+    while index < lines.count() and lines[index].trim() != "```" {
+        session.append(lines[index])
+        index = index + 1
+    }
+    make_directory("{root}/{folder}")
+    File("{root}/{folder}/wire.txt").write("{session.join("\n")}\n")
     return index + 1
 }
 

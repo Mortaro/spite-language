@@ -1,0 +1,45 @@
+var sockets = DynamicLibrary("ws2_32.dll", 'identity', "")
+
+func start_sockets() {
+    var information = memory.allocate_bytes(512)
+    sockets.WSAStartup(514, information)
+    memory.free(information)
+}
+
+func open_socket(): Long {
+    return sockets.socket_as_long(2, 1, 6)
+}
+
+func write_family(address: Long) {
+    memory.write_byte(address, 0, 2)
+}
+
+func bind_address(address: Long): Bool {
+    return sockets.bind(handle, address, 16) == 0
+}
+
+func listen_for_clients(): Bool {
+    return sockets.listen(handle, 1) == 0
+}
+
+func accept_handle(): Long {
+    var no_address: Long = 0
+    return sockets.accept_as_long(handle, no_address, no_address)
+}
+
+func connect_address(address: Long): Bool {
+    return sockets.connect(handle, address, 16) == 0
+}
+
+func receive_into(buffer: Long, bytes: Int): Int {
+    return sockets.recv(handle, buffer, bytes, 0)
+}
+
+func send_text(text: String): Int {
+    var text_length = text.length()
+    return sockets.send(handle, text, text_length, 0)
+}
+
+func close_handle() {
+    sockets.closesocket(handle)
+}

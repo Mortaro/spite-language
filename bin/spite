@@ -49,6 +49,11 @@ if [ "$1" == "format" ]; then
     exit $status
 fi
 
+# `spite connect <port> [--command="..."]` talks to a program running with --repl_port; nothing in it is a path.
+if [ "$1" == "connect" ]; then
+    exec "$binary" "$@"
+fi
+
 # `spite thing` is the common case; anything starting with - is passed through.
 # The compiler reads runtime/*.h relative to its working directory, so it runs from the
 # repository root and every file argument is made absolute first.
