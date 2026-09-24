@@ -231,7 +231,46 @@ func path(): String {
 }
 
 func reopened_classes(): List<String> {
-    return ["memory", "typed_memory", "dynamic_library", "spite/attribute", "spite/function"]
+    var classes = ["memory", "typed_memory", "dynamic_library", "spite/attribute", "spite/function"]
+    var numbers = number_classes()
+    var index = 0
+    while index < numbers.count() {
+        classes.append(numbers[index])
+        index = index + 1
+    }
+    return classes
+}
+
+func number_classes(): List<String> {
+    return [
+        "int"
+        "long"
+        "float"
+        "double"
+        "bool"
+        "tiny"
+        "short"
+        "byte"
+        "unsigned_short"
+        "unsigned_int"
+        "unsigned_long"
+    ]
+}
+
+func number_members(stem: String): List<String> {
+    var words = stem.split("_")
+    var type_name = ""
+    var index = 0
+    while index < words.count() {
+        var word = words[index]
+        var word_length = word.length()
+        type_name = "{type_name}{word.slice(0, 1).upper_case()}{word.slice(1, word_length)}"
+        index = index + 1
+    }
+    return [
+        "func from_type(type: Symbol, value: type.class): {type_name}"
+        "written per type by the generator: a C cast"
+    ]
 }
 
 func reopening(stem: String): String {
@@ -265,6 +304,10 @@ func supplied_members(stem: String): List<String> {
     }
     if stem == "typed_memory" {
         return typed_memory_members()
+    }
+    var numbers = number_classes()
+    if numbers.contains(stem) {
+        return number_members(stem)
     }
     if stem == "dynamic_library" {
         return dynamic_library_members()

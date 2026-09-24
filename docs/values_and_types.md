@@ -96,6 +96,14 @@ func NumberMethods() {
 A number is still a value in the emitted C (`int32_t`, `double`, ...): the class gives it functions, not a
 header, and `this` inside `Int` is that `int32_t`.
 
+**Casting is a function of the class being cast to** (D100). Every number class has
+`func from_type(type: Symbol, value: type.class)`, a Symbol codegen function whose symbol ranges over the
+types (not the attributes) of the program: the right-to-left cast of an `Int` into a `Float` is
+`Float.from_int(value)`, of a `Long` into a `Byte` `Byte.from_long(value)`, and so on. Its body is the one
+the compiler supplies -- a C cast, written inline, so a cast costs exactly what it did -- and
+`--final-classes` shows the declaration in each number class. Casting text into a number goes through
+`String`'s `to_<name>()` in the same way.
+
 `this` works in every class, not only numbers: it is the instance the function answers on, for when the
 function needs to hand itself to something -- `registry.append(this)`. Reading your own members through it is
 an error, because a class already reads them by name: write `name`, not `this.name`.

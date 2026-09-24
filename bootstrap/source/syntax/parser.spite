@@ -353,7 +353,7 @@ func parse_function_declaration(): Syntax.Statements.Statement {
     var parameters = List<Syntax.Statements.Parameter>()
     var expect_more = not check('right_paren')
     while expect_more and not check('end_of_file') {
-        var parameter_name = expect('identifier', "a parameter name")
+        var parameter_name = parameter_name()
         expect('colon', "':' followed by the parameter's type")
         var parameter_type = parse_type()
         if check('equal') {
@@ -361,7 +361,7 @@ func parse_function_declaration(): Syntax.Statements.Statement {
                 "a parameter has no default value in Spite: every argument is written at the call site, or the class holds the value as an attribute",
             )
         }
-        parameters.append(Syntax.Statements.Parameter(parameter_name.text, parameter_type))
+        parameters.append(Syntax.Statements.Parameter(parameter_name, parameter_type))
         if check('comma') {
             advance()
             expect_more = not check('right_paren')
@@ -388,6 +388,15 @@ func parse_function_declaration(): Syntax.Statements.Statement {
     var declaration = Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
     declaration.codegen_names = codegen_names
     return declaration
+}
+
+func parameter_name(): String {
+    if check('keyword_type') and next_kind() == 'colon' {
+        advance()
+        return "type"
+    }
+    var name = expect('identifier', "a parameter name")
+    return name.text
 }
 
 func parse_type_name_hint(): String {
@@ -755,12 +764,21 @@ func parse_type_without_suffix(): Syntax.Types.Type {
         var token = advance()
         return Syntax.Types.GenericType(token.text)
     }
+    if check('keyword_type') and next_kind() == 'dot' {
+        advance()
+        var symbol_path = ["type"]
+        return parse_type_path(symbol_path)
+    }
     if not check('identifier') {
         fail("expected a type name but found {found_text()}")
         return dummy_type()
     }
     var path = List<String>()
     path.append("{advance().text}")
+    return parse_type_path(path)
+}
+
+func parse_type_path(path: List<String>): Syntax.Types.Type {
     var continue_dots = true
     while continue_dots and not check('end_of_file') {
         if check('dot') {

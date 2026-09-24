@@ -14,6 +14,7 @@ var terminal_if: Syntax.Statements.IfStatement? = null
 var symbol_names = List<String>()
 var symbol_lookup_used = false
 var symbol_positions = Dictionary<Int>()
+var conversion_names = Dictionary<String>()
 var foreign_library_files = List<String>()
 var foreign_library_namings = List<String>()
 var foreign_library_headers = List<String>()
@@ -98,7 +99,7 @@ func generated_functions_source(qualified: String): String {
             var function_index = 0
             while function_index < information.functions.count() {
                 var function = information.functions[function_index]
-                if not function.symbol_name.is_empty() {
+                if not function.symbol_name.is_empty() and function.has_body {
                     text = "{text}\n\n{instantiated_function_source(information, function)}"
                 }
                 function_index = function_index + 1
@@ -1601,7 +1602,7 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
         var template = information.templates[index]
         var member_name = template.member_name_for(name)
         if not member_name.is_empty() {
-            var field = information.find_field(member_name)
+            var field = template_member(information, template, member_name)
             if field {
                 chosen = template
                 chosen_field = field
@@ -1620,6 +1621,28 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
         }
     }
     return null
+}
+
+func template_member(
+    information: Analysis.ClassInfo,
+    template: Analysis.TemplateInfo,
+    member_name: String,
+): Analysis.FieldInfo? {
+    if template.symbol_parameter != "type" {
+        return information.find_field(member_name)
+    }
+    var words = member_name.split("_")
+    var type_name = ""
+    var index = 0
+    while index < words.count() {
+        var word = words[index]
+        var word_length = word.length()
+        type_name = "{type_name}{word.slice(0, 1).upper_case()}{word.slice(1, word_length)}"
+        index = index + 1
+    }
+    var bound_type = value_type_named(type_name)
+    assert bound_type
+    return Analysis.FieldInfo(member_name, bound_type, "0")
 }
 
 func instantiate_template(
@@ -1668,8 +1691,19 @@ func instantiate_template(
     )
     function.symbol_name = template.symbol_parameter
     function.symbol_field_name = field.name
+    if not declaration.has_body {
+        function.has_body = false
+        function.supplied_body = "#define {function.c_name}(self, value) (({c_type_name(return_type)})(value))"
+        if declaration.name != "from_type" {
+            report(
+                "'{information.simple_name}.{declaration.name}' has no body, and only a function whose body the compiler supplies is written without one: give it a body",
+            )
+        }
+    }
     information.functions.append(function)
-    builder.add_prototype("{function_signature(information, function)};")
+    if not is_inline_supplied(function) {
+        builder.add_prototype("{function_signature(information, function)};")
+    }
     bound_symbol_name = saved_symbol_name
     bound_field_name = saved_field_name
     bound_field_type = saved_field_type
@@ -2676,13 +2710,41 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
     var to_scalar_plain = type_shape.as_scalar(to)
     if to_scalar_plain {
         if type_shape.as_scalar(from) {
-            return "(({c_type_name(to)})({code}))"
+            var conversion = numeric_conversion(from, to)
+            if conversion.is_empty() {
+                return "(({c_type_name(to)})({code}))"
+            }
+            return "{conversion}(0, {code})"
         }
         report_mismatch(from, to)
         return code
     }
     report_mismatch(from, to)
     return code
+}
+
+func numeric_conversion(from: Analysis.SpiteType, to: Analysis.SpiteType): String {
+    var from_label = type_label(from)
+    var to_label = type_label(to)
+    var key = "{from_label} {to_label}"
+    if conversion_names.has(key) {
+        crash conversion_names[key]
+        return conversion_names[key]
+    }
+    var conversion_name = ""
+    var to_scalar = type_shape.as_scalar(to)
+    crash to_scalar
+    var target_class = value_class_of(to_scalar.kind)
+    if target_class {
+        var source_words = words_of(from_label)
+        var source_name = source_words.join("_")
+        var conversion = find_or_instantiate_function(target_class, "from_{source_name}")
+        if conversion {
+            conversion_name = conversion.c_name
+            conversion_names[key] = conversion_name
+        }
+    }
+    return conversion_name
 }
 
 func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType) {
@@ -10147,7 +10209,9 @@ func emit_value_class(information: Analysis.ClassInfo) {
     }
     var function_index = 0
     while function_index < information.functions.count() {
-        builder.add_prototype("{function_signature(information, information.functions[function_index])};")
+        if not is_inline_supplied(information.functions[function_index]) {
+            builder.add_prototype("{function_signature(information, information.functions[function_index])};")
+        }
         function_index = function_index + 1
     }
     function_index = 0
