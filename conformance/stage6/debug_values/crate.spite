@@ -1,0 +1,5 @@
+var _serial = 7
+
+func serial(): Int {
+    return _serial
+}

@@ -1,0 +1,9 @@
+var metal = ""
+
+func Badge(starting_metal: String) {
+    metal = starting_metal
+}
+
+func to_debug(): String {
+    return "a {metal} badge"
+}

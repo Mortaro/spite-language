@@ -27,3 +27,11 @@ func get_functions(): List<Spite.Function> {
 func is_singleton(): Bool {
     return _singleton
 }
+
+func to_string(): String {
+    return _name
+}
+
+func to_debug(): String {
+    return _name
+}

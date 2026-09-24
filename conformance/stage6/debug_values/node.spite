@@ -1,0 +1,6 @@
+var value = 0
+var next: Node? = null
+
+func Node(starting_value: Int) {
+    value = starting_value
+}

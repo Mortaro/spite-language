@@ -1,0 +1,31 @@
+singleton
+
+generic $value_type
+
+var _trail = List<$value_type>()
+
+func text(value: $value_type): String {
+    var name = value.class.name
+    var index = 0
+    while index < _trail.count() {
+        if _trail.get_at(index) == value {
+            return "{name} \{...}"
+        }
+        index = index + 1
+    }
+    _trail.append(value)
+    var parts = List<String>()
+    debug_attributes(value, parts)
+    _trail.remove_last()
+    if parts.is_empty() {
+        return "{name} \{}"
+    }
+    var joined_parts = parts.join(", ")
+    return "{name} \{ {joined_parts} }"
+}
+
+func debug_attribute(attribute: Symbol<$value_type>, value: $value_type, parts: List<String>) {
+    var attribute_debug = Debug<attribute.class>()
+    var attribute_text = attribute_debug.text(value.attributes[attribute])
+    parts.append("{attribute.name}: {attribute_text}")
+}

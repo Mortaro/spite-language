@@ -539,9 +539,17 @@ log()                     # lines is empty
 As implemented (proposed by Claude, unconfirmed): **passing a whole list to a `...` parameter is an error** that
 says to pass the elements, because the caller writes them one by one and there is no spread operator to ask for
 the other reading -- unless the element type is itself a list. Zero values is a legal call, giving an empty list.
-`Console.print`, `write` and `error` still take their values through the generator's own special case rather than
-through `...values: List<Printable>`: which values count as printable is a language decision
-(`mortaros_missing_decisions.md`).
+`Console.print`, `write` and `error` are ordinary variadic functions taking `...values: List<Printable>` (D109,
+section 15).
+
+**A number, a `Bool` or an enum value fits a `type` too** (proposed by Claude, unconfirmed; built for D109). A
+shape holds class instances, and these are plain values, so passing one where a `type` is wanted puts it in a
+small box the compiler allocates and frees like any object, and a call through the shape reaches its class's
+function (`Int.to_string()`, for an `Int`). A `String` needs no box; a `Symbol` gets one so that it keeps its
+class. An enum value answers two functions, `to_string()` (its name as text -- `weather.to_string()` works on
+any enum value) and `to_debug()`, so that is all a shape can ask of one. `.class` read through the shape names the
+value's own class (`Int`, `Symbol`, the enum), as it does for a class instance. A value of a union passed where a
+`type` is wanted brings the union's members into the shape.
 
 ### Failure: three outcomes and no others  **[partial]**
 
@@ -1213,6 +1221,9 @@ than beside it:
   and the template it repeats must return nothing (`diagnostics/every_attribute`). The plural is the word
   `attributes` already means "all of them" in, which is why it was chosen over a new keyword or loop form: the
   old compile-time-unrolled `for instance.attributes` went with `for`, and this is its replacement without one.
+  Over another class's attributes it calls only the ones that class lets others read: a private `_` attribute
+  is skipped rather than being the private error (proposed by Claude, unconfirmed; found by D109's
+  `to_debug()`).
 
 ```gdscript
 func show_attribute(attribute: Symbol<Label>, label: Label, lines: List<String>) {
@@ -1286,8 +1297,8 @@ generator writes one Spite function on the first list's class -- a `while` over 
 must reach a class; anything the rule cannot write (a nullable member, a union) is compiled step by step, which
 means the same. The difference a program can see is only order: a member function in a fused chain runs element
 by element. `conformance/stage6/fused_chain_allocations` pins it: four chains run a thousand times allocate
-nothing (11 allocations in all, the one `TypedMemory` its lists share and the `Launcher` included, against 16 010
-step by step).
+nothing (17 allocations in all, the one `TypedMemory` its lists share, the `Launcher` and printing the total
+included, against more than 16 000 step by step).
 
 **A function of the caller for each element** (D113, decided by Mortaro; the resolution rule, the loop rule's
 exact shape and the reading below are proposed by Claude, unconfirmed).  **[implemented]** The member a template
@@ -2324,7 +2335,7 @@ directory listing and process spawning).
 | `Directory(path)` | `path: String`, `entries(): List<Directory.Entry>` (D93: every folder and file inside it, as `Directory` and `File` values whose `path` is joined to this one -- see below), `files(): List<String>` (names, sorted), `folders(): List<String>` (sorted), `exists(): Bool`, `create(): Bool` |
 | `Process(command, arguments)` | `run(): Int` (exit code; `arguments` is a `List<String>`, each shell-quoted), `output(): String` (stdout+stderr merged, valid after `run()`) |
 | `Program()` | `exit(code)`: exits the process immediately with `code` |
-| `Console()` | `print(...)`, `write(...)`, `error(...)`, `read_line(): String?` -- see below |
+| `Console()` | `print(...values)`, `write(...values)`, `error(...values)`, `flush()`, `read_line(): String?` -- see below |
 | `Socket()` (proposed by Claude, unconfirmed) | `listen_locally(port): Bool`, `accept_client(): Socket?`, `connect_locally(port): Bool`, `read_line(): String?`, `write_line(text): Bool`, `close()` -- TCP on `127.0.0.1` only, which `--repl_port` and `spite connect` use (section 14) |
 | `Concurrent(function)`, `Parallel(function)` (proposed by Claude, unconfirmed) | `wait()`: what the function returned; dropping the handle waits for it -- see "Concurrency" below |
 | `DynamicLibrary(file_name, naming, header)` | every foreign function, constant and type of a native library -- see [Foreign libraries](#17-foreign-libraries-planned). `library/dynamic_library.spite` holds its `file_name` and `handle`, its constructor and `drop()`; opening, closing and finding a symbol are the compiler's reopening (D82) |
@@ -2333,10 +2344,72 @@ directory listing and process spawning).
 
 `Console` is one of them and is a singleton (D52): `Console()` is the same instance everywhere, `Console` is an
 ordinary class name rather than a reserved word, and `console.class.name` is `"Console"` like any other class.
-It has `print(...)` (every argument printed, separated by a space, with a trailing newline), `write(...)` (the
-same without the trailing newline), `error(...)` (the same as `print` but to the error stream), and
-`read_line(): String?` (one line from the input stream without its line break, null only at the end of input
-with nothing read). The entry constructor returning normally is exit code `0`.
+It has `print(...values)` (each value's `to_string()`, separated by a space, with a trailing newline),
+`write(...values)` (the same without the trailing newline), `error(...values)` (the same as `print` but to the
+error stream), `flush()`, and `read_line(): String?` (one line from the input stream without its line break, null
+only at the end of input with nothing read). The entry constructor returning normally is exit code `0`.
+
+**Printing is `to_string()`** (D109, decided by Mortaro; implemented). `print`, `write` and `error` are Spite in
+`library/console.spite`, taking `...values: List<Printable>`, where
+
+```gdscript
+type Printable {
+    to_string(): String
+}
+```
+
+Every number, `Bool`, `String` (whose `to_string()` answers itself), `Symbol`, enum value, `Spite.Class` (its
+`.name`) and `Spite.Namespace` (its `.name_with_namespaces`) answers it, so everything that printed before prints
+the same. A class of your own prints once it declares `func to_string(): String`, and passing one that does not is
+the ordinary shape error, naming the function: `'Pet' does not fit type 'Printable': it has no function
+'to_string'` (`diagnostics/print_without_to_string`, `conformance/stage6/printable_values`). Mortaro wrote the
+member as `to_string: Spite.Function<String>`; a `type` writes a required function as `to_string(): String` today,
+and which form a shape uses is open question 11. What stays the compiler's is only the floor: `_write_output(text)`,
+`_write_error(text)` and `flush()` have no body in Spite, and `Prelude` supplies their C (`fwrite` and `fflush`),
+as it does `Memory`'s.
+
+As implemented (proposed by Claude, unconfirmed): printing a value costs what the call says -- the list of values
+is a `List` like any variadic call's, a number goes through its box and its `to_string()`, and the text is written
+with its length rather than up to its first zero byte. `conformance/stage6/text_building` and
+`fused_chain_allocations` pin those allocations. A `crash` still writes its operands itself, through each value's
+`to_string()`, because it reports on the way out of a program that is stopping. `flush()` no longer writes a line
+break after flushing, which the special case it replaces did.
+
+**`Console.debug` and `to_debug()`** (D109, decided by Mortaro: "each class has an automatic to_debug(): String
+that returns something like `Class {attribute: value, other: value}` by nesting to_debugs"; Claude chose `debug`
+over `print_json`; implemented). `debug(...values: List<Debuggable>)`, where `type Debuggable { to_debug():
+String }`, writes each value's `to_debug()` separated by a space, then a line break. Every value answers it:
+
+```text
+Player { name: "hero", scores: [3, 7], bag: {"gold": 2}, partner: null, mood: 'calm' }
+```
+
+What follows is Claude's reading (proposed by Claude, unconfirmed):
+
+- **A class shows its name and its attributes**, in declaration order, as `Name { attribute: value }`, and
+  `Name {}` when it has none to show. An attribute that is a class is shown by *its* `to_debug()`, so a class that
+  declares its own is shown by it wherever it appears. A `List` is `[a, b]`, a `Dictionary` is `{"key": value}`,
+  text is quoted with `\"`, `\\` and `\n` escaped, a `Symbol` or enum value is written the way Spite writes it
+  (`'calm'`), a number and a `Bool` as they print, and an absent `T?` is `null`. A `Spite.Class` is its name.
+- **Private attributes are left out.** The walk is the plural attribute template (section 8) run from
+  `Spite.DebugInstance`, and a plural over another class's attributes now ranges over the ones that class lets
+  others read: a `_` attribute is its own business, and reading it from outside would be the ordinary private
+  error. `Json` follows the same rule.
+- **A cycle ends at an object already being shown**: it is written `Name {...}`, so `first.next.next` pointing
+  back at `first` shows `Node { value: 1, next: Node { value: 2, next: Node {...} } }`. Each class keeps the
+  objects it is in the middle of showing, compared with `==` (identity, unless the class defines `equals`), and
+  a tree of distinct objects is shown whole however deep it goes.
+- **It is Spite, and it costs nothing unused.** `library/spite/debug.spite` (`Spite.Debug<$value_type>`) turns any
+  value into its text, and `library/spite/debug_instance.spite` (`Spite.DebugInstance<$value_type>`) walks a class
+  instance. The generator's whole part is that asking a class for a `to_debug()` it does not declare answers one
+  that calls them, created only when something asks, so a program that never debugs a class compiles nothing for
+  it. A `type` or union that does not require `to_debug()` still answers it, dispatched to the class the value is.
+- **The REPL keeps its own display** (`Player { name: hero, ... }`: text unquoted, nested objects as `Name {...}`,
+  lists as `List<String>(...)`), because it reads a running program through `Spite.Attribute`, whose values are
+  already text, and the documented sessions depend on it. Proposal: make it `to_debug()` of the value once
+  reflection can hand the loop a typed value (`mortaros_missing_decisions.md`).
+
+`conformance/stage6/debug_values`, `docs/standard_library.md`.
 
 **A directory is navigated through its entries** (D93, decided by Mortaro, 2026-09-24).  **[implemented]**
 `Directory` has a `path` exactly as `File` does, and `entries()` answers a `List<Directory.Entry>`, where
@@ -2503,7 +2576,8 @@ Spite above them:
    only the header can make: a `'constant'` text is never counted, and `text = text + piece` grows the text in
    place only when its count is one (`SpiteString_append` asks, then calls `String._unshared()` and
    `String._append_in_place(piece)`, which are Spite).
-4. **Entry and exit**: `main` is emitted by the compiler, and so is printing, so the floor also has
+4. **Entry and exit**: `main` is emitted by the compiler, and so is writing text out (`Console._write_output`,
+   `_write_error`; D109 moved everything else about printing into Spite), so the floor also has
    `Console.flush()`: exiting through the C runtime's `exit` would drop what the program's own `stdout` still
    buffers, which is why `Program.exit` flushes first (found when every corpus program printed nothing).
 5. **The C runtime through Spite, one operating system at a time** (D71 replaced Claude's `"c"` alias; D80
@@ -3403,3 +3477,5 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (implements D111's watcher; proposed by Claude, unconfirmed) **Each operating system's folder reopens `HotReload` with `watch_folder` and `wait_for_change`**: `FindFirstChangeNotificationA` on Windows (D111 named `ReadDirectoryChangesW`; which file changed is found by hash, so the simpler call is enough), `inotify` on Linux, `kqueue` on the folder and each file on macOS (not FSEvents, which needs a run loop). The watcher thread waits until 100 ms pass without a change, then flags the scheduler; only the program's own folder is watched, not `load`ed folders. On Windows, a program and its libraries built by an MSVC-targeting clang share the C runtime DLL. `Program.executable_path()` is added to each folder so the compiler can record itself. |
 | 2026-09-24 | **D115** (decided by Mortaro, in the SlopEngine session, relayed; extends D114): **a program finds its parts by folder convention, through compile-time reflection over its classes.** SlopEngine finds every system with no list: a system is every class whose namespace ends in `System` (a `system/` folder, e.g. `Ui.System.Interact`), and the program is its entry file, so plugin and composition files go. The language need is a compile-time plural template over the program's classes, filtered by namespace, instantiating a generic (`Runner<ThatClass>`) for each -- a sibling of D114's function reflection. The mechanism is decided; the spelling is open (the SlopEngine session proposed `Symbol<Spite.Namespace>` or a `classes` plural over a namespace pattern). |
 | 2026-09-24 | **D116** (decided by Mortaro, in the SlopEngine session, relayed; extends D114): **a function's name can say when it runs, and a template reads that name.** Instead of a generic `run_each`, a system's function name places it: `update_each`, `render_all`, `run_each_before_input`. The engine owns a list of phases and a template matches the name pattern -- descriptive names as the ordering mechanism, with no hand-written after/before lists and no plugin order; within one phase, systems with no conflicts run in parallel. The language need is D114's `has(...)` taking a name pattern, with the matched part (the phase) available at compile time as a `Symbol` or text. The grammar (`<phase>_each` / `<phase>_all`, `run_each_before_<phase>` / `run_each_after_<phase>`) was proposed by the SlopEngine session and is for Mortaro to settle. |
+| 2026-09-24 | (implements D109's `print`; the readings below proposed by Claude, unconfirmed) **`Console.print`, `write` and `error` are Spite, taking `...values: List<Printable>`, and the generator's printing special case is gone.** `type Printable { to_string(): String }` lives in `library/console.spite`, written with the form a `type` has today rather than Mortaro's `to_string: Spite.Function<String>` (open question 11). `String.to_string()` answers itself, `Spite.Class` its `.name`, `Spite.Namespace` its `.name_with_namespaces`, and every enum value answers `to_string()`, its name. For numbers, `Bool` and enum values to fit a `type` at all, **a plain value passed where a shape is wanted is boxed** -- one allocation, released like an object -- and a call through the shape reaches its class's function; `String` and `Symbol` are objects already. What the compiler still writes is the floor: `Console._write_output`, `_write_error` and `flush` are bodiless and `Prelude` supplies `fwrite`/`fflush`, and a `crash` writes its own operands. Output is byte for byte what it was, except that `flush()` no longer writes a stray line break; the self-compile time is unchanged within noise, and the two allocation pins moved (29 to 50, 11 to 17) because a variadic call builds a `List` (`mortaros_missing_decisions.md` 72 to 74). |
+| 2026-09-24 | (implements D109's `debug`; the readings below proposed by Claude, unconfirmed) **`Console.debug(...values: List<Debuggable>)` writes each value's `to_debug()`, and every value has one.** A class that does not declare `to_debug()` answers one the moment something asks, and it calls `Spite.DebugInstance<$value_type>` (`library/spite/debug_instance.spite`), which walks the attributes with the plural template; every other value goes through `Spite.Debug<$value_type>` (`library/spite/debug.spite`). The format: `Name { attribute: value }` (`Name {}` when empty), `[a, b]`, `{"key": value}`, text quoted and escaped, a `Symbol` or enum value written `'name'`, a number or `Bool` as printed, `null`. **Cycles:** an object already being shown further up is written `Name {...}`, found by `==` against the objects its class is in the middle of showing. **Private attributes are left out**, because a plural over another class's attributes now skips the `_` ones instead of failing on them (`Json` too). Along the way: a `Symbol` passed to a `type` is boxed like an enum value, so it keeps its class; a union value passed to a `type` admits the union's members; a `type` or union answers `to_debug()` even when it does not require it; and a `DynamicLibrary`'s own declared functions (`to_debug`) are called as Spite rather than as foreign symbols. The REPL's display is unchanged, and becoming `to_debug()` is a proposal. `conformance/stage6/debug_values`; `mortaros_missing_decisions.md` 75 to 78. |

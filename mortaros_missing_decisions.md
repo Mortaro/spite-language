@@ -52,7 +52,8 @@ manual argues it.
 
 ## Variadic arguments
 
-13. **Whether `Console.print` takes `...values: List<Printable>`** (D90, manual section 5 "Variadic arguments").
+13. **(Answered by D109: yes, with `to_string()`. Built 2026-09-24, manual section 15 "System classes".)**
+    **Whether `Console.print` takes `...values: List<Printable>`** (D90, manual section 5 "Variadic arguments").
     It fits the mechanism, but it needs a `type Printable` that every printable value satisfies, and today the
     generator decides printability itself: numbers, `Bool`, `String`, `Symbol`, enum values, `Spite.Class` and
     `Spite.Namespace` print, and any other class is an error naming its attributes. Proposal (Claude):
@@ -219,7 +220,7 @@ Behaviour that does not match the manual. The language was not changed; each is 
     counted or freed, which every program now allocates once less for, and without which `String.drop()` could
     reach a `Memory` the program's exit had already released. `Memory.instances` would not list it. Fine as a
     hidden optimisation (D36)?
-56. **Item 13's `to_text()`** would be `to_string()` after D107 ("a value turns into text with `to_string()`"):
+56. **(Answered by D109: `to_string()`.)** **Item 13's `to_text()`** would be `to_string()` after D107 ("a value turns into text with `to_string()`"):
     the `Printable` proposal should use that name.
 
 ## A function of the caller for each element (D113; manual section 8)
@@ -294,3 +295,33 @@ Behaviour that does not match the manual. The language was not changed; each is 
     `run_each_before_<phase>` / `run_each_after_<phase>`, and how a template spells a name pattern whose matched
     part it can read.
 
+## From D109 (printing through `to_string()`, `Console.debug`; manual sections 5, 8 and 15)
+
+74. **A number, `Bool`, `Symbol` or enum value passed where a `type` is wanted is boxed**: one small allocation,
+    freed like any object, so `print(count)` costs a box and the `String` its `to_string()` makes, and every
+    `print` costs the `List` its values arrive in. The self-compile did not slow measurably, and the two corpus
+    programs that pin allocations moved from 29 to 50 and from 11 to 17. Is that an acceptable visible cost, or
+    should a variadic list the callee only reads live in the caller's frame (the D108 placement rule, one step
+    further)?
+75. **Interpolation does not call a class's `to_string()`**: `console.print(ticket)` prints a `Ticket` that
+    declares one, and `"{ticket}"` is still the error "a Ticket cannot be used where a String is needed", so text
+    is written `"{ticket.to_string()}"`. D107 says interpolation calls `to_string()`; should it for a class too?
+76. **An enum value answers `to_string()` and `to_debug()` and nothing else**, which is what lets it be
+    `Printable` and `Debuggable`. Should an enum be able to declare more, the way a number's class does (a file
+    per enum is not a thing yet)?
+77. **The cycle rule for `to_debug()`**: an object already being shown further up is written `Name {...}`, found
+    by `==` against the objects of its class being shown (identity, unless the class defines `equals`). A tree of
+    distinct objects is shown whole however deep. The alternatives were a depth limit, or `{...}` for any object
+    of a class already on the way down (which would cut a linked list after one node).
+78. **What `to_debug()` writes**: `Name { attribute: value }` and `Name {}`, `[a, b]`, `{"key": value}`, text in
+    double quotes with `\"`, `\\` and `\n` escaped, a `Symbol` or enum value as `'name'`, numbers and `Bool` as
+    printed, `null`, a `Spite.Class` as its name, a `DynamicLibrary` as its `file_name`. Private `_` attributes
+    are left out, because the plural attribute template now skips another class's private attributes instead of
+    failing on them, which changes `Json` the same way. Show them instead (a reflection read the plural is
+    allowed and nothing else is)?
+79. **The REPL could show values with `to_debug()`**: today it shows `Player { name: hero, ... }` (text unquoted,
+    nested objects as `Name {...}`, lists as `List<String>(...)`) from `Spite.Attribute`'s text, and the
+    documented sessions depend on that. Switching means quoting text and nesting fully in every answer. Want it?
+80. **The names**: `Console.debug`, `type Debuggable { to_debug(): String }` beside `Printable`,
+    `Spite.Debug<$value_type>` for the text of any value and `Spite.DebugInstance<$value_type>` for walking a
+    class instance -- in `Spite` because they are reflection, and so a program cannot reopen them by accident.

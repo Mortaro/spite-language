@@ -1,0 +1,11 @@
+var name = ""
+var health = 10
+var scores = List<Int>()
+var bag = Dictionary<Int>()
+var partner: Player? = null
+var mood: Symbol = 'calm'
+var weather: DebugValues.Weather = 'sunny'
+
+func Player(starting_name: String) {
+    name = starting_name
+}

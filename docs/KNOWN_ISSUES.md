@@ -79,7 +79,3 @@ Until it is fixed, do not name a class `Entry`.
   library (`String.matches_at`, `Dictionary` probing) take slots in the ring of asserts a crash reports.
 - **`Json`** writes a `Float` or `Double` holding infinity or not-a-number as `inf`/`nan`, which is not JSON, and
   cannot read a `Symbol` attribute ([json.md](json.md)).
-- **Printing an integer** with `console.print` writes its digits directly, so a program that reopens `Int.to_string()`
-  changes interpolation (`"{count}"`) but not printing.
-- **`Console.print`, `write` and `error`** take any values through a special case in the compiler rather than a
-  variadic parameter, until it is decided what "printable" means.
