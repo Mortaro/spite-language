@@ -1,0 +1,53 @@
+var console = Console()
+
+func BitwiseFunctions() {
+    var eleven = 11
+    var six = 6
+    console.print("and {eleven.bits_and(six)} or {eleven.bits_or(six)} exclusive or {eleven.bits_exclusive_or(six)}")
+    console.print("inverted {eleven.bits_inverted()} left {eleven.shifted_left(2)} right {eleven.shifted_right(1)}")
+    var negative = -20
+    console.print("negative right {negative.shifted_right(2)} left {negative.shifted_left(1)}")
+    console.print("negative and {negative.bits_and(255)} inverted {negative.bits_inverted()}")
+    var all_ones = -1
+    console.print("int all ones {all_ones.shifted_right(31)} {all_ones.shifted_left(31)} {all_ones.set_bit_count()}")
+    console.print("int by 0 {eleven.shifted_left(0)} {eleven.shifted_right(0)}")
+    console.print("int by 32 {eleven.shifted_left(32)} {eleven.shifted_right(32)} {all_ones.shifted_right(32)}")
+    console.print("int by 100 {negative.shifted_right(100)} {negative.shifted_left(100)}")
+    var unsigned_ones: UnsignedInt = 0 - 1
+    console.print(
+        "unsigned int {unsigned_ones.shifted_right(31)} {unsigned_ones.shifted_left(31)} {unsigned_ones.shifted_right(32)}",
+    )
+    console.print("unsigned int inverted {unsigned_ones.bits_inverted()} {unsigned_ones.set_bit_count()}")
+    var tiny: Tiny = -128
+    console.print("tiny {tiny.shifted_right(7)} {tiny.shifted_right(8)} {tiny.shifted_left(1)} {tiny.bits_inverted()}")
+    var tiny_one: Tiny = 1
+    console.print("tiny one {tiny_one.shifted_left(7)} {tiny_one.shifted_left(8)}")
+    var byte: Byte = 255
+    console.print("byte {byte.shifted_right(7)} {byte.shifted_left(7)} {byte.shifted_left(8)} {byte.bits_inverted()}")
+    console.print("byte counts {byte.set_bit_count()} {byte.leading_zero_count()} {byte.trailing_zero_count()}")
+    var small: Short = -32768
+    console.print("small {small.shifted_right(15)} {small.shifted_right(16)} {small.bits_exclusive_or(-1)}")
+    var unsigned_short: UnsignedShort = 65535
+    console.print(
+        "unsigned short {unsigned_short.shifted_right(15)} {unsigned_short.shifted_left(15)} {unsigned_short.shifted_right(16)}",
+    )
+    var every_bit: Long = -1
+    console.print(
+        "every bit {every_bit.shifted_right(63)} {every_bit.shifted_left(63)} {every_bit.shifted_right(64)} {every_bit.set_bit_count()}",
+    )
+    var long_one: Long = 1
+    var high_bit = long_one.shifted_left(40)
+    console.print("long high bit {high_bit} {high_bit.leading_zero_count()} {high_bit.trailing_zero_count()}")
+    var unsigned_long: UnsignedLong = 0 - 1
+    console.print(
+        "unsigned long {unsigned_long.shifted_right(63)} {unsigned_long.shifted_left(63)} {unsigned_long.shifted_right(64)}",
+    )
+    console.print("unsigned long inverted {unsigned_long.bits_inverted()} {unsigned_long.leading_zero_count()}")
+    var zero = 0
+    console.print("zero counts {zero.set_bit_count()} {zero.leading_zero_count()} {zero.trailing_zero_count()}")
+    var wide: Long = 4294967296 + 15
+    console.print("argument cast to the receiver {byte.bits_and(wide)} {eleven.bits_or(wide)}")
+    var mask: Byte = 240
+    var wide_value: Long = 1000
+    console.print("receiver keeps its width {wide_value.bits_and(mask)} {wide_value.bits_exclusive_or(mask)}")
+}

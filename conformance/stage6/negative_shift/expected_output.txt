@@ -1,0 +1,2 @@
+spite: UnsignedShort.shifted_right was given the count -2, and a shift count is 0 or more
+shifted 5

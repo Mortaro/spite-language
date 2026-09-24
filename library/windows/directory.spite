@@ -3,7 +3,7 @@ var memory = Memory()
 
 func exists(): Bool {
     var attributes = kernel.GetFileAttributesA(path)
-    return attributes != -1 and attributes % 32 >= 16
+    return attributes != -1 and attributes.bits_and(16) != 0
 }
 
 func create(): Bool {
@@ -17,7 +17,8 @@ func entry_names(want_folders: Bool): List<String> {
     if search != -1 {
         var more = true
         while more {
-            var is_folder = memory.read_int(found, 0) % 32 >= 16
+            var attributes = memory.read_int(found, 0)
+            var is_folder = attributes.bits_and(16) != 0
             var name = memory.terminated_text(found + 44)
             if is_folder == want_folders and name != "." and name != ".." {
                 names.append(name)

@@ -289,19 +289,19 @@ Behaviour that does not match the manual. The language was not changed; each is 
     `.class` as a type, `.name` as a `Symbol`). The mechanism is yours; the spelling was the SlopEngine session's.
     *Built (proposed by Claude, unconfirmed):* `if $system_type.has_function('run_each')` folds, and
     `argument: Symbol<$system_type.run_each>` walks the arguments (`argument.name`, `argument.class`), with
-    `system.run_each(row_arguments())` passing one value per argument. See item 95.
+    `system.run_each(row_arguments())` passing one value per argument. See item 98.
 71. **Finding every function named `*_system` across the program** -- the same reflection over the program's
     classes. Not decided.
 72. **The spelling of D115** (finding classes by namespace at compile time): `Symbol<Spite.Namespace>`, or a
     `classes` plural over a namespace pattern -- the SlopEngine session's proposals.
     *Built (proposed by Claude, unconfirmed):* `system: Symbol<System>` walks the classes of every namespace
-    ending in `System`, and `Runner<system.class>()` instantiates the generic for each. See item 96.
+    ending in `System`, and `Runner<system.class>()` instantiates the generic for each. See item 99.
 73. **The grammar of D116** (ordering by function name): `<phase>_each` / `<phase>_all` plus
     `run_each_before_<phase>` / `run_each_after_<phase>`, and how a template spells a name pattern whose matched
     part it can read.
     *Built (proposed by Claude, unconfirmed):* `phase: Symbol<$system_type.phase_each>` -- the parameter's name
     is the hole, as in a template's own name -- walks the matching functions, `phase.name` is the match, and
-    `system.phase_each(...)` calls it; `has_function("<phase>_each")` asks the same in a condition. See item 97.
+    `system.phase_each(...)` calls it; `has_function("<phase>_each")` asks the same in a condition. See item 100.
 
 ## From D109 (printing through `to_string()`, `Console.debug`; manual sections 5, 8 and 15)
 
@@ -364,7 +364,7 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 ## From porting PSD, zstd and .blend to Spite (SlopEngine)
 
-87. **Bitwise operators** (shift, and, or, exclusive or). Every binary format needs them -- zstd's bit readers,
+87. **(Answered by D117: functions on the number classes; names still to confirm.)** **Bitwise operators** (shift, and, or, exclusive or). Every binary format needs them -- zstd's bit readers,
     FSE, Huffman, PSD flags, Win32 packed values -- and the ports wrote them as `/` and `%` by powers of two, which
     is slower, harder to read, and wrong for negatives. The session suggests spelled-out names in Spite's style
     (`value.shifted_right(3)`, `value.bits_and(mask)`) rather than symbols. Also first in
@@ -405,31 +405,49 @@ Behaviour that does not match the manual. The language was not changed; each is 
     and `read_long` hold the same bits. A variable cannot be named `unsigned_int_bits` (`int` abbreviates), but
     these follow the type names, as `read_int` already did. Keep, or `read_unsigned_integer`?
 
+## From adding the bitwise functions (D117)
+
+95. **The bitwise names** (proposed by Claude, unconfirmed): `shifted_left(count)`, `shifted_right(count)`,
+    `bits_and(other)`, `bits_or(other)`, `bits_exclusive_or(other)`, `bits_inverted()`, and the extras
+    `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()`. `bits_` because `and`/`or`/`not` are
+    keywords and `xor` abbreviates. Keep them, or another family (`and_bits`, `shift_left`, `inverted_bits`)?
+96. **Shift counts outside 0 to width - 1**: a count of the width or more shifts every bit out (0, or -1 for a
+    negative value shifted right, as Go does), and a negative count halts with a report naming the function and
+    the count. The alternative was masking the count to the width (Java, C#, what x86 does), which is branch-free
+    but makes an `Int`'s `shifted_left(32)` answer the value unchanged. Fine?
+97. **The other operand is cast to the receiver's type**: a `Byte`'s `bits_and` of a `Long` answers a `Byte` from
+    the `Long`'s low 8 bits, and the count is always an `Int`. This is the ordinary argument cast, so it holds
+    whatever item 88 decides for arithmetic. Should a narrowing here be an error instead?
+
 ## From D114, D115 and D116 (compile-time reflection over functions, folders and names; manual section 8)
 
-95. **The D114 spelling as built**: `$system_type.has_function('run_each')` (a member of `Spite.Class`, folded in
+98. **The D114 spelling as built**: `$system_type.has_function('run_each')` (a member of `Spite.Class`, folded in
     a condition, answering at run time elsewhere) and `argument: Symbol<$system_type.run_each>` over the
     arguments. A template over arguments that returns a value has exactly one use for its plural:
     `system.run_each(row_arguments())`, the whole argument list of that same function, which D77 would otherwise
     forbid. Is that one exception to D77 acceptable, or would you rather the values be gathered some other way
     (for example the template storing each value, and a separate `system.run_each(...)` spelled some other way)?
-96. **The D115 spelling as built**: `system: Symbol<System>` -- a range that names no class or type is read as
+99. **The D115 spelling as built**: `system: Symbol<System>` -- a range that names no class or type is read as
     the end of a dotted namespace, so `System` finds `System.Heal` and `Ui.System.Interact`. Two choices inside
     it: classes are walked in order of their dotted names (not discovery order), and a range matching no folder
     at all is an error rather than an empty walk -- which means an engine written against `Symbol<System>` does
     not compile for a program with no `system/` folder anywhere, the engine's own included. Keep both? And should
     `Symbol<System>` also reach classes in folders below a `system/` folder (`System.Combat.Hit`), which it does
     not today?
-97. **The D116 grammar as built**: one hole per pattern, spelled by the parameter's name being a word of the
+100. **The D116 grammar as built**: one hole per pattern, spelled by the parameter's name being a word of the
     function name in the range (`phase: Symbol<$system_type.phase_each>`), exactly as a template's own name is
     spelled. Two readings came with it: `system.phase_each(...)` written inside that template calls the matched
     function (the pattern as a member name), and a template over `$system_type.phase_each` called from inside
     walks the matched function's arguments, its instances named `<name>_in_<function>`. Is a member name
     changing meaning inside a template acceptable, or should the matched function be reached some other way?
-98. **`run_each` also fits `<phase>_each`**, with the phase `run`. A system with `run_each` under an engine
+101. **`run_each` also fits `<phase>_each`**, with the phase `run`. A system with `run_each` under an engine
     walking `<phase>_each` is placed in a phase called `run`; the engine in `conformance/stage6/system_phases`
     crashes on a phase it does not own. Should a pattern exclude names the program uses another way, or is the
     engine's check the right place?
-99. **What `has_function` counts**: folded, the functions a class declares (not its constructor, not a `_`
+102. **What `has_function` counts**: folded, the functions a class declares (not its constructor, not a `_`
     function, not what a template generated for it); at run time, `.functions`, which includes what templates
     generated. The two can disagree for a template-generated name. Align them, and which way?
+103. **A symbol literal where text is wanted is that text** when no enum has a value by that name, so
+    `Sprinkler.has_function('drain')` works (it failed with "cannot tell which enum"). A literal an enum does
+    name still means the enum value, so adding an enum value `drain` somewhere would change what that line
+    passes. Keep, or should text always be written in double quotes?

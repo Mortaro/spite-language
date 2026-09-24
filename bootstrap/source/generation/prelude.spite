@@ -203,10 +203,65 @@ func number_members(stem: String): List<String> {
         type_name = "{type_name}{word.slice(0, 1).upper_case()}{word.slice(1, word_length)}"
         index = index + 1
     }
-    return [
+    var members = [
         "func from_type(type: Symbol, value: type.class): {type_name}"
         "written per type by the generator: a C cast"
     ]
+    var whole_numbers = ["tiny", "short", "int", "long", "byte", "unsigned_short", "unsigned_int", "unsigned_long"]
+    var widths = [8, 16, 32, 64, 8, 16, 32, 64]
+    var is_signed = not stem.starts_with("unsigned_") and stem != "byte"
+    var index = 0
+    while index < whole_numbers.count() {
+        if whole_numbers[index] == stem {
+            var width = widths.get_at(index)
+            var bitwise = bitwise_members(type_name, width, is_signed)
+            var member_index = 0
+            while member_index < bitwise.count() {
+                members.append(bitwise[member_index])
+                member_index = member_index + 1
+            }
+        }
+        index = index + 1
+    }
+    return members
+}
+
+func bitwise_members(type_name: String, width: Int, is_signed: Bool): List<String> {
+    var value_type = "uint{width}_t"
+    var right_shift = "if (count >= {width}) return 0;\nreturn ({value_type})(self >> count);"
+    if is_signed {
+        value_type = "int{width}_t"
+        var last_bit = width - 1
+        right_shift = "if (count > {last_bit}) count = {last_bit};\nreturn ({value_type})(self < 0 ? ~(~self >> count) : self >> count);"
+    }
+    var bits_type = "uint{width}_t"
+    var left_crash = negative_count_crash(type_name, "shifted_left")
+    var right_crash = negative_count_crash(type_name, "shifted_right")
+    var above_width = 64 - width
+    return [
+        "func shifted_left(count: Int): {type_name}"
+        "{left_crash}if (count >= {width}) return 0;\nreturn ({value_type})({bits_type})(({bits_type})self << count);"
+        "func shifted_right(count: Int): {type_name}"
+        "{right_crash}{right_shift}"
+        "func bits_and(other: {type_name}): {type_name}"
+        "return ({value_type})(self & other);"
+        "func bits_or(other: {type_name}): {type_name}"
+        "return ({value_type})(self | other);"
+        "func bits_exclusive_or(other: {type_name}): {type_name}"
+        "return ({value_type})(self ^ other);"
+        "func bits_inverted(): {type_name}"
+        "return ({value_type})~self;"
+        "func set_bit_count(): Int"
+        "return (int32_t)__builtin_popcountll((uint64_t)({bits_type})self);"
+        "func leading_zero_count(): Int"
+        "if (({bits_type})self == 0) return {width};\nreturn (int32_t)__builtin_clzll((uint64_t)({bits_type})self) - {above_width};"
+        "func trailing_zero_count(): Int"
+        "if (({bits_type})self == 0) return {width};\nreturn (int32_t)__builtin_ctzll((uint64_t)({bits_type})self);"
+    ]
+}
+
+func negative_count_crash(type_name: String, name: String): String {
+    return "if (count < 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: {type_name}.{name} was given the count %d, and a shift count is 0 or more\\n\", (int)count);\nexit(1);\n}\n"
 }
 
 func reopening(stem: String): String {

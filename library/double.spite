@@ -15,8 +15,8 @@ func shortest_text(significand_limit: Long, lowest_exponent: Long, most_digits: 
         }
         return "-{magnitude}"
     }
-    var field = bits / 4503599627370496
-    var significand = bits % 4503599627370496
+    var field = bits.shifted_right(52)
+    var significand = bits.bits_and(4503599627370495)
     if field == 2047 {
         if significand == 0 {
             return "inf"

@@ -5993,6 +5993,23 @@ func generate_value_method(
         )
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
+    var bitwise_names = [
+        "shifted_left"
+        "shifted_right"
+        "bits_and"
+        "bits_or"
+        "bits_exclusive_or"
+        "bits_inverted"
+        "set_bit_count"
+        "leading_zero_count"
+        "trailing_zero_count"
+    ]
+    if bitwise_names.contains(name) {
+        report(
+            "a {type_display_name(object_result_type)} has no function '{name}': the bitwise functions are on the whole numbers, Tiny to UnsignedLong. Cast it first, like 'var whole: Long = value'",
+        )
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
     report("a {type_display_name(object_result_type)} has no function '{name}'")
     return ExpressionResult("0", Analysis.Types.VoidType())
 }

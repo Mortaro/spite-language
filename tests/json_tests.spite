@@ -87,9 +87,9 @@ func test_text_escapes_round_trip() {
 }
 
 func test_unicode_escapes_become_utf8() {
-    var read = json.read("\{\"name\":\"caf\\u00e9 \\ud83d\\ude00 \\/\"}")
+    var read = json.read("\{\"name\":\"caf\\u00e9 \\u20ac \\ud83d\\ude00 \\/\"}")
     crash read
-    crash read.name == "café 😀 /"
+    crash read.name == "café € 😀 /"
 }
 
 func test_values_that_are_not_classes() {
