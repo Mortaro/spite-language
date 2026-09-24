@@ -1,0 +1,17 @@
+var console = Console()
+
+func InteractiveNullableResults() {
+    console.print("ready")
+}
+
+func title(): String? {
+    return "hero"
+}
+
+func found(): Monster? {
+    return Monster("bat", 5)
+}
+
+func missing(): Monster? {
+    return null
+}

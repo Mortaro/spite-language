@@ -1,0 +1,6 @@
+ready
+spite> hero
+spite> Monster { name: bat, health: 5 }
+spite> null
+spite> 
+

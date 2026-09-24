@@ -5,6 +5,7 @@ spite> List<String>(3)
 spite> List<Monster>(2)
 spite> List<Monster>(3)
 spite> null
+spite> Monster { name: bat, health: 5 }
 spite> true
 spite> spite> false
 spite> 39
