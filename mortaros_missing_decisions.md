@@ -260,3 +260,24 @@ Behaviour that does not match the manual. The language was not changed; each is 
     nothing at run time, and binding it (`var build = Build()` in the launcher and anywhere else) costs no
     allocation. Reading a field of it any way but by name (reflection over its attributes) would see nothing.
     Fine as a hidden optimisation (D36)?
+
+## Live reload (D111, D112; manual section 14, "Live reload and 6b")
+
+64. **A changed attribute or enum is refused, with an error saying to restart.** D111 says a change rebuilds "what
+    depends on their layout", but instances already in memory have the old layout. Migrating them -- a new object
+    per instance, attributes copied by name, new ones taking their defaults -- needs every live instance and every
+    reference to each, which nothing finds today (`Class.instances` is not built, and references would have to be
+    re-pointed). Keep refusing, build migration (and how should references be found: a per-class instance list, or
+    one level of indirection per object in `--hot_reload` builds), or something else?
+65. **The REPL keeps the functions the program started with.** A function added by a reload is called by the new
+    code but not listed by `functions` or callable at the prompt until a restart. Should reflection follow reloads?
+66. **The program waits while the library compiles** (under a second for a small program; a game drops frames).
+    Compiling on a helper thread and swapping at the first wait after it finishes costs a second copy of the
+    watcher's flag and nothing else. Worth it now?
+67. **Only the program's own folder is watched**, flat on every system like discovery, not the folders it `load`s;
+    `reload` picks those up. Watch every loaded root too?
+68. **Names**: `reload` and `last_reload` at the prompt, `--mode=reload` for the compiler, and `rebuilt A, B` /
+    `removed A.f` / `nothing changed since the code the program runs` as answers. When the watcher swapped a save
+    in before `reload` arrived, `reload` answers `nothing changed`, and `last_reload` tells what happened. Keep?
+69. **A reload library is never unloaded**, since values it made (its text literals, function values) may still be
+    referenced: each reload leaves a small library loaded. Fine for development builds?

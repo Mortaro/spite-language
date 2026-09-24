@@ -12,6 +12,7 @@ spite program --development           keep everything (no tree shaking), for liv
 spite program --debug_memory          count allocations and frees, and print the balance at the end
 spite program --repl                  run it, then open a REPL on the running program
 spite program --repl_port=4000        serve a REPL on 127.0.0.1:4000 while it runs
+spite program --hot_reload            swap edited classes into the running program, keeping its state
 spite program --serve=true            decide a Build field the program declares, while compiling
 spite program -- --serve=true         run it with a setting its Environment declares
 spite program --mode=c                print the C instead of running it
@@ -68,6 +69,10 @@ spite game --mode=c > game.c
 spite game --mode=build --output=build/game.exe
 ```
 
+`--mode=reload` is what a `--hot_reload` program runs to rebuild itself: given the same options and
+`--output=` naming the running executable, it compiles only the classes whose files changed into a library beside
+it and prints what it rebuilt ([repl.md](repl.md#live-reload---hot_reload)).
+
 `--mode=tokens` prints the lexer tokens, including their source positions, `--mode=tree` the parsed syntax tree,
 and `--mode=format` / `--mode=check_format` format one file:
 
@@ -82,12 +87,13 @@ Every option is a `Build` field with a literal default, declared in `library/bui
 
 | Option | Default | What it does |
 |---|---|---|
-| `mode` | `"run"` | `run`, `c`, `build`, `tokens`, `tree`, `format`, `check_format` |
+| `mode` | `"run"` | `run`, `c`, `build`, `reload`, `tokens`, `tree`, `format`, `check_format` |
 | `output` | `""` | where `--mode=build` writes the executable |
 | `optimized` | `false` | asks the C compiler for `-O2` instead of `-O0` |
 | `development` | `false` | keeps everything, no tree shaking, for live reload |
 | `repl` | `false` | runs the program with an in-place REPL |
 | `repl_port` | `0` | serves the remote REPL on this port (see [repl.md](repl.md)) |
+| `hot_reload` | `false` | swaps changed classes into the running program and implies `development` (see [repl.md](repl.md#live-reload---hot_reload)) |
 | `format` | `true` | formats the program's files before compiling; `--format=false` skips it |
 | `debug_memory` | `false` | counts allocations and frees and prints them when the program ends |
 | `final_classes` | `""` | writes the merged classes to this folder instead of compiling |
