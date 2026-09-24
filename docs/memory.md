@@ -196,7 +196,12 @@ var _capacity: Long = 0
 text in a loop uses; and `_section` is where the compiler placed them: `'heap'`, or `'constant'` for a literal,
 whose characters are part of the program and are never counted or freed. The compiler writes the C layout of a
 `String` from these declarations, in this order, after the header every object has (its reference count and its
-class); the functions of `String` read them by name.
+class). Everything else is Spite in the same file: `length()` answers `_length`, `code_at(index)` reads a byte
+of `_bytes` through `Memory` (the 0 after the last one is what it answers past the end), `slice` and `+` copy
+through `Memory` and end in the constructor `String(bytes, length)`, which takes bytes `Memory` handed out, and
+`drop()` gives `_bytes` back to `Memory` when the last reference goes. The only C about a `String` is what the
+header decides: a `'constant'` text is never counted, and `text = text + piece` grows in place only when
+nothing else holds the text.
 
 `library/int.spite` starts with the memory an `Int` is:
 

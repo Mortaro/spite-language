@@ -1,1 +1,7 @@
 singleton
+
+func text(address: Long, length: Long): String {
+    var bytes = allocate_bytes(length + 1)
+    copy_bytes(address, bytes, length)
+    return String(bytes, length)
+}

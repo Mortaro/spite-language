@@ -301,11 +301,6 @@ func generate(
     emit_enums()
     var string_layout_position = builder.typedef_count()
     builder.add_typedef("")
-    var prelude = Prelude()
-    var string_prototypes = prelude.string_prototypes()
-    builder.add_prototype(string_prototypes)
-    var string_bodies = prelude.string_bodies()
-    builder.add_support(string_bodies)
     var forward_index = 0
     while forward_index < classes.count() {
         if not classes[forward_index].is_value_class {
@@ -356,7 +351,6 @@ func generate(
         emit_pending_functions()
         final_settle = final_settle + 1
     }
-    emit_text_bytes()
     emit_foreign_libraries()
     emit_symbol_table()
     emit_allocation_table()
@@ -391,6 +385,7 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
         classes.last().entry_index = index
         classes.last().codegen_names = declared_codegen_names(entry)
         classes.last().is_singleton = has_singleton_line(entry)
+        classes.last().is_stateless_singleton = classes.last().is_singleton and holds_nothing(entry)
         classes.last().is_generic_template = not classes.last().codegen_names.is_empty()
         discovered_classes.append(entry)
         register_enums(entry)
@@ -410,6 +405,25 @@ func has_singleton_line(entry: Discovery.DiscoveredClass): Bool {
         statement_index = statement_index + 1
     }
     return false
+}
+
+func holds_nothing(entry: Discovery.DiscoveredClass): Bool {
+    var file = entry.get_file()
+    var statement_index = 0
+    while statement_index < file.statements.count() {
+        var statement = file.statements[statement_index]
+        assert not shape.as_variable_declaration(statement)
+        var function_declaration = shape.as_function_declaration(statement)
+        if function_declaration {
+            assert function_declaration.name != "drop"
+        }
+        statement_index = statement_index + 1
+    }
+    return true
+}
+
+func is_stateless_singleton(information: Analysis.ClassInfo): Bool {
+    return information.is_stateless_singleton
 }
 
 func declared_codegen_names(entry: Discovery.DiscoveredClass): List<String> {
@@ -3014,30 +3028,9 @@ func string_conversion(code: String, from: Analysis.SpiteType): String {
     }
     var enum_type = type_shape.as_enum(from)
     if enum_type {
-        return "spite_string_from_cstring_static({enum_type.c_name}_name({code}))"
+        return "spite_string_from_cstring_owned({enum_type.c_name}_name({code}))"
     }
     return code
-}
-
-func emit_text_bytes() {
-    var text_bytes = find_class_by_qualified("TextBytes")
-    crash text_bytes
-    var instance = singleton_call(text_bytes)
-    builder.add_support(
-        "SpiteString* SpiteString_concat(SpiteString* left, SpiteString* right) \{\nTextBytes* spite_text_bytes = {instance};\nSpiteString* spite_result = TextBytes_concat(spite_text_bytes, SpiteString_retain(left), SpiteString_retain(right));\nTextBytes_release(spite_text_bytes);\nreturn spite_result;\n}",
-    )
-    builder.add_support(
-        "bool SpiteString_equals(SpiteString* left, SpiteString* right) \{\nif (left == right) return true;\nTextBytes* spite_text_bytes = {instance};\nbool spite_result = TextBytes_equals(spite_text_bytes, SpiteString_retain(left), SpiteString_retain(right));\nTextBytes_release(spite_text_bytes);\nreturn spite_result;\n}",
-    )
-    builder.add_support(
-        "bool SpiteString_less(SpiteString* left, SpiteString* right) \{\nTextBytes* spite_text_bytes = {instance};\nbool spite_result = TextBytes_less(spite_text_bytes, SpiteString_retain(left), SpiteString_retain(right));\nTextBytes_release(spite_text_bytes);\nreturn spite_result;\n}",
-    )
-    builder.add_support(
-        "bool SpiteString_greater(SpiteString* left, SpiteString* right) \{\nreturn SpiteString_less(right, left);\n}",
-    )
-    builder.add_support(
-        "SpiteString* SpiteString_slice(SpiteString* text, int64_t start, int64_t end) \{\nTextBytes* spite_text_bytes = {instance};\nSpiteString* spite_result = TextBytes_slice(spite_text_bytes, SpiteString_retain(text), (int32_t)start, (int32_t)end);\nTextBytes_release(spite_text_bytes);\nreturn spite_result;\n}",
-    )
 }
 
 func long_text(code: String): String {
@@ -3627,21 +3620,21 @@ func generate_string_binary(
     var result_type: Analysis.SpiteType = Analysis.Types.StringType()
     var combine = ""
     if operator == 'add' {
-        combine = "SpiteString_concat({left_temporary}, {right_temporary})"
+        combine = "SpiteString_sum({left_temporary}, SpiteString_retain({right_temporary}))"
     } else {
         result_type = Analysis.Types.ScalarType('boolean_kind')
         if operator == 'equal' {
-            combine = "SpiteString_equals({left_temporary}, {right_temporary})"
+            combine = "SpiteString_equals({left_temporary}, SpiteString_retain({right_temporary}))"
         } else if operator == 'not_equal' {
-            combine = "(!(SpiteString_equals({left_temporary}, {right_temporary})))"
+            combine = "(!(SpiteString_equals({left_temporary}, SpiteString_retain({right_temporary}))))"
         } else if operator == 'less' {
-            combine = "SpiteString_less({left_temporary}, {right_temporary})"
+            combine = "SpiteString_less_than({left_temporary}, SpiteString_retain({right_temporary}))"
         } else if operator == 'greater' {
-            combine = "SpiteString_greater({left_temporary}, {right_temporary})"
+            combine = "SpiteString_greater_than({left_temporary}, SpiteString_retain({right_temporary}))"
         } else if operator == 'less_equal' {
-            combine = "(!(SpiteString_greater({left_temporary}, {right_temporary})))"
+            combine = "(!(SpiteString_greater_than({left_temporary}, SpiteString_retain({right_temporary}))))"
         } else {
-            combine = "(!(SpiteString_less({left_temporary}, {right_temporary})))"
+            combine = "(!(SpiteString_less_than({left_temporary}, SpiteString_retain({right_temporary}))))"
         }
     }
     var result_temporary = next_temporary()
@@ -4168,6 +4161,13 @@ func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.Spi
 
 func singleton_call(target_class: Analysis.ClassInfo): String {
     var function_c_name = "spite_singleton_{target_class.c_name}"
+    if not singleton_names.contains(function_c_name) and is_stateless_singleton(target_class) {
+        singleton_names.append(function_c_name)
+        builder.add_prototype("{target_class.c_name}* {function_c_name}(void);")
+        builder.add_support(
+            "{target_class.c_name}* {function_c_name}(void) \{\nstatic {target_class.c_name} spite_object = \{ \{ 1, {target_class.class_id} } };\nreturn &spite_object;\n}",
+        )
+    }
     if not singleton_names.contains(function_c_name) {
         singleton_names.append(function_c_name)
         builder.add_typedef("static {target_class.c_name}* {function_c_name}_cache = 0;")
@@ -4217,6 +4217,16 @@ func generate_constructor_call(
     }
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
     var call_code = "{target_class.c_name}_make({argument_codes.join(", ")})"
+    if target_class.is_value_class {
+        if not target_class.constructor {
+            report(
+                "'{target_class.simple_name}' has no constructor: a {target_class.simple_name} is written as a literal, or cast from another value by assigning it",
+            )
+            return ExpressionResult("0", Analysis.Types.VoidType())
+        }
+        var value_type = value_class_type(target_class)
+        return ExpressionResult(call_code, value_type)
+    }
     return ExpressionResult(call_code, Analysis.Types.ClassRefType(target_class.c_name))
 }
 
@@ -6386,6 +6396,32 @@ func ensure_text_call(information: Analysis.ClassInfo, function: Analysis.Functi
     return function_c_name
 }
 
+func string_storage_read(
+    name: String,
+    object_result: ExpressionResult,
+    object_ast: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    var string_class = find_class_by_c_name("SpiteString")
+    crash string_class
+    var field = string_class.find_field(name)
+    assert field
+    if class_information.c_name != string_class.c_name {
+        report_private_member(string_class, name, class_information)
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    var field_type = field.get_type()
+    if owns(object_result, object_ast) {
+        var held = next_temporary()
+        var value = next_temporary()
+        return ExpressionResult(
+            "(\{ SpiteString* {held} = {object_result.code}; {c_type_name(field_type)} {value} = {held}->{name}; SpiteString_release({held}); {value}; })",
+            field_type,
+        )
+    }
+    return ExpressionResult("({object_result.code})->{name}", field_type)
+}
+
 func generate_memory_read(
     object_result: ExpressionResult,
     object_ast: Syntax.Expressions.Expression,
@@ -7452,7 +7488,7 @@ func emit_symbol_table() {
     }
     entries.append("0")
     builder.add_support(
-        "static SpiteString* spite_symbol_table[] = \{ {entries.join(", ")} };\nSpiteString* spite_symbol_find(SpiteString* text) \{\nSpiteString* found = 0;\nfor (int64_t index = 0; spite_symbol_table[index] != 0; index = index + 1) \{\nif (SpiteString_equals(spite_symbol_table[index], text)) \{ found = spite_symbol_table[index]; break; }\n}\nSpiteString_release(text);\nreturn found;\n}",
+        "static SpiteString* spite_symbol_table[] = \{ {entries.join(", ")} };\nSpiteString* spite_symbol_find(SpiteString* text) \{\nSpiteString* found = 0;\nfor (int64_t index = 0; spite_symbol_table[index] != 0; index = index + 1) \{\nif (SpiteString_equals(text, spite_symbol_table[index])) \{ found = spite_symbol_table[index]; break; }\n}\nSpiteString_release(text);\nreturn found;\n}",
     )
 }
 
@@ -7979,6 +8015,12 @@ func generate_member_read_raw(
             scope,
             class_information,
         )
+    }
+    if type_shape.as_string(object_result_type) {
+        var string_field = string_storage_read(member.name, object_result, member.object, class_information)
+        if string_field {
+            return string_field
+        }
     }
     var object_class_ref = type_shape.as_class_ref(object_result_type)
     if not object_class_ref {
@@ -10965,9 +11007,11 @@ func emit_class_support(information: Analysis.ClassInfo) {
     allocate_lines.append("}")
     var joined_allocate_lines = allocate_lines.join("\n")
     builder.add_support(joined_allocate_lines)
-    builder.add_support(
-        "{information.c_name}* {information.c_name}_default(void) \{ return {information.c_name}_allocate(); }",
-    )
+    var default_instance = "{information.c_name}_allocate()"
+    if information.is_stateless_singleton {
+        default_instance = singleton_call(information)
+    }
+    builder.add_support("{information.c_name}* {information.c_name}_default(void) \{ return {default_instance}; }")
     var make_lines = List<String>()
     make_lines.append("{information.c_name}* {information.c_name}_make({constructor_parameter_list(information)}) \{")
     make_lines.append("{information.c_name}* self = {information.c_name}_allocate();")
@@ -10980,6 +11024,16 @@ func emit_class_support(information: Analysis.ClassInfo) {
     make_lines.append("}")
     var joined_make_lines = make_lines.join("\n")
     builder.add_support(joined_make_lines)
+    if information.is_stateless_singleton {
+        builder.add_support(
+            "{information.c_name}* {information.c_name}_retain({information.c_name}* self) \{ return self; }",
+        )
+        builder.add_support("void {information.c_name}_release({information.c_name}* self) \{ (void)self; }")
+        builder.add_support(
+            "{information.c_name}* {information.c_name}_copy({information.c_name}* self) \{ return self; }",
+        )
+        return
+    }
     builder.add_support(
         "{information.c_name}* {information.c_name}_retain({information.c_name}* self) \{ if (self != 0) SPITE_COUNT_UP(self->header.ref_count); return self; }",
     )
@@ -11199,6 +11253,69 @@ func emit_value_class(information: Analysis.ClassInfo) {
         emit_user_function(information, information.functions[function_index])
         function_index = function_index + 1
     }
+    if information.c_name == "SpiteString" {
+        emit_string_support(information)
+    }
+}
+
+func emit_string_support(information: Analysis.ClassInfo) {
+    current_path = information.source_path
+    current_owner = "String"
+    current_function = ""
+    crash information.constructor
+    crash information.drop_function
+    var unshared = information.find_function("_unshared")
+    var append_in_place = information.find_function("_append_in_place")
+    crash unshared
+    crash append_in_place
+    var memory_class = find_class_by_qualified("Memory")
+    crash memory_class
+    var memory_text = memory_class.find_function("text")
+    crash memory_text
+    var memory = singleton_call(memory_class)
+    var constructor_parameters = constructor_parameter_list(information)
+    builder.add_prototype("void SpiteString_init(SpiteString* self);")
+    builder.add_prototype("SpiteString* SpiteString_allocate(void);")
+    builder.add_prototype("SpiteString* SpiteString_make({constructor_parameters});")
+    builder.add_prototype("SpiteString* SpiteString_retain(SpiteString* self);")
+    builder.add_prototype("void SpiteString_release(SpiteString* self);")
+    builder.add_prototype("SpiteString* SpiteString_append(SpiteString* left, SpiteString* right);")
+    builder.add_prototype("SpiteString* spite_string_from_bytes(const char* bytes, int64_t length);")
+    builder.add_prototype("SpiteString* spite_string_from_cstring_owned(const char* text);")
+    var initialize_lines = List<String>()
+    initialize_lines.append("void SpiteString_init(SpiteString* self) \{")
+    var field_index = 0
+    while field_index < information.fields.count() {
+        var field = information.fields[field_index]
+        initialize_lines.append("self->{field.name} = {field.default_value_code};")
+        field_index = field_index + 1
+    }
+    initialize_lines.append("}")
+    var joined_initialize_lines = initialize_lines.join("\n")
+    builder.add_support(joined_initialize_lines)
+    builder.add_support(
+        "SpiteString* SpiteString_allocate(void) \{\nSpiteString* self = (SpiteString*)SPITE_MALLOC(sizeof(SpiteString));\nself->header.ref_count = 1;\nself->header.class_id = {information.class_id};\n#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(self, {information.class_id});\n#endif\nSpiteString_init(self);\nreturn self;\n}",
+    )
+    var arguments = information.constructor.parameters.map_name()
+    arguments.prepend("self")
+    builder.add_support(
+        "SpiteString* SpiteString_make({constructor_parameters}) \{\nSpiteString* self = SpiteString_allocate();\n{information.constructor.c_name}({arguments.join(", ")});\nreturn self;\n}",
+    )
+    builder.add_support(
+        "SpiteString* SpiteString_retain(SpiteString* self) \{\nif (self != 0 && self->_section != Spite_Memory_Section_constant) SPITE_COUNT_UP(self->header.ref_count);\nreturn self;\n}",
+    )
+    builder.add_support(
+        "void SpiteString_release(SpiteString* self) \{\nif (self == 0 || self->_section == Spite_Memory_Section_constant) return;\nif (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;\n{information.drop_function.c_name}(self);\nSPITE_FREE(self);\n}",
+    )
+    builder.add_support(
+        "SpiteString* SpiteString_append(SpiteString* left, SpiteString* right) \{\nif (left->_section == Spite_Memory_Section_constant || left->header.ref_count != 1) \{\nSpiteString* alone = {unshared.c_name}(left);\nSpiteString_release(left);\nleft = alone;\n}\n{append_in_place.c_name}(left, SpiteString_retain(right));\nreturn left;\n}",
+    )
+    builder.add_support(
+        "SpiteString* spite_string_from_bytes(const char* bytes, int64_t length) \{\nMemory* spite_memory = {memory};\nSpiteString* spite_text = {memory_text.c_name}(spite_memory, (int64_t)(intptr_t)bytes, length);\nMemory_release(spite_memory);\nreturn spite_text;\n}",
+    )
+    builder.add_support(
+        "SpiteString* spite_string_from_cstring_owned(const char* text) \{\nreturn spite_string_from_bytes(text, (int64_t)strlen(text));\n}",
+    )
 }
 
 func declared_memory_bytes(declaration: Syntax.Statements.VariableDeclaration): Int {

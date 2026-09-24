@@ -5,6 +5,7 @@ var qualified_dotted = ""
 var class_id = 0
 var is_emitted = false
 var is_singleton = false
+var is_stateless_singleton = false
 var is_value_class = false
 var is_generic_template = false
 var is_container = false

@@ -1266,7 +1266,7 @@ generator writes one Spite function on the first list's class -- a `while` over 
 must reach a class; anything the rule cannot write (a nullable member, a union) is compiled step by step, which
 means the same. The difference a program can see is only order: a member function in a fused chain runs element
 by element. `conformance/stage6/fused_chain_allocations` pins it: four chains run a thousand times allocate
-nothing (12 allocations in all, the one `TypedMemory` its lists share and the `Launcher` included, against 16 011
+nothing (11 allocations in all, the one `TypedMemory` its lists share and the `Launcher` included, against 16 010
 step by step).
 
 ## 9. Codegen values (`$`)  **[implemented]**
@@ -2032,7 +2032,14 @@ convention. See [Memory](#10-memory-partial) for the retain/release rules and th
 ### String  **[implemented]**
 
 An immutable value with a length (not a bare `char*`). A literal is static and never allocates; every other
-`String` owns one buffer, freed once by its owner. The right side of `+` casts toward `String` (every numeric
+`String` owns one buffer, freed once by its owner. **Its storage is Spite** (D108; the attribute names and the
+constructor proposed by Claude, unconfirmed): `library/string.spite` declares `_bytes: Long` (the address of the
+characters, from `Memory`, with a 0 after the last), `_length: Long`, `_section: Spite.Memory.Section` (`'heap'`,
+or `'constant'` for a literal) and `_capacity: Long`, the compiler writes the C layout from them, and `length()`,
+`code_at()`, `slice()`, `sum()`, `equals()`, `less_than()`, `greater_than()`, `drop()` (which frees `_bytes`) and
+the in-place append are Spite functions reading them. `String(bytes, length)` makes a `String` that owns `length`
+bytes at `bytes`, which `Memory.allocate_bytes` handed out with room for one more; it is what `Memory.text` and
+`sum` end in, and anything that fills a buffer itself can use it. The right side of `+` casts toward `String` (every numeric
 type, `Bool`, and enum all format to text -- see [Numeric types](#numeric-types-implemented-provisional) for
 `Float`/`Double`'s shortest-round-trip printing); assigning a `String` to any numeric variable parses it,
 defaulting to `0`/`0.0` on failure. `==`/`!=`/`<`/`>` compare by content, and (manual.md section 5's Operators
@@ -2046,7 +2053,7 @@ or a text another name or a list also holds) it is copied once, with room to gro
 names never changes under the other one, and a hundred thousand appends take 0.2 s instead of 7 s. It applies to
 a local variable or parameter of type `String` when no piece mentions that variable (`text = "{text}{text}"`
 copies, as before); an attribute is not appended in place, since a call among the pieces could reach it.
-`conformance/stage6/text_building` pins it: 200 000 appends and the sharing cases allocate 32 times (the `Launcher` included), against
+`conformance/stage6/text_building` pins it: 200 000 appends and the sharing cases allocate 31 times (the `Launcher` included; 32 until `Memory` stopped being an allocation, D108), against
 600 044 when every append copied.
 
 | Method | Result | Notes |
@@ -2333,11 +2340,17 @@ Spite above them:
    returns -- the same reads and writes work on either. `TypedMemory<$value_type>` puts values of any type in
    memory, and `List<T>` is written with it, so nothing about a container is the compiler's any more except its
    syntax (`[]`, list literals) and the few C paths listed in the containers row of the decision log.
-2. **Text from memory and back**: `Memory.text(address: Long, length: Long): String` copies bytes into a `String`,
-   and `Memory.address_of(text: String): Long` lends a string's bytes to C for the length of a call. Literals stay
-   static data the compiler writes, as symbols already are (D70).
+2. **Text from memory**: since D108 this is Spite, not floor. `String` declares its storage (`_bytes`, `_length`,
+   `_section`, `_capacity`) and its constructor `String(bytes: Long, length: Long)`, which takes bytes `Memory`
+   handed out and writes the 0 after them; `Memory.text(address, length)` is three lines of Spite in
+   `library/memory.spite` that allocate, copy and construct. `take_text` and `address_of` are gone: a `String`'s own
+   functions read `_bytes`. Literals stay static data the compiler writes, as symbols already are (D70), in the
+   `'constant'` section.
 3. **The object header**: retain, release and the class id are code the compiler emits, not functions anyone
-   calls, so they are part of code generation rather than a library.
+   calls, so they are part of code generation rather than a library. For `String` that includes two decisions
+   only the header can make: a `'constant'` text is never counted, and `text = text + piece` grows the text in
+   place only when its count is one (`SpiteString_append` asks, then calls `String._unshared()` and
+   `String._append_in_place(piece)`, which are Spite).
 4. **Entry and exit**: `main` is emitted by the compiler, and so is printing, so the floor also has
    `Console.flush()`: exiting through the C runtime's `exit` would drop what the program's own `stdout` still
    buffers, which is why `Program.exit` flushes first (found when every corpus program printed nothing).
@@ -3219,3 +3232,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D108** (decided by Mortaro, extending D101): **every type's storage is visible Spite over `Memory`, and `Memory` chooses nothing itself -- the compiler places it.** "i dont see the storage model of things this way so we are probably hiding it behind a runtime, where is the string managing Memory? and Int and so on. Memory should be a abstraction that lets us allocate heap/stack/register but our compiler decides best use placement." So `String` declares the memory it holds (its bytes, length and capacity) as ordinary attributes in `library/string.spite`, `Int` and the other numbers declare theirs in their files, and `Memory` is the one abstraction all of them allocate through. Whether a given allocation lives on the heap, on the stack or in a register is the compiler's choice, not the program's; the C the compiler writes for the floor shrinks to what `Memory` itself needs. |
 | 2026-09-24 | (implements D107; the diagnostic proposed by Claude, unconfirmed) **`text()` is `to_string()` everywhere.** Every number class and `Bool` declare `func to_string(): String`, the smaller integers widen and call `Long.to_string()`, and the generator's `string_conversion` (interpolation, `+` onto a `String`, `join`) calls `to_string` by name. Calling `.text()` on a number is an error naming the new name, the way `upper()` names `upper_case()` (`diagnostics/text_is_to_string`). `Memory.text(address, length)` keeps its name: it is not a conversion but the floor making a `String` from bytes. |
 | 2026-09-24 | (implements D108, first step; the forms proposed by Claude, unconfirmed) **`String` and every number declare their storage in their own files.** `library/string.spite` starts with `var _bytes: Long` (the address of its characters, from `Memory`), `var _length: Long`, `var _section: Spite.Memory.Section` (where the compiler placed the characters: `'heap'`, or `'constant'` for a literal) and `var _capacity: Long`, and the compiler writes `SpiteString`'s C layout, and the static form a literal is compiled to, from those declarations instead of the prelude spelling them; the three it reads by name (`_bytes`, `_length`, `_section`) are an error when missing or of another type. Each number file starts with `var _memory = Memory().allocate_bytes(N)`: its width, allocated through `Memory` like anything else and placed by the compiler in a register, so the attribute is never a field -- the compiler checks `N` against the C type it emits (`diagnostics/number_memory`), `.memory.bytes` reads it, and reading `_memory` inside the class is an error naming `this` (`diagnostics/number_memory_read`). A number declares nothing else. |
+| 2026-09-24 | (implements D108, second step; proposed by Claude, unconfirmed) **`String`'s functions are Spite over its own storage, and `TextBytes` is gone.** `library/string.spite` has a constructor `String(bytes: Long, length: Long)` (the only way Spite makes a `String` from memory; it writes the 0 after the bytes), `drop()` (frees `_bytes` through `Memory`), `length()`, `code_at()` (past either end it reads the 0 after the last byte, so it answers 0 without an `assert` in the trace ring), `slice()`, `sum()`, `equals()`, `less_than()`, `greater_than()` and two private helpers the in-place append calls. `+`, `==`, `<` and `>` on text call `sum`/`equals`/`less_than`/`greater_than` directly. `Memory.text` is Spite in `library/memory.spite`; `Memory.take_text` and `Memory.address_of` are removed, since only `TextBytes` used them. What stays generated C for `String` is the object header's part: allocate and initialise from the declarations, retain and release (skipping the `'constant'` section, and calling `drop()`), the uniqueness test in `SpiteString_append`, and `spite_string_from_bytes` for the C that hands text in (`argv`, enum names, foreign results), which calls `Memory.text`. **Found on the way, a hidden optimisation (D36): a singleton that holds nothing and has no `drop()` -- `Memory` -- is one static object**, never allocated, counted or freed, so `Memory()` costs nothing and every program allocates one time fewer (`text_building` 32 to 31, `fused_chain_allocations` 12 to 11). Without it `String.drop()` would reach a `Memory` singleton the program's exit had already released. The self-compile went from about 0.80 s to 0.72 s. |

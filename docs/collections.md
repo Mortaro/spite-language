@@ -269,7 +269,7 @@ is a class) and `filter_`; the last call can be any template, and a chain the co
 is run step by step, which means the same. The one visible difference is order: a member function in a fused
 chain runs element by element, where the steps written out would run it on every element before the next step
 starts. `conformance/stage6/fused_chain_allocations` runs four chains a thousand times each and pins its
-allocation count at 12; written step by step, the same program allocates 16 011 times.
+allocation count at 11; written step by step, the same program allocates 16 010 times.
 
 ## How the member templates are written
 
