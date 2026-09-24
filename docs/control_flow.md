@@ -232,6 +232,45 @@ fins 2
 a cat's fins 0
 ```
 
+A generic class is named with its codegen values and no parentheses: `found == Storage<Health>`, or
+`found == Storage<$component_type>` inside a generic class. This is how a value read through a `type` is narrowed
+back to the generic class it really is. A class that fits the `type` may be tested for before any value of it
+has been stored there; one that does not fit is the error that says why.
+
+```gdscript title=generic_class_test_doc/storage.spite
+generic $item_type
+
+var items = List<$item_type>()
+
+func count(): Int {
+    return items.count()
+}
+```
+```gdscript title=generic_class_test_doc/generic_class_test_doc.spite entry
+type Counted {
+    count(): Int
+}
+
+var console = Console()
+
+func GenericClassTestDoc() {
+    var words = Storage<String>()
+    words.items.append("hello")
+    var counted: Counted = words
+    var holds_words = counted == Storage<String>
+    var holds_numbers = counted == Storage<Int>
+    console.print(holds_words, holds_numbers)
+    if counted == Storage<String> {
+        var first = counted.items.first()
+        console.print(first)
+    }
+}
+```
+```output
+true false
+hello
+```
+
 **So a switch that is one early return is an error.** A switch with one class case and `_:`, each a single
 `return`, says no more than `if value == Class { return ... }` followed by what `_:` returns -- and when both
 return `Bool` literals, it is `return value == Class`. The error names the form to write:

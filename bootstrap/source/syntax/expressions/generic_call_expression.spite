@@ -1,6 +1,7 @@
 var callee: Expression? = null
 var type_arguments = List<Syntax.Types.GenericArgument>()
 var arguments = List<Expression>()
+var names_class = false
 
 func GenericCallExpression(
     callee_expression: Expression,

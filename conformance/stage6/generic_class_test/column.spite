@@ -1,0 +1,23 @@
+generic $component_type
+
+var registry = Registry()
+var key = ""
+
+func Column(starting_key: String) {
+    key = starting_key
+}
+
+func storage(): Storage<$component_type> {
+    var found = registry.storages[key]
+    if found == Storage<$component_type> {
+        return found
+    }
+    var made = Storage<$component_type>()
+    registry.storages.set(key, made)
+    return made
+}
+
+func holds_health(): Bool {
+    var found = registry.storages[key]
+    return found == Storage<Health>
+}

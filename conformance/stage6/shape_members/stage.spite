@@ -1,0 +1,16 @@
+var name = ""
+var ran = 0
+var active = true
+
+func Stage(starting_name: String) {
+    name = starting_name
+}
+
+func run_once() {
+    ran = ran + 1
+    active = false
+}
+
+func label(): String {
+    return "stage {name} ran {ran}"
+}

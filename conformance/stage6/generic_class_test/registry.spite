@@ -1,0 +1,7 @@
+singleton
+
+type AnyStorage {
+    clear()
+}
+
+var storages = Dictionary<AnyStorage>()

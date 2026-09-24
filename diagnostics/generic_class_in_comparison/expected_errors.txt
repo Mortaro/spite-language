@@ -1,0 +1,1 @@
+diagnostics/generic_class_in_comparison/generic_class_in_comparison.spite:5:15: expected ':' followed by the field's value but found '='

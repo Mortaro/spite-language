@@ -1,0 +1,4 @@
+func RelativeNamespaces() {
+    var opening = Window.System.OpenWindow()
+    opening.run()
+}

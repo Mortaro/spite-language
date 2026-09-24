@@ -1,0 +1,23 @@
+type Potion {
+    item: HealingItem
+}
+
+type Target {
+    health: Health
+}
+
+var console = Console()
+
+func run_each(potion: Potion, target: Target) {
+    target.health.amount = target.health.amount + potion.item.healing_amount
+    console.print("path", target.health.amount)
+    var health = target.health
+    health.amount = health.amount + 1
+    console.print("local", target.health.amount, health.amount)
+    heal(target.health)
+    console.print("call", target.health.amount)
+}
+
+func heal(health: Health) {
+    health.amount = health.amount + 100
+}

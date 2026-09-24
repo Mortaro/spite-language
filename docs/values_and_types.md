@@ -358,6 +358,10 @@ answers `Object`.
 This is what makes fast, JSON-shaped code possible: accept a `type`, and both a real class instance and a
 plain `{ key: value }` literal work.
 
+A `type` of attributes only has a default like a class does: the object literal with each attribute at its own
+default, whose `.class` answers `Object`. So `var target: $target_type = null` in a generic class bound to such a
+`type` holds a real object, and what is written through it stays written.
+
 A `type` may require functions as well as attributes. A required function names the types it takes and returns,
 never the names of its parameters -- `render(Int): String` -- because the name a class gives its own parameter
 does not matter to the shape. Any class with a function of that signature fits, which is how a list holds "any
@@ -403,3 +407,51 @@ func show(item: Renderable) {
 
 A `type` can also be the element of a variadic parameter, `...items: List<Renderable>`, so a call takes any number
 of values of any classes that fit ([functions_and_operators.md](functions_and_operators.md#variadic-arguments)).
+
+Read through a `type`, a required function named without calling it is a function value bound to the value, as
+it is for a class ([functions_and_operators.md](functions_and_operators.md#functions-are-values)), so
+`Parallel(stage.run_once)` works on a `List<Stage>`'s element typed by shape. A `List` of a `type` answers the
+member templates too, over the attributes and the argument-free functions the type names -- `map_name()`,
+`filter_active()`, `count_active()`:
+
+```gdscript title=shape_values_doc/job.spite
+var name = ""
+var done = false
+
+func Job(new_name: String) {
+    name = new_name
+}
+
+func finish() {
+    done = true
+}
+```
+```gdscript title=shape_values_doc/shape_values_doc.spite entry
+type Work {
+    name: String
+    done: Bool
+    finish()
+}
+
+var console = Console()
+
+func ShapeValuesDoc() {
+    var jobs = List<Work>()
+    jobs.append(Job("wash"))
+    jobs.append(Job("dry"))
+    finish_first(jobs)
+    var names = jobs.map_name()
+    var joined = names.join(", ")
+    var finished = jobs.count_done()
+    console.print(joined, finished)
+}
+
+func finish_first(jobs: List<Work>) {
+    assert jobs[0]
+    var finishing = jobs[0].finish
+    finishing()
+}
+```
+```output
+wash, dry 1
+```

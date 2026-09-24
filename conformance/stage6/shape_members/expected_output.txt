@@ -1,0 +1,3 @@
+stage physics ran 1 physics
+physics,render stage physics ran 1,stage render ran 0
+render 1

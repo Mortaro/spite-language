@@ -1,0 +1,9 @@
+generic $removed_type
+
+var removed = List<$removed_type>()
+
+func describe(): String {
+    var name = $removed_type.name
+    var count = removed.count()
+    return "{count} {name}"
+}

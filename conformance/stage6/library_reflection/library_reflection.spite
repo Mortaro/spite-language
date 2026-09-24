@@ -1,0 +1,12 @@
+var console = Console()
+
+func LibraryReflection() {
+    var holder = Holder()
+    show_attributes(holder)
+}
+
+func show_attribute(attribute: Symbol<Holder>, holder: Holder) {
+    var reader = Reader<attribute.class>()
+    var text = reader.name_of(holder.attributes[attribute])
+    console.print(attribute.name, text)
+}

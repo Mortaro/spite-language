@@ -1,0 +1,11 @@
+enum Size {
+    'small'
+    'large'
+}
+
+var id = 0
+var size: Size = 'small'
+
+func Requested(new_id: Int) {
+    id = new_id
+}

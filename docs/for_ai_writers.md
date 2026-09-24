@@ -74,7 +74,12 @@ func is_alive(): Bool {
   enums, unions and types; never a single letter; never an abbreviation (`message` not `msg`, `index` not `idx`,
   `value` not `val`). The error names the word to write.
 - A local or parameter that is never used is an error: remove it or name it `_name`. A `_name` that is used is an
-  error too.
+  error too. A use inside a branch a codegen test rules out (`if $slot_type == Entity { ... }`) still counts, so
+  a parameter only that branch reads is not unused in the other instantiations.
+- The words other languages use for things Spite writes differently -- `none`, `nil`, `undefined`, `self`,
+  `new`, `import`, `require`, `elif` -- are errors wherever they appear, naming the Spite form, so none of them
+  can name a variable or a parameter either: `var none: Long = 0` says to write `null`. Pick another name
+  (`no_handle`, `empty`).
 - A function body holds no empty lines: the blank line is where a second function wants to be, so name the part
   below it and call it. An `if` whose only statement is a bare `return` is an error too -- that is a
   precondition, and a precondition is written `assert condition`.

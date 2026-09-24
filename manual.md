@@ -348,6 +348,9 @@ console.print(class.namespace.namespace.name)
 One `assert` proves the whole path, so `class.namespace` and `class.namespace.namespace` are both plain values
 for the rest of that block and any block nested inside it. It is the same rule section 5 already has for
 `assert value and other_condition`, applied along a member chain instead of across an `and`.  **[implemented]**
+Across an `and`, every side narrows, for `assert`, `crash` and `if` alike, since each side is known true when the
+whole is: `crash names[position] and ages[position]` proves both elements, as two `crash` lines would (proposed by
+Claude, unconfirmed, 2026-09-24; `conformance/stage6/and_narrowing`).
 
 - It narrows the path asserted **and its prefixes**, nothing else. A sibling path stays `T?`: asserting
   `class.namespace.namespace` says nothing about `other_class.namespace`.
@@ -825,6 +828,11 @@ of `==` or `!=` is a class test, true when the value is an instance of that clas
 Syntax.Expressions.TrueLiteral`. A `T?` that is null is no class, so the test is false. Naming a class that is not
 a member of the value's union is an error, since the answer could only be false (`conformance/stage6/class_test`).
 `if value == Circle { }` narrows `value` to a `Circle` inside the block, the way a switch case does.
+A generic class is named with its codegen values and no parentheses, `found == Storage<$component_type>`
+(proposed by Claude, unconfirmed, 2026-09-24): only the right side of `==`/`!=` reads that form, and anywhere
+else it is an error saying to call it. Tested through a `type`, a class that fits is admitted to the shape
+by the test itself, so a value read back from a `Dictionary<AnyStorage>` can be narrowed before this function
+has stored one (`conformance/stage6/generic_class_test`).
 **So a switch that is one early return is an error** (`diagnostics/switch_single_case`): one class case and
 `_:`, each a single `return`, is `if value == Class { return ... }` followed by what `_:` returns -- and when both
 return `Bool` literals it is `return value == Class` (or `!=`). In Mortaro's words, code that can be written
@@ -897,6 +905,12 @@ reflection.
 of values of any classes that fit, written one by one, "a generic can be done over both a type or a class, but in
 the end monomorphised into each class". Each class that is passed is admitted to the shape, and each call on an
 element is compiled once per admitted class (section 5, [Variadic arguments](#variadic-arguments-implemented)).
+
+**A shape's members behave as a class's do** (proposed by Claude, unconfirmed, 2026-09-24): a required function
+read without calling it is a function value bound to the value (D17), dispatched on the value's class when it is
+called, so `Parallel(stages[index].run_once)` infers its codegen value from it; and a `List` of a `type` answers
+the member templates over the attributes and the argument-free functions the type names
+(`conformance/stage6/shape_members`).
 
 
 ## 8. Metaprogramming
@@ -1136,8 +1150,16 @@ the default `Spite.Class` declares; what follows still holds for the line.
   `DynamicLibrary("user32.dll", 'windows', "windows.h")` is one object however many classes ask for it, and
   `"gdi32.dll"` is a second one. The compiler emits one static slot per distinct argument list, so there is no
   runtime registry walk -- only a guarded branch the first time.
+- **A generic singleton has one instance per set of codegen values** (proposed by Claude, unconfirmed; the
+  reading of "one per literal argument list" for `generic` lines, 2026-09-24): `Column<Health>()` is one object
+  wherever it is called and `Column<Label>()` is another, since codegen values are literals too. It was accepted
+  and silently made a new instance per call before (`conformance/stage6/generic_singletons`).
 - **Memory:** the slot holds one reference, so the count never reaches zero; `drop()` runs at program exit, in
-  reverse creation order, and `--debug-memory` counts singletons as roots, never as leaks.
+  reverse creation order, and `--debug-memory` counts singletons as roots, never as leaks. Since a singleton never
+  dies early, it is not counted at all (proposed by Claude, unconfirmed, 2026-09-24): its retain and release do
+  nothing, the program records each singleton as it is made, and destroys them in reverse at exit. Two
+  `Parallel` threads fetching `Slot<Int>()` 40 million times took 0.8 s with the atomic count and 0.04 s without
+  (`conformance/stage6/singleton_counts`).
 - **Standard library:** `Console`, `Program` and `DynamicLibrary` are singletons. `File`, `Directory` and
   `Process` are not -- they are values (a path, a spawned command), and several may exist at once.
 - A later root reopening the class (section 11) may not disagree about it; that is a diagnostic. Reopening
@@ -1180,7 +1202,9 @@ There are no macros. A parameter of class `Symbol` whose name is a segment of it
 for every name that fits: below, `set_attribute` answers `set_age`, `set_name`, and so on, for each attribute of the class.
 Inside, the symbol names that attribute: written as a type (`value: attribute.class`, `): attribute.class`), it
 is the attribute's actual type; written as an expression, `attribute.class` is a `Spite.Class`
-naming that type, printing just like the type name would.
+naming that type, printing just like the type name would -- `"{attribute.class}"` included, since a text hole
+holding a value whose class declares `to_string()` calls it (D109's reading of printable, applied to text;
+proposed by Claude, unconfirmed, 2026-09-24; `conformance/stage6/class_text`).
 
 ```person.spite
 func set_attribute(attribute: Symbol, value: attribute.class) {
@@ -1215,6 +1239,10 @@ than beside it:
   `attribute.class` mean what they always did. `List`'s member templates are written this way,
   `member: Symbol<$element_type>` (D91). In a generic class the class is usually the codegen value,
   `Symbol<$value_type>`; when that value is not a class the template answers nothing.
+- **`Symbol<Row>` over a `type`** (proposed by Claude, unconfirmed, 2026-09-24) ranges over the attributes the
+  type names and the functions it requires with no arguments; `row.attributes[attribute]` is the shape's own
+  read, write or call, answered from the value's class at run time, and the plural walks the type's attributes in
+  its order (`conformance/stage6/shape_attributes`).
 - **The plural calls it for every attribute.** `show_attributes(label, lines)`, for a template `show_attribute`
   whose symbol is `attribute`, calls `show_<name>(label, lines)` once per attribute, in declaration order. It is
   an ordinary generated function whose body is those calls, so it is typed, visible and shaken like any other,
@@ -1297,8 +1325,8 @@ generator writes one Spite function on the first list's class -- a `while` over 
 must reach a class; anything the rule cannot write (a nullable member, a union) is compiled step by step, which
 means the same. The difference a program can see is only order: a member function in a fused chain runs element
 by element. `conformance/stage6/fused_chain_allocations` pins it: four chains run a thousand times allocate
-nothing (17 allocations in all, the one `TypedMemory` its lists share, the `Launcher` and printing the total
-included, against more than 16 000 step by step).
+nothing (15 allocations in all, the `Launcher` and printing the total included -- the `TypedMemory` its lists
+share is a static singleton -- against more than 16 000 step by step).
 
 **A function of the caller for each element** (D113, decided by Mortaro; the resolution rule, the loop rule's
 exact shape and the reading below are proposed by Claude, unconfirmed).  **[implemented]** The member a template
@@ -1417,6 +1445,11 @@ branch it rules out would not compile.
 class's own names for one of its instances -- the names this section already gives the containers. Reading a name
 the type does not have is an error listing them (`diagnostics/every_attribute`).
 `conformance/stage6/every_attribute`, `docs/metaprogramming.md`.
+
+**A codegen value that is a type reads as its class** (proposed by Claude, unconfirmed, 2026-09-24): a member
+read through it, `$component_type.name` or `$component_type.attributes`, is read from the bound class's
+`Spite.Class`, exactly as `Health.name` is -- no value of the type is made. `$component_type` alone in an
+expression is still the "is a type here" error (`conformance/stage6/codegen_class_name`).
 
 **How this got here.** The `generics` header line existed to give positional call sites an order to follow;
 Mortaro's objection (2026-09-19) was that a bare first-line declaration "feels outside of our patterns". Three
@@ -1649,6 +1682,10 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
 - Resolving an unqualified `Name` from inside a class tries, in order: that class's own namespace (so a nested enum/type/union
   resolves by its plain name from inside its own class), the same folder's namespace, each parent folder's namespace, then the
   whole program globally. Ambiguity *between roots* at the same level is never an error, because of the next rule.
+  A dotted name (`Component.Requested`) takes the same walk, in every position a name is written -- constructor
+  call, parameter, return type, attribute or local annotation, generic argument, `type`/`union` member, class test
+  and a class's enum (proposed by Claude, unconfirmed, 2026-09-24; before, only a call took the walk and every
+  type position needed the full path; `conformance/stage6/relative_namespaces`).
 - Every loaded root merges into the same namespaces. A second root with the same folder structure and file name **reopens** the
   class: this is how monkey patching and game mods work -- later `func`/`var` with the same name replaces the earlier one (in
   load order: the entry folder first, then loads in the order they were discovered), a `var`'s replacement type must match, and
@@ -1866,7 +1903,7 @@ gives an error, nothing is left to the user's taste. The only printout that used
 - **One underscore between words** (proposed by Claude, unconfirmed; implemented 2026-09-24): a snake_case name
   joins its words with one `_` each and may start with one `_` to be private, so `hit__count`, `__strike` and
   `strike_` are errors (`diagnostics/doubled_underscore`). The C the compiler writes for a class or function of
-  its own -- `Pool___allocate`, `Pool___make`, `Pool___retain`, `Pool___release`, `Pool___init`,
+  its own -- `Pool___allocate`, `Pool___make`, `Pool___retain`, `Pool___release`, a singleton's `___destroy`, `Pool___init`,
   `Pool___default`, `Pool___class_of`, `Pool___attributes`, `Pool___functions`, `Pool___instances`,
   `Pool___deep_copy`, `Pool___read_<attribute>`, an enum's `___name`, a function's `___hot`, `___slot`,
   `___waiting`, `___perform` -- joins with `___`, which no Spite name can produce, so none of those words is
@@ -2353,6 +2390,7 @@ directory listing and process spawning).
 | `Directory(path)` | `path: String`, `entries(): List<Directory.Entry>` (D93: every folder and file inside it, as `Directory` and `File` values whose `path` is joined to this one -- see below), `files(): List<String>` (names, sorted), `folders(): List<String>` (sorted), `exists(): Bool`, `create(): Bool` |
 | `Process(command, arguments)` | `run(): Int` (exit code; `arguments` is a `List<String>`, each shell-quoted), `output(): String` (stdout+stderr merged, valid after `run()`) |
 | `Program()` | `exit(code)`: exits the process immediately with `code` |
+| `Clock()` | a singleton (names proposed by Claude, unconfirmed, 2026-09-24): `elapsed_nanoseconds(): Long` and `elapsed_milliseconds(): Long` from a monotonic clock with an arbitrary start, for measuring; `unix_milliseconds(): Long`, the wall clock since 1970 UTC. `library/clock.spite` with each system's reading in `library/windows|linux|mac/clock.spite` (`QueryPerformanceCounter`/`GetSystemTimeAsFileTime`, `clock_gettime`) |
 | `Console()` | `print(...values)`, `write(...values)`, `error(...values)`, `flush()`, `read_line(): String?` -- see below |
 | `Socket()` (proposed by Claude, unconfirmed) | `listen_locally(port): Bool`, `accept_client(): Socket?`, `connect_locally(port): Bool`, `read_line(): String?`, `write_line(text): Bool`, `close()` -- TCP on `127.0.0.1` only, which `--repl_port` and `spite connect` use (section 14) |
 | `Concurrent(function)`, `Parallel(function)` (proposed by Claude, unconfirmed) | `wait()`: what the function returned; dropping the handle waits for it -- see "Concurrency" below |
@@ -3118,6 +3156,10 @@ payloads to JSON on demand, since the compiler knows the schema.
 1. `var damage: $damage_type = null`: `null` otherwise only exists for `T?`. PROVISIONAL: the compiler treats
    `= null` on a `$generic`-typed variable/field as "the default value of whatever type the generic is bound to" (not
    `T?`). This is implemented but still provisional -- revisit if it reads confusingly once more code exists.
+   When the bound type is a `type` whose members are all attributes, its default is a real object -- the object
+   literal with each attribute at its own default, admitted to the shape -- so writes through it are kept
+   (proposed by Claude, unconfirmed, 2026-09-24; `conformance/stage6/shape_defaults`). A `type` that requires a
+   function has no default object, since no literal can supply the function.
 3. Right-to-left casting makes `age > 0.5` with an Int `age` mean `age > 0`. Accept, or make comparisons cast toward the wider type.
    - The abbreviation lint has no escape hatch for names that must mirror an external spelling (`keyword_var`). Keep it absolute, or allow a per line `# spelled: keyword_var` style exemption.
 6. `_` now means two things: private (section 2) and intentionally unused (section 5). They mostly agree (an unused
@@ -3508,6 +3550,22 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D116** (decided by Mortaro, in the SlopEngine session, relayed; extends D114): **a function's name can say when it runs, and a template reads that name.** Instead of a generic `run_each`, a system's function name places it: `update_each`, `render_all`, `run_each_before_input`. The engine owns a list of phases and a template matches the name pattern -- descriptive names as the ordering mechanism, with no hand-written after/before lists and no plugin order; within one phase, systems with no conflicts run in parallel. The language need is D114's `has(...)` taking a name pattern, with the matched part (the phase) available at compile time as a `Symbol` or text. The grammar (`<phase>_each` / `<phase>_all`, `run_each_before_<phase>` / `run_each_after_<phase>`) was proposed by the SlopEngine session and is for Mortaro to settle. |
 | 2026-09-24 | (implements D109's `print`; the readings below proposed by Claude, unconfirmed) **`Console.print`, `write` and `error` are Spite, taking `...values: List<Printable>`, and the generator's printing special case is gone.** `type Printable { to_string(): String }` lives in `library/console.spite`, written with the form a `type` has today rather than Mortaro's `to_string: Spite.Function<String>` (open question 11). `String.to_string()` answers itself, `Spite.Class` its `.name`, `Spite.Namespace` its `.name_with_namespaces`, and every enum value answers `to_string()`, its name. For numbers, `Bool` and enum values to fit a `type` at all, **a plain value passed where a shape is wanted is boxed** -- one allocation, released like an object -- and a call through the shape reaches its class's function; `String` and `Symbol` are objects already. What the compiler still writes is the floor: `Console._write_output`, `_write_error` and `flush` are bodiless and `Prelude` supplies `fwrite`/`fflush`, and a `crash` writes its own operands. Output is byte for byte what it was, except that `flush()` no longer writes a stray line break; the self-compile time is unchanged within noise, and the two allocation pins moved (29 to 50, 11 to 17) because a variadic call builds a `List` (`mortaros_missing_decisions.md` 72 to 74). |
 | 2026-09-24 | (implements D109's `debug`; the readings below proposed by Claude, unconfirmed) **`Console.debug(...values: List<Debuggable>)` writes each value's `to_debug()`, and every value has one.** A class that does not declare `to_debug()` answers one the moment something asks, and it calls `Spite.DebugInstance<$value_type>` (`library/spite/debug_instance.spite`), which walks the attributes with the plural template; every other value goes through `Spite.Debug<$value_type>` (`library/spite/debug.spite`). The format: `Name { attribute: value }` (`Name {}` when empty), `[a, b]`, `{"key": value}`, text quoted and escaped, a `Symbol` or enum value written `'name'`, a number or `Bool` as printed, `null`. **Cycles:** an object already being shown further up is written `Name {...}`, found by `==` against the objects its class is in the middle of showing. **Private attributes are left out**, because a plural over another class's attributes now skips the `_` ones instead of failing on them (`Json` too). Along the way: a `Symbol` passed to a `type` is boxed like an enum value, so it keeps its class; a union value passed to a `type` admits the union's members; a `type` or union answers `to_debug()` even when it does not require it; and a `DynamicLibrary`'s own declared functions (`to_debug`) are called as Spite rather than as foreign symbols. The REPL's display is unchanged, and becoming `to_debug()` is a proposal. `conformance/stage6/debug_values`; `mortaros_missing_decisions.md` 75 to 78. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; reads D104/D8 for `generic` lines, found building an ECS) **A generic singleton has one instance per set of codegen values.** `singleton` with `generic $component_type` was accepted, but each instantiation lost the line, so every `Column<Health>()` made a new object. Codegen values are literals like D8's constructor arguments, so each distinct set gets its own static slot: `Column<Health>() == Column<Health>()` and `Column<Label>()` is another. `TypedMemory<T>`, the one generic singleton in the library, is now one stateless static object per element type instead of an allocation per list. `conformance/stage6/generic_singletons`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; found building an ECS whose query rows are `type`s) **A Symbol template may range over a `type`.** `attribute: Symbol<$row_type>` with `$row_type` bound to `type Target { health: Health  alive: Alive }` answered nothing, so `fill_attributes(row, store)` was "no function". A shape now ranges like a class: its attributes, plus required functions that take no arguments for a single name; `row.attributes[attribute]` goes through the shape's reader, writer or caller; the plural walks its attributes in declaration order. `conformance/stage6/shape_attributes`, `docs/metaprogramming.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; extends D75) **`value == Storage<Health>` names a generic class without calling it.** `Storage<Health> {` used to parse as a comparison chain ending in an object literal, and with a `$` argument the object-literal loop never advanced past its first error, so the compiler hung. The right side of `==`/`!=` now reads `Name<values>` without parentheses as the class, `$` values included, so `if found == Storage<$component_type> { return found }` narrows a shape back to the generic class; the form anywhere else is an error saying to call it. A test through a `type` admits a fitting class to it. Every parser loop now stops at its first error, so a parse error can no longer hang (`diagnostics/generic_class_in_comparison`). `conformance/stage6/generic_class_test`, `docs/control_flow.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; the ECS needed a type's name without a value) **`$component_type.name` reads the bound class.** A member read through a codegen value that is a type goes to that type's `Spite.Class`, the way a class name does (`Hello.name`), so `var sample: $component_type = null` and `sample.class.name` are no longer needed to name it. The bare `$component_type` stays an error as a value. `conformance/stage6/codegen_class_name`, `docs/metaprogramming.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; the ECS runs systems held in a `List` of a `type`) **A shape's required function is a function value, and a `List` of a shape has member templates.** `Parallel(stage[index].run_once)` on a `List<Runnable>` read `run_once` as an attribute, so the codegen value could not be inferred; it is now a `Spite.Function` bound to the value, whose call goes through the shape's dispatcher. `stages.map_name()`, `filter_active()` and the other templates range over the shape's attributes and argument-free required functions, read through the shape. `conformance/stage6/shape_members`, `docs/values_and_types.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; open question 1 applied to a shape, found building an ECS) **The default of a `type` is an object.** `var second: $second_type = null` with `$second_type` bound to `type Target { health: Health }` held a null pointer, so every read made a fresh default `Health` and every write was lost. The default is now the object literal of the type's attributes, each at its own default, admitted to the shape: reads and writes through it are kept, and the plural Symbol template fills it. A `type` that requires a function keeps no default object. `conformance/stage6/shape_defaults`, `docs/values_and_types.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; D36, measured on the ECS's hot path) **A singleton is not reference counted.** Every fetch retained and released the one shared object, atomically once a program makes a `Parallel`, so two threads using `Memory()` or `Slot<Position>()` contended on one counter. A singleton never dies before the program ends, so its retain and release are now empty; its accessor records it when it is first made, and the program destroys every singleton in reverse creation order at exit (before, the counts decided the order). Measured: two threads fetching a generic singleton 20 million times each, 0.8 s before and 0.04 s after. `conformance/stage6/singleton_counts` pins that fetching allocates nothing and that `drop()` still runs at exit. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; found in SlopEngine's `window/system` and a Vulkan renderer) **A dotted name resolves relative to the class's folder in every position.** `Component.Created()` found `Window.Component.Created` from `Window.System`, but `Remove<Component.Requested>` and a parameter `swapchain: Component.Swapchain` were "unknown type": a type with a dot was only looked up as a full path. Types, generic arguments, union members and a class's enums now take the constructor's walk -- own namespace, folder, parents, program -- and a generic class named by a dotted path is instantiated. `conformance/stage6/relative_namespaces`, `docs/packages.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **Each side of an `and` narrows.** `crash a[position] and b[position]` narrowed neither path while two `crash` lines narrowed both. `assert` and `crash` over an `and` now check each side in order as its own statement (the crash line names the side that failed), and an `if` over an `and` tests each side in turn, narrowing the then-branch by every side. `conformance/stage6/and_narrowing`, `docs/failure.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's `Slot.fetch`) **A use in a branch a codegen test rules out counts.** The unused check ran after `if $slot_type == Entity { ... }` was folded away, so a parameter read only there was "never used" in every other instantiation. The untaken branch's names are now marked used before it is dropped, so the source is judged, not one instantiation. `conformance/stage6/folded_uses`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **Reflection members win over a library's constants.** `current.class` on a `DynamicLibrary` (a generic instantiated over an attribute's type) was read as a foreign constant; `.class`, `.attributes`, `.functions` and `.memory` now always mean what they mean on any value. `conformance/stage6/library_reflection`, `docs/foreign_libraries.md`. |
+| 2026-09-24 | (fixes D108's placement; proposed by Claude, unconfirmed) **A block placed in the frame is used by its `free`.** `var block = memory.allocate_bytes(4)` then `memory.free(block)` reported `block` as never used, because the placed `free` was written without reading the name; it now marks it used. `conformance/stage6/placed_free`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed) **A word Spite reads as a mistake cannot name a value.** `var none: Long = 0` was accepted, and every use of it was then "the empty value is written 'null'". `none`, `nil`, `undefined`, `self`, `new`, `import`, `require` and `elif` are now rejected where a variable or parameter is named, with the same lesson. `diagnostics/borrowed_name`, `docs/for_ai_writers.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; D109's printable, applied to text) **A text hole calls `to_string()`.** `"{attribute.class}"` was "a Class cannot be used where a String is needed" though the docs said it prints like the type name. A value in a `{}` hole whose class declares `to_string()` with no arguments is now turned into text by it, as `console.print` already does. `conformance/stage6/class_text`, `docs/metaprogramming.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's `potion` example) **No file may reopen the program's entry class.** An entry `potion/potion.spite` that loads a bundle holding its own `potion.spite` merged the bundle's class into the entry class `Potion`, so the entry's `Potion()` call recursed with no error. Another file of the entry class's name is now an error naming both files. `diagnostics/entry_class_reopened`, `docs/packages.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine had no way to time a frame) **`Clock()` reads time.** A singleton with `elapsed_nanoseconds()` and `elapsed_milliseconds()` (monotonic, for measuring) and `unix_milliseconds()` (the wall clock since 1970 UTC); each system reopens it with its own reading through `DynamicLibrary` -- `QueryPerformanceCounter` and `GetSystemTimeAsFileTime` on Windows, `clock_gettime` on Linux and macOS. The names, and whether a calendar breakdown (year, month, day) belongs here, wait on Mortaro. `conformance/stage6/clock_reading`, `docs/standard_library.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; a bug found building SlopEngine's Vulkan renderer) **A program runs in the folder `spite` was run from.** The compiler finds `launcher/` and `library/` from its own executable (the first folder above it holding `launcher/launcher.spite`, falling back to the working directory), reads the launcher's `load` paths against that folder while keeping `library/...` as the names every message and crash report shows, and builds into that folder's `.spite-cache/`. `bin/spite` stops changing directory. Section 13, `docs/compiler.md`; `check.sh` runs `conformance/stage6/working_directory` from another folder. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; a bug found building SlopEngine) **The compiler's own C names join with `___`, and a Spite name has one `_` between words.** A method named `allocate` failed in clang ("conflicting types for 'X_allocate'") because the generator wrote `<Class>_allocate` beside the class's `<Class>_<function>`. Instead of reserving each word, every name the generator makes for a class or function of its own -- allocate, init, default, make, retain, release, class_of, attributes, functions, instances, deep_copy, read_/write_/assign_/call_ accessors, an enum's name, and a function's hot, slot, waiting, perform, call and text_call -- is now `<owner>___<helper>`, and the naming lint rejects `__` inside a name, a trailing `_`, and more than one leading `_`, so no Spite name produces `___`. `copy`, `to_string` and `to_debug` keep their plain names: they are Spite functions every class answers and may declare. `init` stays an error as an abbreviation and `default` as a C keyword. Section 12; `conformance/stage6/generated_names`, `diagnostics/doubled_underscore`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; a bug found building SlopEngine's Vulkan renderer) **A foreign call's arguments cross at the width C wants.** `vkMapMemory(device, memory, 0, size, 0, out)` passed the literal `0` as a 32-bit `int` where C wanted a 64-bit `VkDeviceSize`, leaving the register's upper half undefined, silently. With a header, the call now goes through the header's prototype (`__typeof__(&Symbol)`, with `__builtin_choose_expr` for a `void` result), so C checks the count and converts every argument, allowing only integer-to-pointer conversion (a handle is a `Long`); without one, every signed integer, `Bool` and enum value is passed as `int64_t` and every unsigned one as `uint64_t`, which is what x64 and 64-bit ARM pass in a register or 8-byte slot anyway. Section 17, `docs/foreign_libraries.md`; `conformance/stage6/foreign_library` passes -1 to a `long long` with and without a header, a `Double` to a `float`, a `Long` to a `void*` and calls a `void` function. |

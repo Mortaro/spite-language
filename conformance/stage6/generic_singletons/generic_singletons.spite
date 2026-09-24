@@ -1,0 +1,13 @@
+var console = Console()
+
+func GenericSingletons() {
+    var healths = Column<Health>()
+    healths.values.append(Health())
+    var again = Column<Health>()
+    again.values.append(Health())
+    var labels = Column<Label>()
+    labels.values.append(Label())
+    var health_count = again.values.count()
+    var label_count = labels.values.count()
+    console.print(healths == again, health_count, label_count)
+}

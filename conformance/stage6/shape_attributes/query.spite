@@ -1,0 +1,17 @@
+generic $row_type
+
+var console = Console()
+
+func fill(row: $row_type, store: Store) {
+    fill_attributes(row, store)
+}
+
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, store: Store) {
+    var kind = attribute.class.name
+    console.print("filling {attribute.name} with a {kind}")
+    row.attributes[attribute] = store.attributes[attribute]
+}
+
+func show_attribute(attribute: Symbol<$row_type>, row: $row_type): String {
+    return "{attribute.name}: {row.attributes[attribute]}"
+}

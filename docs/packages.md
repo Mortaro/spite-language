@@ -22,7 +22,11 @@ func Game() {
 - Folder names are always lowercase `snake_case`, checked for every folder that actually contains a `.spite`
   file anywhere inside it.
 - Resolving a bare `Name` from inside a class tries, in order: that class's own namespace, its folder, each
-  parent folder, then the whole program.
+  parent folder, then the whole program. A dotted `Component.Requested` is looked up the same way, and so is
+  every name wherever it is written -- a constructor call, a parameter, a return type, an attribute or local
+  annotation, a generic argument (`Remove<Component.Requested>`), a `type` or `union` member, a `==` class test
+  and an enum inside a class (`Component.Requested.Size`) -- so from `window/system/` the name reaches
+  `window/component/requested.spite` without writing `Window.` (`conformance/stage6/relative_namespaces`).
 
 ## Monkey patching (mods)
 
@@ -85,6 +89,16 @@ the modded monster taunts you
 `mods/monster.spite` never redeclares `health` -- reopening only needs the names it actually adds or replaces.
 A `var`'s replacement must keep the same type. Within one file each name is declared once; replacing is what a
 *later* file does.
+
+The program's own folder is merged first and the folders it loads come after it, so "later" means a loaded
+folder, not the program. A file in the program root that reopens a class a loaded folder declares keeps every
+name the loaded folder does not have -- an added attribute or function works -- but where both declare the same
+name, the constructor included, the loaded folder's version is the one that stays. To replace something a
+loaded folder declares, put the replacement in a folder loaded after it, as `mods` is above.
+
+The program's entry class is the one class nothing reopens: a loaded `bundle/potion.spite` in the program
+`potion/` would otherwise become part of the entry class `Potion`, so it is an error naming both files
+(`diagnostics/entry_class_reopened`).
 
 The standard library is loaded before the program, so a program's own file reopens any class of it the same way:
 `environment.spite` adds settings to `Environment` ([programs.md](programs.md#run-time-settings-environment)),

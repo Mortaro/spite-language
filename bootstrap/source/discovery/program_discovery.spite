@@ -12,6 +12,8 @@ var host_operating_system = build.target_operating_system
 var supplied_settings = Dictionary<String>()
 var bare_settings = List<String>()
 var build_values = Dictionary<String>()
+var entry_qualified = ""
+var entry_file_path = ""
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
     choose_target_operating_system()
@@ -267,6 +269,8 @@ func discover_program(entry_path: String, entry_source: String) {
     reopen_with_supplied_members()
     entry_file.path = entry_path
     add_parsed_file(entry_file, empty_segments, entry_stem)
+    entry_qualified = compute_qualified(empty_segments, entry_stem)
+    entry_file_path = entry_path
     walk_directory(entry_directory, empty_segments, entry_basename, load_names)
     var root_index = 0
     while root_index < load_names.count() and not has_error {
@@ -699,6 +703,11 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
     var qualified_dotted = compute_qualified(segments, stem)
     var existing = class_files.find_by_qualified_dotted(qualified_dotted)
     if existing {
+        if qualified_dotted == entry_qualified {
+            has_error = true
+            error_message = "{parsed_file.path}: error: '{qualified_dotted}' is the program's entry class ({entry_file_path}), so no other file may be a class of that name: rename this file, or the program's folder and its entry file"
+            return
+        }
         var class_file_file = existing.get_file()
         reopen_class(class_file_file, parsed_file)
         return

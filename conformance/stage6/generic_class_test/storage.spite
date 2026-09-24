@@ -1,0 +1,7 @@
+generic $component_type
+
+var values = List<$component_type>()
+
+func clear() {
+    values.clear()
+}

@@ -1,0 +1,10 @@
+var console = Console()
+
+func CodegenClassName() {
+    var healths = Column<Health>()
+    var health_description = healths.describe()
+    var numbers = Column<Int>()
+    var number_description = numbers.describe()
+    console.print(health_description)
+    console.print(number_description)
+}

@@ -7,6 +7,7 @@ var error_column = 0
 var error_message = ""
 var quiet_generic_arguments_matched = false
 var quiet_generic_instantiation_matched = false
+var names_generic_class = false
 
 func Parser(starting_tokens: List<Token>) {
     tokens = starting_tokens
@@ -344,6 +345,7 @@ func parse_generic_declaration(): Syntax.Statements.Statement {
 
 func parse_variable_declaration(): Syntax.Statements.Statement {
     advance()
+    reject_borrowed_name("variable")
     var name = expect('identifier', "a variable name")
     var type_reference: Syntax.Types.Type? = null
     if check('colon') {
@@ -447,8 +449,17 @@ func parameter_name(): String {
         advance()
         return "type"
     }
+    reject_borrowed_name("parameter")
     var name = expect('identifier', "a parameter name")
     return name.text
+}
+
+func reject_borrowed_name(kind: String) {
+    assert check('identifier')
+    var lexeme = current().lexeme
+    var lesson = borrowed_word_lesson(lexeme)
+    assert not lesson.is_empty()
+    fail("'{lexeme}' cannot name a {kind}, because Spite reads the word as a mistake anywhere it is used: {lesson}")
 }
 
 func parse_type_name_hint(): String {
@@ -655,7 +666,7 @@ func parse_switch_statement(): Syntax.Statements.Statement {
         var body = parse_switch_case_body()
         cases.append(Syntax.Statements.SwitchCase(case_type, body))
         skip_trivia()
-        if check('right_brace') or check('end_of_file') {
+        if check('right_brace') or check('end_of_file') or has_error {
             finished = true
         }
     }
@@ -1090,8 +1101,12 @@ func parse_binary_expression_rest(
     current_kind = current_kind()
     var operator = binary_operator_for(current_kind)
     var joining = check('plus')
+    var tests_class = check('equal_equal') or check('bang_equal')
     advance()
+    var saved_names_generic_class = names_generic_class
+    names_generic_class = tests_class
     var right = parse_binary_expression(precedence + 1)
+    names_generic_class = saved_names_generic_class
     if joining {
         reject_written_text_join(left, right)
     }
@@ -1154,7 +1169,7 @@ func parse_postfix_rest(expression: Syntax.Expressions.Expression): Syntax.Expre
     if check('less') {
         var type_arguments = try_parse_generic_instantiation_arguments()
         if not quiet_generic_instantiation_matched {
-            return expression
+            return named_generic_class(expression)
         }
         var arguments = parse_argument_list()
         return parse_postfix_rest(Syntax.Expressions.GenericCallExpression(expression, type_arguments, arguments))
@@ -1162,7 +1177,32 @@ func parse_postfix_rest(expression: Syntax.Expressions.Expression): Syntax.Expre
     return expression
 }
 
+func named_generic_class(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression {
+    if not names_generic_class {
+        return expression
+    }
+    var type_arguments = try_parse_generic_argument_list_quiet()
+    if not quiet_generic_arguments_matched {
+        return expression
+    }
+    var named = Syntax.Expressions.GenericCallExpression(
+        expression,
+        type_arguments,
+        List<Syntax.Expressions.Expression>(),
+    )
+    named.names_class = true
+    return named
+}
+
 func parse_argument_list(): List<Syntax.Expressions.Expression> {
+    var saved_names_generic_class = names_generic_class
+    names_generic_class = false
+    var arguments = parse_arguments_between_parentheses()
+    names_generic_class = saved_names_generic_class
+    return arguments
+}
+
+func parse_arguments_between_parentheses(): List<Syntax.Expressions.Expression> {
     expect('left_paren', "'(' to start the argument list")
     var arguments = List<Syntax.Expressions.Expression>()
     var expect_more = not check('right_paren')
@@ -1296,7 +1336,7 @@ func parse_list_literal(): Syntax.Expressions.Expression {
         elements.append(Syntax.Expressions.ListElement(value))
         consume_field_separator('right_bracket')
         skip_trivia()
-        if check('right_bracket') or check('end_of_file') {
+        if check('right_bracket') or check('end_of_file') or has_error {
             finished = true
         }
     }
@@ -1316,7 +1356,7 @@ func parse_object_literal(): Syntax.Expressions.Expression {
         fields.append(Syntax.Expressions.ObjectField(name.text, value))
         consume_field_separator('right_brace')
         skip_trivia()
-        if check('right_brace') or check('end_of_file') {
+        if check('right_brace') or check('end_of_file') or has_error {
             finished = true
         }
     }

@@ -1,0 +1,31 @@
+union Event {
+    Component.Requested
+    Component.Created
+}
+
+type Pending {
+    request: Component.Requested
+}
+
+var console = Console()
+var last: Component.Requested = Component.Requested(0)
+var size: Component.Requested.Size = 'large'
+
+func run() {
+    var request: Component.Requested = Component.Requested(7)
+    var pending: Pending = {request: request}
+    var created = made_from(pending.request)
+    var removals = Remove<Component.Requested>()
+    removals.removed.append(request)
+    var removal_text = removals.describe()
+    var event: Event = created
+    var is_created = event == Component.Created
+    last = request
+    console.print(created.id, removal_text, is_created, size, last.size)
+}
+
+func made_from(request: Component.Requested): Component.Created {
+    var created = Component.Created()
+    created.id = request.id
+    return created
+}

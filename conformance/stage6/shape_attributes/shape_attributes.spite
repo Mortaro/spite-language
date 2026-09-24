@@ -1,0 +1,18 @@
+type Row {
+    health: Health
+    alive: Alive
+    title(): String
+}
+
+var console = Console()
+
+func ShapeAttributes() {
+    var store = Store()
+    store.health.amount = 7
+    store.alive.dead = true
+    var query = Query<Row>()
+    var creature = Creature()
+    query.fill(creature, store)
+    var shown = query.show_title(creature)
+    console.print(creature.health.amount, creature.alive.dead, shown)
+}

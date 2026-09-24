@@ -82,7 +82,9 @@ With a header as the third argument, a snake_case read is a constant -- `user32.
 `MOUSEEVENTF_LEFTDOWN`, an `Int` -- and under the `'windows'` rule the compiler checks that a `type` passed as a
 struct has the size of the header's struct of the derived name (`PointPair` against `POINT_PAIR`), so a missing
 padding field fails the build at the Spite line. A header path that exists relative to the working directory is
-included as a file; anything else as a system header.
+included as a file; anything else as a system header. The reflection members every value has -- `.class`,
+`.attributes`, `.functions` and `.memory` -- are never read as constants, so a generic class instantiated
+over `DynamicLibrary` can still ask `current.class.name`.
 
 ### Argument widths
 

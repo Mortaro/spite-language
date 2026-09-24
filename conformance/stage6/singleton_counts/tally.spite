@@ -1,0 +1,11 @@
+singleton
+
+generic $counted_type
+
+var console = Console()
+var counted = List<$counted_type>()
+
+func drop() {
+    var count = counted.count()
+    console.print("dropped at exit with", count)
+}

@@ -51,7 +51,9 @@ There is one rule, and every form below follows it.
 | `while value { }` | the loop ends; inside the body, `value` is a `T` |
 | `switch value { Monster: ... Null: ... }` | runs the `Null` case |
 
-`assert value and other_condition` narrows too, and `other_condition` already sees the narrowed type.
+`assert value and other_condition` narrows too, and `other_condition` already sees the narrowed type. Each side of
+an `and` narrows on its own, for `assert`, `crash` and `if` alike, since each is known true when the whole is:
+`crash names[position] and ages[position]` proves both elements, exactly as two `crash` lines would.
 
 ```gdscript title=nullable_narrowing/monster.spite
 var health = 10

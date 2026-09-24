@@ -19,7 +19,8 @@ A parameter of type `Symbol` whose name is a segment of its own function's name 
 Inside the template, the `Symbol` names that attribute two different ways: written as a **type**
 (`value: attribute.class`, `): attribute.class`), it *is* the attribute's real type; written as an
 **expression**, `attribute.class` is a `Spite.Class` naming that type (it prints just like the type name
-would). `attributes[attribute]` is a separate, compile-time-only form: that same field, indexed by the
+would, in `console.print` and inside a text's `{}` alike: a value in a hole whose class has `to_string()` is
+turned into text by it). `attributes[attribute]` is a separate, compile-time-only form: that same field, indexed by the
 `Symbol`.
 
 ```gdscript title=symbol_codegen/person.spite
@@ -112,6 +113,38 @@ member templates over `member: Symbol<$element_type>`, so `item.attributes[membe
 -- that is how `filter_<member>()`, `sum_<member>()` and the rest are written, in Spite, in `library/list.spite`
 ([standard_library.md](collections.md#how-the-member-templates-are-written)) -- and the standard library's
 [`Json`](json.md) writes and reads any class over `attribute: Symbol<$value_type>`.
+
+The class inside the `Symbol` may also be a `type`. The template then ranges over the attributes the type names,
+and over the functions it requires that take no arguments; `row.attributes[attribute]` reads or writes that member
+of whatever class the value really is, and the plural calls the template once per attribute the type lists, in
+its order. This is how a query row declared as a `type` is filled attribute by attribute.
+
+```gdscript title=shape_attributes/filler.spite
+generic $row_type
+
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, source: $row_type) {
+    row.attributes[attribute] = source.attributes[attribute]
+}
+```
+```gdscript title=shape_attributes/shape_attributes.spite entry
+type Position {
+    x: Int
+    y: Int
+}
+
+var console = Console()
+
+func ShapeAttributes() {
+    var filler = Filler<Position>()
+    var row = {x: 0, y: 0, name: "row"}
+    var source = {x: 3, y: 4}
+    filler.fill_attributes(row, source)
+    console.print(row.x, row.y, row.name)
+}
+```
+```output
+3 4 row
+```
 
 ## Generics and codegen values (`$`)
 
@@ -278,6 +311,32 @@ something else
 
 A test on a type always decides at compile time, `--development` included, since the branch it rules out would
 not compile.
+
+A codegen value that is a type reads as its class wherever a class name would: `$component_type.name` is the
+bound class's name the way `Health.name` is, and `$component_type.attributes` its attributes. It allocates
+nothing, since the class object already exists; a value of the type is not needed to ask. On its own, `$name` is
+still not a value -- only a member read through it is.
+
+```gdscript title=codegen_class_name/column.spite
+generic $component_type
+
+func label(): String {
+    var name = $component_type.name
+    return "a column of {name}"
+}
+```
+```gdscript title=codegen_class_name/codegen_class_name.spite entry
+var console = Console()
+
+func CodegenClassName() {
+    var words = Column<String>()
+    var label = words.label()
+    console.print(label)
+}
+```
+```output
+a column of String
+```
 
 ## Tree shaking
 

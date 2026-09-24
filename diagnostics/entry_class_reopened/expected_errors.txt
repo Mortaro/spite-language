@@ -1,0 +1,1 @@
+diagnostics/entry_class_reopened/bundle/entry_class_reopened.spite: error: 'EntryClassReopened' is the program's entry class (diagnostics/entry_class_reopened/entry_class_reopened.spite), so no other file may be a class of that name: rename this file, or the program's folder and its entry file

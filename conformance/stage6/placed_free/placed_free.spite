@@ -1,0 +1,8 @@
+var console = Console()
+var memory = Memory()
+
+func PlacedFree() {
+    var block = memory.allocate_bytes(4)
+    memory.free(block)
+    console.print("freed")
+}

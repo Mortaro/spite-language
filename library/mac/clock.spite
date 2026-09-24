@@ -1,0 +1,19 @@
+var library = DynamicLibrary("libSystem.dylib", 'identity', "")
+
+func elapsed_nanoseconds(): Long {
+    return read_clock(6)
+}
+
+func unix_milliseconds(): Long {
+    var nanoseconds = read_clock(0)
+    return nanoseconds / 1000000
+}
+
+func read_clock(clock: Int): Long {
+    var time = memory.allocate_bytes(16)
+    library.clock_gettime(clock, time)
+    var seconds = memory.read_long(time, 0)
+    var nanoseconds = memory.read_long(time, 8)
+    memory.free(time)
+    return seconds * 1000000000 + nanoseconds
+}

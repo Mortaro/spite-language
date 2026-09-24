@@ -856,6 +856,8 @@ func instantiated_with(
     instance.codegen_types = types
     instance.codegen_codes = codes
     instance.codegen_texts = texts
+    instance.is_singleton = template.is_singleton
+    instance.is_stateless_singleton = template.is_stateless_singleton
     instance.is_container = template.qualified_dotted == "TypedMemory"
     classes.append(instance)
     builder.add_typedef("typedef struct {label} {label};")
@@ -1100,17 +1102,7 @@ func generate_shape_call(
     }
     var parameter_types = shape_call_parameter_types(information, name)
     var return_type = shape_call_return_type(information, name)
-    var function_c_name = "{information.c_name}___call_{name}"
-    if not information.caller_names.contains(name) {
-        information.caller_names.append(name)
-        var signature = "{c_type_name(return_type)} {function_c_name}({information.c_name} self"
-        var index = 0
-        while index < parameter_types.count() {
-            signature = "{signature}, {c_type_name(parameter_types[index])} argument_{index}"
-            index = index + 1
-        }
-        builder.add_prototype("{signature});")
-    }
+    var function_c_name = ensure_shape_caller(information, name)
     var called = generate_generic_call(
         function_c_name,
         object_result,
@@ -1123,6 +1115,85 @@ func generate_shape_call(
     )
     called.owning_override = true
     return called
+}
+
+func ensure_shape_caller(information: Analysis.UnionInfo, name: String): String {
+    var function_c_name = "{information.c_name}___call_{name}"
+    if not information.caller_names.contains(name) {
+        information.caller_names.append(name)
+        var parameter_types = shape_call_parameter_types(information, name)
+        var return_type = shape_call_return_type(information, name)
+        var signature = "{c_type_name(return_type)} {function_c_name}({information.c_name} self"
+        var index = 0
+        while index < parameter_types.count() {
+            signature = "{signature}, {c_type_name(parameter_types[index])} argument_{index}"
+            index = index + 1
+        }
+        builder.add_prototype("{signature});")
+    }
+    return function_c_name
+}
+
+func shape_function_value(
+    information: Analysis.UnionInfo,
+    wanted: Syntax.Statements.FieldDeclaration,
+    object_result: ExpressionResult,
+    object_ast: Syntax.Expressions.Expression,
+): ExpressionResult {
+    var caller = ensure_shape_caller(information, wanted.name)
+    var parameter_types = required_parameter_types(information, wanted)
+    var return_type = required_return_type(information, wanted)
+    var signature = Analysis.Types.ClassRefType("Spite_Function")
+    signature.has_signature = true
+    signature.arguments = parameter_types
+    signature.returns = return_type
+    if type_shape.is_void(return_type) {
+        signature.returns = Analysis.Types.ClassRefType("Nothing")
+    }
+    var maker = "spite_function_value_{caller}"
+    if not function_value_makers.contains(maker) {
+        function_value_makers.append(maker)
+        var argument_class = find_class_by_c_name("Spite_Argument")
+        crash argument_class
+        var class_type = class_type_of(argument_class)
+        var arguments_list_name = ensure_list(class_type)
+        var returned = signature.returns
+        crash returned
+        var lines = List<String>()
+        lines.append("Spite_Function* {maker}({information.c_name} owner) \{")
+        lines.append(
+            "Spite_Function* described = Spite_Function___make({ensure_symbol(wanted.name)}, {class_object_call(returned)});",
+        )
+        var parameter_index = 0
+        while parameter_index < parameter_types.count() {
+            var argument_symbol = ensure_symbol("argument_{parameter_index}")
+            lines.append(
+                "{arguments_list_name}_append(described->_arguments, Spite_Argument___make({argument_symbol}, {class_object_call(parameter_types[parameter_index])}));",
+            )
+            parameter_index = parameter_index + 1
+        }
+        lines.append("described->spite_owner = {information.c_name}___retain(owner);")
+        lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
+        if parameter_types.is_empty() and type_shape.is_void(return_type) {
+            lines.append("described->spite_call = (void (*)(void*)){caller};")
+        }
+        lines.append("described->spite_typed_call = (void*){caller};")
+        lines.append("return described;")
+        lines.append("}")
+        builder.add_prototype("Spite_Function* {maker}({information.c_name} owner);")
+        var joined_lines = lines.join("\n")
+        builder.add_support(joined_lines)
+    }
+    var code = "{maker}({object_result.code})"
+    if owns(object_result, object_ast) {
+        var owner_temporary = next_temporary()
+        var value_temporary = next_temporary()
+        code = "(\{ {information.c_name} {owner_temporary} = {object_result.code}; Spite_Function* {value_temporary} = {maker}({owner_temporary}); {information.c_name}___release({owner_temporary}); {value_temporary}; })"
+    }
+    var typed: Analysis.SpiteType = signature
+    var made = ExpressionResult(code, typed)
+    made.owning_override = true
+    return made
 }
 
 func emit_shape_callers(information: Analysis.UnionInfo) {
@@ -1441,6 +1512,45 @@ func generate_object_literal(
     return built
 }
 
+func shape_default(information: Analysis.UnionInfo): String {
+    var names = List<String>()
+    var types = List<Analysis.SpiteType>()
+    var label = "Object"
+    var index = 0
+    while index < information.shape_fields.count() {
+        var field = information.shape_fields[index]
+        if field.is_function {
+            return "0"
+        }
+        var field_type = shape_field_type(information, field.name)
+        crash field_type
+        names.append(field.name)
+        types.append(field_type)
+        label = "{label}_{field.name}_{type_label(field_type)}"
+        index = index + 1
+    }
+    var information_class = find_class_by_c_name(label)
+    if not information_class {
+        var class_id = allocate_class_id(label)
+        var created = Analysis.ClassInfo(label, "Object", "", label, class_id)
+        var field_index = 0
+        while field_index < names.count() {
+            var default_value_for_type = default_value_for_type(types[field_index])
+            created.fields.append(Analysis.FieldInfo(names[field_index], types[field_index], default_value_for_type))
+            field_index = field_index + 1
+        }
+        classes.append(created)
+        builder.add_typedef("typedef struct {label} {label};")
+        builder.add_prototype("{label}* {label}___default(void);")
+        information_class = created
+    }
+    crash information_class
+    if not information.has_member(label) {
+        admit_to_union(information, information_class)
+    }
+    return "(({information.c_name}){label}___default())"
+}
+
 func resolve_union_members() {
     var index = 0
     while index < unions.count() {
@@ -1465,11 +1575,8 @@ func resolve_union_members() {
 func class_of_type_reference(type_reference: Syntax.Types.Type, current_namespace: String): Analysis.ClassInfo? {
     var named = shape.as_named_type(type_reference)
     if named {
-        if named.path.count() == 1 {
-            return find_class(named.path[0], current_namespace)
-        }
         var joined_path = named.path.join(".")
-        return find_class_by_qualified(joined_path)
+        return find_class(joined_path, current_namespace)
     }
     return null
 }
@@ -2107,6 +2214,54 @@ func template_range_class(information: Analysis.ClassInfo, template: Analysis.Te
     return range_class
 }
 
+func template_range_shape(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): Analysis.UnionInfo? {
+    assert template.range
+    var saved_class = current_class
+    current_class = information
+    var range_type = resolve_type(template.range, information.namespace_dotted)
+    current_class = saved_class
+    assert range_type
+    var range_union = type_shape.as_union(range_type)
+    assert range_union
+    var shaped = find_union_by_c_name(range_union.c_name)
+    assert shaped
+    assert shaped.is_shape
+    return shaped
+}
+
+func template_range_owner(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): String {
+    var range_class = template_range_class(information, template)
+    if range_class {
+        return range_class.c_name
+    }
+    var range_shape = template_range_shape(information, template)
+    if range_shape {
+        return range_shape.c_name
+    }
+    return ""
+}
+
+func shape_member_type(shaped: Analysis.UnionInfo, member_name: String): Analysis.SpiteType? {
+    var required = find_required_function(shaped, member_name)
+    if required {
+        assert required.parameter_types.is_empty()
+        return required_return_type(shaped, required)
+    }
+    return shape_field_type(shaped, member_name)
+}
+
+func template_attribute_names(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): List<String> {
+    var range_class = template_range_class(information, template)
+    if range_class {
+        return range_class.fields.map_name()
+    }
+    var range_shape = template_range_shape(information, template)
+    if range_shape {
+        return range_shape.shape_fields.filter_is_attribute().map_name()
+    }
+    return List<String>()
+}
+
 func find_or_instantiate_function(information: Analysis.ClassInfo, name: String): Analysis.FunctionInfo? {
     var existing = information.find_function(name)
     if existing {
@@ -2122,15 +2277,14 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
     while index < information.templates.count() {
         var template = information.templates[index]
         var member_name = template.member_name_for(name)
-        var range_class = template_range_class(information, template)
-        if not member_name.is_empty() and not information.is_container and range_class {
-            crash range_class
-            var member_type = template_member_type(information, template, range_class, member_name)
+        var range_owner = template_range_owner(information, template)
+        if not member_name.is_empty() and not information.is_container and not range_owner.is_empty() {
+            var member_type = template_member_type(information, template, member_name)
             if member_type {
                 chosen = template
                 chosen_member = member_name
                 chosen_type = member_type
-                chosen_owner = range_class.c_name
+                chosen_owner = range_owner
                 matches = matches + 1
             } else if member_name == "{template.symbol_parameter}s" {
                 every = template
@@ -2173,11 +2327,16 @@ func type_named_by(member_name: String): Analysis.SpiteType? {
 func template_member_type(
     information: Analysis.ClassInfo,
     template: Analysis.TemplateInfo,
-    range_class: Analysis.ClassInfo,
     member_name: String,
 ): Analysis.SpiteType? {
     if template.range {
-        return member_type_of(range_class, member_name)
+        var range_class = template_range_class(information, template)
+        if range_class {
+            return member_type_of(range_class, member_name)
+        }
+        var range_shape = template_range_shape(information, template)
+        crash range_shape
+        return shape_member_type(range_shape, member_name)
     }
     if template.symbol_parameter == "type" {
         return type_named_by(member_name)
@@ -2199,8 +2358,7 @@ func instantiate_every_attribute(
         )
         return null
     }
-    var range_class = template_range_class(information, template)
-    assert range_class
+    var attribute_names = template_attribute_names(information, template)
     var saved_class = current_class
     var saved_owner = current_owner
     current_class = information
@@ -2221,10 +2379,10 @@ func instantiate_every_attribute(
     current_owner = saved_owner
     var body = List<Syntax.Statements.Statement>()
     var field_index = 0
-    var private_readable = range_class.c_name == information.c_name
-    while field_index < range_class.fields.count() {
-        var field = range_class.fields[field_index]
-        if private_readable or not field.name.starts_with("_") {
+    var private_readable = template_range_owner(information, template) == information.c_name
+    while field_index < attribute_names.count() {
+        var attribute_name = attribute_names[field_index]
+        if private_readable or not attribute_name.starts_with("_") {
             var arguments = List<Syntax.Expressions.Expression>()
             var argument_index = 0
             while argument_index < parameters.count() {
@@ -2235,7 +2393,7 @@ func instantiate_every_attribute(
                 argument_index = argument_index + 1
             }
             var callee: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(
-                "{template.prefix}{field.name}{template.suffix}",
+                "{template.prefix}{attribute_name}{template.suffix}",
             )
             var call: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, arguments)
             var statement: Syntax.Statements.Statement = Syntax.Statements.ExpressionStatement(call)
@@ -2370,13 +2528,8 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
     if bound_through_caller {
         return caller_call_expression(member.object)
     }
-    var owner = find_class_by_c_name(bound_member_owner_c_name)
-    crash owner
     var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(member.object, bound_field_name)
-    if owner.find_field(bound_field_name) {
-        return read
-    }
-    if not owner.find_function(bound_field_name) {
+    if not bound_member_is_function() {
         return read
     }
     var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(
@@ -2384,6 +2537,27 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
         List<Syntax.Expressions.Expression>(),
     )
     return called
+}
+
+func bound_member_is_function(): Bool {
+    var owner = find_class_by_c_name(bound_member_owner_c_name)
+    if owner {
+        assert not owner.find_field(bound_field_name)
+        assert owner.find_function(bound_field_name)
+        return true
+    }
+    var owner_shape = find_union_by_c_name(bound_member_owner_c_name)
+    crash owner_shape
+    assert find_required_function(owner_shape, bound_field_name)
+    return true
+}
+
+func is_shape_member_read(expression: Syntax.Expressions.Expression): Bool {
+    assert not bound_member_owner_c_name.is_empty()
+    assert find_union_by_c_name(bound_member_owner_c_name)
+    var indexed = shape.as_index(expression)
+    assert indexed
+    return is_bound_member_index(indexed)
 }
 
 func is_caller_call(expression: Syntax.Expressions.Expression): Bool {
@@ -2755,6 +2929,10 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
     owner_path.remove_last()
     var joined_owner_path = owner_path.join(".")
     var last_segment = named.path.last()
+    var owner_class = find_class(joined_owner_path, current_namespace)
+    if owner_class {
+        joined_owner_path = owner_class.qualified_dotted
+    }
     var qualified_enum = find_enum_qualified(joined_owner_path, last_segment)
     if qualified_enum {
         return enum_type_of(qualified_enum)
@@ -2763,8 +2941,16 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
     if qualified_union {
         return union_type_of(qualified_union)
     }
-    var qualified_class = find_class_by_qualified(joined)
+    var qualified_class = find_class(joined, current_namespace)
     if qualified_class {
+        if qualified_class.is_generic_template {
+            var generic_instance = instantiate_generic(qualified_class, named.arguments, current_namespace)
+            if generic_instance {
+                return class_type_of(generic_instance)
+            }
+            return null
+        }
+        joined = qualified_class.qualified_dotted
         var owned_union = find_union_qualified(joined, last_segment)
         if owned_union {
             return union_type_of(owned_union)
@@ -3286,7 +3472,7 @@ func default_value_for_type(spite_type: Analysis.SpiteType): String {
         var union_information = find_union_by_c_name(union_type.c_name)
         if union_information {
             if union_information.is_shape {
-                return "0"
+                return shape_default(union_information)
             }
             return "(({union_type.c_name}){union_information.members.first().c_name}___default())"
         }
@@ -3907,6 +4093,36 @@ func binary_operator_symbol(operator: Syntax.Expressions.BinaryOperator): String
     return "||"
 }
 
+func text_converter(value_type: Analysis.SpiteType): Analysis.FunctionInfo? {
+    var class_ref = type_shape.as_class_ref(value_type)
+    assert class_ref
+    assert not class_ref.has_signature
+    var described = find_class_by_c_name(class_ref.c_name)
+    assert described
+    var converter = described.find_function("to_string")
+    assert converter
+    assert converter.parameters.is_empty()
+    return converter
+}
+
+func text_of_class(
+    value_ast: Syntax.Expressions.Expression,
+    value: ExpressionResult,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var value_type = value.get_type()
+    if not text_converter(value_type) {
+        return value
+    }
+    var callee: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(value_ast, "to_string")
+    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(
+        callee,
+        List<Syntax.Expressions.Expression>(),
+    )
+    return generate_expression(called, scope, class_information)
+}
+
 func generate_string_binary(
     operator: Syntax.Expressions.BinaryOperator,
     left_result: ExpressionResult,
@@ -3916,6 +4132,9 @@ func generate_string_binary(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     var right_result = generate_expression(right_ast, scope, class_information)
+    if operator == 'add' {
+        right_result = text_of_class(right_ast, right_result, scope, class_information)
+    }
     var right_result_type = right_result.get_type()
     var right_code_casted = cast(right_result.code, right_result_type, Analysis.Types.StringType())
     var left_temporary = next_temporary()
@@ -3973,6 +4192,36 @@ func maybe_null_only_on_the_right(
     return type_shape.as_nullable(right_probe_type) and not type_shape.as_nullable(left_probe_type)
 }
 
+func tested_class_of(
+    expression: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var named = shape.as_generic_call(expression)
+    if named {
+        assert named.names_class
+        crash named.callee
+        var template = try_resolve_static_path(named.callee, class_information.namespace_dotted)
+        assert template
+        if not template.is_generic_template {
+            report(
+                "'{template.simple_name}' takes no codegen values: write '{template.simple_name}' alone to test for it",
+            )
+            return null
+        }
+        return instantiate_generic(template, named.type_arguments, class_information.namespace_dotted)
+    }
+    return try_resolve_static_path(expression, class_information.namespace_dotted)
+}
+
+func check_tested_member(information: Analysis.UnionInfo, tested_class: Analysis.ClassInfo) {
+    assert not information.has_member(tested_class.c_name)
+    if information.is_shape {
+        admit_to_union(information, tested_class)
+        return
+    }
+    report("'{tested_class.simple_name}' is not a member of union '{information.simple_name}', so this is never true")
+}
+
 func generate_class_test(
     binary: Syntax.Expressions.BinaryExpression,
     tested_class: Analysis.ClassInfo,
@@ -3992,11 +4241,7 @@ func generate_class_test(
     if tested_union {
         var union_information = find_union_by_c_name(tested_union.c_name)
         if union_information {
-            if not union_information.has_member(tested_class.c_name) {
-                report(
-                    "'{tested_class.simple_name}' is not a member of union '{union_information.simple_name}', so this is never true",
-                )
-            }
+            check_tested_member(union_information, tested_class)
         }
     } else if not type_shape.as_class_ref(value_type) {
         report("'==' with a class asks what class a value is, and a {type_display_name(value_type)} is not an object")
@@ -4032,7 +4277,7 @@ func generate_binary(
     crash binary.left
     crash binary.right
     if binary.operator == 'equal' or binary.operator == 'not_equal' {
-        var tested_class = try_resolve_static_path(binary.right, class_information.namespace_dotted)
+        var tested_class = tested_class_of(binary.right, class_information)
         if tested_class {
             if not try_resolve_static_path(binary.left, class_information.namespace_dotted) {
                 return generate_class_test(binary, tested_class, scope, class_information)
@@ -4477,9 +4722,8 @@ func singleton_call(target_class: Analysis.ClassInfo): String {
         builder.add_typedef("static {target_class.c_name}* {function_c_name}_cache = 0;")
         builder.add_prototype("{target_class.c_name}* {function_c_name}(void);")
         builder.add_support(
-            "{target_class.c_name}* {function_c_name}(void) \{\nif ({function_c_name}_cache == 0) {function_c_name}_cache = {target_class.c_name}___make();\nreturn {target_class.c_name}___retain({function_c_name}_cache);\n}",
+            "{target_class.c_name}* {function_c_name}(void) \{\nif ({function_c_name}_cache == 0) \{\n{function_c_name}_cache = {target_class.c_name}___make();\nspite_singleton_created({function_c_name}_cache, (void (*)(void*)){target_class.c_name}___destroy);\n}\nreturn {function_c_name}_cache;\n}",
         )
-        singleton_releases.append("{target_class.c_name}___release({function_c_name}_cache);")
     }
     return "{function_c_name}()"
 }
@@ -5404,9 +5648,12 @@ func instantiate_element_template(
 ): Analysis.FunctionInfo? {
     var member_name = template.member_name_for(name)
     var element_class = element_class_of(element)
+    var element_shape = shape_of(element)
     var member_type: Analysis.SpiteType? = null
     if element_class {
         member_type = member_type_of(element_class, member_name)
+    } else if element_shape {
+        member_type = shape_member_type(element_shape, member_name)
     }
     var caller_function = caller_function_for(caller, member_name, element)
     var element_label = type_display_name(element)
@@ -5426,13 +5673,12 @@ func instantiate_element_template(
         )
         return null
     }
-    crash element_class
     crash member_type
     var existing = list_class.find_function(name)
     if existing {
         return existing
     }
-    var is_field = is_field_of(element_class, member_name)
+    var is_field = element_member_is_field(element, member_name)
     var requirement = member_requirement(template.prefix, is_field, member_name, member_type)
     if not requirement.is_empty() {
         report(
@@ -5440,7 +5686,38 @@ func instantiate_element_template(
         )
         return null
     }
-    return instantiate_template(list_class, template, member_name, member_type, element_class.c_name, name, "")
+    var owner_c_name = element_owner_c_name(element)
+    return instantiate_template(list_class, template, member_name, member_type, owner_c_name, name, "")
+}
+
+func shape_of(spite_type: Analysis.SpiteType): Analysis.UnionInfo? {
+    var shaped_union = type_shape.as_union(spite_type)
+    assert shaped_union
+    var shaped = find_union_by_c_name(shaped_union.c_name)
+    assert shaped
+    assert shaped.is_shape
+    return shaped
+}
+
+func element_member_is_field(element: Analysis.SpiteType, member_name: String): Bool {
+    var element_class = element_class_of(element)
+    if element_class {
+        return is_field_of(element_class, member_name)
+    }
+    var element_shape = shape_of(element)
+    crash element_shape
+    assert not find_required_function(element_shape, member_name)
+    return true
+}
+
+func element_owner_c_name(element: Analysis.SpiteType): String {
+    var element_class = element_class_of(element)
+    if element_class {
+        return element_class.c_name
+    }
+    var element_shape = shape_of(element)
+    crash element_shape
+    return element_shape.c_name
 }
 
 func instantiate_caller_template(
@@ -7021,6 +7298,12 @@ func generate_generic_constructor(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     crash generic_call.callee
+    if generic_call.names_class {
+        report(
+            "a generic class written without '(...)' names the class, which only the right side of '==' or '!=' reads: call it to make one",
+        )
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
     var callee = shape.as_identifier(generic_call.callee)
     if callee {
         if callee.name == "Dictionary" and generic_call.type_arguments.count() == 1 {
@@ -7559,7 +7842,30 @@ func generate_member_object(
         class_object.owning_override = true
         return class_object
     }
+    var codegen_class = codegen_class_object(object_ast, class_information)
+    if codegen_class {
+        return codegen_class
+    }
     return generate_expression(object_ast, scope, class_information)
+}
+
+func codegen_class_object(
+    object_ast: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    var generic_identifier = shape.as_generic_identifier(object_ast)
+    assert generic_identifier
+    var bare_name = without_dollar(generic_identifier.name)
+    var bound = codegen_index(class_information, bare_name)
+    assert bound >= 0
+    crash class_information.codegen_codes[bound]
+    assert class_information.codegen_codes[bound].is_empty()
+    crash class_information.codegen_types[bound]
+    var class_object_call = class_object_call(class_information.codegen_types[bound])
+    var spite_class_type = spite_class_type()
+    var class_object = ExpressionResult(class_object_call, spite_class_type)
+    class_object.owning_override = true
+    return class_object
 }
 
 func as_text(result: ExpressionResult): ExpressionResult {
@@ -7663,7 +7969,6 @@ func generate_library_constructor(arguments_ast: List<Syntax.Expressions.Express
     var accessor = "spite_foreign_library_{library}"
     builder.add_typedef("static DynamicLibrary* {accessor}_cache = 0;")
     builder.add_prototype("DynamicLibrary* {accessor}(void);")
-    singleton_releases.append("DynamicLibrary___release({accessor}_cache);")
     return library_value(library)
 }
 
@@ -7852,6 +8157,10 @@ func declared_foreign_call(symbol_name: String, pointer: String, passed: List<St
     return "({returned_c})__builtin_choose_expr(__builtin_types_compatible_p(__typeof__({call}), void), ({call}, ({returned_c})0), {call})"
 }
 
+func is_reflection_member(name: String): Bool {
+    return name == "class" or name == "attributes" or name == "functions" or name == "memory"
+}
+
 func generate_foreign_constant(foreign: Analysis.Types.ClassRefType, name: String): ExpressionResult {
     if foreign.foreign_library < 0 {
         report("a foreign constant is read through the attribute or variable that holds its DynamicLibrary(...)")
@@ -7967,6 +8276,44 @@ func owned_c_text(text: String): String {
     return "spite_string_from_cstring_owned(\"{escape_c_string(text)}\")"
 }
 
+func emit_singleton_teardown() {
+    builder.add_prototype("void spite_singleton_created(void* object, void (*destroyer)(void*));")
+    builder.add_prototype("void spite_singletons_destroy(void);")
+    var lines = List<String>()
+    lines.append("static void** spite_singleton_objects = 0;")
+    lines.append("static void (**spite_singleton_destroyers)(void*) = 0;")
+    lines.append("static int32_t spite_singleton_total = 0;")
+    lines.append("static int32_t spite_singleton_capacity = 0;")
+    lines.append("void spite_singleton_created(void* object, void (*destroyer)(void*)) \{")
+    lines.append("#ifdef SPITE_DEBUG_MEMORY")
+    lines.append("if (spite_allocation_table_busy) return;")
+    lines.append("#endif")
+    lines.append("if (spite_singleton_total == spite_singleton_capacity) \{")
+    lines.append("spite_singleton_capacity = spite_singleton_capacity == 0 ? 16 : spite_singleton_capacity * 2;")
+    lines.append(
+        "spite_singleton_objects = (void**)realloc(spite_singleton_objects, (size_t)spite_singleton_capacity * sizeof(void*));",
+    )
+    lines.append(
+        "spite_singleton_destroyers = (void (**)(void*))realloc(spite_singleton_destroyers, (size_t)spite_singleton_capacity * sizeof(void (*)(void*)));",
+    )
+    lines.append("}")
+    lines.append("spite_singleton_objects[spite_singleton_total] = object;")
+    lines.append("spite_singleton_destroyers[spite_singleton_total] = destroyer;")
+    lines.append("spite_singleton_total = spite_singleton_total + 1;")
+    lines.append("}")
+    lines.append("void spite_singletons_destroy(void) \{")
+    lines.append("while (spite_singleton_total > 0) \{")
+    lines.append("spite_singleton_total = spite_singleton_total - 1;")
+    lines.append("spite_singleton_destroyers[spite_singleton_total](spite_singleton_objects[spite_singleton_total]);")
+    lines.append("}")
+    lines.append("free(spite_singleton_objects);")
+    lines.append("free(spite_singleton_destroyers);")
+    lines.append("}")
+    var joined_lines = lines.join("\n")
+    builder.add_support(joined_lines)
+    builder.add_main("spite_singletons_destroy();")
+}
+
 func emit_foreign_libraries() {
     var library = 0
     while library < foreign_library_files.count() {
@@ -7979,6 +8326,7 @@ func emit_foreign_libraries() {
         lines.append(
             "{accessor}_cache = DynamicLibrary___make({owned_c_text(foreign_library_files[library])}, {ensure_symbol(foreign_library_namings[library])}, {owned_c_text(foreign_library_headers[library])});",
         )
+        lines.append("spite_singleton_created({accessor}_cache, (void (*)(void*))DynamicLibrary___destroy);")
         var index = 0
         while index < foreign_symbol_names.count() {
             crash index < foreign_symbol_libraries.count()
@@ -8121,7 +8469,7 @@ func generate_member_read_raw(
     var object_result_type = object_result.get_type()
     var foreign = type_shape.as_class_ref(object_result_type)
     if foreign {
-        if foreign.c_name == "DynamicLibrary" {
+        if foreign.c_name == "DynamicLibrary" and not is_reflection_member(member.name) {
             return generate_foreign_constant(foreign, member.name)
         }
     }
@@ -8393,7 +8741,7 @@ func try_path_guard(
     class_information: Analysis.ClassInfo,
 ): NullableGuard? {
     var path = operand_text(condition_ast)
-    assert not path.is_empty() and not is_caller_call(condition_ast)
+    assert not path.is_empty() and not is_caller_call(condition_ast) and not is_shape_member_read(condition_ast)
     var links = path_links(condition_ast, class_information.namespace_dotted)
     var probe_scope = Scope(scope)
     var tests = List<String>()
@@ -8547,7 +8895,7 @@ func placed_in_frame(
     return true
 }
 
-func freed_from_frame(expression_statement: Syntax.Statements.ExpressionStatement): Bool {
+func freed_from_frame(expression_statement: Syntax.Statements.ExpressionStatement, scope: Scope): Bool {
     crash expression_statement.value
     var index = placed_names.count() - 1
     while index >= 0 {
@@ -8556,6 +8904,7 @@ func freed_from_frame(expression_statement: Syntax.Statements.ExpressionStatemen
         if freed == placed_names.get_at(index) {
             var frame = placed_frames.get_at(index)
             var receiver_code = placed_receiver_codes.get_at(index)
+            scope.mark_used(freed)
             builder.add_user("if ({freed} != (int64_t)(intptr_t){frame}) Memory_free({receiver_code}, {freed});")
             return true
         }
@@ -9682,8 +10031,10 @@ func generate_if_statement(
     if constant == true or constant == false {
         builder.add_user("\{")
         if constant == true {
+            mark_folded_names_used(if_statement.else_branch, scope)
             generate_block(if_statement.then_branch, scope, class_information, function_information)
-        } else if if_statement.has_else_branch {
+        } else {
+            mark_folded_names_used(if_statement.then_branch, scope)
             generate_block(if_statement.else_branch, scope, class_information, function_information)
         }
         builder.add_user("}")
@@ -9705,6 +10056,7 @@ func generate_if_statement(
         }
         return
     }
+    assert not generate_and_narrowing_if(if_statement, scope, class_information, function_information)
     if not generate_class_narrowing_if(if_statement, scope, class_information, function_information) {
         generate_plain_if(if_statement, scope, class_information, function_information)
     }
@@ -9745,7 +10097,7 @@ func generate_class_narrowing_if(
     crash binary.right
     var subject_identifier = shape.as_identifier(binary.left)
     assert subject_identifier
-    var tested_class = try_resolve_static_path(binary.right, class_information.namespace_dotted)
+    var tested_class = tested_class_of(binary.right, class_information)
     assert tested_class
     var subject = generate_expression(binary.left, scope, class_information)
     var subject_type = subject.get_type()
@@ -9759,11 +10111,7 @@ func generate_class_narrowing_if(
     assert subject_union
     var union_information = find_union_by_c_name(subject_union.c_name)
     if union_information {
-        if not union_information.has_member(tested_class.c_name) {
-            report(
-                "'{tested_class.simple_name}' is not a member of union '{union_information.simple_name}', so this is never true",
-            )
-        }
+        check_tested_member(union_information, tested_class)
     }
     var subject_temporary = next_temporary()
     builder.add_user("\{")
@@ -10356,6 +10704,60 @@ func collect_mentioned_names(expression: Syntax.Expressions.Expression, names: L
     }
 }
 
+func mark_folded_names_used(statements: List<Syntax.Statements.Statement>, scope: Scope) {
+    var names = List<String>()
+    collect_block_names(statements, names)
+    var index = 0
+    while index < names.count() {
+        scope.mark_used(names[index])
+        index = index + 1
+    }
+}
+
+func collect_block_names(statements: List<Syntax.Statements.Statement>, names: List<String>) {
+    var index = 0
+    while index < statements.count() {
+        collect_statement_names(statements[index], names)
+        index = index + 1
+    }
+}
+
+func collect_statement_names(statement: Syntax.Statements.Statement, names: List<String>) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: collect_optional_names(statement.value, names)
+        Syntax.Statements.AssignmentStatement: {
+            collect_optional_names(statement.target, names)
+            collect_optional_names(statement.value, names)
+        }
+        Syntax.Statements.IfStatement: {
+            collect_optional_names(statement.condition, names)
+            collect_block_names(statement.then_branch, names)
+            collect_block_names(statement.else_branch, names)
+        }
+        Syntax.Statements.WhileStatement: {
+            collect_optional_names(statement.condition, names)
+            collect_block_names(statement.body, names)
+        }
+        Syntax.Statements.SwitchStatement: {
+            collect_optional_names(statement.subject, names)
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                collect_block_names(statement.cases[case_index].body, names)
+                case_index = case_index + 1
+            }
+        }
+        Syntax.Statements.AssertStatement: collect_optional_names(statement.value, names)
+        Syntax.Statements.ReturnStatement: collect_optional_names(statement.value, names)
+        Syntax.Statements.ExpressionStatement: collect_optional_names(statement.value, names)
+        _: return
+    }
+}
+
+func collect_optional_names(expression: Syntax.Expressions.Expression?, names: List<String>) {
+    assert expression
+    collect_mentioned_names(expression, names)
+}
+
 func collect_each_mentioned_name(expressions: List<Syntax.Expressions.Expression>, names: List<String>) {
     var index = 0
     while index < expressions.count() {
@@ -10858,6 +11260,10 @@ func generate_union_dispatch(
                 class_information,
             )
         }
+        var wanted = find_required_function(information, member_name)
+        if wanted {
+            return shape_function_value(information, wanted, object_result, object_ast)
+        }
         return generate_shape_read(information, member_name, object_result, object_ast)
     }
     var first_member = information.members.first()
@@ -11268,6 +11674,65 @@ func newline_text(): String {
     return "\\n"
 }
 
+func collect_and_sides(expression: Syntax.Expressions.Expression, sides: List<Syntax.Expressions.Expression>) {
+    var joined = shape.as_binary(expression)
+    if joined {
+        if joined.operator == 'logical_and' {
+            crash joined.left
+            crash joined.right
+            collect_and_sides(joined.left, sides)
+            collect_and_sides(joined.right, sides)
+            return
+        }
+    }
+    sides.append(expression)
+}
+
+func generate_and_narrowing_if(
+    if_statement: Syntax.Statements.IfStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+): Bool {
+    crash if_statement.condition
+    var sides = List<Syntax.Expressions.Expression>()
+    collect_and_sides(if_statement.condition, sides)
+    assert sides.count() > 1
+    var then_scope = Scope(scope)
+    var tests = List<String>()
+    var index = 0
+    while index < sides.count() {
+        var side_test = and_side_test(sides[index], then_scope, class_information)
+        tests.append(side_test)
+        index = index + 1
+    }
+    builder.add_user("if ({tests.join(" && ")}) \{")
+    generate_block_in_scope(if_statement.then_branch, then_scope, class_information, function_information)
+    builder.add_user("}")
+    if if_statement.has_else_branch {
+        builder.add_user("else \{")
+        generate_block(if_statement.else_branch, scope, class_information, function_information)
+        builder.add_user("}")
+    }
+    return true
+}
+
+func and_side_test(
+    side: Syntax.Expressions.Expression,
+    then_scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var guard = try_nullable_guard(side, then_scope, class_information)
+    if guard {
+        narrow_by_guard(then_scope, guard)
+        return "({guard.guard_code})"
+    }
+    var side_result = generate_expression(side, then_scope, class_information)
+    check_condition(side_result, "if")
+    narrow_proven_indices(side, then_scope)
+    return "({owned_truth(side_result, side)})"
+}
+
 func generate_assert_statement(
     assert_statement: Syntax.Statements.AssertStatement,
     scope: Scope,
@@ -11275,6 +11740,21 @@ func generate_assert_statement(
     function_information: Analysis.FunctionInfo,
 ) {
     assert assert_statement.value
+    var sides = List<Syntax.Expressions.Expression>()
+    collect_and_sides(assert_statement.value, sides)
+    if sides.count() > 1 {
+        var side_index = 0
+        while side_index < sides.count() {
+            var side_text = Syntax.SourcePrinter().source_expression(sides[side_index])
+            var side_statement = Syntax.Statements.AssertStatement(sides[side_index])
+            side_statement.is_crash = assert_statement.is_crash
+            side_statement.condition_text = side_text
+            side_statement.line = assert_statement.line
+            generate_assert_statement(side_statement, scope, class_information, function_information)
+            side_index = side_index + 1
+        }
+        return
+    }
     var guard = try_nullable_guard(assert_statement.value, scope, class_information)
     var guard_code = ""
     if guard {
@@ -11365,7 +11845,7 @@ func generate_expression_statement(
     class_information: Analysis.ClassInfo,
 ) {
     assert expression_statement.value
-    assert not freed_from_frame(expression_statement)
+    assert not freed_from_frame(expression_statement, scope)
     var result = generate_expression(expression_statement.value, scope, class_information)
     var result_type = result.get_type()
     if type_shape.is_void(result_type) {
@@ -11572,13 +12052,23 @@ func emit_class_support(information: Analysis.ClassInfo) {
         )
         return
     }
-    builder.add_support(
-        "{information.c_name}* {information.c_name}___retain({information.c_name}* self) \{ if (self != 0) SPITE_COUNT_UP(self->header.ref_count); return self; }",
-    )
     var release_lines = List<String>()
-    release_lines.append("void {information.c_name}___release({information.c_name}* self) \{")
+    var retain_body = "if (self != 0) SPITE_COUNT_UP(self->header.ref_count); return self;"
+    var release_name = "release"
+    if information.is_singleton {
+        retain_body = "return self;"
+        release_name = "destroy"
+        builder.add_support("void {information.c_name}___release({information.c_name}* self) \{ (void)self; }")
+        builder.add_prototype("void {information.c_name}___destroy({information.c_name}* self);")
+    }
+    builder.add_support(
+        "{information.c_name}* {information.c_name}___retain({information.c_name}* self) \{ {retain_body} }",
+    )
+    release_lines.append("void {information.c_name}___{release_name}({information.c_name}* self) \{")
     release_lines.append("if (self == 0) return;")
-    release_lines.append("if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;")
+    if not information.is_singleton {
+        release_lines.append("if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;")
+    }
     if information.drop_function {
         release_lines.append("{information.drop_function.c_name}(self);")
     }
@@ -12232,6 +12722,7 @@ func emit_main(launcher_mangled_name: String) {
         builder.add_main("{launcher_class.constructor.c_name}(spite_launcher);")
     }
     builder.add_main("{launcher_class.c_name}___release(spite_launcher);")
+    emit_singleton_teardown()
     var singleton_index = 0
     while singleton_index < singleton_releases.count() {
         builder.add_main(singleton_releases[singleton_index])

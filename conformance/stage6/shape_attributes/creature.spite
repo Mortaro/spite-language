@@ -1,0 +1,7 @@
+var health = Health()
+var alive = Alive()
+var name = "rat"
+
+func title(): String {
+    return "the {name}"
+}

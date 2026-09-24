@@ -1,0 +1,16 @@
+var console = Console()
+
+func GenericClassTest() {
+    var healths = Column<Health>("health")
+    var first = healths.storage()
+    first.values.append(Health())
+    var labels = Column<Label>("label")
+    var label_storage = labels.storage()
+    label_storage.values.append(Label())
+    var again = Column<Health>("health")
+    var second = again.storage()
+    var stored = second.values.count()
+    var health_holds = healths.holds_health()
+    var label_holds = labels.holds_health()
+    console.print(stored, first == second, health_holds, label_holds)
+}

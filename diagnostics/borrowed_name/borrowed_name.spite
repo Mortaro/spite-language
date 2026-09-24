@@ -1,0 +1,6 @@
+var console = Console()
+
+func BorrowedName() {
+    var none: Long = 0
+    console.print(none)
+}

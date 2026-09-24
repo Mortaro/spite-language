@@ -188,10 +188,40 @@ func SingletonBasics() {
 
 Call sites never change: `var console = Console()` reads the same whether or not the class is a singleton, and
 the class file is where that is said. A singleton lives until the program ends, and its `drop()` runs then, in
-reverse order of creation. `is_singleton()` is answered by `Spite.Class` for every class, from the line;
+reverse order of creation. It is not reference counted: fetching one is a load from a static slot, with no count
+to raise or lower, so threads that share it never contend on it. `is_singleton()` is answered by `Spite.Class` for every class, from the line;
 declaring it yourself is an error that names the `singleton` line. `DynamicLibrary` is the one singleton that
 takes arguments: it has one instance per distinct list of literal arguments
 ([foreign_libraries.md](foreign_libraries.md)).
+
+A singleton with `generic` lines has one instance per set of codegen values, the way `DynamicLibrary` has one
+per argument list: `Column<Health>()` is the same object everywhere, and `Column<Label>()` is a second one. This
+is what per-type storage is written with.
+
+```gdscript title=generic_singleton/column.spite
+singleton
+
+generic $component_type
+
+var values = List<$component_type>()
+```
+```gdscript title=generic_singleton/generic_singleton.spite entry
+var console = Console()
+
+func GenericSingleton() {
+    var numbers = Column<Int>()
+    numbers.values.append(1)
+    var again = Column<Int>()
+    again.values.append(2)
+    var words = Column<String>()
+    var number_count = again.values.count()
+    var word_count = words.values.count()
+    console.print(numbers == again, number_count, word_count)
+}
+```
+```output
+true 2 0
+```
 
 A singleton is always bound to a `var` before it is used, beside the attributes or in a function, and used
 through that name. Reading or calling a member on the constructor call itself is an error, and so is passing it,
