@@ -75,6 +75,10 @@ for folder in conformance/*/*/ examples/*/; do   # the examples are held to the 
     if [ "$actual" == "$expected" ]; then passed=$((passed+1)); else failed=$((failed+1)); echo "FAILED: $name"; echo "$actual" | head -8; fi
     continue
   fi
+  # allocations.txt pins how many allocations a program makes, so an optimisation that removes them stays removed
+  if [ -f "$folder/allocations.txt" ] && [ "$allocations" != "$(tr -d '\r\n' < "$folder/allocations.txt")" ]; then
+    failed=$((failed+1)); echo "FAILED: $name allocated $allocations times, allocations.txt says $(tr -d '\r\n' < "$folder/allocations.txt")"; continue
+  fi
   if [ "$body" == "$expected" ] && [ -n "$balance" ] && [ "$allocations" == "$frees" ]; then passed=$((passed+1)); else failed=$((failed+1)); echo "FAILED: $name"; echo "$actual" | head -8; fi
 done
 echo "conformance and examples: $passed passed, $failed failed"
@@ -199,7 +203,7 @@ for operating_system in windows linux mac; do
   "$CC_BIN" -fsyntax-only -w "$work/compiler_$operating_system.c" 2> "$work/c_errors.txt" || {
     echo "FAILED: the C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
 done
-echo "operational systems: the compiler compiles with the windows, linux and mac library folders"
+echo "operating systems: the compiler compiles with the windows, linux and mac library folders"
 
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
 # already in the one style, so formatting it changes nothing.

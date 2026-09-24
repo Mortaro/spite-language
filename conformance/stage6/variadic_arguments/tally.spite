@@ -1,0 +1,9 @@
+var total = 0
+
+func add_all(...amounts: List<Int>) {
+    var index = 0
+    while index < amounts.count() {
+        total = total + amounts[index]
+        index = index + 1
+    }
+}

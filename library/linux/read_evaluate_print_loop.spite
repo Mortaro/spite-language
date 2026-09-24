@@ -17,3 +17,7 @@ func join_thread(started: Long) {
     var no_value: Long = 0
     library.pthread_join(started, no_value)
 }
+
+func pause_briefly() {
+    library.usleep(1000)
+}

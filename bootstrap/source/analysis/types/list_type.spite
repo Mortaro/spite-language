@@ -1,4 +1,5 @@
 var element: SpiteType? = null
+var is_variadic = false
 
 func ListType(starting_element: SpiteType) {
     element = starting_element

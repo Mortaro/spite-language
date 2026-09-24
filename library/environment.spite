@@ -1,3 +1,5 @@
+singleton
+
 func setting(name: String): String? {
     var arguments = Arguments()
     var flag = "--{name}="
@@ -55,9 +57,5 @@ func is_whole_number(text: String): Bool {
         }
         index = index + 1
     }
-    return true
-}
-
-func is_singleton(): Bool {
     return true
 }

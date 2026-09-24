@@ -1,0 +1,6 @@
+var name = ""
+var line = 0
+
+func GenericDeclaration(starting_name: String) {
+    name = starting_name
+}

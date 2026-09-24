@@ -1,0 +1,20 @@
+var console = Console()
+
+func VariadicMistakes() {
+    var names = ["Aria", "Bram"]
+    greet(names)
+    var joined = labeled()
+    var first = names.first()
+    greet(first.upper_case())
+    greet(Badge(first.trim()))
+    console.print(joined)
+}
+
+func greet(...people: List<String>) {
+    var people_count = people.count()
+    console.print(people_count)
+}
+
+func labeled(label: String, ...values: List<Int>): String {
+    return "{label} {values.join(", ")}"
+}

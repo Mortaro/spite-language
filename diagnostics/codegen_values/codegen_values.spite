@@ -3,6 +3,6 @@ var console = Console()
 func CodegenValues() {
     var first = Box<Int>(1)
     var second = Box<Int, String>(2)
-    var third = Box(3)
+    var third = Box()
     console.print($environment, first.held)
 }

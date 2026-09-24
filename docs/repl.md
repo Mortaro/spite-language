@@ -4,8 +4,14 @@
 > `functions`, `help`, `exit`, paths such as `monsters[0].health` or `program.player_name`, assignment of a
 > number, Bool, text or enum literal (`monsters[0].health = 5`, which prints the value read back), and calls with
 > literal arguments that print what they return (`monsters[0].roar()`, `monsters.count()`), written in Spite
+<<<<<<< HEAD
 > (`library/read_evaluate_print_loop.spite`). `--repl_port` answers the same commands over TCP, one JSON line
 > each, and `spite connect` is its client. The meta commands `classes`, `describe`, `enums` and `memory` are the
+=======
+> (`library/read_evaluate_print_loop.spite`). `--repl_port` answers the same commands over TCP, one JSON line
+> each, answered where the program waits ([concurrency.md](concurrency.md)), and `spite connect` is its
+> client. The meta commands `classes`, `describe`, `enums` and `memory` are the
+>>>>>>> master
 > design, not yet built (manual.md section 14).
 >
 > ```text
@@ -79,13 +85,22 @@ like a normal run).
 spite repl_program --repl_port=4000
 ```
 
-Before the constructor runs, the program listens on `127.0.0.1:4000` **only**, and a background thread answers
+Before the constructor runs, the program listens on `127.0.0.1:4000` **only**, and a background thread takes
 one client at a time -- there is **no authentication**. Anyone who can reach that port on that machine can read
 and mutate the running program. This is a local debugging tool for you and an AI on the same machine, never
+<<<<<<< HEAD
 something to expose past `127.0.0.1`. The program keeps running while it is served (the thread reads and writes
 its values without waiting for it -- a debugger, so that race is accepted), and when the constructor returns the
 process stays alive until a client sends `exit`, which flushes what the program printed and ends it with exit
 code 0. The port is part of the build: a program built with `--repl_port` always listens on that port.
+=======
+something to expose past `127.0.0.1`. The program keeps running while it is served, and each command is answered
+on the program's own thread the next time it waits -- a `Program().sleep`, a `Console.read_line()`, a file or socket
+read -- so a command never sees it halfway through a step ([concurrency.md](concurrency.md) has the details and a
+frame loop served between frames). When the constructor returns the process stays alive until a client sends
+`exit`, which flushes what the program printed and ends it with exit
+code 0. The port is part of the build: a program built with `--repl_port` always listens on that port.
+>>>>>>> master
 
 Talk to it with the compiler's own client:
 

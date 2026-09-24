@@ -63,6 +63,69 @@ shout AGAIN!
 A value that holds a function bound to the instance holding it is a cycle, and leaks like any other: clear one
 side (see [memory.md](memory.md)).
 
+## Variadic arguments
+
+A last parameter written `...name: List<Type>` takes every remaining argument, written one by one at the call,
+and the function receives them as an ordinary `List<Type>`. `Type` may be a class or a `type`: with a `type`,
+each argument is any class that fits it, and a call on an element answers for the class it really is.
+
+```spite title=variadic_doc/variadic_doc.spite entry
+type Named {
+    name: String
+}
+
+var console = Console()
+
+func VariadicDoc() {
+    var line = joined("-", "a", "b", "c")
+    console.print(line)
+    var nobody = joined("-")
+    console.print("[{nobody}]")
+    greet(Guest("Aria"), Guest("Bram"))
+}
+
+func joined(separator: String, ...words: List<String>): String {
+    return words.join(separator)
+}
+
+func greet(...visitors: List<Named>) {
+    var index = 0
+    while index < visitors.count() {
+        console.print("hello {visitors[index].name}")
+        index = index + 1
+    }
+}
+```
+```spite title=variadic_doc/guest.spite
+var name = ""
+
+func Guest(new_name: String) {
+    name = new_name
+}
+```
+```output
+a-b-c
+[]
+hello Aria
+hello Bram
+```
+
+Only the last parameter can take `...`, and it always receives a `List`. The values are passed one by one, so
+passing a whole list to it is an error; a parameter written without `...` takes a list as it is.
+
+```spite title=variadic_not_a_list/variadic_not_a_list.spite entry error
+func VariadicNotAList() {
+    shout("a", "b")
+}
+
+func shout(...words: String) {
+    var _count = 0
+}
+```
+```diagnostic
+'...words' receives the arguments as a list: write '...words: List<Type>'
+```
+
 ## Every operator is a function
 
 Every operator is a shortcut for a function a class can define to support it:

@@ -64,6 +64,10 @@ name BEA
 
 `set_age` and `get_age` are generated on demand by those two calls.
 
+In `List<T>` the symbol names a member of the element rather than of the list, and the template reads it with
+`item.attributes[member]`: that is how `filter_<member>()`, `sum_<member>()` and the rest are written, in
+Spite, in `library/list.spite` ([standard_library.md](standard_library.md#how-the-member-templates-are-written)).
+
 Before milestone 9a's reference-counting model, generating (or writing) a `get_<attribute>()` for an owning
 attribute (`String`/`List<T>`/`Dictionary<T>`) and calling it -- including implicitly, the way `person.name`
 above does -- double-freed at runtime; see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) item 3 for that history. It is
@@ -135,15 +139,19 @@ an ordinary runtime `List<T>`, walked with `while` like any other list.
 
 ## Generics and codegen values (`$`)
 
-`$name` means "replaced at code generation", and it is for generics only: its values are the ones a constructor
-declares between `<` and `>`, given positionally at the call site. A `$name` that no constructor declares is an
-error that points at [`Environment`](#program-settings-environment), which is where a program's settings live.
+`$name` means "replaced at code generation", and it is for generics only. A class declares each one on a
+`generic` line of its own at the top of the file, and a caller gives the values positionally, in the order of
+those lines: `Pair<String, Int>(...)`. A `$name` with no `generic` line is an error that points at
+[`Environment`](#program-settings-environment), which is where a program's settings live.
 
 ```spite title=generics_basics/pair.spite
+generic $left_type
+generic $right_type
+
 var left: $left_type = null
 var right: $right_type = null
 
-func Pair<$left_type, $right_type>(new_left: $left_type, new_right: $right_type) {
+func Pair(new_left: $left_type, new_right: $right_type) {
     left = new_left
     right = new_right
 }
@@ -159,11 +167,26 @@ func GenericsBasics() {
     var scoreboard = Pair<String, Int>("Aria", 42)
     var description = scoreboard.describe()
     console.print(description)
+    var inferred = Pair("Hero", 7)
+    var inferred_description = inferred.describe()
+    console.print(inferred_description)
 }
 ```
 ```output
 Aria and 42
+Hero and 7
 ```
+
+The `generic` lines come first in the file, before enums, unions, types and variables. A generic class needs
+no constructor of its own: `library/list.spite` is `generic $element_type` and its functions, and
+`List<Int>()` is made from its defaults. Writing the old `func Pair<$left_type, $right_type>(...)` form is a
+parse error that names the `generic` lines to write instead.
+
+When every `$name` appears in the constructor's parameter types, a call may leave the `<...>` out and the
+compiler reads the values from the arguments: `Pair("Hero", 7)` is `Pair<String, Int>`, and a `$name` inside a
+function value's type is read from the function, so `Concurrent(file.read)` is a `Concurrent<String?>`
+([concurrency.md](concurrency.md)). When one cannot be read, the error asks for them between `<` and `>` (proposed
+by Claude, unconfirmed).
 
 `null` on a `$generic`-typed field means that generic's bound type's default value, not a literal `T?`
 -- provisional, see manual.md open question 1.

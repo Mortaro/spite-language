@@ -19,11 +19,11 @@ outright instead of silently accepting it.
 | Enums, unions, inline types (duck typing) | implemented |
 | Metaprogramming: `Symbol` codegen | implemented |
 | Metaprogramming: reflection (`.class`/`.attributes`) | partial (`Class.instances`, D6 class-level functions, D10 symbol literals and D11 two-level reflection planned) |
-| Codegen values (`$`), generics, compiler flags, tree shaking | implemented (D5/D9's constructor-declared form -- `func Weapon<$a, $b>(...)`, positional call sites -- is planned; manual.md section 9) |
+| Codegen values (`$`), generics, compiler flags, tree shaking | implemented (D87: `generic $name` lines at the top of the file, positional call sites; manual.md section 9) |
 | Memory (reference counting, `drop()`, `copy()`/`deep_copy()`) | implemented (D1; cycles leak by design, weak references planned) |
 | Packages, namespaces, monkey patching, `--final_classes` | partial (bundles always linked statically for now) |
 | Style: formatter + linter | implemented |
-| REPL (`--repl`, `--repl-port`, `spite connect`) | partial (live reload / in-process codegen is milestone 6b) |
+| REPL (`--repl`, `--repl_port`, `spite connect`) | partial (live reload / in-process codegen is milestone 6b) |
 | Standard library (`String`, `List<T>`, `Dictionary<T>`, `File`/`Directory`/`Process`/`Program`) | implemented |
 | Foreign libraries (`DynamicLibrary`: C, `.dll`/`.so`/`.dylib`) | planned -- see manual.md section 17 |
 | Web target (wasm + generated JS glue, `$target`, D13 isomorphic classes) | planned -- see manual.md section 17 |

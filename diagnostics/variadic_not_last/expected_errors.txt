@@ -1,0 +1,1 @@
+diagnostics/variadic_not_last/variadic_not_last.spite:7:34: '...lines' takes every argument from here on, so it is the last parameter: move it to the end

@@ -1,0 +1,11 @@
+var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+
+func start_thread(entry: Long, argument: Long): Long {
+    var no_value: Long = 0
+    return kernel.CreateThread_as_long(no_value, no_value, entry, argument, 0, no_value)
+}
+
+func join_thread(started: Long) {
+    kernel.WaitForSingleObject(started, -1)
+    kernel.CloseHandle(started)
+}

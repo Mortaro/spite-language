@@ -5,7 +5,6 @@ var classes = List<Analysis.ClassInfo>()
 var enums = List<Analysis.EnumInfo>()
 var unions = List<Analysis.UnionInfo>()
 var list_names = List<String>()
-var list_template_names = List<String>()
 var class_object_names = List<String>()
 var attributes_function_names = List<String>()
 var functions_function_names = List<String>()
@@ -26,6 +25,16 @@ var written_in_spite = List<String>()
 var read_evaluate_print_loop = false
 var console_loop = false
 var remote_loop_port = 0
+var program_waits = false
+var scheduler_used = false
+var waiting_classes = List<Analysis.ClassInfo>()
+var waiting_functions = List<Analysis.FunctionInfo>()
+var waiting_kinds = List<String>()
+var waiting_positions = List<Int>()
+var unwaiting_loop_path = ""
+var unwaiting_loop_line = 0
+var unwaiting_loop_owner = ""
+var unwaiting_loop_function = ""
 var development = false
 var reflect_function_names = List<String>()
 var live_reflection_emitted = false
@@ -66,6 +75,7 @@ var current_line = 0
 var bound_symbol_name = ""
 var bound_field_name = ""
 var bound_field_type: Analysis.SpiteType? = null
+var bound_member_owner_c_name = ""
 var arguments_parameter_names = List<String>()
 var temporary_counter = 0
 var literal_counter = 0
@@ -204,6 +214,12 @@ func register_system_classes() {
     add_builtin_function(memory, "compare_bytes", compare_parameters, integer_number_type)
     var take_text_parameters = two_parameters("address", address_type, "length", address_type)
     add_builtin_function(memory, "take_text", take_text_parameters, text_type)
+    var exchange_parameters = memory_write_parameters(address_type)
+    add_builtin_function(memory, "exchange_long", exchange_parameters, address_type)
+    var read_atomically_parameters = two_parameters("address", address_type, "offset", address_type)
+    add_builtin_function(memory, "read_long_atomically", read_atomically_parameters, address_type)
+    var write_atomically_parameters = memory_write_parameters(address_type)
+    add_builtin_function(memory, "write_long_atomically", write_atomically_parameters, nothing_type)
 }
 
 func built_in_class_sources(): List<String> {
@@ -228,7 +244,7 @@ func generated_functions_source(qualified: String): String {
             var function_index = 0
             while function_index < information.functions.count() {
                 var function = information.functions[function_index]
-                if not function.symbol_name.is_empty() {
+                if not function.symbol_name.is_empty() and function.symbol_owner_c_name.is_empty() {
                     text = "{text}\n\n{instantiated_function_source(information, function)}"
                 }
                 function_index = function_index + 1
@@ -295,15 +311,7 @@ func is_word_character_at(text: String, index: Int): Bool {
 }
 
 func built_in_class_names(): List<String> {
-    var names = List<String>()
-    var index = 0
-    while index < classes.count() {
-        if classes[index].is_builtin {
-            names.append(classes[index].simple_name)
-        }
-        index = index + 1
-    }
-    return names
+    return classes.filter_is_builtin().map_simple_name()
 }
 
 func class_view_source(information: Analysis.ClassInfo, display_name: String): String {
@@ -439,11 +447,7 @@ func generate(
     builder.add_typedef(
         "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_kept = spite_assert_total < 32 ? spite_assert_total : 32;\nfor (int64_t spite_index = spite_assert_total - spite_kept; spite_index < spite_assert_total; spite_index = spite_index + 1) \{ fputs(spite_assert_trace[spite_index % 32], stderr); }\nif (spite_assert_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_assert_total - 32)); }\n}",
     )
-    var discovered_index = 0
-    while discovered_index < discovery.class_files.count() {
-        written_in_spite.append(discovery.class_files[discovered_index].qualified_dotted)
-        discovered_index = discovered_index + 1
-    }
+    written_in_spite = discovery.class_files.map_qualified_dotted()
     register_system_classes()
     register_classes(discovery.class_files)
     emit_enums()
@@ -500,8 +504,12 @@ func generate(
     emit_symbol_table()
     emit_foreign_libraries()
     emit_allocation_table()
+    if scheduler_used or remote_loop_port > 0 {
+        finish_waiting_points()
+    }
     emit_main(discovery.launcher_mangled_name)
     emit_pending_functions()
+    check_remote_loop_waits()
     builder.shakes = not development
     return builder.render()
 }
@@ -522,7 +530,8 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
         }
         classes.last().source_path = entry.get_file().path
         classes.last().entry_index = index
-        classes.last().codegen_names = constructor_codegen_names(entry)
+        classes.last().codegen_names = declared_codegen_names(entry)
+        classes.last().is_singleton = has_singleton_line(entry)
         classes.last().is_generic_template = not classes.last().codegen_names.is_empty()
         discovered_classes.append(entry)
         register_enums(entry)
@@ -532,26 +541,31 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
     }
 }
 
-func constructor_codegen_names(entry: Discovery.DiscoveredClass): List<String> {
+func has_singleton_line(entry: Discovery.DiscoveredClass): Bool {
     var file = entry.get_file()
     var statement_index = 0
     while statement_index < file.statements.count() {
-        var declaration = shape.as_function_declaration(file.statements[statement_index])
-        if declaration {
-            if declaration.name == entry.simple_name {
-                var names = List<String>()
-                var index = 0
-                while index < declaration.codegen_names.count() {
-                    var bare_name = without_dollar(declaration.codegen_names[index])
-                    names.append(bare_name)
-                    index = index + 1
-                }
-                return names
-            }
+        if shape.as_singleton_declaration(file.statements[statement_index]) {
+            return true
         }
         statement_index = statement_index + 1
     }
-    return List<String>()
+    return false
+}
+
+func declared_codegen_names(entry: Discovery.DiscoveredClass): List<String> {
+    var file = entry.get_file()
+    var declared = List<String>()
+    var statement_index = 0
+    while statement_index < file.statements.count() {
+        var generic_line = shape.as_generic_declaration(file.statements[statement_index])
+        if generic_line {
+            var bare_name = without_dollar(generic_line.name)
+            declared.append(bare_name)
+        }
+        statement_index = statement_index + 1
+    }
+    return declared
 }
 
 func without_dollar(name: String): String {
@@ -594,7 +608,7 @@ func generate_codegen_value(name: String, class_information: Analysis.ClassInfo)
         return bound_value
     }
     report(
-        "'${name}' is not declared on the constructor of '{class_information.simple_name}', and '$' is for generics only: a program's settings are fields of Environment -- reopen it in environment.spite with 'var {name} = ...' and read it as Environment().{name}",
+        "'{class_information.simple_name}' has no 'generic ${name}' line, and '$' is for generics only: a program's settings are fields of Environment -- reopen it in environment.spite with 'var {name} = ...' and read it as Environment().{name}",
     )
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
@@ -871,13 +885,19 @@ func instantiated_with(
     var saved_symbol_name = bound_symbol_name
     var saved_field_name = bound_field_name
     var saved_field_type = bound_field_type
+    var saved_member_owner = bound_member_owner_c_name
     bound_symbol_name = ""
+    bound_member_owner_c_name = ""
     crash discovered_classes[template.entry_index]
     resolve_class_body(discovered_classes[template.entry_index], instance, true)
     resolve_class_body(discovered_classes[template.entry_index], instance, false)
+    if template.qualified_dotted == "Concurrent" or template.qualified_dotted == "Parallel" {
+        supply_concurrency_functions(instance)
+    }
     bound_symbol_name = saved_symbol_name
     bound_field_name = saved_field_name
     bound_field_type = saved_field_type
+    bound_member_owner_c_name = saved_member_owner
     current_owner = saved_owner
     current_class = saved_class
     current_function = saved_function
@@ -1468,14 +1488,7 @@ func find_union_qualified(owner_qualified: String, name: String): Analysis.Union
 }
 
 func find_union_by_c_name(c_name: String): Analysis.UnionInfo? {
-    var index = 0
-    while index < unions.count() {
-        if unions[index].c_name == c_name {
-            return unions[index]
-        }
-        index = index + 1
-    }
-    return null
+    return unions.find_by_c_name(c_name)
 }
 
 func union_type_of(information: Analysis.UnionInfo): Analysis.SpiteType {
@@ -1501,7 +1514,7 @@ func emit_unions() {
         builder.add_prototype("{name} {name}_retain({name} self);")
         builder.add_prototype("void {name}_release({name} self);")
         builder.add_support(
-            "{name} {name}_retain({name} self) \{\nif (self != 0) ((SpiteHeader*)self)->ref_count = ((SpiteHeader*)self)->ref_count + 1;\nreturn self;\n}",
+            "{name} {name}_retain({name} self) \{\nif (self != 0) SPITE_COUNT_UP(((SpiteHeader*)self)->ref_count);\nreturn self;\n}",
         )
         if not information.is_shape {
             emit_union_release(information)
@@ -1621,25 +1634,11 @@ func emit_enums() {
 }
 
 func find_class_by_qualified(qualified: String): Analysis.ClassInfo? {
-    var index = 0
-    while index < classes.count() {
-        if classes[index].qualified_dotted == qualified {
-            return classes[index]
-        }
-        index = index + 1
-    }
-    return null
+    return classes.find_by_qualified_dotted(qualified)
 }
 
 func find_class_by_c_name(c_name: String): Analysis.ClassInfo? {
-    var index = 0
-    while index < classes.count() {
-        if classes[index].c_name == c_name {
-            return classes[index]
-        }
-        index = index + 1
-    }
-    return null
+    return classes.find_by_c_name(c_name)
 }
 
 func find_class(name: String, current_namespace: String): Analysis.ClassInfo? {
@@ -1854,7 +1853,8 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
     }
     if chosen {
         if chosen_field {
-            return instantiate_template(information, chosen, chosen_field, name)
+            var chosen_field_type = chosen_field.get_type()
+            return instantiate_template(information, chosen, chosen_field.name, chosen_field_type, "", name)
         }
     }
     return null
@@ -1863,18 +1863,24 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
 func instantiate_template(
     information: Analysis.ClassInfo,
     template: Analysis.TemplateInfo,
-    field: Analysis.FieldInfo,
+    member_name: String,
+    member_type: Analysis.SpiteType,
+    member_owner_c_name: String,
     call_name: String,
 ): Analysis.FunctionInfo {
     var declaration = template.get_declaration()
     var saved_symbol_name = bound_symbol_name
     var saved_field_name = bound_field_name
     var saved_field_type = bound_field_type
+    var saved_member_owner = bound_member_owner_c_name
     var saved_owner = current_owner
+    var saved_class = current_class
     bound_symbol_name = template.symbol_parameter
-    bound_field_name = field.name
-    bound_field_type = field.get_type()
+    bound_field_name = member_name
+    bound_field_type = member_type
+    bound_member_owner_c_name = member_owner_c_name
     current_owner = information.qualified_dotted
+    current_class = information
     var parameters = List<Analysis.ParamInfo>()
     var parameter_index = 0
     while parameter_index < declaration.parameters.count() {
@@ -1883,7 +1889,8 @@ func instantiate_template(
             if parameter.type_reference {
                 var parameter_type = resolve_type(parameter.type_reference, information.namespace_dotted)
                 if parameter_type {
-                    parameters.append(Analysis.ParamInfo(parameter.name, parameter_type))
+                    var received_type = received_type(parameter, parameter_type)
+                    parameters.append(Analysis.ParamInfo(parameter.name, received_type))
                 }
             }
         }
@@ -1905,30 +1912,71 @@ func instantiate_template(
         false,
     )
     function.symbol_name = template.symbol_parameter
-    function.symbol_field_name = field.name
+    function.symbol_field_name = member_name
+    function.symbol_field_type = member_type
+    function.symbol_owner_c_name = member_owner_c_name
     information.functions.append(function)
     builder.add_prototype("{function_signature(information, function)};")
     bound_symbol_name = saved_symbol_name
     bound_field_name = saved_field_name
     bound_field_type = saved_field_type
+    bound_member_owner_c_name = saved_member_owner
     current_owner = saved_owner
+    current_class = saved_class
     return function
 }
 
-func bind_symbol_of(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+func bind_symbol_of(function: Analysis.FunctionInfo) {
     bound_symbol_name = function.symbol_name
     bound_field_name = function.symbol_field_name
-    bound_field_type = null
-    if not function.symbol_field_name.is_empty() {
-        var field = information.find_field(function.symbol_field_name)
-        if field {
-            bound_field_type = field.get_type()
+    bound_field_type = function.symbol_field_type
+    bound_member_owner_c_name = function.symbol_owner_c_name
+}
+
+func is_bound_member_index(index_expression: Syntax.Expressions.IndexExpression): Bool {
+    if bound_member_owner_c_name.is_empty() {
+        return false
+    }
+    crash index_expression.object
+    crash index_expression.index
+    var member = shape.as_member(index_expression.object)
+    var index_identifier = shape.as_identifier(index_expression.index)
+    if member {
+        if index_identifier {
+            return member.name == "attributes" and index_identifier.name == bound_symbol_name
         }
     }
+    return false
+}
+
+func bound_member_expression(index_expression: Syntax.Expressions.IndexExpression): Syntax.Expressions.Expression {
+    var member = shape.as_member(index_expression.object)
+    crash member
+    crash member.object
+    var owner = find_class_by_c_name(bound_member_owner_c_name)
+    crash owner
+    var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(member.object, bound_field_name)
+    if owner.find_field(bound_field_name) {
+        return read
+    }
+    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(
+        read,
+        List<Syntax.Expressions.Expression>(),
+    )
+    return called
+}
+
+func generate_bound_member_read(
+    index_expression: Syntax.Expressions.IndexExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var read = bound_member_expression(index_expression)
+    return generate_expression(read, scope, class_information)
 }
 
 func is_bound_attributes_index(index_expression: Syntax.Expressions.IndexExpression): Bool {
-    if bound_symbol_name.is_empty() {
+    if bound_symbol_name.is_empty() or not bound_member_owner_c_name.is_empty() {
         return false
     }
     if index_expression.object {
@@ -1972,6 +2020,21 @@ func emit_pending_functions() {
     }
 }
 
+func received_type(parameter: Syntax.Statements.Parameter, resolved: Analysis.SpiteType): Analysis.SpiteType {
+    if not parameter.is_variadic {
+        return resolved
+    }
+    var listed = type_shape.as_list(resolved)
+    if listed {
+        var element = listed.get_element()
+        var spread = Analysis.Types.ListType(element)
+        spread.is_variadic = true
+        var typed: Analysis.SpiteType = spread
+        return typed
+    }
+    return resolved
+}
+
 func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, information: Analysis.ClassInfo) {
     assert not register_template(declaration, information)
     var parameters = List<Analysis.ParamInfo>()
@@ -1982,7 +2045,8 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         assert parameter.type_reference
         var parameter_type = resolve_type(parameter.type_reference, information.namespace_dotted)
         if parameter_type {
-            parameters.append(Analysis.ParamInfo(parameter.name, parameter_type))
+            var received_type = received_type(parameter, parameter_type)
+            parameters.append(Analysis.ParamInfo(parameter.name, received_type))
         } else {
             var void_type = void_type()
             parameters.append(Analysis.ParamInfo(parameter.name, void_type))
@@ -1997,7 +2061,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         }
     }
     var is_constructor = declaration.name == information.simple_name
-    if is_constructor and declaration.parameters.is_empty() and declaration.codegen_names.is_empty() and declaration.body.is_empty() {
+    if is_constructor and declaration.parameters.is_empty() and declaration.body.is_empty() {
         report(
             "'{declaration.name}' has an empty constructor: delete it. A class without a constructor is already made from its defaults",
         )
@@ -2016,8 +2080,10 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         is_constructor,
     )
     function.source_path = declaration.source_path
-    if declares_singleton(declaration) {
-        information.is_singleton = true
+    if declaration.name == "is_singleton" and information.qualified_dotted != "Spite.Class" {
+        report(
+            "a class says it is a singleton with a 'singleton' line at the top of its file, not with a function: delete 'is_singleton()' and write 'singleton' as the file's first line",
+        )
     }
     function.line = declaration.line
     if is_constructor {
@@ -2055,7 +2121,7 @@ func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String):
                 return null
             }
         }
-        report("'${generic_name}' is not declared on this class's constructor, so it cannot be used as a type")
+        report("this class has no 'generic ${generic_name}' line, so '${generic_name}' cannot be used as a type")
         return null
     }
     var named = shape.as_named_type(type_reference)
@@ -2182,12 +2248,8 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
         return null
     }
     var joined = named.path.join(".")
-    var owner_path = List<String>()
-    var path_index = 0
-    while path_index < named.path.count() - 1 {
-        owner_path.append(named.path[path_index])
-        path_index = path_index + 1
-    }
+    var owner_path = named.path.copy()
+    owner_path.remove_last()
     var joined_owner_path = owner_path.join(".")
     var last_segment = named.path.last()
     var qualified_enum = find_enum_qualified(joined_owner_path, last_segment)
@@ -2516,6 +2578,11 @@ func type_label(spite_type: Analysis.SpiteType): String {
     if union_type {
         return union_type.c_name
     }
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        var nullable_inner = nullable.get_inner()
+        return "Nullable_{type_label(nullable_inner)}"
+    }
     return "Value"
 }
 
@@ -2707,12 +2774,24 @@ func emit_allocation_table() {
     crash allocation_table
     var table = allocation_table.c_name
     var entered = "{table}* spite_table = spite_allocation_table_enter();"
-    var leave = "spite_allocation_table_busy = false;"
+    var leave = "spite_allocation_table_leave();"
     var lines = List<String>()
     lines.append("#ifdef SPITE_DEBUG_MEMORY")
     lines.append("static {table}* spite_allocation_table = 0;")
-    lines.append("static bool spite_allocation_table_busy = false;")
+    lines.append("static SPITE_THREAD_LOCAL bool spite_allocation_table_busy = false;")
+    lines.append("#ifdef SPITE_THREADS")
+    lines.append("static int32_t spite_allocation_table_lock = 0;")
+    lines.append("#endif")
+    lines.append("static void spite_allocation_table_leave(void) \{")
+    lines.append("spite_allocation_table_busy = false;")
+    lines.append("#ifdef SPITE_THREADS")
+    lines.append("__atomic_store_n(&spite_allocation_table_lock, 0, __ATOMIC_RELEASE);")
+    lines.append("#endif")
+    lines.append("}")
     lines.append("static {table}* spite_allocation_table_enter(void) \{")
+    lines.append("#ifdef SPITE_THREADS")
+    lines.append("while (__atomic_exchange_n(&spite_allocation_table_lock, 1, __ATOMIC_ACQUIRE) != 0) \{}")
+    lines.append("#endif")
     lines.append("spite_allocation_table_busy = true;")
     lines.append("if (spite_allocation_table == 0) spite_allocation_table = {table}_make();")
     lines.append("return spite_allocation_table;")
@@ -2779,6 +2858,14 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         if to_function {
             if from_function.has_signature and not to_function.has_signature and to_function.c_name == "Spite_Function" {
                 return code
+            }
+        }
+    }
+    if type_shape.is_void(from) {
+        var nothing_class = type_shape.as_class_ref(to)
+        if nothing_class {
+            if nothing_class.c_name == "Nothing" {
+                return "(\{ {code}; Nothing_default(); })"
             }
         }
     }
@@ -2926,6 +3013,10 @@ func is_owning_shape(expression: Syntax.Expressions.Expression): Bool {
     if indexed {
         if is_bound_attributes_index(indexed) {
             return false
+        }
+        if is_bound_member_index(indexed) {
+            var read = bound_member_expression(indexed)
+            return is_owning_shape(read)
         }
     }
     var member = shape.as_member(expression)
@@ -3673,6 +3764,10 @@ func generate_argument_list(
     class_information: Analysis.ClassInfo,
 ): List<String> {
     var result = List<String>()
+    var variadic = variadic_list(expected_types)
+    if variadic {
+        return generate_spread_arguments(arguments_ast, expected_types, variadic, scope, class_information)
+    }
     if arguments_ast.count() != expected_types.count() {
         report("this call passes {arguments_ast.count()} argument(s), but {expected_types.count()} are expected")
         return result
@@ -3686,28 +3781,87 @@ func generate_argument_list(
     return result
 }
 
-func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.SpiteType> {
-    var result = List<Analysis.SpiteType>()
+func variadic_list(expected_types: List<Analysis.SpiteType>): Analysis.SpiteType? {
+    assert not expected_types.is_empty()
+    var last_type = expected_types.last()
+    var listed = type_shape.as_list(last_type)
+    if listed {
+        if listed.is_variadic {
+            return last_type
+        }
+    }
+    return null
+}
+
+func generate_spread_arguments(
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    expected_types: List<Analysis.SpiteType>,
+    variadic: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): List<String> {
+    var result = List<String>()
+    var fixed_count = expected_types.count() - 1
+    if arguments_ast.count() < fixed_count {
+        report("this call passes {arguments_ast.count()} argument(s), but at least {fixed_count} are expected")
+        return result
+    }
+    var elements = List<Syntax.Expressions.ListElement>()
     var index = 0
-    while index < parameters.count() {
-        var parameter_type = parameters[index].get_type()
-        result.append(parameter_type)
+    while index < arguments_ast.count() {
+        if index < expected_types.count() - 1 {
+            var coerce_for_store = coerce_for_store(
+                arguments_ast[index],
+                expected_types[index],
+                scope,
+                class_information,
+            )
+            result.append(coerce_for_store)
+        } else {
+            elements.append(Syntax.Expressions.ListElement(arguments_ast[index]))
+        }
         index = index + 1
     }
+    if passes_whole_list(elements, variadic, scope, class_information) {
+        report(
+            "this call passes a whole {type_display_name(variadic)}, but the last parameter is written with '...', so it takes the values one by one: pass the elements themselves, separated by commas",
+        )
+        return result
+    }
+    var gathered: Syntax.Expressions.Expression = Syntax.Expressions.ListLiteralExpression(elements)
+    var gathered_code = coerce_for_store(gathered, variadic, scope, class_information)
+    result.append(gathered_code)
     return result
 }
 
-func declares_singleton(declaration: Syntax.Statements.FunctionDeclaration): Bool {
-    if declaration.name != "is_singleton" or declaration.parameters.count() != 0 or declaration.body.count() != 1 {
+func passes_whole_list(
+    elements: List<Syntax.Expressions.ListElement>,
+    variadic: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Bool {
+    if elements.count() != 1 {
         return false
     }
-    var only = shape.as_return_statement(declaration.body[0])
-    if only {
-        if only.value {
-            return shape.is_true_literal(only.value)
+    var variadic_list = type_shape.as_list(variadic)
+    crash variadic_list
+    var element_type = variadic_list.get_element()
+    if type_shape.as_list(element_type) {
+        return false
+    }
+    var only = elements.first()
+    crash only.value
+    var passed_type = lookup_static_type(only.value, scope, class_information)
+    if passed_type {
+        if type_shape.as_list(passed_type) {
+            return true
         }
     }
     return false
+}
+
+func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.SpiteType> {
+    return parameters.map_get_type()
 }
 
 func singleton_call(target_class: Analysis.ClassInfo): String {
@@ -3734,11 +3888,16 @@ func generate_constructor_call(
         return generate_library_constructor(arguments_ast)
     }
     if target_class.is_generic_template {
+        var inferred_class = inferred_instance(target_class, arguments_ast, scope, class_information)
+        if inferred_class {
+            return generate_constructor_call(inferred_class, arguments_ast, scope, class_information)
+        }
         report(
             "'{target_class.simple_name}' takes {target_class.codegen_names.count()} codegen value(s), in this order: ${target_class.codegen_names.join(", $")} -- write them between < and > before the arguments",
         )
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
+    note_waiting_call(target_class, target_class.simple_name, class_information)
     var expected_types = List<Analysis.SpiteType>()
     if target_class.constructor {
         expected_types = parameter_types_of(target_class.constructor.parameters)
@@ -3757,6 +3916,115 @@ func generate_constructor_call(
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
     var call_code = "{target_class.c_name}_make({argument_codes.join(", ")})"
     return ExpressionResult(call_code, Analysis.Types.ClassRefType(target_class.c_name))
+}
+
+func inferred_instance(
+    template: Analysis.ClassInfo,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var constructor = template_constructor(template)
+    assert constructor
+    assert constructor.parameters.count() == arguments_ast.count()
+    var inferred = Dictionary<Analysis.SpiteType>()
+    var index = 0
+    while index < constructor.parameters.count() {
+        var declared = constructor.parameters[index].type_reference
+        crash arguments_ast[index]
+        if declared and not shape.is_null_literal(arguments_ast[index]) {
+            var saved_counter = temporary_counter
+            var probe = generate_expression(arguments_ast[index], scope, class_information)
+            temporary_counter = saved_counter
+            var probe_type = probe.get_type()
+            infer_codegen_values(declared, probe_type, inferred)
+        }
+        index = index + 1
+    }
+    var types = List<Analysis.SpiteType>()
+    var codes = List<String>()
+    var texts = List<String>()
+    var label = "{template.c_name}_"
+    index = 0
+    while index < template.codegen_names.count() {
+        var found = inferred.get(template.codegen_names[index])
+        if not found {
+            return null
+        }
+        types.append(found)
+        codes.append("")
+        texts.append("")
+        label = "{label}_{type_label(found)}"
+        index = index + 1
+    }
+    var existing = find_class_by_c_name(label)
+    if existing {
+        return existing
+    }
+    return instantiated_with(template, types, codes, texts, label)
+}
+
+func template_constructor(template: Analysis.ClassInfo): Syntax.Statements.FunctionDeclaration? {
+    crash discovered_classes[template.entry_index]
+    var file = discovered_classes[template.entry_index].get_file()
+    var statement_index = 0
+    while statement_index < file.statements.count() {
+        var declaration = shape.as_function_declaration(file.statements[statement_index])
+        if declaration {
+            if declaration.name == template.simple_name {
+                return declaration
+            }
+        }
+        statement_index = statement_index + 1
+    }
+    return null
+}
+
+func infer_codegen_values(
+    declared: Syntax.Types.Type,
+    given: Analysis.SpiteType,
+    inferred: Dictionary<Analysis.SpiteType>,
+) {
+    var generic_type = shape.as_generic_type(declared)
+    if generic_type {
+        var bare_name = without_dollar(generic_type.name)
+        if not type_shape.is_void(given) {
+            inferred.set(bare_name, given)
+        }
+        return
+    }
+    var named = shape.as_named_type(declared)
+    assert named
+    var given_function = type_shape.as_class_ref(given)
+    assert given_function
+    var declared_path = named.path.join(".")
+    assert given_function.has_signature and declared_path == "Spite.Function"
+    var index = 0
+    while index < named.arguments.count() {
+        var type_argument = shape.as_type_argument(named.arguments[index])
+        if type_argument {
+            if type_argument.value {
+                if index == named.arguments.count() - 1 {
+                    var returns = returned_type(given_function)
+                    infer_codegen_values(type_argument.value, returns, inferred)
+                } else if index < given_function.arguments.count() {
+                    infer_codegen_values(type_argument.value, given_function.arguments[index], inferred)
+                }
+            }
+        }
+        index = index + 1
+    }
+}
+
+func returned_type(function: Analysis.Types.ClassRefType): Analysis.SpiteType {
+    var nothing_class = find_class_by_qualified("Nothing")
+    if function.returns {
+        if not type_shape.is_void(function.returns) {
+            return function.returns
+        }
+    }
+    crash nothing_class
+    return class_type_of(nothing_class)
 }
 
 func function_type_from(named: Syntax.Types.NamedType, current_namespace: String): Analysis.SpiteType? {
@@ -3917,13 +4185,8 @@ func call_function_value(
         returned_c = c_type_name(returned)
     }
     var function_temporary = next_temporary()
-    var call_arguments = List<String>()
-    call_arguments.append("{function_temporary}->spite_owner")
-    index = 0
-    while index < argument_codes.count() {
-        call_arguments.append(argument_codes[index])
-        index = index + 1
-    }
+    var call_arguments = argument_codes.copy()
+    call_arguments.prepend("{function_temporary}->spite_owner")
     var call_code = "(({returned_c} (*)({pointer_parameters.join(", ")})){function_temporary}->spite_typed_call)({call_arguments.join(", ")})"
     var release = ""
     if owns(held, held_ast) {
@@ -3993,13 +4256,8 @@ func generate_own_function_call(
     crash function
     var parameter_types = parameter_types_of(function.parameters)
     var argument_codes = generate_argument_list(arguments_ast, parameter_types, scope, class_information)
-    var full_arguments = List<String>()
-    full_arguments.append("self")
-    var index = 0
-    while index < argument_codes.count() {
-        full_arguments.append(argument_codes[index])
-        index = index + 1
-    }
+    var full_arguments = argument_codes.copy()
+    full_arguments.prepend("self")
     var function_return_type = function.get_return_type()
     return ExpressionResult("{function.c_name}({full_arguments.join(", ")})", function_return_type)
 }
@@ -4020,13 +4278,8 @@ func generate_generic_call(
         var lines = List<String>()
         var object_result_type = object_result.get_type()
         lines.append("{c_type_name(object_result_type)} {object_temporary} = {object_result.code};")
-        var full_arguments = List<String>()
-        full_arguments.append(object_temporary)
-        var index = 0
-        while index < argument_codes.count() {
-            full_arguments.append(argument_codes[index])
-            index = index + 1
-        }
+        var full_arguments = argument_codes.copy()
+        full_arguments.prepend(object_temporary)
         var call_code = "{function_c_name}({full_arguments.join(", ")})"
         if type_shape.is_void(return_type) {
             lines.append("{call_code};")
@@ -4039,13 +4292,8 @@ func generate_generic_call(
         lines.append("{call_temporary};")
         return ExpressionResult("(\{ {lines.join(" ")} })", return_type)
     }
-    var full_arguments = List<String>()
-    full_arguments.append(object_result.code)
-    var index = 0
-    while index < argument_codes.count() {
-        full_arguments.append(argument_codes[index])
-        index = index + 1
-    }
+    var full_arguments = argument_codes.copy()
+    full_arguments.prepend(object_result.code)
     return ExpressionResult("{function_c_name}({full_arguments.join(", ")})", return_type)
 }
 
@@ -4068,6 +4316,10 @@ func generate_method_call(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     forget_indices_if_shrinking(member.name, object_ast, scope)
+    var fused = generate_fused_chain(member, object_ast, arguments_ast, scope, class_information)
+    if fused {
+        return fused
+    }
     if member.name == "call_function" {
         var saved_counter = temporary_counter
         var called_probe = generate_expression(object_ast, scope, class_information)
@@ -4249,6 +4501,7 @@ func generate_method_call(
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     crash function
+    note_waiting_call(target_class, member.name, class_information)
     var parameter_types = parameter_types_of(function.parameters)
     var function_return_type = function.get_return_type()
     return generate_generic_call(
@@ -4316,22 +4569,17 @@ func generate_written_string_call(
 ): ExpressionResult {
     var lines = List<String>()
     var release = ""
-    var full_arguments = List<String>()
+    var receiver_code = object_result.code
     if owns(object_result, object_ast) {
         var object_temporary = next_temporary()
         lines.append("SpiteString* {object_temporary} = {object_result.code};")
         release = "SpiteString_release({object_temporary});"
-        full_arguments.append(object_temporary)
-    } else {
-        full_arguments.append(object_result.code)
+        receiver_code = object_temporary
     }
     var parameter_types = parameter_types_of(written.parameters)
     var argument_codes = generate_argument_list(arguments_ast, parameter_types, scope, class_information)
-    var index = 0
-    while index < argument_codes.count() {
-        full_arguments.append(argument_codes[index])
-        index = index + 1
-    }
+    var full_arguments = argument_codes.copy()
+    full_arguments.prepend(receiver_code)
     var call = "{written.c_name}({full_arguments.join(", ")})"
     if release.is_empty() {
         var written_return_type = written.get_return_type()
@@ -4560,7 +4808,6 @@ func generate_list_method(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
-    var list_name = ensure_list(element)
     if name == "deep_copy" {
         var ensured_list_deep_copy = ensure_list_deep_copy(element)
         var no_types = no_types()
@@ -4622,38 +4869,25 @@ func generate_list_method(
     if element_class_ref {
         var element_class = find_class_by_c_name(element_class_ref.c_name)
         if element_class {
-            var template_prefixes = [
-                "find_by_"
-                "sort_by_"
-                "filter_"
-                "count_"
-                "sum_"
-                "each_"
-                "map_"
-                "any_"
-                "all_"
-            ]
-            var prefix_index = 0
-            while prefix_index < template_prefixes.count() {
-                var template_prefix = template_prefixes[prefix_index]
-                if name.starts_with(template_prefix) and name.length() > template_prefix.length() {
-                    var template_prefix_length = template_prefix.length()
-                    var name_length = name.length()
-                    var member_name = name.slice(template_prefix_length, name_length)
-                    return generate_list_template(
-                        element,
-                        element_class,
-                        list_name,
-                        template_prefix,
-                        member_name,
+            var list_class = list_class_of(element)
+            var template = element_template_of(list_class, name)
+            if template {
+                var function = instantiate_element_template(list_class, element_class, template, name)
+                if function {
+                    var parameter_types = parameter_types_of(function.parameters)
+                    var function_return_type = function.get_return_type()
+                    return generate_generic_call(
+                        function.c_name,
                         object_result,
                         object_ast,
                         arguments_ast,
+                        parameter_types,
+                        function_return_type,
                         scope,
                         class_information,
                     )
                 }
-                prefix_index = prefix_index + 1
+                return ExpressionResult("0", Analysis.Types.VoidType())
             }
         }
     }
@@ -4675,20 +4909,6 @@ func member_type_of(element_class: Analysis.ClassInfo, member_name: String): Ana
     return null
 }
 
-func member_is_function(element_class: Analysis.ClassInfo, member_name: String): Bool {
-    if element_class.find_field(member_name) {
-        return false
-    }
-    return true
-}
-
-func member_read_code(element_class: Analysis.ClassInfo, member_name: String, item_code: String): String {
-    if element_class.find_field(member_name) {
-        return "{item_code}->{member_name}"
-    }
-    return "{element_class.c_name}_{member_name}({item_code})"
-}
-
 func is_numeric_type(spite_type: Analysis.SpiteType): Bool {
     var scalar = type_shape.as_scalar(spite_type)
     if scalar {
@@ -4705,132 +4925,440 @@ func is_boolean_type(spite_type: Analysis.SpiteType): Bool {
     return false
 }
 
-func generate_list_template(
-    element: Analysis.SpiteType,
+func element_template_of(list_class: Analysis.ClassInfo, name: String): Analysis.TemplateInfo? {
+    var index = 0
+    while index < list_class.templates.count() {
+        var template = list_class.templates[index]
+        var member_name = template.member_name_for(name)
+        if not member_name.is_empty() {
+            return template
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func instantiate_element_template(
+    list_class: Analysis.ClassInfo,
     element_class: Analysis.ClassInfo,
-    list_name: String,
+    template: Analysis.TemplateInfo,
+    name: String,
+): Analysis.FunctionInfo? {
+    var existing = list_class.find_function(name)
+    if existing {
+        return existing
+    }
+    var member_name = template.member_name_for(name)
+    var member_type = member_type_of(element_class, member_name)
+    if not member_type {
+        report("'{element_class.simple_name}' has no attribute or zero argument function '{member_name}' for '{name}'")
+        return null
+    }
+    var requirement = member_requirement(template.prefix, element_class, member_name, member_type)
+    if not requirement.is_empty() {
+        var described = "is a {type_label(member_type)}"
+        if type_shape.is_void(member_type) {
+            described = "returns nothing"
+        }
+        report(
+            "'{name}': the member '{member_name}' of '{element_class.simple_name}' {described}, but '{template.prefix}' needs it to {requirement}",
+        )
+        return null
+    }
+    return instantiate_template(list_class, template, member_name, member_type, element_class.c_name, name)
+}
+
+func member_requirement(
     template_prefix: String,
+    element_class: Analysis.ClassInfo,
     member_name: String,
-    object_result: ExpressionResult,
+    member_type: Analysis.SpiteType,
+): String {
+    var wants_boolean = template_prefix == "filter_" or template_prefix == "any_" or template_prefix == "all_" or template_prefix == "count_"
+    if wants_boolean and not is_boolean_type(member_type) {
+        if template_prefix == "count_" and is_numeric_type(member_type) {
+            return "return Bool (to add up a numeric member use 'sum_{member_name}')"
+        }
+        return "return Bool"
+    }
+    if template_prefix == "sum_" and not is_numeric_type(member_type) {
+        return "return a numeric type"
+    }
+    if template_prefix == "each_" and element_class.find_field(member_name) {
+        return "be a function: reading an attribute and discarding it does nothing"
+    }
+    if template_prefix == "map_" and type_shape.is_void(member_type) {
+        return "return a value"
+    }
+    var ordered = is_numeric_type(member_type) or type_shape.as_string(member_type)
+    if template_prefix == "sort_by_" and not ordered {
+        return "return something ordered: a number or a String"
+    }
+    if template_prefix == "find_by_" and not joins_as_text(member_type) {
+        return "return something comparable: a number, Bool, String, Symbol or enum value"
+    }
+    return ""
+}
+
+func instantiate_member_templates_of(list_class: Analysis.ClassInfo) {
+    var element = list_class.codegen_types.first()
+    var element_class_ref = type_shape.as_class_ref(element)
+    assert element_class_ref
+    var element_class = find_class_by_c_name(element_class_ref.c_name)
+    assert element_class
+    var member_names = List<String>()
+    var index = 0
+    while index < element_class.fields.count() {
+        member_names.append(element_class.fields[index].name)
+        index = index + 1
+    }
+    index = 0
+    while index < element_class.functions.count() {
+        var function = element_class.functions[index]
+        if not function.is_constructor and function.parameters.is_empty() {
+            member_names.append(function.name)
+        }
+        index = index + 1
+    }
+    var template_index = 0
+    while template_index < list_class.templates.count() {
+        var template = list_class.templates[template_index]
+        var member_index = 0
+        while member_index < member_names.count() {
+            var member_name = member_names[member_index]
+            var member_type = member_type_of(element_class, member_name)
+            if member_type {
+                var requirement = member_requirement(template.prefix, element_class, member_name, member_type)
+                var name = "{template.prefix}{member_name}{template.suffix}"
+                if requirement.is_empty() and not list_class.find_function(name) {
+                    instantiate_template(list_class, template, member_name, member_type, element_class.c_name, name)
+                }
+            }
+            member_index = member_index + 1
+        }
+        template_index = template_index + 1
+    }
+}
+
+func generate_fused_chain(
+    member: Syntax.Expressions.MemberExpression,
     object_ast: Syntax.Expressions.Expression,
     arguments_ast: List<Syntax.Expressions.Expression>,
     scope: Scope,
     class_information: Analysis.ClassInfo,
-): ExpressionResult {
-    var member_type = member_type_of(element_class, member_name)
-    if not member_type {
-        report(
-            "'{element_class.simple_name}' has no attribute or zero argument function '{member_name}' for '{template_prefix}{member_name}'",
+): ExpressionResult? {
+    var names = List<String>()
+    var base = chain_base(object_ast, names)
+    if names.is_empty() {
+        return null
+    }
+    names.reverse()
+    names.append(member.name)
+    var saved_counter = temporary_counter
+    var probe = generate_expression(base, scope, class_information)
+    temporary_counter = saved_counter
+    var probe_type = probe.get_type()
+    var element = chained_element_of(probe_type)
+    if not element {
+        return null
+    }
+    crash element
+    var base_list = list_class_of(element)
+    var fused_name = names.join("_then_")
+    var function = base_list.find_function(fused_name)
+    if not function {
+        var source = fused_chain_source(base_list, element, names, fused_name)
+        if source.is_empty() {
+            return null
+        }
+        function = register_fused_function(base_list, source, fused_name)
+    }
+    if not function {
+        return null
+    }
+    crash function
+    var generated_member_object = generate_member_object(base, scope, class_information)
+    var receiver = as_text(generated_member_object)
+    var receiver_type = receiver.get_type()
+    if type_shape.as_dictionary(receiver_type) {
+        var dictionary_name = ensure_dictionary(element)
+        var no_types = no_types()
+        var list_type = list_type_of(element)
+        receiver = generate_generic_call(
+            "{dictionary_name}_values",
+            receiver,
+            base,
+            List<Syntax.Expressions.Expression>(),
+            no_types,
+            list_type,
+            scope,
+            class_information,
         )
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        receiver.owning_override = true
     }
-    crash member_type
-    var function_c_name = "{list_name}_{template_prefix}{member_name}"
-    var item = c_type_name(element)
-    var member_c_type = c_type_name(member_type)
-    var computed = member_is_function(element_class, member_name)
-    var owned_member = computed and type_needs_drop(member_type)
-    var read = "{member_c_type} member = {member_read_code(element_class, member_name, "item")};"
-    var release_member = ""
-    if owned_member {
-        release_member = "{release_call(member_type, "member")};"
-    }
-    var loop_open = "for (int64_t spite_index = 0; spite_index < self->item_count; spite_index = spite_index + 1) \{\n{item} item = (({item}*)(intptr_t)self->items)[spite_index];\n"
-    var self_parameter = "{list_name}* self"
-    var requirement = ""
-    var return_type = void_type()
-    var parameter_types = no_types()
-    var body = ""
-    if template_prefix == "filter_" or template_prefix == "any_" or template_prefix == "all_" or template_prefix == "count_" {
-        if not is_boolean_type(member_type) {
-            requirement = "return Bool"
-            if template_prefix == "count_" and is_numeric_type(member_type) {
-                requirement = "return Bool (to add up a numeric member use 'sum_{member_name}')"
-            }
-        }
-    }
-    if template_prefix == "sum_" and not is_numeric_type(member_type) {
-        requirement = "return a numeric type"
-    }
-    if template_prefix == "each_" and not computed {
-        requirement = "be a function: reading an attribute and discarding it does nothing"
-    }
-    if not requirement.is_empty() {
-        report(
-            "'{template_prefix}{member_name}': the member '{member_name}' of '{element_class.simple_name}' is a {type_label(member_type)}, but '{template_prefix}' needs it to {requirement}",
-        )
-        return ExpressionResult("0", Analysis.Types.VoidType())
-    }
-    if template_prefix == "filter_" {
-        return_type = list_type_of(element)
-        body = "{list_name}* result = {list_name}_make();\n{loop_open}{read}\nif (member) {list_name}_append(result, {retain_call(element, "item")});\n}\nreturn result;"
-    } else if template_prefix == "any_" {
-        return_type = boolean_type()
-        body = loop_open + "{read}\nif (member) return true;\n}\nreturn false;"
-    } else if template_prefix == "all_" {
-        return_type = boolean_type()
-        body = loop_open + "{read}\nif (!member) return false;\n}\nreturn true;"
-    } else if template_prefix == "count_" {
-        return_type = integer_type()
-        body = "int32_t result = 0;\n{loop_open}{read}\nif (member) result = result + 1;\n}\nreturn result;"
-    } else if template_prefix == "sum_" {
-        return_type = member_type
-        body = "{member_c_type} result = 0;\n{loop_open}{read}\nresult = result + member;\n}\nreturn result;"
-    } else if template_prefix == "each_" {
-        if type_shape.is_void(member_type) {
-            body = loop_open + "{member_read_code(element_class, member_name, "item")};\n}"
-        } else {
-            body = loop_open + "{read}\n{release_member}\n(void)member;\n}"
-        }
-    } else if template_prefix == "map_" {
-        return_type = list_type_of(member_type)
-        var mapped_list = ensure_list(member_type)
-        var stored = "member"
-        if type_needs_drop(member_type) and not computed {
-            stored = retain_call(member_type, "member")
-        }
-        body = "{mapped_list}* result = {mapped_list}_make();\n{loop_open}{read}\n{mapped_list}_append(result, {stored});\n}\nreturn result;"
-    } else if template_prefix == "find_by_" {
-        return_type = nullable_type_of(element)
-        parameter_types = one_type(member_type)
-        var equal = "member == value"
-        if type_shape.as_string(member_type) {
-            equal = "SpiteString_equals(member, value)"
-        }
-        var release_value = release_statement(member_type, "value")
-        body = loop_open + "{read}\nbool spite_found = {equal};\n{release_member}\nif (spite_found) \{ {release_value} return {retain_call(element, "item")}; }\n}\n{release_value}\nreturn 0;"
-    } else {
-        return_type = list_type_of(element)
-        var before = "keys[spite_inner - 1] > key"
-        if type_shape.as_string(member_type) {
-            before = "SpiteString_greater(keys[spite_inner - 1], key)"
-        }
-        var release_keys = ""
-        if owned_member {
-            release_keys = "for (int64_t spite_index = 0; spite_index < self->item_count; spite_index = spite_index + 1) \{ {release_call(member_type, "keys[spite_index]")}; }\n"
-        }
-        body = "{list_name}* result = {list_name}_make();\n{member_c_type}* keys = ({member_c_type}*)SPITE_MALLOC(sizeof({member_c_type}) * (size_t)(self->item_count + 1));\n{loop_open}{read}\n{list_name}_append(result, {retain_call(element, "item")});\nkeys[spite_index] = member;\n}\nfor (int64_t spite_outer = 1; spite_outer < self->item_count; spite_outer = spite_outer + 1) \{\n{member_c_type} key = keys[spite_outer];\n{item} moved = (({item}*)(intptr_t)result->items)[spite_outer];\nint64_t spite_inner = spite_outer;\nwhile (spite_inner > 0 && {before}) \{\nkeys[spite_inner] = keys[spite_inner - 1];\n(({item}*)(intptr_t)result->items)[spite_inner] = (({item}*)(intptr_t)result->items)[spite_inner - 1];\nspite_inner = spite_inner - 1;\n}\nkeys[spite_inner] = key;\n(({item}*)(intptr_t)result->items)[spite_inner] = moved;\n}\n{release_keys}SPITE_FREE(keys);\nreturn result;"
-    }
-    if not list_template_names.contains(function_c_name) {
-        list_template_names.append(function_c_name)
-        var signature = "{c_type_name(return_type)} {function_c_name}({self_parameter}"
-        if template_prefix == "find_by_" {
-            signature = "{signature}, {member_c_type} value"
-        }
-        signature = "{signature})"
-        builder.add_prototype("{signature};")
-        builder.add_support("{signature} \{\n{body}\n}")
-    }
+    var parameter_types = parameter_types_of(function.parameters)
+    var function_return_type = function.get_return_type()
     return generate_generic_call(
-        function_c_name,
-        object_result,
-        object_ast,
+        function.c_name,
+        receiver,
+        base,
         arguments_ast,
         parameter_types,
-        return_type,
+        function_return_type,
         scope,
         class_information,
     )
+}
+
+func chain_base(expression: Syntax.Expressions.Expression, names: List<String>): Syntax.Expressions.Expression {
+    var called = shape.as_call(expression)
+    if called {
+        crash called.callee
+        var callee = shape.as_member(called.callee)
+        if callee {
+            var streams = callee.name.starts_with("map_") or callee.name.starts_with("filter_")
+            if streams and called.arguments.is_empty() {
+                names.append(callee.name)
+                crash callee.object
+                return chain_base(callee.object, names)
+            }
+        }
+    }
+    return expression
+}
+
+func chained_element_of(receiver_type: Analysis.SpiteType): Analysis.SpiteType? {
+    var listed = type_shape.as_list(receiver_type)
+    if listed {
+        return listed.get_element()
+    }
+    var dictionary = type_shape.as_dictionary(receiver_type)
+    if dictionary {
+        return dictionary.get_element()
+    }
+    return null
+}
+
+func fused_step(base_list: Analysis.ClassInfo, current_type: Analysis.SpiteType, name: String): FusedStep? {
+    var class_ref = type_shape.as_class_ref(current_type)
+    if not class_ref {
+        return null
+    }
+    crash class_ref
+    if class_ref.has_signature {
+        return null
+    }
+    var element_class = find_class_by_c_name(class_ref.c_name)
+    var template = element_template_of(base_list, name)
+    if not element_class or not template {
+        return null
+    }
+    crash element_class
+    crash template
+    var member_name = template.member_name_for(name)
+    var member_type = member_type_of(element_class, member_name)
+    if not member_type {
+        return null
+    }
+    crash member_type
+    var requirement = member_requirement(template.prefix, element_class, member_name, member_type)
+    if not requirement.is_empty() {
+        return null
+    }
+    var read = "{member_name}()"
+    if element_class.find_field(member_name) {
+        read = member_name
+    }
+    return FusedStep(template.prefix, member_type, read)
+}
+
+func fused_type_spelling(spite_type: Analysis.SpiteType): String {
+    var class_ref = type_shape.as_class_ref(spite_type)
+    if class_ref {
+        var described = find_class_by_c_name(class_ref.c_name)
+        if described {
+            if not class_ref.has_signature {
+                return described.qualified_dotted
+            }
+        }
+        return ""
+    }
+    if type_shape.as_string(spite_type) or type_shape.as_scalar(spite_type) {
+        return type_display_name(spite_type)
+    }
+    return ""
+}
+
+func fused_value_name(mapped_count: Int): String {
+    var names = ["mapped", "second_mapped", "third_mapped", "fourth_mapped", "fifth_mapped", "sixth_mapped"]
+    if mapped_count < names.count() {
+        return names[mapped_count]
+    }
+    return ""
+}
+
+func fused_chain_source(
+    base_list: Analysis.ClassInfo,
+    element: Analysis.SpiteType,
+    names: List<String>,
+    fused_name: String,
+): String {
+    var loop_lines = List<String>()
+    var current_type = element
+    var current_name = "item"
+    var indent = "        "
+    var closings = List<String>()
+    var mapped_count = 0
+    var index = 0
+    while index < names.count() - 1 {
+        var stage_name = names[index]
+        var step = fused_step(base_list, current_type, stage_name)
+        if not step {
+            return ""
+        }
+        crash step
+        if step.prefix == "filter_" {
+            loop_lines.append("{indent}if {current_name}.{step.read} \{")
+            closings.append("{indent}}")
+            indent = "{indent}    "
+        } else {
+            var mapped_type = step.get_member_type()
+            var next_name = fused_value_name(mapped_count)
+            if next_name.is_empty() or fused_type_spelling(mapped_type).is_empty() {
+                return ""
+            }
+            loop_lines.append("{indent}var {next_name} = {current_name}.{step.read}")
+            mapped_count = mapped_count + 1
+            current_name = next_name
+            current_type = mapped_type
+        }
+        index = index + 1
+    }
+    var last_name = names.last()
+    var last = fused_step(base_list, current_type, last_name)
+    if not last {
+        return ""
+    }
+    crash last
+    var last_member_type = last.get_member_type()
+    var element_spelling = fused_type_spelling(current_type)
+    var member_spelling = fused_type_spelling(last_member_type)
+    var read = "{current_name}.{last.read}"
+    var parameters = ""
+    var returns = ""
+    var before = List<String>()
+    var after = List<String>()
+    if last.prefix == "sum_" {
+        returns = ": {member_spelling}"
+        before.append("    var total: {member_spelling} = 0")
+        loop_lines.append("{indent}total = total + {read}")
+        after.append("    return total")
+    } else if last.prefix == "count_" {
+        returns = ": Int"
+        before.append("    var counted = 0")
+        loop_lines.append("{indent}if {read} \{\n{indent}    counted = counted + 1\n{indent}}")
+        after.append("    return counted")
+    } else if last.prefix == "any_" {
+        returns = ": Bool"
+        loop_lines.append("{indent}if {read} \{\n{indent}    return true\n{indent}}")
+        after.append("    return false")
+    } else if last.prefix == "all_" {
+        returns = ": Bool"
+        loop_lines.append("{indent}if not {read} \{\n{indent}    return false\n{indent}}")
+        after.append("    return true")
+    } else if last.prefix == "find_by_" {
+        parameters = "value: {member_spelling}"
+        returns = ": {element_spelling}?"
+        loop_lines.append("{indent}if {read} == value \{\n{indent}    return {current_name}\n{indent}}")
+        after.append("    return null")
+    } else if last.prefix == "each_" {
+        loop_lines.append("{indent}{read}")
+    } else if last.prefix == "map_" {
+        returns = ": List<{member_spelling}>"
+        before.append("    var collected = List<{member_spelling}>()")
+        loop_lines.append("{indent}var value = {read}\n{indent}collected.append(value)")
+        after.append("    return collected")
+    } else if last.prefix == "filter_" {
+        returns = ": List<{element_spelling}>"
+        before.append("    var collected = List<{element_spelling}>()")
+        loop_lines.append("{indent}if {read} \{\n{indent}    collected.append({current_name})\n{indent}}")
+        after.append("    return collected")
+    } else {
+        returns = ": List<{element_spelling}>"
+        before.append("    var sorted = List<{element_spelling}>()")
+        before.append("    var keys = List<{member_spelling}>()")
+        loop_lines.append(
+            "{indent}var key = {read}\n{indent}var position = keys.count()\n{indent}while position > 0 and keys.get_at(position - 1) > key \{\n{indent}    position = position - 1\n{indent}}\n{indent}keys.insert(position, key)\n{indent}sorted.insert(position, {current_name})",
+        )
+        after.append("    return sorted")
+    }
+    var voided = type_shape.is_void(last_member_type)
+    if element_spelling.is_empty() or member_spelling.is_empty() and not voided {
+        return ""
+    }
+    closings.reverse()
+    var lines = List<String>()
+    lines.append("func {fused_name}({parameters}){returns} \{")
+    append_lines(lines, before)
+    lines.append("    var index = 0")
+    lines.append("    while index < item_count \{")
+    lines.append("        var item = read_item(index)")
+    lines.append("        index = index + 1")
+    append_lines(lines, loop_lines)
+    append_lines(lines, closings)
+    lines.append("    }")
+    append_lines(lines, after)
+    lines.append("}")
+    lines.append("")
+    return lines.join("\n")
+}
+
+func append_lines(lines: List<String>, added: List<String>) {
+    var index = 0
+    while index < added.count() {
+        var line = added[index]
+        lines.append(line)
+        index = index + 1
+    }
+}
+
+func register_fused_function(
+    base_list: Analysis.ClassInfo,
+    source: String,
+    fused_name: String,
+): Analysis.FunctionInfo? {
+    var lexer = Syntax.Lexer(source)
+    var parser = Syntax.Parser(lexer.tokens)
+    var file = parser.parse_file()
+    if lexer.has_error or parser.has_error or file.statements.is_empty() {
+        return null
+    }
+    var first_statement = file.statements.first()
+    var declaration = shape.as_function_declaration(first_statement)
+    if not declaration {
+        return null
+    }
+    crash declaration
+    declaration.source_path = base_list.source_path
+    var saved_owner = current_owner
+    var saved_class = current_class
+    var saved_path = current_path
+    var saved_line = current_line
+    var saved_function = current_function
+    current_owner = base_list.qualified_dotted
+    current_class = base_list
+    current_path = base_list.source_path
+    resolve_function(declaration, base_list)
+    current_owner = saved_owner
+    current_class = saved_class
+    current_path = saved_path
+    current_line = saved_line
+    current_function = saved_function
+    var function = base_list.find_function(fused_name)
+    if function {
+        builder.add_prototype("{function_signature(base_list, function)};")
+    }
+    return function
 }
 
 func is_listed_class(information: Analysis.ClassInfo): Bool {
@@ -5006,12 +5534,8 @@ func emit_namespace_object_bodies() {
             "{function_c_name}_cache = Spite_Namespace_make({ensure_symbol(namespace_name)}, {ensure_symbol(namespace_dotted)});",
         )
         if segments.count() > 1 {
-            var parent_segments = List<String>()
-            var segment_index = 0
-            while segment_index < segments.count() - 1 {
-                parent_segments.append(segments[segment_index])
-                segment_index = segment_index + 1
-            }
+            var parent_segments = segments.copy()
+            parent_segments.remove_last()
             var joined_parent_segments = parent_segments.join(".")
             lines.append("{function_c_name}_cache->parent = {ensure_namespace_object(joined_parent_segments)}();")
         }
@@ -5124,12 +5648,9 @@ func type_display_name(spite_type: Analysis.SpiteType): String {
     }
     var enum_type = type_shape.as_enum(spite_type)
     if enum_type {
-        var enum_index = 0
-        while enum_index < enums.count() {
-            if enums[enum_index].c_name == enum_type.c_name {
-                return enums[enum_index].simple_name
-            }
-            enum_index = enum_index + 1
+        var enum_information = enums.find_by_c_name(enum_type.c_name)
+        if enum_information {
+            return enum_information.simple_name
         }
     }
     var union_type = type_shape.as_union(spite_type)
@@ -5264,13 +5785,17 @@ func emit_functions_function(information: Analysis.ClassInfo) {
     var list_name = ensure_list(class_type)
     var argument_class_type = class_type_of(argument_class)
     var arguments_list_name = ensure_list(argument_class_type)
+    if information.is_container {
+        instantiate_member_templates_of(information)
+    }
     var lines = List<String>()
     lines.append("{list_name}* {function_c_name}({information.c_name}* self) \{")
     lines.append("{list_name}* result = {list_name}_make();")
     var index = 0
     while index < information.functions.count() {
         var function = information.functions[index]
-        if not function.is_constructor {
+        var listed = not information.is_container or not function.symbol_owner_c_name.is_empty()
+        if listed and not function.is_constructor {
             lines.append("\{")
             lines.append(
                 "Spite_Function* described = Spite_Function_make({ensure_symbol(function.name)}, {returned_class_object_call(function)});",
@@ -5421,6 +5946,10 @@ func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
         lines.append(
             "reflected->spite_held_attributes = (void* (*)(void*)){ensure_list_attributes_function(list_type_element)};",
         )
+        if read_evaluate_print_loop and type_shape.as_class_ref(list_type_element) {
+            var list_class = list_class_of(list_type_element)
+            lines.append("reflected->spite_held_functions = (void* (*)(void*)){ensure_functions_function(list_class)};")
+        }
     }
     lines.append("return reflected;")
     lines.append("}")
@@ -5468,20 +5997,18 @@ func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.Fie
     var lines = List<String>()
     lines.append("bool {function_c_name}(void* owner, SpiteString* text) \{")
     lines.append("{information.c_name}* self = ({information.c_name}*)owner;")
-    if type_shape.as_string(field_type) {
-        lines.append("{assigned_c} assigned = SpiteString_retain(text);")
-    } else if type_shape.as_scalar(field_type) {
-        var string_type = string_type()
-        lines.append("{assigned_c} assigned = {cast("text", string_type, field_type)};")
-    } else {
-        var enum_type = type_shape.as_enum(field_type)
-        if enum_type {
-            lines.append("{assigned_c} assigned;")
-            var enum_from_text_lines = enum_from_text_lines(enum_type, "text", "assigned", "return false;")
-            lines.append(enum_from_text_lines)
-        } else {
-            return ""
+    switch field_type {
+        Analysis.Types.StringType: lines.append("{assigned_c} assigned = SpiteString_retain(text);")
+        Analysis.Types.ScalarType: {
+            var string_type = string_type()
+            lines.append("{assigned_c} assigned = {cast("text", string_type, field_type)};")
         }
+        Analysis.Types.EnumType: {
+            lines.append("{assigned_c} assigned;")
+            var enum_from_text_lines = enum_from_text_lines(field_type, "text", "assigned", "return false;")
+            lines.append(enum_from_text_lines)
+        }
+        _: return ""
     }
     var setter = information.find_function("set_{field.name}")
     var through_setter = false
@@ -5522,20 +6049,20 @@ func ensure_text_call(information: Analysis.ClassInfo, function: Analysis.Functi
         var parameter_type = function.parameters[index].get_type()
         string_type = string_type()
         var item = list_item_code(string_type, "arguments", "{index}")
-        var enum_type = type_shape.as_enum(parameter_type)
-        if type_shape.as_string(parameter_type) {
-            call_arguments.append("SpiteString_retain({item})")
-        } else if type_shape.as_scalar(parameter_type) {
-            string_type = string_type()
-            var cast = cast(item, string_type, parameter_type)
-            call_arguments.append(cast)
-        } else if enum_type {
-            lines.append("{enum_type.c_name} argument_{index};")
-            var enum_from_text_lines = enum_from_text_lines(enum_type, item, "argument_{index}", "return 0;")
-            lines.append(enum_from_text_lines)
-            call_arguments.append("argument_{index}")
-        } else {
-            return ""
+        switch parameter_type {
+            Analysis.Types.StringType: call_arguments.append("SpiteString_retain({item})")
+            Analysis.Types.ScalarType: {
+                string_type = string_type()
+                var cast = cast(item, string_type, parameter_type)
+                call_arguments.append(cast)
+            }
+            Analysis.Types.EnumType: {
+                lines.append("{parameter_type.c_name} argument_{index};")
+                var enum_from_text_lines = enum_from_text_lines(parameter_type, item, "argument_{index}", "return 0;")
+                lines.append(enum_from_text_lines)
+                call_arguments.append("argument_{index}")
+            }
+            _: return ""
         }
         index = index + 1
     }
@@ -5978,6 +6505,9 @@ func generate_index_read(
 ): ExpressionResult {
     crash index_expression.object
     crash index_expression.index
+    if is_bound_member_index(index_expression) {
+        return generate_bound_member_read(index_expression, scope, class_information)
+    }
     if is_bound_attributes_index(index_expression) {
         crash bound_field_type
         return ExpressionResult("self->{bound_field_name}", bound_field_type)
@@ -6190,6 +6720,38 @@ func supply_function(
     builder.add_support("{function_signature(information, function)} \{\n{body}\n}")
 }
 
+func supply_concurrency_functions(instance: Analysis.ClassInfo) {
+    builder.threads = true
+    var task = instance.c_name
+    if instance.qualified_dotted == "Concurrent" {
+        scheduler_used = true
+        builder.add_prototype("static void {task}_fiber_entry(void* task);")
+        builder.add_support(
+            "static void {task}_fiber_entry(void* task) \{\n{task}_run(({task}*)task);\n{task}_finish(({task}*)task);\n}",
+        )
+        supply_addresses(instance, "{task}_fiber_entry")
+        return
+    }
+    builder.add_prototype("static void* {task}_thread_entry(void* task);")
+    builder.add_support("static void* {task}_thread_entry(void* task) \{\n{task}_run(({task}*)task);\nreturn 0;\n}")
+    supply_addresses(instance, "{task}_thread_entry")
+}
+
+func supply_addresses(instance: Analysis.ClassInfo, entry: String) {
+    var no_parameters = no_parameters()
+    var long_type = long_type()
+    supply_function(
+        instance,
+        "entry_address",
+        no_parameters,
+        long_type,
+        "(void)self;\nreturn (int64_t)(intptr_t)&{entry};",
+    )
+    no_parameters = no_parameters()
+    long_type = long_type()
+    supply_function(instance, "address", no_parameters, long_type, "return (int64_t)(intptr_t)self;")
+}
+
 func ensure_dictionary(element: Analysis.SpiteType): String {
     var dictionary_name = "Dictionary_{type_label(element)}"
     if dictionary_names.contains(dictionary_name) {
@@ -6373,21 +6935,11 @@ func generate_dictionary_method(
     if value_class_ref {
         var value_class = find_class_by_c_name(value_class_ref.c_name)
         if value_class {
-            var template_prefixes = [
-                "find_by_"
-                "sort_by_"
-                "filter_"
-                "count_"
-                "sum_"
-                "each_"
-                "map_"
-                "any_"
-                "all_"
-            ]
-            var prefix_index = 0
-            while prefix_index < template_prefixes.count() {
-                var template_prefix = template_prefixes[prefix_index]
-                if name.starts_with(template_prefix) and name.length() > template_prefix.length() {
+            var list_class = list_class_of(element)
+            var template = element_template_of(list_class, name)
+            if template {
+                var function = instantiate_element_template(list_class, value_class, template, name)
+                if function {
                     var no_types = no_types()
                     var list_type = list_type_of(element)
                     var values_call = generate_generic_call(
@@ -6401,24 +6953,20 @@ func generate_dictionary_method(
                         class_information,
                     )
                     values_call.owning_override = true
-                    var ensured_list = ensure_list(element)
-                    var template_prefix_length = template_prefix.length()
-                    var name_length = name.length()
-                    var name_slice = name.slice(template_prefix_length, name_length)
-                    return generate_list_template(
-                        element,
-                        value_class,
-                        ensured_list,
-                        template_prefix,
-                        name_slice,
+                    var parameter_types = parameter_types_of(function.parameters)
+                    var function_return_type = function.get_return_type()
+                    return generate_generic_call(
+                        function.c_name,
                         values_call,
                         object_ast,
                         arguments_ast,
+                        parameter_types,
+                        function_return_type,
                         scope,
                         class_information,
                     )
                 }
-                prefix_index = prefix_index + 1
+                return ExpressionResult("0", Analysis.Types.VoidType())
             }
         }
     }
@@ -7229,16 +7777,18 @@ func generate_member_read_raw(
     }
     var object_class_ref = type_shape.as_class_ref(object_result_type)
     if not object_class_ref {
-        if type_shape.as_nullable(object_result_type) {
-            report(
-                "this value may be null (it is a {type_display_name(object_result_type)}), so '{member.name}' cannot be read from it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
-            )
-        } else if type_shape.is_void(object_result_type) {
-            report("'{member.name}' cannot be read from this value")
-        } else {
-            report(
-                "'{member.name}' cannot be read from a {type_display_name(object_result_type)}: if it is a function, call it with '{member.name}()'",
-            )
+        switch object_result_type {
+            Analysis.Types.NullableType: {
+                report(
+                    "this value may be null (it is a {type_display_name(object_result_type)}), so '{member.name}' cannot be read from it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+                )
+            }
+            Analysis.Types.VoidType: report("'{member.name}' cannot be read from this value")
+            _: {
+                report(
+                    "'{member.name}' cannot be read from a {type_display_name(object_result_type)}: if it is a function, call it with '{member.name}()'",
+                )
+            }
         }
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
@@ -7384,6 +7934,16 @@ func generate_expression(
     }
     report("unsupported expression kind in this stage")
     return ExpressionResult("0", Analysis.Types.VoidType())
+}
+
+func narrow_by_guard(scope: Scope, guard: NullableGuard) {
+    if guard.override_code.is_empty() {
+        scope.narrow_path(guard.name)
+    } else {
+        scope.set_override(guard.name, guard.override_code)
+        var guard_inner = guard.get_inner()
+        scope.declare(guard.name, guard_inner)
+    }
 }
 
 func try_nullable_guard(
@@ -8334,13 +8894,7 @@ func generate_if_statement(
         report_terminal_if(if_statement, guard.name)
         builder.add_user("if ({guard.guard_code}) \{")
         var then_scope = Scope(scope)
-        if guard.override_code.is_empty() {
-            then_scope.narrow_path(guard.name)
-        } else {
-            then_scope.set_override(guard.name, guard.override_code)
-            var guard_inner = guard.get_inner()
-            then_scope.declare(guard.name, guard_inner)
-        }
+        narrow_by_guard(then_scope, guard)
         generate_block_in_scope(if_statement.then_branch, then_scope, class_information, function_information)
         builder.add_user("}")
         if if_statement.has_else_branch {
@@ -8484,13 +9038,7 @@ func generate_nullable_switch(
                 covered_value = true
                 builder.add_user("if ({guard.guard_code}) \{")
                 var case_scope = Scope(scope)
-                if guard.override_code.is_empty() {
-                    case_scope.narrow_path(guard.name)
-                } else {
-                    case_scope.set_override(guard.name, guard.override_code)
-                    var guard_inner = guard.get_inner()
-                    case_scope.declare(guard.name, guard_inner)
-                }
+                narrow_by_guard(case_scope, guard)
                 generate_block_in_scope(switch_case.body, case_scope, class_information, function_information)
                 builder.add_user("}")
             }
@@ -8779,13 +9327,7 @@ func calls_also_in(
 }
 
 func copied_names(names: List<String>): List<String> {
-    var copy = List<String>()
-    var index = 0
-    while index < names.count() {
-        copy.append(names[index])
-        index = index + 1
-    }
-    return copy
+    return names.copy()
 }
 
 func collect_narrowed_names(condition: Syntax.Expressions.Expression, names: List<String>) {
@@ -8803,15 +9345,7 @@ func collect_narrowed_names(condition: Syntax.Expressions.Expression, names: Lis
             collect_narrowed_names(binary.left, names)
             collect_narrowed_names(binary.right, names)
         } else if binary.operator == 'equal' or binary.operator == 'not_equal' {
-            var compared_with_class = false
-            var right_member = shape.as_member(binary.right)
-            var right_identifier = shape.as_identifier(binary.right)
-            if right_member {
-                compared_with_class = starts_upper_case(right_member.name)
-            } else if right_identifier {
-                compared_with_class = starts_upper_case(right_identifier.name)
-            }
-            if compared_with_class or shape.is_null_literal(binary.right) {
+            if names_a_class_or_null(binary.right) {
                 collect_mentioned_names(binary.left, names)
             }
         }
@@ -8819,6 +9353,14 @@ func collect_narrowed_names(condition: Syntax.Expressions.Expression, names: Lis
     }
     if shape.as_identifier(condition) or shape.as_member(condition) or shape.as_index(condition) {
         collect_mentioned_names(condition, names)
+    }
+}
+
+func names_a_class_or_null(expression: Syntax.Expressions.Expression): Bool {
+    switch expression {
+        Syntax.Expressions.MemberExpression: return starts_upper_case(expression.name)
+        Syntax.Expressions.IdentifierExpression: return starts_upper_case(expression.name)
+        _: return shape.is_null_literal(expression)
     }
 }
 
@@ -8872,17 +9414,19 @@ func collect_statement_call_parts(
 ) {
     var arguments = List<Syntax.Expressions.Expression>()
     var callee: Syntax.Expressions.Expression? = null
-    var call = shape.as_call(expression)
-    var generic_call = shape.as_generic_call(expression)
-    if call {
-        callee = call.callee
-        arguments = call.arguments
-    } else if generic_call {
-        callee = generic_call.callee
-        arguments = generic_call.arguments
-    } else {
-        collect_repeatable_calls(expression, changed, calls)
-        return
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            callee = expression.callee
+            arguments = expression.arguments
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            callee = expression.callee
+            arguments = expression.arguments
+        }
+        _: {
+            collect_repeatable_calls(expression, changed, calls)
+            return
+        }
     }
     crash callee
     collect_repeatable_calls(callee, changed, calls)
@@ -9147,22 +9691,15 @@ func report_argument_calls(callee: Syntax.Expressions.Expression, arguments: Lis
 }
 
 func report_calls_in_argument(expression: Syntax.Expressions.Expression, called: String, constructor: String) {
-    var callee: Syntax.Expressions.Expression? = null
-    var arguments = List<Syntax.Expressions.Expression>()
-    var call = shape.as_call(expression)
-    var generic_call = shape.as_generic_call(expression)
-    if call {
-        callee = call.callee
-        arguments = call.arguments
-    } else if generic_call {
-        callee = generic_call.callee
-        arguments = generic_call.arguments
-    }
-    if callee {
-        report_call_in_argument(expression, callee, arguments, called, constructor)
-        return
-    }
     switch expression {
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            report_call_in_argument(expression, expression.callee, expression.arguments, called, constructor)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            report_call_in_argument(expression, expression.callee, expression.arguments, called, constructor)
+        }
         Syntax.Expressions.BinaryExpression: {
             crash expression.left
             crash expression.right
@@ -9431,13 +9968,8 @@ func generate_union_dispatch(
         if is_call {
             var member_function = member.find_function(member_name)
             if member_function {
-                var call_arguments = List<String>()
-                call_arguments.append(casted_object)
-                var copy_index = 0
-                while copy_index < argument_temporaries.count() {
-                    call_arguments.append(argument_temporaries[copy_index])
-                    copy_index = copy_index + 1
-                }
+                var call_arguments = argument_temporaries.copy()
+                call_arguments.prepend(casted_object)
                 branch_code = "{member_function.c_name}({call_arguments.join(", ")})"
             } else {
                 report(
@@ -9575,18 +10107,13 @@ func generate_while_statement(
     function_information: Analysis.FunctionInfo,
 ) {
     assert while_statement.condition
+    note_user_loop(class_information, while_statement.line)
     var guard = try_nullable_guard(while_statement.condition, scope, class_information)
     if guard {
         builder.add_user("while ({guard.guard_code}) \{")
         var narrowed_body = Scope(scope)
         narrowed_body.is_loop = true
-        if guard.override_code.is_empty() {
-            narrowed_body.narrow_path(guard.name)
-        } else {
-            narrowed_body.set_override(guard.name, guard.override_code)
-            var guard_inner = guard.get_inner()
-            narrowed_body.declare(guard.name, guard_inner)
-        }
+        narrow_by_guard(narrowed_body, guard)
         generate_block_in_scope(while_statement.body, narrowed_body, class_information, function_information)
         builder.add_user("}")
         return
@@ -9810,22 +10337,16 @@ func generate_assert_statement(
     var guard_code = ""
     if guard {
         guard_code = guard.guard_code
-        if guard.override_code.is_empty() {
-            scope.narrow_path(guard.name)
-        } else {
-            scope.set_override(guard.name, guard.override_code)
-            var guard_inner = guard.get_inner()
-            scope.declare(guard.name, guard_inner)
-        }
+        narrow_by_guard(scope, guard)
     } else {
         var condition_result = generate_expression(assert_statement.value, scope, class_information)
         guard_code = owned_truth(condition_result, assert_statement.value)
         narrow_proven_indices(assert_statement.value, scope)
+        var keyword = "assert"
         if assert_statement.is_crash {
-            check_condition(condition_result, "crash")
-        } else {
-            check_condition(condition_result, "assert")
+            keyword = "crash"
         }
+        check_condition(condition_result, keyword)
     }
     if not assert_statement.is_crash {
         var function_information_return_type = function_information.get_return_type()
@@ -10000,6 +10521,10 @@ func constructor_parameter_list(information: Analysis.ClassInfo): String {
 }
 
 func function_signature(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    return named_signature(information, function, function.c_name)
+}
+
+func named_signature(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, c_name: String): String {
     var parts = List<String>()
     parts.append("{information.c_name}* self")
     var index = 0
@@ -10010,7 +10535,7 @@ func function_signature(information: Analysis.ClassInfo, function: Analysis.Func
         index = index + 1
     }
     var function_return_type = function.get_return_type()
-    return "{c_type_name(function_return_type)} {function.c_name}({parts.join(", ")})"
+    return "{c_type_name(function_return_type)} {c_name}({parts.join(", ")})"
 }
 
 func emit_class_prototypes(information: Analysis.ClassInfo) {
@@ -10083,13 +10608,8 @@ func emit_class_support(information: Analysis.ClassInfo) {
     make_lines.append("{information.c_name}* {information.c_name}_make({constructor_parameter_list(information)}) \{")
     make_lines.append("{information.c_name}* self = {information.c_name}_allocate();")
     if information.constructor {
-        var arguments = List<String>()
-        arguments.append("self")
-        var parameter_index = 0
-        while parameter_index < information.constructor.parameters.count() {
-            arguments.append(information.constructor.parameters[parameter_index].name)
-            parameter_index = parameter_index + 1
-        }
+        var arguments = information.constructor.parameters.map_name()
+        arguments.prepend("self")
         make_lines.append("{information.constructor.c_name}({arguments.join(", ")});")
     }
     make_lines.append("return self;")
@@ -10097,13 +10617,12 @@ func emit_class_support(information: Analysis.ClassInfo) {
     var joined_make_lines = make_lines.join("\n")
     builder.add_support(joined_make_lines)
     builder.add_support(
-        "{information.c_name}* {information.c_name}_retain({information.c_name}* self) \{ if (self != 0) self->header.ref_count = self->header.ref_count + 1; return self; }",
+        "{information.c_name}* {information.c_name}_retain({information.c_name}* self) \{ if (self != 0) SPITE_COUNT_UP(self->header.ref_count); return self; }",
     )
     var release_lines = List<String>()
     release_lines.append("void {information.c_name}_release({information.c_name}* self) \{")
     release_lines.append("if (self == 0) return;")
-    release_lines.append("self->header.ref_count = self->header.ref_count - 1;")
-    release_lines.append("if (self->header.ref_count > 0) return;")
+    release_lines.append("if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;")
     if information.drop_function {
         release_lines.append("{information.drop_function.c_name}(self);")
     }
@@ -10187,7 +10706,15 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
     if not function.source_path.is_empty() {
         current_path = function.source_path
     }
-    bind_symbol_of(information, function)
+    bind_symbol_of(function)
+    var waiting = waiting_kind(information, function)
+    if not waiting.is_empty() {
+        waiting_classes.append(information)
+        waiting_functions.append(function)
+        waiting_kinds.append(waiting)
+        var user_count = builder.user_count()
+        waiting_positions.append(user_count)
+    }
     builder.add_user("{function_signature(information, function)} \{")
     var scope = Scope(null)
     arguments_parameter_names.clear()
@@ -10319,7 +10846,175 @@ func debug_memory_class_name_table(): String {
     return "\{ {names.join(", ")} }"
 }
 
+func is_library_class(information: Analysis.ClassInfo): Bool {
+    return information.source_path.starts_with("library/") or information.source_path.starts_with("launcher/")
+}
+
+func note_user_loop(class_information: Analysis.ClassInfo, line: Int) {
+    assert unwaiting_loop_path.is_empty() and not is_library_class(class_information)
+    unwaiting_loop_path = current_path
+    unwaiting_loop_line = line
+    unwaiting_loop_owner = current_owner
+    unwaiting_loop_function = current_function
+}
+
+func note_waiting_call(target_class: Analysis.ClassInfo, name: String, caller: Analysis.ClassInfo) {
+    assert not is_library_class(caller)
+    var owner = target_class.qualified_dotted
+    var sleeps = owner == "Program" and name == "sleep"
+    var reads = (owner == "Console" or owner == "Socket") and name == "read_line"
+    var accepts = owner == "Socket" and name == "accept_client"
+    var files = owner == "File" and (name == "read" or name == "write" or name == "append")
+    var tasks = owner == "Concurrent" or owner == "Parallel"
+    if sleeps or reads or accepts or files or tasks {
+        program_waits = true
+    }
+}
+
+func check_remote_loop_waits() {
+    assert remote_loop_port > 0 and not program_waits and not unwaiting_loop_path.is_empty()
+    current_path = unwaiting_loop_path
+    current_line = unwaiting_loop_line
+    current_owner = unwaiting_loop_owner
+    current_function = unwaiting_loop_function
+    report(
+        "a --repl_port build answers its REPL where the program waits (Program().sleep, Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel) and after the entry constructor returns, and this program never waits: if this loop does not end, the REPL never answers. Wait somewhere in the loop, such as 'Program().sleep(1)' at the end of a frame",
+    )
+}
+
+func waiting_kind(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    var owner = information.qualified_dotted
+    var name = function.name
+    if owner == "Program" and name == "sleep" {
+        return "sleep"
+    }
+    if owner == "Parallel" and name == "join_thread" {
+        return "yield"
+    }
+    var reads = owner == "Console" and name == "read_line_into"
+    var receives = owner == "Socket" and (name == "accept_handle" or name == "receive_into")
+    var files = owner == "File" and (name == "read_into" or name == "write_text")
+    if reads or receives or files {
+        return "offload"
+    }
+    return ""
+}
+
+func finish_waiting_points() {
+    assert scheduler_used or remote_loop_port > 0
+    builder.threads = true
+    var scheduler_class = find_class_by_qualified("Scheduler")
+    crash scheduler_class
+    var scheduler = singleton_call(scheduler_class)
+    builder.add_typedef(
+        "typedef struct SpiteOffload \{ int64_t done; void (*perform)(void*); void* scheduler; } SpiteOffload;",
+    )
+    builder.add_prototype("static void* spite_offload_thread(void* call);")
+    builder.add_support(
+        "static void* spite_offload_thread(void* call) \{\nSpiteOffload* offload = (SpiteOffload*)call;\noffload->perform(call);\nScheduler_offload_done((Scheduler*)offload->scheduler, (int64_t)(intptr_t)call);\nreturn 0;\n}",
+    )
+    var index = 0
+    while index < waiting_functions.count() {
+        var information = waiting_classes.get_at(index)
+        var function = waiting_functions[index]
+        var position = waiting_positions.get_at(index)
+        var kind = waiting_kinds.get_at(index)
+        var waited_name = "{function.c_name}_waiting"
+        var waited_signature = named_signature(information, function, waited_name)
+        builder.replace_user(position, "{waited_signature} \{")
+        builder.add_prototype("{waited_signature};")
+        emit_waiting_wrapper(information, function, kind, scheduler)
+        index = index + 1
+    }
+}
+
+func emit_waiting_wrapper(
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    kind: String,
+    scheduler: String,
+) {
+    var arguments = List<String>()
+    arguments.append("self")
+    var index = 0
+    while index < function.parameters.count() {
+        arguments.append(function.parameters[index].name)
+        index = index + 1
+    }
+    var waited = "{function.c_name}_waiting({arguments.join(", ")})"
+    var lines = List<String>()
+    lines.append("{function_signature(information, function)} \{")
+    lines.append("Scheduler* spite_scheduler = {scheduler};")
+    if kind == "yield" {
+        lines.append("{waited};")
+        lines.append("if (Scheduler_suspends_here(spite_scheduler)) Scheduler_yield_now(spite_scheduler);")
+        lines.append("Scheduler_release(spite_scheduler);")
+    } else if kind == "sleep" {
+        crash function.parameters[0]
+        lines.append(
+            "if (Scheduler_suspends_here(spite_scheduler)) Scheduler_sleep(spite_scheduler, {function.parameters[0].name}); else {waited};",
+        )
+        lines.append("Scheduler_release(spite_scheduler);")
+    } else {
+        var offloaded = offloaded_call_lines(information, function, arguments, waited)
+        lines.append(offloaded)
+    }
+    lines.append("}")
+    var joined_lines = lines.join("\n")
+    builder.add_user(joined_lines)
+}
+
+func offloaded_call_lines(
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    arguments: List<String>,
+    waited: String,
+): String {
+    var call_type = "{function.c_name}_call"
+    var return_type = function.get_return_type()
+    var returns = not type_shape.is_void(return_type)
+    var fields = List<String>()
+    fields.append("SpiteOffload offload;")
+    fields.append("{information.c_name}* self;")
+    var passed = List<String>()
+    passed.append("call->self")
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var parameter_type = parameter.get_type()
+        fields.append("{c_type_name(parameter_type)} {parameter.name};")
+        passed.append("call->{parameter.name}")
+        index = index + 1
+    }
+    var stored = ""
+    var blocked = "{waited}; Scheduler_release(spite_scheduler); return;"
+    var answered = "return;"
+    if returns {
+        fields.append("{c_type_name(return_type)} result;")
+        stored = "call->result = "
+        blocked = "Scheduler_release(spite_scheduler); return {waited};"
+        answered = "return spite_call.result;"
+    }
+    builder.add_typedef("typedef struct {call_type} \{ {fields.join(" ")} } {call_type};")
+    builder.add_prototype("static void {function.c_name}_perform(void* raw);")
+    builder.add_support(
+        "static void {function.c_name}_perform(void* raw) \{\n{call_type}* call = ({call_type}*)raw;\n{stored}{function.c_name}_waiting({passed.join(", ")});\n}",
+    )
+    var lines = List<String>()
+    lines.append("if (!Scheduler_suspends_here(spite_scheduler)) \{ {blocked} }")
+    lines.append(
+        "{call_type} spite_call = \{ \{ 0, &{function.c_name}_perform, spite_scheduler }, {arguments.join(", ")} };",
+    )
+    lines.append(
+        "if (!Scheduler_offload(spite_scheduler, (int64_t)(intptr_t)&spite_call, (int64_t)(intptr_t)&spite_offload_thread)) \{ {blocked} }",
+    )
+    lines.append("Scheduler_release(spite_scheduler);")
+    lines.append(answered)
+    return lines.join("\n")
+}
+
 func remote_loop_start(entry_class: Analysis.ClassInfo, lines: List<String>) {
+    builder.threads = true
     var program_symbol = ensure_symbol("program")
     builder.add_support(
         "static ReadEvaluatePrintLoop* spite_remote_loop = 0;\nstatic {entry_class.c_name}* spite_remote_program = 0;\nstatic void* spite_remote_loop_thread(void* unused) \{\n(void)unused;\nReadEvaluatePrintLoop_serve(spite_remote_loop, spite_reflect_{entry_class.c_name}({program_symbol}, spite_remote_program));\nreturn 0;\n}",

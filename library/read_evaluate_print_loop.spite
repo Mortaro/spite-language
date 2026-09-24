@@ -5,9 +5,15 @@ type Answer {
 }
 
 var console = Console()
+var memory = Memory()
 var unresolved = ""
 var server = Socket()
+var scheduler = Scheduler()
 var thread: Long = 0
+var handover: Long = 0
+var pending_command = ""
+var answered: Answer? = null
+var served: Spite.Attribute? = null
 
 func step(program: Spite.Attribute): Bool {
     console.write("spite> ")
@@ -32,6 +38,12 @@ func listen_in_background(port: Int, entry: Long) {
         Program().exit(1)
         return
     }
+    handover = memory.allocate_bytes(16)
+    memory.write_long(handover, 0, 0)
+    memory.write_long(handover, 8, 0)
+    scheduler.start()
+    scheduler.serving = true
+    scheduler.commands = answer_pending
     thread = start_thread(entry)
     if thread == 0 {
         console.error("error: the REPL could not start its thread")
@@ -40,34 +52,48 @@ func listen_in_background(port: Int, entry: Long) {
 }
 
 func wait_for_exit() {
+    while memory.read_long_atomically(handover, 8) == 0 {
+        scheduler.idle()
+    }
+    scheduler.serving = false
+    scheduler.commands = null
     join_thread(thread)
 }
 
+func drop() {
+    if handover != 0 {
+        memory.free(handover)
+    }
+}
+
 func serve(program: Spite.Attribute) {
+    served = program
     var serving = true
     while serving {
         var client = server.accept_client()
         if client {
-            serve_client(client, program)
+            serve_client(client)
         } else {
             serving = false
         }
     }
+    memory.write_long_atomically(handover, 8, 1)
+    scheduler.signal()
 }
 
-func serve_client(client: Socket, program: Spite.Attribute) {
+func serve_client(client: Socket) {
     var connected = true
     while connected {
         var line = client.read_line()
         if line {
             var trimmed_line = line.trim()
+            var answer = handed_over(trimmed_line)
             if trimmed_line == "exit" {
                 client.write_line("\{\"ok\":true,\"value\":\"\",\"type\":\"\"}")
                 client.close()
                 Program().exit(0)
                 return
             }
-            var answer = answer(trimmed_line, program)
             var json_line = json_line(answer)
             connected = client.write_line(json_line)
         } else {
@@ -75,6 +101,32 @@ func serve_client(client: Socket, program: Spite.Attribute) {
         }
     }
     client.close()
+}
+
+func handed_over(command: String): Answer {
+    pending_command = command
+    memory.write_long_atomically(handover, 0, 1)
+    scheduler.signal()
+    while memory.read_long_atomically(handover, 0) != 2 {
+        pause_briefly()
+    }
+    crash answered
+    memory.write_long_atomically(handover, 0, 0)
+    return answered
+}
+
+func answer_pending() {
+    if memory.read_long_atomically(handover, 0) == 1 {
+        memory.write_long_atomically(handover, 0, 3)
+        crash served
+        answered = answer(pending_command, served)
+        memory.write_long_atomically(handover, 0, 2)
+        if pending_command == "exit" {
+            while true {
+                pause_briefly()
+            }
+        }
+    }
 }
 
 func json_line(answer: Answer): String {

@@ -80,8 +80,11 @@ the modded monster taunts you
 ```
 
 `mods/monster.spite` never redeclares `health` -- reopening only needs the names it actually adds or replaces.
-A `var`'s replacement must keep the same type; the standard library (`Console`, `String`, `List<T>`, ...)
-cannot be reopened at all, and gets its own clear diagnostic instead. Your foot to shoot with everything else.
+A `var`'s replacement must keep the same type; the built-in classes (`Console`, `String`, ...) cannot be
+reopened at all, and get their own clear diagnostic instead. `List<T>` is Spite in `library/list.spite`, and a
+program's own `list.spite` reopens it to add a member template (see
+[standard_library.md](standard_library.md#write-your-own-member-template)). Your foot to shoot with everything
+else.
 
 ## The `Spite` namespace is reserved
 

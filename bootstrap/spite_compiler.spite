@@ -302,7 +302,7 @@ func in_file_order(file: Syntax.SourceFile, class_name: String): Syntax.SourceFi
     var ranking = Discovery.ProgramDiscovery()
     var ordered = List<Syntax.Statements.Statement>()
     var rank = -1
-    while rank < 6 {
+    while rank < 8 {
         var index = 0
         while index < file.statements.count() {
             if ranking.order_rank(file.statements[index], class_name) == rank {
@@ -374,16 +374,8 @@ func final_class_file_name(class_name: String): String {
 
 func final_class_directory(path: String): String {
     var segments = path.split("/")
-    var result = ""
-    var index = 0
-    while index < segments.count() - 1 {
-        if index > 0 {
-            result = "{result}/"
-        }
-        result = "{result}{segments[index]}"
-        index = index + 1
-    }
-    return result
+    segments.remove_last()
+    return segments.join("/")
 }
 
 func create_final_class_directory(path: String) {

@@ -1,0 +1,6 @@
+var console = Console()
+
+func SingletonFunction() {
+    var ledger = Ledger()
+    console.print(ledger.total)
+}
