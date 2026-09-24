@@ -1,18 +1,14 @@
 # REPL and live reload
 
-> **What is built** (D72): `spite program --repl` runs the program, then answers `attributes`,
+> **What is built:** `spite program --repl` runs the program, then answers `attributes`,
 > `functions`, `help`, `exit`, paths such as `monsters[0].health` or `program.player_name`, assignment of a
 > number, Bool, text or enum literal (`monsters[0].health = 5`, which prints the value read back), and calls with
 > literal arguments that print what they return (`monsters[0].roar()`, `monsters.count()`), written in Spite
-<<<<<<< HEAD
-> (`library/read_evaluate_print_loop.spite`). `--repl_port` answers the same commands over TCP, one JSON line
-> each, and `spite connect` is its client. The meta commands `classes`, `describe`, `enums` and `memory` are the
-=======
 > (`library/read_evaluate_print_loop.spite`). `--repl_port` answers the same commands over TCP, one JSON line
 > each, answered where the program waits ([concurrency.md](concurrency.md)), and `spite connect` is its
-> client. The meta commands `classes`, `describe`, `enums` and `memory` are the
->>>>>>> master
-> design, not yet built (manual.md section 14).
+> client. **Not built yet:** the meta commands `classes`, `describe`, `enums` and `memory`, walking a
+> `Dictionary<T>` or a union, and assigning a `T?`, a list element or a whole instance
+> ([manual section 14](../manual.md#14-repl-and-live-reload--partial)).
 >
 > ```text
 > spite> monsters[0]
@@ -25,11 +21,12 @@
 > no attribute 'monstrs' in program: console, player_name, player_age, monsters
 > ```
 
-Milestone 6a: a REPL that inspects and drives the *running* program -- local (`--repl`, stdin) and remote
-(`--repl_port`, TCP). Compiling and running arbitrary new Spite code inside the process, `Class.instances`, and
-swapping code while the program runs are all **[planned]**, blocked on manual.md's open question 4 (see
-[memory.md](memory.md)'s boxed note). What exists today only *reads and mutates the existing running state* --
-it is a debugger, not a live-coding console, yet.
+The REPL inspects and drives the *running* program -- local (`--repl`, standard input) and remote
+(`--repl_port`, TCP). It is ordinary Spite, `ReadEvaluatePrintLoop` in the standard library, walking the program
+through reflection ([reflection.md](reflection.md)). What exists today reads and changes the running state: it
+is a debugger, not a live-coding console. Compiling new Spite code into the running process and swapping code
+while it runs (live reload) are decided but not built
+([manual section 14](../manual.md#live-reload-and-6b--planned)).
 
 ## The program this page uses
 
@@ -65,9 +62,10 @@ player Hero age 20
 monster count 2
 ```
 
-Reflection tables (every reachable class's attributes, and every callable function whose parameters are all
-scalar/String/enum) are only emitted for a `--repl`/`--repl_port` build -- never for a normal build, so this
-costs nothing when you are not debugging.
+What the loop needs to reach a live value -- the attributes and functions of every class the loop can reach,
+and the member templates that fit each list's elements, so `monsters.sum_health()` works at the prompt -- is
+compiled only into a `--repl`/`--repl_port` build, never into a normal one, so it costs nothing when you are not
+debugging.
 
 ## Local: `--repl`
 
@@ -88,19 +86,14 @@ spite repl_program --repl_port=4000
 Before the constructor runs, the program listens on `127.0.0.1:4000` **only**, and a background thread takes
 one client at a time -- there is **no authentication**. Anyone who can reach that port on that machine can read
 and mutate the running program. This is a local debugging tool for you and an AI on the same machine, never
-<<<<<<< HEAD
-something to expose past `127.0.0.1`. The program keeps running while it is served (the thread reads and writes
-its values without waiting for it -- a debugger, so that race is accepted), and when the constructor returns the
-process stays alive until a client sends `exit`, which flushes what the program printed and ends it with exit
-code 0. The port is part of the build: a program built with `--repl_port` always listens on that port.
-=======
 something to expose past `127.0.0.1`. The program keeps running while it is served, and each command is answered
 on the program's own thread the next time it waits -- a `Program().sleep`, a `Console.read_line()`, a file or socket
 read -- so a command never sees it halfway through a step ([concurrency.md](concurrency.md) has the details and a
 frame loop served between frames). When the constructor returns the process stays alive until a client sends
-`exit`, which flushes what the program printed and ends it with exit
-code 0. The port is part of the build: a program built with `--repl_port` always listens on that port.
->>>>>>> master
+`exit`, which flushes what the program printed and ends it with exit code 0. The port is part of the build: a
+program built with `--repl_port` always listens on that port, and a port another program holds stops it before
+its constructor runs, with `error: the REPL could not listen on 127.0.0.1:<port>`. With `--repl` as well, the
+console loop runs first, and after its `exit` the process keeps serving the port.
 
 Talk to it with the compiler's own client:
 
@@ -120,7 +113,9 @@ One command per line in, one line of JSON out: `{"ok":true,"value":"...","type":
 inside that one JSON string, never a real newline on the wire. `type` is the class of the value; it is empty
 for an answer that is not a value (`help`, `attributes`, `functions`, `exit`) and `Nothing` for a call that
 returns nothing. The entry instance is always rooted at the fixed name `program`, regardless of what the entry
-class is actually called, and a path may leave `program.` out.
+class is actually called, and a path may leave `program.` out. JSON is what the wire speaks today, not a
+promise: the format is free to become whatever an AI client reads best, binary included
+([manual, D96](../manual.md#decision-log)).
 
 The commands are the ones `--repl` answers:
 
