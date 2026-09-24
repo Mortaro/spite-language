@@ -1,0 +1,23 @@
+var console = Console()
+var player = Player("hero")
+var monsters = List<Monster>()
+var target: Monster? = null
+var turn = 1
+
+func InteractivePaths() {
+    monsters.append(Monster("rat", 3))
+    monsters.append(Monster("bat", 5))
+    console.print("ready")
+}
+
+func weakest(): Monster {
+    return Monster("mouse", 1)
+}
+
+func add(left: Int, right: Int): Int {
+    return left + right
+}
+
+func greet(name: String): String {
+    return "hello {name}"
+}

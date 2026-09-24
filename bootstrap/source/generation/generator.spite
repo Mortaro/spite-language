@@ -24,6 +24,8 @@ var foreign_headers_included = List<String>()
 var function_value_makers = List<String>()
 var written_in_spite = List<String>()
 var read_evaluate_print_loop = false
+var reflect_function_names = List<String>()
+var live_reflection_emitted = false
 var body_narrowed_names = List<String>()
 var body_assigned_paths = List<String>()
 var singleton_names = List<String>()
@@ -439,8 +441,8 @@ func generate(
     if read_evaluate_print_loop {
         var looped_class = find_class_by_c_name(discovery.entry_mangled_name)
         if looped_class {
-            ensure_attributes_function(looped_class)
-            ensure_functions_function(looped_class)
+            ensure_symbol("program")
+            ensure_reflect_function(class_type_of(looped_class))
         }
     }
     var settle = 0
@@ -3956,6 +3958,20 @@ func generate_method_call(
     crash object_class_ref
     var target_class = find_class_by_c_name(object_class_ref.c_name)
     crash target_class
+    if target_class.c_name == "Spite_Attribute" or target_class.c_name == "Spite_Function" {
+        var live = generate_live_reflection_call(
+            target_class,
+            member.name,
+            object_result,
+            object_ast,
+            arguments_ast,
+            scope,
+            class_information,
+        )
+        if live {
+            return live
+        }
+    }
     if target_class.c_name == "Spite_Function" and member.name == "call_function" {
         return generate_generic_call(
             "Spite_Function_call_function",
@@ -5031,6 +5047,12 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
     var lines = List<String>()
     lines.append("{list_name}* {function_c_name}({information.c_name}* self) \{")
     lines.append("{list_name}* result = {list_name}_make();")
+    if read_evaluate_print_loop {
+        builder.add_prototype("{list_name}* {function_c_name}({information.c_name}* self);")
+        append_live_attributes(information, list_name, lines)
+        builder.add_support(lines.join("\n"))
+        return function_c_name
+    }
     var index = 0
     while index < information.fields.count() {
         var field = information.fields[index]
@@ -5127,6 +5149,12 @@ func emit_functions_function(information: Analysis.ClassInfo) {
                 lines.append("described->spite_call = (void (*)(void*)){function.c_name};")
             }
             lines.append("described->spite_typed_call = (void*){function.c_name};")
+            if read_evaluate_print_loop {
+                var text_call = ensure_text_call(information, function)
+                if not text_call.is_empty() {
+                    lines.append("described->spite_text_call = (void*){text_call};")
+                }
+            }
             lines.append("{list_name}_add(result, described);")
             lines.append("}")
         }
@@ -5142,6 +5170,322 @@ func emit_functions_function_bodies() {
         emit_functions_function(functions_function_classes[functions_functions_emitted])
         functions_functions_emitted = functions_functions_emitted + 1
     }
+}
+
+func hidden_attribute_links_cleared(target: String): String {
+    return "{target}->spite_owner = 0; {target}->spite_release_owner = 0; {target}->spite_assign = 0; {target}->spite_held = 0; {target}->spite_release_held = 0; {target}->spite_held_attributes = 0; {target}->spite_held_functions = 0;"
+}
+
+func append_live_attributes(information: Analysis.ClassInfo, list_name: String, lines: List<String>) {
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var reflect = ensure_reflect_function(field.get_type())
+        lines.append("\{")
+        lines.append("Spite_Attribute* spite_field = {reflect}({ensure_symbol(field.name)}, self->{field.name});")
+        var assign = ensure_assign_function(information, field)
+        if not assign.is_empty() {
+            lines.append("spite_field->spite_owner = {information.c_name}_retain(self);")
+            lines.append("spite_field->spite_release_owner = (void (*)(void*)){information.c_name}_release;")
+            lines.append("spite_field->spite_assign = {assign};")
+        }
+        lines.append("{list_name}_add(result, spite_field);")
+        lines.append("}")
+        index = index + 1
+    }
+    lines.append("(void)self;")
+    lines.append("return result;")
+    lines.append("}")
+}
+
+func reflected_label(spite_type: Analysis.SpiteType): String {
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        return "Nullable_{type_label(nullable.get_inner())}"
+    }
+    return type_label(spite_type)
+}
+
+func walkable_class(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var class_ref = type_shape.as_class_ref(expected_type_without_nullable(spite_type))
+    assert class_ref
+    if class_ref.has_signature {
+        return null
+    }
+    var described = find_class_by_c_name(class_ref.c_name)
+    assert described
+    if described.is_builtin or described.is_value_class or described.is_generic_template {
+        return null
+    }
+    return described
+}
+
+func reflected_text(spite_type: Analysis.SpiteType, code: String): String {
+    if type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type) {
+        return "SpiteString_retain({code})"
+    }
+    if type_shape.as_scalar(spite_type) or is_enum_type(spite_type) {
+        return string_conversion(code, spite_type)
+    }
+    if type_shape.as_list(spite_type) or type_shape.as_dictionary(spite_type) {
+        return "{number_text_function("long_text", "int64_t")}({code}->count)"
+    }
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.get_inner()
+        if type_is_reference(inner) {
+            return "({code} == 0 ? {ensure_symbol("null")} : {reflected_text(inner, code)})"
+        }
+        return "({code}.has_value ? {reflected_text(inner, "{code}.value")} : {ensure_symbol("null")})"
+    }
+    return "(&spite_static_string_empty)"
+}
+
+func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
+    var function_c_name = "spite_reflect_{reflected_label(spite_type)}"
+    if reflect_function_names.contains(function_c_name) {
+        return function_c_name
+    }
+    reflect_function_names.append(function_c_name)
+    var signature = "Spite_Attribute* {function_c_name}(SpiteString* name, {c_type_name(spite_type)} value)"
+    builder.add_prototype("{signature};")
+    var lines = List<String>()
+    lines.append("{signature} \{")
+    lines.append(
+        "Spite_Attribute* reflected = Spite_Attribute_make(name, {class_object_call(spite_type)}, {reflected_text(spite_type, "value")});",
+    )
+    var walked = walkable_class(spite_type)
+    if walked {
+        lines.append("reflected->spite_held = {walked.c_name}_retain(value);")
+        lines.append("reflected->spite_release_held = (void (*)(void*)){walked.c_name}_release;")
+        lines.append("reflected->spite_held_attributes = (void* (*)(void*)){ensure_attributes_function(walked)};")
+        lines.append("reflected->spite_held_functions = (void* (*)(void*)){ensure_functions_function(walked)};")
+    }
+    var list_type = type_shape.as_list(spite_type)
+    if list_type {
+        var list_name = ensure_list(list_type.get_element())
+        lines.append("reflected->spite_held = {list_name}_retain(value);")
+        lines.append("reflected->spite_release_held = (void (*)(void*)){list_name}_release;")
+        lines.append(
+            "reflected->spite_held_attributes = (void* (*)(void*)){ensure_list_attributes_function(list_type.get_element())};",
+        )
+    }
+    lines.append("return reflected;")
+    lines.append("}")
+    builder.add_support(lines.join("\n"))
+    return function_c_name
+}
+
+func ensure_list_attributes_function(element: Analysis.SpiteType): String {
+    var list_name = ensure_list(element)
+    var function_c_name = "{list_name}_attributes"
+    if reflect_function_names.contains(function_c_name) {
+        return function_c_name
+    }
+    reflect_function_names.append(function_c_name)
+    var attribute_class = find_class_by_c_name("Spite_Attribute")
+    crash attribute_class
+    var attributes_list = ensure_list(class_type_of(attribute_class))
+    var signature = "{attributes_list}* {function_c_name}({list_name}* self)"
+    builder.add_prototype("{signature};")
+    var reflect = ensure_reflect_function(element)
+    builder.add_support(
+        "{signature} \{\n{attributes_list}* result = {attributes_list}_make();\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) {attributes_list}_add(result, {reflect}({number_text_function("long_text", "int64_t")}(spite_index), self->items[spite_index]));\nreturn result;\n}",
+    )
+    return function_c_name
+}
+
+func enum_from_text_lines(enum_type: Analysis.Types.EnumType, text: String, target: String, failure: String): String {
+    var chain = List<String>()
+    var index = 0
+    while index < enum_type.values.count() {
+        var value = enum_type.values[index]
+        chain.append("if (SpiteString_equals({text}, {ensure_symbol(value)})) {target} = {enum_type.c_name}_{value};")
+        index = index + 1
+    }
+    chain.append(failure)
+    return chain.join(" else ")
+}
+
+func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.FieldInfo): String {
+    var field_type = field.get_type()
+    var function_c_name = "{information.c_name}_assign_{field.name}"
+    var assigned_c = c_type_name(field_type)
+    var lines = List<String>()
+    lines.append("bool {function_c_name}(void* owner, SpiteString* text) \{")
+    lines.append("{information.c_name}* self = ({information.c_name}*)owner;")
+    if type_shape.as_string(field_type) {
+        lines.append("{assigned_c} assigned = SpiteString_retain(text);")
+    } else if type_shape.as_scalar(field_type) {
+        lines.append("{assigned_c} assigned = {cast("text", string_type(), field_type)};")
+    } else {
+        var enum_type = type_shape.as_enum(field_type)
+        if enum_type {
+            lines.append("{assigned_c} assigned;")
+            lines.append(enum_from_text_lines(enum_type, "text", "assigned", "return false;"))
+        } else {
+            return ""
+        }
+    }
+    var setter = information.find_function("set_{field.name}")
+    var through_setter = false
+    if setter {
+        through_setter = setter.parameters.count() == 1
+        if through_setter {
+            lines.append("{setter.c_name}(self, assigned);")
+        }
+    }
+    if not through_setter {
+        if type_needs_drop(field_type) {
+            lines.append("{release_call(field_type, "self->{field.name}")};")
+        }
+        lines.append("self->{field.name} = assigned;")
+    }
+    lines.append("return true;")
+    lines.append("}")
+    builder.add_prototype("bool {function_c_name}(void* owner, SpiteString* text);")
+    builder.add_support(lines.join("\n"))
+    return function_c_name
+}
+
+func ensure_text_call(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    var function_c_name = "{function.c_name}_text_call"
+    if reflect_function_names.contains(function_c_name) {
+        return function_c_name
+    }
+    var strings = ensure_list(string_type())
+    var lines = List<String>()
+    lines.append("Spite_Attribute* {function_c_name}(void* owner, {strings}* arguments) \{")
+    lines.append("if (arguments->count != {function.parameters.count()}) return 0;")
+    var call_arguments = List<String>()
+    call_arguments.append("({information.c_name}*)owner")
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter_type = function.parameters[index].get_type()
+        var item = "arguments->items[{index}]"
+        var enum_type = type_shape.as_enum(parameter_type)
+        if type_shape.as_string(parameter_type) {
+            call_arguments.append("SpiteString_retain({item})")
+        } else if type_shape.as_scalar(parameter_type) {
+            call_arguments.append(cast(item, string_type(), parameter_type))
+        } else if enum_type {
+            lines.append("{enum_type.c_name} argument_{index};")
+            lines.append(enum_from_text_lines(enum_type, item, "argument_{index}", "return 0;"))
+            call_arguments.append("argument_{index}")
+        } else {
+            return ""
+        }
+        index = index + 1
+    }
+    reflect_function_names.append(function_c_name)
+    var call = "{function.c_name}({call_arguments.join(", ")})"
+    var returned_type = function.get_return_type()
+    if type_shape.is_void(returned_type) {
+        lines.append("{call};")
+        lines.append(
+            "return Spite_Attribute_make({ensure_symbol("result")}, {returned_class_object_call(function)}, (&spite_static_string_empty));",
+        )
+    } else {
+        lines.append("{c_type_name(returned_type)} returned = {call};")
+        lines.append(
+            "Spite_Attribute* reflected = {ensure_reflect_function(returned_type)}({ensure_symbol("result")}, returned);",
+        )
+        if type_needs_drop(returned_type) {
+            lines.append("{release_call(returned_type, "returned")};")
+        }
+        lines.append("return reflected;")
+    }
+    lines.append("}")
+    builder.add_prototype("Spite_Attribute* {function_c_name}(void* owner, {strings}* arguments);")
+    builder.add_support(lines.join("\n"))
+    return function_c_name
+}
+
+func ensure_live_reflection(): Bool {
+    var attribute_class = find_class_by_c_name("Spite_Attribute")
+    var function_class = find_class_by_c_name("Spite_Function")
+    if not attribute_class {
+        report(
+            "reflection needs the standard library: library/spite/attribute.spite was not found from the working directory",
+        )
+        return false
+    }
+    if not function_class {
+        report(
+            "reflection needs the standard library: library/spite/function.spite was not found from the working directory",
+        )
+        return false
+    }
+    crash attribute_class
+    crash function_class
+    if live_reflection_emitted {
+        return true
+    }
+    live_reflection_emitted = true
+    var attributes_list = ensure_list(class_type_of(attribute_class))
+    var functions_list = ensure_list(class_type_of(function_class))
+    var strings = ensure_list(string_type())
+    builder.add_prototype("{attributes_list}* Spite_Attribute_value_attributes(Spite_Attribute* self);")
+    builder.add_support(
+        "{attributes_list}* Spite_Attribute_value_attributes(Spite_Attribute* self) \{\nif (self->spite_held != 0 && self->spite_held_attributes != 0) return ({attributes_list}*)self->spite_held_attributes(self->spite_held);\nreturn {attributes_list}_make();\n}",
+    )
+    builder.add_prototype("{functions_list}* Spite_Attribute_value_functions(Spite_Attribute* self);")
+    builder.add_support(
+        "{functions_list}* Spite_Attribute_value_functions(Spite_Attribute* self) \{\nif (self->spite_held != 0 && self->spite_held_functions != 0) return ({functions_list}*)self->spite_held_functions(self->spite_held);\nreturn {functions_list}_make();\n}",
+    )
+    builder.add_prototype("bool Spite_Attribute_assign(Spite_Attribute* self, SpiteString* text);")
+    builder.add_support(
+        "bool Spite_Attribute_assign(Spite_Attribute* self, SpiteString* text) \{\nbool spite_assigned = false;\nif (self->spite_owner != 0 && self->spite_assign != 0) spite_assigned = self->spite_assign(self->spite_owner, text);\nSpiteString_release(text);\nreturn spite_assigned;\n}",
+    )
+    builder.add_prototype("Spite_Attribute* Spite_Function_call_with_text(Spite_Function* self, {strings}* arguments);")
+    builder.add_support(
+        "Spite_Attribute* Spite_Function_call_with_text(Spite_Function* self, {strings}* arguments) \{\nSpite_Attribute* spite_result = 0;\nif (self->spite_text_call != 0) spite_result = ((Spite_Attribute* (*)(void*, {strings}*))self->spite_text_call)(self->spite_owner, arguments);\n{strings}_release(arguments);\nreturn spite_result;\n}",
+    )
+    return true
+}
+
+func generate_live_reflection_call(
+    target_class: Analysis.ClassInfo,
+    member_name: String,
+    object_result: ExpressionResult,
+    object_ast: Syntax.Expressions.Expression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    var on_attribute = target_class.c_name == "Spite_Attribute"
+    var on_function = target_class.c_name == "Spite_Function"
+    var parameters = no_types()
+    var returned = boolean_type()
+    if on_attribute and member_name == "value_attributes" {
+        returned = list_type_of(class_type_of(target_class))
+    } else if on_attribute and member_name == "value_functions" {
+        var function_class = find_class_by_c_name("Spite_Function")
+        crash function_class
+        returned = list_type_of(class_type_of(function_class))
+    } else if on_attribute and member_name == "assign" {
+        parameters = one_type(string_type())
+    } else if on_function and member_name == "call_with_text" {
+        var attribute_class = find_class_by_c_name("Spite_Attribute")
+        crash attribute_class
+        parameters = one_type(list_type_of(string_type()))
+        returned = nullable_type_of(class_type_of(attribute_class))
+    } else {
+        return null
+    }
+    if not ensure_live_reflection() {
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    return generate_generic_call(
+        "{target_class.c_name}_{member_name}",
+        object_result,
+        object_ast,
+        arguments_ast,
+        parameters,
+        returned,
+        scope,
+        class_information,
+    )
 }
 
 func generate_reflection_read(
@@ -8904,6 +9248,10 @@ func emit_class_support(information: Analysis.ClassInfo) {
         initialize_lines.append("self->spite_release_owner = 0;")
         initialize_lines.append("self->spite_call = 0;")
         initialize_lines.append("self->spite_typed_call = 0;")
+        initialize_lines.append("self->spite_text_call = 0;")
+    }
+    if information.c_name == "Spite_Attribute" {
+        initialize_lines.append(hidden_attribute_links_cleared("self"))
     }
     initialize_lines.append("}")
     builder.add_support(initialize_lines.join("\n"))
@@ -8967,6 +9315,14 @@ func emit_class_support(information: Analysis.ClassInfo) {
             "if (self->spite_owner != 0 && self->spite_release_owner != 0) self->spite_release_owner(self->spite_owner);",
         )
     }
+    if information.c_name == "Spite_Attribute" {
+        release_lines.append(
+            "if (self->spite_owner != 0 && self->spite_release_owner != 0) self->spite_release_owner(self->spite_owner);",
+        )
+        release_lines.append(
+            "if (self->spite_held != 0 && self->spite_release_held != 0) self->spite_release_held(self->spite_held);",
+        )
+    }
     release_lines.append("#ifdef SPITE_TRACKS_{information.c_name}")
     release_lines.append("spite_untrack_{information.c_name}(self);")
     release_lines.append("#endif")
@@ -8992,6 +9348,14 @@ func emit_class_support(information: Analysis.ClassInfo) {
         }
         copy_lines.append("spite_copy->{field.name} = {value_code};")
         copy_field_index = copy_field_index + 1
+    }
+    if information.c_name == "Spite_Function" {
+        copy_lines.append(
+            "spite_copy->spite_owner = 0; spite_copy->spite_release_owner = 0; spite_copy->spite_call = 0; spite_copy->spite_typed_call = 0; spite_copy->spite_text_call = 0;",
+        )
+    }
+    if information.c_name == "Spite_Attribute" {
+        copy_lines.append(hidden_attribute_links_cleared("spite_copy"))
     }
     copy_lines.append("#ifdef SPITE_TRACKS_{information.c_name}")
     copy_lines.append("spite_track_{information.c_name}(spite_copy);")
@@ -9071,6 +9435,16 @@ func emit_class(information: Analysis.ClassInfo) {
         struct_lines.append("void (*spite_release_owner)(void*);")
         struct_lines.append("void (*spite_call)(void*);")
         struct_lines.append("void* spite_typed_call;")
+        struct_lines.append("void* spite_text_call;")
+    }
+    if information.c_name == "Spite_Attribute" {
+        struct_lines.append("void* spite_owner;")
+        struct_lines.append("void (*spite_release_owner)(void*);")
+        struct_lines.append("bool (*spite_assign)(void*, SpiteString*);")
+        struct_lines.append("void* spite_held;")
+        struct_lines.append("void (*spite_release_held)(void*);")
+        struct_lines.append("void* (*spite_held_attributes)(void*);")
+        struct_lines.append("void* (*spite_held_functions)(void*);")
     }
     struct_lines.append("};")
     builder.add_typedef(struct_lines.join("\n"))
@@ -9155,7 +9529,7 @@ func emit_main(entry_mangled_name: String) {
     }
     if read_evaluate_print_loop {
         builder.add_main(
-            "\{ ReadEvaluatePrintLoop* spite_loop = ReadEvaluatePrintLoop_make(); while (ReadEvaluatePrintLoop_step(spite_loop, {entry_class.c_name}_attributes(spite_entry_instance), {entry_class.c_name}_functions(spite_entry_instance))) \{} ReadEvaluatePrintLoop_release(spite_loop); }",
+            "\{ ReadEvaluatePrintLoop* spite_loop = ReadEvaluatePrintLoop_make(); while (ReadEvaluatePrintLoop_step(spite_loop, spite_reflect_{entry_class.c_name}({ensure_symbol("program")}, spite_entry_instance))) \{} ReadEvaluatePrintLoop_release(spite_loop); }",
         )
     }
     builder.add_main("{entry_class.c_name}_release(spite_entry_instance);")

@@ -1,0 +1,43 @@
+program
+attributes
+player
+player.weapon
+player.weapon.damage
+program.player.name
+monsters
+monsters[1]
+monsters[1].name
+monsters[2]
+monsters.count()
+target
+turn = 7
+turn
+turn = "seven"
+player.name = "sir hero"
+player.alive = false
+player.speed = 2.25
+player.job = 'knight'
+player.job = 'king'
+player
+player.health = -4
+player.health = 12
+player.health
+player.log
+player.log[0]
+player.weapon = 3
+player.missing
+turn.inner
+functions
+add(2, 3)
+greet("you, too")
+player.heal(5)
+player.promote('squire')
+player.job
+player.promote('king')
+monsters[0].roar()
+weakest()
+add(1)
+add("one", 2)
+player.nothing()
+turn()
+exit

@@ -1,9 +1,22 @@
 # REPL and live reload
 
-> **What is built** (D72): `spite program.spite --repl` runs the program, then answers `attributes`, an
-> attribute's name, `functions`, `name()` for a function that takes nothing and returns nothing, `help` and `exit`,
-> written in Spite (`library/read_evaluate_print_loop.spite`). The richer commands below -- paths into nested values,
-> assignment, `--repl-port` -- are the design, not yet built (manual.md section 14).
+> **What is built** (D72): `spite program.spite --repl` runs the program, then answers `attributes`,
+> `functions`, `help`, `exit`, paths such as `monsters[0].health` or `program.player_name`, assignment of a
+> number, Bool, text or enum literal (`monsters[0].health = 5`, which prints the value read back), and calls with
+> literal arguments that print what they return (`monsters[0].roar()`, `monsters.count()`), written in Spite
+> (`library/read_evaluate_print_loop.spite`). The meta commands `classes`, `describe`, `enums`, `memory` and
+> `--repl-port` are the design, not yet built (manual.md section 14).
+>
+> ```text
+> spite> monsters[0]
+> Monster { name: Goblin, health: 30 }
+> spite> monsters[0].health = 5
+> 5
+> spite> monsters[0].roar()
+> Goblin roars!
+> spite> monstrs
+> no attribute 'monstrs' in program: console, player_name, player_age, monsters
+> ```
 
 Milestone 6a: a REPL that inspects and drives the *running* program -- local (`--repl`, stdin) and remote
 (`--repl-port`, TCP). Compiling and running arbitrary new Spite code inside the process, `Class.instances`, and
