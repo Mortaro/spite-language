@@ -10255,19 +10255,10 @@ func generate_assert_statement(
         }
         check_condition(condition_result, keyword)
     }
-    if not assert_statement.is_crash {
-        var function_information_return_type = function_information.get_return_type()
-        if function_information.is_constructor {
-            report(
-                "'assert' is not allowed in a constructor: a constructor is setup, not logic. Take already resolved values, or use 'crash' when absence is a bug",
-            )
-        } else if not type_shape.is_void(function_information_return_type) {
-            if not type_shape.as_nullable(function_information_return_type) {
-                report(
-                    "'assert' is only allowed in a function that returns nothing or a value that may be null: the caller could not tell the default from a real value. Return 'Type?', or use 'crash' when absence is a bug",
-                )
-            }
-        }
+    if not assert_statement.is_crash and function_information.is_constructor {
+        report(
+            "'assert' is not allowed in a constructor: a constructor is setup, not logic. Take already resolved values, or use 'crash' when absence is a bug",
+        )
     }
     var site_kind = "assert-predicate"
     if guard {
