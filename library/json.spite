@@ -1,0 +1,202 @@
+generic $value_type
+
+func write(value: $value_type): String {
+    if $value_type == String {
+        return quoted(value)
+    } else if $value_type == Bool or $value_type == Int or $value_type == Long or $value_type == Float or $value_type == Double or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInt or $value_type == UnsignedLong {
+        return "{value}"
+    } else if $value_type == Symbol {
+        var name = "{value}"
+        return quoted(name)
+    } else if $value_type == Null {
+        if value {
+            var inner = Json<$value_type.value_type>()
+            return inner.write(value)
+        }
+        return "null"
+    } else if $value_type == List {
+        var element_json = Json<$value_type.element_type>()
+        var elements = List<String>()
+        var index = 0
+        while index < value.count() {
+            var element = value.get_at(index)
+            var element_text = element_json.write(element)
+            elements.append(element_text)
+            index = index + 1
+        }
+        var joined_elements = elements.join(",")
+        return "[{joined_elements}]"
+    } else if $value_type == Dictionary {
+        var entry_json = Json<$value_type.value_type>()
+        var keys = value.keys()
+        var values = value.values()
+        var entries = List<String>()
+        var index = 0
+        while index < keys.count() {
+            var key = keys.get_at(index)
+            var quoted_key = quoted(key)
+            var entry = values.get_at(index)
+            var entry_text = entry_json.write(entry)
+            entries.append("{quoted_key}:{entry_text}")
+            index = index + 1
+        }
+        var joined_entries = entries.join(",")
+        return "\{{joined_entries}}"
+    } else {
+        var members = List<String>()
+        write_attributes(value, members)
+        var joined_members = members.join(",")
+        return "\{{joined_members}}"
+    }
+}
+
+func write_attribute(attribute: Symbol<$value_type>, value: $value_type, members: List<String>) {
+    var attribute_json = Json<attribute.class>()
+    var attribute_text = attribute_json.write(value.attributes[attribute])
+    members.append("\"{attribute.name}\":{attribute_text}")
+}
+
+func read(text: String): $value_type? {
+    var reader = JsonReader(text)
+    var value = parse(reader)
+    reader.finish()
+    assert not reader.failed()
+    return value
+}
+
+func read_or_crash(text: String): $value_type {
+    var reader = JsonReader(text)
+    var value = parse(reader)
+    reader.finish()
+    var failure = reader.failure
+    crash failure == ""
+    return value
+}
+
+func parse(reader: JsonReader): $value_type {
+    if $value_type == String {
+        return reader.read_text()
+    } else if $value_type == Bool {
+        return reader.read_boolean()
+    } else if $value_type == Int or $value_type == Long or $value_type == Float or $value_type == Double or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInt or $value_type == UnsignedLong {
+        var number_text = reader.read_number()
+        var number: $value_type = number_text
+        return number
+    } else if $value_type == Symbol {
+        var name = reader.read_text()
+        var symbol: $value_type = name
+        if "{symbol}" != name {
+            reader.fail("one of the names of {symbol.class.name}")
+        }
+        return symbol
+    } else if $value_type == Null {
+        if reader.read_null() {
+            return null
+        }
+        var inner = Json<$value_type.value_type>()
+        return inner.parse(reader)
+    } else if $value_type == List {
+        var list: $value_type = null
+        var element_json = Json<$value_type.element_type>()
+        reader.expect("[")
+        var more = not reader.consume("]")
+        while more and not reader.failed() {
+            var element = element_json.parse(reader)
+            list.append(element)
+            more = reader.consume(",")
+            if not more {
+                reader.expect("]")
+            }
+        }
+        return list
+    } else if $value_type == Dictionary {
+        var dictionary: $value_type = null
+        var entry_json = Json<$value_type.value_type>()
+        reader.expect("\{")
+        var more = not reader.consume("}")
+        while more and not reader.failed() {
+            var key = reader.read_text()
+            reader.expect(":")
+            var entry = entry_json.parse(reader)
+            dictionary.set(key, entry)
+            more = reader.consume(",")
+            if not more {
+                reader.expect("}")
+            }
+        }
+        return dictionary
+    } else {
+        var created: $value_type = null
+        reader.expect("\{")
+        var more = not reader.consume("}")
+        while more and not reader.failed() {
+            var key = reader.read_text()
+            reader.expect(":")
+            reader.matched = false
+            read_attributes(created, key, reader)
+            if not reader.matched {
+                reader.skip_value()
+            }
+            more = reader.consume(",")
+            if not more {
+                reader.expect("}")
+            }
+        }
+        return created
+    }
+}
+
+func read_attribute(attribute: Symbol<$value_type>, value: $value_type, key: String, reader: JsonReader) {
+    if key == attribute.name {
+        var attribute_json = Json<attribute.class>()
+        value.attributes[attribute] = attribute_json.parse(reader)
+        reader.matched = true
+    }
+}
+
+func quoted(text: String): String {
+    var pieces = List<String>()
+    var start = 0
+    var index = 0
+    while index < text.length() {
+        var code = text.code_at(index)
+        var escape = escape_of(code)
+        if not escape.is_empty() {
+            var run = text.slice(start, index)
+            pieces.append(run)
+            pieces.append(escape)
+            start = index + 1
+        }
+        index = index + 1
+    }
+    var text_length = text.length()
+    var rest = text.slice(start, text_length)
+    pieces.append(rest)
+    var joined = pieces.join("")
+    return "\"{joined}\""
+}
+
+func escape_of(code: Int): String {
+    if code == 34 {
+        return "\\\""
+    }
+    if code == 92 {
+        return "\\\\"
+    }
+    if code == 10 {
+        return "\\n"
+    }
+    if code == 13 {
+        return "\\r"
+    }
+    if code == 9 {
+        return "\\t"
+    }
+    if code >= 32 {
+        return ""
+    }
+    var digits = "0123456789abcdef"
+    var high = digits.character_at(code / 16)
+    var low = digits.character_at(code % 16)
+    return "\\u00{high}{low}"
+}

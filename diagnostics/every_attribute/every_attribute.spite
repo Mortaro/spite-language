@@ -1,0 +1,13 @@
+var console = Console()
+
+func EveryAttribute() {
+    var lamp = Lamp()
+    var counted = count_attributes(lamp)
+    console.print(counted)
+    var holder = Holder<List<Int>>()
+    holder.describe()
+}
+
+func count_attribute(attribute: Symbol<Lamp>, lamp: Lamp): Int {
+    return 1
+}

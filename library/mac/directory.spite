@@ -15,7 +15,7 @@ func create(): Bool {
     return library.mkdir(path, 511) == 0 or exists()
 }
 
-func entries(want_folders: Bool): List<String> {
+func entry_names(want_folders: Bool): List<String> {
     var names = List<String>()
     var directory = library.opendir_as_long(path)
     if directory != 0 {
