@@ -1,0 +1,37 @@
+var world = World()
+
+func SystemFunctions() {
+    spawn_potion("tonic", 5)
+    spawn_patient("ann", 10)
+    spawn_patient("bob", 20)
+    var drinking = Runner<DrinkPotion>()
+    var reporting = Runner<ReportHealth>()
+    reporting.run()
+    drinking.run()
+    reporting.run()
+}
+
+func spawn_potion(text: String, amount: Int) {
+    var entity = world.spawn()
+    var healing = Component.Healing()
+    healing.amount = amount
+    var healings = Store<Component.Healing>()
+    healings.insert(entity, healing)
+    label(entity, text)
+}
+
+func spawn_patient(text: String, amount: Int) {
+    var entity = world.spawn()
+    var health = Component.Health()
+    health.amount = amount
+    var healths = Store<Component.Health>()
+    healths.insert(entity, health)
+    label(entity, text)
+}
+
+func label(entity: Int, text: String) {
+    var label = Component.Label()
+    label.text = text
+    var labels = Store<Component.Label>()
+    labels.insert(entity, label)
+}

@@ -1,0 +1,8 @@
+singleton
+
+var entity_count = 0
+
+func spawn(): Int {
+    entity_count = entity_count + 1
+    return entity_count - 1
+}

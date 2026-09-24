@@ -1,0 +1,1 @@
+var amount = 0
