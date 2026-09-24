@@ -228,7 +228,7 @@ func filter_member(member: Symbol<$element_type>): List<$element_type> {
     var filtered = List<$element_type>()
     var index = 0
     while index < item_count {
-        var item = read_item(index)
+        var item = values.read_value(items, index)
         if item.attributes[member] {
             filtered.append(item)
         }
@@ -238,8 +238,9 @@ func filter_member(member: Symbol<$element_type>): List<$element_type> {
 }
 ```
 
-`read_item(index)` is one of the four functions the compiler supplies per element type (it reads the slot at
-`items + index * item_bytes()`); everything else is written in the file. A template is compiled only for the
+`values` is the list's `TypedMemory<$element_type>`: `values.read_value(items, index)` reads the element in slot
+`index` of the list's buffer, retained, the same way a container of your own would (see
+[memory.md](memory.md)); everything else is written in the file. A template is compiled only for the
 names a program calls, so a program that never calls `sum_price()` carries no `sum_price` at all. A build with
 `--repl` or `--repl_port` compiles every template that fits every element class of a list the loop can reach,
 so `monsters.sum_health()` can be typed at the prompt. `Dictionary<T>` answers the same names through its
@@ -296,8 +297,8 @@ new one, because `active` is a list the program named and kept. The steps in the
 that is a class) and `filter_`; the last call can be any template. The one visible difference is order: a
 member function in a fused chain runs element by element, where the steps written out would run it on every
 element before the next step starts. `conformance/stage6/fused_chain_allocations` runs four chains a thousand
-times each and pins its allocation count at 11, the lists and objects it builds before the loop and the `Launcher`; written step
-by step, the same program allocates 16 011 times.
+times each and pins its allocation count at 12, the lists and objects it builds before the loop, the one
+`TypedMemory` its lists share and the `Launcher`; written step by step, the same program allocates 16 011 times.
 
 ## Write your own member template
 
@@ -311,7 +312,7 @@ func average_member(member: Symbol<$element_type>): Float {
     var total = 0.0
     var index = 0
     while index < item_count {
-        var item = read_item(index)
+        var item = values.read_value(items, index)
         total = total + item.attributes[member]
         index = index + 1
     }

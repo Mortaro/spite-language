@@ -1,0 +1,26 @@
+var console = Console()
+
+func NumbersAreClasses() {
+    var count = 21
+    var doubled = count.doubled()
+    var count_text = count.text()
+    console.print(doubled, count_text)
+    var third: Double = 1.0 / 3.0
+    var third_text = third.text()
+    console.print(third_text, "{third}")
+    var small: Byte = 255
+    var wide: UnsignedLong = -1
+    console.print("{small} {wide} {true}")
+    var parsed = "42".to_unsigned_int()
+    var tiny = "-7".to_tiny()
+    console.print(parsed, tiny)
+    var registry = List<Node>()
+    var first = Node("first")
+    first.append_to(registry)
+    var second = Node("second")
+    second.append_to(registry)
+    var labels = registry.map_label().join(", ")
+    console.print(labels)
+    var memory_functions = Memory.functions.map_name().join(" ")
+    console.print(memory_functions)
+}

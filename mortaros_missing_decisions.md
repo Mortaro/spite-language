@@ -104,25 +104,62 @@ manual argues it.
     number types is not allowed (a union's members are classes). A `Number` kind like `List` would read better,
     but it would be a name that is not a class. Which do you prefer, or should unions admit numbers?
 
+## From D106 (assert guards)
+
+27. **Library asserts in the crash trace.** Since D106 made `assert` the only way to write a default-returning
+    guard, library functions that fail a guard routinely (`String.matches_at`, `TextBytes.slice`) fill the
+    32-entry trace ring a crash prints. Either the ring skips asserts in `library/`, or those functions are
+    written as plain expressions the way `TextBytes.equals` now is.
+
+## From D82, D83, D88, D92, D98, D100 and D101 (the compiler's reopening, numbers, reflection, memory)
+
+28. **A `func` without a body** is how a member the compiler supplies is written, in its reopening and in
+    `--final-classes` (`func allocate_bytes(bytes: Long): Long`); anywhere else it is an error. It borrows the
+    shape a `type` uses for a member without a body. The alternative is a marker of some other kind; say if you
+    want one. Manual section 11, "What the compiler supplies is a reopening too".
+29. **`_` now means private, enforced**: a `_name` is read, written or called only inside its own class. D88
+    needed it (otherwise `klass._name = ...` undoes the read-only getters), and section 2 already said `_name` is
+    private. Open question 6 (whether `_` means private *and* unused) is still yours.
+30. **`this` in every class**, not only numbers (`registry.append(this)`), with `this.member` an error. D83 said
+    "if needed"; say if it should stay number-only.
+31. **`value.memory` is shadowed by an attribute named `memory`**, and most of the standard library holds
+    `var memory = Memory()`. Either rename those attributes (`heap`?) or give the reflection another name.
+    Also the names: `Spite.Memory`, its sections `'heap'`, `'stack'`, `'constant'` (`static` is a C word).
+32. **Stack memory is `memory.allocate_stack_bytes(bytes)`**, gone when the calling function returns. The lifetime
+    rule is C's `alloca`: nothing stops a program from keeping the address, and each call inside a loop takes
+    more of the frame. A safer form would be a region a function declares (a typed local the compiler sizes);
+    that is syntax, so it waits for you.
+33. **`TypedMemory<$value_type>`** is the name of what reads and writes values of any type in raw memory
+    (`read_value`, `write_value`, `release_value`, `value_bytes`), one shared instance per type.
+34. **`from_type` is an instance function on the class cast to** (as D100 wrote it), so calling it by hand reads
+    `0.0.from_int(count)`; the compiler calls it for every number cast. A cast written in Spite inside a reopened
+    `from_type` would call itself, so a reopening can only replace it with the same C cast. A class-level form
+    (`Float.from_int(count)`, D6's class object) would read better.
+35. **Printing an integer** with `console.print` writes the digits directly rather than calling `Int.text()`, so a
+    program that reopens `Int.text()` changes interpolation but not printing. It is the faster path; say if a
+    reopened `text()` should win everywhere.
+36. **Unions of numbers**: item 26 asked whether unions should admit numbers. With D83 every number is a class in
+    `library/`, so a union of number classes is no longer a union of names that are not classes.
+
 ## Build, the launcher and the entry (D85, D86, D89, D97; manual sections 3, 9 and 13)
 
-27. **The launcher's name and place**: `launcher/launcher.spite`, class `Launcher`, at the repository root beside
+37. **The launcher's name and place**: `launcher/launcher.spite`, class `Launcher`, at the repository root beside
     `library/`. It is library code for reflection (`Spite.Class.instances` leaves it out).
-28. **Loading the program's folder runs it.** The launcher's `load(Build().program)` constructs the program's
+38. **Loading the program's folder runs it.** The launcher's `load(Build().program)` constructs the program's
     entry class; every other `load` still compiles to nothing at run time. And a launcher `load` may use `Build`
     fields (`"library/{Build().target_operating_system}"`), where every other `load` takes a literal.
-29. **The C left in `main`**: handing `argv` to `Arguments()`, binary standard output on Windows (`_setmode`), and,
+39. **The C left in `main`**: handing `argv` to `Arguments()`, binary standard output on Windows (`_setmode`), and,
     after `Launcher` returns, releasing singletons and class objects and printing the `--debug_memory` report.
     Moving them into Spite needs a way for Spite to receive `argv` and to run code after the program ends (a
     `Launcher` that releases what the program left?) -- which is a language question.
-30. **Every compiler option is a `Build` field, and the flags follow the field names**: `--final_classes=folder`
+40. **Every compiler option is a `Build` field, and the flags follow the field names**: `--final_classes=folder`
     (no bare form), `--repl_port=4000` (no space form), `--format=false` (no `--no-format`), no `--file=`. A `Bool`
     field may be given bare (`--optimized`), which is a second spelling of `--optimized=true` -- keep it?
-31. **`mode` and `format` come from the flag alone**, because the compiler needs them before it reads the program;
+41. **`mode` and `format` come from the flag alone**, because the compiler needs them before it reads the program;
     a program's `build.spite` can still declare them, but only its own code sees the value.
-32. **A path to a `.spite` file still names an entry** (`spite bootstrap/spite_compiler.spite`), because the
+42. **A path to a `.spite` file still names an entry** (`spite bootstrap/spite_compiler.spite`), because the
     compiler's own entry is not named after its folder. The alternative is renaming the compiler's entry to
     `bootstrap/bootstrap.spite` (class `Bootstrap`) or moving it into a folder of its own.
-33. **An unset `Build` field folds to its default** rather than being read at run time, so no `Build` value is
+43. **An unset `Build` field folds to its default** rather than being read at run time, so no `Build` value is
     ever read when the program runs. D84's words were "the others are runtime"; D85 moved run time to
     `Environment`, which is how this reads it.

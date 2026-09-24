@@ -1,6 +1,6 @@
 func name_with_namespaces(): String {
-    if namespace {
-        return "{namespace.name_with_namespaces}.{name}"
+    if _namespace {
+        return "{_namespace.name_with_namespaces}.{_name}"
     }
-    return name
+    return _name
 }

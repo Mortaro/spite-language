@@ -451,3 +451,18 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   the prelude function grows the buffer in place when the count is 1 (`capacity` is new on `SpiteString`) and
   copies otherwise. 100 000 appends went from 6.9 s to 0.23 s. A plain `Symbol` template on `List` is now an
   error naming `Symbol<$element_type>` (`register_template`).
+- 2026-09-24: D82/D83/D88/D92/D98/D100/D101. `register_system_classes` is gone. `Prelude.reopened_classes()` lists
+  the classes the compiler reopens and `Prelude.reopening(path)` is their Spite source (bodiless `func`s, which
+  the parser now reads and `SourcePrinter` prints); discovery merges them after `library/` with the ordinary
+  reopening. `resolve_function` hands a bodiless declaration to `supply_body`, which takes the C from the prelude
+  or computes it per instantiation (`typed_memory_body`, `task_body`, and `instantiate_template` for a number's
+  `from_type`); a body beginning `#define` is emitted in the typedef section with no prototype. Number classes are
+  value classes registered by name (`value_type_named`), their functions take the C value as `self`, `this` is
+  that `self`, and `generate_value_method` calls them on a scalar receiver; `string_conversion` calls the class's
+  `text()` and `cast` calls `numeric_conversion` (cached by type pair). `List<T>` reads its elements through
+  `TypedMemory<$element_type>` and `supply_list_functions` only drops `contains`/`join`. The reflection classes'
+  fields became `_name` and so on, the C that fills them followed, `generate_reflection_read` defers to a
+  `get_<member>` getter, and `report_private_member` guards `_` names. Bootstrap notes: renaming the reflection
+  fields and adding the header lines of master needed a seed built with the conflicting library files swapped
+  for the ones the old seed could read (`library/spite/*`, the number classes, `list.spite`), then two
+  generations from the working tree.

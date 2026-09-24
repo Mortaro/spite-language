@@ -1,0 +1,6 @@
+func text(): String {
+    if this {
+        return "true"
+    }
+    return "false"
+}

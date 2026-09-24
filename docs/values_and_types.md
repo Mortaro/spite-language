@@ -58,7 +58,55 @@ non-integer literal, if you need the mathematical answer. (This is manual.md's o
 unresolved, and worth knowing before you write a comparison that mixes an `Int` and a fractional literal.)
 
 `String` converts both ways: assigning a `String` to a numeric variable parses it (`0`/`0.0` on failure, never
-a crash), and every numeric type gets a `to_<name>()` method (`to_int()`, `to_long()`, `to_float()`, ...).
+a crash), and every numeric type gets a `to_<name>()` method on `String` (`to_tiny()`, `to_int()`, `to_long()`,
+`to_unsigned_long()`, `to_float()`, `to_double()`, ...) in `library/string.spite`; assigning text to a number
+calls the same method.
+
+### Numbers are classes
+
+`Int`, `Long`, `Float`, `Double`, `Bool` and the rest are classes in `library/` (`library/int.spite`,
+`library/double.spite`, ...), the way `String` is (D83). Their functions are called on a value like any class's,
+and inside one of them `this` is the number itself. Turning a number into text is `text()`, written in Spite in
+`library/long.spite` and `library/double.spite`, and it is what `"{count}"` calls. A program reopens a number
+class the way it reopens any class (section 11 of the manual), with a file named after it:
+
+```spite title=number_methods/int.spite
+func doubled(): Int {
+    return this * 2
+}
+```
+```spite title=number_methods/number_methods.spite entry
+var console = Console()
+
+func NumberMethods() {
+    var count = 21
+    var doubled = count.doubled()
+    var count_text = count.text()
+    console.print(doubled, count_text)
+    var third: Double = 1.0 / 3.0
+    var bits = third.bits()
+    console.print("{third}", bits)
+}
+```
+```output
+42 21
+0.3333333333333333 4599676419421066581
+```
+
+A number is still a value in the emitted C (`int32_t`, `double`, ...): the class gives it functions, not a
+header, and `this` inside `Int` is that `int32_t`.
+
+**Casting is a function of the class being cast to** (D100). Every number class has
+`func from_type(type: Symbol, value: type.class)`, a Symbol codegen function whose symbol ranges over the
+types (not the attributes) of the program: the right-to-left cast of an `Int` into a `Float` is
+`Float.from_int(value)`, of a `Long` into a `Byte` `Byte.from_long(value)`, and so on. Its body is the one
+the compiler supplies -- a C cast, written inline, so a cast costs exactly what it did -- and
+`--final_classes` shows the declaration in each number class. Casting text into a number goes through
+`String`'s `to_<name>()` in the same way.
+
+`this` works in every class, not only numbers: it is the instance the function answers on, for when the
+function needs to hand itself to something -- `registry.append(this)`. Reading your own members through it is
+an error, because a class already reads them by name: write `name`, not `this.name`.
 
 ## `String`
 

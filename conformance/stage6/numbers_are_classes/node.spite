@@ -1,0 +1,9 @@
+var label = ""
+
+func Node(new_label: String) {
+    label = new_label
+}
+
+func append_to(registry: List<Node>) {
+    registry.append(this)
+}

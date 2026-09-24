@@ -1,0 +1,13 @@
+singleton
+
+var file_name = ""
+var handle: Long = 0
+
+func DynamicLibrary(file: String, _naming: Symbol, _header: String) {
+    file_name = file
+    handle = open_library(file)
+}
+
+func drop() {
+    close_library(handle)
+}

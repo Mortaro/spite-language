@@ -128,8 +128,10 @@ and balanced allocations.
 15. **Nearly done (2026-09-24).** D14, dissolve the runtime (manual.md section 15, "Pure Spite"). `runtime/` is
     deleted: the only hand-written C left is `bootstrap/source/generation/prelude.spite` (the allocator switch, the
     object header, `String`'s layout, and the `Memory`/`DynamicLibrary`/`Arguments` floor), and the generated C
-    is tree-shaken so a program carries only what it calls. D81 (no hand-registered classes) waits on how a Spite
-    file declares a body the compiler supplies. Ordered, because each step unblocks the next:
+    is tree-shaken so a program carries only what it calls. **D81/D82 done (2026-09-24):** no class is
+    registered by hand; the members whose bodies stay C are declarations without a body in the compiler's
+    reopening of `Memory`, `DynamicLibrary`, `TypedMemory`, the number classes, `Concurrent`/`Parallel` and the
+    reflection classes (item 23). Ordered, because each step unblocks the next:
     - **15a. Proposed (2026-09-23), waiting on Mortaro** -- manual.md section 15, "The floor, named". Name the floor: the five to ten intrinsics the compiler emits directly (raw memory in and out --
       `mmap`/`VirtualAlloc` through the FFI on native, `memory.grow` on wasm -- plus whatever the emitted C needs
       before any Spite exists). Nothing else is allowed to be hand-written C. This is a design step, and it gates
@@ -252,6 +254,21 @@ and balanced allocations.
     `diagnostics/every_attribute`, `docs/json.md`). **Waiting on Mortaro:** every one of those forms, the API
     names, and the missing/unknown/mistyped rules. **Not done:** `inf`/`nan`, `Symbol` attributes, and printing a
     generic instance's generated functions in `--final-classes`.
+
+23. **Done (2026-09-24): D82, D83, D88, D92, D98, D100 and D101 -- the compiler's reopening, numbers as classes,
+    read-only reflection, and `Memory` as the floor** (manual.md sections 2, 4, 8, 11, 15 and 17; the five
+    "implements" rows of 2026-09-24). A `func` without a body is a member the compiler supplies, merged as a
+    reopening after `library/` and printed by `--final-classes`; `Memory`, `DynamicLibrary` and `TypedMemory` are
+    `library/` files. `Int`, `Long`, `Double` and the rest are value classes with `text()` in Spite, `this` is a
+    keyword, and number casts go through each class's `from_type` (an inline C cast). Reflection keeps its data in
+    private `_` fields behind getters, and `_` is enforced as private. `Memory.allocate_stack_bytes`,
+    `TypedMemory<$value_type>` (which `List<T>` now uses) and `value.memory` (`Spite.Memory`) are built, with a
+    ring buffer in `docs/memory.md` (`conformance/stage6/numbers_are_classes`, `diagnostics/reflection_read_only`).
+    **Waiting on Mortaro:** `mortaros_missing_decisions.md` 28-36. **Not done:** `Console`'s printing and
+    `Arguments` are still the generator's; `String`'s `length`, `code_at` and `slice` are still emitted by name
+    rather than declared in its reopening; `missing_function`/`missing_attribute` for `DynamicLibrary`; a
+    user generic instantiated with `Int` prints as `...Int` in `instantiated/`, which the name lint rejects on
+    the way back.
 
 ## Later, deliberately deferred
 

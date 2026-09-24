@@ -1,14 +1,34 @@
-var name: Symbol = 'unnamed'
-var name_with_namespaces: Symbol = 'unnamed'
-var parent: Spite.Namespace? = null
-var classes = List<Spite.Class>()
-var namespaces = List<Spite.Namespace>()
+var _name: Symbol = 'unnamed'
+var _name_with_namespaces: Symbol = 'unnamed'
+var _parent: Spite.Namespace? = null
+var _classes = List<Spite.Class>()
+var _namespaces = List<Spite.Namespace>()
 
 func Namespace(starting_name: Symbol, starting_name_with_namespaces: Symbol) {
-    name = starting_name
-    name_with_namespaces = starting_name_with_namespaces
+    _name = starting_name
+    _name_with_namespaces = starting_name_with_namespaces
+}
+
+func get_name(): Symbol {
+    return _name
+}
+
+func get_name_with_namespaces(): Symbol {
+    return _name_with_namespaces
+}
+
+func get_parent(): Spite.Namespace? {
+    return _parent
+}
+
+func get_classes(): List<Spite.Class> {
+    return _classes
+}
+
+func get_namespaces(): List<Spite.Namespace> {
+    return _namespaces
 }
 
 func equals(other: String): Bool {
-    return name_with_namespaces == other
+    return _name_with_namespaces == other
 }

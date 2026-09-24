@@ -79,6 +79,13 @@ func stands_apart(previous: Syntax.Statements.Statement, next: Syntax.Statements
     var previous_attribute = shape.as_variable_declaration(previous)
     var next_attribute = shape.as_variable_declaration(next)
     assert not previous_attribute or not next_attribute
+    var previous_function = shape.as_function_declaration(previous)
+    var next_function = shape.as_function_declaration(next)
+    if previous_function {
+        if next_function {
+            return previous_function.has_body or next_function.has_body
+        }
+    }
     return not (shape.as_generic_declaration(previous) and shape.as_generic_declaration(next))
 }
 
@@ -281,6 +288,9 @@ func source_function(function: Syntax.Statements.FunctionDeclaration, depth: Int
         returns = ": {source_type(function.return_type)}"
     }
     var header = "{source_indent(depth)}func {function.name}({parameters}){returns} \{"
+    if not function.has_body {
+        return "{source_indent(depth)}func {function.name}({parameters}){returns}"
+    }
     if header.length() > 120 {
         var listed = ""
         index = 0

@@ -13,6 +13,7 @@ var terminal_if: Syntax.Statements.IfStatement? = null
 var symbol_names = List<String>()
 var symbol_lookup_used = false
 var symbol_positions = Dictionary<Int>()
+var conversion_names = Dictionary<String>()
 var foreign_library_files = List<String>()
 var foreign_library_namings = List<String>()
 var foreign_library_headers = List<String>()
@@ -21,7 +22,6 @@ var foreign_symbol_names = List<String>()
 var foreign_symbol_wanted = List<String>()
 var foreign_headers_included = List<String>()
 var function_value_makers = List<String>()
-var written_in_spite = List<String>()
 var read_evaluate_print_loop = false
 var console_loop = false
 var remote_loop_port = 0
@@ -37,7 +37,6 @@ var unwaiting_loop_owner = ""
 var unwaiting_loop_function = ""
 var development = false
 var reflect_function_names = List<String>()
-var live_reflection_emitted = false
 var body_narrowed_names = List<String>()
 var body_assigned_paths = List<String>()
 var singleton_names = List<String>()
@@ -102,139 +101,6 @@ func allocate_class_id(debug_name: String): Int {
     return class_names_by_id.count() - 1
 }
 
-func register_system_class(name: String): Analysis.ClassInfo {
-    var class_id = allocate_class_id(name)
-    var information = Analysis.ClassInfo(name, name, "", name, class_id)
-    information.is_builtin = true
-    if not written_in_spite.contains(name) {
-        classes.append(information)
-    }
-    return information
-}
-
-func add_builtin_function(
-    information: Analysis.ClassInfo,
-    name: String,
-    parameters: List<Analysis.ParamInfo>,
-    return_type: Analysis.SpiteType,
-) {
-    var is_constructor = name == information.simple_name
-    var function = Analysis.FunctionInfo(
-        name,
-        "{information.c_name}_{name}",
-        parameters,
-        return_type,
-        List<Syntax.Statements.Statement>(),
-        is_constructor,
-    )
-    if is_constructor {
-        information.constructor = function
-    }
-    information.functions.append(function)
-}
-
-func no_parameters(): List<Analysis.ParamInfo> {
-    return List<Analysis.ParamInfo>()
-}
-
-func two_parameters(
-    first_name: String,
-    first_type: Analysis.SpiteType,
-    second_name: String,
-    second_type: Analysis.SpiteType,
-): List<Analysis.ParamInfo> {
-    var parameters = one_parameter(first_name, first_type)
-    parameters.append(Analysis.ParamInfo(second_name, second_type))
-    return parameters
-}
-
-func memory_write_parameters(value_type: Analysis.SpiteType): List<Analysis.ParamInfo> {
-    var address_type = long_type()
-    var parameters = two_parameters("address", address_type, "offset", address_type)
-    parameters.append(Analysis.ParamInfo("value", value_type))
-    return parameters
-}
-
-func one_parameter(name: String, spite_type: Analysis.SpiteType): List<Analysis.ParamInfo> {
-    var result = List<Analysis.ParamInfo>()
-    result.append(Analysis.ParamInfo(name, spite_type))
-    return result
-}
-
-func register_system_classes() {
-    var text_type = string_type()
-    var nothing_type = void_type()
-    var address_type = long_type()
-    var integer_number_type = integer_type()
-    var double_number_type = double_type()
-    var symbol_type = Analysis.Types.SymbolType()
-    var dynamic_library = register_system_class("DynamicLibrary")
-    var library_parameters = one_parameter("file_name", text_type)
-    library_parameters.append(Analysis.ParamInfo("naming", symbol_type))
-    library_parameters.append(Analysis.ParamInfo("header", text_type))
-    add_builtin_function(dynamic_library, "DynamicLibrary", library_parameters, nothing_type)
-    var memory = register_system_class("Memory")
-    memory.is_singleton = true
-    var byte_type: Analysis.SpiteType = Analysis.Types.ScalarType('byte_kind')
-    var constructor_parameters = no_parameters()
-    add_builtin_function(memory, "Memory", constructor_parameters, nothing_type)
-    var allocate_parameters = one_parameter("bytes", address_type)
-    add_builtin_function(memory, "allocate_bytes", allocate_parameters, address_type)
-    var resize_parameters = two_parameters("address", address_type, "bytes", address_type)
-    add_builtin_function(memory, "resize", resize_parameters, address_type)
-    var free_parameters = one_parameter("address", address_type)
-    add_builtin_function(memory, "free", free_parameters, nothing_type)
-    var read_byte_parameters = two_parameters("address", address_type, "offset", address_type)
-    add_builtin_function(memory, "read_byte", read_byte_parameters, byte_type)
-    var read_integer_parameters = two_parameters("address", address_type, "offset", address_type)
-    add_builtin_function(memory, "read_int", read_integer_parameters, integer_number_type)
-    var read_long_parameters = two_parameters("address", address_type, "offset", address_type)
-    add_builtin_function(memory, "read_long", read_long_parameters, address_type)
-    var read_double_parameters = two_parameters("address", address_type, "offset", address_type)
-    add_builtin_function(memory, "read_double", read_double_parameters, double_number_type)
-    var write_byte_parameters = memory_write_parameters(byte_type)
-    add_builtin_function(memory, "write_byte", write_byte_parameters, nothing_type)
-    var write_integer_parameters = memory_write_parameters(integer_number_type)
-    add_builtin_function(memory, "write_int", write_integer_parameters, nothing_type)
-    var write_long_parameters = memory_write_parameters(address_type)
-    add_builtin_function(memory, "write_long", write_long_parameters, nothing_type)
-    var write_double_parameters = memory_write_parameters(double_number_type)
-    add_builtin_function(memory, "write_double", write_double_parameters, nothing_type)
-    var copy_parameters = two_parameters("from", address_type, "to", address_type)
-    copy_parameters.append(Analysis.ParamInfo("bytes", address_type))
-    add_builtin_function(memory, "copy_bytes", copy_parameters, nothing_type)
-    var text_parameters = two_parameters("address", address_type, "length", address_type)
-    add_builtin_function(memory, "text", text_parameters, text_type)
-    var live_allocations_parameters = no_parameters()
-    add_builtin_function(memory, "live_allocations", live_allocations_parameters, integer_number_type)
-    var address_of_parameters = one_parameter("text", text_type)
-    add_builtin_function(memory, "address_of", address_of_parameters, address_type)
-    var compare_parameters = two_parameters("first", address_type, "second", address_type)
-    compare_parameters.append(Analysis.ParamInfo("bytes", address_type))
-    add_builtin_function(memory, "compare_bytes", compare_parameters, integer_number_type)
-    var take_text_parameters = two_parameters("address", address_type, "length", address_type)
-    add_builtin_function(memory, "take_text", take_text_parameters, text_type)
-    var exchange_parameters = memory_write_parameters(address_type)
-    add_builtin_function(memory, "exchange_long", exchange_parameters, address_type)
-    var read_atomically_parameters = two_parameters("address", address_type, "offset", address_type)
-    add_builtin_function(memory, "read_long_atomically", read_atomically_parameters, address_type)
-    var write_atomically_parameters = memory_write_parameters(address_type)
-    add_builtin_function(memory, "write_long_atomically", write_atomically_parameters, nothing_type)
-}
-
-func built_in_class_sources(): List<String> {
-    var sources = List<String>()
-    var index = 0
-    while index < classes.count() {
-        if classes[index].is_builtin {
-            var class_view_source = class_view_source(classes[index], classes[index].simple_name)
-            sources.append(class_view_source)
-        }
-        index = index + 1
-    }
-    return sources
-}
-
 func generated_functions_source(qualified: String): String {
     var text = ""
     var index = 0
@@ -244,7 +110,7 @@ func generated_functions_source(qualified: String): String {
             var function_index = 0
             while function_index < information.functions.count() {
                 var function = information.functions[function_index]
-                if not function.symbol_name.is_empty() and function.symbol_owner_c_name.is_empty() {
+                if not function.symbol_name.is_empty() and function.symbol_owner_c_name.is_empty() and function.has_body {
                     text = "{text}\n\n{instantiated_function_source(information, function)}"
                 }
                 function_index = function_index + 1
@@ -306,10 +172,6 @@ func is_word_character_at(text: String, index: Int): Bool {
     assert index >= 0 and index < text.length()
     var character = text.slice(index, index + 1)
     return character == "_" or character == "." or character.lower_case() != character.upper_case() or "0123456789".contains(character)
-}
-
-func built_in_class_names(): List<String> {
-    return classes.filter_is_builtin().map_simple_name()
 }
 
 func class_view_source(information: Analysis.ClassInfo, display_name: String): String {
@@ -390,7 +252,7 @@ func emitted_qualified_names(): List<String> {
     var index = 0
     while index < classes.count() {
         var information = classes[index]
-        if information.is_emitted and not information.is_builtin and not is_instantiated_class(information) {
+        if information.is_emitted and not is_instantiated_class(information) {
             names.append(information.qualified_dotted)
         }
         index = index + 1
@@ -418,16 +280,6 @@ func built_in_signature(function: Analysis.FunctionInfo): String {
 func emit_system_classes(system_structs: String, system_prototypes: String, system_bodies: String) {
     var string_type = string_type()
     ensure_list(string_type)
-    var defines = List<String>()
-    var index = 0
-    while index < classes.count() {
-        if classes[index].is_builtin {
-            defines.append("#define SPITE_CLASS_ID_{classes[index].simple_name.upper_case()} {classes[index].class_id}")
-        }
-        index = index + 1
-    }
-    var joined_defines = defines.join("\n")
-    builder.add_typedef(joined_defines)
     builder.add_typedef(system_structs)
     builder.add_prototype(system_prototypes)
     builder.add_support(system_bodies)
@@ -445,8 +297,6 @@ func generate(
     builder.add_typedef(
         "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_kept = spite_assert_total < 32 ? spite_assert_total : 32;\nfor (int64_t spite_index = spite_assert_total - spite_kept; spite_index < spite_assert_total; spite_index = spite_index + 1) \{ fputs(spite_assert_trace[spite_index % 32], stderr); }\nif (spite_assert_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_assert_total - 32)); }\n}",
     )
-    written_in_spite = discovery.class_files.map_qualified_dotted()
-    register_system_classes()
     register_classes(discovery.class_files)
     emit_enums()
     var forward_index = 0
@@ -463,7 +313,7 @@ func generate(
     assert not has_error
     var index = 0
     while index < classes.count() {
-        if not classes[index].is_builtin and not classes[index].is_generic_template {
+        if not classes[index].is_generic_template {
             emit_class(classes[index])
         }
         index = index + 1
@@ -497,8 +347,8 @@ func generate(
         final_settle = final_settle + 1
     }
     emit_text_bytes()
-    emit_symbol_table()
     emit_foreign_libraries()
+    emit_symbol_table()
     emit_allocation_table()
     if scheduler_used or remote_loop_port > 0 {
         finish_waiting_points()
@@ -515,8 +365,11 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
     var index = 0
     while index < discovered.count() {
         var entry = discovered[index]
-        if entry.qualified_dotted == "String" {
-            classes.append(Analysis.ClassInfo("SpiteString", "String", "", "String", 0))
+        var value_type = value_type_named(entry.qualified_dotted)
+        if value_type {
+            classes.append(
+                Analysis.ClassInfo("Spite{entry.qualified_dotted}", entry.qualified_dotted, "", entry.qualified_dotted, 0),
+            )
             classes.last().is_value_class = true
         } else {
             var class_id = allocate_class_id(entry.mangled_name)
@@ -953,6 +806,7 @@ func instantiated_with(
     instance.codegen_types = types
     instance.codegen_codes = codes
     instance.codegen_texts = texts
+    instance.is_container = template.qualified_dotted == "TypedMemory"
     classes.append(instance)
     builder.add_typedef("typedef struct {label} {label};")
     var saved_owner = current_owner
@@ -1951,7 +1805,7 @@ func template_range_class(information: Analysis.ClassInfo, template: Analysis.Te
     assert range_class_ref
     var range_class = find_class_by_c_name(range_class_ref.c_name)
     assert range_class
-    assert not range_class.is_builtin and not range_class.is_generic_template
+    assert not range_class.is_generic_template
     return range_class
 }
 
@@ -2004,6 +1858,19 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
     return null
 }
 
+func type_named_by(member_name: String): Analysis.SpiteType? {
+    var words = member_name.split("_")
+    var type_name = ""
+    var index = 0
+    while index < words.count() {
+        var word = words[index]
+        var word_length = word.length()
+        type_name = "{type_name}{word.slice(0, 1).upper_case()}{word.slice(1, word_length)}"
+        index = index + 1
+    }
+    return value_type_named(type_name)
+}
+
 func template_member_type(
     information: Analysis.ClassInfo,
     template: Analysis.TemplateInfo,
@@ -2012,6 +1879,9 @@ func template_member_type(
 ): Analysis.SpiteType? {
     if template.range {
         return member_type_of(range_class, member_name)
+    }
+    if template.symbol_parameter == "type" {
+        return type_named_by(member_name)
     }
     var field = information.find_field(member_name)
     assert field
@@ -2141,8 +2011,19 @@ func instantiate_template(
     function.symbol_field_name = member_name
     function.symbol_field_type = member_type
     function.symbol_owner_c_name = member_owner_c_name
+    if not declaration.has_body {
+        function.has_body = false
+        function.supplied_body = "#define {function.c_name}(self, value) (({c_type_name(return_type)})(value))"
+        if declaration.name != "from_type" {
+            report(
+                "'{information.simple_name}.{declaration.name}' has no body, and only a function whose body the compiler supplies is written without one: give it a body",
+            )
+        }
+    }
     information.functions.append(function)
-    builder.add_prototype("{function_signature(information, function)};")
+    if not is_inline_supplied(function) {
+        builder.add_prototype("{function_signature(information, function)};")
+    }
     bound_symbol_name = saved_symbol_name
     bound_field_name = saved_field_name
     bound_field_type = saved_field_type
@@ -2181,6 +2062,9 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
     crash owner
     var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(member.object, bound_field_name)
     if owner.find_field(bound_field_name) {
+        return read
+    }
+    if not owner.find_function(bound_field_name) {
         return read
     }
     var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(
@@ -2222,7 +2106,7 @@ func emit_pending_functions() {
         var class_index = 0
         while class_index < classes.count() {
             var information = classes[class_index]
-            if not information.is_builtin and not information.is_generic_template {
+            if not information.is_generic_template {
                 if not information.is_emitted {
                     emit_class(information)
                     emitted_any = true
@@ -2289,7 +2173,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         )
     }
     var is_conversion = information.is_value_class and declaration.name.starts_with("to_")
-    if not is_constructor and not is_conversion {
+    if not is_constructor and not is_conversion and declaration.has_body {
         check_value_name(declaration.name, "function")
     }
     var c_name = "{information.c_name}_{declaration.name}"
@@ -2302,6 +2186,9 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         is_constructor,
     )
     function.source_path = declaration.source_path
+    if not declaration.has_body {
+        supply_body(information, function)
+    }
     if declaration.name == "is_singleton" and information.qualified_dotted != "Spite.Class" {
         report(
             "a class says it is a singleton with a 'singleton' line at the top of its file, not with a function: delete 'is_singleton()' and write 'singleton' as the file's first line",
@@ -2326,6 +2213,66 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         existing = existing + 1
     }
     information.functions.append(function)
+}
+
+func is_inline_supplied(function: Analysis.FunctionInfo): Bool {
+    return not function.has_body and function.supplied_body.starts_with("#define")
+}
+
+func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    function.has_body = false
+    var segments = information.qualified_dotted.split(".")
+    var folders = List<String>()
+    var index = 0
+    while index < segments.count() {
+        var words = words_of(segments[index])
+        var folder = words.join("_")
+        folders.append(folder)
+        index = index + 1
+    }
+    var class_path = folders.join("/")
+    var supplied = Prelude().supplied_body(class_path, function.name)
+    if supplied {
+        assert not information.is_generic_template
+        function.supplied_body = supplied
+        if class_path == "typed_memory" {
+            function.supplied_body = typed_memory_body(information, function.name)
+        }
+        if class_path == "concurrent" or class_path == "parallel" {
+            function.supplied_body = task_body(information, function.name)
+        }
+        return
+    }
+    report(
+        "'{information.simple_name}.{function.name}' has no body, and only a function whose body the compiler supplies is written without one: give it a body",
+    )
+}
+
+func task_body(information: Analysis.ClassInfo, name: String): String {
+    if name == "address" {
+        return "return (int64_t)(intptr_t)self;"
+    }
+    var entry = "{information.c_name}_thread_entry"
+    if information.qualified_dotted == "Concurrent" {
+        entry = "{information.c_name}_fiber_entry"
+    }
+    return "return (int64_t)(intptr_t)&{entry};"
+}
+
+func typed_memory_body(information: Analysis.ClassInfo, name: String): String {
+    crash information.codegen_types[0]
+    var value_type = information.codegen_types[0]
+    var slot = "(({c_type_name(value_type)}*)(intptr_t)address)[index]"
+    if name == "read_value" {
+        return "return {retain_call(value_type, slot)};"
+    }
+    if name == "write_value" {
+        return "{slot} = value;"
+    }
+    if name == "release_value" {
+        return release_statement(value_type, slot)
+    }
+    return "return (int64_t)sizeof({c_type_name(value_type)});"
 }
 
 func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String): Analysis.SpiteType? {
@@ -2599,6 +2546,48 @@ func boolean_type(): Analysis.SpiteType {
 func string_type(): Analysis.SpiteType {
     var resolved: Analysis.SpiteType = Analysis.Types.StringType()
     return resolved
+}
+
+func value_class_names(): List<String> {
+    return [
+        "Int"
+        "Long"
+        "Float"
+        "Double"
+        "Bool"
+        "Tiny"
+        "Short"
+        "Byte"
+        "UnsignedShort"
+        "UnsignedInt"
+        "UnsignedLong"
+    ]
+}
+
+func value_type_named(name: String): Analysis.SpiteType? {
+    if name == "String" {
+        return string_type()
+    }
+    var names = value_class_names()
+    assert names.contains(name)
+    var no_arguments = List<Syntax.Types.GenericArgument>()
+    var named = Syntax.Types.NamedType([name], no_arguments)
+    return resolve_named_type(named, "")
+}
+
+func value_class_of(kind: Analysis.Types.NumericKind): Analysis.ClassInfo? {
+    var scalar_type: Analysis.SpiteType = Analysis.Types.ScalarType(kind)
+    var name = type_label(scalar_type)
+    return find_class_by_c_name("Spite{name}")
+}
+
+func value_class_type(information: Analysis.ClassInfo): Analysis.SpiteType {
+    var value_type = value_type_named(information.qualified_dotted)
+    if value_type {
+        return value_type
+    }
+    var class_type: Analysis.SpiteType = Analysis.Types.ClassRefType(information.c_name)
+    return class_type
 }
 
 func long_type(): Analysis.SpiteType {
@@ -2993,19 +2982,17 @@ func is_float_kind(kind: Analysis.Types.NumericKind): Bool {
 func string_conversion(code: String, from: Analysis.SpiteType): String {
     var scalar = type_shape.as_scalar(from)
     if scalar {
-        if scalar.kind == 'boolean_kind' {
-            return "spite_string_from_bool({code})"
+        var value_class = value_class_of(scalar.kind)
+        if value_class {
+            var text_function = value_class.find_function("text")
+            if text_function {
+                return "{text_function.c_name}({code})"
+            }
         }
-        if scalar.kind == 'float_kind' {
-            return "{number_text_function("float_text", "float")}({code})"
-        }
-        if scalar.kind == 'double_kind' {
-            return "{number_text_function("double_text", "double")}({code})"
-        }
-        if scalar.kind == 'unsigned_long_kind' {
-            return "{number_text_function("unsigned_text", "uint64_t")}({code})"
-        }
-        return "{number_text_function("long_text", "int64_t")}((int64_t)({code}))"
+        report(
+            "a {type_display_name(from)} becomes text through the text() function of its class in library/, and that class declares none",
+        )
+        return "(&spite_static_string_empty)"
     }
     var enum_type = type_shape.as_enum(from)
     if enum_type {
@@ -3035,19 +3022,9 @@ func emit_text_bytes() {
     )
 }
 
-func number_text_function(name: String, value_type: String): String {
-    var number_text = find_class_by_qualified("NumberText")
-    crash number_text
-    var function_name = "spite_{name}"
-    if not singleton_names.contains(function_name) {
-        singleton_names.append(function_name)
-        var instance = singleton_call(number_text)
-        builder.add_prototype("SpiteString* {function_name}({value_type} value);")
-        builder.add_support(
-            "SpiteString* {function_name}({value_type} value) \{\nNumberText* spite_number_text = {instance};\nSpiteString* spite_text = NumberText_{name}(spite_number_text, value);\nNumberText_release(spite_number_text);\nreturn spite_text;\n}",
-        )
-    }
-    return function_name
+func long_text(code: String): String {
+    var wide_type = long_type()
+    return string_conversion("((int64_t)({code}))", wide_type)
 }
 
 func emit_allocation_table() {
@@ -3192,6 +3169,12 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         }
         var to_scalar = type_shape.as_scalar(to)
         if to_scalar {
+            var target_label = type_label(to)
+            var conversion_name = words_of(target_label).join("_")
+            var conversion = written_string_function("to_{conversion_name}")
+            if conversion {
+                return "{conversion.c_name}({code})"
+            }
             if is_float_kind(to_scalar.kind) {
                 return "(({c_type_name(to)})(SpiteString_to_double({code})))"
             }
@@ -3201,13 +3184,41 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
     var to_scalar_plain = type_shape.as_scalar(to)
     if to_scalar_plain {
         if type_shape.as_scalar(from) {
-            return "(({c_type_name(to)})({code}))"
+            var conversion = numeric_conversion(from, to)
+            if conversion.is_empty() {
+                return "(({c_type_name(to)})({code}))"
+            }
+            return "{conversion}(0, {code})"
         }
         report_mismatch(from, to)
         return code
     }
     report_mismatch(from, to)
     return code
+}
+
+func numeric_conversion(from: Analysis.SpiteType, to: Analysis.SpiteType): String {
+    var from_label = type_label(from)
+    var to_label = type_label(to)
+    var key = "{from_label} {to_label}"
+    if conversion_names.has(key) {
+        crash conversion_names[key]
+        return conversion_names[key]
+    }
+    var conversion_name = ""
+    var to_scalar = type_shape.as_scalar(to)
+    crash to_scalar
+    var target_class = value_class_of(to_scalar.kind)
+    if target_class {
+        var source_words = words_of(from_label)
+        var source_name = source_words.join("_")
+        var conversion = find_or_instantiate_function(target_class, "from_{source_name}")
+        if conversion {
+            conversion_name = conversion.c_name
+            conversion_names[key] = conversion_name
+        }
+    }
+    return conversion_name
 }
 
 func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType) {
@@ -3448,6 +3459,9 @@ func lookup_static_type(
         var self_type: Analysis.SpiteType = Analysis.Types.ClassRefType(class_information.c_name)
         return self_type
     }
+    if identifier.name == "this" {
+        return value_class_type(class_information)
+    }
     var scope_type = scope.lookup_type(identifier.name)
     if scope_type {
         return scope_type
@@ -3475,6 +3489,10 @@ func generate_identifier(
     if identifier.name == "self" {
         return ExpressionResult("self", Analysis.Types.ClassRefType(class_information.c_name))
     }
+    if identifier.name == "this" {
+        var receiver_type = value_class_type(class_information)
+        return ExpressionResult("self", receiver_type)
+    }
     var override = scope.lookup_override(identifier.name)
     var scope_type = scope.lookup_type(identifier.name)
     if scope_type {
@@ -3485,7 +3503,7 @@ func generate_identifier(
     }
     var field = class_information.find_field(identifier.name)
     if field {
-        if identifier.name == "namespace" and class_information.c_name == "Spite_Class" {
+        if identifier.name == "_namespace" and class_information.c_name == "Spite_Class" {
             namespace_read_used = true
         }
         var field_type = field.get_type()
@@ -4370,7 +4388,7 @@ func function_value(
             var parameter = function.parameters[parameter_index]
             var parameter_type = parameter.get_type()
             lines.append(
-                "{arguments_list_name}_append(described->arguments, Spite_Argument_make({ensure_symbol(parameter.name)}, {class_object_call(parameter_type)}));",
+                "{arguments_list_name}_append(described->_arguments, Spite_Argument_make({ensure_symbol(parameter.name)}, {class_object_call(parameter_type)}));",
             )
             parameter_index = parameter_index + 1
         }
@@ -4480,7 +4498,7 @@ func generate_own_function_call(
             }
         }
     }
-    if not function and class_information.is_value_class {
+    if not function and class_information.c_name == "SpiteString" {
         var receiver: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("self")
         var string_type = string_type()
         return generate_string_method(
@@ -4631,6 +4649,17 @@ func generate_method_call(
         report("Arguments has no method '{member.name}'")
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
+    var object_scalar = type_shape.as_scalar(object_result_type)
+    if object_scalar {
+        return generate_value_method(
+            object_scalar.kind,
+            member.name,
+            object_result,
+            arguments_ast,
+            scope,
+            class_information,
+        )
+    }
     var object_union = type_shape.as_union(object_result_type)
     if object_union {
         var union_information = find_union_by_c_name(object_union.c_name)
@@ -4687,34 +4716,7 @@ func generate_method_call(
     crash object_class_ref
     var target_class = find_class_by_c_name(object_class_ref.c_name)
     crash target_class
-    if target_class.c_name == "Spite_Attribute" or target_class.c_name == "Spite_Function" {
-        var live = generate_live_reflection_call(
-            target_class,
-            member.name,
-            object_result,
-            object_ast,
-            arguments_ast,
-            scope,
-            class_information,
-        )
-        if live {
-            return live
-        }
-    }
-    if target_class.c_name == "Spite_Function" and member.name == "call_function" {
-        var no_types = no_types()
-        var void_type = void_type()
-        return generate_generic_call(
-            "Spite_Function_call_function",
-            object_result,
-            object_ast,
-            arguments_ast,
-            no_types,
-            void_type,
-            scope,
-            class_information,
-        )
-    }
+    report_private_member(target_class, member.name, class_information)
     var function = find_or_instantiate_function(target_class, member.name)
     if not function {
         if member.name == "deep_copy" {
@@ -4763,6 +4765,30 @@ func generate_method_call(
         scope,
         class_information,
     )
+}
+
+func generate_value_method(
+    kind: Analysis.Types.NumericKind,
+    name: String,
+    object_result: ExpressionResult,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var value_class = value_class_of(kind)
+    if value_class {
+        var function = find_or_instantiate_function(value_class, name)
+        if function {
+            var parameter_types = parameter_types_of(function.parameters)
+            var argument_codes = generate_argument_list(arguments_ast, parameter_types, scope, class_information)
+            argument_codes.prepend(object_result.code)
+            var function_return_type = function.get_return_type()
+            return ExpressionResult("{function.c_name}({argument_codes.join(", ")})", function_return_type)
+        }
+    }
+    var object_result_type = object_result.get_type()
+    report("a {type_display_name(object_result_type)} has no function '{name}'")
+    return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
 func generate_borrowing_call(
@@ -5149,10 +5175,24 @@ func member_type_of(element_class: Analysis.ClassInfo, member_name: String): Ana
     if field {
         return field.get_type()
     }
+    var function = member_function(element_class, member_name)
+    if function {
+        return function.get_return_type()
+    }
+    return null
+}
+
+func member_function(element_class: Analysis.ClassInfo, member_name: String): Analysis.FunctionInfo? {
     var function = find_or_instantiate_function(element_class, member_name)
     if function {
         if function.parameters.count() == 0 {
-            return function.get_return_type()
+            return function
+        }
+    }
+    var getter = element_class.find_function("get_{member_name}")
+    if getter {
+        if getter.parameters.count() == 0 {
+            return getter
         }
     }
     return null
@@ -5258,7 +5298,10 @@ func instantiate_member_templates_of(list_class: Analysis.ClassInfo) {
     var member_names = List<String>()
     var index = 0
     while index < element_class.fields.count() {
-        member_names.append(element_class.fields[index].name)
+        var field_name = element_class.fields[index].name
+        if not field_name.starts_with("_") {
+            member_names.append(field_name)
+        }
         index = index + 1
     }
     index = 0
@@ -5266,6 +5309,11 @@ func instantiate_member_templates_of(list_class: Analysis.ClassInfo) {
         var function = element_class.functions[index]
         if not function.is_constructor and function.parameters.is_empty() {
             member_names.append(function.name)
+            if function.name.starts_with("get_") {
+                var name_length = function.name.length()
+                var read_name = function.name.slice(4, name_length)
+                member_names.append(read_name)
+            }
         }
         index = index + 1
     }
@@ -5522,7 +5570,7 @@ func fused_chain_source(
     append_lines(lines, before)
     lines.append("    var index = 0")
     lines.append("    while index < item_count \{")
-    lines.append("        var item = read_item(index)")
+    lines.append("        var item = values.read_value(items, index)")
     lines.append("        index = index + 1")
     append_lines(lines, loop_lines)
     append_lines(lines, closings)
@@ -5577,9 +5625,17 @@ func register_fused_function(
 }
 
 func is_listed_class(information: Analysis.ClassInfo): Bool {
-    assert not information.is_builtin and not information.is_generic_template
+    assert not information.is_generic_template
     assert not information.c_name.starts_with("Object_") and not information.c_name.starts_with("Spite_")
+    var prelude_path = Prelude().path()
     assert not information.source_path.starts_with("library/") and not information.source_path.starts_with("launcher/")
+    assert information.source_path != prelude_path
+    return information.c_name != "Nothing"
+}
+
+func describes_members(information: Analysis.ClassInfo): Bool {
+    assert not information.is_generic_template and not information.is_value_class
+    assert not information.c_name.starts_with("Object_")
     return information.c_name != "Nothing"
 }
 
@@ -5598,18 +5654,18 @@ func emit_class_object_bodies() {
         var described = find_class_by_c_name(class_object_labels[position])
         if described {
             if described.is_singleton {
-                lines.append("{function_c_name}_cache->singleton = true;")
+                lines.append("{function_c_name}_cache->_singleton = true;")
             }
             if namespace_read_used {
                 crash class_object_namespaces[position]
                 var described_namespace = class_object_namespaces[position]
                 if not described_namespace.is_empty() {
                     lines.append(
-                        "{function_c_name}_cache->namespace = {ensure_namespace_object(described_namespace)}();",
+                        "{function_c_name}_cache->_namespace = {ensure_namespace_object(described_namespace)}();",
                     )
                 }
             }
-            if class_level_attributes_used and is_listed_class(described) {
+            if class_level_attributes_used and describes_members(described) {
                 var attributes_function = ensure_attributes_function(described)
                 var attribute_thunk = "spite_class_attributes_{described.c_name}"
                 var attribute_listed_class = find_class_by_c_name("Spite_Attribute")
@@ -5623,10 +5679,10 @@ func emit_class_object_bodies() {
                 builder.add_support(
                     "{attribute_list_c_type} {attribute_thunk}(void) \{\n{described.c_name}* fresh = {described.c_name}_default();\n{attribute_list_c_type} listed = {attributes_function}(fresh);\n{described.c_name}_release(fresh);\nreturn listed;\n}",
                 )
-                lines.append("{attribute_list_name}_release({function_c_name}_cache->attributes);")
-                lines.append("{function_c_name}_cache->attributes = {attribute_thunk}();")
+                lines.append("{attribute_list_name}_release({function_c_name}_cache->_attributes);")
+                lines.append("{function_c_name}_cache->_attributes = {attribute_thunk}();")
             }
-            if class_level_functions_used and is_listed_class(described) and described.c_name != entry_class_c_name {
+            if class_level_functions_used and describes_members(described) and described.c_name != entry_class_c_name {
                 var functions_function = ensure_functions_function(described)
                 var maker = "{described.c_name}_default()"
                 if described.constructor {
@@ -5646,8 +5702,8 @@ func emit_class_object_bodies() {
                 builder.add_support(
                     "{listed_c_type} {thunk}(void) \{\n{described.c_name}* fresh = {maker};\n{listed_c_type} listed = {functions_function}(fresh);\n{described.c_name}_release(fresh);\nreturn listed;\n}",
                 )
-                lines.append("{listed_name}_release({function_c_name}_cache->functions);")
-                lines.append("{function_c_name}_cache->functions = {thunk}();")
+                lines.append("{listed_name}_release({function_c_name}_cache->_functions);")
+                lines.append("{function_c_name}_cache->_functions = {thunk}();")
             }
         }
         lines.append("}")
@@ -5746,7 +5802,7 @@ func emit_namespace_object_bodies() {
             var parent_segments = segments.copy()
             parent_segments.remove_last()
             var joined_parent_segments = parent_segments.join(".")
-            lines.append("{function_c_name}_cache->parent = {ensure_namespace_object(joined_parent_segments)}();")
+            lines.append("{function_c_name}_cache->_parent = {ensure_namespace_object(joined_parent_segments)}();")
         }
         if namespace_tree_used {
             var class_class = find_class_by_c_name("Spite_Class")
@@ -5763,7 +5819,7 @@ func emit_namespace_object_bodies() {
                     if classes[class_index].namespace_dotted == namespace_dotted {
                         var listed_class_type = class_type_of(classes[class_index])
                         lines.append(
-                            "{classes_list_name}_append({function_c_name}_cache->classes, {class_object_call(listed_class_type)});",
+                            "{classes_list_name}_append({function_c_name}_cache->_classes, {class_object_call(listed_class_type)});",
                         )
                     }
                 }
@@ -5787,7 +5843,7 @@ func emit_namespace_object_bodies() {
             var child_position = 0
             while child_position < child_namespaces.count() {
                 lines.append(
-                    "{namespaces_list_name}_append({function_c_name}_cache->namespaces, {ensure_namespace_object(child_namespaces[child_position])}());",
+                    "{namespaces_list_name}_append({function_c_name}_cache->_namespaces, {ensure_namespace_object(child_namespaces[child_position])}());",
                 )
                 child_position = child_position + 1
             }
@@ -6014,18 +6070,21 @@ func emit_functions_function(information: Analysis.ClassInfo) {
                 var parameter = function.parameters[parameter_index]
                 var parameter_type = parameter.get_type()
                 lines.append(
-                    "{arguments_list_name}_append(described->arguments, Spite_Argument_make({ensure_symbol(parameter.name)}, {class_object_call(parameter_type)}));",
+                    "{arguments_list_name}_append(described->_arguments, Spite_Argument_make({ensure_symbol(parameter.name)}, {class_object_call(parameter_type)}));",
                 )
                 parameter_index = parameter_index + 1
             }
             lines.append("described->spite_owner = {information.c_name}_retain(self);")
             lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}_release;")
             var function_return_type = function.get_return_type()
-            if function.parameters.count() == 0 and type_shape.is_void(function_return_type) {
+            var callable = not is_inline_supplied(function)
+            if callable and function.parameters.count() == 0 and type_shape.is_void(function_return_type) {
                 lines.append("described->spite_call = (void (*)(void*)){function.c_name};")
             }
-            lines.append("described->spite_typed_call = (void*){function.c_name};")
-            if read_evaluate_print_loop {
+            if callable {
+                lines.append("described->spite_typed_call = (void*){function.c_name};")
+            }
+            if callable and read_evaluate_print_loop {
                 var text_call = ensure_text_call(information, function)
                 if not text_call.is_empty() {
                     lines.append("described->spite_text_call = (void*){text_call};")
@@ -6092,7 +6151,7 @@ func walkable_class(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
     assert not class_ref.has_signature
     var described = find_class_by_c_name(class_ref.c_name)
     assert described
-    assert not described.is_builtin and not described.is_value_class and not described.is_generic_template
+    assert not described.is_value_class and not described.is_generic_template
     return described
 }
 
@@ -6104,12 +6163,12 @@ func reflected_text(spite_type: Analysis.SpiteType, code: String): String {
         return string_conversion(code, spite_type)
     }
     if type_shape.as_list(spite_type) {
-        return "{number_text_function("long_text", "int64_t")}({code}->item_count)"
+        return long_text("{code}->item_count")
     }
     var reflected_dictionary = type_shape.as_dictionary(spite_type)
     if reflected_dictionary {
         var reflected_dictionary_element = reflected_dictionary.get_element()
-        return "{number_text_function("long_text", "int64_t")}((int64_t){ensure_dictionary(reflected_dictionary_element)}_count({code}))"
+        return long_text("{ensure_dictionary(reflected_dictionary_element)}_count({code})")
     }
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
@@ -6178,7 +6237,7 @@ func ensure_list_attributes_function(element: Analysis.SpiteType): String {
     builder.add_prototype("{signature};")
     var reflect = ensure_reflect_function(element)
     builder.add_support(
-        "{signature} \{\n{attributes_list}* result = {attributes_list}_make();\nfor (int64_t spite_index = 0; spite_index < self->item_count; spite_index = spite_index + 1) {attributes_list}_append(result, {reflect}({number_text_function("long_text", "int64_t")}(spite_index), {list_item_code(element, "self", "spite_index")}));\nreturn result;\n}",
+        "{signature} \{\n{attributes_list}* result = {attributes_list}_make();\nfor (int64_t spite_index = 0; spite_index < self->item_count; spite_index = spite_index + 1) {attributes_list}_append(result, {reflect}({long_text("spite_index")}, {list_item_code(element, "self", "spite_index")}));\nreturn result;\n}",
     )
     return function_c_name
 }
@@ -6297,100 +6356,65 @@ func ensure_text_call(information: Analysis.ClassInfo, function: Analysis.Functi
     return function_c_name
 }
 
-func ensure_live_reflection(): Bool {
-    var attribute_class = find_class_by_c_name("Spite_Attribute")
-    var function_class = find_class_by_c_name("Spite_Function")
-    if not attribute_class {
-        report(
-            "reflection needs the standard library: library/spite/attribute.spite was not found from the working directory",
-        )
-        return false
-    }
-    if not function_class {
-        report(
-            "reflection needs the standard library: library/spite/function.spite was not found from the working directory",
-        )
-        return false
-    }
-    crash attribute_class
-    crash function_class
-    if live_reflection_emitted {
-        return true
-    }
-    live_reflection_emitted = true
-    var class_type = class_type_of(attribute_class)
-    var attributes_list = ensure_list(class_type)
-    var function_class_type = class_type_of(function_class)
-    var functions_list = ensure_list(function_class_type)
-    var string_type = string_type()
-    var strings = ensure_list(string_type)
-    builder.add_prototype("{attributes_list}* Spite_Attribute_value_attributes(Spite_Attribute* self);")
-    builder.add_support(
-        "{attributes_list}* Spite_Attribute_value_attributes(Spite_Attribute* self) \{\nif (self->spite_held != 0 && self->spite_held_attributes != 0) return ({attributes_list}*)self->spite_held_attributes(self->spite_held);\nreturn {attributes_list}_make();\n}",
-    )
-    builder.add_prototype("{functions_list}* Spite_Attribute_value_functions(Spite_Attribute* self);")
-    builder.add_support(
-        "{functions_list}* Spite_Attribute_value_functions(Spite_Attribute* self) \{\nif (self->spite_held != 0 && self->spite_held_functions != 0) return ({functions_list}*)self->spite_held_functions(self->spite_held);\nreturn {functions_list}_make();\n}",
-    )
-    builder.add_prototype("bool Spite_Attribute_assign(Spite_Attribute* self, SpiteString* text);")
-    builder.add_support(
-        "bool Spite_Attribute_assign(Spite_Attribute* self, SpiteString* text) \{\nbool spite_assigned = false;\nif (self->spite_owner != 0 && self->spite_assign != 0) spite_assigned = self->spite_assign(self->spite_owner, text);\nSpiteString_release(text);\nreturn spite_assigned;\n}",
-    )
-    builder.add_prototype("Spite_Attribute* Spite_Function_call_with_text(Spite_Function* self, {strings}* arguments);")
-    builder.add_support(
-        "Spite_Attribute* Spite_Function_call_with_text(Spite_Function* self, {strings}* arguments) \{\nSpite_Attribute* spite_result = 0;\nif (self->spite_text_call != 0) spite_result = ((Spite_Attribute* (*)(void*, {strings}*))self->spite_text_call)(self->spite_owner, arguments);\n{strings}_release(arguments);\nreturn spite_result;\n}",
-    )
-    return true
-}
-
-func generate_live_reflection_call(
-    target_class: Analysis.ClassInfo,
-    member_name: String,
+func generate_memory_read(
     object_result: ExpressionResult,
     object_ast: Syntax.Expressions.Expression,
-    arguments_ast: List<Syntax.Expressions.Expression>,
-    scope: Scope,
-    class_information: Analysis.ClassInfo,
 ): ExpressionResult? {
-    var on_attribute = target_class.c_name == "Spite_Attribute"
-    var on_function = target_class.c_name == "Spite_Function"
-    var parameters = no_types()
-    var returned = boolean_type()
-    if on_attribute and member_name == "value_attributes" {
-        var class_type = class_type_of(target_class)
-        returned = list_type_of(class_type)
-    } else if on_attribute and member_name == "value_functions" {
-        var function_class = find_class_by_c_name("Spite_Function")
-        crash function_class
-        var class_type = class_type_of(function_class)
-        returned = list_type_of(class_type)
-    } else if on_attribute and member_name == "assign" {
-        var string_type = string_type()
-        parameters = one_type(string_type)
-    } else if on_function and member_name == "call_with_text" {
-        var attribute_class = find_class_by_c_name("Spite_Attribute")
-        crash attribute_class
-        var string_type = string_type()
-        var list_type = list_type_of(string_type)
-        parameters = one_type(list_type)
-        var class_type = class_type_of(attribute_class)
-        returned = nullable_type_of(class_type)
-    } else {
+    var object_type = object_result.get_type()
+    var described_ref = type_shape.as_class_ref(object_type)
+    if described_ref {
+        var described = find_class_by_c_name(described_ref.c_name)
+        if described {
+            assert not described.find_field("memory")
+            assert not described.find_function("get_memory")
+        }
+    }
+    var memory_class = find_class_by_qualified("Spite.Memory")
+    if not memory_class {
+        report(
+            "reflection needs the standard library: library/spite/memory.spite was not found from the working directory",
+        )
         return null
     }
-    if not ensure_live_reflection() {
-        return ExpressionResult("0", Analysis.Types.VoidType())
+    crash memory_class
+    var memory_type = class_type_of(memory_class)
+    var object_c_type = c_type_name(object_type)
+    var owned = owns(object_result, object_ast) and type_needs_drop(object_type)
+    var held = "spite_described"
+    var address = "(int64_t)(intptr_t)({held})"
+    var bytes = "(int64_t)sizeof(*({held}))"
+    var section = "Spite_Memory_Section_heap"
+    if type_shape.as_string(object_type) {
+        address = "(int64_t)(intptr_t)({held})->data"
+        bytes = "({held})->length"
+        section = "(({held})->is_static ? Spite_Memory_Section_constant : Spite_Memory_Section_heap)"
+    } else if type_shape.as_scalar(object_type) or is_enum_type(object_type) {
+        if owned or is_owning_shape(object_ast) {
+            report("only a named value has memory of its own: give this value a name with 'var' first")
+            return null
+        }
+        address = "(int64_t)(intptr_t)&({object_result.code})"
+        bytes = "(int64_t)sizeof({object_c_type})"
+        if not object_result.code.contains("->") {
+            section = "Spite_Memory_Section_stack"
+        }
+        var scalar_memory = ExpressionResult("Spite_Memory_make({address}, {bytes}, {section})", memory_type)
+        scalar_memory.owning_override = true
+        return scalar_memory
+    } else if not type_needs_drop(object_type) or type_shape.as_nullable(object_type) or type_shape.as_union(object_type) {
+        report("a {type_display_name(object_type)} has no memory of its own to describe")
+        return null
     }
-    return generate_generic_call(
-        "{target_class.c_name}_{member_name}",
-        object_result,
-        object_ast,
-        arguments_ast,
-        parameters,
-        returned,
-        scope,
-        class_information,
+    var release_object = ""
+    if owned {
+        release_object = "{release_call(object_type, held)};"
+    }
+    var described_memory = ExpressionResult(
+        "(\{ {object_c_type} {held} = {object_result.code}; Spite_Memory* spite_memory = Spite_Memory_make({address}, {bytes}, {section}); {release_object} spite_memory; })",
+        memory_type,
     )
+    described_memory.owning_override = true
+    return described_memory
 }
 
 func generate_reflection_read(
@@ -6416,6 +6440,7 @@ func generate_reflection_read(
         }
         var object_class = find_class_by_c_name(object_class_ref.c_name)
         if object_class {
+            assert not object_class.find_function("get_{member_name}")
             var real_field = object_class.find_field(member_name)
             if real_field {
                 var real_field_type = real_field.get_type()
@@ -6476,12 +6501,26 @@ func generate_reflection_read(
     return null
 }
 
+func report_private_member(target_class: Analysis.ClassInfo, name: String, class_information: Analysis.ClassInfo) {
+    assert name.starts_with("_") and target_class.c_name != class_information.c_name
+    var name_length = name.length()
+    var public_name = name.slice(1, name_length)
+    if target_class.find_function("get_{public_name}") {
+        report(
+            "'{name}' is private to '{target_class.simple_name}': a name starting with '_' is used only inside its own class, and '{public_name}' reads it from outside",
+        )
+        return
+    }
+    report(
+        "'{name}' is private to '{target_class.simple_name}': a name starting with '_' is used only inside its own class",
+    )
+}
+
 func find_getter(
     target_class: Analysis.ClassInfo,
     attribute_name: String,
     calling_class: Analysis.ClassInfo,
 ): Analysis.FunctionInfo? {
-    assert not target_class.is_builtin
     var getter_name = "get_{attribute_name}"
     assert target_class.c_name != calling_class.c_name or current_function != getter_name
     var getter = find_or_instantiate_function(target_class, getter_name)
@@ -6498,7 +6537,6 @@ func find_setter(
     attribute_name: String,
     calling_class: Analysis.ClassInfo,
 ): Analysis.FunctionInfo? {
-    assert not target_class.is_builtin
     assert target_class.find_field(attribute_name)
     var setter_name = "set_{attribute_name}"
     assert target_class.c_name != calling_class.c_name or current_function != setter_name
@@ -6516,7 +6554,7 @@ func deep_copy_code(spite_type: Analysis.SpiteType, code: String): String {
     if class_ref {
         var copied_class = find_class_by_c_name(class_ref.c_name)
         if copied_class {
-            if not copied_class.is_builtin {
+            if not copied_class.is_singleton {
                 return "{ensure_class_deep_copy(copied_class)}({code})"
             }
         }
@@ -6555,6 +6593,13 @@ func ensure_class_deep_copy(information: Analysis.ClassInfo): String {
     var lines = List<String>()
     lines.append("{information.c_name}* {function_c_name}({information.c_name}* self) \{")
     lines.append("if (self == 0) return 0;")
+    if information.is_singleton {
+        lines.append("return {information.c_name}_retain(self);")
+        lines.append("}")
+        var joined_singleton_lines = lines.join("\n")
+        builder.add_support(joined_singleton_lines)
+        return function_c_name
+    }
     lines.append("{information.c_name}* copied = {information.c_name}_allocate();")
     var index = 0
     while index < information.fields.count() {
@@ -6875,40 +6920,6 @@ func supply_list_functions(list_class: Analysis.ClassInfo, element: Analysis.Spi
         index = index + 1
     }
     list_class.functions = kept
-    var integer_type = integer_type()
-    var index_parameter = one_parameter("index", integer_type)
-    var slot = list_item_code(element, "self", "index")
-    supply_function(list_class, "read_item", index_parameter, element, "return {retain_call(element, slot)};")
-    integer_type = integer_type()
-    var write_parameters = two_parameters("index", integer_type, "value", element)
-    var void_type = void_type()
-    supply_function(list_class, "write_item", write_parameters, void_type, "{slot} = value;")
-    void_type = void_type()
-    supply_function(list_class, "release_item", index_parameter, void_type, "{release_statement(element, slot)}")
-    var bytes = "return (int64_t)sizeof({c_type_name(element)});"
-    var no_parameters = no_parameters()
-    var long_type = long_type()
-    supply_function(list_class, "item_bytes", no_parameters, long_type, bytes)
-}
-
-func supply_function(
-    information: Analysis.ClassInfo,
-    name: String,
-    parameters: List<Analysis.ParamInfo>,
-    return_type: Analysis.SpiteType,
-    body: String,
-) {
-    var function = Analysis.FunctionInfo(
-        name,
-        "{information.c_name}_{name}",
-        parameters,
-        return_type,
-        List<Syntax.Statements.Statement>(),
-        false,
-    )
-    function.is_emitted = true
-    information.functions.append(function)
-    builder.add_support("{function_signature(information, function)} \{\n{body}\n}")
 }
 
 func supply_concurrency_functions(instance: Analysis.ClassInfo) {
@@ -6920,27 +6931,10 @@ func supply_concurrency_functions(instance: Analysis.ClassInfo) {
         builder.add_support(
             "static void {task}_fiber_entry(void* task) \{\n{task}_run(({task}*)task);\n{task}_finish(({task}*)task);\n}",
         )
-        supply_addresses(instance, "{task}_fiber_entry")
         return
     }
     builder.add_prototype("static void* {task}_thread_entry(void* task);")
     builder.add_support("static void* {task}_thread_entry(void* task) \{\n{task}_run(({task}*)task);\nreturn 0;\n}")
-    supply_addresses(instance, "{task}_thread_entry")
-}
-
-func supply_addresses(instance: Analysis.ClassInfo, entry: String) {
-    var no_parameters = no_parameters()
-    var long_type = long_type()
-    supply_function(
-        instance,
-        "entry_address",
-        no_parameters,
-        long_type,
-        "(void)self;\nreturn (int64_t)(intptr_t)&{entry};",
-    )
-    no_parameters = no_parameters()
-    long_type = long_type()
-    supply_function(instance, "address", no_parameters, long_type, "return (int64_t)(intptr_t)self;")
 }
 
 func ensure_dictionary(element: Analysis.SpiteType): String {
@@ -7176,11 +7170,6 @@ func joins_as_text(element: Analysis.SpiteType): Bool {
     return type_shape.as_string(element) or type_shape.is_symbol(element) or type_shape.as_scalar(element) or is_enum_type(element)
 }
 
-func print_float_statement(code: String, stream: String, converter: String): String {
-    var temporary = next_temporary()
-    return "\{ SpiteString* {temporary} = {converter}({code}); fprintf({stream}, \"%s\", {temporary}->data); SpiteString_release({temporary}); }"
-}
-
 func printed_statement_for(
     expression_ast: Syntax.Expressions.Expression,
     stream: String,
@@ -7195,13 +7184,10 @@ func printed_statement_for(
         if scalar.kind == 'boolean_kind' {
             return "fprintf({stream}, \"%s\", ({result.code}) ? \"true\" : \"false\");"
         }
-        if scalar.kind == 'float_kind' {
-            var number_text_function = number_text_function("float_text", "float")
-            return print_float_statement(result.code, stream, number_text_function)
-        }
-        if scalar.kind == 'double_kind' {
-            var number_text_function = number_text_function("double_text", "double")
-            return print_float_statement(result.code, stream, number_text_function)
+        if is_float_kind(scalar.kind) {
+            var temporary = next_temporary()
+            var converted = string_conversion(result.code, result_type)
+            return "\{ SpiteString* {temporary} = {converted}; fprintf({stream}, \"%s\", {temporary}->data); SpiteString_release({temporary}); }"
         }
         if scalar.kind == 'unsigned_long_kind' {
             return "fprintf({stream}, \"%llu\", (unsigned long long)({result.code}));"
@@ -7224,7 +7210,7 @@ func printed_statement_for(
             if owns(result, expression_ast) {
                 class_release = " Spite_Class_release({class_temporary});"
             }
-            return "\{ Spite_Class* {class_temporary} = {result.code}; fprintf({stream}, \"%s\", {class_temporary}->name->data);{class_release} }"
+            return "\{ Spite_Class* {class_temporary} = {result.code}; fprintf({stream}, \"%s\", {class_temporary}->_name->data);{class_release} }"
         }
         if printed_class.c_name == "Spite_Namespace" {
             var namespace_temporary = next_temporary()
@@ -7232,7 +7218,7 @@ func printed_statement_for(
             if owns(result, expression_ast) {
                 namespace_release = " Spite_Namespace_release({namespace_temporary});"
             }
-            return "\{ Spite_Namespace* {namespace_temporary} = {result.code}; fprintf({stream}, \"%s\", {namespace_temporary}->name_with_namespaces->data);{namespace_release} }"
+            return "\{ Spite_Namespace* {namespace_temporary} = {result.code}; fprintf({stream}, \"%s\", {namespace_temporary}->_name_with_namespaces->data);{namespace_release} }"
         }
     }
     var printed_enum = type_shape.as_enum(result_type)
@@ -7741,15 +7727,21 @@ func abbreviated(word: String): String {
     return word
 }
 
+func owned_c_text(text: String): String {
+    return "spite_string_from_cstring_owned(\"{escape_c_string(text)}\")"
+}
+
 func emit_foreign_libraries() {
     var library = 0
     while library < foreign_library_files.count() {
         var accessor = "spite_foreign_library_{library}"
+        crash library < foreign_library_namings.count()
+        crash library < foreign_library_headers.count()
         var lines = List<String>()
         lines.append("DynamicLibrary* {accessor}(void) \{")
         lines.append("if ({accessor}_cache == 0) \{")
         lines.append(
-            "{accessor}_cache = DynamicLibrary_make(spite_string_from_cstring_owned(\"{escape_c_string(foreign_library_files[library])}\"));",
+            "{accessor}_cache = DynamicLibrary_make({owned_c_text(foreign_library_files[library])}, {ensure_symbol(foreign_library_namings[library])}, {owned_c_text(foreign_library_headers[library])});",
         )
         var index = 0
         while index < foreign_symbol_names.count() {
@@ -7757,7 +7749,7 @@ func emit_foreign_libraries() {
             crash index < foreign_symbol_wanted.count()
             if foreign_symbol_libraries[index] == library {
                 lines.append(
-                    "spite_foreign_{library}_{index} = DynamicLibrary_symbol({accessor}_cache, \"{escape_c_string(foreign_symbol_names[index])}\", \"{escape_c_string(foreign_symbol_wanted[index])}\");",
+                    "spite_foreign_{library}_{index} = (void*)(intptr_t)DynamicLibrary_find_symbol({accessor}_cache, {owned_c_text(foreign_symbol_names[index])}, {owned_c_text(foreign_symbol_wanted[index])});",
                 )
             }
             index = index + 1
@@ -7867,7 +7859,7 @@ func generate_member_read_raw(
                 every_class.owning_override = true
                 return every_class
             }
-            if named_class.is_builtin or named_class.is_generic_template {
+            if named_class.is_generic_template {
                 report("'{named_class.simple_name}.instances' is not available for this class")
                 return ExpressionResult("0", Analysis.Types.VoidType())
             }
@@ -7914,6 +7906,12 @@ func generate_member_read_raw(
             if tree_receiver.c_name == "Spite_Namespace" {
                 namespace_tree_used = true
             }
+        }
+    }
+    if member.name == "memory" {
+        var memory_read = generate_memory_read(object_result, member.object)
+        if memory_read {
+            return memory_read
         }
     }
     var reflection = generate_reflection_read(member.name, object_result, member.object)
@@ -7965,6 +7963,7 @@ func generate_member_read_raw(
     crash object_class_ref
     var target_class = find_class_by_c_name(object_class_ref.c_name)
     crash target_class
+    report_private_member(target_class, member.name, class_information)
     var getter = find_getter(target_class, member.name, class_information)
     if getter {
         var no_types = no_types()
@@ -8038,7 +8037,11 @@ func generate_expression(
     }
     var float_literal = shape.as_float_literal(expression)
     if float_literal {
-        return ExpressionResult("{float_literal.value}", Analysis.Types.ScalarType('float_kind'))
+        var literal_code = "{float_literal.value}"
+        if not literal_code.contains(".") and not literal_code.contains("e") {
+            literal_code = "{literal_code}.0"
+        }
+        return ExpressionResult(literal_code, Analysis.Types.ScalarType('float_kind'))
     }
     var string_literal = shape.as_string_literal(expression)
     if string_literal {
@@ -8696,6 +8699,7 @@ func generate_store(
         assert object_class_ref
         var target_class = find_class_by_c_name(object_class_ref.c_name)
         assert target_class
+        report_private_member(target_class, member.name, class_information)
         var setter = find_setter(target_class, member.name, class_information)
         if setter {
             var setter_arguments = List<Syntax.Expressions.Expression>()
@@ -10846,7 +10850,8 @@ func function_signature(information: Analysis.ClassInfo, function: Analysis.Func
 
 func named_signature(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, c_name: String): String {
     var parts = List<String>()
-    parts.append("{information.c_name}* self")
+    var receiver_type = value_class_type(information)
+    parts.append("{c_type_name(receiver_type)} self")
     var index = 0
     while index < function.parameters.count() {
         var parameter = function.parameters[index]
@@ -10873,7 +10878,9 @@ func emit_class_prototypes(information: Analysis.ClassInfo) {
     }
     var function_index = 0
     while function_index < information.functions.count() {
-        builder.add_prototype("{function_signature(information, information.functions[function_index])};")
+        if not is_inline_supplied(information.functions[function_index]) {
+            builder.add_prototype("{function_signature(information, information.functions[function_index])};")
+        }
         function_index = function_index + 1
     }
 }
@@ -10976,6 +10983,12 @@ func emit_class_support(information: Analysis.ClassInfo) {
     var joined_release_lines = release_lines.join("\n")
     builder.add_support(joined_release_lines)
     assert not information.find_function("copy")
+    if information.is_singleton {
+        builder.add_support(
+            "{information.c_name}* {information.c_name}_copy({information.c_name}* self) \{ return {information.c_name}_retain(self); }",
+        )
+        return
+    }
     var copy_lines = List<String>()
     copy_lines.append("{information.c_name}* {information.c_name}_copy({information.c_name}* self) \{")
     copy_lines.append(
@@ -11018,6 +11031,14 @@ func emit_class_support(information: Analysis.ClassInfo) {
 func emit_user_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
     assert not function.is_emitted
     function.is_emitted = true
+    if is_inline_supplied(function) {
+        builder.add_typedef(function.supplied_body)
+        return
+    }
+    if not function.has_body {
+        builder.add_user("{function_signature(information, function)} \{\n{function.supplied_body}\n}")
+        return
+    }
     site_ordinal = 0
     current_class = information
     current_function = function.name
@@ -11111,12 +11132,6 @@ func emit_class(information: Analysis.ClassInfo) {
     struct_lines.append("};")
     var joined_struct_lines = struct_lines.join("\n")
     builder.add_typedef(joined_struct_lines)
-    if information.c_name == "Spite_Function" {
-        builder.add_prototype("void Spite_Function_call_function(Spite_Function* self);")
-        builder.add_support(
-            "void Spite_Function_call_function(Spite_Function* self) \{\nif (self != 0 && self->spite_call != 0) self->spite_call(self->spite_owner);\n}",
-        )
-    }
     emit_class_prototypes(information)
     emit_class_support(information)
     var function_index = 0
@@ -11136,7 +11151,9 @@ func emit_value_class(information: Analysis.ClassInfo) {
     }
     var function_index = 0
     while function_index < information.functions.count() {
-        builder.add_prototype("{function_signature(information, information.functions[function_index])};")
+        if not is_inline_supplied(information.functions[function_index]) {
+            builder.add_prototype("{function_signature(information, information.functions[function_index])};")
+        }
         function_index = function_index + 1
     }
     function_index = 0
@@ -11407,16 +11424,16 @@ func emit_main(launcher_mangled_name: String) {
         var cache = "{class_object_names[cache_index]}_cache"
         if not listed_name.is_empty() {
             builder.add_main(
-                "if ({cache} != 0) \{ {listed_name}_release({cache}->functions); {cache}->functions = 0; }",
+                "if ({cache} != 0) \{ {listed_name}_release({cache}->_functions); {cache}->_functions = 0; }",
             )
         }
         if not attribute_listed_name.is_empty() {
             builder.add_main(
-                "if ({cache} != 0) \{ {attribute_listed_name}_release({cache}->attributes); {cache}->attributes = 0; }",
+                "if ({cache} != 0) \{ {attribute_listed_name}_release({cache}->_attributes); {cache}->_attributes = 0; }",
             )
         }
         builder.add_main(
-            "if ({cache} != 0 && {cache}->namespace != 0) \{ Spite_Namespace_release({cache}->namespace); {cache}->namespace = 0; }",
+            "if ({cache} != 0 && {cache}->_namespace != 0) \{ Spite_Namespace_release({cache}->_namespace); {cache}->_namespace = 0; }",
         )
         builder.add_main("Spite_Class_release({cache});")
         cache_index = cache_index + 1
@@ -11434,7 +11451,7 @@ func emit_main(launcher_mangled_name: String) {
         while parent_position < namespace_object_keys.count() {
             var parent_cache = "spite_namespace_object_{namespace_object_keys[parent_position].replace(".", "_")}_cache"
             builder.add_main(
-                "if ({parent_cache} != 0 && {parent_cache}->parent != 0) \{ Spite_Namespace_release({parent_cache}->parent); {parent_cache}->parent = 0; }",
+                "if ({parent_cache} != 0 && {parent_cache}->_parent != 0) \{ Spite_Namespace_release({parent_cache}->_parent); {parent_cache}->_parent = 0; }",
             )
             parent_position = parent_position + 1
         }
@@ -11442,7 +11459,7 @@ func emit_main(launcher_mangled_name: String) {
         while namespace_position < namespace_object_keys.count() {
             var namespace_cache = "spite_namespace_object_{namespace_object_keys[namespace_position].replace(".", "_")}_cache"
             builder.add_main(
-                "if ({namespace_cache} != 0) \{ {classes_list_name}_release({namespace_cache}->classes); {namespace_cache}->classes = 0; {namespaces_list_name}_release({namespace_cache}->namespaces); {namespace_cache}->namespaces = 0; }",
+                "if ({namespace_cache} != 0) \{ {classes_list_name}_release({namespace_cache}->_classes); {namespace_cache}->_classes = 0; {namespaces_list_name}_release({namespace_cache}->_namespaces); {namespace_cache}->_namespaces = 0; }",
             )
             builder.add_main("Spite_Namespace_release({namespace_cache});")
             namespace_position = namespace_position + 1

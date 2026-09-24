@@ -1,0 +1,7 @@
+var console = Console()
+
+func ReflectionReadOnly() {
+    var described = console.class
+    described.name = "Terminal"
+    console.print(described._name)
+}

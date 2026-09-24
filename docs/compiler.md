@@ -164,14 +164,27 @@ What is written is what the program **ends up with**, not what was written down:
 generator after it has run, so a class tree shaking removed is not there, a generic template is not there, and
 each of its instantiations is.
 
-`built_in/` holds the classes the compiler provides rather than a file -- `Console`, `File`, `Directory`,
-`Process`, `Program` -- and `instantiated/` holds one file per generic instantiation, named for the values it
-was given (`WeaponIntTrue`, `PairStringInt`). Both are written as `type` declarations, because a `type` is how
-Spite already names members without bodies.
+Every class the program names comes from a file in `library/`, including `Memory`, `DynamicLibrary`, `String`
+and the numbers (`Int`, `Long`, `Double`, ...), so every one of them is printed like a class of your own. A
+function whose body the compiler supplies -- the floor that stays C, such as `Memory.allocate_bytes` -- is added
+to its class as the compiler's own reopening (D82), and is printed as a declaration without a body:
 
-Still missing: `Int`, `String`, `List<T>` and `Dictionary<T>` have no class table inside the compiler at all --
-they are handled by name in the generator, so there is nothing to print until they become real classes
-(manual.md section 15, "Pure Spite").
+```
+func allocate_bytes(bytes: Long): Long
+func resize(address: Long, bytes: Long): Long
+func free(address: Long)
+
+func is_singleton(): Bool {
+    return true
+}
+```
+
+A declaration without a body is what the compiler reads back, so the printed program still compiles: the
+printed `memory.spite` reopens `Memory` with the same members, and the compiler supplies the same bodies again.
+Anywhere else, a `func` with no body is an error, because only the compiler can supply one.
+
+`instantiated/` holds one file per generic instantiation, named for the values it was given (`WeaponIntTrue`,
+`PairStringInt`), written as `type` declarations.
 
 Which root supplied each declaration is **not** shown yet. It cannot be a comment, since a comment is only ever
 a link to a markdown heading (manual.md section 12), so it needs a form of its own -- see manual.md's open

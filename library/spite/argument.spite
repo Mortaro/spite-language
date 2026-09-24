@@ -1,7 +1,15 @@
-var name: Symbol = 'unnamed'
-var class = Spite.Class('Nothing')
+var _name: Symbol = 'unnamed'
+var _class = Spite.Class('Nothing')
 
 func Argument(starting_name: Symbol, starting_class: Spite.Class) {
-    name = starting_name
-    class = starting_class
+    _name = starting_name
+    _class = starting_class
+}
+
+func get_name(): Symbol {
+    return _name
+}
+
+func get_class(): Spite.Class {
+    return _class
 }

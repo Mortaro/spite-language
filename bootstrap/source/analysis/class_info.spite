@@ -3,7 +3,6 @@ var simple_name = ""
 var namespace_dotted = ""
 var qualified_dotted = ""
 var class_id = 0
-var is_builtin = false
 var is_emitted = false
 var is_singleton = false
 var is_value_class = false

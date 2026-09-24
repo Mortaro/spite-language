@@ -1,0 +1,27 @@
+enum Section {
+    'heap'
+    'stack'
+    'constant'
+}
+
+var _address: Long = 0
+var _bytes: Long = 0
+var _section: Section = 'heap'
+
+func Memory(starting_address: Long, starting_bytes: Long, starting_section: Section) {
+    _address = starting_address
+    _bytes = starting_bytes
+    _section = starting_section
+}
+
+func get_address(): Long {
+    return _address
+}
+
+func get_bytes(): Long {
+    return _bytes
+}
+
+func get_section(): Section {
+    return _section
+}
