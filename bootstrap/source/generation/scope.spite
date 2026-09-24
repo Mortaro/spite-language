@@ -9,6 +9,7 @@ var override_codes = List<String>()
 var owned = List<OwnedLocal>()
 var narrowed_paths = List<String>()
 var is_loop = false
+var rebindings = 0
 var paths_read_from_outside = List<String>()
 
 func Scope(starting_parent: Scope?) {
@@ -44,6 +45,17 @@ func mark_used(name: String) {
     }
     assert parent
     parent.mark_used(name)
+}
+
+func forget_owned(name: String) {
+    var index = owned.count() - 1
+    while index >= 0 {
+        crash owned[index]
+        if owned[index].name == name {
+            owned.remove_at(index)
+        }
+        index = index - 1
+    }
 }
 
 func declare_owned(name: String, spite_type: Analysis.SpiteType) {

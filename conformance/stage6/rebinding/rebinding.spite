@@ -1,0 +1,27 @@
+var console = Console()
+
+func Rebinding() {
+    var content = "  text  "
+    var content = content.trim()
+    console.print("[{content}]")
+    var count = 1
+    var count = count + 1
+    console.print(count)
+    var found = find("spite")
+    show(found)
+    var missing = find("")
+    show(missing)
+}
+
+func find(name: String): String? {
+    if name.is_empty() {
+        return null
+    }
+    return "  {name}  "
+}
+
+func show(found: String?) {
+    assert found
+    var found = found.trim()
+    console.print(found)
+}

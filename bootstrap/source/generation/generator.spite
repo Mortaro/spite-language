@@ -7406,6 +7406,9 @@ func generate_variable_declaration(
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
     report_copy_for_narrowing(declaration.name, declaration.value, declared_type)
+    if scope.entry_names.contains(declaration.name) {
+        value_code = rebind(declaration.name, value_code, declared_type, scope)
+    }
     builder.add_user("{c_type_name(declared_type)} {declaration.name} = {value_code};")
     if type_needs_drop(declared_type) {
         scope.declare_owned(declaration.name, declared_type)
@@ -7415,6 +7418,31 @@ func generate_variable_declaration(
         scope.declare(declaration.name, declared_type)
         scope.check_last(current_line)
         check_value_name(declaration.name, "variable")
+    }
+}
+
+func rebind(name: String, value_code: String, declared_type: Analysis.SpiteType, scope: Scope): String {
+    var temporary = next_temporary()
+    builder.add_user("{c_type_name(declared_type)} {temporary} = {value_code};")
+    var index = 0
+    while index < scope.owned.count() {
+        if scope.owned[index].name == name {
+            var old_type = scope.owned[index].get_type()
+            builder.add_user("{release_call(old_type, name)};")
+        }
+        index = index + 1
+    }
+    scope.forget_owned(name)
+    builder.add_user("\{")
+    scope.rebindings = scope.rebindings + 1
+    return temporary
+}
+
+func close_rebindings(scope: Scope) {
+    var index = 0
+    while index < scope.rebindings {
+        builder.add_user("}")
+        index = index + 1
     }
 }
 
@@ -8134,6 +8162,7 @@ func generate_block_in_scope(
     if not ended_in_return {
         emit_scope_drops(block_scope, false)
     }
+    close_rebindings(block_scope)
     report_unused(block_scope)
 }
 
@@ -10082,6 +10111,7 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
             builder.add_user("return {default_value_for_type(function_return_type)};")
         }
     }
+    close_rebindings(scope)
     builder.add_user("}")
 }
 
