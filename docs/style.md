@@ -245,6 +245,7 @@ page:
 | `this.name` | `name` | [classes_and_files.md](classes_and_files.md#this) |
 | `Console().print(value)`, `Build().program`, `greet(Console())` | `var console = Console()` beside the attributes, then `console.print(value)` | [classes_and_files.md](classes_and_files.md#singletons) |
 | `enum Job = { 'knight', 'mage' }` | one entry per line, no `=`, no commas | [values_and_types.md](values_and_types.md#enums) |
+| a `while` whose body only passes each element of `names` to `say_hello` | `names.each_say_hello()` | [collections.md](collections.md#a-function-of-yours-for-each-element) |
 
 The reason is the same everywhere: Spite is written mostly by AI and read by people, and a long way round that the
 compiler accepts is a pattern that spreads.

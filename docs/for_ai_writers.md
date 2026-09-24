@@ -101,6 +101,14 @@ func is_alive(): Bool {
 - On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Bool` member),
   `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<member>()`,
   `each_<member>()` (a function). A member is an attribute or a function that takes nothing.
+- The member can also be a function of the class you are writing in that takes the element and nothing else:
+  with `func say_hello(name: String)`, `names.each_say_hello()` calls it once per name, and `filter_`, `map_`,
+  `sum_` and the rest take such a function the same way, on a list of anything, chained or not. When the element
+  has a member of that name too, it is an error: rename one.
+- A `while` whose whole body passes each element of a list to one such function -- `var index = 0`,
+  `while index < names.count()`, `say_hello(names[index])`, `index = index + 1` -- is an error naming
+  `names.each_say_hello()`. A function that needs more than the element (`print_statement(statement, depth)`)
+  keeps its `while`.
 - `enum`, `union` and `type` declarations take no `=`, one entry per line, no commas:
 
   ```spite
@@ -225,7 +233,7 @@ round trip, and this list is cheaper to read than to rediscover.
 | `print(value)` | `var console = Console()` at file level, then `console.print(value)` |
 | `Console().print(value)`, `Build().program` | `var console = Console()`, `var build = Build()`, then `console.print(value)`, `build.program` |
 | `"hello ${name}"`, `"hello " + name` | `"hello {name}"` |
-| `for item in list` | `while index < list.count()`, or `map_`/`filter_`/`each_<member>()` |
+| `for item in list` | `map_`/`filter_`/`each_<member>()`, or `list.each_<function>()` with a function of yours; `while index < list.count()` when the body needs more |
 | `value == null` | `if value { } else { }`, `assert value`, `crash value`, or `switch` |
 | `text[0]` | `text.character_at(0)`, or `text.slice(start, end)` |
 | `// comment`, `/* comment */` | nothing, or `# docs/page.md#section` on its own line outside a function |
