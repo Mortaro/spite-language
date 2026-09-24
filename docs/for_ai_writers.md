@@ -154,6 +154,9 @@ func is_alive(): Bool {
 `files`, `folders`, `exists`, `create`),
 `Process(command, arguments)` (`run(): Int`, `output()`), `Program()` (`exit(code)`, `sleep(milliseconds)`,
 `environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere.
+`Json<T>()` (`write(value): String`, `read(text): T?`, `read_or_crash(text): T`) converts any class, list,
+dictionary, enum, number, `Bool`, `String` or `T?` to JSON and back; `read` skips unknown keys, keeps defaults for
+missing ones, and is `null` on a value of the wrong kind (docs/json.md).
 
 ## Habits from other languages that Spite rejects
 

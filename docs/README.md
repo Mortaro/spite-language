@@ -19,7 +19,8 @@ open while you write.
 - [memory.md](memory.md) -- the current ownership rules, with do/don't examples.
 - [packages.md](packages.md) -- `load`, namespaces, monkey patching, final classes.
 - [repl.md](repl.md) -- local and remote REPL, the wire protocol, a worked debugging session.
-- [standard_library.md](standard_library.md) -- task-oriented: read a file, run a process, group things in a `Dictionary`.
+- [standard_library.md](standard_library.md) -- task-oriented: read a file, walk a directory, run a process, group things in a `Dictionary`.
+- [json.md](json.md) -- `Json<T>`: any class to JSON text and back, and how it is written with the metaprogramming.
 - [for_ai_writers.md](for_ai_writers.md) -- a dense one-page cheat sheet. Paste this into an AI's context.
 - [self_hosting.md](self_hosting.md) -- status of the Spite-in-Spite bootstrap compiler.
 - [KNOWN_ISSUES.md](KNOWN_ISSUES.md) -- places the compiler's real behavior differs from what you might expect.

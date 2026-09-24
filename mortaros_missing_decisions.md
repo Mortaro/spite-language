@@ -44,3 +44,21 @@ manual argues it.
     is already waiting. Being built with D35's `Task` now; confirm the drain rule once it lands.
 12. **`Socket` is new public library surface** (`library/socket.spite`), and the REPL's port is fixed at build time.
 
+## From D93 and D95 (directories and JSON)
+
+13. **`Directory.Entry`** is the name of the union of `Directory` and `File` that `entries()` answers; folders
+    come first, then files, each sorted. Should `files()` and `folders()` go now that `entries()` exists (the
+    compiler's own discovery still reads names)? Manual section 15, "System classes".
+14. **`Json<T>`'s API**: `Json<Order>().write(order)`, `.read(text)` (`Order?`) and `.read_or_crash(text)`. This
+    settles D22's open naming pair as `read`/`read_or_crash`, unless you prefer `to_json`/`to_crashing_json` or
+    `parse_json`/`parse_json_or_crash`. Also `Json` itself: JSON is an abbreviation, but it is the format's name.
+15. **Reading foreign JSON**: unknown keys are skipped, missing attributes keep their defaults, and a value of the
+    wrong kind makes the whole read `null`. The alternative for missing attributes is to fail as well.
+16. **The metaprogramming `Json` needed** (manual sections 4, 8, 9): `attribute: Symbol<Label>` for a template
+    over another class's attributes; the plural (`show_attributes`) to call a template for every attribute;
+    `$value_type == List` / `Dictionary` / `Null` / `Symbol` as compile-time type tests; `$value_type.element_type`
+    to name what a container holds; text casting to an enum by name. Each is a new form, so each wants a yes or no.
+17. **The number test is ten comparisons** (`$value_type == Int or $value_type == Long or ...`) because a union of
+    number types is not allowed (a union's members are classes). A `Number` kind like `List` would read better,
+    but it would be a name that is not a class. Which do you prefer, or should unions admit numbers?
+

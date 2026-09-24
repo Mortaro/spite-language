@@ -1,0 +1,2 @@
+spite.crash	0239ffd8	library/json.spite:72	Json	read_or_crash	failure == ""	failure=expected a number at character 10
+count 3

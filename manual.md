@@ -2038,7 +2038,7 @@ nothing in the repository is written in a second language and nothing rots out o
 150-300 hand-written lines; generating it fully is a goal, not a day-one requirement, and it shrinks on its own
 as wasm proposals land.
 
-### JSON is reflection, not a library  **[planned]**
+### JSON is reflection, not a library  **[implemented]**
 
 D22 and D23 (decided by Mortaro, 2026-09-19), amended by D31: writing JSON is walking a value's attributes and
 reading it is a series of symbol keyed writes, so JSON needs no machinery of its own: a `type` shape is the JSON
@@ -2051,6 +2051,52 @@ not what Spite programs send each other (see [The wire format](#the-wire-format-
   succeed returns a `T?`, and a variant that crashes exists for callers who want the report instead.
 - Open: the names of that pair. Mortaro sketched `to_json`/`to_crashing_json`; Claude prefers
   `parse_json()`/`parse_json_or_crash()` (unconfirmed).
+
+**`Json<T>`** (D95, decided by Mortaro, 2026-09-24: "json with a generic should be part of our standard library
+using metaprograming to easily convert to and from json").  **[implemented]** `library/json.spite` is one generic
+class, and every conversion it makes is a function the compiler writes from it for the types a program actually
+uses, so a program that never names `Json` carries none of it (D42).
+
+```
+var json = Json<Order>()
+var text = json.write(order)            # String: never fails
+var read = json.read(text)              # Order?: null on text that is not an Order
+var order = json.read_or_crash(text)    # Order: halts, naming the position and what was expected
+```
+
+- **What it is written with** is section 8 and section 9's metaprogramming and nothing else: `if $value_type ==
+  List { }` chooses what a type becomes at compile time, `Json<$value_type.element_type>()` recurses into what a
+  container holds, and a class is walked by a Symbol codegen template over `Symbol<$value_type>`, called for every
+  attribute at once by its plural (`write_attributes`, `read_attributes`). Reading keeps a `JsonReader`
+  (`library/json_reader.spite`), a cursor over the text holding the first failure.
+- **What each type becomes:** `String` is text (`"`, `\` and control characters escaped, `\uXXXX` read back as
+  UTF-8, surrogate pairs included); every number type is a number; `Bool` is `true`/`false`; an enum is its value's
+  name as text; a class is an object with one key per attribute in declaration order; `List<T>` is an array;
+  `Dictionary<T>` is an object; `T?` is `null` or what `T` becomes. Nested classes, lists of lists and
+  dictionaries of classes are the same rules again.
+
+What follows is Claude's reading where D22 and D95 are not specific (proposed by Claude, unconfirmed):
+
+- **The API is a class you make once per type**, `Json<Order>()`, with `write`, `read` and `read_or_crash`. The
+  generic is on the class because that is where Spite puts generics, and naming the type once at the top reads
+  better than naming it on every call. The pair D22 asked for is `read`/`read_or_crash`, following the suffix
+  Claude proposed for `parse_json_or_crash`; `write` needs no pair, since it cannot fail.
+- **Reading input is strict about what it cannot use and lenient about what it does not need** (section 5's
+  three outcomes). A key the class does not have is skipped, whatever it holds, because foreign systems send more
+  than a program asks for. An attribute the text does not mention keeps the default its class declares, which is
+  the value section 4 already gives anything never set. A value of the wrong kind -- text for a number, `null` for
+  an attribute that is not a `T?`, an enum name the enum lacks, a missing brace, anything after the value -- makes
+  `read` answer `null`: the object would be wrong, and a wrong object that looks right is the surprise D27 exists
+  to prevent. `read_or_crash` crashes on the same inputs, and its crash line carries
+  `failure=expected <what> at character <n>`.
+- **A number reads into whatever number type the attribute has** through the ordinary text-to-number cast, so
+  `3.7` read into an `Int` is `3`; JSON has one number type and the class already says which one it wants.
+- **Not handled yet:** a `Float` or `Double` holding infinity or not-a-number is written as `inf`/`nan`, which is
+  not JSON; a `Symbol` attribute (as opposed to an enum) does not read, since text becomes a `Symbol` only through
+  `Symbol(text)` (D70); and `--final-classes` does not print the functions `Json<Order>` generated, because a
+  generic class's file is shared by all its instances.
+
+`tests/json_tests.spite`, `conformance/stage6/json_crash`, `docs/json.md`.
 
 ### examples/calculator  **[implemented]**
 
@@ -2774,3 +2820,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (Mortaro, 2026-09-24, on D35/D37) **Hidden async/await must be built and documented**: "Make sure you made good on your promise of hidden async await with injected code into proper pause modes, its a important feature but ive seen not mention of it in documentation." D35's `Task` (no function colouring, join on drop) and D37's injected drain points are decided but not built, and `docs/` does not describe them; the remote REPL answers at once instead of at drain points. |
 | 2026-09-24 | (implements D93; proposed by Claude, unconfirmed) **`Directory.entries()` answers a `List<Directory.Entry>`**, the union of `Directory` and `File` declared in `library/directory.spite`, each with its `path` joined to its parent's; folders first, then files, each sorted by name. `files()` and `folders()` stay, answering names, and are proposed for removal once nothing reads names alone; each operating system's listing is renamed `entry_names(want_folders)`. Section 15, "System classes". |
 | 2026-09-24 | (for D95; proposed by Claude, unconfirmed) **The metaprogramming `Json` needs, built as general features.** (1) `attribute: Symbol<Label>` makes a Symbol codegen template range over `Label`'s attributes, with `label.attributes[attribute]` reading and writing that attribute; (2) calling a template by the plural of its symbol (`show_attributes`) calls it once for every attribute in declaration order, as a generated function of those calls, and requires the template to return nothing; (3) `$value_type == X` on a type-bound codegen value folds at compile time, with `List`, `Dictionary`, `Null` (any `T?`) and `Symbol` (any enum) naming kinds and a union naming its members; (4) `$value_type.element_type` / `.value_type` read the codegen values a type was built from; (5) text casts to an enum by name, the first value when none matches. Fixed on the way: a generic instance's name now tells `Int?` from `Sailor?` (both were `Value`, so `Json<Int?>` reused `Json<Sailor?>`), a `T?` of an enum has a C type, and `--final-classes` no longer prints a generic instance's generated functions into the generic's file. Sections 4, 8 and 9. |
+| 2026-09-24 | (implements D95; proposed by Claude, unconfirmed) **`Json<T>` is `library/json.spite`**, with `write(value): String`, `read(text): T?` and `read_or_crash(text): T`, written with the metaprogramming of the previous row and reading through `JsonReader`. Reading skips keys the class does not have, keeps the default of an attribute the text omits, and answers `null` (or crashes, naming the position and what was expected) on a value of the wrong kind or text that is not JSON. Numbers read through the ordinary text cast; `inf`/`nan` and `Symbol` attributes are not handled yet. Section 15, "JSON is reflection, not a library"; `docs/json.md`. |
