@@ -1,0 +1,5 @@
+var points = 0
+
+func Score(new_points: Int) {
+    points = new_points
+}

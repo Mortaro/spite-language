@@ -1,0 +1,39 @@
+var console = Console()
+
+func TextBuilding() {
+    var piece = "piece."
+    var built = ""
+    var index = 0
+    while index < 100000 {
+        built = built + piece
+        built = "{built}{piece}"
+        index = index + 1
+    }
+    var built_length = built.length()
+    console.print(built_length)
+    var shared = "a"
+    shared = "{shared}b"
+    var other = shared
+    shared = "{shared}c"
+    console.print(other, shared)
+    var kept = List<String>()
+    kept.append(shared)
+    shared = shared + piece
+    var first_kept = kept.first()
+    console.print(first_kept, shared)
+    var twice = "x"
+    twice = "{twice}-{twice}"
+    twice = twice + twice
+    console.print(twice)
+    var original = "start"
+    var grown = grown_from(original)
+    console.print(original, grown)
+    var counted = "count:"
+    counted = "{counted} {index} {built_length}"
+    console.print(counted)
+}
+
+func grown_from(text: String): String {
+    text = "{text} and more"
+    return text
+}

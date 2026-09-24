@@ -446,6 +446,11 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   through the formatter, then reviewed by hand; the conditions on the right of `and`/`or` and in `while` loops
   were rewritten by hand. The check went in with the rewritten sources in one step, since generation 2 checks the
   compiler's own code.
+- 2026-09-24: building text is linear. `generate_store` sends `text = text + piece` and `text = "{text}{piece}"`
+  on a local `String` (no piece mentioning `text`) to `emit_append_in_place`, one `SpiteString_append` per piece;
+  the prelude function grows the buffer in place when the count is 1 (`capacity` is new on `SpiteString`) and
+  copies otherwise. 100 000 appends went from 6.9 s to 0.23 s. A plain `Symbol` template on `List` is now an
+  error naming `Symbol<$element_type>` (`register_template`).
 - 2026-09-24: D82/D83/D88/D92/D98/D100/D101. `register_system_classes` is gone. `Prelude.reopened_classes()` lists
   the classes the compiler reopens and `Prelude.reopening(path)` is their Spite source (bodiless `func`s, which
   the parser now reads and `SourcePrinter` prints); discovery merges them after `library/` with the ordinary

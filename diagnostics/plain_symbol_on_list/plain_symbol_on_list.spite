@@ -1,0 +1,8 @@
+var console = Console()
+
+func PlainSymbolOnList() {
+    var scores = List<Score>()
+    scores.append(Score(3))
+    var total = scores.total_points()
+    console.print(total)
+}
