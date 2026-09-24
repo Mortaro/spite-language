@@ -14,8 +14,13 @@ manual argues it.
 
 2. **Open question 15: whether `while` goes.** Proposal: the index loop over a list (199 of 259 loops) becomes an
    error naming the member template; `while` stays for loops over state.
+   D94 review: [mortaros_review_while_and_else_if.md](mortaros_review_while_and_else_if.md). Of 472 loops, 31 are
+   replaceable today and the exact-shape rule there catches about 10; most index loops pass the element to a
+   function of the caller, which no template expresses.
 3. **Open question 20: whether a nested `if`/`else` is an error.** Proposal: an `if` with an `else` inside a
    branch of another `if` with an `else` is an error naming "extract a function".
+   D94 review: [mortaros_review_while_and_else_if.md](mortaros_review_while_and_else_if.md), section 3 (16 cases,
+   with the `else if` chains and a proposed `switch` over an enum).
 4. **Open question 13: how a class defines its own casts** (`func from_type(type: Symbol, value: type.class)`).
    You asked to be asked later.
 5. **Open question 16: two versions of one dependency.** Needs D38 (git dependencies) first.
