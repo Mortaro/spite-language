@@ -3,12 +3,6 @@ typedef struct {
     const char** items;
 } SpiteArguments;
 
-typedef struct File File;
-struct File {
-    SpiteHeader header;
-    SpiteString* path;
-};
-
 typedef struct Directory Directory;
 struct Directory {
     SpiteHeader header;

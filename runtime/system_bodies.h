@@ -19,72 +19,6 @@ SpiteString* SpiteArguments_lookup(SpiteArguments* self, const char* key) {
     return 0;
 }
 
-void File_init(File* self) {
-    self->path = (&spite_static_string_empty);
-}
-
-File* File_allocate(void) {
-    File* self = (File*)SPITE_MALLOC(sizeof(File));
-    self->header.ref_count = 1;
-    self->header.class_id = SPITE_CLASS_ID_FILE;
-    #ifdef SPITE_DEBUG_MEMORY
-    spite_debug_register_object(self, SPITE_CLASS_ID_FILE);
-    #endif
-    File_init(self);
-    return self;
-}
-
-File* File_default(void) {
-    return File_allocate();
-}
-
-File* File_make(SpiteString* path) {
-    File* self = File_allocate();
-    File_File(self, path);
-    return self;
-}
-
-File* File_retain(File* self) {
-    if (self != 0) self->header.ref_count = self->header.ref_count + 1;
-    return self;
-}
-
-void File_release(File* self) {
-    if (self == 0) return;
-    self->header.ref_count = self->header.ref_count - 1;
-    if (self->header.ref_count > 0) return;
-    SpiteString_release(self->path);
-    SPITE_FREE(self);
-}
-
-File* File_copy(File* self) {
-    File* spite_copy = File_allocate();
-    SpiteString_release(spite_copy->path);
-    spite_copy->path = SpiteString_retain(self->path);
-    return spite_copy;
-}
-
-File* File_deep_copy(File* self) {
-    File* spite_copy = File_allocate();
-    SpiteString_release(spite_copy->path);
-    spite_copy->path = spite_string_from_bytes((self->path)->data, (self->path)->length);
-    return spite_copy;
-}
-
-void File_File(File* self, SpiteString* path) { SpiteString_release(self->path); self->path = SpiteString_retain(path); SpiteString_release(path); }
-
-SpiteString* File_read(File* self) {
-    bool spite_file_ok = false;
-    SpiteString* spite_file_content = spite_file_read_all(self->path, &spite_file_ok);
-    if (!spite_file_ok) return 0;
-    return spite_file_content;
-}
-
-bool File_write(File* self, SpiteString* text) { bool spite_ok = spite_file_write_all(self->path, text, "wb"); SpiteString_release(text); return spite_ok; }
-bool File_append(File* self, SpiteString* text) { bool spite_ok = spite_file_write_all(self->path, text, "ab"); SpiteString_release(text); return spite_ok; }
-bool File_exists(File* self) { return spite_file_exists(self->path); }
-bool File_remove(File* self) { return spite_file_remove(self->path); }
-
 void Directory_init(Directory* self) {
     self->path = (&spite_static_string_empty);
 }
@@ -347,6 +281,18 @@ SpiteString* Program_environment(Program* self, SpiteString* name) {
     SpiteString_release(name);
     if (spite_environment_value == 0) return 0;
     return spite_string_from_cstring_owned(spite_environment_value);
+}
+
+/* The platform this program was compiled for: a fact of the build, so it is part of the floor. */
+SpiteString* Program_platform(Program* self) {
+    (void)self;
+#ifdef _WIN32
+    return spite_string_from_cstring_owned("windows");
+#elif defined(__APPLE__)
+    return spite_string_from_cstring_owned("mac");
+#else
+    return spite_string_from_cstring_owned("linux");
+#endif
 }
 
 int32_t Program_live_allocations(Program* self) {

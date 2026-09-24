@@ -22,6 +22,7 @@ var foreign_symbol_names = List<String>()
 var foreign_symbol_wanted = List<String>()
 var foreign_headers_included = List<String>()
 var function_value_makers = List<String>()
+var written_in_spite = List<String>()
 var body_narrowed_names = List<String>()
 var body_assigned_paths = List<String>()
 var singleton_names = List<String>()
@@ -89,7 +90,9 @@ func allocate_class_id(debug_name: String): Int {
 func register_system_class(name: String): Analysis.ClassInfo {
     var information = Analysis.ClassInfo(name, name, "", name, allocate_class_id(name))
     information.is_builtin = true
-    classes.append(information)
+    if not written_in_spite.contains(name) {
+        classes.append(information)
+    }
     return information
 }
 
@@ -142,13 +145,6 @@ func one_parameter(name: String, spite_type: Analysis.SpiteType): List<Analysis.
 }
 
 func register_system_classes() {
-    var file = register_system_class("File")
-    add_builtin_function(file, "File", one_parameter("path", string_type()), void_type())
-    add_builtin_function(file, "read", no_parameters(), nullable_type_of(string_type()))
-    add_builtin_function(file, "write", one_parameter("text", string_type()), boolean_type())
-    add_builtin_function(file, "append", one_parameter("text", string_type()), boolean_type())
-    add_builtin_function(file, "exists", no_parameters(), boolean_type())
-    add_builtin_function(file, "remove", no_parameters(), boolean_type())
     var directory = register_system_class("Directory")
     add_builtin_function(directory, "Directory", one_parameter("path", string_type()), void_type())
     add_builtin_function(directory, "files", no_parameters(), list_type_of(string_type()))
@@ -171,6 +167,7 @@ func register_system_classes() {
     add_builtin_function(program, "sleep", one_parameter("milliseconds", integer_type()), void_type())
     add_builtin_function(program, "environment", one_parameter("name", string_type()), nullable_type_of(string_type()))
     add_builtin_function(program, "live_allocations", no_parameters(), integer_type())
+    add_builtin_function(program, "platform", no_parameters(), string_type())
     var dynamic_library = register_system_class("DynamicLibrary")
     var library_parameters = one_parameter("file_name", string_type())
     library_parameters.append(Analysis.ParamInfo("naming", Analysis.Types.SymbolType()))
@@ -429,6 +426,11 @@ func generate(
     builder.add_typedef(
         "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_kept = spite_assert_total < 32 ? spite_assert_total : 32;\nfor (int64_t spite_index = spite_assert_total - spite_kept; spite_index < spite_assert_total; spite_index = spite_index + 1) \{ fputs(spite_assert_trace[spite_index % 32], stderr); }\nif (spite_assert_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_assert_total - 32)); }\n}",
     )
+    var discovered_index = 0
+    while discovered_index < discovery.class_files.count() {
+        written_in_spite.append(discovery.class_files[discovered_index].qualified_dotted)
+        discovered_index = discovered_index + 1
+    }
     register_system_classes()
     register_classes(discovery.class_files)
     emit_enums()
@@ -4510,6 +4512,9 @@ func is_listed_class(information: Analysis.ClassInfo): Bool {
         return false
     }
     if information.c_name.starts_with("Object_") or information.c_name.starts_with("Spite_") {
+        return false
+    }
+    if information.source_path.starts_with("library/") {
         return false
     }
     return information.c_name != "Nothing"

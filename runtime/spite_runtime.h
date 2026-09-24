@@ -588,47 +588,11 @@ SpiteString* spite_console_read_line(bool* ok) {
  * Directory listing and process spawning
  * branch on `_WIN32`; everything else is plain stdio/stdlib. */
 
-FILE* spite_file_open(SpiteString* path, const char* mode) {
-    return fopen(path->data, mode);
-}
-
 bool spite_file_exists(SpiteString* path) {
     FILE* handle = fopen(path->data, "rb");
     if (handle == 0) return false;
     fclose(handle);
     return true;
-}
-
-bool spite_file_remove(SpiteString* path) {
-    return remove(path->data) == 0;
-}
-
-/* Reads the whole file into a fresh owned buffer; `*ok` reports whether the
- * file could be opened at all. */
-SpiteString* spite_file_read_all(SpiteString* path, bool* ok) {
-    FILE* handle = fopen(path->data, "rb");
-    if (handle == 0) {
-        *ok = false;
-        return &spite_static_string_empty;
-    }
-    fseek(handle, 0, SEEK_END);
-    long size = ftell(handle);
-    fseek(handle, 0, SEEK_SET);
-    if (size < 0) size = 0;
-    char* buffer = (char*)SPITE_MALLOC((size_t)size + 1);
-    size_t read_count = size > 0 ? fread(buffer, 1, (size_t)size, handle) : 0;
-    buffer[read_count] = '\0';
-    fclose(handle);
-    *ok = true;
-    return spite_string_take(buffer, (int64_t)read_count);
-}
-
-bool spite_file_write_all(SpiteString* path, SpiteString* text, const char* mode) {
-    FILE* handle = fopen(path->data, mode);
-    if (handle == 0) return false;
-    size_t written = text->length > 0 ? fwrite(text->data, 1, (size_t)text->length, handle) : 0;
-    fclose(handle);
-    return written == (size_t)text->length;
 }
 
 bool spite_directory_exists(SpiteString* path) {

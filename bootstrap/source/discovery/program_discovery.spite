@@ -5,6 +5,7 @@ var comment_root = ""
 var error_message = ""
 var walking_library = false
 var formats = false
+var host_platform = Program().platform()
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
     var lexer = Syntax.Lexer(formatted_source(entry_path, entry_source))
@@ -281,6 +282,10 @@ func failure(message: String): DiscoveryResult {
     return DiscoveryResult(empty, "", true, message)
 }
 
+func is_platform_folder(name: String): Bool {
+    return name == "windows" or name == "linux" or name == "mac"
+}
+
 func walk_directory(
     root_folder: String,
     segments: List<String>,
@@ -321,6 +326,12 @@ func walk_directory(
         var excluded = false
         if segments.is_empty() {
             excluded = excluded_top_level.contains(folder_name)
+            if walking_library and is_platform_folder(folder_name) {
+                excluded = true
+                if folder_name == host_platform {
+                    walk_directory("{root_folder}/{folder_name}", segments, skip_basename, excluded_top_level)
+                }
+            }
         }
         if not excluded {
             var child_segments = copy_segments(segments)
