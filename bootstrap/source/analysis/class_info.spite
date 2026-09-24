@@ -6,6 +6,7 @@ var class_id = 0
 var is_builtin = false
 var is_emitted = false
 var is_singleton = false
+var is_value_class = false
 var is_generic_template = false
 var entry_index = 0
 var codegen_names = List<String>()

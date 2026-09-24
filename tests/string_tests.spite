@@ -30,3 +30,30 @@ func test_parsing_a_number_that_is_not_one_gives_zero() {
     crash "42".to_int() == 42
     crash "forty two".to_int() == 0
 }
+
+func test_searching_finds_the_first_place() {
+    crash "banana".index_of("an") == 1
+    crash "banana".index_of("") == 0
+    crash "an".index_of("banana") == -1
+    crash "banana".contains("nan")
+    crash not "banana".contains("x")
+    crash "banana".starts_with("ban")
+    crash "banana".ends_with("ana")
+    crash not "na".ends_with("banana")
+}
+
+func test_replace_changes_every_occurrence() {
+    crash "a-b-c".replace("-", "+") == "a+b+c"
+    crash "a-b-".replace("-", "") == "ab"
+    crash "abc".replace("", "x") == "abc"
+}
+
+func test_trim_and_case() {
+    crash "  spite \t\n".trim() == "spite"
+    crash "   ".trim() == ""
+    crash "Spite 1!".upper_case() == "SPITE 1!"
+    crash "Spite 1!".lower_case() == "spite 1!"
+    crash "spite".character_at(1) == "p"
+    crash "spite".character_at(9) == ""
+    crash "".is_empty()
+}

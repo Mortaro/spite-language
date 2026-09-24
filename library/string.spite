@@ -1,0 +1,93 @@
+func is_empty(): Bool {
+    return length() == 0
+}
+
+func character_at(index: Int): String {
+    return slice(index, index + 1)
+}
+
+func matches_at(text: String, start: Int): Bool {
+    if start < 0 or start + text.length() > length() {
+        return false
+    }
+    var index = 0
+    while index < text.length() {
+        if code_at(start + index) != text.code_at(index) {
+            return false
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func index_of(text: String): Int {
+    var start = 0
+    while start + text.length() <= length() {
+        if matches_at(text, start) {
+            return start
+        }
+        start = start + 1
+    }
+    return -1
+}
+
+func contains(text: String): Bool {
+    return index_of(text) >= 0
+}
+
+func starts_with(text: String): Bool {
+    return matches_at(text, 0)
+}
+
+func ends_with(text: String): Bool {
+    return matches_at(text, length() - text.length())
+}
+
+func replace(from: String, to: String): String {
+    if from.is_empty() {
+        return slice(0, length())
+    }
+    return split(from).join(to)
+}
+
+func is_space_at(index: Int): Bool {
+    var code = code_at(index)
+    return code == 32 or code >= 9 and code <= 13
+}
+
+func trim(): String {
+    var start = 0
+    var end = length()
+    while start < end and is_space_at(start) {
+        start = start + 1
+    }
+    while end > start and is_space_at(end - 1) {
+        end = end - 1
+    }
+    return slice(start, end)
+}
+
+func upper_case(): String {
+    return shifted_case(97, 122, -32)
+}
+
+func lower_case(): String {
+    return shifted_case(65, 90, 32)
+}
+
+func shifted_case(first: Int, last: Int, shift: Int): String {
+    var memory = Memory()
+    var address = memory.allocate_bytes(length() + 1)
+    var index = 0
+    while index < length() {
+        var code = code_at(index)
+        if code >= first and code <= last {
+            code = code + shift
+        }
+        memory.write_byte(address, index, code)
+        index = index + 1
+    }
+    var result = memory.text(address, length())
+    memory.free(address)
+    return result
+}

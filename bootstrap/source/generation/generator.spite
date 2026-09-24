@@ -415,7 +415,9 @@ func generate(
     emit_enums()
     var forward_index = 0
     while forward_index < classes.count() {
-        builder.add_typedef("typedef struct {classes[forward_index].c_name} {classes[forward_index].c_name};")
+        if not classes[forward_index].is_value_class {
+            builder.add_typedef("typedef struct {classes[forward_index].c_name} {classes[forward_index].c_name};")
+        }
         forward_index = forward_index + 1
     }
     emit_system_classes(system_structs, system_prototypes, system_bodies)
@@ -469,9 +471,14 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
     var index = 0
     while index < discovered.count() {
         var entry = discovered[index]
-        classes.append(
-            Analysis.ClassInfo(entry.mangled_name, entry.simple_name, entry.namespace_dotted, entry.qualified_dotted, allocate_class_id(entry.mangled_name)),
-        )
+        if entry.qualified_dotted == "String" {
+            classes.append(Analysis.ClassInfo("SpiteString", "String", "", "String", 0))
+            classes.last().is_value_class = true
+        } else {
+            classes.append(
+                Analysis.ClassInfo(entry.mangled_name, entry.simple_name, entry.namespace_dotted, entry.qualified_dotted, allocate_class_id(entry.mangled_name)),
+            )
+        }
         classes.last().source_path = entry.get_file().path
         classes.last().entry_index = index
         classes.last().codegen_names = constructor_codegen_names(entry)
@@ -3611,6 +3618,17 @@ func generate_own_function_call(
             }
         }
     }
+    if not function and class_information.is_value_class {
+        var receiver: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("self")
+        return generate_string_method(
+            name,
+            ExpressionResult("self", string_type()),
+            receiver,
+            arguments_ast,
+            scope,
+            class_information,
+        )
+    }
     if not function {
         if name == "print" or name == "println" or name == "echo" or name == "printf" {
             report(
@@ -3907,6 +3925,47 @@ func generate_borrowing_call(
     return ExpressionResult("(\{ {lines.join(" ")} })", return_type)
 }
 
+func generate_written_string_call(
+    written: Analysis.FunctionInfo,
+    object_result: ExpressionResult,
+    object_ast: Syntax.Expressions.Expression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var lines = List<String>()
+    var release = ""
+    var full_arguments = List<String>()
+    if owns(object_result, object_ast) {
+        var object_temporary = next_temporary()
+        lines.append("SpiteString* {object_temporary} = {object_result.code};")
+        release = "SpiteString_release({object_temporary});"
+        full_arguments.append(object_temporary)
+    } else {
+        full_arguments.append(object_result.code)
+    }
+    var argument_codes = generate_argument_list(
+        arguments_ast,
+        parameter_types_of(written.parameters),
+        scope,
+        class_information,
+    )
+    var index = 0
+    while index < argument_codes.count() {
+        full_arguments.append(argument_codes[index])
+        index = index + 1
+    }
+    var call = "{written.c_name}({full_arguments.join(", ")})"
+    if release.is_empty() {
+        return ExpressionResult(call, written.get_return_type())
+    }
+    var result_temporary = next_temporary()
+    lines.append("{c_type_name(written.get_return_type())} {result_temporary} = {call};")
+    lines.append(release)
+    lines.append("{result_temporary};")
+    return ExpressionResult("(\{ {lines.join(" ")} })", written.get_return_type())
+}
+
 func generate_string_method(
     name: String,
     object_result: ExpressionResult,
@@ -3915,6 +3974,16 @@ func generate_string_method(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
+    var written = written_string_function(name)
+    if written {
+        if arguments_ast.count() != written.parameters.count() {
+            report(
+                "'{name}' takes {written.parameters.count()} argument(s), and this call passes {arguments_ast.count()}",
+            )
+            return ExpressionResult("0", Analysis.Types.VoidType())
+        }
+        return generate_written_string_call(written, object_result, object_ast, arguments_ast, scope, class_information)
+    }
     var function_c_name = "SpiteString_{name}"
     if name == "length" or name == "code_at" or name == "index_of" {
         var integer_parameters = no_types()
@@ -8721,6 +8790,10 @@ func emit_class(information: Analysis.ClassInfo) {
     assert not information.is_emitted
     information.is_emitted = true
     current_owner = information.qualified_dotted
+    if information.is_value_class {
+        emit_value_class(information)
+        return
+    }
     var struct_lines = List<String>()
     struct_lines.append("struct {information.c_name} \{")
     struct_lines.append("SpiteHeader header;")
@@ -8752,6 +8825,36 @@ func emit_class(information: Analysis.ClassInfo) {
         emit_user_function(information, information.functions[function_index])
         function_index = function_index + 1
     }
+}
+
+func emit_value_class(information: Analysis.ClassInfo) {
+    if not information.fields.is_empty() {
+        current_path = information.source_path
+        report(
+            "'{information.simple_name}' is a value the compiler lays out, so it cannot have attributes: keep what a function needs in its locals",
+        )
+        return
+    }
+    var function_index = 0
+    while function_index < information.functions.count() {
+        builder.add_prototype("{function_signature(information, information.functions[function_index])};")
+        function_index = function_index + 1
+    }
+    function_index = 0
+    while function_index < information.functions.count() {
+        emit_user_function(information, information.functions[function_index])
+        function_index = function_index + 1
+    }
+}
+
+func written_string_function(name: String): Analysis.FunctionInfo? {
+    var string_class = find_class_by_c_name("SpiteString")
+    if string_class {
+        if string_class.is_value_class {
+            return string_class.find_function(name)
+        }
+    }
+    return null
 }
 
 func debug_memory_class_name_table(): String {

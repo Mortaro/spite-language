@@ -368,10 +368,6 @@ int64_t SpiteString_length(SpiteString* self) {
     return self->length;
 }
 
-bool SpiteString_is_empty(SpiteString* self) {
-    return self->length == 0;
-}
-
 SpiteString* SpiteString_slice(SpiteString* self, int64_t start, int64_t end) {
     int64_t clamped_start = start < 0 ? 0 : (start > self->length ? self->length : start);
     int64_t clamped_end = end < 0 ? 0 : (end > self->length ? self->length : end);
@@ -379,99 +375,9 @@ SpiteString* SpiteString_slice(SpiteString* self, int64_t start, int64_t end) {
     return spite_string_from_bytes(self->data + clamped_start, clamped_end - clamped_start);
 }
 
-SpiteString* SpiteString_character_at(SpiteString* self, int64_t index) {
-    if (index < 0 || index >= self->length) return spite_string_from_bytes("", 0);
-    return spite_string_from_bytes(self->data + index, 1);
-}
-
 int64_t SpiteString_code_at(SpiteString* self, int64_t index) {
     if (index < 0 || index >= self->length) return 0;
     return (int64_t)(unsigned char)self->data[index];
-}
-
-int64_t SpiteString_index_of(SpiteString* self, SpiteString* text) {
-    if (text->length == 0) return 0;
-    if (text->length > self->length) return -1;
-    int64_t last_start = self->length - text->length;
-    for (int64_t start = 0; start <= last_start; start = start + 1) {
-        if (memcmp(self->data + start, text->data, (size_t)text->length) == 0) return start;
-    }
-    return -1;
-}
-
-bool SpiteString_contains(SpiteString* self, SpiteString* text) {
-    return SpiteString_index_of(self, text) >= 0;
-}
-
-bool SpiteString_starts_with(SpiteString* self, SpiteString* text) {
-    if (text->length > self->length) return false;
-    if (text->length == 0) return true;
-    return memcmp(self->data, text->data, (size_t)text->length) == 0;
-}
-
-bool SpiteString_ends_with(SpiteString* self, SpiteString* text) {
-    if (text->length > self->length) return false;
-    if (text->length == 0) return true;
-    return memcmp(self->data + (self->length - text->length), text->data, (size_t)text->length) == 0;
-}
-
-/* Replaces every occurrence of `from` with `to` (a no-op copy when `from` is
- * empty, since an empty needle has no unambiguous replacement positions). */
-SpiteString* SpiteString_replace(SpiteString* self, SpiteString* from, SpiteString* to) {
-    if (from->length == 0) return spite_string_from_bytes(self->data, self->length);
-    int64_t capacity = self->length + 1;
-    char* buffer = (char*)SPITE_MALLOC((size_t)capacity);
-    int64_t used = 0;
-    int64_t index = 0;
-    while (index < self->length) {
-        if (index + from->length <= self->length && memcmp(self->data + index, from->data, (size_t)from->length) == 0) {
-            int64_t needed = used + to->length + 1;
-            if (needed > capacity) {
-                capacity = needed * 2;
-                buffer = (char*)SPITE_REALLOC(buffer, (size_t)capacity);
-            }
-            if (to->length > 0) memcpy(buffer + used, to->data, (size_t)to->length);
-            used = used + to->length;
-            index = index + from->length;
-        } else {
-            int64_t needed = used + 2;
-            if (needed > capacity) {
-                capacity = needed * 2;
-                buffer = (char*)SPITE_REALLOC(buffer, (size_t)capacity);
-            }
-            buffer[used] = self->data[index];
-            used = used + 1;
-            index = index + 1;
-        }
-    }
-    buffer[used] = '\0';
-    return spite_string_take(buffer, used);
-}
-
-SpiteString* SpiteString_trim(SpiteString* self) {
-    int64_t start = 0;
-    int64_t end = self->length;
-    while (start < end && isspace((unsigned char)self->data[start])) start = start + 1;
-    while (end > start && isspace((unsigned char)self->data[end - 1])) end = end - 1;
-    return spite_string_from_bytes(self->data + start, end - start);
-}
-
-SpiteString* SpiteString_upper(SpiteString* self) {
-    char* buffer = (char*)SPITE_MALLOC((size_t)self->length + 1);
-    for (int64_t index = 0; index < self->length; index = index + 1) {
-        buffer[index] = (char)toupper((unsigned char)self->data[index]);
-    }
-    buffer[self->length] = '\0';
-    return spite_string_take(buffer, self->length);
-}
-
-SpiteString* SpiteString_lower(SpiteString* self) {
-    char* buffer = (char*)SPITE_MALLOC((size_t)self->length + 1);
-    for (int64_t index = 0; index < self->length; index = index + 1) {
-        buffer[index] = (char)tolower((unsigned char)self->data[index]);
-    }
-    buffer[self->length] = '\0';
-    return spite_string_take(buffer, self->length);
 }
 
 int64_t SpiteString_to_int(SpiteString* self) {
