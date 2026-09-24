@@ -356,7 +356,7 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 ## From porting PSD, zstd and .blend to Spite (SlopEngine)
 
-87. **Bitwise operators** (shift, and, or, exclusive or). Every binary format needs them -- zstd's bit readers,
+87. **(Answered by D117: functions on the number classes; names still to confirm.)** **Bitwise operators** (shift, and, or, exclusive or). Every binary format needs them -- zstd's bit readers,
     FSE, Huffman, PSD flags, Win32 packed values -- and the ports wrote them as `/` and `%` by powers of two, which
     is slower, harder to read, and wrong for negatives. The session suggests spelled-out names in Spite's style
     (`value.shifted_right(3)`, `value.bits_and(mask)`) rather than symbols. Also first in
