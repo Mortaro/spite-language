@@ -1,0 +1,1 @@
+diagnostics/text_is_to_string/text_is_to_string.spite:5: error: Int turns into text with 'to_string()', a cast like 'to_int()': write 'to_string()' (in TextIsToString.TextIsToString)

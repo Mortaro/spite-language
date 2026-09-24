@@ -1,4 +1,4 @@
-func text(): String {
+func to_string(): String {
     return shortest_text(9007199254740992, -1074, 17)
 }
 

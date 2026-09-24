@@ -1,4 +1,4 @@
-func text(): String {
+func to_string(): String {
     if this {
         return "true"
     }

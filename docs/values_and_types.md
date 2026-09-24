@@ -66,7 +66,7 @@ calls the same method.
 
 `Int`, `Long`, `Float`, `Double`, `Bool` and the rest are classes in `library/` (`library/int.spite`,
 `library/double.spite`, ...), the way `String` is. Their functions are called on a value like any class's,
-and inside one of them `this` is the number itself. Turning a number into text is `text()`, written in Spite in
+and inside one of them `this` is the number itself. Turning a number into text is `to_string()` (D107), written in Spite in
 `library/long.spite` and `library/double.spite`, and it is what `"{count}"` calls. A program reopens a number
 class the way it reopens any class (section 11 of the manual), with a file named after it:
 
@@ -81,7 +81,7 @@ var console = Console()
 func NumberMethods() {
     var count = 21
     var doubled = count.doubled()
-    var count_text = count.text()
+    var count_text = count.to_string()
     console.print(doubled, count_text)
     var third: Double = 1.0 / 3.0
     var bits = third.bits()

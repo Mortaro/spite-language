@@ -2984,13 +2984,13 @@ func string_conversion(code: String, from: Analysis.SpiteType): String {
     if scalar {
         var value_class = value_class_of(scalar.kind)
         if value_class {
-            var text_function = value_class.find_function("text")
-            if text_function {
-                return "{text_function.c_name}({code})"
+            var string_function = value_class.find_function("to_string")
+            if string_function {
+                return "{string_function.c_name}({code})"
             }
         }
         report(
-            "a {type_display_name(from)} becomes text through the text() function of its class in library/, and that class declares none",
+            "a {type_display_name(from)} becomes text through the to_string() function of its class in library/, and that class declares none",
         )
         return "(&spite_static_string_empty)"
     }
@@ -4787,6 +4787,12 @@ func generate_value_method(
         }
     }
     var object_result_type = object_result.get_type()
+    if name == "text" {
+        report(
+            "{type_display_name(object_result_type)} turns into text with 'to_string()', a cast like 'to_int()': write 'to_string()'",
+        )
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
     report("a {type_display_name(object_result_type)} has no function '{name}'")
     return ExpressionResult("0", Analysis.Types.VoidType())
 }

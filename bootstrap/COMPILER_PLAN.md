@@ -459,7 +459,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   `from_type`); a body beginning `#define` is emitted in the typedef section with no prototype. Number classes are
   value classes registered by name (`value_type_named`), their functions take the C value as `self`, `this` is
   that `self`, and `generate_value_method` calls them on a scalar receiver; `string_conversion` calls the class's
-  `text()` and `cast` calls `numeric_conversion` (cached by type pair). `List<T>` reads its elements through
+  `to_string()` (D107) and `cast` calls `numeric_conversion` (cached by type pair). `List<T>` reads its elements through
   `TypedMemory<$element_type>` and `supply_list_functions` only drops `contains`/`join`. The reflection classes'
   fields became `_name` and so on, the C that fills them followed, `generate_reflection_read` defers to a
   `get_<member>` getter, and `report_private_member` guards `_` names. Bootstrap notes: renaming the reflection

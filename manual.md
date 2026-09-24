@@ -212,9 +212,11 @@ the emitted code -- the class gives it functions, not a header -- and a function
 as the receiver. Inside it, **`this`** is that value: `func doubled(): Int { return this * 2 }`, and
 `count.doubled()` calls it. A number class is reopened like any other (section 11), by a file named after it.
 
-- **Writing a number as text is its `text()`**, in Spite: `Long.text()` writes the digits, `Double.text()` is the
+- **Writing a number as text is its `to_string()`** (D107, decided by Mortaro: converting to text is a cast like
+  `to_int()`), in Spite: `Long.to_string()` writes the digits, `Double.to_string()` is the
   shortest-round-trip formatting above (over the digit arithmetic in `library/number_text.spite`), and the
-  smaller types widen and call `Long.text()`. Interpolation (`"{count}"`) calls it. Printing an integer with
+  smaller types widen and call `Long.to_string()`. `Bool.to_string()` answers `"true"` or `"false"`.
+  Interpolation (`"{count}"`) and `+` onto a `String` call it. Printing an integer with
   `console.print` is written straight to the stream by the compiler, with the same digits (proposed by Claude,
   unconfirmed: a hidden optimisation, D36).
 - **Casting is a function of the class cast to** (D100, decided by Mortaro): each number class has
@@ -226,7 +228,7 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Int { ret
 - **`this` works in every class** (proposed by Claude, unconfirmed): it is the instance a function answers on,
   for handing itself to something -- `registry.append(this)`. Reading your own member through it is an error,
   because a class already reads its members by name: `this.name` is reported as "write 'name', not
-  'this.name'", and `this.text()` as "write 'text()'".
+  'this.name'", and `this.to_string()` as "write 'to_string()'".
 - A decimal literal is written to the C as a decimal (`1.0`, not `1`), so `1.0 / 3.0` divides as decimals
   (found on the way: it used to divide integers).
 
@@ -3215,3 +3217,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (applies Mortaro's spelling row above) **`operational_system` is renamed `operating_system`** everywhere outside quoted decision-log text: the manual's prose, `docs/`, `check.sh`'s messages. With D86 the only fields left are `Build().operating_system` and `Build().target_operating_system`. |
 | 2026-09-24 | **D107** (decided by Mortaro): **a value turns into text with `to_string()`**, not `text()`: "all these text should probably be the to_string() to match our casting pattern." Converting to text is a cast like `to_int()` or `to_long()`, so every number class, `Bool` and anything else that answers `text()` answers `to_string()` instead, and interpolation calls it. |
 | 2026-09-24 | **D108** (decided by Mortaro, extending D101): **every type's storage is visible Spite over `Memory`, and `Memory` chooses nothing itself -- the compiler places it.** "i dont see the storage model of things this way so we are probably hiding it behind a runtime, where is the string managing Memory? and Int and so on. Memory should be a abstraction that lets us allocate heap/stack/register but our compiler decides best use placement." So `String` declares the memory it holds (its bytes, length and capacity) as ordinary attributes in `library/string.spite`, `Int` and the other numbers declare theirs in their files, and `Memory` is the one abstraction all of them allocate through. Whether a given allocation lives on the heap, on the stack or in a register is the compiler's choice, not the program's; the C the compiler writes for the floor shrinks to what `Memory` itself needs. |
+| 2026-09-24 | (implements D107; the diagnostic proposed by Claude, unconfirmed) **`text()` is `to_string()` everywhere.** Every number class and `Bool` declare `func to_string(): String`, the smaller integers widen and call `Long.to_string()`, and the generator's `string_conversion` (interpolation, `+` onto a `String`, `join`) calls `to_string` by name. Calling `.text()` on a number is an error naming the new name, the way `upper()` names `upper_case()` (`diagnostics/text_is_to_string`). `Memory.text(address, length)` keeps its name: it is not a conversion but the floor making a `String` from bytes. |

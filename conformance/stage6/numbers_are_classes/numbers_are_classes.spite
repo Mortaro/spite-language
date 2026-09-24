@@ -3,10 +3,10 @@ var console = Console()
 func NumbersAreClasses() {
     var count = 21
     var doubled = count.doubled()
-    var count_text = count.text()
+    var count_text = count.to_string()
     console.print(doubled, count_text)
     var third: Double = 1.0 / 3.0
-    var third_text = third.text()
+    var third_text = third.to_string()
     console.print(third_text, "{third}")
     var small: Byte = 255
     var wide: UnsignedLong = -1

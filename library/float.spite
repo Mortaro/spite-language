@@ -1,4 +1,4 @@
-func text(): String {
+func to_string(): String {
     var wide: Double = this
     return wide.shortest_text(16777216, -149, 9)
 }
