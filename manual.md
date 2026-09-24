@@ -1525,6 +1525,32 @@ parses as a `.member`/`.index` expression -- an intercepted attribute read, `arg
 `attributes[attribute]` template form -- tells every caller whether it is independently owned regardless of what
 the plain AST shape alone would suggest).
 
+### Placement: the compiler decides where memory lives  **[implemented; the rule proposed by Claude, unconfirmed]**
+
+D108 (decided by Mortaro): "Memory should be a abstraction that lets us allocate heap/stack/register but our
+compiler decides best use placement." A program has one way to ask for memory, `Memory.allocate_bytes`, and
+one way to give it back, `free`; where the bytes live is the compiler's choice, and the program's text is the
+same whichever it makes:
+
+- **Register:** a number's own memory, declared in its file as `var _memory = Memory().allocate_bytes(4)` (for
+  `Int`). The wrapper is flattened: a number is its C scalar, and `this` is the value.
+- **Frame:** `var name = memory.allocate_bytes(bytes)` in a function, when a later statement of the same block
+  is `memory.free(name)` and every other use of `name` hands it to `memory`'s reads, writes, `copy_bytes`,
+  `compare_bytes` or `text` -- it is never stored, returned, assigned, resized or passed to anything else, and
+  neither `name` nor `memory` is declared or assigned again after it. The compiler gives it a slot of 256 bytes
+  in the function's frame (exactly the size, for a literal size up to 256), uses the heap when a run-time size
+  is larger, and makes the `free` a no-op for the slot. A loop body is a block like any other, so the slot is
+  reused on every pass. `Double.bits()` allocates nothing now, and `Long.to_string()` and `upper_case()` of a
+  short text allocate only the `String` they return.
+- **Constant:** a `String` literal's characters are part of the program (`_section` is `'constant'`).
+- **Heap:** everything else.
+
+`allocate_stack_bytes` (D98's stack section) is removed: asking for the stack by name was a second way to
+allocate, and one the program could get wrong (an address kept past the return). **For data-structure authors**
+(the ECS D98 names) nothing is lost: what makes a layout efficient is the author's -- one allocation holding many
+values at offsets they choose, `TypedMemory<$value_type>` for values of any type, `resize` to grow -- and that
+stays exactly as it was. A temporary buffer a function uses and frees lands in its frame without asking.
+
 ## 11. Packages, namespaces and loading  **[partial]**
 
 There are no imports. Everything lives in one global namespace, populated by loading folders.
@@ -2053,7 +2079,7 @@ or a text another name or a list also holds) it is copied once, with room to gro
 names never changes under the other one, and a hundred thousand appends take 0.2 s instead of 7 s. It applies to
 a local variable or parameter of type `String` when no piece mentions that variable (`text = "{text}{text}"`
 copies, as before); an attribute is not appended in place, since a call among the pieces could reach it.
-`conformance/stage6/text_building` pins it: 200 000 appends and the sharing cases allocate 31 times (the `Launcher` included; 32 until `Memory` stopped being an allocation, D108), against
+`conformance/stage6/text_building` pins it: 200 000 appends and the sharing cases allocate 29 times (the `Launcher` included; 32 until `Memory` stopped being an allocation and the digits of a number were placed in the frame, D108), against
 600 044 when every append copied.
 
 | Method | Result | Notes |
@@ -2176,7 +2202,7 @@ directory listing and process spawning).
 | `Socket()` (proposed by Claude, unconfirmed) | `listen_locally(port): Bool`, `accept_client(): Socket?`, `connect_locally(port): Bool`, `read_line(): String?`, `write_line(text): Bool`, `close()` -- TCP on `127.0.0.1` only, which `--repl_port` and `spite connect` use (section 14) |
 | `Concurrent(function)`, `Parallel(function)` (proposed by Claude, unconfirmed) | `wait()`: what the function returned; dropping the handle waits for it -- see "Concurrency" below |
 | `DynamicLibrary(file_name, naming, header)` | every foreign function, constant and type of a native library -- see [Foreign libraries](#17-foreign-libraries-planned). `library/dynamic_library.spite` holds its `file_name` and `handle`, its constructor and `drop()`; opening, closing and finding a symbol are the compiler's reopening (D82) |
-| `Memory()` | the floor every other type is built on (D98, D101): `allocate_bytes`, `resize`, `free`, `allocate_stack_bytes`, the typed reads and writes, `copy_bytes`, ... -- see "The floor, named" below. `library/memory.spite` is only the `singleton` line; every function is the compiler's reopening |
+| `Memory()` | the floor every other type is built on (D98, D101, D108): `allocate_bytes`, `resize`, `free`, the typed reads and writes, `copy_bytes`, `text`, ... -- see "The floor, named" below. `library/memory.spite` is the `singleton` line and `text`, in Spite; every other function is the compiler's reopening, and where an allocation lives is the compiler's choice |
 | `TypedMemory<$value_type>()` | `read_value(address, index)`, `write_value(address, index, value)`, `release_value(address, index)`, `value_bytes()`: values of any type in raw memory, reference counts kept right; what `List<T>` keeps its elements with, and what a container of your own uses (D98) |
 
 `Console` is one of them and is a singleton (D52): `Console()` is the same instance everywhere, `Console` is an
@@ -2335,9 +2361,9 @@ Spite above them:
    there is still no `Pointer` type, and nothing outside the standard library needs `Memory` at all.
    **Since D82** `Memory` is `library/memory.spite` (its `singleton` line) plus these functions as the compiler's
    reopening, declared without a body. **Since D98/D101 it has sections** (built 2026-09-24; the names proposed by
-   Claude, unconfirmed): the heap above, and `allocate_stack_bytes(bytes: Long): Long`, which takes bytes in the
-   calling function's own frame (the compiler emits it inline, as `alloca`) and is gone when that function
-   returns -- the same reads and writes work on either. `TypedMemory<$value_type>` puts values of any type in
+   Claude, unconfirmed), and **since D108 the compiler chooses between them**: `allocate_stack_bytes` is removed,
+   and an `allocate_bytes` is placed in the function's frame when the rule below proves the address never
+   leaves it ("Placement", proposed by Claude, unconfirmed). `TypedMemory<$value_type>` puts values of any type in
    memory, and `List<T>` is written with it, so nothing about a container is the compiler's any more except its
    syntax (`[]`, list literals) and the few C paths listed in the containers row of the decision log.
 2. **Text from memory**: since D108 this is Spite, not floor. `String` declares its storage (`_bytes`, `_length`,
@@ -3233,3 +3259,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (implements D107; the diagnostic proposed by Claude, unconfirmed) **`text()` is `to_string()` everywhere.** Every number class and `Bool` declare `func to_string(): String`, the smaller integers widen and call `Long.to_string()`, and the generator's `string_conversion` (interpolation, `+` onto a `String`, `join`) calls `to_string` by name. Calling `.text()` on a number is an error naming the new name, the way `upper()` names `upper_case()` (`diagnostics/text_is_to_string`). `Memory.text(address, length)` keeps its name: it is not a conversion but the floor making a `String` from bytes. |
 | 2026-09-24 | (implements D108, first step; the forms proposed by Claude, unconfirmed) **`String` and every number declare their storage in their own files.** `library/string.spite` starts with `var _bytes: Long` (the address of its characters, from `Memory`), `var _length: Long`, `var _section: Spite.Memory.Section` (where the compiler placed the characters: `'heap'`, or `'constant'` for a literal) and `var _capacity: Long`, and the compiler writes `SpiteString`'s C layout, and the static form a literal is compiled to, from those declarations instead of the prelude spelling them; the three it reads by name (`_bytes`, `_length`, `_section`) are an error when missing or of another type. Each number file starts with `var _memory = Memory().allocate_bytes(N)`: its width, allocated through `Memory` like anything else and placed by the compiler in a register, so the attribute is never a field -- the compiler checks `N` against the C type it emits (`diagnostics/number_memory`), `.memory.bytes` reads it, and reading `_memory` inside the class is an error naming `this` (`diagnostics/number_memory_read`). A number declares nothing else. |
 | 2026-09-24 | (implements D108, second step; proposed by Claude, unconfirmed) **`String`'s functions are Spite over its own storage, and `TextBytes` is gone.** `library/string.spite` has a constructor `String(bytes: Long, length: Long)` (the only way Spite makes a `String` from memory; it writes the 0 after the bytes), `drop()` (frees `_bytes` through `Memory`), `length()`, `code_at()` (past either end it reads the 0 after the last byte, so it answers 0 without an `assert` in the trace ring), `slice()`, `sum()`, `equals()`, `less_than()`, `greater_than()` and two private helpers the in-place append calls. `+`, `==`, `<` and `>` on text call `sum`/`equals`/`less_than`/`greater_than` directly. `Memory.text` is Spite in `library/memory.spite`; `Memory.take_text` and `Memory.address_of` are removed, since only `TextBytes` used them. What stays generated C for `String` is the object header's part: allocate and initialise from the declarations, retain and release (skipping the `'constant'` section, and calling `drop()`), the uniqueness test in `SpiteString_append`, and `spite_string_from_bytes` for the C that hands text in (`argv`, enum names, foreign results), which calls `Memory.text`. **Found on the way, a hidden optimisation (D36): a singleton that holds nothing and has no `drop()` -- `Memory` -- is one static object**, never allocated, counted or freed, so `Memory()` costs nothing and every program allocates one time fewer (`text_building` 32 to 31, `fused_chain_allocations` 12 to 11). Without it `String.drop()` would reach a `Memory` singleton the program's exit had already released. The self-compile went from about 0.80 s to 0.72 s. |
+| 2026-09-24 | (implements D108, third step; the rule proposed by Claude, unconfirmed) **The compiler places `Memory.allocate_bytes`, and `allocate_stack_bytes` is removed.** An allocation a function frees in the same block, whose address it only lends to `memory`'s reads, writes, copies, comparisons and `text`, gets a slot in the function's frame (256 bytes, or the literal size), falling back to the heap at run time for a larger size; everything else stays on the heap (section 10, "Placement"). The check is `bootstrap/source/generation/placement.spite`, over the syntax tree before a block is generated. Eight library functions qualify today (among them `Long.to_string`, `UnsignedLong.to_string`, `Double.bits`, `String.upper_case`/`lower_case`, `List.join` and two in `NumberText`), so `text_building` allocates 29 times (31 before). `allocate_stack_bytes` asked the program to choose, which D108 gives to the compiler, and was a second way to allocate; `docs/memory.md`'s sum is now `allocate_bytes` and `free`, and prints that nothing was allocated while it ran. |

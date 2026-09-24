@@ -215,18 +215,22 @@ free. Every number file says the same with its own width (`Long` 8, `Short` 2, `
 ...), the compiler checks it against the C type it emits, and `count.memory.bytes` reads it. Inside a number,
 `this` is the value itself: reading `_memory` is an error saying so.
 
-- **Heap:** `memory.allocate_bytes(bytes)` returns an address (a `Long`); `resize` grows it and `free` gives it
-  back. Nothing frees it for you: a class that allocates frees in its `drop()`.
-- **Stack:** `memory.allocate_stack_bytes(bytes)` returns an address in the calling function's own frame. It
-  costs nothing to free, because it is gone when that function returns -- so never keep the address, and do
-  not ask for it inside a loop that runs many times, since each call takes more of the frame.
+- **Allocating:** `memory.allocate_bytes(bytes)` returns an address (a `Long`); `resize` grows it and `free`
+  gives it back. Nothing frees it for you: a class that allocates frees in its `drop()`.
+- **Where it lives is the compiler's choice** (D108). An allocation a function frees itself, in the same block,
+  whose address it only hands to `memory`'s reads, writes, copies, comparisons and `text` -- never stores,
+  returns, resizes or passes anywhere else -- is placed in the function's own frame: up to 256 bytes cost no
+  allocation at all, and a larger request there still goes to the heap at run time. Anything else is on the
+  heap. The program writes the same `allocate_bytes` and `free` either way; there is no second way to ask for
+  the stack.
 - **Typed values:** `read_byte`/`read_int`/`read_long`/`read_double` and the matching `write_*` read and write
   numbers at an address. For values of any type -- a class, a `String`, a nullable number -- a generic class
   holds a `TypedMemory<$value_type>`, whose `read_value(address, index)`, `write_value(address, index, value)`,
   `release_value(address, index)` and `value_bytes()` keep reference counts right for that type. It is one
   shared instance per type, and it is exactly what `library/list.spite` uses for its elements.
 
-A ring buffer that keeps the last few values it was given, over the heap, and a sum over the stack:
+A ring buffer that keeps the last few values it was given, whose slots are on the heap, and a sum whose
+numbers the compiler places in the function's frame, so the live allocations do not move while it runs:
 
 ```spite title=ring_buffer_program/ring_buffer.spite
 generic $value_type
@@ -284,13 +288,14 @@ func RingBufferProgram() {
     var oldest = names.oldest()
     var names_count = names.count()
     console.print(oldest, names_count)
-    var total = sum_on_the_stack(4)
+    var total = sum_in_the_frame(4)
     console.print(total)
 }
 
-func sum_on_the_stack(count: Int): Long {
+func sum_in_the_frame(count: Int): Long {
     var memory = Memory()
-    var numbers = memory.allocate_stack_bytes(count * 8)
+    var before = memory.live_allocations()
+    var numbers = memory.allocate_bytes(count * 8)
     var index = 0
     while index < count {
         memory.write_long(numbers, index * 8, index * 10)
@@ -302,11 +307,15 @@ func sum_on_the_stack(count: Int): Long {
         total = total + memory.read_long(numbers, index * 8)
         index = index + 1
     }
+    var during = memory.live_allocations()
+    memory.free(numbers)
+    console.print("allocated while summing:", during - before)
     return total
 }
 ```
 ```output
 grace 3
+allocated while summing: 0
 60
 ```
 

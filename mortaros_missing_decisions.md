@@ -191,3 +191,33 @@ Behaviour that does not match the manual. The language was not changed; each is 
 49. **Diagnostics name the file they are in.** Section 12's "known limitation" (every diagnostic reported
     against the entry file's path) no longer holds: errors name the real file (`registry.spite:3`). Only the
     manual needs the line removed.
+
+## Visible storage and placement (D107, D108; manual sections 4, 10 and 15)
+
+50. **How `String` declares its storage**: private attributes read by name -- `_bytes: Long` (the address of
+    its characters), `_length: Long`, `_section: Spite.Memory.Section` (`'heap'`, or `'constant'` for a literal)
+    and `_capacity: Long` -- and the compiler writes the C layout from them. The three it needs are a naming
+    convention checked with an error, not a keyword. Keep the names? Is `_section` the right way for the compiler
+    to record where it placed a text?
+51. **How a number names its width**: `var _memory = Memory().allocate_bytes(4)` in `library/int.spite` -- an
+    allocation through `Memory` like any other, which the compiler places in a register, so it is never a field;
+    the compiler checks the 4 against `int32_t`, and `.memory.bytes` reads it. A header keyword (`memory 4`, the
+    way `singleton` is a line) was the alternative; this form uses no new syntax. It still says only the width:
+    signed, unsigned or floating is still the class's name. Should the file say that too, and how?
+52. **`String(bytes, length)` is a public constructor** that takes ownership of bytes `Memory` handed out. It is
+    how `Memory.text` and `+` make a `String` in Spite; it is also something a program can call wrong (bytes not
+    from `allocate_bytes`, or without room for the 0 after them). Keep it public, or make constructors of
+    library value classes private (`_String`?) once there is a way to say that?
+53. **Placement in the frame**: an `allocate_bytes` a function frees in the same block and only lends to
+    `memory`'s own functions gets a 256-byte slot in the frame (the heap past that). Is 256 the right slot, and
+    should the rule reach further -- a buffer handed to a function that provably does not keep it, or one whose
+    `free` is in a `drop()`?
+54. **`allocate_stack_bytes` is removed**, since D108 gives the choice to the compiler and it was a second way to
+    allocate. For an ECS that wants control, what stays is the layout: one allocation, offsets, `TypedMemory`.
+    Is anything else wanted -- say, a hint that a structure is short-lived, which the compiler may ignore?
+55. **A singleton holding nothing is not an object at run time**: `Memory` is one static instance, never
+    counted or freed, which every program now allocates once less for, and without which `String.drop()` could
+    reach a `Memory` the program's exit had already released. `Memory.instances` would not list it. Fine as a
+    hidden optimisation (D36)?
+56. **Item 13's `to_text()`** would be `to_string()` after D107 ("a value turns into text with `to_string()`"):
+    the `Printable` proposal should use that name.

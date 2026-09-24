@@ -270,6 +270,16 @@ and balanced allocations.
     user generic instantiated with `Int` prints as `...Int` in `instantiated/`, which the name lint rejects on
     the way back.
 
+24. **Done (2026-09-24): D107 and D108 -- `to_string()`, and every type's storage visible over `Memory`**
+    (manual.md sections 4, 10 and 15; the four "implements D107/D108" rows). Numbers and `Bool` answer
+    `to_string()`. `library/string.spite` declares `_bytes`, `_length`, `_section` and `_capacity`, the compiler
+    derives `SpiteString`'s layout from them, and every `String` function is Spite, down to its constructor and
+    `drop()`; `TextBytes`, `Memory.take_text` and `Memory.address_of` are gone and `Memory.text` is Spite. Each
+    number declares `var _memory = Memory().allocate_bytes(N)`. The compiler places allocations (register,
+    frame, constant, heap) and `allocate_stack_bytes` is removed; `Memory` is a static object. **Waiting on
+    Mortaro:** `mortaros_missing_decisions.md` 50-56. **Not done:** `Arguments` is still C in the prelude; a
+    `List` or `Dictionary` does not declare a layout the compiler reads (they are ordinary classes already).
+
 ## Later, deliberately deferred
 
 - **Generating class files at compile time** (Mortaro's idea, 2026-09-19). A framework could generate a namespace at

@@ -176,7 +176,7 @@ func is_alive(): Bool {
   constructor takes no arguments.
 - `value.memory` is where a named value lives (`.address`, `.bytes`, `.section`: `'heap'`, `'stack'`,
   `'constant'`). A container of your own is a generic class over `Memory` (`allocate_bytes`, `resize`, `free`,
-  `allocate_stack_bytes`, `read_long`/`write_long`, ...) and a `TypedMemory<$value_type>` (`read_value`,
+  `read_long`/`write_long`, ...; the compiler places each allocation) and a `TypedMemory<$value_type>` (`read_value`,
   `write_value`, `release_value`, `value_bytes`), exactly as `library/list.spite` is.
 
 ## Built in classes

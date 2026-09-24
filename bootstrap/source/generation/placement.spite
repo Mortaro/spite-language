@@ -1,0 +1,223 @@
+var shape = Analysis.AstShape()
+
+func frame_candidates(statements: List<Syntax.Statements.Statement>): List<String> {
+    var names = List<String>()
+    var index = 0
+    while index < statements.count() {
+        var declaration = shape.as_variable_declaration(statements[index])
+        if declaration {
+            var receiver = allocating_receiver(declaration)
+            if not receiver.is_empty() and is_freed_later(declaration.name, receiver, statements, index + 1) and stays_in_frame(declaration.name, receiver, statements, index + 1) {
+                var key = frame_key(declaration)
+                names.append(key)
+            }
+        }
+        index = index + 1
+    }
+    return names
+}
+
+func allocating_receiver(declaration: Syntax.Statements.VariableDeclaration): String {
+    crash declaration.value
+    var allocation = shape.as_call(declaration.value)
+    assert allocation
+    crash allocation.callee
+    var allocating = shape.as_member(allocation.callee)
+    assert allocating
+    assert allocating.name == "allocate_bytes" and allocation.arguments.count() == 1
+    crash allocating.object
+    var receiver = shape.as_identifier(allocating.object)
+    assert receiver
+    return receiver.name
+}
+
+func freed_name(statement: Syntax.Statements.Statement, receiver: String): String {
+    var expression_statement = shape.as_expression_statement(statement)
+    assert expression_statement
+    crash expression_statement.value
+    return memory_argument(expression_statement.value, receiver, "free")
+}
+
+func frame_key(declaration: Syntax.Statements.VariableDeclaration): String {
+    return "{declaration.name}@{declaration.line}"
+}
+
+func memory_argument(expression: Syntax.Expressions.Expression, receiver: String, function_name: String): String {
+    var call = shape.as_call(expression)
+    assert call
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    assert member.name == function_name and call.arguments.count() == 1
+    crash member.object
+    var called_on = shape.as_identifier(member.object)
+    assert called_on
+    var argument = shape.as_identifier(call.arguments[0])
+    assert argument
+    assert called_on.name == receiver
+    return argument.name
+}
+
+func is_freed_later(name: String, receiver: String, statements: List<Syntax.Statements.Statement>, start: Int): Bool {
+    var index = start
+    while index < statements.count() {
+        if freed_name(statements[index], receiver) == name {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func stays_in_frame(name: String, receiver: String, statements: List<Syntax.Statements.Statement>, start: Int): Bool {
+    var index = start
+    while index < statements.count() {
+        assert statement_keeps_in_frame(name, receiver, statements[index])
+        index = index + 1
+    }
+    return true
+}
+
+func block_keeps_in_frame(name: String, receiver: String, statements: List<Syntax.Statements.Statement>): Bool {
+    return stays_in_frame(name, receiver, statements, 0)
+}
+
+func statement_keeps_in_frame(name: String, receiver: String, statement: Syntax.Statements.Statement): Bool {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            crash statement.value
+            return statement.name != name and receiver != statement.name and expression_keeps_in_frame(name, receiver, statement.value, false)
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            var assigned = shape.as_identifier(statement.target)
+            if assigned {
+                assert assigned.name != name and assigned.name != receiver
+            }
+            return expression_keeps_in_frame(name, receiver, statement.target, false) and expression_keeps_in_frame(name, receiver, statement.value, false)
+        }
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            return expression_keeps_in_frame(name, receiver, statement.value, false)
+        }
+        Syntax.Statements.ReturnStatement: {
+            assert statement.value
+            return expression_keeps_in_frame(name, receiver, statement.value, false)
+        }
+        Syntax.Statements.AssertStatement: {
+            assert statement.value
+            return expression_keeps_in_frame(name, receiver, statement.value, false)
+        }
+        Syntax.Statements.IfStatement: {
+            crash statement.condition
+            return expression_keeps_in_frame(name, receiver, statement.condition, false) and block_keeps_in_frame(name, receiver, statement.then_branch) and block_keeps_in_frame(name, receiver, statement.else_branch)
+        }
+        Syntax.Statements.WhileStatement: {
+            crash statement.condition
+            return expression_keeps_in_frame(name, receiver, statement.condition, false) and block_keeps_in_frame(name, receiver, statement.body)
+        }
+        Syntax.Statements.SwitchStatement: {
+            crash statement.subject
+            assert expression_keeps_in_frame(name, receiver, statement.subject, false)
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                assert block_keeps_in_frame(name, receiver, statement.cases[case_index].body)
+                case_index = case_index + 1
+            }
+            return true
+        }
+        _: return false
+    }
+}
+
+func expression_keeps_in_frame(
+    name: String,
+    receiver: String,
+    expression: Syntax.Expressions.Expression,
+    lent: Bool,
+): Bool {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return lent or expression.name != name
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            return expression_keeps_in_frame(name, receiver, expression.left, lent) and expression_keeps_in_frame(name, receiver, expression.right, lent)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return expression_keeps_in_frame(name, receiver, expression.operand, lent)
+        }
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            var lends = lends_address(expression.callee, receiver)
+            var index = 0
+            while index < expression.arguments.count() {
+                assert expression_keeps_in_frame(name, receiver, expression.arguments[index], lends)
+                index = index + 1
+            }
+            return expression_keeps_in_frame(name, receiver, expression.callee, false)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            return expression_keeps_in_frame(name, receiver, expression.object, false)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            return expression_keeps_in_frame(name, receiver, expression.object, false) and expression_keeps_in_frame(name, receiver, expression.index, false)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            var generic_index = 0
+            while generic_index < expression.arguments.count() {
+                assert expression_keeps_in_frame(name, receiver, expression.arguments[generic_index], false)
+                generic_index = generic_index + 1
+            }
+            return true
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var element_index = 0
+            while element_index < expression.elements.count() {
+                var element_value = expression.elements[element_index].value
+                crash element_value
+                assert expression_keeps_in_frame(name, receiver, element_value, false)
+                element_index = element_index + 1
+            }
+            return true
+        }
+        Syntax.Expressions.ObjectLiteralExpression: {
+            var field_index = 0
+            while field_index < expression.fields.count() {
+                var field_value = expression.fields[field_index].value
+                crash field_value
+                assert expression_keeps_in_frame(name, receiver, field_value, false)
+                field_index = field_index + 1
+            }
+            return true
+        }
+        _: return true
+    }
+}
+
+func lends_address(callee: Syntax.Expressions.Expression, receiver: String): Bool {
+    var member = shape.as_member(callee)
+    assert member
+    crash member.object
+    var called_on = shape.as_identifier(member.object)
+    assert called_on
+    var lending = [
+        "read_byte"
+        "read_int"
+        "read_long"
+        "read_double"
+        "write_byte"
+        "write_int"
+        "write_long"
+        "write_double"
+        "copy_bytes"
+        "compare_bytes"
+        "text"
+        "free"
+    ]
+    return called_on.name == receiver and lending.contains(member.name)
+}

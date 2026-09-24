@@ -466,3 +466,15 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   fields and adding the header lines of master needed a seed built with the conflicting library files swapped
   for the ones the old seed could read (`library/spite/*`, the number classes, `list.spite`), then two
   generations from the working tree.
+- 2026-09-24: D107/D108. `string_conversion` calls `to_string`. `string_layout()` writes `struct SpiteString`, the
+  `SPITE_STATIC_STRING` initialiser and `spite_static_string_empty` into a typedef slot reserved right after the
+  enums (`CodeBuilder.replace_typedef`), from the attributes of `library/string.spite`; `emit_string_support`
+  writes `SpiteString_init/_allocate/_make/_retain/_release/_append` and `spite_string_from_bytes` (which calls
+  `Memory.text`), and every other `String` function is Spite, so `emit_text_bytes` and the `generate_string_method`
+  fallbacks are deleted. `resolve_field` turns a number's `_memory` into `ClassInfo.memory_bytes`, checked by
+  `check_number_memory`. A singleton with no attribute and no `drop()` (`is_stateless_singleton`) is a function-level
+  static with no-op retain and release. `placement.spite` finds frame candidates per block; `placed_in_frame` and
+  `freed_from_frame` write the slot and the conditional free. Bootstrap notes: the step that moved `String`'s
+  functions into Spite could not be compiled by the seed over the new `library/` (its prelude and `emit_text_bytes`
+  defined the same C names), so generation 2 was built from the new compiler sources over the committed `library/`,
+  and generation 2 compiled the real tree; declaring the attributes first needed a seed that tolerated them.

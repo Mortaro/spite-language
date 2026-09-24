@@ -186,10 +186,15 @@ to its class as the compiler's own reopening, and is printed as a declaration wi
 ```
 singleton
 
+func text(address: Long, length: Long): String {
+    var bytes = allocate_bytes(length + 1)
+    copy_bytes(address, bytes, length)
+    return String(bytes, length)
+}
+
 func allocate_bytes(bytes: Long): Long
 func resize(address: Long, bytes: Long): Long
 func free(address: Long)
-func allocate_stack_bytes(bytes: Long): Long
 ```
 
 A declaration without a body is what the compiler reads back, so the printed program still compiles: the

@@ -80,6 +80,12 @@ var temporary_counter = 0
 var literal_counter = 0
 var first_discovered_class = 0
 var hardcoded_settings = List<Syntax.Statements.VariableDeclaration>()
+var placement = Placement()
+var frame_candidates = List<String>()
+var placed_names = List<String>()
+var placed_frames = List<String>()
+var placed_receiver_names = List<String>()
+var placed_receiver_codes = List<String>()
 
 func report(message: String) {
     has_error = true
@@ -4831,49 +4837,6 @@ func generate_value_method(
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
-func generate_borrowing_call(
-    function_c_name: String,
-    object_result: ExpressionResult,
-    object_ast: Syntax.Expressions.Expression,
-    arguments_ast: List<Syntax.Expressions.Expression>,
-    expected_types: List<Analysis.SpiteType>,
-    return_type: Analysis.SpiteType,
-    scope: Scope,
-    class_information: Analysis.ClassInfo,
-): ExpressionResult {
-    var lines = List<String>()
-    var releases = List<String>()
-    var full_arguments = List<String>()
-    if owns(object_result, object_ast) {
-        var object_temporary = next_temporary()
-        var object_result_type = object_result.get_type()
-        lines.append("{c_type_name(object_result_type)} {object_temporary} = {object_result.code};")
-        releases.append("{release_call(object_result_type, object_temporary)};")
-        full_arguments.append(object_temporary)
-    } else {
-        full_arguments.append(object_result.code)
-    }
-    var index = 0
-    while index < arguments_ast.count() {
-        var argument_code = coerce_for_store(arguments_ast[index], expected_types[index], scope, class_information)
-        if type_needs_drop(expected_types[index]) {
-            var argument_temporary = next_temporary()
-            lines.append("{c_type_name(expected_types[index])} {argument_temporary} = {argument_code};")
-            releases.append("{release_call(expected_types[index], argument_temporary)};")
-            full_arguments.append(argument_temporary)
-        } else {
-            full_arguments.append(argument_code)
-        }
-        index = index + 1
-    }
-    var result_temporary = next_temporary()
-    lines.append("{c_type_name(return_type)} {result_temporary} = {function_c_name}({full_arguments.join(", ")});")
-    var joined_releases = releases.join(" ")
-    lines.append(joined_releases)
-    lines.append("{result_temporary};")
-    return ExpressionResult("(\{ {lines.join(" ")} })", return_type)
-}
-
 func generate_written_string_call(
     written: Analysis.FunctionInfo,
     object_result: ExpressionResult,
@@ -4926,189 +4889,9 @@ func generate_string_method(
         }
         return generate_written_string_call(written, object_result, object_ast, arguments_ast, scope, class_information)
     }
-    var function_c_name = "SpiteString_{name}"
-    if name == "length" or name == "code_at" or name == "index_of" {
-        var integer_parameters = no_types()
-        if name == "code_at" {
-            var integer_type = integer_type()
-            integer_parameters = one_type(integer_type)
-        }
-        if name == "index_of" {
-            var string_type = string_type()
-            integer_parameters = one_type(string_type)
-        }
-        var integer_type = integer_type()
-        return generate_borrowing_call(
-            function_c_name,
-            object_result,
-            object_ast,
-            arguments_ast,
-            integer_parameters,
-            integer_type,
-            scope,
-            class_information,
-        )
-    }
-    if name == "is_empty" {
-        var no_types = no_types()
-        var boolean_type = boolean_type()
-        return generate_borrowing_call(
-            function_c_name,
-            object_result,
-            object_ast,
-            arguments_ast,
-            no_types,
-            boolean_type,
-            scope,
-            class_information,
-        )
-    }
-    if name == "upper_case" or name == "lower_case" {
-        var no_types = no_types()
-        var string_type = string_type()
-        return generate_borrowing_call(
-            "SpiteString_{name.replace("_case", "")}",
-            object_result,
-            object_ast,
-            arguments_ast,
-            no_types,
-            string_type,
-            scope,
-            class_information,
-        )
-    }
     if name == "upper" or name == "lower" {
         report("text has no '{name}()': write '{name}_case()', which names what it does without abbreviating")
         return ExpressionResult("0", Analysis.Types.VoidType())
-    }
-    if name == "trim" {
-        var no_types = no_types()
-        var string_type = string_type()
-        return generate_borrowing_call(
-            function_c_name,
-            object_result,
-            object_ast,
-            arguments_ast,
-            no_types,
-            string_type,
-            scope,
-            class_information,
-        )
-    }
-    if name == "to_int" {
-        var no_types = no_types()
-        var integer_type = integer_type()
-        return generate_borrowing_call(
-            "SpiteString_to_int",
-            object_result,
-            object_ast,
-            arguments_ast,
-            no_types,
-            integer_type,
-            scope,
-            class_information,
-        )
-    }
-    if name == "to_long" {
-        var no_types = no_types()
-        var long_type = long_type()
-        return generate_borrowing_call(
-            "SpiteString_to_int",
-            object_result,
-            object_ast,
-            arguments_ast,
-            no_types,
-            long_type,
-            scope,
-            class_information,
-        )
-    }
-    if name == "to_float" {
-        var no_types = no_types()
-        var float_type = float_type()
-        return generate_borrowing_call(
-            "SpiteString_to_float",
-            object_result,
-            object_ast,
-            arguments_ast,
-            no_types,
-            float_type,
-            scope,
-            class_information,
-        )
-    }
-    if name == "to_double" {
-        var no_types = no_types()
-        var double_type = double_type()
-        return generate_borrowing_call(
-            "SpiteString_to_float",
-            object_result,
-            object_ast,
-            arguments_ast,
-            no_types,
-            double_type,
-            scope,
-            class_information,
-        )
-    }
-    if name == "character_at" {
-        var integer_type = integer_type()
-        var one_type = one_type(integer_type)
-        var string_type = string_type()
-        return generate_borrowing_call(
-            function_c_name,
-            object_result,
-            object_ast,
-            arguments_ast,
-            one_type,
-            string_type,
-            scope,
-            class_information,
-        )
-    }
-    if name == "slice" {
-        var index_type = integer_type()
-        var slice_parameters = two_types(index_type, index_type)
-        var slice_type = string_type()
-        return generate_borrowing_call(
-            function_c_name,
-            object_result,
-            object_ast,
-            arguments_ast,
-            slice_parameters,
-            slice_type,
-            scope,
-            class_information,
-        )
-    }
-    if name == "contains" or name == "starts_with" or name == "ends_with" {
-        var string_type = string_type()
-        var one_type = one_type(string_type)
-        var boolean_type = boolean_type()
-        return generate_borrowing_call(
-            function_c_name,
-            object_result,
-            object_ast,
-            arguments_ast,
-            one_type,
-            boolean_type,
-            scope,
-            class_information,
-        )
-    }
-    if name == "replace" {
-        var text_type = string_type()
-        var replace_parameters = two_types(text_type, text_type)
-        return generate_borrowing_call(
-            function_c_name,
-            object_result,
-            object_ast,
-            arguments_ast,
-            replace_parameters,
-            text_type,
-            scope,
-            class_information,
-        )
     }
     report("String has no method '{name}'")
     return ExpressionResult("0", Analysis.Types.VoidType())
@@ -8321,6 +8104,9 @@ func generate_variable_declaration(
     class_information: Analysis.ClassInfo,
 ) {
     assert declaration.value
+    var frame_key = placement.frame_key(declaration)
+    var frame_placed = frame_candidates.contains("{current_path}:{current_function}:{frame_key}") and not scope.entry_names.contains(declaration.name) and placed_in_frame(declaration, scope, class_information)
+    assert not frame_placed
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
     report_copy_for_narrowing(declaration.name, declaration.value, declared_type)
@@ -8337,6 +8123,68 @@ func generate_variable_declaration(
         scope.check_last(current_line)
         check_value_name(declaration.name, "variable")
     }
+}
+
+func placed_in_frame(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Bool {
+    crash declaration.value
+    var allocation = shape.as_call(declaration.value)
+    crash allocation
+    crash allocation.callee
+    var allocating = shape.as_member(allocation.callee)
+    crash allocating
+    crash allocating.object
+    var receiver = shape.as_identifier(allocating.object)
+    crash receiver
+    var receiver_result = generate_expression(allocating.object, scope, class_information)
+    var receiver_type = receiver_result.get_type()
+    var memory_class = type_shape.as_class_ref(receiver_type)
+    assert memory_class
+    assert memory_class.c_name == "Memory"
+    var address_type = long_type()
+    var bytes_code = coerce_for_store(allocation.arguments[0], address_type, scope, class_information)
+    var frame_bytes = 256
+    var literal_bytes = shape.as_integer_literal(allocation.arguments[0])
+    if literal_bytes {
+        if literal_bytes.value >= 1 and literal_bytes.value <= frame_bytes {
+            frame_bytes = (literal_bytes.value + 7) / 8 * 8
+        }
+    }
+    var frame = next_temporary()
+    var bytes = next_temporary()
+    builder.add_user("int64_t {frame}[{frame_bytes / 8}];")
+    builder.add_user("int64_t {bytes} = {bytes_code};")
+    builder.add_user(
+        "int64_t {declaration.name} = {bytes} <= {frame_bytes} ? (int64_t)(intptr_t){frame} : Memory_allocate_bytes({receiver_result.code}, {bytes});",
+    )
+    scope.declare(declaration.name, address_type)
+    scope.check_last(current_line)
+    check_value_name(declaration.name, "variable")
+    placed_names.append(declaration.name)
+    placed_frames.append(frame)
+    placed_receiver_names.append(receiver.name)
+    placed_receiver_codes.append(receiver_result.code)
+    return true
+}
+
+func freed_from_frame(expression_statement: Syntax.Statements.ExpressionStatement): Bool {
+    crash expression_statement.value
+    var index = placed_names.count() - 1
+    while index >= 0 {
+        var receiver_name = placed_receiver_names.get_at(index)
+        var freed = placement.memory_argument(expression_statement.value, receiver_name, "free")
+        if freed == placed_names.get_at(index) {
+            var frame = placed_frames.get_at(index)
+            var receiver_code = placed_receiver_codes.get_at(index)
+            builder.add_user("if ({freed} != (int64_t)(intptr_t){frame}) Memory_free({receiver_code}, {freed});")
+            return true
+        }
+        index = index - 1
+    }
+    return false
 }
 
 func rebind(name: String, value_code: String, declared_type: Analysis.SpiteType, scope: Scope): String {
@@ -8834,6 +8682,12 @@ func generate_statement_list(
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ): Bool {
+    var candidates = placement.frame_candidates(statements)
+    var candidate_index = 0
+    while candidate_index < candidates.count() {
+        frame_candidates.append("{current_path}:{current_function}:{candidates[candidate_index]}")
+        candidate_index = candidate_index + 1
+    }
     var index = 0
     var ended_in_return = false
     while index < statements.count() {
@@ -10835,6 +10689,7 @@ func generate_expression_statement(
     class_information: Analysis.ClassInfo,
 ) {
     assert expression_statement.value
+    assert not freed_from_frame(expression_statement)
     var result = generate_expression(expression_statement.value, scope, class_information)
     var result_type = result.get_type()
     if type_shape.is_void(result_type) {
@@ -11131,6 +10986,11 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         return
     }
     site_ordinal = 0
+    frame_candidates.clear()
+    placed_names.clear()
+    placed_frames.clear()
+    placed_receiver_names.clear()
+    placed_receiver_codes.clear()
     current_class = information
     current_function = function.name
     current_line = function.line
