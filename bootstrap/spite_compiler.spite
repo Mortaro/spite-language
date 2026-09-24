@@ -1,4 +1,5 @@
 var console = Console()
+var program = Program()
 var last_crash_map = ""
 var supplied_settings = Dictionary<String>()
 var bare_settings = List<String>()
@@ -17,7 +18,7 @@ func SpiteCompiler() {
         console.error("usage: spite program_folder [--optimized] [--debug_memory] [-- program arguments ...]")
         console.error("       spite program_folder --mode=c                  print the C instead of running")
         console.error("       spite program_folder --mode=build --output=path  build without running")
-        Program().exit(1)
+        program.exit(1)
         return
     }
     var content = File(file_argument).read()
@@ -25,7 +26,7 @@ func SpiteCompiler() {
         run_mode(file_argument, content)
     } else {
         console.error("error: could not read '{file_argument}'")
-        Program().exit(1)
+        program.exit(1)
     }
 }
 
@@ -51,14 +52,14 @@ func run_mode(file_argument: String, content: String) {
     if discovery {
         run_discovered(file_argument, discovery)
     } else {
-        Program().exit(1)
+        program.exit(1)
     }
 }
 
 func run_discovered(file_argument: String, discovery: Discovery.DiscoveryResult) {
     if remote_loop_port() < 0 {
         console.error("error: --repl_port takes a port number from 1 to 65535: spite program --repl_port=4000")
-        Program().exit(1)
+        program.exit(1)
         return
     }
     var final_classes_directory = option("final_classes")
@@ -83,7 +84,6 @@ func run_discovered(file_argument: String, discovery: Discovery.DiscoveryResult)
     console.error(
         "unknown --mode '{mode}' (expected 'tokens', 'tree', 'c', 'build', 'run', 'format' or 'check_format')",
     )
-    var program = Program()
     program.exit(1)
 }
 
@@ -102,19 +102,19 @@ func run_format_mode(file_argument: String, content: String, only_check: Bool) {
     var formatted = formatter.format(content)
     if not formatted {
         console.error("{file_argument}: not formatted: {formatter.refusal}")
-        Program().exit(1)
+        program.exit(1)
         return
     }
     crash formatted
     assert formatted != content
     if only_check {
         console.print(file_argument)
-        Program().exit(1)
+        program.exit(1)
         return
     }
     if not File(file_argument).write(formatted) {
         console.error("error: could not write '{file_argument}'")
-        Program().exit(1)
+        program.exit(1)
         return
     }
     console.error("formatted {file_argument}")
@@ -265,7 +265,7 @@ func run_final_classes_mode(discovery: Discovery.DiscoveryResult, output_directo
             var formatted_or_as_printed = formatted_or_as_printed(source)
             if not output.write(formatted_or_as_printed) {
                 console.error("error: could not write '{path}'")
-                Program().exit(1)
+                program.exit(1)
                 return
             }
         }
@@ -287,7 +287,7 @@ func final_classes_generator(discovery: Discovery.DiscoveryResult): Generation.G
     generator.generate(discovery, header, structs, prototypes, bodies)
     if generator.has_error {
         console.error(generator.error_message)
-        Program().exit(1)
+        program.exit(1)
         return null
     }
     return generator
@@ -330,7 +330,7 @@ func write_class_views(output_directory: String, folder: String, names: List<Str
         var formatted_or_as_printed = formatted_or_as_printed(sources[index])
         if not output.write(formatted_or_as_printed) {
             console.error("error: could not write '{path}'")
-            Program().exit(1)
+            program.exit(1)
             return
         }
         index = index + 1
@@ -393,7 +393,6 @@ func run_c_mode(discovery: Discovery.DiscoveryResult) {
         console.write(code)
         return
     }
-    var program = Program()
     program.exit(1)
 }
 
@@ -475,7 +474,7 @@ func build_to_path(file_argument: String, discovery: Discovery.DiscoveryResult, 
 }
 
 func find_c_compiler(): String {
-    var chosen = Program().environment("CC")
+    var chosen = program.environment("CC")
     if chosen {
         if not chosen.trim().is_empty() {
             return chosen.trim()
@@ -497,12 +496,11 @@ func run_build_mode(file_argument: String, discovery: Discovery.DiscoveryResult)
     var output_path = option("output")
     if output_path.is_empty() {
         console.error("error: --mode=build writes the program to --output=path, and no path was given")
-        Program().exit(1)
+        program.exit(1)
         return
     }
     var built = build_to_path(file_argument, discovery, output_path)
     if not built {
-        var program = Program()
         program.exit(1)
     }
 }
@@ -511,7 +509,6 @@ func run_run_mode(file_argument: String, discovery: Discovery.DiscoveryResult, p
     var output_path = ".spite-cache/{computed_class_name(file_argument)}_gen1.exe"
     var built = build_to_path(file_argument, discovery, output_path)
     if not built {
-        var program = Program()
         program.exit(1)
         return
     }
@@ -521,13 +518,12 @@ func run_run_mode(file_argument: String, discovery: Discovery.DiscoveryResult, p
     if is_on("repl") or port > 0 {
         console.flush()
         var run_attached = runner.run_attached()
-        Program().exit(run_attached)
+        program.exit(run_attached)
         return
     }
     var exit_code = runner.run()
     var output = runner.output()
     console.write(output)
-    var program = Program()
     program.exit(exit_code)
 }
 
@@ -535,7 +531,6 @@ func run_tokens_mode(content: String) {
     var lexer = Syntax.Lexer(content)
     print_tokens(lexer.tokens)
     if lexer.has_error {
-        var program = Program()
         program.exit(1)
     }
 }
@@ -546,7 +541,6 @@ func run_tree_mode(file_argument: String, content: String) {
     var file = parser.parse_file()
     if parser.has_error {
         console.error("{file_argument}:{parser.error_line}:{parser.error_column}: error: {parser.error_message}")
-        var program = Program()
         program.exit(1)
         return
     }
@@ -593,13 +587,13 @@ func run_connect(arguments: Arguments) {
             "usage: spite connect <port>                    talk to a program started with --repl_port=<port>",
         )
         console.error("       spite connect <port> --command=\"...\"    send one command and print its JSON answer")
-        Program().exit(1)
+        program.exit(1)
         return
     }
     var connection = Socket()
     if not connection.connect_locally(port) {
         console.error("error: nothing is listening on 127.0.0.1:{port}: run a program with --repl_port={port} first")
-        Program().exit(1)
+        program.exit(1)
         return
     }
     if arguments.command {
@@ -641,7 +635,7 @@ func send_one_command(connection: Socket, command: String) {
         return
     }
     console.error("error: the program closed the connection without answering")
-    Program().exit(1)
+    program.exit(1)
 }
 
 func pretty_response(response: String): String {

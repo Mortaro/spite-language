@@ -206,12 +206,14 @@ nothing else holds the text.
 `library/int.spite` starts with the memory an `Int` is:
 
 ```gdscript
-var _memory = Memory().allocate_bytes(4)
+var memory = Memory()
+var _memory = memory.allocate_bytes(4)
 ```
 
 Four bytes, allocated through `Memory` like everything else, and placed by the compiler: a number's memory is a
 register (or wherever the C compiler keeps an `int32_t`), so there is no address behind `this` and nothing to
-free. Every number file says the same with its own width (`Long` 8, `Short` 2, `Byte` 1, `Bool` 1, `Double` 8,
+free. `Memory` is bound to `memory` first, as every singleton is
+([classes_and_files.md](classes_and_files.md#singletons)); that binding is never a field of the number. Every number file says the same with its own width (`Long` 8, `Short` 2, `Byte` 1, `Bool` 1, `Double` 8,
 ...), the compiler checks it against the C type it emits, and `count.memory.bytes` reads it. Inside a number,
 `this` is the value itself: reading `_memory` is an error saying so.
 

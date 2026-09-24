@@ -1,3 +1,5 @@
+singleton
+
 var memory = Memory()
 var console = Console()
 

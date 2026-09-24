@@ -1,4 +1,5 @@
 var console = Console()
+var program = Program()
 
 func System() {
     var arguments = Arguments()
@@ -26,13 +27,13 @@ func System() {
     file_exists = file.exists()
     console.print(remove, file_exists)
     report(file)
-    var c_compiler = Program().environment("CC")
+    var c_compiler = program.environment("CC")
     if c_compiler {
         console.print("CC is set")
     } else {
         console.print("CC is not set")
     }
-    var never_set = Program().environment("SPITE_CONFORMANCE_NEVER_SET")
+    var never_set = program.environment("SPITE_CONFORMANCE_NEVER_SET")
     if never_set {
         console.print("unexpected")
     }
@@ -40,7 +41,7 @@ func System() {
     var exit_code = process.run()
     var trim_is_empty = process.output().trim().is_empty()
     console.print(exit_code, trim_is_empty)
-    Program().sleep(1)
+    program.sleep(1)
     console.print("done")
 }
 

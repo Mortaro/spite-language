@@ -1,0 +1,1 @@
+diagnostics/inline_singleton_attribute/inline_singleton_attribute.spite:2: error: 'Build' is a singleton: bind it once beside the attributes, 'var build = Build()', and use 'build.target_operating_system' (in InlineSingletonAttribute.)

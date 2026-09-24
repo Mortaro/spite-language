@@ -158,8 +158,8 @@ argument is cast to the parameter's type instead ([functions_and_operators.md](f
 ## Singletons
 
 A file whose first line is `singleton` has one instance: calling its constructor anywhere answers that same
-instance, made the first time it is asked for, and the constructor takes no arguments. `Console`, `Environment`,
-`Build` and `Memory` are singletons; `File`, `Directory` and `Process` are not, since several may exist at once.
+instance, made the first time it is asked for, and the constructor takes no arguments. `Console`, `Program`,
+`Environment`, `Build` and `Memory` are singletons; `File`, `Directory` and `Process` are not, since several may exist at once.
 
 ```gdscript title=singleton_basics/scoreboard.spite
 singleton
@@ -192,6 +192,22 @@ reverse order of creation. `is_singleton()` is answered by `Spite.Class` for eve
 declaring it yourself is an error that names the `singleton` line. `DynamicLibrary` is the one singleton that
 takes arguments: it has one instance per distinct list of literal arguments
 ([foreign_libraries.md](foreign_libraries.md)).
+
+A singleton is always bound to a `var` before it is used, beside the attributes or in a function, and used
+through that name. Reading or calling a member on the constructor call itself is an error, and so is passing it,
+returning it or storing it anywhere but a `var` of its own -- a constructor is otherwise allowed as an argument
+([style.md](style.md#one-call-per-line)), but not a singleton's:
+
+```gdscript title=singleton_inline_error/singleton_inline_error.spite entry error
+var console = Console()
+
+func SingletonInlineError() {
+    console.print("built for {Build().target_operating_system}")
+}
+```
+```diagnostic
+'Build' is a singleton: bind it once beside the attributes, 'var build = Build()', and use 'build.target_operating_system'
+```
 
 ## Classes are references
 

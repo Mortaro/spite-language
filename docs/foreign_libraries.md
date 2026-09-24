@@ -33,7 +33,7 @@ func measure(text: String): Int {
 5
 ```
 
-`Build().target_operating_system` is a constant, so only the branch for the system the program is compiled for
+`build.target_operating_system` is a constant, so only the branch for the system the program is compiled for
 is in it ([programs.md](programs.md#the-operating-system-operating_system-and-target_operating_system)); the
 standard library itself does this more neatly, by reopening classes per system ([below](#each-operating-system-reopens-what-it-changes)).
 
@@ -111,7 +111,7 @@ func environment_address(name: String): Long {
 
 and `library/program.spite` calls `exit_process` and `environment_address` without declaring them, because
 every system's folder defines them with the same signature. The launcher loads `library/` and then exactly one of
-these folders, named by `Build().target_operating_system` ([programs.md](programs.md#how-a-program-is-loaded)), so
+these folders, named by `build.target_operating_system` ([programs.md](programs.md#how-a-program-is-loaded)), so
 their functions replace or add members by the ordinary reopening rule ([packages.md](packages.md#monkey-patching-mods)).
 `--final_classes` prints each class as it came out, its system's functions included.
 

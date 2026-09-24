@@ -12,5 +12,6 @@ func ConsoleClass() {
     console.print("")
     var greeter = Greeter()
     greeter.greet()
-    Console().print("a Console made on the spot prints too")
+    var local_console = Console()
+    local_console.print("a Console bound in a function prints too")
 }

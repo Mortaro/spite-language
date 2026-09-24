@@ -223,15 +223,72 @@ Behaviour that does not match the manual. The language was not changed; each is 
 56. **(Answered by D109: `to_string()`.)** **Item 13's `to_text()`** would be `to_string()` after D107 ("a value turns into text with `to_string()`"):
     the `Printable` proposal should use that name.
 
-## From D109 (printing through `to_string()`, `Console.debug`; manual sections 5 and 15)
+## A function of the caller for each element (D113; manual section 8)
 
-57. **A number, `Bool` or enum value passed where a `type` is wanted is boxed**: one small allocation, freed like
-    any object, so `print(count)` costs a box and the `String` its `to_string()` makes, and every `print` costs
-    the `List` its values arrive in. The self-compile did not slow measurably, and the two corpus programs that
-    pin allocations moved from 29 to 50 and from 11 to 17. Is that an acceptable visible cost, or should a
-    variadic list the callee only reads live in the caller's frame (the D108 placement rule, one step further)?
-58. **Interpolation does not call a class's `to_string()`**: `console.print(ticket)` prints a `Ticket` that
+57. **A caller function that needs more than the element** -- `print_statement(statement, depth)`, the typical
+    loop of D94's review (143 of them stay `while`). Nothing is built. Options (proposed by Claude,
+    unconfirmed): (a) leave them as `while`, which is where they are now; (b) the template's own arguments go to
+    the function after the element, so `statements.each_print_statement(depth)` calls
+    `print_statement(statement, depth)` -- no new syntax, and each extra argument is evaluated once before the
+    loop, but `find_by_(value)` already takes an argument, so it would need a rule for which one is the value
+    (say: `find_by_` takes none extra); (c) move `depth` into an attribute so the function takes the element
+    alone, which the review called the esoteric outcome. I would build (b) for `each_` and `map_` first and
+    recount; the loop rule would then also name `statements.each_print_statement(depth)`.
+58. **When the element has a member and the caller a function of the same name**, the call is an error asking to
+    rename one (`'each_is_adult' could call 'is_adult' of each 'Person' or this class's own 'is_adult(Person)'`).
+    You asked for "the element's own member first, then the caller's function, or an error if ambiguous": I chose
+    the error, because with an order a member added to a class later silently changes what an unrelated caller
+    runs (D36's surprise, and D59's one name, one meaning). Keep the error, or let the element's member win?
+59. **The loop rule reaches only what is exactly rewritable**, and today that is 2 loops. It leaves a loop whose
+    function belongs to another object (`evaluator.process_line(lines[index])` in `examples/calculator`): a
+    template calls functions of the caller only. Should `lines.each_process_line()` look at the caller's
+    attributes too (here `evaluator`), or does that stay a `while`?
+
+## Singletons bound to a variable (D110; manual sections 8 and 12)
+
+60. **Where the binding lives**: an attribute ("on top") or a local `var` in a function are both accepted, and
+    the error names the attribute. Locals are what `String` uses for `Memory` (a value class has no attribute to
+    spare) and what an error path uses before `program.exit(1)`. Should a local binding be an error outside
+    value classes, so there is one place for it?
+61. **`Program` is a singleton now**: D8 and section 15 said so, but `library/program.spite` had no `singleton`
+    line, so `Program().exit(1)` made a fresh object each time and was not covered by D110. It has the line now
+    and every inline use is bound. Confirm?
+62. **A number's storage is two lines**: `var memory = Memory()` and `var _memory = memory.allocate_bytes(4)`
+    (item 51 was the one-line form). The binding is never a field of the number. The alternative was to exempt
+    `var _memory = Memory().allocate_bytes(4)` from D110, because the compiler reads that line rather than
+    running it; rejected so the file an AI reads to learn memory shows the bound form. Keep it?
+63. **`Build` is a static object**, like `Memory` in item 55: every field folds to a constant, so it holds
+    nothing at run time, and binding it (`var build = Build()` in the launcher and anywhere else) costs no
+    allocation. Reading a field of it any way but by name (reflection over its attributes) would see nothing.
+    Fine as a hidden optimisation (D36)?
+
+## From D109 (printing through `to_string()`, `Console.debug`; manual sections 5, 8 and 15)
+
+64. **A number, `Bool`, `Symbol` or enum value passed where a `type` is wanted is boxed**: one small allocation,
+    freed like any object, so `print(count)` costs a box and the `String` its `to_string()` makes, and every
+    `print` costs the `List` its values arrive in. The self-compile did not slow measurably, and the two corpus
+    programs that pin allocations moved from 29 to 50 and from 11 to 17. Is that an acceptable visible cost, or
+    should a variadic list the callee only reads live in the caller's frame (the D108 placement rule, one step
+    further)?
+65. **Interpolation does not call a class's `to_string()`**: `console.print(ticket)` prints a `Ticket` that
     declares one, and `"{ticket}"` is still the error "a Ticket cannot be used where a String is needed", so text
     is written `"{ticket.to_string()}"`. D107 says interpolation calls `to_string()`; should it for a class too?
-59. **An enum value answers `to_string()` and nothing else**, which is what lets it be `Printable`. Should an enum
-    be able to declare more, the way a number's class does (a file per enum is not a thing yet)?
+66. **An enum value answers `to_string()` and `to_debug()` and nothing else**, which is what lets it be
+    `Printable` and `Debuggable`. Should an enum be able to declare more, the way a number's class does (a file
+    per enum is not a thing yet)?
+67. **The cycle rule for `to_debug()`**: an object already being shown further up is written `Name {...}`, found
+    by `==` against the objects of its class being shown (identity, unless the class defines `equals`). A tree of
+    distinct objects is shown whole however deep. The alternatives were a depth limit, or `{...}` for any object
+    of a class already on the way down (which would cut a linked list after one node).
+68. **What `to_debug()` writes**: `Name { attribute: value }` and `Name {}`, `[a, b]`, `{"key": value}`, text in
+    double quotes with `\"`, `\\` and `\n` escaped, a `Symbol` or enum value as `'name'`, numbers and `Bool` as
+    printed, `null`, a `Spite.Class` as its name, a `DynamicLibrary` as its `file_name`. Private `_` attributes
+    are left out, because the plural attribute template now skips another class's private attributes instead of
+    failing on them, which changes `Json` the same way. Show them instead (a reflection read the plural is
+    allowed and nothing else is)?
+69. **The REPL could show values with `to_debug()`**: today it shows `Player { name: hero, ... }` (text unquoted,
+    nested objects as `Name {...}`, lists as `List<String>(...)`) from `Spite.Attribute`'s text, and the
+    documented sessions depend on that. Switching means quoting text and nesting fully in every answer. Want it?
+70. **The names**: `Console.debug`, `type Debuggable { to_debug(): String }` beside `Printable`,
+    `Spite.Debug<$value_type>` for the text of any value and `Spite.DebugInstance<$value_type>` for walking a
+    class instance -- in `Spite` because they are reflection, and so a program cannot reopen them by accident.
