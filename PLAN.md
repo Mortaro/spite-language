@@ -71,7 +71,7 @@ and balanced allocations.
       small and useful on its own: `String.pascal_case()`, `String.camel_case()`, `String.abbreviated()` (the
       the linter abbreviation table read backwards -- one shared table, two directions), `Symbol.kind`
       (`'function'`/`'constant'`/`'type'`), and `Spite.Class.size`.
-    - **11b. Not started.** The header half: `#include` of the constructor's header argument, constant reads
+    - **11b. Done (2026-09-23)** -- see manual.md section 17. The header half: `#include` of the constructor's header argument, constant reads
       (`user32.mouseeventf_leftdown` -> `MOUSEEVENTF_LEFTDOWN`), PascalCase type reads, a scalar-only `type` passed by
       address as a C struct, `Type.size`, the generated `_Static_assert(sizeof(C_TYPE) == sizeof(spite_type))` layout
       check (name derived through the naming rule, used to verify and never to generate), and the diagnostic for a
@@ -117,7 +117,7 @@ and balanced allocations.
     (`bootstrap/source/syntax/`) changes with it. Mortaro wants to bootstrap as soon as possible
     (`mortaros_notes.md`, 2026-09-19: get rid of the old code), so a language change that is decided but not
     landed is rework waiting to happen for 8b -- this one is cheap and should go early.
-14. **Not started.** D10 + D11, symbols and two-level reflection (manual.md sections 7 and 8): a symbol literal
+14. **Done, as D70 (2026-09-23)** -- symbols are tree-shakable runtime values from a table the compiler writes, which supersedes the compile-time-only rule below. D10 + D11, symbols and two-level reflection (manual.md sections 7 and 8): a symbol literal
     (`'age'`), legal only where an enum or `Symbol` is expected, with an enum checked as the closed list of
     symbols it accepts and no untyped symbol literal; `Symbol` staying compile-time only, so it cannot be stored
     in a field. Then the two levels: `weapon.attributes['damage']` for the value and
@@ -125,9 +125,11 @@ and balanced allocations.
     pay-off is that `attributes[symbol]` stops being a special compile-time-only form and becomes ordinary
     indexing, and that `person.set_attribute('age', 2)` becomes writable in source at all. Overlaps milestone 10b
     (the class-level mapping's shape is part of that design pass) and should probably land with it.
-15. **Not started.** D14, dissolve the runtime (manual.md section 15, "Pure Spite"). The end state is that
-    `src/runtime/spite_runtime.h` and `src/runtime/spite_repl.h` do not exist, and everything above a short list
-    of compiler intrinsics is written in Spite. Ordered, because each step unblocks the next:
+15. **Nearly done (2026-09-24).** D14, dissolve the runtime (manual.md section 15, "Pure Spite"). `runtime/` is
+    deleted: the only hand-written C left is `bootstrap/source/generation/prelude.spite` (the allocator switch, the
+    object header, `String`'s layout, and the `Memory`/`DynamicLibrary`/`Arguments` floor), and the generated C
+    is tree-shaken so a program carries only what it calls. D81 (no hand-registered classes) waits on how a Spite
+    file declares a body the compiler supplies. Ordered, because each step unblocks the next:
     - **15a. Proposed (2026-09-23), waiting on Mortaro** -- manual.md section 15, "The floor, named". Name the floor: the five to ten intrinsics the compiler emits directly (raw memory in and out --
       `mmap`/`VirtualAlloc` through the FFI on native, `memory.grow` on wasm -- plus whatever the emitted C needs
       before any Spite exists). Nothing else is allowed to be hand-written C. This is a design step, and it gates
@@ -148,8 +150,8 @@ and balanced allocations.
       `library/dictionary.spite`, plus `split`/`lines` in `library/string.spite`; what the compiler still emits
       per element type is in the decision log's containers row. Wants milestone 8b first -- a compiler in Spite makes this natural
       rather than heroic -- and it is what finally makes standard library classes reopenable (section 16 item 7).
-    - **15d.** `spite_repl.h`'s 1392 lines: an interpreter over generated tables, which is ordinary Spite once
-      milestone 10's reflection exists.
+    - **15d. Done (2026-09-24).** The REPL is `library/read_evaluate_print_loop.spite` (D72): paths, assignment
+      and calls with literal arguments; `spite_repl.h` is deleted. `--repl-port` is not built.
     - **15e.** The web shim: drive the hand-written portion to zero by generating the imports from `external js`
       declarations and the command-buffer drain loop from its opcode table (milestone 12). It cannot become
       Spite -- it runs in the JavaScript virtual machine -- but it can stop being authored. Goal, not a
