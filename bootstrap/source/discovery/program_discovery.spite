@@ -4,6 +4,7 @@ var has_error = false
 var comment_root = ""
 var error_message = ""
 var walking_library = false
+var language_folder = "."
 var formats = false
 var console = Console()
 var build = Build()
@@ -60,10 +61,10 @@ func launcher_path(): String {
 
 func read_launcher(): Syntax.SourceFile? {
     var path = launcher_path()
-    var launcher_file = File(path)
+    var launcher_file = File("{language_folder}/{path}")
     if not launcher_file.read() {
         has_error = true
-        error_message = "error: could not read '{path}', the Spite program that loads the standard library and then this program: run spite from the folder that holds it"
+        error_message = "error: could not read '{language_folder}/{path}', the Spite program that loads the standard library and then this program: the compiler looks for it in the folders above its own executable"
         return null
     }
     var no_segments = List<String>()
@@ -127,7 +128,7 @@ func load_folder(call: Syntax.Expressions.CallExpression, entry_path: String, en
         discover_program(entry_path, entry_source)
         return
     }
-    var folder = Directory(path)
+    var folder = Directory("{language_folder}/{path}")
     if not folder.exists() {
         has_error = true
         error_message = "{launcher_path()}: error: could not find the folder '{path}' it loads"
@@ -571,7 +572,8 @@ func walk_directory(
         path = "{path}/{segments[index]}"
         index = index + 1
     }
-    var directory = Directory(path)
+    var folder_on_disk = on_disk(path)
+    var directory = Directory(folder_on_disk)
     assert directory.exists()
     var files = directory.files()
     var file_index = 0
@@ -612,6 +614,13 @@ func walk_directory(
     }
 }
 
+func on_disk(path: String): String {
+    if walking_library {
+        return "{language_folder}/{path}"
+    }
+    return path
+}
+
 func copy_segments(segments: List<String>): List<String> {
     return segments.copy()
 }
@@ -648,7 +657,8 @@ func formatted_source(path: String, source: String): String {
 
 func read_and_add_file(path: String, segments: List<String>) {
     assert not has_error
-    var program_file = File(path)
+    var file_on_disk = on_disk(path)
+    var program_file = File(file_on_disk)
     var content = program_file.read()
     if content {
         var formatted_source = formatted_source(path, content)
