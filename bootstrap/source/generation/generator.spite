@@ -4239,32 +4239,6 @@ func generate_string_method(
             class_information,
         )
     }
-    if name == "split" {
-        ensure_list(string_type())
-        return generate_borrowing_call(
-            "spite_emitted_split",
-            object_result,
-            object_ast,
-            arguments_ast,
-            one_type(string_type()),
-            list_type_of(string_type()),
-            scope,
-            class_information,
-        )
-    }
-    if name == "lines" {
-        ensure_list(string_type())
-        return generate_borrowing_call(
-            "spite_emitted_lines",
-            object_result,
-            object_ast,
-            arguments_ast,
-            no_types(),
-            list_type_of(string_type()),
-            scope,
-            class_information,
-        )
-    }
     report("String has no method '{name}'")
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
@@ -6248,16 +6222,6 @@ func emit_list_support(list_name: String, element: Analysis.SpiteType, class_id:
         builder.add_prototype("bool {list_name}_contains({self_parameter}, {item} value);")
         builder.add_support(
             "bool {list_name}_contains({self_parameter}, {item} value) \{\nfor (int64_t spite_index = 0; spite_index < self->count; spite_index = spite_index + 1) \{\nif ({comparison}) return true;\n}\nreturn false;\n}",
-        )
-    }
-    if type_shape.as_string(element) {
-        builder.add_prototype("List_String* spite_emitted_split(SpiteString* self, SpiteString* separator);")
-        builder.add_prototype("List_String* spite_emitted_lines(SpiteString* self);")
-        builder.add_support(
-            "List_String* spite_emitted_split(SpiteString* self, SpiteString* separator) \{\nList_String* result = List_String_make();\nif (separator->length == 0) \{\nfor (int64_t index = 0; index < self->length; index = index + 1) \{ List_String_add(result, SpiteString_character_at(self, index)); }\nreturn result;\n}\nint64_t piece_start = 0;\nint64_t index = 0;\nwhile (index <= self->length - separator->length) \{\nif (memcmp(self->data + index, separator->data, (size_t)separator->length) == 0) \{\nList_String_add(result, SpiteString_slice(self, piece_start, index));\nindex = index + separator->length;\npiece_start = index;\n} else \{\nindex = index + 1;\n}\n}\nList_String_add(result, SpiteString_slice(self, piece_start, self->length));\nreturn result;\n}",
-        )
-        builder.add_support(
-            "List_String* spite_emitted_lines(SpiteString* self) \{\nSpiteString* spite_newline = spite_string_from_cstring_owned(\"\\n\");\nList_String* result = spite_emitted_split(self, spite_newline);\nSpiteString_release(spite_newline);\nreturn result;\n}",
         )
     }
     if joins_as_text(element) {
