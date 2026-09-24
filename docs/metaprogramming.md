@@ -311,6 +311,32 @@ something else
 A test on a type always decides at compile time, `--development` included, since the branch it rules out would
 not compile.
 
+A codegen value that is a type reads as its class wherever a class name would: `$component_type.name` is the
+bound class's name the way `Health.name` is, and `$component_type.attributes` its attributes. It allocates
+nothing, since the class object already exists; a value of the type is not needed to ask. On its own, `$name` is
+still not a value -- only a member read through it is.
+
+```gdscript title=codegen_class_name/column.spite
+generic $component_type
+
+func label(): String {
+    var name = $component_type.name
+    return "a column of {name}"
+}
+```
+```gdscript title=codegen_class_name/codegen_class_name.spite entry
+var console = Console()
+
+func CodegenClassName() {
+    var words = Column<String>()
+    var label = words.label()
+    console.print(label)
+}
+```
+```output
+a column of String
+```
+
 ## Tree shaking
 
 Spite removes what a program does not use, and it can do so exactly, because everything it generates is decided

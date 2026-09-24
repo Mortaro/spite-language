@@ -7304,7 +7304,30 @@ func generate_member_object(
         class_object.owning_override = true
         return class_object
     }
+    var codegen_class = codegen_class_object(object_ast, class_information)
+    if codegen_class {
+        return codegen_class
+    }
     return generate_expression(object_ast, scope, class_information)
+}
+
+func codegen_class_object(
+    object_ast: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    var generic_identifier = shape.as_generic_identifier(object_ast)
+    assert generic_identifier
+    var bare_name = without_dollar(generic_identifier.name)
+    var bound = codegen_index(class_information, bare_name)
+    assert bound >= 0
+    crash class_information.codegen_codes[bound]
+    assert class_information.codegen_codes[bound].is_empty()
+    crash class_information.codegen_types[bound]
+    var class_object_call = class_object_call(class_information.codegen_types[bound])
+    var spite_class_type = spite_class_type()
+    var class_object = ExpressionResult(class_object_call, spite_class_type)
+    class_object.owning_override = true
+    return class_object
 }
 
 func as_text(result: ExpressionResult): ExpressionResult {
