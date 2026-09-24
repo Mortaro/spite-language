@@ -40,9 +40,9 @@ func is_alive(): Bool {
 }
 ```
 
-- The file name is the class name (`monster.spite` is `Monster`). Only `var`, `func`, `enum`, `union` and `type`
-  may appear at file level, and in that order: enums, unions, types, variables, the constructor, then functions.
-  Every `var` has a default value.
+- The file name is the class name (`monster.spite` is `Monster`). Only `generic`, `var`, `func`, `enum`, `union`
+  and `type` may appear at file level, and in that order: `generic` lines, enums, unions, types, variables, the
+  constructor, then functions. Every `var` has a default value.
 - The function named like the class is the constructor. Do not write an empty one: a class without a constructor
   is made from its defaults, and `func Monster() { }` is an error.
 - A program starts by constructing the entry file's class. `func Game(arguments: Arguments)` receives the command
@@ -130,8 +130,9 @@ func is_alive(): Bool {
 - Operators are functions a class may define: `sum`, `subtract`, `multiply`, `divide`, `remainder`, `equals`,
   `less_than`, `greater_than`, `negate`, `get_at(index)`, `set_at(index, value)`. Without `equals`, `==` compares
   identity.
-- Codegen values: `func Weapon<$damage_type, $is_magic>(damage: $damage_type)` is called `Weapon<Int, true>(10)`.
-  `$` is for generics only: a `$name` the constructor does not declare is an error. `if $is_magic { }` is
+- Codegen values: `generic $damage_type` and `generic $is_magic`, one per line at the top of `weapon.spite`, and
+  `Weapon<Int, true>(10)` supplies them in that order. The constructor lists none: `func Weapon(damage:
+  $damage_type)`. `$` is for generics only: a `$name` with no `generic` line is an error. `if $is_magic { }` is
   decided at compile time.
 - Settings: reopen `Environment` in the program's `environment.spite` with one `var` per setting and a literal
   default (`var serve = false`), then read `Environment().serve` anywhere. The value comes from `--serve=true`

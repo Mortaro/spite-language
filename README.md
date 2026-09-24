@@ -19,7 +19,7 @@ outright instead of silently accepting it.
 | Enums, unions, inline types (duck typing) | implemented |
 | Metaprogramming: `Symbol` codegen | implemented |
 | Metaprogramming: reflection (`.class`/`.attributes`) | partial (`Class.instances`, D6 class-level functions, D10 symbol literals and D11 two-level reflection planned) |
-| Codegen values (`$`), generics, compiler flags, tree shaking | implemented (D5/D9's constructor-declared form -- `func Weapon<$a, $b>(...)`, positional call sites -- is planned; manual.md section 9) |
+| Codegen values (`$`), generics, compiler flags, tree shaking | implemented (D87: `generic $name` lines at the top of the file, positional call sites; manual.md section 9) |
 | Memory (reference counting, `drop()`, `copy()`/`deep_copy()`) | implemented (D1; cycles leak by design, weak references planned) |
 | Packages, namespaces, monkey patching, `--final-classes` | partial (bundles always linked statically for now) |
 | Style: formatter + linter | implemented |

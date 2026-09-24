@@ -3,8 +3,8 @@
 Every `.spite` file is exactly one class, named by PascalCasing the file name: `person.spite` is `Person`. This
 cannot be changed -- there is no `class` keyword and no way to put two classes in one file.
 
-A file contains only declarations: an optional `generics` line (first line, see
-[metaprogramming.md](metaprogramming.md)), `var` fields, `func`s, and namespaced `type`/`enum`/`union`
+A file contains only declarations: `generic $name` lines for the codegen values a caller supplies (first,
+see [metaprogramming.md](metaprogramming.md)), `var` fields, `func`s, and namespaced `type`/`enum`/`union`
 declarations. **No file-level statements** -- no loop, `if`, or call outside a function body:
 
 ```spite title=file_scope_error/file_scope_error.spite entry error

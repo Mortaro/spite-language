@@ -263,10 +263,6 @@ func source_statement_line(statement: Syntax.Statements.Statement, depth: Int): 
 }
 
 func source_function(function: Syntax.Statements.FunctionDeclaration, depth: Int): String {
-    var codegen = ""
-    if not function.codegen_names.is_empty() {
-        codegen = "<${function.codegen_names.join(", $")}>"
-    }
     var parameters = ""
     var index = 0
     while index < function.parameters.count() {
@@ -282,7 +278,7 @@ func source_function(function: Syntax.Statements.FunctionDeclaration, depth: Int
     if function.return_type {
         returns = ": {source_type(function.return_type)}"
     }
-    var header = "{source_indent(depth)}func {function.name}{codegen}({parameters}){returns} \{"
+    var header = "{source_indent(depth)}func {function.name}({parameters}){returns} \{"
     if header.length() > 120 {
         var listed = ""
         index = 0
@@ -293,7 +289,7 @@ func source_function(function: Syntax.Statements.FunctionDeclaration, depth: Int
         }
         parameters = "{listed}\n{source_indent(depth)}"
     }
-    return "{source_indent(depth)}func {function.name}{codegen}({parameters}){returns} {source_block(function.body, depth)}"
+    return "{source_indent(depth)}func {function.name}({parameters}){returns} {source_block(function.body, depth)}"
 }
 
 func source_type_declaration(declaration: Syntax.Statements.TypeDeclaration, depth: Int): String {

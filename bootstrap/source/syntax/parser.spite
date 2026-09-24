@@ -340,20 +340,9 @@ func parse_variable_declaration(): Syntax.Statements.Statement {
 func parse_function_declaration(): Syntax.Statements.Statement {
     advance()
     var name = expect('identifier', "a function name")
-    var codegen_names = List<String>()
     if check('less') {
-        advance()
-        var expect_more_names = true
-        while expect_more_names and not check('end_of_file') {
-            var codegen_token = expect('generic_identifier', "a codegen value name (e.g. $name)")
-            codegen_names.append("{codegen_token.text}")
-            if check('comma') {
-                advance()
-            } else {
-                expect_more_names = false
-            }
-        }
-        expect('greater', "'>' to close the codegen value list")
+        reject_constructor_codegen_list(name.text)
+        return dummy_statement()
     }
     expect('left_paren', "'(' to start the parameter list")
     var parameters = List<Syntax.Statements.Parameter>()
@@ -384,9 +373,24 @@ func parse_function_declaration(): Syntax.Statements.Statement {
         fail("a return type is written '(): {current().lexeme}': add the ':' after the parameter list")
     }
     var body = parse_block()
-    var declaration = Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
-    declaration.codegen_names = codegen_names
-    return declaration
+    return Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
+}
+
+func reject_constructor_codegen_list(function_name: String) {
+    var opening = advance()
+    var lines = List<String>()
+    while check('generic_identifier') {
+        var codegen_token = advance()
+        lines.append("generic ${codegen_token.text}")
+        if check('comma') {
+            advance()
+        }
+    }
+    fail(
+        "a function no longer lists codegen values between '<' and '>': declare each at the top of the file on its own line ('{lines.join("', '")}'), and write 'func {function_name}(' here",
+    )
+    error_line = opening.line
+    error_column = opening.column
 }
 
 func parse_type_name_hint(): String {

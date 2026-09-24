@@ -140,9 +140,6 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
 
 func print_function(function: Syntax.Statements.FunctionDeclaration, depth: Int) {
     var text = "FuncDecl {function.name}"
-    if not function.codegen_names.is_empty() {
-        text = "{text}<${function.codegen_names.join(", $")}>"
-    }
     text = "{text}("
     var index = 0
     while index < function.parameters.count() {

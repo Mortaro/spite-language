@@ -541,27 +541,7 @@ func declared_codegen_names(entry: Discovery.DiscoveredClass): List<String> {
         }
         statement_index = statement_index + 1
     }
-    if not declared.is_empty() {
-        return declared
-    }
-    statement_index = 0
-    while statement_index < file.statements.count() {
-        var declaration = shape.as_function_declaration(file.statements[statement_index])
-        if declaration {
-            if declaration.name == entry.simple_name {
-                var names = List<String>()
-                var index = 0
-                while index < declaration.codegen_names.count() {
-                    var bare_name = without_dollar(declaration.codegen_names[index])
-                    names.append(bare_name)
-                    index = index + 1
-                }
-                return names
-            }
-        }
-        statement_index = statement_index + 1
-    }
-    return List<String>()
+    return declared
 }
 
 func without_dollar(name: String): String {
@@ -1907,7 +1887,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         }
     }
     var is_constructor = declaration.name == information.simple_name
-    if is_constructor and declaration.parameters.is_empty() and declaration.codegen_names.is_empty() and declaration.body.is_empty() {
+    if is_constructor and declaration.parameters.is_empty() and declaration.body.is_empty() {
         report(
             "'{declaration.name}' has an empty constructor: delete it. A class without a constructor is already made from its defaults",
         )
