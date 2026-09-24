@@ -180,6 +180,53 @@ done
 [ "$sessions" -gt 0 ] || { echo "FAILED wire: docs/ has no remote REPL session to replay"; exit 1; }
 echo "remote REPL: $sessions documented sessions answered exactly"
 
+# Live reload (docs/repl.md): docs/'s hot_counter program runs with --hot_reload and --repl_port from a copy in the
+# work folder, which this step edits. An edit followed by `reload` must run the new code with the state set before
+# it, and an edit nobody reports must be picked up by the file watcher, rebuilding only its class. Every wait has a
+# timeout, and the program is killed if it outlives the session.
+hot_folder="$work/hot_reload/hot_counter"
+[ -d .spite-cache/docs/hot_counter ] || { echo "FAILED live reload: docs/repl.md has no hot_counter program"; exit 1; }
+mkdir -p "$work/hot_reload"; cp -r .spite-cache/docs/hot_counter "$hot_folder"
+port=$((20000 + $$ % 20000))
+"$work/generation_two.exe" "$hot_folder" --mode=build --format=false --hot_reload --repl_port=$port --output="$work/hot_reload/hot_counter.exe" > "$work/c_errors.txt" 2>&1 || {
+  echo "FAILED live reload: hot_counter does not build with --hot_reload"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/hot_reload/hot_counter.exe" > "$work/hot_reload/output.txt" 2>&1 < /dev/null &
+served=$!
+hot_fail() { kill $served 2>/dev/null; echo "FAILED live reload: $1"; head -5 "$work/hot_reload/output.txt"; exit 1; }
+ask() { timeout 60 "$work/generation_two.exe" connect $port --command="$1" 2>&1 | tr -d '\r'; }
+expect() { local answer; answer=$(ask "$1"); [ "$answer" == "$2" ] || hot_fail "'$1' answered $answer, not $2"; }
+listening=false
+for attempt in $(seq 1 100); do
+  timeout 10 "$work/generation_two.exe" connect $port --command=help > /dev/null 2>&1 && { listening=true; break; }
+  kill -0 $served 2>/dev/null || break
+  sleep 0.2
+done
+$listening || hot_fail "the program never listened on $port"
+expect 'program.visits = 42' '{"ok":true,"value":"42","type":"Int"}'
+sed -i 's/hello, visit {visits}/welcome back, visit {visits}/' "$hot_folder/hot_counter.spite"
+reloaded=$(ask reload)   # the watcher may swap the code in first, and then there is nothing left for reload to do
+case "$reloaded" in
+  '{"ok":true,"value":"rebuilt HotCounter","type":""}'|'{"ok":true,"value":"nothing changed since the code the program runs","type":""}') ;;
+  *) hot_fail "reload answered $reloaded" ;;
+esac
+expect 'last_reload' '{"ok":true,"value":"rebuilt HotCounter","type":""}'
+expect 'greeting()' '{"ok":true,"value":"welcome back, visit 42","type":"String"}'
+sed -i 's/{name} roars/{name} roars louder/' "$hot_folder/monster.spite"
+watched=""
+for attempt in $(seq 1 150); do   # the watcher settles, then the program rebuilds at its next wait: up to 30 seconds
+  watched=$(ask last_reload)
+  [ "$watched" == '{"ok":true,"value":"rebuilt Monster","type":""}' ] && break
+  sleep 0.2
+done
+[ "$watched" == '{"ok":true,"value":"rebuilt Monster","type":""}' ] || hot_fail "the watcher did not rebuild Monster alone: $watched"
+expect 'monster.roar()' '{"ok":true,"value":"Goblin roars louder","type":"String"}'
+expect 'greeting()' '{"ok":true,"value":"welcome back, visit 42","type":"String"}'
+expect 'exit' '{"ok":true,"value":"","type":""}'
+for attempt in $(seq 1 50); do kill -0 $served 2>/dev/null || break; sleep 0.2; done
+kill -0 $served 2>/dev/null && hot_fail "the program kept running after exit"
+wait $served || hot_fail "the program ended with exit code $?"
+echo "live reload: an edited class was swapped in by reload and another by the watcher, keeping the program's state"
+
 # --final_classes writes the program back out as Spite source. What it writes has to be a program:
 # printing a corpus program and running what came out must print the same thing. symbol_codegen proves the
 # functions Spite made from a template are printed as real functions (D61).

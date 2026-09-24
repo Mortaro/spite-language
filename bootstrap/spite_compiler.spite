@@ -3,6 +3,9 @@ var last_crash_map = ""
 var supplied_settings = Dictionary<String>()
 var bare_settings = List<String>()
 var build_values = Dictionary<String>()
+var building_output = ""
+var last_hot_manifest = ""
+var last_hot_state = ""
 
 func SpiteCompiler() {
     load("source")
@@ -80,8 +83,12 @@ func run_discovered(file_argument: String, discovery: Discovery.DiscoveryResult)
         run_run_mode(file_argument, discovery, program_arguments)
         return
     }
+    if mode == "reload" {
+        run_reload_mode(discovery)
+        return
+    }
     console.error(
-        "unknown --mode '{mode}' (expected 'tokens', 'tree', 'c', 'build', 'run', 'format' or 'check_format')",
+        "unknown --mode '{mode}' (expected 'tokens', 'tree', 'c', 'build', 'run', 'reload', 'format' or 'check_format')",
     )
     var program = Program()
     program.exit(1)
@@ -143,7 +150,7 @@ func discovered_program(file_argument: String, content: String): Discovery.Disco
     discoverer.bare_settings = bare_settings
     var discovery = discoverer.discover(file_argument, content)
     if discovery.has_error {
-        console.error(discovery.error_message)
+        report_error(discovery.error_message)
         return null
     }
     build_values = discovery.build_values
@@ -160,11 +167,40 @@ func generate_c_or_report(discovery: Discovery.DiscoveryResult): String? {
     var bodies = prelude.bodies()
     var code = generator.generate(discovery, header, structs, prototypes, bodies)
     if generator.has_error {
-        console.error(generator.error_message)
+        report_error(generator.error_message)
         return null
     }
     last_crash_map = generator.crash_map()
+    if generator.hot_reload {
+        last_hot_manifest = generator.hot_manifest()
+        var reload = Generation.HotReloadLibrary()
+        last_hot_state = hot_state(generator, reload, 0)
+    }
     return code
+}
+
+func report_error(message: String) {
+    if supplied_or("mode", "run") == "reload" {
+        console.print(message)
+        return
+    }
+    console.error(message)
+}
+
+func hot_state(generator: Generation.Generator, reload: Generation.HotReloadLibrary, next_generation: Int): String {
+    var paths = generator.program_source_paths()
+    var hashes = List<String>()
+    var index = 0
+    while index < paths.count() {
+        var content = File(paths[index]).read()
+        var hash = ""
+        if content {
+            hash = reload.hash_of(content)
+        }
+        hashes.append(hash)
+        index = index + 1
+    }
+    return reload.state_text(next_generation, paths, hashes)
 }
 
 func configure(generator: Generation.Generator) {
@@ -172,7 +208,28 @@ func configure(generator: Generation.Generator) {
     generator.read_evaluate_print_loop = is_on("repl") or port > 0
     generator.console_loop = is_on("repl")
     generator.remote_loop_port = port
-    generator.development = is_on("development")
+    generator.development = is_on("development") or is_on("hot_reload")
+    generator.hot_reload = is_on("hot_reload")
+    if generator.hot_reload {
+        var program = Program()
+        generator.hot_reload_compiler = program.executable_path()
+        generator.hot_reload_arguments = reload_arguments()
+        generator.hot_reload_program_file = building_output
+    }
+}
+
+func reload_arguments(): String {
+    var arguments = Arguments()
+    var kept = List<String>()
+    var index = 0
+    while index < compiler_arguments_end(arguments) {
+        var argument = arguments.get(index)
+        if not argument.starts_with("--mode=") and not argument.starts_with("--output=") {
+            kept.append(argument)
+        }
+        index = index + 1
+    }
+    return kept.join("\n")
 }
 
 func remote_loop_port(): Int {
@@ -428,6 +485,7 @@ func pascal_case_class_name(snake: String): String {
 }
 
 func build_to_path(file_argument: String, discovery: Discovery.DiscoveryResult, output_path: String): Bool {
+    building_output = output_path
     var code = generate_c_or_report(discovery)
     assert code
     var directory = Directory(".spite-cache")
@@ -455,6 +513,9 @@ func build_to_path(file_argument: String, discovery: Discovery.DiscoveryResult, 
     if is_on("debug_memory") {
         process_arguments.append("-DSPITE_DEBUG_MEMORY")
     }
+    if is_on("hot_reload") {
+        append_shared_runtime(process_arguments, c_compiler)
+    }
     process_arguments.append(c_path)
     process_arguments.append("-o")
     process_arguments.append(output_path)
@@ -471,7 +532,22 @@ func build_to_path(file_argument: String, discovery: Discovery.DiscoveryResult, 
         map_path = map_path.slice(0, map_path_length - 4)
     }
     File("{map_path}.crashes").write(last_crash_map)
+    if is_on("hot_reload") {
+        File("{map_path}.reload_host").write(last_hot_manifest)
+        File("{map_path}.reload_files").write(last_hot_state)
+    }
     return true
+}
+
+func append_shared_runtime(process_arguments: List<String>, c_compiler: String) {
+    assert option("target_operating_system") == "windows"
+    var probe = Process("{c_compiler} -dumpmachine", List<String>())
+    probe.run()
+    var machine = probe.output()
+    if machine.contains("msvc") {
+        process_arguments.append("-fms-runtime-lib=dll")
+        process_arguments.append("-Wl,-nodefaultlib:libcmt")
+    }
 }
 
 func find_c_compiler(): String {
@@ -505,6 +581,131 @@ func run_build_mode(file_argument: String, discovery: Discovery.DiscoveryResult)
         var program = Program()
         program.exit(1)
     }
+}
+
+func run_reload_mode(discovery: Discovery.DiscoveryResult) {
+    var program_file = option("output")
+    var base = without_executable_extension(program_file)
+    var host_text = File("{base}.reload_host").read()
+    var state_text = File("{base}.reload_files").read()
+    if not host_text or not state_text or not is_on("hot_reload") {
+        console.print(
+            "error: --mode=reload rebuilds what changed in a program built with --hot_reload, and '{program_file}' was not: build it with --hot_reload --output={program_file}",
+        )
+        Program().exit(1)
+        return
+    }
+    crash host_text
+    crash state_text
+    var reload = Generation.HotReloadLibrary()
+    reload.read_host(host_text)
+    reload.read_state(state_text)
+    var generator = Generation.Generator()
+    configure(generator)
+    generator.seed_class_names(reload.host_classes)
+    var prelude = Generation.Prelude()
+    var header = prelude.header()
+    var structs = prelude.structs()
+    var prototypes = prelude.prototypes()
+    var bodies = prelude.bodies()
+    generator.generate(discovery, header, structs, prototypes, bodies)
+    if generator.has_error {
+        console.print(generator.error_message)
+        Program().exit(1)
+        return
+    }
+    var next_generation = reload.generation + 1
+    var state = hot_state(generator, reload, next_generation)
+    var changed_paths = changed_paths(generator, reload)
+    if changed_paths.is_empty() {
+        console.print("unchanged")
+        return
+    }
+    var layout_problem = reload.layout_problem(generator.builder.typedefs)
+    if not layout_problem.is_empty() {
+        console.print("error: {layout_problem}")
+        Program().exit(1)
+        return
+    }
+    var rebuilt = List<String>()
+    var library_code = generator.reload_library(reload, changed_paths, rebuilt)
+    var library_base = "{base}_reload_{next_generation}"
+    var library_path = "{library_base}.{library_extension()}"
+    if not build_library(library_code, "{library_base}.c", library_path) {
+        Program().exit(1)
+        return
+    }
+    File("{library_base}.files").write(state)
+    console.print("rebuilt {rebuilt.join(", ")}")
+    if not reload.removed.is_empty() {
+        console.print("removed {reload.removed.join(", ")}")
+    }
+    console.print("library {library_path}")
+    console.print("state {library_base}.files")
+}
+
+func changed_paths(generator: Generation.Generator, reload: Generation.HotReloadLibrary): List<String> {
+    var paths = generator.program_source_paths()
+    var changed = List<String>()
+    var index = 0
+    while index < paths.count() {
+        var content = File(paths[index]).read()
+        if content {
+            var hash = reload.hash_of(content)
+            if reload.is_changed(paths[index], hash) {
+                changed.append(paths[index])
+            }
+        }
+        index = index + 1
+    }
+    return changed
+}
+
+func without_executable_extension(path: String): String {
+    if path.ends_with(".exe") {
+        var path_length = path.length()
+        return path.slice(0, path_length - 4)
+    }
+    return path
+}
+
+func library_extension(): String {
+    var target = option("target_operating_system")
+    if target == "windows" {
+        return "dll"
+    }
+    if target == "mac" {
+        return "dylib"
+    }
+    return "so"
+}
+
+func build_library(code: String, c_path: String, library_path: String): Bool {
+    File(c_path).write(code)
+    var c_compiler = find_c_compiler()
+    var process_arguments = List<String>()
+    process_arguments.append("-shared")
+    if is_on("optimized") {
+        process_arguments.append("-O2")
+    } else {
+        process_arguments.append("-O0")
+    }
+    process_arguments.append("-w")
+    if option("target_operating_system") == "windows" {
+        append_shared_runtime(process_arguments, c_compiler)
+    } else {
+        process_arguments.append("-fPIC")
+    }
+    process_arguments.append(c_path)
+    process_arguments.append("-o")
+    process_arguments.append(library_path)
+    var process = Process(c_compiler, process_arguments)
+    if process.run() != 0 {
+        var output = process.output()
+        console.print("error: the C compiler could not build {library_path}:\n{output}")
+        return false
+    }
+    return true
 }
 
 func run_run_mode(file_argument: String, discovery: Discovery.DiscoveryResult, passed: List<String>) {
