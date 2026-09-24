@@ -4721,9 +4721,26 @@ func singleton_call(target_class: Analysis.ClassInfo): String {
         singleton_names.append(function_c_name)
         builder.add_typedef("static {target_class.c_name}* {function_c_name}_cache = 0;")
         builder.add_prototype("{target_class.c_name}* {function_c_name}(void);")
-        builder.add_support(
-            "{target_class.c_name}* {function_c_name}(void) \{\nif ({function_c_name}_cache == 0) \{\n{function_c_name}_cache = {target_class.c_name}_make();\nspite_singleton_created({function_c_name}_cache, (void (*)(void*)){target_class.c_name}_destroy);\n}\nreturn {function_c_name}_cache;\n}",
+        var lines = List<String>()
+        lines.append("static bool {function_c_name}_destroyed = false;")
+        lines.append("static void {function_c_name}_teardown(void) \{")
+        lines.append("{target_class.c_name}* object = {function_c_name}_cache;")
+        lines.append("{function_c_name}_cache = 0;")
+        lines.append("{function_c_name}_destroyed = true;")
+        lines.append("{target_class.c_name}_destroy(object);")
+        lines.append("}")
+        lines.append("{target_class.c_name}* {function_c_name}(void) \{")
+        lines.append("if ({function_c_name}_cache == 0) \{")
+        lines.append(
+            "if ({function_c_name}_destroyed) spite_singleton_used_after_exit(\"{escape_c_string(target_class.qualified_dotted)}\");",
         )
+        lines.append("{function_c_name}_cache = {target_class.c_name}_make();")
+        lines.append("spite_singleton_created({function_c_name}_teardown);")
+        lines.append("}")
+        lines.append("return {function_c_name}_cache;")
+        lines.append("}")
+        var joined_lines = lines.join("\n")
+        builder.add_support(joined_lines)
     }
     return "{function_c_name}()"
 }
@@ -7968,6 +7985,7 @@ func generate_library_constructor(arguments_ast: List<Syntax.Expressions.Express
     foreign_library_headers.append(header.value)
     var accessor = "spite_foreign_library_{library}"
     builder.add_typedef("static DynamicLibrary* {accessor}_cache = 0;")
+    builder.add_typedef("static bool {accessor}_tracked = false;")
     builder.add_prototype("DynamicLibrary* {accessor}(void);")
     return library_value(library)
 }
@@ -8255,37 +8273,52 @@ func owned_c_text(text: String): String {
 }
 
 func emit_singleton_teardown() {
-    builder.add_prototype("void spite_singleton_created(void* object, void (*destroyer)(void*));")
+    builder.add_prototype("bool spite_singleton_tracked(void);")
+    builder.add_prototype("void spite_singleton_created(void (*teardown)(void));")
+    builder.add_prototype("void spite_singleton_used_after_exit(const char* name);")
     builder.add_prototype("void spite_singletons_destroy(void);")
     var lines = List<String>()
-    lines.append("static void** spite_singleton_objects = 0;")
-    lines.append("static void (**spite_singleton_destroyers)(void*) = 0;")
+    lines.append("static void (**spite_singleton_teardowns)(void) = 0;")
     lines.append("static int32_t spite_singleton_total = 0;")
     lines.append("static int32_t spite_singleton_capacity = 0;")
-    lines.append("void spite_singleton_created(void* object, void (*destroyer)(void*)) \{")
+    lines.append("bool spite_singleton_tracked(void) \{")
     lines.append("#ifdef SPITE_DEBUG_MEMORY")
-    lines.append("if (spite_allocation_table_busy) return;")
+    lines.append("return !spite_allocation_table_busy;")
+    lines.append("#else")
+    lines.append("return true;")
     lines.append("#endif")
+    lines.append("}")
+    lines.append("void spite_singleton_created(void (*teardown)(void)) \{")
+    lines.append("if (!spite_singleton_tracked()) return;")
     lines.append("if (spite_singleton_total == spite_singleton_capacity) \{")
     lines.append("spite_singleton_capacity = spite_singleton_capacity == 0 ? 16 : spite_singleton_capacity * 2;")
     lines.append(
-        "spite_singleton_objects = (void**)realloc(spite_singleton_objects, (size_t)spite_singleton_capacity * sizeof(void*));",
-    )
-    lines.append(
-        "spite_singleton_destroyers = (void (**)(void*))realloc(spite_singleton_destroyers, (size_t)spite_singleton_capacity * sizeof(void (*)(void*)));",
+        "spite_singleton_teardowns = (void (**)(void))realloc(spite_singleton_teardowns, (size_t)spite_singleton_capacity * sizeof(void (*)(void)));",
     )
     lines.append("}")
-    lines.append("spite_singleton_objects[spite_singleton_total] = object;")
-    lines.append("spite_singleton_destroyers[spite_singleton_total] = destroyer;")
+    lines.append("spite_singleton_teardowns[spite_singleton_total] = teardown;")
     lines.append("spite_singleton_total = spite_singleton_total + 1;")
     lines.append("}")
+    lines.append("void spite_singleton_used_after_exit(const char* name) \{")
+    lines.append("fflush(stdout);")
+    lines.append(
+        "fprintf(stderr, \"spite: a drop() at exit used the singleton %s after it was destroyed: singletons are destroyed in reverse order of when they were made, so keep %s in an attribute of the singleton whose drop() uses it\\n\", name, name);",
+    )
+    lines.append("exit(1);")
+    lines.append("}")
     lines.append("void spite_singletons_destroy(void) \{")
+    lines.append("fflush(stdout);")
     lines.append("while (spite_singleton_total > 0) \{")
     lines.append("spite_singleton_total = spite_singleton_total - 1;")
-    lines.append("spite_singleton_destroyers[spite_singleton_total](spite_singleton_objects[spite_singleton_total]);")
+    lines.append("spite_singleton_teardowns[spite_singleton_total]();")
     lines.append("}")
-    lines.append("free(spite_singleton_objects);")
-    lines.append("free(spite_singleton_destroyers);")
+    lines.append("free(spite_singleton_teardowns);")
+    var library = foreign_library_files.count()
+    while library > 0 {
+        library = library - 1
+        var cache = "spite_foreign_library_{library}_cache"
+        lines.append("if (spite_foreign_library_{library}_tracked) DynamicLibrary_destroy({cache});")
+    }
     lines.append("}")
     var joined_lines = lines.join("\n")
     builder.add_support(joined_lines)
@@ -8304,7 +8337,7 @@ func emit_foreign_libraries() {
         lines.append(
             "{accessor}_cache = DynamicLibrary_make({owned_c_text(foreign_library_files[library])}, {ensure_symbol(foreign_library_namings[library])}, {owned_c_text(foreign_library_headers[library])});",
         )
-        lines.append("spite_singleton_created({accessor}_cache, (void (*)(void*))DynamicLibrary_destroy);")
+        lines.append("{accessor}_tracked = spite_singleton_tracked();")
         var index = 0
         while index < foreign_symbol_names.count() {
             crash index < foreign_symbol_libraries.count()

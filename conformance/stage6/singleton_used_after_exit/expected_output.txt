@@ -1,0 +1,3 @@
+spite: a drop() at exit used the singleton Archive after it was destroyed: singletons are destroyed in reverse order of when they were made, so keep Archive in an attribute of the singleton whose drop() uses it
+started
+reporter dropping

@@ -188,7 +188,9 @@ func SingletonBasics() {
 
 Call sites never change: `var console = Console()` reads the same whether or not the class is a singleton, and
 the class file is where that is said. A singleton lives until the program ends, and its `drop()` runs then, in
-reverse order of creation. It is not reference counted: fetching one is a load from a static slot, with no count
+reverse order of creation: a singleton is made when its constructor finishes, so whatever its attributes made
+outlives it, and every `DynamicLibrary` is unloaded after all of them. A `drop()` that fetches a singleton made
+later than its own, one already destroyed, halts with a message saying to keep it in an attribute instead. It is not reference counted: fetching one is a load from a static slot, with no count
 to raise or lower, so threads that share it never contend on it. `is_singleton()` is answered by `Spite.Class` for every class, from the line;
 declaring it yourself is an error that names the `singleton` line. `DynamicLibrary` is the one singleton that
 takes arguments: it has one instance per distinct list of literal arguments

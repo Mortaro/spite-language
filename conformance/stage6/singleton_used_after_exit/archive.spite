@@ -1,0 +1,7 @@
+singleton
+
+var stored = List<String>()
+
+func store(entry: String) {
+    stored.append(entry)
+}

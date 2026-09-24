@@ -1,0 +1,13 @@
+singleton
+
+var console = Console()
+var entries = List<String>()
+
+func note(entry: String) {
+    entries.append(entry)
+}
+
+func drop() {
+    var joined_entries = entries.join(", ")
+    console.print("ledger dropped with", joined_entries)
+}

@@ -353,3 +353,8 @@ Behaviour that does not match the manual. The language was not changed; each is 
 86. **`Clock()`'s names**: `elapsed_nanoseconds()`, `elapsed_milliseconds()` (monotonic) and
     `unix_milliseconds()` (wall clock). Keep them? And should the current date broken into year, month, day,
     hour, minute and second live here too, or is the Unix time enough until something needs a calendar?
+87. **Teardown when a `drop()` needs a singleton made after it** (fixes item 85's regression in SlopEngine's
+    Vulkan renderer). Every `DynamicLibrary` is now unloaded after all singletons. Any other singleton first made
+    later than the one whose `drop()` fetches it has already been destroyed, so the fetch halts with a message
+    saying to keep it in an attribute (where it is made first). The alternatives: make a fresh one silently and
+    destroy it after, or run every `drop()` before freeing anything. Halting, as now?
