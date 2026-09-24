@@ -379,13 +379,7 @@ func walk_directory(
 }
 
 func copy_segments(segments: List<String>): List<String> {
-    var result = List<String>()
-    var index = 0
-    while index < segments.count() {
-        result.append(segments[index])
-        index = index + 1
-    }
-    return result
+    return segments.copy()
 }
 
 func formatted_source(path: String, source: String): String {
@@ -459,14 +453,11 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
     var simple_name = compute_simple_name(segments, stem)
     var namespace_dotted = compute_namespace(segments, stem)
     var qualified_dotted = compute_qualified(segments, stem)
-    var existing_index = 0
-    while existing_index < class_files.count() {
-        if class_files[existing_index].qualified_dotted == qualified_dotted {
-            var class_file_file = class_files[existing_index].get_file()
-            reopen_class(class_file_file, parsed_file)
-            return
-        }
-        existing_index = existing_index + 1
+    var existing = class_files.find_by_qualified_dotted(qualified_dotted)
+    if existing {
+        var class_file_file = existing.get_file()
+        reopen_class(class_file_file, parsed_file)
+        return
     }
     if not walking_library and qualified_dotted.starts_with("Spite.") {
         has_error = true
@@ -560,12 +551,9 @@ func read_environment_settings() {
 }
 
 func environment_file(): Syntax.SourceFile? {
-    var index = 0
-    while index < class_files.count() {
-        if class_files[index].qualified_dotted == "Environment" {
-            return class_files[index].get_file()
-        }
-        index = index + 1
+    var environment_class = class_files.find_by_qualified_dotted("Environment")
+    if environment_class {
+        return environment_class.get_file()
     }
     return null
 }
@@ -731,12 +719,8 @@ func compute_qualified(segments: List<String>, stem: String): String {
 }
 
 func all_but_last(segments: List<String>): List<String> {
-    var result = List<String>()
-    var index = 0
-    while index < segments.count() - 1 {
-        result.append(segments[index])
-        index = index + 1
-    }
+    var result = segments.copy()
+    result.remove_last()
     return result
 }
 

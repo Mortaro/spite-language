@@ -405,16 +405,8 @@ func final_class_file_name(class_name: String): String {
 
 func final_class_directory(path: String): String {
     var segments = path.split("/")
-    var result = ""
-    var index = 0
-    while index < segments.count() - 1 {
-        if index > 0 {
-            result = "{result}/"
-        }
-        result = "{result}{segments[index]}"
-        index = index + 1
-    }
-    return result
+    segments.remove_last()
+    return segments.join("/")
 }
 
 func create_final_class_directory(path: String) {

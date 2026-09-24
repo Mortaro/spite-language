@@ -26,12 +26,9 @@ func UnionInfo(
 }
 
 func has_member(class_c_name: String): Bool {
-    var index = 0
-    while index < members.count() {
-        if members[index].c_name == class_c_name {
-            return true
-        }
-        index = index + 1
+    var member = members.find_by_c_name(class_c_name)
+    if member {
+        return true
     }
     return false
 }

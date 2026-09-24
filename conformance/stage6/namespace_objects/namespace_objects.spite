@@ -23,27 +23,11 @@ func NamespaceObjects() {
     }
     console.print(gadget.class.namespace)
     var tree_classes = gadget.class.namespace.classes
-    var found_cog = false
-    var index = 0
-    while index < tree_classes.count() {
-        if tree_classes[index].name == "Cog" {
-            found_cog = true
-        }
-        index = index + 1
-    }
-    crash found_cog
+    crash tree_classes.find_by_name('Cog')
     var tree_classes_count = tree_classes.count()
     console.print(tree_classes_count)
     var child_namespaces = gadget.class.namespace.parent.namespaces
-    var found_widgets = false
-    index = 0
-    while index < child_namespaces.count() {
-        if child_namespaces[index].name == "Widgets" {
-            found_widgets = true
-        }
-        index = index + 1
-    }
-    crash found_widgets
+    crash child_namespaces.find_by_name('Widgets')
     var child_namespaces_count = child_namespaces.count()
     console.print(child_namespaces_count)
 }

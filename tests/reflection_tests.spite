@@ -29,16 +29,8 @@ func test_functions_report_their_names() {
 }
 
 func test_every_class_of_the_program_is_listed() {
-    var found = false
     var classes = Spite.Class.instances
-    var index = 0
-    while index < classes.count() {
-        if classes[index].name == "Creature" {
-            found = true
-        }
-        index = index + 1
-    }
-    crash found
+    crash classes.find_by_name('Creature')
 }
 
 func test_a_bare_class_identifier_is_the_class_of_self() {

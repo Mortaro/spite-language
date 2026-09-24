@@ -310,15 +310,7 @@ func is_word_character_at(text: String, index: Int): Bool {
 }
 
 func built_in_class_names(): List<String> {
-    var names = List<String>()
-    var index = 0
-    while index < classes.count() {
-        if classes[index].is_builtin {
-            names.append(classes[index].simple_name)
-        }
-        index = index + 1
-    }
-    return names
+    return classes.filter_is_builtin().map_simple_name()
 }
 
 func class_view_source(information: Analysis.ClassInfo, display_name: String): String {
@@ -454,11 +446,7 @@ func generate(
     builder.add_typedef(
         "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_kept = spite_assert_total < 32 ? spite_assert_total : 32;\nfor (int64_t spite_index = spite_assert_total - spite_kept; spite_index < spite_assert_total; spite_index = spite_index + 1) \{ fputs(spite_assert_trace[spite_index % 32], stderr); }\nif (spite_assert_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_assert_total - 32)); }\n}",
     )
-    var discovered_index = 0
-    while discovered_index < discovery.class_files.count() {
-        written_in_spite.append(discovery.class_files[discovered_index].qualified_dotted)
-        discovered_index = discovered_index + 1
-    }
+    written_in_spite = discovery.class_files.map_qualified_dotted()
     register_system_classes()
     register_classes(discovery.class_files)
     emit_enums()
@@ -1459,14 +1447,7 @@ func find_union_qualified(owner_qualified: String, name: String): Analysis.Union
 }
 
 func find_union_by_c_name(c_name: String): Analysis.UnionInfo? {
-    var index = 0
-    while index < unions.count() {
-        if unions[index].c_name == c_name {
-            return unions[index]
-        }
-        index = index + 1
-    }
-    return null
+    return unions.find_by_c_name(c_name)
 }
 
 func union_type_of(information: Analysis.UnionInfo): Analysis.SpiteType {
@@ -1612,25 +1593,11 @@ func emit_enums() {
 }
 
 func find_class_by_qualified(qualified: String): Analysis.ClassInfo? {
-    var index = 0
-    while index < classes.count() {
-        if classes[index].qualified_dotted == qualified {
-            return classes[index]
-        }
-        index = index + 1
-    }
-    return null
+    return classes.find_by_qualified_dotted(qualified)
 }
 
 func find_class_by_c_name(c_name: String): Analysis.ClassInfo? {
-    var index = 0
-    while index < classes.count() {
-        if classes[index].c_name == c_name {
-            return classes[index]
-        }
-        index = index + 1
-    }
-    return null
+    return classes.find_by_c_name(c_name)
 }
 
 func find_class(name: String, current_namespace: String): Analysis.ClassInfo? {
@@ -2196,12 +2163,8 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
         return null
     }
     var joined = named.path.join(".")
-    var owner_path = List<String>()
-    var path_index = 0
-    while path_index < named.path.count() - 1 {
-        owner_path.append(named.path[path_index])
-        path_index = path_index + 1
-    }
+    var owner_path = named.path.copy()
+    owner_path.remove_last()
     var joined_owner_path = owner_path.join(".")
     var last_segment = named.path.last()
     var qualified_enum = find_enum_qualified(joined_owner_path, last_segment)
@@ -3813,14 +3776,7 @@ func passes_whole_list(
 }
 
 func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.SpiteType> {
-    var result = List<Analysis.SpiteType>()
-    var index = 0
-    while index < parameters.count() {
-        var parameter_type = parameters[index].get_type()
-        result.append(parameter_type)
-        index = index + 1
-    }
-    return result
+    return parameters.map_get_type()
 }
 
 func singleton_call(target_class: Analysis.ClassInfo): String {
@@ -4144,13 +4100,8 @@ func call_function_value(
         returned_c = c_type_name(returned)
     }
     var function_temporary = next_temporary()
-    var call_arguments = List<String>()
-    call_arguments.append("{function_temporary}->spite_owner")
-    index = 0
-    while index < argument_codes.count() {
-        call_arguments.append(argument_codes[index])
-        index = index + 1
-    }
+    var call_arguments = argument_codes.copy()
+    call_arguments.prepend("{function_temporary}->spite_owner")
     var call_code = "(({returned_c} (*)({pointer_parameters.join(", ")})){function_temporary}->spite_typed_call)({call_arguments.join(", ")})"
     var release = ""
     if owns(held, held_ast) {
@@ -4220,13 +4171,8 @@ func generate_own_function_call(
     crash function
     var parameter_types = parameter_types_of(function.parameters)
     var argument_codes = generate_argument_list(arguments_ast, parameter_types, scope, class_information)
-    var full_arguments = List<String>()
-    full_arguments.append("self")
-    var index = 0
-    while index < argument_codes.count() {
-        full_arguments.append(argument_codes[index])
-        index = index + 1
-    }
+    var full_arguments = argument_codes.copy()
+    full_arguments.prepend("self")
     var function_return_type = function.get_return_type()
     return ExpressionResult("{function.c_name}({full_arguments.join(", ")})", function_return_type)
 }
@@ -4247,13 +4193,8 @@ func generate_generic_call(
         var lines = List<String>()
         var object_result_type = object_result.get_type()
         lines.append("{c_type_name(object_result_type)} {object_temporary} = {object_result.code};")
-        var full_arguments = List<String>()
-        full_arguments.append(object_temporary)
-        var index = 0
-        while index < argument_codes.count() {
-            full_arguments.append(argument_codes[index])
-            index = index + 1
-        }
+        var full_arguments = argument_codes.copy()
+        full_arguments.prepend(object_temporary)
         var call_code = "{function_c_name}({full_arguments.join(", ")})"
         if type_shape.is_void(return_type) {
             lines.append("{call_code};")
@@ -4266,13 +4207,8 @@ func generate_generic_call(
         lines.append("{call_temporary};")
         return ExpressionResult("(\{ {lines.join(" ")} })", return_type)
     }
-    var full_arguments = List<String>()
-    full_arguments.append(object_result.code)
-    var index = 0
-    while index < argument_codes.count() {
-        full_arguments.append(argument_codes[index])
-        index = index + 1
-    }
+    var full_arguments = argument_codes.copy()
+    full_arguments.prepend(object_result.code)
     return ExpressionResult("{function_c_name}({full_arguments.join(", ")})", return_type)
 }
 
@@ -4548,22 +4484,17 @@ func generate_written_string_call(
 ): ExpressionResult {
     var lines = List<String>()
     var release = ""
-    var full_arguments = List<String>()
+    var receiver_code = object_result.code
     if owns(object_result, object_ast) {
         var object_temporary = next_temporary()
         lines.append("SpiteString* {object_temporary} = {object_result.code};")
         release = "SpiteString_release({object_temporary});"
-        full_arguments.append(object_temporary)
-    } else {
-        full_arguments.append(object_result.code)
+        receiver_code = object_temporary
     }
     var parameter_types = parameter_types_of(written.parameters)
     var argument_codes = generate_argument_list(arguments_ast, parameter_types, scope, class_information)
-    var index = 0
-    while index < argument_codes.count() {
-        full_arguments.append(argument_codes[index])
-        index = index + 1
-    }
+    var full_arguments = argument_codes.copy()
+    full_arguments.prepend(receiver_code)
     var call = "{written.c_name}({full_arguments.join(", ")})"
     if release.is_empty() {
         var written_return_type = written.get_return_type()
@@ -5518,12 +5449,8 @@ func emit_namespace_object_bodies() {
             "{function_c_name}_cache = Spite_Namespace_make({ensure_symbol(namespace_name)}, {ensure_symbol(namespace_dotted)});",
         )
         if segments.count() > 1 {
-            var parent_segments = List<String>()
-            var segment_index = 0
-            while segment_index < segments.count() - 1 {
-                parent_segments.append(segments[segment_index])
-                segment_index = segment_index + 1
-            }
+            var parent_segments = segments.copy()
+            parent_segments.remove_last()
             var joined_parent_segments = parent_segments.join(".")
             lines.append("{function_c_name}_cache->parent = {ensure_namespace_object(joined_parent_segments)}();")
         }
@@ -5636,12 +5563,9 @@ func type_display_name(spite_type: Analysis.SpiteType): String {
     }
     var enum_type = type_shape.as_enum(spite_type)
     if enum_type {
-        var enum_index = 0
-        while enum_index < enums.count() {
-            if enums[enum_index].c_name == enum_type.c_name {
-                return enums[enum_index].simple_name
-            }
-            enum_index = enum_index + 1
+        var enum_information = enums.find_by_c_name(enum_type.c_name)
+        if enum_information {
+            return enum_information.simple_name
         }
     }
     var union_type = type_shape.as_union(spite_type)
@@ -5988,20 +5912,18 @@ func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.Fie
     var lines = List<String>()
     lines.append("bool {function_c_name}(void* owner, SpiteString* text) \{")
     lines.append("{information.c_name}* self = ({information.c_name}*)owner;")
-    if type_shape.as_string(field_type) {
-        lines.append("{assigned_c} assigned = SpiteString_retain(text);")
-    } else if type_shape.as_scalar(field_type) {
-        var string_type = string_type()
-        lines.append("{assigned_c} assigned = {cast("text", string_type, field_type)};")
-    } else {
-        var enum_type = type_shape.as_enum(field_type)
-        if enum_type {
-            lines.append("{assigned_c} assigned;")
-            var enum_from_text_lines = enum_from_text_lines(enum_type, "text", "assigned", "return false;")
-            lines.append(enum_from_text_lines)
-        } else {
-            return ""
+    switch field_type {
+        Analysis.Types.StringType: lines.append("{assigned_c} assigned = SpiteString_retain(text);")
+        Analysis.Types.ScalarType: {
+            var string_type = string_type()
+            lines.append("{assigned_c} assigned = {cast("text", string_type, field_type)};")
         }
+        Analysis.Types.EnumType: {
+            lines.append("{assigned_c} assigned;")
+            var enum_from_text_lines = enum_from_text_lines(field_type, "text", "assigned", "return false;")
+            lines.append(enum_from_text_lines)
+        }
+        _: return ""
     }
     var setter = information.find_function("set_{field.name}")
     var through_setter = false
@@ -6042,20 +5964,20 @@ func ensure_text_call(information: Analysis.ClassInfo, function: Analysis.Functi
         var parameter_type = function.parameters[index].get_type()
         string_type = string_type()
         var item = list_item_code(string_type, "arguments", "{index}")
-        var enum_type = type_shape.as_enum(parameter_type)
-        if type_shape.as_string(parameter_type) {
-            call_arguments.append("SpiteString_retain({item})")
-        } else if type_shape.as_scalar(parameter_type) {
-            string_type = string_type()
-            var cast = cast(item, string_type, parameter_type)
-            call_arguments.append(cast)
-        } else if enum_type {
-            lines.append("{enum_type.c_name} argument_{index};")
-            var enum_from_text_lines = enum_from_text_lines(enum_type, item, "argument_{index}", "return 0;")
-            lines.append(enum_from_text_lines)
-            call_arguments.append("argument_{index}")
-        } else {
-            return ""
+        switch parameter_type {
+            Analysis.Types.StringType: call_arguments.append("SpiteString_retain({item})")
+            Analysis.Types.ScalarType: {
+                string_type = string_type()
+                var cast = cast(item, string_type, parameter_type)
+                call_arguments.append(cast)
+            }
+            Analysis.Types.EnumType: {
+                lines.append("{parameter_type.c_name} argument_{index};")
+                var enum_from_text_lines = enum_from_text_lines(parameter_type, item, "argument_{index}", "return 0;")
+                lines.append(enum_from_text_lines)
+                call_arguments.append("argument_{index}")
+            }
+            _: return ""
         }
         index = index + 1
     }
@@ -7766,16 +7688,18 @@ func generate_member_read_raw(
     }
     var object_class_ref = type_shape.as_class_ref(object_result_type)
     if not object_class_ref {
-        if type_shape.as_nullable(object_result_type) {
-            report(
-                "this value may be null (it is a {type_display_name(object_result_type)}), so '{member.name}' cannot be read from it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
-            )
-        } else if type_shape.is_void(object_result_type) {
-            report("'{member.name}' cannot be read from this value")
-        } else {
-            report(
-                "'{member.name}' cannot be read from a {type_display_name(object_result_type)}: if it is a function, call it with '{member.name}()'",
-            )
+        switch object_result_type {
+            Analysis.Types.NullableType: {
+                report(
+                    "this value may be null (it is a {type_display_name(object_result_type)}), so '{member.name}' cannot be read from it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+                )
+            }
+            Analysis.Types.VoidType: report("'{member.name}' cannot be read from this value")
+            _: {
+                report(
+                    "'{member.name}' cannot be read from a {type_display_name(object_result_type)}: if it is a function, call it with '{member.name}()'",
+                )
+            }
         }
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
@@ -7917,6 +7841,16 @@ func generate_expression(
     }
     report("unsupported expression kind in this stage")
     return ExpressionResult("0", Analysis.Types.VoidType())
+}
+
+func narrow_by_guard(scope: Scope, guard: NullableGuard) {
+    if guard.override_code.is_empty() {
+        scope.narrow_path(guard.name)
+    } else {
+        scope.set_override(guard.name, guard.override_code)
+        var guard_inner = guard.get_inner()
+        scope.declare(guard.name, guard_inner)
+    }
 }
 
 func try_nullable_guard(
@@ -8867,13 +8801,7 @@ func generate_if_statement(
         report_terminal_if(if_statement, guard.name)
         builder.add_user("if ({guard.guard_code}) \{")
         var then_scope = Scope(scope)
-        if guard.override_code.is_empty() {
-            then_scope.narrow_path(guard.name)
-        } else {
-            then_scope.set_override(guard.name, guard.override_code)
-            var guard_inner = guard.get_inner()
-            then_scope.declare(guard.name, guard_inner)
-        }
+        narrow_by_guard(then_scope, guard)
         generate_block_in_scope(if_statement.then_branch, then_scope, class_information, function_information)
         builder.add_user("}")
         if if_statement.has_else_branch {
@@ -9017,13 +8945,7 @@ func generate_nullable_switch(
                 covered_value = true
                 builder.add_user("if ({guard.guard_code}) \{")
                 var case_scope = Scope(scope)
-                if guard.override_code.is_empty() {
-                    case_scope.narrow_path(guard.name)
-                } else {
-                    case_scope.set_override(guard.name, guard.override_code)
-                    var guard_inner = guard.get_inner()
-                    case_scope.declare(guard.name, guard_inner)
-                }
+                narrow_by_guard(case_scope, guard)
                 generate_block_in_scope(switch_case.body, case_scope, class_information, function_information)
                 builder.add_user("}")
             }
@@ -9312,13 +9234,7 @@ func calls_also_in(
 }
 
 func copied_names(names: List<String>): List<String> {
-    var copy = List<String>()
-    var index = 0
-    while index < names.count() {
-        copy.append(names[index])
-        index = index + 1
-    }
-    return copy
+    return names.copy()
 }
 
 func collect_narrowed_names(condition: Syntax.Expressions.Expression, names: List<String>) {
@@ -9336,15 +9252,7 @@ func collect_narrowed_names(condition: Syntax.Expressions.Expression, names: Lis
             collect_narrowed_names(binary.left, names)
             collect_narrowed_names(binary.right, names)
         } else if binary.operator == 'equal' or binary.operator == 'not_equal' {
-            var compared_with_class = false
-            var right_member = shape.as_member(binary.right)
-            var right_identifier = shape.as_identifier(binary.right)
-            if right_member {
-                compared_with_class = starts_upper_case(right_member.name)
-            } else if right_identifier {
-                compared_with_class = starts_upper_case(right_identifier.name)
-            }
-            if compared_with_class or shape.is_null_literal(binary.right) {
+            if names_a_class_or_null(binary.right) {
                 collect_mentioned_names(binary.left, names)
             }
         }
@@ -9352,6 +9260,14 @@ func collect_narrowed_names(condition: Syntax.Expressions.Expression, names: Lis
     }
     if shape.as_identifier(condition) or shape.as_member(condition) or shape.as_index(condition) {
         collect_mentioned_names(condition, names)
+    }
+}
+
+func names_a_class_or_null(expression: Syntax.Expressions.Expression): Bool {
+    switch expression {
+        Syntax.Expressions.MemberExpression: return starts_upper_case(expression.name)
+        Syntax.Expressions.IdentifierExpression: return starts_upper_case(expression.name)
+        _: return shape.is_null_literal(expression)
     }
 }
 
@@ -9405,17 +9321,19 @@ func collect_statement_call_parts(
 ) {
     var arguments = List<Syntax.Expressions.Expression>()
     var callee: Syntax.Expressions.Expression? = null
-    var call = shape.as_call(expression)
-    var generic_call = shape.as_generic_call(expression)
-    if call {
-        callee = call.callee
-        arguments = call.arguments
-    } else if generic_call {
-        callee = generic_call.callee
-        arguments = generic_call.arguments
-    } else {
-        collect_repeatable_calls(expression, changed, calls)
-        return
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            callee = expression.callee
+            arguments = expression.arguments
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            callee = expression.callee
+            arguments = expression.arguments
+        }
+        _: {
+            collect_repeatable_calls(expression, changed, calls)
+            return
+        }
     }
     crash callee
     collect_repeatable_calls(callee, changed, calls)
@@ -9680,22 +9598,15 @@ func report_argument_calls(callee: Syntax.Expressions.Expression, arguments: Lis
 }
 
 func report_calls_in_argument(expression: Syntax.Expressions.Expression, called: String, constructor: String) {
-    var callee: Syntax.Expressions.Expression? = null
-    var arguments = List<Syntax.Expressions.Expression>()
-    var call = shape.as_call(expression)
-    var generic_call = shape.as_generic_call(expression)
-    if call {
-        callee = call.callee
-        arguments = call.arguments
-    } else if generic_call {
-        callee = generic_call.callee
-        arguments = generic_call.arguments
-    }
-    if callee {
-        report_call_in_argument(expression, callee, arguments, called, constructor)
-        return
-    }
     switch expression {
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            report_call_in_argument(expression, expression.callee, expression.arguments, called, constructor)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            report_call_in_argument(expression, expression.callee, expression.arguments, called, constructor)
+        }
         Syntax.Expressions.BinaryExpression: {
             crash expression.left
             crash expression.right
@@ -9964,13 +9875,8 @@ func generate_union_dispatch(
         if is_call {
             var member_function = member.find_function(member_name)
             if member_function {
-                var call_arguments = List<String>()
-                call_arguments.append(casted_object)
-                var copy_index = 0
-                while copy_index < argument_temporaries.count() {
-                    call_arguments.append(argument_temporaries[copy_index])
-                    copy_index = copy_index + 1
-                }
+                var call_arguments = argument_temporaries.copy()
+                call_arguments.prepend(casted_object)
                 branch_code = "{member_function.c_name}({call_arguments.join(", ")})"
             } else {
                 report(
@@ -10114,13 +10020,7 @@ func generate_while_statement(
         builder.add_user("while ({guard.guard_code}) \{")
         var narrowed_body = Scope(scope)
         narrowed_body.is_loop = true
-        if guard.override_code.is_empty() {
-            narrowed_body.narrow_path(guard.name)
-        } else {
-            narrowed_body.set_override(guard.name, guard.override_code)
-            var guard_inner = guard.get_inner()
-            narrowed_body.declare(guard.name, guard_inner)
-        }
+        narrow_by_guard(narrowed_body, guard)
         generate_block_in_scope(while_statement.body, narrowed_body, class_information, function_information)
         builder.add_user("}")
         return
@@ -10344,22 +10244,16 @@ func generate_assert_statement(
     var guard_code = ""
     if guard {
         guard_code = guard.guard_code
-        if guard.override_code.is_empty() {
-            scope.narrow_path(guard.name)
-        } else {
-            scope.set_override(guard.name, guard.override_code)
-            var guard_inner = guard.get_inner()
-            scope.declare(guard.name, guard_inner)
-        }
+        narrow_by_guard(scope, guard)
     } else {
         var condition_result = generate_expression(assert_statement.value, scope, class_information)
         guard_code = owned_truth(condition_result, assert_statement.value)
         narrow_proven_indices(assert_statement.value, scope)
+        var keyword = "assert"
         if assert_statement.is_crash {
-            check_condition(condition_result, "crash")
-        } else {
-            check_condition(condition_result, "assert")
+            keyword = "crash"
         }
+        check_condition(condition_result, keyword)
     }
     if not assert_statement.is_crash {
         var function_information_return_type = function_information.get_return_type()
@@ -10621,13 +10515,8 @@ func emit_class_support(information: Analysis.ClassInfo) {
     make_lines.append("{information.c_name}* {information.c_name}_make({constructor_parameter_list(information)}) \{")
     make_lines.append("{information.c_name}* self = {information.c_name}_allocate();")
     if information.constructor {
-        var arguments = List<String>()
-        arguments.append("self")
-        var parameter_index = 0
-        while parameter_index < information.constructor.parameters.count() {
-            arguments.append(information.constructor.parameters[parameter_index].name)
-            parameter_index = parameter_index + 1
-        }
+        var arguments = information.constructor.parameters.map_name()
+        arguments.prepend("self")
         make_lines.append("{information.constructor.c_name}({arguments.join(", ")});")
     }
     make_lines.append("return self;")

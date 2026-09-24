@@ -7,6 +7,37 @@ esoteric shit". Open questions 15 and 20 in `manual.md`, items 2 and 3 in `morta
 Everything below is analysis. No code was changed. The rules at the end are **(proposed by Claude,
 unconfirmed)**.
 
+## Built (D105)
+
+Mortaro confirmed the findings (D105), so the rewrites below are done. The two proposed rules, the enum switches
+and the lookups still wait.
+
+- **(a) loops: 28 of 31 rewritten.** `find_by_` (`class_info` x2, `union_info.has_member`, `generator`
+  `find_union_by_c_name`, `find_class_by_qualified`, `find_class_by_c_name`, the enum name at `:5043`,
+  `program_discovery` `add_parsed_file` and `environment_file`, `reflection_tests`, `namespace_objects` x2),
+  `filter_is_builtin().map_simple_name()`, `map_qualified_dotted()`, `map_get_type()`, `map_name()` then
+  `prepend("self")`, `copy()` then `prepend` (six in the generator), `copy()` (`copy_segments`,
+  `copied_names`), `copy()` then `remove_last()` (`all_but_last`, `:2102`, `:4926`) and `split`,
+  `remove_last()`, `join` (`final_class_directory`). One correction to the text below: `!= null` is a compile
+  error (`null` is not a value to compare against), so "is there one" is written `crash list.find_by_x(v)` in a
+  test and `var found = list.find_by_x(v)`, `if found { return true }` in `has_member`. A `Symbol` member
+  (`Spite.Class.name`, `Spite.Namespace.name`) takes a symbol literal: `find_by_name('Creature')`.
+- **Skipped, 3 loops.** `library/read_evaluate_print_loop.spite:412` and `:424` compare a `Symbol` member with
+  text typed at the prompt; `find_by_name` wants a `Symbol`, and `Symbol(text)` answers `Symbol?`, so the
+  rewrite needs a narrowing step the loop does not. `conformance/stage6/shapes/shapes.spite:23`:
+  `things.sum_size()` is not generated for a list of a `type` (`List has no method 'sum_size'`).
+- **Union chains: 6 of 8 became a `switch`.** `:5386` and `:5441` (`SpiteType`), `:7143` (`NullableType`,
+  `VoidType`, `_:`), `:8784` and `:9061` (`CallExpression`, `GenericCallExpression`; `:9061` joined the
+  `switch` already under it), and `:8716`, through a new `names_a_class_or_null(expression)` because a `switch`
+  narrows a name, not a path like `binary.right`. Skipped: `:5111` (the caution below) and `:8866`, the same
+  trap: `IdentifierExpression` and `MemberExpression` share a body and there is nothing for `_:` to do, and
+  two equal cases are only allowed beside a `_:` with a body.
+- **Nested `if`/`else`: 6 of 7 flattened.** The two switches above (`:5393`, `:8716`), `narrow_by_guard` at all
+  four copies (`:8244`, `:8394`, `:9490`, `:9720`), the `crash`/`assert` text computed once (`:9731`), and
+  `one_line_case` in the source printer (`:358`). `:3147` waits for `switch` over an enum.
+
+Line numbers are still those of 122c39f.
+
 **How it was measured.** A script walked every `.spite` file in `bootstrap/`, `library/` (with the OS folders),
 `scripts/`, `tests/`, `examples/`, `conformance/`, `diagnostics/` and every ` ```spite ` block in `docs/`, at
 `master` 122c39f. It extracted each `while`, each `if` chain with an `else if`, and each `if`/`else` sitting
