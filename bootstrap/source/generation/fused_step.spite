@@ -1,6 +1,7 @@
 var prefix = ""
 var member_type: Analysis.SpiteType? = null
 var read = ""
+var through_caller = false
 
 func FusedStep(starting_prefix: String, starting_member_type: Analysis.SpiteType, starting_read: String) {
     prefix = starting_prefix
@@ -11,4 +12,11 @@ func FusedStep(starting_prefix: String, starting_member_type: Analysis.SpiteType
 func get_member_type(): Analysis.SpiteType {
     crash member_type
     return member_type
+}
+
+func read_of(current_name: String): String {
+    if through_caller {
+        return "caller.{read}({current_name})"
+    }
+    return "{current_name}.{read}"
 }

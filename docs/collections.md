@@ -90,7 +90,8 @@ not zero. `has(key)` asks the question directly.
 
 ## Member templates: loops you do not write
 
-A list of a class answers a family of functions named after the element's members. `chores.count_done()` counts
+A list of a class answers a family of functions named after the element's members (or after a function of your
+own, [below](#a-function-of-yours-for-each-element)). `chores.count_done()` counts
 the chores whose `done` is true, `items.sum_price()` adds up their prices, and `repositories.map_name()` collects
 their names. A **member** is an attribute or a function that takes no arguments -- the two are the same to a
 template, since reading an attribute already goes through its getter -- and a template is compiled only for the
@@ -217,6 +218,82 @@ func TemplateMistake() {
 but 'count_' needs it to return Bool (to add up a numeric member use 'sum_stars')
 ```
 
+## A function of yours for each element
+
+The member a template names can also be a function of the class the call is written in, when it takes the
+element and nothing else. With `func say_hello(name: String)` in the class, `names.each_say_hello()` calls
+`say_hello` once for every name, in order; there is no `say_hello_to_everyone` to write. This works on a list of
+anything -- text and numbers included, which have no members of their own for a template to name -- and every
+template takes such a function the way it takes a member: `filter_`, `count_`, `any_` and `all_` a function
+returning `Bool`, `sum_` one returning a number, `map_` one returning a value, `find_by_(value)` and `sort_by_`
+one returning something comparable.
+
+```gdscript title=caller_function/caller_function.spite entry
+var console = Console()
+
+func CallerFunction() {
+    var names = ["Ada", "Grace", "Barbara"]
+    names.each_say_hello()
+    var short_names = names.filter_is_short()
+    var joined = short_names.join(", ")
+    console.print("short:", joined)
+    var letters = names.filter_is_short().map_measure().sum_double_of()
+    console.print("letters, doubled:", letters)
+}
+
+func say_hello(name: String) {
+    console.print("hello, {name}")
+}
+
+func is_short(name: String): Bool {
+    return name.length() < 6
+}
+
+func measure(name: String): Int {
+    return name.length()
+}
+
+func double_of(value: Int): Int {
+    return value * 2
+}
+```
+```output
+hello, Ada
+hello, Grace
+hello, Barbara
+short: Ada, Grace
+letters, doubled: 16
+```
+
+Which function a name means is never a guess. The element's own member is looked for, then the calling class's
+function; when both exist, the call is an error asking to rename one, so adding a member to a class can never
+quietly change what a template somewhere else calls. The template sees only the element: a function that needs
+more, such as `print_statement(statement, depth)`, is still called from a `while`.
+
+A loop written only to do this is an error that names the template: a counter from `0` to `list.count()`, and a
+body that passes `list[counter]` -- directly, or through one `var` -- to one function of the class and adds one to
+the counter.
+
+```gdscript title=caller_function_loop/caller_function_loop.spite entry error
+var console = Console()
+
+func CallerFunctionLoop() {
+    var names = ["Ada", "Grace"]
+    var index = 0
+    while index < names.count() {
+        say_hello(names[index])
+        index = index + 1
+    }
+}
+
+func say_hello(name: String) {
+    console.print("hello, {name}")
+}
+```
+```diagnostic
+this 'while' only calls 'say_hello' with each element of 'names': write 'names.each_say_hello()'
+```
+
 ## Chains run as one loop
 
 Every template takes what the one before it gives, so they chain: `map_<member>()` turns a list of teams into a
@@ -293,6 +370,11 @@ func filter_member(member: Symbol<$element_type>): List<$element_type> {
     return filtered
 }
 ```
+
+The same template answers a function of the calling class. For `names.each_say_hello()` the compiler compiles
+`each_member` once more for that class, with the caller passed in beside the list, and
+`item.attributes[member]` reads as `say_hello(item)` on it -- so a template a program adds answers both kinds of
+member without being written twice. A chain that uses one is still one loop.
 
 `values` is the list's `TypedMemory<$element_type>`: `values.read_value(items, index)` reads the element in slot
 `index` of the list's buffer, retained, the same way a container of your own would

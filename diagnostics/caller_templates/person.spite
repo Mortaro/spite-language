@@ -1,0 +1,5 @@
+var age = 0
+
+func is_adult(): Bool {
+    return age >= 18
+}

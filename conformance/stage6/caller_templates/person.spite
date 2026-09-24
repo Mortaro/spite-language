@@ -1,0 +1,11 @@
+var name = ""
+var age = 0
+
+func Person(starting_name: String, starting_age: Int) {
+    name = starting_name
+    age = starting_age
+}
+
+func is_adult(): Bool {
+    return age >= 18
+}

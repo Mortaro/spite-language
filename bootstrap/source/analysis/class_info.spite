@@ -10,6 +10,7 @@ var is_value_class = false
 var is_generic_template = false
 var is_container = false
 var memory_bytes = 0
+var memory_binding = ""
 var memory_path = ""
 var memory_line = 0
 var entry_index = 0

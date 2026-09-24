@@ -1,4 +1,5 @@
 var console = Console()
+var program = Program()
 var root = ".spite-cache/docs"
 var folder_names = List<String>()
 var folder_entries = List<String>()
@@ -10,7 +11,7 @@ func DocsCorpus() {
     var documentation = Directory("docs")
     if not documentation.exists() {
         console.error("run this from the repository root: there is no docs/ folder here")
-        Program().exit(1)
+        program.exit(1)
         return
     }
     read_every_page(documentation)
@@ -42,7 +43,7 @@ func read_page(path: String) {
             index = read_block(lines, index, opening)
         } else if opening.starts_with("```spite") {
             console.error("{path}: tag a Spite block 'gdscript', which GitHub highlights, not 'spite': {opening}")
-            Program().exit(1)
+            program.exit(1)
             return
         } else if opening.starts_with("```wire ") {
             index = read_wire(lines, index, opening)
@@ -62,7 +63,7 @@ func read_block(lines: List<String>, opening_index: Int, opening: String): Int {
     var separator = title.index_of("/")
     if separator < 1 {
         console.error("a documentation block's title names a folder and a file: {title}")
-        Program().exit(1)
+        program.exit(1)
         return opening_index + 1
     }
     var folder = title.slice(0, separator)
@@ -198,7 +199,7 @@ func write_manifest() {
         crash index < folder_must_fail.count()
         if folder_entries[index].is_empty() {
             console.error("no block of '{folder}' is marked 'entry'")
-            Program().exit(1)
+            program.exit(1)
             return
         }
         File("{root}/{folder}/entry.txt").write("{folder_entries[index]}\n")

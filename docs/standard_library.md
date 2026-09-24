@@ -188,7 +188,8 @@ output "build finished"
 
 ## `Console`
 
-`Console()` is a singleton: the same instance everywhere, so every file holds `var console = Console()`.
+`Console()` is a singleton: the same instance everywhere, so every file holds `var console = Console()`, and
+`Console().print(...)` is an error naming it ([classes_and_files.md](classes_and_files.md#singletons)).
 
 | Member | Does |
 |---|---|
@@ -216,7 +217,7 @@ name? no input
 
 ## `Program`
 
-`Program()` is this running program.
+`Program()` is this running program, a singleton bound once as `var program = Program()`.
 
 | Member | Does |
 |---|---|

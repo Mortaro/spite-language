@@ -1,5 +1,7 @@
+var build = Build()
+
 func Launcher() {
     load("library")
-    load("library/{Build().target_operating_system}")
-    load(Build().program)
+    load("library/{build.target_operating_system}")
+    load(build.program)
 }

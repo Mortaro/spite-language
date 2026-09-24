@@ -1,4 +1,5 @@
-var _memory = Memory().allocate_bytes(4)
+var memory = Memory()
+var _memory = memory.allocate_bytes(4)
 
 func to_string(): String {
     var wide: Double = this

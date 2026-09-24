@@ -1,0 +1,18 @@
+hello, Ada
+hello, Grace
+hello, Barbara
+hello, Edsger
+3, 5, 7, 6
+Ada, Grace
+2 true false 21
+Grace
+hello, Ada
+hello, Grace
+16
+Ada is 36
+Alan is 41
+2
+Grace is 85
+85
+Ada, Grace, Edsger, Barbara
+6

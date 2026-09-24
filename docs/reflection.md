@@ -147,11 +147,7 @@ var console = Console()
 
 func FunctionReflection() {
     var functions = Gadget.functions
-    var index = 0
-    while index < functions.count() {
-        describe(functions[index])
-        index = index + 1
-    }
+    functions.each_describe()
     var library_names = Memory.functions.map_name()
     var has_allocate = library_names.contains('allocate_bytes')
     console.print("Memory has allocate_bytes", has_allocate)

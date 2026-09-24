@@ -1,4 +1,5 @@
-var _memory = Memory().allocate_bytes(8)
+var memory = Memory()
+var _memory = memory.allocate_bytes(8)
 
 func to_string(): String {
     return shortest_text(9007199254740992, -1074, 17)
