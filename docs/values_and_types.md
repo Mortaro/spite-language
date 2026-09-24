@@ -75,7 +75,7 @@ func StringBasics() {
     var greeting = "Hello, {subject}"
     console.print(greeting)
     console.print("length", greeting.length())
-    console.print("upper", greeting.upper())
+    console.print("upper", greeting.upper_case())
     console.print("contains", greeting.contains("Spite"))
     var parts = greeting.split(", ")
     console.print("parts count", parts.count())

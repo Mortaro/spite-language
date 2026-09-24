@@ -36,7 +36,7 @@ func test_an_element_can_be_narrowed_like_a_path() {
     var names = ["ada"]
     var position = 0
     crash names[position]
-    crash names[position].upper() == "ADA"
+    crash names[position].upper_case() == "ADA"
 }
 
 func test_remove_last_returns_what_it_removed() {

@@ -14,7 +14,7 @@ func apply(change: Spite.Function<String, String>, text: String): String {
 }
 
 func shout(text: String): String {
-    return text.upper()
+    return text.upper_case()
 }
 
 func ring() {

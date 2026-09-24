@@ -15,5 +15,5 @@ func get_attribute(attribute: Symbol): attribute.class {
 }
 
 func set_owner(new_owner: String) {
-    owner = new_owner.upper()
+    owner = new_owner.upper_case()
 }

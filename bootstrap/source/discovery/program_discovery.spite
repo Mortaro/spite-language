@@ -259,7 +259,7 @@ func markdown_anchors(content: String): List<String> {
 }
 
 func heading_anchor(heading: String): String {
-    var lowered = heading.lower()
+    var lowered = heading.lower_case()
     var anchor = ""
     var index = 0
     while index < lowered.length() {
@@ -537,7 +537,7 @@ func pascal_case(snake: String): String {
         if character == "_" {
             capitalize_next = true
         } else if capitalize_next {
-            result = result + character.upper()
+            result = result + character.upper_case()
             capitalize_next = false
         } else {
             result = result + character

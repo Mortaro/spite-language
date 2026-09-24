@@ -364,7 +364,7 @@ func final_class_file_name(class_name: String): String {
             if index > 0 {
                 result = "{result}_"
             }
-            result = "{result}{character.lower()}"
+            result = "{result}{character.lower_case()}"
         } else {
             result = "{result}{character}"
         }
@@ -448,7 +448,7 @@ func pascal_case_class_name(snake: String): String {
         if character == "_" {
             capitalize_next = true
         } else if capitalize_next {
-            result = result + character.upper()
+            result = result + character.upper_case()
             capitalize_next = false
         } else {
             result = result + character

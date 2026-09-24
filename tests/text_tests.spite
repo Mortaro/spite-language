@@ -4,8 +4,8 @@ func test_trim_removes_the_edges() {
 }
 
 func test_case_changes_every_letter() {
-    crash "Spite".upper() == "SPITE"
-    crash "Spite".lower() == "spite"
+    crash "Spite".upper_case() == "SPITE"
+    crash "Spite".lower_case() == "spite"
 }
 
 func test_replace_changes_every_occurrence() {

@@ -35,7 +35,7 @@ func get_attribute(attribute: Symbol): attribute.class {
 }
 
 func set_name(new_name: String) {
-    name = new_name.upper()
+    name = new_name.upper_case()
 }
 ```
 

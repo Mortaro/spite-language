@@ -4,7 +4,7 @@ func test_a_class_name_is_a_symbol() {
     var named: Symbol = Creature.name
     crash named == "Creature"
     crash named.length() == 8
-    crash named.upper() == "CREATURE"
+    crash named.upper_case() == "CREATURE"
 }
 
 func test_a_symbol_reads_as_text() {

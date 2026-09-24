@@ -10,7 +10,7 @@ func IndexReads() {
 
 func unproven() {
     var names = ["ada"]
-    console.print(names[0].upper())
+    console.print(names[0].upper_case())
 }
 
 func maybe_boolean() {

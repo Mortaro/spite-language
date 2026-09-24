@@ -1,0 +1,1 @@
+diagnostics/upper_is_upper_case/upper_is_upper_case.spite:4: error: text has no 'upper()': write 'upper_case()', which names what it does without abbreviating (in UpperIsUpperCase.UpperIsUpperCase)

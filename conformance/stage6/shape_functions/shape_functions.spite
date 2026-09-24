@@ -20,5 +20,5 @@ func ShapeFunctions() {
 }
 
 func show(part: Renderable) {
-    console.print(part.render().upper())
+    console.print(part.render().upper_case())
 }

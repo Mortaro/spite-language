@@ -5,9 +5,9 @@ func Shouter(starting_ending: String) {
 }
 
 func shout(text: String): String {
-    return "{text.upper()}{ending}"
+    return "{text.upper_case()}{ending}"
 }
 
 func whisper(text: String): String {
-    return text.lower()
+    return text.lower_case()
 }

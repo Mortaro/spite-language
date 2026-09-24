@@ -288,7 +288,7 @@ func is_word_character_at(text: String, index: Int): Bool {
         return false
     }
     var character = text.slice(index, index + 1)
-    return character == "_" or character == "." or character.lower() != character.upper() or "0123456789".contains(character)
+    return character == "_" or character == "." or character.lower_case() != character.upper_case() or "0123456789".contains(character)
 }
 
 func built_in_class_names(): List<String> {
@@ -368,7 +368,7 @@ func codegen_value_name(information: Analysis.ClassInfo, index: Int): String {
         return type_display_name(information.codegen_types[index])
     }
     var code = information.codegen_codes[index]
-    return "{code.slice(0, 1).upper()}{code.slice(1, code.length())}"
+    return "{code.slice(0, 1).upper_case()}{code.slice(1, code.length())}"
 }
 
 func emitted_qualified_names(): List<String> {
@@ -404,7 +404,7 @@ func emit_system_classes(system_structs: String, system_prototypes: String, syst
     var index = 0
     while index < classes.count() {
         if classes[index].is_builtin {
-            defines.append("#define SPITE_CLASS_ID_{classes[index].simple_name.upper()} {classes[index].class_id}")
+            defines.append("#define SPITE_CLASS_ID_{classes[index].simple_name.upper_case()} {classes[index].class_id}")
         }
         index = index + 1
     }
@@ -3961,7 +3961,23 @@ func generate_string_method(
             class_information,
         )
     }
-    if name == "trim" or name == "upper" or name == "lower" {
+    if name == "upper_case" or name == "lower_case" {
+        return generate_borrowing_call(
+            "SpiteString_{name.replace("_case", "")}",
+            object_result,
+            object_ast,
+            arguments_ast,
+            no_types(),
+            string_type(),
+            scope,
+            class_information,
+        )
+    }
+    if name == "upper" or name == "lower" {
+        report("text has no '{name}()': write '{name}_case()', which names what it does without abbreviating")
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    if name == "trim" {
         return generate_borrowing_call(
             function_c_name,
             object_result,
@@ -6177,7 +6193,7 @@ func generate_foreign_call(
             crash library < foreign_library_headers.count()
             if not foreign_library_headers[library].is_empty() and foreign_library_namings[library] == "windows" {
                 lines.append(
-                    "_Static_assert(sizeof({words_of(shaped.simple_name).join("_").upper()}) == sizeof({struct_value}), \"{shaped.simple_name} does not match {words_of(shaped.simple_name).join("_").upper()}\");",
+                    "_Static_assert(sizeof({words_of(shaped.simple_name).join("_").upper_case()}) == sizeof({struct_value}), \"{shaped.simple_name} does not match {words_of(shaped.simple_name).join("_").upper_case()}\");",
                 )
             }
             if owns(argument, arguments_ast[index]) {
@@ -6231,7 +6247,7 @@ func generate_foreign_constant(foreign: Analysis.Types.ClassRefType, name: Strin
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     ensure_foreign_header(header)
-    return ExpressionResult("((int32_t)({name.upper()}))", integer_type())
+    return ExpressionResult("((int32_t)({name.upper_case()}))", integer_type())
 }
 
 func ensure_foreign_header(header: String) {
@@ -6319,7 +6335,7 @@ func foreign_symbol_name(name: String, naming: String): String {
         if index == 0 and naming == "camel_case" {
             text = word
         } else {
-            text = "{text}{word.slice(0, 1).upper()}{word.slice(1, word.length())}"
+            text = "{text}{word.slice(0, 1).upper_case()}{word.slice(1, word.length())}"
         }
         index = index + 1
     }
@@ -7251,7 +7267,7 @@ func words_of(name: String): List<String> {
             current = ""
         }
         if code != 95 {
-            current = current + name.character_at(index).lower()
+            current = current + name.character_at(index).lower_case()
         }
         index = index + 1
     }

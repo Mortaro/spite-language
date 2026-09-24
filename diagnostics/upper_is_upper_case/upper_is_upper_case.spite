@@ -1,0 +1,5 @@
+var console = Console()
+
+func UpperIsUpperCase() {
+    console.print("spite".upper())
+}

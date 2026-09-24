@@ -286,7 +286,7 @@ for the rest of that block and any block nested inside it. It is the same rule s
 
 **Reading with `[]` answers `T?`** (D64, decided by Mortaro, 2026-09-23). `names[index]` and `table["key"]` may
 not be there, so they are values that may be null, and an index or key that is a name, a path, a number or
-quoted text makes the read a path that narrows like any other: `crash names[index]`, then `names[index].upper()`.
+quoted text makes the read a path that narrows like any other: `crash names[index]`, then `names[index].upper_case()`.
 How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked for them):
 
 - **A proven count proves the indices below it.** After `crash names.count() == 3` (or `>= 3`, or `> 2`),
@@ -1531,7 +1531,7 @@ table) also work as `equals(other)`/`less_than(other)`/`greater_than(other)`; `+
 | `contains(text)` / `starts_with(text)` / `ends_with(text)` | `Bool` | |
 | `index_of(text)` | `Int` | `-1` when absent |
 | `replace(from, to)` | `String` | replaces every occurrence |
-| `trim()` / `upper()` / `lower()` | `String` | |
+| `trim()` / `upper_case()` / `lower_case()` | `String` | |
 | `split(separator)` | `List<String>` | an empty separator splits into single characters |
 | `lines()` | `List<String>` | splits on `\n` |
 | `to_tiny()` / `to_short()` / `to_int()` / `to_long()` | `Tiny` / `Short` / `Int` / `Long` | `0` on a value that does not parse |
@@ -1859,7 +1859,7 @@ func DynamicLibrary(file_name: String, naming: Naming, header: String) {
 
 func symbol_name(symbol: Symbol): String {
     if symbol.kind == 'constant' {
-        return symbol.name.upper()
+        return symbol.name.upper_case()
     }
     if _naming == 'windows' {
         return symbol.name.abbreviated().pascal_case()
@@ -2404,3 +2404,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-23 | **D71** (decided by Mortaro): **a program is made of `.spite` files; a native library is reached through a Spite wrapper that names its real file.** Answering Claude's guessed platform extension: "all files should be .spite or error on compile. ... a consumer of a dll that was not made in spite would create a spite wrapper, and DynamicLibrary metaprogramming allows us to code in spite and get converted to the dll conventions" (the `mouse.spite` sample in section 17). So `DynamicLibrary` names the library file exactly as it is on disk -- no extension is added and no alias like `"c"` is resolved -- and a name without an extension is a compile error naming the fix; choosing a different file per platform is the wrapper's job, not the compiler's. |
 | 2026-09-23 | **D72** (decided by Mortaro): **the REPL is written in pure Spite.** `runtime/spite_repl.h` is not wired in; it is deleted once the Spite REPL replaces it. |
 | 2026-09-23 | **D73** (decided by Mortaro): **the hand-written C runtime goes as soon as possible.** D14's direction, now the priority: "we should get rid of the c runtime as soon as possible". Claude takes the 15a floor (section 15, "The floor, named") as the plan for it, minus the `"c"` alias D71 rules out: what stays C is what the compiler emits (object headers, the `Memory` and `DynamicLibrary` intrinsics, `main`), and everything else moves into `library/` as Spite. |
+| 2026-09-23 | **D74** (decided by Mortaro): **`upper()` and `lower()` are abbreviations of what they do, so they are gone.** "`.upper()` is ugly, does not match our no abbreviation policy, we should have `.to_uppercase()` or `.uppercase()` depending of the convention or `upper_case`." Claude chose **`upper_case()` and `lower_case()`** by the convention the language already has for naming a case -- `pascal_case()` and `camel_case()` (section 17) -- so the family reads alike; calling `upper()` or `lower()` is an error naming the replacement (`diagnostics/upper_is_upper_case`). Every use in the compiler, the corpus and the documentation moved in the same change. |

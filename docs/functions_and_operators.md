@@ -31,7 +31,7 @@ call; and the value is also its own reflection, with `.name`, `.arguments` and `
 
 ```spite title=function_values_doc/shouter.spite
 func shout(text: String): String {
-    return "{text.upper()}!"
+    return "{text.upper_case()}!"
 }
 ```
 ```spite title=function_values_doc/function_values_doc.spite entry
@@ -49,7 +49,7 @@ func apply(change: Spite.Function<String, String>, text: String): String {
 }
 
 func quiet(text: String): String {
-    return text.lower()
+    return text.lower_case()
 }
 ```
 ```output
@@ -158,7 +158,7 @@ func get_attribute(attribute: Symbol): attribute.class {
 }
 
 func set_owner(new_owner: String) {
-    owner = new_owner.upper()
+    owner = new_owner.upper_case()
 }
 
 func get_owner(): String {
