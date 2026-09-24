@@ -1,0 +1,8 @@
+var console = Console()
+
+func FolderClassNamespace() {
+    var composition = ClickTest.Composition()
+    var click_test = composition.click_test
+    click_test.drive_clicks.run()
+    click_test.verify.run()
+}

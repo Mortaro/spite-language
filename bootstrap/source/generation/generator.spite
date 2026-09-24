@@ -657,7 +657,7 @@ func type_test(
     var kind_reference: Syntax.Types.Type = Syntax.Types.NamedType(kind_path, List<Syntax.Types.GenericArgument>())
     var saved_class = current_class
     current_class = class_information
-    var kind_type = resolve_type(kind_reference, class_information.namespace_dotted)
+    var kind_type = resolve_type(kind_reference, class_information.qualified_dotted)
     current_class = saved_class
     assert kind_type
     var kind_union = type_shape.as_union(kind_type)
@@ -905,7 +905,7 @@ func register_unions(entry: Discovery.DiscoveredClass) {
                 "{entry.mangled_name}_{declaration.name}",
                 declaration.name,
                 entry.qualified_dotted,
-                entry.namespace_dotted,
+                entry.qualified_dotted,
                 declaration.members,
             )
             var reopened = shape_position(information.c_name)
@@ -934,7 +934,7 @@ func register_shapes(entry: Discovery.DiscoveredClass) {
                 "{entry.mangled_name}_{declaration.name}",
                 declaration.name,
                 entry.qualified_dotted,
-                entry.namespace_dotted,
+                entry.qualified_dotted,
                 List<Syntax.Types.Type>(),
             )
             information.is_shape = true
@@ -2060,7 +2060,7 @@ func infer_declared_type(
     class_information: Analysis.ClassInfo,
 ): Analysis.SpiteType {
     if annotation {
-        var resolved = resolve_type(annotation, class_information.namespace_dotted)
+        var resolved = resolve_type(annotation, class_information.qualified_dotted)
         if resolved {
             return resolved
         }
@@ -2203,7 +2203,7 @@ func template_range_class(information: Analysis.ClassInfo, template: Analysis.Te
     crash template.range
     var saved_class = current_class
     current_class = information
-    var range_type = resolve_type(template.range, information.namespace_dotted)
+    var range_type = resolve_type(template.range, information.qualified_dotted)
     current_class = saved_class
     assert range_type
     var range_class_ref = type_shape.as_class_ref(range_type)
@@ -2218,7 +2218,7 @@ func template_range_shape(information: Analysis.ClassInfo, template: Analysis.Te
     assert template.range
     var saved_class = current_class
     current_class = information
-    var range_type = resolve_type(template.range, information.namespace_dotted)
+    var range_type = resolve_type(template.range, information.qualified_dotted)
     current_class = saved_class
     assert range_type
     var range_union = type_shape.as_union(range_type)
@@ -2368,7 +2368,7 @@ func instantiate_every_attribute(
     while parameter_index < declaration.parameters.count() {
         var parameter = declaration.parameters[parameter_index]
         if parameter.name != template.symbol_parameter and parameter.type_reference {
-            var parameter_type = resolve_type(parameter.type_reference, information.namespace_dotted)
+            var parameter_type = resolve_type(parameter.type_reference, information.qualified_dotted)
             if parameter_type {
                 parameters.append(Analysis.ParamInfo(parameter.name, parameter_type))
             }
@@ -2444,7 +2444,7 @@ func instantiate_template(
         var parameter = declaration.parameters[parameter_index]
         if parameter.name != template.symbol_parameter {
             if parameter.type_reference {
-                var parameter_type = resolve_type(parameter.type_reference, information.namespace_dotted)
+                var parameter_type = resolve_type(parameter.type_reference, information.qualified_dotted)
                 if parameter_type {
                     var received_type = received_type(parameter, parameter_type)
                     parameters.append(Analysis.ParamInfo(parameter.name, received_type))
@@ -2459,7 +2459,7 @@ func instantiate_template(
     }
     var return_type = void_type()
     if declaration.return_type {
-        var resolved_return = resolve_type(declaration.return_type, information.namespace_dotted)
+        var resolved_return = resolve_type(declaration.return_type, information.qualified_dotted)
         if resolved_return {
             return_type = resolved_return
         }
@@ -2651,7 +2651,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         var parameter = declaration.parameters[parameter_index]
         check_value_name(parameter.name, "parameter")
         assert parameter.type_reference
-        var parameter_type = resolve_type(parameter.type_reference, information.namespace_dotted)
+        var parameter_type = resolve_type(parameter.type_reference, information.qualified_dotted)
         if parameter_type {
             var received_type = received_type(parameter, parameter_type)
             parameters.append(Analysis.ParamInfo(parameter.name, received_type))
@@ -2663,7 +2663,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     }
     var return_type: Analysis.SpiteType = Analysis.Types.VoidType()
     if declaration.return_type {
-        var resolved_return = resolve_type(declaration.return_type, information.namespace_dotted)
+        var resolved_return = resolve_type(declaration.return_type, information.qualified_dotted)
         if resolved_return {
             return_type = resolved_return
         }
@@ -4033,7 +4033,7 @@ func generate_identifier(
             return function_value(class_information, named_function, ExpressionResult("self", class_type), identifier)
         }
     }
-    var named_class = find_class(identifier.name, class_information.namespace_dotted)
+    var named_class = find_class(identifier.name, class_information.qualified_dotted)
     if named_class {
         report(
             "'{identifier.name}' is a class, not a value: write '{identifier.name}()' to make one, and give it a name with 'var ... = '",
@@ -4200,7 +4200,7 @@ func tested_class_of(
     if named {
         assert named.names_class
         crash named.callee
-        var template = try_resolve_static_path(named.callee, class_information.namespace_dotted)
+        var template = try_resolve_static_path(named.callee, class_information.qualified_dotted)
         assert template
         if not template.is_generic_template {
             report(
@@ -4208,9 +4208,9 @@ func tested_class_of(
             )
             return null
         }
-        return instantiate_generic(template, named.type_arguments, class_information.namespace_dotted)
+        return instantiate_generic(template, named.type_arguments, class_information.qualified_dotted)
     }
-    return try_resolve_static_path(expression, class_information.namespace_dotted)
+    return try_resolve_static_path(expression, class_information.qualified_dotted)
 }
 
 func check_tested_member(information: Analysis.UnionInfo, tested_class: Analysis.ClassInfo) {
@@ -4279,7 +4279,7 @@ func generate_binary(
     if binary.operator == 'equal' or binary.operator == 'not_equal' {
         var tested_class = tested_class_of(binary.right, class_information)
         if tested_class {
-            if not try_resolve_static_path(binary.left, class_information.namespace_dotted) {
+            if not try_resolve_static_path(binary.left, class_information.qualified_dotted) {
                 return generate_class_test(binary, tested_class, scope, class_information)
             }
         }
@@ -5207,7 +5207,7 @@ func generate_method_call(
             }
         }
     }
-    var static_receiver = try_resolve_static_path(object_ast, class_information.namespace_dotted)
+    var static_receiver = try_resolve_static_path(object_ast, class_information.qualified_dotted)
     if static_receiver {
         var class_value_class = find_class_by_c_name("Spite_Class")
         if class_value_class {
@@ -7332,7 +7332,7 @@ func generate_generic_constructor(
         if callee.name == "Dictionary" and generic_call.type_arguments.count() == 1 {
             var dictionary_element = resolve_generic_argument(
                 generic_call.type_arguments[0],
-                class_information.namespace_dotted,
+                class_information.qualified_dotted,
             )
             if dictionary_element {
                 var dictionary_type = dictionary_type_of(dictionary_element)
@@ -7340,19 +7340,19 @@ func generate_generic_constructor(
             }
         }
         if callee.name == "List" and generic_call.type_arguments.count() == 1 {
-            var element = resolve_generic_argument(generic_call.type_arguments[0], class_information.namespace_dotted)
+            var element = resolve_generic_argument(generic_call.type_arguments[0], class_information.qualified_dotted)
             if element {
                 var list_type = list_type_of(element)
                 return ExpressionResult("{ensure_list(element)}___make()", list_type)
             }
         }
-        var generic_template = find_class(callee.name, class_information.namespace_dotted)
+        var generic_template = find_class(callee.name, class_information.qualified_dotted)
         if generic_template {
             if generic_template.is_generic_template {
                 var generic_class = instantiate_generic(
                     generic_template,
                     generic_call.type_arguments,
-                    class_information.namespace_dotted,
+                    class_information.qualified_dotted,
                 )
                 if generic_class {
                     return generate_constructor_call(generic_class, generic_call.arguments, scope, class_information)
@@ -7856,7 +7856,7 @@ func generate_member_object(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
-    var static_class = try_resolve_static_path(object_ast, class_information.namespace_dotted)
+    var static_class = try_resolve_static_path(object_ast, class_information.qualified_dotted)
     if static_class {
         var class_type = class_type_of(static_class)
         var class_object_call = class_object_call(class_type)
@@ -8411,7 +8411,7 @@ func generate_call(
             return ExpressionResult("(void)0", Analysis.Types.VoidType())
         }
     }
-    var target_class = try_resolve_static_path(call.callee, class_information.namespace_dotted)
+    var target_class = try_resolve_static_path(call.callee, class_information.qualified_dotted)
     if target_class {
         return generate_constructor_call(target_class, call.arguments, scope, class_information)
     }
@@ -8477,7 +8477,7 @@ func generate_member_read_raw(
 ): ExpressionResult {
     crash member.object
     if member.name == "instances" {
-        var named_class = try_resolve_static_path(member.object, class_information.namespace_dotted)
+        var named_class = try_resolve_static_path(member.object, class_information.qualified_dotted)
         if named_class {
             if named_class.c_name == "Spite_Class" {
                 all_classes_used = true
@@ -8790,7 +8790,7 @@ func try_path_guard(
 ): NullableGuard? {
     var path = operand_text(condition_ast)
     assert not path.is_empty() and not is_caller_call(condition_ast) and not is_shape_member_read(condition_ast)
-    var links = path_links(condition_ast, class_information.namespace_dotted)
+    var links = path_links(condition_ast, class_information.qualified_dotted)
     var probe_scope = Scope(scope)
     var tests = List<String>()
     var inner: Analysis.SpiteType? = null
@@ -9107,7 +9107,7 @@ func value_is_never_null(
     var call = shape.as_call(value_ast)
     if call {
         if call.callee {
-            if try_resolve_static_path(call.callee, class_information.namespace_dotted) {
+            if try_resolve_static_path(call.callee, class_information.qualified_dotted) {
                 return true
             }
         }
@@ -10209,7 +10209,7 @@ func generate_nullable_switch(
                 generate_block(switch_case.body, scope, class_information, function_information)
                 builder.add_user("}")
             } else {
-                var case_type = resolve_type(switch_case.type_reference, class_information.namespace_dotted)
+                var case_type = resolve_type(switch_case.type_reference, class_information.qualified_dotted)
                 if case_type {
                     var guard_inner = guard.get_inner()
                     if not types_equal(case_type, guard_inner) {
@@ -10251,7 +10251,7 @@ func generate_union_case(
     assert switch_case.type_reference
     var case_class = class_of_type_reference(switch_case.type_reference, information.owner_namespace)
     if not case_class {
-        case_class = class_of_type_reference(switch_case.type_reference, class_information.namespace_dotted)
+        case_class = class_of_type_reference(switch_case.type_reference, class_information.qualified_dotted)
     }
     if not case_class {
         report("a switch case must name a class of the union")
@@ -10982,7 +10982,7 @@ func singleton_named(
     callee: Syntax.Expressions.Expression,
     class_information: Analysis.ClassInfo,
 ): Analysis.ClassInfo? {
-    var named_class = try_resolve_static_path(callee, class_information.namespace_dotted)
+    var named_class = try_resolve_static_path(callee, class_information.qualified_dotted)
     assert named_class
     assert named_class.is_singleton
     return named_class

@@ -1,0 +1,5 @@
+var console = Console()
+
+func run() {
+    console.print("drove the clicks")
+}

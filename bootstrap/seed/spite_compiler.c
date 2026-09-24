@@ -25852,7 +25852,7 @@ Analysis_ClassInfo* saved_class = Analysis_ClassInfo___retain(self->current_clas
 Analysis_ClassInfo* spite_temp_3623 = Analysis_ClassInfo___retain(class_information);
 Analysis_ClassInfo___release(self->current_class);
 self->current_class = spite_temp_3623;
-Analysis_SpiteType_SpiteType kind_type = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain(kind_reference), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_SpiteType_SpiteType kind_type = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain(kind_reference), SpiteString___retain((class_information)->qualified_dotted));
 Analysis_ClassInfo* spite_temp_3624 = Analysis_ClassInfo___retain(saved_class);
 Analysis_ClassInfo___release(self->current_class);
 self->current_class = spite_temp_3624;
@@ -26328,7 +26328,7 @@ SpiteString* spite_temp_3803 = (&spite_lit_1436);
 SpiteString___release(self->current_function);
 self->current_function = spite_temp_3803;
 Generation_Generator_check_type_name(self, SpiteString___retain((declaration)->name), (&spite_lit_1437));
-Analysis_UnionInfo* information = Analysis_UnionInfo___make(({ SpiteString* spite_temp_3819 = ({ SpiteString* spite_temp_3816 = ({ SpiteString* spite_temp_3813 = (&spite_lit_1440); SpiteString* spite_temp_3814 = (entry)->mangled_name; SpiteString* spite_temp_3815 = SpiteString_sum(spite_temp_3813, SpiteString___retain(spite_temp_3814)); SpiteString___release(spite_temp_3813); spite_temp_3815; }); SpiteString* spite_temp_3817 = (&spite_lit_1441); SpiteString* spite_temp_3818 = SpiteString_sum(spite_temp_3816, SpiteString___retain(spite_temp_3817)); SpiteString___release(spite_temp_3816); SpiteString___release(spite_temp_3817); spite_temp_3818; }); SpiteString* spite_temp_3820 = (declaration)->name; SpiteString* spite_temp_3821 = SpiteString_sum(spite_temp_3819, SpiteString___retain(spite_temp_3820)); SpiteString___release(spite_temp_3819); spite_temp_3821; }), SpiteString___retain((declaration)->name), SpiteString___retain((entry)->qualified_dotted), SpiteString___retain((entry)->namespace_dotted), List_Syntax_Types_Type_Type___retain((declaration)->members));
+Analysis_UnionInfo* information = Analysis_UnionInfo___make(({ SpiteString* spite_temp_3819 = ({ SpiteString* spite_temp_3816 = ({ SpiteString* spite_temp_3813 = (&spite_lit_1440); SpiteString* spite_temp_3814 = (entry)->mangled_name; SpiteString* spite_temp_3815 = SpiteString_sum(spite_temp_3813, SpiteString___retain(spite_temp_3814)); SpiteString___release(spite_temp_3813); spite_temp_3815; }); SpiteString* spite_temp_3817 = (&spite_lit_1441); SpiteString* spite_temp_3818 = SpiteString_sum(spite_temp_3816, SpiteString___retain(spite_temp_3817)); SpiteString___release(spite_temp_3816); SpiteString___release(spite_temp_3817); spite_temp_3818; }); SpiteString* spite_temp_3820 = (declaration)->name; SpiteString* spite_temp_3821 = SpiteString_sum(spite_temp_3819, SpiteString___retain(spite_temp_3820)); SpiteString___release(spite_temp_3819); spite_temp_3821; }), SpiteString___retain((declaration)->name), SpiteString___retain((entry)->qualified_dotted), SpiteString___retain((entry)->qualified_dotted), List_Syntax_Types_Type_Type___retain((declaration)->members));
 int32_t reopened = Generation_Generator_shape_position(self, SpiteString___retain((information)->c_name));
 if (((reopened < 0))) {
 List_Analysis_UnionInfo_append(self->unions, Analysis_UnionInfo___retain(information));
@@ -26361,7 +26361,7 @@ SpiteString* spite_temp_3824 = (&spite_lit_1442);
 SpiteString___release(self->current_function);
 self->current_function = spite_temp_3824;
 Generation_Generator_check_type_name(self, SpiteString___retain((declaration)->name), (&spite_lit_1443));
-Analysis_UnionInfo* information = Analysis_UnionInfo___make(({ SpiteString* spite_temp_3840 = ({ SpiteString* spite_temp_3837 = ({ SpiteString* spite_temp_3834 = (&spite_lit_1446); SpiteString* spite_temp_3835 = (entry)->mangled_name; SpiteString* spite_temp_3836 = SpiteString_sum(spite_temp_3834, SpiteString___retain(spite_temp_3835)); SpiteString___release(spite_temp_3834); spite_temp_3836; }); SpiteString* spite_temp_3838 = (&spite_lit_1447); SpiteString* spite_temp_3839 = SpiteString_sum(spite_temp_3837, SpiteString___retain(spite_temp_3838)); SpiteString___release(spite_temp_3837); SpiteString___release(spite_temp_3838); spite_temp_3839; }); SpiteString* spite_temp_3841 = (declaration)->name; SpiteString* spite_temp_3842 = SpiteString_sum(spite_temp_3840, SpiteString___retain(spite_temp_3841)); SpiteString___release(spite_temp_3840); spite_temp_3842; }), SpiteString___retain((declaration)->name), SpiteString___retain((entry)->qualified_dotted), SpiteString___retain((entry)->namespace_dotted), List_Syntax_Types_Type_Type___make());
+Analysis_UnionInfo* information = Analysis_UnionInfo___make(({ SpiteString* spite_temp_3840 = ({ SpiteString* spite_temp_3837 = ({ SpiteString* spite_temp_3834 = (&spite_lit_1446); SpiteString* spite_temp_3835 = (entry)->mangled_name; SpiteString* spite_temp_3836 = SpiteString_sum(spite_temp_3834, SpiteString___retain(spite_temp_3835)); SpiteString___release(spite_temp_3834); spite_temp_3836; }); SpiteString* spite_temp_3838 = (&spite_lit_1447); SpiteString* spite_temp_3839 = SpiteString_sum(spite_temp_3837, SpiteString___retain(spite_temp_3838)); SpiteString___release(spite_temp_3837); SpiteString___release(spite_temp_3838); spite_temp_3839; }); SpiteString* spite_temp_3841 = (declaration)->name; SpiteString* spite_temp_3842 = SpiteString_sum(spite_temp_3840, SpiteString___retain(spite_temp_3841)); SpiteString___release(spite_temp_3840); spite_temp_3842; }), SpiteString___retain((declaration)->name), SpiteString___retain((entry)->qualified_dotted), SpiteString___retain((entry)->qualified_dotted), List_Syntax_Types_Type_Type___make());
 Analysis_UnionInfo* spite_temp_3843 = information;
 (spite_temp_3843)->is_shape = true;
 Analysis_UnionInfo* spite_temp_3844 = information;
@@ -28124,7 +28124,7 @@ Discovery_DiscoveredClass___release(entry);
 }
 Analysis_SpiteType_SpiteType Generation_Generator_infer_declared_type(Generation_Generator* self, Syntax_Types_Type_Type annotation, Syntax_Expressions_Expression_Expression initializer, Generation_Scope* scope, Analysis_ClassInfo* class_information) {
 if ((annotation) != 0) {
-Analysis_SpiteType_SpiteType resolved = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain(annotation), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_SpiteType_SpiteType resolved = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain(annotation), SpiteString___retain((class_information)->qualified_dotted));
 if ((resolved) != 0) {
 Analysis_SpiteType_SpiteType spite_temp_5557 = Analysis_SpiteType_SpiteType___retain(resolved);
 Analysis_SpiteType_SpiteType___release(resolved);
@@ -28392,7 +28392,7 @@ Analysis_ClassInfo* saved_class = Analysis_ClassInfo___retain(self->current_clas
 Analysis_ClassInfo* spite_temp_5646 = Analysis_ClassInfo___retain(information);
 Analysis_ClassInfo___release(self->current_class);
 self->current_class = spite_temp_5646;
-Analysis_SpiteType_SpiteType range_type = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((template)->range), SpiteString___retain((information)->namespace_dotted));
+Analysis_SpiteType_SpiteType range_type = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((template)->range), SpiteString___retain((information)->qualified_dotted));
 Analysis_ClassInfo* spite_temp_5647 = Analysis_ClassInfo___retain(saved_class);
 Analysis_ClassInfo___release(self->current_class);
 self->current_class = spite_temp_5647;
@@ -28455,7 +28455,7 @@ Analysis_ClassInfo* saved_class = Analysis_ClassInfo___retain(self->current_clas
 Analysis_ClassInfo* spite_temp_5649 = Analysis_ClassInfo___retain(information);
 Analysis_ClassInfo___release(self->current_class);
 self->current_class = spite_temp_5649;
-Analysis_SpiteType_SpiteType range_type = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((template)->range), SpiteString___retain((information)->namespace_dotted));
+Analysis_SpiteType_SpiteType range_type = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((template)->range), SpiteString___retain((information)->qualified_dotted));
 Analysis_ClassInfo* spite_temp_5650 = Analysis_ClassInfo___retain(saved_class);
 Analysis_ClassInfo___release(self->current_class);
 self->current_class = spite_temp_5650;
@@ -28794,7 +28794,7 @@ int32_t parameter_index = 0;
 while (((parameter_index < List_Syntax_Statements_Parameter_count((declaration)->parameters)))) {
 Syntax_Statements_Parameter* parameter = List_Syntax_Statements_Parameter_get_at((declaration)->parameters, parameter_index);
 if (((({ SpiteString* spite_temp_5728 = (parameter)->name; SpiteString* spite_temp_5729 = (template)->symbol_parameter; bool spite_temp_5730 = (!(SpiteString_equals(spite_temp_5728, SpiteString___retain(spite_temp_5729)))); spite_temp_5730; }))) && ((((parameter)->type_reference) != 0))) {
-Analysis_SpiteType_SpiteType parameter_type = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((parameter)->type_reference), SpiteString___retain((information)->namespace_dotted));
+Analysis_SpiteType_SpiteType parameter_type = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((parameter)->type_reference), SpiteString___retain((information)->qualified_dotted));
 if ((parameter_type) != 0) {
 List_Analysis_ParamInfo_append(parameters, Analysis_ParamInfo___make(SpiteString___retain((parameter)->name), Analysis_SpiteType_SpiteType___retain(parameter_type)));
 }
@@ -28889,7 +28889,7 @@ while (((parameter_index < List_Syntax_Statements_Parameter_count((declaration)-
 Syntax_Statements_Parameter* parameter = List_Syntax_Statements_Parameter_get_at((declaration)->parameters, parameter_index);
 if ((({ SpiteString* spite_temp_5784 = (parameter)->name; SpiteString* spite_temp_5785 = (template)->symbol_parameter; bool spite_temp_5786 = (!(SpiteString_equals(spite_temp_5784, SpiteString___retain(spite_temp_5785)))); spite_temp_5786; }))) {
 if ((((parameter)->type_reference) != 0)) {
-Analysis_SpiteType_SpiteType parameter_type = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((parameter)->type_reference), SpiteString___retain((information)->namespace_dotted));
+Analysis_SpiteType_SpiteType parameter_type = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((parameter)->type_reference), SpiteString___retain((information)->qualified_dotted));
 if ((parameter_type) != 0) {
 Analysis_SpiteType_SpiteType received_type = Generation_Generator_received_type(self, Syntax_Statements_Parameter___retain(parameter), Analysis_SpiteType_SpiteType___retain(parameter_type));
 List_Analysis_ParamInfo_append(parameters, Analysis_ParamInfo___make(SpiteString___retain((parameter)->name), Analysis_SpiteType_SpiteType___retain(received_type)));
@@ -28908,7 +28908,7 @@ Analysis_SpiteType_SpiteType___release(caller_type);
 }
 Analysis_SpiteType_SpiteType return_type = Generation_Generator_void_type(self);
 if ((((declaration)->return_type) != 0)) {
-Analysis_SpiteType_SpiteType resolved_return = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((declaration)->return_type), SpiteString___retain((information)->namespace_dotted));
+Analysis_SpiteType_SpiteType resolved_return = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((declaration)->return_type), SpiteString___retain((information)->qualified_dotted));
 if ((resolved_return) != 0) {
 Analysis_SpiteType_SpiteType spite_temp_5787 = Analysis_SpiteType_SpiteType___retain(resolved_return);
 Analysis_SpiteType_SpiteType___release(return_type);
@@ -29289,7 +29289,7 @@ Analysis_ClassInfo___release(information);
 Syntax_Statements_FunctionDeclaration___release(declaration);
 return;
 }
-Analysis_SpiteType_SpiteType parameter_type = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((parameter)->type_reference), SpiteString___retain((information)->namespace_dotted));
+Analysis_SpiteType_SpiteType parameter_type = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((parameter)->type_reference), SpiteString___retain((information)->qualified_dotted));
 if ((parameter_type) != 0) {
 Analysis_SpiteType_SpiteType received_type = Generation_Generator_received_type(self, Syntax_Statements_Parameter___retain(parameter), Analysis_SpiteType_SpiteType___retain(parameter_type));
 List_Analysis_ParamInfo_append(parameters, Analysis_ParamInfo___make(SpiteString___retain((parameter)->name), Analysis_SpiteType_SpiteType___retain(received_type)));
@@ -29306,7 +29306,7 @@ Syntax_Statements_Parameter___release(parameter);
 }
 Analysis_SpiteType_SpiteType return_type = ((Analysis_SpiteType_SpiteType)(Analysis_Types_VoidType___make()));
 if ((((declaration)->return_type) != 0)) {
-Analysis_SpiteType_SpiteType resolved_return = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((declaration)->return_type), SpiteString___retain((information)->namespace_dotted));
+Analysis_SpiteType_SpiteType resolved_return = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((declaration)->return_type), SpiteString___retain((information)->qualified_dotted));
 if ((resolved_return) != 0) {
 Analysis_SpiteType_SpiteType spite_temp_5905 = Analysis_SpiteType_SpiteType___retain(resolved_return);
 Analysis_SpiteType_SpiteType___release(return_type);
@@ -32277,7 +32277,7 @@ Syntax_Expressions_IdentifierExpression___release(identifier);
 return spite_temp_7118;
 }
 }
-Analysis_ClassInfo* named_class = Generation_Generator_find_class(self, SpiteString___retain((identifier)->name), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_ClassInfo* named_class = Generation_Generator_find_class(self, SpiteString___retain((identifier)->name), SpiteString___retain((class_information)->qualified_dotted));
 if ((named_class) != 0) {
 Generation_Generator_report(self, ({ SpiteString* spite_temp_7128 = ({ SpiteString* spite_temp_7125 = ({ SpiteString* spite_temp_7122 = ({ SpiteString* spite_temp_7119 = (&spite_lit_2447); SpiteString* spite_temp_7120 = (identifier)->name; SpiteString* spite_temp_7121 = SpiteString_sum(spite_temp_7119, SpiteString___retain(spite_temp_7120)); SpiteString___release(spite_temp_7119); spite_temp_7121; }); SpiteString* spite_temp_7123 = (&spite_lit_2448); SpiteString* spite_temp_7124 = SpiteString_sum(spite_temp_7122, SpiteString___retain(spite_temp_7123)); SpiteString___release(spite_temp_7122); SpiteString___release(spite_temp_7123); spite_temp_7124; }); SpiteString* spite_temp_7126 = (identifier)->name; SpiteString* spite_temp_7127 = SpiteString_sum(spite_temp_7125, SpiteString___retain(spite_temp_7126)); SpiteString___release(spite_temp_7125); spite_temp_7127; }); SpiteString* spite_temp_7129 = (&spite_lit_2449); SpiteString* spite_temp_7130 = SpiteString_sum(spite_temp_7128, SpiteString___retain(spite_temp_7129)); SpiteString___release(spite_temp_7128); SpiteString___release(spite_temp_7129); spite_temp_7130; }));
 }
@@ -32600,7 +32600,7 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-Analysis_ClassInfo* template = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain((named)->callee), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_ClassInfo* template = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain((named)->callee), SpiteString___retain((class_information)->qualified_dotted));
 if (!((template) != 0)) {
 spite_assert_trace[spite_assert_total % 32] = "spite.assert\t5fe421c2\tbootstrap/source/generation/generator.spite:4204\tGeneration.Generator\ttested_class_of\ttemplate\n"; spite_assert_total = spite_assert_total + 1;
 Analysis_ClassInfo___release(template);
@@ -32618,14 +32618,14 @@ Analysis_ClassInfo___release(class_information);
 Syntax_Expressions_Expression_Expression___release(expression);
 return spite_temp_7331;
 }
-Analysis_ClassInfo* spite_temp_7332 = Generation_Generator_instantiate_generic(self, Analysis_ClassInfo___retain(template), List_Syntax_Types_GenericArgument_GenericArgument___retain((named)->type_arguments), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_ClassInfo* spite_temp_7332 = Generation_Generator_instantiate_generic(self, Analysis_ClassInfo___retain(template), List_Syntax_Types_GenericArgument_GenericArgument___retain((named)->type_arguments), SpiteString___retain((class_information)->qualified_dotted));
 Analysis_ClassInfo___release(template);
 Syntax_Expressions_GenericCallExpression___release(named);
 Analysis_ClassInfo___release(class_information);
 Syntax_Expressions_Expression_Expression___release(expression);
 return spite_temp_7332;
 }
-Analysis_ClassInfo* spite_temp_7333 = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain(expression), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_ClassInfo* spite_temp_7333 = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain(expression), SpiteString___retain((class_information)->qualified_dotted));
 Syntax_Expressions_GenericCallExpression___release(named);
 Analysis_ClassInfo___release(class_information);
 Syntax_Expressions_Expression_Expression___release(expression);
@@ -32748,7 +32748,7 @@ exit(1);
 if ((((((binary)->operator == Syntax_Expressions_BinaryOperator_BinaryOperator_equal)) || (((binary)->operator == Syntax_Expressions_BinaryOperator_BinaryOperator_not_equal))))) {
 Analysis_ClassInfo* tested_class = Generation_Generator_tested_class_of(self, Syntax_Expressions_Expression_Expression___retain((binary)->right), Analysis_ClassInfo___retain(class_information));
 if ((tested_class) != 0) {
-if (((!({ Analysis_ClassInfo* spite_temp_7424 = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain((binary)->left), SpiteString___retain((class_information)->namespace_dotted)); bool spite_truth = ((spite_temp_7424) != 0); Analysis_ClassInfo___release(spite_temp_7424); spite_truth; })))) {
+if (((!({ Analysis_ClassInfo* spite_temp_7424 = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain((binary)->left), SpiteString___retain((class_information)->qualified_dotted)); bool spite_truth = ((spite_temp_7424) != 0); Analysis_ClassInfo___release(spite_temp_7424); spite_truth; })))) {
 Generation_ExpressionResult* spite_temp_7425 = Generation_Generator_generate_class_test(self, Syntax_Expressions_BinaryExpression___retain(binary), Analysis_ClassInfo___retain(tested_class), Generation_Scope___retain(scope), Analysis_ClassInfo___retain(class_information));
 Analysis_ClassInfo___release(tested_class);
 Analysis_ClassInfo___release(class_information);
@@ -34390,7 +34390,7 @@ Analysis_Types_ClassRefType___release(called_function);
 Analysis_SpiteType_SpiteType___release(called_probe_type);
 Generation_ExpressionResult___release(called_probe);
 }
-Analysis_ClassInfo* static_receiver = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain(object_ast), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_ClassInfo* static_receiver = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain(object_ast), SpiteString___retain((class_information)->qualified_dotted));
 if ((static_receiver) != 0) {
 Analysis_ClassInfo* class_value_class = Generation_Generator_find_class_by_c_name(self, (&spite_lit_2943));
 if ((class_value_class) != 0) {
@@ -38671,7 +38671,7 @@ return spite_temp_12467;
 Syntax_Expressions_IdentifierExpression* callee = Analysis_AstShape_as_identifier(self->shape, Syntax_Expressions_Expression_Expression___retain((generic_call)->callee));
 if ((callee) != 0) {
 if (((({ SpiteString* spite_temp_12468 = (callee)->name; SpiteString* spite_temp_12469 = (&spite_lit_4128); bool spite_temp_12470 = SpiteString_equals(spite_temp_12468, SpiteString___retain(spite_temp_12469)); SpiteString___release(spite_temp_12469); spite_temp_12470; }))) && (((List_Syntax_Types_GenericArgument_GenericArgument_count((generic_call)->type_arguments) == 1)))) {
-Analysis_SpiteType_SpiteType dictionary_element = Generation_Generator_resolve_generic_argument(self, List_Syntax_Types_GenericArgument_GenericArgument_get_at((generic_call)->type_arguments, 0), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_SpiteType_SpiteType dictionary_element = Generation_Generator_resolve_generic_argument(self, List_Syntax_Types_GenericArgument_GenericArgument_get_at((generic_call)->type_arguments, 0), SpiteString___retain((class_information)->qualified_dotted));
 if ((dictionary_element) != 0) {
 Analysis_SpiteType_SpiteType dictionary_type = Generation_Generator_dictionary_type_of(self, Analysis_SpiteType_SpiteType___retain(dictionary_element));
 Generation_ExpressionResult* spite_temp_12477 = Generation_ExpressionResult___make(({ SpiteString* spite_temp_12474 = ({ SpiteString* spite_temp_12471 = (&spite_lit_4129); SpiteString* spite_temp_12472 = Generation_Generator_ensure_dictionary(self, Analysis_SpiteType_SpiteType___retain(dictionary_element)); SpiteString* spite_temp_12473 = SpiteString_sum(spite_temp_12471, SpiteString___retain(spite_temp_12472)); SpiteString___release(spite_temp_12471); SpiteString___release(spite_temp_12472); spite_temp_12473; }); SpiteString* spite_temp_12475 = (&spite_lit_4130); SpiteString* spite_temp_12476 = SpiteString_sum(spite_temp_12474, SpiteString___retain(spite_temp_12475)); SpiteString___release(spite_temp_12474); SpiteString___release(spite_temp_12475); spite_temp_12476; }), Analysis_SpiteType_SpiteType___retain(dictionary_type));
@@ -38686,7 +38686,7 @@ return spite_temp_12477;
 Analysis_SpiteType_SpiteType___release(dictionary_element);
 }
 if (((({ SpiteString* spite_temp_12478 = (callee)->name; SpiteString* spite_temp_12479 = (&spite_lit_4132); bool spite_temp_12480 = SpiteString_equals(spite_temp_12478, SpiteString___retain(spite_temp_12479)); SpiteString___release(spite_temp_12479); spite_temp_12480; }))) && (((List_Syntax_Types_GenericArgument_GenericArgument_count((generic_call)->type_arguments) == 1)))) {
-Analysis_SpiteType_SpiteType element = Generation_Generator_resolve_generic_argument(self, List_Syntax_Types_GenericArgument_GenericArgument_get_at((generic_call)->type_arguments, 0), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_SpiteType_SpiteType element = Generation_Generator_resolve_generic_argument(self, List_Syntax_Types_GenericArgument_GenericArgument_get_at((generic_call)->type_arguments, 0), SpiteString___retain((class_information)->qualified_dotted));
 if ((element) != 0) {
 Analysis_SpiteType_SpiteType list_type = Generation_Generator_list_type_of(self, Analysis_SpiteType_SpiteType___retain(element));
 Generation_ExpressionResult* spite_temp_12487 = Generation_ExpressionResult___make(({ SpiteString* spite_temp_12484 = ({ SpiteString* spite_temp_12481 = (&spite_lit_4133); SpiteString* spite_temp_12482 = Generation_Generator_ensure_list(self, Analysis_SpiteType_SpiteType___retain(element)); SpiteString* spite_temp_12483 = SpiteString_sum(spite_temp_12481, SpiteString___retain(spite_temp_12482)); SpiteString___release(spite_temp_12481); SpiteString___release(spite_temp_12482); spite_temp_12483; }); SpiteString* spite_temp_12485 = (&spite_lit_4134); SpiteString* spite_temp_12486 = SpiteString_sum(spite_temp_12484, SpiteString___retain(spite_temp_12485)); SpiteString___release(spite_temp_12484); SpiteString___release(spite_temp_12485); spite_temp_12486; }), Analysis_SpiteType_SpiteType___retain(list_type));
@@ -38700,10 +38700,10 @@ return spite_temp_12487;
 }
 Analysis_SpiteType_SpiteType___release(element);
 }
-Analysis_ClassInfo* generic_template = Generation_Generator_find_class(self, SpiteString___retain((callee)->name), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_ClassInfo* generic_template = Generation_Generator_find_class(self, SpiteString___retain((callee)->name), SpiteString___retain((class_information)->qualified_dotted));
 if ((generic_template) != 0) {
 if (((generic_template)->is_generic_template)) {
-Analysis_ClassInfo* generic_class = Generation_Generator_instantiate_generic(self, Analysis_ClassInfo___retain(generic_template), List_Syntax_Types_GenericArgument_GenericArgument___retain((generic_call)->type_arguments), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_ClassInfo* generic_class = Generation_Generator_instantiate_generic(self, Analysis_ClassInfo___retain(generic_template), List_Syntax_Types_GenericArgument_GenericArgument___retain((generic_call)->type_arguments), SpiteString___retain((class_information)->qualified_dotted));
 if ((generic_class) != 0) {
 Generation_ExpressionResult* spite_temp_12488 = Generation_Generator_generate_constructor_call(self, Analysis_ClassInfo___retain(generic_class), List_Syntax_Expressions_Expression_Expression___retain((generic_call)->arguments), Generation_Scope___retain(scope), Analysis_ClassInfo___retain(class_information));
 Analysis_ClassInfo___release(generic_class);
@@ -39504,7 +39504,7 @@ Syntax_Expressions_Expression_Expression___release(expression);
 return spite_temp_12968;
 }
 Generation_ExpressionResult* Generation_Generator_generate_member_object(Generation_Generator* self, Syntax_Expressions_Expression_Expression object_ast, Generation_Scope* scope, Analysis_ClassInfo* class_information) {
-Analysis_ClassInfo* static_class = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain(object_ast), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_ClassInfo* static_class = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain(object_ast), SpiteString___retain((class_information)->qualified_dotted));
 if ((static_class) != 0) {
 Analysis_SpiteType_SpiteType class_type = Generation_Generator_class_type_of(self, Analysis_ClassInfo___retain(static_class));
 SpiteString* class_object_call = Generation_Generator_class_object_call(self, Analysis_SpiteType_SpiteType___retain(class_type));
@@ -40487,7 +40487,7 @@ Syntax_Expressions_CallExpression___release(call);
 return spite_temp_13821;
 }
 }
-Analysis_ClassInfo* target_class = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain((call)->callee), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_ClassInfo* target_class = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain((call)->callee), SpiteString___retain((class_information)->qualified_dotted));
 if ((target_class) != 0) {
 Generation_ExpressionResult* spite_temp_13822 = Generation_Generator_generate_constructor_call(self, Analysis_ClassInfo___retain(target_class), List_Syntax_Expressions_Expression_Expression___retain((call)->arguments), Generation_Scope___retain(scope), Analysis_ClassInfo___retain(class_information));
 Analysis_ClassInfo___release(target_class);
@@ -40632,7 +40632,7 @@ spite_report_assert_trace();
 exit(1);
 }
 if ((({ SpiteString* spite_temp_13845 = (member)->name; SpiteString* spite_temp_13846 = (&spite_lit_4607); bool spite_temp_13847 = SpiteString_equals(spite_temp_13845, SpiteString___retain(spite_temp_13846)); SpiteString___release(spite_temp_13846); spite_temp_13847; }))) {
-Analysis_ClassInfo* named_class = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain((member)->object), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_ClassInfo* named_class = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain((member)->object), SpiteString___retain((class_information)->qualified_dotted));
 if ((named_class) != 0) {
 if ((({ SpiteString* spite_temp_13848 = (named_class)->c_name; SpiteString* spite_temp_13849 = (&spite_lit_4609); bool spite_temp_13850 = SpiteString_equals(spite_temp_13848, SpiteString___retain(spite_temp_13849)); SpiteString___release(spite_temp_13849); spite_temp_13850; }))) {
 self->all_classes_used = true;
@@ -41476,7 +41476,7 @@ Generation_Scope___release(scope);
 Syntax_Expressions_Expression_Expression___release(condition_ast);
 return 0;
 }
-List_Syntax_Expressions_Expression_Expression* links = Generation_Generator_path_links(self, Syntax_Expressions_Expression_Expression___retain(condition_ast), SpiteString___retain((class_information)->namespace_dotted));
+List_Syntax_Expressions_Expression_Expression* links = Generation_Generator_path_links(self, Syntax_Expressions_Expression_Expression___retain(condition_ast), SpiteString___retain((class_information)->qualified_dotted));
 Generation_Scope* probe_scope = Generation_Scope___make(Generation_Scope___retain(scope));
 List_String* tests = List_String___make();
 Analysis_SpiteType_SpiteType inner = 0;
@@ -42065,7 +42065,7 @@ return spite_temp_14663;
 Syntax_Expressions_CallExpression* call = Analysis_AstShape_as_call(self->shape, Syntax_Expressions_Expression_Expression___retain(value_ast));
 if ((call) != 0) {
 if ((((call)->callee) != 0)) {
-if (({ Analysis_ClassInfo* spite_temp_14664 = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain((call)->callee), SpiteString___retain((class_information)->namespace_dotted)); bool spite_truth = ((spite_temp_14664) != 0); Analysis_ClassInfo___release(spite_temp_14664); spite_truth; })) {
+if (({ Analysis_ClassInfo* spite_temp_14664 = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain((call)->callee), SpiteString___retain((class_information)->qualified_dotted)); bool spite_truth = ((spite_temp_14664) != 0); Analysis_ClassInfo___release(spite_temp_14664); spite_truth; })) {
 bool spite_temp_14665 = true;
 Syntax_Expressions_CallExpression___release(call);
 Analysis_ClassInfo___release(class_information);
@@ -44137,7 +44137,7 @@ Generation_Generator_generate_block(self, List_Syntax_Statements_Statement_State
 Generation_CodeBuilder_add_user(self->builder, (&spite_lit_5207));
 }
 else {
-Analysis_SpiteType_SpiteType case_type = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((switch_case)->type_reference), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_SpiteType_SpiteType case_type = Generation_Generator_resolve_type(self, Syntax_Types_Type_Type___retain((switch_case)->type_reference), SpiteString___retain((class_information)->qualified_dotted));
 if ((case_type) != 0) {
 Analysis_SpiteType_SpiteType guard_inner = Generation_NullableGuard_get_inner(guard);
 if (((!(Generation_Generator_types_equal(self, Analysis_SpiteType_SpiteType___retain(case_type), Analysis_SpiteType_SpiteType___retain(guard_inner)))))) {
@@ -44188,7 +44188,7 @@ return;
 }
 Analysis_ClassInfo* case_class = Generation_Generator_class_of_type_reference(self, Syntax_Types_Type_Type___retain((switch_case)->type_reference), SpiteString___retain((information)->owner_namespace));
 if (((!((case_class) != 0)))) {
-Analysis_ClassInfo* spite_temp_15313 = Generation_Generator_class_of_type_reference(self, Syntax_Types_Type_Type___retain((switch_case)->type_reference), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_ClassInfo* spite_temp_15313 = Generation_Generator_class_of_type_reference(self, Syntax_Types_Type_Type___retain((switch_case)->type_reference), SpiteString___retain((class_information)->qualified_dotted));
 Analysis_ClassInfo___release(case_class);
 case_class = spite_temp_15313;
 }
@@ -46034,7 +46034,7 @@ Syntax_Expressions_Expression_Expression___release(expression);
 return spite_temp_15527;
 }
 Analysis_ClassInfo* Generation_Generator_singleton_named(Generation_Generator* self, Syntax_Expressions_Expression_Expression callee, Analysis_ClassInfo* class_information) {
-Analysis_ClassInfo* named_class = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain(callee), SpiteString___retain((class_information)->namespace_dotted));
+Analysis_ClassInfo* named_class = Generation_Generator_try_resolve_static_path(self, Syntax_Expressions_Expression_Expression___retain(callee), SpiteString___retain((class_information)->qualified_dotted));
 if (!((named_class) != 0)) {
 spite_assert_trace[spite_assert_total % 32] = "spite.assert\t0ed298f9\tbootstrap/source/generation/generator.spite:10986\tGeneration.Generator\tsingleton_named\tnamed_class\n"; spite_assert_total = spite_assert_total + 1;
 Analysis_ClassInfo___release(named_class);

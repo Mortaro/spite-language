@@ -1,0 +1,2 @@
+var drive_clicks = System.DriveClicks()
+var verify = ClickTest.System.Verify()
