@@ -48,3 +48,13 @@ manual argues it.
     is already waiting. Being built with D35's `Task` now; confirm the drain rule once it lands.
 12. **`Socket` is new public library surface** (`library/socket.spite`), and the REPL's port is fixed at build time.
 
+## Variadic arguments
+
+13. **Whether `Console.print` takes `...values: List<Printable>`** (D90, manual section 5 "Variadic arguments").
+    It fits the mechanism, but it needs a `type Printable` that every printable value satisfies, and today the
+    generator decides printability itself: numbers, `Bool`, `String`, `Symbol`, enum values, `Spite.Class` and
+    `Spite.Namespace` print, and any other class is an error naming its attributes. Proposal (Claude):
+    `type Printable { to_text(): String }`, with numbers and `Bool` answering it once D83 makes them classes,
+    so a class prints once it declares `to_text()`.
+14. **Whether a generic line can name a constraint**, `generic $sub_type: Openable` (open question 12's own
+    proposal). D87 decided the lines and not this half.

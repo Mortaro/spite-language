@@ -213,6 +213,14 @@ and balanced allocations.
     time (the tree shaking `$serve` had is gone; `$target` and D13 still need a build-time home), the sources and
     their order, and the literal-default typing are proposals. **Not done:** the compiler still reads its own
     flags through `Arguments` rather than `Environment`.
+20. **Done (2026-09-24): D87, D90 and D104, the header lines and variadic arguments** (manual.md sections 5, 8
+    and 9). `generic $name` lines replace the constructor's `<...>` list (a parse error now), so a generic class
+    needs no constructor; `singleton` is a header line and `func is_singleton()` an error outside
+    `Spite.Class`; D67's order starts with both. `...name: List<Type>` gathers the remaining arguments into a
+    list, over a class or a `type`. **Waiting on Mortaro:** the interpretations in the three 2026-09-24
+    "implements" rows, and whether `Console.print` takes `...values: List<Printable>` (what `Printable`
+    requires). **Not done:** the named-constraint form open question 12 argued for (`generic $sub_type:
+    Openable`), which D87 did not decide.
 
 ## Later, deliberately deferred
 
