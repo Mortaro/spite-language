@@ -1,0 +1,45 @@
+var console = Console()
+
+func DirectoryEntries() {
+    var tree = Directory("conformance/stage4/directory_entries/tree")
+    console.print(tree.path)
+    walk(tree, "")
+    var files_seen = count_files(tree)
+    console.print("files", files_seen)
+}
+
+func walk(directory: Directory, indent: String) {
+    var entries = directory.entries()
+    var index = 0
+    while index < entries.count() {
+        var entry = entries.get_at(index)
+        switch entry {
+            Directory: {
+                console.print("{indent}folder {entry.path}")
+                walk(entry, "{indent}  ")
+            }
+            File: {
+                var content = entry.read()
+                crash content
+                var trimmed = content.trim()
+                console.print("{indent}file {entry.path}: {trimmed}")
+            }
+        }
+        index = index + 1
+    }
+}
+
+func count_files(directory: Directory): Int {
+    var total = 0
+    var entries = directory.entries()
+    var index = 0
+    while index < entries.count() {
+        var entry = entries.get_at(index)
+        switch entry {
+            Directory: total = total + count_files(entry)
+            File: total = total + 1
+        }
+        index = index + 1
+    }
+    return total
+}

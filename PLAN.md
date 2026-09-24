@@ -240,6 +240,18 @@ and balanced allocations.
     "implements" rows, and whether `Console.print` takes `...values: List<Printable>` (what `Printable`
     requires). **Not done:** the named-constraint form open question 12 argued for (`generic $sub_type:
     Openable`), which D87 did not decide.
+21. **Done (2026-09-24): D93, a directory's entries** (manual.md section 15, "System classes"). `Directory.path`
+    and `entries(): List<Directory.Entry>`, a union of `Directory` and `File`
+    (`conformance/stage4/directory_entries`, `docs/standard_library.md`). **Waiting on Mortaro:** the name
+    `Entry`, the order, and removing `files()`/`folders()`.
+22. **Done (2026-09-24): D95, `Json<T>`** (manual.md section 15, "JSON is reflection, not a library"; sections 8
+    and 9 for the metaprogramming it needed). `library/json.spite` and `library/json_reader.spite`, written with
+    `Symbol<$value_type>` templates called for every attribute by their plural, compile-time type tests
+    (`$value_type == List`) and `$value_type.element_type`; text casts to an enum by name
+    (`tests/json_tests.spite`, `conformance/stage6/every_attribute`, `conformance/stage6/json_crash`,
+    `diagnostics/every_attribute`, `docs/json.md`). **Waiting on Mortaro:** every one of those forms, the API
+    names, and the missing/unknown/mistyped rules. **Not done:** `inf`/`nan`, `Symbol` attributes, and printing a
+    generic instance's generated functions in `--final-classes`.
 
 ## Later, deliberately deferred
 

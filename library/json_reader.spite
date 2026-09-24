@@ -1,0 +1,285 @@
+var text = ""
+var position = 0
+var failure = ""
+var matched = false
+var memory = Memory()
+
+func JsonReader(starting_text: String) {
+    text = starting_text
+}
+
+func failed(): Bool {
+    return not failure.is_empty()
+}
+
+func fail(expected: String) {
+    if failure.is_empty() {
+        failure = "expected {expected} at character {position}"
+    }
+}
+
+func finish() {
+    skip_space()
+    if position < text.length() {
+        fail("the end of the text")
+    }
+}
+
+func skip_space() {
+    var spacing = true
+    while spacing and position < text.length() {
+        var code = text.code_at(position)
+        spacing = code == 32 or code == 9 or code == 10 or code == 13
+        if spacing {
+            position = position + 1
+        }
+    }
+}
+
+func consume(expected: String): Bool {
+    skip_space()
+    var end = position + expected.length()
+    var found = text.slice(position, end)
+    if found == expected {
+        position = end
+        return true
+    }
+    return false
+}
+
+func expect(expected: String) {
+    if not consume(expected) {
+        fail("'{expected}'")
+    }
+}
+
+func read_null(): Bool {
+    return consume("null")
+}
+
+func read_boolean(): Bool {
+    if consume("true") {
+        return true
+    }
+    if not consume("false") {
+        fail("true or false")
+    }
+    return false
+}
+
+func read_number(): String {
+    skip_space()
+    var start = position
+    skip_character(45)
+    if skip_digits() == 0 {
+        fail("a number")
+        return "0"
+    }
+    if skip_character(46) {
+        if skip_digits() == 0 {
+            fail("a digit after '.'")
+        }
+    }
+    if skip_character(101) or skip_character(69) {
+        if not skip_character(43) {
+            skip_character(45)
+        }
+        if skip_digits() == 0 {
+            fail("a digit in the exponent")
+        }
+    }
+    return text.slice(start, position)
+}
+
+func read_text(): String {
+    if not consume("\"") {
+        fail("text in double quotes")
+        return ""
+    }
+    var pieces = List<String>()
+    var start = position
+    var closed = false
+    while not closed and position < text.length() and failure.is_empty() {
+        var code = text.code_at(position)
+        if code == 34 {
+            var last_run = text.slice(start, position)
+            pieces.append(last_run)
+            position = position + 1
+            closed = true
+        } else if code == 92 {
+            var run = text.slice(start, position)
+            pieces.append(run)
+            var escaped = read_escape()
+            pieces.append(escaped)
+            start = position
+        } else {
+            position = position + 1
+        }
+    }
+    if not closed {
+        fail("'\"' to close the text")
+    }
+    return pieces.join("")
+}
+
+func read_escape(): String {
+    position = position + 1
+    var code = text.code_at(position)
+    position = position + 1
+    if code == 34 or code == 92 or code == 47 {
+        return text.slice(position - 1, position)
+    }
+    if code == 110 {
+        return "\n"
+    }
+    if code == 116 {
+        return "\t"
+    }
+    if code == 114 {
+        return "\r"
+    }
+    if code == 98 {
+        return text_of(8)
+    }
+    if code == 102 {
+        return text_of(12)
+    }
+    if code != 117 {
+        fail("an escape: one of \\\" \\\\ \\/ \\b \\f \\n \\r \\t \\u")
+        return ""
+    }
+    var code_point = read_hexadecimal()
+    if code_point >= 55296 and code_point < 56320 and consume("\\u") {
+        var low = read_hexadecimal()
+        code_point = 65536 + (code_point - 55296) * 1024 + low - 56320
+    }
+    return text_of(code_point)
+}
+
+func read_hexadecimal(): Int {
+    var value = 0
+    var digits = 0
+    while digits < 4 {
+        var digit = hexadecimal_digit(position)
+        if digit < 0 {
+            fail("four hexadecimal digits after \\u")
+            return 0
+        }
+        value = value * 16 + digit
+        position = position + 1
+        digits = digits + 1
+    }
+    return value
+}
+
+func hexadecimal_digit(at: Int): Int {
+    if at >= text.length() {
+        return -1
+    }
+    var code = text.code_at(at)
+    if code >= 48 and code <= 57 {
+        return code - 48
+    }
+    if code >= 97 and code <= 102 {
+        return code - 87
+    }
+    if code >= 65 and code <= 70 {
+        return code - 55
+    }
+    return -1
+}
+
+func text_of(code_point: Int): String {
+    var bytes = List<Int>()
+    if code_point < 128 {
+        bytes.append(code_point)
+    } else if code_point < 2048 {
+        bytes.append(192 + code_point / 64)
+        bytes.append(128 + code_point % 64)
+    } else if code_point < 65536 {
+        bytes.append(224 + code_point / 4096)
+        bytes.append(128 + code_point / 64 % 64)
+        bytes.append(128 + code_point % 64)
+    } else {
+        bytes.append(240 + code_point / 262144)
+        bytes.append(128 + code_point / 4096 % 64)
+        bytes.append(128 + code_point / 64 % 64)
+        bytes.append(128 + code_point % 64)
+    }
+    var address = memory.allocate_bytes(4)
+    var index = 0
+    while index < bytes.count() {
+        var byte = bytes.get_at(index)
+        memory.write_byte(address, index, byte)
+        index = index + 1
+    }
+    var length = bytes.count()
+    var result = memory.text(address, length)
+    memory.free(address)
+    return result
+}
+
+func skip_character(code: Int): Bool {
+    if position < text.length() and text.code_at(position) == code {
+        position = position + 1
+        return true
+    }
+    return false
+}
+
+func skip_digits(): Int {
+    var start = position
+    var digit = true
+    while digit and position < text.length() {
+        var code = text.code_at(position)
+        digit = code >= 48 and code <= 57
+        if digit {
+            position = position + 1
+        }
+    }
+    return position - start
+}
+
+func skip_value() {
+    skip_space()
+    if position >= text.length() {
+        fail("a value")
+        return
+    }
+    var code = text.code_at(position)
+    if code == 34 {
+        read_text()
+    } else if code == 123 {
+        skip_members()
+    } else if code == 91 {
+        skip_elements()
+    } else if not consume("true") and not consume("false") and not read_null() {
+        read_number()
+    }
+}
+
+func skip_members() {
+    expect("\{")
+    var more = not consume("}")
+    while more and failure.is_empty() {
+        read_text()
+        expect(":")
+        skip_value()
+        more = consume(",")
+        if not more {
+            expect("}")
+        }
+    }
+}
+
+func skip_elements() {
+    expect("[")
+    var more = not consume("]")
+    while more and failure.is_empty() {
+        skip_value()
+        more = consume(",")
+        if not more {
+            expect("]")
+        }
+    }
+}

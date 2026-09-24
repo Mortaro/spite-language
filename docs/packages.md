@@ -26,7 +26,8 @@ func Game() {
 
 Every loaded root merges into the same namespaces. A second root with the same folder structure and file name
 **reopens** the class instead of colliding with it: a later `func`/`var` of the same name replaces the
-earlier one (in load order), and a name not seen before is simply added. This is how game mods work.
+earlier one (in load order), and a name not seen before is simply added. A `union` or `type` declared again
+replaces the earlier declaration the same way. This is how game mods work.
 
 ```spite title=package_demo/package/monster.spite
 var health = 10

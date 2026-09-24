@@ -1,0 +1,15 @@
+enum Course {
+    'starter'
+    'feast'
+    'dessert'
+}
+
+var title = "soup"
+var servings = 4
+var course: Course = 'starter'
+var steps = ["chop", "boil"]
+var rating: Float? = null
+
+func portions(): Int {
+    return servings * 2
+}

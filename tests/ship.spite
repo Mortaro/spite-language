@@ -1,0 +1,15 @@
+enum Rig {
+    'sloop'
+    'schooner'
+}
+
+var name = ""
+var length = 0
+var speed: Double = 0.0
+var rig: Rig = 'sloop'
+var afloat = false
+var crew = List<Sailor>()
+var cargo = Dictionary<Int>()
+var captain: Sailor? = null
+var launched: Int? = null
+var logbook = List<List<String>>()

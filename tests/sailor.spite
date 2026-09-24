@@ -1,0 +1,6 @@
+var name = ""
+var knots = List<String>()
+
+func Sailor(starting_name: String) {
+    name = starting_name
+}

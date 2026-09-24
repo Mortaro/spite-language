@@ -81,25 +81,48 @@ manual argues it.
 20. **A thread pool for `Parallel`**, and whether `parallel_each_` templates (D35 item 3) come before the engine
     needs them.
 
+## What the standard library offers
+
+21. **Go's standard library against Spite's**, package by package, with a suggested order of what to add:
+    [mortaros_go_standard_library_comparison.md](mortaros_go_standard_library_comparison.md).
+
+## From D93 and D95 (directories and JSON)
+
+22. **`Directory.Entry`** is the name of the union of `Directory` and `File` that `entries()` answers; folders
+    come first, then files, each sorted. Should `files()` and `folders()` go now that `entries()` exists (the
+    compiler's own discovery still reads names)? Manual section 15, "System classes".
+23. **`Json<T>`'s API**: `Json<Order>().write(order)`, `.read(text)` (`Order?`) and `.read_or_crash(text)`. This
+    settles D22's open naming pair as `read`/`read_or_crash`, unless you prefer `to_json`/`to_crashing_json` or
+    `parse_json`/`parse_json_or_crash`. Also `Json` itself: JSON is an abbreviation, but it is the format's name.
+24. **Reading foreign JSON**: unknown keys are skipped, missing attributes keep their defaults, and a value of the
+    wrong kind makes the whole read `null`. The alternative for missing attributes is to fail as well.
+25. **The metaprogramming `Json` needed** (manual sections 4, 8, 9): `attribute: Symbol<Label>` for a template
+    over another class's attributes; the plural (`show_attributes`) to call a template for every attribute;
+    `$value_type == List` / `Dictionary` / `Null` / `Symbol` as compile-time type tests; `$value_type.element_type`
+    to name what a container holds; text casting to an enum by name. Each is a new form, so each wants a yes or no.
+26. **The number test is ten comparisons** (`$value_type == Int or $value_type == Long or ...`) because a union of
+    number types is not allowed (a union's members are classes). A `Number` kind like `List` would read better,
+    but it would be a name that is not a class. Which do you prefer, or should unions admit numbers?
+
 ## Build, the launcher and the entry (D85, D86, D89, D97; manual sections 3, 9 and 13)
 
-14. **The launcher's name and place**: `launcher/launcher.spite`, class `Launcher`, at the repository root beside
+27. **The launcher's name and place**: `launcher/launcher.spite`, class `Launcher`, at the repository root beside
     `library/`. It is library code for reflection (`Spite.Class.instances` leaves it out).
-15. **Loading the program's folder runs it.** The launcher's `load(Build().program)` constructs the program's
+28. **Loading the program's folder runs it.** The launcher's `load(Build().program)` constructs the program's
     entry class; every other `load` still compiles to nothing at run time. And a launcher `load` may use `Build`
     fields (`"library/{Build().target_operating_system}"`), where every other `load` takes a literal.
-16. **The C left in `main`**: handing `argv` to `Arguments()`, binary standard output on Windows (`_setmode`), and,
+29. **The C left in `main`**: handing `argv` to `Arguments()`, binary standard output on Windows (`_setmode`), and,
     after `Launcher` returns, releasing singletons and class objects and printing the `--debug_memory` report.
     Moving them into Spite needs a way for Spite to receive `argv` and to run code after the program ends (a
     `Launcher` that releases what the program left?) -- which is a language question.
-17. **Every compiler option is a `Build` field, and the flags follow the field names**: `--final_classes=folder`
+30. **Every compiler option is a `Build` field, and the flags follow the field names**: `--final_classes=folder`
     (no bare form), `--repl_port=4000` (no space form), `--format=false` (no `--no-format`), no `--file=`. A `Bool`
     field may be given bare (`--optimized`), which is a second spelling of `--optimized=true` -- keep it?
-18. **`mode` and `format` come from the flag alone**, because the compiler needs them before it reads the program;
+31. **`mode` and `format` come from the flag alone**, because the compiler needs them before it reads the program;
     a program's `build.spite` can still declare them, but only its own code sees the value.
-19. **A path to a `.spite` file still names an entry** (`spite bootstrap/spite_compiler.spite`), because the
+32. **A path to a `.spite` file still names an entry** (`spite bootstrap/spite_compiler.spite`), because the
     compiler's own entry is not named after its folder. The alternative is renaming the compiler's entry to
     `bootstrap/bootstrap.spite` (class `Bootstrap`) or moving it into a folder of its own.
-20. **An unset `Build` field folds to its default** rather than being read at run time, so no `Build` value is
+33. **An unset `Build` field folds to its default** rather than being read at run time, so no `Build` value is
     ever read when the program runs. D84's words were "the others are runtime"; D85 moved run time to
     `Environment`, which is how this reads it.
