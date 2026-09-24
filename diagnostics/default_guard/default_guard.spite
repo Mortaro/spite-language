@@ -1,0 +1,103 @@
+var console = Console()
+var handle = 0
+
+func DefaultGuard() {
+    var open = is_open()
+    var code = first_code("a")
+    var divided = ratio(1.0)
+    var text = label(true)
+    var sent = send(1, 2)
+    var answer = real_answers(3)
+    var walked = walk(4)
+    var kept = kept_count(true, false, true)
+    console.print(open, code, divided, text, sent, answer, walked, kept)
+    find_name(false)
+    checked(5)
+    var _gate = Gate(1)
+}
+
+func is_open(): Bool {
+    if handle == -1 {
+        return false
+    }
+    return true
+}
+
+func first_code(text: String): Int {
+    if text.is_empty() {
+        return 0
+    }
+    return text.code_at(0)
+}
+
+func ratio(divisor: Float): Float {
+    if divisor <= 0.0 {
+        return 0.0
+    }
+    return 1.0 / divisor
+}
+
+func label(ready: Bool): String {
+    if not ready {
+        return ""
+    }
+    return "ready"
+}
+
+func find_name(missing: Bool): String? {
+    var name: String? = "kal"
+    if missing {
+        return null
+    }
+    if not name {
+        return null
+    }
+    return name
+}
+
+func send(count: Int, limit: Int): Bool {
+    if count < 0 or count > limit {
+        return false
+    }
+    if count == 0 and limit == 0 {
+        return false
+    }
+    return true
+}
+
+func real_answers(value: Int): Int {
+    if value < 0 {
+        return -1
+    }
+    if value == 1 {
+        return 1
+    }
+    return value
+}
+
+func walk(steps: Int): Int {
+    var index = 0
+    while index < steps {
+        if index > 2 {
+            return 0
+        }
+        index = index + 1
+    }
+    return index
+}
+
+func checked(value: Int) {
+    if value > 3 {
+        console.print("big")
+    } else if value < 0 {
+        return
+    }
+    console.print(value)
+}
+
+func kept_count(first: Bool, second: Bool, third: Bool): Int {
+    if first and second or not third {
+        return 0
+    }
+    return 1
+}

@@ -252,6 +252,29 @@ A narrowing `if` that is not the function's last statement (more statements foll
 another statement (an outer `if`/`while`/switch case) rather than being the function body's own tail, is not
 a lint error.
 
+**An `if` that only returns the default is an `assert`** (D106, decided by Mortaro, 2026-09-24). An `if` with no
+`else` whose whole body is one `return` of the function's default -- `false`, `0`, `0.0`, `""`, `null`, or a bare
+`return` in a function returning nothing -- is a compile error wherever it stands in the function, inside a
+`while` or a nested `if` included, and the message names the `assert` of the opposite condition:
+
+```
+func is_open(): Bool {
+    if handle == -1 {        # error: this 'if' only returns the default 'false':
+        return false         #        write 'assert handle != -1' and let the rest run unindented
+    }
+    return true
+}
+```
+
+It is the same rule as narrowing, so `if not value { return null }` becomes `assert value` and narrows `value`
+for the rest of the block. Returning anything else -- `return true` from a `Bool` function, `return -1` -- is an
+answer, not a guard, and is left alone. How the condition is turned around (proposed by Claude, unconfirmed):
+`==` and `!=` swap, `<` becomes `>=` and `>` becomes `<=` (and back), `not x` becomes `x`, anything else becomes
+`not x`, and `and`/`or` are turned around by De Morgan, side by side -- `if count < 0 or count > limit` becomes
+`assert count >= 0 and count <= limit`. An `else if` is covered too. In a constructor, where `assert` is not
+allowed (D28), the message names `crash` instead. `diagnostics/default_guard`, `diagnostics/returning_guard`.
+**[implemented]**
+
 **`assert` narrows every link of a chain, not only the last** (D43, decided by Mortaro, 2026-09-20). Walking a
 nullable structure would otherwise need one `assert` per hop, and a thousand asserts is not a language, it is a
 tax:
@@ -485,22 +508,22 @@ D26 (decided by Mortaro, 2026-09-19): `assert` is a guard clause, not validation
 there is no more logic to do here, but the program is fine and keeps serving everything else". It is why a web
 server or a game written in Spite should rarely crash.
 
-D27: **`assert` is legal only in a function that returns nothing, or returns `T?`** -- the two cases
-where the substituted default is honest, since void has nothing to say and `null` says exactly "absent".
-Anything else is a compile error naming the return type. An empty `List<T>` or an empty `String` is as
-ambiguous as `0`: the caller cannot tell "no user" from "a user with no orders".
+D27 limited `assert` to a function that returns nothing or `T?`, the two cases where the substituted default is
+honest. **D106 (decided by Mortaro, 2026-09-24) lifts that limit: `assert` is legal in a function returning any
+type, and a failed one returns that type's default** -- `false`, `0`, `""`, `null`, an empty value, or nothing.
+The reason is the code the limit produced: `if handle == -1 { return false }` returns the very same default, only
+spelled as an indented `if`, so the limit never removed the ambiguity, it only hid the guard. D106 makes that
+`if` an error naming its `assert` (section 5, "An `if` that only returns the default is an `assert`").
 
 ```
-func count_user_orders(user_id: Int): Int {
-    assert find_user(user_id)        # error: Int cannot express absence
+func is_open(): Bool {
+    assert handle != -1              # a failed assert returns false
+    return true
 }
 ```
 
-The author then chooses deliberately -- widen the return to `Int?`, handle it with `if`, or, if
-absence is a bug rather than a case, `crash`. **The rule also forces smaller functions** (Mortaro): a function
-that handles a reference and wants a guard has to split, so the lookup lands in a small function whose signature
-honestly says `T?`. Decomposition comes from the type system rather than from style advice, which is
-what works on an AI -- there is no "should" left to ignore.
+When the caller must tell absence from a real `0` or `false`, the choice is still deliberate: return `Int?`, or,
+if absence is a bug rather than a case, `crash`.
 
 D28: **`assert` is banned in a constructor**, including the entry class's own (D29). A constructor is setup, not
 logic: if something can be invalid inside one, function logic has been put where only setup belongs. The caller
@@ -520,8 +543,9 @@ crash  database.connect()        # falsey: halt
 
 The compiler captures the condition's source text and every operand value, so nothing has to be written and
 nothing can drift out of sync. Bare `crash` is legal for an unreachable branch and reports its enclosing
-context. `crash user` narrows a `T?` exactly as `assert user` does, but never returns -- which is what
-fills the gap D27 opens, since a function returning `Int` can then guard without widening its signature.
+context. `crash user` narrows a `T?` exactly as `assert user` does, but never returns -- which filled the gap
+D27 opened, since a function returning `Int` could then guard without widening its signature (D106 has since
+let `assert` guard there too, returning the default).
 
 Absence is fine -> `assert`. Absence is a bug -> `crash`. Absence is meaningful -> `if ... do`.
 
@@ -556,7 +580,7 @@ ring buffer**: a crash happens once and then the program is dead, so it should b
 while a narrowing assert may fire thousands of times an hour and must stay cheap until something dumps it.
 
 **Current implementation (2026-09-20).** `crash` itself is implemented -- the keyword, narrowing, bare `crash`
-for an unreachable branch, and the compiler enforcing D27/D28/D29 -- but the reporting above is not yet. A
+for an unreachable branch, and the compiler enforcing D28/D29 and D106 -- but the reporting above is not yet. A
 firing `crash` flushes stdout, writes one line to stderr, and exits with status 1:
 
 ```
@@ -2861,3 +2885,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D106** (decided by Mortaro, overriding D27's limit where they meet): **an `if` whose whole body returns the default value is an `assert`, and the compiler forces it.** "how comes we keep getting away with `if handle == -1 { return false }` -- compiler should be as pissed at you as i am right now it should force `assert handle != -1`." An `if` with no `else` whose body is only `return` with the return type's default (`false`, `0`, `""`, `null`, or nothing) is an error naming the `assert` of the opposite condition, wherever it stands in the function, not only as its last statement. `assert` therefore works in a function returning any type and returns that type's default, which relaxes D27 ("assert only in functions returning nothing or `T?`"). |
 | 2026-09-24 | (Mortaro) **A comparison of Go's standard library with Spite's**, "so i decide what we offer": `mortaros_go_standard_library_comparison.md`. |
 | 2026-09-24 | (Mortaro, correcting his own spelling) **`operating_system`, not `operational_system`**: "i think the correct term is operating_system and i misspelled this, correct me when i misspell." Every `operational_system` (the `Environment` field of D80, the compiler flag) becomes `operating_system`, which D86 already uses. |
+| 2026-09-24 | **D106 as built** (interpretations proposed by Claude, unconfirmed): **the defaults the rule covers are the literals `false`, `0`, `0.0`, `""` and `null`, and a bare `return`** -- `null` only in a function returning `T?`, where it is the default, and not an enum's first value, an empty list or a fresh object, which are defaults too but are not written as one literal. **The condition is turned around by swapping the comparison** (`==`/`!=`, `<`/`>=`, `>`/`<=`), dropping a leading `not`, adding `not` otherwise, and by De Morgan for `and`/`or`, side by side (`a and b or not c` becomes `(not a or not b) and c`), which reads better than `not (...)` wrapping when the sides are comparisons, as they mostly are. **An `else if` whose body only returns the default is covered too**, as the parser's older bare-`return` rule already did; that rule moved from the parser into the generator, which knows the return type. **In a constructor the message names `crash`**, since D28 still bans `assert` there. The D27 error is gone. **134 sites were rewritten** across `bootstrap/`, `library/` (the linux and mac folders included), `examples/`, `conformance/` and `docs/`, plus the `all_` step of fused chains, which the compiler writes as Spite and now writes as `assert`; 18 `crash x` and `assert x` lines and one `if x` that repeated an `assert x` the rewrite had just made were removed or unwrapped, since they proved nothing. **Every rewritten guard is now an `assert` site**: a failed one enters the D25 trace ring, and a crash after it reports it; no expected output in the repository changed. |

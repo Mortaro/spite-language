@@ -181,9 +181,7 @@ func parse_top_level_statement(): Syntax.Statements.Statement {
 }
 
 func at_singleton_line(): Bool {
-    if not check('identifier') or current().lexeme != "singleton" {
-        return false
-    }
+    assert check('identifier') and current().lexeme == "singleton"
     var following = next_kind()
     return following == 'newline' or following == 'end_of_file' or following == 'comment'
 }
@@ -590,32 +588,8 @@ func parse_union_declaration(): Syntax.Statements.Statement {
 
 func parse_if_statement(): Syntax.Statements.Statement {
     advance()
-    var first_token = position
     var condition = parse_expression()
-    var condition_text = source_text_between(first_token, position)
-    var statement = parse_if_statement_with_condition(condition)
-    reject_returning_guard(statement, condition_text)
-    return statement
-}
-
-func reject_returning_guard(statement: Syntax.Statements.Statement, condition_text: String) {
-    var written = shape.as_if_statement(statement)
-    assert written
-    assert not (written.has_else_branch or written.then_branch.count() != 1)
-    var only = shape.as_return_statement(written.then_branch[0])
-    assert only
-    var returned = only.value
-    assert not returned
-    var proven = condition_text
-    if proven.starts_with("not ") {
-        var proven_length = proven.length()
-        proven = proven.slice(4, proven_length)
-    } else {
-        proven = "not ({proven})"
-    }
-    fail(
-        "this 'if' only leaves the function: write 'assert {proven}' instead, and let the rest of the function run unindented",
-    )
+    return parse_if_statement_with_condition(condition)
 }
 
 func parse_if_statement_with_condition(condition: Syntax.Expressions.Expression): Syntax.Statements.Statement {
@@ -947,9 +921,7 @@ func try_parse_type_quiet(): Syntax.Types.Type? {
         var type_reference: Syntax.Types.Type = Syntax.Types.GenericType(token.text)
         return type_reference
     }
-    if not check('identifier') {
-        return null
-    }
+    assert check('identifier')
     var path = List<String>()
     path.append("{advance().text}")
     var continue_dots = true
@@ -966,9 +938,7 @@ func try_parse_type_quiet(): Syntax.Types.Type? {
             continue_dots = false
         }
     }
-    if not ok {
-        return null
-    }
+    assert ok
     var arguments = try_parse_generic_argument_list_quiet()
     var type_reference: Syntax.Types.Type = Syntax.Types.NamedType(path, arguments)
     return with_nullable_suffix(type_reference)

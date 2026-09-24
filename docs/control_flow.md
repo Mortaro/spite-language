@@ -28,9 +28,7 @@ func IfNarrowing() {
 }
 
 func find_name(missing: Bool): String? {
-    if missing {
-        return null
-    }
+    assert not missing
     return "kal"
 }
 ```

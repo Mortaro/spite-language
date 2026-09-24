@@ -263,9 +263,7 @@ parameter named after a segment of its name becomes one more template, exactly l
 
 ```spite title=list_average/list.spite
 func average_member(member: Symbol): Float {
-    if item_count == 0 {
-        return 0.0
-    }
+    assert item_count != 0
     var total = 0.0
     var index = 0
     while index < item_count {

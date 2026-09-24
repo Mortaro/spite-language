@@ -175,9 +175,7 @@ func json_escape(code: Int): String {
     if code == 9 {
         return "\\t"
     }
-    if code < 0 or code >= 32 {
-        return ""
-    }
+    assert code >= 0 and code < 32
     var digits = "0123456789abcdef"
     return "\\u00{digits.character_at(code / 16)}{digits.character_at(code % 16)}"
 }

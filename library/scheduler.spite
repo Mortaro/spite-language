@@ -24,9 +24,7 @@ func start() {
 }
 
 func suspends_here(): Bool {
-    if not started or fibers_alive == 0 and not serving {
-        return false
-    }
+    assert started and (fibers_alive != 0 or serving)
     return current_thread() == scheduler_thread
 }
 
@@ -36,13 +34,9 @@ func current_fiber(): Long {
 
 func spawn(entry: Long, argument: Long): Long {
     start()
-    if current_thread() != scheduler_thread {
-        return 0
-    }
+    assert current_thread() == scheduler_thread
     var fiber = create_fiber(entry, argument)
-    if fiber == 0 {
-        return 0
-    }
+    assert fiber != 0
     fibers_alive = fibers_alive + 1
     runnable.prepend(current)
     switch_to(fiber)
@@ -93,9 +87,7 @@ func sleep(milliseconds: Int) {
 
 func offload(call: Long, entry: Long): Bool {
     var thread = start_thread(entry, call)
-    if thread == 0 {
-        return false
-    }
+    assert thread != 0
     offloads.append(call)
     offload_fibers.append(current)
     suspend()
@@ -167,8 +159,6 @@ func timeout(): Int {
         }
         index = index + 1
     }
-    if earliest < now {
-        return 0
-    }
+    assert earliest >= now
     return earliest - now
 }

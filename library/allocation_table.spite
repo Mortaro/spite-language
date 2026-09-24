@@ -103,9 +103,7 @@ func remember(address: Long) {
 
 func forget(address: Long): Bool {
     var slot = find(address)
-    if slot < 0 {
-        return false
-    }
+    assert slot >= 0
     memory.write_long(slots, slot * 8, 1)
     live_count = live_count - 1
     return true
@@ -175,8 +173,6 @@ func slot_of(address: Long): Long {
 }
 
 func next_slot(slot: Long): Long {
-    if slot + 1 == capacity {
-        return 0
-    }
+    assert slot + 1 != capacity
     return slot + 1
 }

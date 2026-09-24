@@ -163,8 +163,6 @@ func home_slot(key: String): Int {
 }
 
 func next_slot(slot: Int): Int {
-    if slot + 1 == slot_count {
-        return 0
-    }
+    assert slot + 1 != slot_count
     return slot + 1
 }

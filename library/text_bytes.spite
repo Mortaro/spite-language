@@ -15,9 +15,7 @@ func concat(left: String, right: String): String {
 }
 
 func equals(left: String, right: String): Bool {
-    if left.length() != right.length() {
-        return false
-    }
+    assert left.length() == right.length()
     var left_address = memory.address_of(left)
     var right_address = memory.address_of(right)
     var left_length = left.length()
@@ -42,17 +40,13 @@ func slice(text: String, start: Int, end: Int): String {
     var text_length = text.length()
     var first = clamped(start, text_length)
     var last = clamped(end, text_length)
-    if last <= first {
-        return ""
-    }
+    assert last > first
     var text_address = memory.address_of(text)
     return memory.text(text_address + first, last - first)
 }
 
 func clamped(position: Int, length: Int): Int {
-    if position < 0 {
-        return 0
-    }
+    assert position >= 0
     if position > length {
         return length
     }

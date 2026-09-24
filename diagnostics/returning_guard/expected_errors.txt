@@ -1,1 +1,1 @@
-diagnostics/returning_guard/returning_guard.spite:10:6: this 'if' only leaves the function: write 'assert not (name.is_empty())' instead, and let the rest of the function run unindented
+diagnostics/returning_guard/returning_guard.spite:8: error: this 'if' only returns: write 'assert not name.is_empty()' and let the rest run unindented (in ReturningGuard.announce)

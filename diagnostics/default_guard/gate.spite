@@ -1,0 +1,8 @@
+var size = 0
+
+func Gate(starting_size: Int) {
+    if starting_size < 0 {
+        return
+    }
+    size = starting_size
+}

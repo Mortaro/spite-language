@@ -223,9 +223,7 @@ func all_member(member: Symbol): Bool {
     var index = 0
     while index < item_count {
         var item = read_item(index)
-        if not item.attributes[member] {
-            return false
-        }
+        assert item.attributes[member]
         index = index + 1
     }
     return true
