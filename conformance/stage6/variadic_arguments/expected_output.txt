@@ -1,0 +1,11 @@
+3 a b c
+0 
+10
+scores: 7, 9
+widget gear
+gadget with 3 charges
+widget spring
+cog and pin
+18
+Aria, Bram
+4 through a function value

@@ -1,11 +1,11 @@
+generic $value_type
+
 var entry_keys = List<String>()
 var entry_values = List<$value_type>()
 var memory = Memory()
 var slots: Long = 0
 var slot_count = 0
 var used_slots = 0
-
-func Dictionary<$value_type>() {}
 
 func set(key: String, value: $value_type) {
     var existing = index_of_key(key)

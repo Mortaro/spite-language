@@ -1,0 +1,5 @@
+var total = 0
+
+func is_singleton(): Bool {
+    return true
+}

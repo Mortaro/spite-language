@@ -521,7 +521,8 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
         }
         classes.last().source_path = entry.get_file().path
         classes.last().entry_index = index
-        classes.last().codegen_names = constructor_codegen_names(entry)
+        classes.last().codegen_names = declared_codegen_names(entry)
+        classes.last().is_singleton = has_singleton_line(entry)
         classes.last().is_generic_template = not classes.last().codegen_names.is_empty()
         discovered_classes.append(entry)
         register_enums(entry)
@@ -531,26 +532,31 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
     }
 }
 
-func constructor_codegen_names(entry: Discovery.DiscoveredClass): List<String> {
+func has_singleton_line(entry: Discovery.DiscoveredClass): Bool {
     var file = entry.get_file()
     var statement_index = 0
     while statement_index < file.statements.count() {
-        var declaration = shape.as_function_declaration(file.statements[statement_index])
-        if declaration {
-            if declaration.name == entry.simple_name {
-                var names = List<String>()
-                var index = 0
-                while index < declaration.codegen_names.count() {
-                    var bare_name = without_dollar(declaration.codegen_names[index])
-                    names.append(bare_name)
-                    index = index + 1
-                }
-                return names
-            }
+        if shape.as_singleton_declaration(file.statements[statement_index]) {
+            return true
         }
         statement_index = statement_index + 1
     }
-    return List<String>()
+    return false
+}
+
+func declared_codegen_names(entry: Discovery.DiscoveredClass): List<String> {
+    var file = entry.get_file()
+    var declared = List<String>()
+    var statement_index = 0
+    while statement_index < file.statements.count() {
+        var generic_line = shape.as_generic_declaration(file.statements[statement_index])
+        if generic_line {
+            var bare_name = without_dollar(generic_line.name)
+            declared.append(bare_name)
+        }
+        statement_index = statement_index + 1
+    }
+    return declared
 }
 
 func without_dollar(name: String): String {
@@ -593,7 +599,7 @@ func generate_codegen_value(name: String, class_information: Analysis.ClassInfo)
         return bound_value
     }
     report(
-        "'${name}' is not declared on the constructor of '{class_information.simple_name}', and '$' is for generics only: a program's settings are fields of Environment -- reopen it in environment.spite with 'var {name} = ...' and read it as Environment().{name}",
+        "'{class_information.simple_name}' has no 'generic ${name}' line, and '$' is for generics only: a program's settings are fields of Environment -- reopen it in environment.spite with 'var {name} = ...' and read it as Environment().{name}",
     )
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
@@ -1808,7 +1814,8 @@ func instantiate_template(
             if parameter.type_reference {
                 var parameter_type = resolve_type(parameter.type_reference, information.namespace_dotted)
                 if parameter_type {
-                    parameters.append(Analysis.ParamInfo(parameter.name, parameter_type))
+                    var received_type = received_type(parameter, parameter_type)
+                    parameters.append(Analysis.ParamInfo(parameter.name, received_type))
                 }
             }
         }
@@ -1938,6 +1945,21 @@ func emit_pending_functions() {
     }
 }
 
+func received_type(parameter: Syntax.Statements.Parameter, resolved: Analysis.SpiteType): Analysis.SpiteType {
+    if not parameter.is_variadic {
+        return resolved
+    }
+    var listed = type_shape.as_list(resolved)
+    if listed {
+        var element = listed.get_element()
+        var spread = Analysis.Types.ListType(element)
+        spread.is_variadic = true
+        var typed: Analysis.SpiteType = spread
+        return typed
+    }
+    return resolved
+}
+
 func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, information: Analysis.ClassInfo) {
     assert not register_template(declaration, information)
     var parameters = List<Analysis.ParamInfo>()
@@ -1948,7 +1970,8 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         assert parameter.type_reference
         var parameter_type = resolve_type(parameter.type_reference, information.namespace_dotted)
         if parameter_type {
-            parameters.append(Analysis.ParamInfo(parameter.name, parameter_type))
+            var received_type = received_type(parameter, parameter_type)
+            parameters.append(Analysis.ParamInfo(parameter.name, received_type))
         } else {
             var void_type = void_type()
             parameters.append(Analysis.ParamInfo(parameter.name, void_type))
@@ -1963,7 +1986,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         }
     }
     var is_constructor = declaration.name == information.simple_name
-    if is_constructor and declaration.parameters.is_empty() and declaration.codegen_names.is_empty() and declaration.body.is_empty() {
+    if is_constructor and declaration.parameters.is_empty() and declaration.body.is_empty() {
         report(
             "'{declaration.name}' has an empty constructor: delete it. A class without a constructor is already made from its defaults",
         )
@@ -1982,8 +2005,10 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         is_constructor,
     )
     function.source_path = declaration.source_path
-    if declares_singleton(declaration) {
-        information.is_singleton = true
+    if declaration.name == "is_singleton" and information.qualified_dotted != "Spite.Class" {
+        report(
+            "a class says it is a singleton with a 'singleton' line at the top of its file, not with a function: delete 'is_singleton()' and write 'singleton' as the file's first line",
+        )
     }
     function.line = declaration.line
     if is_constructor {
@@ -2021,7 +2046,7 @@ func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String):
                 return null
             }
         }
-        report("'${generic_name}' is not declared on this class's constructor, so it cannot be used as a type")
+        report("this class has no 'generic ${generic_name}' line, so '${generic_name}' cannot be used as a type")
         return null
     }
     var named = shape.as_named_type(type_reference)
@@ -3643,6 +3668,10 @@ func generate_argument_list(
     class_information: Analysis.ClassInfo,
 ): List<String> {
     var result = List<String>()
+    var variadic = variadic_list(expected_types)
+    if variadic {
+        return generate_spread_arguments(arguments_ast, expected_types, variadic, scope, class_information)
+    }
     if arguments_ast.count() != expected_types.count() {
         report("this call passes {arguments_ast.count()} argument(s), but {expected_types.count()} are expected")
         return result
@@ -3656,6 +3685,85 @@ func generate_argument_list(
     return result
 }
 
+func variadic_list(expected_types: List<Analysis.SpiteType>): Analysis.SpiteType? {
+    assert not expected_types.is_empty()
+    var last_type = expected_types.last()
+    var listed = type_shape.as_list(last_type)
+    if listed {
+        if listed.is_variadic {
+            return last_type
+        }
+    }
+    return null
+}
+
+func generate_spread_arguments(
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    expected_types: List<Analysis.SpiteType>,
+    variadic: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): List<String> {
+    var result = List<String>()
+    var fixed_count = expected_types.count() - 1
+    if arguments_ast.count() < fixed_count {
+        report("this call passes {arguments_ast.count()} argument(s), but at least {fixed_count} are expected")
+        return result
+    }
+    var elements = List<Syntax.Expressions.ListElement>()
+    var index = 0
+    while index < arguments_ast.count() {
+        if index < expected_types.count() - 1 {
+            var coerce_for_store = coerce_for_store(
+                arguments_ast[index],
+                expected_types[index],
+                scope,
+                class_information,
+            )
+            result.append(coerce_for_store)
+        } else {
+            elements.append(Syntax.Expressions.ListElement(arguments_ast[index]))
+        }
+        index = index + 1
+    }
+    if passes_whole_list(elements, variadic, scope, class_information) {
+        report(
+            "this call passes a whole {type_display_name(variadic)}, but the last parameter is written with '...', so it takes the values one by one: pass the elements themselves, separated by commas",
+        )
+        return result
+    }
+    var gathered: Syntax.Expressions.Expression = Syntax.Expressions.ListLiteralExpression(elements)
+    var gathered_code = coerce_for_store(gathered, variadic, scope, class_information)
+    result.append(gathered_code)
+    return result
+}
+
+func passes_whole_list(
+    elements: List<Syntax.Expressions.ListElement>,
+    variadic: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Bool {
+    if elements.count() != 1 {
+        return false
+    }
+    var variadic_list = type_shape.as_list(variadic)
+    crash variadic_list
+    var element_type = variadic_list.get_element()
+    if type_shape.as_list(element_type) {
+        return false
+    }
+    var only = elements.first()
+    crash only.value
+    var passed_type = lookup_static_type(only.value, scope, class_information)
+    if passed_type {
+        if type_shape.as_list(passed_type) {
+            return true
+        }
+    }
+    return false
+}
+
 func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.SpiteType> {
     var result = List<Analysis.SpiteType>()
     var index = 0
@@ -3665,19 +3773,6 @@ func parameter_types_of(parameters: List<Analysis.ParamInfo>): List<Analysis.Spi
         index = index + 1
     }
     return result
-}
-
-func declares_singleton(declaration: Syntax.Statements.FunctionDeclaration): Bool {
-    if declaration.name != "is_singleton" or declaration.parameters.count() != 0 or declaration.body.count() != 1 {
-        return false
-    }
-    var only = shape.as_return_statement(declaration.body[0])
-    if only {
-        if only.value {
-            return shape.is_true_literal(only.value)
-        }
-    }
-    return false
 }
 
 func singleton_call(target_class: Analysis.ClassInfo): String {

@@ -1,3 +1,5 @@
+singleton
+
 var memory = Memory()
 var foreign_text = ForeignText()
 
@@ -27,8 +29,4 @@ func read_line(): String? {
         return line.slice(0, line_length - 1)
     }
     return line
-}
-
-func is_singleton(): Bool {
-    return true
 }

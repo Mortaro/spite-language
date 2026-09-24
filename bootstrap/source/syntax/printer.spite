@@ -34,15 +34,8 @@ func print_statement_list(statements: List<Syntax.Statements.Statement>, depth: 
 
 func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: {
-            var text = "Generics"
-            var index = 0
-            while index < statement.names.count() {
-                text = "{text} ${statement.names[index]}"
-                index = index + 1
-            }
-            print_line(depth, text)
-        }
+        Syntax.Statements.SingletonDeclaration: print_line(depth, "Singleton")
+        Syntax.Statements.GenericDeclaration: print_line(depth, "Generic ${statement.name}")
         Syntax.Statements.VariableDeclaration: {
             print_line(depth, "VarDecl {statement.name}")
             if statement.type_reference {
@@ -148,9 +141,6 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
 
 func print_function(function: Syntax.Statements.FunctionDeclaration, depth: Int) {
     var text = "FuncDecl {function.name}"
-    if not function.codegen_names.is_empty() {
-        text = "{text}<${function.codegen_names.join(", $")}>"
-    }
     text = "{text}("
     var index = 0
     while index < function.parameters.count() {
@@ -159,6 +149,9 @@ func print_function(function: Syntax.Statements.FunctionDeclaration, depth: Int)
         }
         var parameter = function.parameters[index]
         assert parameter.type_reference
+        if parameter.is_variadic {
+            text = "{text}..."
+        }
         text = text + "{parameter.name}: {inline_type(parameter.type_reference)}"
         index = index + 1
     }

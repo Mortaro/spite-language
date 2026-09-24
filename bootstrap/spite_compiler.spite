@@ -333,7 +333,7 @@ func in_file_order(file: Syntax.SourceFile, class_name: String): Syntax.SourceFi
     var ranking = Discovery.ProgramDiscovery()
     var ordered = List<Syntax.Statements.Statement>()
     var rank = -1
-    while rank < 6 {
+    while rank < 8 {
         var index = 0
         while index < file.statements.count() {
             if ranking.order_rank(file.statements[index], class_name) == rank {

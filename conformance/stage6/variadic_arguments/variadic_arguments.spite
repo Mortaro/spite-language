@@ -1,0 +1,60 @@
+type Describable {
+    describe(): String
+}
+
+var console = Console()
+
+func VariadicArguments() {
+    log("a", "b", "c")
+    log()
+    var total = sum_all(1, 2, 3, 4)
+    console.print(total)
+    var line = labeled("scores:", 7, 9)
+    console.print(line)
+    announce(Widget("gear"), Gadget(3), Widget("spring"))
+    var first = Widget("cog")
+    var second = Widget("pin")
+    var names = name_all(first, second)
+    console.print(names)
+    var tally = Tally()
+    tally.add_all(5, 6, 7)
+    console.print(tally.total)
+    var crew = Crew("Aria", "Bram")
+    var roll_call = crew.roll_call()
+    console.print(roll_call)
+    var logger = log
+    logger("through", "a", "function", "value")
+}
+
+func log(...lines: List<String>) {
+    var line_count = lines.count()
+    var joined = lines.join(" ")
+    console.print(line_count, joined)
+}
+
+func sum_all(...values: List<Int>): Int {
+    var total = 0
+    var index = 0
+    while index < values.count() {
+        total = total + values[index]
+        index = index + 1
+    }
+    return total
+}
+
+func labeled(label: String, ...values: List<Int>): String {
+    return "{label} {values.join(", ")}"
+}
+
+func announce(...things: List<Describable>) {
+    var index = 0
+    while index < things.count() {
+        var described = things[index].describe()
+        console.print(described)
+        index = index + 1
+    }
+}
+
+func name_all(...widgets: List<Widget>): String {
+    return widgets.map_label().join(" and ")
+}

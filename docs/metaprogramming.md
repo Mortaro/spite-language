@@ -139,15 +139,19 @@ an ordinary runtime `List<T>`, walked with `while` like any other list.
 
 ## Generics and codegen values (`$`)
 
-`$name` means "replaced at code generation", and it is for generics only: its values are the ones a constructor
-declares between `<` and `>`, given positionally at the call site. A `$name` that no constructor declares is an
-error that points at [`Environment`](#program-settings-environment), which is where a program's settings live.
+`$name` means "replaced at code generation", and it is for generics only. A class declares each one on a
+`generic` line of its own at the top of the file, and a caller gives the values positionally, in the order of
+those lines: `Pair<String, Int>(...)`. A `$name` with no `generic` line is an error that points at
+[`Environment`](#program-settings-environment), which is where a program's settings live.
 
 ```spite title=generics_basics/pair.spite
+generic $left_type
+generic $right_type
+
 var left: $left_type = null
 var right: $right_type = null
 
-func Pair<$left_type, $right_type>(new_left: $left_type, new_right: $right_type) {
+func Pair(new_left: $left_type, new_right: $right_type) {
     left = new_left
     right = new_right
 }
@@ -168,6 +172,11 @@ func GenericsBasics() {
 ```output
 Aria and 42
 ```
+
+The `generic` lines come first in the file, before enums, unions, types and variables. A generic class needs
+no constructor of its own: `library/list.spite` is `generic $element_type` and its functions, and
+`List<Int>()` is made from its defaults. Writing the old `func Pair<$left_type, $right_type>(...)` form is a
+parse error that names the `generic` lines to write instead.
 
 `null` on a `$generic`-typed field means that generic's bound type's default value, not a literal `T?`
 -- provisional, see manual.md open question 1.

@@ -1,0 +1,1 @@
+diagnostics/singleton_function/ledger.spite:3: error: a class says it is a singleton with a 'singleton' line at the top of its file, not with a function: delete 'is_singleton()' and write 'singleton' as the file's first line (in Ledger.)

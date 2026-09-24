@@ -37,7 +37,9 @@ progress log, and `conformance/` is the part that demonstrably works.
 - `Name` (uppercase first letter) is a class or type, including the whole standard library.
 - `$name` is a codegen value: it is replaced at code generation time (see [Codegen values](#9-codegen-values-)).
 - `_name` is private. (This may change.)
-- Keywords: `var func return if else while switch type enum union assert crash and or not null true false` — there is
+- Keywords: `var func return if else while switch type enum union generic assert crash and or not null true false`
+  (`generic` since D87), plus `singleton`, which is a keyword only as a line of its own at the top of a file
+  (D104; it stays usable as a name, since `Spite.Class` has an attribute called `singleton`) — there is
   no `do` (second batch item 2, decided 2026-09-19: with `for` gone, `if value do name` had nothing to match, so
   `if value { } else { }` narrows in place instead, section 5). Writing `do` is a parse error naming the
   `if value { }` form.
@@ -49,6 +51,8 @@ This cannot be changed.
 
 A file contains only declarations:
 
+- a `singleton` line, when the class has one instance (section 8, D104)
+- `generic $name` lines: the codegen values a caller supplies (section 9, D87)
 - `var` declarations: the attributes of the class
 - `func` declarations: the functions of the class
 - `type`, `enum` and `union` declarations, which are namespaced under the class (`Player.Job`)
@@ -379,8 +383,8 @@ of the language held alongside it and becomes the language describing itself -- 
 class, including classes" (section 8) has always claimed. A function value carries `.name`, `.arguments` and
 `.returns` because it *is* the reflection object.
 
-This is the language's first **variadic** generic. `List<T>` and the rest take a fixed count declared on the
-constructor (section 9); `Spite.Function` is a compiler built-in and takes as many as the signature has.
+This is the language's first **variadic** generic. `List<T>` and the rest take a fixed count declared by their
+`generic` lines (section 9); `Spite.Function` is a compiler built-in and takes as many as the signature has.
 
 #### Calling one
 
@@ -421,6 +425,39 @@ function with arguments; and a class attribute initialised with a function value
 notation invented for the type syntax -- it fills a hole the reflection already had. A function whose body falls
 off the end still returns nothing in the ordinary sense (section 5); `Nothing` is how that is *named* when a
 signature or a reflection object has to say it.
+
+### Variadic arguments  **[implemented]**
+
+D90 (decided by Mortaro, 2026-09-24, answering open question 14): "variadic arguments are going to be mapped to a
+generic list so something like: `...args: List<Type or Class>`." The last parameter may be written with `...`, and
+the caller then writes its values one by one; the function receives them as an ordinary `List`:
+
+```
+func log(...lines: List<String>) {
+    var joined = lines.join(" ")
+    console.print(joined)
+}
+
+log("a", "b", "c")        # lines is ["a", "b", "c"]
+log()                     # lines is empty
+```
+
+- **The element type may be a class or a `type`** (section 7). With a `type`, each argument is whatever class
+  fits the shape, and a call on an element is dispatched to the class it really is, exactly as a `List<Shape>`
+  already dispatches: `func announce(...things: List<Describable>)` takes `announce(Widget("gear"), Gadget(3))`.
+- **Only the last parameter**, and it must be written `List<Type>`: anything else is a parse error naming the
+  form (`diagnostics/variadic_not_last`). Parameters before it are ordinary and positional.
+- Each value is an argument in every sense: it casts toward the element type like any argument (section 4), and
+  D77 still applies to it, so only a constructor may be one, one level deep (`diagnostics/variadic_mistakes`).
+- A function value keeps the spread: naming `log` and calling the value with `("x", "y")` gathers them the same
+  way (`conformance/stage6/variadic_arguments`).
+
+As implemented (proposed by Claude, unconfirmed): **passing a whole list to a `...` parameter is an error** that
+says to pass the elements, because the caller writes them one by one and there is no spread operator to ask for
+the other reading -- unless the element type is itself a list. Zero values is a legal call, giving an empty list.
+`Console.print`, `write` and `error` still take their values through the generator's own special case rather than
+through `...values: List<Printable>`: which values count as printable is a language decision
+(`mortaros_missing_decisions.md`).
 
 ### Failure: three outcomes and no others  **[partial]**
 
@@ -763,6 +800,11 @@ responds to `render()`" -- a list of components, section 17 -- without a union n
 and it makes the respond-to check section 16 item 9 promises expressible as an ordinary type rather than as
 reflection.
 
+**A `type` can be the element of a variadic parameter** (D90): `...children: List<Renderable>` takes any number
+of values of any classes that fit, written one by one, "a generic can be done over both a type or a class, but in
+the end monomorphised into each class". Each class that is passed is admitted to the shape, and each call on an
+element is compiled once per admitted class (section 5, [Variadic arguments](#variadic-arguments-implemented)).
+
 
 ## 8. Metaprogramming
 
@@ -919,6 +961,9 @@ func is_singleton(): Bool {
 }
 ```
 
+Since D104 a singleton is no longer said this way: `singleton` is a header line (below), and declaring
+`is_singleton()` in a class is an error naming it. `is_singleton()` stays the member `Spite.Class` answers.
+
 - **The set of class-level hooks is exactly the set of functions `Spite.Class` declares.** There is no keyword
   and no marker: if the name is one of those, the definition belongs to the class object; otherwise it is an
   ordinary instance function, as every function in a file has always been. Reading `Spite.Class` in the standard
@@ -950,14 +995,20 @@ compute one, and it costs the language nothing because functions already exist.
 
 ### Singletons  **[implemented]**
 
-D8 (decided by Mortaro, 2026-09-19): a singleton is declared with a class-level function (above), overriding the
-default `Spite.Class` declares.
+D104 (Mortaro, 2026-09-24, correcting an omission; superseding D8's function form): **a singleton says so with a
+`singleton` line at the top of its file**, first in D67's order -- before `generic` lines, enums, unions, types,
+variables, the constructor and functions. `is_singleton()` stays readable on `Spite.Class` (D88), answered from
+the line.
 
 ```console.spite
-func is_singleton(): Bool {
-    return true
-}
+singleton
+
+var memory = Memory()
 ```
+
+Declaring `func is_singleton()` in any class but `Spite.Class` is an error naming the line
+(`diagnostics/singleton_function`). D8 (2026-09-19) had declared it with that class-level function, overriding
+the default `Spite.Class` declares; what follows still holds for the line.
 
 - **Call sites never change.** `var console = Console()` everywhere, exactly as it reads today. A human skimming
   a call site is never told and never needs to know; the AI writing the code learns it from the class file and
@@ -973,12 +1024,13 @@ func is_singleton(): Bool {
   `Process` are not -- they are values (a path, a spawned command), and several may exist at once.
 - A later root reopening the class (section 11) may not disagree about it; that is a diagnostic. Reopening
   `Spite.Class` itself to move the default for every class at once is allowed and is D7's foot to shoot.
-- A class wanting an ordinary instance function named `is_singleton` hits the collision rule above: a diagnostic
-  naming `Spite.Class`.
+- A class wanting an ordinary instance function named `is_singleton` gets the error above, which names the
+  `singleton` line.
 
 Rejected on the way here, each for a reason worth keeping: `$singleton = true` and `$instances = 1` (`$` means
 "replaced at code generation", and a directive the compiler reads and deletes is never replaced by anything); a
-bare `singleton` first line (the file-top declaration shape D5 removed for `generics`); `func Console(): Console`
+bare `singleton` first line (the file-top declaration shape D5 removed for `generics` -- adopted after all by D67
+and D104, once `generic` lines made the header a pattern); `func Console(): Console`
 or `func Console(): Spite.Singleton` (the constructor's return type carrying the meaning -- quiet, and the second
 makes the return type describe how rather than what); `func shared_instance(): Console` (loudest and most honest,
 but "the constructor is named after the class" stops being one rule); a private constructor `func _Console()`
@@ -1079,18 +1131,20 @@ means the same. The difference a program can see is only order: a member functio
 by element. `conformance/stage6/fused_chain_allocations` pins it: four chains run a thousand times allocate
 nothing (10 allocations in all, against 16 010 step by step).
 
-## 9. Codegen values (`$`)  **[implemented; the D5/D9 form is planned]**
+## 9. Codegen values (`$`)  **[implemented]**
 
 `$name` means "replaced at code generation". That is its only meaning, everywhere it appears.
 
-D5 (decided by Mortaro, 2026-09-19): the `generics` header line is removed. D9 (decided by Mortaro, 2026-09-19):
-**the constructor declares every codegen value a caller supplies, always, even when there is only one**, in a
-`<...>` list that mirrors the call exactly.
+D87 (decided by Mortaro, 2026-09-24, superseding D9's constructor list): **a class declares each codegen value on
+a `generic` line of its own, at the top of the file**, "instead of constructor":
 
 ```weapon.spite
+generic $damage_type
+generic $is_magic
+
 var damage: $damage_type = 0
 
-func Weapon<$damage_type, $is_magic>(new_damage: $damage_type) {
+func Weapon(new_damage: $damage_type) {
     damage = new_damage
 }
 
@@ -1106,30 +1160,31 @@ func hit(): Int {
 var sword = Weapon<Magic, true>(10)
 ```
 
-- **The declaration and the call are the same shape**, so one is read against the other. The reason for declaring
-  even a single value (Mortaro): skimming a constructor is how a human sees what a class accepts, and a list of
-  one is still a list.
-- **Call sites are positional, always.** There is no named form: the constructor fixes the order, so nothing has
-  to be restated at the call. `List<Int>()`, `Weapon<Magic, true>(10)`.
+- **Every value is declared, even a single one**, so skimming the top of a file is how a human sees what a class
+  accepts. The lines come after a `singleton` line and before everything else (D67); one line declares one value.
+- **Call sites are positional, always, in the order of the lines.** There is no named form: `List<Int>()`,
+  `Weapon<Magic, true>(10)`.
 - **`$` is for generics only** (D76, decided by Mortaro, 2026-09-23, superseding D9's "undeclared means supplied
-  by a compiler flag"). Every `$name` a class uses is declared on its constructor and supplied by the caller, so
-  the constructor list is exactly "what a caller must pass". A `$name` the constructor does not declare is a
-  compile error pointing at [`Environment`](#program-settings-environment), which is where a program's settings
-  live now (`diagnostics/codegen_values`).
-- A class that takes codegen values therefore has a constructor, even if it only exists to declare them
-  (`func Pair<$left_type, $right_type>() { }`). The built-in containers declare theirs the same way:
-  `List<$element_type>`, `Dictionary<$value_type>`, `$value_type?`.
+  by a compiler flag"). Every `$name` a class uses has a `generic` line and is supplied by the caller, so the
+  lines are exactly "what a caller must pass". A `$name` with no line is a compile error pointing at
+  [`Environment`](#program-settings-environment), which is where a program's settings live now
+  (`diagnostics/codegen_values`).
+- **A class needs no constructor to take codegen values.** That was D9's cost, and the reason for D87:
+  `library/list.spite` is `generic $element_type` and its functions, and `library/dictionary.spite` is `generic
+  $value_type`; an empty constructor is still an error.
 - **Every hole must be filled.** There are no defaults. A call supplying the wrong number is a compile error
   naming the class's codegen values, in order, so the mistake is corrected from the message rather than by
   opening the class. A `$name` that is not declared is an error too -- which is what a typo like `$is_magik`
   produces.
-- Reordering a constructor's `<...>` changes what every existing positional call site means. Where the values
+- Reordering the `generic` lines changes what every existing positional call site means. Where the values
   have different kinds (a class versus a `Bool`) the compiler catches it immediately; where they are the same
   kind (`Pair<Int, String>` swapped) it compiles and means something else, and the tests are what catch it. This
   is a deliberate, accepted trade (Mortaro, 2026-09-19).
 - `--final-classes` prints each class with its codegen values already bound, which is where `true` reads as
   `is_magic` again.
-- Writing `generics` is a parse error naming this form (as `for`, `&` and `Heap<T>` already are).
+- Writing `generics` is a parse error naming this form (as `for`, `&` and `Heap<T>` already are), and so is D9's
+  `func Weapon<$damage_type, $is_magic>(...)`: the message lists the `generic` lines to write
+  (`diagnostics/constructor_codegen_list`). A `generic` line inside a function is an error too.
 
 Conditions on codegen values are decided at compile time and the untaken branch is removed (tree shaking).
 In development mode they are kept as runtime values so live reload can change them.
@@ -1141,8 +1196,10 @@ its own sake -- a codegen value is a hole, not a variable); no declaration at al
 values (`Weapon<$damage_type: Magic, $is_magic: true>`, which made every call site restate what the class already
 knew); and a class-level `generics()` function returning a list of symbols (the wrong category -- class-level
 functions answer questions *about* a class, while codegen values are inputs to constructing one, and it needed a
-second list of names kept in sync with the real holes). The constructor was where the ordered list belonged the
-whole time.
+second list of names kept in sync with the real holes). D9 then put the ordered list on the constructor, which
+forced a constructor on every generic class, even an empty one only there to hold the list; D87 moved it to one
+`generic` line per value, which is a declaration like `var` rather than a header list, and made the header a
+pattern shared with `singleton` (D104).
 
 ### Program settings: `Environment`  **[implemented]**
 
@@ -1406,10 +1463,11 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   `--final-classes` writes its classes already formatted. A list or object literal over 120 columns is written
   one entry per line with no commas. Every documentation program not marked `error` is formatted too, and `check.sh`
   keeps it so.
-- **A file is ordered** (D67, decided by Mortaro, 2026-09-23): enums, unions, types, variables, the constructor,
-  then functions. Anything out of that order is a compile error naming what came before it
-  (`diagnostics/declaration_order`). Where `union` goes was not said; beside `enum` and before `type` is
-  Claude's placement (unconfirmed). `singleton` and `generic` lines come first if open question 12 adds them.
+- **A file is ordered** (D67, decided by Mortaro, 2026-09-23): the `singleton` line (D104), `generic` lines
+  (D87), enums, unions, types, variables, the constructor, then functions. Anything out of that order is a
+  compile error naming what came before it (`diagnostics/declaration_order`). Where `union` goes was not said;
+  beside `enum` and before `type` is Claude's placement (unconfirmed). Consecutive `generic` lines stay together
+  with no blank line between them; one blank line follows the `singleton` line and the last `generic` line.
   **[implemented]**
 - One blank line between declarations at file level, except that consecutive `var` declarations may stay
   grouped with no blank line between them if they were already written that way (a blank line the source did
@@ -2427,7 +2485,7 @@ payloads to JSON on demand, since the compiler knows the schema.
     - For: one kind of member, and it composes -- a shape could then require a function value it will *store*,
       which `hit(): Int` cannot express.
 
-12. **(Answered by D87: `generic $name` header lines.)** **A header form for generics, with constraints** (Mortaro, 2026-09-23, asked to be argued with). The proposal:
+12. **(Answered by D87: `generic $name` header lines. Built 2026-09-24, section 9.)** **A header form for generics, with constraints** (Mortaro, 2026-09-23, asked to be argued with). The proposal:
     `generic $type` lines at the top of the file beside `singleton`, and a described generic
     `generic $sub_type { initial_value: Spite.Function<$sub_type> }` that narrows what may be supplied. The
     problem it solves is real: a class that takes codegen values must have a constructor to declare them, even
@@ -2452,7 +2510,7 @@ payloads to JSON on demand, since the compiler knows the schema.
     (Mortaro, 2026-09-23: "a thing for you to ask me later"). Example shape: `func from_type(type: Symbol, value:
     type.class)`. Not argued yet; waiting to be asked. D59 (arguments cast to their parameter type) is where it
     will first matter.
-14. **(Answered by D90: `...args: List<Type or Class>`.)** **An ABI for variadic arguments** (Mortaro, 2026-09-23, "fight me on this before we implement"). Proposed:
+14. **(Answered by D90: `...args: List<Type or Class>`. Built 2026-09-24, section 5.)** **An ABI for variadic arguments** (Mortaro, 2026-09-23, "fight me on this before we implement"). Proposed:
     `func hello(world: String, ...args: List<Spite.Argument<String>>)`, which would make `Spite.Argument` generic.
     Claude argues against the `Spite.Argument` part (proposed by Claude, unconfirmed): `Spite.Argument` is the
     *reflection* of a parameter -- a name and a class, known at compile time -- and a variadic argument is a
@@ -2715,5 +2773,8 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D103** (decided by Mortaro, on D35): **`Task` is too generic a name, and async waiting and threads are two things.** "we need to make a separation between async/await tasks and plain threaded tasks, unless they all are threads but in that case we need to make sure its efficient. we will later need for the nullstack clone efficient hidden async/await on db calls and so on, but super efficient threaded performance on our game engine." Hidden async/await (D99) for IO and database calls, and a separate, fast threaded form for parallel work. |
 | 2026-09-24 | **D104** (Mortaro, correcting an omission): **`singleton` is a header keyword at the top of the file**, first in D67's enforced order (`singleton`, then `generic` lines, then `enum`, ...), and `func is_singleton(): Bool { return true }` is no longer how a class says it. "you ignored my decision to use the singleton keyword on top of file with the enforced order of declarations." `is_singleton()` stays readable on `Spite.Class` as a getter (D88). |
 | 2026-09-24 | **D105** (decided by Mortaro, on D94's review): **the review's findings are confirmed and get built; the remaining proposals are decided later.** "your findings on while and if already confirmed can be worked on, and we just decide tomorrow the other ones." That covers: rewriting the 31 loops that an existing iterator replaces, flattening the 7 nested `if`/`else` that flatten, and the chains that become a `switch` today. The two proposed rules (`while` over a list, nested `if`/`else`) and `switch` over enums wait (`mortaros_review_while_and_else_if.md`). **Iterators are cumulative**: "keep in mind iterators should be cumulative (and we can optimize them into single loops on compiler time) like `map_repositories().filter_active().sum_stars()`." A chain of member templates reads as separate steps, and the compiler fuses it into one loop with no intermediate lists. |
+| 2026-09-24 | (implements D87; details proposed by Claude, unconfirmed) **`generic $name` lines are built.** `generic` is a reserved keyword; each line declares exactly one value (a comma is an error naming the next line to write); the lines come after `singleton` and before enums in D67's order; the constructor's `<...>` list is a parse error listing the `generic` lines to write; a `generic` line inside a function is an error; a generic class needs no constructor, so `library/list.spite` and `library/dictionary.spite` lost their empty ones. The seed learned the lines before `library/` used them, and the constructor form was removed a generation later. |
+| 2026-09-24 | (implements D90; details proposed by Claude, unconfirmed) **`...name: List<Type>` is built.** `...` is its own token; only the last parameter may take it, and its type must be written `List<...>`; a call gathers every argument from that position on into a new list, zero included; passing a whole list to it is an error unless the element type is itself a list; a function value keeps the spread; D77 applies to each value. `Console.print`/`write`/`error` stay special-cased, because `...values: List<Printable>` needs a decision on what `Printable` requires (`mortaros_missing_decisions.md`). |
+| 2026-09-24 | (implements D104; details proposed by Claude, unconfirmed) **the `singleton` line is built.** It is a keyword only as a file-level line holding nothing else, and stays usable as a name, since `Spite.Class` keeps an attribute called `singleton` behind `is_singleton()`; declaring `is_singleton()` in any class but `Spite.Class` is an error naming the line; a reopening may add the line. Every standard library singleton (`Console`, `Environment`, `ForeignText`, `NumberText`, `TextBytes`) moved to it. |
 | 2026-09-24 | (implements D91; the readings below proposed by Claude, unconfirmed) **The `<member>` templates are Spite in `library/list.spite`, and the generator writes none of their C.** `filter_`, `count_`, `any_`, `all_`, `sum_`, `each_`, `map_`, `find_by_` and `sort_by_` are Symbol codegen templates (`func sum_member(member: Symbol): member.class`) looping over the list's `Memory` buffer with `read_item`. The symbol in a `List` template names a member of the element, read as `item.attributes[member]` (a field, or a call to a zero-argument function); a list's own fields are its implementation, so a template of a container never binds to them. The D15 requirements are checked before the body is compiled, with the same messages, and now also cover `sort_by_` (a number or a `String`), `find_by_` (a number, `Bool`, `String`, `Symbol` or enum) and `map_` (a member that returns something). A `Dictionary` answers the names through `values()`, as before. Tree shaking is the templates' own: only called names are instantiated. A `--repl`/`--repl-port` build instantiates every fitting template for every class element of a list the loop reaches and exposes them as that list's `functions`, so the prompt can call `monsters.sum_health()` (`conformance/stage6/interactive_templates`). A program may add its own by reopening `List` in a `list.spite`. Output and memory are unchanged across the corpus; compiling the compiler is unchanged (it calls no templates). Supersedes item (3) of the containers row. Not done: D61's printing of a list's instantiated templates in `--final-classes` (the templates themselves are now readable Spite in `library/list.spite`). |
 | 2026-09-24 | (implements D105's fusion; proposed by Claude, unconfirmed) **A chain of member templates compiles to one loop.** A template called directly on a `map_`/`filter_` call chain of a `List` or `Dictionary` is compiled as one generated Spite function on the first list's class (`filter_active_then_map_lead_then_sum_age`): one `while` over the buffer, an `if` per `filter_`, a `var` per `map_`, then the last template's step, and no intermediate list. The chain's meaning stays the step-by-step one; a chain the rule cannot write (a `map_` to a member that is not a plain class, a type it cannot spell) is compiled step by step. Only the order in which member functions run differs, element by element. `conformance/stage6/fused_chains` compares chains of two to four steps with the same steps written out, and `conformance/stage6/fused_chain_allocations`, whose `allocations.txt` check.sh now enforces, runs four chains a thousand times in 10 allocations (16 010 step by step). |
