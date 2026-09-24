@@ -138,8 +138,8 @@ and balanced allocations.
       `kernel32` instead of built-in classes with hand-written bodies. Needs milestone 11a/11b. ~150 lines leave
       the runtime and the system-class special case in the generator goes with them. **D80 done (2026-09-24):**
       no `CRuntime` wrapper; `library/windows/`, `library/linux/` and `library/mac/` each reopen `File`,
-      `Directory`, `Process`, `Program`, `Console`, `String` and `Environment` with only what differs, chosen by
-      `Environment().operational_system` (the compiler's `--operational_system=` writes C for another system).
+      `Directory`, `Process`, `Program`, `Console`, `String` and `Build` with only what differs, loaded by the
+      launcher from `Build().target_operating_system` (`--target_operating_system=linux` writes C for Linux).
       Only Windows runs here; `check.sh` holds the linux and mac folders to compiling.
     - **15c.** `String`, `List<T>`, `Dictionary<T>` and the retain/release helpers move to `.spite` sources under
       a `spite/` standard library root: ~400 lines, pure algorithms over memory, expressible in the language as
@@ -221,10 +221,17 @@ and balanced allocations.
     `environment.spite`; each declared field is read at run time from the program's `--name=value`, else the
     upper-case environment variable, else its literal default. An undeclared `$name` is an error pointing at
     `Environment`; a non-compiler `--name=value` before `--` is an error; `Arguments()` answers the command line
-    anywhere. This supersedes the flag-fed half of milestone 13. **Waiting on Mortaro:** run time versus compile
-    time (the tree shaking `$serve` had is gone; `$target` and D13 still need a build-time home), the sources and
-    their order, and the literal-default typing are proposals. **Not done:** the compiler still reads its own
-    flags through `Arguments` rather than `Environment`.
+    anywhere. This supersedes the flag-fed half of milestone 13. **Then (2026-09-24): D84, D85, D86, D89 and
+    D97.** `Build` (`library/build.spite`) is the compile-time twin: every compiler option is one of its fields,
+    a program reopens it in `build.spite`, a flag before `--` sets a field, and every field folds to a constant,
+    so branches on it are tree-shaken (`conformance/stage6/build_settings`). `operating_system` and
+    `target_operating_system` replace `--operational_system`. A program is named by its folder and its entry
+    constructor takes no arguments. `launcher/launcher.spite` loads `library/`, the target system's folder and the
+    program with visible `load` calls, and `main` only constructs it. **Waiting on Mortaro:** the names `Build`
+    and `Launcher`, `mode`/`format` read from the flag alone, the bare-`Bool` flag form, the renamed flags
+    (`--final_classes`, `--repl_port`, `--format=false`), a `.spite` path still naming an entry, and the C that
+    stays in `main` (`mortaros_missing_decisions.md`). **Not done:** `main`'s floor (arguments, `_setmode`,
+    releasing singletons and class objects, the memory report) is still written in C by the compiler.
 20. **Done (2026-09-24): D87, D90 and D104, the header lines and variadic arguments** (manual.md sections 5, 8
     and 9). `generic $name` lines replace the constructor's `<...>` list (a parse error now), so a generic class
     needs no constructor; `singleton` is a header line and `func is_singleton()` an error outside
