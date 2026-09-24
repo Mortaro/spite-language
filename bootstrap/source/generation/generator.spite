@@ -1072,17 +1072,7 @@ func generate_shape_call(
     crash wanted
     var parameter_types = required_parameter_types(information, wanted)
     var return_type = required_return_type(information, wanted)
-    var function_c_name = "{information.c_name}_call_{name}"
-    if not information.caller_names.contains(name) {
-        information.caller_names.append(name)
-        var signature = "{c_type_name(return_type)} {function_c_name}({information.c_name} self"
-        var index = 0
-        while index < parameter_types.count() {
-            signature = "{signature}, {c_type_name(parameter_types[index])} argument_{index}"
-            index = index + 1
-        }
-        builder.add_prototype("{signature});")
-    }
+    var function_c_name = ensure_shape_caller(information, wanted)
     var called = generate_generic_call(
         function_c_name,
         object_result,
@@ -1095,6 +1085,85 @@ func generate_shape_call(
     )
     called.owning_override = true
     return called
+}
+
+func ensure_shape_caller(information: Analysis.UnionInfo, wanted: Syntax.Statements.FieldDeclaration): String {
+    var function_c_name = "{information.c_name}_call_{wanted.name}"
+    if not information.caller_names.contains(wanted.name) {
+        information.caller_names.append(wanted.name)
+        var parameter_types = required_parameter_types(information, wanted)
+        var return_type = required_return_type(information, wanted)
+        var signature = "{c_type_name(return_type)} {function_c_name}({information.c_name} self"
+        var index = 0
+        while index < parameter_types.count() {
+            signature = "{signature}, {c_type_name(parameter_types[index])} argument_{index}"
+            index = index + 1
+        }
+        builder.add_prototype("{signature});")
+    }
+    return function_c_name
+}
+
+func shape_function_value(
+    information: Analysis.UnionInfo,
+    wanted: Syntax.Statements.FieldDeclaration,
+    object_result: ExpressionResult,
+    object_ast: Syntax.Expressions.Expression,
+): ExpressionResult {
+    var caller = ensure_shape_caller(information, wanted)
+    var parameter_types = required_parameter_types(information, wanted)
+    var return_type = required_return_type(information, wanted)
+    var signature = Analysis.Types.ClassRefType("Spite_Function")
+    signature.has_signature = true
+    signature.arguments = parameter_types
+    signature.returns = return_type
+    if type_shape.is_void(return_type) {
+        signature.returns = Analysis.Types.ClassRefType("Nothing")
+    }
+    var maker = "spite_function_value_{caller}"
+    if not function_value_makers.contains(maker) {
+        function_value_makers.append(maker)
+        var argument_class = find_class_by_c_name("Spite_Argument")
+        crash argument_class
+        var class_type = class_type_of(argument_class)
+        var arguments_list_name = ensure_list(class_type)
+        var returned = signature.returns
+        crash returned
+        var lines = List<String>()
+        lines.append("Spite_Function* {maker}({information.c_name} owner) \{")
+        lines.append(
+            "Spite_Function* described = Spite_Function_make({ensure_symbol(wanted.name)}, {class_object_call(returned)});",
+        )
+        var parameter_index = 0
+        while parameter_index < parameter_types.count() {
+            var argument_symbol = ensure_symbol("argument_{parameter_index}")
+            lines.append(
+                "{arguments_list_name}_append(described->_arguments, Spite_Argument_make({argument_symbol}, {class_object_call(parameter_types[parameter_index])}));",
+            )
+            parameter_index = parameter_index + 1
+        }
+        lines.append("described->spite_owner = {information.c_name}_retain(owner);")
+        lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}_release;")
+        if parameter_types.is_empty() and type_shape.is_void(return_type) {
+            lines.append("described->spite_call = (void (*)(void*)){caller};")
+        }
+        lines.append("described->spite_typed_call = (void*){caller};")
+        lines.append("return described;")
+        lines.append("}")
+        builder.add_prototype("Spite_Function* {maker}({information.c_name} owner);")
+        var joined_lines = lines.join("\n")
+        builder.add_support(joined_lines)
+    }
+    var code = "{maker}({object_result.code})"
+    if owns(object_result, object_ast) {
+        var owner_temporary = next_temporary()
+        var value_temporary = next_temporary()
+        code = "(\{ {information.c_name} {owner_temporary} = {object_result.code}; Spite_Function* {value_temporary} = {maker}({owner_temporary}); {information.c_name}_release({owner_temporary}); {value_temporary}; })"
+    }
+    var typed: Analysis.SpiteType = signature
+    var made = ExpressionResult(code, typed)
+    made.owning_override = true
+    return made
 }
 
 func emit_shape_callers(information: Analysis.UnionInfo) {
@@ -2191,6 +2260,14 @@ func bound_member_is_function(): Bool {
     crash owner_shape
     assert find_required_function(owner_shape, bound_field_name)
     return true
+}
+
+func is_shape_member_read(expression: Syntax.Expressions.Expression): Bool {
+    assert not bound_member_owner_c_name.is_empty()
+    assert find_union_by_c_name(bound_member_owner_c_name)
+    var indexed = shape.as_index(expression)
+    assert indexed
+    return is_bound_member_index(indexed)
 }
 
 func is_caller_call(expression: Syntax.Expressions.Expression): Bool {
@@ -5204,9 +5281,12 @@ func instantiate_element_template(
 ): Analysis.FunctionInfo? {
     var member_name = template.member_name_for(name)
     var element_class = element_class_of(element)
+    var element_shape = shape_of(element)
     var member_type: Analysis.SpiteType? = null
     if element_class {
         member_type = member_type_of(element_class, member_name)
+    } else if element_shape {
+        member_type = shape_member_type(element_shape, member_name)
     }
     var caller_function = caller_function_for(caller, member_name, element)
     var element_label = type_display_name(element)
@@ -5226,13 +5306,12 @@ func instantiate_element_template(
         )
         return null
     }
-    crash element_class
     crash member_type
     var existing = list_class.find_function(name)
     if existing {
         return existing
     }
-    var is_field = is_field_of(element_class, member_name)
+    var is_field = element_member_is_field(element, member_name)
     var requirement = member_requirement(template.prefix, is_field, member_name, member_type)
     if not requirement.is_empty() {
         report(
@@ -5240,7 +5319,38 @@ func instantiate_element_template(
         )
         return null
     }
-    return instantiate_template(list_class, template, member_name, member_type, element_class.c_name, name, "")
+    var owner_c_name = element_owner_c_name(element)
+    return instantiate_template(list_class, template, member_name, member_type, owner_c_name, name, "")
+}
+
+func shape_of(spite_type: Analysis.SpiteType): Analysis.UnionInfo? {
+    var shaped_union = type_shape.as_union(spite_type)
+    assert shaped_union
+    var shaped = find_union_by_c_name(shaped_union.c_name)
+    assert shaped
+    assert shaped.is_shape
+    return shaped
+}
+
+func element_member_is_field(element: Analysis.SpiteType, member_name: String): Bool {
+    var element_class = element_class_of(element)
+    if element_class {
+        return is_field_of(element_class, member_name)
+    }
+    var element_shape = shape_of(element)
+    crash element_shape
+    assert not find_required_function(element_shape, member_name)
+    return true
+}
+
+func element_owner_c_name(element: Analysis.SpiteType): String {
+    var element_class = element_class_of(element)
+    if element_class {
+        return element_class.c_name
+    }
+    var element_shape = shape_of(element)
+    crash element_shape
+    return element_shape.c_name
 }
 
 func instantiate_caller_template(
@@ -8315,7 +8425,7 @@ func try_path_guard(
     class_information: Analysis.ClassInfo,
 ): NullableGuard? {
     var path = operand_text(condition_ast)
-    assert not path.is_empty() and not is_caller_call(condition_ast)
+    assert not path.is_empty() and not is_caller_call(condition_ast) and not is_shape_member_read(condition_ast)
     var links = path_links(condition_ast, class_information.namespace_dotted)
     var probe_scope = Scope(scope)
     var tests = List<String>()
@@ -10769,6 +10879,10 @@ func generate_union_dispatch(
                 scope,
                 class_information,
             )
+        }
+        var wanted = find_required_function(information, member_name)
+        if wanted {
+            return shape_function_value(information, wanted, object_result, object_ast)
         }
         return generate_shape_read(information, member_name, object_result, object_ast)
     }

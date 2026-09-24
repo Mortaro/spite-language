@@ -1,0 +1,33 @@
+type Runnable {
+    name: String
+    active: Bool
+    run_once()
+    label(): String
+}
+
+var console = Console()
+
+func ShapeMembers() {
+    var stages = List<Runnable>()
+    stages.append(Stage("physics"))
+    stages.append(Stage("render"))
+    run_first(stages)
+    var names = stages.map_name()
+    var labels = stages.map_label()
+    var joined_names = names.join(",")
+    var joined_labels = labels.join(",")
+    console.print(joined_names, joined_labels)
+    var active_names = stages.filter_active().map_name()
+    var joined_active = active_names.join(",")
+    var total = stages.count_active()
+    console.print(joined_active, total)
+}
+
+func run_first(stages: List<Runnable>) {
+    assert stages[0]
+    var work = Parallel(stages[0].run_once)
+    work.wait()
+    var labelled = stages[0].label
+    var text = labelled()
+    console.print(text, stages[0].name)
+}

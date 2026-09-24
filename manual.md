@@ -895,6 +895,12 @@ of values of any classes that fit, written one by one, "a generic can be done ov
 the end monomorphised into each class". Each class that is passed is admitted to the shape, and each call on an
 element is compiled once per admitted class (section 5, [Variadic arguments](#variadic-arguments-implemented)).
 
+**A shape's members behave as a class's do** (proposed by Claude, unconfirmed, 2026-09-24): a required function
+read without calling it is a function value bound to the value (D17), dispatched on the value's class when it is
+called, so `Parallel(stages[index].run_once)` infers its codegen value from it; and a `List` of a `type` answers
+the member templates over the attributes and the argument-free functions the type names
+(`conformance/stage6/shape_members`).
+
 
 ## 8. Metaprogramming
 
@@ -3354,3 +3360,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (proposed by Claude, unconfirmed; found building an ECS whose query rows are `type`s) **A Symbol template may range over a `type`.** `attribute: Symbol<$row_type>` with `$row_type` bound to `type Target { health: Health  alive: Alive }` answered nothing, so `fill_attributes(row, store)` was "no function". A shape now ranges like a class: its attributes, plus required functions that take no arguments for a single name; `row.attributes[attribute]` goes through the shape's reader, writer or caller; the plural walks its attributes in declaration order. `conformance/stage6/shape_attributes`, `docs/metaprogramming.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; extends D75) **`value == Storage<Health>` names a generic class without calling it.** `Storage<Health> {` used to parse as a comparison chain ending in an object literal, and with a `$` argument the object-literal loop never advanced past its first error, so the compiler hung. The right side of `==`/`!=` now reads `Name<values>` without parentheses as the class, `$` values included, so `if found == Storage<$component_type> { return found }` narrows a shape back to the generic class; the form anywhere else is an error saying to call it. A test through a `type` admits a fitting class to it. Every parser loop now stops at its first error, so a parse error can no longer hang (`diagnostics/generic_class_in_comparison`). `conformance/stage6/generic_class_test`, `docs/control_flow.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; the ECS needed a type's name without a value) **`$component_type.name` reads the bound class.** A member read through a codegen value that is a type goes to that type's `Spite.Class`, the way a class name does (`Hello.name`), so `var sample: $component_type = null` and `sample.class.name` are no longer needed to name it. The bare `$component_type` stays an error as a value. `conformance/stage6/codegen_class_name`, `docs/metaprogramming.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; the ECS runs systems held in a `List` of a `type`) **A shape's required function is a function value, and a `List` of a shape has member templates.** `Parallel(stage[index].run_once)` on a `List<Runnable>` read `run_once` as an attribute, so the codegen value could not be inferred; it is now a `Spite.Function` bound to the value, whose call goes through the shape's dispatcher. `stages.map_name()`, `filter_active()` and the other templates range over the shape's attributes and argument-free required functions, read through the shape. `conformance/stage6/shape_members`, `docs/values_and_types.md`. |
