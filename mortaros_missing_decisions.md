@@ -353,3 +353,35 @@ Behaviour that does not match the manual. The language was not changed; each is 
 86. **`Clock()`'s names**: `elapsed_nanoseconds()`, `elapsed_milliseconds()` (monotonic) and
     `unix_milliseconds()` (wall clock). Keep them? And should the current date broken into year, month, day,
     hour, minute and second live here too, or is the Unix time enough until something needs a calendar?
+
+## From the Vulkan renderer bugs (manual sections 11, 12, 13, 15 and 17)
+
+87. **A loaded package cannot find its own folder at run time.** SlopEngine locates its shader sources by
+    reopening `Build` with `var slop_folder = "../../slop"`, a copy of its `load` literal that breaks when the
+    loader moves. Proposal: `Spite.Namespace.folder` -- the folder a namespace was loaded from, as the compiler
+    resolved it -- or the `load` path available per namespace some other way. Which, if either?
+88. **A loaded folder that is itself a program merges into the loader.** A test program that `load`s a game
+    folder, and has its own root `composition.spite` or `plugin.spite`, silently reopens the game's classes of
+    the same name (reopening, by design), which cost SlopEngine a debugging round. Master now makes reopening
+    the entry class an error; this is the same trap one level down. Proposal: a loaded folder that has an entry
+    file (a file named after the folder) keeps its root classes to itself, or merging with it must be asked for.
+    Related to item 82.
+89. **Where a program runs, and where its build goes.** The compiler now finds `launcher/` and `library/` from its
+    own executable (the first folder above it holding `launcher/launcher.spite`, else the working directory),
+    the program runs in the caller's folder, and the build still goes to the language repository's
+    `.spite-cache/`, so a run leaves nothing in the caller's folder. Should the cache instead live beside the
+    program (`game/.spite-cache/`), which is where a user would look for the built executable?
+90. **The compiler's own C names use `___`, and a name has one `_` between words.** `allocate`, `make`,
+    `retain`, `release` and the rest are ordinary method names now, and `hit__count`, `__strike` and `strike_`
+    are naming errors. `init` stays an abbreviation error and `default` a C keyword error, so neither became a
+    legal method name. Is the stricter snake_case rule fine?
+91. **A foreign call with a header goes through the header's prototype.** C checks the count and converts each
+    argument; converting an integer to a pointer (a `Long` handle) is the one complaint silenced, so a `String`
+    passed where C wants an `int` is converted silently too. A C function returning `void` reads as `0`. Every
+    called function must be declared by the header, so a header that does not declare one is a C error at build
+    time. Without a header, integers cross as 64 bits. Fine, or should the header be required whenever a call
+    passes anything but a `Long`?
+92. **`Memory`'s new widths are named after the types**: `read_short`, `read_unsigned_short`, `read_unsigned_int`,
+    `read_float` and their `write_*`, beside `read_int`. `Tiny` and `UnsignedLong` have none, since `read_byte`
+    and `read_long` hold the same bits. A variable cannot be named `unsigned_int_bits` (`int` abbreviates), but
+    these follow the type names, as `read_int` already did. Keep, or `read_unsigned_integer`?
