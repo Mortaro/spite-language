@@ -10,7 +10,7 @@ whose only value is the literal `null`, so everything that works on a union work
 empty state of a `T?`; every other type has a default value instead (`0`, `""`, `false`, a class's field
 defaults).
 
-```
+```gdscript
 var target: Monster? = null
 
 func find_target(): Monster? {
@@ -21,7 +21,7 @@ func find_target(): Monster? {
 A `T?` must be **narrowed** before a member is read, a function is called on it, or it is printed. There is no
 `value == null` -- comparing against `null` is an error naming the forms below:
 
-```spite title=null_comparison_error/null_comparison_error.spite entry error
+```gdscript title=null_comparison_error/null_comparison_error.spite entry error
 var console = Console()
 
 func NullComparisonError() {
@@ -53,14 +53,14 @@ There is one rule, and every form below follows it.
 
 `assert value and other_condition` narrows too, and `other_condition` already sees the narrowed type.
 
-```spite title=nullable_narrowing/monster.spite
+```gdscript title=nullable_narrowing/monster.spite
 var health = 10
 
 func Monster(starting_health: Int) {
     health = starting_health
 }
 ```
-```spite title=nullable_narrowing/nullable_narrowing.spite entry
+```gdscript title=nullable_narrowing/nullable_narrowing.spite entry
 var console = Console()
 
 func NullableNarrowing() {
@@ -107,7 +107,7 @@ both `start.next` and `start.next.next` are plain values for the rest of the blo
 prefixes, nothing else -- a sibling path stays a `T?`. `while current` narrows its body the same way, and is how a
 linked chain is walked:
 
-```spite title=path_narrowing_doc/node.spite
+```gdscript title=path_narrowing_doc/node.spite
 var name = ""
 var next: Node? = null
 
@@ -115,7 +115,7 @@ func Node(new_name: String) {
     name = new_name
 }
 ```
-```spite title=path_narrowing_doc/path_narrowing_doc.spite entry
+```gdscript title=path_narrowing_doc/path_narrowing_doc.spite entry
 var console = Console()
 
 func PathNarrowingDoc() {
@@ -155,14 +155,14 @@ error, because the next pass would read it unproven: narrow it inside the loop i
 Narrow the name or the path itself, never a copy of it: a local that only copies a value so it can be narrowed
 is an error.
 
-```spite title=copy_to_narrow_error/tracker.spite
+```gdscript title=copy_to_narrow_error/tracker.spite
 var drops = 0
 
 func note_a_drop() {
     drops = drops + 1
 }
 ```
-```spite title=copy_to_narrow_error/copy_to_narrow_error.spite entry error
+```gdscript title=copy_to_narrow_error/copy_to_narrow_error.spite entry error
 var tracker: Tracker? = null
 
 func CopyToNarrowError() {
@@ -188,7 +188,7 @@ or an `assert` on a plain `Tracker`.
 A `var` may shadow a name in the same scope, and the new binding may hold a different type. That is how a
 narrowed `String?` becomes the `String` it computes, without inventing a second name:
 
-```spite title=shadowing_doc/shadowing_doc.spite entry
+```gdscript title=shadowing_doc/shadowing_doc.spite entry
 var console = Console()
 
 func ShadowingDoc() {
@@ -227,7 +227,7 @@ path. The compiler also understands the usual proofs, so most reads need nothing
 - A `Bool?` cannot be a condition: `if flags[index]` would test that the element is there, not that it is true.
   Prove it is there first, or compare it: `flags[index] == true`.
 
-```spite title=index_reads_doc/index_reads_doc.spite entry
+```gdscript title=index_reads_doc/index_reads_doc.spite entry
 var console = Console()
 
 func IndexReadsDoc() {
@@ -261,7 +261,7 @@ ada is 36
 whole test, and is `false` when there is no name. Only the comparison is exempt -- reading a member through a `T?`
 still needs it narrowed, and so does assigning through one.
 
-```spite title=nullable_comparison/nullable_comparison.spite entry
+```gdscript title=nullable_comparison/nullable_comparison.spite entry
 var console = Console()
 
 func NullableComparison() {
@@ -295,7 +295,7 @@ its return type's default immediately -- `false`, `0`, `""`, `null`, an empty va
 after it runs. It works in a function returning any type, and a failed one is remembered for the crash report
 ([below](#what-a-crash-reports)).
 
-```spite title=assert_guard/assert_guard.spite entry
+```gdscript title=assert_guard/assert_guard.spite entry
 var console = Console()
 var handle = -1
 
@@ -334,7 +334,7 @@ bare `return` in a function returning nothing -- is a guard spelled the long way
 it stands, inside a loop or a nested `if` included, and the message names the `assert` of the opposite
 condition. Returning anything else (`return -1`, `return true`) is a real answer and is left alone:
 
-```spite title=default_guard_error/default_guard_error.spite entry error
+```gdscript title=default_guard_error/default_guard_error.spite entry error
 var console = Console()
 var handle = -1
 
@@ -356,7 +356,7 @@ this 'if' only returns the default 'false': write 'assert handle != -1' and let 
 
 The fix reads top to bottom:
 
-```spite title=default_guard_fixed/default_guard_fixed.spite entry
+```gdscript title=default_guard_fixed/default_guard_fixed.spite entry
 var console = Console()
 var handle = -1
 
@@ -383,7 +383,7 @@ becomes `x`, and `and`/`or` are turned around side by side -- `if count < 0 or c
 A function whose *last* statement is `if value { ... }` with no `else` -- wrapping the rest of the function only
 to check that something exists -- is a compile error too, naming the `assert` that lets the rest run unindented:
 
-```spite title=terminal_if_error/terminal_if_error.spite entry error
+```gdscript title=terminal_if_error/terminal_if_error.spite entry error
 var console = Console()
 
 func TerminalIfError() {
@@ -405,7 +405,7 @@ func announce() {
 write 'assert maybe_name' and let the rest of the function run unindented
 ```
 
-```spite title=terminal_if_fixed/terminal_if_fixed.spite entry
+```gdscript title=terminal_if_fixed/terminal_if_fixed.spite entry
 var console = Console()
 
 func TerminalIfFixed() {
@@ -435,7 +435,7 @@ belongs, and the caller would receive an object with every field at its default 
 properly built one. So `assert` in a constructor is an error, and so is an `if` that only leaves it; the message
 names `crash` for when absence there is a bug:
 
-```spite title=constructor_assert_error/constructor_assert_error.spite entry error
+```gdscript title=constructor_assert_error/constructor_assert_error.spite entry error
 var console = Console()
 var ready = false
 
@@ -455,7 +455,7 @@ condition is false, the program halts. The compiler captures the condition's sou
 operands, so nothing has to be written and nothing can drift out of date. `crash false` marks a branch that
 cannot happen (a bare `crash` is formatted to it).
 
-```spite title=crash_guard/crash_guard.spite entry
+```gdscript title=crash_guard/crash_guard.spite entry
 var console = Console()
 var names = Dictionary<String>()
 

@@ -1,6 +1,6 @@
 # Functions and operators
 
-```
+```gdscript
 func function_name(first: Reference, second: Value): Tiny {
     return 1
 }
@@ -11,7 +11,7 @@ func function_name(first: Reference, second: Value): Tiny {
   the end without a `return` gets its return type's defensive default, with no diagnostic.
 - A function with no return type returns nothing.
 
-```spite title=missing_colon_error/missing_colon_error.spite entry error
+```gdscript title=missing_colon_error/missing_colon_error.spite entry error
 func add_one(value: Int) Int {
     return value + 1
 }
@@ -29,12 +29,12 @@ its owner and nothing else. Its type is written like any generic, with the retur
 nothing and returns nothing. Calling it is `change(text)` or `change.call_function(text)`, which are the same
 call; and the value is also its own reflection, with `.name`, `.arguments` and `.returns`.
 
-```spite title=function_values_doc/shouter.spite
+```gdscript title=function_values_doc/shouter.spite
 func shout(text: String): String {
     return "{text.upper_case()}!"
 }
 ```
-```spite title=function_values_doc/function_values_doc.spite entry
+```gdscript title=function_values_doc/function_values_doc.spite entry
 var console = Console()
 
 func FunctionValuesDoc() {
@@ -75,7 +75,7 @@ A last parameter written `...name: List<Type>` takes every remaining argument, w
 and the function receives them as an ordinary `List<Type>`. `Type` may be a class or a `type`: with a `type`,
 each argument is any class that fits it, and a call on an element answers for the class it really is.
 
-```spite title=variadic_doc/variadic_doc.spite entry
+```gdscript title=variadic_doc/variadic_doc.spite entry
 type Named {
     name: String
 }
@@ -102,7 +102,7 @@ func greet(...visitors: List<Named>) {
     }
 }
 ```
-```spite title=variadic_doc/guest.spite
+```gdscript title=variadic_doc/guest.spite
 var name = ""
 
 func Guest(new_name: String) {
@@ -119,7 +119,7 @@ hello Bram
 Only the last parameter can take `...`, and it always receives a `List`. The values are passed one by one, so
 passing a whole list to it is an error; a parameter written without `...` takes a list as it is.
 
-```spite title=variadic_not_a_list/variadic_not_a_list.spite entry error
+```gdscript title=variadic_not_a_list/variadic_not_a_list.spite entry error
 func VariadicNotAList() {
     shout("a", "b")
 }
@@ -149,7 +149,7 @@ Every operator is a shortcut for a function a class can define to support it:
 call of the matching function, and the right side still casts toward the parameter type like any other
 argument:
 
-```spite title=operators_as_functions/money.spite
+```gdscript title=operators_as_functions/money.spite
 var cents = 0
 
 func Money(starting_cents: Int) {
@@ -168,7 +168,7 @@ func greater_than(other: Money): Bool {
     return cents > other.cents
 }
 ```
-```spite title=operators_as_functions/operators_as_functions.spite entry
+```gdscript title=operators_as_functions/operators_as_functions.spite entry
 var console = Console()
 
 func OperatorsAsFunctions() {
@@ -189,14 +189,14 @@ greater true
 
 Missing the function is a diagnostic that names exactly what to define:
 
-```spite title=operator_missing_error/money.spite
+```gdscript title=operator_missing_error/money.spite
 var cents = 0
 
 func Money(starting_cents: Int) {
     cents = starting_cents
 }
 ```
-```spite title=operator_missing_error/operator_missing_error.spite entry error
+```gdscript title=operator_missing_error/operator_missing_error.spite entry error
 var console = Console()
 
 func OperatorMissingError() {
@@ -215,7 +215,7 @@ Attribute access **from outside a class** also goes through operator-style funct
 function always wins over Symbol codegen. Compound assignment goes through both: `person.age = person.age + 1`
 reads through `get_age()` and writes through `set_age(...)`.
 
-```spite title=interception/account.spite
+```gdscript title=interception/account.spite
 var balance = 0
 var owner = ""
 
@@ -244,7 +244,7 @@ func get_owner(): String {
 outside the class. `owner` has exact functions instead, which always win over Symbol codegen, so every name
 written through `set_owner` is capitalized.
 
-```spite title=interception/interception.spite entry
+```gdscript title=interception/interception.spite entry
 var console = Console()
 
 func Interception() {
@@ -269,7 +269,7 @@ value, so a getter may compute and hand back a fresh `String` or `List` as safel
 read-only. That is how reflection keeps `Spite.Class.name` from being overwritten
 ([reflection.md](reflection.md#reflection-is-read-only)):
 
-```spite title=read_only_doc/temperature.spite
+```gdscript title=read_only_doc/temperature.spite
 var _celsius = 0.0
 
 func Temperature(starting_celsius: Float) {
@@ -280,7 +280,7 @@ func get_fahrenheit(): Float {
     return _celsius * 9.0 / 5.0 + 32.0
 }
 ```
-```spite title=read_only_doc/read_only_doc.spite entry
+```gdscript title=read_only_doc/read_only_doc.spite entry
 var console = Console()
 
 func ReadOnlyDoc() {
@@ -292,14 +292,14 @@ func ReadOnlyDoc() {
 212
 ```
 
-```spite title=read_only_error/temperature.spite
+```gdscript title=read_only_error/temperature.spite
 var _celsius = 0.0
 
 func get_fahrenheit(): Float {
     return _celsius * 9.0 / 5.0 + 32.0
 }
 ```
-```spite title=read_only_error/read_only_error.spite entry error
+```gdscript title=read_only_error/read_only_error.spite entry error
 func ReadOnlyError() {
     var boiling = Temperature()
     boiling.fahrenheit = 50.0
@@ -315,7 +315,7 @@ There is no overloading: one name is one function. An argument is cast to its pa
 right-to-left rule ([values_and_types.md](values_and_types.md#numeric-types-and-the-casting-rule)), so a
 function that takes a `Float` takes an `Int` too:
 
-```spite title=argument_casting/argument_casting.spite entry
+```gdscript title=argument_casting/argument_casting.spite entry
 var console = Console()
 
 func ArgumentCasting() {

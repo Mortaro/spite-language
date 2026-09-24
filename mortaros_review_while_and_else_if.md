@@ -38,6 +38,23 @@ and the lookups still wait.
 
 Line numbers are still those of 122c39f.
 
+## Built (D113)
+
+Templates now take a function of the caller that receives the element and nothing else
+(`names.each_say_hello()`), and a `while` written only to do that is an error naming the template (manual
+section 8, "A function of the caller for each element"). What that did to the 145 loops of the first (b) row:
+
+- **Rewritten: 2.** `generator.spite` `collect_body_facts` is `statements.each_collect_statement_facts()`, and
+  `docs/reflection.md`'s `function_reflection` is `functions.each_describe()`. They are the only two loops in the
+  tree that pass *just* the element to a function of the *caller*; the rule found no others. The review's
+  estimate of "about 4" also counted `examples/calculator/calculator.spite:8` (`evaluator.process_line(...)`,
+  a function of another object) and `emit_functions_function_bodies` (a worklist that grows while it is drained,
+  with an attribute as the counter), which the rule rightly leaves alone.
+- **Unchanged: 143.** They pass more than the element (`depth`, `scope`, `class_information`, an index), call a
+  function of another object, or do more than one thing per element. The (b) row now reads 143, the (b) total
+  308, and the grand total 470. How a template could carry `depth` is item 57 in
+  `mortaros_missing_decisions.md`.
+
 **How it was measured.** A script walked every `.spite` file in `bootstrap/`, `library/` (with the OS folders),
 `scripts/`, `tests/`, `examples/`, `conformance/`, `diagnostics/` and every ` ```spite ` block in `docs/`, at
 `master` 122c39f. It extracted each `while`, each `if` chain with an `else if`, and each `if`/`else` sitting
@@ -51,7 +68,7 @@ each way. Line numbers are from 122c39f and will drift while other sessions rewr
 
 | | Count | Replaceable today | Replaceable with something new | Genuine |
 |---|---|---|---|---|
-| `while` loops | 472 | **31** (a) | 310 (b) | 131 (c) |
+| `while` loops | 470 (472 before D113) | **31** (a) | 308 (b) | 131 (c) |
 | `else if` chains (91 `else if`s) | 41 | 8 by a `switch` over a union | 4 by a `switch` over an **enum** (not supported yet), 4 by a lookup | 25 |
 | nested `if`/`else` in an `if`/`else` | 16 | 7 flatten or dedupe | | 9 would become a function |
 
@@ -81,7 +98,7 @@ function_information)`). The templates cannot express that. So:
 
 | Directory | (a) today | (b) with something new | (c) genuine | Total |
 |---|---|---|---|---|
-| `bootstrap/` | 25 | 244 | 60 | 329 |
+| `bootstrap/` | 25 | 243 | 60 | 328 |
 | `library/` | 2 | 12 | 60 | 74 |
 | `library/windows`, `linux`, `mac` | 0 | 0 | 3 | 3 |
 | `scripts/` | 0 | 10 | 1 | 11 |
@@ -89,8 +106,8 @@ function_information)`). The templates cannot express that. So:
 | `examples/` | 0 | 10 | 2 | 12 |
 | `conformance/` | 3 | 19 | 1 | 23 |
 | `diagnostics/` | 0 | 3 | 2 | 5 |
-| `docs/` code blocks | 0 | 5 | 0 | 5 |
-| **Total** | **31** | **310** | **131** | **472** |
+| `docs/` code blocks | 0 | 4 | 0 | 4 |
+| **Total** | **31** | **308** | **131** | **470** |
 
 ### Counts per reason
 
@@ -100,7 +117,7 @@ function_information)`). The templates cannot express that. So:
 | (a) | `copy()` of the list, then `prepend(...)` | 6 |
 | (a) | `copy()`, or `copy()` then `remove_last()` (all but the last element) | 5 |
 | (a) | `map_`, `filter_().map_()`, `sum_`, `remove_last()` + `join` | 6 |
-| (b) | passes each element to a function of the caller (usually with more arguments) | 145 |
+| (b) | passes each element to a function of the caller (usually with more arguments); 2 more became `each_` templates (D113) | 143 |
 | (b) | needs the index in the body (returns it, prints it, compares it) | 35 |
 | (b) | a range of numbers, not a list (`tick < 3`, `index < 1000`) | 28 |
 | (b) | stops early (a flag in the condition, or a `return` from a test that is not one member) | 28 |
@@ -272,7 +289,7 @@ func final_class_directory(path: String): String {
 
 For each need: what it is, one real example, and whether I think it is worth adding.
 
-**Passes each element to a function of the caller (145).** The template would need to take a function instead
+**Passes each element to a function of the caller (145; 143 after D113, which built the 2 that pass just the element).** The template would need to take a function instead
 of naming a member. The only form that fits Spite is a named function bound to its instance (D17; D62 rules
 out lambdas). `examples/calculator/calculator.spite:8`:
 

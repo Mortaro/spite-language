@@ -13,14 +13,14 @@ no garbage collector and no pause.
 Two names can hold the same object. A mutation through either one shows up through the other, because there is
 only ever one object:
 
-```spite title=sharing_basics/box.spite
+```gdscript title=sharing_basics/box.spite
 var label = "unnamed"
 
 func Box(starting_label: String) {
     label = starting_label
 }
 ```
-```spite title=sharing_basics/sharing_basics.spite entry
+```gdscript title=sharing_basics/sharing_basics.spite entry
 var console = Console()
 
 func SharingBasics() {
@@ -44,14 +44,14 @@ whether they are the same object. A `String` always compares by content.
 itself a reference). `deep_copy()` recurses, giving every reference-kind attribute its own independent copy
 too:
 
-```spite title=copy_basics/box.spite
+```gdscript title=copy_basics/box.spite
 var label = "unnamed"
 
 func Box(starting_label: String) {
     label = starting_label
 }
 ```
-```spite title=copy_basics/copy_basics.spite entry
+```gdscript title=copy_basics/copy_basics.spite entry
 var console = Console()
 
 func CopyBasics() {
@@ -75,7 +75,7 @@ forever, so break the cycle by hand first if you need to deep-copy one.
 A class may define a zero-argument `func drop() { ... }` for cleanup (closing a handle, clearing a
 back-reference). The compiler calls it automatically the moment the last reference goes away -- never by name:
 
-```spite title=drop_basics/resource.spite
+```gdscript title=drop_basics/resource.spite
 var console = Console()
 var name = "unnamed"
 
@@ -87,7 +87,7 @@ func drop() {
     console.print("dropped", name)
 }
 ```
-```spite title=drop_basics/drop_basics.spite entry
+```gdscript title=drop_basics/drop_basics.spite entry
 var console = Console()
 
 func DropBasics() {
@@ -105,13 +105,13 @@ dropped first
 A tree, a linked list, or any other recursive structure needs nothing beyond an ordinary field, since a field of
 a class type already holds a reference:
 
-```spite title=tree_basics/tree_node.spite
+```gdscript title=tree_basics/tree_node.spite
 union TreeNode {
     Leaf
     Branch
 }
 ```
-```spite title=tree_basics/leaf.spite
+```gdscript title=tree_basics/leaf.spite
 var held_value = 0
 
 func Leaf(starting_value: Int) {
@@ -122,7 +122,7 @@ func total(): Int {
     return held_value
 }
 ```
-```spite title=tree_basics/branch.spite
+```gdscript title=tree_basics/branch.spite
 var left: TreeNode? = null
 var right: TreeNode? = null
 
@@ -142,7 +142,7 @@ func total(): Int {
     return result
 }
 ```
-```spite title=tree_basics/tree_basics.spite entry
+```gdscript title=tree_basics/tree_basics.spite entry
 var console = Console()
 
 func TreeBasics() {
@@ -184,7 +184,7 @@ that it would not do for yours -- read `library/list.spite` for a complete one.
 A type's storage is attributes at the top of its file (D108). `library/string.spite` starts with the memory a
 `String` holds:
 
-```spite
+```gdscript
 var _bytes: Long = 0
 var _length: Long = 0
 var _section: Spite.Memory.Section = 'heap'
@@ -205,7 +205,7 @@ nothing else holds the text.
 
 `library/int.spite` starts with the memory an `Int` is:
 
-```spite
+```gdscript
 var _memory = Memory().allocate_bytes(4)
 ```
 
@@ -232,7 +232,7 @@ free. Every number file says the same with its own width (`Long` 8, `Short` 2, `
 A ring buffer that keeps the last few values it was given, whose slots are on the heap, and a sum whose
 numbers the compiler places in the function's frame, so the live allocations do not move while it runs:
 
-```spite title=ring_buffer_program/ring_buffer.spite
+```gdscript title=ring_buffer_program/ring_buffer.spite
 generic $value_type
 
 var memory = Memory()
@@ -276,7 +276,7 @@ func drop() {
     memory.free(slots)
 }
 ```
-```spite title=ring_buffer_program/ring_buffer_program.spite entry
+```gdscript title=ring_buffer_program/ring_buffer_program.spite entry
 var console = Console()
 
 func RingBufferProgram() {
@@ -328,7 +328,7 @@ its object; a `String` with its characters; a number held in a local with the lo
 where a program reads it, so it costs nothing anywhere else. A class with an attribute of its own named
 `memory` (most of the standard library holds one) answers that attribute instead.
 
-```spite title=memory_sections/memory_sections.spite entry
+```gdscript title=memory_sections/memory_sections.spite entry
 var console = Console()
 
 func MemorySections() {

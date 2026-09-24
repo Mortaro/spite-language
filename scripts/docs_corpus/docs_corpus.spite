@@ -38,8 +38,12 @@ func read_page(path: String) {
     var index = 0
     while index < lines.count() {
         var opening = lines[index]
-        if opening.starts_with("```spite title=") {
+        if opening.starts_with("```gdscript title=") {
             index = read_block(lines, index, opening)
+        } else if opening.starts_with("```spite") {
+            console.error("{path}: tag a Spite block 'gdscript', which GitHub highlights, not 'spite': {opening}")
+            Program().exit(1)
+            return
         } else if opening.starts_with("```wire ") {
             index = read_wire(lines, index, opening)
         } else {
@@ -49,7 +53,7 @@ func read_page(path: String) {
 }
 
 func read_block(lines: List<String>, opening_index: Int, opening: String): Int {
-    var marker_length = "```spite title=".length()
+    var marker_length = "```gdscript title=".length()
     var opening_length = opening.length()
     var header = opening.slice(marker_length, opening_length)
     var words = header.split(" ")

@@ -183,7 +183,7 @@ function whose body the compiler supplies -- the floor that stays C, such as `Me
 to its class as the compiler's own reopening, and is printed as a declaration without a body. The printed
 `memory.spite` begins:
 
-```
+```gdscript
 singleton
 
 func text(address: Long, length: Long): String {

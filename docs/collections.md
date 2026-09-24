@@ -9,7 +9,7 @@ exactly what a list does; write your own container the same way ([memory.md](mem
 
 A list literal is written with commas on one line, or one entry per line with no commas:
 
-```
+```gdscript
 var primes = [2, 3, 5, 7]
 var names = [
     "ada"
@@ -52,7 +52,7 @@ time however many keys there are -- it is a hash table over two lists.
 | `keys()` / `values()` | `List<String>` / `List<T>` | a fresh list, in insertion order |
 | `copy()` / `deep_copy()` | `Dictionary<T>` | |
 
-```spite title=dictionary_tasks/dictionary_tasks.spite entry
+```gdscript title=dictionary_tasks/dictionary_tasks.spite entry
 var console = Console()
 
 func DictionaryTasks() {
@@ -90,7 +90,8 @@ not zero. `has(key)` asks the question directly.
 
 ## Member templates: loops you do not write
 
-A list of a class answers a family of functions named after the element's members. `chores.count_done()` counts
+A list of a class answers a family of functions named after the element's members (or after a function of your
+own, [below](#a-function-of-yours-for-each-element)). `chores.count_done()` counts
 the chores whose `done` is true, `items.sum_price()` adds up their prices, and `repositories.map_name()` collects
 their names. A **member** is an attribute or a function that takes no arguments -- the two are the same to a
 template, since reading an attribute already goes through its getter -- and a template is compiled only for the
@@ -110,7 +111,7 @@ names a program calls.
 A member that does not fit is a compile error naming the member, what it is, and what the template needs.
 `count_` on a number is one of them, and names `sum_` instead: `count()` is only ever a collection's size.
 
-```spite title=list_helpers/chore.spite
+```gdscript title=list_helpers/chore.spite
 var title = ""
 var done = false
 
@@ -123,7 +124,7 @@ func finish() {
     done = true
 }
 ```
-```spite title=list_helpers/list_helpers.spite entry
+```gdscript title=list_helpers/list_helpers.spite entry
 var console = Console()
 
 func ListHelpers() {
@@ -153,7 +154,7 @@ first title write docs
 all done now true
 ```
 
-```spite title=list_query/item.spite
+```gdscript title=list_query/item.spite
 var name = ""
 var price = 0
 var in_stock = false
@@ -164,7 +165,7 @@ func Item(new_name: String, new_price: Int, new_in_stock: Bool) {
     in_stock = new_in_stock
 }
 ```
-```spite title=list_query/list_query.spite entry
+```gdscript title=list_query/list_query.spite entry
 var console = Console()
 
 func ListQuery() {
@@ -201,10 +202,10 @@ sword 50
 once more, not copied. A `Dictionary<T>` answers every template through its values: `inventory.sum_price()` is
 `inventory.values().sum_price()`.
 
-```spite title=template_mistake/repository.spite
+```gdscript title=template_mistake/repository.spite
 var stars = 0
 ```
-```spite title=template_mistake/template_mistake.spite entry error
+```gdscript title=template_mistake/template_mistake.spite entry error
 var console = Console()
 
 func TemplateMistake() {
@@ -217,6 +218,82 @@ func TemplateMistake() {
 but 'count_' needs it to return Bool (to add up a numeric member use 'sum_stars')
 ```
 
+## A function of yours for each element
+
+The member a template names can also be a function of the class the call is written in, when it takes the
+element and nothing else. With `func say_hello(name: String)` in the class, `names.each_say_hello()` calls
+`say_hello` once for every name, in order; there is no `say_hello_to_everyone` to write. This works on a list of
+anything -- text and numbers included, which have no members of their own for a template to name -- and every
+template takes such a function the way it takes a member: `filter_`, `count_`, `any_` and `all_` a function
+returning `Bool`, `sum_` one returning a number, `map_` one returning a value, `find_by_(value)` and `sort_by_`
+one returning something comparable.
+
+```gdscript title=caller_function/caller_function.spite entry
+var console = Console()
+
+func CallerFunction() {
+    var names = ["Ada", "Grace", "Barbara"]
+    names.each_say_hello()
+    var short_names = names.filter_is_short()
+    var joined = short_names.join(", ")
+    console.print("short:", joined)
+    var letters = names.filter_is_short().map_measure().sum_double_of()
+    console.print("letters, doubled:", letters)
+}
+
+func say_hello(name: String) {
+    console.print("hello, {name}")
+}
+
+func is_short(name: String): Bool {
+    return name.length() < 6
+}
+
+func measure(name: String): Int {
+    return name.length()
+}
+
+func double_of(value: Int): Int {
+    return value * 2
+}
+```
+```output
+hello, Ada
+hello, Grace
+hello, Barbara
+short: Ada, Grace
+letters, doubled: 16
+```
+
+Which function a name means is never a guess. The element's own member is looked for, then the calling class's
+function; when both exist, the call is an error asking to rename one, so adding a member to a class can never
+quietly change what a template somewhere else calls. The template sees only the element: a function that needs
+more, such as `print_statement(statement, depth)`, is still called from a `while`.
+
+A loop written only to do this is an error that names the template: a counter from `0` to `list.count()`, and a
+body that passes `list[counter]` -- directly, or through one `var` -- to one function of the class and adds one to
+the counter.
+
+```gdscript title=caller_function_loop/caller_function_loop.spite entry error
+var console = Console()
+
+func CallerFunctionLoop() {
+    var names = ["Ada", "Grace"]
+    var index = 0
+    while index < names.count() {
+        say_hello(names[index])
+        index = index + 1
+    }
+}
+
+func say_hello(name: String) {
+    console.print("hello, {name}")
+}
+```
+```diagnostic
+this 'while' only calls 'say_hello' with each element of 'names': write 'names.each_say_hello()'
+```
+
 ## Chains run as one loop
 
 Every template takes what the one before it gives, so they chain: `map_<member>()` turns a list of teams into a
@@ -225,7 +302,7 @@ as the separate steps it is written as -- that is what it means -- but the compi
 the first list**, with no list in between: `teams.filter_active().map_lead().sum_age()` visits each team once,
 reads its lead, and adds the age, allocating nothing.
 
-```spite title=fused_chain/person.spite
+```gdscript title=fused_chain/person.spite
 var name = ""
 var age = 0
 
@@ -234,7 +311,7 @@ func Person(new_name: String, new_age: Int) {
     age = new_age
 }
 ```
-```spite title=fused_chain/team.spite
+```gdscript title=fused_chain/team.spite
 var active = false
 var lead = Person("", 0)
 
@@ -243,7 +320,7 @@ func Team(new_active: Bool, new_lead: Person) {
     lead = new_lead
 }
 ```
-```spite title=fused_chain/fused_chain.spite entry
+```gdscript title=fused_chain/fused_chain.spite entry
 var console = Console()
 
 func FusedChain() {
@@ -279,7 +356,7 @@ Symbol codegen template ([metaprogramming.md](metaprogramming.md)) whose paramet
 it -- the field itself, or a call to the zero-argument function. `filter_member` answers `filter_in_stock`,
 `filter_is_popular` and every other `filter_<member>` call:
 
-```
+```gdscript
 func filter_member(member: Symbol<$element_type>): List<$element_type> {
     var filtered = List<$element_type>()
     var index = 0
@@ -294,6 +371,11 @@ func filter_member(member: Symbol<$element_type>): List<$element_type> {
 }
 ```
 
+The same template answers a function of the calling class. For `names.each_say_hello()` the compiler compiles
+`each_member` once more for that class, with the caller passed in beside the list, and
+`item.attributes[member]` reads as `say_hello(item)` on it -- so a template a program adds answers both kinds of
+member without being written twice. A chain that uses one is still one loop.
+
 `values` is the list's `TypedMemory<$element_type>`: `values.read_value(items, index)` reads the element in slot
 `index` of the list's buffer, retained, the same way a container of your own would
 ([memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it)); everything else is written in the file. A
@@ -306,7 +388,7 @@ A program reopens `List` by putting a `list.spite` in its own folder, and a func
 `Symbol<$element_type>` parameter named after a segment of its name becomes one more template, exactly like the
 library's:
 
-```spite title=list_average/list.spite
+```gdscript title=list_average/list.spite
 func average_member(member: Symbol<$element_type>): Float {
     assert item_count != 0
     var total = 0.0
@@ -319,14 +401,14 @@ func average_member(member: Symbol<$element_type>): Float {
     return total / item_count
 }
 ```
-```spite title=list_average/score.spite
+```gdscript title=list_average/score.spite
 var points = 0
 
 func Score(new_points: Int) {
     points = new_points
 }
 ```
-```spite title=list_average/list_average.spite entry
+```gdscript title=list_average/list_average.spite entry
 var console = Console()
 
 func ListAverage() {
@@ -344,7 +426,7 @@ func ListAverage() {
 The `<$element_type>` is what makes it a member of the element. A plain `member: Symbol` would name one of the
 list's own attributes, which are its buffer, so it is an error that says what to write:
 
-```spite title=plain_symbol_template/list.spite
+```gdscript title=plain_symbol_template/list.spite
 func total_member(member: Symbol): Int {
     var total = 0
     var index = 0
@@ -356,7 +438,7 @@ func total_member(member: Symbol): Int {
     return total
 }
 ```
-```spite title=plain_symbol_template/plain_symbol_template.spite entry error
+```gdscript title=plain_symbol_template/plain_symbol_template.spite entry error
 var console = Console()
 
 func PlainSymbolTemplate() {

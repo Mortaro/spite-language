@@ -24,7 +24,7 @@ work anywhere:
 
 So an entry constructor with parameters is an error that names all three:
 
-```spite title=entry_arguments_error/entry_arguments_error.spite entry error
+```gdscript title=entry_arguments_error/entry_arguments_error.spite entry error
 var console = Console()
 
 func EntryArgumentsError(name: String) {
@@ -45,7 +45,7 @@ complicated splits it into functions it calls, and then reads as a table of cont
 the compiler runs it (`spite game -- ada --player=knight`). `count()` and `get(index)` read them by position, and
 `.player` reads the value of `--player=...` as a `String?`: `null` when the flag was not given.
 
-```spite title=raw_arguments/raw_arguments.spite entry vars=player:knight,rounds:3
+```gdscript title=raw_arguments/raw_arguments.spite entry vars=player:knight,rounds:3
 var console = Console()
 
 func RawArguments() {
@@ -74,12 +74,12 @@ A program's settings are the fields of `Environment`, a singleton in the standar
 it with a file of its own named `environment.spite`, holding one `var` per setting with a literal default, and
 reads it with `Environment()` anywhere:
 
-```spite title=program_settings/environment.spite
+```gdscript title=program_settings/environment.spite
 var endpoint = "local"
 var workers = 1
 var verbose = false
 ```
-```spite title=program_settings/program_settings.spite entry vars=endpoint:production,verbose:true
+```gdscript title=program_settings/program_settings.spite entry vars=endpoint:production,verbose:true
 var console = Console()
 var environment = Environment()
 
@@ -111,10 +111,10 @@ annotation included, is an error naming the three forms. A value that is not of 
 nothing sensible to continue with. The values are read when the program runs, so `if environment.verbose` is an
 ordinary `if`, with both branches compiled in.
 
-```spite title=setting_type_error/environment.spite
+```gdscript title=setting_type_error/environment.spite
 var workers: Int = 1
 ```
-```spite title=setting_type_error/setting_type_error.spite entry error
+```gdscript title=setting_type_error/setting_type_error.spite entry error
 var console = Console()
 var environment = Environment()
 
@@ -133,13 +133,13 @@ singleton in the standard library (`library/build.spite`) whose fields are decid
 into the program as constants. Every compiler option is one of them ([compiler.md](compiler.md#build-options)),
 and a program adds its own by reopening `Build` in a file named `build.spite`:
 
-```spite title=build_settings/build.spite
+```gdscript title=build_settings/build.spite
 var serve = false
 ```
-```spite title=build_settings/environment.spite
+```gdscript title=build_settings/environment.spite
 var name = "client"
 ```
-```spite title=build_settings/build_settings.spite entry build=serve:true vars=serve:false,name:tester
+```gdscript title=build_settings/build_settings.spite entry build=serve:true vars=serve:false,name:tester
 var console = Console()
 var build = Build()
 var environment = Environment()
@@ -167,7 +167,7 @@ changes nothing. `name` belongs to `Environment`, so it is still read when the p
 - The value has to be of the field's type (`--workers=many` for an `Int` is a compile error), a flag naming a
   field of `Environment` is a compile error that says to pass it after `--`, and a flag naming no field at all is
   a compile error listing the fields `Build` has. A typo never passes silently.
-```spite title=unknown_flag_error/unknown_flag_error.spite entry error build=verbos:true
+```gdscript title=unknown_flag_error/unknown_flag_error.spite entry error build=verbos:true
 var console = Console()
 
 func UnknownFlagError() {
@@ -189,7 +189,7 @@ program is compiled for: `"windows"`, `"linux"` or `"mac"`. The target defaults 
 `--target_operating_system=linux` compiles for Linux from any machine. Both are constants, so a condition on
 them keeps one branch:
 
-```spite title=target_system/target_system.spite entry
+```gdscript title=target_system/target_system.spite entry
 var console = Console()
 var build = Build()
 
@@ -214,7 +214,7 @@ section.
 Nothing about starting a program is hidden in the compiler. Running one is itself a Spite program,
 `launcher/launcher.spite` at the root of the repository, and its constructor is the whole story:
 
-```
+```gdscript
 func Launcher() {
     load("library")
     load("library/{Build().target_operating_system}")
@@ -235,7 +235,7 @@ A `load` in the launcher may use text and the `Build` fields the compiler knows 
 the program's entry class (and runs the `--repl` loop around it, when asked), and the executable's `main` does
 nothing but construct `Launcher`.
 
-```spite title=loaded_program/loaded_program.spite entry
+```gdscript title=loaded_program/loaded_program.spite entry
 var console = Console()
 var build = Build()
 

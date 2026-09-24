@@ -111,7 +111,7 @@ Configuration files are ordinary classes whose constructor sets the state.
 
 ## 4. Variables and values  **[implemented]**
 
-```
+```gdscript
 var variable_name = "lorem ipsum"
 var inline_list = [1, 2, 3, 4]
 var multiline_list = [
@@ -136,7 +136,7 @@ var target: Monster? = null
   decided 2026-09-19), **and a `var` may shadow a name in the same scope too** (D51, decided by Mortaro,
   2026-09-20). The second binding may hold a different type, which is what makes it worth having:
 
-```
+```gdscript
 var content = file.read()        # String?
 assert content
 var content = content.trim()     # String
@@ -154,7 +154,7 @@ var content = content.trim()     # String
 
 There is no cast syntax. The right side is always cast toward the left side.
 
-```
+```gdscript
 func sum(a: Int, b: Float): Int {
     return a + b        # b is cast to Int
 }
@@ -234,7 +234,7 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Int { ret
 
 ## 5. Functions  **[implemented]**
 
-```
+```gdscript
 func function_name(first: Reference, second: Value): Tiny {
     return 1
 }
@@ -254,7 +254,7 @@ func function_name(first: Reference, second: Value): Tiny {
 - `assert condition` is a production feature, not a debug one: when the condition is falsey the function returns
   the default value of its return type immediately.
 
-```
+```gdscript
 func sum_positives(a: Float, b: Float): Float {
     assert a > 0 and b > 0
     return a + b
@@ -272,7 +272,7 @@ other_condition` narrows `value` too, and `other_condition` itself already sees 
 the narrowed name to `null` afterward is a diagnostic (there is no way back to `T?` in the same
 scope).
 
-```
+```gdscript
 var content = program_file.read()
 assert content
 var length = content.length()          # content is a String here, not String?
@@ -316,7 +316,7 @@ a lint error.
 `return` in a function returning nothing -- is a compile error wherever it stands in the function, inside a
 `while` or a nested `if` included, and the message names the `assert` of the opposite condition:
 
-```
+```gdscript
 func is_open(): Bool {
     if handle == -1 {        # error: this 'if' only returns the default 'false':
         return false         #        write 'assert handle != -1' and let the rest run unindented
@@ -449,7 +449,7 @@ console.log(pretty_print)        # passes this instance's pretty_print
 **A function value is an instance of `Spite.Function`** (D39, decided by Mortaro, 2026-09-20), generic over its
 arguments and its return, so the type of a function is written the same way any other generic type is:
 
-```
+```gdscript
 func log(printer: Spite.Function<String, Bool>)
 ```
 
@@ -514,7 +514,7 @@ D90 (decided by Mortaro, 2026-09-24, answering open question 14): "variadic argu
 generic list so something like: `...args: List<Type or Class>`." The last parameter may be written with `...`, and
 the caller then writes its values one by one; the function receives them as an ordinary `List`:
 
-```
+```gdscript
 func log(...lines: List<String>) {
     var joined = lines.join(" ")
     console.print(joined)
@@ -574,7 +574,7 @@ The reason is the code the limit produced: `if handle == -1 { return false }` re
 spelled as an indented `if`, so the limit never removed the ambiguity, it only hid the guard. D106 makes that
 `if` an error naming its `assert` (section 5, "An `if` that only returns the default is an `assert`").
 
-```
+```gdscript
 func is_open(): Bool {
     assert handle != -1              # a failed assert returns false
     return true
@@ -786,7 +786,7 @@ That is all an enum is; the integer it compiles to is a representation detail.
 Tagged unions. A `switch` must cover every member and narrows the value inside each case.
 When every member has the same function or attribute (same signature), it can be used directly on the union.
 
-```
+```gdscript
 union Enemy {
     Player
     Monster
@@ -826,7 +826,7 @@ Memory safety is done with unions instead of borrow checking noise: `T?` is the 
 **`Monster?` is a union, and `Nullable<T>` is gone** (D45, decided by Mortaro, 2026-09-20). A `?` suffix is
 sugar for the union of a type and nothing:
 
-```
+```gdscript
 var target: Monster? = null
 
 func find_target(): Monster? {
@@ -852,7 +852,7 @@ replacement when a parent already declares the same name); and `Monster.Maybe` a
 
 ### Inline types and duck typing  **[implemented]**
 
-```
+```gdscript
 type System {
     query: Query
     with: Dictionary<Class>
@@ -872,7 +872,7 @@ An object literal has no class of its own, so it answers `Object`.
 **A `type` may require functions, not only attributes** (D16, decided by Mortaro, 2026-09-19; implemented), matched by shape
 exactly as an attribute-only `type` is:
 
-```
+```gdscript
 type Renderable {
     render(): Element
 }
@@ -1035,7 +1035,7 @@ Weapon.attributes['damage']    # the Spite.Attribute that describes the field
   of the class-level mapping -- keyed by symbol, and what it answers for a field the instance has not set -- still
   needs design; see PLAN.md milestone 10.]**
 
-```
+```gdscript
 func describe(person: Person) {
     var attributes = person.attributes
     var index = 0
@@ -1057,7 +1057,7 @@ just a function on that `Spite.Class` object, and `Spite.Class` is where it is d
 A class file may **override** one of those functions for its own class object, the same way any class reopens
 another (section 11):
 
-```spite/class.spite
+```gdscript/class.spite
 func is_singleton(): Bool {
     return false
 }
@@ -1164,7 +1164,7 @@ func get_attribute(attribute: Symbol): attribute.class {
 }
 ```
 
-```
+```gdscript
 var person = Person(1)
 person.set_age(2)
 ```
@@ -1194,7 +1194,7 @@ than beside it:
   `attributes` already means "all of them" in, which is why it was chosen over a new keyword or loop form: the
   old compile-time-unrolled `for instance.attributes` went with `for`, and this is its replacement without one.
 
-```
+```gdscript
 func show_attribute(attribute: Symbol<Label>, label: Label, lines: List<String>) {
     lines.append("{attribute.name}: {label.attributes[attribute]}")
 }
@@ -1234,7 +1234,7 @@ nothing.
 across every element (second batch item 8, decided 2026-09-19: `count()` is only ever a collection's own size,
 and `count_<member>()` on a numeric member is a compile error naming the `sum_<member>()` fix).
 
-```
+```gdscript
 var repositories = List<Repository>()
 repositories.filter_active().sum_stars()
 repositories.each_bump_stars()
@@ -1269,6 +1269,43 @@ by element. `conformance/stage6/fused_chain_allocations` pins it: four chains ru
 nothing (11 allocations in all, the one `TypedMemory` its lists share and the `Launcher` included, against 16 010
 step by step).
 
+**A function of the caller for each element** (D113, decided by Mortaro; the resolution rule, the loop rule's
+exact shape and the reading below are proposed by Claude, unconfirmed).  **[implemented]** The member a template
+names may also be a function of the *caller* -- the class the call is written in -- that takes the element as its
+only argument. With `func say_hello(name: String)` in the class, `names.each_say_hello()` calls `say_hello(name)`
+once per element, in order; `map_` collects what such a function returns (one returning nothing is the `map_`
+error, which now names `each_`); `filter_`, `count_`, `any_` and `all_` take one returning `Bool`, `sum_` one
+returning a number, `find_by_(value)` and `sort_by_` one returning something comparable. D15's table applies
+unchanged, read as "the function's return type". This works on a list or dictionary of anything, `String` and
+numbers included, which have no members of their own for a template to name.
+
+- **Resolution.** The element's own member (field or zero-argument function) is looked up, then a function of
+  the caller with that name, one parameter, and a parameter type equal to the element type. When both exist the
+  call is an error naming both (`'each_is_adult' could call 'is_adult' of each 'Person' or this class's own
+  'is_adult(Person)': rename one of them so the template names only one`), rather than one quietly winning: D59
+  already refuses one name meaning two things, and a silent order would let a new member on the element change
+  what an unrelated caller runs. When neither exists, the error says what the caller's function of that name
+  lacks (no such function, the wrong number of arguments, or another parameter type).
+- **How it is written.** No template changes: the same `library/list.spite` template (`each_member(member:
+  Symbol<$element_type>)`) is instantiated once more per calling class, with a last hidden parameter holding the
+  caller (`self` at the call site), and `item.attributes[member]` reads as `caller.say_hello(item)`. A program's
+  own template in its `list.spite` therefore answers both kinds of member. These instances are not listed among
+  the list's `functions` (they need a caller), nor offered at a `--repl` prompt. A fused chain (D105) may mix
+  both kinds of step; a step through the caller may follow a `map_` to a number or a `String`, and the fused
+  function then takes the caller as its last parameter.
+- **The loop rule.** A `while` is an error naming the template when, exactly: the statement before it sets a
+  counter to `0` (`var index = 0` or `index = 0`); the condition is `counter < list.count()`, with `list` a name or
+  a path of type `List<T>`; and the body is `f(list[counter])` then `counter = counter + 1`, or
+  `var item = list[counter]`, `f(item)` and the increment (the increment may come right after the `var`), with
+  `f` a function of the class taking one `T` and the element having no member `f`. The message is `this 'while'
+  only calls 'say_hello' with each element of 'names': write 'names.each_say_hello()'`
+  (`diagnostics/caller_templates`). The counter may be read after the loop; only the loop is replaced.
+- **Extra arguments are not passed.** A function that needs more than the element (`print_statement(statement,
+  depth)`, the review's typical case) is not a template member, and its `while` stays. Ways to carry `depth` are
+  in `mortaros_missing_decisions.md`; none is built.
+
+`conformance/stage6/caller_templates`, `docs/collections.md`.
+
 ## 9. Codegen values (`$`)  **[implemented]**
 
 `$name` means "replaced at code generation". That is its only meaning, everywhere it appears.
@@ -1294,7 +1331,7 @@ func hit(): Int {
 }
 ```
 
-```
+```gdscript
 var sword = Weapon<Magic, true>(10)
 ```
 
@@ -1376,7 +1413,7 @@ var name = "client"
 var workers = 1
 ```
 
-```
+```gdscript
 var environment = Environment()
 
 func Dungeon() {
@@ -1431,7 +1468,7 @@ named `build.spite`:
 var serve = false
 ```
 
-```
+```gdscript
 var build = Build()
 
 func Server() {
@@ -1555,7 +1592,7 @@ stays exactly as it was. A temporary buffer a function uses and frees lands in i
 
 There are no imports. Everything lives in one global namespace, populated by loading folders.
 
-```
+```gdscript
 func Game() {
     load("package")
     load("cookie_clicker")
@@ -2129,6 +2166,9 @@ On top of `append`/`prepend`/`count`/index-read/index-write (iterate with `while
 | `map_<member>()` | `List<U>` | an `Int`/`Float`/`Bool`/`String`/enum attribute's values, one per element |
 | `any_<member>()` / `all_<member>()` | `Bool` | a `Bool` attribute, true for at least one / every element |
 
+Every `<member>` above may instead be a function of the calling class that takes one `T` (D113, section 8):
+`names.each_say_hello()` calls `say_hello(name)` for each element, for any `T`.
+
 Naming (second batch item 3, decided 2026-09-19): `add` does not say where, so it is `append` (and `prepend`);
 `pop()` became `remove_last()`, plus `remove_first()` -- writing the old names is a compile error naming the
 replacement.
@@ -2168,7 +2208,7 @@ just declares an ordinary attribute of type `T` -- no indirection needed, and no
 against (a class is always a heap object referred to by pointer, so a self-referential field is just a pointer
 like any other):
 
-```
+```gdscript
 union Expression {
     NumberExpression
     BinaryExpression
@@ -2218,7 +2258,7 @@ with nothing read). The entry constructor returning normally is exit code `0`.
 is its parent's joined with its name, so a `switch` tells the two apart and a folder is walked by calling the same
 function on it again (`conformance/stage4/directory_entries`, `docs/standard_library.md`):
 
-```
+```gdscript
 func count_files(directory: Directory): Int {
     var total = 0
     var entries = directory.entries()
@@ -2449,7 +2489,7 @@ using metaprograming to easily convert to and from json").  **[implemented]** `l
 class, and every conversion it makes is a function the compiler writes from it for the types a program actually
 uses, so a program that never names `Json` carries none of it (D42).
 
-```
+```gdscript
 var json = Json<Order>()
 var text = json.write(order)            # String: never fails
 var read = json.read(text)              # Order?: null on text that is not an Order
@@ -3263,3 +3303,9 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D109** (decided by Mortaro): **`Console.print` takes anything printable and calls its `to_string()`, and `Console.debug` prints any value's automatic `to_debug()`.** "Console.print should call the to_string automatically of anything thats passed so `type Printable { to_string: Spite.Function<String> }` but we should also have a Console.debug() and each class has an automatic to_debug(): String that returns something like `Class {attribute: value, other: value}` by nesting to_debugs until its satisfied, unless a to_json would always cover the same thing then Console.print_json could be the case but i think debug makes more sense, choose." Claude chose **`debug`**: JSON is a wire format for other systems (D95) and `to_debug()` is for a person or an AI reading state, so they stay two things. `print(...values: List<Printable>)` replaces the generator's special case (answers `mortaros_missing_decisions.md` items 13 and 56). |
 | 2026-09-24 | **D110** (decided by Mortaro): **a singleton is always bound to a variable before it is used; calling a member on `Singleton()` inline is an error.** "multiple usages of inline singletons should be a compiler crime, force it to call it on top as a var first ... actually always force singletons to be used as variables first so AI does not get tempted to inline it." `load("library/{Build().target_operating_system}")` becomes `var build = Build()` beside the attributes and `build.target_operating_system`. |
 | 2026-09-24 | (Mortaro: "foreign_text looks like a leaky abstraction, make sure we actually need that") **`ForeignText` goes; reading a zero-terminated text is a `Memory` function.** Its one function, `read(address)`, turns a C string at an address into a `String` -- a result of a foreign call, a name inside a C struct. The need is real (`Console.read_line`, `Program.environment`, each system's `Directory` listing, the leak report), but it is raw memory work, so it belongs on `Memory` beside `text(address, length)` rather than in a class of its own. |
+| 2026-09-24 | **D111** (decided by Mortaro): **live reload watches files through the operating system and rebuilds only what changed.** "we should observe file changes for hotreload based on os instead of reloading everything naively everytime." Each operating system's folder supplies its own change notification (`ReadDirectoryChangesW` on Windows, `inotify` on Linux, `FSEvents`/`kqueue` on macOS, through `DynamicLibrary`, D80), with no polling; a change rebuilds the changed classes and what depends on their layout, not the whole program, and swaps them at the next drain point (D37). |
+| 2026-09-24 | **D112** (decided by Mortaro): **hot reload has a flag of its own, `--hot_reload`**, "in case we want a simpler --repl without it." `--repl` and `--repl_port` stay plain -- no call table, no file watcher, no `reload` command -- and `--hot_reload` (a `Build` field, spelled with an underscore like every compiler option) turns those on. |
+| 2026-09-24 | (Mortaro asked; the language chosen by Claude, unconfirmed) **Spite code blocks are fenced `gdscript` so GitHub highlights them.** GitHub highlights through Linguist, which only accepts a new language once it is used across a few hundred repositories, so `spite` cannot be added yet. Mortaro suggested Go as a middle ground; rendering one Spite sample through GitHub's own renderer as Go, Swift, Kotlin, TypeScript, Python and GDScript showed GDScript reads it best -- `#` comments, `func`/`var`/`assert`/`not`/`return`, both kinds of quotes and `{}` holes -- while Go treats `#` as text and `'symbol'` as a broken character. Titled blocks are ```` ```gdscript title=... ````; a ```` ```spite ```` fence is now an error in the docs corpus; `.gitattributes` maps `*.spite` to GDScript for the repository view. |
+| 2026-09-24 | **D113** (decided by Mortaro, settling part of D94's `while` rule): **a member template can call a function of the caller for each element, and a `while` written only to do that is an error.** "we should have a way to iterate just for sake of console log for example a function `func say_hello(name: String) {...}` and then instead of say_hello_to_everyone we just map_say_hello() ... whiles created just for a thing that should be a function instead should be a compiler error i suspect it will narrow a lot our whiles." So `names.each_say_hello()` calls the caller's own `say_hello(name)` once per element (`each_` rather than `map_`, since nothing is collected; `map_` does the same and keeps each result when the function returns one). D94's review counted 145 loops of this shape -- the largest group -- so the error names the template to write. |
+| 2026-09-24 | (implements D113; the readings below proposed by Claude, unconfirmed) **A template's member may be a function of the caller that takes the element alone, and the element's own member and such a function never both answer.** The caller is the class the call is written in; its function must have one parameter whose type equals the element type, and D15's requirements apply to its return type (`map_` of one returning nothing is the error, now naming `each_`). It works on a list or dictionary of any element type, `String` and numbers included. **When the element has a member of the same name, the call is an error naming both** rather than an order deciding: D113 allowed either, and an order would let a member added later change what an unrelated caller runs (`mortaros_missing_decisions.md` item 58). No template changed: the `library/list.spite` template is instantiated per calling class with a hidden last parameter for the caller, passed as `self`, and `item.attributes[member]` reads as `caller.<function>(item)`; such instances are not listed in the list's `functions` or offered at the REPL prompt. Fused chains (D105) take these steps too, after a `map_` to any type the fusion can spell, and pass the caller last. Section 8, `conformance/stage6/caller_templates`. |
+| 2026-09-24 | (implements D113's error; the shape proposed by Claude, unconfirmed) **The `while` that only passes each element to a caller function is an error, detected only where the rewrite is exact**: the statement before sets the counter to `0`; the condition is `counter < list.count()` on a name or path of type `List<T>`; the body is `f(list[counter])` or `var item = list[counter]` then `f(item)`, plus `counter = counter + 1` (last, or right after the `var`); `f` is a function of the class taking one `T`, and `T` has no member `f`. The message names the template: `this 'while' only calls 'say_hello' with each element of 'names': write 'names.each_say_hello()'` (`diagnostics/caller_templates`). **2 loops were rewritten**, `generator.spite`'s `collect_body_facts` and `docs/reflection.md`'s `function_reflection`: D94's 145 were almost all loops that pass more than the element (`depth`, `scope`), which D113 does not cover and which stay `while`; how to carry them is `mortaros_missing_decisions.md` item 57. The review file's counts are updated. |

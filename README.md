@@ -74,7 +74,7 @@ export CC="$(cygpath -d "$CL") -Wno-deprecated-declarations"
 A file is a class named after it, a program is a folder, and the file named after the folder is the entry:
 its constructor runs the program. So `greeter/greeter.spite`:
 
-```spite
+```gdscript
 var console = Console()
 var names = List<String>()
 

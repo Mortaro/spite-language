@@ -22,7 +22,7 @@ caller, all the way up: the waiting leaks into every signature above it. Spite k
 back what the function returned -- a `String?` for `file.read` -- and the type is worked out from the function,
 so it is never written.
 
-```spite title=concurrent_tour/sleeper.spite
+```gdscript title=concurrent_tour/sleeper.spite
 var name = ""
 var milliseconds = 0
 var log = List<String>()
@@ -40,7 +40,7 @@ func nap(): String {
     return name
 }
 ```
-```spite title=concurrent_tour/concurrent_tour.spite entry
+```gdscript title=concurrent_tour/concurrent_tour.spite entry
 var console = Console()
 var log = List<String>()
 
@@ -106,7 +106,7 @@ A `Concurrent` is reference counted like everything else, and when the last refe
 for the function to finish. So a block that started work cannot end while the work is still running, and no
 result is ever lost or left running in the background: leaving a scope is a join point.
 
-```spite title=joined_on_drop/joined_on_drop.spite entry
+```gdscript title=joined_on_drop/joined_on_drop.spite entry
 var console = Console()
 
 func JoinedOnDrop() {
@@ -134,7 +134,7 @@ the scope is left only after ring has finished
 busy, `Parallel(function)` runs the function on a thread of its own, and the same `.wait()` and join-on-drop
 apply.
 
-```spite title=parallel_tour/summer.spite
+```gdscript title=parallel_tour/summer.spite
 var limit = 0
 
 func Summer(starting_limit: Int) {
@@ -151,7 +151,7 @@ func total(): Long {
     return sum
 }
 ```
-```spite title=parallel_tour/parallel_tour.spite entry
+```gdscript title=parallel_tour/parallel_tour.spite entry
 var console = Console()
 
 func ParallelTour() {
@@ -182,7 +182,7 @@ the middle of one: a frame loop that ends in `Program().sleep` is answered betwe
 `Console.read_line` is answered while it waits, and once the entry constructor returns, the program waits for
 nothing but commands until a client sends `exit`. None of this is written by the program.
 
-```spite title=frame_loop/frame_loop.spite entry
+```gdscript title=frame_loop/frame_loop.spite entry
 var console = Console()
 var frame = 0
 var running = true

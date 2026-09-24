@@ -16,7 +16,7 @@ assignment, a function argument (toward the parameter type), and `return` (towar
 An integer literal is `Int`; one too big for `Int` becomes `Long` automatically. Converting between numeric
 types **wraps** on overflow (plain C narrowing, not a crash or a saturate):
 
-```spite title=numeric_overflow/numeric_overflow.spite entry
+```gdscript title=numeric_overflow/numeric_overflow.spite entry
 var console = Console()
 
 func NumericOverflow() {
@@ -34,7 +34,7 @@ wraps to -128
 Because casting always goes right-to-left, comparing an `Int` against a `Float` literal casts the `Float` down
 to `Int` *before* comparing -- not the mathematically obvious thing:
 
-```spite title=casting_edge/casting_edge.spite entry
+```gdscript title=casting_edge/casting_edge.spite entry
 var console = Console()
 
 func CastingEdge() {
@@ -70,12 +70,12 @@ and inside one of them `this` is the number itself. Turning a number into text i
 `library/long.spite` and `library/double.spite`, and it is what `"{count}"` calls. A program reopens a number
 class the way it reopens any class (section 11 of the manual), with a file named after it:
 
-```spite title=number_methods/int.spite
+```gdscript title=number_methods/int.spite
 func doubled(): Int {
     return this * 2
 }
 ```
-```spite title=number_methods/number_methods.spite entry
+```gdscript title=number_methods/number_methods.spite entry
 var console = Console()
 
 func NumberMethods() {
@@ -119,7 +119,7 @@ Building text a piece at a time costs what the pieces cost, not the text so far:
 `text = text + piece`) on a local variable appends in place when nothing else holds that text, and copies it
 once when something does, so the other holder still sees the text it had.
 
-```spite title=text_building/text_building.spite entry
+```gdscript title=text_building/text_building.spite entry
 var console = Console()
 
 func TextBuilding() {
@@ -140,7 +140,7 @@ count: 0 1 2
 count: 0 1 2 done
 ```
 
-```spite title=string_basics/string_basics.spite entry
+```gdscript title=string_basics/string_basics.spite entry
 var console = Console()
 
 func StringBasics() {
@@ -187,7 +187,7 @@ have.
 
 ## Enums
 
-```spite title=enum_basics/player.spite
+```gdscript title=enum_basics/player.spite
 enum Job {
     'knight'
     'mage'
@@ -204,7 +204,7 @@ func is_knight(): Bool {
     return job == 'knight'
 }
 ```
-```spite title=enum_basics/enum_basics.spite entry
+```gdscript title=enum_basics/enum_basics.spite entry
 var console = Console()
 
 func EnumBasics() {
@@ -233,7 +233,7 @@ reflection answers class and function names as symbols -- and reads as text anyw
 Text becomes an enum value by assignment, the way it becomes a number: the value spelled that way, or the enum's
 first value when there is none, as `"x"` becomes `0` for an `Int`. Compare the text back to tell the two apart:
 
-```spite title=enum_from_text/enum_from_text.spite entry
+```gdscript title=enum_from_text/enum_from_text.spite entry
 enum Course {
     'starter'
     'soup'
@@ -265,7 +265,7 @@ A tagged union. A `switch` must cover every member, and narrows the value inside
 shares a function/attribute of the same shape, it can be called directly on the union value without a
 `switch` at all (duck-typed, the same way a `type` is -- see below).
 
-```spite title=union_basics/player.spite
+```gdscript title=union_basics/player.spite
 var health = 10
 
 func Player(starting_health: Int) {
@@ -276,7 +276,7 @@ func is_alive(): Bool {
     return health > 0
 }
 ```
-```spite title=union_basics/monster.spite
+```gdscript title=union_basics/monster.spite
 var health = 6
 
 func Monster(starting_health: Int) {
@@ -287,7 +287,7 @@ func is_alive(): Bool {
     return health > 0
 }
 ```
-```spite title=union_basics/union_basics.spite entry
+```gdscript title=union_basics/union_basics.spite entry
 union Enemy {
     Player
     Monster
@@ -320,7 +320,7 @@ members at once with `_:`, and `enemy == Monster` asks which member a value is
 A `type` is a class matched by shape: any value with the same attribute names and types is accepted,
 including a plain object literal:
 
-```spite title=duck_typing/player.spite
+```gdscript title=duck_typing/player.spite
 var weapon = "sword"
 var power = 5
 
@@ -328,7 +328,7 @@ func Player(starting_power: Int) {
     power = starting_power
 }
 ```
-```spite title=duck_typing/duck_typing.spite entry
+```gdscript title=duck_typing/duck_typing.spite entry
 type Loadout {
     weapon: String
     power: Int
@@ -363,7 +363,7 @@ never the names of its parameters -- `render(Int): String` -- because the name a
 does not matter to the shape. Any class with a function of that signature fits, which is how a list holds "any
 class that can render" without a union naming every class in advance:
 
-```spite title=shape_functions_doc/badge.spite
+```gdscript title=shape_functions_doc/badge.spite
 var label = ""
 
 func Badge(new_label: String) {
@@ -374,12 +374,12 @@ func render(width: Int): String {
     return "[{label}] ({width})"
 }
 ```
-```spite title=shape_functions_doc/banner.spite
+```gdscript title=shape_functions_doc/banner.spite
 func render(columns: Int): String {
     return "== banner {columns} =="
 }
 ```
-```spite title=shape_functions_doc/shape_functions_doc.spite entry
+```gdscript title=shape_functions_doc/shape_functions_doc.spite entry
 type Renderable {
     render(Int): String
 }

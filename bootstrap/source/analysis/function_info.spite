@@ -13,6 +13,7 @@ var symbol_name = ""
 var symbol_field_name = ""
 var symbol_field_type: SpiteType? = null
 var symbol_owner_c_name = ""
+var symbol_through_caller = false
 
 func FunctionInfo(
     starting_name: String,

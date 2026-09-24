@@ -30,7 +30,7 @@ while it runs (live reload) are decided but not built
 
 ## The program this page uses
 
-```spite title=repl_program/monster.spite
+```gdscript title=repl_program/monster.spite
 var name = "Monster"
 var health = 10
 
@@ -43,7 +43,7 @@ func roar(): String {
     return "{name} roars!"
 }
 ```
-```spite title=repl_program/repl_program.spite entry
+```gdscript title=repl_program/repl_program.spite entry
 var console = Console()
 var player_name = "Hero"
 var player_age = 20

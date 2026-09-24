@@ -10,7 +10,7 @@ page that describes them, not here.
 Reading `.functions` of a class that has functions builds its `Spite.Function` values bound to a default instance
 of that class, and that instance is alive -- so `.instances` counts one more than the program made:
 
-```spite title=functions_make_an_instance/gadget.spite
+```gdscript title=functions_make_an_instance/gadget.spite
 var name = ""
 
 func Gadget(new_name: String) {
@@ -21,7 +21,7 @@ func shout(): String {
     return name.upper_case()
 }
 ```
-```spite title=functions_make_an_instance/functions_make_an_instance.spite entry
+```gdscript title=functions_make_an_instance/functions_make_an_instance.spite entry
 var console = Console()
 
 func FunctionsMakeAnInstance() {
@@ -47,10 +47,10 @@ program. `library/directory.spite` declares the union `Entry` (`Directory.Entry`
 its own named `Entry` makes the library's `Directory.entries()` resolve `Entry` to the program's class, and the
 program no longer compiles:
 
-```spite title=nested_name_hidden/entry.spite
+```gdscript title=nested_name_hidden/entry.spite
 var name = ""
 ```
-```spite title=nested_name_hidden/nested_name_hidden.spite entry error
+```gdscript title=nested_name_hidden/nested_name_hidden.spite entry error
 var console = Console()
 
 func NestedNameHidden() {

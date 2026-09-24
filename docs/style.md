@@ -27,7 +27,7 @@ A file holds, in this order: the `singleton` line, `generic` lines, enums, union
 constructor, then functions ([classes_and_files.md](classes_and_files.md#what-a-file-holds)). Anything out of
 order is an error naming what came before it:
 
-```spite title=declaration_order_error/declaration_order_error.spite entry error
+```gdscript title=declaration_order_error/declaration_order_error.spite entry error
 var console = Console()
 
 func DeclarationOrderError() {
@@ -57,7 +57,7 @@ searching for the old name. These are errors, each with the fix:
 - **Names say what they do.** The standard library follows the same rule: `append` and `prepend` rather than
   `add`, `upper_case()` rather than `upper()`, `remove_last()` rather than `pop()`.
 
-```spite title=lint_error/lint_error.spite entry error
+```gdscript title=lint_error/lint_error.spite entry error
 var console = Console()
 var msg = ""
 
@@ -69,7 +69,7 @@ func LintError() {
 'msg' abbreviates: write 'message' instead of 'msg'
 ```
 
-```spite title=single_letter/single_letter.spite entry error
+```gdscript title=single_letter/single_letter.spite entry error
 var console = Console()
 var x = 0
 
@@ -89,7 +89,7 @@ is dictated from outside -- an operator function's, a Symbol codegen template's,
 `person.age = 1`, a function replacing one in a reopened class -- are exempt. A name starting with `_` is also
 private to its class ([reflection.md](reflection.md#reflection-is-read-only)).
 
-```spite title=unused_error/unused_error.spite entry error
+```gdscript title=unused_error/unused_error.spite entry error
 var console = Console()
 
 func UnusedError() {
@@ -118,7 +118,7 @@ knowledge, write the section and link to it; if it warns against a change, a tes
 harder than prose. A line inside a function that seems to need explaining becomes a named function instead --
 a name, unlike a comment, is visible to reflection, `--final_classes` and every tool.
 
-```spite title=prose_comment_error/prose_comment_error.spite entry error
+```gdscript title=prose_comment_error/prose_comment_error.spite entry error
 var console = Console()
 
 # prints a greeting
@@ -135,7 +135,7 @@ this comment is not a link: a comment is one line holding only a link to a markd
 A blank line inside a function is where a second function wants to be: the part below it is a step with a
 name. Name it and call it. Blank lines stay legal between declarations.
 
-```spite title=blank_line_error/blank_line_error.spite entry error
+```gdscript title=blank_line_error/blank_line_error.spite entry error
 var console = Console()
 
 func BlankLineError() {
@@ -153,7 +153,7 @@ a function body holds no empty lines
 **Only a constructor call may be an argument, and only one level deep.** Anything else is computed first into
 a named `var`, and the name is passed:
 
-```spite title=call_argument_error/call_argument_error.spite entry error
+```gdscript title=call_argument_error/call_argument_error.spite entry error
 var console = Console()
 
 func CallArgumentError() {
@@ -165,7 +165,7 @@ func CallArgumentError() {
 is called inside an argument of 'console.print': compute it first into a named 'var' and pass the name
 ```
 
-```spite title=call_argument_fixed/token.spite
+```gdscript title=call_argument_fixed/token.spite
 var kind = ""
 var text = ""
 
@@ -174,7 +174,7 @@ func Token(new_kind: String, new_text: String) {
     text = new_text
 }
 ```
-```spite title=call_argument_fixed/call_argument_fixed.spite entry
+```gdscript title=call_argument_fixed/call_argument_fixed.spite entry
 var console = Console()
 
 func CallArgumentFixed() {
@@ -206,7 +206,7 @@ What counts, precisely:
 **An `if` and its `else` do not repeat the same work.** When both branches compute the same call, it is
 computed once before the `if`:
 
-```spite title=repeated_branch_error/repeated_branch_error.spite entry error
+```gdscript title=repeated_branch_error/repeated_branch_error.spite entry error
 var console = Console()
 
 func RepeatedBranchError() {
@@ -242,6 +242,7 @@ page:
 | `func Holder() { }` | deleting it: a class without a constructor is made from its defaults | [classes_and_files.md](classes_and_files.md#constructors) |
 | `this.name` | `name` | [classes_and_files.md](classes_and_files.md#this) |
 | `enum Job = { 'knight', 'mage' }` | one entry per line, no `=`, no commas | [values_and_types.md](values_and_types.md#enums) |
+| a `while` whose body only passes each element of `names` to `say_hello` | `names.each_say_hello()` | [collections.md](collections.md#a-function-of-yours-for-each-element) |
 
 The reason is the same everywhere: Spite is written mostly by AI and read by people, and a long way round that the
 compiler accepts is a pattern that spreads.

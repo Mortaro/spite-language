@@ -2,7 +2,7 @@
 
 There are no imports. Everything lives in one global namespace, populated by loading folders:
 
-```
+```gdscript
 func Game() {
     load("package")
     load("cookie_clicker")
@@ -31,7 +31,7 @@ Every loaded root merges into the same namespaces. A second root with the same f
 earlier one (in load order), and a name not seen before is simply added. A `union` or `type` declared again
 replaces the earlier declaration the same way. This is how game mods work.
 
-```spite title=package_demo/package/monster.spite
+```gdscript title=package_demo/package/monster.spite
 var health = 10
 
 func Monster(starting_health: Int) {
@@ -42,7 +42,7 @@ func describe(): String {
     return "a wild monster"
 }
 ```
-```spite title=package_demo/package/engine/renderer/renderer.spite
+```gdscript title=package_demo/package/engine/renderer/renderer.spite
 func render(): String {
     return "rendering the scene"
 }
@@ -51,7 +51,7 @@ func render(): String {
 `mods` is loaded after `package`, so the `describe` below replaces `package/monster.spite`'s own, and `taunt`
 is a name that folder never had. That is the whole of monkey patching.
 
-```spite title=package_demo/mods/monster.spite
+```gdscript title=package_demo/mods/monster.spite
 func describe(): String {
     return "a modded monster"
 }
@@ -60,7 +60,7 @@ func taunt(): String {
     return "the modded monster taunts you"
 }
 ```
-```spite title=package_demo/package_demo.spite entry
+```gdscript title=package_demo/package_demo.spite entry
 var console = Console()
 
 func PackageDemo() {
@@ -94,13 +94,13 @@ The standard library is loaded before the program, so a program's own file reope
 is built the same way: it reopens the classes that system does differently
 ([foreign_libraries.md](foreign_libraries.md#each-operating-system-reopens-what-it-changes)).
 
-```spite title=reopen_string/string.spite
+```gdscript title=reopen_string/string.spite
 func shouted(): String {
     var upper = upper_case()
     return "{upper}!"
 }
 ```
-```spite title=reopen_string/reopen_string.spite entry
+```gdscript title=reopen_string/reopen_string.spite entry
 var console = Console()
 
 func ReopenString() {
@@ -120,7 +120,7 @@ HELLO!
 how a package is tried out before it is upstreamed. Inside the class, a reopening reads the private fields
 (`_name`, `_namespace`) that the read-only `name` and `namespace` answer from outside:
 
-```spite title=reopen_spite_class/spite/class.spite
+```gdscript title=reopen_spite_class/spite/class.spite
 func name_with_namespaces(): String {
     if _namespace {
         return "{_namespace.name_with_namespaces}.{_name}"
@@ -128,7 +128,7 @@ func name_with_namespaces(): String {
     return _name
 }
 ```
-```spite title=reopen_spite_class/reopen_spite_class.spite entry
+```gdscript title=reopen_spite_class/reopen_spite_class.spite entry
 var console = Console()
 
 func ReopenSpiteClass() {
@@ -145,7 +145,7 @@ that folder reopened it. A *new* class under `Spite` is a diagnostic instead -- 
 standard library's own classes, and a class of your own belongs in a namespace of your own. `load("spite")` is
 a diagnostic too:
 
-```spite title=spite_namespace_error/spite_namespace_error.spite entry error
+```gdscript title=spite_namespace_error/spite_namespace_error.spite entry error
 func SpiteNamespaceError() {
     load("spite")
 }

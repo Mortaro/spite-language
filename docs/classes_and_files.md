@@ -19,7 +19,7 @@ A file contains only declarations, in this order:
 Anything out of that order is an error naming what came before it ([style.md](style.md#a-file-is-ordered)).
 There are **no file-level statements** -- no loop, `if` or call outside a function:
 
-```spite title=file_scope_error/file_scope_error.spite entry error
+```gdscript title=file_scope_error/file_scope_error.spite entry error
 var console = Console()
 
 console.print("not allowed")
@@ -34,7 +34,7 @@ a file holds declarations and nothing else
 
 A whole file in order, with a codegen value, an enum and a `type`:
 
-```spite title=ordered_file/inventory.spite
+```gdscript title=ordered_file/inventory.spite
 generic $item_type
 
 enum Sorting {
@@ -58,7 +58,7 @@ func total(): Int {
     return items.sum_count()
 }
 ```
-```spite title=ordered_file/crate.spite
+```gdscript title=ordered_file/crate.spite
 var name = ""
 var count = 0
 
@@ -67,7 +67,7 @@ func Crate(new_name: String, new_count: Int) {
     count = new_count
 }
 ```
-```spite title=ordered_file/ordered_file.spite entry
+```gdscript title=ordered_file/ordered_file.spite entry
 var console = Console()
 
 func OrderedFile() {
@@ -86,14 +86,14 @@ func OrderedFile() {
 
 A function named exactly like its class is the constructor:
 
-```spite title=person_basics/person.spite
+```gdscript title=person_basics/person.spite
 var age = 0
 
 func Person(new_age: Int) {
     age = new_age
 }
 ```
-```spite title=person_basics/person_basics.spite entry
+```gdscript title=person_basics/person_basics.spite entry
 var console = Console()
 
 func PersonBasics() {
@@ -108,11 +108,11 @@ age 30
 A class with no constructor is made from its defaults with `Member()` -- and writing an empty one is an error,
 because it says nothing:
 
-```spite title=team_roster/member.spite
+```gdscript title=team_roster/member.spite
 var name = "unnamed"
 var level = 1
 ```
-```spite title=team_roster/team_roster.spite entry
+```gdscript title=team_roster/team_roster.spite entry
 var console = Console()
 
 func TeamRoster() {
@@ -130,12 +130,12 @@ count 2
 first name unnamed level 1
 ```
 
-```spite title=empty_constructor_error/holder.spite
+```gdscript title=empty_constructor_error/holder.spite
 var held = 0
 
 func Holder() { }
 ```
-```spite title=empty_constructor_error/empty_constructor_error.spite entry error
+```gdscript title=empty_constructor_error/empty_constructor_error.spite entry error
 var console = Console()
 
 func EmptyConstructorError() {
@@ -161,7 +161,7 @@ A file whose first line is `singleton` has one instance: calling its constructor
 instance, made the first time it is asked for, and the constructor takes no arguments. `Console`, `Environment`,
 `Build` and `Memory` are singletons; `File`, `Directory` and `Process` are not, since several may exist at once.
 
-```spite title=singleton_basics/scoreboard.spite
+```gdscript title=singleton_basics/scoreboard.spite
 singleton
 
 var points = 0
@@ -170,7 +170,7 @@ func score(amount: Int) {
     points = points + amount
 }
 ```
-```spite title=singleton_basics/singleton_basics.spite entry
+```gdscript title=singleton_basics/singleton_basics.spite entry
 var console = Console()
 
 func SingletonBasics() {
@@ -200,7 +200,7 @@ a class instance, `List<T>`, `Dictionary<T>`, `String`, a union, an object liter
 shares the exact same object, so a function can change it and the caller sees the change. There is nothing
 special to write at the call site or in the parameter's type ([memory.md](memory.md)):
 
-```spite title=level_up/member.spite
+```gdscript title=level_up/member.spite
 var name = "unnamed"
 var level = 1
 
@@ -208,7 +208,7 @@ func Member(new_name: String) {
     name = new_name
 }
 ```
-```spite title=level_up/level_up.spite entry
+```gdscript title=level_up/level_up.spite entry
 var console = Console()
 
 func LevelUp() {
@@ -228,11 +228,11 @@ name Aria level 2
 Two names can hold the same object, and a change through either shows up through the other. `copy()` makes an
 independent object with the same field values when that sharing is not what you want:
 
-```spite title=shared_member/member.spite
+```gdscript title=shared_member/member.spite
 var name = "unnamed"
 var level = 1
 ```
-```spite title=shared_member/shared_member.spite entry
+```gdscript title=shared_member/shared_member.spite entry
 var console = Console()
 
 func SharedMember() {
@@ -255,14 +255,14 @@ independent level 9
 A class reads and calls its own members by name: `level`, `score(2)`. There is no `self.` to write, and writing
 `this.level` is an error that says `level`. What `this` is for is handing the instance itself to something else:
 
-```spite title=this_basics/registry.spite
+```gdscript title=this_basics/registry.spite
 var names = List<String>()
 
 func record(drink: Drink) {
     names.append(drink.name)
 }
 ```
-```spite title=this_basics/drink.spite
+```gdscript title=this_basics/drink.spite
 var name = ""
 
 func Drink(new_name: String) {
@@ -273,7 +273,7 @@ func join(registry: Registry) {
     registry.record(this)
 }
 ```
-```spite title=this_basics/this_basics.spite entry
+```gdscript title=this_basics/this_basics.spite entry
 var console = Console()
 
 func ThisBasics() {
