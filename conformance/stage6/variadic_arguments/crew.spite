@@ -1,0 +1,9 @@
+var members = List<String>()
+
+func Crew(...names: List<String>) {
+    members = names
+}
+
+func roll_call(): String {
+    return members.join(", ")
+}

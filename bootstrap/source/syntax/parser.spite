@@ -348,6 +348,10 @@ func parse_function_declaration(): Syntax.Statements.Statement {
     var parameters = List<Syntax.Statements.Parameter>()
     var expect_more = not check('right_paren')
     while expect_more and not check('end_of_file') {
+        var is_variadic = check('ellipsis')
+        if is_variadic {
+            advance()
+        }
         var parameter_name = expect('identifier', "a parameter name")
         expect('colon', "':' followed by the parameter's type")
         var parameter_type = parse_type()
@@ -356,12 +360,24 @@ func parse_function_declaration(): Syntax.Statements.Statement {
                 "a parameter has no default value in Spite: every argument is written at the call site, or the class holds the value as an attribute",
             )
         }
-        parameters.append(Syntax.Statements.Parameter(parameter_name.text, parameter_type))
+        if is_variadic and not is_list_type(parameter_type) {
+            fail(
+                "'...{parameter_name.text}' receives the arguments as a list: write '...{parameter_name.text}: List<Type>', where Type is a class or a type every argument fits",
+            )
+        }
+        var parameter = Syntax.Statements.Parameter(parameter_name.text, parameter_type)
+        parameter.is_variadic = is_variadic
+        parameters.append(parameter)
         if check('comma') {
             advance()
             expect_more = not check('right_paren')
         } else {
             expect_more = false
+        }
+        if is_variadic and expect_more {
+            fail(
+                "'...{parameter_name.text}' takes every argument from here on, so it is the last parameter: move it to the end",
+            )
         }
     }
     expect('right_paren', "')' to close the parameter list")
@@ -374,6 +390,14 @@ func parse_function_declaration(): Syntax.Statements.Statement {
     }
     var body = parse_block()
     return Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
+}
+
+func is_list_type(type_reference: Syntax.Types.Type): Bool {
+    var named = shape.as_named_type(type_reference)
+    if named {
+        return named.path.count() == 1 and named.path.join("") == "List" and named.arguments.count() == 1
+    }
+    return false
 }
 
 func reject_constructor_codegen_list(function_name: String) {

@@ -40,6 +40,7 @@ enum TokenKind {
     'greater_equal'
     'equal'
     'dot'
+    'ellipsis'
     'comma'
     'colon'
     'left_paren'

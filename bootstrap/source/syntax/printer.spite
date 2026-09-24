@@ -148,6 +148,9 @@ func print_function(function: Syntax.Statements.FunctionDeclaration, depth: Int)
         }
         var parameter = function.parameters[index]
         assert parameter.type_reference
+        if parameter.is_variadic {
+            text = "{text}..."
+        }
         text = text + "{parameter.name}: {inline_type(parameter.type_reference)}"
         index = index + 1
     }
