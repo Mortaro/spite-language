@@ -17,7 +17,7 @@ func Game() {
   `Engine.Renderer.Debug()`.
 - `load` only ever takes a literal string -- a variable or expression there is a diagnostic, so the compiler
   always knows every bundle statically. The one exception is the launcher, the Spite program that loads the
-  standard library and then yours ([compiler.md](compiler.md#how-a-program-is-loaded)): its `load` may also use
+  standard library and then yours ([programs.md](programs.md#how-a-program-is-loaded)): its `load` may also use
   the `Build` fields the compiler already knows, like `Build().target_operating_system`.
 - Folder names are always lowercase `snake_case`, checked for every folder that actually contains a `.spite`
   file anywhere inside it.
@@ -118,7 +118,7 @@ HELLO!
 `Spite` is the root namespace for reflection (`Spite.Class`, `Spite.Attribute` -- see
 [metaprogramming.md](metaprogramming.md)). A `spite/` folder of your own **reopens** those classes, which is
 how a package is tried out before it is upstreamed. Inside the class, a reopening reads the private fields
-(`_name`, `_namespace`) that the read-only `name` and `namespace` answer from outside (D88):
+(`_name`, `_namespace`) that the read-only `name` and `namespace` answer from outside:
 
 ```spite title=reopen_spite_class/spite/class.spite
 func name_with_namespaces(): String {
@@ -164,7 +164,7 @@ Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are
 
 A dependency will be a git URL pinned to a commit in the `load` call itself --
 `load("github.com/mortaro/engine@a3f2c91")` -- fetched by the ordinary compile, with no package manager, registry
-or lockfile. That is decided and not built ([manual, D38](../manual.md#decision-log)).
+or lockfile. That is decided and not built ([manual, decision D38](../manual.md#decision-log)).
 
 ## Final classes
 

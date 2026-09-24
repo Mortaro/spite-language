@@ -1,13 +1,14 @@
 # Concurrency: waiting without colouring
 
-> **What is built** (D35, D37, D99, D103; the names and the mechanism are proposed by Claude, unconfirmed):
+> **What is built:**
 > `Concurrent(function)` runs a function on a fiber of the program's own thread and `Parallel(function)` runs
 > one on a thread of its own; `.wait()` gives back what it returned, and dropping the handle waits for it.
 > Where a program already waits -- `Program().sleep`, `Console.read_line`, reading or writing a `File`, a
 > `Socket`'s `accept_client` and `read_line`, waiting on a `Concurrent` or a `Parallel` -- the compiler turns the
 > wait into a suspension, so another fiber runs meanwhile, and a `--repl_port` build answers its commands there.
 > Windows runs all of it; the Linux and macOS folders are held to compiling. **Not built:** a thread pool,
-> `parallel_each_` templates, HTTP, and D35's race rule for what a parallel function may touch.
+> `parallel_each_` templates, HTTP, cancelling a `Concurrent`, and a rule for what a parallel function may touch
+> ([manual section 15](../manual.md#15-standard-library--partial)).
 
 There is no `async` and no `await` in Spite, and there never will be. In JavaScript or C# a function that waits
 declares itself `async`, which changes its return type and forces every caller to `await` it, and every caller's

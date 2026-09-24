@@ -90,8 +90,8 @@ not zero. `has(key)` asks the question directly.
 
 ## Member templates: loops you do not write
 
-A list of a class answers a family of functions named after the element's members. `tasks.count_done()` counts
-the tasks whose `done` is true, `items.sum_price()` adds up their prices, and `repositories.map_name()` collects
+A list of a class answers a family of functions named after the element's members. `chores.count_done()` counts
+the chores whose `done` is true, `items.sum_price()` adds up their prices, and `repositories.map_name()` collects
 their names. A **member** is an attribute or a function that takes no arguments -- the two are the same to a
 template, since reading an attribute already goes through its getter -- and a template is compiled only for the
 names a program calls.
@@ -110,11 +110,11 @@ names a program calls.
 A member that does not fit is a compile error naming the member, what it is, and what the template needs.
 `count_` on a number is one of them, and names `sum_` instead: `count()` is only ever a collection's size.
 
-```spite title=list_helpers/task.spite
+```spite title=list_helpers/chore.spite
 var title = ""
 var done = false
 
-func Task(new_title: String, new_done: Bool) {
+func Chore(new_title: String, new_done: Bool) {
     title = new_title
     done = new_done
 }
@@ -127,21 +127,21 @@ func finish() {
 var console = Console()
 
 func ListHelpers() {
-    var tasks = List<Task>()
-    tasks.append(Task("write docs", false))
-    tasks.append(Task("ship release", false))
-    tasks.append(Task("rest", true))
-    var done_count = tasks.count_done()
+    var chores = List<Chore>()
+    chores.append(Chore("write docs", false))
+    chores.append(Chore("ship release", false))
+    chores.append(Chore("rest", true))
+    var done_count = chores.count_done()
     console.print("done count", done_count)
-    var any_done = tasks.any_done()
+    var any_done = chores.any_done()
     console.print("any done", any_done)
-    var all_done = tasks.all_done()
+    var all_done = chores.all_done()
     console.print("all done", all_done)
-    var titles = tasks.map_title()
+    var titles = chores.map_title()
     crash titles[0]
     console.print("first title", titles[0])
-    tasks.each_finish()
-    all_done = tasks.all_done()
+    chores.each_finish()
+    all_done = chores.all_done()
     console.print("all done now", all_done)
 }
 ```

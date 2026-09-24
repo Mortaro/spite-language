@@ -115,7 +115,7 @@ for an answer that is not a value (`help`, `attributes`, `functions`, `exit`) an
 returns nothing. The entry instance is always rooted at the fixed name `program`, regardless of what the entry
 class is actually called, and a path may leave `program.` out. JSON is what the wire speaks today, not a
 promise: the format is free to become whatever an AI client reads best, binary included
-([manual, D96](../manual.md#decision-log)).
+([manual, decision D96](../manual.md#decision-log)).
 
 The commands are the ones `--repl` answers:
 
