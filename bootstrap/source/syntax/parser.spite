@@ -746,6 +746,9 @@ func parse_type_without_suffix(): Syntax.Types.Type {
     }
     if check('generic_identifier') {
         var token = advance()
+        if check('dot') {
+            return generic_member_type(token.text)
+        }
         return Syntax.Types.GenericType(token.text)
     }
     if not check('identifier') {
@@ -787,6 +790,20 @@ func parse_type_without_suffix(): Syntax.Types.Type {
         fail("'Nullable<T>' was replaced by a '?' suffix: write 'Monster?' for a value that may be null")
     }
     return Syntax.Types.NamedType(path, arguments)
+}
+
+func generic_member_type(generic_name: String): Syntax.Types.Type {
+    var path = List<String>()
+    path.append("${generic_name}")
+    while check('dot') {
+        advance()
+        if check('identifier') {
+            path.append("{advance().text}")
+        } else {
+            fail("expected the name of a codegen value after '.' but found {found_text()}")
+        }
+    }
+    return Syntax.Types.NamedType(path, List<Syntax.Types.GenericArgument>())
 }
 
 func parse_generic_argument(): Syntax.Types.GenericArgument {
@@ -889,6 +906,9 @@ func try_parse_type_quiet(): Syntax.Types.Type? {
     }
     if check('generic_identifier') {
         var token = advance()
+        if check('dot') {
+            return generic_member_type(token.text)
+        }
         var type_reference: Syntax.Types.Type = Syntax.Types.GenericType(token.text)
         return type_reference
     }

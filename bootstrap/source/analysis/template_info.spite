@@ -2,6 +2,7 @@ var declaration: Syntax.Statements.FunctionDeclaration? = null
 var symbol_parameter = ""
 var prefix = ""
 var suffix = ""
+var range: Syntax.Types.Type? = null
 
 func TemplateInfo(
     starting_declaration: Syntax.Statements.FunctionDeclaration,

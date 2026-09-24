@@ -131,6 +131,10 @@ func sum(a: Int, b: Float): Int {
 
 This applies to binary operations, assignment, arguments (toward the parameter type) and `return` (toward the return type).
 
+**Text casts to an enum by its name** (proposed by Claude, unconfirmed; built for D95's `Json`, 2026-09-24):
+`var course: Recipe.Course = name` is the value spelled `name`, or the enum's first value when none is, exactly as
+text that does not parse becomes `0` for an `Int`. Compare `"{course}" == name` to tell the two apart. **[implemented]**
+
 ### Numeric types  **[implemented, PROVISIONAL]**
 
 All the basic types a language has, with written names (decided 2026-09-19:
@@ -1017,6 +1021,29 @@ retained, independent value, so a generated getter is now exactly as safe as an 
 lets D15 (next subsection) treat a field and a zero-argument function as the same member. See `docs/KNOWN_ISSUES.md`
 item 2, closed.
 
+**Another class's attributes, and every attribute at once** (proposed by Claude, unconfirmed; built for D95's
+`Json`, 2026-09-24).  **[implemented]** Two additions, both needed to write JSON with the metaprogramming rather
+than beside it:
+
+- **`attribute: Symbol<Label>` ranges over `Label`'s attributes** instead of the template's own class. Inside,
+  `label.attributes[attribute]` is that attribute of the `Label` passed in, read or written, and `attribute.name`
+  and `attribute.class` mean what they always did. In a generic class the class is usually the codegen value,
+  `Symbol<$value_type>`; when that value is not a class the template answers nothing.
+- **The plural calls it for every attribute.** `show_attributes(label, lines)`, for a template `show_attribute`
+  whose symbol is `attribute`, calls `show_<name>(label, lines)` once per attribute, in declaration order. It is
+  an ordinary generated function whose body is those calls, so it is typed, visible and shaken like any other,
+  and the template it repeats must return nothing (`diagnostics/every_attribute`). The plural is the word
+  `attributes` already means "all of them" in, which is why it was chosen over a new keyword or loop form: the
+  old compile-time-unrolled `for instance.attributes` went with `for`, and this is its replacement without one.
+
+```
+func show_attribute(attribute: Symbol<Label>, label: Label, lines: List<String>) {
+    lines.append("{attribute.name}: {label.attributes[attribute]}")
+}
+```
+
+`conformance/stage6/every_attribute`, `docs/metaprogramming.md`.
+
 ### Standard library metaprogramming  **[partial]**
 
 D15 (decided by Mortaro, 2026-09-19): **every standard library template names a `<member>`, and a member is a
@@ -1109,6 +1136,29 @@ var sword = Weapon<Magic, true>(10)
 
 Conditions on codegen values are decided at compile time and the untaken branch is removed (tree shaking).
 In development mode they are kept as runtime values so live reload can change them.
+
+**Asking what type a generic was given** (proposed by Claude, unconfirmed; built for D95's `Json`, 2026-09-24).
+**[implemented]** When a codegen value is a type, `$value_type == String` is decided at compile time like any
+other condition on a codegen value, and only the branch taken is compiled -- so each branch may use what only
+that type has, which is what lets one generic class treat text, numbers, lists and classes differently. It is
+section 7's class test (D75) asked of a type instead of a value. A type name asks for exactly that type; four
+names ask for a kind, since the type has arguments the test does not want to spell:
+
+| Test | True when the type is |
+|---|---|
+| `$value_type == List` | any `List<T>` |
+| `$value_type == Dictionary` | any `Dictionary<T>` |
+| `$value_type == Null` | any `T?` -- `Null` is a member of the union a `T?` is (D45) |
+| `$value_type == Symbol` | an enum, or `Symbol` -- an enum is a closed list of symbols (D10) |
+
+A union name is true for any of its members. Such a test always folds, `--development` included, because the
+branch it rules out would not compile.
+
+**The types a type was built from are read by their codegen names**: `$value_type.element_type` for a
+`List<$element_type>`, `$value_type.value_type` for a `Dictionary<$value_type>` or a `$value_type?`, and a generic
+class's own names for one of its instances -- the names this section already gives the containers. Reading a name
+the type does not have is an error listing them (`diagnostics/every_attribute`).
+`conformance/stage6/every_attribute`, `docs/metaprogramming.md`.
 
 **How this got here.** The `generics` header line existed to give positional call sites an order to follow;
 Mortaro's objection (2026-09-19) was that a bare first-line declaration "feels outside of our patterns". Three
@@ -2723,3 +2773,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | **D98** (decided by Mortaro): **`List` and `Dictionary` are only abstractions over `Memory`, and `Memory` handles both heap and stack**, "so anyone can create efficient data structures, we will need efficient data structures for our ECS framework later on." Nothing about the containers is special to the compiler. |
 | 2026-09-24 | (Mortaro, 2026-09-24, on D35/D37) **Hidden async/await must be built and documented**: "Make sure you made good on your promise of hidden async await with injected code into proper pause modes, its a important feature but ive seen not mention of it in documentation." D35's `Task` (no function colouring, join on drop) and D37's injected drain points are decided but not built, and `docs/` does not describe them; the remote REPL answers at once instead of at drain points. |
 | 2026-09-24 | (implements D93; proposed by Claude, unconfirmed) **`Directory.entries()` answers a `List<Directory.Entry>`**, the union of `Directory` and `File` declared in `library/directory.spite`, each with its `path` joined to its parent's; folders first, then files, each sorted by name. `files()` and `folders()` stay, answering names, and are proposed for removal once nothing reads names alone; each operating system's listing is renamed `entry_names(want_folders)`. Section 15, "System classes". |
+| 2026-09-24 | (for D95; proposed by Claude, unconfirmed) **The metaprogramming `Json` needs, built as general features.** (1) `attribute: Symbol<Label>` makes a Symbol codegen template range over `Label`'s attributes, with `label.attributes[attribute]` reading and writing that attribute; (2) calling a template by the plural of its symbol (`show_attributes`) calls it once for every attribute in declaration order, as a generated function of those calls, and requires the template to return nothing; (3) `$value_type == X` on a type-bound codegen value folds at compile time, with `List`, `Dictionary`, `Null` (any `T?`) and `Symbol` (any enum) naming kinds and a union naming its members; (4) `$value_type.element_type` / `.value_type` read the codegen values a type was built from; (5) text casts to an enum by name, the first value when none matches. Fixed on the way: a generic instance's name now tells `Int?` from `Sailor?` (both were `Value`, so `Json<Int?>` reused `Json<Sailor?>`), a `T?` of an enum has a C type, and `--final-classes` no longer prints a generic instance's generated functions into the generic's file. Sections 4, 8 and 9. |

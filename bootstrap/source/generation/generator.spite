@@ -223,7 +223,7 @@ func generated_functions_source(qualified: String): String {
     var index = 0
     while index < classes.count() {
         var information = classes[index]
-        if information.qualified_dotted == qualified {
+        if information.qualified_dotted == qualified and information.codegen_names.is_empty() {
             var function_index = 0
             while function_index < information.functions.count() {
                 var function = information.functions[function_index]
@@ -239,7 +239,8 @@ func generated_functions_source(qualified: String): String {
 }
 
 func instantiated_function_source(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
-    var field = information.find_field(function.symbol_field_name)
+    var range_class = symbol_range_of_function(information, function)
+    var field = range_class.find_field(function.symbol_field_name)
     var field_type = "Nothing"
     if field {
         var field_spite_type = field.get_type()
@@ -644,6 +645,14 @@ func constant_condition(expression: Syntax.Expressions.Expression, class_informa
                     var left_generic = shape.as_generic_identifier(binary.left)
                     if left_generic {
                         var bare_name = without_dollar(left_generic.name)
+                        var bound_type = codegen_bound_type(bare_name, class_information)
+                        if bound_type {
+                            var same_kind = type_test(bound_type, binary.right, class_information)
+                            if binary.operator == 'equal' {
+                                return same_kind
+                            }
+                            return not same_kind
+                        }
                         var left_value = generate_codegen_value(bare_name, class_information)
                         var right_text = constant_text(binary.right)
                         if right_text {
@@ -659,6 +668,83 @@ func constant_condition(expression: Syntax.Expressions.Expression, class_informa
         }
     }
     return null
+}
+
+func codegen_bound_type(name: String, class_information: Analysis.ClassInfo): Analysis.SpiteType? {
+    var bound = codegen_index(class_information, name)
+    assert bound >= 0
+    crash class_information.codegen_codes[bound]
+    assert class_information.codegen_codes[bound].is_empty()
+    return class_information.codegen_types[bound]
+}
+
+func type_test(
+    bound_type: Analysis.SpiteType,
+    kind: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): Bool {
+    var kind_name = operand_text(kind)
+    if kind_name == "List" {
+        return bound_type == Analysis.Types.ListType
+    }
+    if kind_name == "Dictionary" {
+        return bound_type == Analysis.Types.DictionaryType
+    }
+    if kind_name == "Null" {
+        return bound_type == Analysis.Types.NullableType
+    }
+    if kind_name == "Symbol" {
+        return is_enum_type(bound_type) or type_shape.is_symbol(bound_type)
+    }
+    var kind_path = kind_name.split(".")
+    var kind_reference: Syntax.Types.Type = Syntax.Types.NamedType(kind_path, List<Syntax.Types.GenericArgument>())
+    var saved_class = current_class
+    current_class = class_information
+    var kind_type = resolve_type(kind_reference, class_information.namespace_dotted)
+    current_class = saved_class
+    if not kind_type {
+        return false
+    }
+    crash kind_type
+    var kind_union = type_shape.as_union(kind_type)
+    if kind_union {
+        var union_information = find_union_by_c_name(kind_union.c_name)
+        if union_information {
+            var member_index = 0
+            while member_index < union_information.member_types.count() {
+                var member_type = resolve_type(
+                    union_information.member_types[member_index],
+                    union_information.owner_namespace,
+                )
+                if member_type {
+                    if exact_type_label(member_type) == exact_type_label(bound_type) {
+                        return true
+                    }
+                }
+                member_index = member_index + 1
+            }
+        }
+    }
+    return exact_type_label(kind_type) == exact_type_label(bound_type)
+}
+
+func exact_type_label(spite_type: Analysis.SpiteType): String {
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        var nullable_inner = nullable.get_inner()
+        return "Nullable_{exact_type_label(nullable_inner)}"
+    }
+    var list_type = type_shape.as_list(spite_type)
+    if list_type {
+        var list_element = list_type.get_element()
+        return "List_{exact_type_label(list_element)}"
+    }
+    var dictionary_type = type_shape.as_dictionary(spite_type)
+    if dictionary_type {
+        var dictionary_element = dictionary_type.get_element()
+        return "Dictionary_{exact_type_label(dictionary_element)}"
+    }
+    return type_label(spite_type)
 }
 
 func constant_text(expression: Syntax.Expressions.Expression): String? {
@@ -735,7 +821,7 @@ func instantiate_generic(
                 types.append(argument_type)
                 codes.append("")
                 texts.append("")
-                label = "{label}_{type_label(argument_type)}"
+                label = "{label}_{exact_type_label(argument_type)}"
             }
         }
         var boolean_argument = shape.as_boolean_argument(argument)
@@ -1747,8 +1833,48 @@ func register_template(declaration: Syntax.Statements.FunctionDeclaration, infor
     var symbol_parameter_length = symbol_parameter.length()
     var name_length = declaration.name.length()
     var suffix = declaration.name.slice(position + symbol_parameter_length, name_length)
-    information.templates.append(Analysis.TemplateInfo(declaration, symbol_parameter, prefix, suffix))
+    var template = Analysis.TemplateInfo(declaration, symbol_parameter, prefix, suffix)
+    template.range = symbol_range_of(declaration, symbol_parameter)
+    information.templates.append(template)
     return true
+}
+
+func symbol_range_of(declaration: Syntax.Statements.FunctionDeclaration, symbol_parameter: String): Syntax.Types.Type? {
+    var index = 0
+    while index < declaration.parameters.count() {
+        var parameter = declaration.parameters[index]
+        if parameter.name == symbol_parameter and parameter.type_reference {
+            var named = shape.as_named_type(parameter.type_reference)
+            if named {
+                if named.arguments.count() == 1 {
+                    var range_argument = shape.as_type_argument(named.arguments[0])
+                    if range_argument {
+                        return range_argument.value
+                    }
+                }
+            }
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func template_range_class(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): Analysis.ClassInfo? {
+    if not template.range {
+        return information
+    }
+    crash template.range
+    var saved_class = current_class
+    current_class = information
+    var range_type = resolve_type(template.range, information.namespace_dotted)
+    current_class = saved_class
+    assert range_type
+    var range_class_ref = type_shape.as_class_ref(range_type)
+    assert range_class_ref
+    var range_class = find_class_by_c_name(range_class_ref.c_name)
+    assert range_class
+    assert not range_class.is_builtin and not range_class.is_generic_template
+    return range_class
 }
 
 func find_or_instantiate_function(information: Analysis.ClassInfo, name: String): Analysis.FunctionInfo? {
@@ -1760,15 +1886,21 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
     var chosen_field: Analysis.FieldInfo? = null
     var matches = 0
     var index = 0
+    var every: Analysis.TemplateInfo? = null
     while index < information.templates.count() {
         var template = information.templates[index]
         var member_name = template.member_name_for(name)
         if not member_name.is_empty() {
-            var field = information.find_field(member_name)
-            if field {
-                chosen = template
-                chosen_field = field
-                matches = matches + 1
+            var range_class = template_range_class(information, template)
+            if range_class {
+                var field = range_class.find_field(member_name)
+                if field {
+                    chosen = template
+                    chosen_field = field
+                    matches = matches + 1
+                } else if member_name == "{template.symbol_parameter}s" {
+                    every = template
+                }
             }
         }
         index = index + 1
@@ -1782,7 +1914,78 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
             return instantiate_template(information, chosen, chosen_field, name)
         }
     }
+    if every {
+        return instantiate_every_attribute(information, every, name)
+    }
     return null
+}
+
+func instantiate_every_attribute(
+    information: Analysis.ClassInfo,
+    template: Analysis.TemplateInfo,
+    call_name: String,
+): Analysis.FunctionInfo? {
+    var declaration = template.get_declaration()
+    if declaration.return_type {
+        report(
+            "'{call_name}' calls '{declaration.name}' once for every attribute, so '{declaration.name}' has to return nothing",
+        )
+        return null
+    }
+    var range_class = template_range_class(information, template)
+    assert range_class
+    var saved_class = current_class
+    var saved_owner = current_owner
+    current_class = information
+    current_owner = information.qualified_dotted
+    var parameters = List<Analysis.ParamInfo>()
+    var parameter_index = 0
+    while parameter_index < declaration.parameters.count() {
+        var parameter = declaration.parameters[parameter_index]
+        if parameter.name != template.symbol_parameter and parameter.type_reference {
+            var parameter_type = resolve_type(parameter.type_reference, information.namespace_dotted)
+            if parameter_type {
+                parameters.append(Analysis.ParamInfo(parameter.name, parameter_type))
+            }
+        }
+        parameter_index = parameter_index + 1
+    }
+    current_class = saved_class
+    current_owner = saved_owner
+    var body = List<Syntax.Statements.Statement>()
+    var field_index = 0
+    while field_index < range_class.fields.count() {
+        var field = range_class.fields[field_index]
+        var arguments = List<Syntax.Expressions.Expression>()
+        var argument_index = 0
+        while argument_index < parameters.count() {
+            var argument: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(
+                parameters[argument_index].name,
+            )
+            arguments.append(argument)
+            argument_index = argument_index + 1
+        }
+        var callee: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(
+            "{template.prefix}{field.name}{template.suffix}",
+        )
+        var call: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, arguments)
+        var statement: Syntax.Statements.Statement = Syntax.Statements.ExpressionStatement(call)
+        body.append(statement)
+        field_index = field_index + 1
+    }
+    var returns_nothing = void_type()
+    var function = Analysis.FunctionInfo(
+        call_name,
+        "{information.c_name}_{call_name}",
+        parameters,
+        returns_nothing,
+        body,
+        false,
+    )
+    function.symbol_name = template.symbol_parameter
+    information.functions.append(function)
+    builder.add_prototype("{function_signature(information, function)};")
+    return function
 }
 
 func instantiate_template(
@@ -1796,10 +1999,12 @@ func instantiate_template(
     var saved_field_name = bound_field_name
     var saved_field_type = bound_field_type
     var saved_owner = current_owner
+    var saved_class = current_class
     bound_symbol_name = template.symbol_parameter
     bound_field_name = field.name
     bound_field_type = field.get_type()
     current_owner = information.qualified_dotted
+    current_class = information
     var parameters = List<Analysis.ParamInfo>()
     var parameter_index = 0
     while parameter_index < declaration.parameters.count() {
@@ -1831,12 +2036,19 @@ func instantiate_template(
     )
     function.symbol_name = template.symbol_parameter
     function.symbol_field_name = field.name
+    var range_class = template_range_class(information, template)
+    if range_class {
+        if range_class.c_name != information.c_name {
+            function.symbol_range = range_class.c_name
+        }
+    }
     information.functions.append(function)
     builder.add_prototype("{function_signature(information, function)};")
     bound_symbol_name = saved_symbol_name
     bound_field_name = saved_field_name
     bound_field_type = saved_field_type
     current_owner = saved_owner
+    current_class = saved_class
     return function
 }
 
@@ -1845,11 +2057,21 @@ func bind_symbol_of(information: Analysis.ClassInfo, function: Analysis.Function
     bound_field_name = function.symbol_field_name
     bound_field_type = null
     if not function.symbol_field_name.is_empty() {
-        var field = information.find_field(function.symbol_field_name)
+        var range_class = symbol_range_of_function(information, function)
+        var field = range_class.find_field(function.symbol_field_name)
         if field {
             bound_field_type = field.get_type()
         }
     }
+}
+
+func symbol_range_of_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Analysis.ClassInfo {
+    if function.symbol_range.is_empty() {
+        return information
+    }
+    var range_class = find_class_by_c_name(function.symbol_range)
+    crash range_class
+    return range_class
 }
 
 func is_bound_attributes_index(index_expression: Syntax.Expressions.IndexExpression): Bool {
@@ -1868,6 +2090,23 @@ func is_bound_attributes_index(index_expression: Syntax.Expressions.IndexExpress
         }
     }
     return false
+}
+
+func bound_attribute_member(index_expression: Syntax.Expressions.IndexExpression): Syntax.Expressions.Expression? {
+    assert not bound_symbol_name.is_empty()
+    assert index_expression.object
+    assert index_expression.index
+    var object_member = shape.as_member(index_expression.object)
+    var index_identifier = shape.as_identifier(index_expression.index)
+    assert object_member
+    assert index_identifier
+    assert object_member.name == "attributes" and index_identifier.name == bound_symbol_name
+    assert object_member.object
+    var member: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(
+        object_member.object,
+        bound_field_name,
+    )
+    return member
 }
 
 func emit_pending_functions() {
@@ -1992,6 +2231,9 @@ func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String):
 }
 
 func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String): Analysis.SpiteType? {
+    if named.path.count() > 1 and named.path[0].starts_with("$") {
+        return resolve_codegen_member(named)
+    }
     if named.path.count() == 2 and not bound_symbol_name.is_empty() {
         if named.path[0] == bound_symbol_name and named.path[1] == "class" {
             return bound_field_type
@@ -2149,6 +2391,63 @@ func resolve_single_type_argument(named: Syntax.Types.NamedType, current_namespa
         return null
     }
     return resolve_generic_argument(named.arguments[0], current_namespace)
+}
+
+func resolve_codegen_member(named: Syntax.Types.NamedType): Analysis.SpiteType? {
+    var written_name = named.path.first()
+    var generic_name = without_dollar(written_name)
+    var bound_type: Analysis.SpiteType? = null
+    if current_class {
+        bound_type = codegen_bound_type(generic_name, current_class)
+    }
+    if not bound_type {
+        report(
+            "'${generic_name}' is not a type declared on this class's constructor, so it has no codegen values to read",
+        )
+        return null
+    }
+    var index = 1
+    while index < named.path.count() {
+        crash bound_type
+        var segment = named.path.get_at(index)
+        var member_type = codegen_member_type(bound_type, segment)
+        if not member_type {
+            report(
+                "a {type_display_name(bound_type)} has no codegen value named '${segment}' -- List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own",
+            )
+            return null
+        }
+        bound_type = member_type
+        index = index + 1
+    }
+    return bound_type
+}
+
+func codegen_member_type(owner: Analysis.SpiteType, name: String): Analysis.SpiteType? {
+    var owner_list = type_shape.as_list(owner)
+    if owner_list {
+        assert name == "element_type"
+        return owner_list.get_element()
+    }
+    var owner_dictionary = type_shape.as_dictionary(owner)
+    if owner_dictionary {
+        assert name == "value_type"
+        return owner_dictionary.get_element()
+    }
+    var owner_nullable = type_shape.as_nullable(owner)
+    if owner_nullable {
+        assert name == "value_type"
+        return owner_nullable.get_inner()
+    }
+    var owner_class_ref = type_shape.as_class_ref(owner)
+    assert owner_class_ref
+    var owner_class = find_class_by_c_name(owner_class_ref.c_name)
+    assert owner_class
+    var bound = codegen_index(owner_class, name)
+    assert bound >= 0
+    crash owner_class.codegen_codes[bound]
+    assert owner_class.codegen_codes[bound].is_empty()
+    return owner_class.codegen_types[bound]
 }
 
 func resolve_generic_argument(argument: Syntax.Types.GenericArgument, current_namespace: String): Analysis.SpiteType? {
@@ -2445,13 +2744,12 @@ func type_label(spite_type: Analysis.SpiteType): String {
 }
 
 func ensure_nullable_scalar_typedef(inner: Analysis.SpiteType): String {
-    var scalar = type_shape.as_scalar(inner)
-    crash scalar
     var label = type_label(inner)
     var struct_name = "Nullable_{label}"
     if not nullable_scalar_labels.contains(label) {
         nullable_scalar_labels.append(label)
-        builder.add_typedef("typedef struct \{ bool has_value; {numeric_c_name(scalar.kind)} value; } {struct_name};")
+        var value_c_type = c_type_name(inner)
+        builder.add_typedef("typedef struct \{ bool has_value; {value_c_type} value; } {struct_name};")
     }
     return struct_name
 }
@@ -2741,6 +3039,12 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         return code
     }
     if type_shape.as_string(from) {
+        var to_enum = type_shape.as_enum(to)
+        if to_enum {
+            crash to_enum.values.count() > 0
+            var chosen_code = enum_from_text_lines(to_enum, "spite_enum_text", "spite_enum_value", ";")
+            return "(\{ SpiteString* spite_enum_text = {code}; {to_enum.c_name} spite_enum_value = {to_enum.c_name}_{to_enum.values[0]}; {chosen_code} spite_enum_value; })"
+        }
         var to_scalar = type_shape.as_scalar(to)
         if to_scalar {
             if is_float_kind(to_scalar.kind) {
@@ -2851,6 +3155,10 @@ func is_owning_shape(expression: Syntax.Expressions.Expression): Bool {
     if indexed {
         if is_bound_attributes_index(indexed) {
             return false
+        }
+        var bound_member = bound_attribute_member(indexed)
+        if bound_member {
+            return is_owning_shape(bound_member)
         }
     }
     var member = shape.as_member(expression)
@@ -5907,6 +6215,10 @@ func generate_index_read(
         crash bound_field_type
         return ExpressionResult("self->{bound_field_name}", bound_field_type)
     }
+    var bound_member = bound_attribute_member(index_expression)
+    if bound_member {
+        return generate_expression(bound_member, scope, class_information)
+    }
     var read_path = operand_text(index_expression)
     var proven = not read_path.is_empty() and scope.is_path_narrowed(read_path)
     var object_result = generate_expression(index_expression.object, scope, class_information)
@@ -7619,9 +7931,19 @@ func generate_assignment(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ) {
-    generate_store(assignment, scope, class_information)
     assert assignment.target
     assert assignment.value
+    var index_target = shape.as_index(assignment.target)
+    if index_target {
+        var bound_member = bound_attribute_member(index_target)
+        if bound_member {
+            var member_assignment = Syntax.Statements.AssignmentStatement(bound_member, assignment.value)
+            member_assignment.line = assignment.line
+            generate_assignment(member_assignment, scope, class_information)
+            return
+        }
+    }
+    generate_store(assignment, scope, class_information)
     forget_narrowing_under(assignment.target, assignment.value, scope, class_information)
 }
 

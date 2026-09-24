@@ -9,6 +9,7 @@ var line = 0
 var source_path = ""
 var symbol_name = ""
 var symbol_field_name = ""
+var symbol_range = ""
 
 func FunctionInfo(
     starting_name: String,
