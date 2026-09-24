@@ -133,7 +133,7 @@ func parse_file(): Syntax.SourceFile {
 
 func is_declaration(statement: Syntax.Statements.Statement): Bool {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: return true
+        Syntax.Statements.GenericDeclaration: return true
         Syntax.Statements.VariableDeclaration: return true
         Syntax.Statements.FunctionDeclaration: return true
         Syntax.Statements.TypeDeclaration: return true
@@ -173,6 +173,9 @@ func parse_statement_list_until(stop_kind: TokenKind): List<Syntax.Statements.St
     while not finished {
         skip_trivia()
         if check('end_of_file') or check(stop_kind) or has_error {
+            finished = true
+        } else if check('keyword_generic') {
+            fail("a 'generic' line declares a codegen value of the whole class: move it to the top of the file")
             finished = true
         } else {
             var parsed_statement = parse_statement()
@@ -261,6 +264,9 @@ func parse_statement_without_line(): Syntax.Statements.Statement {
     if check('keyword_generics') {
         return parse_generics_declaration()
     }
+    if check('keyword_generic') {
+        return parse_generic_declaration()
+    }
     if check('variable_keyword') {
         return parse_variable_declaration()
     }
@@ -299,22 +305,22 @@ func parse_statement_without_line(): Syntax.Statements.Statement {
 
 func parse_generics_declaration(): Syntax.Statements.Statement {
     fail(
-        "the 'generics' line was removed: a constructor declares the codegen values its callers supply, like 'func Weapon<$damage_type, $is_magic>(new_damage: $damage_type)'",
+        "there is no 'generics' list: a class declares each codegen value on its own line at the top of the file, like 'generic $damage_type'",
     )
+    return dummy_statement()
+}
+
+func parse_generic_declaration(): Syntax.Statements.Statement {
     advance()
-    var names = List<String>()
-    var expect_more = true
-    while expect_more and not check('end_of_file') {
-        var token = expect('generic_identifier', "a generic name (e.g. $name)")
-        names.append("{token.text}")
-        if check('comma') {
-            advance()
-        } else {
-            expect_more = false
-        }
+    var name = expect('generic_identifier', "a codegen value name after 'generic', like 'generic $element_type'")
+    if check('comma') {
+        fail(
+            "a 'generic' line declares one codegen value: write 'generic ${name.text}' and put the next one on its own line",
+        )
+        return dummy_statement()
     }
     consume_statement_terminator()
-    return Syntax.Statements.GenericsDeclaration(names)
+    return Syntax.Statements.GenericDeclaration("{name.text}")
 }
 
 func parse_variable_declaration(): Syntax.Statements.Statement {

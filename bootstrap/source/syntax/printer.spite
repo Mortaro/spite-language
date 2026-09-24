@@ -34,15 +34,7 @@ func print_statement_list(statements: List<Syntax.Statements.Statement>, depth: 
 
 func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
     switch statement {
-        Syntax.Statements.GenericsDeclaration: {
-            var text = "Generics"
-            var index = 0
-            while index < statement.names.count() {
-                text = "{text} ${statement.names[index]}"
-                index = index + 1
-            }
-            print_line(depth, text)
-        }
+        Syntax.Statements.GenericDeclaration: print_line(depth, "Generic ${statement.name}")
         Syntax.Statements.VariableDeclaration: {
             print_line(depth, "VarDecl {statement.name}")
             if statement.type_reference {

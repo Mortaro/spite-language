@@ -18,6 +18,7 @@ enum TokenKind {
     'keyword_enum'
     'keyword_union'
     'keyword_generics'
+    'keyword_generic'
     'keyword_assert'
     'keyword_crash'
     'keyword_and'

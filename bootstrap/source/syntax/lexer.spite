@@ -234,6 +234,9 @@ func keyword_kind(text: String): TokenKind {
     if text == "generics" {
         return 'keyword_generics'
     }
+    if text == "generic" {
+        return 'keyword_generic'
+    }
     if text == "assert" {
         return 'keyword_assert'
     }

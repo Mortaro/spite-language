@@ -83,7 +83,7 @@ func stands_apart(previous: Syntax.Statements.Statement, next: Syntax.Statements
     if previous_attribute and next_attribute {
         return false
     }
-    return true
+    return not (shape.as_generic_declaration(previous) and shape.as_generic_declaration(next))
 }
 
 func source_indent(depth: Int): String {
@@ -206,7 +206,7 @@ func broken_call(
 func source_statement_line(statement: Syntax.Statements.Statement, depth: Int): String {
     var indent = source_indent(depth)
     switch statement {
-        Syntax.Statements.GenericsDeclaration: return "{indent}generics ${statement.names.join(", $")}"
+        Syntax.Statements.GenericDeclaration: return "{indent}generic ${statement.name}"
         Syntax.Statements.VariableDeclaration: {
             var type_text = ""
             if statement.type_reference {

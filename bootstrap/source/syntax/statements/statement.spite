@@ -1,5 +1,5 @@
 union Statement {
-    Syntax.Statements.GenericsDeclaration
+    Syntax.Statements.GenericDeclaration
     Syntax.Statements.VariableDeclaration
     Syntax.Statements.FunctionDeclaration
     Syntax.Statements.TypeDeclaration

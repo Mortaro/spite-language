@@ -519,7 +519,7 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
         }
         classes.last().source_path = entry.get_file().path
         classes.last().entry_index = index
-        classes.last().codegen_names = constructor_codegen_names(entry)
+        classes.last().codegen_names = declared_codegen_names(entry)
         classes.last().is_generic_template = not classes.last().codegen_names.is_empty()
         discovered_classes.append(entry)
         register_enums(entry)
@@ -529,9 +529,22 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
     }
 }
 
-func constructor_codegen_names(entry: Discovery.DiscoveredClass): List<String> {
+func declared_codegen_names(entry: Discovery.DiscoveredClass): List<String> {
     var file = entry.get_file()
+    var declared = List<String>()
     var statement_index = 0
+    while statement_index < file.statements.count() {
+        var generic_line = shape.as_generic_declaration(file.statements[statement_index])
+        if generic_line {
+            var bare_name = without_dollar(generic_line.name)
+            declared.append(bare_name)
+        }
+        statement_index = statement_index + 1
+    }
+    if not declared.is_empty() {
+        return declared
+    }
+    statement_index = 0
     while statement_index < file.statements.count() {
         var declaration = shape.as_function_declaration(file.statements[statement_index])
         if declaration {
@@ -591,7 +604,7 @@ func generate_codegen_value(name: String, class_information: Analysis.ClassInfo)
         return bound_value
     }
     report(
-        "'${name}' is not declared on the constructor of '{class_information.simple_name}', and '$' is for generics only: a program's settings are fields of Environment -- reopen it in environment.spite with 'var {name} = ...' and read it as Environment().{name}",
+        "'{class_information.simple_name}' has no 'generic ${name}' line, and '$' is for generics only: a program's settings are fields of Environment -- reopen it in environment.spite with 'var {name} = ...' and read it as Environment().{name}",
     )
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
@@ -1952,7 +1965,7 @@ func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String):
                 return null
             }
         }
-        report("'${generic_name}' is not declared on this class's constructor, so it cannot be used as a type")
+        report("this class has no 'generic ${generic_name}' line, so '${generic_name}' cannot be used as a type")
         return null
     }
     var named = shape.as_named_type(type_reference)
