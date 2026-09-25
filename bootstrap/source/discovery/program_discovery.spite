@@ -5,8 +5,6 @@ var comment_root = ""
 var error_message = ""
 var walking_library = false
 var language_folder = "."
-var formats = false
-var console = Console()
 var build = Build()
 var host_operating_system = build.target_operating_system
 var supplied_settings = Dictionary<String>()
@@ -15,6 +13,7 @@ var build_values = Dictionary<String>()
 var entry_qualified = ""
 var entry_file_path = ""
 var loaded_folders = List<String>()
+var program_paths = List<String>()
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
     choose_target_operating_system()
@@ -48,6 +47,7 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     discovered.build_values = build_values
     discovered.launcher_mangled_name = "Launcher"
     discovered.loaded_folders = loaded_folders
+    discovered.program_paths = program_paths
     return discovered
 }
 
@@ -239,8 +239,8 @@ func mark_program_load() {
 }
 
 func discover_program(entry_path: String, entry_source: String) {
-    var formatted_source = formatted_source(entry_path, entry_source)
-    var lexer = Syntax.Lexer(formatted_source)
+    program_paths.append(entry_path)
+    var lexer = Syntax.Lexer(entry_source)
     if lexer.has_error {
         has_error = true
         error_message = lex_failure(entry_path, lexer)
@@ -632,44 +632,16 @@ func copy_segments(segments: List<String>): List<String> {
     return segments.copy()
 }
 
-func formatted_source(path: String, source: String): String {
-    if not formats or walking_library {
-        return source
-    }
-    var probe = Syntax.Lexer(source)
-    if not probe.has_error {
-        check_blank_lines(path, probe.tokens)
-    }
-    if has_error {
-        return source
-    }
-    var formatter = Syntax.Formatter()
-    var formatted = formatter.format(source)
-    if not formatted {
-        if not formatter.refusal.contains("parse") and not formatter.refusal.contains("lex") {
-            console.error("{path}: not formatted: {formatter.refusal}")
-        }
-        return source
-    }
-    crash formatted
-    if formatted == source {
-        return source
-    }
-    if not File(path).write(formatted) {
-        return source
-    }
-    console.error("formatted {path}")
-    return formatted
-}
-
 func read_and_add_file(path: String, segments: List<String>) {
     assert not has_error
     var file_on_disk = on_disk(path)
     var program_file = File(file_on_disk)
     var content = program_file.read()
+    if not walking_library {
+        program_paths.append(path)
+    }
     if content {
-        var formatted_source = formatted_source(path, content)
-        var lexer = Syntax.Lexer(formatted_source)
+        var lexer = Syntax.Lexer(content)
         if lexer.has_error {
             has_error = true
             error_message = lex_failure(path, lexer)

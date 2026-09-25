@@ -8,6 +8,10 @@ entry class's constructor *is* the program, and when it returns the program ends
 spite game
 ```
 
+The folder is the only way to name a program: `spite game/game.spite` is an error that says `spite game`. By
+default the build writes the executable beside the program, `game/game.exe`, and runs it
+([compiler.md](compiler.md#where-the-outputs-go)).
+
 Every other `.spite` file in the folder is another class of the program, and every folder inside it is a
 namespace ([packages.md](packages.md)): `game/engine/renderer/renderer.spite` is `Engine.Renderer`.
 
@@ -179,8 +183,10 @@ func UnknownFlagError() {
 ```
 
 - A program's own `build.spite` may give a compiler option a different default: `var optimized = true` builds it
-  optimized unless `--optimized=false` is given. `mode` and `format` are the exceptions: the compiler needs them
-  before it has read the program, so only the flag changes them.
+  optimized unless `--optimized=false` is given. There are no exceptions: the compiler reads the whole program
+  before it decides anything, so what it produces -- `var c_source = true` writes the program's C beside it on
+  every build, `var run = false` only builds it -- and whether it formats the files are defaults like the rest
+  ([compiler.md](compiler.md#choose-the-outputs)).
 
 ### The operating system: `operating_system` and `target_operating_system`
 

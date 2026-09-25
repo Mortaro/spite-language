@@ -28,20 +28,28 @@ CC="$CC -Wno-deprecated-declarations"   # CC may carry arguments; MSVC headers w
 export CC   # the Spite compiler reads it to compile the C it emits
 compile_c() { "$CC_BIN" -O1 -Wno-parentheses-equality -Wno-deprecated-declarations "$1" -o "$2" 2> "$work/c_errors.txt" || { head -20 "$work/c_errors.txt"; exit 1; }; }
 
+# Each generation writes its C to the default place beside the program, bootstrap/bootstrap.c, and it is moved into
+# the work folder at once: every Build field is a constant in the built compiler, so a --c_path naming this run's
+# folder would be written into the C and no two generations (or seeds) would ever be equal.
+compile_compiler() {
+  "$1" bootstrap --run=false --c_source || return 1
+  mv bootstrap/bootstrap.c "$2"
+}
+
 echo "1/4 building the seed compiler"
 compile_c bootstrap/seed/spite_compiler.c "$work/seed.exe"
 
 echo "2/4 the seed compiles the compiler sources (generation 2)"
-"$work/seed.exe" bootstrap/spite_compiler.spite --mode=c > "$work/generation_two.c" || { echo "FAILED: the seed could not compile the compiler sources"; exit 1; }
+compile_compiler "$work/seed.exe" "$work/generation_two.c" || { echo "FAILED: the seed could not compile the compiler sources"; exit 1; }
 compile_c "$work/generation_two.c" "$work/generation_two.exe"
 
 echo "3/4 generation 2 compiles the compiler sources again (generation 3): must be byte identical"
-"$work/generation_two.exe" bootstrap/spite_compiler.spite --mode=c > "$work/generation_three.c" || exit 1
+compile_compiler "$work/generation_two.exe" "$work/generation_three.c" || exit 1
 if ! cmp -s "$work/generation_two.c" "$work/generation_three.c"; then
   # A change to how the compiler compiles ITS OWN source needs one more generation to settle.
   echo "    generation 2 and 3 differ: trying one more generation"
   compile_c "$work/generation_three.c" "$work/generation_three.exe"
-  "$work/generation_three.exe" bootstrap/spite_compiler.spite --mode=c > "$work/generation_four.c" || exit 1
+  compile_compiler "$work/generation_three.exe" "$work/generation_four.c" || exit 1
   if ! cmp -s "$work/generation_three.c" "$work/generation_four.c"; then echo "FAILED: no fixpoint, generation 3 and 4 still emit different C"; exit 1; fi
   cp "$work/generation_three.c" "$work/generation_two.c"; cp "$work/generation_three.exe" "$work/generation_two.exe"
 fi
@@ -60,10 +68,11 @@ for folder in conformance/*/*/ examples/*/; do   # the examples are held to the 
   name=$(basename "$folder")
   flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")   # compiler flags such as --environment=server
   input=/dev/null; [ -f "$folder/input.txt" ] && input="$folder/input.txt"   # what the program reads from the console
-  actual=$("$work/generation_two.exe" "$folder" --mode=run --debug_memory=true $flags < "$input" 2>&1 | tr -d '\r')
+  # the executable goes into the work folder rather than beside the program, so the repository stays clean
+  actual=$("$work/generation_two.exe" "$folder" --debug_memory --executable_path="$work/$name.exe" $flags < "$input" 2>&1 | tr -d '\r')
   # some toolchains intermittently fail to open their own cache files on Windows; that is not a
   if echo "$actual" | grep -q "failed to check cache"; then
-    actual=$("$work/generation_two.exe" "$folder" --mode=run --debug_memory=true $flags < "$input" 2>&1 | tr -d '\r')
+    actual=$("$work/generation_two.exe" "$folder" --debug_memory --executable_path="$work/$name.exe" $flags < "$input" 2>&1 | tr -d '\r')
   fi
   expected=$(tr -d '\r' < "$folder/expected_output.txt")
   body=$(echo "$actual" | grep -v '^allocations: ')
@@ -85,20 +94,25 @@ echo "conformance and examples: $passed passed, $failed failed"
 [ "$failed" == "0" ] || exit 1
 
 # A program runs in the folder spite was run from, not the language's: the compiler finds library/ and launcher/
-# from its own executable, so a relative path the program opens is the caller's, and its build cache stays here.
+# from its own executable, so a relative path the program opens is the caller's. With no --executable_path its
+# executable is built beside the program (D129), so nothing is written into the caller's folder either.
 repository=$(pwd)
 mkdir -p "$work/elsewhere"
 echo "hello" > "$work/elsewhere/greeting.txt"
-elsewhere=$(cd "$work/elsewhere" && "$repository/$work/generation_two.exe" "$repository/conformance/stage6/working_directory" --mode=run 2>&1 | tr -d '\r')
-if [ "$elsewhere" != "read hello from the folder spite was run in" ] || [ -e "$work/elsewhere/.spite-cache" ]; then
+beside="$repository/conformance/stage6/working_directory/working_directory"
+elsewhere=$(cd "$work/elsewhere" && "$repository/$work/generation_two.exe" "$repository/conformance/stage6/working_directory" 2>&1 | tr -d '\r')
+if [ "$elsewhere" != "read hello from the folder spite was run in" ] || [ "$(ls -A "$work/elsewhere")" != "greeting.txt" ]; then
   echo "FAILED: a program run from another folder does not open its relative paths there"; echo "$elsewhere" | head -5; exit 1
 fi
-echo "working directory: a program opens relative paths in the folder spite was run from"
+[ -f "$beside.crashes" ] || { echo "FAILED: the executable was not built beside the program"; exit 1; }
+rm -f "$beside.crashes" "$beside.exe"
+[ -f "$beside" ] && rm -f "$beside"
+echo "working directory: a program opens relative paths in the folder spite was run from, and is built beside itself"
 
 # The tests: a package that crashes (D46). No framework: a test is a function, and `crash` is the assertion.
-test_output=$("$work/generation_two.exe" tests --mode=run --debug_memory=true < /dev/null 2>&1 | tr -d '\r')
+test_output=$("$work/generation_two.exe" tests --debug_memory --executable_path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
 if echo "$test_output" | grep -q "failed to check cache"; then
-  test_output=$("$work/generation_two.exe" tests --mode=run --debug_memory=true < /dev/null 2>&1 | tr -d '\r')
+  test_output=$("$work/generation_two.exe" tests --debug_memory --executable_path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
 fi
 test_balance=$(echo "$test_output" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
 if [ "$(echo "$test_output" | grep -vc '^allocations: ')" != "0" ] || [ -z "$test_balance" ] || [ "${test_balance% *}" != "${test_balance#* }" ]; then
@@ -108,7 +122,7 @@ echo "tests: passed"
 
 # The compiler is held to the corpus standard too: compiling itself, it frees everything it takes.
 "$CC_BIN" -O1 -w -DSPITE_DEBUG_MEMORY "$work/generation_two.c" -o "$work/generation_two_debug.exe" 2> "$work/c_errors.txt" || { head -20 "$work/c_errors.txt"; exit 1; }
-self_leaks=$("$work/generation_two_debug.exe" bootstrap/spite_compiler.spite --mode=c 2>&1 > /dev/null | head -5)
+self_leaks=$("$work/generation_two_debug.exe" bootstrap --run=false 2>&1 > /dev/null | head -5)   # no output: compile only
 if [ -n "$self_leaks" ]; then echo "FAILED: the compiler leaks while compiling itself"; echo "$self_leaks"; exit 1; fi
 echo "compiler memory: compiling itself frees everything it takes"
 
@@ -117,7 +131,7 @@ wrong=0; checked=0
 for folder in diagnostics/*/; do
   name=$(basename "$folder")
   flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")
-  actual=$("$work/generation_two.exe" "$folder" --mode=c --format=false $flags 2>&1 >/dev/null | tr -d '\r')
+  actual=$("$work/generation_two.exe" "$folder" --run=false --format=false $flags 2>&1 >/dev/null | tr -d '\r')
   expected=$(tr -d '\r' < "$folder/expected_errors.txt")
   checked=$((checked+1))
   if [ "$actual" != "$expected" ]; then wrong=$((wrong+1)); echo "FAILED diagnostics: $name"; echo "$actual" | head -8; fi
@@ -129,20 +143,20 @@ echo "diagnostics: $checked checked, $wrong wrong"
 # code block out, and each one has to compile, run, print its ```output block and free everything it took.
 # A block marked `error` must fail to compile with its ```diagnostic text somewhere in the message.
 rm -rf .spite-cache/docs   # so a program deleted from docs/ stops being checked
-"$work/generation_two.exe" scripts/docs_corpus --mode=run > /dev/null || {
+"$work/generation_two.exe" scripts/docs_corpus --executable_path="$work/docs_corpus.exe" > /dev/null || {
   echo "FAILED: could not extract the documentation's programs"; exit 1; }
 documented=0; undocumented=0
 for folder in .spite-cache/docs/*/; do
   name=$(basename "$folder")
   flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")
   if [ -f "$folder/must_fail.txt" ]; then
-    actual=$("$work/generation_two.exe" "$folder" --mode=c --format=false $flags 2>&1 >/dev/null | tr -d '\r')
+    actual=$("$work/generation_two.exe" "$folder" --run=false --format=false $flags 2>&1 >/dev/null | tr -d '\r')
     expected=$(tr -d '\r' < "$folder/expected_diagnostic.txt")
     if [ -n "$actual" ] && [ "${actual#*$expected}" != "$actual" ]; then documented=$((documented+1))
     else undocumented=$((undocumented+1)); echo "FAILED docs: $name wanted an error saying '$expected'"; echo "$actual" | head -4; fi
     continue
   fi
-  actual=$("$work/generation_two.exe" "$folder" --mode=run --debug_memory=true --format=false $flags < /dev/null 2>&1 | tr -d '\r')
+  actual=$("$work/generation_two.exe" "$folder" --debug_memory --format=false --executable_path="$work/docs_$name.exe" $flags < /dev/null 2>&1 | tr -d '\r')
   expected=$(tr -d '\r' < "$folder/expected_output.txt")
   body=$(echo "$actual" | grep -v '^allocations: ')
   balance=$(echo "$actual" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
@@ -160,7 +174,7 @@ for wire in .spite-cache/docs/*/wire.txt; do
   [ -f "$wire" ] || continue
   folder=$(dirname "$wire"); name=$(basename "$folder")
   port=$((20000 + $$ % 20000))
-  "$work/generation_two.exe" "$folder" --mode=build --format=false --repl_port=$port --output="$work/wire_$name.exe" > "$work/c_errors.txt" 2>&1 || {
+  "$work/generation_two.exe" "$folder" --executable --run=false --format=false --repl_port=$port --executable_path="$work/wire_$name.exe" > "$work/c_errors.txt" 2>&1 || {
     echo "FAILED wire: $name does not build with --repl_port"; head -5 "$work/c_errors.txt"; exit 1; }
   "$work/wire_$name.exe" > "$work/wire_$name.txt" 2>&1 < /dev/null &
   served=$!
@@ -199,7 +213,7 @@ hot_folder="$work/hot_reload/hot_counter"
 [ -d .spite-cache/docs/hot_counter ] || { echo "FAILED live reload: docs/repl.md has no hot_counter program"; exit 1; }
 mkdir -p "$work/hot_reload"; cp -r .spite-cache/docs/hot_counter "$hot_folder"
 port=$((20000 + $$ % 20000))
-"$work/generation_two.exe" "$hot_folder" --mode=build --format=false --hot_reload --repl_port=$port --output="$work/hot_reload/hot_counter.exe" > "$work/c_errors.txt" 2>&1 || {
+"$work/generation_two.exe" "$hot_folder" --executable --run=false --format=false --hot_reload --repl_port=$port --executable_path="$work/hot_reload/hot_counter.exe" > "$work/c_errors.txt" 2>&1 || {
   echo "FAILED live reload: hot_counter does not build with --hot_reload"; head -5 "$work/c_errors.txt"; exit 1; }
 "$work/hot_reload/hot_counter.exe" > "$work/hot_reload/output.txt" 2>&1 < /dev/null &
 served=$!
@@ -244,9 +258,9 @@ echo "live reload: an edited class was swapped in by reload and another by the w
 for printed_program in conformance/stage3/interpolation conformance/stage6/symbol_codegen; do
   printed_name=$(basename "$printed_program")
   printed="$work/final/$printed_name"   # a program is a folder named like its entry file (D89)
-  "$work/generation_two.exe" "$printed_program" --final_classes="$printed" > /dev/null 2>&1 || {
+  "$work/generation_two.exe" "$printed_program" --run=false --final_classes="$printed" > /dev/null 2>&1 || {
     echo "FAILED: --final_classes could not write $printed_program out"; exit 1; }
-  printed_output=$("$work/generation_two.exe" "$printed" --mode=run --debug_memory=true < /dev/null 2>&1 | tr -d '' | grep -v '^allocations: ')
+  printed_output=$("$work/generation_two.exe" "$printed" --debug_memory --executable_path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '' | grep -v '^allocations: ')
   if [ "$printed_output" != "$(tr -d '' < "$printed_program/expected_output.txt")" ]; then
     echo "FAILED: the printed $printed_name does not run like the one it was printed from"; echo "$printed_output" | head -6; exit 1
   fi
@@ -256,12 +270,12 @@ echo "final classes: the printed program runs the same"
 # Each operating system's folder in library/ reopens the classes it changes (D80). Only this machine's can run
 # here, so the others are held to compiling: the compiler writes itself out once for each.
 for operating_system in windows linux mac; do
-  "$work/generation_two.exe" bootstrap/spite_compiler.spite --mode=c --target_operating_system=$operating_system > "$work/compiler_$operating_system.c" || {
+  "$work/generation_two.exe" bootstrap --run=false --c_source --c_path="$work/compiler_$operating_system.c" --target_operating_system=$operating_system || {
     echo "FAILED: the compiler does not compile with library/$operating_system"; exit 1; }
   "$CC_BIN" -fsyntax-only -w "$work/compiler_$operating_system.c" 2> "$work/c_errors.txt" || {
     echo "FAILED: the C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
   # The compiler names no time zone, so a program that does is written out too: each system reads zones its own way.
-  "$work/generation_two.exe" conformance/stage6/daylight_saving --mode=c --target_operating_system=$operating_system > "$work/zones_$operating_system.c" || {
+  "$work/generation_two.exe" conformance/stage6/daylight_saving --run=false --c_source --c_path="$work/zones_$operating_system.c" --target_operating_system=$operating_system || {
     echo "FAILED: time zones do not compile with library/$operating_system"; exit 1; }
   "$CC_BIN" -fsyntax-only -w "$work/zones_$operating_system.c" 2> "$work/c_errors.txt" || {
     echo "FAILED: the time zone C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
@@ -269,18 +283,14 @@ done
 echo "operating systems: the compiler and a time zone program compile with the windows, linux and mac library folders"
 
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
-# already in the one style, so formatting it changes nothing.
-unformatted=""
+# already in the one style, so formatting it changes nothing. `spite format --check` lists every file that would
+# change and fails; a docs/ program that must fail may be wrong on purpose, formatting included.
+formatted_folders=(bootstrap launcher library tests conformance examples scripts)
 for folder in .spite-cache/docs/*/; do
-  [ -f "$folder/must_fail.txt" ] && continue   # a program that must fail may be wrong on purpose, formatting included
-  for file in "$folder"*.spite; do
-    "$work/generation_two.exe" "$file" --mode=check_format > /dev/null 2>&1 || unformatted="$unformatted docs:$(basename "$folder")/$(basename "$file")"
-  done
+  [ -f "$folder/must_fail.txt" ] || formatted_folders+=("$folder")
 done
-for file in $(find bootstrap launcher library tests conformance examples scripts -name "*.spite"); do
-  "$work/generation_two.exe" "$file" --mode=check_format > /dev/null 2>&1 || unformatted="$unformatted $file"
-done
-if [ -n "$unformatted" ]; then echo "FAILED: not formatted (run: bin/spite format <path>):$unformatted"; exit 1; fi
+unformatted=$("$work/generation_two.exe" format --check "${formatted_folders[@]}" 2>&1 | tr -d '\r')
+if [ -n "$unformatted" ]; then echo "FAILED: not formatted (run: bin/spite format <path>):"; echo "$unformatted"; exit 1; fi
 echo "formatting: every file is in the one style"
 
 if cmp -s "$work/generation_two.c" bootstrap/seed/spite_compiler.c; then

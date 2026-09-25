@@ -79,8 +79,8 @@ func tell(worked: Bool, text: String) {
 func rebuild() {
     var arguments = build_arguments().split("\n")
     var running = program_file()
-    arguments.append("--mode=reload")
-    arguments.append("--output={running}")
+    arguments.prepend("reload")
+    arguments.append("--executable_path={running}")
     var compiler_path = compiler()
     var rebuilding = Process(compiler_path, arguments)
     var exit_code = rebuilding.run()
