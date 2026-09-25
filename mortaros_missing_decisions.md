@@ -48,9 +48,6 @@ manual argues it.
 
 ## From hidden async/await (D99, D103)
 
-15. **The names `Concurrent` and `Parallel`** for D103's split (manual section 15, "Concurrency"):
-    `Concurrent(function)` runs on a fiber of the program's thread and is for work that waits, `Parallel(function)`
-    runs on a thread of its own and is for work that computes; both answer `wait()` and join when dropped.
 16. **The mechanism: stackful fibers plus a helper thread per blocking call**, chosen over a state-machine
     transform and over threads for everything (the decision-log row argues it). Built on Windows; the Linux and
     macOS folders (`makecontext`/`swapcontext`) are only compiled.
