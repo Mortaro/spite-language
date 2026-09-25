@@ -1,0 +1,20 @@
+var console = Console()
+var build = Build()
+
+func SettingsAndLibrariesReflected() {
+    var attributes = build.class.attributes
+    var index = 0
+    while index < attributes.count() {
+        if attributes[index].name == "mode" or attributes[index].name == "optimized" {
+            console.print(attributes[index].name, attributes[index].value)
+        }
+        index = index + 1
+    }
+    var shelf = Shelf()
+    var shelf_attributes = shelf.attributes
+    var functions = console.class.functions
+    var shelf_count = shelf_attributes.count()
+    var held = shelf.libraries.count()
+    var function_count = functions.count()
+    console.print("shelf", shelf_count, held, function_count > 0)
+}

@@ -328,7 +328,9 @@ A class object's `.attributes` and `.functions` are read from a stand-in the pro
 every attribute at its default, and the stand-in is not one of `.instances`: walking `Gadget.functions` leaves
 `Gadget.instances` as it was. A singleton's stand-in is not the singleton, so describing `Console` neither makes
 the program's console nor keeps a second one alive. Its attributes are released when it goes, but its `drop()`
-never runs: that belongs to the one real instance, at exit.
+never runs: that belongs to the one real instance, at exit. A singleton whose attributes are all settings the
+compiler already knows, such as `Build`, holds nothing at run time, so its `.attributes` answer those settings:
+`build.class.attributes` lists `mode` with the value `run`.
 
 ```gdscript title=live_registry/monster.spite
 var name = ""

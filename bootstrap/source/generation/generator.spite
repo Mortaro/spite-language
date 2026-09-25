@@ -7673,17 +7673,21 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
         var field = information.fields[index]
         var value_code = "(&spite_static_string_empty)"
         var field_type = field.get_type()
+        var field_code = "self->{field.name}"
+        if information.is_stateless_singleton {
+            field_code = "({field.default_value_code})"
+        }
         if type_shape.as_string(field_type) {
-            value_code = "SpiteString___retain(self->{field.name})"
+            value_code = "SpiteString___retain({field_code})"
         } else if type_shape.as_scalar(field_type) {
-            value_code = string_conversion("self->{field.name}", field_type)
+            value_code = string_conversion(field_code, field_type)
         } else if is_enum_type(field_type) {
-            value_code = string_conversion("self->{field.name}", field_type)
+            value_code = string_conversion(field_code, field_type)
         }
         lines.append(
             "\{ Spite_Attribute* spite_field = Spite_Attribute___make({ensure_symbol(field.name)}, {class_object_call(field_type)}, {value_code});",
         )
-        lines.append("spite_field->_object = {ensure_attribute_object(field_type)}(self->{field.name});")
+        lines.append("spite_field->_object = {ensure_attribute_object(field_type)}({field_code});")
         lines.append("{list_name}_append(result, spite_field); }")
         index = index + 1
     }
@@ -9505,6 +9509,15 @@ func is_reflection_member(name: String): Bool {
     return name == "class" or name == "attributes" or name == "functions" or name == "memory"
 }
 
+func is_own_library_member(name: String): Bool {
+    var library_class = find_class_by_c_name("DynamicLibrary")
+    crash library_class
+    if library_class.find_field(name) or library_class.find_function(name) {
+        return true
+    }
+    return false
+}
+
 func generate_foreign_constant(foreign: Analysis.Types.ClassRefType, name: String): ExpressionResult {
     if foreign.foreign_library < 0 {
         report("a foreign constant is read through the attribute or variable that holds its DynamicLibrary(...)")
@@ -9844,7 +9857,7 @@ func generate_member_read_raw(
     var object_result_type = object_result.get_type()
     var foreign = type_shape.as_class_ref(object_result_type)
     if foreign {
-        if foreign.c_name == "DynamicLibrary" and not is_reflection_member(member.name) {
+        if foreign.c_name == "DynamicLibrary" and not is_reflection_member(member.name) and not is_own_library_member(member.name) {
             return generate_foreign_constant(foreign, member.name)
         }
     }
