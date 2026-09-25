@@ -230,6 +230,10 @@ path. The compiler also understands the usual proofs, so most reads need nothing
 - **Changing the list or the index undoes it**: `index = index + 1`, `names.clear()`, `remove_at`,
   `remove_first` and `remove_last` un-prove it, as assigning any path does. Assigning any name the index reads
   counts: after `code = 34`, `glyphs[code - 32]` must be proven again (`diagnostics/structural_index_undone`).
+- **Checking a proven read again is an error**: inside `while index < codes.count()`, `crash codes[index]` proves
+  nothing, and the message says what already proved it -- "'codes[index]' is already proven by the loop
+  condition 'index < codes.count()', so this 'crash' proves nothing: remove it" -- so delete the line
+  (`diagnostics/proven_element`).
 - A proven read still checks its bounds at run time and answers the default when out of range.
 - A `Bool?` cannot be a condition: `if flags[index]` would test that the element is there, not that it is true.
   Prove it is there first, or compare it: `flags[index] == true`.

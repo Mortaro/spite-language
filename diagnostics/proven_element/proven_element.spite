@@ -1,0 +1,21 @@
+var console = Console()
+
+func ProvenElement() {
+    var codes = [3, 1, 4]
+    var index = 0
+    while index < codes.count() {
+        crash codes[index]
+        console.print(codes[index])
+        index = index + 1
+    }
+    show_names(1)
+}
+
+func show_names(position: Int) {
+    var names = ["ada", "bo"]
+    crash names.count() == 2
+    assert names[1]
+    crash names[position]
+    crash names[position]
+    console.print(names[position], names[1])
+}

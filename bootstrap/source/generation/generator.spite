@@ -11448,6 +11448,21 @@ func default_value_for_scalar_or_null(spite_type: Analysis.SpiteType): String {
     return default_value_for_type(spite_type)
 }
 
+func earlier_proof(value: Syntax.Expressions.Expression, condition: ExpressionResult, scope: Scope): String {
+    var condition_type = condition.get_type()
+    assert not type_shape.is_void(condition_type)
+    assert not type_shape.as_nullable(condition_type)
+    assert not is_boolean_type(condition_type)
+    assert shape.as_index(value)
+    var path = operand_text(value)
+    assert not path.is_empty()
+    var proof = scope.proof_of(path)
+    if proof.is_empty() {
+        return "an earlier check"
+    }
+    return proof
+}
+
 func check_condition(condition: ExpressionResult, keyword: String) {
     var condition_type = condition.get_type()
     assert not type_shape.is_void(condition_type)
@@ -11481,9 +11496,10 @@ func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scop
     }
     var counted = counted_list_text(binary.left)
     assert not counted.is_empty()
+    var condition_text = Syntax.SourcePrinter().source_expression(condition)
     var named_bound = operand_text(binary.right)
     if binary.operator == 'greater' and not named_bound.is_empty() {
-        scope.narrow_path("{counted}[{named_bound}]")
+        scope.narrow_bound_path("{counted}[{named_bound}]", condition_text)
         return
     }
     var bound = shape.as_integer_literal(binary.right)
@@ -11496,7 +11512,7 @@ func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scop
     }
     var index = 0
     while index < proven and index < 64 {
-        scope.narrow_path("{counted}[{index}]")
+        scope.narrow_bound_path("{counted}[{index}]", condition_text)
         index = index + 1
     }
 }
@@ -11511,7 +11527,8 @@ func narrow_counted_element(condition: Syntax.Expressions.Expression, scope: Sco
     var counted = counted_list_text(binary.right)
     assert not counter.is_empty()
     assert not counted.is_empty()
-    scope.narrow_path("{counted}[{counter}]")
+    var condition_text = Syntax.SourcePrinter().source_expression(condition)
+    scope.narrow_bound_path("{counted}[{counter}]", condition_text)
 }
 
 func counted_list_text(expression: Syntax.Expressions.Expression): String {
@@ -11881,7 +11898,13 @@ func generate_assert_statement(
         if assert_statement.is_crash {
             keyword = "crash"
         }
-        check_condition(condition_result, keyword)
+        var proof = earlier_proof(assert_statement.value, condition_result, scope)
+        if proof.is_empty() {
+            check_condition(condition_result, keyword)
+        } else {
+            var proven_path = operand_text(assert_statement.value)
+            report("'{proven_path}' is already proven by {proof}, so this '{keyword}' proves nothing: remove it")
+        }
     }
     if not assert_statement.is_crash and function_information.is_constructor {
         report(
