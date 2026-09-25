@@ -1,0 +1,1 @@
+this program is meant to crash: Json cannot write infinity, and says which attribute holds it (D198)

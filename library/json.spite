@@ -1,6 +1,7 @@
 generic $value_type
 
 var value: $value_type? = null
+var path = ""
 
 func Json(new_value: $value_type?) {
     value = new_value
@@ -9,6 +10,7 @@ func Json(new_value: $value_type?) {
 func write(): String {
     if $value_type == Null {
         var inner = Json<$value_type.value_type>(value)
+        inner.path = path
         return inner.write()
     } else if $value_type == Boolean {
         if value == true {
@@ -28,7 +30,9 @@ func write(): String {
 func _written(shown: $value_type): String {
     if $value_type == String {
         return quoted(shown)
-    } else if $value_type == Integer or $value_type == Long or $value_type == Float or $value_type == Double or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInteger or $value_type == UnsignedLong {
+    } else if $value_type == Float or $value_type == Double {
+        return written_decimal(shown)
+    } else if $value_type == Integer or $value_type == Long or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInteger or $value_type == UnsignedLong {
         return "{shown}"
     } else if $value_type == Symbol {
         var name = "{shown}"
@@ -39,6 +43,7 @@ func _written(shown: $value_type): String {
         var index = 0
         while index < shown.count() {
             element_json.value = shown.get_at(index)
+            element_json.path = "{path}[{index}]"
             var element_text = element_json.write()
             elements.append(element_text)
             index = index + 1
@@ -55,6 +60,7 @@ func _written(shown: $value_type): String {
             var key = keys.get_at(index)
             var quoted_key = quoted(key)
             entry_json.value = values.get_at(index)
+            entry_json.path = "{path}[{quoted_key}]"
             var entry_text = entry_json.write()
             entries.append("{quoted_key}:{entry_text}")
             index = index + 1
@@ -71,8 +77,34 @@ func _written(shown: $value_type): String {
 
 func write_attribute(attribute: Symbol<$value_type>, shown: $value_type, members: List<String>) {
     var attribute_json = Json(shown.attributes[attribute])
+    attribute_json.path = "{shown.class.name}.{attribute.name}"
     var attribute_text = attribute_json.write()
     members.append("\"{attribute.name}\":{attribute_text}")
+}
+
+func written_decimal(shown: $value_type): String {
+    var unwritable = ""
+    if shown != shown {
+        unwritable = "{described_path()} is not a number, which JSON cannot hold"
+    } else if shown - shown != 0 {
+        unwritable = "{described_path()} is {infinity_of(shown)}, which JSON cannot hold"
+    }
+    crash unwritable == ""
+    return "{shown}"
+}
+
+func infinity_of(shown: $value_type): String {
+    if shown < 0 {
+        return "negative infinity"
+    }
+    return "infinity"
+}
+
+func described_path(): String {
+    if path.is_empty() {
+        return "the value"
+    }
+    return "'{path}'"
 }
 
 func read(text: String): $value_type? {

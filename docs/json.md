@@ -51,6 +51,7 @@ func JsonBasics() {
     var read = json.read(text)
     crash read
     var first_item = read.items.first()
+    crash first_item
     console.print(read.customer, read.status, first_item.name, first_item.count)
 }
 ```
@@ -62,8 +63,9 @@ Ada "the" first shipped tea 2
 - `Json(value)` is `Json<T>` for the value's type, read from the argument like any generic class whose
   constructor takes its `$T` ([metaprogramming.md](metaprogramming.md#generics-and-codegen-values-)). A `T?`
   gives `Json<T>`, and writes `null` when it is empty.
-- `write(): String` never fails: every attribute has a type the compiler knows, so there is nothing to
-  go wrong at run time. Attributes are written in the order the class declares them.
+- `write(): String` answers the text: every attribute has a type the compiler knows. Attributes are written in
+  the order the class declares them. The one thing it cannot write is a `Float` or `Double` that is infinity or
+  not-a-number, which JSON cannot hold, and there it crashes naming the attribute and the value (D198, below).
 - `read(text): T?` answers `null` when the text is not JSON, or not this class's JSON. It makes a new value and
   leaves the one the `Json` was made with alone, so the `json` above reads an `Order` back. Narrow it like any
   other `T?`: `crash` when bad input is a bug, `assert` when the program should carry on, `if` when absence is a
@@ -270,8 +272,13 @@ What follows is Claude's reading where D22 and D95 are not specific (proposed by
   `failure=expected <what> at character <n>`.
 - **A number reads into whatever number type the attribute has** through the ordinary text-to-number cast, so
   `3.7` read into an `Integer` is `3`; JSON has one number type and the class already says which one it wants.
-- **Not handled yet:** a `Float` or `Double` holding infinity or not-a-number is written as `inf`/`nan`, which is
-  not JSON. `--final-classes` does not print the functions `Json<Order>` generated, because a generic class's file
+- **Infinity and not-a-number crash the write** (D198, decided by Mortaro): JSON (RFC 8259) holds neither, and a
+  float became one through a division by zero or an overflow the program did not guard, which is the developer's
+  mistake (D199, [failure.md](failure.md)); floats themselves keep them (D200). The crash names the attribute --
+  `Class.attribute`, with `[index]` or `["key"]` for an element -- and the value: `unwritable='Order.price' is
+  infinity, which JSON cannot hold` (also `negative infinity` and `not a number`;
+  `conformance/stage6/json_infinity`). A program that wants `null` there checks the number first.
+- `--final-classes` does not print the functions `Json<Order>` generated, because a generic class's file
   is shared by all its instances.
 - **A plain `Symbol` attribute** (as opposed to an enum) is written as its name and read back through
   `Symbol(text)` (D70), so a name the program does not already use as a symbol is a value of the wrong kind: `read`
