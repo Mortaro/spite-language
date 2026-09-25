@@ -38,6 +38,13 @@ runs once:
 git config core.hooksPath scripts/hooks
 ```
 ```
+## Changing a Spite program: a worktree is a folder that loads it
+
+To propose a change to a Spite program (SlopEngine, an example, anything written in Spite), do not edit it in
+place: make a small folder beside it whose entry file `load`s the original and reopens only the classes you change
+(D156). Mortaro runs that folder to test the change, and only an approved change is merged into the real code.
+Nothing is copied, so a worktree costs only the files it changes.
+
 ## Decisions
 
 `manual.md` is the record. Every language decision goes into the prose **and** the decision log when it is made —
