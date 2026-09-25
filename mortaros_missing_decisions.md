@@ -401,3 +401,12 @@ Behaviour that does not match the manual. The language was not changed; each is 
      return "{name}" }` that nothing calls makes `name` used, and tree shaking then removes both the function and
      the read. Four fixtures kept their metadata-only attributes exactly this way. Fine, or should only code a
      program can reach count?
+
+113. **Which folders D118 judges.** D136 says a public attribute is reported only where every reader is visible.
+     As built, "visible" means: the program's entry folder minus every folder its entry file `load`s (so a
+     `load("package")` subfolder is exempt like `../../plugins/ui`), plus the standard library, which is compiled
+     whole in every program and so always sees its own readers, plus private attributes everywhere. So a
+     package's dead public attribute is never reported by a program that loads it; SlopEngine found its own
+     (`Psd.Layer.opacity`, `Box.order`) only because the check briefly covered every loaded folder. Keep that
+     line, or add a way to check a package on its own (a `spite check` of a folder, every public attribute read
+     by the package itself or reported)?

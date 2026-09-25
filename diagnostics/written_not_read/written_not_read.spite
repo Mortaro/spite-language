@@ -1,0 +1,16 @@
+var console = Console()
+
+func WrittenNotRead() {
+    var total = 1
+    total = 2
+    var label = "count"
+    label = "{label} of things"
+    console.print(label)
+    var shown = count_twice(3)
+    console.print(shown)
+}
+
+func count_twice(amount: Int): Int {
+    amount = 0
+    return 2
+}

@@ -1,0 +1,2 @@
+diagnostics/written_not_read/written_not_read.spite:4: error: 'total' is never read: remove it (in WrittenNotRead.WrittenNotRead)
+diagnostics/written_not_read/written_not_read.spite:13: error: the parameter 'amount' is never read: remove it, or name it '_amount' if the signature needs it (in WrittenNotRead.count_twice)

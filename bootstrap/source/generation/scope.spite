@@ -4,6 +4,7 @@ var entry_types = List<Analysis.SpiteType>()
 var entry_used = List<Bool>()
 var entry_lines = List<Int>()
 var entry_checked = List<Bool>()
+var entry_parameters = List<Bool>()
 var override_names = List<String>()
 var override_codes = List<String>()
 var owned = List<OwnedLocal>()
@@ -24,6 +25,7 @@ func declare(name: String, spite_type: Analysis.SpiteType) {
     entry_used.append(false)
     entry_lines.append(0)
     entry_checked.append(false)
+    entry_parameters.append(false)
 }
 
 func declare_checked(name: String, spite_type: Analysis.SpiteType, line: Int) {
@@ -35,6 +37,11 @@ func declare_checked(name: String, spite_type: Analysis.SpiteType, line: Int) {
 func check_last(line: Int) {
     entry_lines[entry_lines.count() - 1] = line
     entry_checked[entry_checked.count() - 1] = true
+}
+
+func check_last_parameter(line: Int) {
+    check_last(line)
+    entry_parameters[entry_parameters.count() - 1] = true
 }
 
 func mark_used(name: String) {
@@ -81,6 +88,20 @@ func lookup_type(name: String): Analysis.SpiteType? {
     }
     if parent {
         return parent.lookup_type(name)
+    }
+    return null
+}
+
+func written_type(name: String): Analysis.SpiteType? {
+    var index = entry_names.count() - 1
+    while index >= 0 {
+        if entry_names[index] == name {
+            return entry_types[index]
+        }
+        index = index - 1
+    }
+    if parent {
+        return parent.written_type(name)
     }
     return null
 }
@@ -274,6 +295,7 @@ func remove_last_entry(name: String) {
             entry_used.remove_at(index)
             entry_lines.remove_at(index)
             entry_checked.remove_at(index)
+            entry_parameters.remove_at(index)
             return
         }
         index = index - 1

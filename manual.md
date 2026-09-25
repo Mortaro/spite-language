@@ -452,10 +452,15 @@ only when `equals` takes that class.  **[implemented]**
 
 ### Unused is an error  **[implemented]**
 
-Second batch item 5 (decided 2026-09-19): a local variable or parameter that is never read is a compile error
-unless its name starts with `_`. An unused `_name` is fine; a `_name` that *is* used is also an error, naming
-the fix (remove the `_` or the read). Parameters whose signature is dictated from outside are **exempt** from
-the read requirement, because the author never chose them:
+Second batch item 5 (decided 2026-09-19): a local variable or parameter that is never read is a compile error.
+**Only a read counts** (D136, decided by Mortaro, 2026-09-25): a local or parameter that is only ever assigned
+is unused, `'total' is never read: remove it`; a read in the new value, `label = "{label} of things"`, is a read
+(`diagnostics/written_not_read`). **Only a parameter may be `_name`** (D137, decided by Mortaro, 2026-09-25): a
+signature can need a parameter its body ignores, and `_name` says so; a local has no such reason, so an unread
+local is an error whatever its name, and the message only says to remove it. A `_name` that *is* read is also
+an error, naming the fix (remove the `_` or the read). A declaration whose own statement already failed is not
+reported as unread as well **(proposed by Claude, unconfirmed)**. Parameters whose signature is dictated from
+outside are **exempt** from the read requirement, because the author never chose them:
 
 - operator functions (`sum`, `subtract`, `equals`, `get_at`, ... -- the Operators table above): `a + b` calls
   `sum(b)`, so the parameter is the operator's, not the author's
@@ -471,7 +476,7 @@ parameters are the author's free choice and the ordinary rule applies.
 
 **An attribute nothing reads is an error too** (D118, decided by Mortaro, 2026-09-24): "world is never used,
 unused variable declarations should cause a compiler error." The message names the attribute and the fix,
-`the attribute 'world' is never read: remove it, or name it '_world' to say that is intended`
+`the attribute 'world' is never read: remove it` -- since D137 no spelling keeps an unread attribute
 (`diagnostics/unused_attributes`, `conformance/stage6/attribute_uses`, `docs/style.md`). **A compile-time walk
 counts only when it reads the attribute's value** (decided by Mortaro, 2026-09-25, relayed by the coordinating
 session): `x.attributes[attribute]` read in a Symbol template, and so `Json` and `to_debug()`, and the REPL's
@@ -485,25 +490,32 @@ What counts as a read, and the exceptions **(proposed by Claude, unconfirmed)**:
   getter answering that read, `x.attributes[attribute]` or `attributes[attribute]` in a template, `thing.attributes`
   (the values), a `load(...)` argument the compiler reads, and the REPL's `attributes` in a `--repl`/`--repl_port`
   build. The class-level `Class.attributes` (names and types) does not count.
-- **Writing is not reading.** An attribute that is only assigned, from inside or outside, is unused. This is
-  stricter than locals today, where an assignment marks the local used (`mortaros_missing_decisions.md` item 110).
+- **Writing is not reading.** An attribute that is only assigned, from inside or outside, is unused -- the same
+  rule as locals since D136.
 - **Source-level, not reachability.** A function nothing calls still reads what it names; tree shaking removes it
   later. Where the compiler does not compile a body -- a branch a codegen or `Build` test folds away, a function of
   a generic class no instance emits, a Symbol template no range reaches -- its reads still count: bare names as
   the class's own attributes, and `x.name` by name for any class (so a fold can hide an unused attribute of the
   same name elsewhere, never report a used one).
-- **`_name` says it is intended**, and for an attribute `_` also means private. So a private attribute is never
-  reported, and an attribute kept only for its constructor's side effect (a singleton binding such as
-  `var server = Server()` whose construction starts something) is written `_server`. A public binding nothing reads,
-  singleton or not, is an error.
-- **Never checked**: a number class's or `String`'s storage (`_memory`, `_bytes`, ... -- private anyway, and the
-  compiler reads them), and every attribute of `Build` and `Environment`, which the compiler and the program's
+- **`_name` is only private** (D137): a private attribute nothing reads is an error like a public one, judged by
+  its own class, which is its only reader. An attribute kept only for its constructor's side effect (a binding
+  such as `var server = Server()` whose construction starts something) is an error too, whatever its name.
+- **Never checked**: a number class's or `String`'s storage (`_memory`, `_bytes`, ... -- the compiler reads
+  them), and every attribute of `Build` and `Environment`, which the compiler and the program's
   flags read.
 - **A library is judged on its own code.** Every non-generic library class is compiled whole in every program,
   and a generic one's uncompiled functions count as above, so the library's own reads are the same in every
   program: an attribute the library itself reads is never an error for a program that ignores it, and `check.sh`
   holds the library to that (every library attribute is read by library code). A program's read of a library
   attribute counts too, which can only hide an error, never cause one.
+- **A loaded package's public attributes are not checked** (D136 says a public attribute is reported only where
+  every reader is visible; which folders count is **proposed by Claude, unconfirmed**). A public attribute is
+  data offered to code its package cannot see: SlopEngine's `ui` package declares `BackgroundColor.color` for its
+  `render` package to read, and a program that loads `ui` without `render` must still compile. So the check
+  covers the program's own folder (its entry folder, minus the folders it `load`s), the standard library (as
+  above), and private attributes everywhere, whose only reader is their own class. An attribute a program adds
+  by reopening a loaded class is the program's and is checked
+  (`conformance/stage6/package_attributes`, `diagnostics/package_attributes`).
 - The check runs only when the program has no other error, so a failed statement does not report the attributes
   it would have read.
 
@@ -3812,3 +3824,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | **D137** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 111 and open question 6): **`_` means "unused on purpose" only on a parameter; everywhere else it means private, and an unused variable is always an error.** "_ means only unused on purpose if thats in the name of a parameter, else it means private, if a user try to make an unused variable then it should be an error why did you waste resources making a variable you wont use." So a parameter a signature must declare but the body ignores is written `_name`; a local or attribute nobody reads is an error with no spelling that silences it, and D118's message stops suggesting `_name`. |
 | 2026-09-25 | **D138** (decided by Mortaro): **`Json` takes the object in its constructor and infers its generic from it**: `var json = Json(order)` then `var text = json.write()`, instead of `Json<Order>()` and `json.write(order)` -- "should take the object at constructor, unless it causes a problem, then it would be able to infer its type and not need to argue the generic." Reading keeps a way to name the class it reads into, since there is no object yet. |
 | 2026-09-25 | **D139** (decided by Mortaro): **a constructed object must be kept and used.** "we need to enforce that constructed objects need to be referenced and it cannot be by a unused variable. the spite agent is way to happy to use Constructors to mimic functional programming." A constructor call written as a statement on its own (`Spawn(bundle)`, `Report(text)`) is an error, and one stored in a variable nothing reads already is (D118, D136); a class whose construction is the whole point is written as a function instead. |
+| 2026-09-25 | (implements D136 and D137, and the D118 fixes SlopEngine needed; the readings below proposed by Claude, unconfirmed) **Only a read uses a name, only a parameter may be `_name`, and a loaded package's public attributes are not judged by one program.** An assignment no longer marks a local or parameter used (`x = "{x} more"` still reads it); an unread local is `'total' is never read: remove it` whatever its name; an unread parameter says `remove it, or name it '_amount' if the signature needs it`; the attribute message drops its `_name` suggestion, and a private attribute nothing reads is reported. A declaration whose own statement failed is not also reported as unread. **Packages:** D118 skips a public attribute declared in a folder the entry file `load`s -- judged by the declaration's own file, so an attribute a program adds by reopening a loaded class is still checked -- and keeps checking the program's folder, the standard library and every private attribute; this is what makes SlopEngine's `flex_layout` compile (`Ui.Component.BackgroundColor.color`, read only by the render package). **The Spawn walk was not missed:** `Spawn`'s `insert_attribute` reads `bundle.attributes[attribute]` and does count for every bundle a program spawns (`click_counter`, which spawns `Window.Bundle.Window`, compiled under D118); `flex_layout` and `render_parity` load the window package but never spawn a window, so no walk is bound to that bundle there -- a package case, fixed by the rule above rather than by counting a generic template's walk for every class. Repo rewrites: `var _ringing = Concurrent(ring)` and `var _counting = Parallel(say_done)` now read their handle; fixtures that kept `_` locals renamed them. `diagnostics/written_not_read`, `diagnostics/package_attributes`, `conformance/stage6/package_attributes`, `mortaros_missing_decisions.md` item 113. |

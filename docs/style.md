@@ -87,11 +87,13 @@ is a single letter: give it a name that says what it holds
 
 ## Nothing unused
 
-A local variable or parameter that is never read is an error: remove it, or start its name with `_` to say that
-is intended. A `_name` that *is* read is an error too, since the prefix says it is not. Parameters whose shape
-is dictated from outside -- an operator function's, a Symbol codegen template's, a setter answering
-`person.age = 1`, a function replacing one in a reopened class -- are exempt. A name starting with `_` is also
-private to its class ([reflection.md](reflection.md#reflection-is-read-only)).
+A local variable that is never read is an error: remove it. Only reading counts (D136), so a variable that is
+assigned and never read is unused too, and there is no spelling that silences it (D137): a variable nobody reads
+is work the program did for nothing. A parameter is the one exception, because a signature can need a parameter
+its body ignores: name it `_name` to say so. A `_name` that *is* read is an error, since the prefix says it is
+not. Parameters whose shape is dictated from outside -- an operator function's, a Symbol codegen template's, a
+setter answering `person.age = 1`, a function replacing one in a reopened class -- are exempt. Everywhere else a
+leading `_` means private to its class ([reflection.md](reflection.md#reflection-is-read-only)).
 
 ```gdscript title=unused_error/unused_error.spite entry error
 var console = Console()
@@ -102,12 +104,25 @@ func UnusedError() {
 }
 ```
 ```diagnostic
-'forgotten' is never used: remove it, or name it '_forgotten' to say that is intended
+'forgotten' is never read: remove it
 ```
 
-An attribute nothing reads is an error the same way (D118): remove it, or name it `_name` to say it is kept on
-purpose -- which also makes it private. Writing an attribute is not reading it, so one that is only assigned is
-still unused. A read is anything that takes the attribute's value: its name in one of the class's own functions,
+```gdscript title=written_not_read/written_not_read.spite entry error
+var console = Console()
+
+func WrittenNotRead() {
+    var total = 1
+    total = 2
+    console.print("hello")
+}
+```
+```diagnostic
+'total' is never read: remove it
+```
+
+An attribute nothing reads is an error the same way (D118): remove it. A private `_name` attribute is no
+exception, since only its own class can read it. Writing an attribute is not reading it, so one that is only
+assigned is still unused. A read is anything that takes the attribute's value: its name in one of the class's own functions,
 `thing.world` from another class, a getter answering that read, `x.attributes[attribute]` in a Symbol template
 (which is how `Json` and `to_debug()` read), `thing.attributes`, and the REPL in a build that has one. A template
 that only looks at `attribute.name` or `attribute.class` reads the attribute's description, not the attribute, so
@@ -135,8 +150,15 @@ func classify_attribute(attribute: Symbol<Mover>, classified: Mover, lines: List
 }
 ```
 ```diagnostic
-the attribute 'world' is never read: remove it, or name it '_world' to say that is intended
+the attribute 'world' is never read: remove it
 ```
+
+**A package's public attributes are judged where their readers are.** A public attribute is data a class offers
+to code it cannot see, so a folder the program `load`s is not held to what this one program reads of it: a
+`ui` package's `color` that only a `render` package reads is fine in a program that loads `ui` without `render`.
+The check covers the program's own folder, the standard library (always compiled whole, so its reads are the
+same in every program), and every private attribute wherever it lives, since its own class is its only reader
+(D136; which folders count is proposed by Claude, unconfirmed).
 
 Unused means unread anywhere in the source, not unreachable: a function nothing calls still reads what it names,
 and the compiler removes it later ([compiler.md](compiler.md#development-builds-and-tree-shaking)). A few

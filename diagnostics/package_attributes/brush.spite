@@ -1,0 +1,6 @@
+var name = "round"
+var color = 255
+
+func describe(): String {
+    return "brush {name}"
+}
