@@ -16,7 +16,7 @@ func test_switch_narrows_each_case() {
     var thing = held(true)
     switch thing {
         Creature: crash thing.name == "rat"
-        Money: crash false
+        Money: crash
     }
 }
 

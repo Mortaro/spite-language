@@ -47,8 +47,6 @@ manual argues it.
     (manual section 14, "Answered where the program waits"). Confirm the compile error's rule: a `--repl_port`
     build is rejected when none of the program's own code waits and it has a `while` loop -- which also rejects
     a loop that does end.
-12. **`Socket` is new public library surface** (`library/socket.spite`), and the REPL's port is fixed at build time.
-
 ## Variadic arguments
 
 14. **Whether a generic line can name a constraint**, `generic $sub_type: Openable` (open question 12's own
@@ -136,9 +134,6 @@ manual argues it.
     after `Launcher` returns, releasing singletons and class objects and printing the `--debug_memory` report.
     Moving them into Spite needs a way for Spite to receive `argv` and to run code after the program ends (a
     `Launcher` that releases what the program left?) -- which is a language question.
-40. **Every compiler option is a `Build` field, and the flags follow the field names**: `--final_classes=folder`
-    (no bare form), `--repl_port=4000` (no space form), `--format=false` (no `--no-format`), no `--file=`. A `Bool`
-    field may be given bare (`--optimized`), which is a second spelling of `--optimized=true` -- keep it?
 41. **`mode` and `format` come from the flag alone**, because the compiler needs them before it reads the program;
     a program's `build.spite` can still declare them, but only its own code sees the value.
 42. **A path to a `.spite` file still names an entry** (`spite bootstrap/spite_compiler.spite`), because the
@@ -161,10 +156,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     the compiler rejects any singleton constructor with parameters (`diagnostics/singleton_arguments`) except
     `DynamicLibrary`'s, which keeps the per-argument-list behaviour. Which is the rule, and is `DynamicLibrary` the
     exception or the rule?
-48. **A bare `crash` is formatted to `crash false`.** Section 5 describes bare `crash` as the form for an
-    unreachable branch; the formatter rewrites it, so formatted code never shows it. Keep bare `crash` (and teach
-    the formatter), or make `crash false` the one form?
-
 ## Visible storage and placement (D107, D108; manual sections 4, 10 and 15)
 
 50. **How `String` declares its storage**: private attributes read by name -- `_bytes: Long` (the address of
@@ -215,9 +206,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     the error names the attribute. Locals are what `String` uses for `Memory` (a value class has no attribute to
     spare) and what an error path uses before `program.exit(1)`. Should a local binding be an error outside
     value classes, so there is one place for it?
-61. **`Program` is a singleton now**: D8 and section 15 said so, but `library/program.spite` had no `singleton`
-    line, so `Program().exit(1)` made a fresh object each time and was not covered by D110. It has the line now
-    and every inline use is bound. Confirm?
 62. **A number's storage is two lines**: `var memory = Memory()` and `var _memory = memory.allocate_bytes(4)`
     (it replaced a one-line `Memory().allocate_bytes(4)` form). The binding is never a field of the number. The alternative was to exempt
     `var _memory = Memory().allocate_bytes(4)` from D110, because the compiler reads that line rather than
@@ -305,10 +293,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     generic singleton 20 million times each). Singletons are destroyed at exit in the order they were made,
     reversed; before, the counts decided it. One visible difference: a singleton still referenced by a leaked
     object is destroyed anyway. Fine?
-86. **`Clock()`'s names**: `elapsed_nanoseconds()`, `elapsed_milliseconds()` (monotonic) and
-    `unix_milliseconds()` (wall clock). Keep them? And should the current date broken into year, month, day,
-    hour, minute and second live here too, or is the Unix time enough until something needs a calendar?
-
 ## From porting PSD, zstd and .blend to Spite (SlopEngine)
 
 88. **Arithmetic takes the left operand's type** (open question 3, "right-to-left casting"): an `Int` times a
@@ -342,11 +326,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     called function must be declared by the header, so a header that does not declare one is a C error at build
     time. Without a header, integers cross as 64 bits. Fine, or should the header be required whenever a call
     passes anything but a `Long`?
-94. **`Memory`'s new widths are named after the types**: `read_short`, `read_unsigned_short`, `read_unsigned_int`,
-    `read_float` and their `write_*`, beside `read_int`. `Tiny` and `UnsignedLong` have none, since `read_byte`
-    and `read_long` hold the same bits. A variable cannot be named `unsigned_int_bits` (`int` abbreviates), but
-    these follow the type names, as `read_int` already did. Keep, or `read_unsigned_integer`?
-
 ## From adding the bitwise functions (D117)
 
 95. **The bitwise names** (proposed by Claude, unconfirmed): `shifted_left(count)`, `shifted_right(count)`,

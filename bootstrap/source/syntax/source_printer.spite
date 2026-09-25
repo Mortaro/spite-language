@@ -248,6 +248,9 @@ func source_statement_line(statement: Syntax.Statements.Statement, depth: Int): 
         Syntax.Statements.AssertStatement: {
             crash statement.value
             if statement.is_crash {
+                if statement.value == Syntax.Expressions.FalseLiteral {
+                    return "{indent}crash"
+                }
                 return "{indent}crash {source_expression(statement.value)}"
             }
             return "{indent}assert {source_expression(statement.value)}"
@@ -399,7 +402,7 @@ func source_type(type_reference: Syntax.Types.Type): String {
                         crash nullable_argument.value
                         return "{source_type(nullable_argument.value)}?"
                     }
-                    _: crash false
+                    _: crash
                 }
             }
             var text = type_reference.path.join(".")
