@@ -497,9 +497,11 @@ named even when it points at a singleton, which is still destroyed at exit (D142
 -- the list behind `.instances`, the list of singletons to destroy -- is allocated outside the table and not counted
 (D143).
 
-**Run-time cost (D177).** The table and the summary exist only in a `--debug-memory` build. Every other build
-counts live allocations with one addition per allocation and one subtraction per free, which is what
-`Memory.Heap().live_allocations()` answers.
+**Run-time cost (D177).** The table and the summary exist only in a `--debug-memory` build: no other build's C
+has them. Every other build allocates with the C library's `malloc`, `realloc` and `free` and nothing else,
+unless the program reads `Memory.Heap().live_allocations()`: then, and only then, each allocation adds one to a
+counter and each free subtracts one, which is what it answers
+([optimizations.md](optimizations.md#allocation-is-the-c-librarys-counted-only-where-read)).
 
 #### Where a value lives: `.memory`
 

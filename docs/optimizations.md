@@ -62,7 +62,7 @@ nothing at run time because they emit nothing.
 | [A function value describes its arguments when asked](#a-function-value-describes-its-arguments-when-asked) | built | every | fewer allocations per function value and per `Parallel` |
 | [A list's templates read its elements without counting them](#a-lists-templates-read-its-elements-without-counting-them) | built | every but `--hot-reload` | nothing but speed |
 | [A number joined into text is written in place](#a-number-joined-into-text-is-written-in-place) | built | every | fewer allocations |
-| [Freed small objects are kept for the next one](#freed-small-objects-are-kept-for-the-next-one) | built | production, not `--debug-memory` | memory a thread freed stays with the program |
+| [Allocation is the C library's, counted only where read](#allocation-is-the-c-librarys-counted-only-where-read) | built | every but `--debug-memory`, decided per program | nothing: `live_allocations()` still answers |
 | [A dictionary hashes a key once, cheaply](#a-dictionary-hashes-a-key-once-cheaply) | built | every | nothing but speed |
 | [Reading through a `type` without counting](#reading-through-a-type-without-counting) | built | every but `--hot-reload` | nothing but speed |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
@@ -650,8 +650,10 @@ ask for it:
   member template instantiated for the classes a list reaches, so the prompt can call `monsters.sum_health()`.
 - `--hot-reload`: a function pointer per function and a forwarder in front of it (about a nanosecond a call), the
   file watcher and the reload manifest. Every other build calls functions directly and is tree-shaken.
-- `--debug-memory`: the allocation table that names leaked objects. Every other build counts allocations with
-  one increment.
+- `--debug-memory`: the allocation table that names leaked objects, and its C (`AllocationTable`, the functions
+  that call it, the class-name table) exists only in that build's C. Every other build allocates with the C
+  library's own `malloc`, `realloc` and `free` and nothing beside them, unless the program reads
+  `live_allocations()` ([Allocation is the C library's](#allocation-is-the-c-librarys-counted-only-where-read)).
 
 - `--repl-port` and `--hot-reload`: a check point at the end of every pass of every loop in the program's own
   code ([D174](decisions.md)), one call that answers a waiting command or reload, so a program that
@@ -774,6 +776,14 @@ All **built**, and none of them needs anything from you:
 - An `assert` in `library/` writes nothing into the crash trace, decided when compiling, so a library guard costs
   what an `if` costs ([D189](decisions.md)). What you notice: a crash report lists only the failed
   asserts of the program and its `load`-ed packages ([failure.md](failure.md#what-a-crash-reports)).
+- A program with no `crash` left after tree shaking writes nothing into the crash trace at all: the trace exists
+  only to be printed by a crash, so each `assert` of such a program compiles to its test and its `return`, and
+  the trace's 32 entries are not in the program ([D177](decisions.md)). A program that can crash records
+  exactly as before.
+- A foreign library is opened when a function that calls it first runs, and closed at exit only if it was:
+  `Console` opens the C library only to read a line (`read_line`), so a program that only prints opens nothing,
+  and a library nothing calls leaves neither its handle nor the code to close it in the program
+  ([D177](decisions.md)).
 
 ### Proofs that survive a call
 
@@ -883,25 +893,31 @@ one text, since that text is the result.
 **What you notice.** Fewer allocations: `conformance/stage6/text_building` went from 39 to 35, and
 `benchmarks/text_building` from 5 500 225 to 800 267. **Built** (2026-09-25; proposed by Claude, unconfirmed).
 
-### Freed small objects are kept for the next one
+### Allocation is the C library's, counted only where read
 
-**What it does.** Most of what a program allocates is small objects made and dropped in a loop, and the system
-allocator's lock and bookkeeping were most of the cost of each (on Windows, `RtlAllocateHeap` and `RtlFreeHeap`
-were 40-70% of the time of `benchmarks/small_allocations`, `text_building` and `reflection_walks`). When an
-object of up to 256 bytes is freed, its block is now kept on a list for its size (in steps of 16 bytes), one set
-of lists per thread, and the next allocation of that size takes it back: two pointer moves instead of two calls
-into the system. Every block still comes from the C allocator, and anything larger, or any memory a program asks
-`Memory.Heap` for, goes straight to it.
+**What it does.** Every Spite object is made with `SPITE_MALLOC` and let go with `SPITE_FREE`, and what those are
+is decided per program. In an ordinary build they are the C library's `malloc`, `realloc` and `free`, with
+nothing beside them: no counter, no table, no list of kept blocks. A program that reads
+`Memory.Heap.live_allocations()` (or `Program.live_allocations()`, which asks it) gets a counter beside each call
+instead -- atomic in a program that starts a thread -- and the tree shaker decides which: the counter is written
+only when `live_allocations` is still in the program after shaking. A `--debug-memory` build routes every call
+through its allocation table instead, and only that build's C has the table.
 
-**When.** Production builds, the ones without `--debug-memory` (whose allocation table has to see every
-allocation and free, so it keeps doing so) or `--hot-reload`. It is the floor under every object, so every
-program that frees an object uses it; it is about thirty lines of the prelude, not a runtime of its own.
+**When.** Every build but `--debug-memory`. An inspectable build (`--development`, `--hot-reload`, `--repl`) is
+not shaken, so it counts ([D143](decisions.md)).
 
-**What you notice.** Speed: `benchmarks/small_allocations` went from 168 ms to 102 ms, `reflection_walks` from 507
-to 332, `text_building` from 333 to 275. `Program.live_allocations()` and `--debug-memory` count exactly as
-before, since a kept block counts as freed. The cost: up to 1 024 blocks of each of the 16 sizes -- about 2 MB at
-most -- stay with each thread that freed them instead of going back to the system, and a thread's kept blocks are
-not handed back when it ends. **Built** (2026-09-25; proposed by Claude, unconfirmed).
+**What you notice.** Nothing: `live_allocations()` answers the same wherever it is called. `examples/hello`'s C
+went from 1 356 lines to 762 with this, the crash trace and the foreign library changes in
+[Smaller ones](#smaller-ones).
+
+**Not built: keeping freed small blocks for reuse.** Keeping each freed object of up to 256 bytes on a per-thread
+list for its size, for the next allocation of that size, was built and taken out again (2026-09-25): it was not a
+clear, repeatable gain on SlopEngine, the program it was for. Against the plain C allocator, `clang -O2`, best of
+nine interleaved runs on Mortaro's machine: `examples/stress` ticks 42.9 ms with it and 41.9 without in parallel,
+49.0 and 50.9 single-threaded, 60 ticks after despawning 87.7 and 87.2 ms; only the 200 000 spawns (449 and 504
+ms) and `flex_layout` (about 3 ms of 70) were faster; the Vulkan UI tests (`click_counter_test`,
+`text_field_test`) did not move beyond noise. It sped up the small benchmarks (`small_allocations` 84 against 140
+ms) at the cost of up to 2 MB kept per thread; `benchmarks/README.md` has both sets of numbers.
 
 ### A dictionary hashes a key once, cheaply
 

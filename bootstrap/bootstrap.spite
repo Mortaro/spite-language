@@ -336,6 +336,7 @@ func configure(generator: Generation.Generator) {
     generator.remote_loop_port = port
     generator.development = is_on("development") or is_on("hot_reload")
     generator.hot_reload = is_on("hot_reload")
+    generator.debug_memory = is_on("debug_memory")
     generator.keeps_internals = generator.development or generator.read_evaluate_print_loop
     if generator.hot_reload {
         var program = Program()
@@ -627,9 +628,6 @@ func built_executable(): Boolean {
     }
     process_arguments.append("-Wno-parentheses-equality")
     process_arguments.append("-I.")
-    if is_on("debug_memory") {
-        process_arguments.append("-DSPITE_DEBUG_MEMORY")
-    }
     if is_on("hot_reload") {
         append_shared_runtime(process_arguments, c_compiler)
     }

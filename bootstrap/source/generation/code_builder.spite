@@ -9,9 +9,12 @@ var binding_names = List<String>()
 var binding_lines = Dictionary<String>()
 var guard_names = List<String>()
 var guard_lines = List<String>()
+var guard_otherwise = List<String>()
+var type_guards = List<Integer>()
 var shakes = true
 var threads = false
 var hot_reload = false
+var debug_memory = false
 var host = HotReloadLibrary()
 var mentioned_names = Dictionary<Boolean>()
 var scanned_typedefs = 0
@@ -148,10 +151,16 @@ func add_main(line: String) {
 }
 
 func add_main_if_kept(guard: String, line: String) {
+    var placeholder = placeholder_if_kept(guard, line, "")
+    main_lines.append(placeholder)
+}
+
+func placeholder_if_kept(name: String, kept: String, otherwise: String): String {
     var position = guard_names.count()
-    guard_names.append(guard)
-    guard_lines.append(line)
-    main_lines.append("/*spite_guard {position}*/")
+    guard_names.append(name)
+    guard_lines.append(kept)
+    guard_otherwise.append(otherwise)
+    return "/*spite_guard {position}*/"
 }
 
 func guarded(text: String, shaker: TreeShaker, keeps_all: Boolean): String {
@@ -171,16 +180,39 @@ func guarded(text: String, shaker: TreeShaker, keeps_all: Boolean): String {
             var position = digits.to_integer()
             var part_length = part.length()
             var rest = part.slice(end + 2, part_length)
-            var guard = guard_names.get_at(position)
-            if keeps_all or shaker.is_kept_name(guard) {
-                var line = guard_lines.get_at(position)
-                result.append(line)
-            }
+            var chosen = guard_choice(position, shaker, keeps_all)
+            result.append(chosen)
             result.append(rest)
         }
         index = index + 1
     }
     return result.join("")
+}
+
+func type_placeholder_if_kept(name: String, kept: String, otherwise: String): String {
+    var position = guard_names.count()
+    type_guards.append(position)
+    return placeholder_if_kept(name, kept, otherwise)
+}
+
+func guarded_types(text: String, shaker: TreeShaker, keeps_all: Boolean): String {
+    var result = text
+    var index = 0
+    while index < type_guards.count() {
+        var position = type_guards[index]
+        var chosen = guard_choice(position, shaker, keeps_all)
+        result = result.replace("/*spite_guard {position}*/", chosen)
+        index = index + 1
+    }
+    return result
+}
+
+func guard_choice(position: Integer, shaker: TreeShaker, keeps_all: Boolean): String {
+    var guard = guard_names.get_at(position)
+    if keeps_all or shaker.is_kept_name(guard) {
+        return guard_lines.get_at(position)
+    }
+    return guard_otherwise.get_at(position)
 }
 
 func render(): String {
@@ -204,7 +236,8 @@ func render(): String {
         shaker.guard_lines = guard_lines
         bodies = shaker.shake_program(typedef_text, prototype_lines, main_function, bodies)
         main_function = guarded(main_function, shaker, false)
-        typedef_text = shaker.kept_types()
+        var kept_types = shaker.kept_types()
+        typedef_text = guarded_types(kept_types, shaker, false)
         prototype_lines = shaker.kept_prototypes(prototype_lines)
         var kept_bindings = shaker.kept_watched_names()
         bodies = bound(bodies, kept_bindings)
@@ -212,10 +245,14 @@ func render(): String {
         bodies = bound(bodies, binding_names)
         var unused_shaker = TreeShaker()
         main_function = guarded(main_function, unused_shaker, true)
+        typedef_text = guarded_types(typedef_text, unused_shaker, true)
     }
-    var threads_line = ""
+    var defines = ""
     if threads {
-        threads_line = "#define SPITE_THREADS\n"
+        defines = "#define SPITE_THREADS\n"
+    }
+    if debug_memory {
+        defines = "{defines}#define SPITE_DEBUG_MEMORY\n"
     }
     var slot_text = ""
     if hot_reload {
@@ -224,7 +261,7 @@ func render(): String {
         var symbol_table = host.symbol_table()
         bodies = "{bodies}\n{symbol_table}"
     }
-    return "{threads_line}{typedef_text}\n{prototype_lines}\n{slot_text}{bodies}\n{main_function}\n"
+    return "{defines}{typedef_text}\n{prototype_lines}\n{slot_text}{bodies}\n{main_function}\n"
 }
 
 func bodies_text(): String {
