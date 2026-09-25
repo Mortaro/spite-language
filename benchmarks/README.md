@@ -78,3 +78,14 @@ after step 2, 1 339 ms after step 3 (same machine state, best of seven).
 
 `stress` has not moved: its cost is reading `moving.position.left` through a `type`, where each read of the shape
 raises and lowers the component's count, which none of these steps removes.
+
+### Step 4: plain attributes read and written through a `type` borrow the component
+
+| benchmark | before ms | after ms | before allocations | after allocations |
+|---|---|---|---|---|
+| stress | 110 | 114 | 150 049 | 150 049 |
+| stress, counts atomic (`SPITE_THREADS`, as in a program that makes a `Parallel`) | 162 | 129 | 150 049 | 150 049 |
+
+In a program without threads a retain is one plain add and `stress` spends its time filling rows and spawning, so
+nothing moves; with atomic counts, as SlopEngine has whenever it runs systems in parallel, the ticks are a fifth
+faster. The second row is the same two C files built with `-DSPITE_THREADS` prepended.

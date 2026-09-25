@@ -1799,6 +1799,30 @@ func emit_union_release(information: Analysis.UnionInfo) {
     builder.add_support(joined_release_lines)
 }
 
+func emit_shape_peekers(information: Analysis.UnionInfo) {
+    var index = 0
+    while index < information.peeker_names.count() {
+        var field_name = information.peeker_names[index]
+        var field_type = shape_field_type(information, field_name)
+        crash field_type
+        var lines = List<String>()
+        lines.append("{c_type_name(field_type)} {information.c_name}___peek_{field_name}({information.c_name} self) \{")
+        var member_index = 0
+        while member_index < information.members.count() {
+            var member = information.members[member_index]
+            lines.append(
+                "if {class_id_test("self", member)} return (({member.c_name}*)self)->{c_value_name(field_name)};",
+            )
+            member_index = member_index + 1
+        }
+        lines.append("return 0;")
+        lines.append("}")
+        var joined_lines = lines.join("\n")
+        builder.add_support(joined_lines)
+        index = index + 1
+    }
+}
+
 func emit_shape_bodies() {
     var index = 0
     while index < unions.count() {
@@ -1831,6 +1855,7 @@ func emit_shape_bodies() {
                 }
                 reader_index = reader_index + 1
             }
+            emit_shape_peekers(information)
             var writer_index = 0
             while writer_index < information.writer_names.count() {
                 var written = information.writer_names[writer_index]
@@ -1885,7 +1910,28 @@ func generate_shape_read(
     lines.append("spite_shaped_value;")
     var read = ExpressionResult("(\{ {lines.join(" ")} })", field_type)
     read.owning_override = true
+    if not owns(object_result, object_ast) and not hot_reload and type_shape.as_class_ref(field_type) {
+        read.peek_union = information
+        read.peek_field = field_name
+        read.peek_object = object_result.code
+    }
     return read
+}
+
+func peeked_code(result: ExpressionResult): String {
+    assert result.peek_union
+    var field_type = result.get_type()
+    var peeker = ensure_shape_peeker(result.peek_union, result.peek_field, field_type)
+    return "{peeker}({result.peek_object})"
+}
+
+func ensure_shape_peeker(information: Analysis.UnionInfo, field_name: String, field_type: Analysis.SpiteType): String {
+    var function_c_name = "{information.c_name}___peek_{field_name}"
+    if not information.peeker_names.contains(field_name) {
+        information.peeker_names.append(field_name)
+        builder.add_prototype("{c_type_name(field_type)} {function_c_name}({information.c_name} self);")
+    }
+    return function_c_name
 }
 
 func generate_object_literal(
@@ -11676,6 +11722,14 @@ func generate_member_read_raw(
     if hardcoded {
         return hardcoded_setting_value(hardcoded, scope, class_information)
     }
+    var peeked_field_type = field.get_type()
+    var scalar_default = not type_needs_drop(peeked_field_type) and constant_scalar_code(field.default_value_code)
+    if object_result.peek_union and scalar_default {
+        var peeked = peeked_code(object_result)
+        var peeked_temporary = next_temporary()
+        var peeked_read = "(\{ {c_type_name(object_result_type)} {peeked_temporary} = {peeked}; {peeked_temporary} != 0 ? ({peeked_temporary})->{c_value_name(member.name)} : ({field.default_value_code}); })"
+        return ExpressionResult(peeked_read, peeked_field_type)
+    }
     if owns(object_result, member.object) {
         var object_temporary = next_temporary()
         var field_temporary = next_temporary()
@@ -13408,8 +13462,19 @@ func generate_store(
         }
         assert field
         var object_temporary = next_temporary()
-        builder.add_user("{c_type_name(object_result_type)} {object_temporary} = {object_result.code};")
         var field_type = field.get_type()
+        var watch = ReleaseWatch("")
+        var plain_write = not type_needs_drop(field_type) and not guards_outside_write(target_class)
+        if object_result.peek_union and plain_write and watch_expression(watch, assignment.value, scope, class_information) {
+            var peeked = peeked_code(object_result)
+            builder.add_user("{target_class.c_name} {object_temporary}_scratch;")
+            builder.add_user("{c_type_name(object_result_type)} {object_temporary} = {peeked};")
+            builder.add_user("if ({object_temporary} == 0) {object_temporary} = &{object_temporary}_scratch;")
+            var peeked_target = "({object_temporary})->{c_value_name(member.name)}"
+            emit_owning_assignment(peeked_target, field_type, assignment.value, scope, class_information)
+            return
+        }
+        builder.add_user("{c_type_name(object_result_type)} {object_temporary} = {object_result.code};")
         var target_code = "({object_temporary})->{c_value_name(member.name)}"
         if guards_outside_write(target_class) {
             emit_guarded_outside_write(

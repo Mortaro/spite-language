@@ -58,6 +58,7 @@ function with a visible effect can show, no optimisation changes what a program 
 | [A number joined into text is written in place](#a-number-joined-into-text-is-written-in-place) | built | every | fewer allocations |
 | [Freed small objects are kept for the next one](#freed-small-objects-are-kept-for-the-next-one) | built | production, not `--debug-memory` | memory a thread freed stays with the program |
 | [A dictionary hashes a key once, cheaply](#a-dictionary-hashes-a-key-once-cheaply) | built | every | nothing but speed |
+| [Reading through a `type` without counting](#reading-through-a-type-without-counting) | built | every but `--hot-reload` | nothing but speed |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
@@ -880,6 +881,25 @@ compares key texts only when those bits match.
 **When.** Every `Dictionary`, in every build. **What you notice.** Speed: `benchmarks/dictionary_keys` went from
 413 ms to 282 ms. Keys, values and their order are the same, and so is every allocation: the slot table is still
 one block, twice as large. **Built** (2026-09-25; proposed by Claude, unconfirmed).
+
+### Reading through a `type` without counting
+
+**What it does.** A system's `moving.position.left = moving.position.left + moving.velocity.across` reads
+`position` through the `type` `Moving`, which answers the component retained -- or, when the value's class has no
+such attribute, a fresh default -- and the component is released as soon as the number is read. Now, when that
+component only has a number, `Boolean` or other plain attribute read or written, the compiler asks the `type` for
+the component as it lies in the value, uncounted: a read of a class without the attribute answers the attribute's
+default, as the fresh default object would have, and a write to one lands in a scratch object in the frame, as it
+used to land in a default object that was then thrown away. A write borrows only when computing the value it
+stores can let go of nothing (the same proof as [a list's templates](#a-lists-templates-read-its-elements-without-counting-them)),
+and only when the value holding the component is itself held for the whole statement.
+
+**When.** Every build but `--hot-reload`, for a plain attribute of a class read through a `type` attribute:
+`moving.position.left`, not `moving.position` passed on or kept.
+
+**What you notice.** Speed, in systems that walk components through a `type`: `benchmarks/stress`'s
+`update_each` functions no longer count anything. Allocations and results are the same. **Built** (2026-09-25;
+proposed by Claude, unconfirmed).
 
 ## Planned
 
