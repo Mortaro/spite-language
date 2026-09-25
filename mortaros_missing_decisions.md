@@ -332,11 +332,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     called function must be declared by the header, so a header that does not declare one is a C error at build
     time. Without a header, integers cross as 64 bits. Fine, or should the header be required whenever a call
     passes anything but a `Long`?
-94. **`Memory`'s new widths are named after the types**: `read_short`, `read_unsigned_short`, `read_unsigned_int`,
-    `read_float` and their `write_*`, beside `read_int`. `Tiny` and `UnsignedLong` have none, since `read_byte`
-    and `read_long` hold the same bits. A variable cannot be named `unsigned_int_bits` (`int` abbreviates), but
-    these follow the type names, as `read_int` already did. Keep, or `read_unsigned_integer`?
-
 ## From adding the bitwise functions (D117)
 
 95. **The bitwise names** (proposed by Claude, unconfirmed): `shifted_left(count)`, `shifted_right(count)`,
