@@ -1,0 +1,2 @@
+var label = "press"
+var on_press: Spite.Function<Nothing>? = null

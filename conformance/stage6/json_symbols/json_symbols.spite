@@ -1,0 +1,28 @@
+enum Color {
+    'red'
+    'blue'
+}
+
+var console = Console()
+
+func JsonSymbols() {
+    var marker = Marker()
+    var found = Symbol("blue")
+    crash found
+    marker.tag = found
+    marker.color = 'blue'
+    var writer = Json(marker)
+    var text = writer.write()
+    console.print(text)
+    var reader = Json<Marker>(null)
+    var read_back = reader.read(text)
+    crash read_back
+    crash read_back.tag
+    console.print(read_back.tag, read_back.color)
+    var unknown = reader.read("\{\"tag\":\"no such symbol anywhere\"}")
+    if unknown {
+        console.print("read a symbol the program never uses")
+    } else {
+        console.print("a name the program never uses is no Symbol")
+    }
+}

@@ -102,12 +102,7 @@ func parse(reader: JsonReader): $value_type {
         var number: $value_type = number_text
         return number
     } else if $value_type == Symbol {
-        var name = reader.read_text()
-        var symbol: $value_type = name
-        if "{symbol}" != name {
-            reader.fail("one of the names of {symbol.class.name}")
-        }
-        return symbol
+        return read_symbol(reader)
     } else if $value_type == Null {
         assert not reader.read_null()
         var inner = Json<$value_type.value_type>(null)
@@ -161,6 +156,22 @@ func parse(reader: JsonReader): $value_type {
         }
         return created
     }
+}
+
+func read_symbol(reader: JsonReader): $value_type {
+    var name = reader.read_text()
+    if $value_type == Enum {
+        var symbol: $value_type = name
+        if "{symbol}" != name {
+            reader.fail("one of the names of {symbol.class.name}")
+        }
+        return symbol
+    }
+    var found = Symbol(name)
+    if found {
+        return found
+    }
+    reader.fail("a name the program already uses as a Symbol")
 }
 
 func read_attribute(attribute: Symbol<$value_type>, created: $value_type, key: String, reader: JsonReader) {

@@ -1,0 +1,19 @@
+union Pet {
+    Cat
+    Dog
+}
+
+var console = Console()
+
+func JsonUnwritable() {
+    var owner = Owner()
+    var owner_json = Json(owner)
+    var owner_text = owner_json.write()
+    var widget = Widget()
+    var widget_json = Json(widget)
+    var widget_text = widget_json.write()
+    var button_reader = Json<Button>(null)
+    var button = button_reader.read("\{}")
+    crash button
+    console.print(owner_text, widget_text, button.label)
+}

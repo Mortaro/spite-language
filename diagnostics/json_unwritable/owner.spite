@@ -1,0 +1,2 @@
+var name = "ada"
+var pet: JsonUnwritable.Pet = Cat()

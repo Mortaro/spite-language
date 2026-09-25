@@ -79,16 +79,17 @@ Ada "the" first shipped tea 2
 | every number type | a number |
 | `Boolean` | `true` or `false` |
 | an enum | its value's name, as text |
-| a `Symbol` | its name, as text (written only: [not read yet](#json-is-reflection-not-a-library--implemented)) |
+| a `Symbol` | its name, as text; read back only as a name the program already uses as a `Symbol` |
 | a class | an object, one key per attribute |
 | `List<T>` | an array |
 | `Dictionary<T>` | an object, one key per entry |
 | `T?` | `null`, or what `T` becomes |
 
 Anything else a class holds -- another class, a list of lists, a dictionary of classes -- is one of these again,
-so `Json` goes as deep as the class does. An attribute typed as a `union`, a `type` such as `Anything`, or a
-function is not handled yet ([below](#json-is-reflection-not-a-library--implemented)): keep what `Json` sees to
-the types in this table.
+so `Json` goes as deep as the class does. A `union`, a `type` such as `Anything`, or a function value anywhere in
+what `Json` sees has no JSON form, and making that `Json` is a compile error at your line, naming the attribute:
+`Json cannot write or read 'Owner': 'Owner.pet' is the union Pet, and JSON does not say which member a value is`
+(`diagnostics/json_unwritable`). Keep what `Json` sees to the types in this table.
 
 ## Reading input you did not write
 
@@ -208,7 +209,11 @@ for talking to foreign systems; it is not what Spite programs send each other
 - **Writing never fails at run time**: a class that cannot be serialised is a compile error, the same check
   isomorphic classes need. Only parsing can fail, and it follows the failure model: a parse that may not succeed
   returns a `T?`, and a variant that crashes exists for callers who want the report instead. The compile-time
-  check is not built yet: see "Not handled yet" below.
+  check (built as proposed by Claude, unconfirmed): when a program's line makes a `Json<T>`, the compiler walks
+  `T` -- through `T?`, list elements, dictionary values and every attribute of every class it reaches -- and a
+  `union`, a `type` (`Anything` included) or a function value is an error at that line naming the attribute path;
+  the rest of `library/json.spite` is then not reported on, so one mistake is one error
+  (`diagnostics/json_unwritable`). Compile time only.
 - D22 left the names of that pair open (Mortaro sketched `to_json`/`to_crashing_json`); what is built is
   `read`/`read_or_crash`, below (proposed by Claude, unconfirmed).
 
@@ -266,12 +271,12 @@ What follows is Claude's reading where D22 and D95 are not specific (proposed by
 - **A number reads into whatever number type the attribute has** through the ordinary text-to-number cast, so
   `3.7` read into an `Integer` is `3`; JSON has one number type and the class already says which one it wants.
 - **Not handled yet:** a `Float` or `Double` holding infinity or not-a-number is written as `inf`/`nan`, which is
-  not JSON. D22's compile-time check is not built: an attribute typed as a `type` (`Anything`) is written as the
-  empty object `{}` whatever it holds, and so is a function value, while an attribute typed as a `union` stops the
-  compile with an error inside `library/json.spite` (`this class has no function 'write_attributes'`) rather than
-  one at the program's line. A plain `Symbol` attribute (as opposed to an enum) is written as its name, but
-  reading one is an error inside `library/json.spite` (`text is not a Symbol: ...`), since text becomes a
-  `Symbol` only through `Symbol(text)` (D70). `--final-classes` does not print the functions `Json<Order>`
-  generated, because a generic class's file is shared by all its instances.
+  not JSON. `--final-classes` does not print the functions `Json<Order>` generated, because a generic class's file
+  is shared by all its instances.
+- **A plain `Symbol` attribute** (as opposed to an enum) is written as its name and read back through
+  `Symbol(text)` (D70), so a name the program does not already use as a symbol is a value of the wrong kind: `read`
+  answers `null` (proposed by Claude, unconfirmed; `conformance/stage6/json_symbols`). `library/json.spite` tells
+  the two apart with the codegen test `$value_type == Enum`, true for an enum only, where `$value_type == Symbol`
+  is true for both (proposed by Claude, unconfirmed; [metaprogramming.md](metaprogramming.md)).
 
 `tests/json_tests.spite`, `conformance/stage6/json_crash`, `docs/json.md`.

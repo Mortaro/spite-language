@@ -25,6 +25,7 @@ var function_value_makers = List<String>()
 var read_evaluate_print_loop = false
 var console_loop = false
 var remote_loop_port = 0
+var refused_json_path = ""
 var scheduler_used = false
 var implicit_joins = List<Syntax.Expressions.MemberExpression>()
 var parallel_used = false
@@ -174,6 +175,7 @@ var pending_call_lines = List<Integer>()
 func report(message: String) {
     has_error = true
     assert not statement_poisoned
+    assert refused_json_path.is_empty() or current_path != refused_json_path
     var line = "{current_path}:{current_line}: error: {message} (in {current_owner}.{current_function})"
     assert not error_lines.contains(line)
     if error_lines.count() == 25 {
@@ -890,6 +892,9 @@ func type_test(
     if kind_name == "Symbol" {
         return is_enum_type(bound_type) or type_shape.is_symbol(bound_type)
     }
+    if kind_name == "Enum" {
+        return is_enum_type(bound_type)
+    }
     var kind_path = kind_name.split(".")
     var kind_reference: Syntax.Types.Type = Syntax.Types.NamedType(kind_path, List<Syntax.Types.GenericArgument>())
     var saved_class = current_class
@@ -1119,6 +1124,10 @@ func instantiated_with(
     instance.holds_nothing = template.holds_nothing
     instance.is_container = template.qualified_dotted == "TypedMemory"
     instance.is_instantiated = true
+    if template.qualified_dotted == "Json" and not current_path.starts_with("library/") {
+        var written_type = types.first()
+        refuse_unwritable_json(template, written_type)
+    }
     classes.append(instance)
     builder.add_typedef("typedef struct {label} {label};")
     var saved_owner = current_owner
@@ -1158,6 +1167,75 @@ func instantiated_with(
     current_path = saved_path
     current_line = saved_line
     return instance
+}
+
+func refuse_unwritable_json(template: Analysis.ClassInfo, written: Analysis.SpiteType) {
+    var visited = List<String>()
+    var problem = unwritable_json(written, "", visited)
+    assert not problem.is_empty()
+    var json_type_name = type_display_name(written)
+    report(
+        "Json cannot write or read '{json_type_name}': {problem}. Json handles classes, lists, dictionaries, enums, Symbols, numbers, Boolean, String and 'T?', so keep what it sees to those, or give Json a class of its own that holds only them",
+    )
+    refused_json_path = template.source_path
+}
+
+func unwritable_json(spite_type: Analysis.SpiteType, path: String, visited: List<String>): String {
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.get_inner()
+        return unwritable_json(inner, path, visited)
+    }
+    var listed = type_shape.as_list(spite_type)
+    if listed {
+        var element = listed.get_element()
+        return unwritable_json(element, path, visited)
+    }
+    var mapped = type_shape.as_dictionary(spite_type)
+    if mapped {
+        var entry = mapped.get_element()
+        return unwritable_json(entry, path, visited)
+    }
+    var shown = type_display_name(spite_type)
+    var named = "it"
+    if not path.is_empty() {
+        named = "'{path}'"
+    }
+    if type_shape.as_union(spite_type) {
+        return unwritable_union(spite_type, named, shown)
+    }
+    var class_ref = type_shape.as_class_ref(spite_type)
+    assert class_ref
+    if class_ref.has_signature or class_ref.c_name == "Spite_Function" {
+        return "{named} is a function value, {shown}, which has no JSON form"
+    }
+    assert not visited.contains(class_ref.c_name)
+    visited.append(class_ref.c_name)
+    var information = find_class_by_c_name(class_ref.c_name)
+    assert information
+    assert not information.is_value_class and not information.is_generic_template
+    return unwritable_attribute(information, visited)
+}
+
+func unwritable_union(spite_type: Analysis.SpiteType, named: String, shown: String): String {
+    if is_shape_type(spite_type) {
+        return "{named} is typed as the 'type' {shown}, which says what it has, not what it is, so there is no class to read it back into"
+    }
+    return "{named} is the union {shown}, and JSON does not say which member a value is"
+}
+
+func unwritable_attribute(information: Analysis.ClassInfo, visited: List<String>): String {
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var field_type = field.get_type()
+        var problem = unwritable_json(field_type, "{information.simple_name}.{field.name}", visited)
+        if not problem.is_empty() {
+            return problem
+        }
+        index = index + 1
+    }
+    return ""
 }
 
 func resolve_generic_constraints() {
