@@ -1,7 +1,7 @@
 var _kernel = DynamicLibrary("kernel32.dll", 'identity', "")
 
 func create_lock(): Long {
-    var created = _memory.allocate_bytes(8)
+    var created = _heap.allocate(8)
     _kernel.InitializeSRWLock(created)
     return created
 }
@@ -15,5 +15,5 @@ func release_lock(held: Long) {
 }
 
 func destroy_lock(held: Long) {
-    _memory.free(held)
+    _heap.free(held)
 }

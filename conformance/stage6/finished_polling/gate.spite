@@ -1,18 +1,23 @@
-var memory = Memory()
 var program = Program()
-var _flag = memory.allocate_bytes(8)
-
-func Gate() {
-    memory.write_long_atomically(_flag, 0, 0)
-}
+var guard = Lock()
+var opened = false
 
 func open() {
-    memory.write_long_atomically(_flag, 0, 1)
+    guard.lock()
+    opened = true
+    guard.unlock()
+}
+
+func is_open(): Bool {
+    guard.lock()
+    var seen = opened
+    guard.unlock()
+    return seen
 }
 
 func wait_until_open(): Int {
     var spins = 0
-    while memory.read_long_atomically(_flag, 0) == 0 {
+    while not is_open() {
         spins = spins + 1
     }
     return 42
@@ -21,8 +26,4 @@ func wait_until_open(): Int {
 func nap(): Int {
     program.sleep(20)
     return 20
-}
-
-func drop() {
-    memory.free(_flag)
 }

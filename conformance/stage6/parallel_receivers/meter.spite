@@ -1,0 +1,29 @@
+var guard = Lock()
+var stopping = false
+var count: Long = 0
+
+func stop() {
+    guard.lock()
+    stopping = true
+    guard.unlock()
+}
+
+func is_stopping(): Bool {
+    guard.lock()
+    var seen = stopping
+    guard.unlock()
+    return seen
+}
+
+func add_one() {
+    guard.lock()
+    count = count + 1
+    guard.unlock()
+}
+
+func counted(): Long {
+    guard.lock()
+    var seen = count
+    guard.unlock()
+    return seen
+}

@@ -45,16 +45,16 @@ func add_entry(path: String, is_folder: Bool): Bool {
     assert queue != -1 and not paths.contains(path)
     var opened = library.open(path, 32768)
     assert opened != -1
-    var change = memory.allocate_bytes(32)
-    memory.write_long(change, 0, opened)
-    memory.write_short(change, 8, -4)
-    memory.write_unsigned_short(change, 10, 33)
-    memory.write_int(change, 12, 47)
-    memory.write_long(change, 16, 0)
-    memory.write_long(change, 24, 0)
+    var change = heap.allocate(32)
+    change.write_long(0, opened)
+    change.write_short(8, -4)
+    change.write_unsigned_short(10, 33)
+    change.write_int(12, 47)
+    change.write_long(16, 0)
+    change.write_long(24, 0)
     var no_value: Long = 0
     library.kevent(queue, change, 1, no_value, 0, no_value)
-    memory.free(change)
+    heap.free(change)
     descriptors.append(opened)
     paths.append(path)
     is_folders.append(is_folder)
@@ -63,18 +63,18 @@ func add_entry(path: String, is_folder: Bool): Bool {
 
 func collect() {
     assert queue != -1
-    var no_wait = memory.allocate_bytes(16)
-    memory.write_long(no_wait, 0, 0)
-    memory.write_long(no_wait, 8, 0)
-    var event = memory.allocate_bytes(32)
+    var no_wait = heap.allocate(16)
+    no_wait.write_long(0, 0)
+    no_wait.write_long(8, 0)
+    var event = heap.allocate(32)
     var no_value: Long = 0
     while library.kevent(queue, no_value, 0, event, 1, no_wait) > 0 {
-        var descriptor = memory.read_long(event, 0)
-        var flags = memory.read_int(event, 12)
+        var descriptor = event.read_long(0)
+        var flags = event.read_int(12)
         note_event(descriptor, flags)
     }
-    memory.free(event)
-    memory.free(no_wait)
+    heap.free(event)
+    heap.free(no_wait)
 }
 
 func note_event(descriptor: Long, flags: Int) {
@@ -134,23 +134,23 @@ func add_new_entries(path: String) {
 
 func wait_for_event(milliseconds: Long) {
     assert queue != -1
-    var timeout = memory.allocate_bytes(16)
-    memory.write_long(timeout, 0, milliseconds / 1000)
-    memory.write_long(timeout, 8, milliseconds % 1000 * 1000000)
+    var timeout = heap.allocate(16)
+    timeout.write_long(0, milliseconds / 1000)
+    timeout.write_long(8, milliseconds % 1000 * 1000000)
     var waiting: Long = timeout
     if milliseconds < 0 {
         waiting = 0
     }
-    var event = memory.allocate_bytes(32)
+    var event = heap.allocate(32)
     var no_value: Long = 0
     var ready = library.kevent(queue, no_value, 0, event, 1, waiting)
     if ready > 0 {
-        var descriptor = memory.read_long(event, 0)
-        var flags = memory.read_int(event, 12)
+        var descriptor = event.read_long(0)
+        var flags = event.read_int(12)
         note_event(descriptor, flags)
     }
-    memory.free(event)
-    memory.free(timeout)
+    heap.free(event)
+    heap.free(timeout)
 }
 
 func drop() {

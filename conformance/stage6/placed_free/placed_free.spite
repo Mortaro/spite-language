@@ -1,8 +1,8 @@
 var console = Console()
-var memory = Memory()
+var heap = Memory.Heap()
 
 func PlacedFree() {
-    var block = memory.allocate_bytes(4)
-    memory.free(block)
+    var block = heap.allocate(4)
+    heap.free(block)
     console.print("freed")
 }

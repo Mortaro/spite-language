@@ -1,5 +1,5 @@
 var icu = DynamicLibrary("icu.dll", 'identity', "")
-var memory = Memory()
+var heap = Memory.Heap()
 var _name = ""
 var _handle: Long = 0
 
@@ -20,13 +20,13 @@ func get_is_open(): Bool {
 }
 
 func offset_seconds_at(unix_seconds: Long): Int {
-    var status = memory.allocate_bytes(4)
-    memory.write_int(status, 0, 0)
+    var status = heap.allocate(4)
+    status.write_int(0, 0)
     var milliseconds: Double = unix_seconds * 1000
     icu.ucal_setMillis(_handle, milliseconds, status)
     var zone = icu.ucal_get(_handle, 15, status)
     var daylight = icu.ucal_get(_handle, 16, status)
-    memory.free(status)
+    heap.free(status)
     return (zone + daylight) / 1000
 }
 
@@ -38,51 +38,51 @@ func drop() {
 
 func _opened(): Long {
     var length = _name.length()
-    var characters = memory.allocate_bytes(length * 2 + 2)
+    var characters = heap.allocate(length * 2 + 2)
     var index = 0
     while index < length {
         var code = _name.code_at(index)
-        memory.write_short(characters, index * 2, code)
+        characters.write_short(index * 2, code)
         index = index + 1
     }
-    var status = memory.allocate_bytes(4)
-    var is_system = memory.allocate_bytes(4)
-    var canonical = memory.allocate_bytes(512)
-    memory.write_int(status, 0, 0)
-    memory.write_int(is_system, 0, 0)
+    var status = heap.allocate(4)
+    var is_system = heap.allocate(4)
+    var canonical = heap.allocate(512)
+    status.write_int(0, 0)
+    is_system.write_int(0, 0)
     icu.ucal_getCanonicalTimeZoneID(characters, length, canonical, 256, is_system, status)
     var handle: Long = 0
-    if memory.read_int(status, 0) <= 0 and memory.read_byte(is_system, 0) != 0 {
+    if status.read_int(0) <= 0 and is_system.read_byte(0) != 0 {
         handle = icu.ucal_open_as_long(characters, length, "", 1, status)
     }
-    if memory.read_int(status, 0) > 0 {
+    if status.read_int(0) > 0 {
         handle = 0
     }
-    memory.free(canonical)
-    memory.free(is_system)
-    memory.free(status)
-    memory.free(characters)
+    heap.free(canonical)
+    heap.free(is_system)
+    heap.free(status)
+    heap.free(characters)
     return handle
 }
 
 func _default_name(): String {
-    var characters = memory.allocate_bytes(512)
-    var status = memory.allocate_bytes(4)
-    memory.write_int(status, 0, 0)
+    var characters = heap.allocate(512)
+    var status = heap.allocate(4)
+    status.write_int(0, 0)
     var length = icu.ucal_getDefaultTimeZone(characters, 256, status)
-    if memory.read_int(status, 0) > 0 {
+    if status.read_int(0) > 0 {
         length = 0
     }
-    var bytes = memory.allocate_bytes(length + 1)
+    var bytes = heap.allocate(length + 1)
     var index = 0
     while index < length {
-        var code = memory.read_unsigned_short(characters, index * 2)
-        memory.write_byte(bytes, index, code)
+        var code = characters.read_unsigned_short(index * 2)
+        bytes.write_byte(index, code)
         index = index + 1
     }
-    var name = memory.text(bytes, length)
-    memory.free(bytes)
-    memory.free(status)
-    memory.free(characters)
+    var name = bytes.text(length)
+    heap.free(bytes)
+    heap.free(status)
+    heap.free(characters)
     return name
 }

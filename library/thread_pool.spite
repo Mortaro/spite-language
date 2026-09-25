@@ -1,9 +1,9 @@
 singleton
 
-var memory = Memory()
-var workers: Long = 0
+var heap = Memory.Heap()
+var workers: Memory.Address = 0
 var worker_count = 0
-var worker_threads: Long = 0
+var worker_threads: Memory.Address = 0
 var registered = 0
 var jobs = List<ThreadPoolJob>()
 var queue_lock: Long = 0
@@ -23,16 +23,16 @@ func worker_index(): Int {
     var current = current_thread()
     lock_queue()
     var index = registered - 1
-    while index >= 0 and memory.read_long(worker_threads, index * 8) != current {
+    while index >= 0 and worker_threads.read_long(index * 8) != current {
         index = index - 1
     }
     unlock_queue()
     return index
 }
 
-func submit(job: Spite.Function<Int, Int, Nothing>, first: Int, end: Int, state: Long) {
+func submit(job: Spite.Function<Int, Int, Nothing>, first: Int, end: Int, state: Memory.Address) {
     start()
-    memory.write_long_atomically(state, 0, 0)
+    state.write_long_atomically(0, 0)
     var queued = ThreadPoolJob()
     queued.work = job
     queued.first = first
@@ -44,11 +44,11 @@ func submit(job: Spite.Function<Int, Int, Nothing>, first: Int, end: Int, state:
     unlock_queue()
 }
 
-func is_done(state: Long): Bool {
-    return memory.read_long_atomically(state, 0) == 2
+func is_done(state: Memory.Address): Bool {
+    return state.read_long_atomically(0) == 2
 }
 
-func join(state: Long) {
+func join(state: Memory.Address) {
     lock_queue()
     var position = jobs.count() - 1
     while position >= 0 and jobs.get_at(position).state != state {
@@ -72,7 +72,7 @@ func run_pieces(piece: Spite.Function<Int, Int, Nothing>, count: Int) {
         piece(0, count)
         return
     }
-    var block = memory.allocate_bytes(pieces * 8)
+    var block = heap.allocate(pieces * 8)
     var base = count / pieces
     var extra = count % pieces
     var index = 1
@@ -89,7 +89,7 @@ func run_pieces(piece: Spite.Function<Int, Int, Nothing>, count: Int) {
         join(block + index * 8)
         index = index + 1
     }
-    memory.free(block)
+    heap.free(block)
 }
 
 func piece_start(index: Int, base: Int, extra: Int): Int {
@@ -108,15 +108,15 @@ func start() {
         if wanted < 1 {
             wanted = 1
         }
-        workers = memory.allocate_bytes(wanted * 8)
-        worker_threads = memory.allocate_bytes(wanted * 8)
+        workers = heap.allocate(wanted * 8)
+        worker_threads = heap.allocate(wanted * 8)
         var entry = entry_address()
         var pool = address()
         var index = 0
         while index < wanted {
             var thread = start_thread(entry, pool)
             crash thread != 0
-            memory.write_long(workers, index * 8, thread)
+            workers.write_long(index * 8, thread)
             index = index + 1
         }
         worker_count = wanted
@@ -126,7 +126,7 @@ func start() {
 func _serve() {
     var thread = current_thread()
     lock_queue()
-    memory.write_long(worker_threads, registered * 8, thread)
+    worker_threads.write_long(registered * 8, thread)
     registered = registered + 1
     while not stopping or not jobs.is_empty() {
         if jobs.is_empty() {
@@ -141,12 +141,12 @@ func _serve() {
 func run_queued(position: Int) {
     var job = jobs.get_at(position)
     jobs.remove_at(position)
-    memory.write_long_atomically(job.state, 0, 1)
+    job.state.write_long_atomically(0, 1)
     unlock_queue()
     crash job.work
     job.work.call_function(job.first, job.end)
     lock_queue()
-    memory.write_long_atomically(job.state, 0, 2)
+    job.state.write_long_atomically(0, 2)
     signal_all(work_done)
 }
 
@@ -158,12 +158,12 @@ func drop() {
         unlock_queue()
         var index = 0
         while index < worker_count {
-            var worker = memory.read_long(workers, index * 8)
+            var worker = workers.read_long(index * 8)
             join_thread(worker)
             index = index + 1
         }
-        memory.free(workers)
-        memory.free(worker_threads)
+        heap.free(workers)
+        heap.free(worker_threads)
         destroy_condition(work_ready)
         destroy_condition(work_done)
         destroy_lock(queue_lock)

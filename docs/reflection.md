@@ -251,9 +251,9 @@ var console = Console()
 func FunctionReflection() {
     var functions = Gadget.functions
     functions.each_describe()
-    var library_names = Memory.functions.map_name()
-    var has_allocate = library_names.contains('allocate_bytes')
-    console.print("Memory has allocate_bytes", has_allocate)
+    var library_names = Memory.Heap.functions.map_name()
+    var has_allocate = library_names.contains('allocate')
+    console.print("Memory.Heap has allocate", has_allocate)
 }
 
 func describe(function: Spite.Function) {
@@ -266,11 +266,11 @@ func describe(function: Spite.Function) {
 ```output
 boost (amount, times) Int
 reset () Nothing
-Memory has allocate_bytes true
+Memory.Heap has allocate true
 ```
 
-A class of the standard library describes itself the same way: `Memory.functions` lists `allocate_bytes`,
-`resize`, `free` and the rest, including the functions whose bodies the compiler supplies.
+A class of the standard library describes itself the same way: `Memory.Heap.functions` lists `allocate`,
+`resize`, `free` and `live_allocations`, the functions whose bodies the compiler supplies.
 
 ### Asking for a function by name or pattern
 

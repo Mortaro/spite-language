@@ -1,0 +1,27 @@
+var console = Console()
+var heap = Memory.Heap()
+
+func AllocatorChoice() {
+    var arena = Memory.Arena(4096)
+    var before = heap.live_allocations()
+    var spark = Particle("spark", 1.5)
+    spark.memory.allocator = arena
+    var ember = Particle("ember", 2.0)
+    ember.memory.allocator = arena
+    var during = heap.live_allocations()
+    console.print("heap allocations for two particles in the arena:", during - before)
+    var ash = Particle("ash", 0.5)
+    var moved = ash.copy()
+    moved.memory.allocator = arena
+    moved.life = 3.0
+    console.print(spark.name, ember.name, ash.name, ash.life, moved.name, moved.life)
+    var scratch = List<Int>()
+    scratch.memory.allocator = arena
+    scratch.append(3)
+    scratch.append(4)
+    var held = scratch.count()
+    console.print("scratch holds", held)
+    var on_the_heap = Particle("smoke", 0.1)
+    on_the_heap.memory.allocator = heap
+    console.print(on_the_heap.name)
+}

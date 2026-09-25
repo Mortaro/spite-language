@@ -1,5 +1,5 @@
 var path = ""
-var memory = Memory()
+var heap = Memory.Heap()
 
 func File(starting_path: String) {
     path = starting_path
@@ -11,11 +11,11 @@ func read(): String? {
     seek(handle, 0, 2)
     var length = tell(handle)
     seek(handle, 0, 0)
-    var buffer = memory.allocate_bytes(length + 1)
+    var buffer = heap.allocate(length + 1)
     var got = read_into(buffer, length, handle)
     close_file(handle)
-    var content = memory.text(buffer, got)
-    memory.free(buffer)
+    var content = buffer.text(got)
+    heap.free(buffer)
     return content
 }
 

@@ -2,6 +2,7 @@ var shape = Analysis.AstShape()
 var by_function = Dictionary<FunctionEffects>()
 var function_keys = List<String>()
 var field_classes = Dictionary<String>()
+var return_classes = Dictionary<String>()
 
 func study(class_files: List<Discovery.DiscoveredClass>) {
     var index = 0
@@ -43,8 +44,19 @@ func record_fields(statements: List<Syntax.Statements.Statement>, class_name: St
                 field_classes.set("{class_name}#{declared.name}", declared_class)
             }
         }
+        var function = shape.as_function_declaration(statements[index])
+        if function {
+            record_return(function, class_name)
+        }
         index = index + 1
     }
+}
+
+func record_return(function: Syntax.Statements.FunctionDeclaration, class_name: String) {
+    assert function.return_type
+    var returned_class = type_class_name(function.return_type)
+    assert not returned_class.is_empty()
+    return_classes.set("{class_name}#{function.name}", returned_class)
 }
 
 func declared_class_name(declaration: Syntax.Statements.VariableDeclaration): String {

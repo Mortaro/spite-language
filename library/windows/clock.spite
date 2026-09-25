@@ -1,22 +1,22 @@
 var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
 
 func elapsed_nanoseconds(): Long {
-    var counter = memory.allocate_bytes(8)
-    var frequency = memory.allocate_bytes(8)
+    var counter = heap.allocate(8)
+    var frequency = heap.allocate(8)
     kernel.QueryPerformanceCounter(counter)
     kernel.QueryPerformanceFrequency(frequency)
-    var ticks = memory.read_long(counter, 0)
-    var per_second = memory.read_long(frequency, 0)
-    memory.free(counter)
-    memory.free(frequency)
+    var ticks = counter.read_long(0)
+    var per_second = frequency.read_long(0)
+    heap.free(counter)
+    heap.free(frequency)
     return ticks / per_second * 1000000000 + ticks % per_second * 1000000000 / per_second
 }
 
 func now(): Instant {
-    var file_time = memory.allocate_bytes(8)
+    var file_time = heap.allocate(8)
     kernel.GetSystemTimeAsFileTime(file_time)
-    var hundreds_of_nanoseconds = memory.read_long(file_time, 0)
-    memory.free(file_time)
+    var hundreds_of_nanoseconds = file_time.read_long(0)
+    heap.free(file_time)
     var whole = Duration(hundreds_of_nanoseconds / 10000000 - 11644473600, 'seconds')
     var part = Duration(hundreds_of_nanoseconds % 10000000 * 100, 'nanoseconds')
     return Instant(whole + part)

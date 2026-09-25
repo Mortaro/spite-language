@@ -176,10 +176,25 @@ these pages is run this way, and must balance.
 
 ## `Memory` is the floor, and you can build on it
 
-Every type in the standard library is Spite over one class, `Memory` (`library/memory.spite`): `String`,
-`List<T>` and `Dictionary<T>` keep their bytes in memory it hands out, and each number says in its own file how
-much memory it is. A container of your own is written the same way, with nothing the compiler does for `List<T>`
+Memory is its own namespace, because it is the most basic thing a program has and the most dangerous
+([D151](../manual.md#decision-log)). It holds two kinds of class:
+
+- **`Memory.Address` is a place in memory** (`library/memory/address.spite`). It is a number, eight bytes, kept
+  in a register like a `Long` and cast to and from one by the ordinary casting rule, so `address + 16` is the
+  address sixteen bytes on. What makes it an address is what it answers: `read_long(offset)`,
+  `write_float(offset, value)` and the rest read and write the value at `address + offset`.
+- **An allocator is who owns memory**: `Memory.Heap()` is the one every object uses unless told otherwise
+  ([D152](../manual.md#decision-log)). `allocate(bytes)` hands out an address, `resize(address, bytes)` grows it
+  and `free(address)` gives it back. Nothing frees it for you: a class that allocates frees in its `drop()`.
+
+Every type in the standard library is Spite over these two: `String`, `List<T>` and `Dictionary<T>` keep their
+bytes in memory the heap hands out, and each number says in its own file how much memory it is. A container of
+your own is written over the heap and `TypedMemory<T>` (below), with nothing the compiler does for `List<T>`
 that it would not do for yours -- read `library/list.spite` for a complete one.
+
+**Not built yet** ([D178](../manual.md#decision-log)): the heap asking the operating system for pages itself,
+and `copy_to` and `compare_bytes` as plain Spite through `DynamicLibrary`. Today the heap is the C library's
+`malloc`, and copying and comparing are its `memmove` and `memcmp`, written in place like the reads.
 
 ### Where `String` and `Int` keep their memory
 
@@ -187,53 +202,61 @@ A type's storage is attributes at the top of its file (D108). `library/string.sp
 `String` holds:
 
 ```gdscript
-var _bytes: Long = 0
+var _bytes: Memory.Address = 0
 var _length: Long = 0
 var _section: Spite.Memory.Section = 'heap'
 var _capacity: Long = 0
 ```
 
-`_bytes` is the address of its characters, which `Memory` handed out (with a 0 after the last one, for C);
+`_bytes` is the address of its characters, which the heap handed out (with a 0 after the last one, for C);
 `_length` is how many there are; `_capacity` is how many fit before the bytes have to grow, which only building
 text in a loop uses; and `_section` is where the compiler placed them: `'heap'`, or `'constant'` for a literal,
 whose characters are part of the program and are never counted or freed. The compiler writes the C layout of a
 `String` from these declarations, in this order, after the header every object has (its reference count and its
-class). Everything else is Spite in the same file: `length()` answers `_length`, `code_at(index)` reads a byte
-of `_bytes` through `Memory` (the 0 after the last one is what it answers past the end), `slice` and `+` copy
-through `Memory` and end in the constructor `String(bytes, length)`, which takes bytes `Memory` handed out, and
-`drop()` gives `_bytes` back to `Memory` when the last reference goes. The only C about a `String` is what the
+class). Everything else is Spite in the same file: `length()` answers `_length`, `code_at(index)` is
+`_bytes.read_byte(position)` (the 0 after the last one is what it answers past the end), `slice` and `+` copy
+with `copy_to` and end in the constructor `String(bytes, length)`, which takes bytes the heap handed out, and
+`drop()` gives `_bytes` back to the heap when the last reference goes. The only C about a `String` is what the
 header decides: a `'constant'` text is never counted, and `text = text + piece` grows in place only when
 nothing else holds the text.
 
 `library/int.spite` starts with the memory an `Int` is:
 
 ```gdscript
-var memory = Memory()
-var _memory = memory.allocate_bytes(4)
+var heap = Memory.Heap()
+var _memory = heap.allocate(4)
 ```
 
-Four bytes, allocated through `Memory` like everything else, and placed by the compiler: a number's memory is a
-register (or wherever the C compiler keeps an `int32_t`), so there is no address behind `this` and nothing to
-free. `Memory` is bound to `memory` first, as every singleton is
-([classes_and_files.md](classes_and_files.md#singletons)); that binding is never a field of the number. Every number file says the same with its own width (`Long` 8, `Short` 2, `Byte` 1, `Bool` 1, `Double` 8,
-...), the compiler checks it against the C type it emits, and `count.memory.bytes` reads it. Inside a number,
-`this` is the value itself: reading `_memory` is an error saying so.
+Four bytes, allocated like everything else, and placed by the compiler: a number's memory is a register (or
+wherever the C compiler keeps an `int32_t`), so there is no address behind `this` and nothing to free. The heap
+is bound to `heap` first, as every singleton is ([classes_and_files.md](classes_and_files.md#singletons)); that
+binding is never a field of the number. Every number file says the same with its own width (`Long` 8, `Short` 2,
+`Byte` 1, `Bool` 1, `Double` 8, `Memory.Address` 8, ...), the compiler checks it against the C type it emits,
+and `count.memory.bytes` reads it. Inside a number, `this` is the value itself: reading `_memory` is an error
+saying so.
 
-- **Allocating:** `memory.allocate_bytes(bytes)` returns an address (a `Long`); `resize` grows it and `free`
-  gives it back. Nothing frees it for you: a class that allocates frees in its `drop()`. The bytes are not
-  cleared: a new block, and the part `resize` adds, hold whatever was there before, so write a byte before
-  reading it. A read of a byte nobody wrote can pass on one machine and crash on the next, since what the heap
-  holds depends even on how the program was launched.
+- **Allocating:** `heap.allocate(bytes)` returns a `Memory.Address`; `heap.resize(address, bytes)` grows it and
+  `heap.free(address)` gives it back. Nothing frees it for you: a class that allocates frees in its `drop()`. The
+  bytes are not cleared: a new block, and the part `resize` adds, hold whatever was there before, so write a byte
+  before reading it. A read of a byte nobody wrote can pass on one machine and crash on the next, since what the
+  heap holds depends even on how the program was launched.
 - **Where it lives is the compiler's choice** (D108). An allocation a function frees itself, in the same block,
-  whose address it only hands to `memory`'s reads, writes, copies, comparisons and `text` -- never stores,
-  returns, resizes or passes anywhere else -- is placed in the function's own frame: up to 256 bytes cost no
-  allocation at all, and a larger request there still goes to the heap at run time. Anything else is on the
-  heap. The program writes the same `allocate_bytes` and `free` either way; there is no second way to ask for
-  the stack.
-- **Typed values:** `read_byte`, `read_short`, `read_unsigned_short`, `read_int`, `read_unsigned_int`,
-  `read_long`, `read_float` and `read_double`, each `(address, offset)`, and the matching `write_*(address,
-  offset, value)` read and write numbers at an address -- every width a C struct's fields use. For values of any type -- a class, a `String`, a nullable number -- a generic class
-  holds a `TypedMemory<$value_type>`, whose `read_value(address, index)`, `write_value(address, index, value)`,
+  whose address it only reads and writes through, copies, compares, turns into `text` or hands to a
+  `TypedMemory` -- never stores, returns, resizes or passes anywhere else -- is placed in the function's own
+  frame: up to 256 bytes cost no allocation at all, and a larger request there still goes to the heap at run
+  time. Anything else is on the heap. The program writes the same `allocate` and `free` either way; there is no
+  second way to ask for the stack.
+- **Reading and writing an address** ([D178](../manual.md#decision-log)): `read_byte`, `read_short`,
+  `read_unsigned_short`, `read_int`, `read_unsigned_int`, `read_long`, `read_float` and `read_double`, each
+  `(offset)`, and the matching `write_*(offset, value)` -- every width a C struct's fields use -- plus
+  `exchange_long`, `read_long_atomically` and `write_long_atomically` for memory threads share. They are
+  primitives of the language, like `+`: each is one machine operation that whichever backend compiles the
+  program writes itself, so reading a field costs what it costs in C. **Only `library/` may call them** -- a
+  function of a class the standard library declares, which includes one a program reopens; in any other class
+  they are an error that points at the standard library and `TypedMemory<T>`. `copy_to(target, bytes)`,
+  `compare_bytes(other, bytes)`, `text(length)` and `terminated_text()` are on every address, for everyone.
+- **Values of any type:** for a class, a `String`, a number or a nullable, a generic class holds a
+  `TypedMemory<$value_type>`, whose `read_value(address, index)`, `write_value(address, index, value)`,
   `release_value(address, index)` and `value_bytes()` keep reference counts right for that type. It is one
   shared instance per type, and it is exactly what `library/list.spite` uses for its elements.
 
@@ -243,9 +266,9 @@ numbers the compiler places in the function's frame, so the live allocations do 
 ```gdscript title=ring_buffer_program/ring_buffer.spite
 generic $value_type
 
-var memory = Memory()
+var heap = Memory.Heap()
 var values = TypedMemory<$value_type>()
-var slots: Long = 0
+var slots: Memory.Address = 0
 var capacity = 0
 var start = 0
 var used = 0
@@ -253,7 +276,7 @@ var used = 0
 func RingBuffer(starting_capacity: Int) {
     capacity = starting_capacity
     var value_bytes = values.value_bytes()
-    slots = memory.allocate_bytes(value_bytes * capacity)
+    slots = heap.allocate(value_bytes * capacity)
 }
 
 func push(value: $value_type) {
@@ -281,7 +304,7 @@ func drop() {
         values.release_value(slots, (start + index) % capacity)
         index = index + 1
     }
-    memory.free(slots)
+    heap.free(slots)
 }
 ```
 ```gdscript title=ring_buffer_program/ring_buffer_program.spite entry
@@ -301,22 +324,23 @@ func RingBufferProgram() {
 }
 
 func sum_in_the_frame(count: Int): Long {
-    var memory = Memory()
-    var before = memory.live_allocations()
-    var numbers = memory.allocate_bytes(count * 8)
+    var heap = Memory.Heap()
+    var numbers = TypedMemory<Long>()
+    var before = heap.live_allocations()
+    var slots = heap.allocate(count * 8)
     var index = 0
     while index < count {
-        memory.write_long(numbers, index * 8, index * 10)
+        numbers.write_value(slots, index, index * 10)
         index = index + 1
     }
     var total: Long = 0
     index = 0
     while index < count {
-        total = total + memory.read_long(numbers, index * 8)
+        total = total + numbers.read_value(slots, index)
         index = index + 1
     }
-    var during = memory.live_allocations()
-    memory.free(numbers)
+    var during = heap.live_allocations()
+    heap.free(slots)
     console.print("allocated while summing:", during - before)
     return total
 }
@@ -334,7 +358,7 @@ Every named value can see its own memory through reflection: `value.memory` is a
 `'constant'` (the text of a literal, which is part of the program). A class instance or a list answers with
 its object; a `String` with its characters; a number held in a local with the local itself. It is built only
 where a program reads it, so it costs nothing anywhere else. A class with an attribute of its own named
-`memory` (most of the standard library holds one) answers that attribute instead.
+`memory` answers that attribute instead.
 
 ```gdscript title=memory_sections/memory_sections.spite entry
 var console = Console()
@@ -353,3 +377,72 @@ func MemorySections() {
 stack 4
 constant 5 true
 ```
+
+### Choosing an allocator: `.memory.allocator`
+
+Every object is made on `Memory.Heap` unless its program says otherwise, and it says so on the line right after
+the object is made ([D152](../manual.md#decision-log)):
+
+```gdscript
+var spark = Particle("spark", 1.5)
+spark.memory.allocator = arena
+```
+
+The compiler reads the two lines as one intent: `spark` is made in `arena` from the start. Nothing is allocated
+on the heap first and moved, and nothing is looked up while the program runs -- the constructor is handed the
+arena's memory instead of the heap's. An allocator is any class that answers `allocate(bytes: Long):
+Memory.Address` and `free(address: Memory.Address)`; the standard library's is **`Memory.Arena(block_bytes)`**,
+which hands out memory from blocks of that size, one after another, never gives any of it back one piece at a
+time, and frees every block at once when the arena itself goes. An object made in an arena holds the arena, so
+the arena cannot go while anything made in it is alive.
+
+- **Only right after it is made.** A constructor, `List<T>()` or `.copy()` on one line, and the allocator on the
+  next. Once the object was used, its memory stays where it is, and setting the allocator is an error that says
+  to copy it: `var moved = spark.copy()`, then `moved.memory.allocator = arena`
+  ([D153](../manual.md#decision-log)).
+- **The allocator is a name**, bound on a line of its own (`var arena = Memory.Arena(65536)`); setting
+  `Memory.Heap()` is the default and changes nothing.
+- **Only an object.** A number, a `String` and the reflection objects are placed by the compiler (D108), so
+  giving one an allocator is an error.
+- **A list holds references** ([D154](../manual.md#decision-log)): giving a `List` an allocator places the list
+  itself there, and each element lives wherever it was made. **Not built yet:** the list's buffer of references
+  still comes from the heap, and `Vector<T>`, which holds its items inline, does not exist yet.
+- **It costs nothing where it is not used** ([D177](../manual.md#decision-log)): only a class some program line
+  gives an allocator carries the two hidden pointers that remember it (sixteen bytes more per object of that
+  class), and no other class changes at all.
+
+```gdscript title=arena_particles/particle.spite
+var name = ""
+var life = 0.0
+
+func Particle(new_name: String, new_life: Float) {
+    name = new_name
+    life = new_life
+}
+```
+```gdscript title=arena_particles/arena_particles.spite entry
+var console = Console()
+var heap = Memory.Heap()
+
+func ArenaParticles() {
+    var arena = Memory.Arena(4096)
+    var before = heap.live_allocations()
+    var spark = Particle("spark", 1.5)
+    spark.memory.allocator = arena
+    var ember = Particle("ember", 2.0)
+    ember.memory.allocator = arena
+    var during = heap.live_allocations()
+    console.print(spark.name, ember.name, "heap allocations:", during - before)
+    var ash = Particle("ash", 0.5)
+    var kept = ash.copy()
+    kept.memory.allocator = arena
+    kept.life = 3.0
+    console.print(ash.life, kept.life)
+}
+```
+```output
+spark ember heap allocations: 1
+0.5 3
+```
+
+The one heap allocation is the arena's first block; both particles are inside it.

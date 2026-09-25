@@ -1,20 +1,20 @@
-var memory = Memory()
-var _memory = memory.allocate_bytes(8)
+var heap = Memory.Heap()
+var _memory = heap.allocate(8)
 
 func to_string(): String {
     if this == 0 {
         return "0"
     }
-    var memory = Memory()
-    var address = memory.allocate_bytes(24)
+    var heap = Memory.Heap()
+    var address = heap.allocate(24)
     var position: Long = 24
     var rest = this
     while rest != 0 {
         position = position - 1
-        memory.write_byte(address, position, 48 + rest % 10)
+        address.write_byte(position, 48 + rest % 10)
         rest = rest / 10
     }
-    var text = memory.text(address + position, 24 - position)
-    memory.free(address)
+    var text = (address + position).text(24 - position)
+    heap.free(address)
     return text
 }

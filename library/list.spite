@@ -1,8 +1,8 @@
 generic $element_type
 
-var memory = Memory()
+var heap = Memory.Heap()
 var values = TypedMemory<$element_type>()
-var items: Long = 0
+var items: Memory.Address = 0
 var item_count = 0
 var capacity = 0
 
@@ -107,17 +107,17 @@ func clear() {
 func reverse() {
     if item_count > 1 {
         var bytes = values.value_bytes()
-        var spare = memory.allocate_bytes(bytes)
+        var spare = heap.allocate(bytes)
         var front: Long = 0
         var back: Long = item_count - 1
         while front < back {
-            memory.copy_bytes(items + front * bytes, spare, bytes)
-            memory.copy_bytes(items + back * bytes, items + front * bytes, bytes)
-            memory.copy_bytes(spare, items + back * bytes, bytes)
+            (items + front * bytes).copy_to(spare, bytes)
+            (items + back * bytes).copy_to(items + front * bytes, bytes)
+            spare.copy_to(items + back * bytes, bytes)
             front = front + 1
             back = back - 1
         }
-        memory.free(spare)
+        heap.free(spare)
     }
 }
 
@@ -145,7 +145,7 @@ func join(separator: String): String {
     if item_count > 1 {
         total = total + separator.length() * (item_count - 1)
     }
-    var address = memory.allocate_bytes(total + 1)
+    var address = heap.allocate(total + 1)
     var position: Long = 0
     index = 0
     while index < pieces.count() {
@@ -156,16 +156,16 @@ func join(separator: String): String {
         position = write_text(next_piece, address, position)
         index = index + 1
     }
-    var joined = memory.text(address, total)
-    memory.free(address)
+    var joined = address.text(total)
+    heap.free(address)
     return joined
 }
 
-func write_text(text: String, address: Long, position: Long): Long {
+func write_text(text: String, address: Memory.Address, position: Long): Long {
     var index = 0
     while index < text.length() {
         var code = text.code_at(index)
-        memory.write_byte(address, position + index, code)
+        address.write_byte(position + index, code)
         index = index + 1
     }
     return position + text.length()
@@ -294,7 +294,7 @@ func sort_by_member(member: Symbol<$element_type>): List<$element_type> {
 
 func drop() {
     clear()
-    memory.free(items)
+    heap.free(items)
 }
 
 func make_room() {
@@ -304,12 +304,12 @@ func make_room() {
             grown = 4
         }
         var bytes = values.value_bytes()
-        items = memory.resize(items, bytes * grown)
+        items = heap.resize(items, bytes * grown)
         capacity = grown
     }
 }
 
 func move_items(from: Int, to: Int, moved_count: Int) {
     var bytes = values.value_bytes()
-    memory.copy_bytes(items + bytes * from, items + bytes * to, bytes * moved_count)
+    (items + bytes * from).copy_to(items + bytes * to, bytes * moved_count)
 }

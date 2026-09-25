@@ -1,4 +1,4 @@
-var memory = Memory()
+var heap = Memory.Heap()
 var clock = Clock()
 var pending = List<String>()
 var last_change: Long = 0

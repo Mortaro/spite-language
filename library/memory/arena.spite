@@ -1,0 +1,42 @@
+var _block: Memory.Address = 0
+var _block_bytes: Long = 0
+var _end: Long = 0
+var _used: Long = 0
+
+func Arena(block_bytes: Long) {
+    _block_bytes = block_bytes
+}
+
+func allocate(bytes: Long): Memory.Address {
+    var rounded = (bytes + 15) / 16 * 16
+    if _block == 0 or _used + rounded > _end {
+        start_block(rounded)
+    }
+    var address = _block + _used
+    _used = _used + rounded
+    return address
+}
+
+func free(_address: Memory.Address) {}
+
+func start_block(at_least: Long) {
+    var heap = Memory.Heap()
+    var size = _block_bytes
+    if at_least + 16 > size {
+        size = at_least + 16
+    }
+    var block = heap.allocate(size)
+    block.write_long(0, _block)
+    _block = block
+    _end = size
+    _used = 16
+}
+
+func drop() {
+    var heap = Memory.Heap()
+    while _block != 0 {
+        var older: Memory.Address = _block.read_long(0)
+        heap.free(_block)
+        _block = older
+    }
+}

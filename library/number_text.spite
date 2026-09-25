@@ -1,6 +1,6 @@
 singleton
 
-var memory = Memory()
+var heap = Memory.Heap()
 
 func exact_digits(multiplier: Long, exponent: Long): String {
     var twos: Long = 0
@@ -11,11 +11,11 @@ func exact_digits(multiplier: Long, exponent: Long): String {
         fives = -exponent
     }
     var capacity = (twos / 3 + fives * 3 / 4 + 20) / 9 + 2
-    var limbs = memory.allocate_bytes(capacity * 8)
+    var limbs = heap.allocate(capacity * 8)
     var count: Long = 0
     var rest = multiplier
     while rest > 0 {
-        memory.write_long(limbs, count * 8, rest % 1000000000)
+        limbs.write_long(count * 8, rest % 1000000000)
         rest = rest / 1000000000
         count = count + 1
     }
@@ -38,42 +38,42 @@ func exact_digits(multiplier: Long, exponent: Long): String {
         fives = fives - step
     }
     var size = count * 9
-    var address = memory.allocate_bytes(size)
+    var address = heap.allocate(size)
     var limb_index: Long = 0
     while limb_index < count {
-        var limb = memory.read_long(limbs, limb_index * 8)
+        var limb = limbs.read_long(limb_index * 8)
         var position = size - limb_index * 9
         var place = 0
         while place < 9 {
             position = position - 1
-            memory.write_byte(address, position, 48 + limb % 10)
+            address.write_byte(position, 48 + limb % 10)
             limb = limb / 10
             place = place + 1
         }
         limb_index = limb_index + 1
     }
-    memory.free(limbs)
+    heap.free(limbs)
     var start: Long = 0
-    while memory.read_byte(address, start) == 48 {
+    while address.read_byte(start) == 48 {
         start = start + 1
     }
-    var text = memory.text(address + start, size - start)
-    memory.free(address)
+    var text = (address + start).text(size - start)
+    heap.free(address)
     return text
 }
 
-func multiplied(limbs: Long, count: Long, factor: Long): Long {
+func multiplied(limbs: Memory.Address, count: Long, factor: Long): Long {
     var carry: Long = 0
     var index: Long = 0
     while index < count {
-        var product = memory.read_long(limbs, index * 8) * factor + carry
-        memory.write_long(limbs, index * 8, product % 1000000000)
+        var product = limbs.read_long(index * 8) * factor + carry
+        limbs.write_long(index * 8, product % 1000000000)
         carry = product / 1000000000
         index = index + 1
     }
     var grown = count
     while carry > 0 {
-        memory.write_long(limbs, grown * 8, carry % 1000000000)
+        limbs.write_long(grown * 8, carry % 1000000000)
         carry = carry / 1000000000
         grown = grown + 1
     }
@@ -101,29 +101,29 @@ func rounded_digits(digits: String, count: Long): String {
     if digits.length() <= count {
         return digits
     }
-    var address = memory.allocate_bytes(count + 1)
-    memory.write_byte(address, 0, 48)
+    var address = heap.allocate(count + 1)
+    address.write_byte(0, 48)
     var index: Long = 0
     while index < count {
         var code_of_digit = digits.code_at(index)
-        memory.write_byte(address, index + 1, code_of_digit)
+        address.write_byte(index + 1, code_of_digit)
         index = index + 1
     }
     if rounds_up(digits, count) {
         var position = count
-        while memory.read_byte(address, position) == 57 {
-            memory.write_byte(address, position, 48)
+        while address.read_byte(position) == 57 {
+            address.write_byte(position, 48)
             position = position - 1
         }
-        var digit_byte = memory.read_byte(address, position)
-        memory.write_byte(address, position, digit_byte + 1)
+        var digit_byte = address.read_byte(position)
+        address.write_byte(position, digit_byte + 1)
     }
     var start: Long = 1
-    if memory.read_byte(address, 0) != 48 {
+    if address.read_byte(0) != 48 {
         start = 0
     }
-    var text = memory.text(address + start, count + 1 - start)
-    memory.free(address)
+    var text = (address + start).text(count + 1 - start)
+    heap.free(address)
     return text
 }
 

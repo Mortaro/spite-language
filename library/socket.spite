@@ -1,6 +1,6 @@
 var handle: Long = -1
 var pending = ""
-var memory = Memory()
+var heap = Memory.Heap()
 
 func listen_locally(port: Int): Bool {
     start_sockets()
@@ -8,7 +8,7 @@ func listen_locally(port: Int): Bool {
     assert handle != -1
     var address = local_address(port)
     var bound = bind_address(address)
-    memory.free(address)
+    heap.free(address)
     return bound and listen_for_clients()
 }
 
@@ -18,7 +18,7 @@ func connect_locally(port: Int): Bool {
     assert handle != -1
     var address = local_address(port)
     var connected = connect_address(address)
-    memory.free(address)
+    heap.free(address)
     return connected
 }
 
@@ -31,19 +31,19 @@ func accept_client(): Socket? {
 }
 
 func read_line(): String? {
-    var buffer = memory.allocate_bytes(4096)
+    var buffer = heap.allocate(4096)
     var newline = pending.index_of("\n")
     var open = true
     while newline < 0 and open {
         var received = receive_into(buffer, 4096)
         if received > 0 {
-            pending = "{pending}{memory.text(buffer, received)}"
+            pending = "{pending}{buffer.text(received)}"
             newline = pending.index_of("\n")
         } else {
             open = false
         }
     }
-    memory.free(buffer)
+    heap.free(buffer)
     assert newline >= 0
     var line = pending.slice(0, newline)
     var pending_length = pending.length()
@@ -76,18 +76,18 @@ func close() {
 }
 
 func local_address(port: Int): Long {
-    var address = memory.allocate_bytes(16)
+    var address = heap.allocate(16)
     var index = 0
     while index < 16 {
-        memory.write_byte(address, index, 0)
+        address.write_byte(index, 0)
         index = index + 1
     }
     write_family(address)
     var port_high = port.shifted_right(8)
     var port_low = port.bits_and(255)
-    memory.write_byte(address, 2, port_high)
-    memory.write_byte(address, 3, port_low)
-    memory.write_byte(address, 4, 127)
-    memory.write_byte(address, 7, 1)
+    address.write_byte(2, port_high)
+    address.write_byte(3, port_low)
+    address.write_byte(4, 127)
+    address.write_byte(7, 1)
     return address
 }

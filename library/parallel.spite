@@ -1,9 +1,9 @@
 generic $result_type
 
 var _pool = ThreadPool()
-var _memory = Memory()
+var _heap = Memory.Heap()
 var _call = ParallelCall<$result_type>()
-var _state = _memory.allocate_bytes(8)
+var _state = _heap.allocate(8)
 
 func Parallel(starting_work: Spite.Function<$result_type>) {
     _call.work = starting_work
@@ -11,7 +11,7 @@ func Parallel(starting_work: Spite.Function<$result_type>) {
 }
 
 func get_finished(): Bool {
-    return _memory.read_long_atomically(_state, 0) == 2
+    return _state.read_long_atomically(0) == 2
 }
 
 func _result(): $result_type {
@@ -27,5 +27,5 @@ func _join() {
 
 func drop() {
     _join()
-    _memory.free(_state)
+    _heap.free(_state)
 }

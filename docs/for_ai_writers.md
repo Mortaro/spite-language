@@ -237,9 +237,13 @@ func is_alive(): Bool {
   the attributes, or in a function -- and used through the name: `Journal().record(entry)`, `Build().program`,
   `keep(Console())` and `return Console()` are errors.
 - `value.memory` is where a named value lives (`.address`, `.bytes`, `.section`: `'heap'`, `'stack'`,
-  `'constant'`). A container of your own is a generic class over `Memory` (`allocate_bytes`, `resize`, `free`,
-  `read_long`/`write_long`, ...; the compiler places each allocation) and a `TypedMemory<$value_type>` (`read_value`,
-  `write_value`, `release_value`, `value_bytes`), exactly as `library/list.spite` is.
+  `'constant'`). A container of your own is a generic class over `var heap = Memory.Heap()` (`allocate`,
+  `resize`, `free`, each on a `Memory.Address`; the compiler places each allocation) and a
+  `TypedMemory<$value_type>` (`read_value`, `write_value`, `release_value`, `value_bytes`), as
+  `library/list.spite` is. `address.read_long(offset)` and the other reads and writes are for `library/` only.
+- An object is made on the heap unless the line right after it names another allocator:
+  `var spark = Particle()` then `spark.memory.allocator = arena` (`var arena = Memory.Arena(65536)` beforehand)
+  makes it in the arena from the start. Later, it is an error: copy it and set the copy's allocator.
 
 ## Built in classes
 

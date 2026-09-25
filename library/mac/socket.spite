@@ -11,18 +11,18 @@ func open_socket(): Long {
 }
 
 func enable_option(opened: Int, option: Int) {
-    var enabled = memory.allocate_bytes(4)
-    memory.write_int(enabled, 0, 1)
+    var enabled = heap.allocate(4)
+    enabled.write_int(0, 1)
     library.setsockopt(opened, 65535, option, enabled, 4)
-    memory.free(enabled)
+    heap.free(enabled)
 }
 
-func write_family(address: Long) {
-    memory.write_byte(address, 0, 16)
-    memory.write_byte(address, 1, 2)
+func write_family(address: Memory.Address) {
+    address.write_byte(0, 16)
+    address.write_byte(1, 2)
 }
 
-func bind_address(address: Long): Bool {
+func bind_address(address: Memory.Address): Bool {
     return library.bind(handle, address, 16) == 0
 }
 
@@ -39,7 +39,7 @@ func accept_handle(): Long {
     return accepted
 }
 
-func connect_address(address: Long): Bool {
+func connect_address(address: Memory.Address): Bool {
     enable_option(handle, 4130)
     return library.connect(handle, address, 16) == 0
 }

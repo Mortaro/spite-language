@@ -1,6 +1,5 @@
 singleton
 
-var memory = Memory()
 var started = false
 var scheduler_thread: Long = 0
 var current: Long = 0
@@ -103,7 +102,7 @@ func sleep(milliseconds: Int) {
     suspend()
 }
 
-func offload(call: Long, entry: Long): Bool {
+func offload(call: Memory.Address, entry: Long): Bool {
     var thread = start_thread(entry, call)
     assert thread != 0
     offloads.append(call)
@@ -113,8 +112,8 @@ func offload(call: Long, entry: Long): Bool {
     return true
 }
 
-func offload_done(call: Long) {
-    memory.write_long_atomically(call, 0, 1)
+func offload_done(call: Memory.Address) {
+    call.write_long_atomically(0, 1)
     signal()
 }
 
@@ -141,8 +140,8 @@ func idle() {
 func wake_finished() {
     var index = 0
     while index < offloads.count() {
-        var call = offloads.get_at(index)
-        if memory.read_long_atomically(call, 0) == 1 {
+        var call: Memory.Address = offloads.get_at(index)
+        if call.read_long_atomically(0) == 1 {
             var fiber = offload_fibers.get_at(index)
             runnable.append(fiber)
             offloads.remove_at(index)

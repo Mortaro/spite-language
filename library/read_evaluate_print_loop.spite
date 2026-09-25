@@ -5,12 +5,12 @@ type Answer {
 }
 
 var console = Console()
-var memory = Memory()
+var heap = Memory.Heap()
 var unresolved = ""
 var server = Socket()
 var scheduler = Scheduler()
 var thread: Long = 0
-var handover: Long = 0
+var handover: Memory.Address = 0
 var pending_command = ""
 var answered: Answer? = null
 var served: Spite.Attribute? = null
@@ -39,9 +39,9 @@ func listen_in_background(port: Int, entry: Long) {
         program.exit(1)
         return
     }
-    handover = memory.allocate_bytes(16)
-    memory.write_long(handover, 0, 0)
-    memory.write_long(handover, 8, 0)
+    handover = heap.allocate(16)
+    handover.write_long(0, 0)
+    handover.write_long(8, 0)
     scheduler.start()
     scheduler.serving = true
     scheduler.commands = answer_pending
@@ -54,7 +54,7 @@ func listen_in_background(port: Int, entry: Long) {
 }
 
 func wait_for_exit() {
-    while memory.read_long_atomically(handover, 8) == 0 {
+    while handover.read_long_atomically(8) == 0 {
         scheduler.idle()
     }
     scheduler.serving = false
@@ -64,7 +64,7 @@ func wait_for_exit() {
 
 func drop() {
     if handover != 0 {
-        memory.free(handover)
+        heap.free(handover)
     }
 }
 
@@ -79,7 +79,7 @@ func serve(program: Spite.Attribute) {
             serving = false
         }
     }
-    memory.write_long_atomically(handover, 8, 1)
+    handover.write_long_atomically(8, 1)
     scheduler.signal()
 }
 
@@ -108,22 +108,22 @@ func serve_client(client: Socket) {
 
 func handed_over(command: String): Answer {
     pending_command = command
-    memory.write_long_atomically(handover, 0, 1)
+    handover.write_long_atomically(0, 1)
     scheduler.signal()
-    while memory.read_long_atomically(handover, 0) != 2 {
+    while handover.read_long_atomically(0) != 2 {
         pause_briefly()
     }
     crash answered
-    memory.write_long_atomically(handover, 0, 0)
+    handover.write_long_atomically(0, 0)
     return answered
 }
 
 func answer_pending() {
-    if memory.read_long_atomically(handover, 0) == 1 {
-        memory.write_long_atomically(handover, 0, 3)
+    if handover.read_long_atomically(0) == 1 {
+        handover.write_long_atomically(0, 3)
         crash served
         answered = answer(pending_command, served)
-        memory.write_long_atomically(handover, 0, 2)
+        handover.write_long_atomically(0, 2)
         if pending_command == "exit" {
             while true {
                 pause_briefly()

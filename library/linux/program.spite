@@ -13,9 +13,9 @@ func environment_address(name: String): Long {
 }
 
 func executable_path(): String {
-    var buffer = memory.allocate_bytes(1024)
+    var buffer = heap.allocate(1024)
     var length = library.readlink_as_long("/proc/self/exe", buffer, 1023)
-    var path = memory.text(buffer, length)
-    memory.free(buffer)
+    var path = buffer.text(length)
+    heap.free(buffer)
     return path
 }

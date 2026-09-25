@@ -5,21 +5,21 @@ func elapsed_nanoseconds(): Long {
 }
 
 func now(): Instant {
-    var time = memory.allocate_bytes(16)
+    var time = heap.allocate(16)
     library.clock_gettime(0, time)
-    var seconds = memory.read_long(time, 0)
-    var nanoseconds = memory.read_long(time, 8)
-    memory.free(time)
+    var seconds = time.read_long(0)
+    var nanoseconds = time.read_long(8)
+    heap.free(time)
     var whole = Duration(seconds, 'seconds')
     var part = Duration(nanoseconds, 'nanoseconds')
     return Instant(whole + part)
 }
 
 func read_clock(clock: Int): Long {
-    var time = memory.allocate_bytes(16)
+    var time = heap.allocate(16)
     library.clock_gettime(clock, time)
-    var seconds = memory.read_long(time, 0)
-    var nanoseconds = memory.read_long(time, 8)
-    memory.free(time)
+    var seconds = time.read_long(0)
+    var nanoseconds = time.read_long(8)
+    heap.free(time)
     return seconds * 1000000000 + nanoseconds
 }

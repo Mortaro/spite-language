@@ -31,11 +31,11 @@ func write_text(text: String, handle: Long): Long {
 }
 
 func modified_nanoseconds(): Long? {
-    var data = memory.allocate_bytes(40)
+    var data = heap.allocate(40)
     var standard_information = 0
     var found = kernel.GetFileAttributesExA(path, standard_information, data)
-    var written = memory.read_long(data, 20)
-    memory.free(data)
+    var written = data.read_long(20)
+    heap.free(data)
     assert found != 0
     return (written - 116444736000000000) * 100
 }

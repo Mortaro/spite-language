@@ -72,7 +72,24 @@ func study_declaration(declaration: Syntax.Statements.VariableDeclaration) {
     local_sources.set(declaration.name, source)
     crash table
     var declared_class = table.declared_class_name(declaration)
+    if declared_class.is_empty() {
+        declared_class = returned_class(declaration.value)
+    }
     local_classes.set(declaration.name, declared_class)
+}
+
+func returned_class(value: Syntax.Expressions.Expression): String {
+    var called = shape.as_call(value)
+    assert called
+    crash called.callee
+    var member = shape.as_member(called.callee)
+    assert member
+    crash member.object
+    var receiver_class = owner_class(member.object)
+    crash table
+    var found = table.return_classes.get("{receiver_class}#{member.name}")
+    assert found
+    return found
 }
 
 func study_assignment(assignment: Syntax.Statements.AssignmentStatement) {
@@ -209,6 +226,11 @@ func owner_class(expression: Syntax.Expressions.Expression): String {
             return "*"
         }
         return field_class(object_class, member.name)
+    }
+    var binary = shape.as_binary(expression)
+    if binary {
+        crash binary.left
+        return owner_class(binary.left)
     }
     return "*"
 }

@@ -69,24 +69,24 @@ func add_watch(folder: String, file_name: String): Bool {
 
 func collect() {
     assert notifier != -1
-    var events = memory.allocate_bytes(4096)
+    var events = heap.allocate(4096)
     var read = library.read_as_long(notifier, events, 4096)
     while read > 0 {
         var offset: Long = 0
         while offset < read {
-            var number = memory.read_int(events, offset)
-            var mask = memory.read_int(events, offset + 4)
-            var name_length = memory.read_int(events, offset + 12)
+            var number = events.read_int(offset)
+            var mask = events.read_int(offset + 4)
+            var name_length = events.read_int(offset + 12)
             var name = ""
             if name_length > 0 {
-                name = memory.terminated_text(events + offset + 16)
+                name = (events + offset + 16).terminated_text()
             }
             note_event(number, mask, name)
             offset = offset + 16 + name_length
         }
         read = library.read_as_long(notifier, events, 4096)
     }
-    memory.free(events)
+    heap.free(events)
 }
 
 func note_event(number: Int, mask: Int, name: String) {
@@ -127,11 +127,11 @@ func note_in(index: Int, mask: Int, name: String) {
 
 func wait_for_event(milliseconds: Long) {
     assert notifier != -1
-    var polled = memory.allocate_bytes(8)
-    memory.write_int(polled, 0, notifier)
-    memory.write_int(polled, 4, 1)
+    var polled = heap.allocate(8)
+    polled.write_int(0, notifier)
+    polled.write_int(4, 1)
     library.poll(polled, 1, milliseconds)
-    memory.free(polled)
+    heap.free(polled)
 }
 
 func drop() {

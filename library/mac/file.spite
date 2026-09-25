@@ -30,11 +30,11 @@ func write_text(text: String, handle: Long): Long {
 }
 
 func modified_nanoseconds(): Long? {
-    var status = memory.allocate_bytes(256)
+    var status = heap.allocate(256)
     var found = library.stat(path, status)
-    var seconds = memory.read_long(status, 48)
-    var nanoseconds = memory.read_long(status, 56)
-    memory.free(status)
+    var seconds = status.read_long(48)
+    var nanoseconds = status.read_long(56)
+    heap.free(status)
     assert found == 0
     return seconds * 1000000000 + nanoseconds
 }

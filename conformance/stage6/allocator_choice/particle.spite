@@ -1,0 +1,7 @@
+var name = ""
+var life = 0.0
+
+func Particle(new_name: String, new_life: Float) {
+    name = new_name
+    life = new_life
+}

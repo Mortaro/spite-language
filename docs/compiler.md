@@ -248,37 +248,24 @@ What is written is what the program **ends up with**, not what was written down:
 generator after it has run, so a class tree shaking removed is not there, a generic template is not there, and
 each of its instantiations is.
 
-Every class the program names comes from a file in `library/`, including `Memory`, `DynamicLibrary`, `String`
-and the numbers (`Int`, `Long`, `Double`, ...), so every one of them is printed like a class of your own. A
-function whose body the compiler supplies -- the floor that stays C, such as `Memory.allocate_bytes` -- is added
-to its class as the compiler's own reopening, and is printed as a declaration without a body. The printed
-`memory.spite` begins:
+Every class the program names comes from a file in `library/`, including `Memory.Heap`, `DynamicLibrary`,
+`String` and the numbers (`Int`, `Long`, `Double`, `Memory.Address`, ...), so every one of them is printed like a
+class of your own. A function whose body the compiler supplies -- the floor that stays C, such as
+`Memory.Heap.allocate` -- is added to its class as the compiler's own reopening, and is printed as a declaration
+without a body. The printed `memory/heap.spite` is:
 
 ```gdscript
 singleton
 
-func text(address: Long, length: Long): String {
-    var bytes = allocate_bytes(length + 1)
-    copy_bytes(address, bytes, length)
-    return String(bytes, length)
-}
-
-func terminated_text(address: Long): String {
-    var length: Long = 0
-    while read_byte(address, length) != 0 {
-        length = length + 1
-    }
-    return text(address, length)
-}
-
-func allocate_bytes(bytes: Long): Long
-func resize(address: Long, bytes: Long): Long
-func free(address: Long)
+func allocate(bytes: Long): Memory.Address
+func resize(address: Memory.Address, bytes: Long): Memory.Address
+func free(address: Memory.Address)
+func live_allocations(): Int
 ```
 
 A declaration without a body is what the compiler reads back, so the printed program still compiles: the
-printed `memory.spite` reopens `Memory` with the same members, and the compiler supplies the same bodies again.
-Anywhere else, a `func` with no body is an error, because only the compiler can supply one.
+printed `memory/heap.spite` reopens `Memory.Heap` with the same members, and the compiler supplies the same bodies
+again. Anywhere else, a `func` with no body is an error, because only the compiler can supply one.
 
 `instantiated/` holds one file per generic instantiation, named for the values it was given
 (`weapon_int_true.spite`, class `WeaponIntTrue`), written as a `type` with the members that instantiation has.

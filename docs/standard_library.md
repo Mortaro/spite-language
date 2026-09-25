@@ -1,7 +1,7 @@
 # Standard library
 
 The standard library is ordinary Spite in `library/`, and a program reads it the way it reads its own code:
-every class a program can name -- `String`, `List`, `Int`, `File`, `Memory` -- is a file there, and
+every class a program can name -- `String`, `List`, `Int`, `File`, `Memory.Heap` -- is a file there, and
 `--final-classes` prints each one as the program uses it. Its values are reference counted like every other
 object ([memory.md](memory.md)). When an operation cannot succeed it says so in its type rather than crashing:
 an index or a key that is not there reads as `T?`, a file that cannot be read answers `null`, and text that does
@@ -30,7 +30,7 @@ reopen the classes each system does differently, and the launcher loads the one 
 | `Concurrent`, `Parallel`, `ThreadPool` | run a function while waiting, or on the thread pool; the handle is the value | [concurrency.md](concurrency.md) |
 | `ThreadLocal<T>`, `Lock`, `ThreadSlot` | a value per thread, and a lock | [concurrency.md](concurrency.md#a-value-per-thread-and-a-lock) |
 | `Socket` | TCP on `127.0.0.1`, which the remote REPL uses | [below](#socket) |
-| `Memory`, `TypedMemory<T>` | raw memory, the floor every other type is built on | [memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it) |
+| `Memory.Address`, `Memory.Heap`, `Memory.Arena`, `TypedMemory<T>` | a place in memory, the allocators that own it, and values of any type there: the floor every other type is built on | [memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it) |
 | `DynamicLibrary` | call a native library | [foreign_libraries.md](foreign_libraries.md) |
 | `Spite.Class`, `Spite.Function`, ... | reflection | [reflection.md](reflection.md) |
 
@@ -102,31 +102,33 @@ default) or `crash content` (which halts), exactly like any other `T?` ([failure
 constructor uses `crash`, because `assert` is not allowed in a constructor.
 
 **Bytes.** A cache or an asset file is bytes, not text: `read_bytes` reads into memory from any position, which is
-what seeking is for, and `append_bytes` says where a record landed, which is what an index needs. The memory is
-`Memory()`'s ([memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it)). Every call opens and closes the
+what seeking is for, and `append_bytes` says where a record landed, which is what an index needs. The memory is a
+`Memory.Address` from `Memory.Heap`, which a program fills and reads through `TypedMemory<T>`
+([memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it)). Every call opens and closes the
 file, so read a large file in one call and walk it in memory rather than record by record.
 
 ```gdscript title=byte_records/byte_records.spite entry
 var console = Console()
-var memory = Memory()
+var heap = Memory.Heap()
+var longs = TypedMemory<Long>()
 
 func ByteRecords() {
     var store = File(".spite-cache/documentation_byte_records.bin")
-    var record = memory.allocate_bytes(8)
-    memory.write_long(record, 0, 1111)
+    var record = heap.allocate(8)
+    longs.write_value(record, 0, 1111)
     store.write_bytes(record, 8)
-    memory.write_long(record, 0, 2222)
+    longs.write_value(record, 0, 2222)
     var second_at = store.append_bytes(record, 8)
     crash second_at
-    var read_back = memory.allocate_bytes(8)
+    var read_back = heap.allocate(8)
     var got = store.read_bytes(second_at, 8, read_back)
     crash got
-    var second = memory.read_long(read_back, 0)
+    var second = longs.read_value(read_back, 0)
     var size = store.size()
     crash size
     console.print("the second record starts at", second_at, "and holds", second, "of", size, "bytes")
-    memory.free(record)
-    memory.free(read_back)
+    heap.free(record)
+    heap.free(read_back)
 }
 ```
 ```output

@@ -284,14 +284,15 @@ abc a
 
 ### The compiler places memory
 
-**What it does.** A program has one way to ask for memory, `memory.allocate_bytes(bytes)`, and one way to give it
-back, `memory.free(address)`. Where the bytes live is the compiler's choice ([D108](../manual.md#decision-log),
+**What it does.** A program has one way to ask for raw memory, `heap.allocate(bytes)` on `Memory.Heap()`, and one
+way to give it back, `heap.free(address)`. Where the bytes live is the compiler's choice ([D108](../manual.md#decision-log),
 [manual section 10](../manual.md#10-memory--implemented)):
 
-- **Register:** a number's own memory (`var _memory = memory.allocate_bytes(4)` in `library/int.spite`) is its C
+- **Register:** a number's own memory (`var _memory = heap.allocate(4)` in `library/int.spite`) is its C
   scalar. A number is never an object.
-- **Frame:** an allocation a function frees itself, in the same block, whose address it only hands to `memory`'s
-  reads, writes, copies, comparisons and `text` -- never stores, returns, resizes or passes anywhere else -- gets a
+- **Frame:** an allocation a function frees itself, in the same block, whose address it only reads and writes
+  through, copies, compares, turns into `text` or hands to a `TypedMemory` -- never stores, returns, resizes or
+  passes anywhere else -- gets a
   slot in the function's own frame: 256 bytes, or exactly a literal size up to 256. A larger size at run time
   still goes to the heap, and the program's text is the same either way.
 - **Constant:** the characters of a text literal are part of the program, never counted or freed.
@@ -301,7 +302,8 @@ back, `memory.free(address)`. Where the bytes live is the compiler's choice ([D1
 
 ```gdscript title=frame_placement/frame_placement.spite entry
 var console = Console()
-var memory = Memory()
+var heap = Memory.Heap()
+var longs = TypedMemory<Long>()
 
 func FramePlacement() {
     var total = sum_of_squares(6)
@@ -309,21 +311,21 @@ func FramePlacement() {
 }
 
 func sum_of_squares(count: Int): Long {
-    var before = memory.live_allocations()
-    var squares = memory.allocate_bytes(count * 8)
+    var before = heap.live_allocations()
+    var squares = heap.allocate(count * 8)
     var index = 0
     while index < count {
-        memory.write_long(squares, index * 8, index * index)
+        longs.write_value(squares, index, index * index)
         index = index + 1
     }
     var total: Long = 0
     index = 0
     while index < count {
-        total = total + memory.read_long(squares, index * 8)
+        total = total + longs.read_value(squares, index)
         index = index + 1
     }
-    var during = memory.live_allocations()
-    memory.free(squares)
+    var during = heap.live_allocations()
+    heap.free(squares)
     console.print("heap allocations while summing:", during - before)
     return total
 }
@@ -337,6 +339,34 @@ sum of squares: 55
 `'heap'` or `'constant'` ([memory.md](memory.md#where-a-value-lives-memory)). You never choose the stack
 yourself: there is no second way to allocate, so there is no address to keep past a return by mistake.
 **Built** (D108 and its placement rows).
+
+### Reading an address is one machine operation
+
+**What it does.** `address.read_long(16)`, `address.write_float(8, value)` and the other reads, writes and
+atomics of `Memory.Address` are primitives of the language, like `+` ([D178](../manual.md#decision-log)): the
+compiler writes each one where it is called, as the single load, store or atomic instruction, with no call and
+no check. `copy_to` and `compare_bytes` are written the same way, as the C library's copy and comparison.
+
+**When.** Always; `library/` is the only place that may call them, so every `String`, `List` and `Dictionary`
+reads its memory this way.
+
+**What you notice.** Nothing: there is no other way these could run. **Built** (D178).
+
+### An allocator set after construction is where the object is made
+
+**What it does.** `var spark = Particle("spark", 1.5)` followed by `spark.memory.allocator = arena` reads as
+though it made the particle on the heap and then moved it. The compiler makes it in `arena` from the start: the
+two lines become one construction that asks the arena for the memory, with nothing allocated twice and nothing
+decided while the program runs ([D152](../manual.md#decision-log), [memory.md](memory.md#choosing-an-allocator-memoryallocator)).
+The same holds for `var kept = ash.copy()` followed by `kept.memory.allocator = arena`.
+
+**When.** Always, for the line right after the one that makes the object; anywhere else setting the allocator is
+an error (D153).
+
+**What you notice.** Under `--debug-memory`, an object made in an arena is not an allocation of its own: the
+arena's blocks are. A class some line gives an allocator is sixteen bytes larger per object (two hidden pointers:
+the allocator, and the function that gives the memory back), on every object of that class, heap ones included;
+no other class changes. Setting `Memory.Heap()` is the default and costs nothing. **Built** (D152, D153).
 
 ### Singletons: made on first use, never counted
 
@@ -411,45 +441,46 @@ even one that points at a singleton. **Built** (D8, D142, D141).
 
 ### Singletons that hold nothing are static objects
 
-**What it does.** A singleton with no attributes and no `drop()` -- `Memory`, `TypedMemory<T>` (one per element
-type), and `Build`, whose attributes are all settings folded into the program -- is one static object: never
-allocated, never counted, never freed. `Memory()` costs nothing, and every program allocates once fewer for each.
+**What it does.** A singleton with no attributes and no `drop()` -- `Memory.Heap`, `TypedMemory<T>` (one per
+element type), and `Build`, whose attributes are all settings folded into the program -- is one static object:
+never allocated, never counted, never freed. `Memory.Heap()` costs nothing, and every program allocates once
+fewer for each.
 
 **When.** Production builds only ([D143](../manual.md#decision-log)). In an inspectable build -- `--repl`,
 `--repl-port`, `--hot-reload` or `--development` -- each is an ordinary singleton: allocated at first use, one of
 its class's `.instances`, and destroyed at exit. Since it holds nothing, it may be made again if something
 destroyed after it asks for it at exit, so the order of teardown never matters for it.
 
-**Example.** The same program in both kinds of build: the production build has no `Memory` object to list.
+**Example.** The same program in both kinds of build: the production build has no `Memory.Heap` object to list.
 
 ```gdscript title=production_internals/production_internals.spite entry
 var console = Console()
-var memory = Memory()
+var heap = Memory.Heap()
 
 func ProductionInternals() {
-    var bytes = memory.allocate_bytes(8)
-    memory.free(bytes)
-    var memories = Memory.instances.count()
-    console.print("Memory objects:", memories)
+    var bytes = heap.allocate(8)
+    heap.free(bytes)
+    var heaps = Memory.Heap.instances.count()
+    console.print("Memory.Heap objects:", heaps)
 }
 ```
 ```output
-Memory objects: 0
+Memory.Heap objects: 0
 ```
 
 ```gdscript title=inspectable_internals/inspectable_internals.spite entry build=development:true
 var console = Console()
-var memory = Memory()
+var heap = Memory.Heap()
 
 func InspectableInternals() {
-    var bytes = memory.allocate_bytes(8)
-    memory.free(bytes)
-    var memories = Memory.instances.count()
-    console.print("Memory objects:", memories)
+    var bytes = heap.allocate(8)
+    heap.free(bytes)
+    var heaps = Memory.Heap.instances.count()
+    console.print("Memory.Heap objects:", heaps)
 }
 ```
 ```output
-Memory objects: 1
+Memory.Heap objects: 1
 ```
 
 **What you notice.** One allocation fewer per such singleton under `--debug-memory` in a production build, so the
@@ -562,7 +593,11 @@ All **built**, and none of them needs anything from you:
 the null test and the narrowing ([D169](../manual.md#decision-log)). A call between the proof and the read keeps
 it unless the compiler, following the called function and what it calls, finds that the call may assign an
 attribute the proof reads through or shrink a list it reads; so no check is repeated after a call that provably
-cannot, and no `const` keyword is needed. It runs entirely while compiling and emits nothing. What you can
+cannot, and no `const` keyword is needed. To know which function a call reaches, it reads the class of the value
+the call is made on: an attribute's or variable's declared type, the class a constructor makes, the class the
+function that made the value returns (`var address = heap.allocate(8)` is a `Memory.Address`), or the left side
+of a `+` (an address plus an offset is an address); a call on a value whose class it cannot tell may reach every
+function of that name. It runs entirely while compiling and emits nothing. What you can
 observe: a proof after a call that may change it must be written again, and a call through a function value
 keeps no proof about attributes or lists ([failure.md](failure.md#a-call-may-undo-a-proof)).
 

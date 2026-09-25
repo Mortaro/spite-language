@@ -1,6 +1,6 @@
 singleton
 
-var memory = Memory()
+var heap = Memory.Heap()
 var console = Console()
 
 func exit(code: Int) {
@@ -9,11 +9,11 @@ func exit(code: Int) {
 }
 
 func environment(name: String): String? {
-    var address = environment_address(name)
+    var address: Memory.Address = environment_address(name)
     assert address != 0
-    return memory.terminated_text(address)
+    return address.terminated_text()
 }
 
 func live_allocations(): Int {
-    return memory.live_allocations()
+    return heap.live_allocations()
 }

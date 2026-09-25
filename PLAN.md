@@ -321,6 +321,19 @@ and balanced allocations.
     named like a function of its class is an error (`diagnostics/shadowed_function`). **D169 done (2026-09-25):** a
     call undoes a proof only if, followed through what it calls, it may assign an attribute or shrink a list the
     proof reads (`diagnostics/call_undoes_proof`; `bootstrap/source/generation/call_effects.spite`).
+30. **Done (2026-09-25): D178, D150 and D151 -- the `Memory` namespace** (manual.md sections 10, 11 and 15; the
+    "implements D178" row). `Memory.Address` is a number class whose reads, writes and atomics are primitives
+    the compiler lowers in place, callable only from the standard library's classes; `Memory.Heap` is the
+    default allocator. The singleton `Memory` and its free functions are gone from `library/` and the compiler,
+    and every class binds `var heap = Memory.Heap()`. **Waiting on Mortaro:** `mortaros_missing_decisions.md`
+    171-172. **Not done:** D178's allocation from operating-system pages, and copying and comparing through
+    `DynamicLibrary` (the heap is still `malloc`).
+31. **Done (2026-09-25): D152 and D153 -- choosing an allocator** (manual.md section 10, "Allocators"; the
+    "implements D152 and D153" row). `x.memory.allocator = arena` on the line after `x` is made makes `x` in the
+    arena from the start (constructors, `List<T>()`, `Dictionary<T>()`, `.copy()`); anywhere later it is an
+    error naming `copy()`. `Memory.Arena` is built; only a class some line places carries the allocator's two
+    pointers. **Waiting on Mortaro:** `mortaros_missing_decisions.md` 173-175. **Not done:** D154's list buffer
+    following its list, `Vector<T>`, `Memory.Frame`, an arena's `reset()`, reading `.memory.allocator`.
 
 ## Later, deliberately deferred
 

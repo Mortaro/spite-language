@@ -1,0 +1,4 @@
+heap allocations for two particles in the arena: 1
+spark ember ash 0.5 ash 3
+scratch holds 2
+smoke

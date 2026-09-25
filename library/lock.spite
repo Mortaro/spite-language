@@ -1,4 +1,4 @@
-var _memory = Memory()
+var _heap = Memory.Heap()
 var _handle: Long = 0
 
 func Lock() {

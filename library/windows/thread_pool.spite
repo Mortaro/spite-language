@@ -20,13 +20,13 @@ func join_thread(thread: Long) {
 }
 
 func create_lock(): Long {
-    var created = memory.allocate_bytes(8)
+    var created = heap.allocate(8)
     kernel.InitializeSRWLock(created)
     return created
 }
 
 func destroy_lock(created: Long) {
-    memory.free(created)
+    heap.free(created)
 }
 
 func lock_queue() {
@@ -38,13 +38,13 @@ func unlock_queue() {
 }
 
 func create_condition(): Long {
-    var created = memory.allocate_bytes(8)
+    var created = heap.allocate(8)
     kernel.InitializeConditionVariable(created)
     return created
 }
 
 func destroy_condition(created: Long) {
-    memory.free(created)
+    heap.free(created)
 }
 
 func wait_for_signal(condition: Long) {

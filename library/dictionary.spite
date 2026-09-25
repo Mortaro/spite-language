@@ -2,8 +2,8 @@ generic $value_type
 
 var entry_keys = List<String>()
 var entry_values = List<$value_type>()
-var memory = Memory()
-var slots: Long = 0
+var heap = Memory.Heap()
+var slots: Memory.Address = 0
 var slot_count = 0
 var used_slots = 0
 
@@ -36,8 +36,8 @@ func has(key: String): Bool {
 func remove(key: String) {
     var slot = find_slot(key)
     if slot >= 0 {
-        var position = memory.read_int(slots, slot * 4) - 1
-        memory.write_int(slots, slot * 4, -1)
+        var position = slots.read_int(slot * 4) - 1
+        slots.write_int(slot * 4, -1)
         entry_values.remove_at(position)
         entry_keys.remove_at(position)
         close_gap(position)
@@ -70,7 +70,7 @@ func copy(): Dictionary<$value_type> {
 
 func drop() {
     if slots != 0 {
-        memory.free(slots)
+        heap.free(slots)
     }
 }
 
@@ -79,7 +79,7 @@ func index_of_key(key: String): Int {
     if slot < 0 {
         return -1
     }
-    return memory.read_int(slots, slot * 4) - 1
+    return slots.read_int(slot * 4) - 1
 }
 
 func find_slot(key: String): Int {
@@ -87,36 +87,36 @@ func find_slot(key: String): Int {
         return -1
     }
     var slot = home_slot(key)
-    var stored = memory.read_int(slots, slot * 4)
+    var stored = slots.read_int(slot * 4)
     while stored != 0 {
         if stored > 0 and entry_keys.get_at(stored - 1) == key {
             return slot
         }
         slot = next_slot(slot)
-        stored = memory.read_int(slots, slot * 4)
+        stored = slots.read_int(slot * 4)
     }
     return -1
 }
 
 func place(key: String, position: Int) {
     var slot = home_slot(key)
-    var stored = memory.read_int(slots, slot * 4)
+    var stored = slots.read_int(slot * 4)
     while stored > 0 {
         slot = next_slot(slot)
-        stored = memory.read_int(slots, slot * 4)
+        stored = slots.read_int(slot * 4)
     }
     if stored == 0 {
         used_slots = used_slots + 1
     }
-    memory.write_int(slots, slot * 4, position + 1)
+    slots.write_int(slot * 4, position + 1)
 }
 
 func close_gap(position: Int) {
     var slot = 0
     while slot < slot_count {
-        var stored = memory.read_int(slots, slot * 4)
+        var stored = slots.read_int(slot * 4)
         if stored > position + 1 {
-            memory.write_int(slots, slot * 4, stored - 1)
+            slots.write_int(slot * 4, stored - 1)
         }
         slot = slot + 1
     }
@@ -134,14 +134,14 @@ func rebuild_slots() {
         grown = grown * 2
     }
     if slots != 0 {
-        memory.free(slots)
+        heap.free(slots)
     }
-    slots = memory.allocate_bytes(grown * 4)
+    slots = heap.allocate(grown * 4)
     slot_count = grown
     used_slots = 0
     var slot = 0
     while slot < slot_count {
-        memory.write_int(slots, slot * 4, 0)
+        slots.write_int(slot * 4, 0)
         slot = slot + 1
     }
     var position = 0

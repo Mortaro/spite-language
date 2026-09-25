@@ -10,11 +10,11 @@ func current_thread(): Long {
 }
 
 func start_thread(entry: Long, argument: Long): Long {
-    var slot = memory.allocate_bytes(8)
+    var slot = heap.allocate(8)
     var no_value: Long = 0
     var created = library.pthread_create(slot, no_value, entry, argument)
-    var started = memory.read_long(slot, 0)
-    memory.free(slot)
+    var started = slot.read_long(0)
+    heap.free(slot)
     assert created == 0
     return started
 }
@@ -25,7 +25,7 @@ func join_thread(thread: Long) {
 }
 
 func create_lock(): Long {
-    var created = memory.allocate_bytes(64)
+    var created = heap.allocate(64)
     var no_value: Long = 0
     library.pthread_mutex_init(created, no_value)
     return created
@@ -33,7 +33,7 @@ func create_lock(): Long {
 
 func destroy_lock(created: Long) {
     library.pthread_mutex_destroy(created)
-    memory.free(created)
+    heap.free(created)
 }
 
 func lock_queue() {
@@ -45,7 +45,7 @@ func unlock_queue() {
 }
 
 func create_condition(): Long {
-    var created = memory.allocate_bytes(64)
+    var created = heap.allocate(64)
     var no_value: Long = 0
     library.pthread_cond_init(created, no_value)
     return created
@@ -53,7 +53,7 @@ func create_condition(): Long {
 
 func destroy_condition(created: Long) {
     library.pthread_cond_destroy(created)
-    memory.free(created)
+    heap.free(created)
 }
 
 func wait_for_signal(condition: Long) {

@@ -1,0 +1,14 @@
+var console = Console()
+
+func AllocatorAfterUse() {
+    var arena = Memory.Arena(1024)
+    var spark = Particle("spark")
+    console.print(spark.name)
+    spark.memory.allocator = arena
+    var ember = Particle("ember")
+    ember.memory.allocator = console
+    console.print(ember.name)
+    var count = 3
+    count.memory.allocator = arena
+    console.print(count)
+}

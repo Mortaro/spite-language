@@ -2,21 +2,21 @@ generic $value_type
 
 var _slot = ThreadSlot()
 var _lock = Lock()
-var _memory = Memory()
+var _heap = Memory.Heap()
 var _values = TypedMemory<$value_type>()
-var _published = _memory.allocate_bytes(8)
+var _published = _heap.allocate(8)
 var _count = 0
 var _capacity = 0
-var _retired = List<Long>()
+var _retired = List<Memory.Address>()
 
 func ThreadLocal() {
-    _memory.write_long_atomically(_published, 0, 0)
+    _published.write_long_atomically(0, 0)
 }
 
 func get(): $value_type? {
     var position = _slot.read()
     assert position != 0
-    var items = _memory.read_long_atomically(_published, 0)
+    var items: Memory.Address = _published.read_long_atomically(0)
     return _values.read_value(items, position - 1)
 }
 
@@ -29,27 +29,27 @@ func set(value: $value_type) {
         _count = _count + 1
         _slot.write(_count)
     } else {
-        var items = _memory.read_long_atomically(_published, 0)
+        var items: Memory.Address = _published.read_long_atomically(0)
         _values.release_value(items, position - 1)
         _values.write_value(items, position - 1, value)
     }
     _lock.unlock()
 }
 
-func _make_room(): Long {
-    var items = _memory.read_long_atomically(_published, 0)
+func _make_room(): Memory.Address {
+    var items: Memory.Address = _published.read_long_atomically(0)
     if _count == _capacity {
         var grown = _capacity * 2
         if _capacity == 0 {
             grown = 4
         }
         var bytes = _values.value_bytes()
-        var larger = _memory.allocate_bytes(bytes * grown)
+        var larger = _heap.allocate(bytes * grown)
         if items != 0 {
-            _memory.copy_bytes(items, larger, bytes * _count)
+            items.copy_to(larger, bytes * _count)
             _retired.append(items)
         }
-        _memory.write_long_atomically(_published, 0, larger)
+        _published.write_long_atomically(0, larger)
         _capacity = grown
         items = larger
     }
@@ -57,18 +57,18 @@ func _make_room(): Long {
 }
 
 func drop() {
-    var items = _memory.read_long_atomically(_published, 0)
+    var items: Memory.Address = _published.read_long_atomically(0)
     if items != 0 {
         var index = 0
         while index < _count {
             _values.release_value(items, index)
             index = index + 1
         }
-        _memory.free(items)
+        _heap.free(items)
     }
     while not _retired.is_empty() {
         var old_items = _retired.remove_last()
-        _memory.free(old_items)
+        _heap.free(old_items)
     }
-    _memory.free(_published)
+    _heap.free(_published)
 }

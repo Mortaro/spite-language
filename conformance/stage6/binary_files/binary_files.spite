@@ -1,28 +1,30 @@
 var console = Console()
-var memory = Memory()
+var heap = Memory.Heap()
+var ints = TypedMemory<Int>()
+var longs = TypedMemory<Long>()
 var clock = Clock()
 
 func BinaryFiles() {
     var store = File(".spite-cache/binary_files.bin")
-    var header = memory.allocate_bytes(12)
-    memory.write_int(header, 0, 7)
-    memory.write_long(header, 4, 1234567890123)
+    var header = heap.allocate(12)
+    ints.write_value(header, 0, 7)
+    longs.write_value(header + 4, 0, 1234567890123)
     var saved = store.write_bytes(header, 12)
-    var record = memory.allocate_bytes(8)
-    memory.write_long(record, 0, -42)
+    var record = heap.allocate(8)
+    longs.write_value(record, 0, -42)
     var record_start = store.append_bytes(record, 8)
     crash record_start
     var size = store.size()
     crash size
     console.print("wrote", saved, "appended at", record_start, "size", size)
-    var read_back = memory.allocate_bytes(8)
+    var read_back = heap.allocate(8)
     var got = store.read_bytes(4, 8, read_back)
     crash got
-    var stamp = memory.read_long(read_back, 0)
+    var stamp = longs.read_value(read_back, 0)
     console.print("read", got, "bytes at 4:", stamp)
     var tail = store.read_bytes(record_start, 8, read_back)
     crash tail
-    var appended = memory.read_long(read_back, 0)
+    var appended = longs.read_value(read_back, 0)
     console.print("the appended record:", appended)
     var past_end = store.read_bytes(size, 8, read_back)
     crash past_end
@@ -43,7 +45,7 @@ func BinaryFiles() {
     } else {
         console.print("a missing file answers null")
     }
-    memory.free(header)
-    memory.free(record)
-    memory.free(read_back)
+    heap.free(header)
+    heap.free(record)
+    heap.free(read_back)
 }

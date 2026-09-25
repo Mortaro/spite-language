@@ -1,6 +1,6 @@
 var library = DynamicLibrary("libSystem.dylib", 'identity', "")
 var program = Program()
-var memory = Memory()
+var heap = Memory.Heap()
 
 func find(name: String): TimeZone? {
     assert not name.is_empty() and not name.starts_with("/") and not name.contains("..")
@@ -46,12 +46,12 @@ func system(): TimeZone {
 }
 
 func _local_time_link(): String {
-    var buffer = memory.allocate_bytes(1024)
+    var buffer = heap.allocate(1024)
     var length = library.readlink_as_long("/etc/localtime", buffer, 1023)
     if length < 0 {
         length = 0
     }
-    var link = memory.text(buffer, length)
-    memory.free(buffer)
+    var link = buffer.text(length)
+    heap.free(buffer)
     return link
 }

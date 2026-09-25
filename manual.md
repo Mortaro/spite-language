@@ -1360,7 +1360,7 @@ the line.
 ```console.spite
 singleton
 
-var memory = Memory()
+var heap = Memory.Heap()
 ```
 
 Declaring `func is_singleton()` in any class but `Spite.Class` is an error naming the line
@@ -2013,16 +2013,18 @@ the plain AST shape alone would suggest).
 ### Placement: the compiler decides where memory lives  **[implemented; the rule proposed by Claude, unconfirmed]**
 
 D108 (decided by Mortaro): "Memory should be a abstraction that lets us allocate heap/stack/register but our
-compiler decides best use placement." A program has one way to ask for memory, `Memory.allocate_bytes`, and
-one way to give it back, `free`; where the bytes live is the compiler's choice, and the program's text is the
-same whichever it makes:
+compiler decides best use placement." A program has one way to ask for raw memory, `Memory.Heap`'s `allocate`
+(D151; it was `Memory.allocate_bytes` until D178 was built), and one way to give it back, `free`; where the bytes
+live is the compiler's choice, and the program's text is the same whichever it makes:
 
-- **Register:** a number's own memory, declared in its file as `var memory = Memory()` and then
-  `var _memory = memory.allocate_bytes(4)` (for `Int`; the `memory` binding is never a field, D110). The wrapper is flattened: a number is its C scalar, and `this` is the value.
-- **Frame:** `var name = memory.allocate_bytes(bytes)` in a function, when a later statement of the same block
-  is `memory.free(name)` and every other use of `name` hands it to `memory`'s reads, writes, `copy_bytes`,
-  `compare_bytes` or `text` -- it is never stored, returned, assigned, resized or passed to anything else, and
-  neither `name` nor `memory` is declared or assigned again after it. The compiler gives it a slot of 256 bytes
+- **Register:** a number's own memory, declared in its file as `var heap = Memory.Heap()` and then
+  `var _memory = heap.allocate(4)` (for `Int`; the `heap` binding is never a field, D110). The wrapper is flattened: a number is its C scalar, and `this` is the value.
+- **Frame:** `var name = heap.allocate(bytes)` in a function, when a later statement of the same block
+  is `heap.free(name)` and every other use of `name` reads or writes through it (`name.read_long(offset)`, also
+  as `(name + offset)`), copies or compares with it (`copy_to`, `compare_bytes`), turns it into `text`, or hands
+  it to a `TypedMemory`'s `read_value`, `write_value` or `release_value` -- it is never stored, returned,
+  assigned, resized or passed to anything else, and neither `name` nor `heap` is declared or assigned again
+  after it. The compiler gives it a slot of 256 bytes
   in the function's frame (exactly the size, for a literal size up to 256), uses the heap when a run-time size
   is larger, and makes the `free` a no-op for the slot. A loop body is a block like any other, so the slot is
   reused on every pass. `Double.bits()` allocates nothing now, and `Long.to_string()` and `upper_case()` of a
@@ -2035,6 +2037,34 @@ allocate, and one the program could get wrong (an address kept past the return).
 (the ECS D98 names) nothing is lost: what makes a layout efficient is the author's -- one allocation holding many
 values at offsets they choose, `TypedMemory<$value_type>` for values of any type, `resize` to grow -- and that
 stays exactly as it was. A temporary buffer a function uses and frees lands in its frame without asking.
+
+### Allocators: `.memory.allocator`  **[implemented for objects; a list's buffer and `Vector<T>` planned]**
+
+D150-D154 (decided by Mortaro): types never name an allocator; an **object** does, through its tree-shakeable
+`.memory`, on the line right after it is made -- `var scratch = List<Int>()` then `scratch.memory.allocator =
+arena` -- and the compiler reads the two lines as where the object was always meant to live (D152), so it is made
+there from the start. Setting it after the object was used is a compile error naming `copy()` (D153). What is
+built (2026-09-25; the readings marked are proposed by Claude, unconfirmed):
+
+- **An allocator is a class that answers `allocate(bytes: Long): Memory.Address` and `free(address:
+  Memory.Address)`** (the D150 shape; no `type` is declared for it, per D151). `Memory.Heap` is the default, and
+  setting it changes nothing. `Memory.Arena(block_bytes)` (`library/memory/arena.spite`, Spite over the heap)
+  hands out 16-byte-aligned memory from blocks of that size, chaining a new block when one is full, never frees
+  one piece at a time, and frees every block when the arena itself is dropped (proposed by Claude, unconfirmed:
+  no `reset()` yet, because resetting under live objects is the undecided safety rule of
+  `mortaros_allocators_proposal.md` question 3). `Memory.Frame` is not built (`mortaros_missing_decisions.md`).
+- **Where it may be set** (proposed by Claude, unconfirmed): only as the statement directly after `var name =
+  ...` whose value is a constructor call, `List<T>()`/`Dictionary<T>()` or `.copy()` of a class whose copy the
+  compiler writes, and only to a name or a path of names (so evaluating it earlier than written changes nothing).
+  Anything else -- a later line, an attribute, a number, a `String` -- is an error (`diagnostics/allocator_after_use`).
+- **How it is compiled**: the construction becomes `C___make_in(allocator, give_back, address, arguments...)` with
+  the address from the allocator's `allocate`, so nothing is allocated twice or moved. An object made this way
+  holds a reference to its allocator and the allocator's `free`, and gives its memory back through them when its
+  count reaches zero; the allocator therefore outlives everything made in it. **Tree-shaken (D177)**: only a class
+  some line gives an allocator carries the two hidden pointers (16 bytes per object of that class), and nothing
+  else in the program changes; there is no run-time registry and no current-allocator state.
+- **Not built:** D154's list buffer following its list's allocator (a list placed in an arena keeps its buffer of
+  references on the heap), `Vector<T>` with its items inline, and reading `.memory.allocator` back.
 
 ## 11. Packages, namespaces and loading  **[partial]**
 
@@ -2143,13 +2173,13 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   yet -- only the source classes are declared with]**
 - **What the compiler supplies is a reopening too** (D82, decided by Mortaro: "spite writes that function as if it
   was reopening that class, so in --final-classes it should show the actual content of that class"). The members
-  whose bodies stay C -- `Memory`'s floor, `DynamicLibrary`'s opening and symbol lookup, `TypedMemory`'s typed
+  whose bodies stay C -- `Memory.Heap`'s allocation and `Memory.Address`'s reads and writes (D178), `DynamicLibrary`'s opening and symbol lookup, `TypedMemory`'s typed
   slots, a number's `from_type`, the REPL's hooks on `Spite.Attribute`/`Spite.Function`, and the entry addresses of
   `Concurrent` and `Parallel` -- are declarations the compiler merges into their classes right after `library/` (and
   its operating system's folder), exactly as a later root merges a file, so a program can still reopen them.
   Nothing is registered by hand any more (D81). **The form** (proposed by Claude, unconfirmed): **a `func` with a
   signature and no block** is a member whose body the compiler supplies, which is how `--final-classes` prints it
-  (`func allocate_bytes(bytes: Long): Long`), and reading that back is what lets the printed program compile. It
+  (`func allocate(bytes: Long): Memory.Address`), and reading that back is what lets the printed program compile. It
   borrows the shape a `type` already uses for a member without a body. Anywhere the compiler supplies nothing by
   that name, a bodiless `func` is an error ("give it a body"), so it is not a way to declare anything else. The
   compiler's own reopening is Spite source in `bootstrap/source/generation/prelude.spite`, beside the C each body
@@ -2758,7 +2788,7 @@ characters, from `Memory`, with a 0 after the last), `_length: Long`, `_section:
 or `'constant'` for a literal) and `_capacity: Long`, the compiler writes the C layout from them, and `length()`,
 `code_at()`, `slice()`, `sum()`, `equals()`, `less_than()`, `greater_than()`, `drop()` (which frees `_bytes`) and
 the in-place append are Spite functions reading them. `String(bytes, length)` makes a `String` that owns `length`
-bytes at `bytes`, which `Memory.allocate_bytes` handed out with room for one more; it is what `Memory.text` and
+bytes at `bytes`, which `heap.allocate` handed out with room for one more; it is what an address's `text` and
 `sum` end in, and anything that fills a buffer itself can use it. The right side of `+` casts toward `String` (every numeric
 type, `Bool`, and enum all format to text -- see [Numeric types](#numeric-types-implemented-provisional) for
 `Float`/`Double`'s shortest-round-trip printing); assigning a `String` to any numeric variable parses it,
@@ -2903,7 +2933,7 @@ directory listing and process spawning).
 | `ThreadPool()` (proposed by Claude, unconfirmed) | the singleton the `Parallel`s run on (D135): `size(): Int` worker threads, `worker_index(): Int` (`-1` off the pool) -- see "Concurrency" below |
 | `ThreadLocal<T>()`, `Lock()`, `ThreadSlot()` (proposed by Claude, unconfirmed) | one value per thread: `get(): T?`, `set(value)`; a lock: `while_locked(function)`, `lock()`, `unlock()`; the raw per-thread `Long` both are built on: `read()`, `write(value)` -- see "Concurrency" below |
 | `DynamicLibrary(file_name, naming, header)` | every foreign function, constant and type of a native library -- see [Foreign libraries](#17-foreign-libraries-planned). `library/dynamic_library.spite` holds its `file_name` and `handle`, its constructor and `drop()`; opening, closing and finding a symbol are the compiler's reopening (D82) |
-| `Memory()` | the floor every other type is built on (D98, D101, D108): `allocate_bytes`, `resize`, `free`, the typed reads and writes, `copy_bytes`, `text`, ... -- see "The floor, named" below. `library/memory.spite` is the `singleton` line and `text`, in Spite; every other function is the compiler's reopening, and where an allocation lives is the compiler's choice |
+| `Memory.Heap()`, `Memory.Arena(block_bytes)`, `Memory.Address` | the floor every other type is built on (D98, D101, D108, D151, D178): the heap's `allocate`, `resize` and `free`, and an address's reads and writes (`library/` only), `copy_to`, `compare_bytes`, `text`, ... -- see "The floor, named" below. `library/memory/heap.spite` is the `singleton` line and `library/memory/address.spite` the number's memory, `text` and `terminated_text`, in Spite; every other function is the compiler's reopening, and where an allocation lives is the compiler's choice unless an object names its allocator (section 10, "Allocators") |
 | `TypedMemory<$value_type>()` | `read_value(address, index)`, `write_value(address, index, value)`, `release_value(address, index)`, `value_bytes()`: values of any type in raw memory, reference counts kept right; what `List<T>` keeps its elements with, and what a container of your own uses (D98) |
 
 `Console` is one of them and is a singleton (D52): `Console()` is the same instance everywhere, `Console` is an
@@ -3258,25 +3288,34 @@ emitted C needs before any Spite exists). Everything above that line is Spite.
 (section 17), the floor is small enough to list. Everything the runtime does today is either one of these, or
 Spite above them:
 
-1. **`Memory`**, a built-in singleton whose functions the compiler emits as single C expressions: `allocate_bytes(bytes:
-   Long): Long`, `resize(address: Long, bytes: Long): Long`, `free(address: Long)`, `read_byte`/`read_int`/
-   `read_long`/`read_double(address: Long, offset: Long)` -- and since 2026-09-24 `read_short`,
-   `read_unsigned_short`, `read_unsigned_int` and `read_float` (proposed by Claude, unconfirmed), so a C struct's
-   2-byte, unsigned and `float` fields need no `TypedMemory` -- the matching `write_*(address, offset, value)`, and
-   `copy_bytes(from: Long, to: Long, bytes: Long)`. An address is a `Long`, as section 17 already says a handle is --
-   there is still no `Pointer` type, and nothing outside the standard library needs `Memory` at all.
-   **Since D82** `Memory` is `library/memory.spite` (its `singleton` line) plus these functions as the compiler's
-   reopening, declared without a body. **Since D98/D101 it has sections** (built 2026-09-24; the names proposed by
-   Claude, unconfirmed), and **since D108 the compiler chooses between them**: `allocate_stack_bytes` is removed,
-   and an `allocate_bytes` is placed in the function's frame when the rule below proves the address never
-   leaves it ("Placement", proposed by Claude, unconfirmed). `TypedMemory<$value_type>` puts values of any type in
+1. **The `Memory` namespace** (D150, D151, D178; built 2026-09-25). **`Memory.Address`** is a place in memory: a
+   number class (`library/memory/address.spite`, eight bytes, cast to and from `Long` like any number) whose
+   `read_byte`/`read_short`/`read_unsigned_short`/`read_int`/`read_unsigned_int`/`read_long`/`read_float`/
+   `read_double(offset)`, the matching `write_*(offset, value)`, and `exchange_long`, `read_long_atomically` and
+   `write_long_atomically` are **language primitives**: bodiless declarations each backend lowers where they are
+   called, like `+` -- one load, store or atomic instruction in the C backend, written as a macro, with no call.
+   **Only `library/` may call them**: a function of a class the standard library declares (reopening one, as
+   `--final-classes` output does, is writing library code), and any other class gets an error pointing at the
+   standard library and `TypedMemory<T>` (`diagnostics/memory_access`). `copy_to(target, bytes)` and `compare_bytes(other, bytes)` are
+   written the same way for now (the C library's `memmove` and `memcmp`), and `text(length)` and
+   `terminated_text()` are Spite in the same file. **`Memory.Heap`** is the default allocator, a singleton whose
+   `allocate(bytes): Memory.Address`, `resize(address, bytes)`, `free(address)` and `live_allocations()` are the
+   compiler's (C `malloc`, or the `--debug-memory` table's functions). The free functions of the old singleton
+   `Memory` (`allocate_bytes`, `read_long(address, offset)`, `copy_bytes`, `text(address, length)`, ...) are gone,
+   and every class of `library/` binds `var heap = Memory.Heap()` instead of `var memory = Memory()`. **Not built
+   yet (D178):** allocation from the operating system's pages, copying and comparing as plain Spite over
+   `DynamicLibrary`; the heap is still C's `malloc`. There is still no `Pointer` type. **Before D178**, `Memory`
+   was one built-in singleton holding all of this as functions taking the address first (`read_long(address,
+   offset)`), since D98/D101 with sections and since D108 with the compiler choosing between them:
+   `allocate_stack_bytes` is removed, and an allocation is placed in the function's frame when the rule in
+   section 10 proves the address never leaves it. `TypedMemory<$value_type>` puts values of any type in
    memory, and `List<T>` is written with it, so nothing about a container is the compiler's any more except its
    syntax (`[]`, list literals) and the few C paths listed in the containers row of the decision log.
 2. **Text from memory**: since D108 this is Spite, not floor. `String` declares its storage (`_bytes`, `_length`,
-   `_section`, `_capacity`) and its constructor `String(bytes: Long, length: Long)`, which takes bytes `Memory`
-   handed out and writes the 0 after them; `Memory.text(address, length)` is three lines of Spite in
-   `library/memory.spite` that allocate, copy and construct. `take_text` and `address_of` are gone: a `String`'s own
-   functions read `_bytes`. Literals stay static data the compiler writes, as symbols already are (D70), in the
+   `_section`, `_capacity`) and its constructor `String(bytes: Memory.Address, length: Long)`, which takes bytes the
+   heap handed out and writes the 0 after them; `address.text(length)` is three lines of Spite in
+   `library/memory/address.spite` that allocate, copy and construct. `take_text` and `address_of` are gone: a
+   `String`'s own functions read `_bytes`. Literals stay static data the compiler writes, as symbols already are (D70), in the
    `'constant'` section.
 3. **The object header**: retain, release and the class id are code the compiler emits, not functions anyone
    calls, so they are part of code generation rather than a library. For `String` that includes two decisions
@@ -4423,3 +4462,5 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | (implements D171; the exact shape proposed by Claude, unconfirmed) **A `while` that only walks every element of a list doing what a member template does is an error naming the template.** Counter declared `0` right before the loop, condition `counter < list.count()` over a `List` of a class, `counter = counter + 1` last and the counter read nowhere else nor after the loop; the body calls, collects (`map_`, `copy()`), keeps (`filter_`, `filter_().map_()`), counts, adds up, finds by a member (`find_by_`) or answers `any_`/`all_`, the result list or total declared empty or `0` earlier in the block. Checked on every statement list the compiler generates. Function values for `each`/`map`/`filter` (D148) are not built, so only member templates are named. Section 6, `diagnostics/template_walk`, `docs/collections.md`. |
 | 2026-09-25 | (implements D172; the readings proposed by Claude, unconfirmed) **A local, parameter or attribute named like a function of its class is an error**, the functions being those declared in the class's file and its reopenings (the names a bare call reaches). Checked once over every discovered class file, generic templates and functions nothing calls included, so `library/` is held to it whether or not a program uses the code. About 170 names were renamed across `bootstrap/`, `library/` (with the OS folders), `conformance/`, `examples/` and `docs/`; no output changed. Section 5, `diagnostics/shadowed_function`, `docs/functions_and_operators.md`. |
 | 2026-09-25 | (implements D169; how calls are followed proposed by Claude, unconfirmed) **A call undoes a proof only if it may change what the proof reads.** Before generating, the compiler studies every function of the program once (`CallEffects`): which attributes it assigns (by class and name), which lists it shrinks (an attribute's, a parameter's, or unknown), and what it calls, resolving a receiver's class from declared types and falling back to every function of that name; the effects are closed over the call graph. After each statement, the calls it made undo the narrowed paths, narrowed attributes and proven `[]` reads that read through what they may change; a function value undoes every such proof. Applies to narrowed attributes too, which a call could set to null unnoticed before (a segfault, now a compile error). Operators and getters are not followed, and a local aliasing an attribute's list is not tracked. Compiling the compiler costs about 0.4 s more. The compiler needed two rewrites (`emit_string_support` asks for the constructor's parameters before proving it, `instantiated_with` binds the proven entry once), `conformance/stage6/shape_members` one. Section 5, `diagnostics/call_undoes_proof`, `docs/failure.md`, `docs/optimizations.md`. |
+| 2026-09-25 | (implements D178, D150 and D151; the readings below proposed by Claude, unconfirmed) **`Memory` is a namespace: `Memory.Address` is the place, `Memory.Heap` the default allocator, and the singleton `Memory` with its free functions is gone.** `Memory.Address` (`library/memory/address.spite`) is a number class of eight bytes that casts to and from `Long` like every number, so `address + 16` is an address and a foreign function's `Long` result is one by assignment. Its reads, writes and atomics take only the offset (`address.read_long(16)`, `address.write_float(8, value)`, `address.write_long_atomically(0, 1)`) and are bodiless declarations the compiler lowers where they are called, as one C statement in a macro with no call, like `+`. D178's "usable only from library/" is read as: a function of a class the standard library declares, including one a program reopens (the `--final_classes` output reopens every class it prints, and must still compile); any other class gets "'read_long' reads or writes the memory at an address, which only library/ does" (`diagnostics/memory_access`). `copy_to(target, bytes)` and `compare_bytes(other, bytes)` are not reads or writes and stay open to programs, as do `text(length)` and `terminated_text()`, which are Spite. `Memory.Heap` is a singleton with `allocate`, `resize`, `free` and `live_allocations` (the `_bytes` of `allocate_bytes` went: a heap only hands out bytes). Every `var memory = Memory()` in `library/` is `var heap = Memory.Heap()`, which also leaves the name `memory` to D152's `.memory`. `TypedMemory` takes a `Memory.Address`, and its `read_value`, `write_value` and `release_value` lend an address the way a read does, so a frame-placed allocation may go through them (D108's placement rule, widened). Not built: D178's allocation from operating-system pages and copying and comparing through `DynamicLibrary` -- the heap is still `malloc` and `copy_to` is `memmove`. Self-compile 1.7 s before and after (the reads were one C call each and are one C statement now). `conformance/stage6/memory_floor` (now over `TypedMemory`), `placed_free`, `diagnostics/memory_access`, `docs/memory.md`, `docs/optimizations.md`; questions in `mortaros_missing_decisions.md` 142-143. |
+| 2026-09-25 | (implements D152 and D153, and D154 for the list object itself; the readings below proposed by Claude, unconfirmed) **An object's allocator is set on the line right after it is made, and it is made there.** `var spark = Particle("spark", 1.5)` followed by `spark.memory.allocator = arena` compiles to one construction, `Particle___make_in(arena, give_back, Memory_Arena_allocate(arena, sizeof(Particle)), ...)`: nothing is allocated twice or moved, and nothing is decided at run time. The same works after `List<T>()`, `Dictionary<T>()` and `.copy()` of a class whose copy the compiler writes. Anywhere else -- a later line, an attribute, a number or `String` -- is an error: "'spark' was already used, so its allocator can no longer change ... 'var moved = spark.copy()' and then 'moved.memory.allocator = ...'" (D153), or "only an object gets an allocator", or "'Console' is not an allocator" (`diagnostics/allocator_after_use`). An allocator is any class answering `allocate(bytes: Long): Memory.Address` and `free(address: Memory.Address)`, named on that line (a name or a path of names, so evaluating it before the constructor changes nothing); `Memory.Heap` is the default and a no-op. `Memory.Arena(block_bytes)` is Spite over the heap: 16-byte-aligned bump allocation in chained blocks, a no-op `free`, and every block freed when the arena is dropped; no `reset()`, since resetting under live objects is the undecided safety question. An object made in an allocator holds a reference to it plus the allocator's `free` (two pointers in the object, written into the struct only for classes some line places -- D177: no other class changes, no registry, no current-allocator state), and gives its memory back through them when its count reaches zero, so an arena outlives everything made in it. Not built: D154's list buffer following the list's allocator, `Vector<T>`, `Memory.Frame`, and reading `.memory.allocator` back. Self-compile unchanged (the compiler places nothing). `conformance/stage6/allocator_choice`, `docs/memory.md` ("Choosing an allocator"), `docs/optimizations.md`; questions in `mortaros_missing_decisions.md` 144-146. |
