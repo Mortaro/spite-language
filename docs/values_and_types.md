@@ -94,9 +94,9 @@ is still [open question 3](open_questions.md#open-questions), and worth knowing 
 fractional literal.)
 
 `String` converts both ways: assigning a `String` to a numeric variable parses it (`0`/`0.0` on failure, never
-a crash), and every numeric type gets a `to_<name>()` method on `String` (`to_tiny()`, `to_integer()`, `to_long()`,
-`to_unsigned_long()`, `to_float()`, `to_double()`, ...) in `library/string.spite`; assigning text to a number
-calls the same method.
+a crash) by calling `String`'s `to_<name>()` for that type -- `to_integer()`, `to_long()`, `to_double()`, ... (the
+full list is in [the rules](#numeric-types--implemented-provisional)) -- and a number becomes text with its own
+`to_string()` ([below](#numbers-are-classes)).
 
 ### Numbers are classes
 
@@ -129,20 +129,15 @@ func NumberMethods() {
 0.3333333333333333 4599676419421066581
 ```
 
-A number is still a value in the emitted C (`int32_t`, `double`, ...): the class gives it functions, not a
-header, and `this` inside `Integer` is that `int32_t`.
+None of this costs anything at run time: a number is still a plain value (an `Integer` is an `int32_t`), the
+class gives it functions, not a header, and a function the program never calls is not emitted. The cast from one
+number type to another is a function of the class cast to, too -- `Float.from_integer(value)`, which
+`--final-classes` shows -- compiled to the one machine conversion
+([rules](#numbers-are-classes-and-this--implemented)).
 
-**Casting is a function of the class being cast to.** Every number class has
-`func from_type(type: Symbol, value: type.class)`, a Symbol codegen function whose symbol ranges over the
-types (not the attributes) of the program: the right-to-left cast of an `Integer` into a `Float` is
-`Float.from_integer(value)`, of a `Long` into a `Byte` `Byte.from_long(value)`, and so on. Its body is the one
-the compiler supplies -- a C cast, written inline, so a cast costs exactly what it did -- and
-`--final-classes` shows the declaration in each number class. Casting text into a number goes through
-`String`'s `to_<name>()` in the same way.
-
-`this` works in every class, not only numbers: it is the instance the function answers on, for when the
-function needs to hand itself to something -- `registry.append(this)`. Reading your own members through it is
-an error, because a class already reads them by name: write `name`, not `this.name`.
+`this` works in every class, not only numbers, to hand the object itself to something:
+`registry.append(this)`. Reading your own members through it is an error, because a class already reads them by
+name: write `name`, not `this.name`.
 
 ### Bitwise functions
 
@@ -158,10 +153,9 @@ or `Boolean`) answers them as functions, each compiled to the one C operation an
 | `bits_inverted()` | every bit flipped |
 | `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()` | how many bits are set, and how many zeros stand above the highest set bit and below the lowest, as an `Integer` (the width, for 0) |
 
-Each answers the receiver's type, and `other` is cast to it the way any argument is cast to its parameter: a
-`Byte` and a `Long` mask give a `Byte`. A shift count of the width or more moves every bit out (0, or -1 for a
-negative value shifted right), and a negative count halts the program with the function and the count named,
-so C's undefined shifts never happen.
+Each answers the receiver's type, with `other` cast to it like any argument: a `Byte` and a `Long` mask give a
+`Byte`. No shift is undefined -- a count of the width or more moves every bit out, and a negative count halts the
+program ([the rules](#numbers-are-classes-and-this--implemented)).
 
 ```gdscript title=bitwise_basics/bitwise_basics.spite entry
 var console = Console()
@@ -252,8 +246,10 @@ parsed 42
 bad parse 0
 ```
 
-A value that "cannot succeed" -- a parse failure, an out-of-range index -- always produces the default instead
-of crashing. See [standard_library.md](standard_library.md) for the full method table.
+An operation that cannot succeed, like the parse of `"not a number"` above, produces the default instead of
+crashing. Reading with `[]` is the exception: an index or a key that may not be there answers a `T?`
+([failure.md](failure.md#reading-with--answers-t)). See [standard_library.md](standard_library.md) for the full
+method table.
 
 ## `T?`: values that may be null
 
@@ -298,14 +294,14 @@ is knight false
 
 An enum declaration takes no `=` and lists one value per line, with no commas. A value is written in single
 quotes -- single quotes mean an enum value and nothing else -- and `'mage'` alone resolves without writing
-`Player.Job`, because it is resolved from where it is used: the parameter, the annotation, the assignment or the
-comparison says which enum it must belong to. Two enums may share a value name; only when nothing says which
-enum is meant, and more than one has that value, is it an error listing them.
+`Player.Job`, because the parameter, the annotation, the assignment or the comparison it is used in says which
+enum it belongs to ([how it resolves](#enums--implemented)).
 
-An enum is a closed list of **symbols**. A symbol literal is legal only where something says what it may be: a
-value the enum does not list is a compile error naming the ones it does, and `var choice = 'orange'`, with
-nothing to check it against, is an error too. A `Symbol` on its own is text from the program's table of names --
-reflection answers class and function names as symbols -- and reads as text anywhere text is expected.
+An enum is a closed list of **symbols**: a value the enum does not list is a compile error naming the ones it
+does, and `var choice = 'orange'`, with nothing to check it against, is an error too. A `Symbol` on its own is
+text from the program's table of names -- reflection answers class and function names as symbols -- and reads as
+text anywhere text is expected. At run time an enum value is a small integer and a `Symbol` a pointer into a table
+holding only the symbols the program uses ([the rules](#enums--implemented)).
 
 Text becomes an enum value by assignment, the way it becomes a number: the value spelled that way, or the enum's
 first value when there is none, as `"x"` becomes `0` for an `Integer`. Compare the text back to tell the two apart:
@@ -369,10 +365,10 @@ soup true
 dessert false
 ```
 
-It is all decided while compiling: `list_courses()` becomes three calls, and `list_soup()` compares with
-`'soup'` directly. No list of an enum's values exists at run time, so a program that never walks one pays
-nothing for it. An enum is also open to the program that loads it: reopening its class declares the enum again
-with more values ([packages.md](packages.md#reopening-an-enum-adds-values)), and a walk then includes them.
+It is all decided while compiling: `list_courses()` becomes three calls, and no list of an enum's values exists
+at run time ([rules](#enums--implemented)). An enum is also open to the program that loads it: reopening its
+class declares the enum again with more values ([packages.md](packages.md#reopening-an-enum-adds-values)), and a
+walk then includes them.
 
 ## Unions
 
@@ -430,6 +426,9 @@ members at once with `_:`, and `enemy == Monster` asks which member a value is
 ([control_flow.md](control_flow.md#switch-over-a-union)). `Monster?` is exactly this kind of union: `Monster` and
 `Null`, the class whose only value is `null`.
 
+A union costs nothing to hold: the value is the object itself, and a `switch` or a call on it compares the class
+its header already names against the members ([what it costs](#unions--implemented)).
+
 ## Inline types and duck typing
 
 A `type` is a class matched by shape: any value with the same attribute names and types is accepted,
@@ -471,7 +470,9 @@ from the object's own tag rather than from the declared type. An object literal 
 answers `Object`.
 
 This is what makes fast, JSON-shaped code possible: accept a `type`, and both a real class instance and a
-plain `{ key: value }` literal work.
+plain `{ key: value }` literal work. The empty `type`, which every object fits, is built in as `Anything`
+(`component: Anything`, `List<Anything>()`; D163, in [functions_and_operators.md](functions_and_operators.md)):
+never declare an empty `type` of your own.
 
 A `type` of attributes only has a default like a class does: the object literal with each attribute at its own
 default, whose `.class` answers `Object`. So `var target: $target_type = null` in a generic class bound to such a
@@ -602,9 +603,10 @@ var target: Monster? = null
   Operations that cannot succeed produce the default instead of crashing -- except reading with `[]`, which
   answers `T?` (D64): an index or key that may not be there is a value that may be null, narrowed like any other.
 - `null` exists only as the empty state of `T?`. See [Open questions](open_questions.md#open-questions) for `= null` on other types.
-- An inner `var` may shadow an outer local, parameter, or attribute with the same name (second batch item 4,
-  decided 2026-09-19), **and a `var` may shadow a name in the same scope too** (D51, decided by Mortaro,
-  2026-09-20). The second binding may hold a different type, which is what makes it worth having:
+- An inner `var` may shadow an outer local, parameter, or attribute with the same name, **and a `var` may shadow
+  a name in the same scope too** (D51, decided by Mortaro). It may never shadow a function it can see (D172,
+  [functions_and_operators.md](functions_and_operators.md)). The second binding may hold a different type, which
+  is what makes it worth having ([failure.md](failure.md#a-new-name-for-a-new-type) teaches it):
 
 ```gdscript
 var content = file.read()        # String?
@@ -637,8 +639,8 @@ Claude, unconfirmed). **[implemented]** `Integer * Long` is an `Integer` multipl
 arithmetic operator (`+`, `-`, `*`, `/`, `%`) whose right operand is wider than its left is a compile error that
 names the rule and the fix: `'count * total' is a multiplication in Integer, since arithmetic takes the left side's
 type, and the right side is a Long, which would be cut to fit: write the Long first ('total * count'), or store the
-right side in an Integer first if it fits one` (for `-`, `/` and `%`, where order matters, the fix is to store the left
-side in the wider type first). Wider means more bits (`Tiny`/`Byte` 8, `Short`/`UnsignedShort` 16,
+right side in an Integer first if it fits one`. For `-`, `/` and `%`, where order matters, the fix it names is
+`store the left side in a Long first ('var wide: Long = count')`. Wider means more bits (`Tiny`/`Byte` 8, `Short`/`UnsignedShort` 16,
 `Integer`/`UnsignedInteger`/`Float` 32, `Long`/`UnsignedLong`/`Double`/`Memory.Address` 64), or a `Float`/`Double` right side under a whole
 number left side, which would lose its fraction; signedness alone is not wider. An integer literal on the right
 that fits the left type is not wider (`small + 1` with a `Byte` `small` is a `Byte` addition). A comparison is not
@@ -646,7 +648,7 @@ arithmetic and is not checked: it still casts the right side toward the left, so
 means `age > 0` (open question 3). A constant expression that overflows the `Integer` its arithmetic is done in is an
 error too, naming its value: `'(65536 - 120) * 65536' is 4287102976, which does not fit in an Integer, the type its
 arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long`.
-`diagnostics/wider_right_operand`.
+`diagnostics/wider_right_operand`. Both checks happen while compiling and change nothing in what is emitted.
 
 **Text casts to an enum by its name** (proposed by Claude, unconfirmed; built for D95's `Json`, 2026-09-24):
 `var course: Recipe.Course = name` is the value spelled `name`, or the enum's first value when none is, exactly as
@@ -654,24 +656,12 @@ text that does not parse becomes `0` for an `Integer`. Compare `"{course}" == na
 
 #### Numeric types  **[implemented, PROVISIONAL]**
 
-All the basic types a language has, with written names (decided 2026-09-19:
-"never `u64`"), and never abbreviated (D122): `Integer`, `UnsignedInteger` and `Boolean`, not `Int` and `Bool`,
-with every name built from them following (`to_integer()`, `read_unsigned_integer`, `library/integer.spite`).
-The old spelling is an error that names the new one: `'Int' is spelled 'Integer'`.
-**(proposed by Claude, unconfirmed: the exact width mapping below.)**
-
-| Type | C type | Notes |
-|---|---|---|
-| `Tiny` | `int8_t` | |
-| `Short` | `int16_t` | |
-| `Integer` | `int32_t` | the default integer type |
-| `Long` | `int64_t` | |
-| `Byte` | `uint8_t` | |
-| `UnsignedShort` | `uint16_t` | |
-| `UnsignedInteger` | `uint32_t` | |
-| `UnsignedLong` | `uint64_t` | |
-| `Float` | `float` (32-bit) | the default decimal type |
-| `Double` | `double` (64-bit) | |
+All the basic types a language has, with written names ("never `u64`"), and never abbreviated (D122):
+`Integer`, `UnsignedInteger` and `Boolean`, not `Int` and `Bool`, with every name built from them following
+(`to_integer()`, `read_unsigned_integer`, `library/integer.spite`). The old spelling is an error that names the
+new one: `'Int' is spelled 'Integer'` (`diagnostics/old_type_spellings`). The ten types and the machine types
+they are built on are [the table at the top of this page](#numeric-types-and-the-casting-rule)
+**(proposed by Claude, unconfirmed: the exact width mapping)**.
 
 An integer literal defaults to `Integer`; one too large to fit becomes a `Long` instead. A decimal literal
 defaults to `Float`. All of them follow the same right-side-casts-toward-left-side rule as everything else
@@ -679,16 +669,14 @@ defaults to `Float`. All of them follow the same right-side-casts-toward-left-si
 wraps on overflow (an out-of-range value assigned into a narrower type keeps its low bits, the same as a plain
 C cast) rather than crashing or saturating. `List<T>`, `Dictionary<T>`, `T?`, and generics all work
 with every numeric type; so does `String` conversion both ways -- casting a `String` to any numeric type by
-assignment parses it (defaulting to `0`/`0.0` on failure, like `Integer`/`Float` always did), and `String` gains
-one `to_<name>()` method per type (`to_tiny()`, `to_short()`, `to_integer()`, `to_long()`, `to_byte()`,
-`to_unsigned_short()`, `to_unsigned_integer()`, `to_unsigned_long()`, `to_float()`, `to_double()`) alongside the
-existing `to_integer()`/`to_float()`. `count()`, `length()`, and `index_of()` always return `Integer`, never a wider
-type.
+assignment parses it (defaulting to `0`/`0.0` on failure), through `String`'s one `to_<name>()` method per type:
+`to_tiny()`, `to_short()`, `to_integer()`, `to_long()`, `to_byte()`, `to_unsigned_short()`,
+`to_unsigned_integer()`, `to_unsigned_long()`, `to_float()`, `to_double()`. `count()`, `length()`, and
+`index_of()` always return `Integer`, never a wider type.
 
 Printing a `Float`/`Double` uses shortest-round-trip formatting (try the fewest significant digits that parse
-back to the exact same value) rather than a fixed number of digits, so switching `Float` from 64-bit to 32-bit
-does not make an ordinary value like `0.1` print with ugly trailing noise (`0.100000001`) -- it still prints
-`0.1`, exactly as before this table existed. A value whose shortest digits would need an exponent prints with
+back to the exact same value) rather than a fixed number of digits, so an ordinary value like `0.1` prints `0.1`
+on a 32-bit `Float`, never `0.100000001`. A value whose shortest digits would need an exponent prints with
 `%.17g` (`%.9g` for `Float`) instead, as `1e+21` or `1.0000000000000001e-05`; infinity prints `inf` and not a
 number prints `nan` on every platform. **PROVISIONAL** because the exact widths were not explicitly
 confirmed by Mortaro; revisit if a different mapping is wanted.
@@ -705,21 +693,20 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   `to_integer()`), in Spite: `Long.to_string()` writes the digits, `Double.to_string()` is the
   shortest-round-trip formatting above (over the digit arithmetic in `library/number_text.spite`), and the
   smaller types widen and call `Long.to_string()`. `Boolean.to_string()` answers `"true"` or `"false"`.
-  Interpolation (`"{count}"`) and `+` onto a `String` call it. Printing an integer with
-  `console.print` is written straight to the stream by the compiler, with the same digits (proposed by Claude,
-  unconfirmed: a hidden optimisation, D36).
+  Interpolation (`"{count}"`), `+` onto a `String` and `console.print` call it (D109,
+  [standard_library.md](standard_library.md)).
 - **Casting is a function of the class cast to** (D100, decided by Mortaro): each number class has
   `func from_type(type: Symbol, value: type.class)`, a Symbol codegen function whose symbol ranges over the
   program's types, so the right-to-left cast of an `Integer` into a `Float` is `Float.from_integer(value)`. Its body is
-  the compiler's (a C cast, emitted inline, so a cast costs what it did), and `--final-classes` prints the
+  the compiler's (a C cast, emitted inline, so a cast costs only the conversion), and `--final-classes` prints the
   declaration in every number class. `type` may name a parameter and begin a type path for this, although it is
   a keyword elsewhere (proposed by Claude, unconfirmed).
 - **Bitwise operations are functions of the whole-number classes** (D117, decided by Mortaro; the names and the
   rules below proposed by Claude, unconfirmed). `Tiny`, `Short`, `Integer`, `Long`, `Byte`, `UnsignedShort`,
-  `UnsignedInteger` and `UnsignedLong` each answer `shifted_left(count: Integer)`, `shifted_right(count: Integer)`,
-  `bits_and(other)`, `bits_or(other)`, `bits_exclusive_or(other)` and `bits_inverted()`, all returning the
-  receiver's type, and `set_bit_count()`, `leading_zero_count()` and `trailing_zero_count()`, returning an `Integer`
-  (the width for 0). There are no operator symbols for them. They are bodiless declarations the compiler
+  `UnsignedInteger` and `UnsignedLong` each answer the functions in [the table above](#bitwise-functions):
+  `shifted_left(count: Integer)`, `shifted_right(count: Integer)` and the three `bits_` functions of `other` and
+  `bits_inverted()` return the receiver's type, and the three counts return an `Integer` (the width for 0). There
+  are no operator symbols for them. They are bodiless declarations the compiler
   supplies (D82), so `--final-classes` prints them in each class, and each body is the single C operation,
   inlined in an optimised build. The rules, so no undefined C behaviour reaches a program:
   - `shifted_right` is **arithmetic on a signed type** (the sign bit is copied in: an `Integer` -20 shifted right by 2
@@ -730,16 +717,17 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
     (`spite: UnsignedShort.shifted_right was given the count -2, and a shift count is 0 or more`).
   - **The other operand is cast to the receiver's type**, the ordinary argument-to-parameter cast: a `Byte`'s
     `bits_and` of a `Long` keeps the `Long`'s low 8 bits and answers a `Byte`; a `Long`'s `bits_and` of a `Byte`
-    widens the `Byte`. The count is an `Integer`. This does not settle `mortaros_missing_decisions.md` item 88
-    (which operand's type arithmetic takes).
+    widens the `Byte`. The count is an `Integer`. It agrees with D162: arithmetic, too, takes the left side's type.
   - Called on `Float`, `Double` or `Boolean`, they are an error naming the whole numbers
     (`diagnostics/bitwise_on_float`). `conformance/stage6/bitwise_functions` and `negative_shift` pin them.
-- **`this` works in every class** (proposed by Claude, unconfirmed): it is the instance a function answers on,
-  for handing itself to something -- `registry.append(this)`. Reading your own member through it is an error,
-  because a class already reads its members by name: `this.name` is reported as "write 'name', not
-  'this.name'", and `this.to_string()` as "write 'to_string()'".
-- A decimal literal is written to the C as a decimal (`1.0`, not `1`), so `1.0 / 3.0` divides as decimals
-  (found on the way: it used to divide integers).
+- **`this` works in every class** (D146, decided by Mortaro), only to pass or return the object itself --
+  `registry.append(this)`. A member is still reached by its bare name, so reading one through `this` is an
+  error: `this.name` is "a class reads its own attributes by name: write 'name', not 'this.name'", and
+  `this.to_string()` is "a class calls its own functions by name: write 'to_string()', not 'this.to_string()'".
+- A decimal literal is a decimal in what is emitted (`1.0`, not `1`), so `1.0 / 3.0` divides as decimals.
+- None of it costs anything at run time: a number stays a plain machine value, a cast is the one conversion written
+  inline, a bitwise function is the single operation, and a number class's Spite functions (`to_string()`, a reopening's
+  `doubled()`) are emitted only when the program calls them (D177).
 
 ### Types
 
@@ -775,8 +763,7 @@ That is all an enum is; the integer it compiles to is a representation detail.
   compile error listing the symbols that enum accepts. There is no widening from a symbol to an enum, and there
   is no untyped symbol literal -- `var choice = 'orange'`, with nothing to check it against, is an error naming
   the missing context.
-- **A `Symbol` is text from a precompiled, tree-shaken table** (D70, decided by Mortaro, 2026-09-23, superseding
-  this clause's earlier "compile-time only"). Every symbol the program uses is an entry in one table the compiler
+- **A `Symbol` is text from a precompiled, tree-shaken table** (D70, decided by Mortaro). Every symbol the program uses is an entry in one table the compiler
   writes, so a `Symbol` value costs no allocation -- reading, storing, passing or comparing one never makes new
   text -- and a symbol the program never uses does not exist in it. So all of Spite's own metaprogramming can use
   symbols freely: a used symbol was needed anyway, and an unused one disappears. A `Symbol` reads as text
@@ -785,10 +772,11 @@ That is all an enum is; the integer it compiles to is a representation detail.
   in the table (D68). An enum is still the closed form: the list of symbols a place accepts.
   Most symbols are short, so the representation can later become a small inline string rather than a pointer
   into the table ("TinyString"); that is an optimisation the language does not observe.
-- **What a `Symbol` names is still checked by whatever consumes it.** `person.set_attribute('age', 2)` is
-  verified against `Person`'s real attributes at compile time, exactly as the Symbol codegen path already is
-  ([Symbol codegen](metaprogramming.md#symbol-codegen--implemented)) -- a symbol literal only makes that call writable in source,
-  which it is not today.
+- **What a `Symbol` names is still checked by whatever consumes it**, at compile time, the way the Symbol
+  codegen path checks `set_age(2)` against `Person`'s real attributes
+  ([Symbol codegen](metaprogramming.md#symbol-codegen--implemented)). **Not built:** calling a template with the
+  symbol written out, `person.set_attribute('age', 2)`; today that is "'Person' does not define
+  'set_attribute'", and a template is reached only through the names it answers.
 
 **An enum can be reopened, and walked** (D180, decided by Mortaro, 2026-09-25: "phases should be a enum ... which
 can be reopened by the user ... our language needs good enum reflection"). **[implemented; the spellings and the
@@ -879,19 +867,15 @@ func find_target(): Monster? {
 ```
 
 `Monster?` *is* `union { Monster, Null }` -- `Null` is an ordinary class whose only value is the literal `null`,
-the way `true` and `false` are the values of `Boolean`. That is the point of the change: nullability stops being a
-special case in the compiler and becomes a union like any other. `switch target { Monster: ... Null: ... }`
-works because it is a switch over a union; `assert`, `crash` and `if` narrow it because union narrowing
-already exists; and the pile of `Nullable<T>` exceptions collapses into rules the language already had.
+the way `true` and `false` are the values of `Boolean` -- so nullability is no special case: `switch target {
+Monster: ... Null: ... }` is a switch over a union, and `assert`, `crash` and `if` narrow it by union narrowing.
+The spellings considered and rejected are in D45.
 
-[Memory](memory.md#memory--implemented)'s optimisation survives as a codegen detail rather than a language rule: a union of a reference and
-`Null` is still just the pointer, and only a scalar needs a wrapper.
-
-**Considered and rejected on the way** (2026-09-20): `Nullable<T>` (ugly, and a generic wrapper is what keeps it
-a special case); `Monster or Null` (`or` short-circuits everywhere else, so a return type reads as an
-expression yielding the truthy left side); `maybe Monster` (a keyword bought for a shortcut); `Maybe<Monster>`
-as a standard library generic union (generics over unions hide the members, and collide with `$` codegen
-replacement when a parent already declares the same name); and `Monster.Maybe` as a class-level member.
+At run time a union of a reference and `Null` is just the pointer, null or not; only a scalar `T?` (an
+`Integer?`, a `Boolean?`) needs a wrapper, a flag beside the value, passed by value with no allocation
+([Memory](memory.md#memory--implemented)). A union of classes is the object itself, its class read from the
+header it already has, and every test on it is a comparison of that class id against the members the compiler
+knows of.
 
 
 #### Inline types and duck typing  **[implemented]**
@@ -907,13 +891,14 @@ Like `enum` and `union`, a `type` declaration takes no `=` and always breaks lin
 commas (D47). The single-line form is what would have needed commas, so removing it removes the choice -- and a
 `type` is read far more often than it is written, which is the case where the extra lines pay.
 
-A `type` is a class matched by shape: any value with the same attributes and types is accepted, including object literals.
-`.class` of the value still points to its original class. This is what makes fast JSON-like code possible.
-`.class` read through a `type`-shaped or union-typed value is answered from the object's own tag at runtime,
-so it names the class the value really is (`Widget`), not the shape it is being read through (`Labeled`).
-An object literal has no class of its own, so it answers `Object`.
+A `type` is a class matched by shape: any value with the same attributes and types is accepted, including object
+literals. `.class` read through a `type`-shaped or union-typed value is answered from the object's own tag at run
+time, so it names the class the value really is (`Widget`), not the shape it is being read through (`Labeled`).
+An object literal has no class of its own, so it answers `Object`. A call through a `type` compares that tag
+against the classes admitted to the shape -- only the classes the program actually passes to it -- so nothing
+is registered or looked up by name at run time (D177).
 
-**A `type` may require functions, not only attributes** (D16, decided by Mortaro, 2026-09-19; implemented), matched by shape
+**A `type` may require functions, not only attributes** (D16, decided by Mortaro), matched by shape
 exactly as an attribute-only `type` is:
 
 ```gdscript
@@ -924,13 +909,13 @@ type Renderable {
 
 Any class with a `render()` of that signature is accepted. This is what lets a collection hold "any class that
 responds to `render()`" -- a list of components, [Markup](targets.md#markup--planned) -- without a union naming every class in advance,
-and it makes the respond-to check [Decided by Mortaro, being implemented](open_questions.md#decided-by-mortaro-being-implemented--planned) item 9 promises expressible as an ordinary type rather than as
-reflection.
+and it makes the respond-to check that [Decided by Mortaro, being implemented](open_questions.md#decided-by-mortaro-being-implemented--planned)
+item 2 promises expressible as an ordinary type rather than as reflection.
 
 **A `type` can be the element of a variadic parameter** (D90): `...children: List<Renderable>` takes any number
 of values of any classes that fit, written one by one, "a generic can be done over both a type or a class, but in
 the end monomorphised into each class". Each class that is passed is admitted to the shape, and each call on an
-element is compiled once per admitted class ([Variadic arguments](functions_and_operators.md#variadic-arguments--implemented), [Variadic arguments](functions_and_operators.md#variadic-arguments--implemented)).
+element is compiled once per admitted class ([Variadic arguments](functions_and_operators.md#variadic-arguments--implemented)).
 
 **A shape's members behave as a class's do** (proposed by Claude, unconfirmed, 2026-09-24): a required function
 read without calling it is a function value bound to the value (D17), dispatched on the value's class when it is
