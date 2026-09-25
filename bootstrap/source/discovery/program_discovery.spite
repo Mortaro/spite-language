@@ -16,6 +16,9 @@ var loaded_folders = List<String>()
 var program_paths = List<String>()
 var pending_files = List<Syntax.SourceFile>()
 var following_loads = false
+var walking_program = false
+var program_files = List<Syntax.SourceFile>()
+var program_load_names = List<String>()
 var printer = Syntax.SourcePrinter()
 var program_environment = Environment()
 
@@ -267,18 +270,90 @@ func discover_program(entry_path: String, entry_source: String) {
     check_entry_constructor(entry_path, entry_file, pascal_name)
     assert not has_error
     var entry_directory = directory_of(entry_path)
+    check_folder_name(entry_directory, entry_path)
     var entry_stem = file_stem(entry_path)
     var entry_basename = basename(entry_path)
-    var load_names = List<String>()
-    collect_file_load_names(entry_file, load_names)
+    collect_file_load_names(entry_file, program_load_names)
     var empty_segments = List<String>()
     reopen_with_supplied_members()
     entry_file.path = entry_path
     add_parsed_file(entry_file, empty_segments, entry_stem)
     entry_qualified = compute_qualified(empty_segments, entry_stem)
     entry_file_path = entry_path
-    walk_directory(entry_directory, empty_segments, entry_basename, load_names)
+    walking_program = true
+    walk_directory(entry_directory, empty_segments, entry_basename, program_load_names)
+    walking_program = false
     pending_files.append(entry_file)
+    var index = 0
+    while index < program_files.count() {
+        pending_files.append(program_files[index])
+        index = index + 1
+    }
+}
+
+func check_folder_name(folder: String, named_by: String) {
+    var name = basename(folder)
+    assert name != "." and name != ".." and not has_error
+    assert not is_snake_case(name)
+    assert holds_spite_files(folder)
+    has_error = true
+    error_message = "{named_by}: error: the folder '{name}' is not named in snake_case: every folder of a program, a package's own folder included, is lowercase words joined by '_', so rename it '{snake_case_of(name)}'"
+}
+
+func is_snake_case(name: String): Boolean {
+    assert not name.is_empty()
+    var first = name.code_at(0)
+    assert first >= 97 and first <= 122
+    var index = 1
+    while index < name.length() {
+        var code = name.code_at(index)
+        assert code >= 97 and code <= 122 or code >= 48 and code <= 57 or code == 95
+        index = index + 1
+    }
+    return not name.ends_with("_") and not name.contains("__")
+}
+
+func snake_case_of(name: String): String {
+    var written = ""
+    var index = 0
+    while index < name.length() {
+        var letter = name.slice(index, index + 1)
+        var lower = letter.lower_case()
+        var separates = letter == "-" or letter == " " or letter == "." or letter == "_"
+        if separates {
+            lower = "_"
+        }
+        if lower != letter and not separates and index > 0 and not written.ends_with("_") {
+            written = "{written}_"
+        }
+        if not (separates and (written.is_empty() or written.ends_with("_"))) {
+            written = written + lower
+        }
+        index = index + 1
+    }
+    return written
+}
+
+func holds_spite_files(folder: String): Boolean {
+    var directory = Directory(folder)
+    assert directory.exists()
+    var files = directory.files()
+    if files.any(is_spite_file) {
+        return true
+    }
+    var folders = directory.folders()
+    var index = 0
+    while index < folders.count() {
+        if holds_spite_files("{folder}/{folders[index]}") {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func is_spite_file(name: String): Boolean {
+    return name.ends_with(".spite")
 }
 
 func load_root(entry_path: String, entry_directory: String, root_name: String) {
@@ -295,6 +370,8 @@ func load_root(entry_path: String, entry_directory: String, root_name: String) {
         error_message = "could not find the folder '{root_name}' loaded by {entry_path}"
         return
     }
+    check_folder_name(root_folder, entry_path)
+    assert not has_error
     loaded_folders.append("{root_folder}/")
     var empty_segments = List<String>()
     var no_skip: String? = null
@@ -613,7 +690,10 @@ func walk_directory(
                 excluded = true
             }
         }
-        if not excluded {
+        if not excluded and not has_error {
+            check_folder_name("{folder_on_disk}/{folder_name}", folder_on_disk)
+        }
+        if not excluded and not has_error {
             var child_segments = copy_segments(segments)
             child_segments.append(folder_name)
             walk_directory(root_folder, child_segments, skip_basename, excluded_top_level)
@@ -667,6 +747,13 @@ func read_and_add_file(path: String, segments: List<String>) {
         add_parsed_file(parsed_file, segments, stem)
         if following_loads and not walking_library {
             pending_files.append(parsed_file)
+        }
+        var follows_loads = walking_program and compute_qualified(segments, stem) != "Launcher"
+        if follows_loads {
+            program_files.append(parsed_file)
+        }
+        if follows_loads and segments.is_empty() {
+            collect_file_load_names(parsed_file, program_load_names)
         }
     } else {
         has_error = true
