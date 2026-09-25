@@ -69,6 +69,30 @@ nothing returns `Nothing`, which is what its type and its `.returns` say.
 arguments, and an attribute whose default is a function value
 ([manual section 5](../manual.md#calling-one)).
 
+**A variable never has the name of a function it can see** ([D172](../manual.md#decision-log)). Since a function's
+name is already a value, a local, parameter or attribute named like a function of its class would make that name
+mean two things. `var file_stem = file_stem(path)` is an error; name the result for what it holds:
+
+```gdscript title=shadowed_function_error/shadowed_function_error.spite entry error
+var console = Console()
+
+func ShadowedFunctionError() {
+    var file_stem = file_stem("notes/today.txt")
+    console.print(file_stem)
+}
+
+func file_stem(path: String): String {
+    var parts = path.split("/")
+    var last = parts.last()
+    return last.replace(".txt", "")
+}
+```
+```diagnostic
+the variable 'file_stem' has the name of a function of this class, and a function is a value passed by its name: give the variable a name of its own
+```
+
+Written `var stem = file_stem("notes/today.txt")`, it compiles.
+
 ## Variadic arguments
 
 A last parameter written `...name: List<Type>` takes every remaining argument, written one by one at the call,

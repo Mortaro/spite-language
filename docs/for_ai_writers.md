@@ -74,6 +74,8 @@ func is_alive(): Bool {
 
 ## Names, comments, unused things
 
+- A variable, parameter or attribute never has the name of a function of its class: `var stem = file_stem(path)`,
+  never `var file_stem = file_stem(path)`.
 - `snake_case` for variables, attributes, parameters, functions and enum values; `PascalCase` for classes,
   enums, unions and types; never a single letter; never an abbreviation (`message` not `msg`, `index` not `idx`,
   `value` not `val`). The error names the word to write.

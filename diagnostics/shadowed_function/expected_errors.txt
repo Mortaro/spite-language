@@ -1,0 +1,4 @@
+diagnostics/shadowed_function/shadowed_function.spite:2: error: the attribute 'greeting' has the name of a function of this class, and a function is a value passed by its name: give the attribute a name of its own (in ShadowedFunction.)
+diagnostics/shadowed_function/shadowed_function.spite:5: error: the variable 'file_stem' has the name of a function of this class, and a function is a value passed by its name: give the variable a name of its own (in ShadowedFunction.ShadowedFunction)
+diagnostics/shadowed_function/shadowed_function.spite:18: error: the parameter 'file_stem' has the name of a function of this class, and a function is a value passed by its name: give the parameter a name of its own (in ShadowedFunction.shout)
+diagnostics/shadowed_function/shadowed_function.spite:20: error: the variable 'shout' has the name of a function of this class, and a function is a value passed by its name: give the variable a name of its own (in ShadowedFunction.shout)

@@ -32,8 +32,8 @@ func Lists() {
     scores.append(10)
     scores.reverse()
     crash scores.count() == 4
-    var total = total(scores)
-    console.print(total, scores[0], scores[99] == 0)
+    var sum_of_values = total(scores)
+    console.print(sum_of_values, scores[0], scores[99] == 0)
     var has_ten = scores.contains(10)
     var has_eleven = scores.contains(11)
     console.print(has_ten, has_eleven)

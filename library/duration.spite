@@ -107,17 +107,17 @@ func to_string(): String {
 
 func _made(seconds: Long, nanoseconds: Long): Duration {
     var whole = seconds + nanoseconds / 1000000000
-    var part = nanoseconds % 1000000000
-    if whole > 0 and part < 0 {
+    var part_value = nanoseconds % 1000000000
+    if whole > 0 and part_value < 0 {
         whole = whole - 1
-        part = part + 1000000000
+        part_value = part_value + 1000000000
     }
-    if whole < 0 and part > 0 {
+    if whole < 0 and part_value > 0 {
         whole = whole + 1
-        part = part - 1000000000
+        part_value = part_value - 1000000000
     }
     var made = Duration(whole, 'seconds')
-    made._nanoseconds = part
+    made._nanoseconds = part_value
     return made
 }
 

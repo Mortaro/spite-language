@@ -375,8 +375,8 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
         }
         index = index + 1
     }
-    var bind_function = bind_function(redirected)
-    parts.append(bind_function)
+    var bind_code = bind_function(redirected)
+    parts.append(bind_code)
     return "{parts.join("\n")}\n"
 }
 

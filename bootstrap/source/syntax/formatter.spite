@@ -37,8 +37,8 @@ func format(source: String): String? {
     var lines = List<Int>()
     index = 0
     while index < file.statements.count() {
-        var declaration_line = declaration_line(file.statements[index])
-        lines.append(declaration_line)
+        var declared_line = declaration_line(file.statements[index])
+        lines.append(declared_line)
         index = index + 1
     }
     var formatted = Syntax.SourcePrinter().formatted_file(file, lines, comment_lines, comment_texts)

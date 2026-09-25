@@ -466,8 +466,8 @@ func wrote_final_class(
     var class_file_file = class_file.get_file()
     var ordered = in_file_order(class_file_file, class_file.simple_name)
     var source = "{Syntax.SourcePrinter().source_file(ordered)}{generator.generated_functions_source(class_file.qualified_dotted)}"
-    var formatted_or_as_printed = formatted_or_as_printed(source)
-    if File(path).write(formatted_or_as_printed) {
+    var formatted = formatted_or_as_printed(source)
+    if File(path).write(formatted) {
         return true
     }
     console.error("error: could not write '{path}'")
@@ -509,8 +509,8 @@ func wrote_class_views(output_directory: String, folder: String, names: List<Str
     while index < names.count() {
         var path = "{directory}/{final_class_file_name(names[index])}.spite"
         crash sources[index]
-        var formatted_or_as_printed = formatted_or_as_printed(sources[index])
-        if not File(path).write(formatted_or_as_printed) {
+        var formatted = formatted_or_as_printed(sources[index])
+        if not File(path).write(formatted) {
             console.error("error: could not write '{path}'")
             return false
         }
@@ -690,8 +690,8 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
     }
     var next_generation = reload.generation + 1
     var state = hot_state(generator, reload, next_generation)
-    var changed_paths = changed_paths(generator, reload)
-    if changed_paths.is_empty() {
+    var changed_files = changed_paths(generator, reload)
+    if changed_files.is_empty() {
         console.print("unchanged")
         return
     }
@@ -702,7 +702,7 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
         return
     }
     var rebuilt = List<String>()
-    var library_code = generator.reload_library(reload, changed_paths, rebuilt)
+    var library_code = generator.reload_library(reload, changed_files, rebuilt)
     var library_base = "{base}_reload_{next_generation}"
     var library_path = "{library_base}.{library_extension()}"
     if not build_library(library_code, "{library_base}.c", library_path) {
@@ -1003,8 +1003,8 @@ func json_string_at(text: String, start: Int): String {
         if character == "\\" and index + 1 < text_length {
             index = index + 1
             var escaped = text.character_at(index)
-            var unescaped = unescaped(escaped)
-            pieces.append(unescaped)
+            var plain_text = unescaped(escaped)
+            pieces.append(plain_text)
         } else {
             pieces.append(character)
         }

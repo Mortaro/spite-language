@@ -12,15 +12,15 @@ func Unions() {
     shapes.append(Square(3))
     var index = 0
     while index < shapes.count() {
-        var describe = describe(shapes[index])
+        var description = describe(shapes[index])
         var area = shapes[index].area()
-        console.print(describe, area, shapes[index].name)
+        console.print(description, area, shapes[index].name)
         index = index + 1
     }
     var shape: Shape = Square(4)
     grow(shape)
-    var describe = describe(shape)
-    console.print(describe)
+    var description = describe(shape)
+    console.print(description)
     favorite = shape
     var current = favorite
     if current {

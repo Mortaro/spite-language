@@ -1,10 +1,10 @@
 var console = Console()
 
 func Functions() {
-    var fibonacci = fibonacci(10)
-    console.print(fibonacci)
-    var factorial = factorial(5)
-    console.print(factorial)
+    var fibonacci_value = fibonacci(10)
+    console.print(fibonacci_value)
+    var factorial_value = factorial(5)
+    console.print(factorial_value)
     print_range(3)
 }
 

@@ -1,0 +1,28 @@
+var console = Console()
+var greeting = "hello"
+
+func ShadowedFunction() {
+    var file_stem = file_stem("notes/today.txt")
+    console.print(file_stem)
+    var stem = file_stem("notes/today.txt")
+    console.print(stem)
+    shout(stem)
+}
+
+func file_stem(path: String): String {
+    var parts = path.split("/")
+    var last = parts.last()
+    return last.replace(".txt", "")
+}
+
+func shout(file_stem: String) {
+    if file_stem.is_empty() {
+        var shout = "nothing"
+        console.print(shout)
+    }
+    console.print(file_stem.upper_case(), greeting)
+}
+
+func greeting(): String {
+    return "hi"
+}

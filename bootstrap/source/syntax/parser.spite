@@ -119,8 +119,8 @@ func dummy_expression(): Syntax.Expressions.Expression {
 }
 
 func dummy_statement(): Syntax.Statements.Statement {
-    var dummy_expression = dummy_expression()
-    return Syntax.Statements.ExpressionStatement(dummy_expression)
+    var placeholder_expression = dummy_expression()
+    return Syntax.Statements.ExpressionStatement(placeholder_expression)
 }
 
 func dummy_type(): Syntax.Types.Type {
@@ -373,7 +373,7 @@ func parse_function_declaration(): Syntax.Statements.Statement {
         if is_variadic {
             advance()
         }
-        var parameter_name = parameter_name()
+        var parameter_text = parameter_name()
         expect('colon', "':' followed by the parameter's type")
         var parameter_type = parse_type()
         if check('equal') {
@@ -383,10 +383,10 @@ func parse_function_declaration(): Syntax.Statements.Statement {
         }
         if is_variadic and not is_list_type(parameter_type) {
             fail(
-                "'...{parameter_name}' receives the arguments as a list: write '...{parameter_name}: List<Type>', where Type is a class or a type every argument fits",
+                "'...{parameter_text}' receives the arguments as a list: write '...{parameter_text}: List<Type>', where Type is a class or a type every argument fits",
             )
         }
-        var parameter = Syntax.Statements.Parameter(parameter_name, parameter_type)
+        var parameter = Syntax.Statements.Parameter(parameter_text, parameter_type)
         parameter.is_variadic = is_variadic
         parameters.append(parameter)
         if check('comma') {
@@ -397,7 +397,7 @@ func parse_function_declaration(): Syntax.Statements.Statement {
         }
         if is_variadic and expect_more {
             fail(
-                "'...{parameter_name}' takes every argument from here on, so it is the last parameter: move it to the end",
+                "'...{parameter_text}' takes every argument from here on, so it is the last parameter: move it to the end",
             )
         }
     }
@@ -480,8 +480,8 @@ func parse_required_function(name: String): Syntax.Statements.FieldDeclaration {
             fail(
                 "a shape names the types it needs, not the names they are given: write '{parse_type_name_hint()}' where '{named.text}: ...' is, since a class satisfies it whatever it calls its parameters",
             )
-            var dummy_type = dummy_type()
-            return Syntax.Statements.FieldDeclaration(name, dummy_type)
+            var placeholder_type = dummy_type()
+            return Syntax.Statements.FieldDeclaration(name, placeholder_type)
         }
         var parsed_type = parse_type()
         parameter_types.append(parsed_type)
@@ -1093,13 +1093,13 @@ func parse_binary_expression_rest(
     left: Syntax.Expressions.Expression,
     minimum_precedence: Int,
 ): Syntax.Expressions.Expression {
-    var current_kind = current_kind()
-    var precedence = binary_operator_precedence(current_kind)
+    var kind = current_kind()
+    var precedence = binary_operator_precedence(kind)
     if precedence < 0 or precedence < minimum_precedence {
         return left
     }
-    current_kind = current_kind()
-    var operator = binary_operator_for(current_kind)
+    kind = current_kind()
+    var operator = binary_operator_for(kind)
     var joining = check('plus')
     var tests_class = check('equal_equal') or check('bang_equal')
     advance()

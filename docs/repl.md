@@ -214,8 +214,8 @@ var monster = Monster("Goblin")
 
 func HotCounter() {
     visits = 1
-    var greeting = greeting()
-    console.print(greeting)
+    var welcome = greeting()
+    console.print(welcome)
 }
 
 func greeting(): String {

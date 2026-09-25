@@ -72,8 +72,8 @@ func parse_factor(): Expression {
         advance()
         return NumberExpression(value)
     }
-    var consume_name = consume_name()
-    return VariableExpression(consume_name)
+    var consumed_name = consume_name()
+    return VariableExpression(consumed_name)
 }
 
 func consume_name(): String {

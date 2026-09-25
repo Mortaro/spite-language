@@ -9,21 +9,21 @@ func Process(starting_command: String, starting_arguments: List<String>) {
 }
 
 func run(): Int {
-    var command_line = command_line()
-    var handle = open_process(command_line)
+    var command_text = command_line()
+    var handle = open_process(command_text)
     if handle == 0 {
         last_output = ""
         return -1
     }
-    var output = ""
+    var output_text = ""
     var chunk = memory.allocate_bytes(4096)
     var got = read_into(chunk, 4096, handle)
     while got > 0 {
-        output = "{output}{memory.text(chunk, got)}"
+        output_text = "{output_text}{memory.text(chunk, got)}"
         got = read_into(chunk, 4096, handle)
     }
     memory.free(chunk)
-    last_output = output
+    last_output = output_text
     return close_process(handle)
 }
 

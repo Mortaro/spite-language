@@ -3,12 +3,12 @@ var _length: Long = 0
 var _section: Spite.Memory.Section = 'heap'
 var _capacity: Long = 0
 
-func String(bytes: Long, length: Long) {
+func String(bytes: Long, text_length: Long) {
     var memory = Memory()
-    memory.write_byte(bytes, length, 0)
+    memory.write_byte(bytes, text_length, 0)
     _bytes = bytes
-    _length = length
-    _capacity = length
+    _length = text_length
+    _capacity = text_length
 }
 
 func drop() {
