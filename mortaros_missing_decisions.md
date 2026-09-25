@@ -47,8 +47,6 @@ manual argues it.
     (manual section 14, "Answered where the program waits"). Confirm the compile error's rule: a `--repl_port`
     build is rejected when none of the program's own code waits and it has a `while` loop -- which also rejects
     a loop that does end.
-12. **`Socket` is new public library surface** (`library/socket.spite`): keep it public, or library-internal until an HTTP layer needs it? (The port half was answered by D125.)
-
 ## Variadic arguments
 
 14. **Whether a generic line can name a constraint**, `generic $sub_type: Openable` (open question 12's own
