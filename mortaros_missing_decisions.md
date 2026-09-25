@@ -396,8 +396,3 @@ Behaviour that does not match the manual. The language was not changed; each is 
      Resource.World()`: the marker is noise, and the engine should learn "this system changes the world" from the
      compiler -- which functions it calls (`Spawn`, `Insert`, `Remove`), which singletons it touches -- as a
      compile-time reflection like D114's (`function.calls(Spawn)`, or the singletons a function reaches). Wanted?
-
-112. **An uncalled function keeps an attribute alive.** The rule is source-level, so `func describe(): String {
-     return "{name}" }` that nothing calls makes `name` used, and tree shaking then removes both the function and
-     the read. Four fixtures kept their metadata-only attributes exactly this way. Fine, or should only code a
-     program can reach count?
