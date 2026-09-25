@@ -1,0 +1,6 @@
+health 10 Health
+label x Label
+number 7
+others 2 2
+folded true false
+part true false

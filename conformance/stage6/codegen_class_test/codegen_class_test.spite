@@ -1,0 +1,36 @@
+union Part {
+    Health
+    Label
+}
+
+var console = Console()
+
+func CodegenClassTest() {
+    var store = Store()
+    store.add(Health())
+    store.add(Label())
+    store.add(7)
+    var health_fetch = Fetch<Health>()
+    var health = health_fetch.first(store)
+    crash health
+    console.print("health", health.amount, health.class)
+    var label_fetch = Fetch<Label>()
+    var label = label_fetch.first(store)
+    crash label
+    console.print("label", label.text, label.class)
+    var number_fetch = Fetch<Int>()
+    var number = number_fetch.first(store)
+    crash number
+    console.print("number", number)
+    var not_labels = label_fetch.others(store)
+    var not_numbers = number_fetch.others(store)
+    console.print("others", not_labels, not_numbers)
+    var sample = Health()
+    var health_wanted = health_fetch.is_wanted(sample)
+    var label_wanted = label_fetch.is_wanted(sample)
+    console.print("folded", health_wanted, label_wanted)
+    var part: Part = Label()
+    var label_part = label_fetch.is_part(part)
+    var number_part = number_fetch.is_part(part)
+    console.print("part", label_part, number_part)
+}

@@ -619,6 +619,9 @@ func constant_condition(
                     return null
                 }
                 if binary.operator == 'equal' or binary.operator == 'not_equal' {
+                    if codegen_is_class(binary.right, class_information) and not shape.as_generic_identifier(binary.left) {
+                        return known_codegen_class_test(binary, scope, class_information)
+                    }
                     var left_generic = shape.as_generic_identifier(binary.left)
                     if left_generic {
                         var bare_name = without_dollar(left_generic.name)
@@ -4784,6 +4787,10 @@ func tested_class_of(
     expression: Syntax.Expressions.Expression,
     class_information: Analysis.ClassInfo,
 ): Analysis.ClassInfo? {
+    var codegen_type = shape.as_generic_identifier(expression)
+    if codegen_type {
+        return codegen_tested_class(codegen_type.name, class_information)
+    }
     var named = shape.as_generic_call(expression)
     if named {
         assert named.names_class
@@ -4799,6 +4806,86 @@ func tested_class_of(
         return instantiate_generic(template, named.type_arguments, class_information.qualified_dotted)
     }
     return try_resolve_static_path(expression, class_information.qualified_dotted)
+}
+
+func codegen_tested_class(name: String, class_information: Analysis.ClassInfo): Analysis.ClassInfo? {
+    var bare_name = without_dollar(name)
+    var bound = codegen_index(class_information, bare_name)
+    assert bound >= 0
+    crash class_information.codegen_codes[bound]
+    assert class_information.codegen_codes[bound].is_empty()
+    crash class_information.codegen_types[bound]
+    var boxed_class = boxed_class_of(class_information.codegen_types[bound])
+    if boxed_class {
+        ensure_box(boxed_class, class_information.codegen_types[bound])
+    }
+    return class_of_type(class_information.codegen_types[bound])
+}
+
+func codegen_is_class(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Bool {
+    var codegen_type = shape.as_generic_identifier(expression)
+    assert codegen_type
+    if codegen_tested_class(codegen_type.name, class_information) {
+        return true
+    }
+    return false
+}
+
+func class_of_type(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var class_ref = type_shape.as_class_ref(spite_type)
+    if class_ref {
+        return find_class_by_c_name(class_ref.c_name)
+    }
+    if type_shape.as_string(spite_type) {
+        return find_class_by_c_name("SpiteString")
+    }
+    var boxed_class = boxed_class_of(spite_type)
+    if boxed_class {
+        return boxed_class
+    }
+    return container_class_of(spite_type)
+}
+
+func known_codegen_class_test(
+    binary: Syntax.Expressions.BinaryExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Bool? {
+    crash binary.left
+    crash binary.right
+    assert shape.as_generic_identifier(binary.right)
+    var tested_class = tested_class_of(binary.right, class_information)
+    assert tested_class
+    var saved_counter = temporary_counter
+    var subject = generate_expression(binary.left, scope, class_information)
+    temporary_counter = saved_counter
+    var subject_type = subject.get_type()
+    var is_nullable = false
+    var nullable = type_shape.as_nullable(subject_type)
+    if nullable {
+        subject_type = nullable.get_inner()
+        is_nullable = true
+    }
+    var known = known_membership(subject_type, tested_class)
+    assert known == false or known == true and not is_nullable
+    if binary.operator == 'equal' {
+        return known == true
+    }
+    return known == false
+}
+
+func known_membership(subject_type: Analysis.SpiteType, tested_class: Analysis.ClassInfo): Bool? {
+    var subject_union = type_shape.as_union(subject_type)
+    if subject_union {
+        var union_information = find_union_by_c_name(subject_union.c_name)
+        assert union_information
+        assert not union_information.is_shape
+        assert not union_information.has_member(tested_class.c_name)
+        return false
+    }
+    var subject_class = class_of_type(subject_type)
+    assert subject_class
+    return subject_class.c_name == tested_class.c_name
 }
 
 func check_tested_member(information: Analysis.UnionInfo, tested_class: Analysis.ClassInfo) {
@@ -4817,6 +4904,14 @@ func generate_class_test(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     crash binary.left
+    crash binary.right
+    if shape.as_generic_identifier(binary.right) {
+        var known = known_codegen_class_test(binary, scope, class_information)
+        if known == true or known == false {
+            var known_type = boolean_type()
+            return ExpressionResult("{known == true}", known_type)
+        }
+    }
     var tested = generate_expression(binary.left, scope, class_information)
     var value_type = tested.get_type()
     var is_nullable = false
@@ -11103,9 +11198,10 @@ func generate_class_narrowing_if(
     }
     builder.add_user("if ({test}) \{")
     var case_scope = Scope(scope)
-    var class_type = class_type_of(tested_class)
+    var class_type = instance_type_of(tested_class)
     case_scope.declare(subject_identifier.name, class_type)
-    case_scope.set_override(subject_identifier.name, "(({tested_class.c_name}*){subject_temporary})")
+    var narrowed = narrowed_code(subject_temporary, tested_class, class_type)
+    case_scope.set_override(subject_identifier.name, narrowed)
     generate_block_in_scope(if_statement.then_branch, case_scope, class_information, function_information)
     builder.add_user("}")
     if if_statement.has_else_branch {
@@ -11115,6 +11211,13 @@ func generate_class_narrowing_if(
     }
     builder.add_user("}")
     return true
+}
+
+func narrowed_code(code: String, tested_class: Analysis.ClassInfo, class_type: Analysis.SpiteType): String {
+    if boxed_value_types.has(tested_class.c_name) {
+        return "(((SpiteBox_{tested_class.c_name}*){code})->value)"
+    }
+    return "(({c_type_name(class_type)}){code})"
 }
 
 func generate_nullable_switch(
