@@ -1073,7 +1073,7 @@ nothing in it can be mistaken for a user class. **[implemented]**
 | `Spite.Class` | `.name: Symbol` (D68), `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `has_function(name)` (D114; folds on a codegen type), plus the function of `Spite.Class`s a class may override ([above](#class-level-functions-and-why-there-are-no-static-functions-planned)) |
 | `Spite.Function` | `.name: String`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `.owner`, `call_function()`, `name_fits(pattern)` (D116) |
 | `Spite.Argument` | `.name: String`, `.class: Spite.Class` |
-| `Spite.Attribute` | `.name: String`, `.class: Spite.Class`, `.value: String`, `.object: Anything?` (below) |
+| `Spite.Attribute` | `.name: String`, `.class: Spite.Class`, `.value: Anything?` (the value itself; its text is `.value.to_string()`, below) |
 | `Spite.Namespace` | `.name: String` (the segment), `.name_with_namespaces: String` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
 | `Spite.Memory` | `.address: Long`, `.bytes: Long`, `.section: Spite.Memory.Section` (`'heap'`, `'stack'`, `'constant'`) -- what `value.memory` answers (D101) |
 
@@ -1185,24 +1185,30 @@ below.]**
   is an instance of `Health`, which a class object never is, and before this it was silently `false`.
 - `value.attributes` is a real, runtime `List<Spite.Attribute>` (built fresh, one entry per field, only for a
   class that actually uses `.attributes` -- nothing is generated for a class that never does): each entry has
-  `.name: String`, `.class: Spite.Class` (D12) and `.value: String` (the field
-  rendered as text; `""` for a field with no obvious textual form, such as a class, list, or union). Because
+  `.name: String`, `.class: Spite.Class` (D12) and `.value` (below). Because
   it is an ordinary `List<T>`, reading it uses `while`, not a special loop form. `attributes[symbol]` inside a
   class is a separate, compile-time-only form: that same field indexed by a `Symbol` (see [Symbol
   codegen](#symbol-codegen-implemented) below).
-- **`attribute.object` is the attribute's value as an object** (D123's second request; the spelling and the
-  readings proposed by Claude, unconfirmed, 2026-09-25), where `.value` is its text. Its type is
-  `Anything?`, the library's built-in empty `type` (D163, which replaced the `Spite.Attribute.Object` this
-  first declared), so `entity.add_component(attribute.object)` compiles once it is narrowed. **A number, `Bool`
-  or enum attribute is boxed**, as D109 boxes a plain value passed where a shape is
-  wanted, so its `.class` is `Int` and `if object == Int` narrows it back; it is `null` only when the attribute
-  holds `null` (item 125). **`value.attributes` works on a `type` or union value**, answered from the value's own
-  class at run time, so `create_entity_from_bundle(bundle: Anything)` walks whatever bundle it is given. It is
-  built only for a program that reads `.object`: every other program's attribute lists hold `null` there and
-  admit nothing. Two mechanisms came with it: a class admitted to one `type` is admitted to every `type` a value
-  of it has already been passed on to (a value handed from one `type` to another), and
-  `.attributes` through a `type` reads every attribute of every class admitted to it, for D118
-  (`conformance/stage6/attribute_object`, `docs/reflection.md`).
+- **`attribute.value` is the actual instance the attribute refers to** (D164, decided by Mortaro, replacing the
+  text `.value` and the `.object` D123 added; the readings below proposed by Claude, unconfirmed).
+  **[implemented]** Its type is `Anything?`, the library's built-in empty `type` (D163), so
+  `entity.add_component(attribute.value)` compiles once it is narrowed. **A number, `Bool`, enum or `Symbol`
+  attribute is boxed**, as D109 boxes a plain value passed where a shape is wanted, so its `.class` is `Int` and
+  `if value == Int` narrows it back; it is `null` only when the attribute holds `null`. **Its text is
+  `attribute.value.to_string()`**: through `Anything`, `to_string()` answers each class's own `to_string()` (a
+  `String` itself, a number's usual text), and `to_debug()` for a class that has none, a `List` or a
+  `Dictionary`; the REPL's display calls it for a number, text or enum. **It costs nothing unless read**: the
+  objects are built only in a program whose own code reads `.value` (the REPL library's reads count only in a
+  `--repl`/`--repl_port` build), every other program's attribute lists hold `null` there and box nothing, and no
+  attribute carries text any more, so a program walking `.attributes` allocates no strings for it. A number is
+  never boxed where its type is known: `x.attributes[attribute]` in a Symbol template reads the plain field.
+  **`value.attributes` works on a `type` or union value**, answered from the value's own class at run time, so
+  `create_entity_from_bundle(bundle: Anything)` walks whatever bundle it is given. An attribute holding a
+  `Dictionary` now lists its entries as attributes named by their keys, as a `List` lists its elements, which is
+  how the REPL counts both. Two mechanisms came with `.value`: a class admitted to one `type` is admitted to
+  every `type` a value of it has already been passed on to, and `.attributes` through a `type` reads every
+  attribute of every class admitted to it, for D118 (`conformance/stage6/attribute_object`,
+  `conformance/stage6/reflection`, `docs/reflection.md`).
 - `Person.instances` lists every live instance of a class. Conceptually each class is a variable living on the heap and so is
   its registry of instances; the compiler removes whatever is unused.  **[implemented]**
   A class object's `.attributes` and `.functions` are read from a stand-in instance at its defaults, which is not
@@ -4256,3 +4262,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | (implements D157; the reading below proposed by Claude, unconfirmed) **D118's loaded-package exemption no longer covers an attribute whose default is a singleton construction** (`var world = World()`): unread, it is `the attribute 'world' is never read: remove it` in a loaded folder too. "Unread" is D118's usual reading -- a read from any class counts -- rather than only its own class's, since a read from outside can only hide the error, never cause one. The check is compile time only. No binding in the repository was unread, so no site was rewritten. `diagnostics/package_attributes` (a `var console = Console()` in the loaded `paint` folder). |
 | 2026-09-25 | (implements D166; the message proposed by Claude, unconfirmed) **A function named `load` is an error, and `load(...)` always loads a package**: `'load' is reserved: it always loads a package, so a function cannot be named 'load'. Name it for what it loads, such as 'load_texture'`. Removed: the generator's check that let a class's own `load` win, and discovery's rule that read no folder from a file declaring `load`. `conformance/stage6/load_function`, which proved the removed behaviour, became `diagnostics/load_function`; no other program declared `load`. Compile time only. `docs/packages.md`. |
 | 2026-09-25 | (implements D163; where it lives proposed by Claude, unconfirmed) **`type Anything { }` is declared once, in `library/nothing.spite` beside `Nothing`**, and resolves by its simple name everywhere, as every `type` does. `Spite.Attribute`'s object is `Anything?`, replacing `Spite.Attribute.Object`, and the generator boxes into it as it did into `Object`. Rewritten: 7 declarations removed -- `conformance/stage6/attribute_object`, `class_argument` and `codegen_class_test`, `diagnostics/class_as_value`, and 3 programs in `docs/` (`control_flow.md`'s `codegen_class_test_doc`, `reflection.md`'s `attribute_objects` and `passing_a_class`) -- plus `library/spite/attribute.spite`'s `type Object`. An empty `type` costs nothing until a value is passed to it: it holds no functions, and boxing happens only where a plain value is actually passed as `Anything`. Section 5, `docs/reflection.md`. |
+| 2026-09-25 | (implements D164; the readings below proposed by Claude, unconfirmed) **`Spite.Attribute` holds `.value: Anything?`, the instance itself, and no text; `.object` is gone.** A number, `Bool`, enum or `Symbol` is boxed into it; `null` stays `null`. **`to_string()` answers through any `type`** (as `to_debug()` already did): each member class's own `to_string()`, and `to_debug()` for a class without one, a `List` or a `Dictionary` -- so `attribute.value.to_string()` is `"rat"`, `"3"` or `"true"`, and a list's is its debug text (`[]`), where the old text was empty. **Zero cost unless read**: the generator fills `.value` only when the program's own code reads `.value` of a `Spite.Attribute` (the REPL library's reads count only in a `--repl`/`--repl_port` build); otherwise every reflected attribute's value is a `return 0` stub the C compiler folds away, and since no attribute renders text any more, walking `.attributes` allocates no strings at all. The REPL decides a value's kind from its class name, `null`, and whether the value has attributes or functions of its own, shows a number, text or enum through `value.to_string()`, and counts a `List` or `Dictionary` by its entries -- for which an attribute holding a `Dictionary` now lists its entries as attributes named by their keys; the documented REPL sessions answer exactly as before. `to_debug()` never went through `Spite.Attribute` (it reads fields through Symbol templates, unboxed), so it is unchanged. Rewritten: 9 sites -- `conformance/stage6/attribute_object`, `attribute_uses`, `class_attributes`, `reflection` (its list attribute now prints `[]`), `settings_and_libraries_reflected`, `examples/repository_list`, `tests/reflection_tests`, and `docs/reflection.md`'s `reflection_basics` and `attribute_objects`. Section 8, `docs/reflection.md`. |

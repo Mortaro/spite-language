@@ -218,7 +218,7 @@ func is_alive(): Bool {
   reading its members: `assert value.class.namespace` narrows the path itself and its prefixes for the rest of
   the block -- `.name_with_namespaces`, `.parent`, `.classes`,
   `.namespaces`), `.functions`), `value.attributes`
-  (`.name`, `.class`, `.value`), `value.functions` (`.name`, `.arguments`, `.returns`, `call_function()` for
+  (`.name`, `.class`, `.value`: the value itself, an `Anything?` whose text is `.value.to_string()`), `value.functions` (`.name`, `.arguments`, `.returns`, `call_function()` for
   functions that take nothing and return `Nothing`), a function named without calling it (`shouter.shout`, a
   `Spite.Function<String, String>` bound to `shouter`, called as `change(text)`), `Monster.instances` (live instances), and
   `Spite.Class.instances` (every class of the program). `class`, bare inside a class's function, is the class

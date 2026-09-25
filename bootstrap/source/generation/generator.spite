@@ -1250,7 +1250,7 @@ func generate_shape_call(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     var wanted = find_required_function(information, name)
-    if not wanted and name != "to_debug" {
+    if not wanted and name != "to_debug" and name != "to_string" {
         report(
             "type '{information.simple_name}' does not require a function '{name}', so it cannot be called through it",
         )
@@ -1352,6 +1352,15 @@ func shape_function_value(
     return made
 }
 
+func shape_member_function(member: Analysis.ClassInfo, name: String): Analysis.FunctionInfo? {
+    var function = find_or_instantiate_function(member, name)
+    if function {
+        return function
+    }
+    assert name == "to_string"
+    return find_or_instantiate_function(member, "to_debug")
+}
+
 func emit_shape_callers(information: Analysis.UnionInfo) {
     var caller_index = 0
     while caller_index < information.caller_names.count() {
@@ -1375,7 +1384,7 @@ func emit_shape_callers(information: Analysis.UnionInfo) {
             if boxed_value_types.has(member.c_name) {
                 receiver = "((SpiteBox_{member.c_name}*)self)->value"
             }
-            var called_function = find_or_instantiate_function(member, name)
+            var called_function = shape_member_function(member, name)
             crash called_function
             var call = "{called_function.c_name}({receiver}{passed})"
             var member_test = class_id_test("self", member)
@@ -8488,23 +8497,15 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
     var index = 0
     while index < information.fields.count() {
         var field = information.fields[index]
-        var value_code = "(&spite_static_string_empty)"
         var field_type = field.get_type()
         var field_code = "self->{field.name}"
         if information.is_stateless_singleton {
             field_code = "({field.default_value_code})"
         }
-        if type_shape.as_string(field_type) {
-            value_code = "SpiteString___retain({field_code})"
-        } else if type_shape.as_scalar(field_type) {
-            value_code = string_conversion(field_code, field_type)
-        } else if is_enum_type(field_type) {
-            value_code = string_conversion(field_code, field_type)
-        }
         lines.append(
-            "\{ Spite_Attribute* spite_field = Spite_Attribute___make({ensure_symbol(field.name)}, {class_object_call(field_type)}, {value_code});",
+            "\{ Spite_Attribute* spite_field = Spite_Attribute___make({ensure_symbol(field.name)}, {class_object_call(field_type)});",
         )
-        lines.append("spite_field->_object = {ensure_attribute_object(field_type)}({field_code});")
+        lines.append("spite_field->_value = {ensure_attribute_object(field_type)}({field_code});")
         lines.append("{list_name}_append(result, spite_field); }")
         index = index + 1
     }
@@ -8565,6 +8566,11 @@ func attribute_object_code(spite_type: Analysis.SpiteType, code: String, shape_t
     }
     if boxed_class_of(spite_type) {
         return cast(code, spite_type, shape_type)
+    }
+    if type_shape.is_symbol(spite_type) {
+        var string_type = string_type()
+        var retained_text = retain_call(string_type, code)
+        return cast(retained_text, string_type, shape_type)
     }
     if not has_attribute_object(spite_type) {
         return "0"
@@ -8826,32 +8832,6 @@ func walkable_class(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
     return described
 }
 
-func reflected_text(spite_type: Analysis.SpiteType, code: String): String {
-    if type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type) {
-        return "SpiteString___retain({code})"
-    }
-    if type_shape.as_scalar(spite_type) or is_enum_type(spite_type) {
-        return string_conversion(code, spite_type)
-    }
-    if type_shape.as_list(spite_type) {
-        return long_text("{code}->item_count")
-    }
-    var reflected_dictionary = type_shape.as_dictionary(spite_type)
-    if reflected_dictionary {
-        var reflected_dictionary_element = reflected_dictionary.get_element()
-        return long_text("{ensure_dictionary(reflected_dictionary_element)}_count({code})")
-    }
-    var nullable = type_shape.as_nullable(spite_type)
-    if nullable {
-        var inner = nullable.get_inner()
-        if type_is_reference(inner) {
-            return "({code} == 0 ? {ensure_symbol("null")} : {reflected_text(inner, code)})"
-        }
-        return "({code}.has_value ? {reflected_text(inner, "{code}.value")} : {ensure_symbol("null")})"
-    }
-    return "(&spite_static_string_empty)"
-}
-
 func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
     var function_c_name = "spite_reflect_{reflected_label(spite_type)}"
     if reflect_function_names.contains(function_c_name) {
@@ -8862,10 +8842,8 @@ func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
     builder.add_prototype("{signature};")
     var lines = List<String>()
     lines.append("{signature} \{")
-    lines.append(
-        "Spite_Attribute* reflected = Spite_Attribute___make(name, {class_object_call(spite_type)}, {reflected_text(spite_type, "value")});",
-    )
-    lines.append("reflected->_object = {ensure_attribute_object(spite_type)}(value);")
+    lines.append("Spite_Attribute* reflected = Spite_Attribute___make(name, {class_object_call(spite_type)});")
+    lines.append("reflected->_value = {ensure_attribute_object(spite_type)}(value);")
     var walked = walkable_class(spite_type)
     if walked {
         lines.append("reflected->spite_held = {walked.c_name}___retain(value);")
@@ -8886,6 +8864,16 @@ func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
             var list_class = list_class_of(list_type_element)
             lines.append("reflected->spite_held_functions = (void* (*)(void*)){ensure_functions_function(list_class)};")
         }
+    }
+    var dictionary_type = type_shape.as_dictionary(spite_type)
+    if dictionary_type {
+        var dictionary_element = dictionary_type.get_element()
+        var dictionary_name = ensure_dictionary(dictionary_element)
+        lines.append("reflected->spite_held = {dictionary_name}___retain(value);")
+        lines.append("reflected->spite_release_held = (void (*)(void*)){dictionary_name}___release;")
+        lines.append(
+            "reflected->spite_held_attributes = (void* (*)(void*)){ensure_dictionary_attributes_function(dictionary_element)};",
+        )
     }
     lines.append("return reflected;")
     lines.append("}")
@@ -8910,6 +8898,29 @@ func ensure_list_attributes_function(element: Analysis.SpiteType): String {
     var reflect = ensure_reflect_function(element)
     builder.add_support(
         "{signature} \{\n{attributes_list}* result = {attributes_list}___make();\nfor (int64_t spite_index = 0; spite_index < self->item_count; spite_index = spite_index + 1) {attributes_list}_append(result, {reflect}({long_text("spite_index")}, {list_item_code(element, "self", "spite_index")}));\nreturn result;\n}",
+    )
+    return function_c_name
+}
+
+func ensure_dictionary_attributes_function(element: Analysis.SpiteType): String {
+    var dictionary_name = ensure_dictionary(element)
+    var function_c_name = "{dictionary_name}___attributes"
+    if reflect_function_names.contains(function_c_name) {
+        return function_c_name
+    }
+    reflect_function_names.append(function_c_name)
+    var attribute_class = find_class_by_c_name("Spite_Attribute")
+    crash attribute_class
+    var class_type = class_type_of(attribute_class)
+    var attributes_list = ensure_list(class_type)
+    var signature = "{attributes_list}* {function_c_name}({dictionary_name}* self)"
+    builder.add_prototype("{signature};")
+    var reflect = ensure_reflect_function(element)
+    var string_type = string_type()
+    var key = list_item_code(string_type, "self->entry_keys", "spite_index")
+    var entry = list_item_code(element, "self->entry_values", "spite_index")
+    builder.add_support(
+        "{signature} \{\n{attributes_list}* result = {attributes_list}___make();\nfor (int64_t spite_index = 0; spite_index < self->entry_keys->item_count; spite_index = spite_index + 1) {attributes_list}_append(result, {reflect}(SpiteString___retain({key}), {entry}));\nreturn result;\n}",
     )
     return function_c_name
 }
@@ -9008,9 +9019,7 @@ func ensure_text_call(information: Analysis.ClassInfo, function: Analysis.Functi
     var result_symbol = ensure_symbol("result")
     if type_shape.is_void(returned_type) {
         lines.append("{call};")
-        lines.append(
-            "return Spite_Attribute___make({result_symbol}, {returned_class_object_call(function)}, (&spite_static_string_empty));",
-        )
+        lines.append("return Spite_Attribute___make({result_symbol}, {returned_class_object_call(function)});")
     } else {
         lines.append("{c_type_name(returned_type)} returned = {call};")
         lines.append(
@@ -10718,10 +10727,11 @@ func generate_member_read_raw(
             }
         }
     }
-    if member.name == "object" {
+    if member.name == "value" {
         var object_receiver = type_shape.as_class_ref(object_result_type)
         if object_receiver {
-            if object_receiver.c_name == "Spite_Attribute" {
+            var read_by_the_loop = class_information.qualified_dotted == "ReadEvaluatePrintLoop"
+            if object_receiver.c_name == "Spite_Attribute" and (read_evaluate_print_loop or not read_by_the_loop) {
                 attribute_object_used = true
             }
         }

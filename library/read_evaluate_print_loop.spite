@@ -313,7 +313,7 @@ func resolve_child(current: Spite.Attribute, path: List<String>, index: Int): Sp
         position = position + 1
     }
     if kind_of(current) == "list" {
-        unresolved = "index {path[index]} is out of range: {current.name} holds {current.value}"
+        unresolved = "index {path[index]} is out of range: {current.name} holds {held_count(current)}"
     } else if names.is_empty() {
         unresolved = "{current.name} is {described(current.class.name)}, which has no attributes"
     } else {
@@ -333,23 +333,38 @@ func kind_of(attribute: Spite.Attribute): String {
     if class_name.starts_with("Dictionary<") {
         return "dictionary"
     }
-    if attribute.value == "null" {
+    if not attribute.value {
         return "null"
     }
-    if attribute.value.is_empty() {
-        return "instance"
+    var held_attributes = attribute.value_attributes()
+    var held_functions = attribute.value_functions()
+    if held_attributes.is_empty() and held_functions.is_empty() {
+        return "scalar"
     }
-    return "scalar"
+    return "instance"
+}
+
+func text_of(attribute: Spite.Attribute): String {
+    assert attribute.value
+    return attribute.value.to_string()
+}
+
+func held_count(attribute: Spite.Attribute): Int {
+    var held = attribute.value_attributes()
+    return held.count()
 }
 
 func shown(attribute: Spite.Attribute, nested: Bool): String {
     var kind = kind_of(attribute)
     var class_name: String = attribute.class.name
     if kind == "list" or kind == "dictionary" {
-        return "{class_name}({attribute.value})"
+        return "{class_name}({held_count(attribute)})"
+    }
+    if kind == "null" {
+        return "null"
     }
     if kind != "instance" {
-        return attribute.value
+        return text_of(attribute)
     }
     if class_name.ends_with("?") {
         var class_name_length = class_name.length()
@@ -494,7 +509,7 @@ func call(command: String, program: Spite.Attribute): Answer {
     }
     var kind = kind_of(owner)
     if name == "count" and literals.is_empty() and (kind == "list" or kind == "dictionary") {
-        return success(owner.value, "Int")
+        return success("{held_count(owner)}", "Int")
     }
     var attributes = owner.value_attributes()
     index = 0

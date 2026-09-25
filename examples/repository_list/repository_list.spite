@@ -27,8 +27,14 @@ func RepositoryList() {
     var attribute_index = 0
     while attribute_index < attributes.count() {
         var attribute = attributes[attribute_index]
-        console.print(attribute.name, attribute.class, attribute.value)
+        var value_text = text_of(attribute)
+        console.print(attribute.name, attribute.class, value_text)
         attribute_index = attribute_index + 1
     }
     console.print("done")
+}
+
+func text_of(attribute: Spite.Attribute): String {
+    assert attribute.value
+    return attribute.value.to_string()
 }

@@ -1,12 +1,10 @@
 var _name: Symbol = 'unnamed'
 var _class = Spite.Class('Nothing')
-var _value = ""
-var _object: Anything? = null
+var _value: Anything? = null
 
-func Attribute(starting_name: Symbol, starting_class: Spite.Class, starting_value: String) {
+func Attribute(starting_name: Symbol, starting_class: Spite.Class) {
     _name = starting_name
     _class = starting_class
-    _value = starting_value
 }
 
 func get_name(): Symbol {
@@ -17,10 +15,6 @@ func get_class(): Spite.Class {
     return _class
 }
 
-func get_value(): String {
+func get_value(): Anything? {
     return _value
-}
-
-func get_object(): Anything? {
-    return _object
 }
