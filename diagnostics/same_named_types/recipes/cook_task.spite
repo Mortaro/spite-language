@@ -1,0 +1,15 @@
+type Buildable {
+    build()
+}
+
+var cookbook = Recipes.Cookbook()
+
+func run(recipe: Buildable) {
+    var recipes = List<Buildable>()
+    recipes.append(recipe)
+    cookbook.take(recipes)
+    var named = Dictionary<Buildable>()
+    named["soup"] = recipe
+    cookbook.take_named(named)
+    cookbook.take_one(recipe)
+}

@@ -1,0 +1,12 @@
+var console = Console()
+
+func NestedTypeFromOutside() {
+    var cookbook = Recipes.Cookbook()
+    cookbook.add(Recipes.Soup())
+    cookbook.add(Recipes.Bread())
+    var task = Recipes.CookTask(cookbook.recipes)
+    task.add(Recipes.Soup())
+    task.run()
+    var cooked = task.recipes.count()
+    console.print("cooked", cooked, "recipes")
+}
