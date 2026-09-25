@@ -23,9 +23,6 @@ manual argues it.
 
 ## From hidden async/await (D99, D103)
 
-16. **The mechanism: stackful fibers plus a helper thread per blocking call**, chosen over a state-machine
-    transform and over threads for everything (the decision-log row argues it). Built on Windows; the Linux and
-    macOS folders (`makecontext`/`swapcontext`) are only compiled.
 17. **What a `Parallel` function may touch.** Nothing is checked yet, and with reference-counted fields a race can
     free a value another thread is reading. Options: D35's syntactic rule (it reaches only its own instance and its
     locals, which rejects `Parallel(file.read)` because `File` reaches `Memory` and its library through fields);
