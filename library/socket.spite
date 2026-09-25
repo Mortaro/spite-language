@@ -1,28 +1,37 @@
 var handle: Long = -1
 var pending = ""
+var closed = false
 var heap = Memory.Heap()
 
 func listen_locally(port: Integer): Boolean {
-    start_sockets()
-    handle = open_socket()
-    assert handle != -1
     var address = local_address(port)
-    var bound = bind_address(address)
-    heap.free(address)
-    return bound and listen_for_clients()
+    return listen_on(address)
+}
+
+func listen_everywhere(port: Integer): Boolean {
+    var address = any_address(port)
+    return listen_on(address)
+}
+
+func listen_at(host: String, port: Integer): Boolean {
+    var address = resolved_address(host, port)
+    assert address != 0
+    return listen_on(address)
 }
 
 func connect_locally(port: Integer): Boolean {
-    start_sockets()
-    handle = open_socket()
-    assert handle != -1
     var address = local_address(port)
-    var connected = connect_address(address)
-    heap.free(address)
-    return connected
+    return connect_to(address)
+}
+
+func connect(host: String, port: Integer): Boolean {
+    var address = resolved_address(host, port)
+    assert address != 0
+    return connect_to(address)
 }
 
 func accept_client(): Socket? {
+    use_blocking_calls()
     var accepted = accept_handle()
     assert accepted != -1
     var client = Socket()
@@ -30,21 +39,150 @@ func accept_client(): Socket? {
     return client
 }
 
+func accept_client_now(): Socket? {
+    var accepted = accept_now()
+    assert accepted != -1
+    var client = Socket()
+    client.handle = accepted
+    return client
+}
+
 func read_line(): String? {
-    var buffer = heap.allocate(4096)
     var newline = pending.index_of("\n")
-    var open = true
-    while newline < 0 and open {
-        var received = receive_into(buffer, 4096)
-        if received > 0 {
+    if newline < 0 and not closed {
+        use_blocking_calls()
+        var buffer = heap.allocate(4096)
+        while newline < 0 and not closed {
+            var received = receive_into(buffer, 4096)
+            if received > 0 {
+                pending = "{pending}{buffer.text(received)}"
+                newline = pending.index_of("\n")
+            } else {
+                closed = true
+            }
+        }
+        heap.free(buffer)
+    }
+    assert newline >= 0
+    return take_line(newline)
+}
+
+func read_line_now(): String? {
+    var newline = pending.index_of("\n")
+    if newline < 0 and not closed {
+        var buffer = heap.allocate(4096)
+        var received = receive_now(buffer, 4096)
+        while newline < 0 and received > 0 {
             pending = "{pending}{buffer.text(received)}"
             newline = pending.index_of("\n")
-        } else {
-            open = false
+            if newline < 0 {
+                received = receive_now(buffer, 4096)
+            }
+        }
+        heap.free(buffer)
+        if received < 0 {
+            closed = true
         }
     }
-    heap.free(buffer)
     assert newline >= 0
+    return take_line(newline)
+}
+
+func read_bytes(address: Memory.Address, count: Integer): Integer {
+    var taken = take_pending(address, count)
+    if taken > 0 or closed or count <= 0 {
+        return taken
+    }
+    use_blocking_calls()
+    var received = receive_into(address, count)
+    if received <= 0 {
+        closed = true
+        return 0
+    }
+    return received
+}
+
+func read_bytes_now(address: Memory.Address, count: Integer): Integer {
+    var taken = take_pending(address, count)
+    if taken > 0 or closed or count <= 0 {
+        return taken
+    }
+    var received = receive_now(address, count)
+    if received < 0 {
+        closed = true
+        return 0
+    }
+    return received
+}
+
+func write_line(text: String): Boolean {
+    use_blocking_calls()
+    var line = "{text}\n"
+    var line_length = line.length()
+    var written = 0
+    while written < line_length and not closed {
+        var rest = line.slice(written, line_length)
+        var sent = send_text(rest)
+        if sent > 0 {
+            written = written + sent
+        } else {
+            closed = true
+        }
+    }
+    return written == line_length
+}
+
+func write_bytes(address: Memory.Address, count: Integer): Boolean {
+    use_blocking_calls()
+    var written = 0
+    while written < count and not closed {
+        var sent = send_from(address + written, count - written)
+        if sent > 0 {
+            written = written + sent
+        } else {
+            closed = true
+        }
+    }
+    return written == count
+}
+
+func write_bytes_now(address: Memory.Address, count: Integer): Integer {
+    assert not closed and count > 0
+    var sent = send_now(address, count)
+    if sent < 0 {
+        closed = true
+        return 0
+    }
+    return sent
+}
+
+func close() {
+    closed = true
+    if handle != -1 {
+        close_handle()
+        handle = -1
+    }
+}
+
+func listen_on(address: Memory.Address): Boolean {
+    start_sockets()
+    handle = open_socket()
+    closed = false
+    var bound = handle != -1 and bind_address(address)
+    heap.free(address)
+    return bound and listen_for_clients()
+}
+
+func connect_to(address: Memory.Address): Boolean {
+    start_sockets()
+    handle = open_socket()
+    closed = false
+    var connected = handle != -1 and connect_address(address)
+    heap.free(address)
+    return connected
+}
+
+func take_line(newline: Integer): String {
     var line = pending.slice(0, newline)
     var pending_length = pending.length()
     pending = pending.slice(newline + 1, pending_length)
@@ -55,27 +193,35 @@ func read_line(): String? {
     return line
 }
 
-func write_line(text: String): Boolean {
-    var line = "{text}\n"
-    var line_length = line.length()
-    var written = 0
-    while written < line_length {
-        var rest = line.slice(written, line_length)
-        var sent = send_text(rest)
-        assert sent > 0
-        written = written + sent
+func take_pending(address: Memory.Address, count: Integer): Integer {
+    var pending_length = pending.length()
+    var taken = pending_length
+    if count < taken {
+        taken = count
     }
-    return true
+    if taken < 0 {
+        taken = 0
+    }
+    var index = 0
+    while index < taken {
+        var code = pending.code_at(index)
+        address.write_byte(index, code)
+        index = index + 1
+    }
+    if taken > 0 {
+        pending = pending.slice(taken, pending_length)
+    }
+    return taken
 }
 
-func close() {
-    if handle != -1 {
-        close_handle()
-        handle = -1
-    }
+func local_address(port: Integer): Memory.Address {
+    var address = any_address(port)
+    address.write_byte(4, 127)
+    address.write_byte(7, 1)
+    return address
 }
 
-func local_address(port: Integer): Long {
+func any_address(port: Integer): Memory.Address {
     var address = heap.allocate(16)
     var index = 0
     while index < 16 {
@@ -83,11 +229,39 @@ func local_address(port: Integer): Long {
         index = index + 1
     }
     write_family(address)
+    write_port(address, port)
+    return address
+}
+
+func write_port(address: Memory.Address, port: Integer) {
     var port_high = port.shifted_right(8)
     var port_low = port.bits_and(255)
     address.write_byte(2, port_high)
     address.write_byte(3, port_low)
-    address.write_byte(4, 127)
-    address.write_byte(7, 1)
+}
+
+func resolved_address(host: String, port: Integer): Memory.Address {
+    start_sockets()
+    var hints = heap.allocate(48)
+    var index = 0
+    while index < 48 {
+        hints.write_byte(index, 0)
+        index = index + 1
+    }
+    hints.write_integer(4, 2)
+    hints.write_integer(8, 1)
+    var found = heap.allocate(8)
+    found.write_long(0, 0)
+    var failed = resolve_name(host, hints, found) != 0
+    heap.free(hints)
+    var first: Memory.Address = found.read_long(0)
+    heap.free(found)
+    assert not failed and first != 0
+    var offset = resolved_address_offset()
+    var resolved: Memory.Address = first.read_long(offset)
+    var address = heap.allocate(16)
+    resolved.copy_to(address, 16)
+    free_resolved(first)
+    write_port(address, port)
     return address
 }

@@ -18,6 +18,7 @@ var heap = Memory.Heap()
 func print(...values: List<Printable>) {
     _write_values(values, 'output')
     _write_output("\n")
+    flush()
 }
 
 func write(...values: List<Printable>) {
@@ -27,6 +28,7 @@ func write(...values: List<Printable>) {
 func error(...values: List<Printable>) {
     _write_values(values, 'error')
     _write_error("\n")
+    flush()
 }
 
 func debug(...values: List<Debuggable>) {
@@ -40,6 +42,7 @@ func debug(...values: List<Debuggable>) {
         index = index + 1
     }
     _write_output("\n")
+    flush()
 }
 
 func _write_values(values: List<Printable>, stream: Stream) {

@@ -310,6 +310,15 @@ a class prints once it declares `func to_string(): String`, and `debug` shows an
 `Process(command, arguments)` (`run(): Integer`, `output()`: standard output only), `Program()` (`exit(code)`, `sleep(milliseconds)`,
 `environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere, bound once
 as `var console = Console()`.
+`print`, `error` and `debug` write their line out at once, so a log redirected to a file shows every line as it
+happens; `write` waits for the next line end or `flush()`.
+`Socket()` is TCP over IPv4 on every system: `listen_locally(port)`, `listen_everywhere(port)`, `listen_at(host,
+port)`, `connect_locally(port)`, `connect(host, port)`, then lines (`read_line(): String?`, `write_line(text)`) or
+bytes at a `Memory.Address` (`read_bytes(address, count): Integer`, `write_bytes(address, count)`), which wait.
+A loop that must not wait -- a game server's tick -- calls `accept_client_now(): Socket?`, `read_line_now():
+String?`, `read_bytes_now(address, count): Integer` (`0` is nothing yet) and `write_bytes_now(address, count):
+Integer` (how many the system took). A peer that hung up is not an error: `socket.closed` turns `true`, reads
+answer `0` or `null` and writes send nothing -- check `closed`, never a count of `-1`.
 `Concurrent(function)` runs a function as a compile-time state machine and `Parallel(function)` on the thread pool: the handle stands
 in for what the function returns and reading it is the wait (there is no `.wait()`: `an Integer has no function
 'wait'`), `finished` answers without waiting, and dropping the handle waits for it. A `parallel_each_<member>()`

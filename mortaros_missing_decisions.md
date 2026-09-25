@@ -605,3 +605,21 @@ All of it is proposed by Claude, unconfirmed.
      `remove_first()`/`remove_last()` still answer the default on an empty list; make them `T?` too?
 194. **`Weak<T>` across threads.** A `Weak` read on one thread while another frees the object is a race today;
      the table has no lock. Guard it in a program that uses `Parallel`, or forbid a `Weak` a `Parallel` reaches?
+
+## `Socket` for game servers (from SlopEngine)
+
+195. **How a closed peer shows.** Built as a `closed: Boolean` attribute: `read_bytes_now` answers `0` both for
+     "nothing yet" and for "the other end hung up", `read_line_now` answers `null` for both, and `closed` tells
+     them apart (D24's "a distinction that matters is data"). The alternative was a count of `-1`, which every
+     caller would have to remember to test before adding the count to a length. Keep `closed`?
+196. **The names of the calls that never wait.** Built with a `_now` suffix beside the waiting calls:
+     `accept_client_now(): Socket?`, `read_line_now(): String?`, `read_bytes_now(address, count): Integer`,
+     `write_bytes_now(address, count): Integer`; and `listen_everywhere(port)`, `listen_at(host, port)`,
+     `connect(host, port)` beside `listen_locally` and `connect_locally`. Other spellings weighed: a mode on the
+     socket (`socket.waits = false`), which would make the same call mean two things, and `poll_`/`try_`
+     prefixes. Keep the names?
+197. **Every printed line is written out at once.** `print`, `error` and `debug` now flush, so a server's log
+     redirected to a file shows each line as it happens. Measured with `benchmarks/console_lines` (200 000 lines,
+     Windows): about 700 ms to a file against about 140 ms buffered until exit; the same to a pipe or the null
+     device. Nothing cheaper shows every line promptly without a thread. Keep it for every program, or should a
+     program be able to say it prints to a file nobody watches (a build setting, say) and keep the buffer?

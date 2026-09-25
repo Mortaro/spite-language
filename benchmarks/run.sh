@@ -19,7 +19,7 @@ if [ -z "$CC" ]; then
     fi
 fi
 names=("$@")
-[ ${#names[@]} -eq 0 ] && names=(fused_chain dictionary_keys text_building reflection_walks function_values small_allocations parallel_calls stress)
+[ ${#names[@]} -eq 0 ] && names=(fused_chain dictionary_keys text_building reflection_walks function_values small_allocations parallel_calls stress console_lines)
 printf "| %-18s | %8s | %12s | %s\n" "benchmark" "best ms" "allocations" "output"
 for name in "${names[@]}"; do
     "$compiler" "benchmarks/$name" --run=false --c-source --c-path="$work/$name.c" > "$work/$name.log" 2>&1 || {
@@ -29,7 +29,7 @@ for name in "${names[@]}"; do
     best=""
     for attempt in 1 2 3 4 5 6 7; do
         start=$(date +%s%N)
-        output=$("$work/$name.exe" 2>&1 | tr -d '\r' | tr '\n' ' ')
+        output=$("$work/$name.exe" 2>&1 | tr -d '\r' | tail -n 2 | tr '\n' ' ')   # console_lines prints 200 000
         finish=$(date +%s%N)
         took=$(( (finish - start) / 1000000 ))
         if [ -z "$best" ] || [ "$took" -lt "$best" ]; then best=$took; fi

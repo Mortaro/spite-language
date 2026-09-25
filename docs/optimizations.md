@@ -553,7 +553,7 @@ row, and D164's `attribute.value`, filled only in a program that reads it).
 ### Concurrency machinery only where it is used
 
 **What it does.** The scheduler, the state machines, the helper threads and the wrappers around every call that
-can wait (`Program.sleep`, `Console.read_line`, `File.read`/`write`/`append`, `Socket.accept_client`/`read_line`)
+can wait (`Program.sleep`, `Console.read_line`, `File.read`/`write`/`append`, `Socket.accept_client`/`read_line`/`read_bytes`)
 exist only in a program that makes a `Concurrent` (itself, or through [reads in a row](#reads-in-a-row-overlap)) or
 is built with `--repl-port` or `--hot-reload`. Every other program's waits are the plain system calls. Even in a program that has the scheduler, a wait with no `Concurrent` alive and
 no REPL listening makes the plain blocking call, because that is faster ([D99](decisions.md)): you

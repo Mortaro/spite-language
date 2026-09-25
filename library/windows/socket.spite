@@ -1,4 +1,5 @@
 var sockets = DynamicLibrary("ws2_32.dll", 'identity', "")
+var nonblocking = false
 
 func start_sockets() {
     var information = heap.allocate(512)
@@ -7,6 +8,7 @@ func start_sockets() {
 }
 
 func open_socket(): Long {
+    nonblocking = false
     return sockets.socket_as_long(2, 1, 6)
 }
 
@@ -14,12 +16,25 @@ func write_family(address: Memory.Address) {
     address.write_byte(0, 2)
 }
 
+func resolve_name(host: String, hints: Memory.Address, found: Memory.Address): Integer {
+    var no_service: Long = 0
+    return sockets.getaddrinfo(host, no_service, hints, found)
+}
+
+func resolved_address_offset(): Integer {
+    return 32
+}
+
+func free_resolved(first: Memory.Address) {
+    sockets.freeaddrinfo(first)
+}
+
 func bind_address(address: Memory.Address): Boolean {
     return sockets.bind(handle, address, 16) == 0
 }
 
 func listen_for_clients(): Boolean {
-    return sockets.listen(handle, 1) == 0
+    return sockets.listen(handle, 64) == 0
 }
 
 func accept_handle(): Long {
@@ -38,6 +53,67 @@ func receive_into(buffer: Long, bytes: Integer): Integer {
 func send_text(text: String): Integer {
     var text_length = text.length()
     return sockets.send(handle, text, text_length, 0)
+}
+
+func send_from(buffer: Long, bytes: Integer): Integer {
+    return sockets.send(handle, buffer, bytes, 0)
+}
+
+func use_blocking_calls() {
+    assert nonblocking
+    switch_blocking(handle, false)
+    nonblocking = false
+}
+
+func use_nonblocking_calls() {
+    assert not nonblocking
+    switch_blocking(handle, true)
+    nonblocking = true
+}
+
+func switch_blocking(socket: Long, enabled: Boolean) {
+    var mode = heap.allocate(4)
+    var value = 0
+    if enabled {
+        value = 1
+    }
+    mode.write_integer(0, value)
+    sockets.ioctlsocket(socket, -2147195266, mode)
+    heap.free(mode)
+}
+
+func accept_now(): Long {
+    use_nonblocking_calls()
+    var no_address: Long = 0
+    var accepted = sockets.accept_as_long(handle, no_address, no_address)
+    if accepted != -1 {
+        switch_blocking(accepted, false)
+    }
+    return accepted
+}
+
+func receive_now(buffer: Long, bytes: Integer): Integer {
+    use_nonblocking_calls()
+    var received = sockets.recv(handle, buffer, bytes, 0)
+    if received > 0 {
+        return received
+    }
+    assert received >= 0 or not would_block()
+    return -1
+}
+
+func send_now(buffer: Long, bytes: Integer): Integer {
+    use_nonblocking_calls()
+    var sent = sockets.send(handle, buffer, bytes, 0)
+    if sent >= 0 {
+        return sent
+    }
+    assert not would_block()
+    return -1
+}
+
+func would_block(): Boolean {
+    return sockets.WSAGetLastError() == 10035
 }
 
 func close_handle() {

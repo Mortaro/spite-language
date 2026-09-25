@@ -1,0 +1,9 @@
+nobody is connecting yet
+nothing yet: 0 false
+sent without waiting: 3
+peer received: 3 1 250
+sent without waiting: 3
+client received: 3 8
+client read the line: hello over the wire
+peer closed: 0 true
+no line after the close

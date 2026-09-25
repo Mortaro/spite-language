@@ -22,6 +22,7 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 | `small_allocations` | three small objects made and dropped per pass, three million passes, and `copy()` |
 | `parallel_calls` | 20 000 rounds of two `Parallel`s |
 | `stress` | SlopEngine's `examples/stress` shape: component columns as generic singletons, `system/` classes with `update_each` over `type` rows filled by a Symbol walk, 50 000 entities, 20 ticks |
+| `console_lines` | 200 000 `console.print` lines, each written out as it is printed; `run.sh` times it into a pipe, and redirected to a file is where the write per line costs (about 700 ms against 140 ms buffered until exit, [standard_library.md](../docs/standard_library.md#system-classes--implemented)) |
 
 ## Results
 
