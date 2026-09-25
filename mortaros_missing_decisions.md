@@ -23,10 +23,6 @@ manual argues it.
 
 ## From hidden async/await (D99, D103)
 
-17. **What a `Parallel` function may touch.** Nothing is checked yet, and with reference-counted fields a race can
-    free a value another thread is reading. Options: D35's syntactic rule (it reaches only its own instance and its
-    locals, which rejects `Parallel(file.read)` because `File` reaches `Memory` and its library through fields);
-    that rule with singletons allowed; or running a `Parallel` on a deep copy of its instance.
 18. **Inferring codegen values from constructor arguments** (`Concurrent(file.read)` without `<String?>`), which
     D35's own example needs and D9 did not foresee.
 ## What the standard library offers
@@ -288,28 +284,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
      compiler -- which functions it calls (`Spawn`, `Insert`, `Remove`), which singletons it touches -- as a
      compile-time reflection like D114's (`function.calls(Spawn)`, or the singletons a function reaches). Wanted?
 
-## Zero hidden code (D147)
-
-113. **How Spite names the operations the machine does directly** (reading and writing the value at an address,
-     atomics), so `Memory`'s functions get real Spite bodies and a later backend can replace C. Every language
-     bottoms out here (Zig's `@builtins`, Rust's intrinsics); the choice is only how they are spelled and where
-     they live. Options to react to: (a) a reserved namespace of operations, `Spite.Machine.read_byte(address)`,
-     declared in one library file the backend implements; (b) operators on a pointer-like value type,
-     `address.byte_at(offset)`, where `Address` is a number class whose members the backend lowers; (c) something
-     you have in mind. The rest of the floor (allocation, copying, comparing, loading libraries) becomes plain Spite
-     calling the platform's library through `DynamicLibrary`.
-     *Mortaro (2026-09-25):* likes `Address` only if "the code you see is what you get"; otherwise prefers what the OS
-     offers through `DynamicLibrary`, and needs convincing with limitations and downsides. *Claude's case:* the OS
-     offers memory pages (`VirtualAlloc`/`mmap`), so allocation, freeing, copying and loading libraries can all be
-     visible Spite calling the OS -- at the cost of writing our own small-object allocator in Spite on top of pages.
-     No OS offers "the byte at this address": that is one CPU load instruction. Doing it through a DLL call
-     (`RtlMoveMemory`/`memcpy` per read) works but costs a call per access with no inlining, roughly 5-20x slower
-     on memory-heavy code (zstd, ECS loops, text). `address.byte_at(offset)` is a language primitive in the same
-     sense as `+` on two integers -- one instruction, nothing below it -- that each backend lowers; downsides: it can
-     read a wrong address (so `library/` only), and every backend must implement ~10-15 such operations.
-     Recommendation: OS for pages, libraries and files (with a Spite allocator); `Address` only for loads, stores and
-     atomics.
-
 ## From D127 (dates, times and time zones; manual section 15, `docs/time.md`)
 
 All of it is proposed by Claude, unconfirmed.
@@ -326,10 +300,10 @@ All of it is proposed by Claude, unconfirmed.
      `far` compiled to broken C (found writing `calendar_math`). Add them, and whatever else `windows.h` defines
      in lower case, to the list item 107 is about?
 
-## From SlopEngine's system phases (D116)
+## Parallel and shared singletons (D179)
 
-123. **Limiting a name pattern to a known set.** SlopEngine's private helpers `interact_all(...)` and `drag_all(...)`
-     were matched by `Symbol<$system_type.phase_all>` as phases called "interact" and "drag", with errors far from the
-     cause. Options: let a pattern's hole be constrained to a list the engine owns (`phase` must be one of
-     `App.phases`), so a non-phase `_all` function stays ordinary; or make a function that fits a walked pattern but
-     is not meant as one an error at its declaration; or leave naming discipline to the program.
+130. **How singletons stay thread-safe without ceremony** (proposed by Claude): library singletons threads need
+     (`Console`, input, `Clock`) are thread-safe inside and callable from a `Parallel`; a program's own singleton is
+     reachable from a `Parallel` only if its file declares a `shared` header line. Nothing at call sites. Yes, or
+     another shape?
+
