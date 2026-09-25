@@ -1,0 +1,26 @@
+var console = Console()
+var owner = Owner()
+var station = Station()
+
+func ParallelReceivers() {
+    owner.start()
+    churn()
+    var pumped = owner.finish()
+    console.print("a local pump outlived the function that made it and pumped", pumped)
+    station.start()
+    var waited = 0
+    while station.pumped() < 1000 {
+        waited = waited + 1
+    }
+    station.stop()
+    console.print("the station's own pump stopped when asked")
+}
+
+func churn() {
+    var names = List<String>()
+    var index = 0
+    while index < 2000 {
+        names.append("churn {index}")
+        index = index + 1
+    }
+}

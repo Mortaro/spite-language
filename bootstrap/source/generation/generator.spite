@@ -1352,11 +1352,11 @@ func find_required_function(information: Analysis.UnionInfo, name: String): Synt
     return null
 }
 
-func returned_display(spite_type: Analysis.SpiteType): String {
+func returned_display(spite_type: Analysis.SpiteType, display_name: String): String {
     if type_shape.is_void(spite_type) {
         return "Nothing"
     }
-    return "a {type_display_name(spite_type)}"
+    return "a {display_name}"
 }
 
 func required_function_problem(
@@ -1378,14 +1378,20 @@ func required_function_problem(
             crash function.parameters[index]
             var parameter_type = function.parameters[index].get_type()
             if not types_equal(parameter_type, wanted_types[index]) {
-                return "argument {index + 1} of its '{wanted.name}' is a {type_display_name(parameter_type)}, but the type needs a {type_display_name(wanted_types[index])}"
+                var names = type_display_names(parameter_type, wanted_types[index])
+                return "argument {index + 1} of its '{wanted.name}' is a {names.first()}, but the type needs a {names.last()}"
             }
             index = index + 1
         }
         var wanted_return = required_return_type(information, wanted)
         var function_return_type = function.get_return_type()
         if not types_equal(function_return_type, wanted_return) {
-            return "its '{wanted.name}' returns {returned_display(function_return_type)}, but the type needs {returned_display(wanted_return)}"
+            var names = type_display_names(function_return_type, wanted_return)
+            var returned_name = names.first()
+            var needed_name = names.last()
+            var returned = returned_display(function_return_type, returned_name)
+            var needed = returned_display(wanted_return, needed_name)
+            return "its '{wanted.name}' returns {returned}, but the type needs {needed}"
         }
     }
     return ""
@@ -1603,7 +1609,8 @@ func shape_fit_problem(information: Analysis.UnionInfo, candidate: Analysis.Clas
             if wanted_type {
                 var found_type = found.get_type()
                 if not types_equal(found_type, wanted_type) {
-                    return "attribute '{wanted.name}' is a {type_display_name(found_type)}, but the type needs a {type_display_name(wanted_type)}"
+                    var names = type_display_names(found_type, wanted_type)
+                    return "attribute '{wanted.name}' is a {names.first()}, but the type needs a {names.last()}"
                 }
             }
         }
@@ -4689,13 +4696,14 @@ func numeric_conversion(from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
 
 func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType) {
     assert not (type_shape.is_void(from) or type_shape.is_void(to))
+    var names = type_display_names(from, to)
     if type_shape.as_nullable(from) {
         report(
-            "this value may be null (it is a {type_display_name(from)}), but a {type_display_name(to)} is needed: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+            "this value may be null (it is a {names.first()}), but a {names.last()} is needed: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
         )
         return
     }
-    report("a {type_display_name(from)} cannot be used where a {type_display_name(to)} is needed")
+    report("a {names.first()} cannot be used where a {names.last()} is needed")
 }
 
 func retain_call(spite_type: Analysis.SpiteType, code: String): String {
@@ -7327,7 +7335,8 @@ func caller_mismatch(caller: Analysis.ClassInfo, member_name: String, element: A
     }
     var parameter = function.parameters.first()
     var parameter_type = parameter.get_type()
-    return "this class's '{member_name}' takes '{type_display_name(parameter_type)}', not '{element_label}'"
+    var names = type_display_names(parameter_type, element)
+    return "this class's '{member_name}' takes '{names.first()}', not '{names.last()}'"
 }
 
 func is_field_of(element_class: Analysis.ClassInfo, member_name: String): Bool {
@@ -8289,24 +8298,44 @@ func class_object_call(spite_type: Analysis.SpiteType): String {
 }
 
 func type_display_name(spite_type: Analysis.SpiteType): String {
+    return type_name_written(spite_type, false)
+}
+
+func type_display_names(first: Analysis.SpiteType, second: Analysis.SpiteType): List<String> {
+    var first_name = type_name_written(first, false)
+    var second_name = type_name_written(second, false)
+    if first_name == second_name {
+        first_name = type_name_written(first, true)
+        second_name = type_name_written(second, true)
+    }
+    var names = List<String>()
+    names.append(first_name)
+    names.append(second_name)
+    return names
+}
+
+func type_name_written(spite_type: Analysis.SpiteType, qualified: Bool): String {
     var class_ref = type_shape.as_class_ref(spite_type)
     if class_ref {
         if class_ref.has_signature {
             var named_types = List<String>()
             var argument_index = 0
             while argument_index < class_ref.arguments.count() {
-                var display_name = type_display_name(class_ref.arguments[argument_index])
+                var display_name = type_name_written(class_ref.arguments[argument_index], qualified)
                 named_types.append(display_name)
                 argument_index = argument_index + 1
             }
             if class_ref.returns {
-                var display_name = type_display_name(class_ref.returns)
+                var display_name = type_name_written(class_ref.returns, qualified)
                 named_types.append(display_name)
             }
             return "Spite.Function<{named_types.join(", ")}>"
         }
         var described = find_class_by_c_name(class_ref.c_name)
         if described {
+            if qualified and described.qualified_dotted != "" {
+                return described.qualified_dotted
+            }
             return described.simple_name
         }
     }
@@ -8314,6 +8343,9 @@ func type_display_name(spite_type: Analysis.SpiteType): String {
     if enum_type {
         var enum_information = enums.find_by_c_name(enum_type.c_name)
         if enum_information {
+            if qualified and enum_information.owner_qualified != "" {
+                return "{enum_information.owner_qualified}.{enum_information.simple_name}"
+            }
             return enum_information.simple_name
         }
     }
@@ -8321,23 +8353,26 @@ func type_display_name(spite_type: Analysis.SpiteType): String {
     if union_type {
         var union_information = find_union_by_c_name(union_type.c_name)
         if union_information {
+            if qualified and union_information.owner_qualified != "" {
+                return "{union_information.owner_qualified}.{union_information.simple_name}"
+            }
             return union_information.simple_name
         }
     }
     var list_type = type_shape.as_list(spite_type)
     if list_type {
         var list_type_element = list_type.get_element()
-        return "List<{type_display_name(list_type_element)}>"
+        return "List<{type_name_written(list_type_element, qualified)}>"
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
         var dictionary_type_element = dictionary_type.get_element()
-        return "Dictionary<{type_display_name(dictionary_type_element)}>"
+        return "Dictionary<{type_name_written(dictionary_type_element, qualified)}>"
     }
     var nullable_type = type_shape.as_nullable(spite_type)
     if nullable_type {
         var nullable_type_inner = nullable_type.get_inner()
-        return "{type_display_name(nullable_type_inner)}?"
+        return "{type_name_written(nullable_type_inner, qualified)}?"
     }
     return type_label(spite_type)
 }

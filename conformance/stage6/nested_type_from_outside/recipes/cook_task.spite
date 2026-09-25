@@ -1,0 +1,17 @@
+var recipes = List<Recipes.Cookbook.Buildable>()
+
+func CookTask(chosen: List<Recipes.Cookbook.Buildable>) {
+    recipes = chosen.copy()
+}
+
+func add(recipe: Recipes.Cookbook.Buildable) {
+    recipes.append(recipe)
+}
+
+func run() {
+    var index = 0
+    while index < recipes.count() {
+        recipes[index].build()
+        index = index + 1
+    }
+}

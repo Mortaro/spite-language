@@ -326,7 +326,11 @@ func count_two() {
 ```
 
 A `ThreadLocal` keeps every thread's value until it is dropped itself, so a thread that ends does not take its
-value with it. Both classes are the operating system's own (`TlsAlloc` and `SRWLOCK` on Windows, `pthread_key_t`
+value with it. `get()` takes no lock: it reads this thread's slot number and then that slot, in an array read with
+one atomic load, so it costs the same with one thread or thirty. Only a thread's first `set` locks, and when the
+array is full it copies it into one twice the size and publishes that; a thread still reading the old one reads
+the same value there, and the old arrays are freed with the `ThreadLocal` (together never larger than the one in
+use). A later `set` takes the lock too, briefly, so it cannot land while the array is being copied. Both classes are the operating system's own (`TlsAlloc` and `SRWLOCK` on Windows, `pthread_key_t`
 and `pthread_mutex_t` elsewhere), reached through each system's folder.
 
 A program that makes a `Parallel` (or a `Concurrent`, or is built with `--repl-port`) counts references with

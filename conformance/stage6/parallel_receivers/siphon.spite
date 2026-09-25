@@ -1,0 +1,18 @@
+var memory = Memory()
+var shared: Long = 0
+var names = List<String>()
+
+func Siphon(shared_memory: Long) {
+    shared = shared_memory
+}
+
+func run() {
+    while memory.read_long_atomically(shared, 0) == 0 {
+        names.append("siphoned")
+        if names.count() > 50 {
+            names.clear()
+        }
+        var count = memory.read_long_atomically(shared, 8)
+        memory.write_long_atomically(shared, 8, count + 1)
+    }
+}

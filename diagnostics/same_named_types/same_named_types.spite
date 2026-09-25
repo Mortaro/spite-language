@@ -1,0 +1,4 @@
+func SameNamedTypes() {
+    var task = Recipes.CookTask()
+    task.run(Recipes.Soup())
+}

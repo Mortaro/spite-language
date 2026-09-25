@@ -54,6 +54,13 @@ func OwnEntryClass() {
 mine
 ```
 
+- From outside its class, a declared type is named through its owner, in every position, generic arguments
+  included: `List<Recipes.Cookbook.Buildable>` for the `type Buildable` a singleton `recipes/cookbook.spite`
+  declares (`conformance/stage6/nested_type_from_outside`). Two classes may each declare a `Buildable`, and they
+  are different types; when an error has to print two types that would read the same, it names both through
+  their owners: `a List<Recipes.CookTask.Buildable> cannot be used where a List<Recipes.Cookbook.Buildable> is
+  needed` (`diagnostics/same_named_types`).
+
 ## Monkey patching (mods)
 
 Every loaded root merges into the same namespaces. A second root with the same folder structure and file name

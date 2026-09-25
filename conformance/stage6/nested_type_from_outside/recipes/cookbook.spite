@@ -1,0 +1,11 @@
+singleton
+
+type Buildable {
+    build()
+}
+
+var recipes = List<Buildable>()
+
+func add(recipe: Buildable) {
+    recipes.append(recipe)
+}

@@ -313,7 +313,7 @@ and balanced allocations.
     waiting; live reload's watcher is now `Watcher` (the per-system `hot_reload.spite` files are gone). With it, a
     `DynamicLibrary` looks up only the symbols of functions that survive tree shaking. Tested by
     `conformance/stage6/file_watching` and `check.sh`'s live reload step. **Not done:** Linux and macOS are only
-    compiled; the name waits on `mortaros_missing_decisions.md` 164.
+    compiled; the name waits on `mortaros_missing_decisions.md` 166.
 
 ## Later, deliberately deferred
 

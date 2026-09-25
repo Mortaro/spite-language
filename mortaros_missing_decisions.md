@@ -322,7 +322,7 @@ All of it is proposed by Claude, unconfirmed.
 
 ## From building D194 (the file and folder watcher; manual section 15)
 
-164. **What is the watcher called, and are its members right?** Built as `Watcher` (`library/watcher.spite`, with
+166. **What is the watcher called, and are its members right?** Built as `Watcher` (`library/watcher.spite`, with
      `library/<system>/watcher.spite`), proposed by Claude, unconfirmed. D194 asked for a better name than
      `FileWatcher`, since it watches folders too. Alternatives: `Watcher` (short, but says nothing of files --
      a game may want its own `Watcher`), `FileSystem.Watcher` (namespaced; there is no `FileSystem` namespace
@@ -406,46 +406,65 @@ All of it is proposed by Claude, unconfirmed.
      shape as `Parallel` (`finished`, the value joins on first use, dropping waits) -- for loops that block on the
      operating system, with `Parallel` staying for work that computes. Alternative: a marker on `Parallel`
      (`Parallel(window.run, 'dedicated')`). Which, and what name?
+156. **A D183 lock is held for the whole call, so a singleton function that never returns locks the singleton
+     forever.** The lock is taken around each of the singleton's functions and is reentrant (a call it makes to
+     itself on the same thread does not wait). SlopEngine's window loop was `Windows.Owner.run()`, a function that
+     never returns, so every other call on `Owner` from the frame thread (`owner.take_events()`) waited for good;
+     SlopEngine moved its loops into plain objects. Options (Claude, unconfirmed): (a) keep it, and make a loop
+     that cannot end inside a locked singleton's function a compile error naming the problem; (b) lock around the
+     reads and writes of the singleton's attributes rather than around whole calls -- finer, never held across a
+     wait, but two reads in one function no longer see one consistent state; (c) D184's cheaper forms first, which
+     make most singletons need no lock at all. Which?
+157. **Bytes nobody wrote, and output lost to a crash.** SlopEngine's "run mode segfaults, the built executable
+     works" was neither run mode nor the pool: `Added.fill_from` reads a marker column's value slot, which `append`
+     never writes, and `Memory.resize` hands back whatever the heap held. What it held depended on the process's
+     environment block (Git Bash's crashes every time; a minimal one, or PowerShell's, passes), so the launcher
+     decided which run crashed. And in run mode the program's stdout is a pipe, fully buffered, so the crash also
+     threw away everything printed before it. Proposals (Claude, unconfirmed), both costing nothing outside the
+     builds named: (a) under `--debug-memory` fill every byte `allocate_bytes` and `resize` hand out with a poison
+     pattern, so reading unwritten memory fails the same way on every run and every launcher (D143); (b) should a
+     program flush its output when it dies from a hardware fault (an exception filter in `main`: a few lines of C
+     in every program), or is losing buffered output on a segfault acceptable? (SlopEngine's session: poisoning would have caught its marker-slot bug on the first run, and it is for it.)
 
 ## Found implementing D180 (enums an engine reopens and walks)
 
-156. **Which enum constrains a pattern's hole: the one named for it.** `phase: Symbol<$system_type.phase_all>` reads
+158. **Which enum constrains a pattern's hole: the one named for it.** `phase: Symbol<$system_type.phase_all>` reads
      the enum `Phase`, found as a type written `Phase` would be from the template's class (its class, its folders,
      then the whole program if exactly one class declares one); `render_step` reads `RenderStep`. A hole no enum is
      named for is an error at the template, so every pattern needs its enum (the corpus and docs gained one each).
      The alternative is an explicit form such as `Symbol<Phase, $system_type.phase_all>`, which is new syntax. Keep
      the naming rule, and keep it mandatory?
-157. **Enum reflection is spelled like the other templates.** `course: Symbol<Course>` ranges over the values;
+159. **Enum reflection is spelled like the other templates.** `course: Symbol<Course>` ranges over the values;
      `course.name` is the text, `course.value` the value typed `Course` (also inside a pattern template, where
      `phase.value` is the matched `Phase`), and the plural calls it once per value in the enum's order. There is no
      run-time list of values (nothing to tree-shake). Is `.value` the right word, and is a run-time form ever
      wanted (`Course.values`)?
-158. **A pattern's plural now walks in the enum's order**, not the order the functions are declared in, since the
+160. **A pattern's plural now walks in the enum's order**, not the order the functions are declared in, since the
      enum is the engine's list of phases. Keep that?
-159. **Where reopened values go.** They are appended in merge order, which puts the program's own folder before
+161. **Where reopened values go.** They are appended in merge order, which puts the program's own folder before
      every loaded folder, so a program's `schedule.spite` adding `'input'` to a loaded engine's `Phase` puts
      `'input'` *first*, and a mod loaded after the engine puts it last. A value already present stays where it was
      (so `--final-classes` output, which restates whole enums, still compiles); nothing removes or reorders one.
      Should a reopening be able to say where its values go (before or after another value), and should the
      program's own values come last instead?
-160. **`has_function` at run time still matches any text in a hole.** Folded (`$type.has_function("<phase>_each")`)
+162. **`has_function` at run time still matches any text in a hole.** Folded (`$type.has_function("<phase>_each")`)
      the hole is the enum's values, like a template's; `Sprinkler.has_function("<phase>_each")` and `name_fits` at
      run time are plain text questions over `.functions`, since there is no run-time enum list. Keep the two
      different, or make the run-time form read the enum too (which would need one)?
 
 ## Constrained generics and `Json(order)` (D175, D138)
 
-161. **How `Json` reads** (D138: "Reading keeps a way to name the class it reads into"). Built as one constructor
+163. **How `Json` reads** (D138: "Reading keeps a way to name the class it reads into"). Built as one constructor
      taking a `$value_type?`: `Json(order).write()` to write, and `Json<Order>(null).read(text)` to read -- the
      class named, and `null` for the object there is not yet. A `T?` argument gives `Json<T>`, whose `write()` of an
      empty value is `null`, and `read` makes a new value, so one `Json(order)` also reads. The alternatives: a
      second class for reading (`JsonReader<Order>`, the cursor being renamed), or `Json(Order())`, which names the
      class through a throwaway default object. Keep `Json<Order>(null)`?
-162. **What fits a constraint** (proposed by Claude, unconfirmed). The same rule a `type` already admits values
+164. **What fits a constraint** (proposed by Claude, unconfirmed). The same rule a `type` already admits values
      by: a class with the functions and attributes, `String`, numbers, enums, a `List<T>` or `Dictionary<T>` with
      what the `type` needs, and the `type` itself. A `T?` does not fit (`Shelf<Int?>` for a `Printable` shelf is
      an error), nor does a function value. Should a `T?` fit when every use narrows it, and should a union be
      allowed as a constraint ("one of these classes")? Neither is built.
-163. **After a constraint error the generic is compiled with the `type` in place of the class**, so its body adds
+165. **After a constraint error the generic is compiled with the `type` in place of the class**, so its body adds
      no errors, and the error is given once per class, where that instance is first made (a second
      `Shelf<Pet>` elsewhere in the program is not reported again). Report every use site instead?
