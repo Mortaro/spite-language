@@ -207,12 +207,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     belongs to `Query`, so the single call `fill__cache(...)` is the privacy error and the plural skips `_cache`
     (item 78's change). A template is metaprogramming acting on `Target`'s shape, so it could be allowed to see
     what `Target` sees -- or privacy could stay absolute, as today. The rule is unchanged; which one?
-82. **Reopening a class from the program root when a loaded folder declares it.** The program's folder is
-    merged first and each `load("package")` after it, so a root `monster.spite` reopening `package/monster.spite`
-    keeps its new attributes and functions but loses its constructor (and any function both declare) to the
-    loaded folder's version: "later replaces" means loaded after, never "the program wins". `docs/packages.md`
-    now says so. Should the program root win over what it loads (merge the root last), or should a name declared
-    in both be an error unless it is in a folder loaded for the purpose, like `mods`?
 83. **Text holes call `to_string()`** (answered provisionally): a text hole now calls a class's `to_string()` (`"{ticket}"` works, and
     `"{attribute.class}"` prints the type's name), the way `console.print` does. Keep it, or require the call to
     be written?
