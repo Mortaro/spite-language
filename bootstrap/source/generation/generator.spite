@@ -3280,6 +3280,11 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
             "'{declaration.name}' has an empty constructor: delete it. A class without a constructor is already made from its defaults",
         )
     }
+    if declaration.name == "load" {
+        report(
+            "'load' is reserved: it always loads a package, so a function cannot be named 'load'. Name it for what it loads, such as 'load_texture'",
+        )
+    }
     var is_conversion = information.is_value_class and declaration.name.starts_with("to_")
     if not is_constructor and not is_conversion and declaration.has_body {
         check_value_name(declaration.name, "function")
@@ -10207,7 +10212,7 @@ func generate_call(
     crash call.callee
     var callee_identifier = shape.as_identifier(call.callee)
     if callee_identifier {
-        if callee_identifier.name == "load" and not class_information.find_function("load") {
+        if callee_identifier.name == "load" {
             var loaded_names = List<String>()
             collect_each_mentioned_name(call.arguments, loaded_names)
             mark_names_read(class_information, loaded_names)

@@ -1,7 +1,6 @@
 var console = Console()
 
 func LoadFunction() {
-    load("level")
     var shelf = Shelf()
     var loaded = shelf.load_twice("ab")
     console.print("loaded", loaded)

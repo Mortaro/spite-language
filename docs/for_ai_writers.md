@@ -88,7 +88,8 @@ func is_alive(): Bool {
 - The words other languages use for things Spite writes differently -- `none`, `nil`, `undefined`, `self`,
   `new`, `import`, `require`, `elif` -- are errors wherever they appear, naming the Spite form, so none of them
   can name a variable or a parameter either: `var none: Long = 0` says to write `null`. Pick another name
-  (`no_handle`, `empty`).
+  (`no_handle`, `empty`). `load` is reserved too: it always loads a package, so a function that loads something
+  says what (`load_texture`).
 - A few names are taken by the C that Spite compiles to, and cannot name a variable, attribute, parameter or
   function: `auto`, `bool`, `break`, `case`, `char`, `const`, `continue`, `default`, `do`, `double`, `extern`,
   `float`, `goto`, `inline`, `int`, `long`, `main`, `register`, `restrict`, `short`, `signed`, `sizeof`,

@@ -1,0 +1,2 @@
+diagnostics/load_function/load_function.spite:9: error: 'load' is reserved: it always loads a package, so a function cannot be named 'load'. Name it for what it loads, such as 'load_texture' (in LoadFunction.)
+diagnostics/load_function/shelf.spite:3: error: 'load' is reserved: it always loads a package, so a function cannot be named 'load'. Name it for what it loads, such as 'load_texture' (in Shelf.)
