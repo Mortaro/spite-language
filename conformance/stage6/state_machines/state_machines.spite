@@ -1,0 +1,113 @@
+var console = Console()
+var program = Program()
+var log = List<String>()
+var ticks = 0
+
+func StateMachines() {
+    var counting = Concurrent(count_down)
+    var tagging = Concurrent(tag_in_expression)
+    log.append("both started")
+    log.append("counted {counting}, tagged {tagging}")
+    var deep = Concurrent(deepest_total)
+    var polled = Concurrent(poll_until_ready)
+    log.append("deep total {deep}, polled {polled}")
+    var branching = Concurrent(branch_on_wait)
+    var calling = Concurrent(call_through_value)
+    log.append("branched {branching}, called {calling}")
+    var spawning = Concurrent(spawn_and_join)
+    log.append("spawned {spawning}")
+    var joined_log = log.join("\n")
+    console.print(joined_log)
+}
+
+func count_down(): String {
+    var remaining = 3
+    var seen = ""
+    while remaining > 0 {
+        log.append("count {remaining}")
+        seen = seen + "{remaining}"
+        program.sleep(100)
+        remaining = remaining - 1
+    }
+    return seen
+}
+
+func tag_in_expression(): String {
+    log.append("tagging starts")
+    var tag = "tag-{napped_text(150)}-end"
+    log.append("tagged at 150")
+    return tag
+}
+
+func napped_text(milliseconds: Int): String {
+    program.sleep(milliseconds)
+    return "{milliseconds}"
+}
+
+func deepest_total(): Int {
+    var numbers = List<Int>()
+    numbers.append(1)
+    var total = level_one(numbers, "a")
+    return total + numbers.count()
+}
+
+func level_one(numbers: List<Int>, label: String): Int {
+    var first = level_two(numbers, "{label}b")
+    var second = level_two(numbers, "{label}c")
+    return first + second
+}
+
+func level_two(numbers: List<Int>, label: String): Int {
+    program.sleep(10)
+    var letters = label.length()
+    numbers.append(letters)
+    log.append("level two {label}")
+    return letters * 10
+}
+
+func poll_until_ready(): Int {
+    var polls = 0
+    while next_tick() < 3 {
+        polls = polls + 1
+    }
+    return polls
+}
+
+func next_tick(): Int {
+    program.sleep(5)
+    ticks = ticks + 1
+    return ticks
+}
+
+func branch_on_wait(): String {
+    if napped_text(10) == "10" {
+        var inside = napped_text(20)
+        return "then {inside}"
+    }
+    return "else"
+}
+
+func call_through_value(): String {
+    var napping = napped_five
+    var called = napping()
+    var both = ticks > 0 and napped_text(5) == "5"
+    return "{called} {both}"
+}
+
+func napped_five(): String {
+    program.sleep(5)
+    return "five"
+}
+
+func spawn_and_join(): Int {
+    var inner = Concurrent(inner_count)
+    var outer_part = napped_text(5)
+    var dropped = Concurrent(napped_five)
+    log.append("dropped has finished: {dropped.finished}")
+    return inner + outer_part.length()
+}
+
+func inner_count(): Int {
+    program.sleep(10)
+    return 41
+}

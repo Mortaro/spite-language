@@ -100,7 +100,7 @@ The docs say, heading by heading, what is implemented, partial or planned; in sh
 | Memory: reference counting, `Memory` (heap and stack), `TypedMemory`, tree-shaken output | implemented |
 | `Build` (compile time) and `Environment` (run time), the visible launcher | implemented |
 | Standard library in Spite: `String`, `List`, `Dictionary`, `Json<T>`, `File`, `Directory`, `Process`, `Program`, `Console`, `Socket` | implemented |
-| Concurrency: `Concurrent` (fibers, hidden async IO) and `Parallel` (threads) | implemented on Windows; `Parallel` safety rules open |
+| Concurrency: `Concurrent` (compile-time state machines, hidden async IO) and `Parallel` (threads) | implemented on Windows; `Parallel` safety rules open |
 | Foreign libraries (`DynamicLibrary`), one folder per operating system | implemented; Linux and macOS folders compile but have never run |
 | REPL: `--repl`, `--repl-port`, `spite connect`; live reload (`--hot-reload`) | implemented; live reload runs on Windows ([docs/repl.md](docs/repl.md)) |
 | Self hosting | done: the compiler is Spite, and the only hand-written C is `bootstrap/source/generation/prelude.spite` |

@@ -1,0 +1,44 @@
+var console = Console()
+var server = Socket()
+
+func ConcurrentSockets() {
+    crash server.listen_locally(47311)
+    var serving = Concurrent(serve_two)
+    var first = Concurrent(ask_ada)
+    var second = Concurrent(ask_grace)
+    console.print(first, second)
+    console.print("served", serving, "clients")
+    server.close()
+}
+
+func serve_two(): Int {
+    var served = 0
+    while served < 2 {
+        var client = server.accept_client()
+        crash client
+        var line = client.read_line()
+        crash line
+        client.write_line("hello {line}")
+        client.close()
+        served = served + 1
+    }
+    return served
+}
+
+func ask_ada(): String {
+    return ask("ada")
+}
+
+func ask_grace(): String {
+    return ask("grace")
+}
+
+func ask(name: String): String {
+    var connection = Socket()
+    crash connection.connect_locally(47311)
+    connection.write_line(name)
+    var answer = connection.read_line()
+    connection.close()
+    crash answer
+    return answer
+}

@@ -532,3 +532,30 @@ All of it is proposed by Claude, unconfirmed.
      takes nothing, and `counter.hits = counter.hits + 1` from outside is a read and a write, two steps with
      another thread free to run between them. Keep this, or make either an error in a program where a `Parallel`
      reaches the singleton ("call a function of 'Registry' instead")?
+
+## Found building D176's state machines
+
+178. **A wait inside an expression runs before the rest of its statement.** Built as: in
+     `log.append("{name} read {file.read()}")` inside a `Concurrent`, the read happens first and `name` is read
+     after it, so the state machine can stop at a statement boundary (a C statement expression cannot be jumped
+     back into). Arguments of one call keep their written order otherwise. Keep, or should the compiler also move
+     every earlier part of the statement into temporaries first, so the written order holds exactly (more frame
+     fields per wait)?
+179. **Waits that run the loop in place instead of returning.** Inside a `Concurrent`, a wait in the right side of
+     `and`/`or`, one reached through a function value or a constructor, and dropping a `Concurrent` (join on drop)
+     are not points the state machine returns from: they run the event loop right there, which keeps every other
+     `Concurrent` going but holds this one (and anything under it on the C stack) until the wait is over. Two such
+     waits that each wait for the other would never end; nothing reports it. A `Concurrent` whose own function
+     cannot be a state machine -- a function value made in a standard-library class and stored before it reached
+     `Concurrent`, a shape's function, a singleton function that takes a lock for `Parallel` (D183), or any function
+     of a program class in a `--hot-reload` build, which is called through a swappable slot -- runs to its end when
+     it is started. Close each gap (a function value carrying its state machine's start, `and`/`or` lowered to
+     `if`, drops at scope end written as waits), or accept them as they are?
+180. **The event loop waits on one OS event, and each IO call in flight takes a helper thread.** Chosen over
+     IOCP/epoll/kqueue because an ordinary file is always "ready" to epoll and kqueue, the Windows console cannot
+     be read through IOCP, and one mechanism keeps each system's folder small. A server holding thousands of open
+     sockets would hold thousands of threads. Move `Socket` alone to the system's readiness (IOCP on Windows,
+     epoll/kqueue elsewhere) when HTTP is built, or keep one mechanism?
+181. **Item 146 again, now that there are no fibers.** `finished` still only reads a flag, and a state machine only
+     moves when the program waits somewhere. Making `finished` run the ready state machines once would be cheap
+     now (no stack switch). Keep it a pure read?

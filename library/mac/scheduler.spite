@@ -7,38 +7,6 @@ func current_thread(): Long {
     return library.pthread_self_as_long()
 }
 
-func convert_thread(): Long {
-    var context = heap.allocate(2056)
-    library.getcontext(context)
-    context.write_long(2048, 0)
-    return context
-}
-
-func create_fiber(entry: Long, argument: Long): Long {
-    var context = heap.allocate(2056)
-    library.getcontext(context)
-    var stack = heap.allocate(262144)
-    var no_value: Long = 0
-    var stack_bytes: Long = 262144
-    context.write_long(8, stack)
-    context.write_long(16, stack_bytes)
-    context.write_int(24, 0)
-    context.write_long(32, no_value)
-    context.write_long(2048, stack)
-    library.makecontext(context, entry, 1, argument)
-    return context
-}
-
-func switch_fiber(previous: Long, next: Long) {
-    library.swapcontext(previous, next)
-}
-
-func delete_fiber(fiber: Memory.Address) {
-    var stack = fiber.read_long(2048)
-    heap.free(stack)
-    heap.free(fiber)
-}
-
 func create_event(): Long {
     var ends = heap.allocate(8)
     library.pipe(ends)

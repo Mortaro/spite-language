@@ -118,6 +118,31 @@ func replace_user(position: Int, line: String) {
     user_bodies.set_at(position, line)
 }
 
+func insert_user(position: Int, line: String) {
+    user_bodies.insert(position, line)
+}
+
+func remove_user_range(start: Int, end: Int) {
+    var index = end - 1
+    while index >= start {
+        user_bodies.remove_at(index)
+        index = index - 1
+    }
+}
+
+func take_user_from(start: Int): List<String> {
+    var taken = List<String>()
+    var index = start
+    while index < user_bodies.count() {
+        var line = user_bodies.get_at(index)
+        taken.append(line)
+        index = index + 1
+    }
+    var end = user_bodies.count()
+    remove_user_range(start, end)
+    return taken
+}
+
 func add_main(line: String) {
     main_lines.append(line)
 }

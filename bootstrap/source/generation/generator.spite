@@ -45,6 +45,31 @@ var waiting_classes = List<Analysis.ClassInfo>()
 var waiting_functions = List<Analysis.FunctionInfo>()
 var waiting_kinds = List<String>()
 var waiting_positions = List<Int>()
+var resumable_mode = false
+var conditional_depth = 0
+var resume_point_count = 0
+var wait_mark_counters = List<Int>()
+var wait_mark_positions = List<Int>()
+var wait_mark_ends = List<Int>()
+var wait_mark_results = List<String>()
+var call_edge_callers = List<String>()
+var call_edge_callees = List<String>()
+var current_function_c_name = ""
+var machine_candidate_names = List<String>()
+var machine_candidate_classes = List<Analysis.ClassInfo>()
+var machine_candidate_functions = List<Analysis.FunctionInfo>()
+var waiting_names = Dictionary<Bool>()
+var machine_names = Dictionary<Bool>()
+var machine_queue_classes = List<Analysis.ClassInfo>()
+var machine_queue_functions = List<Analysis.FunctionInfo>()
+var machine_queue_kinds = List<String>()
+var machine_primitive_classes = List<Analysis.ClassInfo>()
+var machine_primitive_functions = List<Analysis.FunctionInfo>()
+var machine_primitive_kinds = List<String>()
+var concurrent_arguments = 0
+var task_root_names = List<String>()
+var task_root_classes = List<Analysis.ClassInfo>()
+var task_root_functions = List<Analysis.FunctionInfo>()
 var development = false
 var keeps_internals = false
 var hot_reload = false
@@ -476,8 +501,14 @@ func generate(
     emit_foreign_libraries()
     emit_symbol_table()
     emit_allocation_table()
+    if scheduler_used and not has_error {
+        emit_state_machines()
+    }
     if scheduler_used or remote_loop_port > 0 or hot_reload {
         finish_waiting_points()
+    }
+    if scheduler_used and not has_error {
+        emit_primitive_machines()
     }
     emit_main(discovery.launcher_mangled_name)
     emit_pending_functions()
@@ -1858,7 +1889,7 @@ func generate_object_literal(
         if field.value {
             var saved_counter = temporary_counter
             var probe = generate_expression(field.value, scope, class_information)
-            temporary_counter = saved_counter
+            rewind_temporaries(saved_counter)
             names.append(field.name)
             var probe_type = probe.get_type()
             types.append(probe_type)
@@ -3771,15 +3802,18 @@ func task_body(information: Analysis.ClassInfo, name: String): String {
     if name == "address" {
         return "return (int64_t)(intptr_t)self;"
     }
-    var entry = "{information.c_name}___thread_entry"
-    if information.qualified_dotted == "Concurrent" {
-        entry = "{information.c_name}___fiber_entry"
-    } else {
-        builder.add_prototype("static void* {entry}(void* pool);")
-        builder.add_support(
-            "static void* {entry}(void* pool) \{\n{information.c_name}__serve(({information.c_name}*)pool);\nreturn 0;\n}",
-        )
+    if name == "_start_frame" {
+        builder.add_prototype("static void* spite_frame_start(Spite_Function* spite_work);")
+        return "return (int64_t)(intptr_t)spite_frame_start(self->_work_);"
     }
+    if name == "_frame_result" {
+        return frame_result_body(information)
+    }
+    var entry = "{information.c_name}___thread_entry"
+    builder.add_prototype("static void* {entry}(void* pool);")
+    builder.add_support(
+        "static void* {entry}(void* pool) \{\n{information.c_name}__serve(({information.c_name}*)pool);\nreturn 0;\n}",
+    )
     return "return (int64_t)(intptr_t)&{entry};"
 }
 
@@ -4957,7 +4991,7 @@ func coerce_for_store(
     var result = generate_expression(expression_ast, scope, class_information)
     var result_type = result.get_type()
     if joins_into(result_type, expected_type) {
-        temporary_counter = saved_counter
+        rewind_temporaries(saved_counter)
         var joined_ast = implicit_join_ast(expression_ast)
         return coerce_for_store(joined_ast, expected_type, scope, class_information)
     }
@@ -5028,7 +5062,7 @@ func generate_joined(
     if not joinable_handle(result_type) {
         return result
     }
-    temporary_counter = saved_counter
+    rewind_temporaries(saved_counter)
     var joined_ast = implicit_join_ast(expression_ast)
     var joined = generate_expression(joined_ast, scope, class_information)
     joined.owning_override = true
@@ -5363,7 +5397,7 @@ func maybe_null_only_on_the_right(
     var saved_counter = temporary_counter
     var left_probe = generate_expression(binary.left, scope, class_information)
     var right_probe = generate_expression(binary.right, scope, class_information)
-    temporary_counter = saved_counter
+    rewind_temporaries(saved_counter)
     var right_probe_type = right_probe.get_type()
     var left_probe_type = left_probe.get_type()
     return type_shape.as_nullable(right_probe_type) and not type_shape.as_nullable(left_probe_type)
@@ -5454,7 +5488,7 @@ func known_codegen_class_test(
     assert tested_class
     var saved_counter = temporary_counter
     var subject = generate_expression(binary.left, scope, class_information)
-    temporary_counter = saved_counter
+    rewind_temporaries(saved_counter)
     var subject_type = subject.get_type()
     var is_nullable = false
     var nullable = type_shape.as_nullable(subject_type)
@@ -5684,7 +5718,9 @@ func generate_binary(
         if binary.operator == 'logical_and' {
             narrow_proven_indices(binary.left, right_scope)
         }
+        conditional_depth = conditional_depth + 1
         var other = generate_joined(binary.right, right_scope, class_information)
+        conditional_depth = conditional_depth - 1
         report_maybe_boolean(left, "'{binary_operator_symbol(binary.operator)}'")
         report_maybe_boolean(other, "'{binary_operator_symbol(binary.operator)}'")
         var joined = "({owned_truth(left, binary.left)} {binary_operator_symbol(binary.operator)} {owned_truth(other, binary.right)})"
@@ -5906,7 +5942,9 @@ func generate_nullable_equality(
         narrowed_left,
         right_ast,
     )
+    conditional_depth = conditional_depth + 1
     var compared = generate_expression(narrowed_comparison, compared_scope, class_information)
+    conditional_depth = conditional_depth - 1
     var when_null = "false"
     if binary.operator == 'not_equal' {
         when_null = "true"
@@ -6060,7 +6098,7 @@ func compares_identity_instead(
     assert function.name == "equals"
     var saved_counter = temporary_counter
     var probe = generate_expression(right_ast, scope, class_information)
-    temporary_counter = saved_counter
+    rewind_temporaries(saved_counter)
     var right_type = probe.get_type()
     var right_nullable = type_shape.as_nullable(right_type)
     if right_nullable {
@@ -6295,7 +6333,14 @@ func generate_constructor_call(
         shared.owning_override = true
         return shared
     }
+    var starts_concurrent = target_class.qualified_dotted == "Concurrent"
+    if starts_concurrent {
+        concurrent_arguments = concurrent_arguments + 1
+    }
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
+    if starts_concurrent {
+        concurrent_arguments = concurrent_arguments - 1
+    }
     var call_code = "{target_class.c_name}___make({argument_codes.join(", ")})"
     if target_class.is_value_class {
         if not target_class.constructor {
@@ -6327,7 +6372,7 @@ func inferred_instance(
         if declared and not shape.is_null_literal(arguments_ast[index]) {
             var saved_counter = temporary_counter
             var probe = generate_expression(arguments_ast[index], scope, class_information)
-            temporary_counter = saved_counter
+            rewind_temporaries(saved_counter)
             var probe_type = probe.get_type()
             infer_codegen_values(declared, probe_type, inferred)
         }
@@ -6516,6 +6561,12 @@ func function_value(
     owner_ast: Syntax.Expressions.Expression,
 ): ExpressionResult {
     var maker = "spite_function_value_{function.c_name}"
+    var starts_work = concurrent_arguments > 0 or not is_library_class(information)
+    if function.parameters.is_empty() and starts_work and not task_root_names.contains(function.c_name) {
+        task_root_names.append(function.c_name)
+        task_root_classes.append(information)
+        task_root_functions.append(function)
+    }
     if not function_value_makers.contains(maker) {
         function_value_makers.append(maker)
         var argument_class = find_class_by_c_name("Spite_Argument")
@@ -6677,6 +6728,14 @@ func generate_own_function_call(
     var full_arguments = argument_codes.copy()
     full_arguments.prepend("self")
     var function_return_type = function.get_return_type()
+    record_call(function.c_name)
+    var self_type = value_class_type(class_information)
+    var self_result = ExpressionResult("self", self_type)
+    self_result.owning_override = false
+    var waited = hoisted_wait(function.c_name, self_result, false, argument_codes, function_return_type)
+    if waited {
+        return waited
+    }
     return ExpressionResult("{function.c_name}({full_arguments.join(", ")})", function_return_type)
 }
 
@@ -6798,7 +6857,13 @@ func generate_generic_call(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
-    if owns(object_result, object_ast) {
+    record_call(function_c_name)
+    var object_owned = owns(object_result, object_ast)
+    var waited = hoisted_wait(function_c_name, object_result, object_owned, argument_codes, return_type)
+    if waited {
+        return waited
+    }
+    if object_owned {
         var object_temporary = next_temporary()
         var lines = List<String>()
         var object_result_type = object_result.get_type()
@@ -6852,7 +6917,7 @@ func generate_method_call(
     if member.name == "call_function" {
         var saved_counter = temporary_counter
         var called_probe = generate_expression(object_ast, scope, class_information)
-        temporary_counter = saved_counter
+        rewind_temporaries(saved_counter)
         var called_probe_type = called_probe.get_type()
         var called_function = type_shape.as_class_ref(called_probe_type)
         if called_function {
@@ -6884,7 +6949,7 @@ func generate_method_call(
     var handle = joinable_handle(object_result_type)
     if handle {
         if forwards_to_result(handle, member.name) {
-            temporary_counter = object_counter
+            rewind_temporaries(object_counter)
             var joined_ast = implicit_join_ast(object_ast)
             var forwarded = Syntax.Expressions.MemberExpression(joined_ast, member.name)
             return generate_method_call(forwarded, joined_ast, arguments_ast, scope, class_information)
@@ -7709,7 +7774,7 @@ func generate_fused_chain(
     steps.append(Syntax.Expressions.CallExpression(last_callee, arguments_ast))
     var saved_counter = temporary_counter
     var probe = generate_expression(base, scope, class_information)
-    temporary_counter = saved_counter
+    rewind_temporaries(saved_counter)
     var probe_type = probe.get_type()
     var element = chained_element_of(probe_type)
     assert element
@@ -8312,7 +8377,7 @@ func resolve_passed_function(
     }
     var saved_counter = temporary_counter
     var probe = generate_expression(argument, scope, class_information)
-    temporary_counter = saved_counter
+    rewind_temporaries(saved_counter)
     var probe_type = probe.get_type()
     var signature = type_shape.as_class_ref(probe_type)
     assert signature
@@ -8352,7 +8417,7 @@ func bound_function_of(
     assert not try_resolve_static_path(member.object, class_information.qualified_dotted)
     var saved_counter = temporary_counter
     var probe = generate_expression(member.object, scope, class_information)
-    temporary_counter = saved_counter
+    rewind_temporaries(saved_counter)
     var probe_type = probe.get_type()
     var owner_ref = type_shape.as_class_ref(probe_type)
     assert owner_ref
@@ -9921,7 +9986,7 @@ func generate_untyped_list_literal(
     crash literal.elements[0].value
     var saved_counter = temporary_counter
     var probe = generate_expression(literal.elements[0].value, scope, class_information)
-    temporary_counter = saved_counter
+    rewind_temporaries(saved_counter)
     var probe_type = probe.get_type()
     return generate_list_literal(literal, probe_type, scope, class_information)
 }
@@ -10213,13 +10278,16 @@ func supply_concurrency_functions(instance: Analysis.ClassInfo) {
     if instance.qualified_dotted == "Parallel" {
         parallel_used = true
     }
-    var task = instance.c_name
     if instance.qualified_dotted == "Concurrent" {
+        if not scheduler_used {
+            builder.add_typedef(
+                "typedef struct SpiteFrame \{ bool (*step)(void*); int32_t state; int32_t flags; } SpiteFrame;",
+            )
+            builder.add_typedef(
+                "#define SPITE_SUSPEND(point) do \{ spite_frame->spite_head.state = (point); return false; } while (0)",
+            )
+        }
         scheduler_used = true
-        builder.add_prototype("static void {task}___fiber_entry(void* task);")
-        builder.add_support(
-            "static void {task}___fiber_entry(void* task) \{\n{task}__run(({task}*)task);\n{task}__finish(({task}*)task);\n}",
-        )
     }
 }
 
@@ -11223,7 +11291,7 @@ func generate_member_read_raw(
     var handle = joinable_handle(object_result_type)
     if handle {
         if forwards_to_result(handle, member.name) {
-            temporary_counter = object_counter
+            rewind_temporaries(object_counter)
             var joined_ast = implicit_join_ast(member.object)
             var forwarded = Syntax.Expressions.MemberExpression(joined_ast, member.name)
             return generate_member_read(forwarded, scope, class_information)
@@ -11877,7 +11945,13 @@ func try_path_guard(
     var index = 0
     while index < links.count() {
         var link = links[index]
+        if index > 0 {
+            conditional_depth = conditional_depth + 1
+        }
         var link_result = generate_expression(link, probe_scope, class_information)
+        if index > 0 {
+            conditional_depth = conditional_depth - 1
+        }
         inner = null
         var link_result_type = link_result.get_type()
         var link_nullable = type_shape.as_nullable(link_result_type)
@@ -12047,7 +12121,7 @@ func allocated_declaration(
     crash setting.value
     var saved_counter = temporary_counter
     var probe = generate_expression(setting.value, scope, class_information)
-    temporary_counter = saved_counter
+    rewind_temporaries(saved_counter)
     var allocator_type = probe.get_type()
     var allocator_class = allocator_class_of(allocator_type)
     assert allocator_class
@@ -12372,7 +12446,7 @@ func report_copy_for_narrowing(
     }
     var saved_counter = temporary_counter
     var copied = generate_expression(initializer, scope, class_information)
-    temporary_counter = saved_counter
+    rewind_temporaries(saved_counter)
     var copied_type = copied.get_type()
     assert not joinable_handle(copied_type)
     report(
@@ -12940,7 +13014,7 @@ func overlapped_read_name(
     }
     var saved_counter = temporary_counter
     var receiver = generate_expression(callee.object, scope, class_information)
-    temporary_counter = saved_counter
+    rewind_temporaries(saved_counter)
     var receiver_type = receiver.get_type()
     var receiver_class = type_shape.as_class_ref(receiver_type)
     assert receiver_class
@@ -13031,7 +13105,7 @@ func report_template_walk(
     assert walk_fits_around(walk, statements, position, counter)
     var saved_counter = temporary_counter
     var probe = generate_expression(list_expression, scope, class_information)
-    temporary_counter = saved_counter
+    rewind_temporaries(saved_counter)
     var probe_type = probe.get_type()
     var listed = type_shape.as_list(probe_type)
     assert listed
@@ -15975,9 +16049,17 @@ func generate_while_statement(
         builder.add_user("}")
         return
     }
+    var condition_start = builder.user_count()
     var condition_result = generate_joined(while_statement.condition, scope, class_information)
     check_condition(condition_result, "while")
-    builder.add_user("while ({owned_truth(condition_result, while_statement.condition)}) \{")
+    var truth = owned_truth(condition_result, while_statement.condition)
+    if resumable_mode and builder.user_count() > condition_start {
+        builder.insert_user(condition_start, "while (1) \{")
+        shift_wait_marks(condition_start)
+        builder.add_user("if (!({truth})) break;")
+    } else {
+        builder.add_user("while ({truth}) \{")
+    }
     var body_scope = Scope(scope)
     body_scope.is_loop = true
     narrow_proven_indices(while_statement.condition, body_scope)
@@ -16076,7 +16158,7 @@ func emit_crash_operand(
     assert not name.is_empty()
     var saved_counter = temporary_counter
     var probe = generate_expression(expression, scope, class_information)
-    temporary_counter = saved_counter
+    rewind_temporaries(saved_counter)
     var probe_type = probe.get_type()
     var printable = type_shape.as_string(probe_type)
     if type_shape.as_scalar(probe_type) {
@@ -16138,7 +16220,7 @@ func operand_description(
     assert not name.is_empty()
     var saved_counter = temporary_counter
     var probe = generate_expression(expression, scope, class_information)
-    temporary_counter = saved_counter
+    rewind_temporaries(saved_counter)
     var probe_type = probe.get_type()
     return "{name}:{type_display_name(probe_type)}"
 }
@@ -16247,7 +16329,13 @@ func generate_and_narrowing_if(
     var tests = List<String>()
     var index = 0
     while index < sides.count() {
+        if index > 0 {
+            conditional_depth = conditional_depth + 1
+        }
         var side_test = and_side_test(sides[index], then_scope, class_information)
+        if index > 0 {
+            conditional_depth = conditional_depth - 1
+        }
         tests.append(side_test)
         index = index + 1
     }
@@ -16453,7 +16541,11 @@ func generate_statement(
         mark_each_used(mentioned, scope)
     }
     var errors_before = error_lines.count()
+    var waits_before = wait_mark_counters.count()
     var ended_in_return = generate_statement_kind(statement, scope, class_information, function_information)
+    if resumable_mode {
+        drop_unread_waits(waits_before)
+    }
     var declared = shape.as_variable_declaration(statement)
     if declared and error_lines.count() > errors_before {
         scope.mark_used(declared.name)
@@ -16812,31 +16904,19 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         var guarded_at = builder.user_count()
         guarded_positions.append(guarded_at)
     }
+    current_function_c_name = function.c_name
+    if not guarded and not function.is_constructor and not is_hot_class(information) and waiting.is_empty() {
+        machine_candidate_names.append(function.c_name)
+        machine_candidate_classes.append(information)
+        machine_candidate_functions.append(function)
+    }
     var defined_name = function.c_name
     if is_hot_class(information) {
         defined_name = "{function.c_name}___hot"
         add_hot_slot(information, function)
     }
     builder.add_user("{named_signature(information, function, defined_name)} \{")
-    var scope = Scope(null)
-    arguments_parameter_names.clear()
-    var parameter_index = 0
-    while parameter_index < function.parameters.count() {
-        var parameter = function.parameters[parameter_index]
-        var parameter_type = parameter.get_type()
-        if type_shape.is_arguments(parameter_type) {
-            arguments_parameter_names.append(parameter.name)
-        }
-        if type_needs_drop(parameter_type) {
-            scope.declare_owned(parameter.name, parameter_type)
-        } else {
-            scope.declare(parameter.name, parameter_type)
-        }
-        if not signature_is_dictated(function) {
-            scope.check_last_parameter(current_line)
-        }
-        parameter_index = parameter_index + 1
-    }
+    var scope = parameter_scope(function)
     terminal_if = terminal_if_of(function.body)
     body_narrowed_names = List<String>()
     body_assigned_paths = List<String>()
@@ -16857,6 +16937,29 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         var guarded_end = builder.user_count()
         guarded_ends.append(guarded_end)
     }
+}
+
+func parameter_scope(function: Analysis.FunctionInfo): Scope {
+    var scope = Scope(null)
+    arguments_parameter_names.clear()
+    var parameter_index = 0
+    while parameter_index < function.parameters.count() {
+        var parameter = function.parameters[parameter_index]
+        var parameter_type = parameter.get_type()
+        if type_shape.is_arguments(parameter_type) {
+            arguments_parameter_names.append(parameter.name)
+        }
+        if type_needs_drop(parameter_type) {
+            scope.declare_owned(parameter.name, parameter_type)
+        } else {
+            scope.declare(parameter.name, parameter_type)
+        }
+        if not signature_is_dictated(function) {
+            scope.check_last_parameter(current_line)
+        }
+        parameter_index = parameter_index + 1
+    }
+    return scope
 }
 
 func emit_class(information: Analysis.ClassInfo) {
@@ -17138,6 +17241,9 @@ func waiting_kind(information: Analysis.ClassInfo, function: Analysis.FunctionIn
     }
     if owner == "ThreadPool" and name == "join" {
         return "yield"
+    }
+    if owner == "Scheduler" and name == "wait_for" {
+        return "join"
     }
     var reads = owner == "Console" and name == "read_line_into"
     var receives = owner == "Socket" and (name == "accept_handle" or name == "receive_into")
@@ -17834,11 +17940,13 @@ func finish_waiting_points() {
         var function = waiting_functions[index]
         var position = waiting_positions.get_at(index)
         var kind = waiting_kinds.get_at(index)
-        var waited_name = "{function.c_name}___waiting"
-        var waited_signature = named_signature(information, function, waited_name)
-        builder.replace_user(position, "{waited_signature} \{")
-        builder.add_prototype("{waited_signature};")
-        emit_waiting_wrapper(information, function, kind, scheduler)
+        if kind != "join" {
+            var waited_name = "{function.c_name}___waiting"
+            var waited_signature = named_signature(information, function, waited_name)
+            builder.replace_user(position, "{waited_signature} \{")
+            builder.add_prototype("{waited_signature};")
+            emit_waiting_wrapper(information, function, kind, scheduler)
+        }
         index = index + 1
     }
 }
@@ -17863,12 +17971,12 @@ func emit_waiting_wrapper(
     lines.append("Scheduler* spite_scheduler = {scheduler};")
     if kind == "yield" {
         lines.append("{waited};")
-        lines.append("if (Scheduler_suspends_here(spite_scheduler)) Scheduler_yield_now(spite_scheduler);")
+        lines.append("if (Scheduler_waits_here(spite_scheduler)) Scheduler_yield_now(spite_scheduler);")
         lines.append("Scheduler___release(spite_scheduler);")
     } else if kind == "sleep" {
         crash function.parameters[0]
         lines.append(
-            "if (Scheduler_suspends_here(spite_scheduler)) Scheduler_sleep(spite_scheduler, {c_value_name(function.parameters[0].name)}); else {waited};",
+            "if (Scheduler_waits_here(spite_scheduler)) Scheduler_sleep(spite_scheduler, {c_value_name(function.parameters[0].name)}); else {waited};",
         )
         lines.append("Scheduler___release(spite_scheduler);")
     } else {
@@ -17917,7 +18025,7 @@ func offloaded_call_lines(
         "static void {function.c_name}___perform(void* raw) \{\n{call_type}* call = ({call_type}*)raw;\n{stored}{function.c_name}___waiting({passed.join(", ")});\n}",
     )
     var lines = List<String>()
-    lines.append("if (!Scheduler_suspends_here(spite_scheduler)) \{ {blocked} }")
+    lines.append("if (!Scheduler_waits_here(spite_scheduler)) \{ {blocked} }")
     lines.append(
         "{call_type} spite_call = \{ \{ 0, &{function.c_name}___perform, spite_scheduler }, {arguments.join(", ")} };",
     )
@@ -18255,4 +18363,475 @@ func reload_library(reload: HotReloadLibrary, changed_paths: List<String>, rebui
         index = index + 1
     }
     return reload.library(builder, hot_slot_names, hot_slot_owners, owners)
+}
+
+func frame_result_body(information: Analysis.ClassInfo): String {
+    crash information.codegen_types[0]
+    var result_type = information.codegen_types[0]
+    var frame = "(void*)(intptr_t)self->_frame_"
+    var result_class = type_shape.as_class_ref(result_type)
+    if result_class {
+        if result_class.c_name == "Nothing" {
+            return "SPITE_FREE({frame});\nreturn Nothing___default();"
+        }
+    }
+    var result_c = c_type_name(result_type)
+    return "{result_c} spite_result = ((struct \{ SpiteFrame spite_head; {result_c} spite_result; }*){frame})->spite_result;\nSPITE_FREE({frame});\nreturn spite_result;"
+}
+
+func record_call(callee: String) {
+    assert not resumable_mode and not current_function_c_name.is_empty()
+    call_edge_callers.append(current_function_c_name)
+    call_edge_callees.append(callee)
+}
+
+func hoisted_wait(
+    callee: String,
+    receiver: ExpressionResult,
+    receiver_owned: Bool,
+    argument_codes: List<String>,
+    return_type: Analysis.SpiteType,
+): ExpressionResult? {
+    assert resumable_mode and conditional_depth == 0
+    assert waiting_names.has(callee) and ensure_machine(callee)
+    wait_mark_counters.append(temporary_counter)
+    var start = builder.user_count()
+    wait_mark_positions.append(start)
+    resume_point_count = resume_point_count + 1
+    var point = resume_point_count
+    var receiver_type = receiver.get_type()
+    var releases = type_needs_drop(receiver_type)
+    var held = receiver.code
+    if releases and not receiver_owned {
+        held = retain_call(receiver_type, receiver.code)
+    }
+    var receiver_temporary = "self"
+    if receiver.code == "self" {
+        releases = false
+    } else {
+        receiver_temporary = next_temporary()
+        builder.add_user("{c_type_name(receiver_type)} {receiver_temporary} = {held};")
+    }
+    var passed = argument_codes.copy()
+    passed.prepend(receiver_temporary)
+    var slot = "spite_frame->spite_wait_{point}"
+    builder.add_user("{slot} = {callee}___begin({passed.join(", ")});")
+    builder.add_user("spite_resume_{point}: if (!{callee}___step({slot})) SPITE_SUSPEND({point});")
+    var result_temporary = next_temporary()
+    var code = result_temporary
+    if type_shape.is_void(return_type) {
+        builder.add_user("bool {result_temporary} = true;")
+        code = "(void){result_temporary}"
+    } else {
+        builder.add_user("{c_type_name(return_type)} {result_temporary} = (({callee}___frame*){slot})->spite_result;")
+    }
+    builder.add_user("SPITE_FREE({slot});")
+    if releases {
+        builder.add_user("{release_call(receiver_type, receiver_temporary)};")
+    }
+    var end = builder.user_count()
+    wait_mark_ends.append(end)
+    wait_mark_results.append(result_temporary)
+    return ExpressionResult(code, return_type)
+}
+
+func rewind_temporaries(saved: Int) {
+    temporary_counter = saved
+    while not wait_mark_counters.is_empty() and wait_mark_counters.last() >= saved {
+        var position = wait_mark_positions.last()
+        var user_count = builder.user_count()
+        builder.remove_user_range(position, user_count)
+        drop_last_wait_mark()
+    }
+}
+
+func drop_last_wait_mark() {
+    wait_mark_counters.remove_last()
+    wait_mark_positions.remove_last()
+    wait_mark_ends.remove_last()
+    wait_mark_results.remove_last()
+}
+
+func drop_unread_waits(first: Int) {
+    while wait_mark_counters.count() > first {
+        var result = wait_mark_results.last()
+        var start = wait_mark_positions.last()
+        var end = wait_mark_ends.last()
+        if not user_lines_mention(end, result) {
+            builder.remove_user_range(start, end)
+        }
+        drop_last_wait_mark()
+    }
+}
+
+func shift_wait_marks(position: Int) {
+    var index = 0
+    while index < wait_mark_positions.count() {
+        if wait_mark_positions.get_at(index) >= position {
+            var shifted = wait_mark_positions.get_at(index) + 1
+            wait_mark_positions.set_at(index, shifted)
+            var shifted_end = wait_mark_ends.get_at(index) + 1
+            wait_mark_ends.set_at(index, shifted_end)
+        }
+        index = index + 1
+    }
+}
+
+func user_lines_mention(start: Int, name: String): Bool {
+    var index = start
+    while index < builder.user_count() {
+        var line = builder.user_at(index)
+        if mentions_name(line, name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func mentions_name(text: String, name: String): Bool {
+    var from = 0
+    var name_length = name.length()
+    var text_length = text.length()
+    while from < text_length {
+        var rest = text.slice(from, text_length)
+        var found = rest.index_of(name)
+        assert found >= 0
+        var after = from + found + name_length
+        var next_code = text.code_at(after)
+        var continues_name = next_code == 95 or next_code >= 48 and next_code <= 57 or next_code >= 65 and next_code <= 90 or next_code >= 97 and next_code <= 122
+        if after >= text_length or not continues_name {
+            return true
+        }
+        from = after
+    }
+    return false
+}
+
+func ensure_machine(callee: String): Bool {
+    if machine_names.has(callee) {
+        return machine_names.get(callee) == true
+    }
+    var queued = queue_machine(callee)
+    machine_names.set(callee, queued)
+    return queued
+}
+
+func queue_machine(callee: String): Bool {
+    var index = 0
+    while index < waiting_functions.count() {
+        var waiting = waiting_functions.get_at(index)
+        var kind = waiting_kinds.get_at(index)
+        if waiting.c_name == callee and kind != "yield" {
+            var waiting_class = waiting_classes.get_at(index)
+            machine_primitive_classes.append(waiting_class)
+            machine_primitive_functions.append(waiting)
+            machine_primitive_kinds.append(kind)
+            return true
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < machine_candidate_names.count() {
+        if machine_candidate_names.get_at(index) == callee {
+            var candidate_class = machine_candidate_classes.get_at(index)
+            var candidate_function = machine_candidate_functions.get_at(index)
+            machine_queue_classes.append(candidate_class)
+            machine_queue_functions.append(candidate_function)
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func find_waiting_functions() {
+    var index = 0
+    while index < waiting_functions.count() {
+        if waiting_kinds.get_at(index) != "yield" {
+            var waiting = waiting_functions.get_at(index)
+            waiting_names.set(waiting.c_name, true)
+        }
+        index = index + 1
+    }
+    var changed = true
+    while changed {
+        changed = false
+        index = 0
+        while index < call_edge_callers.count() {
+            var caller = call_edge_callers.get_at(index)
+            var callee = call_edge_callees.get_at(index)
+            if not waiting_names.has(caller) and waiting_names.has(callee) {
+                waiting_names.set(caller, true)
+                changed = true
+            }
+            index = index + 1
+        }
+    }
+}
+
+func emit_state_machines() {
+    find_waiting_functions()
+    var roots = List<String>()
+    var index = 0
+    while index < task_root_functions.count() {
+        var root = task_root_functions.get_at(index)
+        if waiting_names.has(root.c_name) and not roots.contains(root.c_name) and ensure_machine(root.c_name) {
+            roots.append(root.c_name)
+        }
+        index = index + 1
+    }
+    while not machine_queue_functions.is_empty() {
+        var information = machine_queue_classes.remove_first()
+        var function = machine_queue_functions.remove_first()
+        emit_resumable_function(information, function)
+    }
+    var lines = List<String>()
+    lines.append("static void* spite_frame_start(Spite_Function* spite_work) \{")
+    lines.append("if (spite_work == 0) return 0;")
+    index = 0
+    while index < roots.count() {
+        var root = roots.get_at(index)
+        lines.append(
+            "if (spite_work->spite_typed_call == (void*){root}) return {root}___begin(spite_work->spite_owner);",
+        )
+        index = index + 1
+    }
+    lines.append("return 0;")
+    lines.append("}")
+    var joined_lines = lines.join("\n")
+    builder.add_user(joined_lines)
+}
+
+func emit_resumable_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    var crash_lines = crash_map_lines.count()
+    resumable_mode = true
+    conditional_depth = 0
+    resume_point_count = 0
+    site_ordinal = 0
+    frame_candidates.clear()
+    placed_names.clear()
+    placed_frames.clear()
+    placed_receiver_names.clear()
+    placed_receiver_codes.clear()
+    current_class = information
+    current_owner = information.qualified_dotted
+    current_function = function.name
+    current_line = function.line
+    current_path = information.source_path
+    if not function.source_path.is_empty() {
+        current_path = function.source_path
+    }
+    bind_symbol_of(function)
+    var start = builder.user_count()
+    var scope = parameter_scope(function)
+    terminal_if = terminal_if_of(function.body)
+    body_narrowed_names = List<String>()
+    body_assigned_paths = List<String>()
+    collect_body_facts(function.body)
+    var ended_in_return = generate_statement_list(function.body, scope, information, function)
+    terminal_if = null
+    var return_type = function.get_return_type()
+    var returns_value = not type_shape.is_void(return_type)
+    if not ended_in_return {
+        emit_scope_drops(scope, true)
+        if returns_value {
+            builder.add_user("return {default_value_for_type(return_type)};")
+        }
+    }
+    close_rebindings(scope)
+    var body = builder.take_user_from(start)
+    resumable_mode = false
+    while crash_map_lines.count() > crash_lines {
+        crash_map_lines.remove_last()
+    }
+    var machine = StateMachine()
+    var parts = machine_parts(information, function, machine)
+    var rewritten = machine.rewrite(body)
+    var name = function.c_name
+    var waits = List<String>()
+    var point = 1
+    while point <= resume_point_count {
+        waits.append("void* spite_wait_{point};")
+        point = point + 1
+    }
+    var result_field = ""
+    if returns_value {
+        result_field = " {c_type_name(return_type)} spite_result;"
+    }
+    builder.add_typedef(
+        "typedef struct {name}___frame \{ SpiteFrame spite_head;{result_field} {parts.get_at(0)} self; {machine.frame_fields()} {waits.join(" ")} } {name}___frame;",
+    )
+    emit_machine_begin(name, parts)
+    var lines = List<String>()
+    lines.append("static bool {name}___step(void* spite_raw) \{")
+    lines.append("{name}___frame* spite_frame = ({name}___frame*)spite_raw;")
+    lines.append("{parts.get_at(0)} self = spite_frame->self;")
+    var resume_switch = machine.resume_switch()
+    lines.append(resume_switch)
+    var rewritten_body = rewritten.join("\n")
+    lines.append(rewritten_body)
+    lines.append("return true;")
+    lines.append("}")
+    var joined_lines = lines.join("\n")
+    builder.add_user(joined_lines)
+}
+
+func machine_parts(
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    machine: StateMachine,
+): List<String> {
+    var receiver_type = value_class_type(information)
+    var parts = List<String>()
+    var receiver_c_type = c_type_name(receiver_type)
+    parts.append(receiver_c_type)
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var parameter_type = parameter.get_type()
+        var c_type = c_type_name(parameter_type)
+        var name = c_value_name(parameter.name)
+        machine.bind_parameter(c_type, name)
+        parts.append(c_type)
+        parts.append(name)
+        index = index + 1
+    }
+    return parts
+}
+
+func emit_machine_begin(name: String, parts: List<String>) {
+    var parameters = List<String>()
+    parameters.append("{parts.get_at(0)} self")
+    var index = 1
+    while index + 1 < parts.count() {
+        var c_type = parts.get_at(index)
+        var parameter = parts.get_at(index + 1)
+        parameters.append("{c_type} {parameter}")
+        index = index + 2
+    }
+    var signature = "static void* {name}___begin({parameters.join(", ")})"
+    var lines = List<String>()
+    lines.append("{signature} \{")
+    lines.append("{name}___frame* spite_frame = ({name}___frame*)SPITE_MALLOC(sizeof({name}___frame));")
+    lines.append("memset(spite_frame, 0, sizeof({name}___frame));")
+    lines.append("spite_frame->spite_head.step = {name}___step;")
+    lines.append("spite_frame->self = self;")
+    index = 2
+    while index < parts.count() {
+        var parameter = parts.get_at(index)
+        lines.append("spite_frame->{parameter} = {parameter};")
+        index = index + 2
+    }
+    lines.append("return spite_frame;")
+    lines.append("}")
+    builder.add_prototype("{signature};")
+    builder.add_prototype("static bool {name}___step(void* spite_raw);")
+    var joined_lines = lines.join("\n")
+    builder.add_user(joined_lines)
+}
+
+func emit_primitive_machines() {
+    var index = 0
+    while index < machine_primitive_functions.count() {
+        var information = machine_primitive_classes.get_at(index)
+        var function = machine_primitive_functions.get_at(index)
+        var kind = machine_primitive_kinds.get_at(index)
+        emit_primitive_machine(information, function, kind)
+        index = index + 1
+    }
+}
+
+func emit_primitive_machine(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, kind: String) {
+    var scheduler_class = find_class_by_qualified("Scheduler")
+    crash scheduler_class
+    var scheduler = singleton_call(scheduler_class)
+    var machine = StateMachine()
+    var parts = machine_parts(information, function, machine)
+    var name = function.c_name
+    var fields = List<String>()
+    var return_type = function.get_return_type()
+    if not type_shape.is_void(return_type) {
+        fields.append("{c_type_name(return_type)} spite_result;")
+    }
+    fields.append("{parts.get_at(0)} self;")
+    var index = 1
+    while index + 1 < parts.count() {
+        fields.append("{parts.get_at(index)} {parts.get_at(index + 1)};")
+        index = index + 2
+    }
+    var lines = List<String>()
+    lines.append("static bool {name}___step(void* spite_raw) \{")
+    lines.append("{name}___frame* spite_frame = ({name}___frame*)spite_raw;")
+    lines.append("Scheduler* spite_scheduler = {scheduler};")
+    var steps = ""
+    if kind == "sleep" {
+        steps = sleep_steps(scheduler_class, function, fields)
+    } else if kind == "join" {
+        steps = join_steps(scheduler_class, function)
+    } else {
+        steps = offload_steps(scheduler_class, function, fields)
+    }
+    lines.append(steps)
+    lines.append("Scheduler___release(spite_scheduler);")
+    lines.append("return spite_over;")
+    lines.append("}")
+    builder.add_typedef("typedef struct {name}___frame \{ SpiteFrame spite_head; {fields.join(" ")} } {name}___frame;")
+    emit_machine_begin(name, parts)
+    var joined_lines = lines.join("\n")
+    builder.add_user(joined_lines)
+}
+
+func sleep_steps(scheduler_class: Analysis.ClassInfo, function: Analysis.FunctionInfo, fields: List<String>): String {
+    crash function.parameters[0]
+    var milliseconds = c_value_name(function.parameters[0].name)
+    var timer_start = find_or_instantiate_function(scheduler_class, "timer_start")
+    var timer_over = find_or_instantiate_function(scheduler_class, "timer_over")
+    crash timer_start
+    crash timer_over
+    fields.append("int64_t spite_deadline;")
+    return "if (spite_frame->spite_head.state == 0) \{ spite_frame->spite_deadline = {timer_start.c_name}(spite_scheduler, spite_frame->{milliseconds}); spite_frame->spite_head.state = 1; }\nbool spite_over = {timer_over.c_name}(spite_scheduler, spite_frame->spite_deadline);"
+}
+
+func join_steps(scheduler_class: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    crash function.parameters[0]
+    var frame = c_value_name(function.parameters[0].name)
+    var frame_done = find_or_instantiate_function(scheduler_class, "frame_done")
+    crash frame_done
+    return "bool spite_over = {frame_done.c_name}(spite_frame->self, spite_frame->{frame});"
+}
+
+func offload_steps(scheduler_class: Analysis.ClassInfo, function: Analysis.FunctionInfo, fields: List<String>): String {
+    var offload_start = find_or_instantiate_function(scheduler_class, "offload_start")
+    var offload_over = find_or_instantiate_function(scheduler_class, "offload_over")
+    crash offload_start
+    crash offload_over
+    var name = function.c_name
+    fields.append("{name}___call spite_call;")
+    fields.append("int64_t spite_thread;")
+    var passed = List<String>()
+    passed.append("spite_frame->self")
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        passed.append("spite_frame->{c_value_name(parameter.name)}")
+        index = index + 1
+    }
+    var call = "(int64_t)(intptr_t)&spite_frame->spite_call"
+    var lines = List<String>()
+    lines.append("if (spite_frame->spite_head.state == 0) \{")
+    lines.append(
+        "spite_frame->spite_call = ({name}___call)\{ \{ 0, &{name}___perform, spite_scheduler }, {passed.join(", ")} };",
+    )
+    lines.append(
+        "spite_frame->spite_thread = {offload_start.c_name}(spite_scheduler, {call}, (int64_t)(intptr_t)&spite_offload_thread);",
+    )
+    lines.append("spite_frame->spite_head.state = 1;")
+    lines.append("}")
+    lines.append("bool spite_over = {offload_over.c_name}(spite_scheduler, {call}, spite_frame->spite_thread);")
+    var return_type = function.get_return_type()
+    if not type_shape.is_void(return_type) {
+        lines.append("if (spite_over) spite_frame->spite_result = spite_frame->spite_call.result;")
+    }
+    return lines.join("\n")
 }

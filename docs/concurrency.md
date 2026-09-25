@@ -1,12 +1,13 @@
 # Concurrency: waiting without colouring
 
 > **What is built:**
-> `Concurrent(function)` runs a function on a fiber of the program's own thread and `Parallel(function)` runs
-> one on a fixed pool of worker threads; the handle stands in for what the function returns, and reading it is
-> what waits. `finished` answers whether the work is done without waiting, and dropping the handle waits for it.
-> Where a program already waits -- `Program.sleep`, `Console.read_line`, reading or writing a `File`, a
-> `Socket`'s `accept_client` and `read_line`, reading a `Concurrent` or a `Parallel` -- the compiler turns the
-> wait into a suspension, so another fiber runs meanwhile, and a `--repl-port` build answers its commands there.
+> `Concurrent(function)` runs a function as a state machine the compiler writes, on the program's own thread, and
+> `Parallel(function)` runs one on a fixed pool of worker threads; the handle stands in for what the function
+> returns, and reading it is what waits. `finished` answers whether the work is done without waiting, and dropping
+> the handle waits for it. Where a program already waits -- `Program.sleep`, `Console.read_line`, reading or
+> writing a `File`, a `Socket`'s `accept_client` and `read_line`, reading a `Concurrent` or a `Parallel` -- the
+> compiler turns the wait into a point the state machine returns from, so other work runs meanwhile, and a
+> `--repl-port` build answers its commands there.
 > `list.parallel_each_update()` runs a member on every element across the pool, and the compiler checks that the
 > member reaches only its own element. Reads written one after another overlap without being asked.
 > Windows runs all of it; the Linux and macOS folders are held to compiling. **Not built:** HTTP, cancelling a
@@ -125,26 +126,40 @@ read followed by other work waits where it is written.
 
 ### What the compiler does at a wait
 
-A `Concurrent` runs on a **fiber**: a stack of its own on the program's one thread, switched to and from without
-the operating system scheduling anything. When code on a fiber reaches a wait, the compiler has already written
-that wait as a suspension, and the program's scheduler (`library/scheduler.spite`, Spite over the system's
-fibers) runs whatever else is ready:
+A `Concurrent` is a **state machine** the compiler writes while compiling
+([D176](decisions.md)). Every function that can reach a wait -- `nap` above, and whatever `nap` calls
+that waits -- is compiled a second time as a resumable version: its locals and parameters live in a small frame on
+the heap instead of on the C stack, and every wait inside it is a numbered point the function can return from and
+later jump back to. Starting a `Concurrent` makes that frame and runs it to its first wait; when the wait is over,
+the program's event loop (`library/scheduler.spite`) runs it again from where it stopped. There is no stack per
+`Concurrent`, no stack switching and nothing to ship that a WebAssembly build could not carry:
 
 | The program writes | While it waits |
 |---|---|
-| `program.sleep(milliseconds)` | the fiber is parked until its time comes |
-| `Console.read_line()`, reading or writing a `File`, a `Socket`'s `accept_client` or `read_line` | the one blocking system call runs on a short-lived helper thread, and the fiber is parked until it returns |
-| reading a `Concurrent`'s value, or dropping it | the fiber is parked until that function returns |
+| `program.sleep(milliseconds)` | the state machine returns, and is run again once its time has come |
+| `Console.read_line()`, reading or writing a `File`, a `Socket`'s `accept_client` or `read_line` | the one blocking system call runs on a short-lived helper thread, and the state machine is run again when it returns |
+| reading a `Concurrent`'s value, or dropping it | the state machine is run again once that one has finished |
 | reading a `Parallel`'s value, or dropping it | the pool finishes it (the waiting thread runs it itself if no worker has started it), then anything ready runs once |
 
-Only fibers run Spite code on the program's thread, and a fiber only ever stops at one of these points, so no two
-pieces of Spite code touch the program's state at the same time. The helper thread runs the system call and
+Code that is not inside a `Concurrent` -- the entry constructor and everything it calls -- waits where it is: its
+wait runs the event loop itself, so the state machines keep going around it until it is done. Only one piece of
+Spite code runs on the program's thread at a time, and a state machine only stops at one of these points, so no
+two pieces of Spite code touch the program's state at the same time. The helper thread runs the system call and
 nothing else.
 
-**When blocking is faster, the compiler blocks.** If nothing else could run -- no `Concurrent` is alive and no
-REPL is listening -- a wait is the plain blocking call, with no fiber, no helper thread and no scheduler. A script
-that only reads files never pays for any of this. It is the same rule as everywhere else in Spite: you write
-what you mean, and the compiler picks the fast way to do it.
+**What waits inside a state machine.** A wait written as a call -- `program.sleep(5)`, `file.read()`,
+`reading.length()` on a `Concurrent`, a function of your own that waits -- is a point the state machine returns
+from, wherever the call is written: in a `var`, an argument, a `{...}` inside text, a `while` condition (which
+waits again on every pass). A wait inside the right side of `and`/`or`, a call through a function value, a
+constructor, and dropping a `Concurrent` inside a `Concurrent` still wait correctly, but by running the event loop
+right there, as code outside a `Concurrent` does: the other `Concurrent`s keep running, while this one holds its
+place until the wait is over.
+
+**When blocking is faster, the compiler blocks.** A program that never makes a `Concurrent` has no state machines,
+no event loop and no helper threads: every wait is the plain blocking call, and its C is what it was before any of
+this existed. Inside a program that has them, a wait is the plain call whenever nothing else could run -- no
+`Concurrent` is alive and no REPL is listening. It is the same rule as everywhere else in Spite: you write what you
+mean, and the compiler picks the fast way to do it.
 
 ### Dropping a handle waits for it
 
@@ -223,7 +238,7 @@ It is the same on every system: it reads a flag the worker sets when the functio
 
 ## `Parallel`: work that computes
 
-`Concurrent` never makes a program faster at computing: every fiber shares one thread. For work that keeps a core
+`Concurrent` never makes a program faster at computing: every `Concurrent` runs on the program's one thread. For work that keeps a core
 busy, `Parallel(function)` runs the function on the program's **thread pool**, and the same rules apply: the
 handle stands in for the result, `finished` never waits, and dropping it waits.
 
@@ -505,8 +520,8 @@ already waits), D99 (IO never blocks the program by the program's own hand) and 
 two things, and `Task` is too generic a name) are built as two classes and one scheduler. `docs/concurrency.md` is
 the user's page for all of it.
 
-- **`Concurrent(function)`** (`library/concurrent.spite`) runs a function value (D17, D39) on a **fiber** of the
-  program's own thread, starting straight away; reading the handle is what waits for its value (D134, below) and
+- **`Concurrent(function)`** (`library/concurrent.spite`) runs a function value (D17, D39) as a **state machine**
+  the compiler writes (D176, below), on the program's own thread, starting straight away; reading the handle is what waits for its value (D134, below) and
   `drop()` waits for it, so scope exit is a join point. It is for work that waits: IO, sleeps, database calls
   later.
 - **`Parallel(function)`** (`library/parallel.spite`) runs one on the program's **thread pool** (D135, below), with
@@ -516,7 +531,7 @@ the user's page for all of it.
   which has no value to read and is waited for by dropping it: keep such handles in a list, and clearing the list
   or leaving its function waits for all of them.
 - **Every attribute of both classes is private** (`_work`, `_results`, `_state`, ...), and the one public member is
-  `finished: Bool` (below). Nothing outside the class reaches the thread, the fiber or the work.
+  `finished: Bool` (below). Nothing outside the class reaches the thread, the state machine or the work.
 
 **A concurrent result joins on first use** (D134, decided by Mortaro; the reading below is proposed by Claude,
 unconfirmed).  **[implemented]** There is no `wait()` and no `join()` any more: **the handle stands in for its
@@ -541,8 +556,8 @@ each join as a call to the class's private `_result()`, which `library/concurren
 **`finished` never waits** (proposed by Claude, unconfirmed; SlopEngine's loaders polled
 `WaitForSingleObject(parallel.thread, 0)` themselves, which was Windows only and reached into a field).
 `handle.finished` is `true` once the function has returned. On a `Parallel` it reads the job's state with one
-atomic load; on a `Concurrent` it reads the flag the fiber sets as it finishes, so a fiber only makes progress when
-the program waits somewhere (`while not reading.finished { program.sleep(1) }` is the polling loop). The same on
+atomic load; on a `Concurrent` it reads the flag its state machine's frame carries once it finishes, so a state
+machine only makes progress when the program waits somewhere (`while not reading.finished { program.sleep(1) }` is the polling loop). The same on
 every system (`conformance/stage6/finished_polling`).
 
 **The thread pool** (D135, decided by Mortaro; the shape below is proposed by Claude, unconfirmed).
@@ -601,44 +616,71 @@ The alternative considered was a value per pool worker (`worker_index()` into a 
 covers only the pool's workers, not the program's thread or a `Concurrent`'s helpers. `conformance/stage6/thread_locals`,
 `conformance/stage6/thread_local_growth`.
 
-**The mechanism: stackful fibers, and a helper thread per blocking call.** A C target has no coroutines, so hidden
-async/await has three honest implementations. A *state-machine transform* (what C# and Rust do) rewrites every
-function that can reach a wait into a resumable object; it is the fastest per suspension, but the colour it hides
-is still there inside the compiler -- every such function, and every caller up to the fiber's root, has to be
-transformed, reference-counted locals have to move into the state object, and a suspension inside a
-`List.each_`-style template or a foreign callback has nowhere to go. *Threads* for everything make every wait
-cheap to write but every program multithreaded, which is exactly the hidden cost D36 forbids. *Stackful fibers*
-(`CreateFiber`/`SwitchToFiber` on Windows, `makecontext`/`swapcontext` elsewhere) give each concurrent function its
-own stack on the program's one thread: a function suspends wherever it is, with no transform and no colour, and
-Spite code only ever runs on one thread at a time, so the program's state needs no locks. Their cost is a stack
-per live `Concurrent` (reserved, not committed, on Windows) and a switch of about the cost of a function call. That
-is the one chosen. Files cannot be waited on without blocking on any of the three systems, so a blocking call is
-handed to a short-lived helper thread (what libuv does for files), and the fiber is parked until it returns.
+**The mechanism: compile-time state machines, and a helper thread per blocking call** (D176, decided by Mortaro:
+"our goal is to have no runtime only compile time"; the details below are proposed by Claude, unconfirmed).
+**[implemented on Windows]** A C target has no coroutines, so the compiler writes them. Every function that can
+reach a wait from inside a `Concurrent` is compiled twice: the plain function, for code outside a `Concurrent`, and
+a resumable version (`bootstrap/source/generation/state_machine.spite`):
 
-**What the compiler writes.** Each operating system's folder names the calls that block, and the compiler knows
-them by class and function: `Program.sleep`; `Console.read_line_into`, `File.read_into`, `File.write_text`,
-`Socket.accept_handle` and `Socket.receive_into` (the one system call under `Console.read_line()`, `File.read()`,
-`File.write()`/`append()`, `Socket.accept_client()` and `Socket.read_line()`); and `ThreadPool.join`, the wait
-under reading or dropping a `Parallel`. In a
-program that uses the scheduler -- one that makes a `Concurrent`, or is built with `--repl-port` -- each of them is
-emitted under a `_waiting` name with a small wrapper in front: a sleep parks the fiber until its time, a blocking
-call runs on a helper thread while the fiber is parked, and a `Parallel` join joins and then lets whatever is ready
-run once. Every other program gets none of it: no wrapper, no scheduler, no fiber, the same C as before.
+- **Which functions.** A function *waits* when it is one of the waits below or calls, by name, a function that
+  waits (found over the calls the plain bodies make, to a fixpoint). A `Concurrent`'s function gets a state machine
+  when it waits and is a function value made in an argument of `Concurrent(...)`, or of a program class; every
+  function a state machine calls by name that waits gets one too. Constructors, a singleton function that takes
+  D183's lock, and every function of a program class in a `--hot-reload` build (called through a slot a reload
+  swaps) get none.
+- **The frame** is a C struct on the heap: a header (the step function, the wait it stopped at, whether it runs or
+  has finished), the result, `self`, the parameters, every local and temporary of the body (a name declared twice in
+  nested blocks gets two fields), and one slot per wait for the frame it waits on.
+- **The step function** runs the body with every local read from the frame, starts with a jump to the wait it
+  stopped at, and answers `true` when the body returns and `false` at a wait that is not over. Jumping into a
+  `while` or an `if` needs nothing, since no local lives on the C stack.
+- **A wait** written as a call to a function that waits, anywhere an unconditional value is computed -- a
+  statement, a `var`, an argument, an operand, a `{...}` in text, a condition -- becomes: hold the receiver, make
+  the callee's frame with the arguments, step it until it answers `true` (returning `false` from this step while it
+  does not), take its result and free it. It runs before the rest of the statement it is written in (a C statement
+  expression cannot be jumped back into). A `while` whose condition waits becomes a loop that waits at the top of
+  every pass and leaves when the condition is false.
+- **Waits that run the loop in place.** A wait inside the right side of `and`/`or` or `==` on a nullable value, one
+  reached through a function value, a union's dispatch or a constructor, and a `Concurrent` dropped inside a
+  `Concurrent` are the plain calls: they wait by running the event loop where they are, as code outside a
+  `Concurrent` does, which keeps every other state machine going but holds this one until the wait is over
+  (`mortaros_missing_decisions.md` item 179). A `Concurrent` whose function has no state machine runs it to the end
+  when it is made.
+- **The waits at the bottom** are small state machines the generator writes: `Program.sleep` registers a deadline
+  and is over when the clock passes it; `Console.read_line_into`, `File.read_into`, `File.write_text`,
+  `File.write_from`, `Socket.accept_handle` and `Socket.receive_into` start their one system call on a helper thread
+  and are over when it flags that it returned; `Scheduler.wait_for(frame)`, under reading or dropping a
+  `Concurrent`, is over when that frame has finished.
+
+Files cannot be waited on without blocking on any of the three systems, so a blocking call is handed to a
+short-lived helper thread (what libuv does for files). The alternative, each system's own readiness (IOCP, epoll,
+kqueue), is not used: an ordinary file is always "ready" to epoll and kqueue, the Windows console cannot be read
+through IOCP, and one mechanism keeps each system's folder small (item 180 asks about sockets).
+
+**What the compiler writes for code outside a `Concurrent`.** Each operating system's folder names the calls that
+block, and the compiler knows them by class and function (the list above, and `ThreadPool.join`, the wait under
+reading or dropping a `Parallel`). In a program that uses the scheduler -- one that makes a `Concurrent`, or is
+built with `--repl-port` or `--hot-reload` -- each of them is emitted under a `_waiting` name with a small wrapper
+in front: a sleep runs the event loop until its time, a blocking call runs on a helper thread while the event loop
+runs, and a `Parallel` join joins and then runs whatever is ready once. Every other program gets none of it: no
+wrapper, no scheduler, no state machine, the same C as before.
 
 **Blocking is what the compiler picks when it is faster** (D99). The wrapper asks the scheduler first: when no
 `Concurrent` is alive and no REPL is listening, or the caller is not on the scheduler's thread (a `Parallel`, a
 helper, the REPL's socket thread), nothing else could run meanwhile, so the wrapper makes the plain blocking call.
 
 **The scheduler** (`library/scheduler.spite`, a singleton; each operating system's folder reopens it with the
-fiber, event and clock calls) keeps the ready fibers, the sleeping ones with their wake times and the blocking
-calls in flight. When nothing is ready it answers the REPL's pending command, if any, then waits on one event that
-the helper threads and the REPL's socket thread signal, with the nearest wake time as its timeout. Waiting forever
-on nothing is a deadlock, and a crash.
+thread, event and clock calls) keeps the frames of the `Concurrent`s that have not finished, the deadlines of the
+sleeps in them and a count of helper threads in flight. Its loop answers the REPL's pending command and a pending
+reload, if any, steps every frame that is not already running further down the C stack, and, when none finished,
+waits on one event -- an auto-reset event on Windows, a pipe read with `poll` elsewhere -- that the helper threads
+and the REPL's socket thread signal, with the nearest deadline as its timeout. Waiting forever on nothing is a
+deadlock, and a crash.
 
 **Soundness.** A program that starts a thread (a `Concurrent`'s helpers, a `Parallel`, or `--repl-port`) is compiled
 with `SPITE_THREADS`: every retain and release is an atomic operation, and the `--debug-memory` table takes a lock.
 Every other program keeps the plain counts. Spite code on the program's thread only ever changes hands at a wait,
-so fibers need nothing more. D35's rule is checked for `parallel_each_` (below); what a `Parallel(function)`
+so state machines need nothing more. D35's rule is checked for `parallel_each_` (below); what a `Parallel(function)`
 touches is not, so two threads writing one field, or one writing a field another reads, is still the program's
 mistake there -- and with reference-counted fields it can free a value another thread is reading.
 Two smaller gaps, untested: a singleton's first use from two threads at once is not guarded (each could make
