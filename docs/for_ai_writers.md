@@ -120,7 +120,7 @@ func is_alive(): Boolean {
   so are `allocate`, `make`, `retain` and `release`. Do not rename around C. (`int`, `char`, `bool`, `min` and
   `max` are still errors, as abbreviations.)
 - A function body holds no empty lines: the blank line is where a second function wants to be, so name the part
-  below it and call it (`a function body holds no empty lines`). An `if` whose only statement is a bare `return`
+  below it and call it. The formatter (and so every compile) deletes one you write. An `if` whose only statement is a bare `return`
   is an error too -- that is a precondition, and a precondition is written `assert condition`.
 - A comment is one line, outside functions, and nothing but a link to a markdown heading:
   `# notes.md#why-this-exists` (relative to the entry file's folder; the file and the heading must exist).
@@ -167,7 +167,10 @@ func is_alive(): Boolean {
 - A `while` that only walks a list doing what one of these does -- `var index = 0`, `while index <
   items.count()`, `total = total + items[index].price`, `index = index + 1` -- is an error naming
   `items.sum_price()`: `this 'while' walks every element of 'items' only to add up 'price': write 'var total =
-  items.sum_price()'`. Keep `while` for loops that need the index, pass more than the element, or walk state.
+  items.sum_price()'`. The same goes for a `while` that only passes each element to one function of yours --
+  `say_hello(names[index])` is `names.each(say_hello)`, and likewise `map`, `filter`, `count`, `sum`, `find`,
+  `any` and `all` -- on a list of anything, numbers and text included. Keep `while` for loops that need the index,
+  pass more than the element, or walk state.
 - A template sees only the element and the list, never your class: `names.each_say_hello()` looks for a member
   `say_hello` of each name, and says `a template reads a member of each element, never a function of this class,
   so pass this class's 'say_hello' instead: 'each(say_hello)'`. To call a function of yours with each element, pass it: `names.each(say_hello)`,
@@ -243,7 +246,7 @@ func is_alive(): Boolean {
   `person.set_age(2)` and `person.set_name("x")` work. An exact function always wins.
 - `attribute: Symbol<Label>` ranges over another class's members, read as `label.attributes[attribute]`, and the
   plural (`show_attributes(label)` for `show_attribute`) calls the template once per attribute, in order.
-- In a generic class, `if $value_type == List { }` (also `Dictionary`, `Null` for any `T?`, `Symbol` for any enum,
+- In a generic class, `if $value_type == List { }` (also `Dictionary`, `Null` for any `T?`, `Symbol` for any enum or `Symbol`, `Enum` for an enum only,
   or an exact type) is decided while compiling, and `$value_type.element_type` names what the type holds. Only
   what the taken branch reaches is compiled -- helper functions, and the code after a chain whose branch returns
   -- so keep one generic class with a helper per kind, not one class per kind.
@@ -282,8 +285,9 @@ func is_alive(): Boolean {
 - A class whose file starts with a `singleton` line has one instance: `Journal()` always returns it, and its
   constructor takes no arguments. A singleton is bound as an attribute -- `var journal = Journal()` beside the
   others -- and used through the name: `Journal().record(entry)`, `Build().program`, `keep(Console())` and
-  `return Console()` are errors (`'Console' is a singleton: bind it once beside the attributes`), and so is a
-  binding nothing reads, even in a loaded package. One of the program's own that a `Parallel` reaches is made thread-safe by the
+  `return Console()` are errors (`'Console' is a singleton: bind it once beside the attributes`), and so are a
+  binding nothing reads, even in a loaded package, and a binding inside a function (`'Build' is a singleton, bound
+  here as a local`). One of the program's own that a `Parallel` reaches is made thread-safe by the
   compiler; write no lock for it.
 - `value.memory` is where a named value lives (`.address`, `.bytes`, `.section`: `'heap'` or `'constant'`); a
   computed value has none (`give this value a name with 'var' first`). A container of your own is a generic class over `var heap = Memory.Heap()` (`allocate`,
@@ -314,8 +318,10 @@ that reads, sleeps or waits is an ordinary function, and the compiler suspends i
 run ([concurrency.md](concurrency.md)).
 `Json(value).write(): String` writes JSON and `Json<T>(null)` reads it (`read(text): T?`,
 `read_or_crash(text): T`), for any class, list, dictionary, enum, number, `Boolean`, `String` or `T?`; `read` skips unknown keys, keeps defaults for
-missing ones, and is `null` on a value of the wrong kind. A union, a `type`, a function value or a plain `Symbol`
-attribute is not supported yet: keep what `Json` sees to those kinds ([json.md](json.md)).
+missing ones, and is `null` on a value of the wrong kind; a `Symbol` reads back only as a name the program already
+uses. A union, a `type` (`Anything` included) or a function value anywhere in what `Json` sees is a compile error
+at the line that makes the `Json` (`Json cannot write or read 'Owner': 'Owner.pet' is the union Pet, ...`):
+keep what `Json` sees to the kinds above ([json.md](json.md)).
 Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(Duration(1710054000, 'seconds'))`.
 `Duration(90, 'minutes')` is exact time (no days: `Duration(1, 'days')` is an error); `Period(1, 'months')` is
 calendar time, added to a `Date`,
@@ -340,12 +346,12 @@ to rediscover. The rows marked *silent* compile, and do something you did not me
 | Written elsewhere | The compiler says | Written in Spite |
 |---|---|---|
 | `a && b`, `a \|\| b`, `!a` | `Spite writes 'and' and 'or' as words` / `Spite writes 'not' as a word` | `a and b`, `a or b`, `not a` |
-| `a << 3`, `a >> 3`, `a & mask`, `a \| mask`, `a ^ mask`, `~a` | `expected an expression but found '<'`; a lone `&` gets the `&&` message | `a.shifted_left(3)`, `a.shifted_right(3)`, `a.bits_and(mask)`, `a.bits_or(mask)`, `a.bits_exclusive_or(mask)`, `a.bits_inverted()` |
+| `a << 3`, `a >> 3`, `a & mask`, `a \| mask`, `a ^ mask`, `~a` | `Spite has no '<<': bits are functions on the whole numbers` (each names its function) | `a.shifted_left(3)`, `a.shifted_right(3)`, `a.bits_and(mask)`, `a.bits_or(mask)`, `a.bits_exclusive_or(mask)`, `a.bits_inverted()` |
 | `count++`, `count += 1` | `Spite has no '++': write 'count = count + 1'` | `count = count + 1` |
 | `condition ? a : b` | `Spite has no 'condition ? a : b'` | an `if` with an `else`, or a function that returns one or the other |
 | `int`, `Int`, `bool`, `Bool`, `to_int()` | `'Int' is spelled 'Integer'`, `'int' abbreviates: write 'integer'` | `Integer`, `Boolean`, `to_integer()`: no name is abbreviated, the language's own included (D122) |
 | `LocalDate`, `PlainDate`, `NaiveDate` | `'LocalDate' is spelled 'Date'` | `Date`, `Time`, `DateTime`: a calendar reading with no zone (D160) |
-| `let x = 1`, `const x = 1` | `expected end of statement` | `var value = 1`: every `var` has a default, and there is no `const` |
+| `let x = 1`, `const x = 1` | `Spite has no 'let': a variable is declared 'var name = value'` | `var value = 1`: every `var` has a default, and there is no `const` |
 | `var total: Integer` | `expected '=' (every variable needs a default value)` | `var total = 0` |
 | `new Monster()` | `there is no 'new' in Spite` | `Monster()` |
 | `this.name`, `self.name`, `this.helper()` | `a class reads its own attributes by name: write 'count', not 'this.count'` | `name`, `helper()`; `this` only passes the object itself (`registry.append(this)`) |
@@ -363,7 +369,10 @@ to rediscover. The rows marked *silent* compile, and do something you did not me
 | `"hello ${name}"` | *silent*: prints `hello $` and the name | `"hello {name}"` |
 | `'hello'` for text | `cannot tell which enum 'hello' belongs to here` | `"hello"`: single quotes are enum values |
 | `for item in list` | `Spite only has 'while' loops; there is no 'for'` | `each_<member>()`, `map_`/`filter_<member>()`, or `list.each(function)` with a function of yours; `while index < list.count()` when the body needs more |
-| `break`, `continue` | `unknown identifier 'break'` | the loop's own condition: `while index < count and not found` |
+| `break`, `continue` | `Spite has no 'break': a loop stops in its own condition` | the loop's own condition: `while index < count and not found` |
+| `list.add(x)`, `list.pop()` | `List has no method 'add', which does not say where` | `append`/`prepend`, `remove_last()`/`remove_first()` |
+| `Heap<Node>`, `&Node` | `there is no 'Heap<T>'`, `Spite has no '&Type'` | `Node`: every class is a reference already |
+| `if value do name { }` | `Spite has no 'do'` | `if value { }`: the name itself is narrowed inside |
 | `items.map(item => item * 2)` | `expected ')' to close the argument list` | no lambdas: pass a named function, `items.map(doubled)` |
 | `value == null`, `value != null` | `'null' is not a value to compare against or pass around` | `if value { } else { }`, `assert value`, `crash value`, or `switch` |
 | `task.wait()`, `await task` | `an Integer has no function 'wait'` | read the handle: it is the result, and reading it waits |
@@ -374,6 +383,7 @@ to rediscover. The rows marked *silent* compile, and do something you did not me
 | `;` at the end of a line | `';' is not something Spite reads` | nothing |
 | `var memory = Memory()` | `this class has no function 'Memory'` | `var heap = Memory.Heap()` (inside a container of your own; see [memory.md](memory.md)) |
 | `--repl_port=4000` | `'--repl_port' is written '--repl-port'` | kebab-case flags; the `Build` field behind it stays `repl_port` |
+| `spite game -- --player-name=ada` | `'--player-name' is written '--player_name'` (when the program runs) | a program's own setting is spelled like its field: `-- --player_name=ada` |
 | `spite game/game.spite` | `'game/game.spite' is a file, and a program is named by its folder` | `spite game` |
 | renaming `short`, `static` or `near` because C takes them | | the name you meant: Spite reserves nothing for C (D168) |
 

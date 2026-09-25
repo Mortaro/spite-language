@@ -559,3 +559,31 @@ All of it is proposed by Claude, unconfirmed.
 181. **Item 146 again, now that there are no fibers.** `finished` still only reads a flag, and a state machine only
      moves when the program waits somewhere. Making `finished` run the ready state machines once would be cheap
      now (no stack switch). Keep it a pure read?
+
+## Found fixing the docs pass's shortfalls
+
+184. **D174 and a local `--repl` build.** D174 lists `--repl` among the builds that get loop check points, but a
+     local REPL reads the console only after the entry constructor returns, so a check point there would answer
+     nothing. Built as: no check points in a `--repl`-only build (docs/control_flow.md). Right, or should a local
+     REPL become able to interrupt a running loop (which would mean reading the console on another thread)?
+185. **D144's exceptions.** Built as: `String`, the numbers, `List` and `Dictionary` may bind a singleton as a
+     local, and so may any function whose singleton's codegen value comes from its own codegen or Symbol
+     (`Query<argument.class>()`). Binding as an attribute also moves when a singleton is made, to when the object
+     holding it is made. Keep these, or narrow them?
+186. **D181, which folders.** Built as: the program's folder, every folder inside it or a loaded root that holds a
+     `.spite` file, and a loaded root's own folder; not the folders a `../../plugins/render_vulkan` path passes
+     through. Should those be checked too?
+187. **Kebab-case after `--` (item 153 still open).** Built as a stop-gap: a declared setting given kebab-case
+     stops the program naming the snake_case spelling. When 153 is decided this becomes either the accepted form
+     or stays the error.
+188. **`$value_type == Enum`.** Json needs to tell an enum from a plain `Symbol` (the text cast reads the one,
+     `Symbol(text)` the other), and `$value_type == Symbol` is true for both. Keep the new codegen word `Enum`, or
+     spell it another way?
+189. **Json and a union or a `type`.** Built as a compile error at the program's line. D22's refinement makes
+     writing total, so the error is the decided outcome; the open part is whether a union should instead be
+     written with its member's class name as a key (`{"Cat": {...}}`) so it can be read back.
+190. **A written `Parallel<T>`/`Concurrent<T>` type.** Built as: an error only on the `var` that makes the handle;
+     a list's element type and a parameter still write it. Right?
+191. **A program's `target_operating_system`.** Built as an error naming the flag. The alternative is letting a
+     program's `build.spite` choose its default target, which needs `Build` read before the launcher picks
+     `library/<system>`.
