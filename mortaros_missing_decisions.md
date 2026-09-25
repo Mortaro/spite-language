@@ -452,9 +452,24 @@ Behaviour that does not match the manual. The language was not changed; each is 
     name still means the enum value, so adding an enum value `drain` somewhere would change what that line
     passes. Keep, or should text always be written in double quotes?
 
+## From the SlopEngine regressions after item 85
+
+104. **Teardown when a `drop()` needs a singleton made after it** (fixes item 85's regression in SlopEngine's
+    Vulkan renderer). Every `DynamicLibrary` is now unloaded after all singletons. Any other singleton first made
+    later than the one whose `drop()` fetches it has already been destroyed, so the fetch halts with a message
+    saying to keep it in an attribute (where it is made first). The alternatives: make a fresh one silently and
+    destroy it after, or run every `drop()` before freeing anything. Halting, as now?
+105. **Naming a root class that a nearer one shadows.** Inside `click_test/`, `Plugin()` finds `ClickTest.Plugin`
+    first (the walk goes from the class's own namespace outward), so a `ClickTest.Composition` that wants both the
+    game's root `Plugin` and its own `ClickTest.Plugin` cannot name the root one; SlopEngine renamed its own to
+    `TestPlugin`. The reporter's two options: (a) a root qualifier, some spelling that starts the walk at the whole
+    program (a leading `Root.` or `.`, say); or (b) fall through to the next match when the nearer class would be
+    a reference to the class itself (`var counter = Plugin()` written inside `ClickTest.Plugin`). (b) needs no
+    syntax but only covers the self-reference case, and a name then means different things in different files.
+    Nothing is built; which, if either?
 ## From the binary format ports (PSD, zstd, .blend)
 
-104. **Does a call between a check and a read undo a proven `list[...]`?** `crash glyphs[code - 32]` now proves
+106. **Does a call between a check and a read undo a proven `list[...]`?** `crash glyphs[code - 32]` now proves
     `glyphs[code - 32]` like `glyphs[index]`, and assigning `code` or `glyphs` undoes it. A call in between does
     not, for either form, although a call could change a field the index reads or clear a list held in a field;
     the read still checks its bounds, so the cost is a default value, not memory. Keep it, or should a call

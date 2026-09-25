@@ -1,0 +1,13 @@
+singleton
+
+var console = Console()
+var filed = List<String>()
+
+func file(entry: String) {
+    filed.append(entry)
+}
+
+func drop() {
+    var joined_filed = filed.join(", ")
+    console.print("clerk dropped with", joined_filed)
+}

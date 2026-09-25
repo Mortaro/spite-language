@@ -1,0 +1,16 @@
+singleton
+
+generic $item_type
+
+var stamp = 0
+var items = List<$item_type>()
+
+func Shelf() {
+    var census = Census()
+    var spin = 0
+    while spin < 20000000 {
+        spin = spin + items.count() + 1
+    }
+    census.made = census.made + 1
+    stamp = 1
+}

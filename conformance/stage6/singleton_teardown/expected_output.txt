@@ -1,0 +1,4 @@
+checked 5
+auditor dropped, the library still answers 9
+clerk dropped with audited
+ledger dropped with opened, audited

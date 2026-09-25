@@ -1,0 +1,7 @@
+var console = Console()
+
+func SingletonUsedAfterExit() {
+    var reporter = Reporter()
+    reporter.start()
+    console.print("started")
+}

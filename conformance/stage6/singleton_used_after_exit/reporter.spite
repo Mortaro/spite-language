@@ -1,0 +1,14 @@
+singleton
+
+var console = Console()
+
+func start() {
+    var archive = Archive()
+    archive.store("started")
+}
+
+func drop() {
+    console.print("reporter dropping")
+    var archive = Archive()
+    archive.store("stopped")
+}

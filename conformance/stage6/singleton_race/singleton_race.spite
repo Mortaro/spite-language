@@ -1,0 +1,12 @@
+var console = Console()
+
+func SingletonRace() {
+    var census = Census()
+    var first_toucher = Toucher()
+    var second_toucher = Toucher()
+    var first = Parallel(first_toucher.touch_many)
+    var second = Parallel(second_toucher.touch_many)
+    var first_total = first.wait()
+    var second_total = second.wait()
+    console.print("touched", first_total + second_total, "made", census.made)
+}

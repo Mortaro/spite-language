@@ -222,7 +222,9 @@ path. The compiler also understands the usual proofs, so most reads need nothing
   `names[2]` are plain values; so they are inside `if names.count() > 2 { }`.
 - **A bound proves its index**: `index < names.count()` in an `assert`, `crash`, `if` or `while` proves
   `names[index]` in what follows -- the loop body, for a `while`. On the left of an `and` it proves the right
-  side, so `while index < lines.count() and lines[index] != "end"` needs nothing more.
+  side, so `while index < lines.count() and lines[index] != "end"` needs nothing more. Inside the body both
+  sides of the loop's `and` hold, so `while not found and index < names.count()` proves `names[index]` there too.
+  This is the same for a local, a parameter and an attribute.
 - **The index may be any expression without a call**: `crash glyphs[code - 32]` proves `glyphs[code - 32]`
   on the next line, however it is spaced, as `crash glyphs[index]` would; two indices are the same when they
   print the same (`conformance/stage6/structural_index`). An index with a call in it, `glyphs[offset()]`, is

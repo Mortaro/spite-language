@@ -1,0 +1,32 @@
+var console = Console()
+var skipped = List<String>()
+
+func ProvenIndexCheck() {
+    skipped.append("ui.")
+    var names = ["ui.button"]
+    var from_attribute = attribute_prefix("ui.button")
+    var from_parameter = parameter_prefix(names, "ui.")
+    console.print(from_attribute, from_parameter)
+}
+
+func attribute_prefix(path: String): Bool {
+    var index = 0
+    var found = false
+    while not found and index < skipped.count() {
+        crash skipped[index]
+        found = path.starts_with(skipped[index])
+        index = index + 1
+    }
+    return found
+}
+
+func parameter_prefix(paths: List<String>, prefix: String): Bool {
+    var index = 0
+    var found = false
+    while not found and index < paths.count() {
+        crash paths[index]
+        found = paths[index].starts_with(prefix)
+        index = index + 1
+    }
+    return found
+}
