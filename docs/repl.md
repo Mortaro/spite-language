@@ -4,10 +4,10 @@
 > `functions`, `help`, `exit`, paths such as `monsters[0].health` or `program.player_name`, assignment of a
 > number, Bool, text or enum literal (`monsters[0].health = 5`, which prints the value read back), and calls with
 > literal arguments that print what they return (`monsters[0].roar()`, `monsters.count()`), written in Spite
-> (`library/read_evaluate_print_loop.spite`). `--repl_port` answers the same commands over TCP, one JSON line
+> (`library/read_evaluate_print_loop.spite`). `--repl-port` answers the same commands over TCP, one JSON line
 > each, answered where the program waits ([concurrency.md](concurrency.md)), and `spite connect` is its
-> client. `--hot_reload` swaps the classes whose files changed into the running program, keeping its state,
-> when a file is saved or when the REPL is sent `reload` ([Live reload](#live-reload---hot_reload)); Windows runs it,
+> client. `--hot-reload` swaps the classes whose files changed into the running program, keeping its state,
+> when a file is saved or when the REPL is sent `reload` ([Live reload](#live-reload---hot-reload)); Windows runs it,
 > and Linux and macOS are held to compiling. **Not built yet:** the meta commands `classes`, `describe`, `enums`
 > and `memory`, walking a `Dictionary<T>` or a union, assigning a `T?`, a list element or a whole instance, and
 > reloading a change to a class's attributes ([manual section 14](../manual.md#14-repl-and-live-reload--partial)).
@@ -24,10 +24,10 @@
 > ```
 
 The REPL inspects and drives the *running* program -- local (`--repl`, standard input) and remote
-(`--repl_port`, TCP). It is ordinary Spite, `ReadEvaluatePrintLoop` in the standard library, walking the program
+(`--repl-port`, TCP). It is ordinary Spite, `ReadEvaluatePrintLoop` in the standard library, walking the program
 through reflection ([reflection.md](reflection.md)). It reads and changes the running state, and with
-`--hot_reload` it also swaps in code you edited while the program keeps running
-([Live reload](#live-reload---hot_reload)). Typing new Spite code at the prompt is not built.
+`--hot-reload` it also swaps in code you edited while the program keeps running
+([Live reload](#live-reload---hot-reload)). Typing new Spite code at the prompt is not built.
 
 ## The program this page uses
 
@@ -69,7 +69,7 @@ monster count 2
 
 What the loop needs to reach a live value -- the attributes and functions of every class the loop can reach,
 and the member templates that fit each list's elements, so `monsters.sum_health()` works at the prompt -- is
-compiled only into a `--repl`/`--repl_port` build, never into a normal one, so it costs nothing when you are not
+compiled only into a `--repl`/`--repl-port` build, never into a normal one, so it costs nothing when you are not
 debugging. For the same reason the REPL's reads count only in that build: an attribute the program's own code
 never reads is still an error in a normal one ([style.md](style.md#nothing-unused)), which is why `Monster` above
 has an `is_alive()`.
@@ -84,10 +84,10 @@ Runs the constructor normally; when it returns, instead of exiting, reads comman
 `spite> ` prompt until `exit` or end of input, then drops everything and exits cleanly (memory balanced, just
 like a normal run).
 
-## Remote: `--repl_port`
+## Remote: `--repl-port`
 
 ```
-spite repl_program --repl_port=4000
+spite repl_program --repl-port=4000
 ```
 
 Before the constructor runs, the program listens on `127.0.0.1:4000` **only**, and a background thread takes
@@ -98,7 +98,7 @@ on the program's own thread the next time it waits -- a `program.sleep`, a `Cons
 read -- so a command never sees it halfway through a step ([concurrency.md](concurrency.md) has the details and a
 frame loop served between frames). When the constructor returns the process stays alive until a client sends
 `exit`, which flushes what the program printed and ends it with exit code 0. The port is part of the build: a
-program built with `--repl_port` always listens on that port, and a port another program holds stops it before
+program built with `--repl-port` always listens on that port, and a port another program holds stops it before
 its constructor runs, with `error: the REPL could not listen on 127.0.0.1:<port>`. With `--repl` as well, the
 console loop runs first, and after its `exit` the process keeps serving the port.
 
@@ -133,13 +133,13 @@ The commands are the ones `--repl` answers:
 - **assignment**: `program.player_name = "Aria"` -- through `set_<attribute>` when the class declares one,
   answering the value read back afterwards.
 - `attributes`, `functions`, `help`, `exit`.
-- `reload` and `last_reload`, which answer in a `--hot_reload` build ([Live reload](#live-reload---hot_reload)) and
-  fail everywhere else with `'reload' answers in a program built with --hot_reload, which swaps its code while it
+- `reload` and `last_reload`, which answer in a `--hot-reload` build ([Live reload](#live-reload---hot-reload)) and
+  fail everywhere else with `'reload' answers in a program built with --hot-reload, which swaps its code while it
   runs, and this one was not`.
 
 ## A worked debugging session
 
-This session is replayed by `check.sh` against the program above, running with `--repl_port`: every answer
+This session is replayed by `check.sh` against the program above, running with `--repl-port`: every answer
 below is the exact line the program sends back.
 
 ```wire repl_program
@@ -178,22 +178,22 @@ session open), read the single JSON line back, and branch on `"ok"`. `attributes
 what is there (only functions whose arguments are numbers, Bool, text or an enum can be called), then walk paths
 down to the value in question before mutating anything.
 
-## Live reload: `--hot_reload`
+## Live reload: `--hot-reload`
 
-`--hot_reload` builds a program that can take new code while it runs. Save a file of the program, and the classes
+`--hot-reload` builds a program that can take new code while it runs. Save a file of the program, and the classes
 that file declares are compiled again, on their own, into a small library the running program loads and swaps in
 the next time it waits -- the same moments the REPL is answered at. Objects, singletons and everything the REPL
 changed stay as they were: only functions change.
 
 ```
-spite game --hot_reload --repl_port=4000
+spite game --hot-reload --repl-port=4000
 ```
 
 It works with or without a REPL. Without one, each swap is reported on the program's error output (`spite: rebuilt
-Monster`); with `--repl` or `--repl_port`, `reload` swaps in what changed right away and answers what it rebuilt, and
+Monster`); with `--repl` or `--repl-port`, `reload` swaps in what changed right away and answers what it rebuilt, and
 `last_reload` answers what the last swap did, which is how you learn about one the file watcher made. A program
-built without `--hot_reload` has none of this -- no watcher, no swapping, and `reload` answers that it was not
-built for it. `--hot_reload` keeps every function (it implies `--development`), since a new version of a class
+built without `--hot-reload` has none of this -- no watcher, no swapping, and `reload` answers that it was not
+built for it. `--hot-reload` keeps every function (it implies `--development`), since a new version of a class
 may call one nothing called before.
 
 ```gdscript title=hot_counter/monster.spite
@@ -230,7 +230,7 @@ func monster_roar(): String {
 hello, visit 1
 ```
 
-`check.sh` runs this session against a copy of the program above, built with `--hot_reload --repl_port`:
+`check.sh` runs this session against a copy of the program above, built with `--hot-reload --repl-port`:
 
 ```text
 $ spite connect 4000 --command="program.visits = 42"
@@ -276,7 +276,7 @@ next save reloads.
 
 ### How it works
 
-- **One slot per function.** In a `--hot_reload` build, every function of the program's own classes (not the
+- **One slot per function.** In a `--hot-reload` build, every function of the program's own classes (not the
   standard library's) is called through a slot the program can re-point: the function the rest of the code calls
   is a one-line forwarder to its slot. A normal build is untouched -- direct calls, and tree shaking. The slot
   costs about a nanosecond per call (one indirect call, which the C compiler also cannot inline):
@@ -298,7 +298,7 @@ next save reloads.
   `kqueue` on macOS, with no polling. A burst of changes is waited out until 100 ms pass without one, so a save
   that writes a file in pieces reloads once. The program's own folder is watched, not the folders it `load`s; send
   `reload` after changing those. A build beside its program (the default) writes each reload's library into that
-  folder too, which wakes the watcher once more for a check that finds nothing changed; `--executable_path=`
+  folder too, which wakes the watcher once more for a check that finds nothing changed; `--executable-path=`
   elsewhere avoids it.
 - The compiler, its options and the executable are recorded in the build, so the program must run from the folder
-  it was built from, as `spite game --hot_reload` does.
+  it was built from, as `spite game --hot-reload` does.

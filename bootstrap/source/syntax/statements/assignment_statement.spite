@@ -1,6 +1,7 @@
 var target: Syntax.Expressions.Expression? = null
 var value: Syntax.Expressions.Expression? = null
 var line = 0
+var depth = 0
 
 func AssignmentStatement(
     assignment_target: Syntax.Expressions.Expression,

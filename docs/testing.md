@@ -74,8 +74,8 @@ which is what a test is.
 
 The repository's own runner calls each test twice and crashes when the second call leaves any allocation behind,
 through `program.live_allocations()`, so every test is a leak test as well. `check.sh` runs the package with
-`--debug_memory` and requires the whole run to print nothing and balance:
+`--debug-memory` and requires the whole run to print nothing and balance:
 
 ```bash
-spite tests --debug_memory
+spite tests --debug-memory
 ```

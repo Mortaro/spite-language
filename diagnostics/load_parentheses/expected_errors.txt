@@ -1,0 +1,1 @@
+diagnostics/load_parentheses/load_parentheses.spite:2:9: 'load' is a keyword, not a function: write it without parentheses, 'load "level"'

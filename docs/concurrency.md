@@ -6,7 +6,7 @@
 > what waits. `finished` answers whether the work is done without waiting, and dropping the handle waits for it.
 > Where a program already waits -- `Program.sleep`, `Console.read_line`, reading or writing a `File`, a
 > `Socket`'s `accept_client` and `read_line`, reading a `Concurrent` or a `Parallel` -- the compiler turns the
-> wait into a suspension, so another fiber runs meanwhile, and a `--repl_port` build answers its commands there.
+> wait into a suspension, so another fiber runs meanwhile, and a `--repl-port` build answers its commands there.
 > `list.parallel_each_update()` runs a member on every element across the pool, and the compiler checks that the
 > member reaches only its own element. Reads written one after another overlap without being asked.
 > Windows runs all of it; the Linux and macOS folders are held to compiling. **Not built:** HTTP, cancelling a
@@ -191,7 +191,7 @@ var program = Program()
 
 func PolledLoading() {
     var level = LevelFile("forest")
-    var loading = Parallel(level.load_tiles)
+    var loading = Parallel(level.read_tiles)
     var frames = 0
     while not loading.finished {
         frames = frames + 1
@@ -207,7 +207,7 @@ func LevelFile(starting_name: String) {
     name = starting_name
 }
 
-func load_tiles(): String {
+func read_tiles(): String {
     var tiles = 0
     while tiles < 100000 {
         tiles = tiles + 1
@@ -326,10 +326,14 @@ func count_two() {
 ```
 
 A `ThreadLocal` keeps every thread's value until it is dropped itself, so a thread that ends does not take its
-value with it. Both classes are the operating system's own (`TlsAlloc` and `SRWLOCK` on Windows, `pthread_key_t`
+value with it. `get()` takes no lock: it reads this thread's slot number and then that slot, in an array read with
+one atomic load, so it costs the same with one thread or thirty. Only a thread's first `set` locks, and when the
+array is full it copies it into one twice the size and publishes that; a thread still reading the old one reads
+the same value there, and the old arrays are freed with the `ThreadLocal` (together never larger than the one in
+use). A later `set` takes the lock too, briefly, so it cannot land while the array is being copied. Both classes are the operating system's own (`TlsAlloc` and `SRWLOCK` on Windows, `pthread_key_t`
 and `pthread_mutex_t` elsewhere), reached through each system's folder.
 
-A program that makes a `Parallel` (or a `Concurrent`, or is built with `--repl_port`) counts references with
+A program that makes a `Parallel` (or a `Concurrent`, or is built with `--repl-port`) counts references with
 atomic operations, because an object can now be shared between threads; every other program keeps the plain,
 cheaper counts. What a `Parallel(function)` touches is not checked: give it an instance of its own, as each
 `Summer` above has, and do not change that instance until the result is back. The pass below is checked.
@@ -412,7 +416,7 @@ see two elements that are the same object: a list holding one instance twice run
 
 ## The REPL answers at the waits
 
-A `--repl_port` build (see [repl.md](repl.md)) serves its commands **on the program's own thread, at the same
+A `--repl-port` build (see [repl.md](repl.md)) serves its commands **on the program's own thread, at the same
 waits**. The socket thread only reads a command and hands it over; the scheduler answers it the next time the
 program waits, and hands the answer back. Every command therefore sees the program between two steps, never in
 the middle of one: a frame loop that ends in `program.sleep` is answered between frames, a tool waiting on
@@ -451,7 +455,7 @@ $ spite connect 4000 --command="exit"
 {"ok":true,"value":"","type":""}
 ```
 
-A program that never waits is answered too. In a `--repl_port` or `--hot_reload` build, and only there, the
+A program that never waits is answered too. In a `--repl-port` or `--hot-reload` build, and only there, the
 compiler ends every pass of every `while` in the program's own code with a **check point**: one call that looks
 at whether a command (or a changed file) is waiting and, if one is, answers it there, on the program's thread,
 between two passes of the loop. A busy loop is served between two passes the way a frame loop is served between

@@ -15,7 +15,7 @@
 *.reload_files
 *_reload_*.files
 
-# Generated C: the compiler's own --c_source output, and a manual run at the repository root.
+# Generated C: the compiler's own --c-source output, and a manual run at the repository root.
 # bootstrap/seed/spite_compiler.c is NOT ignored: it is the committed fixpoint.
 /bootstrap/bootstrap.c
 /next.c

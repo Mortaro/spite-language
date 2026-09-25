@@ -18,14 +18,14 @@ runs *slower* than you expect is the only real surprise, so every cost that rema
 under the optimisation it belongs to.
 
 **Internals stay ordinary objects where you inspect them** ([D143](../manual.md#decision-log)). A `--repl`,
-`--repl_port`, `--hot_reload` or `--development` build is an *inspectable* build: nothing is tree-shaken, and
+`--repl-port`, `--hot-reload` or `--development` build is an *inspectable* build: nothing is tree-shaken, and
 the standard library's internals -- `Memory`, `Build`, `TypedMemory<T>` -- are ordinary objects that reflection
 (`.instances`, `.attributes`) sees. Every other build, ordinary or `--optimized`, is a production build, and only
 there are the two optimisations that hide something applied: tree shaking and static singletons. Everything else
 on this page changes how fast the program runs, not what it is made of, so it applies in every build. The
 **Builds** column below says which.
 
-What you can observe at all is short: the counts `--debug_memory` prints, where `.memory` says a value lives, the
+What you can observe at all is short: the counts `--debug-memory` prints, where `.memory` says a value lives, the
 order in which a fused chain calls your member functions, and speed. Apart from that order, which only a member
 function with a visible effect can show, no optimisation changes what a program prints or computes.
 
@@ -62,11 +62,11 @@ prototype (`bootstrap/source/generation/tree_shaker.spite`). A small program's C
 about 2 000. The compiler does this itself rather than leaving dead code for the C compiler to find, so it holds
 whichever C compiler you bring.
 
-**When.** Production builds only. An inspectable build -- `--repl`, `--repl_port`, `--hot_reload` or
+**When.** Production builds only. An inspectable build -- `--repl`, `--repl-port`, `--hot-reload` or
 `--development` -- keeps everything, so live reload has every function to swap and the REPL can reach every
 internal ([D143](../manual.md#decision-log), [compiler.md](compiler.md#development-builds-and-tree-shaking)).
 
-**What you notice.** Nothing, except that `--c_source` writes less. A function nobody calls, outside a generic class, is still
+**What you notice.** Nothing, except that `--c-source` writes less. A function nobody calls, outside a generic class, is still
 compiled and checked, so a mistake in it is still reported ([D140](../manual.md#decision-log)) -- it just is not in the
 binary. **Built** (the tree shaker and `--development` rows of the [decision log](../manual.md#decision-log),
 2026-09-24).
@@ -165,7 +165,7 @@ codegen template exists only for the names a program calls: a program that never
 **When.** Every build: what a REPL reads is compiled into the REPL build, so it is read there too. **What you
 notice.** Nothing: reflection may be as detailed as it likes, because a program that never reads it carries none
 of it. The list behind `.instances` is the compiler's bookkeeping, like the list of singletons to destroy at
-exit, so `--debug_memory` does not count it. **Built.**
+exit, so `--debug-memory` does not count it. **Built.**
 
 ### Template chains run as one loop
 
@@ -233,7 +233,7 @@ counting green
 step by step: 7
 ```
 
-**What you notice.** Fewer allocations under `--debug_memory` (`conformance/stage6/fused_chain_allocations`
+**What you notice.** Fewer allocations under `--debug-memory` (`conformance/stage6/fused_chain_allocations`
 pins four chains run a thousand times at 11 allocations, where the steps written out take 16 010), and the order
 above. Member functions a template reads should not depend on that order; ones that only compute never do.
 **Built** (D105 and its "chain of member templates compiles to one loop" row).
@@ -323,7 +323,7 @@ heap allocations while summing: 0
 sum of squares: 55
 ```
 
-**What you notice.** Fewer allocations under `--debug_memory`, and `value.memory.section` answering `'stack'`,
+**What you notice.** Fewer allocations under `--debug-memory`, and `value.memory.section` answering `'stack'`,
 `'heap'` or `'constant'` ([memory.md](memory.md#where-a-value-lives-memory)). You never choose the stack
 yourself: there is no second way to allocate, so there is no address to keep past a return by mistake.
 **Built** (D108 and its placement rows).
@@ -396,7 +396,7 @@ greeter dropped after 2 greetings
 **What you notice.** A singleton's constructor runs at its first use, which is only visible if it prints. A
 `drop()` that fetches a singleton made after its own (so already destroyed) halts with a message saying to keep
 that singleton in an attribute ([D141](../manual.md#decision-log),
-[classes_and_files.md](classes_and_files.md#singletons)). `--debug_memory` still names an object a program leaked,
+[classes_and_files.md](classes_and_files.md#singletons)). `--debug-memory` still names an object a program leaked,
 even one that points at a singleton. **Built** (D8, D142, D141).
 
 ### Singletons that hold nothing are static objects
@@ -406,7 +406,7 @@ type), and `Build`, whose attributes are all settings folded into the program --
 allocated, never counted, never freed. `Memory()` costs nothing, and every program allocates once fewer for each.
 
 **When.** Production builds only ([D143](../manual.md#decision-log)). In an inspectable build -- `--repl`,
-`--repl_port`, `--hot_reload` or `--development` -- each is an ordinary singleton: allocated at first use, one of
+`--repl-port`, `--hot-reload` or `--development` -- each is an ordinary singleton: allocated at first use, one of
 its class's `.instances`, and destroyed at exit. Since it holds nothing, it may be made again if something
 destroyed after it asks for it at exit, so the order of teardown never matters for it.
 
@@ -442,7 +442,7 @@ func InspectableInternals() {
 Memory objects: 1
 ```
 
-**What you notice.** One allocation fewer per such singleton under `--debug_memory` in a production build, so the
+**What you notice.** One allocation fewer per such singleton under `--debug-memory` in a production build, so the
 counts of one program differ between the two kinds of build. Reading `Build`'s attributes through reflection
 answers the folded settings in both. **Built** (the D108 second-step row, D110's `Build` row, the generic
 singleton row, and D143; `conformance/stage6/development_internals`).
@@ -450,8 +450,8 @@ singleton row, and D143; `conformance/stage6/development_internals`).
 ### Atomic reference counts only with threads
 
 **What it does.** Retaining and releasing a reference is plain arithmetic, except in a program that can share an
-object between threads: one that makes a `Concurrent` or a `Parallel`, or is built with `--repl_port` or
-`--hot_reload`. Only those are compiled with atomic counts (and a lock around the `--debug_memory` table).
+object between threads: one that makes a `Concurrent` or a `Parallel`, or is built with `--repl-port` or
+`--hot-reload`. Only those are compiled with atomic counts (and a lock around the `--debug-memory` table).
 
 **When.** Decided per program, from what it uses. **What you notice.** Nothing: the program that never starts a
 thread never pays for atomics. **Built** (the "reference counts are atomic only in a program that starts a
@@ -467,7 +467,7 @@ shape (a `Printable`, a `Debuggable`, an empty `type` that accepts anything) and
 **When.** Passing a plain value where a shape is wanted, reading `attribute.value` of a number
 attribute, or a class test against a number class.
 
-**What you notice.** One allocation per boxed value under `--debug_memory`. The visible cost today: every value
+**What you notice.** One allocation per boxed value under `--debug-memory`. The visible cost today: every value
 given to `console.print` is passed as a `Printable`, so printing a number boxes it, and the `...values` of every
 variadic call arrive in a `List` ([functions_and_operators.md](functions_and_operators.md)). Whether that list and
 those boxes should live in the caller's frame is `mortaros_missing_decisions.md` item 74. **Built** (D109's print
@@ -477,7 +477,7 @@ row; D164 is decided and partly built).
 
 **What it does.** The scheduler, the fibers, the helper threads and the wrappers around every call that can wait
 (`Program.sleep`, `Console.read_line`, `File.read`/`write`/`append`, `Socket.accept_client`/`read_line`) exist only
-in a program that makes a `Concurrent` or is built with `--repl_port` or `--hot_reload`. Every other program's
+in a program that makes a `Concurrent` or is built with `--repl-port` or `--hot-reload`. Every other program's
 waits are the plain system calls. Even in a program that has the scheduler, a wait with no `Concurrent` alive and
 no REPL listening makes the plain blocking call, because that is faster ([D99](../manual.md#decision-log)): you
 never choose between blocking and waiting, and you never see which one ran.
@@ -490,15 +490,15 @@ which [D176](../manual.md#decision-log) replaces (below). [concurrency.md](concu
 **What it does.** Everything that exists to look inside a running program is compiled only into the builds that
 ask for it:
 
-- `--repl` and `--repl_port`: the loop, the socket thread, the reflection hooks that let a `Spite.Attribute` walk
+- `--repl` and `--repl-port`: the loop, the socket thread, the reflection hooks that let a `Spite.Attribute` walk
   and assign live values (outside those builds they answer an empty list, `false` and `null`), and every fitting
   member template instantiated for the classes a list reaches, so the prompt can call `monsters.sum_health()`.
-- `--hot_reload`: a function pointer per function and a forwarder in front of it (about a nanosecond a call), the
+- `--hot-reload`: a function pointer per function and a forwarder in front of it (about a nanosecond a call), the
   file watcher and the reload manifest. Every other build calls functions directly and is tree-shaken.
-- `--debug_memory`: the allocation table that names leaked objects. Every other build counts allocations with
+- `--debug-memory`: the allocation table that names leaked objects. Every other build counts allocations with
   one increment.
 
-- `--repl_port` and `--hot_reload`: a check point at the end of every pass of every loop in the program's own
+- `--repl-port` and `--hot-reload`: a check point at the end of every pass of every loop in the program's own
   code ([D174](../manual.md#decision-log)), one call that answers a waiting command or reload, so a program that
   never waits still answers.
 
@@ -513,7 +513,9 @@ points. **Built.**
 **What it does.** `ThreadPool` is a singleton made the first time a `Parallel` (or a `parallel_each_` pass) needs
 it, and it starts its worker threads then, once ([D135](../manual.md#decision-log), [D191](../manual.md#decision-log)).
 A program that never makes one starts no thread and allocates nothing for it; its functions are tree-shaken with
-the rest. `ThreadLocal` asks the system for its per-thread slot only when one is made, and `Lock` likewise.
+the rest. `ThreadLocal` asks the system for its per-thread slot only when one is made, and `Lock` likewise;
+its `get()` never locks, and only a thread's `set` does
+([concurrency.md](concurrency.md#a-value-per-thread-and-a-lock)).
 
 **When.** Always. **What you notice.** Nothing until the first `Parallel`, which pays for starting the workers.
 **Built.** [concurrency.md](concurrency.md#the-thread-pool).

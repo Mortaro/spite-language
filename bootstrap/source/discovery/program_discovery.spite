@@ -14,6 +14,9 @@ var entry_qualified = ""
 var entry_file_path = ""
 var loaded_folders = List<String>()
 var program_paths = List<String>()
+var pending_files = List<Syntax.SourceFile>()
+var following_loads = false
+var printer = Syntax.SourcePrinter()
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
     choose_target_operating_system()
@@ -124,7 +127,7 @@ func load_folder(call: Syntax.Expressions.CallExpression, entry_path: String, en
     var path = load_path(call.arguments[0])
     if not path {
         has_error = true
-        error_message = "{launcher_path()}: error: the launcher loads folders known when compiling: text, and Build fields given to the compiler, like load(\"library/\{build.target_operating_system}\") beside 'var build = Build()'"
+        error_message = "{launcher_path()}: error: the launcher loads folders known when compiling: text, and Build fields given to the compiler, like 'load \"library/\{build.target_operating_system}\"' beside 'var build = Build()'"
         return
     }
     crash path
@@ -266,7 +269,7 @@ func discover_program(entry_path: String, entry_source: String) {
     var entry_stem = file_stem(entry_path)
     var entry_basename = basename(entry_path)
     var load_names = List<String>()
-    scan_top_level_loads(entry_file, load_names)
+    collect_file_load_names(entry_file, load_names)
     var empty_segments = List<String>()
     reopen_with_supplied_members()
     entry_file.path = entry_path
@@ -274,11 +277,7 @@ func discover_program(entry_path: String, entry_source: String) {
     entry_qualified = compute_qualified(empty_segments, entry_stem)
     entry_file_path = entry_path
     walk_directory(entry_directory, empty_segments, entry_basename, load_names)
-    var root_index = 0
-    while root_index < load_names.count() and not has_error {
-        load_root(entry_path, entry_directory, load_names[root_index])
-        root_index = root_index + 1
-    }
+    pending_files.append(entry_file)
 }
 
 func load_root(entry_path: String, entry_directory: String, root_name: String) {
@@ -288,6 +287,7 @@ func load_root(entry_path: String, entry_directory: String, root_name: String) {
         return
     }
     var root_folder = "{entry_directory}/{root_name}"
+    assert not loaded_folders.contains("{root_folder}/")
     var root_directory = Directory(root_folder)
     if not root_directory.exists() {
         has_error = true
@@ -554,13 +554,13 @@ func is_platform_folder(name: String): Bool {
 func choose_target_operating_system() {
     if supplied_settings.has("operating_system") {
         has_error = true
-        error_message = "error: '--operating_system' cannot be given: Build.operating_system is the system doing the compiling ({host_operating_system}). To write the program for another system, give --target_operating_system=linux (or windows, or mac)"
+        error_message = "error: '--operating-system' cannot be given: Build.operating_system is the system doing the compiling ({host_operating_system}). To write the program for another system, give --target-operating-system=linux (or windows, or mac)"
     }
     supplied_settings["operating_system"] = host_operating_system
     if supplied_settings["target_operating_system"] {
         if not is_platform_folder(supplied_settings["target_operating_system"]) and not has_error {
             has_error = true
-            error_message = "error: '--target_operating_system={supplied_settings["target_operating_system"]}' names no operating system the library has a folder for: windows, linux or mac"
+            error_message = "error: '--target-operating-system={supplied_settings["target_operating_system"]}' names no operating system the library has a folder for: windows, linux or mac"
         }
     } else {
         supplied_settings["target_operating_system"] = host_operating_system
@@ -664,6 +664,9 @@ func read_and_add_file(path: String, segments: List<String>) {
         assert not has_error
         file_stem = file_stem(path)
         add_parsed_file(parsed_file, segments, file_stem)
+        if following_loads and not walking_library {
+            pending_files.append(parsed_file)
+        }
     } else {
         has_error = true
         error_message = "could not read '{path}'"
@@ -775,6 +778,8 @@ func read_settings() {
     var build = class_file_named("Build")
     crash build
     var build_names = hardcode_build(build)
+    load_pending_roots()
+    assert not has_error
     var environment = class_file_named("Environment")
     crash environment
     var environment_names = read_environment(environment)
@@ -871,7 +876,7 @@ func setting_reader(variable: Syntax.Statements.VariableDeclaration, class_name:
 
 func setting_source(name: String, class_name: String): String {
     if class_name == "Build" {
-        return "decided when compiling, by the compiler's --{name}=value"
+        return "decided when compiling, by the compiler's {flag_of(name)}=value"
     }
     return "a setting, read from the program's command line (--{name}=value) or its environment ({name.upper_case()})"
 }
@@ -879,9 +884,10 @@ func setting_source(name: String, class_name: String): String {
 func hardcode_setting(variable: Syntax.Statements.VariableDeclaration, reader: String) {
     crash supplied_settings[variable.name]
     var literal = setting_literal(reader, supplied_settings[variable.name])
-    var given = "--{variable.name}={supplied_settings[variable.name]}"
+    var flag = flag_of(variable.name)
+    var given = "{flag}={supplied_settings[variable.name]}"
     if bare_settings.contains(variable.name) {
-        given = "--{variable.name}"
+        given = flag
         if reader != "boolean_setting" {
             literal = null
         }
@@ -895,13 +901,19 @@ func hardcode_setting(variable: Syntax.Statements.VariableDeclaration, reader: S
 }
 
 func setting_expectation(reader: String, name: String): String {
+    var flag = flag_of(name)
     if reader == "boolean_setting" {
-        return "a Bool: --{name}, --{name}=true or --{name}=false"
+        return "a Bool: {flag}, {flag}=true or {flag}=false"
     }
     if reader == "text_setting" {
-        return "a String: --{name}=text"
+        return "a String: {flag}=text"
     }
-    return "an Int: a whole number, like --{name}=3"
+    return "an Int: a whole number, like {flag}=3"
+}
+
+func flag_of(name: String): String {
+    var hyphenated = name.replace("_", "-")
+    return "--{hyphenated}"
 }
 
 func setting_literal(reader: String, text: String): Syntax.Expressions.Expression? {
@@ -971,10 +983,10 @@ func check_supplied_settings(build_names: List<String>, environment_names: List<
             error_message = "error: '--format' is not a compiler option: every compile formats the program's own files first, and nothing turns that off. To format files without compiling them: spite format file_or_folder"
         } else if environment_names.contains(name) and not build_names.contains(name) {
             has_error = true
-            error_message = "error: '--{name}' was given to the compiler, but 'Environment.{name}' is read when the program runs: give it to the program after '--' (spite program -- --{name}=value), or, to decide it when compiling, declare it in the program's build.spite instead"
+            error_message = "error: '{flag_of(name)}' was given to the compiler, but 'Environment.{name}' is read when the program runs: give it to the program after '--' (spite program -- --{name}=value), or, to decide it when compiling, declare it in the program's build.spite instead"
         } else if not build_names.contains(name) {
             has_error = true
-            error_message = "error: '--{name}' is not a compiler option, and this program's Build declares no setting '{name}' (it declares {build_names.join(", ")}). To decide it when compiling, reopen Build in the program's build.spite with 'var {name} = ...'; to read it when the program runs, declare it in environment.spite and give it after '--': spite program -- --{name}=value"
+            error_message = "error: '{flag_of(name)}' is not a compiler option, and this program's Build declares no setting '{name}' (it declares {build_names.join(", ")}). To decide it when compiling, reopen Build in the program's build.spite with 'var {name} = ...'; to read it when the program runs, declare it in environment.spite and give it after '--': spite program -- --{name}=value"
         }
         index = index + 1
     }
@@ -1010,40 +1022,254 @@ func literal_reader(declared: Syntax.Expressions.Expression): String {
     return ""
 }
 
-func scan_top_level_loads(file: Syntax.SourceFile, found: List<String>) {
+func collect_file_load_names(file: Syntax.SourceFile, found: List<String>) {
     var index = 0
     while index < file.statements.count() {
         var function_declaration = shape.as_function_declaration(file.statements[index])
         if function_declaration {
-            scan_function_body_loads(function_declaration.body, found)
+            collect_load_names(function_declaration.body, found)
         }
         index = index + 1
     }
 }
 
-func scan_function_body_loads(statements: List<Syntax.Statements.Statement>, found: List<String>) {
+func collect_load_names(statements: List<Syntax.Statements.Statement>, found: List<String>) {
     var index = 0
     while index < statements.count() {
-        var expression_statement = shape.as_expression_statement(statements[index])
-        if expression_statement {
-            assert expression_statement.value
-            add_load_name_if_present(expression_statement.value, found)
+        var statement = statements[index]
+        var folder = load_of(statement)
+        if folder {
+            var literal = shape.as_string_literal(folder)
+            if literal {
+                found.append(literal.value)
+            }
+        }
+        collect_nested_load_names(statement, found)
+        index = index + 1
+    }
+}
+
+func collect_nested_load_names(statement: Syntax.Statements.Statement, found: List<String>) {
+    var if_statement = shape.as_if_statement(statement)
+    if if_statement {
+        collect_load_names(if_statement.then_branch, found)
+        collect_load_names(if_statement.else_branch, found)
+    }
+    var while_statement = shape.as_while_statement(statement)
+    if while_statement {
+        collect_load_names(while_statement.body, found)
+    }
+    var switch_statement = shape.as_switch_statement(statement)
+    assert switch_statement
+    var index = 0
+    while index < switch_statement.cases.count() {
+        collect_load_names(switch_statement.cases[index].body, found)
+        index = index + 1
+    }
+}
+
+func load_of(statement: Syntax.Statements.Statement): Syntax.Expressions.Expression? {
+    var expression_statement = shape.as_expression_statement(statement)
+    assert expression_statement
+    crash expression_statement.value
+    return printer.loaded_folder(expression_statement.value)
+}
+
+func contains_load(statements: List<Syntax.Statements.Statement>): Bool {
+    var index = 0
+    while index < statements.count() {
+        if load_of(statements[index]) {
+            return true
+        }
+        if nested_contains_load(statements[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func nested_contains_load(statement: Syntax.Statements.Statement): Bool {
+    var if_statement = shape.as_if_statement(statement)
+    if if_statement {
+        return contains_load(if_statement.then_branch) or contains_load(if_statement.else_branch)
+    }
+    var while_statement = shape.as_while_statement(statement)
+    if while_statement {
+        return contains_load(while_statement.body)
+    }
+    var switch_statement = shape.as_switch_statement(statement)
+    assert switch_statement
+    var index = 0
+    while index < switch_statement.cases.count() {
+        if contains_load(switch_statement.cases[index].body) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func load_pending_roots() {
+    following_loads = true
+    var index = 0
+    while index < pending_files.count() and not has_error {
+        load_roots_of(pending_files[index])
+        index = index + 1
+    }
+    following_loads = false
+}
+
+func load_roots_of(file: Syntax.SourceFile) {
+    var index = 0
+    while index < file.statements.count() and not has_error {
+        var function_declaration = shape.as_function_declaration(file.statements[index])
+        if function_declaration {
+            load_roots_in(function_declaration.body, file)
         }
         index = index + 1
     }
 }
 
-func add_load_name_if_present(expression: Syntax.Expressions.Expression, found: List<String>) {
-    var call = shape.as_call(expression)
-    assert call
-    assert call.callee
-    var identifier = shape.as_identifier(call.callee)
-    assert identifier
-    assert not (identifier.name != "load")
-    assert not (call.arguments.count() != 1)
-    var literal = shape.as_string_literal(call.arguments[0])
-    assert literal
-    found.append(literal.value)
+func load_roots_in(statements: List<Syntax.Statements.Statement>, file: Syntax.SourceFile) {
+    var index = 0
+    while index < statements.count() and not has_error {
+        load_roots_at(statements[index], file)
+        index = index + 1
+    }
+}
+
+func load_roots_at(statement: Syntax.Statements.Statement, file: Syntax.SourceFile) {
+    var line = line_of(statement)
+    var folder = load_of(statement)
+    if folder {
+        load_named_root(folder, file, line)
+        return
+    }
+    var if_statement = shape.as_if_statement(statement)
+    if if_statement {
+        load_roots_under_if(if_statement, file)
+        return
+    }
+    assert nested_contains_load(statement)
+    has_error = true
+    error_message = "{file.path}:{line}: error: a 'load' inside a 'while' or a 'switch' is never decided: the compiler reads every loaded folder before it compiles, so a 'load' stands in a function's body, or under an 'if' whose condition it can decide"
+}
+
+func line_of(statement: Syntax.Statements.Statement): Int {
+    switch statement {
+        _: return statement.line
+    }
+}
+
+func load_named_root(folder: Syntax.Expressions.Expression, file: Syntax.SourceFile, line: Int) {
+    var literal = shape.as_string_literal(folder)
+    if literal {
+        var directory = directory_of(file.path)
+        load_root(file.path, directory, literal.value)
+        return
+    }
+    has_error = true
+    error_message = "{file.path}:{line}: error: a program's 'load' names its folder with text, like 'load \"engine\"': the compiler reads every loaded folder before it compiles, so the folder cannot be computed"
+}
+
+func load_roots_under_if(if_statement: Syntax.Statements.IfStatement, file: Syntax.SourceFile) {
+    assert contains_load(if_statement.then_branch) or contains_load(if_statement.else_branch)
+    crash if_statement.condition
+    var decided = folded_value(if_statement.condition, file)
+    if decided == "true" {
+        load_roots_in(if_statement.then_branch, file)
+        return
+    }
+    if decided == "false" {
+        load_roots_in(if_statement.else_branch, file)
+        return
+    }
+    has_error = true
+    error_message = "{file.path}:{if_statement.line}: error: this 'if' holds a 'load', so the compiler decides it, and it cannot decide this condition: around a 'load' a condition reads only Build fields (through 'var build = Build()' beside the attributes), text, whole numbers, true and false, joined by ==, !=, and, or and not"
+}
+
+func folded_value(expression: Syntax.Expressions.Expression, file: Syntax.SourceFile): String? {
+    var text = shape.as_string_literal(expression)
+    if text {
+        return text.value
+    }
+    var whole_number = shape.as_integer_literal(expression)
+    if whole_number {
+        return "{whole_number.value}"
+    }
+    if shape.is_true_literal(expression) {
+        return "true"
+    }
+    if shape.is_false_literal(expression) {
+        return "false"
+    }
+    var member = shape.as_member(expression)
+    if member {
+        return build_field_value(member, file)
+    }
+    var unary = shape.as_unary(expression)
+    if unary {
+        return folded_unary(unary, file)
+    }
+    var binary = shape.as_binary(expression)
+    assert binary
+    return folded_binary(binary, file)
+}
+
+func build_field_value(member: Syntax.Expressions.MemberExpression, file: Syntax.SourceFile): String? {
+    crash member.object
+    var receiver = shape.as_identifier(member.object)
+    assert receiver
+    assert declares_build(file.statements, receiver.name)
+    return build_values[member.name]
+}
+
+func folded_unary(unary: Syntax.Expressions.UnaryExpression, file: Syntax.SourceFile): String? {
+    crash unary.operand
+    var operand = folded_value(unary.operand, file)
+    assert operand
+    if unary.operator == 'negate' {
+        return "-{operand}"
+    }
+    if operand == "true" {
+        return "false"
+    }
+    assert operand == "false"
+    return "true"
+}
+
+func folded_binary(binary: Syntax.Expressions.BinaryExpression, file: Syntax.SourceFile): String? {
+    crash binary.left
+    crash binary.right
+    assert not binary.is_text_join
+    var left = folded_value(binary.left, file)
+    var right = folded_value(binary.right, file)
+    assert left
+    assert right
+    if binary.operator == 'equal' {
+        return truth_text(left == right)
+    }
+    if binary.operator == 'not_equal' {
+        return truth_text(left != right)
+    }
+    assert is_truth_text(left) and is_truth_text(right)
+    if binary.operator == 'logical_and' {
+        return truth_text(left == "true" and right == "true")
+    }
+    assert binary.operator == 'logical_or'
+    return truth_text(left == "true" or right == "true")
+}
+
+func truth_text(value: Bool): String {
+    if value {
+        return "true"
+    }
+    return "false"
+}
+
+func is_truth_text(text: String): Bool {
+    return text == "true" or text == "false"
 }
 
 func pascal_case(snake: String): String {

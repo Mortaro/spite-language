@@ -8,6 +8,7 @@ var error_message = ""
 var quiet_generic_arguments_matched = false
 var quiet_generic_instantiation_matched = false
 var names_generic_class = false
+var block_depth = 0
 
 func Parser(starting_tokens: List<Token>) {
     tokens = starting_tokens
@@ -207,7 +208,9 @@ func parse_statement_list_until(stop_kind: TokenKind): List<Syntax.Statements.St
 
 func parse_block(): List<Syntax.Statements.Statement> {
     expect('left_brace', "'\{'")
+    block_depth = block_depth + 1
     var statements = parse_statement_list_until('right_brace')
+    block_depth = block_depth - 1
     expect('right_brace', "'}'")
     return statements
 }
@@ -218,7 +221,19 @@ func parse_statement(): Syntax.Statements.Statement {
     switch statement {
         _: statement.line = line
     }
+    record_depth(statement)
     return statement
+}
+
+func record_depth(statement: Syntax.Statements.Statement) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: statement.depth = block_depth
+        Syntax.Statements.AssignmentStatement: statement.depth = block_depth
+        Syntax.Statements.ExpressionStatement: statement.depth = block_depth
+        Syntax.Statements.ReturnStatement: statement.depth = block_depth
+        Syntax.Statements.AssertStatement: statement.depth = block_depth
+        _: return
+    }
 }
 
 func parse_interpolation(hole: Token): Syntax.Expressions.Expression {
@@ -257,7 +272,7 @@ func borrowed_word_lesson(word: String): String {
         return "there is no 'self': a class reads its own attributes by name ('name', not 'self.name'), and 'this' is the value itself"
     }
     if word == "import" or word == "require" {
-        return "there are no imports: 'load(\"folder\")' inside a function brings a folder into the program, and everything shares one namespace"
+        return "there are no imports: 'load \"folder\"' inside a function brings a folder into the program, and everything shares one namespace"
     }
     if word == "elif" {
         return "Spite writes 'else if'"
@@ -320,7 +335,35 @@ func parse_statement_without_line(): Syntax.Statements.Statement {
     if check('keyword_return') {
         return parse_return_statement()
     }
+    if check('identifier') and current().lexeme == "load" {
+        return parse_load_statement()
+    }
     return parse_expression_or_assignment_statement()
+}
+
+func parse_load_statement(): Syntax.Statements.Statement {
+    advance()
+    var opening = current()
+    var folder = parse_expression()
+    if opening.kind == 'left_paren' and not has_error {
+        var printer = Syntax.SourcePrinter()
+        var written = printer.source_expression(folder)
+        fail("'load' is a keyword, not a function: write it without parentheses, 'load {written}'")
+        error_line = opening.line
+        error_column = opening.column
+        return dummy_statement()
+    }
+    consume_statement_terminator()
+    var callee = Syntax.Expressions.IdentifierExpression("load")
+    var arguments = List<Syntax.Expressions.Expression>()
+    arguments.append(folder)
+    var call = Syntax.Expressions.CallExpression(callee, arguments)
+    return Syntax.Statements.ExpressionStatement(call)
+}
+
+func reject_load_name(kind: String) {
+    assert check('identifier') and current().lexeme == "load"
+    fail("'load' is a keyword and cannot name a {kind}: give it a name that says what it loads, like 'load_texture'")
 }
 
 func parse_generics_declaration(): Syntax.Statements.Statement {
@@ -346,6 +389,7 @@ func parse_generic_declaration(): Syntax.Statements.Statement {
 func parse_variable_declaration(): Syntax.Statements.Statement {
     advance()
     reject_borrowed_name("variable")
+    reject_load_name("variable")
     var name = expect('identifier', "a variable name")
     var type_reference: Syntax.Types.Type? = null
     if check('colon') {
@@ -360,6 +404,7 @@ func parse_variable_declaration(): Syntax.Statements.Statement {
 
 func parse_function_declaration(): Syntax.Statements.Statement {
     advance()
+    reject_load_name("function")
     var name = expect('identifier', "a function name")
     if check('less') {
         reject_constructor_codegen_list(name.text)
@@ -450,6 +495,7 @@ func parameter_name(): String {
         return "type"
     }
     reject_borrowed_name("parameter")
+    reject_load_name("parameter")
     var name = expect('identifier', "a parameter name")
     return name.text
 }
@@ -657,6 +703,7 @@ func parse_switch_statement(): Syntax.Statements.Statement {
     advance()
     var subject = parse_expression()
     expect('left_brace', "'\{' to start the switch body")
+    block_depth = block_depth + 1
     skip_trivia()
     var cases = List<Syntax.Statements.SwitchCase>()
     var finished = check('right_brace') or check('end_of_file')
@@ -670,6 +717,7 @@ func parse_switch_statement(): Syntax.Statements.Statement {
             finished = true
         }
     }
+    block_depth = block_depth - 1
     expect('right_brace', "'}' to close the switch body")
     return Syntax.Statements.SwitchStatement(subject, cases)
 }
@@ -1185,11 +1233,8 @@ func named_generic_class(expression: Syntax.Expressions.Expression): Syntax.Expr
     if not quiet_generic_arguments_matched {
         return expression
     }
-    var named = Syntax.Expressions.GenericCallExpression(
-        expression,
-        type_arguments,
-        List<Syntax.Expressions.Expression>(),
-    )
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var named = Syntax.Expressions.GenericCallExpression(expression, type_arguments, no_arguments)
     named.names_class = true
     return named
 }
@@ -1280,6 +1325,13 @@ func parse_primary(): Syntax.Expressions.Expression {
         var borrowed = borrowed_word_lesson(lexeme)
         if not borrowed.is_empty() {
             fail(borrowed)
+            advance()
+            return dummy_expression()
+        }
+        if lexeme == "load" {
+            fail(
+                "'load' is a keyword that starts a line of its own, like 'load \"folder\"': it is not a function, and it has no value",
+            )
             advance()
             return dummy_expression()
         }

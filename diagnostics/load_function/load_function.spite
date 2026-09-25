@@ -1,11 +1,9 @@
-var console = Console()
+var loads = 0
 
 func LoadFunction() {
-    var shelf = Shelf()
-    var loaded = shelf.load_twice("ab")
-    console.print("loaded", loaded)
+    loads = 1
 }
 
-func load(name: String) {
-    console.print("loading", name)
+func load(id: String): Int {
+    return loads + id.length()
 }

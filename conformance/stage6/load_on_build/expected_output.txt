@@ -1,0 +1,2 @@
+chips, loaded because --flavor=salty
+pepper, chosen by a package

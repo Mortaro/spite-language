@@ -1,0 +1,1 @@
+diagnostics/load_as_value/load_as_value.spite:2:18: 'load' is a keyword that starts a line of its own, like 'load "folder"': it is not a function, and it has no value

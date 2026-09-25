@@ -1,5 +1,6 @@
 var value: Syntax.Expressions.Expression? = null
 var line = 0
+var depth = 0
 
 func ExpressionStatement(statement_value: Syntax.Expressions.Expression) {
     value = statement_value

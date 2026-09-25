@@ -396,7 +396,7 @@ one loop.
 `values` is the list's `TypedMemory<$element_type>`: `values.read_value(items, index)` reads the element in slot
 `index` of the list's buffer, retained, the same way a container of your own would
 ([memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it)); everything else is written in the file. A
-build with `--repl` or `--repl_port` compiles every template that fits every element class of a list the loop
+build with `--repl` or `--repl-port` compiles every template that fits every element class of a list the loop
 can reach, so `monsters.sum_health()` can be typed at the prompt.
 
 ## Write your own member template
