@@ -687,9 +687,11 @@ line carrying the format version and the build hash. At runtime a crash emits on
 ring buffer**: a crash happens once and then the program is dead, so it should be informative rather than fast,
 while a narrowing assert may fire thousands of times an hour and must stay cheap until something dumps it.
 
-**Current implementation (2026-09-20).** `crash` itself is implemented -- the keyword, narrowing, bare `crash`
-for an unreachable branch, and the compiler enforcing D28/D29 and D106 -- but the reporting above is not yet. A
-firing `crash` flushes stdout, writes one line to stderr, and exits with status 1:
+**Implemented.** `crash` is built -- the keyword, narrowing, bare `crash` for an unreachable branch, the compiler
+enforcing D28/D29 and D106 -- and so is the reporting above: crash and assert sites carry content-derived ids, every
+build writes `<output-name>.crashes`, and a crash prints the asserts that failed before it from a ring of 32
+(`conformance/stage5/crash_report`, [failure.md](docs/failure.md)). A firing `crash` flushes stdout, writes its
+line to stderr, and exits with status 1:
 
 ```
 spite.crash<TAB>path:line<TAB>Class<TAB>function<TAB>condition
@@ -697,8 +699,7 @@ spite.crash<TAB>path:line<TAB>Class<TAB>function<TAB>condition
 
 The condition is rebuilt from its own tokens and the line ends with the named operands of the failed
 comparison and their values -- `value > limit<TAB>value=-9<TAB>limit=0` -- with calls never evaluated a second
-time. Still missing: the crash ids, the `<output-name>.crashes` map and the assert ring buffer. The line keeps the
-`spite.crash` prefix, so anything grepping for it keeps working when the id and values arrive.
+time.
 
 ### Operators  **[implemented]**
 
@@ -2112,10 +2113,7 @@ gives an error, nothing is left to the user's taste. The only printout that used
   now lives here too, moved unchanged from the generator -- checking a function's last statement
   needs nothing that only codegen's resolved types would provide, so this milestone's "if that is easy"
   condition held.
-- **Known limitation, shared with every other diagnostic this compiler prints:** a lint's `file:line:column`
-  is always reported against the entry file's own path, even when the actual violation lives in a different
-  reachable file of a multi-file program -- the same limitation every codegen diagnostic already has (no
-  diagnostic anywhere in this compiler carries its own source file yet).
+- A diagnostic names the file the problem is in (`registry.spite:3`), not the entry file.
 
 ## 13. Command line
 
@@ -3750,3 +3748,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (proposed by Claude, unconfirmed; D115, SlopEngine's `Cook` walking `Symbol<Recipe>` in a program with no recipes; supersedes the "matches no folder is an error" reading in `mortaros_missing_decisions.md` item 99) **A folder range that matches nothing walks nothing.** The error fired while generating every class's functions, so it failed a program that loaded `Cook` and never called it. An empty walk is what `Symbol<Label>` over a class with no attributes already does, and what `Symbol<$system_type.run_each>` does for a type without `run_each`. The typo check moves to where a single class is named: `cook_recipe_bread()` for a class no folder holds says which classes the folders do hold, or that there is no such folder. `conformance/stage6/empty_folder_range`, `diagnostics/empty_folder_range`, `docs/metaprogramming.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's `type Healing` in `examples/healing/system/regenerate.spite`) **The nearest `type`, `union` or `enum` wins over a class further out.** A bare name in a type position looked for a class along the whole walk first and for a declared type only after it, so the program's entry class `Healing` shadowed the `type Healing` the system file declared ("'Healing' has no attribute 'health'"). A declaration now sits in the walk at the level of the class that declares it: the using class first, then its folder's entry class, then each parent. This also closes `docs/KNOWN_ISSUES.md`'s "a class of your own can hide a class the library nests": a program's class `Entry` no longer hides `Directory`'s union `Entry`. `conformance/stage6/nearest_type`, `docs/packages.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; D114-D116, SlopEngine's runner could not move its combination loop out of `run_phase_each`) **A template's symbol can be passed to a helper, which is compiled once per symbol.** `run_combination(phase)` treated `run_combination` as an ordinary function taking a run-time `Symbol`, so inside it `system.phase_each(...)` had no matched function ("does not define 'phase_each'"). A function whose ranged `Symbol<...>` parameter is not a word of its name is now a template reached only by passing it the calling template's own symbol, by name, over the same range; the instance (`run_combination_for_update`) keeps the binding, pattern and argument templates included. Passing anything else, or calling it from outside such a template, is an error. A plain `Symbol` parameter is unchanged. `conformance/stage6/passed_symbol`, `diagnostics/passed_symbol`, `docs/metaprogramming.md`. |
+| 2026-09-24 | **D118** (decided by Mortaro): **an attribute nothing uses is an error, like an unused local.** From a SlopEngine system file holding `var world = Resource.World()` that no function reads: "world is never used, unused variable declarations should cause a compiler error." Section 5's unused rule, which covered locals, parameters and private functions, now covers a class's attributes too. |

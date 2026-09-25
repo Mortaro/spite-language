@@ -21,7 +21,6 @@ manual argues it.
    branch of another `if` with an `else` is an error naming "extract a function".
    D94 review: [mortaros_review_while_and_else_if.md](mortaros_review_while_and_else_if.md), section 3 (16 cases,
    with the `else if` chains and a proposed `switch` over an enum).
-4. (Answered: D100, `from_type`.)
 5. **Open question 16: two versions of one dependency.** Needs D38 (git dependencies) first.
 6. **Open questions 1, 3, 6, 8, 9, 10, 11**, the older ones: `= null` on a generic field, right-to-left casting
    in comparisons, `_` meaning private and unused, an unrelated `get_x()` intercepting `.x`, `${` in text,
@@ -52,13 +51,6 @@ manual argues it.
 
 ## Variadic arguments
 
-13. **(Answered by D109: yes, with `to_string()`. Built 2026-09-24, manual section 15 "System classes".)**
-    **Whether `Console.print` takes `...values: List<Printable>`** (D90, manual section 5 "Variadic arguments").
-    It fits the mechanism, but it needs a `type Printable` that every printable value satisfies, and today the
-    generator decides printability itself: numbers, `Bool`, `String`, `Symbol`, enum values, `Spite.Class` and
-    `Spite.Namespace` print, and any other class is an error naming its attributes. Proposal (Claude):
-    `type Printable { to_text(): String }`, with numbers and `Bool` answering it once D83 makes them classes,
-    so a class prints once it declares `to_text()`.
 14. **Whether a generic line can name a constraint**, `generic $sub_type: Openable` (open question 12's own
     proposal). D87 decided the lines and not this half.
 
@@ -101,16 +93,13 @@ manual argues it.
     over another class's attributes; the plural (`show_attributes`) to call a template for every attribute;
     `$value_type == List` / `Dictionary` / `Null` / `Symbol` as compile-time type tests; `$value_type.element_type`
     to name what a container holds; text casting to an enum by name. Each is a new form, so each wants a yes or no.
-26. **The number test is ten comparisons** (`$value_type == Int or $value_type == Long or ...`) because a union of
-    number types is not allowed (a union's members are classes). A `Number` kind like `List` would read better,
-    but it would be a name that is not a class. Which do you prefer, or should unions admit numbers?
 
 ## From D106 (assert guards)
 
 27. **Library asserts in the crash trace.** Since D106 made `assert` the only way to write a default-returning
-    guard, library functions that fail a guard routinely (`String.matches_at`, `TextBytes.slice`) fill the
+    guard, library functions that fail a guard routinely (`String.matches_at`, `String.slice`) fill the
     32-entry trace ring a crash prints. Either the ring skips asserts in `library/`, or those functions are
-    written as plain expressions the way `TextBytes.equals` now is.
+    written as plain expressions instead of guards.
 
 ## From D82, D83, D88, D92, D98, D100 and D101 (the compiler's reopening, numbers, reflection, memory)
 
@@ -126,20 +115,14 @@ manual argues it.
 31. **`value.memory` is shadowed by an attribute named `memory`**, and most of the standard library holds
     `var memory = Memory()`. Either rename those attributes (`heap`?) or give the reflection another name.
     Also the names: `Spite.Memory`, its sections `'heap'`, `'stack'`, `'constant'` (`static` is a C word).
-32. **Stack memory is `memory.allocate_stack_bytes(bytes)`**, gone when the calling function returns. The lifetime
-    rule is C's `alloca`: nothing stops a program from keeping the address, and each call inside a loop takes
-    more of the frame. A safer form would be a region a function declares (a typed local the compiler sizes);
-    that is syntax, so it waits for you.
 33. **`TypedMemory<$value_type>`** is the name of what reads and writes values of any type in raw memory
     (`read_value`, `write_value`, `release_value`, `value_bytes`), one shared instance per type.
 34. **`from_type` is an instance function on the class cast to** (as D100 wrote it), so calling it by hand reads
     `0.0.from_int(count)`; the compiler calls it for every number cast. A cast written in Spite inside a reopened
     `from_type` would call itself, so a reopening can only replace it with the same C cast. A class-level form
     (`Float.from_int(count)`, D6's class object) would read better.
-35. **Printing an integer** with `console.print` writes the digits directly rather than calling `Int.text()`, so a
-    program that reopens `Int.text()` changes interpolation but not printing. It is the faster path; say if a
-    reopened `text()` should win everywhere.
-36. **Unions of numbers**: item 26 asked whether unions should admit numbers. With D83 every number is a class in
+36. **Unions of numbers**: should a union admit number classes? `Json` tests for a number with ten
+    comparisons (`$value_type == Int or $value_type == Long or ...`) because it cannot today. With D83 every number is a class in
     `library/`, so a union of number classes is no longer a union of names that are not classes.
 
 ## Build, the launcher and the entry (D85, D86, D89, D97; manual sections 3, 9 and 13)
@@ -174,24 +157,13 @@ Behaviour that does not match the manual. The language was not changed; each is 
     `Spite.Function` values bound to a default `Gadget`, which stays alive, so `Gadget.instances.count()` is one
     more than the program made. Section 8 says `.instances` is every live instance; is the owner of a reflected
     function meant to be an instance at all (D40's `.owner` is not built)? Repro: `docs/KNOWN_ISSUES.md` item 1.
-45. **A program class named like a nested library type hides it.** A program with its own `entry.spite` makes
-    `library/directory.spite` resolve `Entry` to the program's class instead of `Directory.Entry`, and the program
-    stops compiling ("a Directory cannot be used where a Entry is needed"). Sections 7 and 11 say a name resolves
-    in the using class's own namespace first. Repro: `docs/KNOWN_ISSUES.md` item 2.
 46. **Singletons with arguments.** Section 8 ("Singletons") says one instance per distinct literal argument list;
     the compiler rejects any singleton constructor with parameters (`diagnostics/singleton_arguments`) except
     `DynamicLibrary`'s, which keeps the per-argument-list behaviour. Which is the rule, and is `DynamicLibrary` the
     exception or the rule?
-47. **The manual under-reports crashes.** Section 5 ("What a crash reports", "Current implementation") says the
-    crash ids, the `<output-name>.crashes` map and the assert trace are not built; all three are
-    (`conformance/stage5/crash_report` prints ids and `spite.assert` lines, and every build writes a `.crashes`
-    file). `docs/failure.md` describes them as built. The manual paragraph wants updating.
 48. **A bare `crash` is formatted to `crash false`.** Section 5 describes bare `crash` as the form for an
     unreachable branch; the formatter rewrites it, so formatted code never shows it. Keep bare `crash` (and teach
     the formatter), or make `crash false` the one form?
-49. **Diagnostics name the file they are in.** Section 12's "known limitation" (every diagnostic reported
-    against the entry file's path) no longer holds: errors name the real file (`registry.spite:3`). Only the
-    manual needs the line removed.
 
 ## Visible storage and placement (D107, D108; manual sections 4, 10 and 15)
 
@@ -200,11 +172,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     and `_capacity: Long` -- and the compiler writes the C layout from them. The three it needs are a naming
     convention checked with an error, not a keyword. Keep the names? Is `_section` the right way for the compiler
     to record where it placed a text?
-51. **How a number names its width**: `var _memory = Memory().allocate_bytes(4)` in `library/int.spite` -- an
-    allocation through `Memory` like any other, which the compiler places in a register, so it is never a field;
-    the compiler checks the 4 against `int32_t`, and `.memory.bytes` reads it. A header keyword (`memory 4`, the
-    way `singleton` is a line) was the alternative; this form uses no new syntax. It still says only the width:
-    signed, unsigned or floating is still the class's name. Should the file say that too, and how?
 52. **`String(bytes, length)` is a public constructor** that takes ownership of bytes `Memory` handed out. It is
     how `Memory.text` and `+` make a `String` in Spite; it is also something a program can call wrong (bytes not
     from `allocate_bytes`, or without room for the 0 after them). Keep it public, or make constructors of
@@ -220,8 +187,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     counted or freed, which every program now allocates once less for, and without which `String.drop()` could
     reach a `Memory` the program's exit had already released. `Memory.instances` would not list it. Fine as a
     hidden optimisation (D36)?
-56. **(Answered by D109: `to_string()`.)** **Item 13's `to_text()`** would be `to_string()` after D107 ("a value turns into text with `to_string()`"):
-    the `Printable` proposal should use that name.
 
 ## A function of the caller for each element (D113; manual section 8)
 
@@ -254,7 +219,7 @@ Behaviour that does not match the manual. The language was not changed; each is 
     line, so `Program().exit(1)` made a fresh object each time and was not covered by D110. It has the line now
     and every inline use is bound. Confirm?
 62. **A number's storage is two lines**: `var memory = Memory()` and `var _memory = memory.allocate_bytes(4)`
-    (item 51 was the one-line form). The binding is never a field of the number. The alternative was to exempt
+    (it replaced a one-line `Memory().allocate_bytes(4)` form). The binding is never a field of the number. The alternative was to exempt
     `var _memory = Memory().allocate_bytes(4)` from D110, because the compiler reads that line rather than
     running it; rejected so the file an AI reads to learn memory shows the bound form. Keep it?
 63. **`Build` is a static object**, like `Memory` in item 55: every field folds to a constant, so it holds
@@ -285,23 +250,8 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 ## From D114 (compile-time function reflection, for SlopEngine)
 
-70. **The spelling of D114**: `if $system_type.has('run_each')` and `$system_type.run_each.arguments` (each entry's
-    `.class` as a type, `.name` as a `Symbol`). The mechanism is yours; the spelling was the SlopEngine session's.
-    *Built (proposed by Claude, unconfirmed):* `if $system_type.has_function('run_each')` folds, and
-    `argument: Symbol<$system_type.run_each>` walks the arguments (`argument.name`, `argument.class`), with
-    `system.run_each(row_arguments())` passing one value per argument. See item 98.
 71. **Finding every function named `*_system` across the program** -- the same reflection over the program's
     classes. Not decided.
-72. **The spelling of D115** (finding classes by namespace at compile time): `Symbol<Spite.Namespace>`, or a
-    `classes` plural over a namespace pattern -- the SlopEngine session's proposals.
-    *Built (proposed by Claude, unconfirmed):* `system: Symbol<System>` walks the classes of every namespace
-    ending in `System`, and `Runner<system.class>()` instantiates the generic for each. See item 99.
-73. **The grammar of D116** (ordering by function name): `<phase>_each` / `<phase>_all` plus
-    `run_each_before_<phase>` / `run_each_after_<phase>`, and how a template spells a name pattern whose matched
-    part it can read.
-    *Built (proposed by Claude, unconfirmed):* `phase: Symbol<$system_type.phase_each>` -- the parameter's name
-    is the hole, as in a template's own name -- walks the matching functions, `phase.name` is the match, and
-    `system.phase_each(...)` calls it; `has_function("<phase>_each")` asks the same in a condition. See item 100.
 
 ## From D109 (printing through `to_string()`, `Console.debug`; manual sections 5, 8 and 15)
 
@@ -311,9 +261,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     programs that pin allocations moved from 29 to 50 and from 11 to 17. Is that an acceptable visible cost, or
     should a variadic list the callee only reads live in the caller's frame (the D108 placement rule, one step
     further)?
-75. **Interpolation does not call a class's `to_string()`**: `console.print(ticket)` prints a `Ticket` that
-    declares one, and `"{ticket}"` is still the error "a Ticket cannot be used where a String is needed", so text
-    is written `"{ticket.to_string()}"`. D107 says interpolation calls `to_string()`; should it for a class too?
 76. **An enum value answers `to_string()` and `to_debug()` and nothing else**, which is what lets it be
     `Printable` and `Debuggable`. Should an enum be able to declare more, the way a number's class does (a file
     per enum is not a thing yet)?
@@ -347,7 +294,7 @@ Behaviour that does not match the manual. The language was not changed; each is 
     loaded folder's version: "later replaces" means loaded after, never "the program wins". `docs/packages.md`
     now says so. Should the program root win over what it loads (merge the root last), or should a name declared
     in both be an error unless it is in a folder loaded for the purpose, like `mods`?
-83. **Item 75 answered provisionally**: a text hole now calls a class's `to_string()` (`"{ticket}"` works, and
+83. **Text holes call `to_string()`** (answered provisionally): a text hole now calls a class's `to_string()` (`"{ticket}"` works, and
     `"{attribute.class}"` prints the type's name), the way `console.print` does. Keep it, or require the call to
     be written?
 84. **The default of a `type` is an object literal** (manual open question 1): `var row: $row_type = null` bound
@@ -364,11 +311,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 ## From porting PSD, zstd and .blend to Spite (SlopEngine)
 
-87. **(Answered by D117: functions on the number classes; names still to confirm.)** **Bitwise operators** (shift, and, or, exclusive or). Every binary format needs them -- zstd's bit readers,
-    FSE, Huffman, PSD flags, Win32 packed values -- and the ports wrote them as `/` and `%` by powers of two, which
-    is slower, harder to read, and wrong for negatives. The session suggests spelled-out names in Spite's style
-    (`value.shifted_right(3)`, `value.bits_and(mask)`) rather than symbols. Also first in
-    `mortaros_go_standard_library_comparison.md`.
 88. **Arithmetic takes the left operand's type** (open question 3, "right-to-left casting"): an `Int` times a
     `Long` is an `Int` multiply, so `253 * 2^24` silently overflowed in a little-endian reader even though the result
     was stored in a `Long`. Widen to the wider operand, or make a wider right-hand side a compile error?
@@ -428,18 +370,12 @@ Behaviour that does not match the manual. The language was not changed; each is 
     forbid. Is that one exception to D77 acceptable, or would you rather the values be gathered some other way
     (for example the template storing each value, and a separate `system.run_each(...)` spelled some other way)?
 99. **The D115 spelling as built**: `system: Symbol<System>` -- a range that names no class or type is read as
-    the end of a dotted namespace, so `System` finds `System.Heal` and `Ui.System.Interact`. Two choices inside
-    it: classes are walked in order of their dotted names (not discovery order), and a range matching no folder
-    at all is an error rather than an empty walk -- which means an engine written against `Symbol<System>` does
-    not compile for a program with no `system/` folder anywhere, the engine's own included. Keep both? And should
-    `Symbol<System>` also reach classes in folders below a `system/` folder (`System.Combat.Hit`), which it does
-    not today?
-    *Changed since (proposed by Claude, unconfirmed, 2026-09-24):* an empty range is now zero iterations, not an
-    error. SlopEngine's `Cook` walks `Symbol<Recipe>`, and a program with no recipes failed to compile although
-    it never called `Cook()`, since the error fired while generating every function. A typo is still caught
-    where one class is named (`cook_recipe_bread()` lists the classes the folders hold), but a misspelled range
-    (`Symbol<Sytem>`) walked by its plural now walks nothing, silently. Keep the empty walk, or go
-    back to an error, reported only where the walk is reached?
+    the end of a dotted namespace, so `System` finds `System.Heal` and `Ui.System.Interact`. Classes are walked in
+    order of their dotted names (not discovery order), and a range matching no folder walks nothing (it used to be
+    an error; SlopEngine's `Cook` needed a program with no recipes to compile), so a misspelled range walked by its
+    plural (`Symbol<Sytem>`) silently does nothing -- a single class named with a typo is still an error. Keep the
+    order and the empty walk? And should `Symbol<System>` also reach classes in folders below a `system/` folder
+    (`System.Combat.Hit`), which it does not today?
 100. **The D116 grammar as built**: one hole per pattern, spelled by the parameter's name being a word of the
     function name in the range (`phase: Symbol<$system_type.phase_each>`), exactly as a template's own name is
     spelled. Two readings came with it: `system.phase_each(...)` written inside that template calls the matched
