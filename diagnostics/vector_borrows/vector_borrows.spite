@@ -1,0 +1,46 @@
+var console = Console()
+var velocities = Vector<Velocity>()
+var kept = Velocity(0.0, 0.0, "kept")
+var history = List<Velocity>()
+
+func VectorBorrows() {
+    var first = Velocity(1.0, 2.0, "first")
+    velocities.append(first)
+    var velocity = velocities[0]
+    velocities.append(first)
+    velocity.across = 3.0
+    var again = velocities[0]
+    spawn()
+    again.across = 4.0
+    var stored = velocities[0]
+    kept = stored
+    history.append(stored)
+    var alias = stored
+    var bound = stored.integrate
+    console.print(alias.across)
+    bound.call_function()
+    var passed = velocities[0]
+    describe(passed)
+    passed = velocities[1]
+    var looped = velocities[0]
+    var index = 0
+    while index < 3 {
+        looped.across = 1.0
+        velocities.remove_at(0)
+        index = index + 1
+    }
+    velocities.each(describe)
+}
+
+func spawn() {
+    var spawned = Velocity(0.0, 0.0, "spawned")
+    velocities.append(spawned)
+}
+
+func describe(described: Velocity) {
+    console.print(described.name)
+}
+
+func leaked(): Velocity {
+    return velocities[0]
+}

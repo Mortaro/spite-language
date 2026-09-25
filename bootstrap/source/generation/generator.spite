@@ -137,6 +137,8 @@ var constant_texts = Dictionary<String>()
 var borrow_statements = List<Syntax.Statements.Statement>()
 var borrow_index = 0
 var borrowed_names = List<String>()
+var borrow_site = ""
+var argument_callee = ""
 var first_discovered_class = 0
 var hardcoded_settings = List<Syntax.Statements.VariableDeclaration>()
 var placement = Placement()
@@ -1124,7 +1126,7 @@ func instantiated_with(
     instance.is_singleton = template.is_singleton
     instance.is_stateless_singleton = template.is_stateless_singleton
     instance.holds_nothing = template.holds_nothing
-    instance.is_container = template.qualified_dotted == "TypedMemory"
+    instance.is_container = template.qualified_dotted == "TypedMemory" or template.qualified_dotted == "InlineMemory"
     instance.is_instantiated = true
     classes.append(instance)
     builder.add_typedef("typedef struct {label} {label};")
@@ -1164,7 +1166,209 @@ func instantiated_with(
     current_function = saved_function
     current_path = saved_path
     current_line = saved_line
+    if template.qualified_dotted == "Vector" {
+        check_vector_item(instance)
+    }
     return instance
+}
+
+func check_vector_item(vector_class: Analysis.ClassInfo) {
+    crash vector_class.codegen_types[0]
+    var item_type = vector_class.codegen_types[0]
+    var label = type_display_name(item_type)
+    assert not inline_value_type(item_type)
+    var item_class = inline_item_class(item_type)
+    if not item_class {
+        report(
+            "a Vector holds each item inline, so an item is a number, a Boolean, an enum, a String or a class made only of those, and {type_with_article(item_type)} is not: keep it in a 'List<{label}>'",
+        )
+        return
+    }
+    crash item_class
+    var index = 0
+    while index < item_class.fields.count() {
+        var field = item_class.fields[index]
+        var field_type = field.get_type()
+        if not inline_value_type(field_type) and not singleton_type(field_type) {
+            report(
+                "'{label}' cannot be an item of a Vector: its attribute '{field.name}' is {type_with_article(field_type)}, and a Vector holds each item inline, so every attribute is a number, a Boolean, an enum or a String (keep '{label}' in a 'List<{label}>', or keep '{field.name}' somewhere else)",
+            )
+            return
+        }
+        index = index + 1
+    }
+    if item_class.drop_function {
+        report(
+            "'{label}' cannot be an item of a Vector: it has a 'drop()', and an item inline in a Vector is never an object of its own to drop (keep '{label}' in a 'List<{label}>')",
+        )
+        return
+    }
+    index = 0
+    while index < item_class.functions.count() {
+        var function = item_class.functions[index]
+        if not function.is_constructor and block_uses_this(function.body, item_class) {
+            report(
+                "'{label}.{function.name}' uses 'this' as a value, and an item of a Vector is borrowed from the Vector, never an object to keep or to pass on: read and write its attributes instead",
+            )
+            return
+        }
+        index = index + 1
+    }
+}
+
+func singleton_type(spite_type: Analysis.SpiteType): Boolean {
+    var found = class_behind(spite_type)
+    assert found
+    return found.is_singleton
+}
+
+func inline_value_type(spite_type: Analysis.SpiteType): Boolean {
+    var plain = spite_type
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        plain = nullable.get_inner()
+    }
+    return type_shape.as_scalar(plain) or type_shape.as_string(plain) or type_shape.is_symbol(plain) or is_enum_type(plain)
+}
+
+func block_uses_this(statements: List<Syntax.Statements.Statement>, item_class: Analysis.ClassInfo): Boolean {
+    var expressions = List<Syntax.Expressions.Expression>()
+    collect_block_expressions(statements, expressions)
+    var index = 0
+    while index < expressions.count() {
+        if expression_uses_this(expressions[index], item_class) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func collect_block_expressions(
+    statements: List<Syntax.Statements.Statement>,
+    expressions: List<Syntax.Expressions.Expression>,
+) {
+    var index = 0
+    while index < statements.count() {
+        collect_statement_expressions(statements[index], expressions)
+        index = index + 1
+    }
+}
+
+func collect_statement_expressions(
+    statement: Syntax.Statements.Statement,
+    expressions: List<Syntax.Expressions.Expression>,
+) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: add_optional_expression(statement.value, expressions)
+        Syntax.Statements.AssignmentStatement: {
+            add_optional_expression(statement.target, expressions)
+            add_optional_expression(statement.value, expressions)
+        }
+        Syntax.Statements.IfStatement: {
+            add_optional_expression(statement.condition, expressions)
+            collect_block_expressions(statement.then_branch, expressions)
+            collect_block_expressions(statement.else_branch, expressions)
+        }
+        Syntax.Statements.WhileStatement: {
+            add_optional_expression(statement.condition, expressions)
+            collect_block_expressions(statement.body, expressions)
+        }
+        Syntax.Statements.SwitchStatement: {
+            add_optional_expression(statement.subject, expressions)
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                collect_block_expressions(statement.cases[case_index].body, expressions)
+                case_index = case_index + 1
+            }
+        }
+        Syntax.Statements.AssertStatement: add_optional_expression(statement.value, expressions)
+        Syntax.Statements.ReturnStatement: add_optional_expression(statement.value, expressions)
+        Syntax.Statements.ExpressionStatement: add_optional_expression(statement.value, expressions)
+        _: return
+    }
+}
+
+func add_optional_expression(
+    expression: Syntax.Expressions.Expression?,
+    expressions: List<Syntax.Expressions.Expression>,
+) {
+    assert expression
+    expressions.append(expression)
+}
+
+func expression_uses_this(expression: Syntax.Expressions.Expression, item_class: Analysis.ClassInfo): Boolean {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: {
+            if expression.name == "this" or expression.name == "self" {
+                return true
+            }
+            if item_class.find_function(expression.name) {
+                return true
+            }
+            return false
+        }
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            if not shape.as_identifier(expression.callee) and not is_member_of_this(expression.callee) {
+                if expression_uses_this(expression.callee, item_class) {
+                    return true
+                }
+            }
+            return any_expression_uses_this(expression.arguments, item_class)
+        }
+        Syntax.Expressions.GenericCallExpression: return any_expression_uses_this(expression.arguments, item_class)
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            if expression_uses_this(expression.left, item_class) {
+                return true
+            }
+            return expression_uses_this(expression.right, item_class)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return expression_uses_this(expression.operand, item_class)
+        }
+        Syntax.Expressions.MemberExpression: {
+            assert not is_member_of_this(expression)
+            crash expression.object
+            return expression_uses_this(expression.object, item_class)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            if expression_uses_this(expression.object, item_class) {
+                return true
+            }
+            return expression_uses_this(expression.index, item_class)
+        }
+        Syntax.Expressions.StringLiteralExpression: return expression.value.contains("\{this}")
+        _: return false
+    }
+}
+
+func is_member_of_this(expression: Syntax.Expressions.Expression): Boolean {
+    var member = shape.as_member(expression)
+    assert member
+    crash member.object
+    var object = shape.as_identifier(member.object)
+    assert object
+    return object.name == "this" or object.name == "self"
+}
+
+func any_expression_uses_this(
+    expressions: List<Syntax.Expressions.Expression>,
+    item_class: Analysis.ClassInfo,
+): Boolean {
+    var index = 0
+    while index < expressions.count() {
+        if expression_uses_this(expressions[index], item_class) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func resolve_generic_constraints() {
@@ -3832,6 +4036,9 @@ func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInf
         if class_path == "typed_memory" {
             function.supplied_body = typed_memory_body(information, function.name)
         }
+        if class_path == "inline_memory" {
+            function.supplied_body = inline_memory_body(information, function.name)
+        }
         if class_path == "concurrent" or class_path == "thread_pool" {
             function.supplied_body = task_body(information, function.name)
         }
@@ -3910,6 +4117,97 @@ func typed_memory_body(information: Analysis.ClassInfo, name: String): String {
         return release_statement(value_type, slot)
     }
     return "return (int64_t)sizeof({c_type_name(value_type)});"
+}
+
+func inline_memory_body(information: Analysis.ClassInfo, name: String): String {
+    crash information.codegen_types[0]
+    var value_type = information.codegen_types[0]
+    var item_class = inline_item_class(value_type)
+    if not item_class {
+        var slot = "(({c_type_name(value_type)}*)(intptr_t)address_)[index_]"
+        if name == "item_at" {
+            return "return {retain_call(value_type, slot)};"
+        }
+        if name == "write_item" {
+            return "{slot} = value_;"
+        }
+        if name == "copy_item" {
+            var source = "(({c_type_name(value_type)}*)(intptr_t)source_)[source_index_]"
+            return "{slot} = {retain_call(value_type, source)};"
+        }
+        if name == "release_item" {
+            return release_statement(value_type, slot)
+        }
+        if name == "item_start" {
+            return "return 0;"
+        }
+        if name == "block_bytes" {
+            return "return (int64_t)item_count_ * (int64_t)sizeof({c_type_name(value_type)});"
+        }
+        return "return (int64_t)sizeof({c_type_name(value_type)});"
+    }
+    crash item_class
+    var c_name = item_class.c_name
+    var stride = "((int64_t)sizeof({c_name}) - (int64_t)sizeof(SpiteHeader))"
+    var slot = "(({c_name}*)((char*)(intptr_t)address_ + (int64_t)index_ * {stride}))"
+    if name == "item_at" {
+        return "return {slot};"
+    }
+    if name == "item_bytes" {
+        return "return {stride};"
+    }
+    if name == "item_start" {
+        return "return (int64_t)sizeof(SpiteHeader);"
+    }
+    if name == "block_bytes" {
+        return "return (int64_t)item_count_ * {stride} + (int64_t)sizeof(SpiteHeader);"
+    }
+    var lines = List<String>()
+    if name == "release_item" {
+        lines.append("{c_name}* spite_slot = {slot};")
+        append_item_references(lines, item_class, false)
+        return lines.join("\n")
+    }
+    var copied = "value_"
+    if name == "copy_item" {
+        copied = "(({c_name}*)((char*)(intptr_t)source_ + (int64_t)source_index_ * {stride}))"
+    }
+    lines.append("{c_name}* spite_slot = {slot};")
+    lines.append(
+        "memcpy((char*)spite_slot + sizeof(SpiteHeader), (char*){copied} + sizeof(SpiteHeader), (size_t){stride});",
+    )
+    append_item_references(lines, item_class, true)
+    if name == "write_item" {
+        lines.append("{release_call(value_type, "value_")};")
+    }
+    return lines.join("\n")
+}
+
+func append_item_references(lines: List<String>, item_class: Analysis.ClassInfo, retaining: Boolean) {
+    var index = 0
+    while index < item_class.fields.count() {
+        var field = item_class.fields[index]
+        var field_type = field.get_type()
+        if type_needs_drop(field_type) {
+            var code = "spite_slot->{c_value_name(field.name)}"
+            if retaining {
+                lines.append("(void){retain_call(field_type, code)};")
+            } else {
+                lines.append("{release_call(field_type, code)};")
+            }
+        }
+        index = index + 1
+    }
+}
+
+func inline_item_class(value_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var class_ref = type_shape.as_class_ref(value_type)
+    assert class_ref
+    assert not class_ref.has_signature
+    var found = find_class_by_c_name(class_ref.c_name)
+    assert found
+    assert not found.is_singleton and not found.is_value_class and not found.is_generic_template
+    return found
 }
 
 func resolve_type(type_reference: Syntax.Types.Type, current_namespace: String): Analysis.SpiteType? {
@@ -5072,8 +5370,11 @@ func coerce_for_store(
         var passed_type = instance_type_of(passed_class)
         return class_object_call(passed_type)
     }
+    var site = borrow_site
+    borrow_site = ""
     var saved_counter = temporary_counter
     var result = generate_expression(expression_ast, scope, class_information)
+    report_kept_borrow(expression_ast, result, site, scope, class_information)
     var result_type = result.get_type()
     if joins_into(result_type, expected_type) {
         rewind_temporaries(saved_counter)
@@ -5083,6 +5384,9 @@ func coerce_for_store(
     var casted = cast(result.code, result_type, expected_type)
     if type_needs_drop(expected_type) {
         if owns(result, expression_ast) or is_boxed_into_shape(result_type, expected_type) {
+            return casted
+        }
+        if in_vector_library(class_information) and not borrowed_text_of(expression_ast, result, scope).is_empty() {
             return casted
         }
         return retain_call(expected_type, casted)
@@ -6439,12 +6743,15 @@ func generate_argument_list(
         report("this call passes {arguments_ast.count()} argument(s), but {expected_types.count()} are expected")
         return result
     }
+    var callee = argument_callee
     var index = 0
     while index < arguments_ast.count() {
+        borrow_site = "argument:{callee}"
         var stored_code = coerce_for_store(arguments_ast[index], expected_types[index], scope, class_information)
         result.append(stored_code)
         index = index + 1
     }
+    borrow_site = ""
     return result
 }
 
@@ -7132,7 +7439,9 @@ func generate_generic_call(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
+    argument_callee = function_c_name
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
+    argument_callee = ""
     record_call(function_c_name)
     var object_owned = owns(object_result, object_ast)
     var waited = hoisted_wait(function_c_name, object_result, object_owned, argument_codes, return_type)
@@ -7336,6 +7645,16 @@ func generate_method_call(
     if not is_implicit_join(member) {
         report_private_member(target_class, member.name, class_information)
     }
+    if target_class.qualified_dotted == "Vector" and member.name.starts_with("parallel_each_") {
+        return generate_vector_parallel_each(
+            target_class,
+            member.name,
+            object_result,
+            object_ast,
+            scope,
+            class_information,
+        )
+    }
     var function = find_or_instantiate_function(target_class, member.name)
     if not function {
         if member.name == "deep_copy" {
@@ -7370,6 +7689,9 @@ func generate_method_call(
             )
         }
         var missed = range_miss(target_class, member.name)
+        if target_class.qualified_dotted == "Vector" and is_function_form(member.name, arguments_ast) {
+            missed = "'{member.name}' passes each item to a function, and an item of a Vector is borrowed from it, never passed on: give the item's class a function and call it with a member template, such as '{member.name}_<function>()'"
+        }
         if missed.is_empty() {
             if not reported_old_spelling(member.name) {
                 report("'{object_class_ref.c_name}' does not define '{member.name}'")
@@ -7402,7 +7724,7 @@ func generate_method_call(
             class_information,
         )
     }
-    return generate_generic_call(
+    var called = generate_generic_call(
         function.c_name,
         object_result,
         object_ast,
@@ -7412,6 +7734,8 @@ func generate_method_call(
         scope,
         class_information,
     )
+    lend_item(called, target_class, member.name, object_ast)
+    return called
 }
 
 func spread_template(
@@ -8069,7 +8393,7 @@ func generate_fused_chain(
     var probe_type = probe.get_type()
     var element = chained_element_of(probe_type)
     assert element
-    var base_list = list_class_of(element)
+    var base_list = chain_class_of(probe_type, element)
     if member.name.starts_with("parallel_each_") {
         var names = step_names_of(steps)
         var parallel = generate_parallel_each(base_list, element, names)
@@ -8214,7 +8538,7 @@ func generate_parallel_each(
     piece_lines.append("func {piece_name}(first: Integer, end: Integer) \{")
     piece_lines.append("    var index = first")
     piece_lines.append("    while index < end \{")
-    piece_lines.append("        var item = values.read_value(items, index)")
+    piece_lines.append("        var item = {chain_item_read(base_list)}")
     piece_lines.append("        index = index + 1")
     append_lines(piece_lines, loop_lines)
     append_lines(piece_lines, closings)
@@ -8403,7 +8727,65 @@ func chained_element_of(receiver_type: Analysis.SpiteType): Analysis.SpiteType? 
     if dictionary {
         return dictionary.get_element()
     }
+    var vector_class = vector_class_of(receiver_type)
+    if vector_class {
+        return vector_class.codegen_types.first()
+    }
     return null
+}
+
+func generate_vector_parallel_each(
+    vector_class: Analysis.ClassInfo,
+    name: String,
+    object_result: ExpressionResult,
+    object_ast: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var single = List<String>()
+    single.append(name)
+    var element = vector_class.codegen_types.first()
+    var parallel = generate_parallel_each(vector_class, element, single)
+    if not parallel {
+        var void_spite_type = void_type()
+        return ExpressionResult("0", void_spite_type)
+    }
+    crash parallel
+    var empty_types = no_types()
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var nothing_returned = parallel.get_return_type()
+    return generate_generic_call(
+        parallel.c_name,
+        object_result,
+        object_ast,
+        no_arguments,
+        empty_types,
+        nothing_returned,
+        scope,
+        class_information,
+    )
+}
+
+func vector_class_of(receiver_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var found = class_behind(receiver_type)
+    assert found
+    assert found.qualified_dotted == "Vector" and not found.codegen_types.is_empty()
+    return found
+}
+
+func chain_class_of(receiver_type: Analysis.SpiteType, element: Analysis.SpiteType): Analysis.ClassInfo {
+    var vector_class = vector_class_of(receiver_type)
+    if vector_class {
+        return vector_class
+    }
+    return list_class_of(element)
+}
+
+func chain_item_read(base_list: Analysis.ClassInfo): String {
+    if base_list.qualified_dotted == "Vector" {
+        return "values.item_at(items, index)"
+    }
+    return "values.read_value(items, index)"
 }
 
 func fused_step(
@@ -8419,6 +8801,7 @@ func fused_step(
     assert callee
     var name = callee.name
     if is_function_form(name, call.arguments) {
+        assert base_list.qualified_dotted != "Vector"
         var argument = call.arguments.first()
         var passed = resolve_passed_function(argument, scope, class_information)
         assert passed
@@ -8601,6 +8984,11 @@ func fused_chain_source(
         before.append("    var collected = List<{member_spelling}>()")
         loop_lines.append("{indent}var value = {read}\n{indent}collected.append(value)")
         after.append("    return collected")
+    } else if last.prefix == "filter_" and base_list.qualified_dotted == "Vector" and current_name == "item" {
+        returns = ": Vector<{element_spelling}>"
+        before.append("    var collected = Vector<{element_spelling}>()")
+        loop_lines.append("{indent}if {read} \{\n{indent}    collected._append_copy(items, index - 1)\n{indent}}")
+        after.append("    return collected")
     } else if last.prefix == "filter_" {
         returns = ": List<{element_spelling}>"
         before.append("    var collected = List<{element_spelling}>()")
@@ -8629,7 +9017,7 @@ func fused_chain_source(
     append_lines(lines, before)
     lines.append("    var index = 0")
     lines.append("    while index < item_count \{")
-    lines.append("        var item = values.read_value(items, index)")
+    lines.append("        var item = {chain_item_read(base_list)}")
     lines.append("        index = index + 1")
     append_lines(lines, loop_lines)
     append_lines(lines, closings)
@@ -10452,6 +10840,7 @@ func generate_index_read(
                     class_information,
                 )
                 got.owning_override = true
+                lend_item(got, indexed_class, "get_at", index_expression.object)
                 return got
             }
             report("indexing a '{indexed_class.simple_name}' needs it to define 'get_at(index)'")
@@ -11711,6 +12100,7 @@ func generate_member_read_raw(
         var found_function = find_or_instantiate_function(target_class, member.name)
         if found_function {
             if not found_function.is_constructor {
+                report_captured_borrow(member, object_result, scope, class_information)
                 return function_value(target_class, found_function, object_result, member.object)
             }
         }
@@ -11924,7 +12314,7 @@ func called_effects(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): List<String> {
-    var unknown = ["field:*", "shrink:*"]
+    var unknown = ["field:*", "shrink:*", "grow:*"]
     var identifier = shape.as_identifier(callee)
     if identifier {
         var held = scope.written_type(identifier.name)
@@ -12014,7 +12404,7 @@ func effect_changes(
 }
 
 func dependency_changes(effect: String, dependency: String): Boolean {
-    assert effect != "release"
+    assert effect != "release" and not effect.starts_with("grow:")
     var is_list = dependency.starts_with("list:")
     if effect == "field:*" {
         return not is_list
@@ -12354,8 +12744,11 @@ func generate_variable_declaration(
         borrowed_names.append(declaration.name)
         return
     }
+    assert not lends_to_local(declaration, scope, class_information)
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
+    borrow_site = "local:{declaration.name}"
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
+    borrow_site = ""
     report_copy_for_narrowing(declaration.name, declaration.value, declared_type, scope, class_information)
     if scope.entry_names.contains(declaration.name) {
         value_code = rebind(declaration.name, value_code, declared_type, scope)
@@ -12370,6 +12763,564 @@ func generate_variable_declaration(
         scope.check_last(current_line)
         check_value_name(declaration.name, "variable")
     }
+}
+
+func lends_items(target_class: Analysis.ClassInfo, name: String): Boolean {
+    var vector_item = target_class.qualified_dotted == "Vector" and name == "get_at"
+    var inline_item = target_class.qualified_dotted == "InlineMemory" and name == "item_at"
+    assert vector_item or inline_item
+    assert not target_class.codegen_types.is_empty()
+    crash target_class.codegen_types[0]
+    var item_class = inline_item_class(target_class.codegen_types[0])
+    assert item_class
+    return true
+}
+
+func lend_item(
+    result: ExpressionResult,
+    target_class: Analysis.ClassInfo,
+    name: String,
+    object_ast: Syntax.Expressions.Expression,
+) {
+    assert lends_items(target_class, name)
+    result.owning_override = false
+    var source = operand_text(object_ast)
+    if source.is_empty() {
+        source = Syntax.SourcePrinter().source_expression(object_ast)
+    }
+    result.borrowed_from = source
+}
+
+func in_vector_library(class_information: Analysis.ClassInfo): Boolean {
+    return class_information.qualified_dotted == "Vector" or class_information.qualified_dotted == "InlineMemory"
+}
+
+func may_lend(value: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): Boolean {
+    var indexed = shape.as_index(value)
+    if indexed {
+        crash indexed.object
+        return receiver_lends(indexed.object, "get_at", scope, class_information)
+    }
+    var call = shape.as_call(value)
+    assert call
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    return receiver_lends(member.object, member.name, scope, class_information)
+}
+
+func receiver_lends(
+    receiver: Syntax.Expressions.Expression,
+    name: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    assert name == "get_at" or name == "item_at"
+    var root = shape.as_identifier(receiver)
+    if root {
+        assert scope.written_type(root.name) or class_information.find_field(root.name)
+    }
+    var receiver_type = receiver_type_of(receiver, scope, class_information)
+    var receiver_class = class_behind(receiver_type)
+    assert receiver_class
+    return lends_items(receiver_class, name)
+}
+
+func lends_to_local(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash declaration.value
+    assert not declaration.type_reference and may_lend(declaration.value, scope, class_information)
+    assert not scope.entry_names.contains(declaration.name)
+    var lent = generate_expression(declaration.value, scope, class_information)
+    var item_type = lent.get_type()
+    builder.add_user("{c_type_name(item_type)} {c_value_name(declaration.name)} = {lent.code};")
+    scope.declare_borrowed(declaration.name, item_type, lent.borrowed_from)
+    scope.check_last(current_line)
+    check_value_name(declaration.name, "variable")
+    if not in_vector_library(class_information) {
+        report_borrow_past_resize(declaration.name, lent.borrowed_from, scope, class_information)
+    }
+    return true
+}
+
+func borrowed_text_of(expression_ast: Syntax.Expressions.Expression, result: ExpressionResult, scope: Scope): String {
+    if not result.borrowed_from.is_empty() {
+        return Syntax.SourcePrinter().source_expression(expression_ast)
+    }
+    var identifier = shape.as_identifier(expression_ast)
+    assert identifier
+    assert not scope.borrow_source(identifier.name).is_empty()
+    return identifier.name
+}
+
+func borrowed_source_of(expression_ast: Syntax.Expressions.Expression, result: ExpressionResult, scope: Scope): String {
+    if not result.borrowed_from.is_empty() {
+        return result.borrowed_from
+    }
+    var identifier = shape.as_identifier(expression_ast)
+    assert identifier
+    return scope.borrow_source(identifier.name)
+}
+
+func report_kept_borrow(
+    expression_ast: Syntax.Expressions.Expression,
+    result: ExpressionResult,
+    site: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    assert not in_vector_library(class_information)
+    var text = borrowed_text_of(expression_ast, result, scope)
+    assert not text.is_empty()
+    var source = borrowed_source_of(expression_ast, result, scope)
+    var copied = "'{text}.copy()', an independent object"
+    var site_length = site.length()
+    if site == "return" {
+        report("'{text}' is borrowed from '{source}' and cannot be returned: return {copied}")
+        return
+    }
+    if site.starts_with("attribute:") {
+        var attribute = site.slice(10, site_length)
+        report("'{text}' is borrowed from '{source}' and cannot be kept in the attribute '{attribute}': keep {copied}")
+        return
+    }
+    if site.starts_with("local:") {
+        var local = site.slice(6, site_length)
+        report(
+            "'{text}' is borrowed from '{source}', and a borrowed item has one name: use '{text}' itself instead of '{local}', or keep {copied}",
+        )
+        return
+    }
+    var into_list = site == "list"
+    if site.starts_with("argument:List_") {
+        into_list = site.ends_with("_append") or site.ends_with("_prepend") or site.ends_with("_insert") or site.ends_with("_set_at")
+    }
+    if into_list {
+        report("'{text}' is borrowed from '{source}' and cannot be put in a list: a list keeps {copied}")
+        return
+    }
+    if site.starts_with("argument:") {
+        report(
+            "'{text}' is borrowed from '{source}' and cannot be passed as an argument: pass {copied}, or the attributes the function needs",
+        )
+        return
+    }
+    report("'{text}' is borrowed from '{source}' and cannot be kept past the line that reads it: keep {copied}")
+}
+
+func assignment_site(assignment: Syntax.Statements.AssignmentStatement, scope: Scope): String {
+    crash assignment.target
+    if shape.as_index(assignment.target) {
+        return "list"
+    }
+    var identifier = shape.as_identifier(assignment.target)
+    if identifier {
+        if scope.written_type(identifier.name) {
+            return "local:{identifier.name}"
+        }
+        return "attribute:{identifier.name}"
+    }
+    var member = shape.as_member(assignment.target)
+    assert member
+    return "attribute:{member.name}"
+}
+
+func report_captured_borrow(
+    member: Syntax.Expressions.MemberExpression,
+    object_result: ExpressionResult,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    assert not in_vector_library(class_information)
+    crash member.object
+    var text = borrowed_text_of(member.object, object_result, scope)
+    assert not text.is_empty()
+    var source = borrowed_source_of(member.object, object_result, scope)
+    report(
+        "'{text}.{member.name}' would keep '{text}', which is borrowed from '{source}', in a function value: make it from a copy, 'var kept = {text}.copy()' and then 'kept.{member.name}'",
+    )
+}
+
+func report_borrowed_reassignment(assignment: Syntax.Statements.AssignmentStatement, scope: Scope): Boolean {
+    crash assignment.target
+    var identifier = shape.as_identifier(assignment.target)
+    assert identifier
+    var source = scope.borrow_source(identifier.name)
+    assert not source.is_empty()
+    report(
+        "'{identifier.name}' is borrowed from '{source}' and is not assigned again: read another item with a new 'var', such as 'var next = {source}[index]'",
+    )
+    return true
+}
+
+func report_borrow_past_resize(name: String, source: String, scope: Scope, class_information: Analysis.ClassInfo) {
+    var statements = borrow_statements
+    var start = borrow_index + 1
+    var saved_line = current_line
+    borrow_outlives_resize(name, source, statements, start, scope, class_information)
+    current_line = saved_line
+}
+
+func borrow_outlives_resize(
+    name: String,
+    source: String,
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = start
+    while index < statements.count() {
+        var statement = statements[index]
+        var resize = resize_in_statement(statement, source, scope, class_information)
+        if not resize.is_empty() {
+            var mentioned = List<String>()
+            if shape.as_while_statement(statement) {
+                collect_statement_names(statement, mentioned)
+            }
+            var rest_index = index + 1
+            while rest_index < statements.count() {
+                collect_statement_names(statements[rest_index], mentioned)
+                rest_index = rest_index + 1
+            }
+            if mentioned.contains(name) {
+                current_line = statement_line(statement)
+                report(
+                    "'{name}' is borrowed from '{source}', and {resize} may move the items of '{source}', so '{name}' is not read after it: read '{source}[index]' again after that line, or keep '{name}.copy()', an independent object",
+                )
+                return true
+            }
+            if borrow_outlives_resize_within(name, source, statement, scope, class_information) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func borrow_outlives_resize_within(
+    name: String,
+    source: String,
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch statement {
+        Syntax.Statements.IfStatement: {
+            if borrow_outlives_resize(name, source, statement.then_branch, 0, scope, class_information) {
+                return true
+            }
+            return borrow_outlives_resize(name, source, statement.else_branch, 0, scope, class_information)
+        }
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                var body = statement.cases[case_index].body
+                if borrow_outlives_resize(name, source, body, 0, scope, class_information) {
+                    return true
+                }
+                case_index = case_index + 1
+            }
+            return false
+        }
+        _: return false
+    }
+}
+
+func statement_line(statement: Syntax.Statements.Statement): Integer {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: return statement.line
+        Syntax.Statements.AssignmentStatement: return statement.line
+        Syntax.Statements.IfStatement: return statement.line
+        Syntax.Statements.WhileStatement: return statement.line
+        Syntax.Statements.SwitchStatement: return statement.line
+        Syntax.Statements.AssertStatement: return statement.line
+        Syntax.Statements.ReturnStatement: return statement.line
+        Syntax.Statements.ExpressionStatement: return statement.line
+        _: return current_line
+    }
+}
+
+func resize_in_statement(
+    statement: Syntax.Statements.Statement,
+    source: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var calls = List<Syntax.Expressions.Expression>()
+    var assigned = List<Syntax.Expressions.Expression>()
+    collect_statement_calls(statement, calls, assigned)
+    var line = statement_line(statement)
+    var index = 0
+    while index < assigned.count() {
+        var target = operand_text(assigned[index])
+        if target == source or source.starts_with("{target}.") {
+            return "assigning '{target}' on line {line}"
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < calls.count() {
+        var resize = call_resizes(calls[index], source, scope, class_information)
+        if not resize.is_empty() {
+            return "{resize} on line {line}"
+        }
+        index = index + 1
+    }
+    return resize_in_blocks(statement, source, scope, class_information)
+}
+
+func resize_in_blocks(
+    statement: Syntax.Statements.Statement,
+    source: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    switch statement {
+        Syntax.Statements.IfStatement: {
+            var in_then = resize_in_block(statement.then_branch, source, scope, class_information)
+            if not in_then.is_empty() {
+                return in_then
+            }
+            return resize_in_block(statement.else_branch, source, scope, class_information)
+        }
+        Syntax.Statements.WhileStatement: return resize_in_block(statement.body, source, scope, class_information)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                var body = statement.cases[case_index].body
+                var in_case = resize_in_block(body, source, scope, class_information)
+                if not in_case.is_empty() {
+                    return in_case
+                }
+                case_index = case_index + 1
+            }
+            return ""
+        }
+        _: return ""
+    }
+}
+
+func resize_in_block(
+    statements: List<Syntax.Statements.Statement>,
+    source: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var index = 0
+    while index < statements.count() {
+        var resize = resize_in_statement(statements[index], source, scope, class_information)
+        if not resize.is_empty() {
+            return resize
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func collect_statement_calls(
+    statement: Syntax.Statements.Statement,
+    calls: List<Syntax.Expressions.Expression>,
+    assigned: List<Syntax.Expressions.Expression>,
+) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: collect_optional_calls(statement.value, calls)
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            assigned.append(statement.target)
+            collect_optional_calls(statement.target, calls)
+            collect_optional_calls(statement.value, calls)
+        }
+        Syntax.Statements.IfStatement: collect_optional_calls(statement.condition, calls)
+        Syntax.Statements.WhileStatement: collect_optional_calls(statement.condition, calls)
+        Syntax.Statements.SwitchStatement: collect_optional_calls(statement.subject, calls)
+        Syntax.Statements.AssertStatement: collect_optional_calls(statement.value, calls)
+        Syntax.Statements.ReturnStatement: collect_optional_calls(statement.value, calls)
+        Syntax.Statements.ExpressionStatement: collect_optional_calls(statement.value, calls)
+        _: return
+    }
+}
+
+func collect_optional_calls(expression: Syntax.Expressions.Expression?, calls: List<Syntax.Expressions.Expression>) {
+    assert expression
+    collect_expression_calls(expression, calls)
+}
+
+func collect_expression_calls(expression: Syntax.Expressions.Expression, calls: List<Syntax.Expressions.Expression>) {
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            calls.append(expression)
+            collect_optional_calls(expression.callee, calls)
+            collect_each_expression_call(expression.arguments, calls)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            calls.append(expression)
+            collect_each_expression_call(expression.arguments, calls)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            collect_optional_calls(expression.left, calls)
+            collect_optional_calls(expression.right, calls)
+        }
+        Syntax.Expressions.UnaryExpression: collect_optional_calls(expression.operand, calls)
+        Syntax.Expressions.MemberExpression: collect_optional_calls(expression.object, calls)
+        Syntax.Expressions.IndexExpression: {
+            collect_optional_calls(expression.object, calls)
+            collect_optional_calls(expression.index, calls)
+        }
+        _: return
+    }
+}
+
+func collect_each_expression_call(
+    expressions: List<Syntax.Expressions.Expression>,
+    calls: List<Syntax.Expressions.Expression>,
+) {
+    var index = 0
+    while index < expressions.count() {
+        collect_expression_calls(expressions[index], calls)
+        index = index + 1
+    }
+}
+
+func call_resizes(
+    called: Syntax.Expressions.Expression,
+    source: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var printer = Syntax.SourcePrinter()
+    var construction = shape.as_generic_call(called)
+    if construction {
+        crash construction.callee
+        var constructed = called_name_of(construction.callee)
+        var construction_effects = call_effects.effects_of(constructed, constructed)
+        if effects_resize(construction_effects, source, construction.arguments, scope, class_information) {
+            return "'{printer.source_expression(construction.callee)}()'"
+        }
+        return ""
+    }
+    var call = shape.as_call(called)
+    crash call
+    crash call.callee
+    var callee_text = printer.source_expression(call.callee)
+    var member = shape.as_member(call.callee)
+    if member {
+        crash member.object
+        var resizing = ["append", "prepend", "insert", "remove_at", "remove_first", "remove_last", "clear"]
+        if operand_text(member.object) == source and resizing.contains(member.name) {
+            return "'{callee_text}()'"
+        }
+    }
+    var effects = resize_effects_of(call.callee, scope, class_information)
+    if effects_resize(effects, source, call.arguments, scope, class_information) {
+        return "'{callee_text}()'"
+    }
+    return ""
+}
+
+func resize_effects_of(
+    callee: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): List<String> {
+    var member = shape.as_member(callee)
+    if member {
+        crash member.object
+        var root = shape.as_identifier(member.object)
+        if root {
+            var known = scope.written_type(root.name) or class_information.find_field(root.name)
+            if not known and not call_effects.names_a_class(root.name) {
+                return call_effects.effects_of("*", member.name)
+            }
+        }
+    }
+    return called_effects(callee, scope, class_information)
+}
+
+func effects_resize(
+    effects: List<String>,
+    source: String,
+    arguments: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var links = proof_dependencies(source, scope, class_information)
+    var root = scope.path_root(source)
+    var local_root = false
+    if scope.unnarrowed_type(root) {
+        local_root = true
+    }
+    var index = 0
+    while index < effects.count() {
+        var effect = effects[index]
+        if effect_resizes(effect, source, links, local_root, arguments) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func effect_resizes(
+    effect: String,
+    source: String,
+    links: List<String>,
+    local_root: Boolean,
+    arguments: List<Syntax.Expressions.Expression>,
+): Boolean {
+    if effect == "shrink:*" or effect == "grow:*" {
+        return true
+    }
+    var effect_length = effect.length()
+    var position_text = ""
+    if effect.starts_with("parameter:") {
+        position_text = effect.slice(10, effect_length)
+    }
+    if effect.starts_with("grow:parameter:") {
+        position_text = effect.slice(15, effect_length)
+    }
+    if not position_text.is_empty() {
+        var position = position_text.to_integer()
+        assert position < arguments.count()
+        var passed = operand_text(arguments[position])
+        return not passed.is_empty() and (passed == source or source.starts_with("{passed}."))
+    }
+    if effect.starts_with("field:") {
+        assert not local_root
+        if effect == "field:*" {
+            return true
+        }
+        var written = effect.slice(6, effect_length)
+        var link_index = 0
+        while link_index < links.count() {
+            if links_meet(written, links[link_index]) {
+                return true
+            }
+            link_index = link_index + 1
+        }
+        return false
+    }
+    var resized = ""
+    if effect.starts_with("shrink:") {
+        resized = effect.slice(7, effect_length)
+    }
+    if effect.starts_with("grow:") {
+        resized = effect.slice(5, effect_length)
+    }
+    assert not resized.is_empty()
+    if local_root {
+        var resized_class = call_effects.field_classes.get(resized)
+        assert resized_class
+        return resized_class == "Vector"
+    }
+    assert not links.is_empty()
+    var vector_link = links.last()
+    return links_meet(resized, vector_link)
 }
 
 func borrowed_element(
@@ -17163,7 +18114,10 @@ func generate_statement_kind(
     }
     var assignment = shape.as_assignment_statement(statement)
     if assignment {
+        assert not report_borrowed_reassignment(assignment, scope)
+        borrow_site = assignment_site(assignment, scope)
         generate_assignment(assignment, scope, class_information)
+        borrow_site = ""
         return false
     }
     var if_statement = shape.as_if_statement(statement)
@@ -17182,7 +18136,9 @@ func generate_statement_kind(
     }
     var return_statement = shape.as_return_statement(statement)
     if return_statement {
+        borrow_site = "return"
         generate_return_statement(return_statement, scope, class_information, function_information)
+        borrow_site = ""
         return true
     }
     var switch_statement = shape.as_switch_statement(statement)

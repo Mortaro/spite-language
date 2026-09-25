@@ -202,6 +202,7 @@ func study_call(call: Syntax.Expressions.CallExpression) {
         if parameters.contains(callee_identifier.name) or local_sources.has(callee_identifier.name) {
             add_key("field:*")
             add_key("shrink:*")
+            add_key("grow:*")
             add_key("release")
             return
         }
@@ -221,6 +222,7 @@ func study_call(call: Syntax.Expressions.CallExpression) {
     study_expression(call.callee)
     add_key("field:*")
     add_key("shrink:*")
+    add_key("grow:*")
     add_key("release")
 }
 
@@ -230,6 +232,7 @@ func study_method_call(member: Syntax.Expressions.MemberExpression, argument_key
     if member.name == "call_function" {
         add_key("field:*")
         add_key("shrink:*")
+        add_key("grow:*")
         add_key("release")
         return
     }
@@ -239,6 +242,11 @@ func study_method_call(member: Syntax.Expressions.MemberExpression, argument_key
     if is_shrinking(member.name) {
         var shrunk = classify(member.object)
         add_key(shrunk)
+    }
+    if is_growing(member.name) {
+        var grown = classify(member.object)
+        var grown_key = growing_key(grown)
+        add_key(grown_key)
     }
     var receiver_class = owner_class(member.object)
     crash table
@@ -355,6 +363,19 @@ func is_shrinking(name: String): Boolean {
     return name == "clear" or name == "remove_at" or name == "remove_first" or name == "remove_last" or name == "remove"
 }
 
+func is_growing(name: String): Boolean {
+    return name == "append" or name == "prepend" or name == "insert"
+}
+
+func growing_key(key: String): String {
+    var key_length = key.length()
+    if key.starts_with("shrink:") {
+        return "grow:{key.slice(7, key_length)}"
+    }
+    assert key.starts_with("parameter:")
+    return "grow:{key}"
+}
+
 func add_release_key(owner: String, field: String) {
     crash table
     assert not table.plain_fields.has("{owner}#{field}")
@@ -362,7 +383,7 @@ func add_release_key(owner: String, field: String) {
 }
 
 func add_key(key: String) {
-    assert key != "fresh"
+    assert key != "fresh" and not key.is_empty()
     crash recorded
     recorded.add(key)
 }

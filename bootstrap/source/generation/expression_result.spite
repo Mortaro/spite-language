@@ -5,6 +5,7 @@ var constant_text = ""
 var peek_union: Analysis.UnionInfo? = null
 var peek_field = ""
 var peek_object = ""
+var borrowed_from = ""
 
 func ExpressionResult(starting_code: String, starting_spite_type: Analysis.SpiteType) {
     code = starting_code

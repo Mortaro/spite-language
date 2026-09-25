@@ -1,0 +1,11 @@
+second 30 30 3
+total 48 moving 12 count 12
+second 31 more 11
+11 second
+all true any true
+chained 61.5 11 11 11
+renamed 5 replacement
+copy 11 40
+cleared 0
+in an arena 1
+beta 1 4

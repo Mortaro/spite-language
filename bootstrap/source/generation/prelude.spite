@@ -194,6 +194,7 @@ func reopened_classes(): List<String> {
         "memory/heap"
         "memory/address"
         "typed_memory"
+        "inline_memory"
         "dynamic_library"
         "hot_reload"
         "concurrent"
@@ -345,6 +346,9 @@ func supplied_members(stem: String): List<String> {
     if stem == "typed_memory" {
         return typed_memory_members()
     }
+    if stem == "inline_memory" {
+        return inline_memory_members()
+    }
     if stem == "concurrent" {
         return concurrent_members()
     }
@@ -461,6 +465,25 @@ func typed_memory_members(): List<String> {
         "func release_value(address: Memory.Address, index: Integer)"
         "written per value type by the generator"
         "func value_bytes(): Long"
+        "written per value type by the generator"
+    ]
+}
+
+func inline_memory_members(): List<String> {
+    return [
+        "func item_at(address: Memory.Address, index: Integer): $value_type"
+        "written per value type by the generator"
+        "func write_item(address: Memory.Address, index: Integer, value: $value_type)"
+        "written per value type by the generator"
+        "func copy_item(source: Memory.Address, source_index: Integer, address: Memory.Address, index: Integer)"
+        "written per value type by the generator"
+        "func release_item(address: Memory.Address, index: Integer)"
+        "written per value type by the generator"
+        "func item_bytes(): Long"
+        "written per value type by the generator"
+        "func item_start(): Long"
+        "written per value type by the generator"
+        "func block_bytes(item_count: Integer): Long"
         "written per value type by the generator"
     ]
 }

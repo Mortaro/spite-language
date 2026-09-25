@@ -14,6 +14,8 @@ var bound_reasons = List<String>()
 var is_loop = false
 var rebindings = 0
 var paths_read_from_outside = List<String>()
+var borrow_names = List<String>()
+var borrow_sources = List<String>()
 
 func Scope(starting_parent: Scope?) {
     parent = starting_parent
@@ -65,6 +67,26 @@ func forget_owned(name: String) {
         }
         index = index - 1
     }
+}
+
+func declare_borrowed(name: String, spite_type: Analysis.SpiteType, source: String) {
+    declare(name, spite_type)
+    borrow_names.append(name)
+    borrow_sources.append(source)
+}
+
+func borrow_source(name: String): String {
+    var index = borrow_names.count() - 1
+    while index >= 0 {
+        if borrow_names[index] == name {
+            crash borrow_sources[index]
+            return borrow_sources[index]
+        }
+        index = index - 1
+    }
+    assert not entry_names.contains(name)
+    assert parent
+    return parent.borrow_source(name)
 }
 
 func declare_owned(name: String, spite_type: Analysis.SpiteType) {

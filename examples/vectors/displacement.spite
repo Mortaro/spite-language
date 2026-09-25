@@ -1,24 +1,24 @@
 var x_component = 0.0
 var y_component = 0.0
 
-func Vector(new_x: Float, new_y: Float) {
+func Displacement(new_x: Float, new_y: Float) {
     x_component = new_x
     y_component = new_y
 }
 
-func sum(other: Vector): Vector {
-    return Vector(x_component + other.x_component, y_component + other.y_component)
+func sum(other: Displacement): Displacement {
+    return Displacement(x_component + other.x_component, y_component + other.y_component)
 }
 
-func subtract(other: Vector): Vector {
-    return Vector(x_component - other.x_component, y_component - other.y_component)
+func subtract(other: Displacement): Displacement {
+    return Displacement(x_component - other.x_component, y_component - other.y_component)
 }
 
-func multiply(factor: Float): Vector {
-    return Vector(x_component * factor, y_component * factor)
+func multiply(factor: Float): Displacement {
+    return Displacement(x_component * factor, y_component * factor)
 }
 
-func equals(other: Vector): Boolean {
+func equals(other: Displacement): Boolean {
     return x_component == other.x_component and y_component == other.y_component
 }
 
