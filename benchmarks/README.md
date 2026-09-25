@@ -57,3 +57,24 @@ Only `fused_chain` walks a list of objects through a template, and it is the one
 Compiling the compiler (`spite bootstrap --run=false --c-source`, the compiler built with `clang -O1`, best of
 seven): 2 352 ms before this work, 2 198 ms after step 1, 1 953 ms after step 2 -- finding a class by its name
 or its C name was a walk over every class, and is now one dictionary lookup.
+
+### Step 3: numbers written into text in place, freed small objects kept for reuse, a cheaper dictionary hash, and the replaced defaults of `Spite.Function` and `Spite.Attribute`
+
+| benchmark | before ms | after ms | before allocations | after allocations |
+|---|---|---|---|---|
+| fused_chain | 139 | 149 | 200 009 | 200 009 |
+| dictionary_keys | 350 | 191 | 1 108 012 | 1 104 014 |
+| text_building | 270 | 156 | 5 500 225 | 800 227 |
+| reflection_walks | 435 | 261 | 11 756 022 | 7 596 024 |
+| function_values | 87 | 64 | 1 000 019 | 400 019 |
+| small_allocations | 143 | 78 | 9 004 013 | 9 004 013 |
+| parallel_calls | 150 | 126 | 680 074 | 440 074 |
+| stress | 103 | 105 | 150 049 | 150 049 |
+
+The machine was quieter for this step, so its `before` column is lower than step 2's `after`. `dictionary_keys`
+is timed against the step-2 compiler with the step-2 `library/dictionary.spite`; the other rows share the
+library, which a compiler reads from beside itself. Compiling the compiler: 1 905 ms before this work, 1 484 ms
+after step 2, 1 339 ms after step 3 (same machine state, best of seven).
+
+`stress` has not moved: its cost is reading `moving.position.left` through a `type`, where each read of the shape
+raises and lowers the component's count, which none of these steps removes.

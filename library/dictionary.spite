@@ -36,8 +36,8 @@ func has(key: String): Boolean {
 func remove(key: String) {
     var slot = find_slot(key)
     if slot >= 0 {
-        var position = slots.read_integer(slot * 4) - 1
-        slots.write_integer(slot * 4, -1)
+        var position = slots.read_integer(slot * 8) - 1
+        slots.write_integer(slot * 8, -1)
         entry_values.remove_at(position)
         entry_keys.remove_at(position)
         close_gap(position)
@@ -79,44 +79,49 @@ func index_of_key(key: String): Integer {
     if slot < 0 {
         return -1
     }
-    return slots.read_integer(slot * 4) - 1
+    return slots.read_integer(slot * 8) - 1
 }
 
 func find_slot(key: String): Integer {
     if slot_count == 0 {
         return -1
     }
-    var slot = home_slot(key)
-    var stored = slots.read_integer(slot * 4)
+    var hash = hash_of(key)
+    var fragment = fragment_of(hash)
+    var slot = home_slot(hash)
+    var stored = slots.read_integer(slot * 8)
     while stored != 0 {
-        if stored > 0 and entry_keys.get_at(stored - 1) == key {
+        if stored > 0 and slots.read_integer(slot * 8 + 4) == fragment and entry_keys.get_at(stored - 1) == key {
             return slot
         }
         slot = next_slot(slot)
-        stored = slots.read_integer(slot * 4)
+        stored = slots.read_integer(slot * 8)
     }
     return -1
 }
 
 func place(key: String, position: Integer) {
-    var slot = home_slot(key)
-    var stored = slots.read_integer(slot * 4)
+    var hash = hash_of(key)
+    var slot = home_slot(hash)
+    var stored = slots.read_integer(slot * 8)
     while stored > 0 {
         slot = next_slot(slot)
-        stored = slots.read_integer(slot * 4)
+        stored = slots.read_integer(slot * 8)
     }
     if stored == 0 {
         used_slots = used_slots + 1
     }
-    slots.write_integer(slot * 4, position + 1)
+    slots.write_integer(slot * 8, position + 1)
+    var fragment = fragment_of(hash)
+    slots.write_integer(slot * 8 + 4, fragment)
 }
 
 func close_gap(position: Integer) {
     var slot = 0
     while slot < slot_count {
-        var stored = slots.read_integer(slot * 4)
+        var stored = slots.read_integer(slot * 8)
         if stored > position + 1 {
-            slots.write_integer(slot * 4, stored - 1)
+            slots.write_integer(slot * 8, stored - 1)
         }
         slot = slot + 1
     }
@@ -136,12 +141,12 @@ func rebuild_slots() {
     if slots != 0 {
         heap.free(slots)
     }
-    slots = heap.allocate(grown * 4)
+    slots = heap.allocate(grown * 8)
     slot_count = grown
     used_slots = 0
     var slot = 0
     while slot < slot_count {
-        slots.write_integer(slot * 4, 0)
+        slots.write_long(slot * 8, 0)
         slot = slot + 1
     }
     var position = 0
@@ -152,14 +157,28 @@ func rebuild_slots() {
     }
 }
 
-func home_slot(key: String): Integer {
-    var hash: Long = 0
+func hash_of(key: String): UnsignedLong {
+    var hash: UnsignedLong = 1469598103934665603
+    var key_length = key.length()
     var index = 0
-    while index < key.length() {
-        hash = (hash * 31 + key.code_at(index)) % 1000000007
+    while index < key_length {
+        var code = key.code_at(index)
+        hash = hash.bits_exclusive_or(code) * 1099511628211
         index = index + 1
     }
-    return hash % slot_count
+    return hash
+}
+
+func home_slot(hash: UnsignedLong): Integer {
+    var high = hash.shifted_right(29)
+    var mixed = hash.bits_exclusive_or(high)
+    var slot: Integer = mixed.bits_and(slot_count - 1)
+    return slot
+}
+
+func fragment_of(hash: UnsignedLong): Integer {
+    var fragment: Integer = hash.shifted_right(32)
+    return fragment
 }
 
 func next_slot(slot: Integer): Integer {

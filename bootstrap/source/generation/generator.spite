@@ -5451,6 +5451,11 @@ func generate_text_join(
         var empty = render_string_literal("")
         return ExpressionResult(empty, text_type)
     }
+    var first_code = join.codes.first()
+    if join.codes.count() == 1 and join.views.contains(first_code) {
+        var original = join.originals.first()
+        return ExpressionResult(original, text_type)
+    }
     if join.codes.count() == 1 {
         var only = join.codes.first()
         if join.lines.is_empty() or join.released.contains(only) {
@@ -5491,6 +5496,17 @@ func text_join_leftmost(
 }
 
 func add_text_piece(join: TextJoin, code: String, owned: Boolean) {
+    var digits = digits_of(code)
+    if not digits.is_empty() {
+        flush_constant_text(join)
+        var view = next_temporary()
+        var viewed = digits_view(view, digits)
+        join.lines.append(viewed)
+        join.codes.append("(&{view})")
+        join.views.append("(&{view})")
+        join.originals.append(code)
+        return
+    }
     var constant = constant_texts.get(code)
     if constant {
         join.constant = "{join.constant}{constant}"
@@ -5503,6 +5519,54 @@ func add_text_piece(join: TextJoin, code: String, owned: Boolean) {
     if owned {
         join.released.append(temporary)
     }
+}
+
+func digits_view(view: String, digits: String): String {
+    return "char {view}_digits[24]; SpiteString {view} = SPITE_STATIC_STRING({view}_digits, spite_long_digits({view}_digits, (int64_t)({digits})));"
+}
+
+func digits_of(code: String): String {
+    var names = ["Integer", "Long"]
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var value_class = find_class_by_c_name("Spite{name}")
+        crash value_class
+        var converter = value_class.find_function("to_string")
+        crash converter
+        var prefix = "{converter.c_name}("
+        var written_in = converter.source_path
+        if written_in.is_empty() {
+            written_in = value_class.source_path
+        }
+        var file_name = words_of(name).join("_")
+        var own_converter = written_in.ends_with("library/{file_name}.spite")
+        if own_converter and code.starts_with(prefix) and code.ends_with(")") {
+            var prefix_length = prefix.length()
+            var code_length = code.length()
+            var inner = code.slice(prefix_length, code_length - 1)
+            assert balanced_parentheses(inner)
+            return inner
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func balanced_parentheses(code: String): Boolean {
+    var depth = 0
+    var index = 0
+    while index < code.length() {
+        var code_point = code.code_at(index)
+        if code_point == 40 {
+            depth = depth + 1
+        } else if code_point == 41 {
+            depth = depth - 1
+        }
+        assert depth >= 0
+        index = index + 1
+    }
+    return depth == 0
 }
 
 func flush_constant_text(join: TextJoin) {
@@ -12744,9 +12808,10 @@ func finish_allocated_class(information: Analysis.ClassInfo) {
         builder.replace_support(information.constructed_allocate_position, constructed_on_heap)
     }
     var released = builder.support_at(information.release_position)
+    var freed = object_free(information.c_name)
     var given_back = released.replace(
-        "SPITE_FREE(self);",
-        "if (self->spite_allocator != 0) \{\nself->spite_give_back(self->spite_allocator, self);\nreturn;\n}\nSPITE_FREE(self);",
+        freed,
+        "if (self->spite_allocator != 0) \{\nself->spite_give_back(self->spite_allocator, self);\nreturn;\n}\n{object_free(information.c_name)}",
     )
     builder.replace_support(information.release_position, given_back)
     assert information.copy_position >= 0
@@ -13098,10 +13163,17 @@ func emit_append_in_place(
         var string_spite_type = string_type()
         var piece_code = cast(piece_result.code, piece_type, string_spite_type)
         var temporary = next_temporary()
-        builder.add_user("SpiteString* {temporary} = {piece_code};")
-        builder.add_user("{target} = SpiteString_append({target}, {temporary});")
-        if owns(piece_result, piece) or not type_shape.as_string(piece_type) {
-            builder.add_user("SpiteString___release({temporary});")
+        var digits = digits_of(piece_code)
+        if digits.is_empty() {
+            builder.add_user("SpiteString* {temporary} = {piece_code};")
+            builder.add_user("{target} = SpiteString_append({target}, {temporary});")
+            if owns(piece_result, piece) or not type_shape.as_string(piece_type) {
+                builder.add_user("SpiteString___release({temporary});")
+            }
+        } else {
+            builder.add_user(
+                "\{ {digits_view(temporary, digits)} {target} = SpiteString_append({target}, &{temporary}); }",
+            )
         }
         index = index + 1
     }
@@ -17104,22 +17176,26 @@ func emit_constructed_allocate(
     information: Analysis.ClassInfo,
     replaced: List<String>,
     allocate_lines: List<String>,
+    initialize_lines: List<String>,
 ): String {
     var c_name = information.c_name
-    var initialize_lines = List<String>()
-    initialize_lines.append("static void {c_name}___init_constructed({c_name}* self) \{")
-    var field_index = 0
-    while field_index < information.fields.count() {
-        var field = information.fields[field_index]
-        var initial = field.default_value_code
-        if replaced.contains(field.name) {
-            initial = "0"
+    var constructed_lines = List<String>()
+    constructed_lines.append("static void {c_name}___init_constructed({c_name}* self) \{")
+    var line_index = 1
+    while line_index < initialize_lines.count() {
+        var line = initialize_lines[line_index]
+        var field_index = 0
+        while field_index < information.fields.count() {
+            var field = information.fields[field_index]
+            if replaced.contains(field.name) and line == "self->{c_value_name(field.name)} = {field.default_value_code};" {
+                line = "self->{c_value_name(field.name)} = 0;"
+            }
+            field_index = field_index + 1
         }
-        initialize_lines.append("self->{c_value_name(field.name)} = {initial};")
-        field_index = field_index + 1
+        constructed_lines.append(line)
+        line_index = line_index + 1
     }
-    initialize_lines.append("}")
-    var joined_initialize_lines = initialize_lines.join("\n")
+    var joined_initialize_lines = constructed_lines.join("\n")
     builder.add_support(joined_initialize_lines)
     var joined_allocate_lines = allocate_lines.join("\n")
     var constructed = joined_allocate_lines.replace(
@@ -17135,7 +17211,7 @@ func emit_constructed_allocate(
 func constructor_replaced_fields(information: Analysis.ClassInfo): List<String> {
     var replaced = List<String>()
     assert information.constructor and not hot_reload and not information.is_singleton
-    assert not information.is_value_class and information.c_name != "Spite_Function" and information.c_name != "Spite_Attribute"
+    assert not information.is_value_class
     var parameter_names = information.constructor.parameters.map_name()
     var body = information.constructor.body
     var index = 0
@@ -17275,6 +17351,13 @@ func constant_scalar_code(code: String): Boolean {
     return true
 }
 
+func object_free(c_name: String): String {
+    if hot_reload {
+        return "SPITE_FREE(self);"
+    }
+    return "SPITE_FREE_SIZED(self, sizeof({c_name}));"
+}
+
 func emit_class_prototypes(information: Analysis.ClassInfo) {
     builder.add_prototype("void {information.c_name}___init({information.c_name}* self);")
     builder.add_prototype("{information.c_name}* {information.c_name}___allocate(void);")
@@ -17364,7 +17447,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
     var allocating = "{information.c_name}___allocate"
     var replaced = constructor_replaced_fields(information)
     if not replaced.is_empty() {
-        allocating = emit_constructed_allocate(information, replaced, allocate_lines)
+        allocating = emit_constructed_allocate(information, replaced, allocate_lines, initialize_lines)
     }
     var make_lines = List<String>()
     make_lines.append("{information.c_name}* {information.c_name}___make({constructor_parameter_list(information)}) \{")
@@ -17436,7 +17519,8 @@ func emit_class_support(information: Analysis.ClassInfo) {
     release_lines.append("#ifdef SPITE_TRACKS_{information.c_name}")
     release_lines.append("spite_untrack_{information.c_name}(self);")
     release_lines.append("#endif")
-    release_lines.append("SPITE_FREE(self);")
+    var freed = object_free(information.c_name)
+    release_lines.append(freed)
     release_lines.append("}")
     var joined_release_lines = release_lines.join("\n")
     information.release_position = builder.support_count()
@@ -17701,6 +17785,10 @@ func emit_string_support(information: Analysis.ClassInfo) {
     builder.add_prototype("SpiteString* spite_string_from_bytes(const char* bytes, int64_t length);")
     builder.add_prototype("SpiteString* spite_string_from_cstring_owned(const char* text);")
     builder.add_prototype("SpiteString* spite_string_join(int32_t count, SpiteString* const* pieces);")
+    builder.add_prototype("static int64_t spite_long_digits(char* digits, int64_t value);")
+    builder.add_support(
+        "static int64_t spite_long_digits(char* digits, int64_t value) \{\nchar reversed[24];\nint64_t count = 0;\nuint64_t rest = value < 0 ? (uint64_t)0 - (uint64_t)value : (uint64_t)value;\ndo \{ reversed[count] = (char)('0' + rest % 10); count = count + 1; rest = rest / 10; } while (rest != 0);\nint64_t length = 0;\nif (value < 0) \{ digits[0] = '-'; length = 1; }\nwhile (count > 0) \{ count = count - 1; digits[length] = reversed[count]; length = length + 1; }\nreturn length;\n}",
+    )
     var initialize_lines = List<String>()
     initialize_lines.append("void SpiteString___init(SpiteString* self) \{")
     var field_index = 0
@@ -17726,7 +17814,7 @@ func emit_string_support(information: Analysis.ClassInfo) {
     )
     crash information.drop_function
     builder.add_support(
-        "void SpiteString___release(SpiteString* self) \{\nif (self == 0 || self->_section_ == Spite_Memory_Section_constant) return;\nif (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;\n{information.drop_function.c_name}(self);\nSPITE_FREE(self);\n}",
+        "void SpiteString___release(SpiteString* self) \{\nif (self == 0 || self->_section_ == Spite_Memory_Section_constant) return;\nif (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;\n{information.drop_function.c_name}(self);\n{object_free("SpiteString")}\n}",
     )
     builder.add_support(
         "SpiteString* SpiteString_append(SpiteString* left, SpiteString* right) \{\nif (left->_section_ == Spite_Memory_Section_constant || left->header.ref_count != 1) \{\nSpiteString* alone = {unshared.c_name}(left);\nSpiteString___release(left);\nleft = alone;\n}\n{append_in_place.c_name}(left, SpiteString___retain(right));\nreturn left;\n}",

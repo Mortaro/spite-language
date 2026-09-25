@@ -55,6 +55,9 @@ function with a visible effect can show, no optimisation changes what a program 
 | [Defaults the constructor replaces are never made](#defaults-the-constructor-replaces-are-never-made) | built | every but `--hot-reload` | fewer allocations |
 | [A function value describes its arguments when asked](#a-function-value-describes-its-arguments-when-asked) | built | every | fewer allocations per function value and per `Parallel` |
 | [A list's templates read its elements without counting them](#a-lists-templates-read-its-elements-without-counting-them) | built | every but `--hot-reload` | nothing but speed |
+| [A number joined into text is written in place](#a-number-joined-into-text-is-written-in-place) | built | every | fewer allocations |
+| [Freed small objects are kept for the next one](#freed-small-objects-are-kept-for-the-next-one) | built | production, not `--debug-memory` | memory a thread freed stays with the program |
+| [A dictionary hashes a key once, cheaply](#a-dictionary-hashes-a-key-once-cheaply) | built | every | nothing but speed |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
@@ -780,15 +783,17 @@ that assign an attribute a parameter or a literal -- before anything else can re
 construction that has no effect but the memory it takes: a `List`, a `Dictionary`, or a class with no `drop()`,
 not a singleton, whose own constructor only copies its parameters and literals into its attributes and whose
 own defaults are made the same way. `Spite.Class('Nothing')`, the default of every function value's `returns`
-and every argument's `class`, is one; a default whose constructor prints is not.
+and every attribute's and argument's `class`, is one (three allocations: the class object and its two lists); a
+default whose constructor prints is not.
 
 **When.** Every build but `--hot-reload` (whose constructors can be swapped for ones that read the attribute first),
 for objects made by their constructor; an object given an allocator on the next line still makes its defaults.
 
 **What you notice.** Fewer allocations under `--debug-memory` -- one per discarded object, and those it holds:
 `benchmarks/fused_chain`, which makes 100 000 items that each replace their default `Owner`, went from 300 009 to
-200 009. Nothing else: the discarded default was never reachable. **Built** (2026-09-25; proposed by Claude,
-unconfirmed).
+200 009, and `benchmarks/reflection_walks`, whose `.attributes` walk makes a `Spite.Attribute` per attribute, from
+10 620 024 to 7 620 024. Nothing else: the discarded default was never reachable. **Built** (2026-09-25; proposed
+by Claude, unconfirmed; `Spite.Function` and `Spite.Attribute` since the third step of `benchmarks/README.md`).
 
 ### A function value describes its arguments when asked
 
@@ -802,10 +807,11 @@ so two threads reading it at once see one list). Together with the discarded def
 **When.** Every function value the compiler makes: `Parallel(summer.total)`, `apply(scorer.score, 3)`, a shape's
 function passed on. A `.functions` list is reflection read on purpose, so its values are still described at once.
 
-**What you notice.** Fewer allocations: a `Parallel` makes 9 fewer (`conformance/stage6/singleton_counts`, two
-`Parallel`s, went from 134 to 116; `benchmarks/parallel_calls` from 52 per round of two to 34), and passing a
-function value makes 5 instead of 10 (`benchmarks/function_values`, from 2 000 019 to 1 000 019). `.arguments`
-answers the same list, in the same order, whenever it is read. **Built** (2026-09-25; proposed by Claude,
+**What you notice.** Fewer allocations: with the defaults above, a `Parallel` makes 10 where it made 25
+(`conformance/stage6/singleton_counts`, two `Parallel`s, went from 134 to 104; `benchmarks/parallel_calls` from
+52 per round of two `Summer`s and two `Parallel`s to 22), and passing a function value makes 2 instead of 10 --
+the value and its empty list (`benchmarks/function_values`, from 2 000 019 to 400 019). `.arguments` answers the
+same list, in the same order, whenever it is read. **Built** (2026-09-25; proposed by Claude,
 unconfirmed).
 
 ### A list's templates read its elements without counting them
@@ -829,6 +835,51 @@ program with threads.
 **What you notice.** Speed: `benchmarks/fused_chain`, four chains over 100 000 objects run 300 times, went from
 332 ms to 185 ms. Allocations and everything a program prints are the same. **Built** (2026-09-25; proposed by
 Claude, unconfirmed).
+
+### A number joined into text is written in place
+
+**What it does.** `"line {index} of {round};"` used to turn `index` and `round` into texts of their own -- two
+allocations each -- only to copy them into the result and free them. An `Integer` or `Long` piece of a text join,
+or of an append in place (`text = "{text}{count}"`), is now written as digits into a buffer in the function's own
+frame and copied from there: the same digits the library's `to_string()` writes, and no allocation. A program that
+reopens `Integer` or `Long` with a `to_string()` of its own keeps calling it.
+
+**When.** Every build, for whole numbers of those two classes. A number alone in a text (`"{index}"`) still makes
+one text, since that text is the result.
+
+**What you notice.** Fewer allocations: `conformance/stage6/text_building` went from 39 to 35, and
+`benchmarks/text_building` from 5 500 225 to 800 267. **Built** (2026-09-25; proposed by Claude, unconfirmed).
+
+### Freed small objects are kept for the next one
+
+**What it does.** Most of what a program allocates is small objects made and dropped in a loop, and the system
+allocator's lock and bookkeeping were most of the cost of each (on Windows, `RtlAllocateHeap` and `RtlFreeHeap`
+were 40-70% of the time of `benchmarks/small_allocations`, `text_building` and `reflection_walks`). When an
+object of up to 256 bytes is freed, its block is now kept on a list for its size (in steps of 16 bytes), one set
+of lists per thread, and the next allocation of that size takes it back: two pointer moves instead of two calls
+into the system. Every block still comes from the C allocator, and anything larger, or any memory a program asks
+`Memory.Heap` for, goes straight to it.
+
+**When.** Production builds, the ones without `--debug-memory` (whose allocation table has to see every
+allocation and free, so it keeps doing so) or `--hot-reload`. It is the floor under every object, so every
+program that frees an object uses it; it is about thirty lines of the prelude, not a runtime of its own.
+
+**What you notice.** Speed: `benchmarks/small_allocations` went from 168 ms to 102 ms, `reflection_walks` from 507
+to 332, `text_building` from 333 to 275. `Program.live_allocations()` and `--debug-memory` count exactly as
+before, since a kept block counts as freed. The cost: up to 1 024 blocks of each of the 16 sizes -- about 2 MB at
+most -- stay with each thread that freed them instead of going back to the system, and a thread's kept blocks are
+not handed back when it ends. **Built** (2026-09-25; proposed by Claude, unconfirmed).
+
+### A dictionary hashes a key once, cheaply
+
+**What it does.** `library/dictionary.spite` hashed a key with a multiply and a division by a prime for every
+character, and on a hit compared the whole key text. It now hashes with a multiply and an exclusive or per
+character on an `UnsignedLong` (FNV-1a), keeps 32 bits of that hash in the slot beside the key's position, and
+compares key texts only when those bits match.
+
+**When.** Every `Dictionary`, in every build. **What you notice.** Speed: `benchmarks/dictionary_keys` went from
+413 ms to 282 ms. Keys, values and their order are the same, and so is every allocation: the slot table is still
+one block, twice as large. **Built** (2026-09-25; proposed by Claude, unconfirmed).
 
 ## Planned
 
