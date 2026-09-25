@@ -600,7 +600,14 @@ All of it is proposed by Claude, unconfirmed.
 192. **D179, how strict.** Built as: a `Parallel(work)` may not reach an attribute holding a list or an object,
      even one only its own instance holds (a `Pump`'s own buffer list), since the compiler cannot tell owned from
      shared; `Lock` and `ThreadLocal` are allowed as made-to-share. Loosen it to "its own instance's attributes of
-     any type" (which admits a shared `Meter`), or keep it strict?
+     any type" (which admits a shared `Meter`), or keep it strict? **SlopEngine's experience (2026-09-26):** the
+     strict rule made it rewrite four pool tasks into busywork -- `CookTask` carries its recipe ids as comma-joined
+     text and parses them back, `ChangeCheck` carries two lists as newline-joined text, `TextureLoad` copies a
+     record's three fields out and rebuilds it inside `run`, `DialTask` returns its socket instead of keeping it.
+     Two middle grounds it proposes (Claude, unconfirmed): (a) allow an attribute whose object nothing else uses
+     after `Parallel(...)` is made -- the compiler proves the task's instance is the only holder, the way D204
+     proves a borrow, and a use afterwards is the error; (b) allow a `List` of values (numbers, text, enums), which
+     cannot be shared by reference.
 193. **`first()`/`last()` as `T?`.** Built, by the same argument as `[]` (a missing element is a normal outcome, D199).
      `remove_first()`/`remove_last()` still answer the default on an empty list; make them `T?` too?
 194. **`Weak<T>` across threads.** A `Weak` read on one thread while another frees the object is a race today;
