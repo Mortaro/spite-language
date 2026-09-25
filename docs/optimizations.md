@@ -961,11 +961,15 @@ read from an attribute, where the value lives in its object) and `'heap'` when i
 `'constant'`, as before. Text passed where a `type` shape is wanted -- a `Printable` given to `console.print`,
 `attribute.value` -- is put in a box, one allocation, as a number is (written text has a box in the program and
 allocates nothing) ([below](#boxing-only-where-a-value-travels-as-a-shape)). A `List<String>` holds sixteen bytes
-per element instead of an eight-byte pointer. Why 15 and not 22: of the 4.7 million texts the compiler makes
-compiling itself, 68% are 15 bytes or fewer and 78% are 22 or fewer, and 22 would take a third machine word in
-every `String` -- a `List<String>` half as large again -- where 15 fits in the two a long text needs anyway (where
-its characters are, and how many). **Built** (2026-09-26; the size and the layout proposed by Claude,
-unconfirmed).
+per element instead of an eight-byte pointer. Speed: `benchmarks/dictionary_keys` allocates 1 032 times instead of
+1 104 014, `text_building` 165 instead of 800 227 and `reflection_walks` 3 999 918 instead of 7 596 024, and each
+is 15-25% faster; SlopEngine's `stress` allocates 5.6 million times instead of 7.2. The cost that remains: a
+`Dictionary` looked up by a key longer than 15 bytes is about 10% slower, since the key travels as sixteen bytes
+and is compared through its form ([benchmarks/README.md](../benchmarks/README.md)). Why 15 and not 22: of the 4.7
+million texts the compiler makes compiling itself, 68% are 15 bytes or fewer and 78% are 22 or fewer, and 22 would
+take a third machine word in every `String` -- a `List<String>` half as large again -- where 15 fits in the two a
+long text needs anyway (where its characters are, and how many). **Built** (2026-09-26; the size and the layout
+proposed by Claude, unconfirmed).
 
 ## Planned
 

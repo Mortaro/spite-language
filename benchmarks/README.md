@@ -106,3 +106,41 @@ raises and lowers the component's count, which none of these steps removes.
 In a program without threads a retain is one plain add and `stress` spends its time filling rows and spawning, so
 nothing moves; with atomic counts, as SlopEngine has whenever it runs systems in parallel, the ticks are a fifth
 faster. The second row is the same two C files built with `-DSPITE_THREADS` prepended.
+
+### Short text inside the `String` (D203)
+
+A `String` is a sixteen-byte value and keeps text of up to 15 bytes in itself
+([optimizations.md](../docs/optimizations.md#short-text-lives-inside-the-string)). `before` is the compiler at
+`1e1162d`, each side in its own tree; best of three interleaved rounds of seven runs, on a machine other sessions
+were loading (the same binary moved by up to 80% between rounds, so a row within 10% has not moved). The
+allocation counts are exact.
+
+| benchmark | before ms | after ms | before allocations | after allocations |
+|---|---|---|---|---|
+| fused_chain | 154 | 155 | 200 009 | 200 007 |
+| dictionary_keys | 207 | 177 | 1 104 014 | 1 032 |
+| text_building | 173 | 143 | 800 227 | 165 |
+| reflection_walks | 298 | 219 | 7 596 024 | 3 999 918 |
+| function_values | 85 | 85 | 400 019 | 400 013 |
+| small_allocations | 100 | 99 | 9 004 013 | 9 004 009 |
+| parallel_calls | 176 | 164 | 440 074 | 440 041 |
+| stress | 127 | 128 | 150 049 | 150 043 |
+
+Compiling the compiler: 1 372 ms before, 1 295 ms after (best of five, interleaved). Of the 4.7 million texts it
+makes compiling itself, 68% are 15 bytes or fewer.
+
+SlopEngine, from a copy, each example built `--optimized` with `clang -O2` (best of five whole runs) and once more
+with `--debug-memory` for the count:
+
+| example | before ms | after ms | before allocations | after allocations |
+|---|---|---|---|---|
+| `stress` (200 000 entities) | 1 518 | 1 485 | 7 202 769 | 5 602 651 |
+| `click_counter_test` (Vulkan, hidden window) | 975 | 984 | 78 363 | 63 883 |
+| `flex_layout` | 71 | 73 | 127 330 | 99 824 |
+
+In `stress`, spawning (463 → 455 ms) and the average tick (43.0 → 42.6 ms) did not get slower, but the ticks right
+after despawning everything, which look each column up by a name of 16 to 22 bytes once per entity, did: 89 → 100
+ms for sixty ticks. A dictionary lookup by a key longer than 15 bytes is about 10% slower than before (a lookup
+loop over four such keys: 190 → 210 ms), because the key is passed as sixteen bytes rather than a pointer and
+compared through the form it takes. Before `code_at` became the compiler's (the third D203 commit) the same loop
+took 315 ms: the hash re-copied the key for every character.

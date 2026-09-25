@@ -578,7 +578,13 @@ All of it is proposed by Claude, unconfirmed.
      place, and `[]` is not offered on a `Vector` at all; the engine's systems already work this way.
      Also: a class stored in a `Vector` must be of known size (numbers, `Boolean`, enums, short text), so is a
      `Vector` of a class holding a `List` an error? Which?
-183. **A fixed-size text for inline components.** With D203, text up to 22 bytes is inline, so `Vector<Name>` has a
+183. **A fixed-size text for inline components.** With D203, text up to 15 bytes is inline (built: a `String` is
+     sixteen bytes; 22 would have made it twenty-four, see `docs/optimizations.md`), so `Vector<Name>` has a
      fixed stride and only a longer name points out to the heap. Is that enough, or do you want a capped
      `ShortText<32>` that refuses longer text?
+184. **What `.memory.section` says for short text (D203).** Text of up to 15 bytes lives in the sixteen bytes of
+     the `String` itself, so its characters are wherever the value is. Built (Claude, unconfirmed): `'stack'` for
+     a local, `'heap'` read from an attribute, `'constant'` for a literal as before, and `'heap'` for long text.
+     Would you rather have a fourth section, `'inline'`, that says the characters are in the value, wherever it
+     is?
 
