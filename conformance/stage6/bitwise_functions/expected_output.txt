@@ -1,0 +1,23 @@
+and 2 or 15 exclusive or 13
+inverted -12 left 44 right 5
+negative right -5 left -40
+negative and 236 inverted 19
+int all ones -1 -2147483648 32
+int by 0 11 11
+int by 32 0 0 -1
+int by 100 -1 0
+unsigned int 1 2147483648 0
+unsigned int inverted 0 32
+tiny -1 -1 0 127
+tiny one -128 0
+byte 1 128 0 0
+byte counts 8 0 0
+small -1 -1 32767
+unsigned short 1 32768 0
+every bit -1 -9223372036854775808 -1 64
+long high bit 1099511627776 23 40
+unsigned long 1 9223372036854775808 0
+unsigned long inverted 0 0
+zero counts 0 32 32
+argument cast to the receiver 15 15
+receiver keeps its width 224 792

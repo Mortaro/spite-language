@@ -227,6 +227,26 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Int { ret
   the compiler's (a C cast, emitted inline, so a cast costs what it did), and `--final_classes` prints the
   declaration in every number class. `type` may name a parameter and begin a type path for this, although it is
   a keyword elsewhere (proposed by Claude, unconfirmed).
+- **Bitwise operations are functions of the whole-number classes** (D117, decided by Mortaro; the names and the
+  rules below proposed by Claude, unconfirmed). `Tiny`, `Short`, `Int`, `Long`, `Byte`, `UnsignedShort`,
+  `UnsignedInt` and `UnsignedLong` each answer `shifted_left(count: Int)`, `shifted_right(count: Int)`,
+  `bits_and(other)`, `bits_or(other)`, `bits_exclusive_or(other)` and `bits_inverted()`, all returning the
+  receiver's type, and `set_bit_count()`, `leading_zero_count()` and `trailing_zero_count()`, returning an `Int`
+  (the width for 0). There are no operator symbols for them. They are bodiless declarations the compiler
+  supplies (D82), so `--final_classes` prints them in each class, and each body is the single C operation,
+  inlined in an optimised build. The rules, so no undefined C behaviour reaches a program:
+  - `shifted_right` is **arithmetic on a signed type** (the sign bit is copied in: an `Int` -20 shifted right by 2
+    is -5) and **logical on an unsigned one** (zeros come in). `shifted_left` always brings zeros in, and a bit
+    moved past the top is lost, so the result wraps like any narrowing (a `Tiny` 1 shifted left by 7 is -128).
+  - **A count of the width or more shifts every bit out**: the answer is 0, or -1 for a negative signed value
+    shifted right. **A negative count halts the program**, naming the function and the count
+    (`spite: UnsignedShort.shifted_right was given the count -2, and a shift count is 0 or more`).
+  - **The other operand is cast to the receiver's type**, the ordinary argument-to-parameter cast: a `Byte`'s
+    `bits_and` of a `Long` keeps the `Long`'s low 8 bits and answers a `Byte`; a `Long`'s `bits_and` of a `Byte`
+    widens the `Byte`. The count is an `Int`. This does not settle `mortaros_missing_decisions.md` item 88
+    (which operand's type arithmetic takes).
+  - Called on `Float`, `Double` or `Bool`, they are an error naming the whole numbers
+    (`diagnostics/bitwise_on_float`). `conformance/stage6/bitwise_functions` and `negative_shift` pin them.
 - **`this` works in every class** (proposed by Claude, unconfirmed): it is the instance a function answers on,
   for handing itself to something -- `registry.append(this)`. Reading your own member through it is an error,
   because a class already reads its members by name: `this.name` is reported as "write 'name', not
@@ -933,8 +953,8 @@ nothing in it can be mistaken for a user class. **[implemented]**
 
 | Object | Members |
 |---|---|
-| `Spite.Class` | `.name: Symbol` (D68), `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, plus the class-level functions a class may override ([above](#class-level-functions-and-why-there-are-no-static-functions-planned)) |
-| `Spite.Function` | `.name: String`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `.owner`, `call_function()` |
+| `Spite.Class` | `.name: Symbol` (D68), `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `has_function(name)` (D114; folds on a codegen type), plus the class-level functions a class may override ([above](#class-level-functions-and-why-there-are-no-static-functions-planned)) |
+| `Spite.Function` | `.name: String`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `.owner`, `call_function()`, `name_fits(pattern)` (D116) |
 | `Spite.Argument` | `.name: String`, `.class: Spite.Class` |
 | `Spite.Attribute` | `.name: String`, `.class: Spite.Class`, `.value: String` |
 | `Spite.Namespace` | `.name: String` (the segment), `.name_with_namespaces: String` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
@@ -1277,6 +1297,76 @@ func show_attribute(attribute: Symbol<Label>, label: Label, lines: List<String>)
 ```
 
 `conformance/stage6/every_attribute`, `docs/metaprogramming.md`.
+
+### A class's functions, a folder's classes and a name's pattern  **[implemented; the spellings proposed by Claude, unconfirmed]**
+
+D114, D115 and D116 (decided by Mortaro in the SlopEngine session) are one mechanism: the Symbol templates above,
+ranging over three more things a program already has -- a function's arguments, a folder's classes, and the
+functions whose names fit a pattern -- plus one question a generic asks of its type. Everything is decided while
+compiling: there is no registry, no list walked at run time, and nothing is generated for a name no program
+calls. The spellings below are Claude's (2026-09-24), chosen to be the existing forms read one step further:
+
+- **`$system_type.has_function('run_each')` in a condition folds like `if $is_magic`** (D114). The name is a
+  literal -- a symbol, or text holding a pattern such as `"<phase>_each"` (D116), which is true when some
+  function's name fits it with a non-empty middle. Only the taken branch is compiled, so it may call what only
+  that type has; any other argument is an error (`diagnostics/function_reflection`). It is an ordinary member of
+  `Spite.Class` (`library/spite/class.spite`, D92), so `klass.has_function("boost")` also answers at run time,
+  from `.functions`. Folded, it counts the functions the class declares: not its constructor, not a `_`
+  function, and not what a template generated for it.
+- **`argument: Symbol<$system_type.run_each>` ranges over the arguments of `run_each`** (D114). A `Symbol<X>`
+  already ranged over X's members; a function's members are its arguments. Inside, `argument.name` is the
+  argument's name and `argument.class` its type, written as a type (`Query<argument.class>()`,
+  `): argument.class`, and `argument.class.element_type` for a `List<Row>` argument) or read as a
+  `Spite.Class`. The plural (`count_arguments()`) calls the template once per argument, in order. When
+  `$system_type` has no `run_each`, the template answers nothing and the plural calls nothing.
+- **A template over arguments that returns a value fills a call** (D114): its plural, written as the whole
+  argument list of a call to that same function, passes one value per argument --
+  `system.run_each(row_arguments())` is `system.run_each(row_potion(), row_target())`, evaluated left to
+  right. That is how one generic calls a function of any arity without variadic generics. Anywhere else such a
+  plural is an error naming the call it belongs in, and so is passing it to a different function
+  (`diagnostics/function_reflection`). D77's one-level rule does not apply to it: the call it stands for is
+  written by the compiler.
+- **`system: Symbol<System>` ranges over the classes of every folder named `system`** (D115): `System.Heal`,
+  `Ui.System.Interact` -- a range that names no class or type is read as the end of a dotted namespace, and the
+  classes of every namespace ending in it are walked in order of their dotted names. Inside, `system.class` is
+  the class (so `Runner<system.class>()` instantiates the generic per class) and `system.name` its dotted name;
+  the single instance is named after the whole path (`add_system_ui_system_interact`). A generic class there is
+  skipped, since it has no values to be made with. A range that matches no folder at all is an error, so a typo
+  is not a silent empty walk.
+- **`phase: Symbol<$system_type.phase_each>` ranges over the functions whose names fit `<phase>_each`** (D116):
+  when the parameter's own name is a word of the function name in the range, that word is the hole, exactly as
+  it is in a template's own name. `update_each` gives `phase` = `'update'`; `run_each_before_phase` would match
+  `run_each_before_render`. The plural (`run_phases_each()`) walks the matching functions in declaration order.
+  Inside, `phase.name` is the matched text, and the pattern written as a member -- `system.phase_each(...)` --
+  calls the matched function; another template ranging over `$system_type.phase_each` from inside walks that
+  function's arguments, its instances named for it (`row_potion_in_update_each`) so two matched functions never
+  share one. The engine owns the list of phases and decides what they mean; the language only reads the name.
+
+```gdscript
+func add_system(system: Symbol<System>) {
+    var runner = Runner<system.class>()
+    runners.append(runner)
+}
+
+func run_phase_each(phase: Symbol<$system_type.phase_each>) {
+    counts.clear()
+    count_arguments()
+    ...
+    system.phase_each(row_arguments())
+}
+
+func row_argument(argument: Symbol<$system_type.phase_each>): argument.class {
+    var query = Query<argument.class>()
+    ...
+}
+```
+
+`--final_classes` shows the result as ordinary functions: `add_system_drink_potion()` holding
+`Runner<System.DrinkPotion>()`, and `RunnerDrinkPotion` with `run_update_each()`, `row_potion_in_update_each():
+Potion` and the rest. `conformance/stage6/system_functions` (a `run_each` of two rows and a `run_all` of a list,
+chosen by `has_function`), `conformance/stage6/system_folder` (`system/` and `ui/system/` found with no list),
+`conformance/stage6/system_phases` (two phases run in the engine's order, not the folder's),
+`docs/metaprogramming.md`, `docs/reflection.md`.
 
 ### Standard library metaprogramming  **[partial]**
 
@@ -3591,6 +3681,12 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (proposed by Claude, unconfirmed; a bug found building SlopEngine) **The compiler's own C names join with `___`, and a Spite name has one `_` between words.** A method named `allocate` failed in clang ("conflicting types for 'X_allocate'") because the generator wrote `<Class>_allocate` beside the class's `<Class>_<function>`. Instead of reserving each word, every name the generator makes for a class or function of its own -- allocate, init, default, make, retain, release, class_of, attributes, functions, instances, deep_copy, read_/write_/assign_/call_ accessors, an enum's name, and a function's hot, slot, waiting, perform, call and text_call -- is now `<owner>___<helper>`, and the naming lint rejects `__` inside a name, a trailing `_`, and more than one leading `_`, so no Spite name produces `___`. `copy`, `to_string` and `to_debug` keep their plain names: they are Spite functions every class answers and may declare. `init` stays an error as an abbreviation and `default` as a C keyword. Section 12; `conformance/stage6/generated_names`, `diagnostics/doubled_underscore`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; a bug found building SlopEngine's Vulkan renderer) **A foreign call's arguments cross at the width C wants.** `vkMapMemory(device, memory, 0, size, 0, out)` passed the literal `0` as a 32-bit `int` where C wanted a 64-bit `VkDeviceSize`, leaving the register's upper half undefined, silently. With a header, the call now goes through the header's prototype (`__typeof__(&Symbol)`, with `__builtin_choose_expr` for a `void` result), so C checks the count and converts every argument, allowing only integer-to-pointer conversion (a handle is a `Long`); without one, every signed integer, `Bool` and enum value is passed as `int64_t` and every unsigned one as `uint64_t`, which is what x64 and 64-bit ARM pass in a register or 8-byte slot anyway. Section 17, `docs/foreign_libraries.md`; `conformance/stage6/foreign_library` passes -1 to a `long long` with and without a header, a `Double` to a `float`, a `Long` to a `void*` and calls a `void` function. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; found building SlopEngine's Vulkan renderer, which needed `TypedMemory<Float>` to write a float into a C struct) **`Memory` reads and writes every width a C struct uses**: `read_short`/`write_short` (`Short`), `read_unsigned_short`/`write_unsigned_short` (`UnsignedShort`), `read_unsigned_int`/`write_unsigned_int` (`UnsignedInt`) and `read_float`/`write_float` (`Float`) join the byte, int, long and double ones as bodiless functions the compiler supplies, and lend an address the way the others do (D108). `Tiny` and `UnsignedLong` are left out: `read_byte` and `read_long` hold the same bits, and a cast reads them. Section 15, `docs/memory.md`; `conformance/stage6/memory_floor`. |
+| 2026-09-24 | **D117** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 87): **bitwise operations are functions on the number classes**: "lets add the bitwise functions." Shifts, and, or, exclusive or and not are named functions every whole-number class answers (D83), not operator symbols -- the spelled-out form the binary-format ports asked for -- compiled to the single C operation, so zstd, Huffman and PSD code stops faking them with division by powers of two. The names are proposed by Claude and waiting for Mortaro's confirmation. |
+| 2026-09-24 | (implements D117; the names and rules proposed by Claude, unconfirmed) **The whole numbers answer `shifted_left(count)`, `shifted_right(count)`, `bits_and(other)`, `bits_or(other)`, `bits_exclusive_or(other)`, `bits_inverted()`, `set_bit_count()`, `leading_zero_count()` and `trailing_zero_count()`.** One family: a shift is a past participle like `to_int()` is a conversion, and the combining functions start `bits_` because `and`, `or` and `not` alone are keywords and `xor`, `shl` and `popcount` are abbreviations. They are bodiless members the compiler supplies to the eight whole-number classes (D82), each body the single C operation, inlined at `-O2`. `shifted_right` is arithmetic on a signed type and logical on an unsigned one; a count of the width or more shifts every bit out (0, or -1 for a negative value shifted right), chosen over masking the count because a mask makes `1.shifted_left(32)` answer 1 and a binary format reader wants 0; a negative count halts with the function and the count named, since it is always a bug. `other` is cast to the receiver's type like any argument, which keeps them safe whatever item 88 decides. `Float`, `Double` and `Bool` have none, and calling one on them is an error naming the whole numbers. Rewritten with them: `Double`'s exponent and significand fields, JSON's UTF-8 encoding, `Socket`'s port bytes, the Windows folder attribute test and `pclose`'s exit status on Linux and macOS; the prime-modulus hashes (`Dictionary`, the tree shaker, the crash map) and the hexadecimal digit writers are arithmetic, not faked bits, and stay as they were. Section 4, `docs/values_and_types.md`; `conformance/stage6/bitwise_functions`, `negative_shift`, `diagnostics/bitwise_on_float`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; the spelling D114 left open) **A generic asks its type for a function with `$system_type.has_function('run_each')`, and `Symbol<$system_type.run_each>` ranges over that function's arguments.** `has_function` is an ordinary member of `Spite.Class` (it also answers at run time), and in a condition on a codegen type with a literal name it folds like `if $is_magic`; a non-literal name there is an error. `Symbol<X>` already ranged over X's members, so a function's are its arguments: `argument.name`, `argument.class` as a type or a `Spite.Class`, `argument.class.element_type`, and the plural calling the template per argument in order. A template over arguments that returns a value has one use for its plural: the whole argument list of a call to that function, `system.run_each(row_arguments())`, which passes one value per argument, evaluated left to right, and is exempt from D77 because the compiler writes the call. `has` was not taken alone (vague, SPITE.md), nor `$system_type.run_each.arguments` (a run-time list read at compile time, with no way to reach a call). Section 8; `conformance/stage6/system_functions`, `diagnostics/function_reflection`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; the spelling D115 left open) **`Symbol<System>` ranges over the classes of every folder named `system`.** A range naming no class or type is the end of a dotted namespace, and the classes of every namespace ending in it (`System`, `Ui.System`) are walked in order of their dotted names, generic classes skipped; `system.class` is the class and `system.name` its dotted name, and a range matching no folder is an error. A folder's members are its classes, as a function's are its arguments. `Symbol<Spite.Namespace>` was not taken because `Symbol<Spite.Class>` already means `Spite.Class`'s own attributes, nor a `classes` plural keyword, which would be a second loop form beside the plural. Section 8; `conformance/stage6/system_folder`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; the grammar D116 left open) **A name pattern is written the way a template's own name is: the parameter's name is the hole.** `phase: Symbol<$system_type.phase_each>` ranges over the functions whose names fit `<phase>_each`, `phase.name` is the matched text, `system.phase_each(...)` inside calls the matched function, and a template over `$system_type.phase_each` called from inside walks that function's arguments, its instances named for it (`row_potion_in_update_each`). `has_function("<phase>_each")` asks the same question as a condition. The pattern grammar is only this one hole; what `_each`, `_all` or `run_each_before_<phase>` mean is the engine's, which owns the list of phases. Section 8; `conformance/stage6/system_phases`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; found writing `Sprinkler.has_function('drain')`) **A symbol literal passed where text is wanted is that text, when no enum has a value by that name.** A `Symbol` already read as text everywhere; the literal `'drain'` did not, because an unknown literal was taken for an enum value and failed with "cannot tell which enum". A literal an enum does name keeps meaning that enum value. Section 8, `docs/reflection.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's Vulkan examples segfaulted at exit after the row above that stopped counting singletons) **Libraries are unloaded after every singleton, and a `drop()` cannot use a singleton already destroyed.** Singletons were already destroyed newest first, counted from when a constructor finishes, but `DynamicLibrary("vulkan-1.dll")` was first fetched in `Renderer.ensure()`, after `Renderer` was made, so it was unloaded first and `Renderer.drop()` called `vkDeviceWaitIdle` through an unloaded library; the count used to keep such things alive by accident. Every `DynamicLibrary` is now unloaded after all singletons, since anything may call through one and it calls nothing back. For any other singleton first made after the one whose `drop()` uses it there is no right order to find, so the fetch halts naming it and saying to keep it in an attribute, where it is made first. Standard output is flushed before teardown, so a crash in a `drop()` keeps what was printed. `conformance/stage6/singleton_teardown`, `conformance/stage6/singleton_used_after_exit`, `docs/classes_and_files.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's `Slot<T>` and `Column<T>` are generic singletons first touched by `Parallel` systems) **A singleton is made once even when two threads ask first.** The accessor was `if (cache == 0) cache = make()` with no lock, so two threads could both make it, and both append to the teardown list at once. In a program that starts threads, a fetch now loads the slot with acquire ordering and returns it when set (a plain load on x86); only when it is empty does it take the singleton's own spin lock, check again, make it, record it under the list's lock and publish it. `DynamicLibrary` slots do the same. A program with no threads keeps the plain check. Two threads first touching `Shelf<Int>()`, whose constructor is slow, made it twice before and leaked one copy. `conformance/stage6/singleton_race`, `docs/classes_and_files.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's click test, `click_test/click_test.spite`) **A name is looked up from the class's own namespace first, and a folder's entry class owns its folder.** The walk started at a class's folder, which for `ClickTest` (the entry of `click_test/`) is the program root, so `System.DriveClicks()` there was "unknown identifier 'System'" while every sibling file reached it; the walk now starts at the class's own qualified name, as the manual already said, and so do `type` and `union` members. The same report said the compiler segfaulted on this layout (the class referenced as `var click_test = ClickTest()` from `ClickTest.Composition`, its attributes spelled `ClickTest.System.X()`); a copy of SlopEngine laid out that way compiles and passes its click test with master and with the compiler before the recent SlopEngine fixes, so the crash was not reproduced and is not claimed fixed. `conformance/stage6/folder_class_namespace`, `docs/packages.md`. |

@@ -14,6 +14,9 @@ var symbol_field_name = ""
 var symbol_field_type: SpiteType? = null
 var symbol_owner_c_name = ""
 var symbol_through_caller = false
+var symbol_pattern = ""
+var symbol_function_name = ""
+var symbol_display_name = ""
 
 func FunctionInfo(
     starting_name: String,

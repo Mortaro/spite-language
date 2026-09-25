@@ -1,0 +1,67 @@
+generic $system_type
+
+var system: $system_type = null
+var counts = List<Int>()
+var picked = List<Int>()
+var position = 0
+
+func run() {
+    if $system_type.has_function('run_each') {
+        counts.clear()
+        count_arguments()
+        var total = combinations()
+        var combination = 0
+        while combination < total {
+            choose(combination)
+            position = 0
+            system.run_each(row_arguments())
+            combination = combination + 1
+        }
+    } else {
+        system.run_all(every_arguments())
+    }
+}
+
+func count_argument(argument: Symbol<$system_type.run_each>) {
+    var query = Query<argument.class>()
+    query.refresh()
+    var rows_count = query.rows.count()
+    counts.append(rows_count)
+}
+
+func row_argument(argument: Symbol<$system_type.run_each>): argument.class {
+    var query = Query<argument.class>()
+    crash picked[position]
+    var chosen = picked[position]
+    position = position + 1
+    crash query.rows[chosen]
+    return query.rows[chosen]
+}
+
+func every_argument(argument: Symbol<$system_type.run_all>): argument.class {
+    var query = Query<argument.class.element_type>()
+    query.refresh()
+    return query.rows
+}
+
+func combinations(): Int {
+    var total = 1
+    var index = 0
+    while index < counts.count() {
+        total = total * counts[index]
+        index = index + 1
+    }
+    return total
+}
+
+func choose(combination: Int) {
+    picked.clear()
+    var remaining = combination
+    var index = 0
+    while index < counts.count() {
+        var rows_count = counts[index]
+        picked.append(remaining % rows_count)
+        remaining = remaining / rows_count
+        index = index + 1
+    }
+}

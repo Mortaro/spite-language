@@ -1,0 +1,16 @@
+type Potion {
+    healing: Component.Healing
+    label: Component.Label
+}
+
+type Target {
+    health: Component.Health
+    label: Component.Label
+}
+
+var console = Console()
+
+func run_each(potion: Potion, target: Target) {
+    target.health.amount = target.health.amount + potion.healing.amount
+    console.print(target.label.text, "drinks", potion.label.text, "and has", target.health.amount)
+}

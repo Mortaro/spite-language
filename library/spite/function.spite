@@ -18,3 +18,18 @@ func get_arguments(): List<Spite.Argument> {
 func get_returns(): Spite.Class {
     return _returns
 }
+
+func name_fits(pattern: String): Bool {
+    var opening = pattern.index_of("<")
+    var closing = pattern.index_of(">")
+    if opening < 0 or closing < opening {
+        return _name == pattern
+    }
+    var pattern_length = pattern.length()
+    var prefix = pattern.slice(0, opening)
+    var suffix = pattern.slice(closing + 1, pattern_length)
+    var prefix_length = prefix.length()
+    var suffix_length = suffix.length()
+    var name_length = _name.length()
+    return name_length > prefix_length + suffix_length and _name.starts_with(prefix) and _name.ends_with(suffix)
+}

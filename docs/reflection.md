@@ -14,8 +14,8 @@ costs nothing.
 
 | Object | Members |
 |---|---|
-| `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()` |
-| `Spite.Function` | `.name`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()` |
+| `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)` |
+| `Spite.Function` | `.name`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()`, `name_fits(pattern)` |
 | `Spite.Argument` | `.name`, `.class: Spite.Class` |
 | `Spite.Attribute` | `.name`, `.class: Spite.Class`, `.value: String` |
 | `Spite.Namespace` | `.name` (the segment), `.name_with_namespaces` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
@@ -168,6 +168,52 @@ Memory has allocate_bytes true
 
 A class of the standard library describes itself the same way: `Memory.functions` lists `allocate_bytes`,
 `resize`, `free` and the rest, including the functions whose bodies the compiler supplies.
+
+### Asking for a function by name or pattern
+
+`has_function(name)` on a class asks whether it has a function of that name. The name may also be a pattern with
+one hole, `"<phase>_each"`, which is true when some function's name fits it with something in the hole.
+`name_fits(pattern)` asks the same of one `Spite.Function`. Both are ordinary Spite in `library/spite/`.
+
+```gdscript title=function_questions/sprinkler.spite
+var water = 0
+
+func update_each(amount: Int) {
+    water = water + amount
+}
+
+func drain() {
+    water = 0
+}
+```
+```gdscript title=function_questions/function_questions.spite entry
+var console = Console()
+
+func FunctionQuestions() {
+    var described = Sprinkler.name
+    var drains = Sprinkler.has_function('drain')
+    var fills = Sprinkler.has_function('fill')
+    var updates = Sprinkler.has_function("<phase>_each")
+    console.print(described, drains, fills, updates)
+    var functions = Sprinkler.functions
+    functions.each_describe()
+}
+
+func describe(function: Spite.Function) {
+    var in_phase = function.name_fits("<phase>_each")
+    console.print(function.name, in_phase)
+}
+```
+```output
+Sprinkler true false true
+update_each true
+drain false
+```
+
+Here the answer is found at run time, from `.functions`. Asked of a generic's type, as in
+`if $system_type.has_function('run_each')`, it is decided while compiling instead, and only the branch taken is
+compiled. Walking a function's arguments, a folder's classes or the functions that fit a pattern at compile time
+is in [metaprogramming.md](metaprogramming.md#a-classs-functions-a-folders-classes-and-a-names-pattern).
 
 ## Instances, and every class in the program
 

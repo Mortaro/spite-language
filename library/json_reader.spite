@@ -191,20 +191,24 @@ func hexadecimal_digit(at: Int): Int {
 
 func text_of(code_point: Int): String {
     var bytes = List<Int>()
-    if code_point < 128 {
-        bytes.append(code_point)
-    } else if code_point < 2048 {
-        bytes.append(192 + code_point / 64)
-        bytes.append(128 + code_point % 64)
-    } else if code_point < 65536 {
-        bytes.append(224 + code_point / 4096)
-        bytes.append(128 + code_point / 64 % 64)
-        bytes.append(128 + code_point % 64)
-    } else {
-        bytes.append(240 + code_point / 262144)
-        bytes.append(128 + code_point / 4096 % 64)
-        bytes.append(128 + code_point / 64 % 64)
-        bytes.append(128 + code_point % 64)
+    var shift = 0
+    var lead_marker = 0
+    if code_point >= 65536 {
+        shift = 18
+        lead_marker = 240
+    } else if code_point >= 2048 {
+        shift = 12
+        lead_marker = 224
+    } else if code_point >= 128 {
+        shift = 6
+        lead_marker = 192
+    }
+    var lead = code_point.shifted_right(shift).bits_or(lead_marker)
+    bytes.append(lead)
+    while shift > 0 {
+        shift = shift - 6
+        var continuation = code_point.shifted_right(shift).bits_and(63).bits_or(128)
+        bytes.append(continuation)
     }
     var address = memory.allocate_bytes(4)
     var index = 0

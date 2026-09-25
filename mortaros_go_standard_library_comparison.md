@@ -139,7 +139,9 @@ unblocks the most packages.
 1. **Bit operators** (a language decision). They gate hashing, crypto, compression, UTF-8, binary encoding,
    `math/bits` and ECS component masks. Following section 5 they would be operator functions with written names;
    whether they get symbols at all, or are only functions such as `flags.bits_and(mask)` and `value.shift_left(3)`,
-   is the question.
+   is the question. **Answered by D117**: functions only -- `shifted_left`, `shifted_right`, `bits_and`, `bits_or`,
+   `bits_exclusive_or`, `bits_inverted`, `set_bit_count`, `leading_zero_count`, `trailing_zero_count` on every
+   whole-number class (manual section 4); the directory flag test now uses `bits_and`.
 2. **`Memory` completed and a `Bytes` class over it**: reads and writes for every numeric width, `fill`, and a
    growable byte buffer with the `String`-like API. The engine's component storage and every encoding sit on it.
 3. **`math`** as members of the number classes (D83): square root, power, trigonometry, floor/ceiling/round,

@@ -28,6 +28,16 @@ func is_singleton(): Bool {
     return _singleton
 }
 
+func has_function(name: String): Bool {
+    var found = false
+    var index = 0
+    while not found and index < _functions.count() {
+        found = _functions[index].name_fits(name)
+        index = index + 1
+    }
+    return found
+}
+
 func to_string(): String {
     return _name
 }
