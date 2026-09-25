@@ -377,11 +377,6 @@ All of it is proposed by Claude, unconfirmed.
 
 ## SlopEngine's entity API (D123, D124)
 
-126. **Where does D124 apply?** Read as "wherever a `Spite.Class` is wanted" (proposed by Claude, unconfirmed):
-     an argument, `var kind: Spite.Class = Health`, an assignment to one and a `return`; an untyped `var kind =
-     Health` is still the "is a class, not a value" error, since a missing `()` is the likelier mistake. And
-     `kind == Health` with `kind` a `Spite.Class` now compares class objects instead of being D75's class test,
-     which could only be false. Should a bare class name be its class object everywhere instead?
 127. **`load` as a function name.** A class that declares `func load` now calls it with `load(x)` (proposed by
      Claude, unconfirmed; SlopEngine's asset cache hit it); before, every `load(...)` was the package load and
      compiled to nothing. The alternative was reserving the word and making `func load` an error naming the
