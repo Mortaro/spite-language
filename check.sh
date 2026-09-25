@@ -147,7 +147,7 @@ done
 echo "diagnostics: $checked checked, $wrong wrong"
 [ "$wrong" == "0" ] || exit 1
 
-# Every program written in docs/ is a program: scripts/docs_corpus (itself Spite) writes each titled
+# Every program written in docs/ and README.md is a program: scripts/docs_corpus (itself Spite) writes each titled
 # code block out, and each one has to compile, run, print its ```output block and free everything it took.
 # A block marked `error` must fail to compile with its ```diagnostic text somewhere in the message.
 rm -rf .spite-cache/docs   # so a program deleted from docs/ stops being checked

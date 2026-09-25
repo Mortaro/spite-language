@@ -15,6 +15,7 @@ func DocsCorpus() {
         return
     }
     read_every_page(documentation)
+    read_page("README.md")
     write_manifest()
     var folder_names_count = folder_names.count()
     console.print(folder_names_count, "documentation programs")

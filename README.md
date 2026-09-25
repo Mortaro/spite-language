@@ -6,6 +6,50 @@ compiler is written in Spite and compiles itself. The compiler is also its own f
 no separate style guide to follow, it rewrites your file to the one true style and refuses a naming problem
 outright instead of silently accepting it.
 
+A file is a class named after it, and a program is a folder: `arena/arena.spite` is the entry, and its constructor
+runs the program.
+
+```gdscript title=arena/monster.spite
+var name = ""
+var health = 0
+
+func Monster(new_name: String, new_health: Int) {
+    name = new_name
+    health = new_health
+}
+
+func alive(): Bool {
+    return health > 0
+}
+```
+```gdscript title=arena/arena.spite entry
+var console = Console()
+
+func Arena() {
+    var monsters = [Monster("slime", 12), Monster("ghost", 0), Monster("troll", 30)]
+    var standing = monsters.filter_alive().sum_health()
+    console.print("health still standing:", standing)
+    var troll = monsters.last()
+    show_attributes(troll)
+}
+
+func show_attribute(attribute: Symbol<Monster>, monster: Monster) {
+    console.print(attribute.name, "=", monster.attributes[attribute])
+}
+```
+```output
+health still standing: 42
+name = troll
+health = 30
+```
+
+Nobody wrote `filter_alive` or `sum_health`. `List` has templates, `filter_<member>()` and `sum_<member>()`, and
+the compiler writes the two this program calls for `Monster`, then fuses the chain into one loop with no list in
+between. `show_attributes` is the same idea turned on a class: `show_attribute` takes a `Symbol<Monster>`, so the
+plural calls it once for every attribute of `Monster`, each call a typed function the compiler wrote. Nothing is
+looked up while the program runs, and whatever it does not call is not in the executable
+([docs/collections.md](docs/collections.md), [docs/metaprogramming.md](docs/metaprogramming.md)).
+
 ## Status
 
 `manual.md` is the normative reference, and `docs/` teaches the language as it is today: every titled program
@@ -74,30 +118,8 @@ export CC="$(cygpath -d "$CL") -Wno-deprecated-declarations"
 ./spite.exe path/to/thing
 ```
 
-A file is a class named after it, a program is a folder, and the file named after the folder is the entry:
-its constructor runs the program. So `greeter/greeter.spite`:
-
-```gdscript
-var console = Console()
-var names = List<String>()
-
-func Greeter() {
-    names.append("ada")
-    names.append("grace")
-    var people = names.count()
-    console.print("greeting", people, "people")
-    var everyone = names.join(" and ")
-    console.print("hello", everyone)
-}
-```
-
-```
-greeting 2 people
-hello ada and grace
-```
-
-**Put each program in its own folder.** `spite greeter` loads the whole `greeter` folder (manual.md section 11),
-so every `.spite` file in it is part of the same program.
+**Put each program in its own folder.** `spite arena` loads the whole `arena` folder (manual.md section 11), so
+every `.spite` file in it is part of the same program.
 
 **Save as UTF-8 without a byte order mark.** The lexer rejects a file that starts with one, and PowerShell's
 `Set-Content -Encoding utf8` writes one by default: use `-Encoding utf8NoBOM`, or an editor set to UTF-8
