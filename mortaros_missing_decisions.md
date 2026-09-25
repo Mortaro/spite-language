@@ -134,9 +134,6 @@ manual argues it.
     after `Launcher` returns, releasing singletons and class objects and printing the `--debug_memory` report.
     Moving them into Spite needs a way for Spite to receive `argv` and to run code after the program ends (a
     `Launcher` that releases what the program left?) -- which is a language question.
-42. **A path to a `.spite` file still names an entry** (`spite bootstrap/spite_compiler.spite`), because the
-    compiler's own entry is not named after its folder. The alternative is renaming the compiler's entry to
-    `bootstrap/bootstrap.spite` (class `Bootstrap`) or moving it into a folder of its own.
 43. **An unset `Build` field folds to its default** rather than being read at run time, so no `Build` value is
     ever read when the program runs. D84's words were "the others are runtime"; D85 moved run time to
     `Environment`, which is how this reads it.
