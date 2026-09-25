@@ -152,11 +152,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
 54. **`allocate_stack_bytes` is removed**, since D108 gives the choice to the compiler and it was a second way to
     allocate. For an ECS that wants control, what stays is the layout: one allocation, offsets, `TypedMemory`.
     Is anything else wanted -- say, a hint that a structure is short-lived, which the compiler may ignore?
-55. **A singleton holding nothing is not an object at run time**: `Memory` is one static instance, never
-    counted or freed, which every program now allocates once less for, and without which `String.drop()` could
-    reach a `Memory` the program's exit had already released. `Memory.instances` would not list it. Fine as a
-    hidden optimisation (D36)?
-
 ## A function of the caller for each element (D113; manual section 8)
 
 57. **A caller function that needs more than the element** -- `print_statement(statement, depth)`, the typical
@@ -188,11 +183,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     (it replaced a one-line `Memory().allocate_bytes(4)` form). The binding is never a field of the number. The alternative was to exempt
     `var _memory = Memory().allocate_bytes(4)` from D110, because the compiler reads that line rather than
     running it; rejected so the file an AI reads to learn memory shows the bound form. Keep it?
-63. **`Build` is a static object**, like `Memory` in item 55: every field folds to a constant, so it holds
-    nothing at run time, and binding it (`var build = Build()` in the launcher and anywhere else) costs no
-    allocation. Reading a field of it any way but by name (reflection over its attributes) would see nothing.
-    Fine as a hidden optimisation (D36)?
-
 ## Live reload (D111, D112; manual section 14, "Live reload and 6b")
 
 64. **A changed attribute or enum is refused, with an error saying to restart.** D111 says a change rebuilds "what
