@@ -7,7 +7,7 @@ progress log before it ends. `manual.md` is the language; this file is the compi
 ## How it builds itself
 
 - `bootstrap/bootstrap.spite` is the entry class, `Bootstrap` (a program is named by its folder, D130: `spite
-  bootstrap`); `load("source")` brings in `bootstrap/source/`.
+  bootstrap`); `load "source"` brings in `bootstrap/source/`.
 - `bootstrap/seed/spite_compiler.c` is the C the compiler emits for itself. Any C compiler turns it into a working
   Spite compiler (see `bootstrap/seed/README.md`); that compiler then compiles the Spite sources again.
 - **The fixpoint is the law:** the compiler built from the seed (generation 2) and the compiler built by generation 2
@@ -37,7 +37,7 @@ progress log before it ends. `manual.md` is the language; this file is the compi
 
 - `bootstrap/source/syntax/`: lexer, token kinds, the AST (one class per node, unions `Expression`, `Statement`,
   `Type`, `GenericArgument`), parser, tree printer. Every statement carries its `line`; a source file its `path`.
-- `bootstrap/source/discovery/`: finds the entry folder, `load("...")` roots and the `library/` root, maps folders to
+- `bootstrap/source/discovery/`: finds the entry folder, `load "..."` roots and the `library/` root, maps folders to
   namespaces, parses every file, merges reopened classes in load order.
 - `bootstrap/source/analysis/`: `SpiteType` (a union of `Types.*`), `ClassInfo`, `FieldInfo`, `FunctionInfo`,
   `ParamInfo`, `EnumInfo`, `UnionInfo` (also used for `type` shapes), `TemplateInfo` (Symbol codegen), and the
@@ -77,7 +77,7 @@ methods; `while`, `if`/`else`, `return`; reference counting with `copy()` and `d
 `Directory`, `Process`, `Program`; `crash` (interim report line); the `assert` rules (D27 to D29); Symbol codegen;
 the `List<T>` member templates (D15); reflection (`value.class`, `value.attributes`, `symbol.class`); attribute
 access through `set_`/`get_`; operators as functions; `type` shapes and object literals; constructor-declared
-codegen values, compiler flag values and compile-time folding (D5, D9); `--debug_memory`; errors with file and
+codegen values, compiler flag values and compile-time folding (D5, D9); `--debug-memory`; errors with file and
 line.
 
 ## What comes next

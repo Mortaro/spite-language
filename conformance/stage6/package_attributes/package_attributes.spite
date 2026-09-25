@@ -1,7 +1,7 @@
 var console = Console()
 
 func PackageAttributes() {
-    load("paint")
+    load "paint"
     var tint = Tint()
     var shown = tint.describe()
     console.print(shown)

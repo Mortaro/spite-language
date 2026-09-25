@@ -143,7 +143,7 @@ and `library/program.spite` calls `exit_process` and `environment_address` witho
 every system's folder defines them with the same signature. The launcher loads `library/` and then exactly one of
 these folders, named by `build.target_operating_system` ([programs.md](programs.md#how-a-program-is-loaded)), so
 their functions replace or add members by the ordinary reopening rule ([packages.md](packages.md#monkey-patching-mods)).
-`--final_classes` prints each class as it came out, its system's functions included.
+`--final-classes` prints each class as it came out, its system's functions included.
 
 Only the Windows folder runs today; `check.sh` holds the Linux and macOS folders to compiling, by writing the
 compiler out once for each.

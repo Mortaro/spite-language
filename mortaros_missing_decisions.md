@@ -9,12 +9,12 @@ manual argues it.
 5. **Open question 16: two versions of one dependency.** Needs D38 (git dependencies) first.
 6. **Open questions 1, 3, 6, 8, 9, 10, 11**, the older ones: `= null` on a generic field, right-to-left casting
    in comparisons, `_` meaning private and unused, an unrelated `get_x()` intercepting `.x`, `${` in text,
-   where `--final_classes` shows provenance, and function-valued `type` members.
+   where `--final-classes` shows provenance, and function-valued `type` members.
 
 ## Proposals built and waiting for a yes or no
 
 9. **The floor** (section 15, "The floor, named"): what stays C, and D82's form for showing it in
-   `--final_classes`.
+   `--final-classes`.
 10. **Rows marked "(proposed by Claude, unconfirmed)"** in the decision log from 2026-09-23 and 2026-09-24:
     `Memory.address_of`/`compare_bytes`/`take_text`, the tree shaker, `nan` printing as `nan`, the REPL's
     command names and output, `Environment`'s sources and their order, `--operational_system` (superseded by
@@ -76,7 +76,7 @@ manual argues it.
     entry class; every other `load` still compiles to nothing at run time. And a launcher `load` may use `Build`
     fields (`"library/{Build().target_operating_system}"`), where every other `load` takes a literal.
 39. **The C left in `main`**: handing `argv` to `Arguments()`, binary standard output on Windows (`_setmode`), and,
-    after `Launcher` returns, releasing singletons and class objects and printing the `--debug_memory` report.
+    after `Launcher` returns, releasing singletons and class objects and printing the `--debug-memory` report.
     Moving them into Spite needs a way for Spite to receive `argv` and to run code after the program ends (a
     `Launcher` that releases what the program left?) -- which is a language question.
 43. **An unset `Build` field folds to its default** rather than being read at run time, so no `Build` value is
@@ -121,7 +121,7 @@ Behaviour that does not match the manual. The language was not changed; each is 
     per instance, attributes copied by name, new ones taking their defaults -- needs every live instance and every
     reference to each, which nothing finds today (`Class.instances` is not built, and references would have to be
     re-pointed). Keep refusing, build migration (and how should references be found: a per-class instance list, or
-    one level of indirection per object in `--hot_reload` builds), or something else?
+    one level of indirection per object in `--hot-reload` builds), or something else?
 65. **The REPL keeps the functions the program started with.** A function added by a reload is called by the new
     code but not listed by `functions` or callable at the prompt until a restart. Should reflection follow reloads?
 66. **The program waits while the library compiles** (under a second for a small program; a game drops frames).
@@ -301,7 +301,7 @@ All of it is proposed by Claude, unconfirmed.
 134. **How outputs are chosen.** Built as `Bool` fields of `Build` -- `run` (default `true`), `executable`,
      `c_source`, `format` (default `true`) -- plus `final_classes` as a folder (proposed by Claude, unconfirmed).
      Because `run` defaults to `true`, asking for another output also runs the program unless `--run=false` is
-     given: `spite game --c_source --run=false` for the C alone. The alternatives: a program that names any output
+     given: `spite game --c-source --run=false` for the C alone. The alternatives: a program that names any output
      on the command line gets only the outputs it named (shorter, but a flag then changes another flag's default),
      or one list field, `--outputs=executable,c_source`. Keep the `Bool`s?
 135. **`target_operating_system` in a program's `build.spite`.** It is still read from the flag alone, because the
@@ -310,9 +310,9 @@ All of it is proposed by Claude, unconfirmed.
      once with the right library folder)?
 136. **Where a run's executable goes.** With no flag it is built beside the program (`game/game.exe`, and
      `game.crashes`), which D129's "build to the same folder" reads as, so every run leaves those two files in the
-     program's folder (`.gitignore` now ignores `*.crashes`). The one intermediate, the C compiled when `--c_source`
+     program's folder (`.gitignore` now ignores `*.crashes`). The one intermediate, the C compiled when `--c-source`
      is off, goes to the language repository's `.spite-cache/<name>.c`. Should a plain run (no `--executable`)
-     build into the cache instead and leave the program's folder untouched? A `--hot_reload` build beside its program
+     build into the cache instead and leave the program's folder untouched? A `--hot-reload` build beside its program
      also puts its reload libraries in the folder the watcher watches, so each reload wakes it once more.
 137. **`--mode=tokens` and `--mode=tree` are gone** rather than made outputs: nothing used them, and a `.spite` file
      can no longer be named. Bring them back as outputs (`--tokens`, `--tree`, printing every program file)?
@@ -334,7 +334,7 @@ All of it is proposed by Claude, unconfirmed.
 ## From building D143 (inspectable and production builds; manual sections 8 and 13)
 
 142. **Which builds are "production"?** D143 says internals are hidden "at optimized production builds" and
-     ordinary in `--repl`, `--repl_port`, `--hot_reload` and `--development` builds. Built (proposed by Claude,
+     ordinary in `--repl`, `--repl-port`, `--hot-reload` and `--development` builds. Built (proposed by Claude,
      unconfirmed): every build that is not one of those four is production, the plain `spite program` included, so
      an ordinary build keeps the static singletons and the tree shaker it had; `--optimized --repl` is inspectable.
      Only tree shaking and static singletons count as hiding an internal; fused chains, placement and text appended
@@ -381,3 +381,16 @@ All of it is proposed by Claude, unconfirmed.
 152. **D183 as built locks every call** to a program singleton that can change, from any thread, in a program that
      uses `Parallel`, not only the calls a `Parallel` makes: telling them apart needs a walk of everything a
      `Parallel` can reach. Acceptable as the fallback until D184, or should that walk come first?
+
+## From D186-D188 (the load keyword and kebab-case flags)
+
+153. **Kebab-case for a program's run-time settings too?** D188 makes the compiler's flags kebab-case
+     (`--repl-port` sets `Build.repl_port`). A program's `Environment` settings are read after the `--` when the
+     program runs, and still match their field's spelling (`spite game -- --player-name=ada`). The compiler could
+     write the kebab form into the program as the text it matches (`"player-name"`), which costs nothing at run time
+     (D177). Make run-time settings kebab-case as well, so both sides of `--` read alike?
+154. **A folder a package `load`s from inside its own tree.** A package `kitchen/` that loads `garnish/pepper` from
+     inside itself gets that folder twice: as the namespace `Garnish.Pepper` (every folder of a root is one) and as a
+     root of its own. Both compile, and tree shaking drops the unused one, but a folder named by a `load` could
+     instead never be a namespace, as the entry folder already does for the folders its own file loads. Also: `Build`
+     is read before any package is loaded, so a package's `build.spite` cannot add a field that decides a `load`.

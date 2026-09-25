@@ -115,6 +115,7 @@ var shape_flow_targets = List<Analysis.UnionInfo>()
 var read_attributes = Dictionary<Bool>()
 var folded_words = Dictionary<Bool>()
 var loaded_folders = List<String>()
+var long_line_callee = ""
 
 func report(message: String) {
     has_error = true
@@ -464,15 +465,25 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
         var entry = discovered[index]
         var value_type = value_type_named(entry.qualified_dotted)
         if value_type {
-            classes.append(
-                Analysis.ClassInfo("Spite{entry.qualified_dotted}", entry.qualified_dotted, "", entry.qualified_dotted, 0),
+            var value_class = Analysis.ClassInfo(
+                "Spite{entry.qualified_dotted}",
+                entry.qualified_dotted,
+                "",
+                entry.qualified_dotted,
+                0,
             )
+            classes.append(value_class)
             classes.last().is_value_class = true
         } else {
             var class_id = allocate_class_id(entry.mangled_name)
-            classes.append(
-                Analysis.ClassInfo(entry.mangled_name, entry.simple_name, entry.namespace_dotted, entry.qualified_dotted, class_id),
+            var discovered_class = Analysis.ClassInfo(
+                entry.mangled_name,
+                entry.simple_name,
+                entry.namespace_dotted,
+                entry.qualified_dotted,
+                class_id,
             )
+            classes.append(discovered_class)
         }
         classes.last().source_path = entry.get_file().path
         classes.last().entry_index = index
@@ -1086,12 +1097,13 @@ func register_shapes(entry: Discovery.DiscoveredClass) {
             current_owner = entry.qualified_dotted
             current_function = ""
             check_type_name(declaration.name, "type")
+            var no_members = List<Syntax.Types.Type>()
             var information = Analysis.UnionInfo(
                 "{entry.mangled_name}_{declaration.name}",
                 declaration.name,
                 entry.qualified_dotted,
                 entry.qualified_dotted,
-                List<Syntax.Types.Type>(),
+                no_members,
             )
             information.is_shape = true
             information.shape_fields = declaration.fields
@@ -1927,12 +1939,14 @@ func automatic_debug(information: Analysis.ClassInfo): Analysis.FunctionInfo? {
     var described = find_or_instantiate_function(debug_class, "text")
     crash described
     var string_type = string_type()
+    var no_parameters = List<Analysis.ParamInfo>()
+    var no_statements = List<Syntax.Statements.Statement>()
     var function = Analysis.FunctionInfo(
         "to_debug",
         "{information.c_name}_to_debug",
-        List<Analysis.ParamInfo>(),
+        no_parameters,
         string_type,
-        List<Syntax.Statements.Statement>(),
+        no_statements,
         false,
     )
     function.has_body = false
@@ -1978,12 +1992,14 @@ func synthetic_value_class(c_name: String, value_type: Analysis.SpiteType, to_st
     var created = Analysis.ClassInfo(c_name, display_name, "", display_name, 0)
     created.is_value_class = true
     var string_type = string_type()
+    var no_parameters = List<Analysis.ParamInfo>()
+    var no_statements = List<Syntax.Statements.Statement>()
     var to_string = Analysis.FunctionInfo(
         "to_string",
         "{c_name}_to_string",
-        List<Analysis.ParamInfo>(),
+        no_parameters,
         string_type,
-        List<Syntax.Statements.Statement>(),
+        no_statements,
         false,
     )
     to_string.is_emitted = true
@@ -2053,9 +2069,13 @@ func register_enums(entry: Discovery.DiscoveredClass) {
                 check_value_name(declaration.values[value_index], "enum value")
                 value_index = value_index + 1
             }
-            enums.append(
-                Analysis.EnumInfo("{entry.mangled_name}_{declaration.name}", declaration.name, entry.qualified_dotted, declaration.values),
+            var enumeration = Analysis.EnumInfo(
+                "{entry.mangled_name}_{declaration.name}",
+                declaration.name,
+                entry.qualified_dotted,
+                declaration.values,
             )
+            enums.append(enumeration)
         }
         statement_index = statement_index + 1
     }
@@ -2293,6 +2313,7 @@ func resolve_field(declaration: Syntax.Statements.VariableDeclaration, informati
     assert declaration.value
     check_value_name(declaration.name, "attribute")
     report_nested_calls_in(declaration.value)
+    report_long_construction(declaration)
     report_singletons_in_declared(declaration.value, information)
     if information.is_value_class and information.c_name != "SpiteString" {
         var bound_singleton = constructed_singleton(declaration.value, information)
@@ -3117,10 +3138,8 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
     if not bound_member_is_function() {
         return read
     }
-    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(
-        read,
-        List<Syntax.Expressions.Expression>(),
-    )
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(read, no_arguments)
     return called
 }
 
@@ -4837,10 +4856,8 @@ func text_of_class(
         return value
     }
     var callee: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(value_ast, "to_string")
-    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(
-        callee,
-        List<Syntax.Expressions.Expression>(),
-    )
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, no_arguments)
     return generate_expression(called, scope, class_information)
 }
 
@@ -5469,11 +5486,12 @@ func generate_unary(
                 if negate {
                     var no_types = no_types()
                     var negate_return_type = negate.get_return_type()
+                    var no_arguments = List<Syntax.Expressions.Expression>()
                     var negated = generate_generic_call(
                         negate.c_name,
                         operand,
                         unary.operand,
-                        List<Syntax.Expressions.Expression>(),
+                        no_arguments,
                         no_types,
                         negate_return_type,
                         scope,
@@ -5997,14 +6015,8 @@ func generate_own_function_call(
     if not function and class_information.c_name == "SpiteString" {
         var receiver: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("self")
         var string_type = string_type()
-        return generate_string_method(
-            name,
-            ExpressionResult("self", string_type),
-            receiver,
-            arguments_ast,
-            scope,
-            class_information,
-        )
+        var self_result = ExpressionResult("self", string_type)
+        return generate_string_method(name, self_result, receiver, arguments_ast, scope, class_information)
     }
     if not function {
         var folder_miss = folder_range_miss(class_information, name)
@@ -6363,13 +6375,15 @@ func generate_method_call(
             return deep_copied
         }
         if member.name == "copy" {
+            var no_type_arguments = List<Analysis.SpiteType>()
+            var copied_type = Analysis.Types.ClassRefType(object_class_ref.c_name)
             return generate_generic_call(
                 "{object_class_ref.c_name}_copy",
                 object_result,
                 object_ast,
                 arguments_ast,
-                List<Analysis.SpiteType>(),
-                Analysis.Types.ClassRefType(object_class_ref.c_name),
+                no_type_arguments,
+                copied_type,
                 scope,
                 class_information,
             )
@@ -7112,11 +7126,12 @@ func generate_fused_chain(
         var dictionary_name = ensure_dictionary(element)
         var no_types = no_types()
         var list_type = list_type_of(element)
+        var no_arguments = List<Syntax.Expressions.Expression>()
         receiver = generate_generic_call(
             "{dictionary_name}_values",
             receiver,
             base,
-            List<Syntax.Expressions.Expression>(),
+            no_arguments,
             no_types,
             list_type,
             scope,
@@ -9435,11 +9450,12 @@ func generate_dictionary_method(
     crash function
     var no_types = no_types()
     var list_type = list_type_of(element)
+    var no_arguments = List<Syntax.Expressions.Expression>()
     var values_call = generate_generic_call(
         "{dictionary_name}_values",
         object_result,
         object_ast,
-        List<Syntax.Expressions.Expression>(),
+        no_arguments,
         no_types,
         list_type,
         scope,
@@ -10086,7 +10102,7 @@ func generate_call(
     crash call.callee
     var callee_identifier = shape.as_identifier(call.callee)
     if callee_identifier {
-        if callee_identifier.name == "load" and not class_information.find_function("load") {
+        if callee_identifier.name == "load" {
             var loaded_names = List<String>()
             collect_each_mentioned_name(call.arguments, loaded_names)
             mark_names_read(class_information, loaded_names)
@@ -10269,13 +10285,14 @@ func generate_member_read_raw(
     if read_union {
         var read_union_information = find_union_by_c_name(read_union.c_name)
         crash read_union_information
+        var no_arguments = List<Syntax.Expressions.Expression>()
         return generate_union_dispatch(
             read_union_information,
             member.name,
             false,
             object_result,
             member.object,
-            List<Syntax.Expressions.Expression>(),
+            no_arguments,
             scope,
             class_information,
         )
@@ -10312,11 +10329,12 @@ func generate_member_read_raw(
     if getter {
         var no_types = no_types()
         var getter_return_type = getter.get_return_type()
+        var getter_arguments = List<Syntax.Expressions.Expression>()
         var getter_call = generate_generic_call(
             getter.c_name,
             object_result,
             member.object,
-            List<Syntax.Expressions.Expression>(),
+            getter_arguments,
             no_types,
             getter_return_type,
             scope,
@@ -12926,6 +12944,7 @@ func collect_each_mentioned_name(expressions: List<Syntax.Expressions.Expression
 }
 
 func report_nested_calls(statement: Syntax.Statements.Statement, class_information: Analysis.ClassInfo) {
+    report_long_construction(statement)
     switch statement {
         Syntax.Statements.VariableDeclaration: {
             crash statement.value
@@ -12972,6 +12991,213 @@ func report_nested_calls(statement: Syntax.Statements.Statement, class_informati
             report_inline_singletons(statement.subject, class_information)
         }
         _: return
+    }
+}
+
+func report_long_construction(statement: Syntax.Statements.Statement) {
+    var depth = statement_depth(statement)
+    assert depth >= 0
+    var printer = Syntax.SourcePrinter()
+    var printed = printer.source_statement_line(statement, depth)
+    var columns = printed.length()
+    assert columns > printer.width
+    var construction = construction_in_statement(statement)
+    assert construction
+    var construction_text = printer.source_expression(construction)
+    var class_name = constructed_class_name(construction)
+    var variable = variable_name_for(class_name)
+    report(
+        "this line is {columns} columns, wider than the formatter's {printer.width}, and it constructs '{construction_text}' inside the arguments of '{long_line_callee}': a long line makes no object inside a call, so make it first on a line of its own, 'var {variable} = {construction_text}', and pass '{variable}'",
+    )
+}
+
+func statement_depth(statement: Syntax.Statements.Statement): Int {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: return statement.depth
+        Syntax.Statements.AssignmentStatement: return statement.depth
+        Syntax.Statements.ExpressionStatement: return statement.depth
+        Syntax.Statements.ReturnStatement: return statement.depth
+        Syntax.Statements.AssertStatement: return statement.depth
+        _: return -1
+    }
+}
+
+func construction_in_statement(statement: Syntax.Statements.Statement): Syntax.Expressions.Expression? {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            crash statement.value
+            return construction_in_arguments(statement.value)
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.value
+            return construction_in_arguments(statement.value)
+        }
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            return construction_in_arguments(statement.value)
+        }
+        Syntax.Statements.ReturnStatement: {
+            assert statement.value
+            return construction_in_arguments(statement.value)
+        }
+        Syntax.Statements.AssertStatement: {
+            crash statement.value
+            return construction_in_arguments(statement.value)
+        }
+        _: return null
+    }
+}
+
+func construction_in_arguments(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            return construction_among(expression.callee, expression.arguments)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            return construction_among(expression.callee, expression.arguments)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            assert not expression.is_text_join
+            var on_the_left = construction_in_arguments(expression.left)
+            if on_the_left {
+                return on_the_left
+            }
+            return construction_in_arguments(expression.right)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return construction_in_arguments(expression.operand)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            return construction_in_arguments(expression.object)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            var in_object = construction_in_arguments(expression.object)
+            if in_object {
+                return in_object
+            }
+            return construction_in_arguments(expression.index)
+        }
+        _: return null
+    }
+}
+
+func construction_among(
+    callee: Syntax.Expressions.Expression,
+    arguments: List<Syntax.Expressions.Expression>,
+): Syntax.Expressions.Expression? {
+    var index = 0
+    while index < arguments.count() {
+        var constructed = construction_within(arguments[index])
+        if constructed {
+            var printer = Syntax.SourcePrinter()
+            long_line_callee = printer.source_expression(callee)
+            return constructed
+        }
+        index = index + 1
+    }
+    var in_callee = construction_in_arguments(callee)
+    if in_callee {
+        return in_callee
+    }
+    index = 0
+    while index < arguments.count() {
+        var nested = construction_in_arguments(arguments[index])
+        if nested {
+            return nested
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func construction_within(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            assert not constructor_name(expression.callee).is_empty()
+            return expression
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            assert not constructor_name(expression.callee).is_empty()
+            return expression
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            assert not expression.is_text_join
+            var on_the_left = construction_within(expression.left)
+            if on_the_left {
+                return on_the_left
+            }
+            return construction_within(expression.right)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return construction_within(expression.operand)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            return construction_within(expression.object)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            var in_object = construction_within(expression.object)
+            if in_object {
+                return in_object
+            }
+            return construction_within(expression.index)
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var index = 0
+            while index < expression.elements.count() {
+                var element_value = expression.elements[index].value
+                crash element_value
+                var in_element = construction_within(element_value)
+                if in_element {
+                    return in_element
+                }
+                index = index + 1
+            }
+            return null
+        }
+        Syntax.Expressions.ObjectLiteralExpression: {
+            var index = 0
+            while index < expression.fields.count() {
+                var field_value = expression.fields[index].value
+                crash field_value
+                var in_field = construction_within(field_value)
+                if in_field {
+                    return in_field
+                }
+                index = index + 1
+            }
+            return null
+        }
+        _: return null
+    }
+}
+
+func constructed_class_name(construction: Syntax.Expressions.Expression): String {
+    switch construction {
+        Syntax.Expressions.CallExpression: {
+            crash construction.callee
+            return constructor_name(construction.callee)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash construction.callee
+            return constructor_name(construction.callee)
+        }
+        _: return ""
     }
 }
 
@@ -15222,7 +15448,7 @@ func hot_reload_body(name: String): String {
         return "return 0;"
     }
     if not hot_reload {
-        return "(void)library;\nreturn spite_string_from_cstring_owned(\"this program was not built with --hot_reload\");"
+        return "(void)library;\nreturn spite_string_from_cstring_owned(\"this program was not built with --hot-reload\");"
     }
     return "typedef const char* (*SpiteHotBind)(void* (*)(const char*), int32_t (*)(const char*, void*));\n#ifdef _WIN32\nSpiteHotBind bind = (SpiteHotBind)(void*)GetProcAddress((HMODULE)(intptr_t)library, \"spite_reload_bind\");\n#else\nSpiteHotBind bind = (SpiteHotBind)dlsym((void*)(intptr_t)library, \"spite_reload_bind\");\n#endif\nif (bind == 0) return spite_string_from_cstring_owned(\"spite_reload_bind\");\nconst char* missing = bind(spite_hot_find, spite_hot_install);\nreturn spite_string_from_cstring_owned(missing == 0 ? \"\" : missing);"
 }

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs the Spite compiler, rebuilding it first if the sources moved on.
 #   spite thing                  build thing/thing.exe beside the program and run it
-#   spite thing --c_source       write thing/thing.c as well
+#   spite thing --c-source       write thing/thing.c as well
 here="$(cd "$(dirname "$0")/.." && pwd)"
 seed="$here/bootstrap/seed/spite_compiler.c"
 binary="$here/.spite-cache/spite.exe"   # not in bin/, or it would shadow this launcher on PATH
@@ -34,7 +34,7 @@ if [ ! -x "$binary" ] || [ "$seed" -nt "$binary" ]; then
     "$compiler" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$binary" || exit 1
 fi
 
-# `spite connect <port> [--command="..."]` talks to a program running with --repl_port; nothing in it is a path.
+# `spite connect <port> [--command="..."]` talks to a program running with --repl-port; nothing in it is a path.
 if [ "$1" == "connect" ]; then
     exec "$binary" "$@"
 fi
@@ -61,7 +61,7 @@ if [ "$1" == "format" ]; then
     exec "$binary" "${arguments[@]}"
 fi
 
-# `spite thing` is the common case: every output is a Build field (--c_source, --executable, --run=false, ...),
+# `spite thing` is the common case: every output is a Build field (--c-source, --executable, --run=false, ...),
 # and anything starting with - is passed through.
 arguments=()
 passing=false
@@ -69,9 +69,9 @@ for argument in "$@"; do
     if $passing; then arguments+=("$argument"); continue; fi
     case "$argument" in
         --)                   passing=true; arguments+=("--") ;;
-        --final_classes=*)    arguments+=("--final_classes=$(absolute "${argument#*=}")") ;;
-        --executable_path=*)  arguments+=("--executable_path=$(absolute "${argument#*=}")") ;;
-        --c_path=*)           arguments+=("--c_path=$(absolute "${argument#*=}")") ;;
+        --final-classes=*)    arguments+=("--final-classes=$(absolute "${argument#*=}")") ;;
+        --executable-path=*)  arguments+=("--executable-path=$(absolute "${argument#*=}")") ;;
+        --c-path=*)           arguments+=("--c-path=$(absolute "${argument#*=}")") ;;
         -*)                   arguments+=("$argument") ;;
         *)                    arguments+=("$(absolute "$argument")") ;;
     esac

@@ -15,9 +15,10 @@ var last_hot_manifest = ""
 var last_hot_state = ""
 var language_folder = "."
 var reloading = false
+var flag_error = ""
 
 func Bootstrap() {
-    load("source")
+    load "source"
     var arguments = Arguments()
     var command = first_argument(arguments)
     if command == "connect" {
@@ -31,6 +32,11 @@ func Bootstrap() {
     language_folder = folder_holding_launcher()
     reloading = command == "reload"
     read_supplied_settings(arguments)
+    if not flag_error.is_empty() {
+        report_error(flag_error)
+        program.exit(1)
+        return
+    }
     var named = named_program(arguments)
     if named.is_empty() {
         print_usage()
@@ -51,16 +57,16 @@ func first_argument(arguments: Arguments): String {
 }
 
 func print_usage() {
-    console.error("usage: spite program_folder [--optimized] [--debug_memory] [-- program arguments ...]")
+    console.error("usage: spite program_folder [--optimized] [--debug-memory] [-- program arguments ...]")
     console.error(
-        "       spite program_folder --c_source                also write the C, beside the program or at --c_path=path",
+        "       spite program_folder --c-source                also write the C, beside the program or at --c-path=path",
     )
     console.error(
-        "       spite program_folder --executable --run=false  build without running, beside the program or at --executable_path=path",
+        "       spite program_folder --executable --run=false  build without running, beside the program or at --executable-path=path",
     )
     console.error("       spite format [--check] file_or_folder ...       format files without compiling them")
     console.error(
-        "       spite connect port [--command=\"...\"]            talk to a program running with --repl_port=port",
+        "       spite connect port [--command=\"...\"]            talk to a program running with --repl-port=port",
     )
 }
 
@@ -216,7 +222,7 @@ func formatted_program_file(path: String): Formatting {
 
 func produce(discovery: Discovery.DiscoveryResult) {
     if remote_loop_port() < 0 {
-        console.error("error: --repl_port takes a port number from 1 to 65535: spite program --repl_port=4000")
+        console.error("error: --repl-port takes a port number from 1 to 65535: spite program --repl-port=4000")
         program.exit(1)
         return
     }
@@ -240,10 +246,10 @@ func produce(discovery: Discovery.DiscoveryResult) {
 
 func path_without_its_output(): String {
     if supplied_settings.has("c_path") and not is_on("c_source") {
-        return "error: '--c_path' says where the C goes, and this build writes no C: give --c_source too"
+        return "error: '--c-path' says where the C goes, and this build writes no C: give --c-source too"
     }
     if supplied_settings.has("executable_path") and not is_on("executable") and not is_on("run") {
-        return "error: '--executable_path' says where the executable goes, and this build makes none: give --executable too"
+        return "error: '--executable-path' says where the executable goes, and this build makes none: give --executable too"
     }
     return ""
 }
@@ -359,7 +365,7 @@ func reload_arguments(): String {
 func is_output_flag(argument: String): Bool {
     assert argument.starts_with("--")
     var outputs = ["run", "executable", "executable_path", "c_source", "c_path", "final_classes"]
-    var name = flag_name(argument)
+    var name = setting_name(argument)
     return outputs.contains(name)
 }
 
@@ -405,18 +411,33 @@ func read_supplied_settings(arguments: Arguments) {
     var index = 0
     while index < compiler_arguments_end(arguments) {
         var argument = arguments.get(index)
-        var equals_position = argument.index_of("=")
         var argument_length = argument.length()
-        if argument.starts_with("--") and equals_position > 2 {
-            var name = argument.slice(2, equals_position)
-            supplied_settings[name] = argument.slice(equals_position + 1, argument_length)
-        } else if argument.starts_with("--") and argument_length > 2 {
-            var name = argument.slice(2, argument_length)
-            supplied_settings[name] = "true"
-            bare_settings.append(name)
+        if argument.starts_with("--") and argument_length > 2 {
+            read_flag(argument)
         }
         index = index + 1
     }
+}
+
+func read_flag(argument: String) {
+    var name = setting_name(argument)
+    var equals_position = argument.index_of("=")
+    if equals_position > 2 {
+        var argument_length = argument.length()
+        supplied_settings[name] = argument.slice(equals_position + 1, argument_length)
+        return
+    }
+    supplied_settings[name] = "true"
+    bare_settings.append(name)
+}
+
+func setting_name(argument: String): String {
+    var written = flag_name(argument)
+    if written.contains("_") and flag_error.is_empty() {
+        var hyphenated = written.replace("_", "-")
+        flag_error = "error: '--{written}' is written '--{hyphenated}': a flag is kebab-case, and it sets the Build field '{written}'"
+    }
+    return written.replace("-", "_")
 }
 
 func executable_path(): String {
@@ -687,7 +708,7 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
     var state_text = File("{base}.reload_files").read()
     if not host_text or not state_text or not is_on("hot_reload") {
         console.print(
-            "error: 'spite reload' rebuilds what changed in a program built with --hot_reload, and '{program_file}' was not: build it with --hot_reload --executable --executable_path={program_file}",
+            "error: 'spite reload' rebuilds what changed in a program built with --hot-reload, and '{program_file}' was not: build it with --hot-reload --executable --executable-path={program_file}",
         )
         program.exit(1)
         return
@@ -942,7 +963,7 @@ func run_connect(arguments: Arguments) {
     var port = port_number(port_text)
     if port < 0 {
         console.error(
-            "usage: spite connect <port>                    talk to a program started with --repl_port=<port>",
+            "usage: spite connect <port>                    talk to a program started with --repl-port=<port>",
         )
         console.error("       spite connect <port> --command=\"...\"    send one command and print its JSON answer")
         program.exit(1)
@@ -950,7 +971,7 @@ func run_connect(arguments: Arguments) {
     }
     var connection = Socket()
     if not connection.connect_locally(port) {
-        console.error("error: nothing is listening on 127.0.0.1:{port}: run a program with --repl_port={port} first")
+        console.error("error: nothing is listening on 127.0.0.1:{port}: run a program with --repl-port={port} first")
         program.exit(1)
         return
     }

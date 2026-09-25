@@ -127,7 +127,7 @@ The language already covers these. Adding a library for them would be a second w
 | `encoding/gob`, `net/rpc` | D13 and D31: isomorphic classes call across the network with a compile-time binary packing, no self-description |
 | `iter` | the D15 member templates and `while` |
 | `go/ast`, `go/parser`, `go/format` | the compiler is Spite (`bootstrap/source`), it is the formatter (section 12), and reflection answers questions about code; whether the parser is loadable by a program is its own question |
-| `expvar`, `net/http/pprof`, `debug/*` | the remote REPL (`--repl_port`) inspects a running program |
+| `expvar`, `net/http/pprof`, `debug/*` | the remote REPL (`--repl-port`) inspects a running program |
 | package management (`go mod`) | D38: a git URL with a commit hash in `load` |
 
 ## Suggestions for what to add first

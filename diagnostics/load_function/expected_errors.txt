@@ -1,0 +1,1 @@
+diagnostics/load_function/load_function.spite:7:6: 'load' is a keyword and cannot name a function: give it a name that says what it loads, like 'load_texture'

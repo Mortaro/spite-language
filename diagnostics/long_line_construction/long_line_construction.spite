@@ -1,0 +1,9 @@
+var console = Console()
+
+func LongLineConstruction() {
+    var world = World()
+    var button = world.create_entity_from_bundle(
+        CounterButton("a label long enough to carry this line past the formatter width"),
+    )
+    console.print(button)
+}

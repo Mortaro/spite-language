@@ -1,5 +1,5 @@
 func GameNoMod() {
-    load("package")
+    load "package"
     var console = Console()
     var monster = Monster()
     var description = monster.describe()

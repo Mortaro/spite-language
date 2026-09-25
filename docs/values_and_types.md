@@ -101,7 +101,7 @@ header, and `this` inside `Int` is that `int32_t`.
 types (not the attributes) of the program: the right-to-left cast of an `Int` into a `Float` is
 `Float.from_int(value)`, of a `Long` into a `Byte` `Byte.from_long(value)`, and so on. Its body is the one
 the compiler supplies -- a C cast, written inline, so a cast costs exactly what it did -- and
-`--final_classes` shows the declaration in each number class. Casting text into a number goes through
+`--final-classes` shows the declaration in each number class. Casting text into a number goes through
 `String`'s `to_<name>()` in the same way.
 
 `this` works in every class, not only numbers: it is the instance the function answers on, for when the

@@ -1,6 +1,7 @@
 var shape = Analysis.AstShape()
 
 var explicit_grouping = false
+var width = 120
 var comment_lines = List<Int>()
 var comment_texts = List<String>()
 var statement_lines = List<Int>()
@@ -108,7 +109,7 @@ func source_block(statements: List<Syntax.Statements.Statement>, depth: Int): St
 
 func source_statement(statement: Syntax.Statements.Statement, depth: Int): String {
     var printed = source_statement_line(statement, depth)
-    if printed.contains("\n") or printed.length() <= 120 {
+    if printed.contains("\n") or printed.length() <= width {
         return printed
     }
     var indent = source_indent(depth)
@@ -134,6 +135,9 @@ func source_statement(statement: Syntax.Statements.Statement, depth: Int): Strin
         }
         Syntax.Statements.ExpressionStatement: {
             crash statement.value
+            if loaded_folder(statement.value) {
+                return printed
+            }
             return broken_or(printed, indent, statement.value, depth)
         }
         _: return printed
@@ -263,9 +267,23 @@ func source_statement_line(statement: Syntax.Statements.Statement, depth: Int): 
         }
         Syntax.Statements.ExpressionStatement: {
             crash statement.value
+            var folder = loaded_folder(statement.value)
+            if folder {
+                return "{indent}load {source_expression(folder)}"
+            }
             return "{indent}{source_expression(statement.value)}"
         }
     }
+}
+
+func loaded_folder(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
+    var call = shape.as_call(expression)
+    assert call
+    crash call.callee
+    var identifier = shape.as_identifier(call.callee)
+    assert identifier
+    assert identifier.name == "load" and call.arguments.count() == 1
+    return call.arguments[0]
 }
 
 func spread_mark(parameter: Syntax.Statements.Parameter): String {
@@ -295,7 +313,7 @@ func source_function(function: Syntax.Statements.FunctionDeclaration, depth: Int
     if not function.has_body {
         return "{source_indent(depth)}func {function.name}({parameters}){returns}"
     }
-    if header.length() > 120 {
+    if header.length() > width {
         var listed = ""
         index = 0
         while index < function.parameters.count() {

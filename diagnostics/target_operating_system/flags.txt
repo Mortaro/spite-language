@@ -1,1 +1,1 @@
---target_operating_system=beos
+--target-operating-system=beos

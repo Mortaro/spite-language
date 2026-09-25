@@ -164,9 +164,9 @@ hand when you are done with it (clear a `T?` field that closes the loop, ideally
 logic on whichever side runs last) if it matters for a long-running program. **[planned]** A future opt-in weak
 reference type is the intended real fix; not implemented yet.
 
-## `--debug_memory`
+## `--debug-memory`
 
-`spite program --debug_memory` builds with an allocation table and prints `allocations: N frees: N` right before
+`spite program --debug-memory` builds with an allocation table and prints `allocations: N frees: N` right before
 the program exits. A mismatch means something leaked; when the two do not balance, it also prints a
 **leaked-object summary by class name**, naming which classes' instances are still alive -- which is what makes a
 leaked cycle visible instead of an unexplained count. The table keeps each live allocation's class beside it and

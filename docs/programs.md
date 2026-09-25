@@ -192,7 +192,7 @@ func UnknownFlagError() {
 
 `build.operating_system` is the system doing the compiling, and `build.target_operating_system` the one the
 program is compiled for: `"windows"`, `"linux"` or `"mac"`. The target defaults to the compiling system, and
-`--target_operating_system=linux` compiles for Linux from any machine. Both are constants, so a condition on
+`--target-operating-system=linux` compiles for Linux from any machine. Both are constants, so a condition on
 them keeps one branch:
 
 ```gdscript title=target_system/target_system.spite entry
@@ -226,13 +226,13 @@ in the folder `spite` was run from ([compiler.md](compiler.md#where-it-runs)).
 var build = Build()
 
 func Launcher() {
-    load("library")
-    load("library/{build.target_operating_system}")
-    load(build.program)
+    load "library"
+    load "library/{build.target_operating_system}"
+    load build.program
 }
 ```
 
-The compiler reads that file first and follows its `load` calls in order:
+The compiler reads that file first and follows its `load` lines in order:
 
 1. `library/`, the standard library every system shares;
 2. the folder of the operating system the program is compiled for -- `library/windows/`, `library/linux/` or
@@ -260,11 +260,11 @@ loaded from true
 for this machine true
 ```
 
-`--final_classes` writes `Launcher` out with the rest of the program, so the printed program shows how it is
+`--final-classes` writes `Launcher` out with the rest of the program, so the printed program shows how it is
 loaded too. `Launcher` counts as library code: `Spite.Class.instances` does not list it. What `main` still does
 in C is the floor under this: it hands the command line to `Arguments()`, puts standard output in binary mode on
 Windows, and, after `Launcher` returns, releases the singletons and the class objects and prints the
-`--debug_memory` balance.
+`--debug-memory` balance.
 
 ## Configuration is a class
 

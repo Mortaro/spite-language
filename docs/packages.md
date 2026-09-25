@@ -4,8 +4,8 @@ There are no imports. Everything lives in one global namespace, populated by loa
 
 ```gdscript
 func Game() {
-    load("package")
-    load("cookie_clicker")
+    load "package"
+    load "cookie_clicker"
 }
 ```
 
@@ -88,8 +88,8 @@ func taunt(): String {
 var console = Console()
 
 func PackageDemo() {
-    load("package")
-    load("mods")
+    load "package"
+    load "mods"
     var renderer = Engine.Renderer()
     var rendered = renderer.render()
     console.print(rendered)
@@ -176,12 +176,12 @@ Console
 
 Every class object in the program answers `name_with_namespaces()` from then on, because there is one `Spite.Class` and
 that folder reopened it. A *new* class under `Spite` is a diagnostic instead -- that namespace holds the
-standard library's own classes, and a class of your own belongs in a namespace of your own. `load("spite")` is
+standard library's own classes, and a class of your own belongs in a namespace of your own. `load "spite"` is
 a diagnostic too:
 
 ```gdscript title=spite_namespace_error/spite_namespace_error.spite entry error
 func SpiteNamespaceError() {
-    load("spite")
+    load "spite"
 }
 ```
 ```diagnostic
@@ -191,19 +191,48 @@ func SpiteNamespaceError() {
 ## `load` is a bundle boundary
 
 `load` marks where a dynamic library or lazy-loaded bundle could split, the way an async `import()` does in
-webpack. Today every root is linked into the one executable, and a `load(...)` call compiles to nothing at run
-time -- except the launcher's `load(build.program)`, which runs the program by constructing its entry class.
-`load` is not a reserved word: a class that declares its own `func load(...)` calls that function with `load(x)`,
-and its file loads no folder. Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are decided but not built
+webpack. Today every root is linked into the one executable, and a `load` line compiles to nothing at run
+time -- except the launcher's `load build.program`, which runs the program by constructing its entry class.
+`load` is a keyword written without parentheses, on a line of its own (D186): `load("folder")` is an error naming
+`load "folder"`, and nothing else may be named `load` -- a function that loads something says what,
+`load_texture` (D166).
+
+```gdscript title=load_parentheses_error/load_parentheses_error.spite entry error
+func LoadParenthesesError() {
+    load("level")
+}
+```
+```diagnostic
+'load' is a keyword, not a function: write it without parentheses, 'load "level"'
+```
+
+A `load` under an `if` is decided while compiling. The condition may read `Build` fields, text, whole numbers,
+`true` and `false`, joined by `==`, `!=`, `and`, `or` and `not`, and only the branch it picks is loaded:
+
+```
+var build = Build()
+
+func Engine() {
+    if build.target_operating_system == "windows" {
+        load "../plugins/windows_renderer"
+    }
+}
+```
+
+This works in the program's entry file and in any file of a loaded package, so a package can pick its own plugins.
+Each path is relative to the folder of the file it is written in. A condition the compiler cannot decide, such as
+one that reads `Arguments()`, is an error rather than a folder that is quietly left out.
+
+Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are decided but not built
 ([manual section 11](../manual.md#11-packages-namespaces-and-loading--partial)).
 
-A dependency will be a git URL pinned to a commit in the `load` call itself --
-`load("github.com/mortaro/engine@a3f2c91")` -- fetched by the ordinary compile, with no package manager, registry
+A dependency will be a git URL pinned to a commit in the `load` line itself --
+`load "github.com/mortaro/engine@a3f2c91"` -- fetched by the ordinary compile, with no package manager, registry
 or lockfile. That is decided and not built ([manual, decision D38](../manual.md#decision-log)).
 
 ## Final classes
 
-Because patching is dangerous to read silently, `--final_classes=folder` writes every class as it ended up, after
+Because patching is dangerous to read silently, `--final-classes=folder` writes every class as it ended up, after
 every root is merged and every reopening resolved, as a program that runs the same as the one it was printed from
 ([compiler.md](compiler.md#inspect-merged-classes)). This is the file to read when you are not sure which mod won.
 Which root supplied each declaration is not printed yet.

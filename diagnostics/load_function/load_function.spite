@@ -1,0 +1,9 @@
+var loads = 0
+
+func LoadFunction() {
+    loads = 1
+}
+
+func load(id: String): Int {
+    return loads + id.length()
+}

@@ -1,6 +1,6 @@
 func Game() {
-    load("package")
-    load("mod")
+    load "package"
+    load "mod"
     var console = Console()
     var renderer = Engine.Renderer()
     var render = renderer.render()
