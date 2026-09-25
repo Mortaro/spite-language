@@ -559,10 +559,3 @@ All of it is proposed by Claude, unconfirmed.
 181. **Item 146 again, now that there are no fibers.** `finished` still only reads a flag, and a state machine only
      moves when the program waits somewhere. Making `finished` run the ready state machines once would be cheap
      now (no stack switch). Keep it a pure read?
-
-## From docs/KNOWN_ISSUES.md: the entries only Mortaro can unblock
-
-183. **`Json` and a `Float`/`Double` that is infinity or not-a-number.** It writes `inf`/`nan` today, which is not
-     JSON. Options: write `null` (what JavaScript does, silently lossy), crash at the write (a `crash` naming the
-     attribute), or refuse to write and return `null` from `write()` so the caller narrows it. Which?
-
