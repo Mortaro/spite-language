@@ -57,9 +57,6 @@ manual argues it.
     that rule with singletons allowed; or running a `Parallel` on a deep copy of its instance.
 18. **Inferring codegen values from constructor arguments** (`Concurrent(file.read)` without `<String?>`), which
     D35's own example needs and D9 did not foresee.
-20. **A thread pool for `Parallel`**, and whether `parallel_each_` templates (D35 item 3) come before the engine
-    needs them.
-
 ## What the standard library offers
 
 21. **Go's standard library against Spite's**, package by package, with a suggested order of what to add:
