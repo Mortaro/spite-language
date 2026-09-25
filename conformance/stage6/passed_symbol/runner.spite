@@ -1,5 +1,10 @@
 generic $system_type
 
+enum Phase {
+    'update'
+    'render'
+}
+
 var system: $system_type = null
 var console = Console()
 

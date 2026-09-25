@@ -91,6 +91,7 @@ var bound_pattern = ""
 var bound_function_name = ""
 var bound_display_name = ""
 var bound_range = ""
+var bound_enum_c_name = ""
 var arguments_parameter_names = List<String>()
 var temporary_counter = 0
 var literal_counter = 0
@@ -192,6 +193,9 @@ func instantiated_function_source(information: Analysis.ClassInfo, function: Ana
     body = body.replace("attributes[{symbol}]", function.symbol_field_name)
     body = body.replace("\{{symbol}.name}", shown_name)
     body = body.replace("{symbol}.name", "\"{shown_name}\"")
+    if not function.symbol_enum_c_name.is_empty() {
+        body = body.replace("{symbol}.value", "'{function.symbol_field_name}'")
+    }
     body = body.replace("{symbol}.class", field_type)
     if not function.symbol_pattern.is_empty() {
         body = body.replace(".{function.symbol_pattern}(", ".{function.symbol_function_name}(")
@@ -707,7 +711,7 @@ func function_question(expression: Syntax.Expressions.Expression, class_informat
         if bound_class_ref {
             var owner = find_class_by_c_name(bound_class_ref.c_name)
             crash owner
-            return class_has_function(owner, pattern)
+            return class_has_function(owner, pattern, class_information)
         }
         return false
     }
@@ -728,7 +732,7 @@ func written_name(arguments: List<Syntax.Expressions.Expression>): String? {
     return enum_literal.value
 }
 
-func class_has_function(owner: Analysis.ClassInfo, pattern: String): Bool {
+func class_has_function(owner: Analysis.ClassInfo, pattern: String, asking: Analysis.ClassInfo): Bool {
     var functions = declared_functions_of(owner)
     var names = functions.map_name()
     var opening = pattern.index_of("<")
@@ -739,16 +743,21 @@ func class_has_function(owner: Analysis.ClassInfo, pattern: String): Bool {
     var pattern_length = pattern.length()
     var prefix = pattern.slice(0, opening)
     var suffix = pattern.slice(closing + 1, pattern_length)
-    var prefix_length = prefix.length()
-    var suffix_length = suffix.length()
-    var index = 0
-    while index < names.count() {
-        var name = names[index]
-        if name.length() > prefix_length + suffix_length and name.starts_with(prefix) and name.ends_with(suffix) {
-            return true
+    var hole = pattern.slice(opening + 1, closing)
+    var hole_values = hole_enum(asking, hole)
+    if hole_values {
+        var index = 0
+        while index < hole_values.values.count() {
+            var value = hole_values.values[index]
+            if names.contains("{prefix}{value}{suffix}") {
+                return true
+            }
+            index = index + 1
         }
-        index = index + 1
+        return false
     }
+    var missing = missing_hole_enum(asking, hole, pattern)
+    report(missing)
     return false
 }
 
@@ -2421,6 +2430,7 @@ func register_template(declaration: Syntax.Statements.FunctionDeclaration, infor
         current_function = saved_function
     }
     information.templates.append(template)
+    check_hole_enum(information, template)
     return true
 }
 
@@ -2496,17 +2506,119 @@ func template_range_kind(information: Analysis.ClassInfo, template: Analysis.Tem
         return "class"
     }
     var joined = path.join(".")
-    if find_class(joined, information.namespace_dotted) or find_union(joined) or find_enum(joined) {
+    if find_class(joined, information.namespace_dotted) or find_union(joined) {
         return "class"
+    }
+    if find_enum(joined) {
+        return "enum"
     }
     var owner_path = path.copy()
     owner_path.remove_last()
     var joined_owner_path = owner_path.join(".")
     var last_segment = path.last()
-    if find_union_qualified(joined_owner_path, last_segment) or find_enum_qualified(joined_owner_path, last_segment) {
+    if find_union_qualified(joined_owner_path, last_segment) {
         return "class"
     }
+    if find_enum_qualified(joined_owner_path, last_segment) {
+        return "enum"
+    }
     return "namespace"
+}
+
+func template_range_enum(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): Analysis.EnumInfo? {
+    assert template.range
+    var kind = template_range_kind(information, template)
+    if kind == "pattern" {
+        return hole_enum(information, template.symbol_parameter)
+    }
+    assert kind == "enum"
+    var saved_class = current_class
+    current_class = information
+    var range_type = resolve_type(template.range, information.qualified_dotted)
+    current_class = saved_class
+    assert range_type
+    var range_enum = type_shape.as_enum(range_type)
+    assert range_enum
+    return enums.find_by_c_name(range_enum.c_name)
+}
+
+func pascal_name(snake_name: String): String {
+    var words = snake_name.split("_")
+    var capitalized = ""
+    var index = 0
+    while index < words.count() {
+        var word = words[index]
+        var word_length = word.length()
+        capitalized = "{capitalized}{word.slice(0, 1).upper_case()}{word.slice(1, word_length)}"
+        index = index + 1
+    }
+    return capitalized
+}
+
+func hole_enum(information: Analysis.ClassInfo, hole: String): Analysis.EnumInfo? {
+    var name = pascal_name(hole)
+    var declaring_owner = nearest_declaring_owner(name, information.qualified_dotted)
+    if not declaring_owner.is_empty() {
+        var declared_there = find_enum_qualified(declaring_owner, name)
+        if declared_there {
+            return declared_there
+        }
+    }
+    var named = enums_named(name)
+    if named.count() == 1 {
+        return named.first()
+    }
+    return null
+}
+
+func enums_named(name: String): List<Analysis.EnumInfo> {
+    var named = List<Analysis.EnumInfo>()
+    var index = 0
+    while index < enums.count() {
+        if enums[index].simple_name == name {
+            named.append(enums[index])
+        }
+        index = index + 1
+    }
+    return named
+}
+
+func enum_display_name(information: Analysis.EnumInfo): String {
+    if information.owner_qualified.is_empty() {
+        return information.simple_name
+    }
+    return "{information.owner_qualified}.{information.simple_name}"
+}
+
+func missing_hole_enum(information: Analysis.ClassInfo, hole: String, pattern: String): String {
+    var name = pascal_name(hole)
+    var named = enums_named(name)
+    if named.count() > 1 {
+        var owners = named.map_owner_qualified()
+        return "the hole '<{hole}>' of '{pattern}' matches only the values of the enum '{name}', and more than one class declares one ('{owners.join("', '")}'): rename one of them, or declare '{name}' in '{information.qualified_dotted}' itself"
+    }
+    return "the hole '<{hole}>' of '{pattern}' matches only the values of an enum named for it, and there is no enum '{name}': declare 'enum {name}' listing the names it may match, one per line"
+}
+
+func pattern_text(template: Analysis.TemplateInfo): String {
+    return "{pattern_prefix(template)}<{template.symbol_parameter}>{pattern_suffix(template)}"
+}
+
+func check_hole_enum(information: Analysis.ClassInfo, template: Analysis.TemplateInfo) {
+    assert not template.passed
+    assert template.range
+    assert template_range_kind(information, template) == "pattern"
+    assert not hole_enum(information, template.symbol_parameter)
+    var declaration = template.get_declaration()
+    var saved_function = current_function
+    var saved_line = current_line
+    current_function = declaration.name
+    current_line = declaration.line
+    var written_pattern = pattern_text(template)
+    var missing = missing_hole_enum(information, template.symbol_parameter, written_pattern)
+    report(missing)
+    current_function = saved_function
+    current_line = saved_line
 }
 
 func range_path(template: Analysis.TemplateInfo): List<String> {
@@ -2624,18 +2736,17 @@ func pattern_matches(information: Analysis.ClassInfo, template: Analysis.Templat
     var matches = List<String>()
     var owner = range_function_owner(information, template)
     assert owner
+    var hole_values = hole_enum(information, template.symbol_parameter)
+    assert hole_values
     var prefix = pattern_prefix(template)
     var suffix = pattern_suffix(template)
     var functions = declared_functions_of(owner)
+    var names = functions.map_name()
     var index = 0
-    while index < functions.count() {
-        var name = functions[index].name
-        var name_length = name.length()
-        var prefix_length = prefix.length()
-        var suffix_length = suffix.length()
-        if name_length > prefix_length + suffix_length and name.starts_with(prefix) and name.ends_with(suffix) {
-            var matched = name.slice(prefix_length, name_length - suffix_length)
-            matches.append(matched)
+    while index < hole_values.values.count() {
+        var value = hole_values.values[index]
+        if names.contains("{prefix}{value}{suffix}") {
+            matches.append(value)
         }
         index = index + 1
     }
@@ -2658,7 +2769,7 @@ func namespace_classes(template: Analysis.TemplateInfo): List<Analysis.ClassInfo
     return found.sort_by_qualified_dotted()
 }
 
-func folder_range_miss(information: Analysis.ClassInfo, name: String): String {
+func range_miss(information: Analysis.ClassInfo, name: String): String {
     var index = 0
     while index < information.templates.count() {
         var template = information.templates[index]
@@ -2677,9 +2788,35 @@ func folder_range_miss(information: Analysis.ClassInfo, name: String): String {
             var members = found.map_class_member_name()
             return "'{name}' is '{declaration.name}' for a class '{member_name}', but the folders named for '{range}' hold only '{members.join("', '")}'"
         }
+        var missed_value = value_range_miss(information, template, name, member_name)
+        if not missed_value.is_empty() {
+            return missed_value
+        }
         index = index + 1
     }
     return ""
+}
+
+func value_range_miss(
+    information: Analysis.ClassInfo,
+    template: Analysis.TemplateInfo,
+    name: String,
+    member_name: String,
+): String {
+    assert not member_name.is_empty() and member_name != "{template.symbol_parameter}s"
+    var kind = template_range_owner(information, template)
+    assert kind == "pattern" or kind == "enum"
+    var range_enum = template_range_enum(information, template)
+    assert range_enum
+    var declaration = template.get_declaration()
+    var shown_enum = enum_display_name(range_enum)
+    if not range_enum.has_value(member_name) {
+        return "'{name}' is '{declaration.name}' for '{member_name}', but '{member_name}' is not a value of '{shown_enum}', which has '{range_enum.values.join("', '")}'"
+    }
+    assert kind == "pattern"
+    var owner = range_function_owner(information, template)
+    crash owner
+    return "'{name}' is '{declaration.name}' for '{member_name}', a value of '{shown_enum}', but '{owner.qualified_dotted}' has no function '{pattern_prefix(template)}{member_name}{pattern_suffix(template)}'"
 }
 
 func class_member_name(candidate: Analysis.ClassInfo): String {
@@ -2732,6 +2869,11 @@ func template_attribute_names(information: Analysis.ClassInfo, template: Analysi
     }
     if kind == "pattern" {
         return pattern_matches(information, template)
+    }
+    if kind == "enum" {
+        var range_enum = template_range_enum(information, template)
+        crash range_enum
+        return range_enum.values.copy()
     }
     if kind == "namespace" {
         var found = namespace_classes(template)
@@ -2792,7 +2934,7 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
     }
     if chosen {
         if chosen_type {
-            if not chosen.range or chosen_owner == "function" or chosen_owner == "pattern" or chosen_owner == "namespace" {
+            if not chosen.range or chosen_owner == "function" or chosen_owner == "pattern" or chosen_owner == "namespace" or chosen_owner == "enum" {
                 chosen_owner = ""
             }
             var instance = instantiate_template(
@@ -2834,6 +2976,11 @@ func describe_range_binding(
         instance.symbol_pattern = path.last()
         instance.symbol_function_name = "{pattern_prefix(template)}{instance.symbol_field_name}{pattern_suffix(template)}"
     }
+    if kind == "pattern" or kind == "enum" {
+        var range_enum = template_range_enum(information, template)
+        crash range_enum
+        instance.symbol_enum_c_name = range_enum.c_name
+    }
     if kind == "namespace" {
         var found = namespace_classes(template)
         var index = 0
@@ -2864,15 +3011,7 @@ func answers_through_pattern(information: Analysis.ClassInfo, name: String): Boo
 }
 
 func type_named_by(member_name: String): Analysis.SpiteType? {
-    var words = member_name.split("_")
-    var type_name = ""
-    var index = 0
-    while index < words.count() {
-        var word = words[index]
-        var word_length = word.length()
-        type_name = "{type_name}{word.slice(0, 1).upper_case()}{word.slice(1, word_length)}"
-        index = index + 1
-    }
+    var type_name = pascal_name(member_name)
     return value_type_named(type_name)
 }
 
@@ -2895,6 +3034,12 @@ func template_member_type(
             assert matches.contains(member_name)
             var symbol_type: Analysis.SpiteType = Analysis.Types.SymbolType()
             return symbol_type
+        }
+        if kind == "enum" {
+            var range_enum = template_range_enum(information, template)
+            crash range_enum
+            assert range_enum.has_value(member_name)
+            return enum_type_of(range_enum)
         }
         if kind == "namespace" {
             var found = namespace_classes(template)
@@ -3111,6 +3256,7 @@ func bind_symbol_of(function: Analysis.FunctionInfo) {
     bound_pattern = function.symbol_pattern
     bound_function_name = function.symbol_function_name
     bound_display_name = function.symbol_display_name
+    bound_enum_c_name = function.symbol_enum_c_name
 }
 
 func is_bound_member_index(index_expression: Syntax.Expressions.IndexExpression): Bool {
@@ -6019,13 +6165,13 @@ func generate_own_function_call(
         return generate_string_method(name, self_result, receiver, arguments_ast, scope, class_information)
     }
     if not function {
-        var folder_miss = folder_range_miss(class_information, name)
+        var missed = range_miss(class_information, name)
         if name == "print" or name == "println" or name == "echo" or name == "printf" {
             report(
                 "this class has no function '{name}': printing goes through the console -- 'var console = Console()' beside the attributes, then 'console.print(value)'",
             )
-        } else if not folder_miss.is_empty() {
-            report(folder_miss)
+        } else if not missed.is_empty() {
+            report(missed)
         } else {
             report("this class has no function '{name}'")
         }
@@ -6078,7 +6224,7 @@ func passed_instance(
     var member_type = template_member_type(information, template, bound_field_name)
     crash member_type
     var member_owner = template_range_owner(information, template)
-    if member_owner == "function" or member_owner == "pattern" or member_owner == "namespace" {
+    if member_owner == "function" or member_owner == "pattern" or member_owner == "namespace" or member_owner == "enum" {
         member_owner = ""
     }
     var instance = instantiate_template(
@@ -6388,11 +6534,11 @@ func generate_method_call(
                 class_information,
             )
         }
-        var folder_miss = folder_range_miss(target_class, member.name)
-        if folder_miss.is_empty() {
+        var missed = range_miss(target_class, member.name)
+        if missed.is_empty() {
             report("'{object_class_ref.c_name}' does not define '{member.name}'")
         } else {
-            report(folder_miss)
+            report(missed)
         }
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
@@ -10211,6 +10357,12 @@ func generate_member_read_raw(
             var rendered_string_literal = render_string_literal(shown_name)
             var string_type = string_type()
             return ExpressionResult(rendered_string_literal, string_type)
+        }
+        if symbol_identifier.name == bound_symbol_name and member.name == "value" and not bound_enum_c_name.is_empty() {
+            var bound_enum = enums.find_by_c_name(bound_enum_c_name)
+            crash bound_enum
+            var bound_enum_type = enum_type_of(bound_enum)
+            return ExpressionResult("{bound_enum_c_name}_{bound_field_name}", bound_enum_type)
         }
         if symbol_identifier.name == bound_symbol_name and member.name == "class" and not bound_symbol_name.is_empty() {
             crash bound_field_type

@@ -1,0 +1,9 @@
+var console = Console()
+
+func update_all() {
+    console.print("move")
+}
+
+func step_all() {
+    console.print("step")
+}

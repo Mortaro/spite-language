@@ -1,0 +1,21 @@
+generic $system_type
+
+enum Phase {
+    'update'
+    'render'
+}
+
+var system: $system_type = null
+
+func run() {
+    run_updat_all()
+    run_render_all()
+}
+
+func run_phase_all(phase: Symbol<$system_type.phase_all>) {
+    system.phase_all()
+}
+
+func run_stage_all(stage: Symbol<$system_type.stage_all>) {
+    system.stage_all()
+}

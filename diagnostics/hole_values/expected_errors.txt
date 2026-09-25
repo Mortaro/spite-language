@@ -1,0 +1,3 @@
+diagnostics/hole_values/runner.spite:19: error: the hole '<stage>' of '<stage>_all' matches only the values of an enum named for it, and there is no enum 'Stage': declare 'enum Stage' listing the names it may match, one per line (in Runner.run_stage_all)
+diagnostics/hole_values/runner.spite:11: error: 'run_updat_all' is 'run_phase_all' for 'updat', but 'updat' is not a value of 'Runner.Phase', which has 'update', 'render' (in Runner.run)
+diagnostics/hole_values/runner.spite:12: error: 'run_render_all' is 'run_phase_all' for 'render', a value of 'Runner.Phase', but 'Move' has no function 'render_all' (in Runner.run)

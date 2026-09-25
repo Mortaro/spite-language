@@ -1,0 +1,16 @@
+var today: Weather.Sky = 'rain'
+var console = Console()
+
+func EnumReopening() {
+    load "package"
+    load "mod"
+    show_skys()
+    var weather = Weather()
+    weather.sky = 'snow'
+    console.print("now", weather.sky)
+}
+
+func show_sky(sky: Symbol<Weather.Sky>) {
+    var is_today = sky.value == today
+    console.print(sky.name, is_today)
+}

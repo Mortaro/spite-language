@@ -160,7 +160,9 @@ class is only tracked when something asks for its instances), `Spite.Class.insta
 A symbol literal is an entry of a table the compiler writes with only the symbols the program uses; it is
 constant text, so storing and comparing symbols allocates nothing ([D70](../manual.md#decision-log)). A Symbol
 codegen template exists only for the names a program calls: a program that never calls `sum_price()` has no
-`sum_price`.
+`sum_price`. An enum's reflection is the same kind of template (D180): `Symbol<Phase>` and a name pattern's hole
+become one call per value, with `phase.value` the constant itself, so no table of an enum's values, names or
+order exists at run time -- walking one costs exactly the calls it expands to, and not walking one costs nothing.
 
 **When.** Every build: what a REPL reads is compiled into the REPL build, so it is read there too. **What you
 notice.** Nothing: reflection may be as detailed as it likes, because a program that never reads it carries none

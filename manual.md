@@ -888,6 +888,26 @@ That is all an enum is; the integer it compiles to is a representation detail.
   ([Symbol codegen](#symbol-codegen-implemented)) -- a symbol literal only makes that call writable in source,
   which it is not today.
 
+**An enum can be reopened, and walked** (D180, decided by Mortaro, 2026-09-25: "phases should be a enum ... which
+can be reopened by the user ... our language needs good enum reflection"). **[implemented; the spellings and the
+readings below proposed by Claude, unconfirmed]**
+
+- **Reopening adds values.** A file that reopens a class (section 11) and declares one of its enums again adds
+  the values it lists to that enum instead of replacing it. They come after the values already merged, in merge
+  order -- the program's own folder, then each loaded folder in load order -- and a value the enum already has
+  stays where it was, so a reopening may restate the whole enum (as `--final_classes` output does) without
+  changing it. Nothing removes a value. `conformance/stage6/enum_reopening` reopens one from a loaded folder and
+  from the program's own folder.
+- **`course: Symbol<Course>` walks the values** of an enum, the way `Symbol<Label>` walks a class's attributes
+  (section 8): `course.name` is the value's name as text, `course.value` the value itself typed as `Course`, and
+  the plural (`list_courses()` for `list_course`) calls the template once per value in the enum's order;
+  `list_soup()` calls it for one, and a name the enum does not have is an error listing the ones it does.
+- **All of it is compile time and tree-shaken (D177).** A walk expands into one ordinary call per value, and
+  `course.value` into the constant, as `--final_classes` shows; no table of an enum's values, names or order
+  exists at run time, and a program that never walks an enum carries nothing for it.
+- A name pattern's hole is constrained by an enum the same way (section 8). D180 says environments will be an
+  enum too; that is not built.
+
 ### Unions  **[implemented]**
 
 Tagged unions. A `switch` must cover every member and narrows the value inside each case.
@@ -1456,11 +1476,25 @@ calls. The spellings below are Claude's (2026-09-24), chosen to be the existing 
 - **`phase: Symbol<$system_type.phase_each>` ranges over the functions whose names fit `<phase>_each`** (D116):
   when the parameter's own name is a word of the function name in the range, that word is the hole, exactly as
   it is in a template's own name. `update_each` gives `phase` = `'update'`; `run_each_before_phase` would match
-  `run_each_before_render`. The plural (`run_phases_each()`) walks the matching functions in declaration order.
-  Inside, `phase.name` is the matched text, and the pattern written as a member -- `system.phase_each(...)` --
-  calls the matched function; another template ranging over `$system_type.phase_each` from inside walks that
-  function's arguments, its instances named for it (`row_potion_in_update_each`) so two matched functions never
-  share one. The engine owns the list of phases and decides what they mean; the language only reads the name.
+  `run_each_before_render`. Inside, `phase.name` is the matched text, and the pattern written as a member --
+  `system.phase_each(...)` -- calls the matched function; another template ranging over `$system_type.phase_each`
+  from inside walks that function's arguments, its instances named for it (`row_potion_in_update_each`) so two
+  matched functions never share one. The engine owns the list of phases and decides what they mean; the language
+  only reads the name.
+- **The hole matches only the values of an enum** (D180, decided by Mortaro, 2026-09-25; how the enum is found
+  proposed by Claude, unconfirmed). The engine's phases are an enum, and the enum is the one named for the hole --
+  `Phase` for `phase`, `RenderStep` for `render_step` -- resolved as a type written that way would be from the
+  template's class (its own class, its folders, then the whole program when only one class declares it). A
+  function that fits the pattern without naming a value, such as a helper `count_all` when `count` is not a
+  `Phase`, is an ordinary function. The plural (`run_phases_each()`) walks the matching functions **in the enum's
+  order** (it was their declaration order), and `phase.value` is the matched value, typed as the enum, so an
+  engine stores and compares phases as values rather than text. A hole no enum is named for is an error at the
+  template asking for one; calling an instance for a name the enum does not have is an error listing its values,
+  and one for a value the type has no function for says so (`diagnostics/hole_values`). A folded
+  `$type.has_function("<phase>_each")` reads its hole the same way; `has_function` and `name_fits` answered at
+  run time, from `.functions`, still take any text in the hole. A program adds a phase by reopening the enum
+  (section 7), and every system with a function for it is then run in it (`conformance/stage6/system_phases`,
+  where a system's `sum_all` helper stays ordinary).
 - **A template's symbol is passed to a helper by name** (proposed by Claude, unconfirmed, 2026-09-24; SlopEngine's
   runner had to keep its whole loop inside `run_phase_each`). A function whose `Symbol<...>` parameter is not a
   word of its own name -- `run_combination(phase: Symbol<$system_type.phase_each>, combination: Int)` -- is not
@@ -1956,7 +1990,8 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
 - Every loaded root merges into the same namespaces. A second root with the same folder structure and file name **reopens** the
   class: this is how monkey patching and game mods work -- later `func`/`var` with the same name replaces the earlier one (in
   load order: the entry folder first, then loads in the order they were discovered), a `var`'s replacement type must match, and
-  a new `func`/`var`/`enum`/`type` not seen before is simply added. The standard library (`library/`) is discovered
+  a new `func`/`var`/`enum`/`type` not seen before is simply added. An `enum` declared again gains the values it
+  lists that it did not have, after its own (D180, section 7). The standard library (`library/`) is discovered
   before the program, so a program's own file reopens `Console`, `String`, `File` and the rest the same way.
   `Environment` is made to be reopened: a program's own `environment.spite` adds its settings to it (D76, section 9).
   Your foot to shoot. That includes `Spite.Class` (D7, section 8): reopening it moves a class-level default for the whole program.
@@ -4256,3 +4291,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | **D192** (decided by Mortaro): **the README's first example shows what Spite does that other languages do not**: "our readme main example needs to be something cooler that shows both iterators being created automatically and metaprogramming instead of that normie example". The opening program should show a member template chain the compiler writes on its own (`monsters.filter_alive().sum_health()`, fused into one loop) and a piece of compile-time metaprogramming (a `Symbol<...>` walk or a name pattern), short enough to read at a glance, and it is a titled block `check.sh` compiles like every other documentation program. |
 | 2026-09-25 | **D193** (decided by Mortaro): **`manual.md` is dissolved into `docs/` and removed, and the README gives a reading order with links to the docs**: "manual should be dissolved into docs and removed, and our readme should have a proper reading order with links for the docs". Every normative rule the manual states moves into the docs page that teaches that part of the language, so there is one place that both teaches and decides; the docs become normative. The decision log moves with it, whole and still append-only, to its own page (proposed by Claude, unconfirmed: `docs/decisions.md`), and every link to `manual.md#...` is repointed. `AGENTS.md`, `SPITE.md`, `PLAN.md` and the memory of every agent that says "the manual is normative" change to name the docs. Done in one pass once no other branch is editing the manual, so nothing written to it in parallel is lost. |
 | 2026-09-25 | **D194** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 141): **the standard library has a file and folder watcher, and the language's own hot reload uses it**: "you can build the filewatcher and use it for the hotreload of the language itself. should support any os, and perhaps name needs to be better since its also a directory watcher". One implementation on every system (`ReadDirectoryChangesW`, `inotify`, `kqueue`), never polling, tree-shaken when unused; `HotReload` is rewritten on top of it. The name is still open, because it watches folders as well as files. |
+| 2026-09-25 | (implements D180; the spellings and readings below proposed by Claude, unconfirmed) **An enum reopens by adding values, is walked by `Symbol<Enum>`, and a name pattern's hole is the enum named for it.** A reopening that declares an enum again appends the values it lists that the enum lacks, in merge order (the program's own folder, then loaded folders in load order); a restated value stays where it was, so `--final_classes` output still recompiles, and nothing removes one. `course: Symbol<Course>` is a template over the values: `course.name` is the text, `course.value` the value typed `Course`, and the plural calls it once per value in order. A pattern's hole `phase` matches only the values of the enum `Phase`, resolved as that type name would be from the template's class; with no such enum the template is an error, the plural walks matches in the enum's order rather than declaration order, `phase.value` is the matched value, a call naming a non-value lists the values, and a folded `has_function("<phase>_each")` reads the hole the same way while the run-time `has_function`/`name_fits` still take any text. All compile time: each walk expands to ordinary calls and constants, nothing is emitted for an enum nobody walks (D177). Supersedes the "enums declared again still register twice" note of the 2026-09-24 `type`-reopening row. Sections 7, 8, 11; `conformance/stage6/enum_reopening`, `conformance/stage6/system_phases`, `diagnostics/hole_values`, `docs/values_and_types.md`, `docs/packages.md`, `docs/metaprogramming.md`. |

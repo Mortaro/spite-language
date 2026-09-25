@@ -59,7 +59,8 @@ mine
 Every loaded root merges into the same namespaces. A second root with the same folder structure and file name
 **reopens** the class instead of colliding with it: a later `func`/`var` of the same name replaces the
 earlier one (in load order), and a name not seen before is simply added. A `union` or `type` declared again
-replaces the earlier declaration the same way. This is how game mods work.
+replaces the earlier declaration the same way; an `enum` declared again adds values to it instead
+([below](#reopening-an-enum-adds-values)). This is how game mods work.
 
 ```gdscript title=package_demo/package/monster.spite
 func describe(): String {
@@ -146,6 +147,49 @@ func ReopenString() {
 ```output
 HELLO!
 ```
+
+### Reopening an enum adds values
+
+An enum a class declares is open the same way (D180). A reopening file that declares the enum again lists the
+values it adds, and they come after the ones already merged, in the order above: the program's own folder
+first, then each loaded folder in load order. An engine's phases are an enum for exactly this: a mod adds a
+phase, and everything that walks the enum -- `Symbol<Phase>`, or a name pattern whose hole is `phase`
+([metaprogramming.md](metaprogramming.md#a-name-that-says-when-it-runs)) -- walks the new one too.
+
+```gdscript title=phase_mod/engine/schedule.spite
+enum Phase {
+    'update'
+    'render'
+}
+
+var console = Console()
+
+func run_phase(phase: Symbol<Phase>) {
+    console.print("running", phase.name)
+}
+```
+```gdscript title=phase_mod/mods/schedule.spite
+enum Phase {
+    'input'
+}
+```
+```gdscript title=phase_mod/phase_mod.spite entry
+func PhaseMod() {
+    load "engine"
+    load "mods"
+    var schedule = Schedule()
+    schedule.run_phases()
+}
+```
+```output
+running update
+running render
+running input
+```
+
+A value the enum already has stays where it was, so a reopening may list the whole enum again -- what
+`--final-classes` prints does -- without changing it; there is no way to remove a value. Since the values are
+walked while compiling, adding one costs nothing at run time beyond what walking it generates.
 
 ## The `Spite` namespace is reserved
 
