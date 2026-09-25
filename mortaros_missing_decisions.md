@@ -21,12 +21,6 @@ manual argues it.
     D86, and spelled `operating_system` now), the containers row, and the D91/D105 rows (a `List` template's symbol names the element's member;
     how a chain fuses).
 
-## From the remote REPL
-
-11. **D37 drain points, as built.** The remote REPL's commands are answered on the program's thread at its waits
-    (manual section 14, "Answered where the program waits"). Confirm the compile error's rule: a `--repl_port`
-    build is rejected when none of the program's own code waits and it has a `while` loop -- which also rejects
-    a loop that does end.
 ## Variadic arguments
 
 14. **Whether a generic line can name a constraint**, `generic $sub_type: Openable` (open question 12's own
