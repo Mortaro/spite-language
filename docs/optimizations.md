@@ -54,6 +54,7 @@ function with a visible effect can show, no optimisation changes what a program 
 | [Text joined in one piece](#text-joined-in-one-piece) | built | every | fewer allocations; a text made only of constants is constant |
 | [Defaults the constructor replaces are never made](#defaults-the-constructor-replaces-are-never-made) | built | every but `--hot-reload` | fewer allocations |
 | [A function value describes its arguments when asked](#a-function-value-describes-its-arguments-when-asked) | built | every | fewer allocations per function value and per `Parallel` |
+| [A list's templates read its elements without counting them](#a-lists-templates-read-its-elements-without-counting-them) | built | every but `--hot-reload` | nothing but speed |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
@@ -806,6 +807,28 @@ function passed on. A `.functions` list is reflection read on purpose, so its va
 function value makes 5 instead of 10 (`benchmarks/function_values`, from 2 000 019 to 1 000 019). `.arguments`
 answers the same list, in the same order, whenever it is read. **Built** (2026-09-25; proposed by Claude,
 unconfirmed).
+
+### A list's templates read its elements without counting them
+
+**What it does.** Every member template of `List` -- `sum_price()`, `filter_is_active()`, `each(step)`, `copy()` --
+and every fused chain reads each element with `values.read_value(items, index)`, which raises the element's
+reference count, and lowers it again when the pass over that element ends. Two writes to every object walked,
+and on a list of objects spread through memory they are most of the loop's cost. Now the element is read as it
+lies in the list, uncounted, whenever nothing that runs while it is held can let go of anything: the compiler
+walks the rest of that pass -- the member function it calls, or the function passed in, and everything those call
+-- and lets it borrow only when none of them assigns an attribute that holds an object (a number, `Boolean` or text
+attribute is fine), removes from or replaces into a list or dictionary, or calls through a function value. A
+member read from a borrowed element (`map_owner`) is borrowed the same way. Anything that keeps the element --
+`collected.append(item)`, `return item` -- still counts it, as before.
+
+**When.** Every build but `--hot-reload`, in the functions of `List` (the library's templates, a program's own
+templates reopening `List`, and fused chains), when the proof above holds; otherwise the element is counted as
+before. `parallel_each_` passes borrow too, which saves an atomic increment and decrement per element in a
+program with threads.
+
+**What you notice.** Speed: `benchmarks/fused_chain`, four chains over 100 000 objects run 300 times, went from
+332 ms to 185 ms. Allocations and everything a program prints are the same. **Built** (2026-09-25; proposed by
+Claude, unconfirmed).
 
 ## Planned
 

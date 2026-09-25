@@ -2,6 +2,9 @@ var shape = Analysis.AstShape()
 var type_shape = Analysis.TypeShape()
 var builder = CodeBuilder()
 var classes = List<Analysis.ClassInfo>()
+var classes_indexed = 0
+var class_by_qualified = Dictionary<Integer>()
+var class_by_c_name = Dictionary<Integer>()
 var enums = List<Analysis.EnumInfo>()
 var unions = List<Analysis.UnionInfo>()
 var list_names = List<String>()
@@ -131,6 +134,9 @@ var arguments_parameter_names = List<String>()
 var temporary_counter = 0
 var literal_counter = 0
 var constant_texts = Dictionary<String>()
+var borrow_statements = List<Syntax.Statements.Statement>()
+var borrow_index = 0
+var borrowed_names = List<String>()
 var first_discovered_class = 0
 var hardcoded_settings = List<Syntax.Statements.VariableDeclaration>()
 var placement = Placement()
@@ -2440,11 +2446,30 @@ func emit_enums() {
 }
 
 func find_class_by_qualified(qualified: String): Analysis.ClassInfo? {
-    return classes.find_by_qualified_dotted(qualified)
+    index_new_classes()
+    var position = class_by_qualified.get(qualified)
+    assert position
+    return classes[position]
 }
 
 func find_class_by_c_name(c_name: String): Analysis.ClassInfo? {
-    return classes.find_by_c_name(c_name)
+    index_new_classes()
+    var position = class_by_c_name.get(c_name)
+    assert position
+    return classes[position]
+}
+
+func index_new_classes() {
+    while classes_indexed < classes.count() {
+        var information = classes[classes_indexed]
+        if not class_by_qualified.has(information.qualified_dotted) {
+            class_by_qualified.set(information.qualified_dotted, classes_indexed)
+        }
+        if not class_by_c_name.has(information.c_name) {
+            class_by_c_name.set(information.c_name, classes_indexed)
+        }
+        classes_indexed = classes_indexed + 1
+    }
 }
 
 func find_class(name: String, current_namespace: String): Analysis.ClassInfo? {
@@ -11871,6 +11896,7 @@ func effect_changes(
 }
 
 func dependency_changes(effect: String, dependency: String): Boolean {
+    assert effect != "release"
     var is_list = dependency.starts_with("list:")
     if effect == "field:*" {
         return not is_list
@@ -12200,6 +12226,16 @@ func generate_variable_declaration(
     var frame_key = placement.frame_key(declaration)
     var frame_placed = frame_candidates.contains("{current_path}:{current_function}:{frame_key}") and not scope.entry_names.contains(declaration.name) and placed_in_frame(declaration, scope, class_information)
     assert not frame_placed
+    var borrowed = borrowed_element(declaration, scope, class_information)
+    if not borrowed.is_empty() {
+        var element_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
+        builder.add_user("{c_type_name(element_type)} {c_value_name(declaration.name)} = {borrowed};")
+        scope.declare(declaration.name, element_type)
+        scope.check_last(current_line)
+        check_value_name(declaration.name, "variable")
+        borrowed_names.append(declaration.name)
+        return
+    }
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
     report_copy_for_narrowing(declaration.name, declaration.value, declared_type, scope, class_information)
@@ -12216,6 +12252,238 @@ func generate_variable_declaration(
         scope.check_last(current_line)
         check_value_name(declaration.name, "variable")
     }
+}
+
+func borrowed_element(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var statements = borrow_statements
+    var start = borrow_index + 1
+    assert class_information.qualified_dotted == "List" and not declaration.type_reference and not hot_reload
+    assert not scope.entry_names.contains(declaration.name) and not class_information.codegen_types.is_empty()
+    crash declaration.value
+    var read = shape.as_member(declaration.value)
+    if read {
+        return borrowed_field(declaration, read, statements, start, scope, class_information)
+    }
+    var call = shape.as_call(declaration.value)
+    assert call and call.arguments.count() == 2
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member and member.name == "read_value"
+    crash member.object
+    assert is_identifier_named(member.object, "values") and is_identifier_named(call.arguments[0], "items")
+    crash class_information.codegen_types[0]
+    var element_type = class_information.codegen_types[0]
+    assert type_needs_drop(element_type) and not type_shape.as_nullable(element_type)
+    var watch = ReleaseWatch(declaration.name)
+    assert watch_statements(watch, statements, start, scope, class_information)
+    var integer_spite_type = integer_type()
+    var index_code = coerce_for_store(call.arguments[1], integer_spite_type, scope, class_information)
+    return "(({c_type_name(element_type)}*)(intptr_t)self->items_)[{index_code}]"
+}
+
+func borrowed_field(
+    declaration: Syntax.Statements.VariableDeclaration,
+    read: Syntax.Expressions.MemberExpression,
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    crash read.object
+    var holder = shape.as_identifier(read.object)
+    assert holder and borrowed_names.contains(holder.name)
+    var holder_type = scope.written_type(holder.name)
+    var holder_class = class_behind(holder_type)
+    assert holder_class and not holder_class.find_function("get_{read.name}")
+    var field = holder_class.find_field(read.name)
+    assert field
+    var field_type = field.get_type()
+    assert type_needs_drop(field_type) and not type_shape.as_nullable(field_type)
+    var watch = ReleaseWatch(declaration.name)
+    assert watch_statements(watch, statements, start, scope, class_information)
+    var generated = generate_expression(declaration.value, scope, class_information)
+    return generated.code
+}
+
+func watch_statements(
+    watch: ReleaseWatch,
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = start
+    while index < statements.count() {
+        assert releases_nothing(watch, statements[index], scope, class_information)
+        index = index + 1
+    }
+    return true
+}
+
+func releases_nothing(
+    watch: ReleaseWatch,
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            assert statement.name != watch.name
+            watch.locals.append(statement.name)
+            crash statement.value
+            return watch_expression(watch, statement.value, scope, class_information)
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            var target = shape.as_identifier(statement.target)
+            assert target
+            var local = watch.locals.contains(target.name) or scope.written_type(target.name)
+            assert local and target.name != watch.name and not class_information.find_field(target.name)
+            return watch_expression(watch, statement.value, scope, class_information)
+        }
+        Syntax.Statements.IfStatement: {
+            crash statement.condition
+            assert watch_expression(watch, statement.condition, scope, class_information)
+            assert watch_statements(watch, statement.then_branch, 0, scope, class_information)
+            return watch_statements(watch, statement.else_branch, 0, scope, class_information)
+        }
+        Syntax.Statements.WhileStatement: {
+            crash statement.condition
+            assert watch_expression(watch, statement.condition, scope, class_information)
+            return watch_statements(watch, statement.body, 0, scope, class_information)
+        }
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            return watch_expression(watch, statement.value, scope, class_information)
+        }
+        Syntax.Statements.AssertStatement: {
+            crash statement.value
+            return watch_expression(watch, statement.value, scope, class_information)
+        }
+        Syntax.Statements.ReturnStatement: {
+            if statement.value {
+                return watch_expression(watch, statement.value, scope, class_information)
+            }
+            return true
+        }
+        _: return false
+    }
+}
+
+func watch_expressions(
+    watch: ReleaseWatch,
+    expressions: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = 0
+    while index < expressions.count() {
+        assert watch_expression(watch, expressions[index], scope, class_information)
+        index = index + 1
+    }
+    return true
+}
+
+func watch_expression(
+    watch: ReleaseWatch,
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            assert watch_expressions(watch, expression.arguments, scope, class_information)
+            return watch_call(watch, expression.callee, scope, class_information)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            assert watch_expressions(watch, expression.arguments, scope, class_information)
+            var constructed = called_name_of(expression.callee)
+            return not any_releases(constructed)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            assert not operators_release()
+            assert watch_expression(watch, expression.left, scope, class_information)
+            return watch_expression(watch, expression.right, scope, class_information)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return watch_expression(watch, expression.operand, scope, class_information)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            assert not any_releases("get_{expression.name}")
+            return watch_expression(watch, expression.object, scope, class_information)
+        }
+        Syntax.Expressions.IndexExpression: {
+            assert not bound_member_owner_c_name.is_empty() and is_bound_member_index(expression)
+            var read = bound_member_expression(expression)
+            return watch_expression(watch, read, scope, class_information)
+        }
+        Syntax.Expressions.IdentifierExpression: return true
+        Syntax.Expressions.IntegerLiteral: return true
+        Syntax.Expressions.FloatLiteral: return true
+        Syntax.Expressions.StringLiteralExpression: return true
+        Syntax.Expressions.TrueLiteral: return true
+        Syntax.Expressions.FalseLiteral: return true
+        Syntax.Expressions.EnumLiteralExpression: return true
+        _: return false
+    }
+}
+
+func watch_call(
+    watch: ReleaseWatch,
+    callee: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var member = shape.as_member(callee)
+    if member {
+        crash member.object
+        assert member.name != "release_value" and watch_expression(watch, member.object, scope, class_information)
+        assert call_effects.by_function.has("*#{member.name}") or not any_releases("missing_function")
+    } else {
+        var identifier = shape.as_identifier(callee)
+        assert identifier and class_information.find_function(identifier.name) and not watch.locals.contains(identifier.name)
+    }
+    var effects = called_effects(callee, scope, class_information)
+    return not effects.contains("release") and not effects.contains("field:*")
+}
+
+func called_name_of(callee: Syntax.Expressions.Expression): String {
+    var identifier = shape.as_identifier(callee)
+    if identifier {
+        return identifier.name
+    }
+    var member = shape.as_member(callee)
+    assert member
+    return member.name
+}
+
+func any_releases(name: String): Boolean {
+    var effects = call_effects.effects_of("*", name)
+    return effects.contains("release") or effects.contains("field:*")
+}
+
+func operators_release(): Boolean {
+    var names = ["sum", "subtract", "multiply", "divide", "modulo", "equals", "less_than", "greater_than", "to_string"]
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if any_releases(name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func choose_allocator_after(statements: List<Syntax.Statements.Statement>, index: Integer) {
@@ -13120,6 +13388,8 @@ func generate_statement_list(
             statement = overlapped_declaration(statement)
         }
         choose_allocator_after(statements, index)
+        borrow_statements = statements
+        borrow_index = index
         ended_in_return = generate_statement(statement, scope, class_information, function_information)
         pending_allocator = null
         if overlaps {
@@ -17271,6 +17541,7 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         guarded_positions.append(guarded_at)
     }
     current_function_c_name = function.c_name
+    borrowed_names = List<String>()
     if not guarded and not function.is_constructor and not is_hot_class(information) and waiting.is_empty() {
         machine_candidate_names.append(function.c_name)
         machine_candidate_classes.append(information)

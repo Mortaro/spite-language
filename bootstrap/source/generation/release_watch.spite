@@ -1,0 +1,6 @@
+var name = ""
+var locals = List<String>()
+
+func ReleaseWatch(watched_name: String) {
+    name = watched_name
+}

@@ -39,3 +39,21 @@ Each step is one commit; `before` is the compiler before it. Best of nine interl
 | small_allocations | 167 | 166 | 9 004 013 | 9 004 013 |
 | parallel_calls | 197 | 179 | 1 040 077 | 680 074 |
 | stress | 142 | 147 | 150 049 | 150 049 |
+
+### Step 2: list templates borrow the elements they only read; the compiler finds classes by name in one lookup
+
+| benchmark | before ms | after ms | before allocations | after allocations |
+|---|---|---|---|---|
+| fused_chain | 284 | 168 | 200 009 | 200 009 |
+| dictionary_keys | 400 | 415 | 1 108 012 | 1 108 012 |
+| text_building | 349 | 352 | 5 500 225 | 5 500 225 |
+| reflection_walks | 547 | 587 | 11 756 022 | 11 756 022 |
+| function_values | 110 | 110 | 1 000 019 | 1 000 019 |
+| small_allocations | 184 | 172 | 9 004 013 | 9 004 013 |
+| parallel_calls | 219 | 201 | 680 074 | 680 074 |
+| stress | 190 | 200 | 150 049 | 150 049 |
+
+Only `fused_chain` walks a list of objects through a template, and it is the one that moved; the rest is noise.
+Compiling the compiler (`spite bootstrap --run=false --c-source`, the compiler built with `clang -O1`, best of
+seven): 2 352 ms before this work, 2 198 ms after step 1, 1 953 ms after step 2 -- finding a class by its name
+or its C name was a walk over every class, and is now one dictionary lookup.
