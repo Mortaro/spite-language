@@ -612,3 +612,12 @@ All of it is proposed by Claude, unconfirmed.
      `remove_first()`/`remove_last()` still answer the default on an empty list; make them `T?` too?
 194. **`Weak<T>` across threads.** A `Weak` read on one thread while another frees the object is a race today;
      the table has no lock. Guard it in a program that uses `Parallel`, or forbid a `Weak` a `Parallel` reaches?
+195. **May a `type` row hold borrowed `Vector` items for one system call (D204)?** SlopEngine's `Row` fills a
+     `type` row (`moving.position`, `moving.velocity`) with one entity's components and hands it to the system's
+     `update_each`; with `Vector` columns those are borrowed items, and D204 forbids keeping a borrow in an
+     attribute. Proposal (Claude, unconfirmed): a `type` value made and dropped inside one statement block may hold
+     borrows for that block -- the compiler proves the row is not kept (not stored, returned or captured) and that
+     no column is resized while it lives, the same proof as a local borrow. Measured on a stress-shaped program:
+     5.9 ms per tick with `List` columns, 1.0 ms with `Vector` columns. Without it, systems must be written as
+     member templates on the column (`velocities.each_integrate(delta)`), which cannot see two components at once.
+
