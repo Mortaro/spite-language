@@ -600,17 +600,6 @@ All of it is proposed by Claude, unconfirmed.
 191. **A program's `target_operating_system`.** Built as an error naming the flag. The alternative is letting a
      program's `build.spite` choose its default target, which needs `Build` read before the launcher picks
      `library/<system>`.
-192. **D179, how strict.** Built as: a `Parallel(work)` may not reach an attribute holding a list or an object,
-     even one only its own instance holds (a `Pump`'s own buffer list), since the compiler cannot tell owned from
-     shared; `Lock` and `ThreadLocal` are allowed as made-to-share. Loosen it to "its own instance's attributes of
-     any type" (which admits a shared `Meter`), or keep it strict? **SlopEngine's experience (2026-09-26):** the
-     strict rule made it rewrite four pool tasks into busywork -- `CookTask` carries its recipe ids as comma-joined
-     text and parses them back, `ChangeCheck` carries two lists as newline-joined text, `TextureLoad` copies a
-     record's three fields out and rebuilds it inside `run`, `DialTask` returns its socket instead of keeping it.
-     Two middle grounds it proposes (Claude, unconfirmed): (a) allow an attribute whose object nothing else uses
-     after `Parallel(...)` is made -- the compiler proves the task's instance is the only holder, the way D204
-     proves a borrow, and a use afterwards is the error; (b) allow a `List` of values (numbers, text, enums), which
-     cannot be shared by reference.
 193. **`first()`/`last()` as `T?`.** Built, by the same argument as `[]` (a missing element is a normal outcome, D199).
      `remove_first()`/`remove_last()` still answer the default on an empty list; make them `T?` too?
 194. **`Weak<T>` across threads.** A `Weak` read on one thread while another frees the object is a race today;
@@ -641,23 +630,3 @@ All of it is proposed by Claude, unconfirmed.
      a local, `'heap'` read from an attribute, `'constant'` for a literal as before, and `'heap'` for long text.
      Would you rather have a fourth section, `'inline'`, that says the characters are in the value, wherever it
      is?
-
-## Vector columns in SlopEngine (D204)
-
-199. **May a `type` row hold borrowed `Vector` items for one system call (D204)?** SlopEngine's `Row` fills a
-     `type` row (`moving.position`, `moving.velocity`) with one entity's components and hands it to the system's
-     `update_each`; with `Vector` columns those are borrowed items, and D204 forbids keeping a borrow in an
-     attribute. Proposal (Claude, unconfirmed): a `type` value made and dropped inside one statement block may hold
-     borrows for that block -- the compiler proves the row is not kept (not stored, returned or captured) and that
-     no column is resized while it lives, the same proof as a local borrow. Measured on a stress-shaped program:
-     5.9 ms per tick with `List` columns, 1.0 ms with `Vector` columns. Without it, systems must be written as
-     member templates on the column (`velocities.each_integrate(delta)`), which cannot see two components at once.
-     **SlopEngine's case for it:** every structural change (create/add/remove component, despawn) is a queued
-     command applied by `world.flush()` after the whole stage, and two systems touching one component class never
-     share a stage, so a column never resizes during a system call -- the compiler can check it, since only
-     `flush` mutates `Column<T>`'s storage. Member templates see one component class at a time, so joins, relations
-     (`owner: Entity`) and `Added<T>`/`Removed<T>` filters would need engine-generated glue; a row holding borrows
-     costs the same as a template plus the join. Narrowest version it proposes: a borrow may be held by a `type`
-     value that is a parameter of the running function, for that call only, never stored anywhere else -- exactly
-     the `update_each(row)` shape.
-
