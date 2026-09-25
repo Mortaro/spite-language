@@ -1,0 +1,13 @@
+var console = Console()
+
+func ParallelReach() {
+    var boids = List<Boid>()
+    boids.append(Boid())
+    boids.parallel_each_follow()
+    boids.parallel_each_flock()
+    var speeds = List<Int>()
+    speeds.parallel_each_double()
+    boids.map_leader().parallel_each_flock()
+    var count = boids.count()
+    console.print(count)
+}

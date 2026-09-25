@@ -34,6 +34,43 @@ func exists(): Bool {
     return true
 }
 
+func size(): Long? {
+    var handle = open_file("rb")
+    assert handle != 0
+    seek(handle, 0, 2)
+    var bytes = tell(handle)
+    close_file(handle)
+    return bytes
+}
+
+func read_bytes(position: Long, count: Long, address: Long): Long? {
+    var handle = open_file("rb")
+    assert handle != 0
+    seek(handle, position, 0)
+    var got = read_into(address, count, handle)
+    close_file(handle)
+    return got
+}
+
+func write_bytes(address: Long, count: Long): Bool {
+    var handle = open_file("wb")
+    assert handle != 0
+    var written = write_from(address, count, handle)
+    close_file(handle)
+    return written == count
+}
+
+func append_bytes(address: Long, count: Long): Long? {
+    var handle = open_file("ab")
+    assert handle != 0
+    seek(handle, 0, 2)
+    var start = tell(handle)
+    var written = write_from(address, count, handle)
+    close_file(handle)
+    assert written == count
+    return start
+}
+
 func put(text: String, mode: String): Bool {
     var handle = open_file(mode)
     assert handle != 0

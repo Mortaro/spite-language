@@ -65,6 +65,10 @@ Assigning text to a number calls the matching `to_<type>()`: `var age: Int = "42
 | `read()` | `String?` | `null` when the file cannot be read |
 | `write(text)` / `append(text)` | `Bool` | replaces the content / adds to its end |
 | `exists()` / `remove()` | `Bool` | |
+| `size()` | `Long?` | how many bytes it holds; `null` when it cannot be opened |
+| `read_bytes(position, count, address)` | `Long?` | reads up to `count` bytes starting `position` bytes in, into memory at `address`; answers how many it read (`0` at the end), `null` when it cannot be opened |
+| `write_bytes(address, count)` | `Bool` | replaces the content with `count` bytes from memory at `address` |
+| `append_bytes(address, count)` | `Long?` | adds `count` bytes to the end; answers the position they start at, `null` when they could not all be written |
 
 ```gdscript title=file_tasks/file_tasks.spite entry
 var console = Console()
@@ -94,6 +98,45 @@ exists after remove false
 `read()` is a `String?` -- narrow it with `if content { }`, `assert content` (which returns the function's
 default) or `crash content` (which halts), exactly like any other `T?` ([failure.md](failure.md)). This entry
 constructor uses `crash`, because `assert` is not allowed in a constructor.
+
+**Bytes.** A cache or an asset file is bytes, not text: `read_bytes` reads into memory from any position, which is
+what seeking is for, and `append_bytes` says where a record landed, which is what an index needs. The memory is
+`Memory()`'s ([memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it)). Every call opens and closes the
+file, so read a large file in one call and walk it in memory rather than record by record.
+
+```gdscript title=byte_records/byte_records.spite entry
+var console = Console()
+var memory = Memory()
+
+func ByteRecords() {
+    var store = File(".spite-cache/documentation_byte_records.bin")
+    var record = memory.allocate_bytes(8)
+    memory.write_long(record, 0, 1111)
+    store.write_bytes(record, 8)
+    memory.write_long(record, 0, 2222)
+    var second_at = store.append_bytes(record, 8)
+    crash second_at
+    var read_back = memory.allocate_bytes(8)
+    var got = store.read_bytes(second_at, 8, read_back)
+    crash got
+    var second = memory.read_long(read_back, 0)
+    var size = store.size()
+    crash size
+    console.print("the second record starts at", second_at, "and holds", second, "of", size, "bytes")
+    memory.free(record)
+    memory.free(read_back)
+}
+```
+```output
+the second record starts at 8 and holds 2222 of 16 bytes
+```
+
+**Independent reads overlap.** Two or more `var name = file.read()` in a row (or `socket.read_line()`), each on a
+name or an attribute and none naming an earlier one, are started together and all finished before the next
+statement: the compiler starts each but the last as a `Concurrent` of its own, so the program waits once for the
+slowest instead of once per file. Nothing is written for it, and nothing after the reads can see a difference --
+a file written by the next statement is written after every read has finished
+([concurrency.md](concurrency.md#reads-in-a-row-overlap)).
 
 ## List a directory
 

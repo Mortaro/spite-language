@@ -2394,9 +2394,18 @@ will ever unwind back to a clean `main` return, so this does not attempt one).
   The scheduler answers it on the program's thread the next time the program waits -- `program.sleep`,
   `Console.read_line()`, a `File` or `Socket` read or write, a `Concurrent` wait, a `Parallel` join -- so a command
   sees the program between two steps, never in the middle of one, and "data races are accepted" above no longer
-  applies. After the constructor returns, the program waits for nothing but commands. A `--repl_port` build of a
-  program that never waits and has a `while` loop is a compile error naming the loop
-  (`diagnostics/remote_loop_never_waits`); `docs/concurrency.md` replays a frame loop served between frames.
+  applies. After the constructor returns, the program waits for nothing but commands. A program that never waits
+  is answered at its loops' check points (D174, below); `docs/concurrency.md` replays a frame loop served between
+  frames and a busy loop served between passes.
+- **Every loop is a check point in a REPL build** (D174, decided by Mortaro; the mechanism proposed by Claude,
+  unconfirmed).  **[implemented]** In a `--repl_port` or `--hot_reload` build, the generator ends every pass of every
+  `while` in the program's own code (not `library/` or `launcher/`) with a call to `Scheduler.check_point()`, which
+  on the scheduler's thread answers a pending command (the handover flag `answer_pending` already reads) and runs a
+  pending reload. On any other thread -- a `Parallel`, a helper -- it does nothing. A loop that never waits is
+  answered between two passes, so the old compile error for such a loop, and `diagnostics/remote_loop_never_waits`,
+  are gone. A build without those flags has no check point: its C is byte for byte what it was (checked on a busy
+  loop and `examples/dungeon`). `--repl` alone answers after the constructor returns, from the console, so it needs
+  none. The cost where it exists is a call and two atomic loads per pass.
 - **The port is part of the build**, like any flag the compiler folds (D84): `main` listens on it, on the main
   thread, before the constructor runs, so a client that connects any time after the program starts is served. A
   port another program holds stops the program before its constructor with `error: the REPL could not listen on
@@ -2437,8 +2446,8 @@ and `Class.instances`.
   what it rebuilt, and whose `last_reload` answers what the last swap (the watcher's included) did. A build without
   it has no slots, no watcher and no reload code: `reload` answers `'reload' answers in a program built with
   --hot_reload, which swaps its code while it runs, and this one was not`, from a branch folded on the `Build`
-  constant. As with `--repl_port`, a `--hot_reload` build whose code never waits and has a `while` loop is a compile
-  error naming the loop, since the swap happens where the program waits. `spite program --hot_reload` runs the
+  constant. As with `--repl_port`, a `--hot_reload` build swaps where the program waits and at each loop's check
+  point (D174). `spite program --hot_reload` runs the
   program attached to the terminal, like a REPL build.
 - **The swap mechanism: one slot per function.** In a `--hot_reload` build every function of the program's own
   classes (not `library/` or `launcher/`), and each such class's `_init` (its attribute defaults), is written as
@@ -2642,7 +2651,7 @@ directory listing and process spawning).
 
 | Class | Members |
 |---|---|
-| `File(path)` | `read(): String?`, `write(text): Bool`, `append(text): Bool`, `exists(): Bool`, `remove(): Bool` |
+| `File(path)` | `read(): String?`, `write(text): Bool`, `append(text): Bool`, `exists(): Bool`, `remove(): Bool`; bytes (names proposed by Claude, unconfirmed): `size(): Long?`, `read_bytes(position, count, address): Long?` (how many were read, from any position), `write_bytes(address, count): Bool`, `append_bytes(address, count): Long?` (where they start) -- `null` when the file cannot be opened; each call opens and closes the file; `_fseeki64`/`_ftelli64` on Windows so a position past 2 GB works; `write_from` joins `read_into` among the waiting calls |
 | `Directory(path)` | `path: String`, `entries(): List<Directory.Entry>` (D93: every folder and file inside it, as `Directory` and `File` values whose `path` is joined to this one -- see below), `files(): List<String>` (names, sorted), `folders(): List<String>` (sorted), `exists(): Bool`, `create(): Bool` |
 | `Process(command, arguments)` | `run(): Int` (exit code; `arguments` is a `List<String>`, each shell-quoted), `output(): String` (stdout+stderr merged, valid after `run()`) |
 | `Program()` | `exit(code)`: exits the process immediately with `code` |
@@ -2899,15 +2908,55 @@ on nothing is a deadlock, and a crash.
 **Soundness.** A program that starts a thread (a `Concurrent`'s helpers, a `Parallel`, or `--repl_port`) is compiled
 with `SPITE_THREADS`: every retain and release is an atomic operation, and the `--debug-memory` table takes a lock.
 Every other program keeps the plain counts. Spite code on the program's thread only ever changes hands at a wait,
-so fibers need nothing more. What a `Parallel` function may touch is not checked: D35's rule (a parallel member
-reaches only its own instance and its locals) is not built, so two threads writing one field, or one writing a
-field another reads, is still the program's mistake -- and with reference-counted fields it can free a value
-another thread is reading. That rule, or another, waits on Mortaro (`mortaros_missing_decisions.md`).
+so fibers need nothing more. D35's rule is checked for `parallel_each_` (below); what a `Parallel(function)`
+touches is not, so two threads writing one field, or one writing a field another reads, is still the program's
+mistake there -- and with reference-counted fields it can free a value another thread is reading.
 Two smaller gaps, untested: a singleton's first use from two threads at once is not guarded (each could make
 one), and a REPL client's `exit` while a helper thread is blocked reading the console may wait on the C runtime's
 lock on that stream when the process exits.
 
-**Not built:** `parallel_each_` templates, HTTP, cancelling a `Concurrent`, a `Concurrent` made on
+**`parallel_each_`** (D135, decided by Mortaro; D35's race rule, which Claude proposed, is built as below and is
+still unconfirmed).  **[implemented on Windows]** `list.parallel_each_update()` calls `update()` on every element,
+split across the pool, and returns when all are done. The generator writes two functions on the list's class, as
+it writes a fused chain (D105): `parallel_each_update_piece(first: Int, end: Int)`, a `while` over that range of
+the buffer, and `parallel_each_update()`, which hands the piece function to `ThreadPool.run_pieces(piece, count)`.
+That cuts the list into up to four pieces per thread (the workers and the caller), queues all but the first, runs
+the first on the calling thread and joins the rest, claiming any no worker has taken. One allocation per call for
+the pieces' states, one function value, and none per element. A list of fewer than two elements runs on the
+calling thread. `filter_` steps before it fuse into the piece loop (`entities.filter_alive().parallel_each_update()`
+is one pass with no list in between); a `map_` step is an error, since it reaches another object that several
+elements may share.
+
+- **The race rule, D35 as a compile check.** The member, every function of the element's class it calls
+  (transitively, by name), and every `filter_` member in the chain may read and write only the element's
+  attributes that hold a plain value -- a number, `Bool`, `String`, enum or `Symbol`, or a `T?` of one -- the
+  standard library's singletons (`Console`, `Memory`, `ThreadPool`, `Program`, ...), and their own parameters and
+  locals. An attribute holding an object, a list, a dictionary, a function value or a program's own singleton is an
+  error naming the attribute, its type and the one-thread form (`diagnostics/parallel_reach`):
+  `'parallel_each_follow' runs 'follow' on many elements at once, so it may reach only its own 'Boid' attributes
+  that hold values, and its locals (D35): 'leader' holds a 'Boid?', which another element may share. ...`. A list
+  of numbers or text has no members, so `parallel_each_` on one is an error naming `each_`.
+- **What it cannot see:** one object listed twice runs on two threads at once; a local made from something the
+  member was handed (it is handed nothing, so only through a library singleton such as `Memory`); a list of a
+  `type` or union (the element's class is not known, so it is an error for now). D35's open questions -- shared
+  state across threads and cross-element reads -- stay open.
+- `conformance/stage6/parallel_each` runs ten thousand elements twice, filtered once, and a list of one and of none.
+
+**Reads in a row overlap** (D134's IO half, decided by Mortaro: "all our IO classes should use it"; this reading is
+proposed by Claude, unconfirmed).  **[implemented]** A `File` or `Socket` is not changed: the compiler does it at
+the call site. When two or more statements in a row are each `var name = receiver.read()` on a `File` (or
+`receiver.read_line()` on a `Socket`), with no written type, the receiver a name or an attribute path, no statement
+naming a variable an earlier one declared, and the name never assigned again in the function, every one but the
+last is compiled as `var name = Concurrent(receiver.read)`, and after the last each is joined (its private `_join()`)
+before the next statement runs. Every later use of the name is an implicit join of a finished handle (D134 above),
+so narrowing, printing and passing it are unchanged. Only reads, only side by side, and all finished before
+anything else runs, so nothing the program does next -- writing one of those files, say -- can see a difference;
+reads followed by other work, or a read into a name that is assigned later, stay where they are. Such a program
+uses the scheduler, so it is compiled with `SPITE_THREADS`; a program without two reads in a row compiles as
+before. `Directory` listing is not a waiting call yet (no helper thread), so starting it early would not overlap
+anything, and it is left alone. `conformance/stage6/overlapped_reads`.
+
+**Not built:** HTTP, cancelling a `Concurrent`, a `Concurrent` made on
 a thread that is not the scheduler's (it runs on the spot instead), and running any of this on Linux or macOS,
 whose folders are held to compiling.
 
@@ -4061,3 +4110,7 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | (proposed by Claude, unconfirmed; implements D134 for `Concurrent` and `Parallel`) **The handle stands in for its result wherever the result's type is expected, and `wait()` and `join()` are gone.** The compiler inserts a call to the class's private `_result()` wherever a `Concurrent<T>`/`Parallel<T>` is stored or passed as a `T` (typed `var`, assignment, argument, `return`), used as an operand or inside text, given a member it does not have (`greeting.length()`), or used as a condition; narrowing the handle of a nullable `T` (`if reading`, `crash reading`) narrows its value, read once into a hidden local. An untyped `var` keeps the handle; `finished` is the handle's; a `Nothing` handle joins only on drop. `==` on two handles compares values. SPITE.md's rule, "no `.wait()` to remember", wins over keeping `wait()` as an explicit form. Section 15, "Concurrency"; `conformance/stage6/implicit_joins`. |
 | 2026-09-25 | (proposed by Claude, unconfirmed; SlopEngine polled `WaitForSingleObject(parallel.thread, 0)`) **`finished` on `Concurrent` and `Parallel` answers whether the function has returned and never waits, on every system; every other attribute of both is private.** A `Parallel`'s is one atomic load of its job's state; a `Concurrent`'s is the flag its fiber sets, so a polling loop still has to wait somewhere for the fiber to run. `conformance/stage6/finished_polling`. |
 | 2026-09-25 | (proposed by Claude, unconfirmed; SlopEngine's per-runner command buffers and entity-id lock used `TlsAlloc` and an `SRWLOCK` directly) **`ThreadLocal<T>()`, `Lock()` and `ThreadSlot()` are library classes.** `Lock` has `while_locked(function)` (the unlock cannot be forgotten) beside `lock()`/`unlock()`; `ThreadSlot` is the raw per-thread `Long` (`TlsAlloc`, `pthread_key_create`); `ThreadLocal<T>` keeps each thread's value in a list it owns, found through its `ThreadSlot` under its `Lock`, so every value is released when the `ThreadLocal` is dropped. Chosen over a value per pool worker, which would not cover the program's own thread. Linux and macOS compile, untested. Section 15, "Concurrency"; `conformance/stage6/thread_locals`. |
+| 2026-09-25 | (proposed by Claude, unconfirmed; builds D135's templates and D35's race rule) **`list.parallel_each_<member>()` runs the member on every element across the pool and returns when all are done, and the compiler checks D35's rule.** The generator writes a piece function over a range of the buffer and an entry that hands it to `ThreadPool.run_pieces` (up to four pieces per thread, the first on the calling thread); `filter_` steps fuse into the piece loop and `map_` steps are an error. The member, the functions of its class it calls, and the filters may reach only the element's plain-value attributes (numbers, `Bool`, `String`, enums, `Symbol`s, and `T?` of them), library singletons and their own locals; anything else is an error naming the attribute. Not seen: an element listed twice, a list of a `type` (an error for now). Section 15, "Concurrency"; `conformance/stage6/parallel_each`, `diagnostics/parallel_reach`. |
+| 2026-09-25 | (proposed by Claude, unconfirmed; D134's IO half) **Reads in a row overlap.** Two or more untyped `var name = receiver.read()` (`File`) or `receiver.read_line()` (`Socket`) in a row, on a name or attribute path, none naming an earlier one and none reassigned later, become `Concurrent`s except the last, and all are joined before the next statement. Chosen over making `File.read()` itself answer a `Concurrent` (every read, the compiler's own included, would pay for a fiber, and a field or path narrowed through a handle is not supported) and over overlapping a read with the statements after it (the next statement may write the file). Expressed with `Concurrent` in the syntax tree, so it follows `Concurrent` when D176 replaces fibers. `conformance/stage6/overlapped_reads`. |
+| 2026-09-25 | (proposed by Claude, unconfirmed; SlopEngine's cache used `fopen`/`fread` from `ucrtbase` directly) **`File` reads and writes bytes**: `size(): Long?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Bool`, `append_bytes(address, count): Long?` (the position the bytes start at). Positions replace seeking, so a `File` stays a path with no open handle; each call opens and closes the file, which suits reading a whole file and walking it in memory. Windows seeks with `_fseeki64`. `conformance/stage6/binary_files`. |
+| 2026-09-25 | (proposed by Claude, unconfirmed; builds D174) **The check point is a call to `Scheduler.check_point()` at the end of each pass of each `while` in the program's own code, in `--repl_port` and `--hot_reload` builds only**; on the scheduler's thread it answers a pending command and runs a pending reload, elsewhere it does nothing. The compile error for a REPL build whose loop never waits, and `diagnostics/remote_loop_never_waits`, are removed; `docs/concurrency.md` replays a busy loop answered between passes. Production C is unchanged. |

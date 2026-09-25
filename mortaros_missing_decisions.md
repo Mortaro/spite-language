@@ -358,3 +358,15 @@ All of it is proposed by Claude, unconfirmed.
      lock (with `lock()`/`unlock()` kept), and a `ThreadLocal` keeping every thread's value until it is itself
      dropped (no per-thread destructor). A lock that is not reentrant crashes nothing: taking it twice on one
      thread deadlocks. Should a second `lock()` on the same thread be a crash instead?
+134. **`parallel_each_`'s rule** (D35 as built): plain-value attributes, library singletons and locals only;
+     `filter_` steps allowed, `map_` refused; a list of a `type` refused. Is refusing `List<Particle>` members that
+     own a list of their own (`trail.append(...)`) too strict for the engine? The honest alternative is an
+     ownership marker on the attribute, which is new syntax.
+135. **Reads in a row overlap only among themselves**, and only `File.read`/`Socket.read_line` into a fresh
+     untyped name. Should a read also overlap the statements after it until its name is used, which is faster but
+     needs the compiler to prove those statements do not touch the file?
+136. **`File`'s byte functions**: the names, positions instead of an open handle with a cursor, and each call
+     opening the file. A `File.Reader` with its own position and `drop()` closing it would suit record-by-record
+     scanning; wanted?
+137. **D174's check point** is a call per pass (thread check, two atomic loads). A C-level flag that the REPL's
+     thread sets would make it one load; worth the extra hidden code (D147)?

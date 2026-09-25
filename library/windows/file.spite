@@ -9,15 +9,19 @@ func close_file(handle: Long) {
 }
 
 func seek(handle: Long, offset: Long, origin: Int) {
-    library.fseek(handle, offset, origin)
+    library._fseeki64(handle, offset, origin)
 }
 
 func tell(handle: Long): Long {
-    return library.ftell(handle)
+    return library._ftelli64_as_long(handle)
 }
 
 func read_into(buffer: Long, bytes: Long, handle: Long): Long {
     return library.fread_as_long(buffer, 1, bytes, handle)
+}
+
+func write_from(address: Long, bytes: Long, handle: Long): Long {
+    return library.fwrite_as_long(address, 1, bytes, handle)
 }
 
 func write_text(text: String, handle: Long): Long {

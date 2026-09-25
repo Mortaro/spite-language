@@ -7,8 +7,10 @@
 > Where a program already waits -- `Program.sleep`, `Console.read_line`, reading or writing a `File`, a
 > `Socket`'s `accept_client` and `read_line`, reading a `Concurrent` or a `Parallel` -- the compiler turns the
 > wait into a suspension, so another fiber runs meanwhile, and a `--repl_port` build answers its commands there.
-> Windows runs all of it; the Linux and macOS folders are held to compiling. **Not built:** `parallel_each_`
-> templates, HTTP, cancelling a `Concurrent`, and a rule for what a parallel function may touch
+> `list.parallel_each_update()` runs a member on every element across the pool, and the compiler checks that the
+> member reaches only its own element. Reads written one after another overlap without being asked.
+> Windows runs all of it; the Linux and macOS folders are held to compiling. **Not built:** HTTP, cancelling a
+> `Concurrent`, and a check for a `Parallel` function made from a function value
 > ([manual section 15](../manual.md#15-standard-library--partial)).
 
 There is no `async` and no `await` in Spite, and there never will be. In JavaScript or C# a function that waits
@@ -87,6 +89,39 @@ again: the value is kept.
 
 A `var` written without a type keeps the handle, so `var reading = Concurrent(notes.read)` is still the running
 work and can be asked whether it has `finished`.
+
+### Reads in a row overlap
+
+The IO classes do this themselves, so most programs never write `Concurrent`: when two or more declarations in a
+row each read a `File` (`read()`) or a `Socket` (`read_line()`) held in a name or an attribute, and none of them
+names a variable declared by an earlier one, the compiler starts every read but the last as a `Concurrent`, runs
+the last one, and waits for all of them before the next statement. The program waits for the slowest file rather
+than for each in turn, and nothing it does afterwards can tell: the values are the same, and a file written by the
+next statement is written after the reads.
+
+```gdscript title=reads_in_a_row/reads_in_a_row.spite entry
+var console = Console()
+
+func ReadsInARow() {
+    var settings_file = File(".spite-cache/documentation_settings.txt")
+    var scores_file = File(".spite-cache/documentation_scores.txt")
+    settings_file.write("volume=7")
+    scores_file.write("ada=12")
+    var settings = settings_file.read()
+    var scores = scores_file.read()
+    settings_file.write("volume=8")
+    crash settings
+    crash scores
+    console.print(settings, scores)
+}
+```
+```output
+volume=7 ada=12
+```
+
+The two reads above ran at once. The rule is deliberately narrow: only reads, only side by side, and only when
+the name read into is not assigned again later, so starting them early cannot change what the program sees. A
+read followed by other work waits where it is written.
 
 ### What the compiler does at a wait
 
@@ -296,8 +331,83 @@ and `pthread_mutex_t` elsewhere), reached through each system's folder.
 
 A program that makes a `Parallel` (or a `Concurrent`, or is built with `--repl_port`) counts references with
 atomic operations, because an object can now be shared between threads; every other program keeps the plain,
-cheaper counts. What a `Parallel` function may touch is not checked yet: give it an instance of its own, as each
-`Summer` above has, and do not change that instance until the result is back.
+cheaper counts. What a `Parallel(function)` touches is not checked: give it an instance of its own, as each
+`Summer` above has, and do not change that instance until the result is back. The pass below is checked.
+
+## `parallel_each_`: a member on every element
+
+`list.parallel_each_update()` calls `update()` on every element of the list, split across the pool: the list is
+cut into a few pieces per thread, the calling thread runs the first piece and whatever piece no worker has taken
+yet, and the call returns when every element is done. `filter_` steps before it run in the same pass, piece by
+piece, with no list in between: `entities.filter_alive().parallel_each_update()`.
+
+```gdscript title=parallel_pass/particle.spite
+var position: Long = 0
+var speed = 0
+var awake = false
+
+func Particle(starting_speed: Int) {
+    speed = starting_speed
+    awake = starting_speed % 3 == 0
+}
+
+func step() {
+    position = position + speed
+}
+```
+```gdscript title=parallel_pass/parallel_pass.spite entry
+var console = Console()
+
+func ParallelPass() {
+    var particles = List<Particle>()
+    var index = 0
+    while index < 3000 {
+        particles.append(Particle(index))
+        index = index + 1
+    }
+    particles.parallel_each_step()
+    particles.filter_awake().parallel_each_step()
+    var moved = particles.sum_position()
+    console.print("the particles moved", moved)
+}
+```
+```output
+the particles moved 5997000
+```
+
+**The member may reach only its own element** (D35). Every element runs at the same time as the others, so the
+compiler reads the member -- and every function of the element's class it calls -- and allows only the element's
+own attributes that hold a value (a number, a `Bool`, text, an enum or a `Symbol`), the standard library's
+singletons (`Console`, `Memory`, `ThreadPool`, ...) and the member's locals. An attribute holding another object
+may be shared by several elements, so reading it is an error that names it:
+
+```gdscript title=parallel_reach/boid.spite error
+var speed = 1
+var leader: Boid? = null
+
+func follow() {
+    assert leader
+    speed = leader.speed
+}
+```
+```gdscript title=parallel_reach/parallel_reach.spite error entry
+var console = Console()
+
+func ParallelReach() {
+    var boids = List<Boid>()
+    boids.append(Boid())
+    boids.parallel_each_follow()
+    var count = boids.count()
+    console.print(count)
+}
+```
+```diagnostic
+'parallel_each_follow' runs 'follow' on many elements at once, so it may reach only its own 'Boid' attributes that hold values, and its locals (D35): 'leader' holds a 'Boid?', which another element may share
+```
+
+For the same reason only `filter_` steps may come before it: a `map_` reaches another object. The check cannot
+see two elements that are the same object -- a list holding one instance twice runs it on two threads at once --
+nor a member that writes through a singleton of the program's own.
 
 ## The REPL answers at the waits
 
@@ -340,15 +450,36 @@ $ spite connect 4000 --command="exit"
 {"ok":true,"value":"","type":""}
 ```
 
-A program that never waits would never be answered, so a `--repl_port` build of one is a compile error. The
-rule the compiler applies: when none of the program's own code waits anywhere (none of the calls in the table
-above), a `while` loop in it may never let the REPL in, and the error points at that loop:
+A program that never waits is answered too. In a `--repl_port` or `--hot_reload` build, and only there, the
+compiler ends every pass of every `while` in the program's own code with a **check point**: one call that looks
+at whether a command (or a changed file) is waiting and, if one is, answers it there, on the program's thread,
+between two passes of the loop. A busy loop is served between two passes the way a frame loop is served between
+two frames:
 
+```gdscript title=busy_loop/busy_loop.spite entry
+var console = Console()
+var passes: Long = 0
+var running = true
+
+func BusyLoop() {
+    while running and passes < 300000000 {
+        passes = passes + 1
+    }
+    console.print("stopped after at least one pass:", passes > 0)
+}
 ```
-frames.spite:6: error: a --repl_port build answers its REPL where the program waits (Program.sleep,
-Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel) and after the
-entry constructor returns, and this program never waits: if this loop does not end, the REPL never answers.
-Wait somewhere in the loop, such as 'program.sleep(1)' at the end of a frame
+```output
+stopped after at least one pass: true
 ```
 
-A program without a loop always reaches the end of its constructor, where it is served, so it needs no wait.
+```wire busy_loop
+# The loop never waits: the command is answered at the end of a pass.
+$ spite connect 4000 --command="program.running = false"
+{"ok":true,"value":"false","type":"Bool"}
+
+$ spite connect 4000 --command="exit"
+{"ok":true,"value":"","type":""}
+```
+
+A build without those flags has no check points at all: its C is the same as before they existed. The standard
+library's own loops have none either, so a command waits for a library call to return.
