@@ -364,10 +364,6 @@ All of it is proposed by Claude, unconfirmed.
 116. **No stored zoned type.** Every design compared has one (`ZonedDateTime`, `Zoned`, `OffsetDateTime`); Spite
      has none, because D127 makes a zone presentation: store the `Instant`, apply the zone when showing it.
      "The same time tomorrow" is then three lines (`to_local`, `+ Period(1, 'days')`, `to_instant`). Keep it out?
-117. **Every `to_instant` names its ambiguity rule**: `'compatible'`, `'earlier'` or `'later'`, with no default.
-     A `'reject'` (Temporal's fourth value) would make every call answer `Instant?`, so it is left out; a caller
-     who must refuse an ambiguous reading compares `'earlier'` with `'later'`. Is the required argument right,
-     or should `'compatible'` be the one behaviour with no argument?
 118. **The constructors.** `Instant(since_1970: Duration)`, `Duration(amount, unit)` and `Period(amount, unit)`
      with a unit enum, since Spite has no static functions for `Duration.of_hours(2)`. With no overloading,
      `instant - instant` is the `Duration` between them and going back is `instant + -duration`. A date that
