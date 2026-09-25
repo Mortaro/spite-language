@@ -299,11 +299,3 @@ All of it is proposed by Claude, unconfirmed.
 122. **`far` and `near` are not in the C-reserved list**, but `windows.h` defines them as macros, so a local named
      `far` compiled to broken C (found writing `calendar_math`). Add them, and whatever else `windows.h` defines
      in lower case, to the list item 107 is about?
-
-## Parallel and shared singletons (D179)
-
-130. **How singletons stay thread-safe without ceremony** (proposed by Claude): library singletons threads need
-     (`Console`, input, `Clock`) are thread-safe inside and callable from a `Parallel`; a program's own singleton is
-     reachable from a `Parallel` only if its file declares a `shared` header line. Nothing at call sites. Yes, or
-     another shape?
-
