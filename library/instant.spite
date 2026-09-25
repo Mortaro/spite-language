@@ -1,3 +1,4 @@
+var _zones = TimeZones()
 var _since_1970 = Duration(0, 'seconds')
 
 func Instant(since_1970: Duration) {
@@ -30,8 +31,7 @@ func greater_than(other: Instant): Bool {
 }
 
 func to_string(): String {
-    var zones = TimeZones()
-    var universal = zones.utc()
+    var universal = _zones.utc()
     var local = universal.to_local(this)
     return "{local}Z"
 }

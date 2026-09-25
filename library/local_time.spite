@@ -1,3 +1,4 @@
+var _time_text = TimeText()
 var _hour = 0
 var _minute = 0
 var _second = 0
@@ -51,10 +52,9 @@ func greater_than(other: LocalTime): Bool {
 }
 
 func to_string(): String {
-    var text = TimeText()
-    var hour = text.write_digits(_hour, 2)
-    var minute = text.write_digits(_minute, 2)
-    var second = text.write_digits(_second, 2)
-    var fraction = text.write_fraction(_nanosecond)
+    var hour = _time_text.write_digits(_hour, 2)
+    var minute = _time_text.write_digits(_minute, 2)
+    var second = _time_text.write_digits(_second, 2)
+    var fraction = _time_text.write_fraction(_nanosecond)
     return "{hour}:{minute}:{second}{fraction}"
 }

@@ -8,6 +8,7 @@ enum Weekday {
     'sunday'
 }
 
+var _time_text = TimeText()
 var _year = 1970
 var _month = 1
 var _day = 1
@@ -151,10 +152,9 @@ func greater_than(other: LocalDate): Bool {
 }
 
 func to_string(): String {
-    var text = TimeText()
-    var year = text.write_year(_year)
-    var month = text.write_digits(_month, 2)
-    var day = text.write_digits(_day, 2)
+    var year = _time_text.write_year(_year)
+    var month = _time_text.write_digits(_month, 2)
+    var day = _time_text.write_digits(_day, 2)
     return "{year}-{month}-{day}"
 }
 

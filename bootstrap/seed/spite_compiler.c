@@ -452,6 +452,7 @@ static SpiteString spite_lit_27 = SPITE_STATIC_STRING("nothing has been reloaded
 static SpiteString spite_lit_28 = SPITE_STATIC_STRING("nothing has been reloaded yet", 29);
 static SpiteString spite_lit_29 = SPITE_STATIC_STRING("", 0);
 static SpiteString spite_lit_30 = SPITE_STATIC_STRING("", 0);
+static TimeZones* spite_singleton_TimeZones_cache = 0;
 static SpiteString spite_lit_31 = SPITE_STATIC_STRING("", 0);
 static SpiteString spite_lit_32 = SPITE_STATIC_STRING("", 0);
 static SpiteString spite_lit_33 = SPITE_STATIC_STRING("", 0);
@@ -895,6 +896,7 @@ static NumberText* spite_singleton_NumberText_cache = 0;
 #define SpiteDouble_from_float(self, value) ((double)(value))
 struct Duration {
 SpiteHeader header;
+TimeText* _time_text;
 int64_t _seconds;
 int32_t _nanoseconds;
 };
@@ -1001,9 +1003,9 @@ static void* spite_foreign_0_18 = 0;
 static void* spite_foreign_0_19 = 0;
 struct Instant {
 SpiteHeader header;
+TimeZones* _zones;
 Duration* _since_1970;
 };
-static TimeZones* spite_singleton_TimeZones_cache = 0;
 static SpiteString spite_lit_372 = SPITE_STATIC_STRING("", 0);
 static SpiteString spite_lit_373 = SPITE_STATIC_STRING("Z", 1);
 #define SpiteInt_from_long(self, value) ((int32_t)(value))
@@ -1056,6 +1058,7 @@ static SpiteString spite_lit_411 = SPITE_STATIC_STRING(",", 1);
 static SpiteString spite_lit_412 = SPITE_STATIC_STRING("]", 1);
 struct LocalDate {
 SpiteHeader header;
+TimeText* _time_text;
 int32_t _year;
 int32_t _month;
 int32_t _day;
@@ -1072,6 +1075,7 @@ static SpiteString spite_lit_416 = SPITE_STATIC_STRING("", 0);
 static SpiteString spite_lit_417 = SPITE_STATIC_STRING("T", 1);
 struct LocalTime {
 SpiteHeader header;
+TimeText* _time_text;
 int32_t _hour;
 int32_t _minute;
 int32_t _second;
@@ -1505,14 +1509,14 @@ bool _failed;
 };
 struct TimeZone {
 SpiteHeader header;
-TimeText* time_text;
+TimeText* _time_text;
 SpiteString* _name;
 ZoneRules* _rules;
 };
 static SpiteString spite_lit_726 = SPITE_STATIC_STRING("", 0);
 struct TimeZones {
 SpiteHeader header;
-TimeText* time_text;
+TimeText* _time_text;
 TimeZone* _utc;
 };
 static SpiteString spite_lit_727 = SPITE_STATIC_STRING("", 0);
@@ -10106,10 +10110,11 @@ Build* spite_singleton_Build(void);
 Console* spite_singleton_Console(void);
 DynamicLibrary* spite_foreign_library_0(void);
 DynamicLibrary* spite_foreign_library_1(void);
+TimeText* spite_singleton_TimeText(void);
 Scheduler* spite_singleton_Scheduler(void);
+TimeZones* spite_singleton_TimeZones(void);
 TypedMemory__Long* spite_singleton_TypedMemory__Long(void);
 DynamicLibrary* spite_foreign_library_2(void);
-TimeText* spite_singleton_TimeText(void);
 TypedMemory__Int* spite_singleton_TypedMemory__Int(void);
 TypedMemory__Spite_Attribute* spite_singleton_TypedMemory__Spite_Attribute(void);
 TypedMemory__Spite_Function* spite_singleton_TypedMemory__Spite_Function(void);
@@ -10474,13 +10479,16 @@ TimeZone* TimeZone___allocate(void);
 TimeZone* TimeZone___default(void);
 TimeZone* TimeZone___make(SpiteString* name, ZoneRules* rules);
 TimeZone* TimeZone___retain(TimeZone* self);
+void TimeZone___release(TimeZone* self);
 void TimeZone_TimeZone(TimeZone* self, SpiteString* name, ZoneRules* rules);
 void TimeZones___init(TimeZones* self);
 TimeZones* TimeZones___allocate(void);
 TimeZones* TimeZones___default(void);
+TimeZones* TimeZones___make(void);
 TimeZones* TimeZones___retain(TimeZones* self);
 void TimeZones___release(TimeZones* self);
 TimeZones* TimeZones_copy(TimeZones* self);
+void TimeZones___destroy(TimeZones* self);
 void TzifReader___init(TzifReader* self);
 TzifReader* TzifReader___allocate(void);
 TzifReader* TzifReader___default(void);
@@ -13673,6 +13681,10 @@ SPITE_SINGLETON_PUBLISH(spite_singleton_Console_cache, made);
 SPITE_UNLOCK(spite_singleton_Console_lock);
 return spite_singleton_Console_cache;
 }
+TimeText* spite_singleton_TimeText(void) {
+static TimeText spite_object = { { 1, 33 } };
+return &spite_object;
+}
 static bool spite_singleton_Scheduler_destroyed = false;
 static void spite_singleton_Scheduler_teardown(void) {
 Scheduler* object = spite_singleton_Scheduler_cache;
@@ -13694,12 +13706,29 @@ SPITE_SINGLETON_PUBLISH(spite_singleton_Scheduler_cache, made);
 SPITE_UNLOCK(spite_singleton_Scheduler_lock);
 return spite_singleton_Scheduler_cache;
 }
+static bool spite_singleton_TimeZones_destroyed = false;
+static void spite_singleton_TimeZones_teardown(void) {
+TimeZones* object = spite_singleton_TimeZones_cache;
+spite_singleton_TimeZones_cache = 0;
+spite_singleton_TimeZones_destroyed = true;
+TimeZones___destroy(object);
+}
+static int32_t spite_singleton_TimeZones_lock = 0;
+TimeZones* spite_singleton_TimeZones(void) {
+TimeZones* found = SPITE_SINGLETON_FOUND(spite_singleton_TimeZones_cache);
+if (found != 0) return found;
+SPITE_LOCK(spite_singleton_TimeZones_lock);
+if (spite_singleton_TimeZones_cache == 0) {
+if (spite_singleton_TimeZones_destroyed) spite_singleton_used_after_exit("TimeZones");
+TimeZones* made = TimeZones___make();
+spite_singleton_created(spite_singleton_TimeZones_teardown);
+SPITE_SINGLETON_PUBLISH(spite_singleton_TimeZones_cache, made);
+}
+SPITE_UNLOCK(spite_singleton_TimeZones_lock);
+return spite_singleton_TimeZones_cache;
+}
 TypedMemory__Long* spite_singleton_TypedMemory__Long(void) {
 static TypedMemory__Long spite_object = { { 1, 148 } };
-return &spite_object;
-}
-TimeText* spite_singleton_TimeText(void) {
-static TimeText spite_object = { { 1, 33 } };
 return &spite_object;
 }
 TypedMemory__Int* spite_singleton_TypedMemory__Int(void) {
@@ -14109,6 +14138,7 @@ SPITE_UNLOCK(spite_singleton_NumberText_lock);
 return spite_singleton_NumberText_cache;
 }
 void Duration___init(Duration* self) {
+self->_time_text = spite_singleton_TimeText();
 self->_seconds = SpiteLong_from_int(0, 0);
 self->_nanoseconds = 0;
 }
@@ -14243,6 +14273,7 @@ void HotReload___release(HotReload* self) { (void)self; }
 HotReload* HotReload___retain(HotReload* self) { return self; }
 HotReload* HotReload_copy(HotReload* self) { return HotReload___retain(self); }
 void Instant___init(Instant* self) {
+self->_zones = spite_singleton_TimeZones();
 self->_since_1970 = Duration___make(SpiteLong_from_int(0, 0), Duration_Unit_seconds);
 }
 Instant* Instant___allocate(void) {
@@ -14260,8 +14291,6 @@ return self;
 }
 Instant* Instant___default(void) { return Instant___allocate(); }
 Instant* Instant___retain(Instant* self) { if (self != 0) SPITE_COUNT_UP(self->header.ref_count); return self; }
-static bool spite_singleton_TimeZones_destroyed = false;
-static int32_t spite_singleton_TimeZones_lock = 0;
 void JsonReader___init(JsonReader* self) {
 self->text = (&spite_lit_32);
 self->position = 0;
@@ -14285,6 +14314,7 @@ return self;
 JsonReader* JsonReader___default(void) { return JsonReader___allocate(); }
 JsonReader* JsonReader___retain(JsonReader* self) { if (self != 0) SPITE_COUNT_UP(self->header.ref_count); return self; }
 void LocalDate___init(LocalDate* self) {
+self->_time_text = spite_singleton_TimeText();
 self->_year = 1970;
 self->_month = 1;
 self->_day = 1;
@@ -14329,6 +14359,7 @@ return self;
 LocalDateTime* LocalDateTime___default(void) { return LocalDateTime___allocate(); }
 LocalDateTime* LocalDateTime___retain(LocalDateTime* self) { if (self != 0) SPITE_COUNT_UP(self->header.ref_count); return self; }
 void LocalTime___init(LocalTime* self) {
+self->_time_text = spite_singleton_TimeText();
 self->_hour = 0;
 self->_minute = 0;
 self->_second = 0;
@@ -14718,7 +14749,7 @@ return self;
 TimeTextReader* TimeTextReader___default(void) { return TimeTextReader___allocate(); }
 TimeTextReader* TimeTextReader___retain(TimeTextReader* self) { if (self != 0) SPITE_COUNT_UP(self->header.ref_count); return self; }
 void TimeZone___init(TimeZone* self) {
-self->time_text = spite_singleton_TimeText();
+self->_time_text = spite_singleton_TimeText();
 self->_name = (&spite_lit_48);
 self->_rules = ZoneRules___make(0);
 }
@@ -14742,8 +14773,19 @@ TimeZone_TimeZone(self, name, rules);
 return self;
 }
 TimeZone* TimeZone___retain(TimeZone* self) { if (self != 0) SPITE_COUNT_UP(self->header.ref_count); return self; }
+void TimeZone___release(TimeZone* self) {
+if (self == 0) return;
+if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
+TimeText___release(self->_time_text);
+SpiteString___release(self->_name);
+ZoneRules___release(self->_rules);
+#ifdef SPITE_TRACKS_TimeZone
+spite_untrack_TimeZone(self);
+#endif
+SPITE_FREE(self);
+}
 void TimeZones___init(TimeZones* self) {
-self->time_text = spite_singleton_TimeText();
+self->_time_text = spite_singleton_TimeText();
 self->_utc = TimeZone___make((&spite_lit_50), ZoneRules___make(0));
 }
 TimeZones* TimeZones___allocate(void) {
@@ -14760,8 +14802,21 @@ spite_track_TimeZones(self);
 return self;
 }
 TimeZones* TimeZones___default(void) { return TimeZones___allocate(); }
+TimeZones* TimeZones___make(void) {
+TimeZones* self = TimeZones___allocate();
+return self;
+}
 void TimeZones___release(TimeZones* self) { (void)self; }
 TimeZones* TimeZones___retain(TimeZones* self) { return self; }
+void TimeZones___destroy(TimeZones* self) {
+if (self == 0) return;
+TimeText___release(self->_time_text);
+TimeZone___release(self->_utc);
+#ifdef SPITE_TRACKS_TimeZones
+spite_untrack_TimeZones(self);
+#endif
+SPITE_FREE(self);
+}
 TimeZones* TimeZones_copy(TimeZones* self) { return TimeZones___retain(self); }
 void TzifReader___init(TzifReader* self) {
 self->_data = (&spite_lit_52);
@@ -20958,7 +21013,7 @@ return (int32_t)(self & other);
 void LocalDate_LocalDate(LocalDate* self, int32_t year, int32_t month, int32_t day) {
 if (!(((month >= 1)))) {
 fflush(stdout);
-fputs("spite.crash\t4f158aa9\tlibrary/local_date.spite:16\tLocalDate\tLocalDate\tmonth >= 1", stderr);
+fputs("spite.crash\t4f158aa9\tlibrary/local_date.spite:17\tLocalDate\tLocalDate\tmonth >= 1", stderr);
 fputs("\tmonth=", stderr);
 { SpiteString* spite_temp_392 = SpiteInt_to_string(month); fwrite((const char*)(intptr_t)spite_temp_392->_bytes, 1, (size_t)spite_temp_392->_length, stderr); SpiteString___release(spite_temp_392); }
 fputs("\n", stderr);
@@ -20967,7 +21022,7 @@ exit(1);
 }
 if (!(((month <= 12)))) {
 fflush(stdout);
-fputs("spite.crash\t70940429\tlibrary/local_date.spite:16\tLocalDate\tLocalDate\tmonth <= 12", stderr);
+fputs("spite.crash\t70940429\tlibrary/local_date.spite:17\tLocalDate\tLocalDate\tmonth <= 12", stderr);
 fputs("\tmonth=", stderr);
 { SpiteString* spite_temp_393 = SpiteInt_to_string(month); fwrite((const char*)(intptr_t)spite_temp_393->_bytes, 1, (size_t)spite_temp_393->_length, stderr); SpiteString___release(spite_temp_393); }
 fputs("\n", stderr);
@@ -20976,7 +21031,7 @@ exit(1);
 }
 if (!(((day >= 1)))) {
 fflush(stdout);
-fputs("spite.crash\t197bcbe0\tlibrary/local_date.spite:17\tLocalDate\tLocalDate\tday >= 1", stderr);
+fputs("spite.crash\t197bcbe0\tlibrary/local_date.spite:18\tLocalDate\tLocalDate\tday >= 1", stderr);
 fputs("\tday=", stderr);
 { SpiteString* spite_temp_394 = SpiteInt_to_string(day); fwrite((const char*)(intptr_t)spite_temp_394->_bytes, 1, (size_t)spite_temp_394->_length, stderr); SpiteString___release(spite_temp_394); }
 fputs("\n", stderr);
@@ -20985,7 +21040,7 @@ exit(1);
 }
 if (!(((day <= LocalDate__days_in(self, year, month))))) {
 fflush(stdout);
-fputs("spite.crash\t500dd46a\tlibrary/local_date.spite:17\tLocalDate\tLocalDate\tday <= _days_in(year, month)", stderr);
+fputs("spite.crash\t500dd46a\tlibrary/local_date.spite:18\tLocalDate\tLocalDate\tday <= _days_in(year, month)", stderr);
 fputs("\tday=", stderr);
 { SpiteString* spite_temp_395 = SpiteInt_to_string(day); fwrite((const char*)(intptr_t)spite_temp_395->_bytes, 1, (size_t)spite_temp_395->_length, stderr); SpiteString___release(spite_temp_395); }
 fputs("\n", stderr);
@@ -21019,7 +21074,7 @@ return spite_temp_443;
 void LocalTime_LocalTime(LocalTime* self, int32_t hour, int32_t minute, int32_t second, int32_t nanosecond) {
 if (!(((hour >= 0)))) {
 fflush(stdout);
-fputs("spite.crash\t030b92a5\tlibrary/local_time.spite:7\tLocalTime\tLocalTime\thour >= 0", stderr);
+fputs("spite.crash\t030b92a5\tlibrary/local_time.spite:8\tLocalTime\tLocalTime\thour >= 0", stderr);
 fputs("\thour=", stderr);
 { SpiteString* spite_temp_463 = SpiteInt_to_string(hour); fwrite((const char*)(intptr_t)spite_temp_463->_bytes, 1, (size_t)spite_temp_463->_length, stderr); SpiteString___release(spite_temp_463); }
 fputs("\n", stderr);
@@ -21028,7 +21083,7 @@ exit(1);
 }
 if (!(((hour <= 23)))) {
 fflush(stdout);
-fputs("spite.crash\t2ff46bb6\tlibrary/local_time.spite:7\tLocalTime\tLocalTime\thour <= 23", stderr);
+fputs("spite.crash\t2ff46bb6\tlibrary/local_time.spite:8\tLocalTime\tLocalTime\thour <= 23", stderr);
 fputs("\thour=", stderr);
 { SpiteString* spite_temp_464 = SpiteInt_to_string(hour); fwrite((const char*)(intptr_t)spite_temp_464->_bytes, 1, (size_t)spite_temp_464->_length, stderr); SpiteString___release(spite_temp_464); }
 fputs("\n", stderr);
@@ -21037,7 +21092,7 @@ exit(1);
 }
 if (!(((minute >= 0)))) {
 fflush(stdout);
-fputs("spite.crash\t2907ff6f\tlibrary/local_time.spite:8\tLocalTime\tLocalTime\tminute >= 0", stderr);
+fputs("spite.crash\t2907ff6f\tlibrary/local_time.spite:9\tLocalTime\tLocalTime\tminute >= 0", stderr);
 fputs("\tminute=", stderr);
 { SpiteString* spite_temp_465 = SpiteInt_to_string(minute); fwrite((const char*)(intptr_t)spite_temp_465->_bytes, 1, (size_t)spite_temp_465->_length, stderr); SpiteString___release(spite_temp_465); }
 fputs("\n", stderr);
@@ -21046,7 +21101,7 @@ exit(1);
 }
 if (!(((minute <= 59)))) {
 fflush(stdout);
-fputs("spite.crash\t66ff894d\tlibrary/local_time.spite:8\tLocalTime\tLocalTime\tminute <= 59", stderr);
+fputs("spite.crash\t66ff894d\tlibrary/local_time.spite:9\tLocalTime\tLocalTime\tminute <= 59", stderr);
 fputs("\tminute=", stderr);
 { SpiteString* spite_temp_466 = SpiteInt_to_string(minute); fwrite((const char*)(intptr_t)spite_temp_466->_bytes, 1, (size_t)spite_temp_466->_length, stderr); SpiteString___release(spite_temp_466); }
 fputs("\n", stderr);
@@ -21055,7 +21110,7 @@ exit(1);
 }
 if (!(((second >= 0)))) {
 fflush(stdout);
-fputs("spite.crash\t6093a021\tlibrary/local_time.spite:9\tLocalTime\tLocalTime\tsecond >= 0", stderr);
+fputs("spite.crash\t6093a021\tlibrary/local_time.spite:10\tLocalTime\tLocalTime\tsecond >= 0", stderr);
 fputs("\tsecond=", stderr);
 { SpiteString* spite_temp_467 = SpiteInt_to_string(second); fwrite((const char*)(intptr_t)spite_temp_467->_bytes, 1, (size_t)spite_temp_467->_length, stderr); SpiteString___release(spite_temp_467); }
 fputs("\n", stderr);
@@ -21064,7 +21119,7 @@ exit(1);
 }
 if (!(((second <= 59)))) {
 fflush(stdout);
-fputs("spite.crash\t0fff415c\tlibrary/local_time.spite:9\tLocalTime\tLocalTime\tsecond <= 59", stderr);
+fputs("spite.crash\t0fff415c\tlibrary/local_time.spite:10\tLocalTime\tLocalTime\tsecond <= 59", stderr);
 fputs("\tsecond=", stderr);
 { SpiteString* spite_temp_468 = SpiteInt_to_string(second); fwrite((const char*)(intptr_t)spite_temp_468->_bytes, 1, (size_t)spite_temp_468->_length, stderr); SpiteString___release(spite_temp_468); }
 fputs("\n", stderr);
@@ -21073,7 +21128,7 @@ exit(1);
 }
 if (!(((nanosecond >= 0)))) {
 fflush(stdout);
-fputs("spite.crash\t68f4392d\tlibrary/local_time.spite:10\tLocalTime\tLocalTime\tnanosecond >= 0", stderr);
+fputs("spite.crash\t68f4392d\tlibrary/local_time.spite:11\tLocalTime\tLocalTime\tnanosecond >= 0", stderr);
 fputs("\tnanosecond=", stderr);
 { SpiteString* spite_temp_469 = SpiteInt_to_string(nanosecond); fwrite((const char*)(intptr_t)spite_temp_469->_bytes, 1, (size_t)spite_temp_469->_length, stderr); SpiteString___release(spite_temp_469); }
 fputs("\n", stderr);
@@ -21082,7 +21137,7 @@ exit(1);
 }
 if (!(((nanosecond <= 999999999)))) {
 fflush(stdout);
-fputs("spite.crash\t3a2362af\tlibrary/local_time.spite:10\tLocalTime\tLocalTime\tnanosecond <= 999999999", stderr);
+fputs("spite.crash\t3a2362af\tlibrary/local_time.spite:11\tLocalTime\tLocalTime\tnanosecond <= 999999999", stderr);
 fputs("\tnanosecond=", stderr);
 { SpiteString* spite_temp_470 = SpiteInt_to_string(nanosecond); fwrite((const char*)(intptr_t)spite_temp_470->_bytes, 1, (size_t)spite_temp_470->_length, stderr); SpiteString___release(spite_temp_470); }
 fputs("\n", stderr);

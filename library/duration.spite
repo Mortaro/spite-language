@@ -7,6 +7,7 @@ enum Unit {
     'hours'
 }
 
+var _time_text = TimeText()
 var _seconds: Long = 0
 var _nanoseconds = 0
 
@@ -87,11 +88,10 @@ func to_string(): String {
         sign = "-"
         size = negate()
     }
-    var text = TimeText()
     var hours = size.part('hours')
     var minutes = size.part('minutes')
     var seconds = size.part('seconds')
-    var fraction = text.write_fraction(size._nanoseconds)
+    var fraction = _time_text.write_fraction(size._nanoseconds)
     var written = "{sign}PT"
     if hours != 0 {
         written = "{written}{hours}H"
