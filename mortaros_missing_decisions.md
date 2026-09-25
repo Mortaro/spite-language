@@ -125,8 +125,6 @@ manual argues it.
 
 ## Build, the launcher and the entry (D85, D86, D89, D97; manual sections 3, 9 and 13)
 
-37. **The launcher's name and place**: `launcher/launcher.spite`, class `Launcher`, at the repository root beside
-    `library/`. It is library code for reflection (`Spite.Class.instances` leaves it out).
 38. **Loading the program's folder runs it.** The launcher's `load(Build().program)` constructs the program's
     entry class; every other `load` still compiles to nothing at run time. And a launcher `load` may use `Build`
     fields (`"library/{Build().target_operating_system}"`), where every other `load` takes a literal.
