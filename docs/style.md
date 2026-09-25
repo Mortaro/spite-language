@@ -268,6 +268,35 @@ What counts, precisely:
 - A singleton's constructor is the exception: `greet(Console())` is an error, because a singleton is always bound
   to a `var` first ([classes_and_files.md](classes_and_files.md#singletons)).
 
+**A long line makes no object inside a call** (D187). There is no limit on how long a line may be. But if a line
+would be wider than the formatter's 120 columns when written on one line, it may not construct an object inside a
+call's arguments. Make the object first, on a line of its own, and pass its name. A short line may still pass one
+constructor, as above.
+
+```gdscript title=long_line_error/label.spite
+var text = ""
+
+func Label(starting_text: String) {
+    text = starting_text
+}
+```
+```gdscript title=long_line_error/long_line_error.spite entry error
+var console = Console()
+
+func LongLineError() {
+    var labels = List<Label>()
+    labels.append(Label("a label whose text is long enough to carry this line past the width that the formatter uses for lines"))
+    var count = labels.count()
+    console.print(count)
+}
+```
+```diagnostic
+a long line makes no object inside a call, so make it first on a line of its own, 'var label = Label(
+```
+
+The line is measured as the formatter would print it on one line, indentation included. Breaking it over several
+lines does not change the result. The fix is `var label = Label("...")` followed by `labels.append(label)`.
+
 **An `if` and its `else` do not repeat the same work.** When both branches compute the same call, it is
 computed once before the `if`:
 

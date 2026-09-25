@@ -33,7 +33,12 @@ compile_c() { "$CC_BIN" -O1 -Wno-parentheses-equality -Wno-deprecated-declaratio
 # folder would be written into the C and no two generations (or seeds) would ever be equal.
 compile_compiler() {
   "$1" bootstrap --run=false --c_source || return 1
-  cp bootstrap/bootstrap.c "$2" && rm -f bootstrap/bootstrap.c   # a copy: Windows may still hold the file, refusing a rename
+  cp bootstrap/bootstrap.c "$2" || return 1   # a copy: Windows may still hold the file, refusing a rename
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do   # and a virus scanner may hold it a moment longer, refusing the delete
+    rm -f bootstrap/bootstrap.c 2>/dev/null && return 0
+    sleep 1
+  done
+  rm -f bootstrap/bootstrap.c
 }
 
 echo "1/4 building the seed compiler"

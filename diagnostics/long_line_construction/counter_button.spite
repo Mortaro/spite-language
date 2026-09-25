@@ -1,0 +1,5 @@
+var label = ""
+
+func CounterButton(starting_label: String) {
+    label = starting_label
+}

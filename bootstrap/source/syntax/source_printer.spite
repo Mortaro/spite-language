@@ -1,6 +1,7 @@
 var shape = Analysis.AstShape()
 
 var explicit_grouping = false
+var width = 120
 var comment_lines = List<Int>()
 var comment_texts = List<String>()
 var statement_lines = List<Int>()
@@ -108,7 +109,7 @@ func source_block(statements: List<Syntax.Statements.Statement>, depth: Int): St
 
 func source_statement(statement: Syntax.Statements.Statement, depth: Int): String {
     var printed = source_statement_line(statement, depth)
-    if printed.contains("\n") or printed.length() <= 120 {
+    if printed.contains("\n") or printed.length() <= width {
         return printed
     }
     var indent = source_indent(depth)
@@ -312,7 +313,7 @@ func source_function(function: Syntax.Statements.FunctionDeclaration, depth: Int
     if not function.has_body {
         return "{source_indent(depth)}func {function.name}({parameters}){returns}"
     }
-    if header.length() > 120 {
+    if header.length() > width {
         var listed = ""
         index = 0
         while index < function.parameters.count() {
