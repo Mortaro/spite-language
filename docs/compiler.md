@@ -11,7 +11,7 @@ program and runs it.
 ```
 spite program                         build program/program.exe beside the program, and run it
 spite program --optimized             an optimized build
-spite program --development           keep everything (no tree shaking), for live reload
+spite program --development           an inspectable build: nothing tree-shaken, internals as ordinary objects
 spite program --debug_memory          count allocations and frees, and print the balance at the end
 spite program --repl                  run it, then open a REPL on the running program
 spite program --repl_port=4000        serve a REPL on 127.0.0.1:4000 while it runs
@@ -137,7 +137,7 @@ Every option is a `Build` field with a literal default, declared in `library/bui
 | `format` | `true` | rewrites the program's own files in the one style; `--format=false` leaves them |
 | `final_classes` | `""` | writes the merged classes to this folder |
 | `optimized` | `false` | asks the C compiler for `-O2` instead of `-O0` |
-| `development` | `false` | keeps everything, no tree shaking, for live reload |
+| `development` | `false` | an inspectable build: keeps everything, no tree shaking, internals as ordinary objects |
 | `repl` | `false` | runs the program with an in-place REPL |
 | `repl_port` | `0` | serves the remote REPL on this port (see [repl.md](repl.md)) |
 | `hot_reload` | `false` | swaps changed classes into the running program and implies `development` (see [repl.md](repl.md#live-reload---hot_reload)) |
@@ -213,9 +213,15 @@ What it rewrites, and what it refuses to (naming), is [style.md](style.md).
 
 A normal build keeps only what the program uses: a condition on a codegen value or a `Build` field keeps one
 branch, a template exists only for the names called, and reflection only where it is read
-([metaprogramming.md](metaprogramming.md#tree-shaking)). `--development` keeps every generated function instead,
-so live reload has all of them to swap; conditions on codegen values and `Build` fields still fold. Everything
-the compiler optimises without being asked is in [optimizations.md](optimizations.md).
+([metaprogramming.md](metaprogramming.md#tree-shaking)).
+
+An **inspectable build** is one built with `--development`, `--hot_reload`, `--repl` or `--repl_port`
+([D143](../manual.md#decision-log)). It keeps every generated function instead, so live reload has all of them to
+swap and the REPL can reach every internal, and the singletons that hold nothing -- `Memory`, `Build`,
+`TypedMemory<T>` -- are ordinary objects that `.instances` lists, instead of the static objects a production build
+makes of them. Every other build, ordinary or `--optimized`, is a production build. Conditions on codegen values
+and `Build` fields fold in both: they are facts of the build, not values the running program could change. Which
+optimisation applies in which build is in [optimizations.md](optimizations.md).
 
 ## Counting memory: `--debug_memory`
 

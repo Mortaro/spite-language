@@ -308,6 +308,7 @@ func configure(generator: Generation.Generator) {
     generator.remote_loop_port = port
     generator.development = is_on("development") or is_on("hot_reload")
     generator.hot_reload = is_on("hot_reload")
+    generator.keeps_internals = generator.development or generator.read_evaluate_print_loop
     if generator.hot_reload {
         var program = Program()
         generator.hot_reload_compiler = program.executable_path()

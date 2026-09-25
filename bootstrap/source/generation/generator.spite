@@ -36,6 +36,7 @@ var unwaiting_loop_line = 0
 var unwaiting_loop_owner = ""
 var unwaiting_loop_function = ""
 var development = false
+var keeps_internals = false
 var hot_reload = false
 var hot_reload_compiler = ""
 var hot_reload_arguments = ""
@@ -449,7 +450,7 @@ func generate(
     if not has_error {
         report_unused_attributes()
     }
-    builder.shakes = not development
+    builder.shakes = not keeps_internals
     builder.hot_reload = hot_reload
     return builder.render()
 }
@@ -475,7 +476,8 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
         classes.last().entry_index = index
         classes.last().codegen_names = declared_codegen_names(entry)
         classes.last().is_singleton = has_singleton_line(entry)
-        classes.last().is_stateless_singleton = classes.last().is_singleton and holds_nothing(entry)
+        classes.last().holds_nothing = classes.last().is_singleton and holds_nothing(entry)
+        classes.last().is_stateless_singleton = classes.last().holds_nothing and not keeps_internals
         classes.last().is_generic_template = not classes.last().codegen_names.is_empty()
         discovered_classes.append(entry)
         register_enums(entry)
@@ -999,6 +1001,7 @@ func instantiated_with(
     instance.codegen_texts = texts
     instance.is_singleton = template.is_singleton
     instance.is_stateless_singleton = template.is_stateless_singleton
+    instance.holds_nothing = template.holds_nothing
     instance.is_container = template.qualified_dotted == "TypedMemory"
     instance.is_instantiated = true
     classes.append(instance)
@@ -5532,7 +5535,9 @@ func singleton_call(target_class: Analysis.ClassInfo): String {
         lines.append("static void {function_c_name}_teardown(void) \{")
         lines.append("{target_class.c_name}* object = {function_c_name}_cache;")
         lines.append("{function_c_name}_cache = 0;")
-        lines.append("{function_c_name}_destroyed = true;")
+        if not target_class.holds_nothing {
+            lines.append("{function_c_name}_destroyed = true;")
+        }
         lines.append("{target_class.c_name}___destroy(object);")
         lines.append("}")
         lines.append("static int32_t {function_c_name}_lock = 0;")
@@ -7452,7 +7457,7 @@ func ensure_live_instances(information: Analysis.ClassInfo): String {
     builder.add_prototype("void spite_untrack_{name}({name}* self);")
     builder.add_prototype("{list_name}* {function_c_name}(void);")
     builder.add_support(
-        "void spite_track_{name}({name}* self) \{\nif ({registry}_count == {registry}_capacity) \{\n{registry}_capacity = {registry}_capacity == 0 ? 8 : {registry}_capacity * 2;\n{registry} = ({name}**)SPITE_REALLOC({registry}, (size_t){registry}_capacity * sizeof({name}*));\n}\n{registry}[{registry}_count] = self;\n{registry}_count = {registry}_count + 1;\n}",
+        "void spite_track_{name}({name}* self) \{\nif ({registry}_count == {registry}_capacity) \{\n{registry}_capacity = {registry}_capacity == 0 ? 8 : {registry}_capacity * 2;\n{registry} = ({name}**)realloc({registry}, (size_t){registry}_capacity * sizeof({name}*));\n}\n{registry}[{registry}_count] = self;\n{registry}_count = {registry}_count + 1;\n}",
     )
     builder.add_support(
         "void spite_untrack_{name}({name}* self) \{\nfor (int64_t spite_index = 0; spite_index < {registry}_count; spite_index = spite_index + 1) \{\nif ({registry}[spite_index] == self) \{\nfor (int64_t spite_shift = spite_index; spite_shift < {registry}_count - 1; spite_shift = spite_shift + 1) \{ {registry}[spite_shift] = {registry}[spite_shift + 1]; }\n{registry}_count = {registry}_count - 1;\nreturn;\n}\n}\n}",
@@ -7460,7 +7465,7 @@ func ensure_live_instances(information: Analysis.ClassInfo): String {
     builder.add_support(
         "{list_name}* {function_c_name}(void) \{\n{list_name}* result = {list_name}___make();\nfor (int64_t spite_index = 0; spite_index < {registry}_count; spite_index = spite_index + 1) \{ {list_name}_append(result, {name}___retain({registry}[spite_index])); }\nreturn result;\n}",
     )
-    singleton_releases.append("if ({registry} != 0) SPITE_FREE({registry});")
+    singleton_releases.append("if ({registry} != 0) free({registry});")
     return function_c_name
 }
 

@@ -1,0 +1,4 @@
+stored: 42
+Memory objects: 1
+Build objects: 1
+development build: true

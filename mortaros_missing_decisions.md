@@ -320,24 +320,6 @@ All of it is proposed by Claude, unconfirmed.
      formats files that need not be a program -- `library/`, which no program's compile formats. Keep both, or
      make formatting the library the job of compiling `bootstrap` (which loads it)?
 
-## Found writing `docs/optimizations.md` (D185)
-
-
-139. **D143 is not built: singletons that hold nothing are static objects in every build.** The compiler makes
-     `Memory`, `Build` and `TypedMemory<T>` one static object (`is_stateless_singleton` in `generator.spite`) with
-     no look at the build kind, so a `--repl`, `--repl_port`, `--hot_reload` or `--development` build has them static
-     too (checked: `static Memory spite_object` is in the C of a `--repl=true` and a `--development=true` build).
-     D143 says those builds keep them as ordinary objects reflection sees. Build D143 as written (they become
-     allocated, counted objects in those builds, so `--debug_memory` counts differ between a development and an
-     optimised build), or keep them static everywhere and narrow D143?
-140. **Manual section 9 says `--development` keeps conditions on codegen values as run-time values, "so live reload
-     can change them"; the compiler folds them in every build.** `constant_condition` never looks at
-     `development`, and `--development` only turns off the C tree shaker. `docs/compiler.md` and
-     `docs/metaprogramming.md` said what the manual says and now say what is built. A generic class is one C
-     class per set of values, so a run-time `$is_magic` would need one class to serve every value; and every
-     `Build` field is a constant by D85. Drop the sentence from section 9, or is a run-time form wanted for live
-     reload?
-
 ## File watching in the standard library (Mortaro's request via SlopEngine)
 
 141. **A file watcher for everyone** -- "the cook needs to constantly get informed of changes on the psd to rerun the
@@ -349,3 +331,13 @@ All of it is proposed by Claude, unconfirmed.
      polling; `HotReload` becomes its first user and SlopEngine's cooker the second. Tree-shaken when unused (D177).
      Name: `FileWatcher` or `Directory.Watcher`?
 
+## From building D143 (inspectable and production builds; manual sections 8 and 13)
+
+142. **Which builds are "production"?** D143 says internals are hidden "at optimized production builds" and
+     ordinary in `--repl`, `--repl_port`, `--hot_reload` and `--development` builds. Built (proposed by Claude,
+     unconfirmed): every build that is not one of those four is production, the plain `spite program` included, so
+     an ordinary build keeps the static singletons and the tree shaker it had; `--optimized --repl` is inspectable.
+     Only tree shaking and static singletons count as hiding an internal; fused chains, placement and text appended
+     in place stay on in every build, since they change speed rather than what reflection sees. Keep that, or should
+     a plain build be inspectable too, leaving hiding to `--optimized` alone (every ordinary build then allocates
+     `Memory` and `Build` and carries unshaken C)?
