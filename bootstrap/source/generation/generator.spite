@@ -17412,21 +17412,25 @@ func emit_main(launcher_mangled_name: String) {
     }
     var cache_index = 0
     while cache_index < class_object_names.count() {
-        var cache = "{class_object_names[cache_index]}_cache"
+        var class_object = class_object_names[cache_index]
+        var cache = "{class_object}_cache"
         if not listed_name.is_empty() {
-            builder.add_main(
+            builder.add_main_if_kept(
+                class_object,
                 "if ({cache} != 0) \{ {listed_name}___release({cache}->_functions_); {cache}->_functions_ = 0; }",
             )
         }
         if not attribute_listed_name.is_empty() {
-            builder.add_main(
+            builder.add_main_if_kept(
+                class_object,
                 "if ({cache} != 0) \{ {attribute_listed_name}___release({cache}->_attributes_); {cache}->_attributes_ = 0; }",
             )
         }
-        builder.add_main(
+        builder.add_main_if_kept(
+            class_object,
             "if ({cache} != 0 && {cache}->_namespace_ != 0) \{ Spite_Namespace___release({cache}->_namespace_); {cache}->_namespace_ = 0; }",
         )
-        builder.add_main("Spite_Class___release({cache});")
+        builder.add_main_if_kept(class_object, "Spite_Class___release({cache});")
         cache_index = cache_index + 1
     }
     if namespace_read_used {

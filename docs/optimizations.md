@@ -60,9 +60,26 @@ function with a visible effect can show, no optimisation changes what a program 
 
 **What it does.** After the program is generated, the compiler keeps only the C that `main` can reach: every
 function nothing calls, from your classes, `library/` or the compiler's own prelude, is dropped along with its
-prototype (`bootstrap/source/generation/tree_shaker.spite`). A small program's C goes from about 5 800 lines to
-about 2 000. The compiler does this itself rather than leaving dead code for the C compiler to find, so it holds
-whichever C compiler you bring.
+prototype (`bootstrap/source/generation/tree_shaker.spite`). So is every class nothing reachable uses: its
+`struct` and the `typedef` that names it, its `___allocate`, `___init`, `___default`, `___retain`, `___release`
+and `_copy`, its singleton slot and that slot's lock, its reflection class object and the lines in `main` that
+would free that object at exit, and every text literal, static table and prototype only dropped code named. A
+program that never makes a `Watcher`, `Socket`, `Process`, `HotReload`, `ThreadPool` or `Scheduler` has none of
+their C. The compiler does this itself rather than leaving dead code for the C compiler to find, so it holds
+whichever C compiler you bring -- and a C compiler cannot find most of it anyway, since a function it is not told
+is private has to stay in the executable.
+
+Measured with `--c-source`, before and after classes were shaken too (the executable is `clang -O2` on Windows):
+
+| Program | C lines | C bytes | `struct`s | Executable |
+|---|---|---|---|---|
+| `examples/hello` | 5 130 → 1 332 | 233 588 → 62 732 | 75 → 10 | 192 000 → 158 208 |
+| `examples/dungeon` | 5 958 → 2 348 | 268 925 → 101 165 | 80 → 21 | 207 360 → 173 568 |
+| `conformance/stage3/interpolation` | 5 222 → 1 497 | 241 343 → 72 403 | 76 → 13 | 195 072 → 162 304 |
+| `conformance/stage6/parallel_each` | 5 990 → 2 972 | 277 303 → 133 127 | 78 → 34 | 211 968 → 184 320 |
+| `conformance/stage6/singleton_guard` | 6 392 → 3 407 | 294 742 → 150 397 | 82 → 40 | 219 136 → 190 464 |
+
+`examples/hello --development` is 14 885 lines both before and after: an inspectable build keeps everything.
 
 **When.** Production builds only. An inspectable build -- `--repl`, `--repl-port`, `--hot-reload` or
 `--development` -- keeps everything, so live reload has every function to swap and the REPL can reach every
@@ -71,7 +88,8 @@ internal ([D143](../manual.md#decision-log), [compiler.md](compiler.md#developme
 **What you notice.** Nothing, except that `--c-source` writes less. A function nobody calls, outside a generic class, is still
 compiled and checked, so a mistake in it is still reported ([D140](../manual.md#decision-log)) -- it just is not in the
 binary. **Built** (the tree shaker and `--development` rows of the [decision log](../manual.md#decision-log),
-2026-09-24).
+2026-09-24; classes, slots and statics 2026-09-25, proposed by Claude, unconfirmed). `check.sh` holds it: the C of
+`examples/hello` must carry no struct, allocate or singleton slot of those library classes.
 
 The same pass decides which native symbols are looked up. A `DynamicLibrary` looks up every symbol the program
 calls when it opens, and a symbol is now looked up only when a function that calls it survived the shaking: a

@@ -7,6 +7,11 @@ var waiting = List<Int>()
 var in_comment = false
 var watched_names = List<String>()
 var first_watched = -1
+var names_types = false
+var next_same = List<Int>()
+var type_piece_count = 0
+var guard_names = List<String>()
+var guard_lines = List<String>()
 
 func shake(roots: String, body: String): String {
     split_pieces(body)
@@ -30,7 +35,7 @@ func shake(roots: String, body: String): String {
     var result = List<String>()
     index = 0
     while index < kept.count() and (first_watched < 0 or index < first_watched) {
-        if kept[index] {
+        if kept[index] == true {
             var piece = pieces[index]
             crash piece
             result.append(piece)
@@ -38,6 +43,101 @@ func shake(roots: String, body: String): String {
         index = index + 1
     }
     return result.join("\n")
+}
+
+func shake_program(types: String, prototypes: String, main_function: String, body: String): String {
+    names_types = true
+    reserve_slots("{types}\n{body}")
+    split_pieces(types)
+    type_piece_count = pieces.count()
+    split_pieces(body)
+    var body_piece_end = pieces.count()
+    keep_named_in(main_function)
+    add_undefined_prototypes(prototypes)
+    watch_names()
+    var index = 0
+    while index < pieces.count() {
+        var name = piece_names[index]
+        crash name
+        if name.is_empty() {
+            keep_named_in(pieces[index])
+        }
+        index = index + 1
+    }
+    keep_waiting()
+    keep_guarded()
+    return kept_text(type_piece_count, body_piece_end)
+}
+
+func keep_waiting() {
+    while not waiting.is_empty() {
+        var next = waiting.last()
+        waiting.remove_last()
+        crash pieces[next]
+        keep_named_in(pieces[next])
+    }
+}
+
+func keep_guarded() {
+    var applied = List<Bool>()
+    while applied.count() < guard_names.count() {
+        applied.append(false)
+    }
+    var settled = false
+    while not settled {
+        settled = true
+        var index = 0
+        while index < guard_names.count() {
+            var guard = guard_names.get_at(index)
+            if applied.get_at(index) == false and is_kept_name(guard) {
+                applied.set_at(index, true)
+                var line = guard_lines.get_at(index)
+                keep_named_in(line)
+                keep_waiting()
+                settled = false
+            }
+            index = index + 1
+        }
+    }
+}
+
+func kept_types(): String {
+    return kept_text(0, type_piece_count)
+}
+
+func kept_text(start: Int, end: Int): String {
+    var result = List<String>()
+    var index = start
+    while index < end {
+        if kept[index] == true {
+            var piece = pieces[index]
+            crash piece
+            result.append(piece)
+        }
+        index = index + 1
+    }
+    return result.join("\n")
+}
+
+func add_undefined_prototypes(prototypes: String) {
+    var lines = prototypes.split("\n")
+    var index = 0
+    while index < lines.count() {
+        var line = lines[index]
+        var name = declared_name(line)
+        var name_length = name.length()
+        if name.is_empty() {
+            keep_named_in(line)
+        } else if find_function(name, 0, name_length) < 0 {
+            var pieces_count = pieces.count()
+            add_function(name, pieces_count)
+            pieces.append(line)
+            piece_names.append(name)
+            next_same.append(-1)
+            kept.append(false)
+        }
+        index = index + 1
+    }
 }
 
 func watch_names() {
@@ -94,8 +194,8 @@ func is_kept_name(name: String): Bool {
     return kept[position] == true
 }
 
-func split_pieces(body: String) {
-    var lines = body.split("\n")
+func reserve_slots(text: String) {
+    var lines = text.split("\n")
     var capacity = 1024
     while capacity < lines.count() * 2 {
         capacity = capacity * 2
@@ -104,6 +204,13 @@ func split_pieces(body: String) {
         slot_names.append("")
         slot_positions.append(-1)
     }
+}
+
+func split_pieces(body: String) {
+    if slot_names.is_empty() {
+        reserve_slots(body)
+    }
+    var lines = body.split("\n")
     var depth = 0
     var current = List<String>()
     var index = 0
@@ -125,25 +232,92 @@ func split_pieces(body: String) {
 
 func add_piece(lines: List<String>) {
     crash lines[0]
-    var name = defined_name(lines[0])
+    var name = piece_name(lines[0])
     var name_length = name.length()
-    if not name.is_empty() and find_function(name, 0, name_length) >= 0 {
-        name = ""
-    }
+    var pieces_count = pieces.count()
+    var same = -1
     if not name.is_empty() {
-        var pieces_count = pieces.count()
+        same = find_function(name, 0, name_length)
+    }
+    if same >= 0 and not names_types {
+        name = ""
+    } else if same >= 0 {
+        while next_same.get_at(same) >= 0 {
+            same = next_same.get_at(same)
+        }
+        next_same.set_at(same, pieces_count)
+    } else if not name.is_empty() {
         add_function(name, pieces_count)
     }
     var joined_lines = lines.join("\n")
     pieces.append(joined_lines)
     piece_names.append(name)
+    next_same.append(-1)
     var name_is_empty = name.is_empty()
     kept.append(name_is_empty)
+}
+
+func piece_name(line: String): String {
+    if not names_types {
+        return defined_name(line)
+    }
+    var trimmed = line.trim()
+    var trimmed_length = trimmed.length()
+    if trimmed.starts_with("typedef struct ") and trimmed.ends_with(";") and trimmed.index_of("\{") < 0 {
+        return name_before(trimmed, trimmed_length - 1)
+    }
+    if trimmed.starts_with("struct ") and trimmed.ends_with("\{") {
+        var words = trimmed.slice(7, trimmed_length - 1)
+        var name = words.trim()
+        assert name.index_of(" ") < 0
+        return name
+    }
+    if trimmed.starts_with("static ") and (trimmed.ends_with(";") or trimmed.ends_with("\{")) {
+        var variable = static_variable_name(trimmed)
+        if not variable.is_empty() {
+            return variable
+        }
+    }
+    if trimmed.ends_with("}") {
+        return one_line_defined_name(trimmed)
+    }
+    return defined_name(line)
+}
+
+func static_variable_name(trimmed: String): String {
+    var end = trimmed.length() - 1
+    var equals = trimmed.index_of("=")
+    if equals > 0 {
+        end = equals
+    }
+    var head = trimmed.slice(0, end)
+    assert head.index_of("(") < 0
+    var bracket = head.index_of("[")
+    if bracket > 0 {
+        head = head.slice(0, bracket)
+    }
+    var name = head.trim()
+    var name_length = name.length()
+    return name_before(name, name_length)
+}
+
+func one_line_defined_name(trimmed: String): String {
+    assert not trimmed.starts_with("#") and not trimmed.starts_with("typedef") and not trimmed.starts_with("static")
+    var brace = trimmed.index_of("\{")
+    assert brace > 0
+    var signature = trimmed.slice(0, brace)
+    var head = signature.trim()
+    assert head.ends_with(")")
+    return name_of_signature(head)
 }
 
 func defined_name(line: String): String {
     var trimmed = line.trim()
     assert trimmed.ends_with("\{") and not trimmed.starts_with("#") and not trimmed.starts_with("typedef")
+    return name_of_signature(trimmed)
+}
+
+func name_of_signature(trimmed: String): String {
     var open = trimmed.index_of("(")
     var equals = trimmed.index_of("=")
     assert open > 0 and (equals < 0 or equals >= open)
@@ -264,6 +438,12 @@ func keep_function(position: Int) {
     if kept[position] == false {
         kept[position] = true
         waiting.append(position)
+        if position < next_same.count() {
+            var same = next_same.get_at(position)
+            if same >= 0 {
+                keep_function(same)
+            }
+        }
     }
 }
 

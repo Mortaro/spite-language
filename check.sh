@@ -124,6 +124,15 @@ if [ "$plain" != "$(tr -d '\r' < "$stages/expected_output.txt")" ]; then
 fi
 echo "run mode: the thread pool runs without --debug-memory"
 
+# What a production build leaves out is only visible in its C (docs/optimizations.md): hello carries no struct,
+# allocate or singleton slot of a library class it never makes.
+"$work/generation_two.exe" examples/hello --run=false --c-source --c-path="$work/hello_shaken.c" > /dev/null 2>&1 || {
+  echo "FAILED: examples/hello does not write its C"; exit 1; }
+if grep -qE "struct (Watcher|Socket|Process|HotReload|ThreadPool|Scheduler) \{|(Watcher|Socket|ThreadPool|Scheduler)___allocate|spite_singleton_(ThreadPool|Scheduler)_cache" "$work/hello_shaken.c"; then
+  echo "FAILED: examples/hello's C still carries library classes it never uses"; exit 1
+fi
+echo "production C: hello carries no unused class"
+
 # The tests: a package that crashes (D46). No framework: a test is a function, and `crash` is the assertion.
 test_output=$("$work/generation_two.exe" tests --debug-memory --executable-path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
 if echo "$test_output" | grep -q "failed to check cache"; then
