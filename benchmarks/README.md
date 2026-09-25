@@ -21,6 +21,7 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 | `function_values` | `each(f)`, `filter(f)`, `sum(f)`, `count(f)` and a function value passed 200 000 times |
 | `small_allocations` | three small objects made and dropped per pass, three million passes, and `copy()` |
 | `parallel_calls` | 20 000 rounds of two `Parallel`s |
+| `vector_items` | 200 000 `Velocity` items in a `List<Velocity>` and in a `Vector<Velocity>`, 100 ticks of `each_integrate()` and a fused `filter_moving().sum_across()` on each; prints the microseconds per tick of both |
 | `stress` | SlopEngine's `examples/stress` shape: component columns as generic singletons, `system/` classes with `update_each` over `type` rows filled by a Symbol walk, 50 000 entities, 20 ticks |
 
 ## Results
@@ -106,3 +107,26 @@ raises and lowers the component's count, which none of these steps removes.
 In a program without threads a retain is one plain add and `stress` spends its time filling rows and spawning, so
 nothing moves; with atomic counts, as SlopEngine has whenever it runs systems in parallel, the ticks are a fifth
 faster. The second row is the same two C files built with `-DSPITE_THREADS` prepended.
+
+### `Vector<T>`: items inline
+
+`vector_items`, best of seven, the compiler of the commit that adds `Vector<T>`:
+
+| layout | microseconds per tick | allocations while ticking |
+|---|---|---|
+| `List<Velocity>` | 443 | 0 |
+| `Vector<Velocity>` | 211 | 0 |
+
+A tick is `each_integrate()` over 200 000 items and a fused `filter_moving().sum_across()`. The list's objects were
+made one after another, so they sit close together on the heap, which is the best case for a list; the vector reads
+12 bytes per item where the list reads an 8-byte reference and then a 20-byte object somewhere else. The 200 149
+allocations are filling: the 200 000 `Velocity` objects the list holds, each also copied into the vector's block,
+which grows by doubling (a vector filled on its own would make each object only to copy it and let it go, which a
+planned optimisation in [optimizations.md](../docs/optimizations.md#other-planned-optimisations) removes).
+
+Shaped like SlopEngine's `examples/stress` (200 000 bodies, `Move` adding velocity to position and `Regenerate`
+adding to health, 20 ticks, one thread), with each component in its own column indexed by row: 1.0 ms per tick with
+four `Vector` columns against 5.9 ms with four `List` columns (whose objects were made interleaved). SlopEngine's own
+column code could not be moved to `Vector` as it is: its `Row` keeps each component in an attribute of a `type` row
+for the whole system call, which is exactly the keeping a borrowed item may not do (D204); its stress example runs at
+51 ms per tick on the same machine.
