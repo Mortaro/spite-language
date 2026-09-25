@@ -1,0 +1,11 @@
+var name = ""
+var size = 3
+var console = Console()
+
+func Gadget(new_name: String) {
+    name = new_name
+}
+
+func show() {
+    console.print(name, size)
+}

@@ -7136,8 +7136,9 @@ func emit_class_object_bodies() {
                 var list_type = list_type_of(class_type)
                 var attribute_list_c_type = c_type_name(list_type)
                 builder.add_prototype("{attribute_list_c_type} {attribute_thunk}(void);")
+                var released_stand_in = released_stand_in(described)
                 builder.add_support(
-                    "{attribute_list_c_type} {attribute_thunk}(void) \{\n{described.c_name}* fresh = {described.c_name}___default();\n{attribute_list_c_type} listed = {attributes_function}(fresh);\n{described.c_name}___release(fresh);\nreturn listed;\n}",
+                    "{attribute_list_c_type} {attribute_thunk}(void) \{\n{described.c_name}* fresh = {described.c_name}___default();\n{untracked_stand_in(described)}\n{attribute_list_c_type} listed = {attributes_function}(fresh);\n{released_stand_in}\nreturn listed;\n}",
                 )
                 lines.append("{attribute_list_name}___release({function_c_name}_cache->_attributes);")
                 lines.append("{function_c_name}_cache->_attributes = {attribute_thunk}();")
@@ -7159,8 +7160,9 @@ func emit_class_object_bodies() {
                 var list_type = list_type_of(class_type)
                 var listed_c_type = c_type_name(list_type)
                 builder.add_prototype("{listed_c_type} {thunk}(void);")
+                var kept_stand_in = kept_stand_in(described, thunk)
                 builder.add_support(
-                    "{listed_c_type} {thunk}(void) \{\n{described.c_name}* fresh = {maker};\n{listed_c_type} listed = {functions_function}(fresh);\n{described.c_name}___release(fresh);\nreturn listed;\n}",
+                    "{listed_c_type} {thunk}(void) \{\n{described.c_name}* fresh = {maker};\n{untracked_stand_in(described)}\n{listed_c_type} listed = {functions_function}(fresh);\n{kept_stand_in}\nreturn listed;\n}",
                 )
                 lines.append("{listed_name}___release({function_c_name}_cache->_functions);")
                 lines.append("{function_c_name}_cache->_functions = {thunk}();")
@@ -7172,6 +7174,40 @@ func emit_class_object_bodies() {
         var joined_lines = lines.join("\n")
         builder.add_support(joined_lines)
     }
+}
+
+func singleton_destroyed(information: Analysis.ClassInfo): String {
+    var lines = List<String>()
+    lines.append("void {information.c_name}___destroy({information.c_name}* self) \{")
+    lines.append("if (self == 0) return;")
+    if information.drop_function {
+        lines.append("{information.drop_function.c_name}(self);")
+    }
+    lines.append("{information.c_name}___discard(self);")
+    lines.append("}")
+    return lines.join("\n")
+}
+
+func untracked_stand_in(described: Analysis.ClassInfo): String {
+    return "#ifdef SPITE_TRACKS_{described.c_name}\nspite_untrack_{described.c_name}(fresh);\n#endif"
+}
+
+func released_stand_in(described: Analysis.ClassInfo): String {
+    if described.is_singleton and not described.is_stateless_singleton {
+        return "{described.c_name}___discard(fresh);"
+    }
+    return "{described.c_name}___release(fresh);"
+}
+
+func kept_stand_in(described: Analysis.ClassInfo, thunk: String): String {
+    if not described.is_singleton or described.is_stateless_singleton {
+        return "{described.c_name}___release(fresh);"
+    }
+    var kept = "{thunk}_stand_in"
+    builder.add_support(
+        "static {described.c_name}* {kept} = 0;\nstatic void {kept}_teardown(void) \{\n{described.c_name}___discard({kept});\n{kept} = 0;\n}",
+    )
+    return "{kept} = fresh;\nspite_singleton_created({kept}_teardown);"
 }
 
 func emit_all_classes_function() {
@@ -13371,9 +13407,12 @@ func emit_class_support(information: Analysis.ClassInfo) {
     var release_name = "release"
     if information.is_singleton {
         retain_body = "return self;"
-        release_name = "destroy"
+        release_name = "discard"
         builder.add_support("void {information.c_name}___release({information.c_name}* self) \{ (void)self; }")
         builder.add_prototype("void {information.c_name}___destroy({information.c_name}* self);")
+        builder.add_prototype("void {information.c_name}___discard({information.c_name}* self);")
+        var destroyed = singleton_destroyed(information)
+        builder.add_support(destroyed)
     }
     builder.add_support(
         "{information.c_name}* {information.c_name}___retain({information.c_name}* self) \{ {retain_body} }",
@@ -13382,9 +13421,9 @@ func emit_class_support(information: Analysis.ClassInfo) {
     release_lines.append("if (self == 0) return;")
     if not information.is_singleton {
         release_lines.append("if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;")
-    }
-    if information.drop_function {
-        release_lines.append("{information.drop_function.c_name}(self);")
+        if information.drop_function {
+            release_lines.append("{information.drop_function.c_name}(self);")
+        }
     }
     var drop_field_index = 0
     while drop_field_index < information.fields.count() {

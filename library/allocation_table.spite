@@ -7,9 +7,7 @@ var live_count: Long = 0
 var used_count: Long = 0
 var allocations: Long = 0
 var frees: Long = 0
-var objects: Long = 0
-var object_count: Long = 0
-var object_capacity: Long = 0
+var kinds: Long = 0
 var class_names: Long = 0
 var class_name_count: Long = 0
 
@@ -37,17 +35,10 @@ func live_allocations(): Long {
 }
 
 func register_object(address: Long, class_id: Int) {
-    if object_count == object_capacity {
-        var new_capacity: Long = 64
-        if object_capacity > 0 {
-            new_capacity = object_capacity * 2
-        }
-        objects = memory.resize(objects, new_capacity * 16)
-        object_capacity = new_capacity
+    var slot = find(address)
+    if slot >= 0 {
+        memory.write_long(kinds, slot * 8, class_id)
     }
-    memory.write_long(objects, object_count * 16, address)
-    memory.write_long(objects, object_count * 16 + 8, class_id)
-    object_count = object_count + 1
 }
 
 func name_classes(names: Long, count: Long) {
@@ -66,21 +57,26 @@ func report_leaks() {
     console.error("spite: --debug-memory:", allocations - frees, "allocation(s) leaked")
     var class_id: Long = 0
     while class_id < class_name_count {
-        var leaked: Long = 0
-        var record: Long = 0
-        while record < object_count {
-            var object_address = memory.read_long(objects, record * 16)
-            if memory.read_long(objects, record * 16 + 8) == class_id and find(object_address) >= 0 {
-                leaked = leaked + 1
-            }
-            record = record + 1
-        }
+        var leaked = leaked_objects(class_id)
         if leaked > 0 {
             var class_name_address = memory.read_long(class_names, class_id * 8)
             console.error("  {memory.terminated_text(class_name_address)}:", leaked, "leaked object(s)")
         }
         class_id = class_id + 1
     }
+}
+
+func leaked_objects(class_id: Long): Long {
+    var leaked: Long = 0
+    var slot: Long = 0
+    while slot < capacity {
+        var kept = memory.read_long(slots, slot * 8)
+        if kept != 0 and kept != 1 and memory.read_long(kinds, slot * 8) == class_id {
+            leaked = leaked + 1
+        }
+        slot = slot + 1
+    }
+    return leaked
 }
 
 func forget_live(address: Long, mistake: String) {
@@ -95,7 +91,7 @@ func remember(address: Long) {
     if (used_count + 1) * 2 >= capacity {
         grow()
     }
-    place(address)
+    place(address, -1)
     live_count = live_count + 1
     used_count = used_count + 1
 }
@@ -124,7 +120,7 @@ func find(address: Long): Long {
     return -1
 }
 
-func place(address: Long) {
+func place(address: Long, kind: Long) {
     var slot = slot_of(address)
     var kept = memory.read_long(slots, slot * 8)
     while kept != 0 and kept != 1 {
@@ -132,6 +128,7 @@ func place(address: Long) {
         kept = memory.read_long(slots, slot * 8)
     }
     memory.write_long(slots, slot * 8, address)
+    memory.write_long(kinds, slot * 8, kind)
 }
 
 func grow() {
@@ -143,8 +140,10 @@ func grow() {
         new_capacity = new_capacity * 2
     }
     var old_slots = slots
+    var old_kinds = kinds
     var old_capacity = capacity
     slots = memory.allocate_bytes(new_capacity * 8)
+    kinds = memory.allocate_bytes(new_capacity * 8)
     capacity = new_capacity
     var span: UnsignedLong = new_capacity
     var largest: UnsignedLong = 0 - 1
@@ -158,11 +157,13 @@ func grow() {
     while index < old_capacity {
         var kept = memory.read_long(old_slots, index * 8)
         if kept != 0 and kept != 1 {
-            place(kept)
+            var kind = memory.read_long(old_kinds, index * 8)
+            place(kept, kind)
         }
         index = index + 1
     }
     memory.free(old_slots)
+    memory.free(old_kinds)
     used_count = live_count
 }
 
