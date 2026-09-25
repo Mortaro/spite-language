@@ -44,7 +44,8 @@ spite hello_world
 
 A file is a class, named by its file name: `hello_world.spite` is the class `HelloWorld`. There is no `main`: the
 program runs by constructing the entry class, so its constructor -- the function named like the class -- is the
-whole program. Building and running are the same command; there is no separate compile step to remember.
+whole program. Building and running are the same command; there is no separate compile step to remember. The
+executable is built beside the program, `hello_world/hello_world.exe` (no `.exe` on Linux and macOS), so it can be run again without the compiler.
 
 ## A second class
 

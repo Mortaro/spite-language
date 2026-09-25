@@ -10,11 +10,12 @@ one of them is Spite, not GDScript -- write `.spite` files.
 ## Run it
 
 ```
-spite program                           compile and run the folder program/
+spite program                           build program/program.exe beside it and run it
 spite program --optimized               optimized build (a Build field)
 spite program --debug_memory            print the allocation balance at the end
 spite program --repl_port=4000          serve the REPL; spite connect 4000 --command="..." asks it
-spite program --mode=c                  print the C instead
+spite program --c_source --run=false    write program/program.c instead (--c_path= puts it elsewhere)
+spite program --run=false               only compile: the errors, if any
 spite program -- --serve=true           the program's own arguments, read by Environment
 bash check.sh                           the compiler still compiles itself, and every corpus passes
 ```
@@ -122,6 +123,9 @@ func is_alive(): Bool {
   `Dictionary<T>` (String keys, insertion order): `set`, `get` (a `T?`), `has`, `remove`, `count`, `keys`,
   `values`, `dictionary["key"]` (a `T?`, like `list[index]`).
 - A chain of templates, `teams.filter_active().map_lead().sum_age()`, runs as one loop with no list in between.
+- Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
+  place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
+  built or planned, and what it could ever change that you see, is in [optimizations.md](optimizations.md).
 - On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Bool` member),
   `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<member>()`,
   `each_<member>()` (a function). A member is an attribute or a function that takes nothing.

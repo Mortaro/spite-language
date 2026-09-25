@@ -23,10 +23,6 @@ manual argues it.
 
 ## From hidden async/await (D99, D103)
 
-17. **What a `Parallel` function may touch.** Nothing is checked yet, and with reference-counted fields a race can
-    free a value another thread is reading. Options: D35's syntactic rule (it reaches only its own instance and its
-    locals, which rejects `Parallel(file.read)` because `File` reaches `Memory` and its library through fields);
-    that rule with singletons allowed; or running a `Parallel` on a deep copy of its instance.
 18. **Inferring codegen values from constructor arguments** (`Concurrent(file.read)` without `<String?>`), which
     D35's own example needs and D9 did not foresee.
 ## What the standard library offers
@@ -288,28 +284,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
      compiler -- which functions it calls (`Spawn`, `Insert`, `Remove`), which singletons it touches -- as a
      compile-time reflection like D114's (`function.calls(Spawn)`, or the singletons a function reaches). Wanted?
 
-## Zero hidden code (D147)
-
-113. **How Spite names the operations the machine does directly** (reading and writing the value at an address,
-     atomics), so `Memory`'s functions get real Spite bodies and a later backend can replace C. Every language
-     bottoms out here (Zig's `@builtins`, Rust's intrinsics); the choice is only how they are spelled and where
-     they live. Options to react to: (a) a reserved namespace of operations, `Spite.Machine.read_byte(address)`,
-     declared in one library file the backend implements; (b) operators on a pointer-like value type,
-     `address.byte_at(offset)`, where `Address` is a number class whose members the backend lowers; (c) something
-     you have in mind. The rest of the floor (allocation, copying, comparing, loading libraries) becomes plain Spite
-     calling the platform's library through `DynamicLibrary`.
-     *Mortaro (2026-09-25):* likes `Address` only if "the code you see is what you get"; otherwise prefers what the OS
-     offers through `DynamicLibrary`, and needs convincing with limitations and downsides. *Claude's case:* the OS
-     offers memory pages (`VirtualAlloc`/`mmap`), so allocation, freeing, copying and loading libraries can all be
-     visible Spite calling the OS -- at the cost of writing our own small-object allocator in Spite on top of pages.
-     No OS offers "the byte at this address": that is one CPU load instruction. Doing it through a DLL call
-     (`RtlMoveMemory`/`memcpy` per read) works but costs a call per access with no inlining, roughly 5-20x slower
-     on memory-heavy code (zstd, ECS loops, text). `address.byte_at(offset)` is a language primitive in the same
-     sense as `+` on two integers -- one instruction, nothing below it -- that each backend lowers; downsides: it can
-     read a wrong address (so `library/` only), and every backend must implement ~10-15 such operations.
-     Recommendation: OS for pages, libraries and files (with a Spite allocator); `Address` only for loads, stores and
-     atomics.
-
 ## From D127 (dates, times and time zones; manual section 15, `docs/time.md`)
 
 All of it is proposed by Claude, unconfirmed.
@@ -322,51 +296,95 @@ All of it is proposed by Claude, unconfirmed.
 121. **Reading text is lenient where RFC 3339 is**: `t` or a space for `T`, `z` for `Z`, `,` before a fraction, a
      leap second read as the second before it, and an RFC 9557 `[zone]` after an offset read and ignored. Writing
      is always the one form. Stricter instead?
-122. **`far` and `near` are not in the C-reserved list**, but `windows.h` defines them as macros, so a local named
-     `far` compiled to broken C (found writing `calendar_math`). Add them, and whatever else `windows.h` defines
-     in lower case, to the list item 107 is about?
+## Outputs and paths (D128, D129, D130)
 
-## From SlopEngine's system phases (D116)
+134. **How outputs are chosen.** Built as `Bool` fields of `Build` -- `run` (default `true`), `executable`,
+     `c_source`, `format` (default `true`) -- plus `final_classes` as a folder (proposed by Claude, unconfirmed).
+     Because `run` defaults to `true`, asking for another output also runs the program unless `--run=false` is
+     given: `spite game --c_source --run=false` for the C alone. The alternatives: a program that names any output
+     on the command line gets only the outputs it named (shorter, but a flag then changes another flag's default),
+     or one list field, `--outputs=executable,c_source`. Keep the `Bool`s?
+135. **`target_operating_system` in a program's `build.spite`.** It is still read from the flag alone, because the
+     launcher needs it to pick `library/<system>/` before the rest of the program is read; a program that reopens it
+     is silently overridden today. Make that reopening an error, or read the program twice (once to find `Build`,
+     once with the right library folder)?
+136. **Where a run's executable goes.** With no flag it is built beside the program (`game/game.exe`, and
+     `game.crashes`), which D129's "build to the same folder" reads as, so every run leaves those two files in the
+     program's folder (`.gitignore` now ignores `*.crashes`). The one intermediate, the C compiled when `--c_source`
+     is off, goes to the language repository's `.spite-cache/<name>.c`. Should a plain run (no `--executable`)
+     build into the cache instead and leave the program's folder untouched? A `--hot_reload` build beside its program
+     also puts its reload libraries in the folder the watcher watches, so each reload wakes it once more.
+137. **`--mode=tokens` and `--mode=tree` are gone** rather than made outputs: nothing used them, and a `.spite` file
+     can no longer be named. Bring them back as outputs (`--tokens`, `--tree`, printing every program file)?
+138. **Two ways to format?** A compile formats the program's files (`format`, an output), and `spite format <path>`
+     formats files that need not be a program -- `library/`, which no program's compile formats. Keep both, or
+     make formatting the library the job of compiling `bootstrap` (which loads it)?
 
-123. **Limiting a name pattern to a known set.** SlopEngine's private helpers `interact_all(...)` and `drag_all(...)`
-     were matched by `Symbol<$system_type.phase_all>` as phases called "interact" and "drag", with errors far from the
-     cause. Options: let a pattern's hole be constrained to a list the engine owns (`phase` must be one of
-     `App.phases`), so a non-phase `_all` function stays ordinary; or make a function that fits a walked pattern but
-     is not meant as one an error at its declaration; or leave naming discipline to the program.
+## Found writing `docs/optimizations.md` (D185)
+
+
+139. **D143 is not built: singletons that hold nothing are static objects in every build.** The compiler makes
+     `Memory`, `Build` and `TypedMemory<T>` one static object (`is_stateless_singleton` in `generator.spite`) with
+     no look at the build kind, so a `--repl`, `--repl_port`, `--hot_reload` or `--development` build has them static
+     too (checked: `static Memory spite_object` is in the C of a `--repl=true` and a `--development=true` build).
+     D143 says those builds keep them as ordinary objects reflection sees. Build D143 as written (they become
+     allocated, counted objects in those builds, so `--debug_memory` counts differ between a development and an
+     optimised build), or keep them static everywhere and narrow D143?
+140. **Manual section 9 says `--development` keeps conditions on codegen values as run-time values, "so live reload
+     can change them"; the compiler folds them in every build.** `constant_condition` never looks at
+     `development`, and `--development` only turns off the C tree shaker. `docs/compiler.md` and
+     `docs/metaprogramming.md` said what the manual says and now say what is built. A generic class is one C
+     class per set of values, so a run-time `$is_magic` would need one class to serve every value; and every
+     `Build` field is a constant by D85. Drop the sentence from section 9, or is a run-time form wanted for live
+     reload?
+
+## File watching in the standard library (Mortaro's request via SlopEngine)
+
+141. **A file watcher for everyone** -- "the cook needs to constantly get informed of changes on the psd to rerun the
+     recipe if the psd change and update any textures that use it ingame. but spite hotreload also needs to watch
+     over files, so a way to watch files makes sense to be part of standard library." Proposal (spelling open):
+     `var watcher = FileWatcher()` (or `Directory.Watcher`), `watcher.watch("assets/ui")` or `watch_file(path)`, and
+     `watcher.changes()`, which never blocks and returns the paths changed since the last call, settled (bursts
+     coalesced). The operating system does the waiting (`ReadDirectoryChangesW`, `inotify`, `kqueue`), with no
+     polling; `HotReload` becomes its first user and SlopEngine's cooker the second. Tree-shaken when unused (D177).
+     Name: `FileWatcher` or `Directory.Watcher`?
 
 ## From D134 and D135 (the thread pool and join on first use; manual section 15, `docs/concurrency.md`)
 
 All of it is proposed by Claude, unconfirmed.
 
-129. **Where a handle becomes its value.** Everywhere a `T` is expected (typed `var`, argument, `return`,
+142. **Where a handle becomes its value.** Everywhere a `T` is expected (typed `var`, argument, `return`,
      operand, text, a member the handle lacks, a condition) the compiler reads the value; an untyped `var` keeps
      the handle, and `finished` is the handle's own. `wait()` and `join()` are removed rather than kept as an
      explicit form. Two consequences to confirm: `a == b` on two handles compares their values, and there is no
      way to compare the handles themselves; a `Concurrent<Nothing>`/`Parallel<Nothing>` is only waited for by
      dropping it (SlopEngine's `running[index].join()` becomes `running.clear()`, or leaving the function).
-130. **`ThreadPool` as a visible singleton**, with `size()` and `worker_index()`. The name says what it is; it
+143. **`ThreadPool` as a visible singleton**, with `size()` and `worker_index()`. The name says what it is; it
      could instead stay hidden behind `Parallel`. Workers are one per core but one (the program's thread keeps
      one), started by the first `Parallel`, first in first out. Waiting for a job no worker has started runs it on
      the waiting thread. Is cores-minus-one right for the engine, or should it be every core?
-131. **A `Parallel` costs about two dozen allocations**, almost all of them the two `Spite.Function` values (each
+144. **A `Parallel` costs about two dozen allocations**, almost all of them the two `Spite.Function` values (each
      is its own reflection object, D39, with a list of `Spite.Argument`s). Making a function value's reflection
      lazy would cut that to a handful; worth doing for every callback, not only here?
-132. **`finished` on a `Concurrent` does not run anything.** It reads the flag; the fiber only progresses when the
+145. **`finished` on a `Concurrent` does not run anything.** It reads the flag; the fiber only progresses when the
      program waits somewhere (`program.sleep(1)` in a polling loop). It could instead let ready fibers run once,
      which would make it a wait point in the D37 sense. Keep it a plain read?
-133. **`ThreadLocal<T>`, `Lock` and `ThreadSlot`**: the names, `while_locked(function)` as the main way to hold a
+146. **`ThreadLocal<T>`, `Lock` and `ThreadSlot`**: the names, `while_locked(function)` as the main way to hold a
      lock (with `lock()`/`unlock()` kept), and a `ThreadLocal` keeping every thread's value until it is itself
      dropped (no per-thread destructor). A lock that is not reentrant crashes nothing: taking it twice on one
      thread deadlocks. Should a second `lock()` on the same thread be a crash instead?
-134. **`parallel_each_`'s rule** (D35 as built): plain-value attributes, library singletons and locals only;
+147. **`parallel_each_`'s rule** (D35 as built): plain-value attributes, library singletons and locals only;
      `filter_` steps allowed, `map_` refused; a list of a `type` refused. Is refusing `List<Particle>` members that
      own a list of their own (`trail.append(...)`) too strict for the engine? The honest alternative is an
      ownership marker on the attribute, which is new syntax.
-135. **Reads in a row overlap only among themselves**, and only `File.read`/`Socket.read_line` into a fresh
+148. **Reads in a row overlap only among themselves**, and only `File.read`/`Socket.read_line` into a fresh
      untyped name. Should a read also overlap the statements after it until its name is used, which is faster but
      needs the compiler to prove those statements do not touch the file?
-136. **`File`'s byte functions**: the names, positions instead of an open handle with a cursor, and each call
+149. **`File`'s byte functions**: the names, positions instead of an open handle with a cursor, and each call
      opening the file. A `File.Reader` with its own position and `drop()` closing it would suit record-by-record
      scanning; wanted?
-137. **D174's check point** is a call per pass (thread check, two atomic loads). A C-level flag that the REPL's
+150. **D174's check point** is a call per pass (thread check, two atomic loads). A C-level flag that the REPL's
      thread sets would make it one load; worth the extra hidden code (D147)?
+151. **D183 as built locks every call** to a program singleton that can change, from any thread, in a program that
+     uses `Parallel`, not only the calls a `Parallel` makes: telling them apart needs a walk of everything a
+     `Parallel` can reach. Acceptable as the fallback until D184, or should that walk come first?

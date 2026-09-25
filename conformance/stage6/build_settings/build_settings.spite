@@ -8,7 +8,7 @@ func BuildSettings() {
     } else {
         console.print("rendering")
     }
-    console.print("workers", build.workers, "name", environment.name, "mode", build.mode)
+    console.print("workers", build.workers, "name", environment.name, "run", build.run)
     if environment.name == "server" and build.workers == 3 {
         console.print("the name was read when the program ran")
     }

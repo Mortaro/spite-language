@@ -6,7 +6,8 @@ progress log before it ends. `manual.md` is the language; this file is the compi
 
 ## How it builds itself
 
-- `bootstrap/spite_compiler.spite` is the entry class; `load("source")` brings in `bootstrap/source/`.
+- `bootstrap/bootstrap.spite` is the entry class, `Bootstrap` (a program is named by its folder, D130: `spite
+  bootstrap`); `load("source")` brings in `bootstrap/source/`.
 - `bootstrap/seed/spite_compiler.c` is the C the compiler emits for itself. Any C compiler turns it into a working
   Spite compiler (see `bootstrap/seed/README.md`); that compiler then compiles the Spite sources again.
 - **The fixpoint is the law:** the compiler built from the seed (generation 2) and the compiler built by generation 2

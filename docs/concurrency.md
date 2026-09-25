@@ -377,8 +377,10 @@ the particles moved 5997000
 
 **The member may reach only its own element** (D35). Every element runs at the same time as the others, so the
 compiler reads the member -- and every function of the element's class it calls -- and allows only the element's
-own attributes that hold a value (a number, a `Bool`, text, an enum or a `Symbol`), the standard library's
-singletons (`Console`, `Memory`, `ThreadPool`, ...) and the member's locals. An attribute holding another object
+own attributes that hold a value (a number, a `Bool`, text, an enum or a `Symbol`), any singleton and the
+member's locals. A singleton of the program's own that can change is locked for you in a program that uses
+`Parallel` ([optimizations.md](optimizations.md#singletons-a-parallel-reaches-take-a-lock)), so a `Parallel` or a
+pass may call it while the program's thread does too. An attribute holding another object
 may be shared by several elements, so reading it is an error that names it:
 
 ```gdscript title=parallel_reach/boid.spite error
@@ -406,8 +408,7 @@ func ParallelReach() {
 ```
 
 For the same reason only `filter_` steps may come before it: a `map_` reaches another object. The check cannot
-see two elements that are the same object -- a list holding one instance twice runs it on two threads at once --
-nor a member that writes through a singleton of the program's own.
+see two elements that are the same object: a list holding one instance twice runs it on two threads at once.
 
 ## The REPL answers at the waits
 

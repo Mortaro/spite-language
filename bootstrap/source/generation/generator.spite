@@ -27,6 +27,10 @@ var console_loop = false
 var remote_loop_port = 0
 var scheduler_used = false
 var implicit_joins = List<Syntax.Expressions.MemberExpression>()
+var parallel_used = false
+var guarded_classes = List<Analysis.ClassInfo>()
+var guarded_functions = List<Analysis.FunctionInfo>()
+var guarded_positions = List<Int>()
 var waiting_classes = List<Analysis.ClassInfo>()
 var waiting_functions = List<Analysis.FunctionInfo>()
 var waiting_kinds = List<String>()
@@ -441,6 +445,9 @@ func generate(
     emit_pending_functions()
     emit_attribute_object_bodies()
     emit_hot_reload_support()
+    if parallel_used {
+        finish_singleton_guards()
+    }
     if not has_error {
         report_unused_attributes()
     }
@@ -7224,6 +7231,7 @@ func generate_parallel_each(
     assert piece
     var entry_source = "func {fused_name}() \{\n    var pool = ThreadPool()\n    pool.run_pieces({piece_name}, item_count)\n}\n"
     builder.threads = true
+    parallel_used = true
     return register_fused_function(base_list, entry_source, fused_name)
 }
 
@@ -7323,7 +7331,7 @@ func reaches_shared(spite_type: Analysis.SpiteType): Bool {
     if class_ref {
         var held = find_class_by_c_name(class_ref.c_name)
         if held {
-            return not held.is_singleton or not is_library_class(held)
+            return not held.is_singleton
         }
     }
     return true
@@ -9216,6 +9224,9 @@ func supply_list_functions(list_class: Analysis.ClassInfo, element: Analysis.Spi
 
 func supply_concurrency_functions(instance: Analysis.ClassInfo) {
     builder.threads = true
+    if instance.qualified_dotted == "Parallel" {
+        parallel_used = true
+    }
     var task = instance.c_name
     if instance.qualified_dotted == "Concurrent" {
         scheduler_used = true
@@ -14425,6 +14436,12 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         var user_count = builder.user_count()
         waiting_positions.append(user_count)
     }
+    if guards_singleton(information, function) {
+        guarded_classes.append(information)
+        guarded_functions.append(function)
+        var guarded_at = builder.user_count()
+        guarded_positions.append(guarded_at)
+    }
     var defined_name = function.c_name
     if is_hot_class(information) {
         defined_name = "{function.c_name}___hot"
@@ -14755,6 +14772,136 @@ func waiting_kind(information: Analysis.ClassInfo, function: Analysis.FunctionIn
         return "offload"
     }
     return ""
+}
+
+func guards_singleton(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Bool {
+    assert information.is_singleton and not information.is_stateless_singleton and not is_library_class(information)
+    assert not function.is_constructor and function.name != "drop" and not function.body.is_empty()
+    assert not is_hot_class(information)
+    return changes_after_construction(information)
+}
+
+func changes_after_construction(information: Analysis.ClassInfo): Bool {
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var field_type = field.get_type()
+        if reaches_shared(field_type) {
+            return true
+        }
+        index = index + 1
+    }
+    var targets = List<String>()
+    index = 0
+    while index < information.functions.count() {
+        var function = information.functions[index]
+        if not function.is_constructor {
+            collect_assigned_roots(function.body, targets)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < targets.count() {
+        if information.find_field(targets[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func collect_assigned_roots(statements: List<Syntax.Statements.Statement>, roots: List<String>) {
+    var index = 0
+    while index < statements.count() {
+        collect_statement_assigned_roots(statements[index], roots)
+        index = index + 1
+    }
+}
+
+func collect_statement_assigned_roots(statement: Syntax.Statements.Statement, roots: List<String>) {
+    switch statement {
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            var target_text = operand_text(statement.target)
+            var dot = target_text.index_of(".")
+            var bracket = target_text.index_of("[")
+            var end = target_text.length()
+            if dot >= 0 {
+                end = dot
+            }
+            if bracket >= 0 and bracket < end {
+                end = bracket
+            }
+            var root = target_text.slice(0, end)
+            roots.append(root)
+        }
+        Syntax.Statements.IfStatement: {
+            collect_assigned_roots(statement.then_branch, roots)
+            collect_assigned_roots(statement.else_branch, roots)
+        }
+        Syntax.Statements.WhileStatement: collect_assigned_roots(statement.body, roots)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                collect_assigned_roots(statement.cases[case_index].body, roots)
+                case_index = case_index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func finish_singleton_guards() {
+    builder.add_typedef("typedef struct SpiteGuard \{ int64_t owner; int64_t depth; } SpiteGuard;")
+    builder.add_prototype("static void spite_guard_enter(SpiteGuard* guard);")
+    builder.add_prototype("static void spite_guard_leave(SpiteGuard* guard);")
+    builder.add_support(
+        "static SPITE_THREAD_LOCAL char spite_guard_thread;\nstatic void spite_guard_enter(SpiteGuard* guard) \{\nint64_t spite_me = (int64_t)(intptr_t)&spite_guard_thread;\nif (__atomic_load_n(&guard->owner, __ATOMIC_ACQUIRE) == spite_me) \{ guard->depth = guard->depth + 1; return; }\nint64_t spite_free = 0;\nwhile (!__atomic_compare_exchange_n(&guard->owner, &spite_free, spite_me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) \{ spite_free = 0; }\nguard->depth = 1;\n}\nstatic void spite_guard_leave(SpiteGuard* guard) \{\nguard->depth = guard->depth - 1;\nif (guard->depth == 0) __atomic_store_n(&guard->owner, 0, __ATOMIC_RELEASE);\n}",
+    )
+    var guarded_names = List<String>()
+    var index = 0
+    while index < guarded_functions.count() {
+        var information = guarded_classes.get_at(index)
+        var function = guarded_functions[index]
+        var position = guarded_positions.get_at(index)
+        if not guarded_names.contains(information.c_name) {
+            guarded_names.append(information.c_name)
+            builder.add_support("static SpiteGuard {information.c_name}___guard = \{ 0, 0 };")
+        }
+        var unguarded_name = "{function.c_name}___unguarded"
+        var unguarded_signature = named_signature(information, function, unguarded_name)
+        builder.replace_user(position, "{unguarded_signature} \{")
+        builder.add_prototype("{unguarded_signature};")
+        emit_guard_wrapper(information, function, unguarded_name)
+        index = index + 1
+    }
+}
+
+func emit_guard_wrapper(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, unguarded_name: String) {
+    var arguments = List<String>()
+    arguments.append("self")
+    var index = 0
+    while index < function.parameters.count() {
+        arguments.append(function.parameters[index].name)
+        index = index + 1
+    }
+    var called = "{unguarded_name}({arguments.join(", ")})"
+    var guard = "&{information.c_name}___guard"
+    var return_type = function.get_return_type()
+    var lines = List<String>()
+    lines.append("{function_signature(information, function)} \{")
+    lines.append("spite_guard_enter({guard});")
+    if type_shape.is_void(return_type) {
+        lines.append("{called};")
+        lines.append("spite_guard_leave({guard});")
+    } else {
+        lines.append("{c_type_name(return_type)} spite_guarded = {called};")
+        lines.append("spite_guard_leave({guard});")
+        lines.append("return spite_guarded;")
+    }
+    lines.append("}")
+    var joined_lines = lines.join("\n")
+    builder.add_user(joined_lines)
 }
 
 func finish_waiting_points() {

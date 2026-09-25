@@ -7,7 +7,7 @@ The compiler is written in Spite and compiles itself, emitting C.
 ## Layout
 
 ```
-bootstrap/spite_compiler.spite   entry: the compiler's own entry class
+bootstrap/bootstrap.spite        entry: the compiler's own entry class, Bootstrap
 bootstrap/source/                the compiler, in Spite
 bootstrap/seed/spite_compiler.c  the committed fixpoint C; a C compiler turns it back into the compiler
 bootstrap/COMPILER_PLAN.md       the compiler's own plan and progress log

@@ -284,7 +284,7 @@ next save reloads.
   0.18 s with `--optimized`.
 - **Only what changed is compiled again.** The build writes two files beside the executable: `game.reload_host`
   (every function the program has, its classes and their layouts) and `game.reload_files` (a hash of each of the
-  program's files). A reload runs the compiler that built the program with the same options and `--mode=reload`.
+  program's files). A reload runs the compiler that built the program with the same options, as `spite reload`.
   The compiler reads the program again -- which takes milliseconds -- but writes C only for the classes whose files
   changed and whatever those need that the program does not already have, and compiles that into
   `game_reload_1.dll` (`.so` on Linux, `.dylib` on macOS). Everything else the new code calls, it reaches in the
@@ -297,6 +297,8 @@ next save reloads.
   and the rest), started on a thread of its own: `FindFirstChangeNotification` on Windows, `inotify` on Linux and
   `kqueue` on macOS, with no polling. A burst of changes is waited out until 100 ms pass without one, so a save
   that writes a file in pieces reloads once. The program's own folder is watched, not the folders it `load`s; send
-  `reload` after changing those.
+  `reload` after changing those. A build beside its program (the default) writes each reload's library into that
+  folder too, which wakes the watcher once more for a check that finds nothing changed; `--executable_path=`
+  elsewhere avoids it.
 - The compiler, its options and the executable are recorded in the build, so the program must run from the folder
   it was built from, as `spite game --hot_reload` does.

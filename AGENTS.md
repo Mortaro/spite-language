@@ -50,6 +50,14 @@ place: make a small folder beside it whose entry file `load`s the original and r
 (D156). Mortaro runs that folder to test the change, and only an approved change is merged into the real code.
 Nothing is copied, so a worktree costs only the files it changes.
 
+## Changing the compiler: every optimisation is documented in the same commit
+
+A change that makes the compiler optimise something on its own -- or builds a planned optimisation -- updates
+[`docs/optimizations.md`](docs/optimizations.md) in the same commit (D185, D102): what it does, when it applies,
+built or planned, and anything a user could observe (allocation counts under `--debug_memory`, reflection, order of
+calls). An optimisation with a user-visible cost says so there; one that contradicts the manual goes into
+`mortaros_missing_decisions.md`.
+
 ## Decisions
 
 `manual.md` is the record. Every language decision goes into the prose **and** the decision log when it is made —

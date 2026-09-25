@@ -1,15 +1,18 @@
 singleton
 
-var mode = "run"
-var output = ""
+var run = true
+var executable = false
+var executable_path = ""
+var c_source = false
+var c_path = ""
+var format = true
+var final_classes = ""
 var optimized = false
 var development = false
 var repl = false
 var repl_port = 0
 var hot_reload = false
-var format = true
 var debug_memory = false
-var final_classes = ""
 var operating_system = ""
 var target_operating_system = ""
 var program = ""
