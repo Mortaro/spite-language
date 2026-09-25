@@ -377,10 +377,6 @@ All of it is proposed by Claude, unconfirmed.
 
 ## SlopEngine's entity API (D123, D124)
 
-127. **`load` as a function name.** A class that declares `func load` now calls it with `load(x)` (proposed by
-     Claude, unconfirmed; SlopEngine's asset cache hit it); before, every `load(...)` was the package load and
-     compiled to nothing. The alternative was reserving the word and making `func load` an error naming the
-     launcher's `load`. Keep it an ordinary name?
 128. **A codegen value in a class test** (proposed by Claude, unconfirmed): `item == $wanted_type` folds to
      `false` rather than D75's "never true" error when the value's union cannot hold the bound class, since a
      generic class cannot avoid that for every binding. Item 44's question (should a class object's `.functions` be
