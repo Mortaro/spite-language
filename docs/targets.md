@@ -7,18 +7,30 @@ yet. These are the normative rules, moved whole from the language manual when [D
 it; a `D` number is a row of the [decision log](decisions.md). What runs today on one machine is on
 [foreign_libraries.md](foreign_libraries.md) and [programs.md](programs.md).
 
+Every piece of it is chosen while compiling, so a bundle carries only what its target uses
+([D177](decisions.md)): the losing platform's code is folded away before tree shaking, the client bundle holds no
+server body, the wire has nothing to parse, and a web build ships no scheduler of its own -- hidden waiting is
+compile-time state machines ([D176](decisions.md), [concurrency.md](concurrency.md)), and in a browser the event
+loop they return to is the browser's. That last point is why D176 rejected fibers: they would need a stack per
+fiber and stack switching that WebAssembly cannot do without a whole-program transform that bloats the binary.
+
 ## Other environments  **[planned]**
 
 The same mechanism is how Spite reaches anything that is not C. Nothing here is new machinery: it is [Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)'s
-loading and reopening, plus a codegen value.
+loading and reopening, plus a `Build` field folded while compiling.
 
-- **`$target`** is a compiler-provided program variable (`--target=native|web`), reserved like every other flag
-  name in [Command line](compiler.md#command-line).
+- **The target is a `Build` field**, set by a `--target=native|web` flag and folded as a constant like every
+  compiler option ([Build settings](programs.md#build-settings-build--implemented)). D76 ended the `$target`
+  program variable (`$` is for generics only) and D85 made compiler options fields of `Build`; the field's name is
+  not decided, and `build.target` below is a placeholder (proposed by Claude, unconfirmed).
 - **Platform code is chosen by reopening, not by an abstraction layer.** `platform_web/console.spite` and
   `platform_native/console.spite` reopen the same `Console`; the entry constructor does
-  `if $target == 'web' { load "platform_web" } else { load "platform_native" }`, and [Codegen values (`$`)](metaprogramming.md#codegen-values---implemented)'s compile-time
-  folding plus tree shaking remove the loser entirely. This is the game-mod mechanism from [Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial) aimed at
-  platforms.
+  `if build.target == "web" { load "platform_web" } else { load "platform_native" }`, and the compiler folds the
+  condition and loads only the taken branch, so the loser is never compiled at all. This is the game-mod mechanism
+  from [Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial) aimed at
+  platforms, and it is how operating systems are chosen today: `load "library/{build.target_operating_system}"`
+  and a `load` under an `if` on a `Build` field are both folded while compiling
+  ([foreign_libraries.md](foreign_libraries.md#each-operating-system-reopens-what-it-changes)).
 - **The web bridge is `DynamicLibrary` reopened.** `platform_web/dynamic_library.spite` replaces `_open`/`_call`
   with a JavaScript module's exports; a foreign object that cannot cross into wasm is a handle into a JS-side
   table, freed by the same `drop()`. A class written against a library compiles for both targets unchanged.
@@ -27,8 +39,6 @@ loading and reopening, plus a codegen value.
   compiler already generates C.
 - Which classes exist on which target is not a special rule: a class declares it (see [Targets](#targets--planned)),
   so `File`, `Directory` and `Process` on the web are a compile error like any other class used off its target.
-- **(D76 ended `$target` as a program variable; its build-time home is a `Build` field, D85 -- see [Build
-  settings](programs.md#build-settings-build--implemented).)**
 - The isomorphic direction (`environment.name` of `server` or `client` in `examples/arsenal`) is what the next section
   describes: a class compiled into both bundles, whose server-only functions become a network call on the client
   and a route registration on the server.
@@ -70,23 +80,26 @@ func format_name(first_name: String, last_name: String): String { }
   connection string, or a server-only helper reachable from that body is removed by the per-bundle tree shaking
   [Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial) already does. This is the property that makes the split safe rather than merely convenient, and it
   costs nothing extra here.
-- Routes are generated deterministically from the class and function name, and the wire format is already in the
-  language: a `type` shape ([Types](values_and_types.md#types)) is duck typed and JSON shaped, which is what it was introduced for.
+- Routes are generated deterministically from the class and function name, and what crosses is already in the
+  language: a `type` shape ([Types](values_and_types.md#types)). It travels in [the wire format](#the-wire-format--planned)
+  below, a binary packing, not JSON (D31).
 - **A function crossing the boundary must have serialisable parameters and return type** -- scalars, `String`, a
   `type` shape, or a list of those. A class instance cannot cross (its identity and reference count are local),
   and the diagnostic names the parameter or field that does not qualify.
-- **Open, and blocking:** what a failed call does. A network call fails in ways a local call cannot, and Spite's
-  position is that only errors which stop the program deserve to exist (`mortaros_notes.md`). This is the case
-  where that has to be answered concretely, so the errors design gates this milestone and nothing else does.
+- **A failed call returns null and does not crash** (D24): the network can fail where a local call cannot, but the
+  program is not wrong, so the client's stub of a function returning `T` answers a `T?`
+  ([failure.md](failure.md#failure-three-outcomes-and-no-others--partial)). A caller that must tell a timeout from a rejection takes back a `type`, `union` or
+  enum that models it -- ordinary data, not an error channel. How the stub's signature is spelled is not decided.
 
 ## Targets  **[planned]**
 
 D20 (decided by Mortaro, 2026-09-19): a class says where it can run by overriding an ordinary member of
 `Spite.Class`, `func targets(): List<Symbol>`. The default is every target; `DynamicLibrary` answers `['native']`
-and `Html` answers `['web']`. Using a class against the wrong `$target` is a compile error naming the class, the
+and `Html` answers `['web']`. Using a class against the wrong target is a compile error naming the class, the
 target and the flag. This replaces any special rule about `File`, `Directory` and `Process` on the web: they
 declare their targets like everything else. The check runs after compile time folding and tree shaking, so a
-`load` behind `if $target == 'web'` stays legal: only a class still reachable in the built program is checked.
+`load` behind `if build.target == "web"` stays legal: only a class still reachable in the built program is
+checked. It is compile time only: `targets()` is never called by the running program.
 
 ## Html: the browser as a library  **[planned]**
 
@@ -108,7 +121,7 @@ literals, with as many children as the call has arguments. That costs no new fea
 function is generated per call site:
 
 ```
-html.div({ class: "card" }, html.h1(title), TodoForm({ ondone: add_todo }))
+html.div({ class: "card" }, html.h1(title), TodoForm({ on_done: add_todo }))
 ```
 
 It pulls together what already exists: tags come from `missing_function`, a list of children is

@@ -39,14 +39,21 @@ standard library itself does this more neatly, by reopening classes per system (
 
 - **The arguments are literals**, because the compiler reads them while compiling. The file is named exactly as
   it is on disk, extension included -- a name without one is an error.
-- **One instance per distinct argument list.** `DynamicLibrary` is a singleton keyed by its arguments: every class
-  asking for `DynamicLibrary("ucrtbase.dll", 'identity', "")` shares one library and one table of symbols.
+- **One instance per file and naming rule.** `DynamicLibrary` is a singleton keyed by its first two arguments:
+  every class asking for `DynamicLibrary("ucrtbase.dll", 'identity', "")` shares one library and one table of
+  symbols.
 - **Only what is called is bound.** The symbols a program calls are looked up once, when the library opens, so
   every later call is one indirect call. A symbol named only by code the program never reaches is not looked up
-  at all ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)), except in a `--development` build. A missing library or a missing symbol stops the program at that point,
-  naming the file, or the symbol and the Spite function that wanted it.
+  at all ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)), except in an inspectable build
+  (`--development`, `--repl`, `--repl-port`, `--hot-reload`), which keeps everything. A missing library or a
+  missing symbol stops the program at that point, naming the file, or the symbol and the Spite function that
+  wanted it.
 - **A foreign call goes through the attribute or variable holding the library**, so the compiler knows which
   table binds it.
+
+That is the whole run-time cost: opening each library once, on first use, one lookup per called symbol, and one
+indirect call per call, with arguments passed as they are ([what crosses](#what-crosses)). There is no marshalling
+layer, and a symbol no surviving code calls costs nothing.
 
 ## Naming rules
 
@@ -64,14 +71,15 @@ what the standard library does where Win32's own abbreviations follow no rule.
 
 ## What crosses
 
-| Spite | C |
-|---|---|
-| every number type, `Boolean` | the same C type -- a number already is one, and see the widths below |
-| `String`, as an argument | `const char*`, at no cost |
-| an enum value | its integer |
-| `List<T>` of numbers | its element array, by address; C's writes come back into the list |
-| a `type` whose attributes are all numbers | a C struct in declaration order, by address; C's writes come back |
-| a class instance | never: its layout is the compiler's business |
+| Spite | C | Cost |
+|---|---|---|
+| every number type, `Boolean` | the same C type -- a number already is one, and see the widths below | none |
+| `String`, as an argument | `const char*` | none: every `String` buffer already ends in a zero |
+| `String`, as a result (`_as_text`) | `const char*` | one copy; Spite never frees a buffer C owns |
+| an enum value | its integer | none |
+| `List<T>` of numbers | its element array, by address; C's writes come back into the list | none |
+| a `type` whose attributes are all numbers | a C struct in declaration order, by address; C's writes come back | none |
+| a class instance | never: its layout is the compiler's business | |
 
 A call returns an `Integer`, and the ordinary right-to-left cast takes it from there. A result that is wider or not an
 integer is asked for by suffix: `strlen_as_long(...)` for a 64-bit integer or a pointer, `half_of_as_double(...)`
@@ -83,12 +91,9 @@ leaves at an address -- a name inside a struct C filled in, or a `_as_long` resu
 With a header as the third argument, a snake_case read is a constant -- `user32.mouseeventf_leftdown` is
 `MOUSEEVENTF_LEFTDOWN`, an `Integer` -- and under the `'windows'` rule the compiler checks that a `type` passed as a
 struct has the size of the header's struct of the derived name (`PointPair` against `POINT_PAIR`), so a missing
-padding field fails the build at the Spite line. A header path that exists relative to the working directory is
-included as a file; anything else as a system header. The reflection members every value has -- `.class`,
-`.attributes`, `.functions` and `.memory` -- are never read as constants, so a generic class instantiated
-over `DynamicLibrary` can still ask `current.class.name`. Neither are `DynamicLibrary`'s own members, such as
-`file_name`: a `List<DynamicLibrary>`'s member templates (`find_by_file_name`, `sort_by_handle`) read the
-attribute, which is what the templates mean whenever a program describes that list's functions.
+padding field fails the build at the Spite line. The reflection members every value has (`.class`,
+`.attributes`, `.functions`, `.memory`) and `DynamicLibrary`'s own members (`file_name`, `handle`) are never read
+as foreign symbols ([what a member of a library means](#what-a-member-of-a-library-means)).
 
 ### Argument widths
 
@@ -155,7 +160,9 @@ compiler out once for each.
 The members whose bodies stay C -- opening a library, finding a symbol, `Memory.Heap`'s allocation -- are
 declared in Spite as a `func` with a signature and no body, which the compiler merges into the class as its own
 reopening ([compiler.md](compiler.md#inspect-merged-classes)). `library/dynamic_library.spite` holds the rest:
-the `singleton` line, `file_name` and `handle`, the constructor and `drop()`.
+the `singleton` line, `file_name` and `handle`, the constructor and `drop()`. This is a stopgap: D147 and D168
+decide that nothing the compiler supplies stays hidden or ties Spite to C, so these bodies are to become Spite over
+the few operations each backend lowers ([D178](decisions.md)) -- **not built** for these three.
 
 **Not built yet:** the naming rule and the calls as reopenable Spite (`missing_function` and
 `missing_attribute`), a naming rule of your own, `Type.size`, reading a header's types through reflection,
@@ -172,25 +179,43 @@ fix. A `D` number is a row of the [decision log](decisions.md).
 
 ### Foreign libraries  **[partial]**
 
-**Built (milestone 11a, 2026-09-23):** `DynamicLibrary(file, naming, header)` with the three naming rules, calls
-of any function the library exports, the import table of exactly the called symbols resolved once when the
-library opens, and a program-stopping message naming the file, or the symbol and the Spite function that wanted
-it, when either is missing (`conformance/stage6/foreign_library`, `diagnostics/foreign_library_mistakes`,
-`diagnostics/foreign_call_mistakes`). What crosses is the table below, minus structs and lists. Choices Claude made
-while building it (proposed, unconfirmed): one library per distinct file and naming rule, following D8's
-"one instance per literal argument list", opened on first use and closed at exit; the file is named exactly as it is on disk and a name without an
-extension is a compile error (D71 -- a wrapper for another platform names that platform's file), which `check.sh`
-meets by building each fixture's C into `fixture.dll` beside its program on every platform; `_as_long` beside
-`_as_double` and `_as_text`, since a plain call returns a 32-bit `Integer` and a handle or pointer needs 64; the
-naming rule is a symbol literal (D70); a foreign function is called only through the attribute or variable that
-holds its `DynamicLibrary(...)`, so the compiler knows which table binds it; and `--final-classes` writes no
-resolved-name comments, which D34 would reject (how to show them is open question 10). A constant reads from the header (`user32.mouseeventf_leftdown` is `MOUSEEVENTF_LEFTDOWN`, an `Integer`); a header path
-that exists relative to the working directory is included as a file, anything else as a system header. A `List<T>` of numbers crosses as its element array (C may write into it), and a value of a `type` whose attributes are all numbers crosses by address as a C struct
-in its declared order, and C's writes come back into the value afterwards; under the `'windows'` rule with a header,
-`_Static_assert` checks the layout against the header's struct, named `PointPair` -> `POINT_PAIR` (Claude: only
-there, since other headers do not name structs that way, and a missing name would be a C error). Not built:
-`Type.size`, reading a header's types as Spite reflection, `missing_function`/`missing_attribute` as reopenable Spite, and a
-user-written naming rule (11c).
+**Built:** `DynamicLibrary(file, naming, header)` with the three naming rules; calls of any function the library
+exports; the import table of exactly the called symbols that survive tree shaking, resolved once when the library
+opens; constants read from a header; every row of [What crosses](#what-crosses), structs and lists included, with
+C's writes coming back; argument widths; and a program-stopping message naming the file, or the symbol and the
+Spite function that wanted it, when either is missing (`conformance/stage6/foreign_library`,
+`diagnostics/foreign_library_mistakes`, `diagnostics/foreign_call_mistakes`).
+
+Choices Claude made while building it (proposed, unconfirmed):
+
+- One library per distinct file and naming rule, following D8's "one instance per literal argument list", opened
+  on first use and closed at exit. The header is not part of the key: a second `DynamicLibrary` with the same file
+  and naming rule but another header shares the first one, header included (a known issue: a constant read
+  through the second is then `'mouseeventf_leftdown' is a constant, and a constant comes from the library's
+  header: name it as DynamicLibrary's third argument` when the first named no header).
+- The arguments are literals: otherwise `DynamicLibrary(...) takes three literals the compiler reads while it
+  compiles: the file, the naming rule ('identity', 'windows' or 'camel_case') and the header`. The naming rule is a
+  symbol literal (D70): otherwise `'shouting' is not a naming rule: a library's functions are named 'identity',
+  'windows' or 'camel_case'`.
+- The file is named exactly as it is on disk (D71 -- a wrapper for another platform names that platform's file):
+  otherwise `'fixture' has no extension: name the library file exactly as it is on disk, like "user32.dll" or
+  "libc.so.6" -- a wrapper for another platform names that platform's file`. `check.sh` meets this by building
+  each fixture's C into `fixture.dll` beside its program on every platform.
+- `_as_long` beside `_as_double` and `_as_text`, since a plain call returns a 32-bit `Integer` and a handle or
+  pointer needs 64.
+- A foreign function is called only through the attribute or variable that holds its `DynamicLibrary(...)`:
+  otherwise `a foreign function is called through the attribute or variable that holds its DynamicLibrary(...), so
+  the compiler knows which library to bind it in`.
+- A header path that exists relative to the working directory is included as a file, anything else as a system
+  header.
+- Under the `'windows'` rule with a header, `_Static_assert` checks a struct's size against the header's struct,
+  named `PointPair` -> `POINT_PAIR` -- only there, since other headers do not name structs that way, and a missing
+  name would be a C error.
+- `--final-classes` writes no resolved-name comments, which D34 would reject (how to show them is open question
+  10).
+
+**Not built:** `Type.size`, reading a header's types as Spite reflection, `missing_function`/`missing_attribute`
+as reopenable Spite, a user-written naming rule, callbacks, and C's variadic functions.
 
 D4 (decided by Mortaro, 2026-09-19): **a native library is a class, not a keyword.** There is no `external`
 keyword, no per-symbol binding string, no generated-binding step and no hand-written C shim. `DynamicLibrary`
@@ -217,19 +242,21 @@ asked for. No annotation is needed, and none is accepted.
 |---|---|---|
 | `user32.send_input(...)` | a call | `SendInput(...)` |
 | `user32.input_mouse` | a read, snake_case | the constant `INPUT_MOUSE` |
-| `user32.Input` | a read, PascalCase | the C type `INPUT` (reflection only -- see Structs below) |
+| `user32.Input` | a read, PascalCase | the C type `INPUT` (reflection only -- see Structs below; **not built**) |
 
 A constant or a type is only available when the constructor was given a header; without one a library exposes
-functions and nothing else, and a constant read is a diagnostic naming the missing header.
-`DynamicLibrary`'s own members (`file_name`, `handle` and its functions) are never foreign symbols, as the
-reflection members never are (proposed by Claude, unconfirmed, 2026-09-25): a `List<DynamicLibrary>` built its
-member templates over them the moment a program read any class object's `.functions`, and `sort_by_handle` failed
-inside `library/list.spite` as a constant read (`conformance/stage6/settings_and_libraries_reflected`).
+functions and nothing else, and a constant read is `'fixture_answer' is a constant, and a constant comes from the
+library's header: name it as DynamicLibrary's third argument`.
+The reflection members every value has (`.class`, `.attributes`, `.functions`, `.memory`) are never foreign
+symbols, so a generic class instantiated over `DynamicLibrary` can still ask `current.class.name`; neither are
+`DynamicLibrary`'s own members (`file_name`, `handle` and its functions), so a `List<DynamicLibrary>`'s member
+templates (`find_by_file_name`, `sort_by_handle`) read the attribute (proposed by Claude, unconfirmed;
+`conformance/stage6/settings_and_libraries_reflected`).
 
 #### The class
 
-`DynamicLibrary(file_name, naming, header)`. Every argument must be a literal (the same rule `load` already
-has, [Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)), because the compiler reads them during codegen.
+`DynamicLibrary(file_name, naming, header)`. Every argument must be a literal, because the compiler reads them
+during codegen. The class as D4 designs it -- **planned**; what is built follows it:
 
 ```dynamic_library.spite
 enum Naming {
@@ -277,16 +304,19 @@ func drop() {
 }
 ```
 
-`_open`/`_call`/`_resolve`/`_close` are compiler intrinsics; everything above them is ordinary Spite, and
-`--final-classes` prints the whole class with every generated binding, exactly as [Decided by Mortaro, being implemented](open_questions.md#decided-by-mortaro-being-implemented--planned) item 2 requires of
-all reflection.
+In this design `_open`/`_call`/`_resolve`/`_close` are the only operations below Spite; everything above them is
+ordinary Spite, and `--final-classes` prints the whole class with every generated binding, as
+[Decided by Mortaro, being implemented](open_questions.md#decided-by-mortaro-being-implemented--planned) item 2
+requires of all reflection. D147 and D178 go further: loading a library is to be plain Spite calling the
+operating system, with no compiler-supplied C at all.
 
-**What is built** (2026-09-24, D81/D82): `library/dynamic_library.spite` is the `singleton` line, `file_name` and
+**What is built** (D81/D82): `library/dynamic_library.spite` is the `singleton` line, `file_name` and
 `handle`, a constructor that stores the file and calls `open_library(file)`, and a `drop()` that calls
 `close_library(handle)`; `open_library`, `close_library` and `find_symbol(name, wanted_by)` are the compiler's
-reopening, declared without a body. The naming rule and the calls themselves are still the compiler's
-(`missing_function`/`missing_attribute` are not built), and every call through a `DynamicLibrary` value is a
-foreign call, since `remove` and `exit` are names both a class and a C library could have.
+reopening, declared without a body, their C written in the compiler -- the stopgap D147 rejects, **not yet
+replaced**. The naming rule and the calls themselves are still the compiler's (`missing_function` and
+`missing_attribute` are not built), and every call through a `DynamicLibrary` value is a foreign call, since
+`remove` and `exit` are names both a class and a C library could have.
 
 - **`missing_function` and `missing_attribute` are the only two new names in the entire foreign function
   interface.** They are Ruby's `method_missing` resolved at compile time: [Symbol codegen](metaprogramming.md#symbol-codegen--implemented)'s rule ("a parameter of class
@@ -344,62 +374,60 @@ func _send(event: UnsignedInteger, wheel_amount: UnsignedInteger) {
   This is the same bargain `#[repr(C)]`, `extern struct` and `ctypes` make, and it is the price of never naming
   the C type in your own source.
 - `Input.size` is `sizeof` of the struct the compiler emitted -- ordinary reflection on a Spite type, with no
-  library in the expression.
-- **The compiler checks your work for free.** When the library was given a header, it derives the C name through
-  the same naming rule (`Input` -> `INPUT`) and emits
+  library in the expression. **Not built** (`Type.size`).
+- **The compiler checks your work for free.** When the library was given a header and uses the `'windows'` rule,
+  it derives the C name (`Input` -> `INPUT`) and emits
   `_Static_assert(sizeof(INPUT) == sizeof(Mouse_Input), "mouse.spite:12 type Input does not match INPUT");`.
   A forgotten padding field fails the build at the Spite line, naming both types. **The derived C name is used to
   verify, never to generate.** Size is checked; field order is not, because C's own field names (`dwFlags`, `dx`,
   `mouseData`) are unmappable by any rule, and a table for them is exactly what this design refuses to have.
-- A `type` containing a `String`, `List<T>`, `Dictionary<T>` or class field is a diagnostic at a foreign call,
-  naming the field: the all-scalars condition is enforced, not assumed.
+- A `type` containing a `String`, `List<T>`, `Dictionary<T>` or class field is an error at a foreign call: the
+  all-scalars condition is enforced, not assumed. The error names the type (`a Labelled cannot cross into C: ...`,
+  [below](#what-crosses-1)); naming the field is not built.
 
 #### What crosses
 
-| Spite | C | Cost |
-|---|---|---|
-| `Tiny`..`Long`, `Byte`..`UnsignedLong`, `Float`/`Double`, `Boolean` | `int8_t`..`uint64_t`, `float`/`double`, `bool` | zero -- [Variables and values](values_and_types.md#variables-and-values--implemented)'s numeric types already are the C types |
-| `String` (argument) | `const char*` | zero -- every `String` buffer is already NUL terminated |
-| `String` (result) | `const char*` | one copy; Spite never frees a buffer C owns |
-| an enum value | its integer | zero |
-| a scalar-only `type` | a struct, by address | zero |
-| `List<T>` of scalars | the element array, by address | zero |
-| a class instance | -- | never. Its layout (`SpiteHeader`, ref count) is the compiler's business |
+[The table above](#what-crosses) is the rule, costs included: a number type is the C type of its width
+([Variables and values](values_and_types.md#variables-and-values--implemented)), text, lists of numbers and
+number-only `type`s cross by address at no cost, a text result is copied, and a class instance never crosses, since
+its layout (header, reference count) is the compiler's business. Anything else is an error at the call:
+`a Console cannot cross into C: a foreign function takes numbers, Boolean, enum values, text and a type whose
+attributes are all numbers` (`diagnostics/foreign_call_mistakes`); a `type` with a `String` field and a
+`List<String>` are rejected the same way, naming the type rather than the field.
 
-**Argument widths** (proposed by Claude, unconfirmed; implemented 2026-09-24). With a header, a call goes through
-the header's prototype (`__typeof__(&Symbol)`), so C checks the argument count and converts each argument to its
+**Argument widths** (proposed by Claude, unconfirmed; implemented). With a header, a call goes through the
+header's prototype (`__typeof__(&Symbol)`), so C checks the argument count and converts each argument to its
 parameter's type; integer-to-pointer conversion is allowed, because a handle is a `Long`, and a `void` function's
-call reads as `0`. Without one, every integer-like argument (`Tiny`..`Long`, `Boolean`, enum values) is passed as
-`int64_t`, and every unsigned one as `uint64_t`: the width x64 and 64-bit ARM pass in a register or stack slot
-anyway, so a literal `0` for a 64-bit parameter no longer leaves the upper half of the register undefined.
-`Float` and `Double` pass as themselves. Left open: a `Double` where C wants `float`, and Apple ARM's stack
-arguments past the eighth, which it packs at their own width -- both need the header.
+call reads as `0`. Without one, integer-like arguments widen to `int64_t` or `uint64_t` and `Float`/`Double` pass
+as themselves ([the table above](#argument-widths)). Left open: a `Double` where C wants `float`, and Apple ARM's
+stack arguments past the eighth, which it packs at their own width -- both need the header.
 
-**Return types.** A foreign call returns `Integer` (integer/pointer width) and [Variables and values](values_and_types.md#variables-and-values--implemented)'s right-to-left casting takes
-it from there. A `Double` comes back in a different register and cannot be inferred from context, so it is asked
-for by suffix -- `user32.get_scale_as_double(...)`, and `..._as_text()` for a copied `const char*` -- which is
+**Return types.** A foreign call returns a 32-bit `Integer`, and [Variables and values](values_and_types.md#variables-and-values--implemented)'s
+right-to-left casting takes it from there. Anything wider, or not an integer, is asked for by suffix, since a
+`double` comes back in a different register and nothing in the call says which: `_as_long` for a 64-bit integer
+or a pointer, `_as_double` for a `double`, `_as_text` for a `const char*` copied into a `String`. The suffix is
 [Symbol codegen](metaprogramming.md#symbol-codegen--implemented)'s ordinary segment template, not a new mechanism.
 
 #### Lifetime, and what gets linked
 
 - The library handle is a plain `Long`. **There is no `Pointer` type in Spite**, and this design does not add one.
-- `DynamicLibrary` is a **singleton** (open question 7 -- the syntax is not decided yet, which is why the class above
-  does not show one), keyed by its constructor arguments: every class asking for
-  `DynamicLibrary("user32.dll", ...)` shares one object and one import table; `"gdi32.dll"` is a second one.
+- `DynamicLibrary` is a **singleton** (its file's `singleton` line), keyed by its file and naming rule: every class
+  asking for `DynamicLibrary("user32.dll", 'windows', ...)` shares one object and one import table;
+  `"gdi32.dll"` is a second one.
 - The import table is the set of call sites that survived tree shaking: two symbols are resolved because two were
   called. They are resolved once, in the constructor, so every later call is one indirect call -- never a lookup
   per call.
 - A missing library or a missing symbol aborts at construction, naming the file, the symbol and the Spite function
   that wanted it. This is a program-stopping error and is not reported any other way.
-- `drop()` closes the library when its last reference goes, like any other class.
-- `--final-classes` prints each binding with its resolved name and library as a `#` comment, the same way it
-  already annotates which root won a reopened function -- so the mapping is reviewable generated output rather
-  than something maintained by hand.
+- `drop()` closes the library at exit, when singletons are destroyed in reverse creation order (D142: a singleton
+  is not reference counted).
+- D4's design had `--final-classes` print each binding with its resolved name and library as a `#` comment; as
+  built it writes none, since D34 would reject it, and how to show the mapping is open question 10.
 
 #### Not designed yet
 
-- **Callbacks** (handing a Spite function to C as a function pointer). Needs a decision on function references,
-  which the language does not have.
+- **Callbacks** (handing a Spite function to C as a function pointer). Spite has function values (D17, D39), but
+  how one becomes a C function pointer, and on which thread C may call it, is not decided.
 - **A C union past its first member.** Positional layout reaches the first member only; the rest needs C's own
   field names.
 - **Varargs**, structs returned by value, and `#define`s that are function-like macros rather than constants.
