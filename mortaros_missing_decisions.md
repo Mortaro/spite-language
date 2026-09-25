@@ -372,4 +372,14 @@ Behaviour that does not match the manual. The language was not changed; each is 
      `address.byte_at(offset)`, where `Address` is a number class whose members the backend lowers; (c) something
      you have in mind. The rest of the floor (allocation, copying, comparing, loading libraries) becomes plain Spite
      calling the platform's library through `DynamicLibrary`.
-
+     *Mortaro (2026-09-25):* likes `Address` only if "the code you see is what you get"; otherwise prefers what the OS
+     offers through `DynamicLibrary`, and needs convincing with limitations and downsides. *Claude's case:* the OS
+     offers memory pages (`VirtualAlloc`/`mmap`), so allocation, freeing, copying and loading libraries can all be
+     visible Spite calling the OS -- at the cost of writing our own small-object allocator in Spite on top of pages.
+     No OS offers "the byte at this address": that is one CPU load instruction. Doing it through a DLL call
+     (`RtlMoveMemory`/`memcpy` per read) works but costs a call per access with no inlining, roughly 5-20x slower
+     on memory-heavy code (zstd, ECS loops, text). `address.byte_at(offset)` is a language primitive in the same
+     sense as `+` on two integers -- one instruction, nothing below it -- that each backend lowers; downsides: it can
+     read a wrong address (so `library/` only), and every backend must implement ~10-15 such operations.
+     Recommendation: OS for pages, libraries and files (with a Spite allocator); `Address` only for loads, stores and
+     atomics.
