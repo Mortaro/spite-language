@@ -1,10 +1,10 @@
 # Decisions waiting on Mortaro
 
 Agents add here what only Mortaro can decide; Mortaro answers inline or in `mortaros_notes.md`, and an agent
-moves the answer into `manual.md` (prose and decision log) and removes the item. Each item links to where the
-manual argues it.
+moves the answer into the docs (the page that teaches it, and a row of `docs/decisions.md`) and removes the
+item. Each item links to where the docs argue it.
 
-## Open questions still open in manual.md
+## Open questions still open in docs/open_questions.md
 
 5. **Open question 16: two versions of one dependency.** Needs D38 (git dependencies) first.
 6. **Open questions 1, 3, 6, 8, 9, 10, 11**, the older ones: `= null` on a generic field, right-to-left casting
@@ -34,13 +34,13 @@ manual argues it.
 
 22. **`Directory.Entry`** is the name of the union of `Directory` and `File` that `entries()` answers; folders
     come first, then files, each sorted. Should `files()` and `folders()` go now that `entries()` exists (the
-    compiler's own discovery still reads names)? Manual section 15, "System classes".
+    compiler's own discovery still reads names)? `docs/standard_library.md`, "System classes".
 23. **`Json<T>`'s API**: `Json<Order>().write(order)`, `.read(text)` (`Order?`) and `.read_or_crash(text)`. This
     settles D22's open naming pair as `read`/`read_or_crash`, unless you prefer `to_json`/`to_crashing_json` or
     `parse_json`/`parse_json_or_crash`. Also `Json` itself: JSON is an abbreviation, but it is the format's name.
 24. **Reading foreign JSON**: unknown keys are skipped, missing attributes keep their defaults, and a value of the
     wrong kind makes the whole read `null`. The alternative for missing attributes is to fail as well.
-25. **The metaprogramming `Json` needed** (manual sections 4, 8, 9): `attribute: Symbol<Label>` for a template
+25. **The metaprogramming `Json` needed** (`docs/values_and_types.md` and `docs/metaprogramming.md`): `attribute: Symbol<Label>` for a template
     over another class's attributes; the plural (`show_attributes`) to call a template for every attribute;
     `$value_type == List` / `Dictionary` / `Null` / `Symbol` as compile-time type tests; `$value_type.element_type`
     to name what a container holds; text casting to an enum by name. Each is a new form, so each wants a yes or no.
@@ -70,7 +70,7 @@ manual argues it.
     comparisons (`$value_type == Int or $value_type == Long or ...`) because it cannot today. With D83 every number is a class in
     `library/`, so a union of number classes is no longer a union of names that are not classes.
 
-## Build, the launcher and the entry (D85, D86, D89, D97; manual sections 3, 9 and 13)
+## Build, the launcher and the entry (D85, D86, D89, D97; `docs/programs.md` and `docs/compiler.md`)
 
 38. **Loading the program's folder runs it.** The launcher's `load(Build().program)` constructs the program's
     entry class; every other `load` still compiles to nothing at run time. And a launcher `load` may use `Build`
@@ -96,7 +96,7 @@ Behaviour that does not match the manual. The language was not changed; each is 
     the compiler rejects any singleton constructor with parameters (`diagnostics/singleton_arguments`) except
     `DynamicLibrary`'s, which keeps the per-argument-list behaviour. Which is the rule, and is `DynamicLibrary` the
     exception or the rule?
-## Visible storage and placement (D107, D108; manual sections 4, 10 and 15)
+## Visible storage and placement (D107, D108; `docs/values_and_types.md`, `docs/memory.md` and `docs/standard_library.md`)
 
 50. **How `String` declares its storage**: private attributes read by name -- `_bytes: Long` (the address of
     its characters), `_length: Long`, `_section: Spite.Memory.Section` (`'heap'`, or `'constant'` for a literal)
@@ -114,7 +114,7 @@ Behaviour that does not match the manual. The language was not changed; each is 
 54. **`allocate_stack_bytes` is removed**, since D108 gives the choice to the compiler and it was a second way to
     allocate. For an ECS that wants control, what stays is the layout: one allocation, offsets, `TypedMemory`.
     Is anything else wanted -- say, a hint that a structure is short-lived, which the compiler may ignore?
-## Live reload (D111, D112; manual section 14, "Live reload and 6b")
+## Live reload (D111, D112; `docs/repl.md`, "Live reload and 6b")
 
 64. **A changed attribute or enum is refused, with an error saying to restart.** D111 says a change rebuilds "what
     depends on their layout", but instances already in memory have the old layout. Migrating them -- a new object
@@ -140,7 +140,7 @@ Behaviour that does not match the manual. The language was not changed; each is 
 71. **Finding every function named `*_system` across the program** -- the same reflection over the program's
     classes. Not decided.
 
-## From D109 (printing through `to_string()`, `Console.debug`; manual sections 5, 8 and 15)
+## From D109 (printing through `to_string()`, `Console.debug`; `docs/functions_and_operators.md`, `docs/metaprogramming.md` and `docs/standard_library.md`)
 
 74. **A number, `Bool`, `Symbol` or enum value passed where a `type` is wanted is boxed**: one small allocation,
     freed like any object, so `print(count)` costs a box and the `String` its `to_string()` makes, and every
@@ -168,7 +168,7 @@ Behaviour that does not match the manual. The language was not changed; each is 
     `Spite.Debug<$value_type>` for the text of any value and `Spite.DebugInstance<$value_type>` for walking a
     class instance -- in `Spite` because they are reflection, and so a program cannot reopen them by accident.
 
-## From the SlopEngine bug batches (manual sections 5, 7, 8, 9 and 11)
+## From the SlopEngine bug batches (`docs/functions_and_operators.md`, `docs/values_and_types.md`, `docs/metaprogramming.md` and `docs/packages.md`)
 
 81. **A Symbol template and another class's private attributes.** `func fill_attribute(attribute:
     Symbol<Target>, ...)` in `Query` cannot read `target._cache`: `_` is private to `Target`, and the template
@@ -178,11 +178,11 @@ Behaviour that does not match the manual. The language was not changed; each is 
 83. **Text holes call `to_string()`** (answered provisionally): a text hole now calls a class's `to_string()` (`"{ticket}"` works, and
     `"{attribute.class}"` prints the type's name), the way `console.print` does. Keep it, or require the call to
     be written?
-84. **The default of a `type` is an object literal** (manual open question 1): `var row: $row_type = null` bound
+84. **The default of a `type` is an object literal** (open question 1, `docs/open_questions.md`): `var row: $row_type = null` bound
     to `type Target { health: Health }` now holds `{health: Health()}`, whose `.class` answers `Object`. A `type`
     that requires a function has no default object and stays a null pointer that reads defaults. Should that
     case be a compile error naming the field instead?
-## From the Vulkan renderer bugs (manual sections 11, 12, 13, 15 and 17)
+## From the Vulkan renderer bugs (`docs/packages.md`, `docs/style.md`, `docs/compiler.md`, `docs/standard_library.md` and `docs/foreign_libraries.md`)
 
 89. **A loaded package cannot find its own folder at run time.** SlopEngine locates its shader sources by
     reopening `Build` with `var slop_folder = "../../slop"`, a copy of its `load` literal that breaks when the
@@ -218,7 +218,7 @@ Behaviour that does not match the manual. The language was not changed; each is 
     the `Long`'s low 8 bits, and the count is always an `Int`. This is the ordinary argument cast, so it holds
     whatever item 88 decides for arithmetic. Should a narrowing here be an error instead?
 
-## From D114, D115 and D116 (compile-time reflection over functions, folders and names; manual section 8)
+## From D114, D115 and D116 (compile-time reflection over functions, folders and names; `docs/metaprogramming.md`)
 
 98. **The D114 spelling as built**: `$system_type.has_function('run_each')` (a member of `Spite.Class`, folded in
     a condition, answering at run time elsewhere) and `argument: Symbol<$system_type.run_each>` over the
@@ -264,7 +264,7 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 ## From SlopEngine adopting D114-D116
 
-108. **Passing a template's symbol to a helper** (proposed by Claude, unconfirmed; manual section 8). A function
+108. **Passing a template's symbol to a helper** (proposed by Claude, unconfirmed; `docs/metaprogramming.md`). A function
     whose ranged `Symbol<...>` parameter is not a word of its own name, such as `run_combination(phase:
     Symbol<$system_type.phase_each>, combination: Int)`, is now a template reached by passing it the calling
     template's own symbol by name, `run_combination(phase, combination)`, and it is compiled once per symbol
@@ -284,7 +284,7 @@ Behaviour that does not match the manual. The language was not changed; each is 
      compiler -- which functions it calls (`Spawn`, `Insert`, `Remove`), which singletons it touches -- as a
      compile-time reflection like D114's (`function.calls(Spawn)`, or the singletons a function reaches). Wanted?
 
-## From D127 (dates, times and time zones; manual section 15, `docs/time.md`)
+## From D127 (dates, times and time zones; `docs/time.md`)
 
 All of it is proposed by Claude, unconfirmed.
 
@@ -320,7 +320,7 @@ All of it is proposed by Claude, unconfirmed.
      formats files that need not be a program -- `library/`, which no program's compile formats. Keep both, or
      make formatting the library the job of compiling `bootstrap` (which loads it)?
 
-## From building D194 (the file and folder watcher; manual section 15)
+## From building D194 (the file and folder watcher; `docs/standard_library.md`)
 
 166. **What is the watcher called, and are its members right?** Built as `Watcher` (`library/watcher.spite`, with
      `library/<system>/watcher.spite`), proposed by Claude, unconfirmed. D194 asked for a better name than
@@ -333,7 +333,7 @@ All of it is proposed by Claude, unconfirmed.
      has something -- added because `HotReload`'s thread must sleep in the kernel rather than poll `changes()`.
      Keep `wait_for_changes()` public, and should the 100 ms be a constructor argument?
 
-## From building D143 (inspectable and production builds; manual sections 8 and 13)
+## From building D143 (inspectable and production builds; `docs/classes_and_files.md` and `docs/compiler.md`)
 
 142. **Which builds are "production"?** D143 says internals are hidden "at optimized production builds" and
      ordinary in `--repl`, `--repl-port`, `--hot-reload` and `--development` builds. Built (proposed by Claude,
@@ -344,7 +344,7 @@ All of it is proposed by Claude, unconfirmed.
      a plain build be inspectable too, leaving hiding to `--optimized` alone (every ordinary build then allocates
      `Memory` and `Build` and carries unshaken C)?
 
-## From D134 and D135 (the thread pool and join on first use; manual section 15, `docs/concurrency.md`)
+## From D134 and D135 (the thread pool and join on first use; `docs/concurrency.md`)
 
 All of it is proposed by Claude, unconfirmed.
 

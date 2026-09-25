@@ -3,7 +3,7 @@
 Mortaro asked (2026-09-24): "give me a comprehensive list of Go land standard library versus ours, whats missing
 in ours so i decide what we offer". Written by Claude Opus 5.5 from `master` at 7f5600f. Nothing here is decided:
 every "fit" note and every suggestion is **(proposed by Claude, unconfirmed)**. The decisions it cites are in
-`manual.md`'s decision log.
+the decision log, `docs/decisions.md`.
 
 **What Spite has today**, for reference: `library/` holds `File`, `Directory`, `Process`, `Program`, `Console`,
 `Environment`, `Socket`, `Concurrent`, `Parallel`, `Scheduler`, `List<T>`, `Dictionary<T>`, `String` (reopened in
@@ -11,11 +11,11 @@ every "fit" note and every suggestion is **(proposed by Claude, unconfirmed)**. 
 (`library/read_evaluate_print_loop.spite`). `library/spite/` holds the reflection objects (`Spite.Class`,
 `Spite.Function`, `Spite.Argument`, `Spite.Attribute`, `Spite.Namespace`). `library/windows|linux|mac/` reopen those
 classes with the calls into each system's own library (D80). `Memory` and `DynamicLibrary` are the floor the
-compiler emits (manual section 15 "The floor, named", section 17). Only Windows runs; Linux and macOS compile.
+compiler emits (`docs/standard_library.md` "The floor, named", `docs/foreign_libraries.md`). Only Windows runs; Linux and macOS compile.
 
 ## Three things that cut across many packages
 
-1. **Spite has no bit operators.** The operators table (manual section 5) has `+ - * / %`, comparisons, `and`,
+1. **Spite has no bit operators.** The operators table (`docs/functions_and_operators.md`) has `+ - * / %`, comparisons, `and`,
    `or`, `not` -- no and/or/xor/not on bits and no shifts. `library/number_text.spite` gets a `Double`'s bits by
    writing it to `Memory` and reading it back as a `Long`, and `library/windows/directory.spite` tests an attribute
    flag with `% 32 >= 16`. Every hash, checksum, cipher, compressor, UTF-8 decoder, binary encoding and ECS
@@ -141,7 +141,7 @@ unblocks the most packages.
    whether they get symbols at all, or are only functions such as `flags.bits_and(mask)` and `value.shift_left(3)`,
    is the question. **Answered by D117**: functions only -- `shifted_left`, `shifted_right`, `bits_and`, `bits_or`,
    `bits_exclusive_or`, `bits_inverted`, `set_bit_count`, `leading_zero_count`, `trailing_zero_count` on every
-   whole-number class (manual section 4); the directory flag test now uses `bits_and`.
+   whole-number class (`docs/values_and_types.md`); the directory flag test now uses `bits_and`.
 2. **`Memory` completed and a `Bytes` class over it**: reads and writes for every numeric width, `fill`, and a
    growable byte buffer with the `String`-like API. The engine's component storage and every encoding sit on it.
 3. **`math`** as members of the number classes (D83): square root, power, trigonometry, floor/ceiling/round,
