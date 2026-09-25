@@ -86,15 +86,9 @@ manual argues it.
 
 ## From D82, D83, D88, D92, D98, D100 and D101 (the compiler's reopening, numbers, reflection, memory)
 
-28. **A `func` without a body** is how a member the compiler supplies is written, in its reopening and in
-    `--final-classes` (`func allocate_bytes(bytes: Long): Long`); anywhere else it is an error. It borrows the
-    shape a `type` uses for a member without a body. The alternative is a marker of some other kind; say if you
-    want one. Manual section 11, "What the compiler supplies is a reopening too".
 29. **`_` now means private, enforced**: a `_name` is read, written or called only inside its own class. D88
     needed it (otherwise `klass._name = ...` undoes the read-only getters), and section 2 already said `_name` is
     private. Open question 6 (whether `_` means private *and* unused) is still yours.
-30. **`this` in every class**, not only numbers (`registry.append(this)`), with `this.member` an error. D83 said
-    "if needed"; say if it should stay number-only.
 31. **`value.memory` is shadowed by an attribute named `memory`**, and most of the standard library holds
     `var memory = Memory()`. Either rename those attributes (`heap`?) or give the reflection another name.
     Also the names: `Spite.Memory`, its sections `'heap'`, `'stack'`, `'constant'` (`static` is a C word).
@@ -152,37 +146,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
 54. **`allocate_stack_bytes` is removed**, since D108 gives the choice to the compiler and it was a second way to
     allocate. For an ECS that wants control, what stays is the layout: one allocation, offsets, `TypedMemory`.
     Is anything else wanted -- say, a hint that a structure is short-lived, which the compiler may ignore?
-## A function of the caller for each element (D113; manual section 8)
-
-57. **A caller function that needs more than the element** -- `print_statement(statement, depth)`, the typical
-    loop of D94's review (143 of them stay `while`). Nothing is built. Options (proposed by Claude,
-    unconfirmed): (a) leave them as `while`, which is where they are now; (b) the template's own arguments go to
-    the function after the element, so `statements.each_print_statement(depth)` calls
-    `print_statement(statement, depth)` -- no new syntax, and each extra argument is evaluated once before the
-    loop, but `find_by_(value)` already takes an argument, so it would need a rule for which one is the value
-    (say: `find_by_` takes none extra); (c) move `depth` into an attribute so the function takes the element
-    alone, which the review called the esoteric outcome. I would build (b) for `each_` and `map_` first and
-    recount; the loop rule would then also name `statements.each_print_statement(depth)`.
-58. **When the element has a member and the caller a function of the same name**, the call is an error asking to
-    rename one (`'each_is_adult' could call 'is_adult' of each 'Person' or this class's own 'is_adult(Person)'`).
-    You asked for "the element's own member first, then the caller's function, or an error if ambiguous": I chose
-    the error, because with an order a member added to a class later silently changes what an unrelated caller
-    runs (D36's surprise, and D59's one name, one meaning). Keep the error, or let the element's member win?
-59. **The loop rule reaches only what is exactly rewritable**, and today that is 2 loops. It leaves a loop whose
-    function belongs to another object (`evaluator.process_line(lines[index])` in `examples/calculator`): a
-    template calls functions of the caller only. Should `lines.each_process_line()` look at the caller's
-    attributes too (here `evaluator`), or does that stay a `while`?
-
-## Singletons bound to a variable (D110; manual sections 8 and 12)
-
-60. **Where the binding lives**: an attribute ("on top") or a local `var` in a function are both accepted, and
-    the error names the attribute. Locals are what `String` uses for `Memory` (a value class has no attribute to
-    spare) and what an error path uses before `program.exit(1)`. Should a local binding be an error outside
-    value classes, so there is one place for it?
-62. **A number's storage is two lines**: `var memory = Memory()` and `var _memory = memory.allocate_bytes(4)`
-    (it replaced a one-line `Memory().allocate_bytes(4)` form). The binding is never a field of the number. The alternative was to exempt
-    `var _memory = Memory().allocate_bytes(4)` from D110, because the compiler reads that line rather than
-    running it; rejected so the file an AI reads to learn memory shows the bound form. Keep it?
 ## Live reload (D111, D112; manual section 14, "Live reload and 6b")
 
 64. **A changed attribute or enum is refused, with an error saying to restart.** D111 says a change rebuilds "what
@@ -378,35 +341,57 @@ Behaviour that does not match the manual. The language was not changed; each is 
      compiler -- which functions it calls (`Spawn`, `Insert`, `Remove`), which singletons it touches -- as a
      compile-time reflection like D114's (`function.calls(Spawn)`, or the singletons a function reaches). Wanted?
 
+## Zero hidden code (D147)
+
+113. **How Spite names the operations the machine does directly** (reading and writing the value at an address,
+     atomics), so `Memory`'s functions get real Spite bodies and a later backend can replace C. Every language
+     bottoms out here (Zig's `@builtins`, Rust's intrinsics); the choice is only how they are spelled and where
+     they live. Options to react to: (a) a reserved namespace of operations, `Spite.Machine.read_byte(address)`,
+     declared in one library file the backend implements; (b) operators on a pointer-like value type,
+     `address.byte_at(offset)`, where `Address` is a number class whose members the backend lowers; (c) something
+     you have in mind. The rest of the floor (allocation, copying, comparing, loading libraries) becomes plain Spite
+     calling the platform's library through `DynamicLibrary`.
+     *Mortaro (2026-09-25):* likes `Address` only if "the code you see is what you get"; otherwise prefers what the OS
+     offers through `DynamicLibrary`, and needs convincing with limitations and downsides. *Claude's case:* the OS
+     offers memory pages (`VirtualAlloc`/`mmap`), so allocation, freeing, copying and loading libraries can all be
+     visible Spite calling the OS -- at the cost of writing our own small-object allocator in Spite on top of pages.
+     No OS offers "the byte at this address": that is one CPU load instruction. Doing it through a DLL call
+     (`RtlMoveMemory`/`memcpy` per read) works but costs a call per access with no inlining, roughly 5-20x slower
+     on memory-heavy code (zstd, ECS loops, text). `address.byte_at(offset)` is a language primitive in the same
+     sense as `+` on two integers -- one instruction, nothing below it -- that each backend lowers; downsides: it can
+     read a wrong address (so `library/` only), and every backend must implement ~10-15 such operations.
+     Recommendation: OS for pages, libraries and files (with a Spite allocator); `Address` only for loads, stores and
+     atomics.
+
 ## From D127 (dates, times and time zones; manual section 15, `docs/time.md`)
 
-Numbered after 112, since D136, D137 and D140 cite 110 to 112. All of it is proposed by Claude, unconfirmed.
+Numbered after 113, since D136, D137 and D140 cite 110 to 112. All of it is proposed by Claude, unconfirmed.
 
-113. **The names.** `Instant`, `Duration`, `Period`, `LocalDate`, `LocalTime`, `LocalDateTime`, `TimeZone`,
+114. **The names.** `Instant`, `Duration`, `Period`, `LocalDate`, `LocalTime`, `LocalDateTime`, `TimeZone`,
      `TimeZones()` (the database, a singleton) and `TimeText()` (ISO 8601, a singleton). `Local` is the word
      D127 used and the one `java.time` and NodaTime use; the alternatives are Temporal's `PlainDate`/
      `PlainDateTime` (chosen there because "local" reads as "the machine's zone" to some) and jiff's `civil`.
      `TimeText` could also be `Iso8601` (digits in a class name) or live on each type if Spite ever had a way to
      read text into a class without a static function.
-114. **No stored zoned type.** Every design compared has one (`ZonedDateTime`, `Zoned`, `OffsetDateTime`); Spite
+115. **No stored zoned type.** Every design compared has one (`ZonedDateTime`, `Zoned`, `OffsetDateTime`); Spite
      has none, because D127 makes a zone presentation: store the `Instant`, apply the zone when showing it.
      "The same time tomorrow" is then three lines (`to_local`, `+ Period(1, 'days')`, `to_instant`). Keep it out?
-115. **Every `to_instant` names its ambiguity rule**: `'compatible'`, `'earlier'` or `'later'`, with no default.
+116. **Every `to_instant` names its ambiguity rule**: `'compatible'`, `'earlier'` or `'later'`, with no default.
      A `'reject'` (Temporal's fourth value) would make every call answer `Instant?`, so it is left out; a caller
      who must refuse an ambiguous reading compares `'earlier'` with `'later'`. Is the required argument right,
      or should `'compatible'` be the one behaviour with no argument?
-116. **The constructors.** `Instant(since_1970: Duration)`, `Duration(amount, unit)` and `Period(amount, unit)`
+117. **The constructors.** `Instant(since_1970: Duration)`, `Duration(amount, unit)` and `Period(amount, unit)`
      with a unit enum, since Spite has no static functions for `Duration.of_hours(2)`. With no overloading,
      `instant - instant` is the `Duration` between them and going back is `instant + -duration`. A date that
      does not exist (`LocalDate(2023, 2, 29)`) halts, while `TimeText` answers `null` for such text.
-117. **Where zones come from.** The operating system's database: Windows through `icu.dll` (Windows 10 1903 and
+118. **Where zones come from.** The operating system's database: Windows through `icu.dll` (Windows 10 1903 and
      later; its registry zones have Windows names and less history), Linux and macOS through
      `/usr/share/zoneinfo`, read in Spite. Nothing is embedded; `zones.read_tzif(name, data)` takes a TZif file
      a program ships. The Linux and macOS path compiles in `check.sh` but has never run.
-118. **`Clock.unix_milliseconds()` is gone**, replaced by `now(): Instant`; the monotonic `elapsed_*` readings stay.
-119. **Reading text is lenient where RFC 3339 is**: `t` or a space for `T`, `z` for `Z`, `,` before a fraction, a
+119. **`Clock.unix_milliseconds()` is gone**, replaced by `now(): Instant`; the monotonic `elapsed_*` readings stay.
+120. **Reading text is lenient where RFC 3339 is**: `t` or a space for `T`, `z` for `Z`, `,` before a fraction, a
      leap second read as the second before it, and an RFC 9557 `[zone]` after an offset read and ignored. Writing
      is always the one form. Stricter instead?
-120. **`far` and `near` are not in the C-reserved list**, but `windows.h` defines them as macros, so a local named
+121. **`far` and `near` are not in the C-reserved list**, but `windows.h` defines them as macros, so a local named
      `far` compiled to broken C (found writing `calendar_math`). Add them, and whatever else `windows.h` defines
      in lower case, to the list item 107 is about?
