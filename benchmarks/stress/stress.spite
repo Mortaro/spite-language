@@ -29,7 +29,7 @@ func spawn_body(index: Integer) {
     positions.insert(entity, Component.Position())
     velocities.insert(entity, Component.Velocity())
     if index % 2 == 0 {
-            healths.insert(entity, Component.Health())
+        healths.insert(entity, Component.Health())
         regenerations.insert(entity, Component.Regeneration())
     }
 }
