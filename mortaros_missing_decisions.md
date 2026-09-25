@@ -365,10 +365,6 @@ All of it is proposed by Claude, unconfirmed.
      with a unit enum, since Spite has no static functions for `Duration.of_hours(2)`. With no overloading,
      `instant - instant` is the `Duration` between them and going back is `instant + -duration`. A date that
      does not exist (`LocalDate(2023, 2, 29)`) halts, while `TimeText` answers `null` for such text.
-119. **Where zones come from.** The operating system's database: Windows through `icu.dll` (Windows 10 1903 and
-     later; its registry zones have Windows names and less history), Linux and macOS through
-     `/usr/share/zoneinfo`, read in Spite. Nothing is embedded; `zones.read_tzif(name, data)` takes a TZif file
-     a program ships. The Linux and macOS path compiles in `check.sh` but has never run.
 120. **`Clock.unix_milliseconds()` is gone**, replaced by `now(): Instant`; the monotonic `elapsed_*` readings stay.
 121. **Reading text is lenient where RFC 3339 is**: `t` or a space for `T`, `z` for `Z`, `,` before a fraction, a
      leap second read as the second before it, and an RFC 9557 `[zone]` after an offset read and ignored. Writing
@@ -376,3 +372,12 @@ All of it is proposed by Claude, unconfirmed.
 122. **`far` and `near` are not in the C-reserved list**, but `windows.h` defines them as macros, so a local named
      `far` compiled to broken C (found writing `calendar_math`). Add them, and whatever else `windows.h` defines
      in lower case, to the list item 107 is about?
+
+## From SlopEngine's system phases (D116)
+
+123. **Limiting a name pattern to a known set.** SlopEngine's private helpers `interact_all(...)` and `drag_all(...)`
+     were matched by `Symbol<$system_type.phase_all>` as phases called "interact" and "drag", with errors far from the
+     cause. Options: let a pattern's hole be constrained to a list the engine owns (`phase` must be one of
+     `App.phases`), so a non-phase `_all` function stays ordinary; or make a function that fits a walked pattern but
+     is not meant as one an error at its declaration; or leave naming discipline to the program.
+
