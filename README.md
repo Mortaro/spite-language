@@ -67,7 +67,8 @@ this order, from a first program to the compiler's internals:
    as functions.
 7. [Control flow](docs/control_flow.md) -- `if`, `while` (the only loop), `switch`.
 8. [Style](docs/style.md) -- the compiler is the formatter and the linter: names, comments, nothing unused.
-9. [Memory](docs/memory.md) -- reference counting, `copy`, `drop`, `Memory`, allocators.
+9. [Memory](docs/memory.md) -- reference counting, `copy`, `drop`, `Memory.Address`, `Memory.Heap` and choosing
+   an allocator.
 10. [Metaprogramming](docs/metaprogramming.md) -- Symbol codegen, generics and codegen values, tree shaking.
 11. [Reflection](docs/reflection.md) -- `Spite.Class`, `Spite.Function`, namespaces, instances.
 12. [Packages](docs/packages.md) -- `load`, namespaces, reopening classes (mods).
@@ -97,10 +98,10 @@ The docs say, heading by heading, what is implemented, partial or planned; in sh
 | Enums, unions, shapes (`type`), `value == Class` tests | implemented |
 | Metaprogramming: `Symbol` templates, `Symbol<Class>`, compile-time type tests, fused member-template chains | implemented |
 | Reflection (`Spite.Class`, `Spite.Attribute`, `Spite.Function`, `Spite.Namespace`), read-only | implemented |
-| Memory: reference counting, `Memory` (heap and stack), `TypedMemory`, tree-shaken output | implemented |
+| Memory: reference counting, the `Memory` namespace (`Memory.Address`, `Memory.Heap`, `Memory.Arena`), an allocator per object, `TypedMemory`, tree-shaken output | implemented; `Vector<T>` and `Memory.Frame` planned |
 | `Build` (compile time) and `Environment` (run time), the visible launcher | implemented |
-| Standard library in Spite: `String`, `List`, `Dictionary`, `Json<T>`, `File`, `Directory`, `Process`, `Program`, `Console`, `Socket` | implemented |
-| Concurrency: `Concurrent` (compile-time state machines, hidden async IO) and `Parallel` (threads) | implemented on Windows; `Parallel` safety rules open |
+| Standard library in Spite: `String`, `List`, `Dictionary`, `Json<T>`, `File`, `Directory`, `Watcher`, `Process`, `Program`, `Console`, `Socket`, time (`Instant`, `Date`, `TimeZones`) | implemented |
+| Concurrency: `Concurrent` (compile-time state machines, hidden async IO) and `Parallel` (the thread pool), singletons made safe by the compiler | implemented on Windows; checking what a `Parallel` function reaches is not built |
 | Foreign libraries (`DynamicLibrary`), one folder per operating system | implemented; Linux and macOS folders compile but have never run |
 | REPL: `--repl`, `--repl-port`, `spite connect`; live reload (`--hot-reload`) | implemented; live reload runs on Windows ([docs/repl.md](docs/repl.md)) |
 | Self hosting | done: the compiler is Spite, and the only hand-written C is `bootstrap/source/generation/prelude.spite` |

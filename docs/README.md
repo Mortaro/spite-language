@@ -28,7 +28,7 @@ reads it best (`func`, `var`, `name: Type`, `#` comments). The code is Spite thr
 - Compilation speed and live reload matter more than anything else in the toolchain.
 - Spite compiles to C (later possibly LLVM). The compiler is written in Spite and compiles itself,
   and the standard library follows it: the hand-written C runtime is a bootstrapping stage, not the design (D14,
-  [Pure Spite](standard_library.md#pure-spite-dissolving-the-runtime--planned)).
+  [Pure Spite](standard_library.md#pure-spite-dissolving-the-runtime--partial)).
 
 ## Reading order
 
@@ -57,8 +57,8 @@ Read them in this order the first time; each page assumes the ones before it.
    placement, allocators, `TypedMemory`, and writing your own container.
 10. [metaprogramming.md](metaprogramming.md) -- Symbol codegen, templates over another class, the plural walk,
     generics, codegen values and compile-time type tests, tree shaking.
-11. [reflection.md](reflection.md) -- `Spite.Class`, `Spite.Function`, namespaces, instances, class-level
-    functions; read-only by design.
+11. [reflection.md](reflection.md) -- `Spite.Class`, `Spite.Function`, namespaces, instances, the functions of
+    `Spite.Class`; read-only by design.
 12. [packages.md](packages.md) -- `load`, namespaces, reopening classes (mods), the reserved `Spite` namespace.
 13. [concurrency.md](concurrency.md) -- `Concurrent` and `Parallel`, and waiting without `async`/`await`.
 
