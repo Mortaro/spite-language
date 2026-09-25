@@ -587,3 +587,11 @@ All of it is proposed by Claude, unconfirmed.
 191. **A program's `target_operating_system`.** Built as an error naming the flag. The alternative is letting a
      program's `build.spite` choose its default target, which needs `Build` read before the launcher picks
      `library/<system>`.
+192. **D179, how strict.** Built as: a `Parallel(work)` may not reach an attribute holding a list or an object,
+     even one only its own instance holds (a `Pump`'s own buffer list), since the compiler cannot tell owned from
+     shared; `Lock` and `ThreadLocal` are allowed as made-to-share. Loosen it to "its own instance's attributes of
+     any type" (which admits a shared `Meter`), or keep it strict?
+193. **`first()`/`last()` as `T?`.** Built, by the same argument as `[]` (a missing element is a normal outcome, D199).
+     `remove_first()`/`remove_last()` still answer the default on an empty list; make them `T?` too?
+194. **`Weak<T>` across threads.** A `Weak` read on one thread while another frees the object is a race today;
+     the table has no lock. Guard it in a program that uses `Parallel`, or forbid a `Weak` a `Parallel` reaches?

@@ -134,7 +134,7 @@ func is_alive(): Boolean {
   it. Arithmetic is done in the left side's type, so write the wider operand first: `total * count` with a `Long`
   `total`, never `count * total`, which is an error (so is an `Integer` plus a `Float`); a literal on the right that
   fits is fine. A constant that overflows `Integer` (`65536 * 65536`) is an error: write the number. Comparisons are
-  not checked and still cast the right side toward the left. A value that does not fit wraps.
+  not checked and still cast the right side toward the left. A value that does not fit wraps. A whole number divided by zero (`/` or `%`) halts naming the line, and a divisor written as zero is an error; after `assert divisor != 0` the check is gone. Floats keep infinity and not-a-number.
 - Bits are functions on the whole numbers, never symbols: `value.shifted_left(count)`, `shifted_right(count)`
   (arithmetic on a signed type, logical on an unsigned one), `bits_and(mask)`, `bits_or(mask)`,
   `bits_exclusive_or(mask)`, `bits_inverted()`, `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()`.
@@ -142,9 +142,9 @@ func is_alive(): Boolean {
   halts. Do not fake them with `/` and `%` by powers of two.
 - Everything that is not a number, a `Boolean` or an enum value is a reference: passing, assigning and storing share
   the same object. `copy()` copies one level, `deep_copy()` all the way down. `drop()` runs when the last reference
-  goes. Two objects that refer to each other leak: clear one side.
+  goes. Two objects that refer to each other leak: hold the back reference as a `Weak<T>` (`get()` is a `T?`, `null` once the object is freed), or clear one side.
 - `List<T>`: `[1, 2, 3]`, `append`, `prepend`, `insert`, `remove_at`, `remove_last`, `remove_first`, `first`,
-  `last` (both the default on an empty list), `count`, `contains` (elements that are numbers, `Boolean`, `String`
+  `last` (both a `T?`, `null` on an empty list, like `[]`: `var first = names.first()` then `crash first`), `count`, `contains` (elements that are numbers, `Boolean`, `String`
   or an enum only: on a list of a class use `any(f)` or `find_by_<member>`), `is_empty`, `clear`, `reverse`,
   `join` (text, numbers, `Boolean` and enum values all join), never `add` or `pop`, `list[index]` (a `T?`: out of range gives nothing -- `crash names[index]` narrows it like a path,
   and so does `crash glyphs[code - 32]`, or any index with no call in it, with no copy into a local first;
@@ -313,13 +313,14 @@ as `var console = Console()`.
 `Concurrent(function)` runs a function as a compile-time state machine and `Parallel(function)` on the thread pool: the handle stands
 in for what the function returns and reading it is the wait (there is no `.wait()`: `an Integer has no function
 'wait'`), `finished` answers without waiting, and dropping the handle waits for it. A `parallel_each_<member>()`
-member may read only its own element's plain values; anything else is an error naming the attribute. There is no `async`/`await`: a function
+member may read only its own element's plain values, and a `Parallel(f)` only its own instance's plain values, its locals, singletons, a `Lock` or a `ThreadLocal`; anything else is an error naming the attribute. There is no `async`/`await`: a function
 that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can
 run ([concurrency.md](concurrency.md)).
 `Json(value).write(): String` writes JSON and `Json<T>(null)` reads it (`read(text): T?`,
 `read_or_crash(text): T`), for any class, list, dictionary, enum, number, `Boolean`, `String` or `T?`; `read` skips unknown keys, keeps defaults for
 missing ones, and is `null` on a value of the wrong kind; a `Symbol` reads back only as a name the program already
-uses. A union, a `type` (`Anything` included) or a function value anywhere in what `Json` sees is a compile error
+uses. Writing a `Float` or `Double` that is infinity or not-a-number crashes naming the attribute (`'Order.price'
+is infinity, which JSON cannot hold`): check the number first if `null` is wanted. A union, a `type` (`Anything` included) or a function value anywhere in what `Json` sees is a compile error
 at the line that makes the `Json` (`Json cannot write or read 'Owner': 'Owner.pet' is the union Pet, ...`):
 keep what `Json` sees to the kinds above ([json.md](json.md)).
 Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(Duration(1710054000, 'seconds'))`.
