@@ -5,10 +5,13 @@ var slot_names = List<String>()
 var slot_positions = List<Int>()
 var waiting = List<Int>()
 var in_comment = false
+var watched_names = List<String>()
+var first_watched = -1
 
 func shake(roots: String, body: String): String {
     split_pieces(body)
     keep_named_in(roots)
+    watch_names()
     var index = 0
     while index < pieces.count() {
         var name = piece_names[index]
@@ -26,7 +29,7 @@ func shake(roots: String, body: String): String {
     }
     var result = List<String>()
     index = 0
-    while index < kept.count() {
+    while index < kept.count() and (first_watched < 0 or index < first_watched) {
         if kept[index] {
             var piece = pieces[index]
             crash piece
@@ -35,6 +38,36 @@ func shake(roots: String, body: String): String {
         index = index + 1
     }
     return result.join("\n")
+}
+
+func watch_names() {
+    first_watched = pieces.count()
+    var index = 0
+    while index < watched_names.count() {
+        var name = watched_names.get_at(index)
+        var name_length = name.length()
+        if find_function(name, 0, name_length) < 0 {
+            var pieces_count = pieces.count()
+            add_function(name, pieces_count)
+            pieces.append("")
+            piece_names.append(name)
+            kept.append(false)
+        }
+        index = index + 1
+    }
+}
+
+func kept_watched_names(): List<String> {
+    var result = List<String>()
+    var index = 0
+    while index < watched_names.count() {
+        var name = watched_names.get_at(index)
+        if is_kept_name(name) {
+            result.append(name)
+        }
+        index = index + 1
+    }
+    return result
 }
 
 func kept_prototypes(prototypes: String): String {

@@ -60,6 +60,14 @@ compiled and checked, so a mistake in it is still reported ([D140](../manual.md#
 binary. **Built** (the tree shaker and `--development` rows of the [decision log](../manual.md#decision-log),
 2026-09-24).
 
+The same pass decides which native symbols are looked up. A `DynamicLibrary` looks up every symbol the program
+calls when it opens, and a symbol is now looked up only when a function that calls it survived the shaking: a
+program that never uses `Watcher` does not look up `ReadDirectoryChangesW`, though `library/windows/watcher.spite`
+opens the same `kernel32.dll` as `Program.sleep`. **What you notice.** Fewer allocations under `--debug_memory`,
+since each lookup made two short-lived strings (`conformance/stage6/singleton_counts` went from 133 to 53), and a
+missing symbol that only unused code names no longer stops the program when the library opens. `--development`
+builds still look up every symbol. **Built** (2026-09-25, with `Watcher`; proposed by Claude, unconfirmed).
+
 ### Deciding conditions at compile time
 
 **What it does.** A condition the compiler can answer while compiling is answered then, and only the branch taken

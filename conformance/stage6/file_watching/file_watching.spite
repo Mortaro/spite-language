@@ -1,0 +1,45 @@
+var console = Console()
+var program = Program()
+
+func FileWatching() {
+    var folder = Directory(".spite-cache/file_watching")
+    var inner = Directory("{folder.path}/inner")
+    folder.create()
+    inner.create()
+    var note = File("{folder.path}/note.txt")
+    var deep = File("{inner.path}/deep.txt")
+    note.remove()
+    deep.remove()
+    var watcher = Watcher()
+    var watching = watcher.watch(folder.path)
+    console.print("watching", watching)
+    note.write("first")
+    note.append(", second")
+    deep.write("deep")
+    var changed = settled_changes(watcher)
+    var saw_note = changed.contains(note.path)
+    var saw_deep = changed.contains(deep.path)
+    console.print("note.txt changed", saw_note)
+    console.print("inner/deep.txt changed", saw_deep)
+    var path_count = changed.count()
+    console.print("paths", path_count)
+    var again = watcher.changes()
+    var again_count = again.count()
+    console.print("paths from a second call", again_count)
+}
+
+func settled_changes(watcher: Watcher): List<String> {
+    var changed = watcher.changes()
+    var tries = 0
+    while changed.count() < 2 and tries < 250 {
+        program.sleep(20)
+        var more = watcher.changes()
+        var index = 0
+        while index < more.count() {
+            changed.append(more[index])
+            index = index + 1
+        }
+        tries = tries + 1
+    }
+    return changed
+}

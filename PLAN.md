@@ -287,6 +287,13 @@ and balanced allocations.
     and checks both paths keep its state. **Not done:** Linux and macOS are only compiled; instance migration,
     reflection that follows reloads, and compiling off the program's thread wait on
     `mortaros_missing_decisions.md` 64-69.
+26. **Done on Windows (2026-09-25): D194, the standard library's file and folder watcher** (manual.md section 15,
+    "System classes"; `docs/standard_library.md`, "Watch files and folders"). `Watcher` watches a file or a folder
+    tree through `ReadDirectoryChangesW`, `inotify` or `kqueue`, and `changes()` answers the settled paths without
+    waiting; live reload's watcher is now `Watcher` (the per-system `hot_reload.spite` files are gone). With it, a
+    `DynamicLibrary` looks up only the symbols of functions that survive tree shaking. Tested by
+    `conformance/stage6/file_watching` and `check.sh`'s live reload step. **Not done:** Linux and macOS are only
+    compiled; the name waits on `mortaros_missing_decisions.md` 143.
 
 ## Later, deliberately deferred
 

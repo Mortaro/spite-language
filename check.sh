@@ -282,8 +282,13 @@ for operating_system in windows linux mac; do
     echo "FAILED: time zones do not compile with library/$operating_system"; exit 1; }
   "$CC_BIN" -fsyntax-only -w "$work/zones_$operating_system.c" 2> "$work/c_errors.txt" || {
     echo "FAILED: the time zone C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
+  # The compiler never watches files, so a program that does is written out too: each system asks its own kernel.
+  "$work/generation_two.exe" conformance/stage6/file_watching --run=false --c_source --c_path="$work/watching_$operating_system.c" --target_operating_system=$operating_system || {
+    echo "FAILED: Watcher does not compile with library/$operating_system"; exit 1; }
+  "$CC_BIN" -fsyntax-only -w "$work/watching_$operating_system.c" 2> "$work/c_errors.txt" || {
+    echo "FAILED: the Watcher C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
 done
-echo "operating systems: the compiler and a time zone program compile with the windows, linux and mac library folders"
+echo "operating systems: the compiler, a time zone program and a file watching program compile with the windows, linux and mac library folders"
 
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
 # already in the one style, so formatting it changes nothing. `spite format --check` lists every file that would

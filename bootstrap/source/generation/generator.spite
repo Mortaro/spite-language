@@ -9711,14 +9711,17 @@ func emit_foreign_libraries() {
             "DynamicLibrary* made = DynamicLibrary___make({owned_c_text(foreign_library_files[library])}, {ensure_symbol(foreign_library_namings[library])}, {owned_c_text(foreign_library_headers[library])});",
         )
         lines.append("{accessor}_tracked = spite_singleton_tracked();")
+        lines.append("(void)&DynamicLibrary_find_symbol;")
         var index = 0
         while index < foreign_symbol_names.count() {
             crash index < foreign_symbol_libraries.count()
             crash index < foreign_symbol_wanted.count()
             if foreign_symbol_libraries[index] == library {
-                lines.append(
+                var binding = builder.add_binding(
+                    "spite_foreign_{library}_{index}",
                     "spite_foreign_{library}_{index} = (void*)(intptr_t)DynamicLibrary_find_symbol(made, {owned_c_text(foreign_symbol_names[index])}, {owned_c_text(foreign_symbol_wanted[index])});",
                 )
+                lines.append(binding)
             }
             index = index + 1
         }

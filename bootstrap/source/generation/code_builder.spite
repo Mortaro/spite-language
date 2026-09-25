@@ -5,6 +5,8 @@ var user_bodies = List<String>()
 var main_lines = List<String>()
 var slot_lines = List<String>()
 var slot_names = List<String>()
+var binding_names = List<String>()
+var binding_lines = Dictionary<String>()
 var shakes = true
 var threads = false
 var hot_reload = false
@@ -111,11 +113,16 @@ func render(): String {
     var main_function = main_text.join("\n")
     var typedef_text = typedefs.join("\n")
     var prototype_lines = prototypes.join("\n")
-    var bodies = bodies_text()
+    var bodies = unbound_bodies_text()
     if shakes {
         var shaker = TreeShaker()
+        shaker.watched_names = binding_names
         bodies = shaker.shake("{typedef_text}\n{main_function}", bodies)
         prototype_lines = shaker.kept_prototypes(prototype_lines)
+        var kept_bindings = shaker.kept_watched_names()
+        bodies = bound(bodies, kept_bindings)
+    } else {
+        bodies = bound(bodies, binding_names)
     }
     var threads_line = ""
     if threads {
@@ -132,5 +139,44 @@ func render(): String {
 }
 
 func bodies_text(): String {
+    var unbound = unbound_bodies_text()
+    return bound(unbound, binding_names)
+}
+
+func unbound_bodies_text(): String {
     return "{support_bodies.join("\n")}\n{user_bodies.join("\n")}"
+}
+
+func add_binding(name: String, line: String): String {
+    binding_names.append(name)
+    binding_lines[name] = line
+    return "/*spite_binding {name}*/"
+}
+
+func bound(text: String, kept_names: List<String>): String {
+    if binding_names.is_empty() {
+        return text
+    }
+    var parts = text.split("/*spite_binding ")
+    var result = List<String>()
+    var index = 0
+    while index < parts.count() {
+        var part = parts.get_at(index)
+        if index == 0 {
+            result.append(part)
+        } else {
+            var end = part.index_of("*/")
+            var name = part.slice(0, end)
+            var part_length = part.length()
+            var rest = part.slice(end + 2, part_length)
+            var line = binding_lines[name]
+            if line and kept_names.contains(name) {
+                result.append("{line}{rest}")
+            } else {
+                result.append(rest)
+            }
+        }
+        index = index + 1
+    }
+    return result.join("")
 }

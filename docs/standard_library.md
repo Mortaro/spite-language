@@ -20,6 +20,7 @@ reopen the classes each system does differently, and the launcher loads the one 
 | `List<T>`, `Dictionary<T>` | containers, and the member templates | [collections.md](collections.md) |
 | `Console` | the terminal: print, read a line | [below](#console) |
 | `File`, `Directory` | files and folders | [below](#read-and-write-a-file) |
+| `Watcher` | the paths that changed under a file or a folder, told by the operating system | [below](#watch-files-and-folders) |
 | `Process` | run another program | [below](#run-a-process) |
 | `Program` | this program: exit, sleep, environment variables | [below](#program) |
 | `Clock` | elapsed time for measuring, and the wall clock | [below](#clock) |
@@ -165,6 +166,66 @@ file .spite-cache/documentation_walk/top.txt
 ```
 
 Folders come first, then files, each sorted by name, and `.` and `..` are never listed.
+
+## Watch files and folders
+
+`Watcher()` is told by the operating system which paths changed, so nothing reads the disk over and over
+(D111, D194; the name is proposed and not yet confirmed, [`mortaros_missing_decisions.md`](../mortaros_missing_decisions.md)
+asks):
+
+| Member | Result | Notes |
+|---|---|---|
+| `watch(path)` | `Bool` | a file, or a folder with everything below it; `false` when there is nothing there to watch |
+| `changes()` | `List<String>` | never waits: the paths changed since the last call, each once, or none |
+| `wait_for_changes()` | | blocks this thread until `changes()` has something to answer |
+
+A change is reported once the watcher has seen none for 100 ms, so a burst -- a save that writes a file in pieces,
+a checkout that touches a hundred -- comes back as one list, each path once, in the order they first changed.
+Each path is the watched path joined with what is below it, with `/` between. A folder is reported when it is
+created, removed or renamed, not when what is inside it changes: the files inside are reported instead. The
+100 ms are counted from when the watcher sees the change, which is in a call, so a program that calls `changes()`
+once a frame sees a save about 100 ms after it happened.
+
+```gdscript title=watch_folder/watch_folder.spite entry
+var console = Console()
+var program = Program()
+
+func WatchFolder() {
+    var folder = Directory(".spite-cache/documentation_watch")
+    folder.create()
+    var watcher = Watcher()
+    watcher.watch(folder.path)
+    File("{folder.path}/level.txt").write("three goblins")
+    var changed = watcher.changes()
+    var tries = 0
+    while changed.is_empty() and tries < 250 {
+        program.sleep(20)
+        changed = watcher.changes()
+        tries = tries + 1
+    }
+    var changed_paths = changed.join(", ")
+    console.print("changed:", changed_paths)
+    var again = watcher.changes()
+    var again_count = again.count()
+    console.print("changed since:", again_count)
+}
+```
+```output
+changed: .spite-cache/documentation_watch/level.txt
+changed since: 0
+```
+
+`changes()` suits a program that already runs a loop, a game once a frame, a tool between steps. A thread with
+nothing else to do calls `wait_for_changes()` and then `changes()`, which is what `--hot_reload` does
+([repl.md](repl.md#how-it-works)); on the program's main thread it would stop everything else, `Concurrent` work
+included, until something changes.
+
+Each system's folder asks its own kernel: `ReadDirectoryChangesW` on the folder, with its sub-folders, on Windows;
+an `inotify` watch on each folder on Linux, adding one for each new folder; and a `kqueue` entry on each file and
+folder on macOS, adding new files when their folder changes. A file is watched through its folder on Windows and
+Linux, so a save that replaces the file is still seen. Nothing of it is in a program that never calls `Watcher()`:
+not the code, and not the lookups of the system's functions ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)).
+Linux and macOS are held to compiling by `check.sh`; only Windows runs today.
 
 ## Run a process
 
