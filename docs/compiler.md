@@ -159,8 +159,10 @@ and the reflection it walks, and `--hot-reload` a slot per function and a file w
 page.
 
 The compiler hands the C it writes to the command in the `CC` environment variable when it is set; otherwise to the
-first of `cc`, `clang` and `gcc` that runs. `bin/spite` sets `CC` itself, to `SPITE_CC` when that is set and
-otherwise to the first of `cc`, `clang` and `gcc` on the `PATH`, or the clang inside Visual Studio on Windows:
+first of `cc`, `clang` and `gcc` that runs. `bin/spite` keeps a `CC` that is already set, and uses it to build
+the compiler from the seed too; otherwise it sets `CC` to `SPITE_CC` when that is set (one executable, spaces in
+its path allowed, which wins over `CC`), else to the first of `cc`, `clang` and `gcc` on the `PATH`, or the clang
+inside Visual Studio on Windows:
 
 ```bash
 SPITE_CC=clang spite game --optimized
@@ -352,7 +354,7 @@ compiler reads the launcher, the library, the program's folder, its `build.spite
 any option, and then decides what to produce from the program's resolved `Build`, so a program's own `build.spite`
 can set every option. The one exception is `target_operating_system`, which the launcher needs to know which
 folder of `library/` belongs to the program, so it is read from the flag alone: a `var target_operating_system`
-in a program's `build.spite` is overridden without a word today, which `mortaros_missing_decisions.md` asks about.
+in a program's `build.spite` is an error naming the flag ([programs.md](programs.md#build-settings-build--implemented)).
 The outputs are `Boolean` fields -- `run` (default `true`: build the executable and run it), `executable` (build it
 without running), `c_source` (write the C) -- and `final_classes`, which stays the folder to write to (`""` is
 off), since any folder inside the program would be read back as part of it. With every output off the compiler
@@ -375,8 +377,8 @@ before any output is written.
 - **Final classes** are described in full [above](#inspect-merged-classes): a program, not a report.
 - The C compiler is the command in `CC` (it may carry arguments), or else the first of `cc`, `clang` and `gcc`
   that runs; none found is `error: no C compiler found. Set the CC environment variable to the command that
-  compiles C (for example CC=clang), or install cc, clang or gcc`. `bin/spite` exports `CC` itself, from `SPITE_CC`
-  or the first compiler it finds.
+  compiles C (for example CC=clang), or install cc, clang or gcc`. `bin/spite` keeps a `CC` already set, and
+  otherwise exports it from `SPITE_CC` or the first compiler it finds; `SPITE_CC` wins over `CC`.
 
 ### Flags and settings
 
@@ -388,7 +390,9 @@ before any output is written.
   never touched. The readings below are **(proposed by Claude, unconfirmed)**: the rule covers the compiler's flags
   before the `--`, and every message that names a flag names the kebab form; a program's run-time settings after
   the `--`, read by `Environment` when the program runs, keep their field's own spelling for now
-  (`-- --player_name=x`), since translating them is a question of its own (`mortaros_missing_decisions.md`).
+  (`-- --player_name=x`), since translating them is a question of its own (`mortaros_missing_decisions.md`), and
+  the kebab form of a declared setting stops the program naming the field's spelling rather than being ignored
+  ([programs.md](programs.md)).
 - Before the `--`, a `--name=value` sets the `Build` field of that name, and is written into the build as a
   constant. One that names no field is an error that shows both places a setting can belong
   (`diagnostics/unknown_compiler_flag`): `error: '--serve' is not a compiler option, and this program's Build
@@ -396,8 +400,9 @@ before any output is written.
   program's build.spite with 'var serve = ...'; to read it when the program runs, declare it in environment.spite
   and give it after '--': spite program -- --serve=value`. One that names a field of `Environment` says to give it
   after the `--` (`diagnostics/environment_setting_to_compiler`).
-- A value that does not fit the field is an error naming the forms it takes, such as `'--optimized=maybe' was given
-  to the compiler, but 'Build.optimized' is a Boolean: --optimized, --optimized=true or --optimized=false`.
+- A value that does not fit the field is an error naming the flag and the forms it takes, and no file position,
+  since the mistake is on the command line: `error: '--optimized=maybe' was given to the compiler, but
+  'Build.optimized' is a Boolean: --optimized, --optimized=true or --optimized=false` (`diagnostics/flag_value`).
   `--repl-port` takes 1 to 65535: `error: --repl-port takes a port number from 1 to 65535: spite program
   --repl-port=4000`. `--target-operating-system` takes `windows`, `linux` or `mac`: `error:
   '--target-operating-system=beos' names no operating system the library has a folder for: windows, linux or mac`.

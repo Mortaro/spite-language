@@ -588,6 +588,23 @@ func failure(message: String): DiscoveryResult {
     return DiscoveryResult(empty, "", true, message)
 }
 
+func is_program_path(path: String): Boolean {
+    return not path.is_empty() and not path.starts_with("library/")
+}
+
+func overrides_platform(variable: Syntax.Statements.VariableDeclaration): Boolean {
+    assert is_platform_setting(variable.name) and is_program_path(variable.source_path)
+    crash variable.value
+    var reader = literal_reader(variable.value)
+    assert not reader.is_empty()
+    var declared = literal_text(variable.value)
+    return not declared.is_empty() and declared != supplied_settings[variable.name]
+}
+
+func is_platform_setting(name: String): Boolean {
+    return name == "target_operating_system" or name == "operating_system"
+}
+
 func is_platform_folder(name: String): Boolean {
     return name == "windows" or name == "linux" or name == "mac"
 }
@@ -878,6 +895,11 @@ func hardcode_build(build: Syntax.SourceFile): List<String> {
                 error_message = "{variable.source_path}:{variable.line}: error: 'Build.format' cannot be declared: every compile formats the program's own files first, and nothing turns that off. To format files without compiling them: spite format file_or_folder"
                 return declared
             }
+            if overrides_platform(variable) {
+                has_error = true
+                error_message = "{variable.source_path}:{variable.line}: error: 'Build.{variable.name}' cannot be declared by a program: the standard library for the target system is loaded before the program, so the target is given to the compiler, --target-operating-system=linux (or windows, or mac), and is the system doing the compiling otherwise"
+                return declared
+            }
             declared.append(variable.name)
             var reader = setting_reader(variable, "Build", build.path)
             variable.hardcoded_value = variable.value
@@ -911,6 +933,9 @@ func read_environment(environment: Syntax.SourceFile): List<String> {
     if has_error or readings.is_empty() {
         return declared
     }
+    var first_reading = readings.first()
+    var check = spelling_check(declared, first_reading)
+    readings.insert(0, check)
     var constructor = environment_constructor(environment)
     var body_index = 0
     while body_index < constructor.body.count() {
@@ -919,6 +944,20 @@ func read_environment(environment: Syntax.SourceFile): List<String> {
     }
     constructor.body = readings
     return declared
+}
+
+func spelling_check(declared: List<String>, first_reading: Syntax.Statements.Statement): Syntax.Statements.Statement {
+    var names = List<Syntax.Expressions.Expression>()
+    var index = 0
+    while index < declared.count() {
+        names.append(Syntax.Expressions.StringLiteralExpression(declared[index]))
+        index = index + 1
+    }
+    var checker = Syntax.Expressions.IdentifierExpression("reject_misspelled_settings")
+    var call = Syntax.Expressions.CallExpression(checker, names)
+    var check = Syntax.Statements.ExpressionStatement(call)
+    check.line = line_of(first_reading)
+    return check
 }
 
 func class_file_named(qualified_name: String): Syntax.SourceFile? {

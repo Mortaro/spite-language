@@ -366,7 +366,12 @@ What follows is how it is built (proposed by Claude, unconfirmed):
   read.
 - **A setting's flag is spelled like its field**, `--worker_count=4` for `var worker_count = 1`: D188's
   kebab-case covers the compiler's flags, and whether settings after `--` follow it is open
-  (`mortaros_missing_decisions.md` item 153). `--worker-count=4` is not read today; it is left to `Arguments`.
+  (`mortaros_missing_decisions.md` item 153). Until that is decided, `--worker-count=4` for a declared
+  `worker_count` stops the program as it reads its settings, before anything else runs: `error: '--worker-count'
+  is written '--worker_count': a program's setting is spelled like its field, Environment.worker_count, so
+  '--worker-count' would be ignored`, exit code 1 (proposed by Claude, unconfirmed; `conformance/stage6/kebab_setting`).
+  A kebab-case argument that names no setting is still left to `Arguments`. The check is one pass over the
+  arguments when `Environment` is first made, and only in a program that declares a setting.
 - **The default's literal is the type.** A setting is declared with nothing but a literal default: `false`/`true`
   is a `Boolean`, a whole number (negative too) an `Integer`, `""` a `String`. A type annotation, or any other
   default, is a compile error naming the three forms: `'Environment.workers' is a setting, read from the
@@ -413,9 +418,13 @@ where a decision is named):
   and a `format` field in a program's `build.spite` are compile errors (`diagnostics/format_flag`,
   `diagnostics/format_setting`).
 - **`target_operating_system` comes from the flag alone**: the launcher needs it to know which library folder is
-  part of the program before reading the rest. A `var target_operating_system = ...` in a program's
-  `build.spite` is silently overridden today; whether it should be an error is open
-  (`mortaros_missing_decisions.md`).
+  part of the program before reading the rest. A `var target_operating_system = ...` (or `operating_system`) in
+  a program's `build.spite` naming another system than the one the compile decided is an error naming the flag
+  (one naming the same system, as `--final-classes` prints every `Build` field, is accepted): `'Build.target_operating_system' cannot be declared by a
+  program: the standard library for the target system is loaded before the program, so the target is given to
+  the compiler, --target-operating-system=linux (or windows, or mac), and is the system doing the compiling
+  otherwise` (proposed by Claude, unconfirmed; `diagnostics/target_in_build`). The system folders of `library/`
+  still set it.
 - **A `Boolean` may be given bare** (D120): `--optimized` is `--optimized=true`. Any other bare flag is an error
   naming the value it needs.
 - **Nothing passes silently.** A value that is not of the field's type is a compile error: `'--workers=many' was

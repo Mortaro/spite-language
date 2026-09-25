@@ -1,0 +1,1 @@
+this program is meant to stop: a setting given in kebab-case is an error, not ignored

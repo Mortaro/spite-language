@@ -595,7 +595,11 @@ is the mechanism (D176, compile-time state machines); the details below marked s
 - **`Parallel(function)`** (`library/parallel.spite`) runs one on the program's **thread pool** (D135, below), with
   the same reading and join on drop. It is for work that computes.
 - The type is never written: `Concurrent(file.read)` is a `Concurrent<String?>`, worked out from the function's
-  return (see the inference row in the decision log). A function that returns nothing gives a `Concurrent<Nothing>`,
+  return (see the inference row in the decision log). Writing it on the `var` that makes the handle is an error,
+  `the type of a 'Parallel' handle is never written: it is worked out from the function it runs, so write 'var
+  total = Parallel(count)'` (`diagnostics/written_handle_type`); where no function is there to infer from -- the
+  element type of `List<Parallel<Integer>>()`, a parameter -- it is still written (proposed by Claude,
+  unconfirmed: the rule read as covering only the declaration that starts the work). A function that returns nothing gives a `Concurrent<Nothing>`,
   which has no value to read and is waited for by dropping it: keep such handles in a list, and clearing the list
   or leaving its function waits for all of them.
 - **Every attribute of both classes is private** (`_work`, `_results`, `_state`, ...), and the one public member is

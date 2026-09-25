@@ -16,22 +16,26 @@ find_c_compiler() {
     done
 }
 
-compiler="${SPITE_CC:-$(find_c_compiler)}"
-if [ -z "$compiler" ]; then
-    echo "spite: no C compiler found. Set SPITE_CC, or install cc, clang or gcc." >&2
-    exit 1
+# CC, when set, is a command line as the compiler uses it (it may carry arguments), and it wins over the search;
+# SPITE_CC names one executable, spaces allowed, and wins over both.
+if [ -n "$SPITE_CC" ] || [ -z "$CC" ]; then
+    compiler="${SPITE_CC:-$(find_c_compiler)}"
+    if [ -z "$compiler" ]; then
+        echo "spite: no C compiler found. Set CC or SPITE_CC, or install cc, clang or gcc." >&2
+        exit 1
+    fi
+    # The compiler shells out to CC as one string, so a path with spaces needs its short form.
+    case "$compiler" in
+        *\ *) export CC="$(cygpath -d "$compiler" 2>/dev/null || echo "$compiler") -Wno-deprecated-declarations" ;;
+        *)    export CC="$compiler" ;;
+    esac
 fi
-
-# The compiler shells out to CC as one string, so a path with spaces needs its short form.
-case "$compiler" in
-    *\ *) export CC="$(cygpath -d "$compiler" 2>/dev/null || echo "$compiler") -Wno-deprecated-declarations" ;;
-    *)    export CC="$compiler" ;;
-esac
+export CC
 
 if [ ! -x "$binary" ] || [ "$seed" -nt "$binary" ]; then
     echo "spite: building the compiler" >&2
     mkdir -p "$here/.spite-cache"
-    "$compiler" -O2 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$binary" || exit 1
+    $CC -O2 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$binary" || exit 1
 fi
 
 # `spite connect <port> [--command="..."]` talks to a program running with --repl-port; nothing in it is a path.
