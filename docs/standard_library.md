@@ -11,18 +11,27 @@ not parse as a number reads as `0`.
 reopen the classes each system does differently, and the launcher loads the one the program is compiled for
 ([foreign_libraries.md](foreign_libraries.md#each-operating-system-reopens-what-it-changes)).
 
+**A program carries only the classes it uses** ([D177](decisions.md)). The library is part of every program's
+source, but a production build keeps only the C that `main` can reach: a program that never makes a `Watcher`,
+a `Socket`, a `Process` or a `ThreadPool` has none of their code, and none of the operating-system functions only
+they call is looked up when the program starts ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)).
+What a class costs when it is used is what its Spite does, and each section below says where that is more than a
+call. An inspectable build (`--repl`, `--repl-port`, `--hot-reload`, `--development`) keeps everything, so the
+REPL can look at any of it ([D143](decisions.md)).
+
 ## What is in it
 
 | Class | What it is | Page |
 |---|---|---|
 | `String` | immutable text | [below](#string) |
 | `Integer`, `Long`, `Float`, `Double`, `Boolean`, ... | numbers, as classes | [values_and_types.md](values_and_types.md#numbers-are-classes) |
+| `Nothing`, `Anything` | what a function returns when it returns nothing; the empty `type` every class fits | [functions_and_operators.md](functions_and_operators.md#calling-one) |
 | `List<T>`, `Dictionary<T>` | containers, and the member templates | [collections.md](collections.md) |
 | `Console` | the terminal: print, read a line | [below](#console) |
 | `File`, `Directory` | files and folders | [below](#read-and-write-a-file) |
 | `Watcher` | the paths that changed under a file or a folder, told by the operating system | [below](#watch-files-and-folders) |
 | `Process` | run another program | [below](#run-a-process) |
-| `Program` | this program: exit, sleep, environment variables | [below](#program) |
+| `Program` | this program: exit, sleep, environment variables, its own path | [below](#program) |
 | `Clock` | elapsed time for measuring, and the wall clock | [below](#clock) |
 | `Instant`, `Duration`, `Date`, `Time`, `DateTime`, `Period`, `TimeZone`, `TimeZones`, `TimeText` | exact time, the calendar, time zones as presentation, ISO 8601 text | [time.md](time.md) |
 | `Environment`, `Build`, `Arguments` | settings and the command line | [programs.md](programs.md) |
@@ -33,28 +42,46 @@ reopen the classes each system does differently, and the launcher loads the one 
 | `Memory.Address`, `Memory.Heap`, `Memory.Arena`, `TypedMemory<T>` | a place in memory, the allocators that own it, and values of any type there: the floor every other type is built on | [memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it) |
 | `DynamicLibrary` | call a native library | [foreign_libraries.md](foreign_libraries.md) |
 | `Spite.Class`, `Spite.Function`, ... | reflection | [reflection.md](reflection.md) |
+| `Spite.Memory` | where a value lives, `value.memory` | [memory.md](memory.md#where-a-value-lives-memory) |
+
+The other files of `library/` are the machinery these are built from -- `Scheduler` (the event loop under
+`Concurrent`), `HotReload`, `ReadEvaluatePrintLoop`, `AllocationTable` (`--debug-memory`'s table), `NumberText`,
+`JsonReader`, the time-zone readers -- ordinary classes a program can read and the REPL can inspect, which a
+program has no reason to call.
 
 ## `String`
 
 Immutable and reference counted. A value is placed inside written text, `"hello {name}"`, and two values join
 with `+` ([values_and_types.md](values_and_types.md#string)). `==`, `!=`, `<` and `>` compare by content.
 
-| Member | Result | Notes |
-|---|---|---|
-| `length()` / `is_empty()` | `Integer` / `Boolean` | |
-| `slice(start, end)` | `String` | clamped; `""` for an empty or invalid range |
-| `character_at(index)` | `String` | `""` out of range |
-| `code_at(index)` | `Integer` | the byte's value; `0` out of range |
-| `contains(text)` / `starts_with(text)` / `ends_with(text)` | `Boolean` | |
-| `index_of(text)` | `Integer` | `-1` when absent |
-| `replace(from, to)` | `String` | every occurrence |
-| `trim()` / `upper_case()` / `lower_case()` | `String` | |
-| `split(separator)` | `List<String>` | an empty separator splits into single characters |
-| `lines()` | `List<String>` | split on `
-` |
-| `to_integer()`, `to_long()`, `to_double()`, ... | a number | one per number type; `0` when it does not parse |
+No member of a `String` can fail: an index past the end answers `""` or `0`, a range is clamped to the text, a
+search that finds nothing answers `-1`, and text that is not a number converts to `0`. Assigning text to a number
+calls the matching `to_<type>()`, so `var age: Integer = "42"` is `42`. Every member, with what it answers at
+the edges, is in [the rules below](#string--implemented).
 
-Assigning text to a number calls the matching `to_<type>()`: `var age: Integer = "42"` is `42`.
+```gdscript title=string_members/string_members.spite entry
+var console = Console()
+
+func StringMembers() {
+    var line = "  ada, grace, linus  "
+    var names = line.trim().split(", ")
+    var first = names.first()
+    var shouted = first.upper_case()
+    var count: Integer = "3"
+    var missing = line.index_of("barbara")
+    var tail = first.slice(1, 99)
+    var past_end = first.character_at(10)
+    console.print(shouted, count, missing, tail, "[{past_end}]")
+    var file_lines = "one\ntwo".lines()
+    var line_count = file_lines.count()
+    var renamed = line.replace("ada", "Ada").trim()
+    console.print(line_count, renamed)
+}
+```
+```output
+ADA 3 -1 da []
+2 Ada, grace, linus
+```
 
 ## Read and write a file
 
@@ -135,12 +162,17 @@ func ByteRecords() {
 the second record starts at 8 and holds 2222 of 16 bytes
 ```
 
-**Independent reads overlap.** Two or more `var name = file.read()` in a row (or `socket.read_line()`), each on a
-name or an attribute and none naming an earlier one, are started together and all finished before the next
+**Independent reads overlap.** Two or more untyped `var name = file.read()` in a row (or `socket.read_line()`),
+each on a name or an attribute and none naming an earlier one, are started together and all finished before the next
 statement: the compiler starts each but the last as a `Concurrent` of its own, so the program waits once for the
 slowest instead of once per file. Nothing is written for it, and nothing after the reads can see a difference --
 a file written by the next statement is written after every read has finished
-([concurrency.md](concurrency.md#reads-in-a-row-overlap)).
+([concurrency.md](concurrency.md#reads-in-a-row-overlap)). What it costs is what a `Concurrent` costs, a frame on
+the heap for each read but the last and the event loop that finishes them, and only in a program that reads this
+way ([optimizations.md](optimizations.md#concurrency-machinery-only-where-it-is-used)). A read or write of a
+`File`, `console.read_line()`, a `Socket`'s `accept_client()` and `read_line()`, and `program.sleep()` are the
+library's waits: inside a `Concurrent` each lets other work run. Everything else, `Process.run()` included,
+blocks the thread that calls it.
 
 ## List a directory
 
@@ -292,9 +324,17 @@ exit code 0
 output "build finished"
 ```
 
-`arguments` is a `List<String>`, each shell-quoted for you. `output()` is stdout+stderr merged, valid after
-`run()` -- and it includes the child process's own trailing newline, which is why the example above calls
-`.trim()`.
+| Member | Result | Notes |
+|---|---|---|
+| `Process(command, arguments)` | | `arguments` is a `List<String>`, each put in double quotes for you |
+| `run()` | `Integer` | runs it through the system's shell, waits for it and answers its exit code (`-1` when it could not start) |
+| `output()` | `String` | what it wrote to its standard output, valid after `run()` |
+| `run_attached()` | `Integer` | runs it with the program's own terminal, so what it writes and reads is the user's, and answers its exit code |
+
+`output()` includes the child process's own trailing newline, which is why the example above calls `.trim()`.
+What the child writes to its error stream is not captured: it goes to the program's own error stream. `run()`
+is not one of the library's waits: it blocks the thread that calls it, and other `Concurrent` work does not run
+meanwhile ([which calls wait](#read-and-write-a-file)).
 
 ## `Console`
 
@@ -313,8 +353,9 @@ output "build finished"
 `print`, `write` and `error` are ordinary functions in `library/console.spite`, taking
 `...values: List<Printable>`, where `Printable` is a `type` that requires `to_string(): String`. Every number,
 `Boolean`, `String`, `Symbol`, enum value, `Spite.Class` and `Spite.Namespace` answers it, and a class of yours
-prints once it declares `to_string()`. Passing one that does not is a compile error naming `to_string`. Writing
-the characters out is the compiler's part (`_write_output`, `_write_error` and `flush` have no body in Spite).
+prints once it declares `to_string()`. Passing one that does not is a compile error naming `to_string`; a `List`
+or `Dictionary` has none either, so show it with `debug` or `join` it first
+([the exact errors](#system-classes--implemented)).
 
 ```gdscript title=printable_doc/ticket.spite
 var code = ""
@@ -408,15 +449,16 @@ name? no input
 | `exit(code)` | flushes what was printed and ends the process with `code` |
 | `sleep(milliseconds)` | waits; other `Concurrent` work runs meanwhile ([concurrency.md](concurrency.md)) |
 | `environment(name)` | the process environment variable, as a `String?` |
+| `executable_path()` | the path of the running executable, as the operating system gives it |
 | `live_allocations()` | how many allocations are alive, under `--debug-memory` |
 
 The entry constructor returning normally is exit code `0`.
 
 ```gdscript title=program_basics/program_basics.spite entry
 var console = Console()
+var program = Program()
 
 func ProgramBasics() {
-    var program = Program()
     var missing = program.environment("SPITE_DOCUMENTATION_UNSET_VARIABLE")
     if missing {
         console.print("set to", missing)
@@ -467,7 +509,9 @@ waited at least 4 ms: true
 `Socket()` is a TCP connection on `127.0.0.1` and nowhere else, which is what `--repl-port` and `spite connect`
 are written with: `listen_locally(port)`, `accept_client(): Socket?`, `connect_locally(port)`,
 `read_line(): String?`, `write_line(text)` and `close()`. A program that uses it waits in `accept_client` and
-`read_line` the way it waits anywhere, so other `Concurrent` work runs meanwhile. HTTP is not built.
+`read_line` the way it waits anywhere, so other `Concurrent` work runs meanwhile. It is public library surface
+([D126](decisions.md)), and the networking library is to grow from it: HTTP and WebSocket, and TCP and UDP for
+games, none of them built yet.
 
 ## Rules in full
 
@@ -479,36 +523,38 @@ fix. A `D` number is a row of the [decision log](decisions.md).
 
 ### Standard library  **[partial]**
 
-D1 (decided by Mortaro, 2026-09-19): every value below is reference counted, exactly like a user class (section
-10) -- a `String`/`List<T>`/`Dictionary<T>` is freed the moment its last reference goes, not by a single-owner
+D1 (decided by Mortaro, 2026-09-19): every value below is reference counted, exactly like a user class -- a
+`String`/`List<T>`/`Dictionary<T>` is freed the moment its last reference goes, not by a single-owner
 convention. See [Memory](memory.md#memory--implemented) for the retain/release rules and the cycle caveat.
+
+D14 and D177: every class here is Spite in `library/`, compiled with the program, and tree-shaken like the
+program's own code, so a program carries only what it reaches ([Pure Spite](#pure-spite-dissolving-the-runtime--partial)
+says what is still the compiler's).
 
 #### String  **[implemented]**
 
 An immutable value with a length (not a bare `char*`). A literal is static and never allocates; every other
 `String` owns one buffer, freed once by its owner. **Its storage is Spite** (D108; the attribute names and the
-constructor proposed by Claude, unconfirmed): `library/string.spite` declares `_bytes: Long` (the address of the
-characters, from `Memory`, with a 0 after the last), `_length: Long`, `_section: Spite.Memory.Section` (`'heap'`,
-or `'constant'` for a literal) and `_capacity: Long`, the compiler writes the C layout from them, and `length()`,
-`code_at()`, `slice()`, `sum()`, `equals()`, `less_than()`, `greater_than()`, `drop()` (which frees `_bytes`) and
-the in-place append are Spite functions reading them. `String(bytes, length)` makes a `String` that owns `length`
-bytes at `bytes`, which `heap.allocate` handed out with room for one more; it is what an address's `text` and
-`sum` end in, and anything that fills a buffer itself can use it. The right side of `+` casts toward `String` (every numeric
-type, `Boolean`, and enum all format to text -- see [Numeric types](values_and_types.md#numeric-types--implemented-provisional) for
-`Float`/`Double`'s shortest-round-trip printing); assigning a `String` to any numeric variable parses it,
-defaulting to `0`/`0.0` on failure. `==`/`!=`/`<`/`>` compare by content, and ([Operators](functions_and_operators.md#operators--implemented)'s Operators
-table) also work as `equals(other)`/`less_than(other)`/`greater_than(other)`; `+` also works as `sum(other)`.
+constructor proposed by Claude, unconfirmed): `library/string.spite` declares `_bytes: Memory.Address` (the
+characters, from `Memory.Heap`, with a 0 after the last), `_length: Long`, `_section: Spite.Memory.Section`
+(`'heap'`, or `'constant'` for a literal) and `_capacity: Long`, the compiler writes the C layout from them, and
+every member, `drop()` (which frees `_bytes`) and the in-place append are Spite functions reading them
+([memory.md](memory.md#where-string-and-integer-keep-their-memory)). `String(bytes, length)` makes a `String` that
+owns `length` bytes at `bytes`, which `heap.allocate` handed out with room for one more; it is what an address's
+`text` and `sum` end in, and anything that fills a buffer itself can use it. The right side of `+` casts toward
+`String` (every numeric type, `Boolean`, and enum all format to text -- see
+[Numeric types](values_and_types.md#numeric-types--implemented-provisional) for `Float`/`Double`'s
+shortest-round-trip printing); assigning a `String` to any numeric variable parses it, defaulting to `0`/`0.0` on
+failure. `==`/`!=`/`<`/`>` compare by content, and
+([Operators](functions_and_operators.md#operators--implemented)'s table) also work as
+`equals(other)`/`less_than(other)`/`greater_than(other)`; `+` also works as `sum(other)`.
 
-**Building text in a loop is linear** (proposed by Claude, unconfirmed; D36's hidden optimisation, 2026-09-24).
-`text = text + piece`, `text = "{text}{piece}"` and any longer join that starts with the variable it is stored
-back into (`text = "{text}, {name}: {count}"`) append to that text instead of copying it: when the variable is
-the only holder of its `String`, the buffer grows in place, doubling like a `List`'s, and otherwise (a literal,
-or a text another name or a list also holds) it is copied once, with room to grow. So a string shared by two
-names never changes under the other one, and a hundred thousand appends take 0.2 s instead of 7 s. It applies to
-a local variable or parameter of type `String` when no piece mentions that variable (`text = "{text}{text}"`
-copies, as before); an attribute is not appended in place, since a call among the pieces could reach it.
-`conformance/stage6/text_building` pins it: 200 000 appends and the sharing cases allocate 29 times (the `Launcher` included; 32 until `Memory` stopped being an allocation and the digits of a number were placed in the frame, D108), against
-600 044 when every append copied.
+**Building text in a loop is linear** (proposed by Claude, unconfirmed; D36's hidden optimisation). `text = text +
+piece`, `text = "{text}{piece}"` and any longer join that starts with the variable it is stored back into append
+to that text in place when nothing else holds it, and otherwise copy it once with room to grow, so a `String`
+shared by two names never changes under the other one. When it applies and what it saves is
+[optimizations.md](optimizations.md#appending-to-text-in-place)'s; `conformance/stage6/text_building` pins the
+allocation counts.
 
 | Method | Result | Notes |
 |---|---|---|
@@ -527,36 +573,38 @@ copies, as before); an attribute is not appended in place, since a call among th
 | `to_byte()` / `to_unsigned_short()` / `to_unsigned_integer()` / `to_unsigned_long()` | `Byte` / `UnsignedShort` / `UnsignedInteger` / `UnsignedLong` | `0` on a value that does not parse |
 | `to_float()` / `to_double()` | `Float` / `Double` | `0.0` on a value that does not parse |
 | `sum(other)` / `equals(other)` / `less_than(other)` / `greater_than(other)` | `String` / `Boolean` | the explicit call form of `+`/`==`/`<`/`>` |
+| `to_string()` / `to_debug()` | `String` | the text itself / the text quoted, with `"`, `\` and a line feed escaped ([`Console.debug`](#console)) |
 
 #### System classes  **[implemented]**
 
-Built-in classes, resolved and emitted the same way an ordinary `.spite`-file class is, with hand-written bodies
-instead of a parsed one. Portable C underneath (`stdio`/`stdlib`, `_popen`/`popen`, and `#ifdef _WIN32` for
-directory listing and process spawning).
+Ordinary classes in `library/`, each written once for every system, with the few functions that call the system
+in `library/windows/`, `library/linux/` and `library/mac/`, which reopen the class and reach the system's own
+library through `DynamicLibrary` (D73, D80). Only Windows runs today; the Linux and macOS folders are held to
+compiling by `check.sh`. Members whose names are marked proposed below were named by Claude (unconfirmed); what
+each member answers is in the section of this page that teaches it.
 
 | Class | Members |
 |---|---|
-| `File(path)` | `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes (names proposed by Claude, unconfirmed): `size(): Long?`, `modified(): Instant?` (the last write, from `GetFileAttributesExA` or `stat`), `read_bytes(position, count, address): Long?` (how many were read, from any position), `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?` (where they start) -- `null` when the file cannot be opened; each call opens and closes the file; `_fseeki64`/`_ftelli64` on Windows so a position past 2 GB works; `write_from` joins `read_into` among the waiting calls |
-| `Directory(path)` | `path: String`, `entries(): List<Directory.Entry>` (D93: every folder and file inside it, as `Directory` and `File` values whose `path` is joined to this one -- see below), `files(): List<String>` (names, sorted), `folders(): List<String>` (sorted), `exists(): Boolean`, `create(): Boolean` |
-| `Process(command, arguments)` | `run(): Integer` (exit code; `arguments` is a `List<String>`, each shell-quoted), `output(): String` (stdout+stderr merged, valid after `run()`) |
-| `Program()` | `exit(code)`: exits the process immediately with `code` |
-| `Clock()` | a singleton (names proposed by Claude, unconfirmed, 2026-09-24): `elapsed_nanoseconds(): Long` and `elapsed_milliseconds(): Long` from a monotonic clock with an arbitrary start, for measuring; `now(): Instant`, the wall clock as an exact instant (D127, [Time](time.md#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed); it replaced `unix_milliseconds(): Long`). `library/clock.spite` with each system's reading in `library/windows|linux|mac/clock.spite` (`QueryPerformanceCounter`/`GetSystemTimeAsFileTime`, `clock_gettime`) |
-| `Console()` | `print(...values)`, `write(...values)`, `error(...values)`, `flush()`, `read_line(): String?` -- see below |
-| `Watcher()` (D194; the name and the members proposed by Claude, unconfirmed) | `watch(path): Boolean` (a file, or a folder with everything below it; `false` when nothing is there), `changes(): List<String>` (never waits: the paths changed since the last call, each once, in the order they first changed, once the watcher has seen no change for 100 ms), `wait_for_changes()` (blocks the calling thread in the operating system until `changes()` has something) -- `ReadDirectoryChangesW`, `inotify` or `kqueue` from each system's folder, no polling; a folder is reported when created, removed or renamed, not when its contents change; `HotReload` is built on it ([REPL and live reload](repl.md#repl-and-live-reload--partial)) |
-| `Socket()` (proposed by Claude, unconfirmed) | `listen_locally(port): Boolean`, `accept_client(): Socket?`, `connect_locally(port): Boolean`, `read_line(): String?`, `write_line(text): Boolean`, `close()` -- TCP on `127.0.0.1` only, which `--repl-port` and `spite connect` use ([REPL and live reload](repl.md#repl-and-live-reload--partial)) |
-| `Concurrent(function)`, `Parallel(function)` (names decided, D133) | the handle stands in for what the function returned, and reading it is the wait (D134); `finished: Boolean` never waits; dropping the handle waits for it -- see "Concurrency" below |
-| `ThreadPool()` (proposed by Claude, unconfirmed) | the singleton the `Parallel`s run on (D135): `size(): Integer` worker threads, `worker_index(): Integer` (`-1` off the pool) -- see "Concurrency" below |
-| `ThreadLocal<T>()`, `Lock()`, `ThreadSlot()` (proposed by Claude, unconfirmed) | one value per thread: `get(): T?`, `set(value)`; a lock: `while_locked(function)`, `lock()`, `unlock()`; the raw per-thread `Long` both are built on: `read()`, `write(value)` -- see "Concurrency" below |
+| `File(path)` | `path`, `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes (names proposed): `size(): Long?`, `modified(): Instant?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?` -- [Read and write a file](#read-and-write-a-file). A `File` is a path with no open handle: each call opens and closes the file, positions replace seeking (`_fseeki64`/`_ftelli64` on Windows, so a position past 2 GB works), and `modified()` reads `GetFileAttributesExA`'s `ftLastWriteTime` on Windows and `stat`'s modification time on Linux and macOS |
+| `Directory(path)` | `path`, `entries(): List<Directory.Entry>` (D93, below), `files(): List<String>`, `folders(): List<String>`, `exists(): Boolean`, `create(): Boolean` -- [List a directory](#list-a-directory) |
+| `Process(command, arguments)` | `run(): Integer`, `output(): String`, `run_attached(): Integer` (proposed) -- [Run a process](#run-a-process). `run()` reads the child's standard output through `_popen`/`popen`; `run_attached()` is the C library's `system` |
+| `Program()` | a singleton (D121): `exit(code)`, `sleep(milliseconds)`, `environment(name): String?`, `executable_path(): String` (proposed), `live_allocations(): Integer` -- [Program](#program). `exit` flushes `Console` first, since the C library's `exit` would drop what the program's own standard output still buffers |
+| `Clock()` | a singleton (names proposed): `elapsed_nanoseconds(): Long`, `elapsed_milliseconds(): Long`, `now(): Instant` (D127; it replaced `unix_milliseconds(): Long`) -- [Clock](#clock), [Time](time.md#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed) |
+| `Console()` | a singleton (D52): `print(...values)`, `write(...values)`, `error(...values)`, `debug(...values)`, `flush()`, `read_line(): String?` -- [Console](#console), and below |
+| `Watcher()` | D194 (the name and the members proposed; `mortaros_missing_decisions.md` asks for the final name): `watch(path): Boolean`, `changes(): List<String>`, `wait_for_changes()` -- [Watch files and folders](#watch-files-and-folders), which is the rule. `HotReload` is built on it ([REPL and live reload](repl.md#repl-and-live-reload--partial)) |
+| `Socket()` | public library surface (D126; the members proposed): `listen_locally(port): Boolean`, `accept_client(): Socket?`, `connect_locally(port): Boolean`, `read_line(): String?`, `write_line(text): Boolean`, `close()` -- TCP on `127.0.0.1` only, which `--repl-port` and `spite connect` use ([REPL and live reload](repl.md#repl-and-live-reload--partial)) |
+| `Concurrent(function)`, `Parallel(function)` | names decided (D133): the handle stands in for what the function returned, and reading it is the wait (D134); `finished: Boolean` never waits; dropping the handle waits for it; there is no `wait()` and no `join()` -- [concurrency.md](concurrency.md) |
+| `ThreadPool()` | the singleton every `Parallel` runs on (D135, D191; members proposed): `size(): Integer` worker threads, `worker_index(): Integer` (`-1` off the pool) -- [The thread pool](concurrency.md#the-thread-pool) |
+| `ThreadLocal<T>()`, `Lock()`, `ThreadSlot()` | proposed: one value per thread, `get(): T?`, `set(value)`; a lock, `while_locked(function)`, `lock()`, `unlock()`; the raw per-thread `Long` both are built on, `read()`, `write(value)` -- [A value per thread, and a lock](concurrency.md#a-value-per-thread-and-a-lock) |
 | `DynamicLibrary(file_name, naming, header)` | every foreign function, constant and type of a native library -- see [Foreign libraries](foreign_libraries.md#foreign-libraries--partial). `library/dynamic_library.spite` holds its `file_name` and `handle`, its constructor and `drop()`; opening, closing and finding a symbol are the compiler's reopening (D82) |
-| `Memory.Heap()`, `Memory.Arena(block_bytes)`, `Memory.Address` | the floor every other type is built on (D98, D101, D108, D151, D178): the heap's `allocate`, `resize` and `free`, and an address's reads and writes (`library/` only), `copy_to`, `compare_bytes`, `text`, ... -- see "The floor, named" below. `library/memory/heap.spite` is the `singleton` line and `library/memory/address.spite` the number's memory, `text` and `terminated_text`, in Spite; every other function is the compiler's reopening, and where an allocation lives is the compiler's choice unless an object names its allocator ([Memory](memory.md#memory--implemented), "Allocators") |
+| `Memory.Heap()`, `Memory.Arena(block_bytes)`, `Memory.Address` | the floor every other type is built on (D108, D151, D178): allocators and the place they hand out -- [Memory](memory.md#memory-is-the-floor-and-you-can-build-on-it), whose rules they are ([Memory](memory.md#memory--implemented)) |
 | `TypedMemory<$value_type>()` | `read_value(address, index)`, `write_value(address, index, value)`, `release_value(address, index)`, `value_bytes()`: values of any type in raw memory, reference counts kept right; what `List<T>` keeps its elements with, and what a container of your own uses (D98) |
 
-`Console` is one of them and is a singleton (D52): `Console()` is the same instance everywhere, `Console` is an
-ordinary class name rather than a reserved word, and `console.class.name` is `"Console"` like any other class.
-It has `print(...values)` (each value's `to_string()`, separated by a space, with a trailing newline),
-`write(...values)` (the same without the trailing newline), `error(...values)` (the same as `print` but to the
-error stream), `flush()`, and `read_line(): String?` (one line from the input stream without its line break, null
-only at the end of input with nothing read). The entry constructor returning normally is exit code `0`.
+**`Console` is a singleton** (D52): `Console()` is the same instance everywhere, `Console` is an ordinary class
+name rather than a reserved word, and `console.class.name` is `"Console"` like any other class. Calling a member
+on `Console()` directly is an error: `'Console' is a singleton: bind it once beside the attributes, 'var console =
+Console()', and use 'console.print'`. `read_line()` answers `null` only at the end of the input with nothing
+read, and drops a `\r` before the line feed. The entry constructor returning normally is exit code `0`.
 
 **Printing is `to_string()`** (D109, decided by Mortaro; implemented). `print`, `write` and `error` are Spite in
 `library/console.spite`, taking `...values: List<Printable>`, where
@@ -571,18 +619,20 @@ Every number, `Boolean`, `String` (whose `to_string()` answers itself), `Symbol`
 `.name`) and `Spite.Namespace` (its `.name_with_namespaces`) answers it, so everything that printed before prints
 the same. A class of your own prints once it declares `func to_string(): String`, and passing one that does not is
 the ordinary shape error, naming the function: `'Pet' does not fit type 'Printable': it has no function
-'to_string'` (`diagnostics/print_without_to_string`, `conformance/stage6/printable_values`). Mortaro wrote the
-member as `to_string: Spite.Function<String>`; a `type` writes a required function as `to_string(): String` today,
-and which form a shape uses is open question 11. What stays the compiler's is only the floor: `_write_output(text)`,
-`_write_error(text)` and `flush()` have no body in Spite, and `Prelude` supplies their C (`fwrite` and `fflush`),
-as it does `Memory`'s.
+'to_string'`. A `List` or a `Dictionary` has no `to_string()` either (`'List<Integer>' does not fit type
+'Printable'`), so it is printed with `debug`, or joined first (`diagnostics/print_without_to_string`,
+`conformance/stage6/printable_values`). Mortaro wrote the member as `to_string: Spite.Function<String>`; a `type`
+writes a required function as `to_string(): String` today, and which form a shape uses is
+[open question 11](open_questions.md). What stays the compiler's is only the floor: `_write_output(text)`,
+`_write_error(text)` and `flush()` are declared nowhere in Spite, and the compiler supplies their C (`fwrite` and
+`fflush`), as it does `Memory.Heap`'s. D147 wants even these as Spite over a few named primitives; not built.
 
 As implemented (proposed by Claude, unconfirmed): printing a value costs what the call says -- the list of values
 is a `List` like any variadic call's, a number goes through its box and its `to_string()`, and the text is written
 with its length rather than up to its first zero byte. `conformance/stage6/text_building` and
-`fused_chain_allocations` pin those allocations. A `crash` still writes its operands itself, through each value's
-`to_string()`, because it reports on the way out of a program that is stopping. `flush()` no longer writes a line
-break after flushing, which the special case it replaces did.
+`fused_chain_allocations` pin those allocations. A `crash` writes its operands itself, through each value's
+`to_string()`, because it reports on the way out of a program that is stopping. `flush()` writes out what the
+output and error streams hold and nothing more.
 
 **`Console.debug` and `to_debug()`** (D109, decided by Mortaro: "each class has an automatic to_debug(): String
 that returns something like `Class {attribute: value, other: value}` by nesting to_debugs"; Claude chose `debug`
@@ -614,9 +664,12 @@ What follows is Claude's reading (proposed by Claude, unconfirmed):
   that calls them, created only when something asks, so a program that never debugs a class compiles nothing for
   it. A `type` or union that does not require `to_debug()` still answers it, dispatched to the class the value is.
 - **The REPL keeps its own display** (`Player { name: hero, ... }`: text unquoted, nested objects as `Name {...}`,
-  lists as `List<String>(...)`), because it reads a running program through `Spite.Attribute`, whose values are
-  already text, and the documented sessions depend on it. Proposal: make it `to_debug()` of the value once
-  reflection can hand the loop a typed value (`mortaros_missing_decisions.md`).
+  lists as `List<String>(...)`), which it builds from `Spite.Attribute`'s `.value` through `value.to_string()`
+  (D164), and the documented sessions depend on it. Proposal: show a value as its `to_debug()` there too, now
+  that `.value` is the typed instance (`mortaros_missing_decisions.md`).
+- **What it costs**: in a program that calls `debug`, one generated `to_debug()` per class it shows, which
+  builds the text as `String`s; `to_debug()` reads fields through Symbol templates, not through `Spite.Attribute`,
+  so it boxes nothing. Every attribute it shows counts as read (D118, the ruling on walks).
 
 `conformance/stage6/debug_values`, `docs/standard_library.md`.
 
@@ -624,24 +677,7 @@ What follows is Claude's reading (proposed by Claude, unconfirmed):
 `Directory` has a `path` exactly as `File` does, and `entries()` answers a `List<Directory.Entry>`, where
 `Directory.Entry` is the union of `Directory` and `File` declared in `library/directory.spite`. Each entry's `path`
 is its parent's joined with its name, so a `switch` tells the two apart and a folder is walked by calling the same
-function on it again (`conformance/stage4/directory_entries`, `docs/standard_library.md`):
-
-```gdscript
-func count_files(directory: Directory): Integer {
-    var total = 0
-    var entries = directory.entries()
-    var index = 0
-    while index < entries.count() {
-        var entry = entries.get_at(index)
-        switch entry {
-            Directory: total = total + count_files(entry)
-            File: total = total + 1
-        }
-        index = index + 1
-    }
-    return total
-}
-```
+function on it again ([Walk a directory tree](#walk-a-directory-tree); `conformance/stage4/directory_entries`).
 
 What follows is Claude's reading (proposed by Claude, unconfirmed):
 
@@ -653,148 +689,75 @@ What follows is Claude's reading (proposed by Claude, unconfirmed):
 - **`files()` and `folders()` stay**: they answer names rather than values, which is what the compiler's own
   discovery wants, and each is one line over the same listing. With `entries()` they are redundant, and the
   proposal is to remove them once nothing in the repository reads names alone.
-- Each operating system's folder still lists a directory its own way (D80); what it supplies is renamed
-  `entry_names(want_folders)`, since `entries()` is now the public listing and Spite has no overloading.
-- Found on the way: a reopened class that declares a `union` again, as `--final-classes` prints `Directory` back
-  out, registered the union twice. A union declared again now replaces the earlier one, as a `type` already did
-  ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)'s rule: the later declaration of a name wins).
+- Each operating system's folder lists a directory its own way (D80), through `entry_names(want_folders)`, since
+  `entries()` is the public listing and Spite has no overloading.
+- `--final-classes` prints `Directory` back out with its `union Entry`, which compiles because a union declared
+  again replaces the earlier one ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)).
 
-#### Pure Spite: dissolving the runtime  **[planned]**
+<a id="pure-spite-dissolving-the-runtime--planned"></a>
 
-D14 (decided by Mortaro, 2026-09-19): **the standard library being hand-written C is temporary, and the target
-is pure Spite.** `src/runtime/spite_runtime.h` (722 lines) and `src/runtime/spite_repl.h` (1392 lines) exist
-because the compiler needed a `String` before Spite could express one; they are a bootstrapping decision (logged
-2026-09-19, "built-in classes with hand-written bodies"), not the design.
+#### Pure Spite: dissolving the runtime  **[partial]**
 
-D6 already requires part of this: `Spite.Class` is "an ordinary standard library class with an ordinary
-declaration", which cannot be true while the standard library is C.
+D14 (decided by Mortaro, 2026-09-19): **the standard library is Spite, not hand-written C, and what the compiler
+supplies below it is a short list of operations, not a file someone maintains.** D6 already required it:
+`Spite.Class` is "an ordinary standard library class with an ordinary declaration", which cannot be true of a
+library written in C. D147 (decided by Mortaro) sharpens the target to **zero hidden code**: everything the
+compiler supplies must end up as explicit Spite, and nothing may tie Spite to C; D178 names what cannot be Spite,
+the reads, writes and atomics at an address, as language primitives each backend lowers.
 
-What the current runtime is, and where each part goes:
+- **Purity costs no performance**: the output is still C, so a Spite-written `trim()` goes through the same
+  optimiser a hand-written one would. It is the same machine code from a better source.
+- **Library classes stop being special**: they are reopenable like any class, and an inspectable build shows
+  every one of them to the REPL (D143), while a production build carries only those the program reaches (D177).
 
-| Lines | What | Becomes |
-|---|---|---|
-| ~400 | `String` methods, retain/release, number to text, `List<T>`/`Dictionary<T>` support | ordinary `.spite` sources -- pure algorithms over memory, expressible today |
-| ~150 | `File`/`Directory`/`Process`/sleep | `DynamicLibrary` calls ([Foreign libraries](foreign_libraries.md#foreign-libraries--partial)) -- exactly what the foreign function interface is for |
-| ~130 | allocator wrappers and the `--debug-memory` live-pointer table | the table is Spite; `malloc`/`free` is the floor below |
-| ~50 | float formatting through `snprintf("%g")` | a shortest-round-trip implementation in Spite, or an FFI call |
+**What is Spite today**, in `library/`:
 
-**The floor is a list of intrinsics, not a file.** A `String` needs allocation, allocation needs memory from the
-operating system, obtaining it needs the foreign function interface, and naming a library there needs a `String`
--- so the bottom cannot route through the standard library. It resolves the way every self-hosted language
-resolves it: five to ten compiler intrinsics that the compiler emits directly (raw memory in and out --
-`mmap`/`VirtualAlloc` through the FFI on native, `memory.grow` as an instruction on wasm -- plus whatever the
-emitted C needs before any Spite exists). Everything above that line is Spite.
+| Part | How |
+|---|---|
+| `String`, `List<T>`, `Dictionary<T>`, number to text (`library/number_text.spite`) | over `Memory.Heap` and `TypedMemory<T>`. The syntax stays the compiler's (`[]`, list literals, `List<T>()`), mapped onto these classes' functions, and per element type the compiler still writes four one-line functions a generic class cannot, plus `deep_copy` (the decision log's containers row, proposed by Claude, unconfirmed); the member templates are Spite in `library/list.spite` ([collections.md](collections.md#standard-library-metaprogramming--partial)) |
+| `File`, `Directory`, `Process`, `Program`, `Console.read_line`, `Clock`, `Socket`, `Watcher`, `ThreadPool`, `Lock`, `ThreadSlot`, the time-zone database | written once in `library/`; each operating system's folder reopens the class with the few functions that call its own library (`ucrtbase.dll`/`kernel32.dll`, `libc.so.6`, `libSystem.dylib`) through `DynamicLibrary` (D71, D80). Only `library/windows/` runs today; the Linux and macOS folders are held to compiling |
+| `--debug-memory`'s live table | `AllocationTable` (`library/allocation_table.spite`), an open-addressing set of live addresses with each object's class id beside it, which prints the leak report; the compiler emits only the small functions `SPITE_MALLOC`, `SPITE_REALLOC` and `SPITE_FREE` call under `--debug-memory` (the allocation-table row of the decision log, proposed by Claude, unconfirmed) |
+| the REPL, live reload, the event loop | `ReadEvaluatePrintLoop`, `HotReload` and `Scheduler`, over reflection tables the compiler generates |
+| printing, `to_debug()`, `Json<T>` | `Console`, `Spite.Debug<T>`, `Spite.DebugInstance<T>` and `Json<T>` ([json.md](json.md)) |
 
-- **Purity costs no performance here**, which is what makes it worth doing: the output is still C, so a
-  Spite-written `trim()` goes through the same optimiser as the hand-written one. This is not a language
-  rewriting its runtime in a slower language; it is the same machine code from a better source.
-- It also delivers two things already wanted: standard library classes become reopenable ([Decided by Mortaro, being implemented](open_questions.md#decided-by-mortaro-being-implemented--planned) item 7) and
-  inspectable in the REPL, because they stop being special.
-- Order: the FFI (milestone 11) unlocks the system-call layer, self hosting (milestone 8b) makes it natural, and
-  then the standard library moves file by file. `spite_repl.h` follows the same way -- it is an interpreter over
-  generated tables, which is ordinary Spite once the reflection of milestone 10 exists.
+**What is still the compiler's** -- the floor, and what is left of D147's work:
 
-**The floor, named** (milestone 15a; proposed by Claude, unconfirmed, 2026-09-23). With `DynamicLibrary` built
-([Foreign libraries](foreign_libraries.md#foreign-libraries--partial)), the floor is small enough to list. Everything the runtime does today is either one of these, or
-Spite above them:
-
-1. **The `Memory` namespace** (D150, D151, D178; built 2026-09-25). **`Memory.Address`** is a place in memory: a
-   number class (`library/memory/address.spite`, eight bytes, cast to and from `Long` like any number) whose
-   `read_byte`/`read_short`/`read_unsigned_short`/`read_integer`/`read_unsigned_integer`/`read_long`/`read_float`/
-   `read_double(offset)`, the matching `write_*(offset, value)`, and `exchange_long`, `read_long_atomically` and
-   `write_long_atomically` are **language primitives**: bodiless declarations each backend lowers where they are
-   called, like `+` -- one load, store or atomic instruction in the C backend, written as a macro, with no call.
-   **Only `library/` may call them**: a function of a class the standard library declares (reopening one, as
-   `--final-classes` output does, is writing library code), and any other class gets an error pointing at the
-   standard library and `TypedMemory<T>` (`diagnostics/memory_access`). `copy_to(target, bytes)` and `compare_bytes(other, bytes)` are
-   written the same way for now (the C library's `memmove` and `memcmp`), and `text(length)` and
-   `terminated_text()` are Spite in the same file. **`Memory.Heap`** is the default allocator, a singleton whose
-   `allocate(bytes): Memory.Address`, `resize(address, bytes)`, `free(address)` and `live_allocations()` are the
-   compiler's (C `malloc`, or the `--debug-memory` table's functions). The free functions of the old singleton
-   `Memory` (`allocate_bytes`, `read_long(address, offset)`, `copy_bytes`, `text(address, length)`, ...) are gone,
-   and every class of `library/` binds `var heap = Memory.Heap()` instead of `var memory = Memory()`. **Not built
-   yet (D178):** allocation from the operating system's pages, copying and comparing as plain Spite over
-   `DynamicLibrary`; the heap is still C's `malloc`. There is still no `Pointer` type. **Before D178**, `Memory`
-   was one built-in singleton holding all of this as functions taking the address first (`read_long(address,
-   offset)`), since D98/D101 with sections and since D108 with the compiler choosing between them:
-   `allocate_stack_bytes` is removed, and an allocation is placed in the function's frame when the rule in
-   [Memory](memory.md#memory--implemented) proves the address never leaves it. `TypedMemory<$value_type>` puts values of any type in
-   memory, and `List<T>` is written with it, so nothing about a container is the compiler's any more except its
-   syntax (`[]`, list literals) and the few C paths listed in the containers row of the decision log.
-2. **Text from memory**: since D108 this is Spite, not floor. `String` declares its storage (`_bytes`, `_length`,
-   `_section`, `_capacity`) and its constructor `String(bytes: Memory.Address, length: Long)`, which takes bytes the
-   heap handed out and writes the 0 after them; `address.text(length)` is three lines of Spite in
-   `library/memory/address.spite` that allocate, copy and construct. `take_text` and `address_of` are gone: a
-   `String`'s own functions read `_bytes`. Literals stay static data the compiler writes, as symbols already are (D70), in the
-   `'constant'` section.
+1. **`Memory.Address`'s reads, writes and atomics** are language primitives, each one machine operation the
+   backend writes where it is called, like `+` (D178; [memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it)).
+   This is the floor that stays.
+2. **Supplied bodies**: functions declared without a body whose C the compiler writes
+   (`bootstrap/source/generation/prelude.spite`) -- `Console`'s `_write_output`, `_write_error` and `flush`
+   (`fwrite`, `fflush`); `Memory.Heap`'s `allocate`, `resize`, `free` and `live_allocations` (the C library's
+   `malloc`, or the `--debug-memory` table) and `Memory.Address`'s `copy_to` and `compare_bytes` (`memmove`,
+   `memcmp`); `TypedMemory<T>`; the number classes' bit operations; `DynamicLibrary`'s opening, closing and
+   symbol lookup (D82); the entry points and frames of `Concurrent`, `ThreadPool` and `Scheduler`; `HotReload`'s
+   compiler hand-off; and `Spite.Attribute`'s and `Spite.Function`'s dispatch. **Not built (D147, D178):** each
+   of these as Spite -- allocation from the operating system's pages, copying and comparing through
+   `DynamicLibrary` -- so that no Spite source needs C.
 3. **The object header**: retain, release and the class id are code the compiler emits, not functions anyone
-   calls, so they are part of code generation rather than a library. For `String` that includes two decisions
-   only the header can make: a `'constant'` text is never counted, and `text = text + piece` grows the text in
-   place only when its count is one (`SpiteString_append` asks, then calls `String._unshared()` and
-   `String._append_in_place(piece)`, which are Spite).
-4. **Entry and exit**: `main` is emitted by the compiler, and so is writing text out (`Console._write_output`,
-   `_write_error`; D109 moved everything else about printing into Spite), so the floor also has
-   `Console.flush()`: exiting through the C runtime's `exit` would drop what the program's own `stdout` still
-   buffers, which is why `Program.exit` flushes first (found when every corpus program printed nothing).
-5. **The C runtime through Spite, one operating system at a time** (D71 replaced Claude's `"c"` alias; D80
-   replaced the one wrapper class per platform): each operating system's folder reopens the classes it changes
-   and names its real file (`ucrtbase.dll`, `libc.so.6`, `libSystem.dylib`) in their own `DynamicLibrary`
-   attributes, and what `File`, `Directory` and `Process` do on every system is written once in `library/`.
-6. **On wasm**, `Memory.allocate` grows linear memory with `memory.grow`, and the C runtime library is the
-   JavaScript host's, which is the web shim below.
+   calls. For `String` that includes the two decisions only the header can make: a `'constant'` text is never
+   counted, and `text = text + piece` grows the text in place only when its count is one (the compiler asks, then
+   calls `String._unshared()` and `String._append_in_place(piece)`, which are Spite).
+4. **Entry and exit**: `main`, and text literals, which are static data in the `'constant'` section, as symbols
+   are (D70).
 
-That is the whole floor: `String`, `List<T>` and `Dictionary<T>` become Spite over `Memory`; `File`, `Directory`,
-`Process` and `Program` become Spite over the C runtime, reached from each operating system's folder; the `--debug-memory` live table becomes Spite
-over `Memory`; and float formatting is Spite over `Memory` (`library/number_text.spite`, 2026-09-24). What stays in C is exactly what the compiler emits, never a file someone maintains.
-
-**Built so far, additively (2026-09-23):** items 1, 2's `Memory.text` and 5 -- `Memory` with `allocate_bytes`,
-`resize`, `free`, the typed reads and writes and `copy_bytes` (`conformance/stage6/memory_floor`); the `"c"` alias
-built beside it was removed by D71. **Moving onto it (D73):** `File`, `Directory`, `Process`, `Program` and `Console` are Spite in `library/`, over
-`Memory` and the C runtime, and their C is deleted. Since D80 there is no `CRuntime` class in between: `library/file.spite`
-holds what `File` does everywhere, and `library/windows/file.spite`, `library/linux/file.spite` and
-`library/mac/file.spite` reopen it with the few functions that call the system's library ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)), and the same
-for `directory`, `process`, `program`, `console`, `string` (`to_double` through `strtod`) and `build`
-(`target_operating_system`). `Console`'s `print`, `write`, `error` and
-`flush` stay operations the compiler emits (they are variadic, and they must reach the program's own `stdout`),
-while `read_line` is Spite over `fgets` on the console's own handle of the input stream. Only `library/windows/` runs
-here; the Linux and macOS folders have the same functions with the same signatures, follow `dirent`'s layout on those
-systems, and are held only to compiling (`check.sh` writes the compiler out with each) until `check.sh` runs there.
-Found on the way: the `'windows'` naming rule is lossy -- Win32 abbreviates some names (`SetCursorPos`) and
-not others (`GetFileAttributesA`, which the rule would call `GetFileAttrsA`) -- so the Windows files name kernel32's
-functions with `'identity'`. Nothing has moved onto them yet: moving `String`, `File` and the rest waits on this
-proposal being accepted, since that is where changing the floor later would cost a rewrite.
-The `--debug-memory` live table is Spite too: `library/allocation_table.spite` (`AllocationTable`) keeps the
-live allocations in an open-addressing hash set over `Memory`, each live object's class id in the slot beside
-its address (forgotten on free, so the leak summary names only what is still alive, the same on every run), and
-prints the report; the compiler emits the small functions `SPITE_MALLOC`, `SPITE_REALLOC` and `SPITE_FREE` call
-under `--debug-memory`. What stays C, and why, is in the decision log's allocation-table row (proposed by Claude,
-unconfirmed).
-`List<T>` and `Dictionary<T>` are Spite as well: `library/list.spite` is a generic class over `Memory` (growth,
-insertion, removal, `reverse`, `contains`, `join`, `copy`, and releasing its elements when it is dropped), and
-`library/dictionary.spite` is a generic class over two lists and a hash index into them; `split` and `lines` moved into
-`library/string.spite`. The syntax stays the compiler's (`[]`, list literals, `List<T>()`), mapped onto those
-classes' functions. Per element type the compiler still supplies four one-line functions a generic class cannot
-write, plus `deep_copy`; the list and the reasons are in the decision log's containers row (proposed by Claude,
-unconfirmed). The `<member>` templates are Spite in `library/list.spite` too (D91, [Standard library
-metaprogramming](collections.md#standard-library-metaprogramming--partial)).
-
-**The web shim is the one honest exception, and its target is zero hand-written lines.** A file that runs in the
-JavaScript virtual machine cannot be Spite by construction -- it is on the far side of a boundary Spite does not
-own, and every language targeting the browser has one. What is achievable is that nobody writes it: the imports
-come from `external js` declarations and the command-buffer drain loop is a switch over an opcode table, both of
-which are data the compiler can emit. The source of truth stays Spite even though the artifact is JavaScript, so
-nothing in the repository is written in a second language and nothing rots out of sync. Today that file would be
-150-300 hand-written lines; generating it fully is a goal, not a day-one requirement, and it shrinks on its own
-as wasm proposals land.
+**Not built: WebAssembly.** There, `Memory.Heap`'s `allocate` would grow linear memory with `memory.grow`, and the
+C runtime library is the JavaScript host's. **The web shim is the one honest exception, and its target is zero
+hand-written lines.** A file that runs in the JavaScript virtual machine cannot be Spite by construction -- it is
+on the far side of a boundary Spite does not own. What is achievable is that nobody writes it: the imports come
+from `external js` declarations and the command-buffer drain loop is a switch over an opcode table, both data the
+compiler can emit, so the source of truth stays Spite and nothing in the repository is written in a second
+language ([targets.md](targets.md)).
 
 #### examples/calculator  **[implemented]**
 
 A recursive-descent arithmetic interpreter (`token.spite`, `lexer.spite`, `expression.spite` + one file per union
 member, `parser.spite`, `evaluator.spite`, `calculator.spite`), reading its program from `program.txt` next to it.
 Supports `+ - * /`, unary `-`, parentheses, variable assignment (`x = 1 + 2`) and reference, one statement per
-line. The lexer scans `source.split("")` with a `while` loop (accumulating each token's start/end index as a class
-field, sliced out on a token boundary); the parser is genuinely recursive, including precedence climbing written
-as tail recursion (`parse_expression_rest`/`parse_term_rest`), a style that reads well independently of `for`
-being gone. Every place the parser hands a freshly parsed operand to `BinaryExpression(...)` does so inline
-(never through an intermediate `var`): `left_expression`/`right_expression` are ordinary by-reference parameters
-now (D1), stored directly into the union-typed field with no `Heap<T>` wrapper needed.
+line. The lexer scans `source.split("")` with a `while` loop that passes each character and its index on (so it
+is not a loop a member template replaces, D171), keeping the current token's start as an attribute and slicing
+it out on a token boundary; the parser is recursive, including precedence climbing written as tail recursion
+(`parse_expression_rest`/`parse_term_rest`). The parser hands a freshly parsed operand to
+`BinaryExpression(...)` inline, the one level of construction inside a call a short line may keep (D77, D187):
+`left_expression`/`right_expression` are ordinary by-reference parameters (D1), stored directly into the
+union-typed attribute.

@@ -7,7 +7,14 @@ in that zone would read, and turns such a reading back into an `Instant`. The ca
 are separate: a `Duration` is an exact amount of time, and a `Period` is an amount of calendar (years, months,
 days), whose real length depends on where it is applied.
 
-The names and the exact shape are proposed by Claude and wait on Mortaro (D127; [the rules in full](#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed)).
+The model is D127's and the type names are Mortaro's (D158, D160); the rest of the shape -- the members, the
+ambiguity rules, where the zones come from -- is proposed by Claude and waits on Mortaro
+([the rules in full](#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed)).
+
+All of it is library code, written in Spite, with nothing running behind it: a program that never names a time
+class carries none of it, and one that only measures with `Clock()` carries only that ([D177](decisions.md)).
+Each value is an ordinary small object, and arithmetic makes a new one for its result, which lives wherever the
+compiler places it ([memory.md](memory.md#where-a-value-lives-memory)).
 
 | Class | What it is | Stored as |
 |---|---|---|
@@ -32,6 +39,21 @@ What cannot happen, by construction:
   what the zone says it means.
 - **A daylight-saving gap or overlap is never resolved silently by a default you did not choose.** Every
   `to_instant` names the rule for the ambiguous case.
+
+The first of them is the type checker's to enforce, so the mistake never runs:
+
+```gdscript title=time_reading_is_not_instant/time_reading_is_not_instant.spite entry error
+var console = Console()
+
+func TimeReadingIsNotInstant() {
+    var meeting = DateTime(Date(2024, 3, 10), Time(9, 30, 0, 0))
+    var launch = Instant(Duration(1710054000, 'seconds'))
+    console.print(meeting == launch)
+}
+```
+```diagnostic
+an Instant cannot be used where a DateTime is needed
+```
 
 ## Instants and durations
 
@@ -236,13 +258,18 @@ with the system's own updates, and a program carries no copy of the database:
   `DynamicLibrary`). Windows' own registry zones are not used: they have Windows names, and less history.
 - **Linux and macOS** read the compiled database in `/usr/share/zoneinfo`, one TZif file per zone (RFC 8536),
   through `File` and parsed in Spite (`library/tzif_reader.spite`); `system()` follows `TZ`, then the
-  `/etc/localtime` link. This path is written but untested: only Windows runs here, and `check.sh` holds the
-  Linux and macOS folders to compiling.
+  `/etc/localtime` link. This path is written but not yet run on Linux or macOS
+  ([the rules](#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed)
+  say how it is tested).
+
+What a zone costs when it runs: on Windows, `icu.dll` is loaded only by a program that asks for a named zone or
+`system()`, a zone holds an ICU calendar open until it is dropped, and each offset it answers is one call into
+ICU; on Linux and macOS, `find` reads and parses the zone's file once, and each answer looks through the
+transitions it read. UTC and fixed offsets need neither.
 
 `zones.read_tzif(name, data)` reads a TZif file you bring, which is the answer for a machine with no database (a
 bare container) or a program that must pin one version of the rules. It is the same reader Linux and macOS use,
-and `conformance/stage6/zone_files` runs it on Windows, against three files written for the test and checked
-with Python's `zoneinfo`.
+so it runs on Windows too.
 
 A TZif file has the transitions its zone has had, and a POSIX rule for the years after them
 (`EST5EDT,M3.2.0,M11.1.0`), which is how the reader answers for 2100. A time zone's rules are only
@@ -303,9 +330,7 @@ a local reading is not an instant
 ## Not here yet
 
 Calendars other than the ISO one, leap seconds (a leap second reads as the second before it, as everywhere
-else), formatting patterns and localized month names, and a zone's abbreviations (`EST`). The tests are
-`conformance/stage6/instant_arithmetic`, `calendar_math`, `daylight_saving`, `zone_files`, `fixed_offsets`,
-`time_text_round_trips` and `time_text_errors`.
+else), formatting patterns and localized month names, and a zone's abbreviations (`EST`).
 
 ## Why this design
 
@@ -322,8 +347,9 @@ modern designs were compared:
   thing to store, which is the opposite of zones as presentation. Its surface -- non-ISO calendars, year-month
   and month-day types, rounding options -- is several ways to do each thing.
 - **Java's `java.time`** (JSR-310, from Joda-Time) has the separation Spite wants between `Duration` (exact
-  seconds and nanoseconds) and `Period` (years, months, days), the `Local*` names, immutable values, and zone
-  rules that answer transitions, read from the JDK's own copy of the database. It also has `ZonedDateTime`,
+  seconds and nanoseconds) and `Period` (years, months, days), immutable values, and zone rules that answer
+  transitions, read from the JDK's own copy of the database; its zone-less types are `LocalDate`, `LocalTime`
+  and `LocalDateTime`. It also has `ZonedDateTime`,
   `OffsetDateTime` and `OffsetTime` besides, and it resolves a gap or an overlap by a default nobody chose at the
   call (`atZone`), with `ZoneId.systemDefault()` a line away.
 - **Rust's `jiff`** is Temporal in Rust: `Timestamp`, `civil::Date`/`Time`/`DateTime`, `Zoned`, `Span` and
@@ -372,31 +398,34 @@ fix. A `D` number is a row of the [decision log](decisions.md).
 
 D127 (decided by Mortaro): the best date and time support there is, so that Spite never repeats JavaScript's
 `Date` and the wrappers it bred, with **one stored format -- an exact instant -- and time zones only a
-presentation layer**, copied from the best modern design. `docs/time.md` compares `Temporal`, `java.time`,
-`jiff`/`chrono`, NodaTime and Go's `time` and argues the choice. Everything below is Claude's proposal
-(`mortaros_missing_decisions.md` items 115-122): NodaTime's model with Temporal's vocabulary, and no stored zoned
-type. The names are Mortaro's: `Instant`, `Duration` and `Period` (D158), and for a zone-less reading `Date`,
-`Time` and `DateTime` (D160), with no `Local` prefix.
+presentation layer**, copied from the best modern design; [Why this design](#why-this-design) compares the
+candidates and argues the choice. The names are Mortaro's: `Instant`, `Duration` and `Period` (D158), and for a
+zone-less reading `Date`, `Time` and `DateTime` (D160), with no `Local` prefix (the old spellings are errors that
+name the new ones: `'LocalDate' is spelled 'Date'`). Everything else below is Claude's proposal, NodaTime's model
+with Temporal's vocabulary and no stored zoned type (proposed by Claude, unconfirmed; the constructors, `now()`
+and the lenient reading of text are still open as `mortaros_missing_decisions.md` items 118, 120 and 121).
 
 | Class | What it is |
 |---|---|
 | `Instant(since_1970: Duration)` | a point on the universal time line; `+ Duration`, `- Instant` (a `Duration`), `==`, `<`, `>`; prints in UTC with `Z` |
-| `Duration(amount, unit)` | exact time, whole seconds and nanoseconds; units `'nanoseconds'` to `'hours'` and never days; `total(unit)`, `part(unit)`, `+`, `-`, `* Long`, unary `-`, `==`, `<`, `>` |
-| `Period(amount, unit)` | calendar time, years, months and days (`'weeks'` is seven days); `+`, unary `-`, `==`, and no `<` |
-| `Date(year, month, day)` | a proleptic Gregorian date with no zone; `+ Period`, `weekday`, `day_of_year`, `days_in_month`, `is_leap_year`, `days_since_1970`, `days_until`, `period_until` |
-| `Time(hour, minute, second, nanosecond)` | a clock reading with no date and no zone |
-| `DateTime(date, time)` | both, with no zone; `+ Period` |
+| `Duration(amount, unit)` | exact time, whole seconds and nanoseconds; units `'nanoseconds'` to `'hours'` and never days; `total(unit)`, `part(unit)`, `is_negative`, `is_zero`, `+`, `-`, `* Long`, unary `-`, `==`, `<`, `>` |
+| `Period(amount, unit)` | calendar time, years, months and days (`'weeks'` is seven days); `years`, `months`, `days`, `is_zero`, `+`, unary `-`, `==`, and no `<` |
+| `Date(year, month, day)` | a proleptic Gregorian date with no zone; `year`, `month`, `day`, `+ Period`, `weekday`, `day_of_year`, `days_in_month`, `days_in_year`, `is_leap_year`, `days_since_1970`, `days_until`, `period_until`, `==`, `<`, `>` |
+| `Time(hour, minute, second, nanosecond)` | a clock reading with no date and no zone; `hour`, `minute`, `second`, `nanosecond`, `second_of_day`, `==`, `<`, `>` |
+| `DateTime(date, time)` | both, with no zone; `date`, `time`, `+ Period`, `==`, `<`, `>` |
 | `TimeZone` | `to_local(instant)`, `to_instant(local, ambiguity)`, `to_text(instant)`, `offset_at(instant)`, `name` |
 | `TimeZones()` | the database, a singleton: `find(name): TimeZone?`, `utc()`, `fixed_offset(duration)`, `system()`, `read_tzif(name, data): TimeZone?` |
 | `TimeText()` | ISO 8601 (RFC 3339, RFC 9557), a singleton: `read_instant`, `read_date_time`, `read_date`, `read_time`, `read_duration`, `read_period`, each answering `T?`; writing is each type's `to_string()` |
 
 - **A local reading never becomes an instant without a zone.** No local type has a function answering an
-  `Instant`, `==` between the two kinds is a type error, and `zone.to_instant(local, ambiguity)` is the only
+  `Instant`, `==` between the two kinds is a type error (`an Instant cannot be used where a DateTime is
+  needed`), and `zone.to_instant(local, ambiguity)` is the only
   bridge. `TimeText.read_instant` refuses text without an offset, and `read_date_time` refuses text with one.
 - **Exact and calendar lengths never mix.** A `Duration` has no days, since a day is 23 to 25 hours where clocks
   change; a `Period` has no hours and adds only to the local types, months first (a day past the new month's end
   becomes its last day: January 31 plus a month is February 29 in 2024), then days. `period_until` is
-  `java.time`'s `Period.between`.
+  `java.time`'s `Period.between`. `Duration(1, 'days')` is `'days' is not a value of this enum`, and comparing
+  two periods with `<` is `this operator on a 'Period' needs it to define 'less_than(other)'`.
 - **Every gap and overlap is resolved by a rule the call names**: `'compatible'` (a gap resolves after it, an
   overlap to its first instant -- RFC 5545's rule, and `java.time`'s and `Temporal`'s default), `'earlier'` or
   `'later'`. The zone finds the offsets a day either side of the reading and keeps the ones that map back to it:
