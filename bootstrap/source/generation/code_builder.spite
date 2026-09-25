@@ -110,6 +110,10 @@ func user_count(): Int {
     return user_bodies.count()
 }
 
+func user_at(position: Int): String {
+    return user_bodies.get_at(position)
+}
+
 func replace_user(position: Int, line: String) {
     user_bodies.set_at(position, line)
 }

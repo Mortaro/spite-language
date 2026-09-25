@@ -1,0 +1,9 @@
+var most = 0
+
+func Limits(starting_most: Int) {
+    most = starting_most
+}
+
+func allows(size: Int): Bool {
+    return size < most
+}

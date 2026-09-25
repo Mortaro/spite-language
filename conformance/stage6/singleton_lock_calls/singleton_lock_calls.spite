@@ -1,0 +1,25 @@
+var console = Console()
+var registry = Registry()
+
+func SingletonLockCalls() {
+    var loading = List<Parallel<Int>>()
+    var start = 0
+    while start < 4000 {
+        var loader = Loader(start)
+        loading.append(Parallel(loader.load_many))
+        start = start + 1000
+    }
+    var loaded = 0
+    var index = 0
+    while index < loading.count() {
+        var count: Int = loading.get_at(index)
+        loaded = loaded + count
+        index = index + 1
+    }
+    registry.last = "texture 2999"
+    var known = registry.known()
+    var total = registry.total()
+    var last = registry.last_name()
+    console.print("loaded", loaded, "known", known, "counted", total)
+    console.print("last written from outside:", last)
+}

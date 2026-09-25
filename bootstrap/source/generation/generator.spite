@@ -31,6 +31,16 @@ var parallel_used = false
 var guarded_classes = List<Analysis.ClassInfo>()
 var guarded_functions = List<Analysis.FunctionInfo>()
 var guarded_positions = List<Int>()
+var atomic_fields = List<String>()
+var atomic_owner = ""
+var atomic_classes = List<Analysis.ClassInfo>()
+var atomic_class_names = List<String>()
+var guarded_ends = List<Int>()
+var outside_classes = List<Analysis.ClassInfo>()
+var outside_class_names = List<String>()
+var outside_written = Dictionary<Bool>()
+var read_only_classes = Dictionary<Bool>()
+var emitted_guards = List<String>()
 var waiting_classes = List<Analysis.ClassInfo>()
 var waiting_functions = List<Analysis.FunctionInfo>()
 var waiting_kinds = List<String>()
@@ -475,6 +485,12 @@ func generate(
     emit_hot_reload_support()
     if parallel_used {
         finish_singleton_guards()
+    }
+    if not atomic_classes.is_empty() {
+        finish_atomic_singletons()
+    }
+    if not outside_classes.is_empty() {
+        finish_outside_writes()
     }
     if not has_error {
         report_unused_attributes()
@@ -5144,6 +5160,10 @@ func generate_identifier(
             return ExpressionResult("0", Analysis.Types.VoidType())
         }
         var field_type = field.get_type()
+        if atomic_owner == class_information.c_name and atomic_fields.contains(identifier.name) {
+            var loaded = "SPITE_SINGLETON_LOAD({class_information.c_name}, self->{c_value_name(identifier.name)})"
+            return ExpressionResult(loaded, field_type)
+        }
         return ExpressionResult("self->{c_value_name(identifier.name)}", field_type)
     }
     if identifier.name == "class" {
@@ -12603,6 +12623,10 @@ func generate_store(
         }
         assert field
         var field_type = field.get_type()
+        if atomic_owner == class_information.c_name and atomic_fields.contains(identifier.name) {
+            emit_atomic_store(identifier.name, field_type, assignment.value, scope, class_information)
+            return
+        }
         emit_owning_assignment(
             "self->{c_value_name(identifier.name)}",
             field_type,
@@ -12784,13 +12808,19 @@ func generate_store(
         var object_temporary = next_temporary()
         builder.add_user("{c_type_name(object_result_type)} {object_temporary} = {object_result.code};")
         var field_type = field.get_type()
-        emit_owning_assignment(
-            "({object_temporary})->{c_value_name(member.name)}",
-            field_type,
-            assignment.value,
-            scope,
-            class_information,
-        )
+        var target_code = "({object_temporary})->{c_value_name(member.name)}"
+        if guards_outside_write(target_class) {
+            emit_guarded_outside_write(
+                target_class,
+                target_code,
+                field_type,
+                assignment.value,
+                scope,
+                class_information,
+            )
+        } else {
+            emit_owning_assignment(target_code, field_type, assignment.value, scope, class_information)
+        }
         if owns(object_result, member.object) {
             builder.add_user("{release_call(object_result_type, object_temporary)};")
         }
@@ -16747,7 +16777,17 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         var user_count = builder.user_count()
         waiting_positions.append(user_count)
     }
-    if guards_singleton(information, function) {
+    atomic_fields = List<String>()
+    atomic_owner = information.c_name
+    if atomic_function(information, function) {
+        atomic_fields = atomic_singleton_fields(information)
+        if not atomic_class_names.contains(information.c_name) {
+            atomic_class_names.append(information.c_name)
+            atomic_classes.append(information)
+        }
+    }
+    var guarded = guards_singleton(information, function)
+    if guarded {
         guarded_classes.append(information)
         guarded_functions.append(function)
         var guarded_at = builder.user_count()
@@ -16794,6 +16834,10 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
     }
     close_rebindings(scope)
     builder.add_user("}")
+    if guarded {
+        var guarded_end = builder.user_count()
+        guarded_ends.append(guarded_end)
+    }
 }
 
 func emit_class(information: Analysis.ClassInfo) {
@@ -17089,15 +17133,28 @@ func guards_singleton(information: Analysis.ClassInfo, function: Analysis.Functi
     assert information.is_singleton and not information.is_stateless_singleton and not is_library_class(information)
     assert not function.is_constructor and function.name != "drop" and not function.body.is_empty()
     assert not is_hot_class(information)
+    var atomic = atomic_singleton_fields(information)
+    assert atomic.is_empty()
     return changes_after_construction(information)
 }
 
+func atomic_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Bool {
+    assert information.is_singleton and not information.is_stateless_singleton and not is_library_class(information)
+    assert not function.is_constructor and function.name != "drop" and not function.body.is_empty()
+    assert not is_hot_class(information)
+    var atomic = atomic_singleton_fields(information)
+    return not atomic.is_empty()
+}
+
 func changes_after_construction(information: Analysis.ClassInfo): Bool {
+    if written_from_outside(information) {
+        return true
+    }
     var index = 0
     while index < information.fields.count() {
         var field = information.fields[index]
         var field_type = field.get_type()
-        if reaches_shared(field_type) {
+        if shares_state(field_type) {
             return true
         }
         index = index + 1
@@ -17163,29 +17220,552 @@ func collect_statement_assigned_roots(statement: Syntax.Statements.Statement, ro
 }
 
 func finish_singleton_guards() {
-    builder.add_typedef("typedef struct SpiteGuard \{ int64_t owner; int64_t depth; } SpiteGuard;")
+    builder.add_typedef("typedef struct SpiteGuard \{ _Alignas(64) int64_t owner; int64_t depth; } SpiteGuard;")
     builder.add_prototype("static void spite_guard_enter(SpiteGuard* guard);")
     builder.add_prototype("static void spite_guard_leave(SpiteGuard* guard);")
     builder.add_support(
         "static SPITE_THREAD_LOCAL char spite_guard_thread;\nstatic void spite_guard_enter(SpiteGuard* guard) \{\nint64_t spite_me = (int64_t)(intptr_t)&spite_guard_thread;\nif (__atomic_load_n(&guard->owner, __ATOMIC_ACQUIRE) == spite_me) \{ guard->depth = guard->depth + 1; return; }\nint64_t spite_free = 0;\nwhile (!__atomic_compare_exchange_n(&guard->owner, &spite_free, spite_me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) \{ spite_free = 0; }\nguard->depth = 1;\n}\nstatic void spite_guard_leave(SpiteGuard* guard) \{\nguard->depth = guard->depth - 1;\nif (guard->depth == 0) __atomic_store_n(&guard->owner, 0, __ATOMIC_RELEASE);\n}",
     )
     var guarded_names = List<String>()
+    var wrapped = List<Int>()
+    var reached = call_effects.thread_reached_classes()
     var index = 0
     while index < guarded_functions.count() {
         var information = guarded_classes.get_at(index)
         var function = guarded_functions[index]
         var position = guarded_positions.get_at(index)
-        if not guarded_names.contains(information.c_name) {
-            guarded_names.append(information.c_name)
-            builder.add_support("static SpiteGuard {information.c_name}___guard = \{ 0, 0 };")
+        if reached.has(information.simple_name) or called_implicitly(information) {
+            if not guarded_names.contains(information.c_name) {
+                guarded_names.append(information.c_name)
+                builder.add_support("static SpiteGuard {information.c_name}___guard = \{ 0, 0 };")
+            }
+            var unguarded_name = "{function.c_name}___unguarded"
+            var unguarded_signature = named_signature(information, function, unguarded_name)
+            builder.replace_user(position, "{unguarded_signature} \{")
+            builder.add_prototype("{unguarded_signature};")
+            emit_guard_wrapper(information, function, unguarded_name)
+            wrapped.append(index)
         }
-        var unguarded_name = "{function.c_name}___unguarded"
-        var unguarded_signature = named_signature(information, function, unguarded_name)
-        builder.replace_user(position, "{unguarded_signature} \{")
-        builder.add_prototype("{unguarded_signature};")
-        emit_guard_wrapper(information, function, unguarded_name)
         index = index + 1
     }
+    emitted_guards = guarded_names
+    call_unguarded_inside(wrapped)
+}
+
+func call_unguarded_inside(wrapped: List<Int>) {
+    var index = 0
+    while index < wrapped.count() {
+        var position = wrapped[index]
+        var information = guarded_classes.get_at(position)
+        var line_index = guarded_positions.get_at(position) + 1
+        var end = guarded_ends.get_at(position)
+        while line_index < end {
+            var line = builder.user_at(line_index)
+            var changed = unguarded_calls(line, information, wrapped)
+            if changed != line {
+                builder.replace_user(line_index, changed)
+            }
+            line_index = line_index + 1
+        }
+        index = index + 1
+    }
+}
+
+func unguarded_calls(line: String, information: Analysis.ClassInfo, wrapped: List<Int>): String {
+    var result = line
+    var index = 0
+    while index < wrapped.count() {
+        var position = wrapped[index]
+        var owner = guarded_classes.get_at(position)
+        if owner.c_name == information.c_name {
+            var called = guarded_functions.get_at(position)
+            result = result.replace("{called.c_name}(self,", "{called.c_name}___unguarded(self,")
+            result = result.replace("{called.c_name}(self)", "{called.c_name}___unguarded(self)")
+        }
+        index = index + 1
+    }
+    return result
+}
+
+func atomic_singleton_fields(information: Analysis.ClassInfo): List<String> {
+    var mutable = List<String>()
+    var singleton = information.is_singleton and not information.is_stateless_singleton
+    assert singleton and not is_library_class(information) and not is_hot_class(information)
+    assert not written_from_outside(information)
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var field_type = field.get_type()
+        if shares_state(field_type) {
+            return List<String>()
+        }
+        index = index + 1
+    }
+    var targets = List<String>()
+    index = 0
+    while index < information.functions.count() {
+        var function = information.functions[index]
+        if not function.is_constructor {
+            collect_assigned_roots(function.body, targets)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < targets.count() {
+        var target = targets[index]
+        var field = information.find_field(target)
+        if field and not mutable.contains(target) {
+            var field_type = field.get_type()
+            if not is_atomic_capable(field_type) {
+                return List<String>()
+            }
+            mutable.append(target)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < information.functions.count() {
+        var function = information.functions[index]
+        if not function.is_constructor and function.name != "drop" {
+            var visiting = List<String>()
+            if function_state_uses(information, function, mutable, visiting) > 1 {
+                return List<String>()
+            }
+        }
+        index = index + 1
+    }
+    return mutable
+}
+
+func is_atomic_capable(spite_type: Analysis.SpiteType): Bool {
+    var scalar = type_shape.as_scalar(spite_type)
+    assert scalar
+    var kind = scalar.kind
+    var signed = kind == 'integer_kind' or kind == 'long_kind' or kind == 'tiny_kind' or kind == 'short_kind'
+    var unsigned = kind == 'byte_kind' or kind == 'unsigned_short_kind' or kind == 'unsigned_integer_kind'
+    return signed or unsigned or kind == 'unsigned_long_kind' or kind == 'boolean_kind'
+}
+
+func function_state_uses(
+    information: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    mutable: List<String>,
+    visiting: List<String>,
+): Int {
+    if visiting.contains(function.name) {
+        return 2
+    }
+    var names = List<String>()
+    collect_declared_names(function.body, names)
+    var index = 0
+    while index < function.parameters.count() {
+        names.append(function.parameters[index].name)
+        index = index + 1
+    }
+    index = 0
+    while index < names.count() {
+        if mutable.contains(names[index]) {
+            return 2
+        }
+        index = index + 1
+    }
+    var inner = visiting.copy()
+    inner.append(function.name)
+    return block_state_uses(function.body, information, mutable, inner)
+}
+
+func block_state_uses(
+    statements: List<Syntax.Statements.Statement>,
+    information: Analysis.ClassInfo,
+    mutable: List<String>,
+    visiting: List<String>,
+): Int {
+    var total = 0
+    var index = 0
+    while index < statements.count() {
+        var uses = statement_state_uses(statements[index], information, mutable, visiting)
+        total = total + uses
+        index = index + 1
+    }
+    return total
+}
+
+func statement_state_uses(
+    statement: Syntax.Statements.Statement,
+    information: Analysis.ClassInfo,
+    mutable: List<String>,
+    visiting: List<String>,
+): Int {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: return optional_state_uses(statement.value, information, mutable, visiting)
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            var target = shape.as_identifier(statement.target)
+            if target {
+                if mutable.contains(target.name) {
+                    var stored = stored_value(statement.value, target.name)
+                    var value_uses = expression_state_uses(stored, information, mutable, visiting)
+                    return 1 + value_uses
+                }
+            }
+            var target_uses = expression_state_uses(statement.target, information, mutable, visiting)
+            var assigned_uses = expression_state_uses(statement.value, information, mutable, visiting)
+            return target_uses + assigned_uses
+        }
+        Syntax.Statements.IfStatement: {
+            var condition_uses = optional_state_uses(statement.condition, information, mutable, visiting)
+            var then_uses = block_state_uses(statement.then_branch, information, mutable, visiting)
+            var else_uses = block_state_uses(statement.else_branch, information, mutable, visiting)
+            return condition_uses + then_uses + else_uses
+        }
+        Syntax.Statements.WhileStatement: {
+            var condition_uses = optional_state_uses(statement.condition, information, mutable, visiting)
+            var body_uses = block_state_uses(statement.body, information, mutable, visiting)
+            if condition_uses + body_uses > 0 {
+                return 2
+            }
+            return 0
+        }
+        Syntax.Statements.SwitchStatement: {
+            var total = optional_state_uses(statement.subject, information, mutable, visiting)
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                var case_uses = block_state_uses(statement.cases[case_index].body, information, mutable, visiting)
+                total = total + case_uses
+                case_index = case_index + 1
+            }
+            return total
+        }
+        Syntax.Statements.AssertStatement: return optional_state_uses(statement.value, information, mutable, visiting)
+        Syntax.Statements.ReturnStatement: return optional_state_uses(statement.value, information, mutable, visiting)
+        Syntax.Statements.ExpressionStatement: return optional_state_uses(statement.value, information, mutable, visiting)
+        _: return 0
+    }
+}
+
+func stored_value(value: Syntax.Expressions.Expression, target: String): Syntax.Expressions.Expression {
+    var binary = shape.as_binary(value)
+    if binary {
+        var counts = binary.operator == 'add' or binary.operator == 'subtract'
+        crash binary.left
+        crash binary.right
+        if counts and is_identifier_named(binary.left, target) {
+            return binary.right
+        }
+    }
+    return value
+}
+
+func optional_state_uses(
+    expression: Syntax.Expressions.Expression?,
+    information: Analysis.ClassInfo,
+    mutable: List<String>,
+    visiting: List<String>,
+): Int {
+    if expression {
+        return expression_state_uses(expression, information, mutable, visiting)
+    }
+    return 0
+}
+
+func each_state_uses(
+    expressions: List<Syntax.Expressions.Expression>,
+    information: Analysis.ClassInfo,
+    mutable: List<String>,
+    visiting: List<String>,
+): Int {
+    var total = 0
+    var index = 0
+    while index < expressions.count() {
+        var uses = expression_state_uses(expressions[index], information, mutable, visiting)
+        total = total + uses
+        index = index + 1
+    }
+    return total
+}
+
+func expression_state_uses(
+    expression: Syntax.Expressions.Expression,
+    information: Analysis.ClassInfo,
+    mutable: List<String>,
+    visiting: List<String>,
+): Int {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: {
+            if expression.name == "this" {
+                return 2
+            }
+            if mutable.contains(expression.name) {
+                return 1
+            }
+            return 0
+        }
+        Syntax.Expressions.StringLiteralExpression: {
+            var index = 0
+            while index < mutable.count() {
+                if expression.value.contains("\{") and expression.value.contains(mutable[index]) {
+                    return 2
+                }
+                index = index + 1
+            }
+            return 0
+        }
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            var argument_uses = each_state_uses(expression.arguments, information, mutable, visiting)
+            var own = shape.as_identifier(expression.callee)
+            if own {
+                var called = information.find_function(own.name)
+                if called {
+                    var called_uses = function_state_uses(information, called, mutable, visiting)
+                    return argument_uses + called_uses
+                }
+            }
+            var callee_uses = expression_state_uses(expression.callee, information, mutable, visiting)
+            return argument_uses + callee_uses
+        }
+        Syntax.Expressions.GenericCallExpression: return each_state_uses(expression.arguments, information, mutable, visiting)
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            var left_uses = expression_state_uses(expression.left, information, mutable, visiting)
+            var right_uses = expression_state_uses(expression.right, information, mutable, visiting)
+            return left_uses + right_uses
+        }
+        Syntax.Expressions.UnaryExpression: return optional_state_uses(expression.operand, information, mutable, visiting)
+        Syntax.Expressions.MemberExpression: return optional_state_uses(expression.object, information, mutable, visiting)
+        Syntax.Expressions.IndexExpression: {
+            var object_uses = optional_state_uses(expression.object, information, mutable, visiting)
+            var index_uses = optional_state_uses(expression.index, information, mutable, visiting)
+            return object_uses + index_uses
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var total = 0
+            var index = 0
+            while index < expression.elements.count() {
+                var element_value = expression.elements[index].value
+                var uses = optional_state_uses(element_value, information, mutable, visiting)
+                total = total + uses
+                index = index + 1
+            }
+            return total
+        }
+        Syntax.Expressions.ObjectLiteralExpression: {
+            var total = 0
+            var index = 0
+            while index < expression.fields.count() {
+                var field_value = expression.fields[index].value
+                var uses = optional_state_uses(field_value, information, mutable, visiting)
+                total = total + uses
+                index = index + 1
+            }
+            return total
+        }
+        _: return 0
+    }
+}
+
+func emit_atomic_store(
+    name: String,
+    field_type: Analysis.SpiteType,
+    value: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var place = "self->{c_value_name(name)}"
+    var owner = class_information.c_name
+    var binary = shape.as_binary(value)
+    if binary {
+        crash binary.left
+        crash binary.right
+        var counts = binary.operator == 'add' or binary.operator == 'subtract'
+        if counts and is_identifier_named(binary.left, name) and not is_boolean_type(field_type) {
+            mark_attribute_read(class_information, name)
+            var step = coerce_for_store(binary.right, field_type, scope, class_information)
+            if binary.operator == 'subtract' {
+                step = "-({step})"
+            }
+            builder.add_user("SPITE_SINGLETON_ADD({owner}, {place}, {step});")
+            return
+        }
+    }
+    var stored = coerce_for_store(value, field_type, scope, class_information)
+    builder.add_user("SPITE_SINGLETON_STORE({owner}, {place}, {stored});")
+}
+
+func emit_guarded_outside_write(
+    target_class: Analysis.ClassInfo,
+    target_code: String,
+    field_type: Analysis.SpiteType,
+    value: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    if not outside_class_names.contains(target_class.c_name) {
+        outside_class_names.append(target_class.c_name)
+        outside_classes.append(target_class)
+    }
+    var value_code = coerce_for_store(value, field_type, scope, class_information)
+    var stored = next_temporary()
+    var type_name = c_type_name(field_type)
+    builder.add_user("{type_name} {stored} = {value_code};")
+    var owner = target_class.c_name
+    builder.add_user("{owner}___outside_enter();")
+    if type_needs_drop(field_type) {
+        var previous = next_temporary()
+        builder.add_user("{type_name} {previous} = {target_code};")
+        builder.add_user("{target_code} = {stored};")
+        builder.add_user("{owner}___outside_leave();")
+        builder.add_user("{release_call(field_type, previous)};")
+    } else {
+        builder.add_user("{target_code} = {stored};")
+        builder.add_user("{owner}___outside_leave();")
+    }
+}
+
+func finish_atomic_singletons() {
+    assert not atomic_classes.is_empty()
+    builder.add_typedef(
+        "#define SPITE_SINGLETON_LOAD(owner, place) (owner##___atomic ? __atomic_load_n(&(place), __ATOMIC_SEQ_CST) : (place))",
+    )
+    builder.add_typedef(
+        "#define SPITE_SINGLETON_STORE(owner, place, value) do \{ if (owner##___atomic) __atomic_store_n(&(place), (value), __ATOMIC_SEQ_CST); else (place) = (value); } while (0)",
+    )
+    builder.add_typedef(
+        "#define SPITE_SINGLETON_ADD(owner, place, value) do \{ if (owner##___atomic) __atomic_fetch_add(&(place), (value), __ATOMIC_SEQ_CST); else (place) += (value); } while (0)",
+    )
+    var reached = call_effects.thread_reached_classes()
+    var index = 0
+    while index < atomic_classes.count() {
+        var information = atomic_classes.get_at(index)
+        var threaded = parallel_used and (reached.has(information.simple_name) or called_implicitly(information))
+        var flag = "0"
+        if threaded {
+            flag = "1"
+        }
+        builder.add_typedef("#define {information.c_name}___atomic {flag}")
+        index = index + 1
+    }
+}
+
+func written_from_outside(information: Analysis.ClassInfo): Bool {
+    if outside_written.has(information.c_name) {
+        return outside_written[information.c_name] == true
+    }
+    var written = false
+    var names = call_effects.writes_from_outside(information.simple_name)
+    var index = 0
+    while index < names.count() {
+        if information.find_field(names[index]) {
+            written = true
+        }
+        index = index + 1
+    }
+    outside_written.set(information.c_name, written)
+    return written
+}
+
+func shares_state(field_type: Analysis.SpiteType): Bool {
+    var visiting = List<String>()
+    return not holds_read_only(field_type, visiting)
+}
+
+func holds_read_only(field_type: Analysis.SpiteType, visiting: List<String>): Bool {
+    if not reaches_shared(field_type) {
+        return true
+    }
+    var held_type = field_type
+    var nullable = type_shape.as_nullable(field_type)
+    if nullable {
+        held_type = nullable.get_inner()
+    }
+    var class_ref = type_shape.as_class_ref(held_type)
+    assert class_ref
+    var held = find_class_by_c_name(class_ref.c_name)
+    assert held
+    return is_read_only_class(held, visiting)
+}
+
+func is_read_only_class(information: Analysis.ClassInfo, visiting: List<String>): Bool {
+    if read_only_classes.has(information.c_name) {
+        return read_only_classes[information.c_name] == true
+    }
+    assert not visiting.contains(information.c_name) and not information.is_value_class
+    assert not information.is_generic_template
+    visiting.append(information.c_name)
+    var read_only = not written_from_outside(information)
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var field_type = field.get_type()
+        if not holds_read_only(field_type, visiting) {
+            read_only = false
+        }
+        index = index + 1
+    }
+    var targets = List<String>()
+    index = 0
+    while index < information.functions.count() {
+        var function = information.functions[index]
+        if not function.is_constructor {
+            collect_assigned_roots(function.body, targets)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < targets.count() {
+        if information.find_field(targets[index]) {
+            read_only = false
+        }
+        index = index + 1
+    }
+    read_only_classes.set(information.c_name, read_only)
+    return read_only
+}
+
+func guards_outside_write(target_class: Analysis.ClassInfo): Bool {
+    var singleton = target_class.is_singleton and not target_class.is_stateless_singleton
+    return singleton and not is_library_class(target_class) and not is_hot_class(target_class)
+}
+
+func finish_outside_writes() {
+    var reached = call_effects.thread_reached_classes()
+    var index = 0
+    while index < outside_classes.count() {
+        var information = outside_classes.get_at(index)
+        var name = information.c_name
+        var threaded = parallel_used and (reached.has(information.simple_name) or called_implicitly(information))
+        if threaded and not emitted_guards.contains(name) {
+            emitted_guards.append(name)
+            builder.add_support("static SpiteGuard {name}___guard = \{ 0, 0 };")
+        }
+        if threaded {
+            builder.add_typedef("#define {name}___outside_enter() spite_guard_enter(&{name}___guard)")
+            builder.add_typedef("#define {name}___outside_leave() spite_guard_leave(&{name}___guard)")
+        } else {
+            builder.add_typedef("#define {name}___outside_enter() ((void)0)")
+            builder.add_typedef("#define {name}___outside_leave() ((void)0)")
+        }
+        index = index + 1
+    }
+}
+
+func called_implicitly(information: Analysis.ClassInfo): Bool {
+    var index = 0
+    while index < information.functions.count() {
+        var name = information.functions[index].name
+        var operator = name == "sum" or name == "subtract" or name == "multiply" or name == "divide" or name == "remainder"
+        var compares = name == "equals" or name == "less_than" or name == "greater_than" or name == "negate"
+        var indexes = name == "get_at" or name == "set_at" or name == "missing_function"
+        var accessor = name.starts_with("get_") or name.starts_with("set_")
+        var text = name == "to_string" or name == "to_debug"
+        if operator or compares or indexes or accessor or text {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func emit_guard_wrapper(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, unguarded_name: String) {

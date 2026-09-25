@@ -519,3 +519,16 @@ All of it is proposed by Claude, unconfirmed.
      is its value. Also `examples/vectors` has a user class `Vector`, which a library `Vector<T>` would turn into
      a reopening of the library's class. Name it `Vector<T>` anyway (the example renames its class), or another
      name?
+176. **How much of a singleton may be atomics instead of a lock (D184).** Built as: a singleton whose changing
+     attributes are whole numbers or `Bool`s, where each function touches that state once (one read, one
+     `x = x + step`, or one `flag = value`), is compiled to atomics and takes no lock; that keeps every function one
+     indivisible step, exactly as the lock did. A function touching two counters (`hits = hits + 1` then
+     `total = total + size`) falls back to the lock, because another thread could read between the two. Keep the
+     one-touch rule, or accept that each line is atomic on its own and drop the lock there too? And `Float`
+     counters: C has no atomic add for them, so they need a compare-and-swap loop -- worth it, or keep the lock?
+177. **A singleton's attribute written or read from another class.** D183 guards a singleton's functions. Built:
+     a write from another class (`registry.last = name`) takes the singleton's lock, and makes the singleton one
+     that changes, so it is never atomics or nothing. Not built: a read from another class (`registry.last`)
+     takes nothing, and `counter.hits = counter.hits + 1` from outside is a read and a write, two steps with
+     another thread free to run between them. Keep this, or make either an error in a program where a `Parallel`
+     reaches the singleton ("call a function of 'Registry' instead")?

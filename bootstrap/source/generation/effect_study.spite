@@ -50,7 +50,10 @@ func study_statement(statement: Syntax.Statements.Statement) {
             statement.cases.each(study_case)
         }
         Syntax.Statements.AssertStatement: study_optional(statement.value)
-        Syntax.Statements.ReturnStatement: study_optional(statement.value)
+        Syntax.Statements.ReturnStatement: {
+            study_optional(statement.value)
+            take_optional(statement.value)
+        }
         Syntax.Statements.ExpressionStatement: study_optional(statement.value)
         _: return
     }
@@ -68,6 +71,7 @@ func study_optional(expression: Syntax.Expressions.Expression?) {
 func study_declaration(declaration: Syntax.Statements.VariableDeclaration) {
     crash declaration.value
     study_expression(declaration.value)
+    take_value(declaration.value)
     var source = classify(declaration.value)
     local_sources.set(declaration.name, source)
     crash table
@@ -97,6 +101,7 @@ func study_assignment(assignment: Syntax.Statements.AssignmentStatement) {
     crash assignment.value
     study_expression(assignment.target)
     study_expression(assignment.value)
+    take_value(assignment.value)
     var target_name = shape.as_identifier(assignment.target)
     if target_name {
         if parameters.contains(target_name.name) or local_sources.has(target_name.name) {
@@ -113,6 +118,8 @@ func study_assignment(assignment: Syntax.Statements.AssignmentStatement) {
     crash target_member.object
     var owner = owner_class(target_member.object)
     add_key("field:{owner}#{target_member.name}")
+    crash recorded
+    recorded.member_writes.append("{owner}#{target_member.name}")
 }
 
 func study_expressions(expressions: List<Syntax.Expressions.Expression>) {
@@ -143,6 +150,28 @@ func study_expression(expression: Syntax.Expressions.Expression) {
 
 func study_element(element: Syntax.Expressions.ListElement) {
     study_optional(element.value)
+    take_optional(element.value)
+}
+
+func take_optional(expression: Syntax.Expressions.Expression?) {
+    assert expression
+    take_value(expression)
+}
+
+func take_value(expression: Syntax.Expressions.Expression) {
+    crash recorded
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        if not parameters.contains(identifier.name) and not local_sources.has(identifier.name) {
+            recorded.taken.append("{class_name}#{identifier.name}")
+        }
+        return
+    }
+    var member = shape.as_member(expression)
+    assert member
+    crash member.object
+    var owner = owner_class(member.object)
+    recorded.taken.append("{owner}#{member.name}")
 }
 
 func study_field(field: Syntax.Expressions.ObjectField) {
@@ -152,6 +181,7 @@ func study_field(field: Syntax.Expressions.ObjectField) {
 func study_construction(construction: Syntax.Expressions.GenericCallExpression) {
     crash construction.callee
     study_expressions(construction.arguments)
+    construction.arguments.each(take_value)
     var argument_keys = classified(construction.arguments)
     var constructed = called_name(construction.callee)
     calls.append(EffectCall(constructed, constructed, argument_keys))
@@ -160,6 +190,7 @@ func study_construction(construction: Syntax.Expressions.GenericCallExpression) 
 func study_call(call: Syntax.Expressions.CallExpression) {
     crash call.callee
     study_expressions(call.arguments)
+    call.arguments.each(take_value)
     var argument_keys = classified(call.arguments)
     var callee_identifier = shape.as_identifier(call.callee)
     if callee_identifier {

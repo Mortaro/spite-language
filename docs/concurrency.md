@@ -382,8 +382,9 @@ the particles moved 5997000
 **The member may reach only its own element** (D35). Every element runs at the same time as the others, so the
 compiler reads the member -- and every function of the element's class it calls -- and allows only the element's
 own attributes that hold a value (a number, a `Bool`, text, an enum or a `Symbol`), any singleton and the
-member's locals. A singleton of the program's own that can change is locked for you in a program that uses
-`Parallel` ([optimizations.md](optimizations.md#singletons-a-parallel-reaches-take-a-lock)), so a `Parallel` or a
+member's locals. A singleton of the program's own that can change is made safe for you in a program that uses
+`Parallel` -- with atomics when it only counts or flags, with a lock otherwise
+([optimizations.md](optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form)) -- so a `Parallel` or a
 pass may call it while the program's thread does too. An attribute holding another object
 may be shared by several elements, so reading it is an error that names it:
 

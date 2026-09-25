@@ -1,0 +1,21 @@
+var registry = Registry()
+var rules = Rules()
+var first = 0
+
+func Loader(starting_first: Int) {
+    first = starting_first
+}
+
+func load_many(): Int {
+    var loaded = 0
+    var index = 0
+    while index < 1000 {
+        var size = first + index
+        if rules.allows(size) {
+            registry.add("texture {size}", size)
+            loaded = loaded + 1
+        }
+        index = index + 1
+    }
+    return loaded
+}
