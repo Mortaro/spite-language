@@ -73,11 +73,12 @@ func is_alive(): Bool {
 - `snake_case` for variables, attributes, parameters, functions and enum values; `PascalCase` for classes,
   enums, unions and types; never a single letter; never an abbreviation (`message` not `msg`, `index` not `idx`,
   `value` not `val`). The error names the word to write.
-- A local or parameter that is never used is an error: remove it or name it `_name`. A `_name` that is used is an
-  error too. A use inside a branch a codegen test rules out (`if $slot_type == Entity { ... }`) still counts, so
+- A local that is never read is an error: remove it. Assigning is not reading, and no spelling silences it. A
+  parameter the signature needs but the body ignores is named `_name`; a `_name` that is read is an error too. A use inside a branch a codegen test rules out (`if $slot_type == Entity { ... }`) still counts, so
   a parameter only that branch reads is not unused in the other instantiations.
-- An attribute nothing reads is an error too (D118): remove it, or name it `_name`, which also makes it
-  private. Assigning it is not reading it. A Symbol template counts only when it reads the value,
+- An attribute nothing reads is an error too (D118): remove it. A private `_name` attribute is checked too.
+  Assigning it is not reading it. A public attribute of a folder the program `load`s is not checked, since
+  code the program does not load may read it. A Symbol template counts only when it reads the value,
   `x.attributes[attribute]`: an attribute kept as a marker that a walk inspects through `attribute.name` or
   `attribute.class` is unused, so say what the marker means some other way. A function nobody calls still
   reads what it names.

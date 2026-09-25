@@ -120,12 +120,14 @@ Only the last parameter can take `...`, and it always receives a `List`. The val
 passing a whole list to it is an error; a parameter written without `...` takes a list as it is.
 
 ```gdscript title=variadic_not_a_list/variadic_not_a_list.spite entry error
+var console = Console()
+
 func VariadicNotAList() {
     shout("a", "b")
 }
 
 func shout(...words: String) {
-    var _count = 0
+    console.print(words)
 }
 ```
 ```diagnostic

@@ -10,10 +10,10 @@ func DefaultGuard() {
     var answer = real_answers(3)
     var walked = walk(4)
     var kept = kept_count(true, false, true)
-    console.print(open, code, divided, text, sent, answer, walked, kept)
+    var gate = Gate(1)
+    console.print(open, code, divided, text, sent, answer, walked, kept, gate.size)
     find_name(false)
     checked(5)
-    var _gate = Gate(1)
 }
 
 func is_open(): Bool {

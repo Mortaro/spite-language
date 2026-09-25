@@ -146,27 +146,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
 54. **`allocate_stack_bytes` is removed**, since D108 gives the choice to the compiler and it was a second way to
     allocate. For an ECS that wants control, what stays is the layout: one allocation, offsets, `TypedMemory`.
     Is anything else wanted -- say, a hint that a structure is short-lived, which the compiler may ignore?
-## A function of the caller for each element (D113; manual section 8)
-
-57. **A caller function that needs more than the element** -- `print_statement(statement, depth)`, the typical
-    loop of D94's review (143 of them stay `while`). Nothing is built. Options (proposed by Claude,
-    unconfirmed): (a) leave them as `while`, which is where they are now; (b) the template's own arguments go to
-    the function after the element, so `statements.each_print_statement(depth)` calls
-    `print_statement(statement, depth)` -- no new syntax, and each extra argument is evaluated once before the
-    loop, but `find_by_(value)` already takes an argument, so it would need a rule for which one is the value
-    (say: `find_by_` takes none extra); (c) move `depth` into an attribute so the function takes the element
-    alone, which the review called the esoteric outcome. I would build (b) for `each_` and `map_` first and
-    recount; the loop rule would then also name `statements.each_print_statement(depth)`.
-58. **When the element has a member and the caller a function of the same name**, the call is an error asking to
-    rename one (`'each_is_adult' could call 'is_adult' of each 'Person' or this class's own 'is_adult(Person)'`).
-    You asked for "the element's own member first, then the caller's function, or an error if ambiguous": I chose
-    the error, because with an order a member added to a class later silently changes what an unrelated caller
-    runs (D36's surprise, and D59's one name, one meaning). Keep the error, or let the element's member win?
-59. **The loop rule reaches only what is exactly rewritable**, and today that is 2 loops. It leaves a loop whose
-    function belongs to another object (`evaluator.process_line(lines[index])` in `examples/calculator`): a
-    template calls functions of the caller only. Should `lines.each_process_line()` look at the caller's
-    attributes too (here `evaluator`), or does that stay a `while`?
-
 ## Live reload (D111, D112; manual section 14, "Live reload and 6b")
 
 64. **A changed attribute or enum is refused, with an error saying to restart.** D111 says a change rebuilds "what
@@ -372,31 +351,52 @@ Behaviour that does not match the manual. The language was not changed; each is 
      `address.byte_at(offset)`, where `Address` is a number class whose members the backend lowers; (c) something
      you have in mind. The rest of the floor (allocation, copying, comparing, loading libraries) becomes plain Spite
      calling the platform's library through `DynamicLibrary`.
+     *Mortaro (2026-09-25):* likes `Address` only if "the code you see is what you get"; otherwise prefers what the OS
+     offers through `DynamicLibrary`, and needs convincing with limitations and downsides. *Claude's case:* the OS
+     offers memory pages (`VirtualAlloc`/`mmap`), so allocation, freeing, copying and loading libraries can all be
+     visible Spite calling the OS -- at the cost of writing our own small-object allocator in Spite on top of pages.
+     No OS offers "the byte at this address": that is one CPU load instruction. Doing it through a DLL call
+     (`RtlMoveMemory`/`memcpy` per read) works but costs a call per access with no inlining, roughly 5-20x slower
+     on memory-heavy code (zstd, ECS loops, text). `address.byte_at(offset)` is a language primitive in the same
+     sense as `+` on two integers -- one instruction, nothing below it -- that each backend lowers; downsides: it can
+     read a wrong address (so `library/` only), and every backend must implement ~10-15 such operations.
+     Recommendation: OS for pages, libraries and files (with a Spite allocator); `Address` only for loads, stores and
+     atomics.
+
+## Behind D136 (which attributes one program judges)
+
+114. **Which folders D118 judges.** D136 says a public attribute is reported only where every reader is visible.
+     As built, "visible" means: the program's entry folder minus every folder its entry file `load`s (so a
+     `load("package")` subfolder is exempt like `../../plugins/ui`), plus the standard library, which is compiled
+     whole in every program and so always sees its own readers, plus private attributes everywhere. So a
+     package's dead public attribute is never reported by a program that loads it; SlopEngine found its own
+     (`Psd.Layer.opacity`, `Box.order`) only because the check briefly covered every loaded folder. Keep that
+     line, or add a way to check a package on its own (a `spite check` of a folder, every public attribute read
+     by the package itself or reported)?
 
 ## SlopEngine's entity API (D123, D124)
 
-114. **Is "any" a built-in type, or does each program declare its own?** `attribute.object` needed a type, so
+115. **Is "any" a built-in type, or does each program declare its own?** `attribute.object` needed a type, so
      `library/spite/attribute.spite` declares `type Object { }` and `.object` is `Spite.Attribute.Object?`
      (proposed by Claude, unconfirmed). SlopEngine keeps declaring `type Anything { }`, and a value of one empty
      `type` passes to another. The alternative is one built-in name every program shares, such as `Spite.Object`
      (or `Anything` itself), declared once in `library/spite/` -- which would also give `.object` a shorter
      type name. Keep "declare your own empty `type`", or add the built-in?
-115. **A number, `Bool` or enum attribute's `.object`: boxed or `null`?** It is boxed (proposed by Claude,
+116. **A number, `Bool` or enum attribute's `.object`: boxed or `null`?** It is boxed (proposed by Claude,
      unconfirmed), as D109 boxes a plain value passed where a `type` is wanted, so `speed: Int` hands
      `add_component` an object whose `.class` is `Int` and `if component == Int` narrows it back. The other
      reading was `null` for anything that is not already an object, which would make a bundle's numbers vanish
      silently. `null` is kept only for an attribute that holds `null`, so `.object` is still a `T?` to narrow.
-116. **Where does D124 apply?** Read as "wherever a `Spite.Class` is wanted" (proposed by Claude, unconfirmed):
+117. **Where does D124 apply?** Read as "wherever a `Spite.Class` is wanted" (proposed by Claude, unconfirmed):
      an argument, `var kind: Spite.Class = Health`, an assignment to one and a `return`; an untyped `var kind =
      Health` is still the "is a class, not a value" error, since a missing `()` is the likelier mistake. And
      `kind == Health` with `kind` a `Spite.Class` now compares class objects instead of being D75's class test,
      which could only be false. Should a bare class name be its class object everywhere instead?
-117. **`load` as a function name.** A class that declares `func load` now calls it with `load(x)` (proposed by
+118. **`load` as a function name.** A class that declares `func load` now calls it with `load(x)` (proposed by
      Claude, unconfirmed; SlopEngine's asset cache hit it); before, every `load(...)` was the package load and
      compiled to nothing. The alternative was reserving the word and making `func load` an error naming the
      launcher's `load`. Keep it an ordinary name?
-118. **A codegen value in a class test** (proposed by Claude, unconfirmed): `item == $wanted_type` folds to
+119. **A codegen value in a class test** (proposed by Claude, unconfirmed): `item == $wanted_type` folds to
      `false` rather than D75's "never true" error when the value's union cannot hold the bound class, since a
      generic class cannot avoid that for every binding. Item 44's question (should a class-level `.functions` be
      bound to an instance at all) remains; its visible symptom, the extra member of `.instances`, is gone.
-

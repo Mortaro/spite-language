@@ -43,7 +43,8 @@ func next_name(): String {
 }
 
 func count_and_forget() {
-    var _counting = Parallel(say_done)
+    var counting = Parallel(say_done)
+    crash counting.work
 }
 
 func say_done() {

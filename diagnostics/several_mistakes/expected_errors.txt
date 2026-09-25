@@ -2,4 +2,3 @@ diagnostics/several_mistakes/several_mistakes.spite:6: error: this class has no 
 diagnostics/several_mistakes/several_mistakes.spite:15: error: unknown type 'Strng' (in SeveralMistakes.other)
 diagnostics/several_mistakes/several_mistakes.spite:16: error: unknown identifier 'nothing' (in SeveralMistakes.other)
 diagnostics/several_mistakes/several_mistakes.spite:16: error: 'name' cannot be read from this value (in SeveralMistakes.other)
-diagnostics/several_mistakes/several_mistakes.spite:15: error: 'value' is never used: remove it, or name it '_value' to say that is intended (in SeveralMistakes.other)

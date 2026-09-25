@@ -375,8 +375,8 @@ Lamp { room: "hall", lit: false }
 
 A name starting with `_` is private: it is read, written or called only inside its own class -- a reopening of
 the class counts as inside -- and using it from anywhere else is an error that names the getter when there is
-one. The same prefix marks a local, a parameter or an attribute as intentionally unused: an attribute nothing
-reads is an error unless its name starts with `_` ([style.md](style.md#nothing-unused)).
+one. On a parameter, and only there, the prefix says instead that the body ignores it on purpose; a private
+attribute nothing reads is an error like any other ([style.md](style.md#nothing-unused)).
 
 ## Reopening a class
 
