@@ -10,6 +10,13 @@ emitted**: `value.attributes` is built only for a class something reads `.attrib
 class exists only in a program that asks for it. So reflection can be as detailed as it likes -- an unused member
 costs nothing.
 
+What a read does cost at run time is what it builds, and only where it is written: each read of `.attributes`
+makes a fresh list with one entry per field; reading `attribute.value` boxes a number field into an object;
+`Monster.instances` makes every construction and release of a `Monster` add or remove it from a list, and a class
+nobody asks the instances of keeps no list. Everything else -- names, classes, namespaces, `has_function` asked of
+a generic's type -- is constant data or folds while compiling. The whole list is in
+[optimizations.md](optimizations.md#reflection-symbols-and-registries-only-where-read).
+
 ## The objects
 
 | Object | Members |
@@ -52,18 +59,13 @@ func describe(gadget: Gadget) {
     console.print("own class", class.name)
     console.print("declared name", Gadget.name)
     var attributes = gadget.attributes
-    var index = 0
-    while index < attributes.count() {
-        var attribute = attributes[index]
-        var shown = text_of(attribute)
-        console.print(attribute.name, attribute.class, shown)
-        index = index + 1
-    }
+    attributes.each(show_attribute)
 }
 
-func text_of(attribute: Spite.Attribute): String {
+func show_attribute(attribute: Spite.Attribute) {
     assert attribute.value
-    return attribute.value.to_string()
+    var shown = attribute.value.to_string()
+    console.print(attribute.name, attribute.class, shown)
 }
 ```
 ```output
@@ -113,28 +115,25 @@ var components = List<Anything>()
 
 func AttributeObjects() {
     add_every_attribute(Player())
-    var index = 0
-    while index < components.count() {
-        var component = components[index]
-        var described = "{component.class}"
-        if component == Health {
-            described = "Health {component.amount}"
-        }
-        console.print(described)
-        index = index + 1
+    components.each(show_component)
+}
+
+func show_component(component: Anything) {
+    var described = "{component.class}"
+    if component == Health {
+        described = "Health {component.amount}"
     }
+    console.print(described)
 }
 
 func add_every_attribute(bundle: Anything) {
     var attributes = bundle.attributes
-    var index = 0
-    while index < attributes.count() {
-        var attribute = attributes[index]
-        if attribute.value {
-            components.append(attribute.value)
-        }
-        index = index + 1
-    }
+    attributes.each(add_value)
+}
+
+func add_value(attribute: Spite.Attribute) {
+    assert attribute.value
+    components.append(attribute.value)
 }
 ```
 ```output
@@ -326,8 +325,9 @@ is in [metaprogramming.md](metaprogramming.md#a-classs-functions-a-folders-class
 ## Instances, and every class in the program
 
 `Monster.instances` is every instance of `Monster` alive at that moment, in the order they were made.
-`Spite.Class.instances` is every class in the program, because a class is an instance of `Spite.Class`. That
-is how the test package finds its tests without being told about them ([testing.md](testing.md)).
+`Spite.Class.instances` is every class in the program -- its own folder and every package it loads, not the
+standard library -- because a class is an instance of `Spite.Class`. That is how the test package finds its tests
+without being told about them ([testing.md](testing.md)).
 
 A class object's `.attributes` and `.functions` are read from a stand-in the program makes for the purpose, with
 every attribute at its default, and the stand-in is not one of `.instances`: walking `Gadget.functions` leaves
@@ -335,7 +335,14 @@ every attribute at its default, and the stand-in is not one of `.instances`: wal
 the program's console nor keeps a second one alive. Its attributes are released when it goes, but its `drop()`
 never runs: that belongs to the one real instance, at exit. A singleton whose attributes are all settings the
 compiler already knows, such as `Build`, holds nothing at run time, so its `.attributes` answer those settings:
-`build.class.attributes` lists `mode` with the value `run`.
+`build.class.attributes` lists `run` with the value `true`, `repl_port` with `0`, and so on. The program's entry
+class is described with no stand-in at all, since making one would run the program again, so its `.functions` is
+empty and `has_function` asked of it is `false`.
+
+Which singletons are objects at all depends on the build ([D143](decisions.md)): in a `--development`,
+`--hot-reload`, `--repl` or `--repl-port` build a singleton that holds nothing, such as `Build`, is an ordinary
+object you can find in its `.instances`; in every other build it is one static object that `.instances` does not
+list ([optimizations.md](optimizations.md#singletons-that-hold-nothing-are-static-objects)).
 
 ```gdscript title=live_registry/monster.spite
 var name = ""
@@ -395,18 +402,19 @@ func ReflectionReadOnly() {
 A reopening of a `Spite` class is inside it, so it may read those fields; that is how a program adds a member
 to every class object at once ([packages.md](packages.md#the-spite-namespace-is-reserved)).
 
-The few members only the compiler can write -- `value_attributes()`, `value_functions()` and `assign(text)` on
-`Spite.Attribute`, `call_function()` and `call_with_text(arguments)` on `Spite.Function`, which reach the live
-value behind them for the REPL -- are the compiler's own reopening of those classes, and `--final-classes`
-prints them like any other member ([compiler.md](compiler.md#inspect-merged-classes)).
+The few members that reach the live value behind a reflection object for the REPL, such as `call_function()`,
+have bodies only the compiler can write; they are its own reopening of those classes, and `--final-classes`
+prints them like any other member ([the rules in full](#reflection-objects--partial)).
 
-## Class-level functions, and no static functions
+## Functions of `Spite.Class`, and no static functions
 
 There are no static functions and there will not be any: a class is an instance of `Spite.Class`, so a function
-that belongs to the class rather than to its instances is a function of `Spite.Class`, declared there with its
-default. `is_singleton()` is one: every class answers it, from its `singleton` line
-([classes_and_files.md](classes_and_files.md#singletons)). Reopening `Spite.Class` changes a class-level
-default for the whole program -- a foot you are allowed to shoot, and one that shows in `--final-classes`.
+that belongs to the class rather than to its instances is an ordinary function of `Spite.Class`, declared there
+with its default. `is_singleton()` is one: every class answers it, from its `singleton` line
+([classes_and_files.md](classes_and_files.md#singletons)), and declaring `is_singleton()` in a class is an error
+that says to write the `singleton` line instead. A reopening of `Spite.Class` changes what every class object
+answers, for the whole program -- a foot you are allowed to shoot, and one that shows in `--final-classes`
+([the rules in full](#functions-of-spiteclass-and-why-there-are-no-static-functions--partial)).
 
 ## Rules in full
 
@@ -422,46 +430,48 @@ Everything is a class, including classes. Reflection is resolved at compile time
 
 #### Reflection objects  **[partial]**
 
-Metaprogramming classes live in the `Spite` namespace (decided 2026-09-19:
-`Spite.Class`, `Spite.Attribute`, not `SpiteClass`/`SpiteAttribute`). `Spite` is a reserved root namespace: a
-user folder named `spite` (or `load "spite"`) is a diagnostic.
-
 D12 (decided by Mortaro, 2026-09-19): **every reflection object lives in the `Spite` namespace** -- `Spite.Class`,
-`Spite.Function`, `Spite.Argument`, `Spite.Attribute`, and whatever else reflection grows. One namespace, and
-nothing in it can be mistaken for a user class. **[implemented]**
+`Spite.Function`, `Spite.Argument`, `Spite.Attribute`, and whatever else reflection grows (`Spite.Class`, not
+`SpiteClass`). One namespace, and nothing in it can be mistaken for a user class. `Spite` is a reserved root
+namespace: a program's `spite/` folder may only reopen its classes, and `load "spite"` is an error
+([packages.md](packages.md#the-spite-namespace-is-reserved)). **[implemented]**
 
 | Object | Members |
 |---|---|
-| `Spite.Class` | `.name: Symbol` (D68), `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `has_function(name)` (D114; folds on a codegen type), plus the function of `Spite.Class`s a class may override ([above](#class-level-functions-and-why-there-are-no-static-functions--implemented)) |
-| `Spite.Function` | `.name: String`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `.owner`, `call_function()`, `name_fits(pattern)` (D116) |
-| `Spite.Argument` | `.name: String`, `.class: Spite.Class` |
-| `Spite.Attribute` | `.name: String`, `.class: Spite.Class`, `.value: Anything?` (the value itself; its text is `.value.to_string()`, below) |
-| `Spite.Namespace` | `.name: String` (the segment), `.name_with_namespaces: String` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
+| `Spite.Class` | `.name: Symbol` (D68), `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)` (D114; folds on a codegen type) -- the functions of `Spite.Class` ([below](#functions-of-spiteclass-and-why-there-are-no-static-functions--partial)) |
+| `Spite.Function` | `.name: Symbol`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()`, `name_fits(pattern)` (D116) |
+| `Spite.Argument` | `.name: Symbol`, `.class: Spite.Class` |
+| `Spite.Attribute` | `.name: Symbol`, `.class: Spite.Class`, `.value: Anything?` (the value itself; its text is `.value.to_string()`, below) |
+| `Spite.Namespace` | `.name: Symbol` (the segment), `.name_with_namespaces: Symbol` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
 | `Spite.Memory` | `.address: Long`, `.bytes: Long`, `.section: Spite.Memory.Section` (`'heap'`, `'stack'`, `'constant'`) -- what `value.memory` answers (D101) |
 
 **Every member above is a getter, and none has a setter** (D88, decided by Mortaro; built 2026-09-24).
 `library/spite/class.spite` and its neighbours keep the data in private fields (`_name`, `_namespace`,
-`_attributes`, ...) and answer `get_name()`, `get_namespace()` and so on, so `klass.name` reads through the
-ordinary getter interception and `klass.name = ...` is "'name' is read-only" (`diagnostics/reflection_read_only`).
+`_attributes`, ...) and answer `get_name()`, `get_namespace()` and so on, so `described.name` reads through the
+ordinary getter interception and `described.name = ...` is "'name' is read-only" (`diagnostics/reflection_read_only`).
 Everything reflection offers is ordinary code in `library/spite/`, reachable by name at run time and from the
 REPL (D92). The members only the compiler can write -- `value_attributes()`, `value_functions()` and
 `assign(text)` on `Spite.Attribute`, `call_function()` and `call_with_text(arguments)` on `Spite.Function` -- are
 the compiler's reopening of those classes (D82, [Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)), printed by `--final-classes` like any member. A class
-of the standard library describes its members too: `Memory.functions` lists every function `Memory` has,
-supplied ones included.
+of the standard library describes its members too: `Memory.Heap.functions` lists every function `Memory.Heap`
+has, supplied ones included.
 
-**A name starting with `_` is private** (proposed by Claude, unconfirmed, 2026-09-24; [Lexical structure](classes_and_files.md#lexical-structure--implemented) said so without
-a rule): it is read, written or called only inside its own class (a reopening is inside), and from anywhere
-else it is an error naming the getter when there is one -- "'_name' is private to 'Class': ... and 'name' reads
-it from outside". Without the rule, `klass._name = ...` would undo D88.
+**A name starting with `_` is private** (D137, decided by Mortaro: everywhere but on a parameter, where `_`
+means unused on purpose; the reach below proposed by Claude, unconfirmed, [Lexical structure](classes_and_files.md#lexical-structure--implemented)):
+it is read, written or called only inside its own class (a reopening is inside), and from anywhere else it is
+an error naming the getter when there is one -- "'_name' is private to 'Class': a name starting with '_' is used
+only inside its own class, and 'name' reads it from outside". Without the rule, `described._name = ...` would
+undo D88.
 
 **`value.memory` is where a named value lives** (D101, decided by Mortaro; built 2026-09-24, the shape proposed
 by Claude, unconfirmed): a class instance, a list or a dictionary answers with its object, a `String` with its
 characters (`'constant'` for a literal, which is part of the program), and a number held in a local with the
 local itself (`'stack'`) or in an attribute with that attribute (`'heap'`). Only a named value has an address: a
-number computed on the spot is an error. It is built only where a program reads it. A class with an attribute
-of its own named `memory` -- most of the standard library holds one -- answers that attribute instead, the way
-an attribute named `class` shadows `.class`.
+number computed on the spot is "only a named value has memory of its own: give this value a name with 'var'
+first". It is built only where a program reads it. A class with an attribute of its own named `memory` -- most of
+the standard library holds one -- answers that attribute instead, the way an attribute named `class` shadows
+`.class`. Choosing an object's allocator through `.memory.allocator` (D152, D153) is
+[memory.md](memory.md#choosing-an-allocator-memoryallocator)'s.
 
 **What `.functions` contains** (proposed by Claude, unconfirmed): the functions a class declares, plus the
 Symbol-codegen instances that were actually generated for it -- because those are functions of the class in the
@@ -485,8 +495,7 @@ everything; Spite can prove it, so it keeps nothing it cannot see a use for. [Re
 the whole family: `Spite.Class`, `Spite.Function`, `Spite.Argument`, `Spite.Attribute`, `Spite.Namespace` and
 whatever comes next.
 
-The practical direction, for milestone 10 and for anything designing a reflection member: **err toward more
-detail.** An unused field costs a program nothing, while a missing one costs a design.
+The practical direction for anything designing a reflection member: **err toward more detail.** An unused field costs a program nothing, while a missing one costs a design.
 
 **A namespace is an instance of `Spite.Namespace`** (D41, decided by Mortaro, 2026-09-20), for the same reason
 `.class` is a real class: a string can only be matched, an object can be compared, walked and enumerated.
@@ -502,16 +511,15 @@ package's functions, and what the deferred compile-time class generation would e
 rejecting Claude's proposal of a root object). A root object would have read as though every namespace were
 nested inside something -- and inside the metaprogramming package in particular, when a namespace merely *uses*
 `Spite.Namespace`, it is not contained by it. A top-level namespace has no parent, so it has `null`, and you
-walk up with `class.namespace.namespace` for as long as that can be satisfied.
+walk up with `class.namespace.parent` for as long as that can be satisfied.
 
 **`.class` is a real `Spite.Class`, not the type's name as a `String`** (D12). This is the change that makes
 reflection composable: `function.arguments[0].class == ServerContext` is an identity comparison the compiler
 checks, where `.class.name.starts_with("Server")` is a string test that quietly turns false when a class is
-renamed. Printing a `Spite.Class` still prints its `.name`, so anything that reads as text today keeps reading
-that way. **[`Spite.Attribute.class` is a real `Spite.Class` as of the 2026-09-20 reflection port; see the bullet
-below.]**
+renamed. Printing a `Spite.Class` still prints its `.name`, so anything that reads as text keeps reading that
+way. `Spite.Attribute.class` and `Spite.Argument.class` are real `Spite.Class` objects too. **[implemented]**
 
-- `value.class` is the value's class: a `Spite.Class` with `.name: String` (the class's own declared name) and
+- `value.class` is the value's class: a `Spite.Class` with `.name: Symbol` (the class's own declared name) and
   `.namespace: Spite.Namespace?` (its namespace object -- `.name` is the segment, `.name_with_namespaces` the dotted path,
   `.parent` the chain up, `.classes`/`.namespaces` the tree down; `null` for a global class). Printing a
   `Spite.Class` prints just its `.name`, and printing a `Spite.Namespace` prints its `.name_with_namespaces`.
@@ -526,10 +534,10 @@ below.]**
   `"Weapon"` with no instance anywhere, `Weapon.namespace` answers the same `Spite.Namespace?` as
   `weapon.class.namespace`, and a method receiver written as a class name resolves against the class object --
   `Weapon.is_singleton()` works, while `Weapon.debug()` (a function of the class being described) still reports
-  "'Weapon' is a class, not a value: write 'Weapon()' to make one", since there are no static functions. This
-  is D6 read literally: a class name is an ordinary `Spite.Class` value, so the substitution that already made
-  `Sticker.attributes` work is what every member read and method receiver on a static path does;
-  `Weapon.instances` still means its live registry.  **[implemented]**
+  "'Weapon' is a class, not a value: write 'Weapon()' to make one, and give it a name with 'var ... = '", since
+  there are no static functions. This is D6 read literally: a class name is an ordinary `Spite.Class` value, so
+  every member read and method receiver written as a class name reads the class object, as `Sticker.attributes`
+  does; `Weapon.instances` still means its live registry.  **[implemented]**
 - **A class name passed as an argument is its class object** (D124, decided by Mortaro, 2026-09-25):
   `entity.remove_component(Ui.Component.Pressed)`, received as `component_class: Spite.Class` -- "we are not
   actually passing a class we are passing a instance of the class class that represents the component class".
@@ -547,10 +555,11 @@ below.]**
   is an instance of `Health`, which a class object never is, and before this it was silently `false`.
 - `value.attributes` is a real, runtime `List<Spite.Attribute>` (built fresh, one entry per field, only for a
   class that actually uses `.attributes` -- nothing is generated for a class that never does): each entry has
-  `.name: String`, `.class: Spite.Class` (D12) and `.value` (below). Because
-  it is an ordinary `List<T>`, reading it uses `while`, not a special loop form. `attributes[symbol]` inside a
-  class is a separate, compile-time-only form: that same field indexed by a `Symbol` (see [Symbol
-  codegen](metaprogramming.md#symbol-codegen--implemented) below).
+  `.name: Symbol`, `.class: Spite.Class` (D12) and `.value` (below). It is an ordinary `List<T>`, walked like any
+  list (`attributes.each(show_attribute)`), with no special loop form. Each read builds the list again, so its
+  run-time cost is one list and one `Spite.Attribute` per field per read. `attributes[symbol]` inside a class is
+  a separate, compile-time-only form: that same field indexed by a `Symbol` (see [Symbol
+  codegen](metaprogramming.md#symbol-codegen--implemented)).
 - **`attribute.value` is the actual instance the attribute refers to** (D164, decided by Mortaro, replacing the
   text `.value` and the `.object` D123 added; the readings below proposed by Claude, unconfirmed).
   **[implemented]** Its type is `Anything?`, the library's built-in empty `type` (D163), so
@@ -561,30 +570,39 @@ below.]**
   `String` itself, a number's usual text), and `to_debug()` for a class that has none, a `List` or a
   `Dictionary`; the REPL's display calls it for a number, text or enum. **It costs nothing unless read**: the
   objects are built only in a program whose own code reads `.value` (the REPL library's reads count only in a
-  `--repl`/`--repl_port` build), every other program's attribute lists hold `null` there and box nothing, and no
-  attribute carries text any more, so a program walking `.attributes` allocates no strings for it. A number is
+  `--repl`/`--repl-port` build), every other program's attribute lists hold `null` there and box nothing, and no
+  attribute carries text, so a program walking `.attributes` allocates no strings for it. A number is
   never boxed where its type is known: `x.attributes[attribute]` in a Symbol template reads the plain field.
   **`value.attributes` works on a `type` or union value**, answered from the value's own class at run time, so
   `create_entity_from_bundle(bundle: Anything)` walks whatever bundle it is given. An attribute holding a
-  `Dictionary` now lists its entries as attributes named by their keys, as a `List` lists its elements, which is
+  `Dictionary` lists its entries as attributes named by their keys, as a `List` lists its elements, which is
   how the REPL counts both. Two mechanisms came with `.value`: a class admitted to one `type` is admitted to
   every `type` a value of it has already been passed on to, and `.attributes` through a `type` reads every
   attribute of every class admitted to it, for D118 (`conformance/stage6/attribute_object`,
-  `conformance/stage6/reflection`, `docs/reflection.md`).
+  `conformance/stage6/reflection`).
 - `Person.instances` lists every live instance of a class. Conceptually each class is a variable living on the heap and so is
-  its registry of instances; the compiler removes whatever is unused.  **[implemented]**
+  its registry of instances; the compiler removes whatever is unused: only a class whose `.instances` some code
+  reads is tracked, and for it each construction appends to the list and each release removes from it.
+  **[implemented]**
   A class object's `.attributes` and `.functions` are read from a stand-in instance at its defaults, which is not
-  one of `.instances`; a singleton's stand-in is destroyed with the singletons at exit rather than leaked
-  (proposed by Claude, unconfirmed, 2026-09-25; `conformance/stage6/reflection_stand_in`).
+  one of `.instances`; a singleton's stand-in never runs its `drop()` and is destroyed with the singletons at exit
+  rather than leaked (proposed by Claude, unconfirmed, 2026-09-25; `conformance/stage6/reflection_stand_in`,
+  `conformance/stage6/singleton_stand_in`). The program's entry class has no stand-in, since making one would run
+  the program again: its `.functions` is empty and `has_function` asked of it is `false`.
+  A singleton that holds nothing (`Build`, `TypedMemory<T>`) is an ordinary object, one of its `.instances`, only
+  in an inspectable build (`--development`, `--hot-reload`, `--repl`, `--repl-port`); every other build makes it one
+  static object that `.instances` does not list (D143, [optimizations.md](optimizations.md#singletons-that-hold-nothing-are-static-objects)).
 - **`Spite.Class.instances` is every class in the program** (D49, decided by Mortaro, 2026-09-20). A class is an
   instance of `Spite.Class` (D6), so the registry of *its* instances is the whole program's classes -- nothing
   new is needed for whole-program enumeration, it falls out of "everything is a class, including classes". A
   test runner uses it to find every test class instead of being handed them: no registration, no manifest, no
   `run(...)` per class. D42 pays for it, since a program that never enumerates its classes never generates the
-  registry.  **[implemented]**
+  registry. As built it lists the classes of the program's own folder and of every package it loads: not the
+  standard library's (`Launcher` included, [programs.md](programs.md)), not the anonymous classes behind object
+  literals, and not a generic class before its codegen values are supplied.  **[implemented]**
 - **Reflection reads at two levels, and the same word is right at both** (D11, decided by Mortaro, 2026-09-19).
-  A class object is an instance of `Spite.Class` (see [Class-level
-  functions](#class-level-functions-and-why-there-are-no-static-functions--implemented)), so it has attributes of its
+  A class object is an instance of `Spite.Class` (see [Functions of
+  `Spite.Class`](#functions-of-spiteclass-and-why-there-are-no-static-functions--partial)), so it has attributes of its
   own -- the declarations -- while an instance has their values:
 
 ```
@@ -596,69 +614,77 @@ Weapon.attributes['damage']    # the Spite.Attribute that describes the field
   uses for `user32.Input` versus `user32.input_mouse`, so nothing new is needed to tell them apart. This is also
   what stops `attributes[symbol]` from being a special, compile-time-only form bolted onto Symbol codegen: it is
   ordinary indexing of the attribute mapping, at whichever level the receiver names. **[planned: the exact shape
-  of the class-level mapping -- keyed by symbol, and what it answers for a field the instance has not set -- still
-  needs design; see PLAN.md milestone 10.]**
+  of the class object's mapping -- keyed by symbol, and what it answers for a field the instance has not set --
+  still needs design; see PLAN.md milestone 10.]**
 
 ```gdscript
 func describe(person: Person) {
     var attributes = person.attributes
-    var index = 0
-    while index < attributes.count() {
-        var attribute = attributes[index]
-        console.print(attribute.name, attribute.class)
-        index = index + 1
-    }
+    attributes.each(show_attribute)
+}
+
+func show_attribute(attribute: Spite.Attribute) {
+    console.print(attribute.name, attribute.class)
 }
 ```
 
-#### Class-level functions, and why there are no static functions  **[implemented]**
+<a id="class-level-functions-and-why-there-are-no-static-functions--implemented"></a>
+
+#### Functions of `Spite.Class`, and why there are no static functions  **[partial]**
 
 D6 (decided by Mortaro, 2026-09-19): **Spite has no static class functions and will not get any.** A class is an
 instance of `Spite.Class`, and `Spite.Class` is an ordinary standard library class with an ordinary declaration.
 So there is nothing for `static` to mean: a function that belongs to the class rather than to its instances is
 just a function on that `Spite.Class` object, and `Spite.Class` is where it is declared, with its default.
+`library/spite/class.spite` declares `is_singleton()` that way:
+
+```gdscript
+var _singleton = false
+
+func is_singleton(): Boolean {
+    return _singleton
+}
+```
 
 A class file may **override** one of those functions for its own class object, the same way any class reopens
-another ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)):
+another ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)).
+`is_singleton()` was the first such override (`console.spite` returning `true`); since D104 a singleton says so
+with its `singleton` header line ([classes_and_files.md](classes_and_files.md#singletons)), and declaring
+`is_singleton()` in a class is "a class says it is a singleton with a 'singleton' line at the top of its file, not
+with a function: delete 'is_singleton()' and write 'singleton' as the file's first line". `is_singleton()` stays
+the member `Spite.Class` answers.
 
-```gdscript/class.spite
-func is_singleton(): Boolean {
-    return false
-}
-```
-
-```console.spite
-func is_singleton(): Boolean {
-    return true
-}
-```
-
-Since D104 a singleton is no longer said this way: `singleton` is a header line (below), and declaring
-`is_singleton()` in a class is an error naming it. `is_singleton()` stays the member `Spite.Class` answers.
-
-- **The set of class-level hooks is exactly the set of functions `Spite.Class` declares.** There is no keyword
-  and no marker: if the name is one of those, the definition belongs to the class object; otherwise it is an
-  ordinary instance function, as every function in a file has always been. Reading `Spite.Class` in the standard
-  library is how you learn the full list.
+- **The functions a class file can override are exactly the functions `Spite.Class` declares.** There is no
+  keyword and no marker: if the name is one of those, the definition belongs to the class object; otherwise it
+  is an ordinary instance function, as every function in a file has always been. Reading `Spite.Class` in the
+  standard library is how you learn the full list.
 - A class wanting an ordinary instance function whose name collides with one of them is a diagnostic naming
   `Spite.Class`. The list is deliberately short.
 - The override is **evaluated at compile time** and must fold to a constant. A `return` of a literal always
-  folds; a `return` of a codegen value (`return $shared`) folds too, so a class-level fact can differ per build
-  without any new syntax. Anything the compile-time evaluator cannot fold is a diagnostic. **[planned: until
-  milestone 10's evaluator exists, only a literal `return` folds -- which covers every case the standard library
-  needs.]**
-- `--final-classes` prints each class's function of `Spite.Class`s with the value they folded to.
+  folds; a `return` of a codegen value (`return $shared`) folds too, so a fact about a class can differ per
+  build without any new syntax. Anything the compile-time evaluator cannot fold is a diagnostic.
+- `--final-classes` prints each class's overrides with the value they folded to; a singleton's is its
+  `singleton` line.
+- **[not built: the three rules above]** A function a class file declares is always an instance function: a
+  class's own `has_function(name)` answers on its instances, with no diagnostic, while `Gadget.has_function(...)`
+  still answers `Spite.Class`'s; and a class's `to_string()`, which `Spite.Class` also declares, is how its
+  instances print. With `is_singleton()` now the `singleton` line, no class file overrides a function of
+  `Spite.Class` today.
 - **`Spite.Class` is reopenable, like any other standard library class** (D7, decided by Mortaro, 2026-09-19:
-  "by all means shoot the foot"). Reopening it changes a class-level default for the **whole program**: a root
-  whose `spite/class.spite` returns `true` from `is_singleton()` makes every class in the program a singleton,
-  `List<Integer>()` included. Adding a *new* function to `Spite.Class` is louder still -- it creates a new
-  class-level hook name program-wide, so any class that already had an ordinary instance function by that name
-  becomes an override of it.
+  "by all means shoot the foot"). Reopening it changes a default of every class object for the **whole
+  program**: a root whose `spite/class.spite` returns `true` from `is_singleton()` makes every class in the
+  program a singleton, `List<Integer>()` included. Adding a *new* function to `Spite.Class` is louder still -- it
+  gives every class object a new function program-wide, so any class that already had an ordinary instance
+  function by that name becomes an override of it.
   Nothing about this is silent, which is the reason it is allowed: a name that collides is a compile error
   naming `Spite.Class` (above), and a changed default shows up per class in `--final-classes`, with the root it
   came from, exactly as any other reopened function does. The compiler has no warnings ([Style](style.md#style--implemented)), so
-  visible generated output is the whole mitigation. **[planned: blocked on [Decided by Mortaro, being implemented](open_questions.md#decided-by-mortaro-being-implemented--planned) item 1, reopening standard
-  library classes at all.]**
+  visible generated output is the whole mitigation. **[partial: reopening `Spite.Class` works -- a program's
+  `spite/class.spite` adds and replaces its functions ([packages.md](packages.md#the-spite-namespace-is-reserved))
+  -- but it changes only what the class objects answer: `is_singleton()` returning `true` does not make
+  `List<Integer>()` a singleton, since the `singleton` line decides that. A replacement that no longer reads
+  `_singleton` is "the attribute '_singleton' is never read: remove it" in `Spite.Class`, a private field of the
+  library the program cannot remove; read it (`return _singleton or true`). `--final-classes` names no root yet.]**
 
 **Why a function and not a declaration** (Mortaro, 2026-09-19): it is the same philosophy as a configuration
 file being a class that gets reopened -- like Rails patching its internal options through a block that can run

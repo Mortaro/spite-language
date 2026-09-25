@@ -15,12 +15,13 @@ func Game() {
   folder is that folder's entry point: `package/engine/renderer/renderer.spite` becomes `Engine.Renderer()`,
   and `package/engine/renderer/debug.spite` (a sibling file in the same folder) becomes
   `Engine.Renderer.Debug()`.
-- `load` only ever takes a literal string -- a variable or expression there is a diagnostic, so the compiler
+- `load` only ever takes a literal string -- a variable or expression there is an error, so the compiler
   always knows every bundle statically. The one exception is the launcher, the Spite program that loads the
   standard library and then yours ([programs.md](programs.md#how-a-program-is-loaded)): its `load` may also use
   the `Build` fields the compiler already knows, like `build.target_operating_system` after `var build = Build()`.
-- Folder names are always lowercase `snake_case`, checked for every folder that actually contains a `.spite`
-  file anywhere inside it.
+- Folder names are always lowercase `snake_case`, package roots included: `slop_window_plugin`, never
+  `slop-window-plugin` (D181). The compiler does not check this yet
+  ([the rules in full](#packages-namespaces-and-loading--partial)).
 - Resolving a bare `Name` from inside a class tries, in order: that class's own namespace, its folder, each
   parent folder, then the whole program. A dotted `Component.Requested` is looked up the same way, and so is
   every name wherever it is written -- a constructor call, a parameter, a return type, an attribute or local
@@ -114,8 +115,7 @@ a modded monster
 the modded monster taunts you
 ```
 
-`mods/monster.spite` never redeclares `health` -- reopening only needs the names it actually adds or replaces.
-A `var`'s replacement must keep the same type. Within one file each name is declared once; replacing is what a
+A reopening file declares only the names it adds or replaces, and a `var`'s replacement must keep the same type. Within one file each name is declared once; replacing is what a
 *later* file does.
 
 The program's own folder is merged first and the folders it loads come after it, so "later" means a loaded
@@ -243,10 +243,10 @@ func SpiteNamespaceError() {
 
 `load` marks where a dynamic library or lazy-loaded bundle could split, the way an async `import()` does in
 webpack. Today every root is linked into the one executable, and a `load` line compiles to nothing at run
-time -- except the launcher's `load build.program`, which runs the program by constructing its entry class.
-`load` is a keyword written without parentheses, on a line of its own (D186): `load("folder")` is an error naming
-`load "folder"`, and nothing else may be named `load` -- a function that loads something says what,
-`load_texture` (D166).
+time -- except the launcher's `load build.program`, which runs the program by constructing its entry class. So
+a `load` costs nothing when the program runs; what it loads is tree-shaken like the rest of the program.
+`load` is a keyword written without parentheses, on a line of its own, and nothing else may be named `load`: a
+function that loads something says what, `load_texture` ([the rules in full](#packages-namespaces-and-loading--partial)).
 
 ```gdscript title=load_parentheses_error/load_parentheses_error.spite entry error
 func LoadParenthesesError() {
@@ -277,9 +277,8 @@ one that reads `Arguments()`, is an error rather than a folder that is quietly l
 Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are decided but not built
 ([the rules in full](#packages-namespaces-and-loading--partial)).
 
-A dependency will be a git URL pinned to a commit in the `load` line itself --
-`load "github.com/mortaro/engine@a3f2c91"` -- fetched by the ordinary compile, with no package manager, registry
-or lockfile. That is decided and not built ([D38](decisions.md)).
+A dependency will be a git URL pinned to a commit in the `load` line itself, with no package manager, registry
+or lockfile. That is decided and not built ([the rules in full](#packages-namespaces-and-loading--partial)).
 
 ## Final classes
 
@@ -298,14 +297,7 @@ fix. A `D` number is a row of the [decision log](decisions.md).
 
 ### Packages, namespaces and loading  **[partial]**
 
-There are no imports. Everything lives in one global namespace, populated by loading folders.
-
-```gdscript
-func Game() {
-    load "package"
-    load "cookie_clicker"
-}
-```
+There are no imports. Everything lives in one global namespace, populated by loading folders (`load "package"`).
 
 - The loaded folder is a package root and does **not** appear in the namespace. Folders inside it do:
 
@@ -314,50 +306,65 @@ package/engine/renderer/renderer.spite   ->  Engine.Renderer()   (a file named l
 package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
 ```
 
-- `spite game/game.spite` **loads the entry file's parent folder** (second batch item 1, decided 2026-09-19,
-  replacing "the entry folder is flat"): the entry folder is a real root exactly like a `load`-ed one, so every
-  subfolder inside it is a namespace, recursively, with no explicit `load` needed. The two differences from a
-  `load`-ed root: a subfolder the entry file itself explicitly `load`s is left to that line (a `load`-ed
-  root's own folder is never itself a namespace segment), and only the entry file itself is scanned from the
-  entry root -- an unrelated sibling file next to it is still pulled in whenever it is reachable as a class, but
-  its own `load`s are not followed.
-- Folder names are always lowercase snake_case, checked for every folder that actually contains a `.spite` file anywhere inside
-  it (an unrelated folder with none, such as `.git` or a build output directory, is never checked or descended for classes).
+- `spite game` **loads the program's folder as a root** (a program is named by its folder, D130): the program's
+  folder is a real root exactly like a `load`-ed one, so every subfolder inside it is a namespace, recursively,
+  with no explicit `load` needed (D182: a swappable plugin therefore lives beside the program, not inside it).
+  The two differences from a `load`-ed root: a subfolder the entry file itself explicitly `load`s is left to
+  that line (a `load`-ed root's own folder is never itself a namespace segment), and only the entry file's
+  `load`s are followed in the program's own folder -- a sibling file next to it is pulled in whenever it is
+  reachable as a class, but a `load` it holds loads nothing, and says nothing either (a known gap).
+- **Folder names are always lowercase snake_case, package roots included** (D181): `slop_window_plugin`, never
+  `slop-window-plugin`, for every folder that actually contains a `.spite` file anywhere inside it (an unrelated
+  folder with none, such as `.git` or a build output directory, is never descended for classes).  **[not built:
+  no folder name is checked; `BadFolder/` becomes the namespace `BadFolder` and `load "../Slop-Plugin"` loads]**
 - Resolving an unqualified `Name` from inside a class tries, in order: that class's own namespace (so a nested enum/type/union
   resolves by its plain name from inside its own class), the same folder's namespace, each parent folder's namespace, then the
   whole program globally. Ambiguity *between roots* at the same level is never an error, because of the next rule.
   A dotted name (`Component.Requested`) takes the same walk, in every position a name is written -- constructor
   call, parameter, return type, attribute or local annotation, generic argument, `type`/`union` member, class test
-  and a class's enum (proposed by Claude, unconfirmed, 2026-09-24; before, only a call took the walk and every
-  type position needed the full path; `conformance/stage6/relative_namespaces`).
+  and a class's enum (proposed by Claude, unconfirmed, 2026-09-24; `conformance/stage6/relative_namespaces`).
   A class's own namespace holds the classes named under it, so for a folder's entry file it is that folder:
   `click_test/click_test.spite` (`ClickTest`) reaches `click_test/system/verify.spite` as `System.Verify()`
-  (proposed by Claude, unconfirmed, 2026-09-24; before, the walk started at the folder's parent, so the entry
-  class alone needed `ClickTest.System.Verify()`; `conformance/stage6/folder_class_namespace`).
+  (proposed by Claude, unconfirmed, 2026-09-24; `conformance/stage6/folder_class_namespace`).
   A `type`, `union` or `enum` sits in the walk at the level of the class that declares it, so the nearest
   declaration wins: one in the using class before any class, one in a folder's entry file before a class further
-  out (proposed by Claude, unconfirmed, 2026-09-24; before, a type written in a type position was looked up only
-  after every class, so SlopEngine's `type Healing` in `system/regenerate.spite` meant the program's entry class
-  `Healing`; `conformance/stage6/nearest_type`).
+  out, so `type Healing` in `system/regenerate.spite` is what `Healing` means there even when the program's entry
+  class is `Healing`, and a program's class `Entry` does not hide `Directory`'s union `Entry` (proposed by Claude,
+  unconfirmed, 2026-09-24; `conformance/stage6/nearest_type`).
   From outside its class a declared type is named through its owner, generic arguments included
   (`List<Recipes.Cookbook.Buildable>`, `conformance/stage6/nested_type_from_outside`). **When an error prints
   two types that would read the same, both are named through their owners** (proposed by Claude, unconfirmed,
-  2026-09-25): two classes' own `type Buildable` are different types, and "a List<Buildable> cannot be used
-  where a List<Buildable> is needed" said nothing, so it reads `a List<Recipes.CookTask.Buildable> ... a
-  List<Recipes.Cookbook.Buildable>` (`diagnostics/same_named_types`).
+  2026-09-25): two classes' own `type Buildable` are different types, so the message reads "a
+  List<Recipes.CookTask.Buildable> cannot be used where a List<Recipes.Cookbook.Buildable> is needed"
+  (`diagnostics/same_named_types`).
   A generic class's constructor takes the walk too, class and arguments alike: `Asset.Pack<Asset.Texture>()`, or
-  `Pack<Rule>()` from inside `game/` for `game/pack.spite` (proposed by Claude, unconfirmed, 2026-09-24; until
-  then a generic class had to live at a package root, `conformance/stage6/namespaced_generics`). A generic
-  constructor that cannot be made reports once, and every later line that reads the value it would have made is
-  not reported again, so one mistake is one error (`diagnostics/failed_constructor`).
+  `Pack<Rule>()` from inside `game/` for `game/pack.spite` (proposed by Claude, unconfirmed, 2026-09-24;
+  `conformance/stage6/namespaced_generics`). A generic constructor that cannot be made reports once -- "there is
+  no generic class 'Asset.Pak' here: a name is looked up in this class's own namespace, its folder, each parent
+  folder, then the whole program" -- and every later line that reads the value it would have made is not
+  reported again, so one mistake is one error (`diagnostics/failed_constructor`).
 - Every loaded root merges into the same namespaces. A second root with the same folder structure and file name **reopens** the
   class: this is how monkey patching and game mods work -- later `func`/`var` with the same name replaces the earlier one (in
   load order: the entry folder first, then loads in the order they were discovered), a `var`'s replacement type must match, and
   a new `func`/`var`/`enum`/`type` not seen before is simply added. An `enum` declared again gains the values it
-  lists that it did not have, after its own (D180, [Types](values_and_types.md#types)). The standard library (`library/`) is discovered
+  lists that it did not have, after its own, and a value it restates stays where it was; nothing removes one
+  (D180, [Types](values_and_types.md#types)). Load order stays the rule even where a package would rather be
+  configured by the program it is loaded into: such a package calls a function the program declares (a
+  `build.base_folder()` in the program's `build.spite`), which is an error when missing unless the package
+  supplies a default behind `has_function` (D155). The standard library (`library/`) is discovered
   before the program, so a program's own file reopens `Console`, `String`, `File` and the rest the same way.
   `Environment` is made to be reopened: a program's own `environment.spite` adds its settings to it (D76, [Program settings: `Environment`](programs.md#program-settings-environment--implemented)).
-  Your foot to shoot. That includes `Spite.Class` (D7, [Class-level functions, and why there are no static functions](reflection.md#class-level-functions-and-why-there-are-no-static-functions--implemented)): reopening it moves a class-level default for the whole program.
+  Your foot to shoot. That includes `Spite.Class` (D7, [Functions of `Spite.Class`](reflection.md#functions-of-spiteclass-and-why-there-are-no-static-functions--partial)): reopening it changes what every class object answers, for the whole program.
+- **The program's entry class is the one class nothing reopens**: a loaded `bundle/potion.spite` in the program
+  `potion/` is "'Potion' is the program's entry class (potion/potion.spite), so no other file may be a class of
+  that name: rename this file, or the program's folder and its entry file" (`diagnostics/entry_class_reopened`).
+  A program file that reopens a class a loaded folder declares keeps every name the loaded folder lacks, but
+  where both declare a name, the constructor included, the loaded folder's comes later and stays.
+- A program's `spite/` folder may only reopen the `Spite` classes: a new class there is "'Spite' holds the
+  standard library's own classes, so a file in a 'spite' folder may only reopen one of them: 'Spite.Gadget' is not
+  one, and a new class of your own belongs in a namespace of your own" (`diagnostics/new_spite_class`), and
+  `load "spite"` is "'spite' is reserved for the built-in Spite namespace: name the folder something else"
+  (`diagnostics/reserved_spite_namespace`).
 - **Each operating system reopens the classes it changes** (D80). `library/` holds what every system shares, and
   `library/windows/`, `library/linux/` and `library/mac/` hold only what differs: `library/linux/file.spite` reopens
   `File` with the functions that call `libc.so.6`, `library/windows/file.spite` the same functions over
@@ -373,41 +380,51 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   folders to compiling, by writing the compiler out once with each]**
 - **`load` is a keyword, written without parentheses** (D186): `load "package"`, on a line of its own inside a
   function. `load("package")` is a parse error naming the keyword form ("'load' is a keyword, not a function:
-  write it without parentheses, 'load "package"'"), and so is `load` used as a value
+  write it without parentheses, 'load "package"'"), and so is `load` used as a value: "'load' is a keyword that
+  starts a line of its own, like 'load "folder"': it is not a function, and it has no value"
   (`diagnostics/load_parentheses`, `diagnostics/load_as_value`). It stays reserved (D166): a function, variable
-  or parameter named `load` is an error suggesting a descriptive name like `load_texture`
-  (`diagnostics/load_function`). The launcher's own lines use it the same way, with a `Build` field:
-  `load "library/{build.target_operating_system}"`, `load build.program`.
-- `load` takes a literal string, so the compiler always knows every bundle; anything else (a variable, an expression) is a
-  diagnostic. The compiler finds every `load` reachable from the entry file's own constructor at compile time (a `load` inside
+  or parameter named `load` is "'load' is a keyword and cannot name a function: give it a name that says what it
+  loads, like 'load_texture'" (`variable` or `parameter` in place of `function`; `diagnostics/load_function`).
+  The launcher's own lines use it the same way, with a `Build` field:
+  `load "library/{build.target_operating_system}"`, `load build.program`. Compile time only: the line compiles to
+  nothing (D177).
+- `load` takes a literal string, so the compiler always knows every bundle; anything else (a variable, an
+  expression) is "a program's 'load' names its folder with text, like 'load "engine"': the compiler reads every
+  loaded folder before it compiles, so the folder cannot be computed". The compiler finds every `load` reachable from the entry file's own constructor at compile time (a `load` inside
   already-loaded code counts too), and records each root as a bundle (its name and whether the `load` that introduced it sits
-  inside an `if`/`while`) in the program model, for dynamic libraries/lazy loading to build on later.
-- **A `load` under an `if` is decided when compiling** (proposed by Claude, unconfirmed, 2026-09-25; before, a `load`
-  anywhere but a function's top level, or in any file but the entry file, silently loaded nothing). The compiler
+  inside an `if`) in the program model, for dynamic libraries/lazy loading to build on later.
+- **A `load` under an `if` is decided when compiling** (proposed by Claude, unconfirmed, 2026-09-25). The compiler
   follows the `load` lines of the entry file and of every file of a loaded root, in every function, relative to
   that file's folder, and folds the condition of each `if` that holds one: it may read `Build` fields through the
   class's `var build = Build()`, text, whole numbers, `true` and `false`, joined by `==`, `!=`, `and`, `or` and
   `not`. Only the taken branch's folders are loaded, so `if build.target_operating_system == "windows" { load
   "../plugins/windows" }` brings in the plugin on Windows alone, and a package can choose its own plugins the same way
-  (`conformance/stage6/load_on_build`). A condition it cannot fold is an error, never a silent no-load
+  (`conformance/stage6/load_on_build`). A condition it cannot fold is an error, never a silent no-load: "this 'if'
+  holds a 'load', so the compiler decides it, and it cannot decide this condition: ..."
   (`diagnostics/load_unknown_condition`), and so is a `load` inside a `while` or a `switch`, or a program `load` whose
   folder is not text. The `if` itself stays in the program, where `Build` folds it again. A loaded package cannot
-  add `Build` fields that decide loads: the fields are read before the first package is.
+  add `Build` fields that decide loads: the fields are read before the first package is. Compile time only (D177).
 - `load` marks a **bundle boundary**, like an async import in webpack: each loaded root can become a separate dynamic library,
   tree shaking is computed per bundle, and a `load` inside an `if` is loaded lazily when that line runs.  **[planned: every
   bundle is linked statically into the one executable for now, and the `load` line itself compiles to nothing]**
+- **A dependency is a git URL pinned to a commit in the `load` line itself** (D38): `load
+  "github.com/mortaro/engine@a3f2c91"`, fetched by the ordinary compile, with no package manager, registry or
+  lockfile.  **[planned]**
 - Because patching is dangerous to read, the toolchain writes a **final class** folder: every class after all codegen, with the
   winning function of every replacement, each preceded by a `#` comment naming the root it came from (and which roots it
   replaced) -- see `--final-classes` in [Command line](compiler.md#command-line). The language server reads it too.
-  **[planned: an instantiated Symbol codegen function and a used `List<T>`/`Dictionary<T>` helper signature do not appear here
-  yet -- only the source classes are declared with]**
+  **[partial: the folder is written and recompiles, but no `#` comment names a root yet, and an instantiated Symbol
+  codegen function and a used `List<T>`/`Dictionary<T>` helper signature do not appear -- only the source
+  classes are declared with]**
 - **What the compiler supplies is a reopening too** (D82, decided by Mortaro: "spite writes that function as if it
   was reopening that class, so in --final-classes it should show the actual content of that class"). The members
-  whose bodies stay C -- `Memory.Heap`'s allocation and `Memory.Address`'s reads and writes (D178), `DynamicLibrary`'s opening and symbol lookup, `TypedMemory`'s typed
-  slots, a number's `from_type`, the REPL's hooks on `Spite.Attribute`/`Spite.Function`, and the entry addresses of
-  `Concurrent` and `Parallel` -- are declarations the compiler merges into their classes right after `library/` (and
-  its operating system's folder), exactly as a later root merges a file, so a program can still reopen them.
-  Nothing is registered by hand any more (D81). **The form** (proposed by Claude, unconfirmed): **a `func` with a
+  whose bodies the compiler supplies -- `Console`'s raw writes, `Memory.Heap`'s allocation and `Memory.Address`'s
+  reads, writes and atomics (D178), `DynamicLibrary`'s opening and symbol lookup, `TypedMemory`'s typed slots, a
+  number's `from_type` and bit operations, the REPL's hooks on `Spite.Attribute`/`Spite.Function`, `HotReload`'s
+  build facts, a `Concurrent`'s state machine (D176), `ThreadPool`'s entry address and `Scheduler`'s step -- are
+  declarations the compiler merges into their classes right after `library/` (and its operating system's
+  folder), exactly as a later root merges a file, so a program can still reopen them. Nothing is registered by
+  hand (D81). **The form** (proposed by Claude, unconfirmed): **a `func` with a
   signature and no block** is a member whose body the compiler supplies, which is how `--final-classes` prints it
   (`func allocate(bytes: Long): Memory.Address`), and reading that back is what lets the printed program compile. It
   borrows the shape a `type` already uses for a member without a body. Anywhere the compiler supplies nothing by
@@ -415,3 +432,7 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   compiler's own reopening is Spite source in `bootstrap/source/generation/prelude.spite`, beside the C each body
   is; a body the compiler writes per instantiation (`TypedMemory<Integer>`, `Float.from_integer`) is written by the
   generator. Supplied names skip the naming lint (`read_integer` names the type `Integer`), as conversions already did.
+  **D147 (decided by Mortaro) rejects this as the end state**: no hidden code, no bodiless supplied functions and
+  nothing tying Spite to C, so every supplied body is to become explicit Spite -- a library function called from a
+  real body, or one of the few machine operations D178 names, which each backend lowers.  **[partial: the bodies
+  above are still C or generator-written, and printed bodiless]**
