@@ -57,6 +57,14 @@ nothing at run time because they emit nothing.
 | [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | built: nothing, atomics, one-thread; planned: the rest | every but `--hot-reload`, decided per program | no lock where one is not needed |
 | [Smaller ones](#smaller-ones) | built | every | nothing |
 | [Proofs that survive a call](#proofs-that-survive-a-call) | built | every | a proof after a call that may change it is written again |
+| [Text joined in one piece](#text-joined-in-one-piece) | built | every | fewer allocations; a text made only of constants is constant |
+| [Defaults the constructor replaces are never made](#defaults-the-constructor-replaces-are-never-made) | built | every but `--hot-reload` | fewer allocations |
+| [A function value describes its arguments when asked](#a-function-value-describes-its-arguments-when-asked) | built | every | fewer allocations per function value and per `Parallel` |
+| [A list's templates read its elements without counting them](#a-lists-templates-read-its-elements-without-counting-them) | built | every but `--hot-reload` | nothing but speed |
+| [A number joined into text is written in place](#a-number-joined-into-text-is-written-in-place) | built | every | fewer allocations |
+| [Freed small objects are kept for the next one](#freed-small-objects-are-kept-for-the-next-one) | built | production, not `--debug-memory` | memory a thread freed stays with the program |
+| [A dictionary hashes a key once, cheaply](#a-dictionary-hashes-a-key-once-cheaply) | built | every | nothing but speed |
+| [Reading through a `type` without counting](#reading-through-a-type-without-counting) | built | every but `--hot-reload` | nothing but speed |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
@@ -780,6 +788,150 @@ of a `+` (an address plus an offset is an address); a call on a value whose clas
 function of that name. It runs entirely while compiling and emits nothing. What you can
 observe: a proof after a call that may change it must be written again, and a call through a function value
 keeps no proof about attributes or lists ([failure.md](failure.md#a-call-may-undo-a-proof)).
+
+### Text joined in one piece
+
+**What it does.** `"line {index} of {round};"` and `prefix + name + suffix` are one join, not a chain of pairs:
+every piece is computed in order, left to right as written, and the text is made once, at its final length. Before,
+each `+` (and each `{...}` hole) made a whole new text, so a text of five pieces made four texts and threw three
+away. Pieces the compiler already knows -- written text, a symbol's name such as `attribute.name` in a Symbol
+walk -- are joined while compiling, and empty ones are dropped, so `"{index}"` is just the number's text and
+`"{attribute.name}="` is one constant.
+
+**When.** Every `+` whose left side is text, and every text with `{...}` holes, in every build. `text = "{text}..."`
+still grows `text` in place ([above](#appending-to-text-in-place)).
+
+**What you notice.** Fewer allocations under `--debug-memory` (two per piece that used to be joined:
+`conformance/stage6/text_building` went from 43 to 39, `benchmarks/reflection_walks` from 16 356 022 to
+11 756 022), and a text built only from pieces the compiler knows answers `'constant'` to `.memory.section`
+instead of `'heap'`, as a written text does. `"{name}"` where `name` is text is that same text, not a copy -- text
+cannot change, so nothing else can tell. **Built** (2026-09-25; proposed by Claude, unconfirmed).
+
+### Defaults the constructor replaces are never made
+
+**What it does.** `var owner = Owner(0)` followed by a constructor whose first lines are `owner = new_owner` used to
+make an `Owner`, then throw it away. Now the object is made with that attribute empty, and the constructor's line
+fills it: the default is never made. It applies to each attribute the constructor sets in its opening run of lines
+that assign an attribute a parameter or a literal -- before anything else can read it -- when the default is a
+construction that has no effect but the memory it takes: a `List`, a `Dictionary`, or a class with no `drop()`,
+not a singleton, whose own constructor only copies its parameters and literals into its attributes and whose
+own defaults are made the same way. `Spite.Class('Nothing')`, the default of every function value's `returns`
+and every attribute's and argument's `class`, is one (three allocations: the class object and its two lists); a
+default whose constructor prints is not.
+
+**When.** Every build but `--hot-reload` (whose constructors can be swapped for ones that read the attribute first),
+for objects made by their constructor; an object given an allocator on the next line still makes its defaults.
+
+**What you notice.** Fewer allocations under `--debug-memory` -- one per discarded object, and those it holds:
+`benchmarks/fused_chain`, which makes 100 000 items that each replace their default `Owner`, went from 300 009 to
+200 009, and `benchmarks/reflection_walks`, whose `.attributes` walk makes a `Spite.Attribute` per attribute, from
+10 620 024 to 7 620 024. Nothing else: the discarded default was never reachable. **Built** (2026-09-25; proposed
+by Claude, unconfirmed; `Spite.Function` and `Spite.Attribute` since the third step of `benchmarks/README.md`).
+
+### A function value describes its arguments when asked
+
+**What it does.** A function value is its own reflection object ([D39](decisions.md)), with `.arguments`, a list of
+`Spite.Argument`s. That list used to be filled when the value was made -- two objects per argument, and each
+argument's class -- though almost no program reads it. Now the value carries a pointer to a function the compiler
+wrote for it, and `.arguments` fills the list the first time it is read (under a lock in a program with threads,
+so two threads reading it at once see one list). Together with the discarded defaults above, this answers
+`mortaros_missing_decisions.md` item 145 without changing what `.arguments` answers.
+
+**When.** Every function value the compiler makes: `Parallel(summer.total)`, `apply(scorer.score, 3)`, a shape's
+function passed on. A `.functions` list is reflection read on purpose, so its values are still described at once.
+
+**What you notice.** Fewer allocations: with the defaults above, a `Parallel` makes 10 where it made 25
+(`conformance/stage6/singleton_counts`, two `Parallel`s, went from 134 to 104; `benchmarks/parallel_calls` from
+52 per round of two `Summer`s and two `Parallel`s to 22), and passing a function value makes 2 instead of 10 --
+the value and its empty list (`benchmarks/function_values`, from 2 000 019 to 400 019). `.arguments` answers the
+same list, in the same order, whenever it is read. **Built** (2026-09-25; proposed by Claude,
+unconfirmed).
+
+### A list's templates read its elements without counting them
+
+**What it does.** Every member template of `List` -- `sum_price()`, `filter_is_active()`, `each(step)`, `copy()` --
+and every fused chain reads each element with `values.read_value(items, index)`, which raises the element's
+reference count, and lowers it again when the pass over that element ends. Two writes to every object walked,
+and on a list of objects spread through memory they are most of the loop's cost. Now the element is read as it
+lies in the list, uncounted, whenever nothing that runs while it is held can let go of anything: the compiler
+walks the rest of that pass -- the member function it calls, or the function passed in, and everything those call
+-- and lets it borrow only when none of them assigns an attribute that holds an object (a number, `Boolean` or text
+attribute is fine), removes from or replaces into a list or dictionary, or calls through a function value. A
+member read from a borrowed element (`map_owner`) is borrowed the same way. Anything that keeps the element --
+`collected.append(item)`, `return item` -- still counts it, as before.
+
+**When.** Every build but `--hot-reload`, in the functions of `List` (the library's templates, a program's own
+templates reopening `List`, and fused chains), when the proof above holds; otherwise the element is counted as
+before. `parallel_each_` passes borrow too, which saves an atomic increment and decrement per element in a
+program with threads.
+
+**What you notice.** Speed: `benchmarks/fused_chain`, four chains over 100 000 objects run 300 times, went from
+332 ms to 185 ms. Allocations and everything a program prints are the same. **Built** (2026-09-25; proposed by
+Claude, unconfirmed).
+
+### A number joined into text is written in place
+
+**What it does.** `"line {index} of {round};"` used to turn `index` and `round` into texts of their own -- two
+allocations each -- only to copy them into the result and free them. An `Integer` or `Long` piece of a text join,
+or of an append in place (`text = "{text}{count}"`), is now written as digits into a buffer in the function's own
+frame and copied from there: the same digits the library's `to_string()` writes, and no allocation. A program that
+reopens `Integer` or `Long` with a `to_string()` of its own keeps calling it.
+
+**When.** Every build, for whole numbers of those two classes. A number alone in a text (`"{index}"`) still makes
+one text, since that text is the result.
+
+**What you notice.** Fewer allocations: `conformance/stage6/text_building` went from 39 to 35, and
+`benchmarks/text_building` from 5 500 225 to 800 267. **Built** (2026-09-25; proposed by Claude, unconfirmed).
+
+### Freed small objects are kept for the next one
+
+**What it does.** Most of what a program allocates is small objects made and dropped in a loop, and the system
+allocator's lock and bookkeeping were most of the cost of each (on Windows, `RtlAllocateHeap` and `RtlFreeHeap`
+were 40-70% of the time of `benchmarks/small_allocations`, `text_building` and `reflection_walks`). When an
+object of up to 256 bytes is freed, its block is now kept on a list for its size (in steps of 16 bytes), one set
+of lists per thread, and the next allocation of that size takes it back: two pointer moves instead of two calls
+into the system. Every block still comes from the C allocator, and anything larger, or any memory a program asks
+`Memory.Heap` for, goes straight to it.
+
+**When.** Production builds, the ones without `--debug-memory` (whose allocation table has to see every
+allocation and free, so it keeps doing so) or `--hot-reload`. It is the floor under every object, so every
+program that frees an object uses it; it is about thirty lines of the prelude, not a runtime of its own.
+
+**What you notice.** Speed: `benchmarks/small_allocations` went from 168 ms to 102 ms, `reflection_walks` from 507
+to 332, `text_building` from 333 to 275. `Program.live_allocations()` and `--debug-memory` count exactly as
+before, since a kept block counts as freed. The cost: up to 1 024 blocks of each of the 16 sizes -- about 2 MB at
+most -- stay with each thread that freed them instead of going back to the system, and a thread's kept blocks are
+not handed back when it ends. **Built** (2026-09-25; proposed by Claude, unconfirmed).
+
+### A dictionary hashes a key once, cheaply
+
+**What it does.** `library/dictionary.spite` hashed a key with a multiply and a division by a prime for every
+character, and on a hit compared the whole key text. It now hashes with a multiply and an exclusive or per
+character on an `UnsignedLong` (FNV-1a), keeps 32 bits of that hash in the slot beside the key's position, and
+compares key texts only when those bits match.
+
+**When.** Every `Dictionary`, in every build. **What you notice.** Speed: `benchmarks/dictionary_keys` went from
+413 ms to 282 ms. Keys, values and their order are the same, and so is every allocation: the slot table is still
+one block, twice as large. **Built** (2026-09-25; proposed by Claude, unconfirmed).
+
+### Reading through a `type` without counting
+
+**What it does.** A system's `moving.position.left = moving.position.left + moving.velocity.across` reads
+`position` through the `type` `Moving`, which answers the component retained -- or, when the value's class has no
+such attribute, a fresh default -- and the component is released as soon as the number is read. Now, when that
+component only has a number, `Boolean` or other plain attribute read or written, the compiler asks the `type` for
+the component as it lies in the value, uncounted: a read of a class without the attribute answers the attribute's
+default, as the fresh default object would have, and a write to one lands in a scratch object in the frame, as it
+used to land in a default object that was then thrown away. A write borrows only when computing the value it
+stores can let go of nothing (the same proof as [a list's templates](#a-lists-templates-read-its-elements-without-counting-them)),
+and only when the value holding the component is itself held for the whole statement.
+
+**When.** Every build but `--hot-reload`, for a plain attribute of a class read through a `type` attribute:
+`moving.position.left`, not `moving.position` passed on or kept.
+
+**What you notice.** Speed, in systems that walk components through a `type`: `benchmarks/stress`'s
+`update_each` functions no longer count anything. Allocations and results are the same. **Built** (2026-09-25;
+proposed by Claude, unconfirmed).
 
 ## Planned
 

@@ -1,0 +1,6 @@
+var lines = List<String>()
+var codes = List<String>()
+var released = List<String>()
+var views = List<String>()
+var originals = List<String>()
+var constant = ""

@@ -147,6 +147,18 @@ if ! grep -q "_Alignas(64) int64_t owner" "$locks" || ! grep -q "^Registry_count
 fi
 echo "production C: hello carries no unused class, singleton_forms takes no lock, singleton_lock_calls locks only Registry"
 
+# The benchmarks (benchmarks/README.md) are timed by hand with benchmarks/run.sh; here they only have to compile.
+benchmarked=0
+for folder in benchmarks/*/; do
+  name=$(basename "$folder")
+  "$work/generation_two.exe" "$folder" --run=false --c-source --c-path="$work/benchmark_$name.c" > "$work/c_errors.txt" 2>&1 || {
+    echo "FAILED: benchmark $name does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
+  "$CC_BIN" -fsyntax-only -w "$work/benchmark_$name.c" 2> "$work/c_errors.txt" || {
+    echo "FAILED: the C of benchmark $name does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
+  benchmarked=$((benchmarked+1))
+done
+echo "benchmarks: $benchmarked compile"
+
 # The tests: a package that crashes (D46). No framework: a test is a function, and `crash` is the assertion.
 test_output=$("$work/generation_two.exe" tests --debug-memory --executable-path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
 if echo "$test_output" | grep -q "failed to check cache"; then
@@ -331,7 +343,7 @@ echo "operating systems: the compiler, a time zone program and a file watching p
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
 # already in the one style, so formatting it changes nothing. `spite format --check` lists every file that would
 # change and fails; a docs/ program that must fail may be wrong on purpose, formatting included.
-formatted_folders=(bootstrap launcher library tests conformance examples scripts)
+formatted_folders=(bootstrap launcher library tests conformance examples scripts benchmarks)
 for folder in .spite-cache/docs/*/; do
   [ -f "$folder/must_fail.txt" ] || formatted_folders+=("$folder")
 done

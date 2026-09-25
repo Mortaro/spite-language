@@ -3,6 +3,7 @@ var by_function = Dictionary<FunctionEffects>()
 var function_keys = List<String>()
 var field_classes = Dictionary<String>()
 var return_classes = Dictionary<String>()
+var plain_fields = Dictionary<Boolean>()
 
 func study(class_files: List<Discovery.DiscoveredClass>) {
     var index = 0
@@ -43,6 +44,9 @@ func record_fields(statements: List<Syntax.Statements.Statement>, class_name: St
             if not declared_class.is_empty() {
                 field_classes.set("{class_name}#{declared.name}", declared_class)
             }
+            if holds_plain_value(declared) {
+                plain_fields.set("{class_name}#{declared.name}", true)
+            }
         }
         var function = shape.as_function_declaration(statements[index])
         if function {
@@ -50,6 +54,37 @@ func record_fields(statements: List<Syntax.Statements.Statement>, class_name: St
         }
         index = index + 1
     }
+}
+
+func holds_plain_value(declaration: Syntax.Statements.VariableDeclaration): Boolean {
+    if declaration.type_reference {
+        var named = shape.as_named_type(declaration.type_reference)
+        assert named and not named.path.is_empty()
+        var plain = [
+            "Integer"
+            "Long"
+            "Short"
+            "Tiny"
+            "Byte"
+            "Float"
+            "Double"
+            "Boolean"
+            "UnsignedInteger"
+            "UnsignedLong"
+            "UnsignedShort"
+            "Address"
+            "String"
+            "Symbol"
+        ]
+        var last = named.path.last()
+        return named.arguments.is_empty() and plain.contains(last)
+    }
+    crash declaration.value
+    var value = declaration.value
+    if shape.as_integer_literal(value) or shape.as_float_literal(value) or shape.as_string_literal(value) {
+        return true
+    }
+    return shape.is_true_literal(value) or shape.is_false_literal(value)
 }
 
 func record_return(function: Syntax.Statements.FunctionDeclaration, class_name: String) {

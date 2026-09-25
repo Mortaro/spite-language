@@ -111,13 +111,18 @@ func study_assignment(assignment: Syntax.Statements.AssignmentStatement) {
         }
         assert not in_constructor
         add_key("field:{class_name}#{target_name.name}")
+        add_release_key(class_name, target_name.name)
         return
+    }
+    if shape.as_index(assignment.target) {
+        add_key("release")
     }
     var target_member = shape.as_member(assignment.target)
     assert target_member
     crash target_member.object
     var owner = owner_class(target_member.object)
     add_key("field:{owner}#{target_member.name}")
+    add_release_key(owner, target_member.name)
     crash recorded
     recorded.member_writes.append("{owner}#{target_member.name}")
 }
@@ -197,6 +202,7 @@ func study_call(call: Syntax.Expressions.CallExpression) {
         if parameters.contains(callee_identifier.name) or local_sources.has(callee_identifier.name) {
             add_key("field:*")
             add_key("shrink:*")
+            add_key("release")
             return
         }
         var callee_class = class_name
@@ -215,6 +221,7 @@ func study_call(call: Syntax.Expressions.CallExpression) {
     study_expression(call.callee)
     add_key("field:*")
     add_key("shrink:*")
+    add_key("release")
 }
 
 func study_method_call(member: Syntax.Expressions.MemberExpression, argument_keys: List<String>) {
@@ -223,7 +230,11 @@ func study_method_call(member: Syntax.Expressions.MemberExpression, argument_key
     if member.name == "call_function" {
         add_key("field:*")
         add_key("shrink:*")
+        add_key("release")
         return
+    }
+    if member.name == "release_value" {
+        add_key("release")
     }
     if is_shrinking(member.name) {
         var shrunk = classify(member.object)
@@ -342,6 +353,12 @@ func called_name(callee: Syntax.Expressions.Expression): String {
 
 func is_shrinking(name: String): Boolean {
     return name == "clear" or name == "remove_at" or name == "remove_first" or name == "remove_last" or name == "remove"
+}
+
+func add_release_key(owner: String, field: String) {
+    crash table
+    assert not table.plain_fields.has("{owner}#{field}")
+    add_key("release")
 }
 
 func add_key(key: String) {

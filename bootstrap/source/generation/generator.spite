@@ -2,6 +2,9 @@ var shape = Analysis.AstShape()
 var type_shape = Analysis.TypeShape()
 var builder = CodeBuilder()
 var classes = List<Analysis.ClassInfo>()
+var classes_indexed = 0
+var class_by_qualified = Dictionary<Integer>()
+var class_by_c_name = Dictionary<Integer>()
 var enums = List<Analysis.EnumInfo>()
 var unions = List<Analysis.UnionInfo>()
 var list_names = List<String>()
@@ -130,6 +133,10 @@ var bound_enum_c_name = ""
 var arguments_parameter_names = List<String>()
 var temporary_counter = 0
 var literal_counter = 0
+var constant_texts = Dictionary<String>()
+var borrow_statements = List<Syntax.Statements.Statement>()
+var borrow_index = 0
+var borrowed_names = List<String>()
 var first_discovered_class = 0
 var hardcoded_settings = List<Syntax.Statements.VariableDeclaration>()
 var placement = Placement()
@@ -1570,19 +1577,21 @@ func shape_function_value(
         var arguments_list_name = ensure_list(class_type)
         var returned = signature.returns
         crash returned
+        var argument_lines = List<String>()
+        var parameter_index = 0
+        while parameter_index < parameter_types.count() {
+            var argument_symbol = ensure_symbol("argument_{parameter_index}")
+            argument_lines.append(
+                "{arguments_list_name}_append(described->_arguments_, Spite_Argument___make({argument_symbol}, {class_object_call(parameter_types[parameter_index])}));",
+            )
+            parameter_index = parameter_index + 1
+        }
         var lines = List<String>()
         lines.append("Spite_Function* {maker}({information.c_name} owner) \{")
         lines.append(
             "Spite_Function* described = Spite_Function___make({ensure_symbol(wanted.name)}, {class_object_call(returned)});",
         )
-        var parameter_index = 0
-        while parameter_index < parameter_types.count() {
-            var argument_symbol = ensure_symbol("argument_{parameter_index}")
-            lines.append(
-                "{arguments_list_name}_append(described->_arguments_, Spite_Argument___make({argument_symbol}, {class_object_call(parameter_types[parameter_index])}));",
-            )
-            parameter_index = parameter_index + 1
-        }
+        add_lazy_arguments(maker, argument_lines, lines)
         lines.append("described->spite_owner = {information.c_name}___retain(owner);")
         lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
         if parameter_types.is_empty() and type_shape.is_void(return_type) {
@@ -1790,6 +1799,30 @@ func emit_union_release(information: Analysis.UnionInfo) {
     builder.add_support(joined_release_lines)
 }
 
+func emit_shape_peekers(information: Analysis.UnionInfo) {
+    var index = 0
+    while index < information.peeker_names.count() {
+        var field_name = information.peeker_names[index]
+        var field_type = shape_field_type(information, field_name)
+        crash field_type
+        var lines = List<String>()
+        lines.append("{c_type_name(field_type)} {information.c_name}___peek_{field_name}({information.c_name} self) \{")
+        var member_index = 0
+        while member_index < information.members.count() {
+            var member = information.members[member_index]
+            lines.append(
+                "if {class_id_test("self", member)} return (({member.c_name}*)self)->{c_value_name(field_name)};",
+            )
+            member_index = member_index + 1
+        }
+        lines.append("return 0;")
+        lines.append("}")
+        var joined_lines = lines.join("\n")
+        builder.add_support(joined_lines)
+        index = index + 1
+    }
+}
+
 func emit_shape_bodies() {
     var index = 0
     while index < unions.count() {
@@ -1822,6 +1855,7 @@ func emit_shape_bodies() {
                 }
                 reader_index = reader_index + 1
             }
+            emit_shape_peekers(information)
             var writer_index = 0
             while writer_index < information.writer_names.count() {
                 var written = information.writer_names[writer_index]
@@ -1876,7 +1910,28 @@ func generate_shape_read(
     lines.append("spite_shaped_value;")
     var read = ExpressionResult("(\{ {lines.join(" ")} })", field_type)
     read.owning_override = true
+    if not owns(object_result, object_ast) and not hot_reload and type_shape.as_class_ref(field_type) {
+        read.peek_union = information
+        read.peek_field = field_name
+        read.peek_object = object_result.code
+    }
     return read
+}
+
+func peeked_code(result: ExpressionResult): String {
+    assert result.peek_union
+    var field_type = result.get_type()
+    var peeker = ensure_shape_peeker(result.peek_union, result.peek_field, field_type)
+    return "{peeker}({result.peek_object})"
+}
+
+func ensure_shape_peeker(information: Analysis.UnionInfo, field_name: String, field_type: Analysis.SpiteType): String {
+    var function_c_name = "{information.c_name}___peek_{field_name}"
+    if not information.peeker_names.contains(field_name) {
+        information.peeker_names.append(field_name)
+        builder.add_prototype("{c_type_name(field_type)} {function_c_name}({information.c_name} self);")
+    }
+    return function_c_name
 }
 
 func generate_object_literal(
@@ -2437,11 +2492,30 @@ func emit_enums() {
 }
 
 func find_class_by_qualified(qualified: String): Analysis.ClassInfo? {
-    return classes.find_by_qualified_dotted(qualified)
+    index_new_classes()
+    var position = class_by_qualified.get(qualified)
+    assert position
+    return classes[position]
 }
 
 func find_class_by_c_name(c_name: String): Analysis.ClassInfo? {
-    return classes.find_by_c_name(c_name)
+    index_new_classes()
+    var position = class_by_c_name.get(c_name)
+    assert position
+    return classes[position]
+}
+
+func index_new_classes() {
+    while classes_indexed < classes.count() {
+        var information = classes[classes_indexed]
+        if not class_by_qualified.has(information.qualified_dotted) {
+            class_by_qualified.set(information.qualified_dotted, classes_indexed)
+        }
+        if not class_by_c_name.has(information.c_name) {
+            class_by_c_name.set(information.c_name, classes_indexed)
+        }
+        classes_indexed = classes_indexed + 1
+    }
 }
 
 func find_class(name: String, current_namespace: String): Analysis.ClassInfo? {
@@ -5153,6 +5227,7 @@ func render_string_literal(value: String): String {
     var literal_name = "spite_lit_{literal_counter}"
     var escaped = escape_c_string(value)
     builder.add_typedef("static SpiteString {literal_name} = SPITE_STATIC_STRING(\"{escaped}\", {value.length()});")
+    constant_texts["(&{literal_name})"] = value
     return "(&{literal_name})"
 }
 
@@ -5376,6 +5451,175 @@ func generate_string_binary(
     }
     lines.append("{result_temporary};")
     return ExpressionResult("(\{ {lines.join(" ")} })", result_type)
+}
+
+func generate_text_join(
+    binary: Syntax.Expressions.BinaryExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    var pieces = List<Syntax.Expressions.Expression>()
+    var leftmost = text_join_leftmost(binary, pieces)
+    if not shape.as_string_literal(leftmost) {
+        var saved_counter = temporary_counter
+        var probe = generate_joined(leftmost, scope, class_information)
+        rewind_temporaries(saved_counter)
+        var probe_text = as_text(probe)
+        var probe_type = probe_text.get_type()
+        assert type_shape.as_string(probe_type)
+    }
+    var join = TextJoin()
+    var first = generate_joined(leftmost, scope, class_information)
+    first = as_text(first)
+    var first_owned = owns(first, leftmost)
+    add_text_piece(join, first.code, first_owned)
+    var index = 0
+    while index < pieces.count() {
+        var piece = pieces[index]
+        var piece_result = generate_joined(piece, scope, class_information)
+        var piece_value_type = piece_result.get_type()
+        var became_text = false
+        if text_converter(piece_value_type) {
+            became_text = true
+        }
+        piece_result = text_of_class(piece, piece_result, scope, class_information)
+        var piece_type = piece_result.get_type()
+        var string_spite_type = string_type()
+        var piece_code = cast(piece_result.code, piece_type, string_spite_type)
+        var converted = not type_shape.as_string(piece_type)
+        var owned = owns(piece_result, piece) or converted or became_text
+        add_text_piece(join, piece_code, owned)
+        index = index + 1
+    }
+    flush_constant_text(join)
+    var text_type = string_type()
+    if join.codes.is_empty() {
+        var empty = render_string_literal("")
+        return ExpressionResult(empty, text_type)
+    }
+    var first_code = join.codes.first()
+    if join.codes.count() == 1 and join.views.contains(first_code) {
+        var original = join.originals.first()
+        return ExpressionResult(original, text_type)
+    }
+    if join.codes.count() == 1 {
+        var only = join.codes.first()
+        if join.lines.is_empty() or join.released.contains(only) {
+            join.lines.append("{only};")
+        } else {
+            join.lines.append("SpiteString___retain({only});")
+        }
+        return ExpressionResult("(\{ {join.lines.join(" ")} })", text_type)
+    }
+    var parts = next_temporary()
+    var result = next_temporary()
+    join.lines.append("SpiteString* {parts}[] = \{{join.codes.join(", ")}};")
+    join.lines.append("SpiteString* {result} = spite_string_join({join.codes.count()}, {parts});")
+    var released_index = 0
+    while released_index < join.released.count() {
+        join.lines.append("SpiteString___release({join.released[released_index]});")
+        released_index = released_index + 1
+    }
+    join.lines.append("{result};")
+    return ExpressionResult("(\{ {join.lines.join(" ")} })", text_type)
+}
+
+func text_join_leftmost(
+    binary: Syntax.Expressions.BinaryExpression,
+    pieces: List<Syntax.Expressions.Expression>,
+): Syntax.Expressions.Expression {
+    crash binary.left
+    crash binary.right
+    var leftmost = binary.left
+    var left_binary = shape.as_binary(binary.left)
+    if left_binary {
+        if left_binary.operator == 'add' {
+            leftmost = text_join_leftmost(left_binary, pieces)
+        }
+    }
+    pieces.append(binary.right)
+    return leftmost
+}
+
+func add_text_piece(join: TextJoin, code: String, owned: Boolean) {
+    var digits = digits_of(code)
+    if not digits.is_empty() {
+        flush_constant_text(join)
+        var view = next_temporary()
+        var viewed = digits_view(view, digits)
+        join.lines.append(viewed)
+        join.codes.append("(&{view})")
+        join.views.append("(&{view})")
+        join.originals.append(code)
+        return
+    }
+    var constant = constant_texts.get(code)
+    if constant {
+        join.constant = "{join.constant}{constant}"
+        return
+    }
+    flush_constant_text(join)
+    var temporary = next_temporary()
+    join.lines.append("SpiteString* {temporary} = {code};")
+    join.codes.append(temporary)
+    if owned {
+        join.released.append(temporary)
+    }
+}
+
+func digits_view(view: String, digits: String): String {
+    return "char {view}_digits[24]; SpiteString {view} = SPITE_STATIC_STRING({view}_digits, spite_long_digits({view}_digits, (int64_t)({digits})));"
+}
+
+func digits_of(code: String): String {
+    var names = ["Integer", "Long"]
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var value_class = find_class_by_c_name("Spite{name}")
+        crash value_class
+        var converter = value_class.find_function("to_string")
+        crash converter
+        var prefix = "{converter.c_name}("
+        var written_in = converter.source_path
+        if written_in.is_empty() {
+            written_in = value_class.source_path
+        }
+        var file_name = words_of(name).join("_")
+        var own_converter = written_in.ends_with("library/{file_name}.spite")
+        if own_converter and code.starts_with(prefix) and code.ends_with(")") {
+            var prefix_length = prefix.length()
+            var code_length = code.length()
+            var inner = code.slice(prefix_length, code_length - 1)
+            assert balanced_parentheses(inner)
+            return inner
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func balanced_parentheses(code: String): Boolean {
+    var depth = 0
+    var index = 0
+    while index < code.length() {
+        var code_point = code.code_at(index)
+        if code_point == 40 {
+            depth = depth + 1
+        } else if code_point == 41 {
+            depth = depth - 1
+        }
+        assert depth >= 0
+        index = index + 1
+    }
+    return depth == 0
+}
+
+func flush_constant_text(join: TextJoin) {
+    assert not join.constant.is_empty()
+    var literal = render_string_literal(join.constant)
+    join.codes.append(literal)
+    join.constant = ""
 }
 
 func text_comparison(
@@ -5680,6 +5924,12 @@ func generate_binary(
         var swapped_left_code = coerce_for_store(binary.left, swapped_right_type, scope, class_information)
         var swapped_code = "({swapped_left_code} {binary_operator_symbol(binary.operator)} {swapped_right.code})"
         return ExpressionResult(swapped_code, Analysis.Types.ScalarType('boolean_kind'))
+    }
+    if binary.operator == 'add' {
+        var joined_text = generate_text_join(binary, scope, class_information)
+        if joined_text {
+            return joined_text
+        }
     }
     var left = generate_joined(binary.left, scope, class_information)
     var left_type = left.get_type()
@@ -6595,20 +6845,22 @@ func function_value(
         crash argument_class
         var class_type = class_type_of(argument_class)
         var arguments_list_name = ensure_list(class_type)
+        var argument_lines = List<String>()
+        var parameter_index = 0
+        while parameter_index < function.parameters.count() {
+            var parameter = function.parameters[parameter_index]
+            var parameter_type = parameter.get_type()
+            argument_lines.append(
+                "{arguments_list_name}_append(described->_arguments_, Spite_Argument___make({ensure_symbol(parameter.name)}, {class_object_call(parameter_type)}));",
+            )
+            parameter_index = parameter_index + 1
+        }
         var lines = List<String>()
         lines.append("Spite_Function* {maker}({information.c_name}* owner) \{")
         lines.append(
             "Spite_Function* described = Spite_Function___make({ensure_symbol(function.name)}, {returned_class_object_call(function)});",
         )
-        var parameter_index = 0
-        while parameter_index < function.parameters.count() {
-            var parameter = function.parameters[parameter_index]
-            var parameter_type = parameter.get_type()
-            lines.append(
-                "{arguments_list_name}_append(described->_arguments_, Spite_Argument___make({ensure_symbol(parameter.name)}, {class_object_call(parameter_type)}));",
-            )
-            parameter_index = parameter_index + 1
-        }
+        add_lazy_arguments(maker, argument_lines, lines)
         lines.append("described->spite_owner = {information.c_name}___retain(owner);")
         lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
         var function_return_type = function.get_return_type()
@@ -6632,6 +6884,14 @@ func function_value(
     var made = ExpressionResult(code, signature)
     made.owning_override = true
     return made
+}
+
+func add_lazy_arguments(maker: String, argument_lines: List<String>, lines: List<String>) {
+    assert not argument_lines.is_empty()
+    var describer = "{maker}___arguments"
+    builder.add_prototype("static void {describer}(Spite_Function* described);")
+    builder.add_support("static void {describer}(Spite_Function* described) \{\n{argument_lines.join("\n")}\n}")
+    lines.append("described->spite_add_arguments = {describer};")
 }
 
 func call_function_value(
@@ -10695,6 +10955,7 @@ func ensure_symbol(name: String): String {
     builder.add_typedef(
         "static SpiteString spite_symbol_{position} = SPITE_STATIC_STRING(\"{escape_c_string(name)}\", {name.length()});",
     )
+    constant_texts["(&spite_symbol_{position})"] = name
     return "(&spite_symbol_{position})"
 }
 
@@ -11461,6 +11722,14 @@ func generate_member_read_raw(
     if hardcoded {
         return hardcoded_setting_value(hardcoded, scope, class_information)
     }
+    var peeked_field_type = field.get_type()
+    var scalar_default = not type_needs_drop(peeked_field_type) and constant_scalar_code(field.default_value_code)
+    if object_result.peek_union and scalar_default {
+        var peeked = peeked_code(object_result)
+        var peeked_temporary = next_temporary()
+        var peeked_read = "(\{ {c_type_name(object_result_type)} {peeked_temporary} = {peeked}; {peeked_temporary} != 0 ? ({peeked_temporary})->{c_value_name(member.name)} : ({field.default_value_code}); })"
+        return ExpressionResult(peeked_read, peeked_field_type)
+    }
     if owns(object_result, member.object) {
         var object_temporary = next_temporary()
         var field_temporary = next_temporary()
@@ -11745,6 +12014,7 @@ func effect_changes(
 }
 
 func dependency_changes(effect: String, dependency: String): Boolean {
+    assert effect != "release"
     var is_list = dependency.starts_with("list:")
     if effect == "field:*" {
         return not is_list
@@ -12074,6 +12344,16 @@ func generate_variable_declaration(
     var frame_key = placement.frame_key(declaration)
     var frame_placed = frame_candidates.contains("{current_path}:{current_function}:{frame_key}") and not scope.entry_names.contains(declaration.name) and placed_in_frame(declaration, scope, class_information)
     assert not frame_placed
+    var borrowed = borrowed_element(declaration, scope, class_information)
+    if not borrowed.is_empty() {
+        var element_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
+        builder.add_user("{c_type_name(element_type)} {c_value_name(declaration.name)} = {borrowed};")
+        scope.declare(declaration.name, element_type)
+        scope.check_last(current_line)
+        check_value_name(declaration.name, "variable")
+        borrowed_names.append(declaration.name)
+        return
+    }
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
     report_copy_for_narrowing(declaration.name, declaration.value, declared_type, scope, class_information)
@@ -12090,6 +12370,238 @@ func generate_variable_declaration(
         scope.check_last(current_line)
         check_value_name(declaration.name, "variable")
     }
+}
+
+func borrowed_element(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var statements = borrow_statements
+    var start = borrow_index + 1
+    assert class_information.qualified_dotted == "List" and not declaration.type_reference and not hot_reload
+    assert not scope.entry_names.contains(declaration.name) and not class_information.codegen_types.is_empty()
+    crash declaration.value
+    var read = shape.as_member(declaration.value)
+    if read {
+        return borrowed_field(declaration, read, statements, start, scope, class_information)
+    }
+    var call = shape.as_call(declaration.value)
+    assert call and call.arguments.count() == 2
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member and member.name == "read_value"
+    crash member.object
+    assert is_identifier_named(member.object, "values") and is_identifier_named(call.arguments[0], "items")
+    crash class_information.codegen_types[0]
+    var element_type = class_information.codegen_types[0]
+    assert type_needs_drop(element_type) and not type_shape.as_nullable(element_type)
+    var watch = ReleaseWatch(declaration.name)
+    assert watch_statements(watch, statements, start, scope, class_information)
+    var integer_spite_type = integer_type()
+    var index_code = coerce_for_store(call.arguments[1], integer_spite_type, scope, class_information)
+    return "(({c_type_name(element_type)}*)(intptr_t)self->items_)[{index_code}]"
+}
+
+func borrowed_field(
+    declaration: Syntax.Statements.VariableDeclaration,
+    read: Syntax.Expressions.MemberExpression,
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    crash read.object
+    var holder = shape.as_identifier(read.object)
+    assert holder and borrowed_names.contains(holder.name)
+    var holder_type = scope.written_type(holder.name)
+    var holder_class = class_behind(holder_type)
+    assert holder_class and not holder_class.find_function("get_{read.name}")
+    var field = holder_class.find_field(read.name)
+    assert field
+    var field_type = field.get_type()
+    assert type_needs_drop(field_type) and not type_shape.as_nullable(field_type)
+    var watch = ReleaseWatch(declaration.name)
+    assert watch_statements(watch, statements, start, scope, class_information)
+    var generated = generate_expression(declaration.value, scope, class_information)
+    return generated.code
+}
+
+func watch_statements(
+    watch: ReleaseWatch,
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = start
+    while index < statements.count() {
+        assert releases_nothing(watch, statements[index], scope, class_information)
+        index = index + 1
+    }
+    return true
+}
+
+func releases_nothing(
+    watch: ReleaseWatch,
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            assert statement.name != watch.name
+            watch.locals.append(statement.name)
+            crash statement.value
+            return watch_expression(watch, statement.value, scope, class_information)
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            var target = shape.as_identifier(statement.target)
+            assert target
+            var local = watch.locals.contains(target.name) or scope.written_type(target.name)
+            assert local and target.name != watch.name and not class_information.find_field(target.name)
+            return watch_expression(watch, statement.value, scope, class_information)
+        }
+        Syntax.Statements.IfStatement: {
+            crash statement.condition
+            assert watch_expression(watch, statement.condition, scope, class_information)
+            assert watch_statements(watch, statement.then_branch, 0, scope, class_information)
+            return watch_statements(watch, statement.else_branch, 0, scope, class_information)
+        }
+        Syntax.Statements.WhileStatement: {
+            crash statement.condition
+            assert watch_expression(watch, statement.condition, scope, class_information)
+            return watch_statements(watch, statement.body, 0, scope, class_information)
+        }
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            return watch_expression(watch, statement.value, scope, class_information)
+        }
+        Syntax.Statements.AssertStatement: {
+            crash statement.value
+            return watch_expression(watch, statement.value, scope, class_information)
+        }
+        Syntax.Statements.ReturnStatement: {
+            if statement.value {
+                return watch_expression(watch, statement.value, scope, class_information)
+            }
+            return true
+        }
+        _: return false
+    }
+}
+
+func watch_expressions(
+    watch: ReleaseWatch,
+    expressions: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = 0
+    while index < expressions.count() {
+        assert watch_expression(watch, expressions[index], scope, class_information)
+        index = index + 1
+    }
+    return true
+}
+
+func watch_expression(
+    watch: ReleaseWatch,
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            assert watch_expressions(watch, expression.arguments, scope, class_information)
+            return watch_call(watch, expression.callee, scope, class_information)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            assert watch_expressions(watch, expression.arguments, scope, class_information)
+            var constructed = called_name_of(expression.callee)
+            return not any_releases(constructed)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            assert not operators_release()
+            assert watch_expression(watch, expression.left, scope, class_information)
+            return watch_expression(watch, expression.right, scope, class_information)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return watch_expression(watch, expression.operand, scope, class_information)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            assert not any_releases("get_{expression.name}")
+            return watch_expression(watch, expression.object, scope, class_information)
+        }
+        Syntax.Expressions.IndexExpression: {
+            assert not bound_member_owner_c_name.is_empty() and is_bound_member_index(expression)
+            var read = bound_member_expression(expression)
+            return watch_expression(watch, read, scope, class_information)
+        }
+        Syntax.Expressions.IdentifierExpression: return true
+        Syntax.Expressions.IntegerLiteral: return true
+        Syntax.Expressions.FloatLiteral: return true
+        Syntax.Expressions.StringLiteralExpression: return true
+        Syntax.Expressions.TrueLiteral: return true
+        Syntax.Expressions.FalseLiteral: return true
+        Syntax.Expressions.EnumLiteralExpression: return true
+        _: return false
+    }
+}
+
+func watch_call(
+    watch: ReleaseWatch,
+    callee: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var member = shape.as_member(callee)
+    if member {
+        crash member.object
+        assert member.name != "release_value" and watch_expression(watch, member.object, scope, class_information)
+        assert call_effects.by_function.has("*#{member.name}") or not any_releases("missing_function")
+    } else {
+        var identifier = shape.as_identifier(callee)
+        assert identifier and class_information.find_function(identifier.name) and not watch.locals.contains(identifier.name)
+    }
+    var effects = called_effects(callee, scope, class_information)
+    return not effects.contains("release") and not effects.contains("field:*")
+}
+
+func called_name_of(callee: Syntax.Expressions.Expression): String {
+    var identifier = shape.as_identifier(callee)
+    if identifier {
+        return identifier.name
+    }
+    var member = shape.as_member(callee)
+    assert member
+    return member.name
+}
+
+func any_releases(name: String): Boolean {
+    var effects = call_effects.effects_of("*", name)
+    return effects.contains("release") or effects.contains("field:*")
+}
+
+func operators_release(): Boolean {
+    var names = ["sum", "subtract", "multiply", "divide", "modulo", "equals", "less_than", "greater_than", "to_string"]
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if any_releases(name) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func choose_allocator_after(statements: List<Syntax.Statements.Statement>, index: Integer) {
@@ -12341,10 +12853,19 @@ func finish_allocated_class(information: Analysis.ClassInfo) {
         "{information.c_name}___init(self);\nself->spite_allocator = 0;",
     )
     builder.replace_support(information.allocate_position, allocated_on_heap)
+    if information.constructed_allocate_position >= 0 {
+        var constructed = builder.support_at(information.constructed_allocate_position)
+        var constructed_on_heap = constructed.replace(
+            "{information.c_name}___init_constructed(self);",
+            "{information.c_name}___init_constructed(self);\nself->spite_allocator = 0;",
+        )
+        builder.replace_support(information.constructed_allocate_position, constructed_on_heap)
+    }
     var released = builder.support_at(information.release_position)
+    var freed = object_free(information.c_name)
     var given_back = released.replace(
-        "SPITE_FREE(self);",
-        "if (self->spite_allocator != 0) \{\nself->spite_give_back(self->spite_allocator, self);\nreturn;\n}\nSPITE_FREE(self);",
+        freed,
+        "if (self->spite_allocator != 0) \{\nself->spite_give_back(self->spite_allocator, self);\nreturn;\n}\n{object_free(information.c_name)}",
     )
     builder.replace_support(information.release_position, given_back)
     assert information.copy_position >= 0
@@ -12696,10 +13217,17 @@ func emit_append_in_place(
         var string_spite_type = string_type()
         var piece_code = cast(piece_result.code, piece_type, string_spite_type)
         var temporary = next_temporary()
-        builder.add_user("SpiteString* {temporary} = {piece_code};")
-        builder.add_user("{target} = SpiteString_append({target}, {temporary});")
-        if owns(piece_result, piece) or not type_shape.as_string(piece_type) {
-            builder.add_user("SpiteString___release({temporary});")
+        var digits = digits_of(piece_code)
+        if digits.is_empty() {
+            builder.add_user("SpiteString* {temporary} = {piece_code};")
+            builder.add_user("{target} = SpiteString_append({target}, {temporary});")
+            if owns(piece_result, piece) or not type_shape.as_string(piece_type) {
+                builder.add_user("SpiteString___release({temporary});")
+            }
+        } else {
+            builder.add_user(
+                "\{ {digits_view(temporary, digits)} {target} = SpiteString_append({target}, &{temporary}); }",
+            )
         }
         index = index + 1
     }
@@ -12934,8 +13462,19 @@ func generate_store(
         }
         assert field
         var object_temporary = next_temporary()
-        builder.add_user("{c_type_name(object_result_type)} {object_temporary} = {object_result.code};")
         var field_type = field.get_type()
+        var watch = ReleaseWatch("")
+        var plain_write = not type_needs_drop(field_type) and not guards_outside_write(target_class)
+        if object_result.peek_union and plain_write and watch_expression(watch, assignment.value, scope, class_information) {
+            var peeked = peeked_code(object_result)
+            builder.add_user("{target_class.c_name} {object_temporary}_scratch;")
+            builder.add_user("{c_type_name(object_result_type)} {object_temporary} = {peeked};")
+            builder.add_user("if ({object_temporary} == 0) {object_temporary} = &{object_temporary}_scratch;")
+            var peeked_target = "({object_temporary})->{c_value_name(member.name)}"
+            emit_owning_assignment(peeked_target, field_type, assignment.value, scope, class_information)
+            return
+        }
+        builder.add_user("{c_type_name(object_result_type)} {object_temporary} = {object_result.code};")
         var target_code = "({object_temporary})->{c_value_name(member.name)}"
         if guards_outside_write(target_class) {
             emit_guarded_outside_write(
@@ -12986,6 +13525,8 @@ func generate_statement_list(
             statement = overlapped_declaration(statement)
         }
         choose_allocator_after(statements, index)
+        borrow_statements = statements
+        borrow_index = index
         ended_in_return = generate_statement(statement, scope, class_information, function_information)
         pending_allocator = null
         if overlaps {
@@ -16696,6 +17237,192 @@ func named_signature(information: Analysis.ClassInfo, function: Analysis.Functio
     return "{c_type_name(function_return_type)} {c_name}({parts.join(", ")})"
 }
 
+func emit_constructed_allocate(
+    information: Analysis.ClassInfo,
+    replaced: List<String>,
+    allocate_lines: List<String>,
+    initialize_lines: List<String>,
+): String {
+    var c_name = information.c_name
+    var constructed_lines = List<String>()
+    constructed_lines.append("static void {c_name}___init_constructed({c_name}* self) \{")
+    var line_index = 1
+    while line_index < initialize_lines.count() {
+        var line = initialize_lines[line_index]
+        var field_index = 0
+        while field_index < information.fields.count() {
+            var field = information.fields[field_index]
+            if replaced.contains(field.name) and line == "self->{c_value_name(field.name)} = {field.default_value_code};" {
+                line = "self->{c_value_name(field.name)} = 0;"
+            }
+            field_index = field_index + 1
+        }
+        constructed_lines.append(line)
+        line_index = line_index + 1
+    }
+    var joined_initialize_lines = constructed_lines.join("\n")
+    builder.add_support(joined_initialize_lines)
+    var joined_allocate_lines = allocate_lines.join("\n")
+    var constructed = joined_allocate_lines.replace(
+        "{c_name}* {c_name}___allocate(void) \{",
+        "static {c_name}* {c_name}___allocate_constructed(void) \{",
+    )
+    constructed = constructed.replace("{c_name}___init(self);", "{c_name}___init_constructed(self);")
+    information.constructed_allocate_position = builder.support_count()
+    builder.add_support(constructed)
+    return "{c_name}___allocate_constructed"
+}
+
+func constructor_replaced_fields(information: Analysis.ClassInfo): List<String> {
+    var replaced = List<String>()
+    assert information.constructor and not hot_reload and not information.is_singleton
+    assert not information.is_value_class
+    var parameter_names = information.constructor.parameters.map_name()
+    var body = information.constructor.body
+    var index = 0
+    var leading = true
+    while leading and index < body.count() {
+        var target = replaced_by_statement(information, body[index], parameter_names)
+        leading = not target.is_empty()
+        if leading and not replaced.contains(target) {
+            var field = information.find_field(target)
+            crash field
+            var field_type = field.get_type()
+            var visiting = List<String>()
+            if type_needs_drop(field_type) and pure_construction_code(field.default_value_code, visiting) {
+                replaced.append(target)
+            }
+        }
+        index = index + 1
+    }
+    return replaced
+}
+
+func replaced_by_statement(
+    information: Analysis.ClassInfo,
+    statement: Syntax.Statements.Statement,
+    parameter_names: List<String>,
+): String {
+    var assignment = shape.as_assignment_statement(statement)
+    assert assignment
+    crash assignment.target
+    crash assignment.value
+    var target = shape.as_identifier(assignment.target)
+    assert target
+    assert information.find_field(target.name) and not parameter_names.contains(target.name)
+    assert constant_or_parameter(assignment.value, parameter_names)
+    return target.name
+}
+
+func constant_or_parameter(value: Syntax.Expressions.Expression, parameter_names: List<String>): Boolean {
+    var identifier = shape.as_identifier(value)
+    if identifier {
+        return parameter_names.contains(identifier.name)
+    }
+    if shape.as_string_literal(value) or shape.as_integer_literal(value) or shape.as_float_literal(value) {
+        return true
+    }
+    return shape.is_true_literal(value) or shape.is_false_literal(value) or shape.is_null_literal(value)
+}
+
+func pure_construction_code(code: String, visiting: List<String>): Boolean {
+    var opening = code.index_of("(")
+    assert opening > 0 and code.ends_with(")")
+    var code_length = code.length()
+    var callee = code.slice(0, opening)
+    var arguments = code.slice(opening + 1, code_length - 1)
+    assert callee.ends_with("___make") and (arguments.is_empty() or constant_arguments(arguments))
+    var callee_length = callee.length()
+    var class_c_name = callee.slice(0, callee_length - 7)
+    return pure_class(class_c_name, visiting)
+}
+
+func constant_arguments(arguments: String): Boolean {
+    assert not arguments.is_empty()
+    var parts = arguments.split(", ")
+    var index = 0
+    while index < parts.count() {
+        var part = parts[index]
+        assert constant_texts.has(part) or constant_number(part)
+        index = index + 1
+    }
+    return true
+}
+
+func constant_number(part: String): Boolean {
+    var index = 0
+    while index < part.length() {
+        var code = part.code_at(index)
+        var digit = code >= 48 and code <= 57
+        assert digit or code == 45 or code == 46
+        index = index + 1
+    }
+    return not part.is_empty()
+}
+
+func pure_class(class_c_name: String, visiting: List<String>): Boolean {
+    assert not visiting.contains(class_c_name)
+    visiting.append(class_c_name)
+    var information = find_class_by_c_name(class_c_name)
+    assert information
+    if information.qualified_dotted == "List" or information.qualified_dotted == "Dictionary" {
+        return true
+    }
+    assert not information.is_singleton and not information.drop_function and not information.is_value_class
+    assert not is_hot_class(information) and not information.is_generic_template
+    if information.constructor {
+        var parameter_names = information.constructor.parameters.map_name()
+        var index = 0
+        while index < information.constructor.body.count() {
+            var target = replaced_by_statement(information, information.constructor.body[index], parameter_names)
+            assert not target.is_empty()
+            index = index + 1
+        }
+    }
+    var field_index = 0
+    while field_index < information.fields.count() {
+        var field = information.fields[field_index]
+        var field_type = field.get_type()
+        if type_needs_drop(field_type) {
+            assert pure_construction_code(field.default_value_code, visiting) or constant_text_code(field.default_value_code)
+        } else {
+            assert constant_scalar_code(field.default_value_code)
+        }
+        field_index = field_index + 1
+    }
+    return true
+}
+
+func constant_text_code(code: String): Boolean {
+    return constant_texts.has(code) or code == "0"
+}
+
+func constant_scalar_code(code: String): Boolean {
+    var index = 0
+    var name_start = 0
+    while index < code.length() {
+        var code_point = code.code_at(index)
+        var letter = code_point >= 65 and code_point <= 90 or code_point >= 97 and code_point <= 122 or code_point == 95
+        var digit = code_point >= 48 and code_point <= 57
+        if code_point == 40 {
+            var called = code.slice(name_start, index)
+            assert called.is_empty() or called.starts_with("Spite") and called.contains("_from_")
+        }
+        if not letter and not digit {
+            name_start = index + 1
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func object_free(c_name: String): String {
+    if hot_reload {
+        return "SPITE_FREE(self);"
+    }
+    return "SPITE_FREE_SIZED(self, sizeof({c_name}));"
+}
+
 func emit_class_prototypes(information: Analysis.ClassInfo) {
     builder.add_prototype("void {information.c_name}___init({information.c_name}* self);")
     builder.add_prototype("{information.c_name}* {information.c_name}___allocate(void);")
@@ -16742,6 +17469,8 @@ func emit_class_support(information: Analysis.ClassInfo) {
         initialize_lines.append("self->spite_call = 0;")
         initialize_lines.append("self->spite_typed_call = 0;")
         initialize_lines.append("self->spite_text_call = 0;")
+        initialize_lines.append("self->spite_add_arguments = 0;")
+        initialize_lines.append("self->spite_arguments_lock = 0;")
     }
     if information.c_name == "Spite_Attribute" {
         var cleared_links = hidden_attribute_links_cleared("self")
@@ -16750,6 +17479,12 @@ func emit_class_support(information: Analysis.ClassInfo) {
     initialize_lines.append("}")
     var joined_initialize_lines = initialize_lines.join("\n")
     builder.add_support(joined_initialize_lines)
+    if information.c_name == "Spite_Function" {
+        builder.add_prototype("static void spite_function_arguments_described(Spite_Function* self);")
+        builder.add_support(
+            "static void spite_function_arguments_described(Spite_Function* self) \{\nif (SPITE_SINGLETON_FOUND(self->spite_add_arguments) == 0) return;\nSPITE_LOCK(self->spite_arguments_lock);\nvoid (*adding)(Spite_Function*) = self->spite_add_arguments;\nif (adding != 0) \{\nadding(self);\nSPITE_SINGLETON_PUBLISH(self->spite_add_arguments, (void (*)(Spite_Function*))0);\n}\nSPITE_UNLOCK(self->spite_arguments_lock);\n}",
+        )
+    }
     var allocate_lines = List<String>()
     allocate_lines.append("{information.c_name}* {information.c_name}___allocate(void) \{")
     allocate_lines.append(
@@ -16774,9 +17509,14 @@ func emit_class_support(information: Analysis.ClassInfo) {
         default_instance = singleton_call(information)
     }
     builder.add_support("{information.c_name}* {information.c_name}___default(void) \{ return {default_instance}; }")
+    var allocating = "{information.c_name}___allocate"
+    var replaced = constructor_replaced_fields(information)
+    if not replaced.is_empty() {
+        allocating = emit_constructed_allocate(information, replaced, allocate_lines, initialize_lines)
+    }
     var make_lines = List<String>()
     make_lines.append("{information.c_name}* {information.c_name}___make({constructor_parameter_list(information)}) \{")
-    make_lines.append("{information.c_name}* self = {information.c_name}___allocate();")
+    make_lines.append("{information.c_name}* self = {allocating}();")
     if information.constructor {
         var arguments = c_parameter_names(information.constructor.parameters)
         arguments.prepend("self")
@@ -16844,7 +17584,8 @@ func emit_class_support(information: Analysis.ClassInfo) {
     release_lines.append("#ifdef SPITE_TRACKS_{information.c_name}")
     release_lines.append("spite_untrack_{information.c_name}(self);")
     release_lines.append("#endif")
-    release_lines.append("SPITE_FREE(self);")
+    var freed = object_free(information.c_name)
+    release_lines.append(freed)
     release_lines.append("}")
     var joined_release_lines = release_lines.join("\n")
     information.release_position = builder.support_count()
@@ -16866,6 +17607,9 @@ func emit_class_support(information: Analysis.ClassInfo) {
     copy_lines.append("#ifdef SPITE_DEBUG_MEMORY")
     copy_lines.append("spite_debug_register_object(spite_copy, {class_id_text});")
     copy_lines.append("#endif")
+    if information.c_name == "Spite_Function" {
+        copy_lines.append("spite_function_arguments_described(self);")
+    }
     var copy_field_index = 0
     while copy_field_index < information.fields.count() {
         var field = information.fields[copy_field_index]
@@ -16879,7 +17623,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
     }
     if information.c_name == "Spite_Function" {
         copy_lines.append(
-            "spite_copy->spite_owner = 0; spite_copy->spite_release_owner = 0; spite_copy->spite_call = 0; spite_copy->spite_typed_call = 0; spite_copy->spite_text_call = 0;",
+            "spite_copy->spite_owner = 0; spite_copy->spite_release_owner = 0; spite_copy->spite_call = 0; spite_copy->spite_typed_call = 0; spite_copy->spite_text_call = 0; spite_copy->spite_add_arguments = 0; spite_copy->spite_arguments_lock = 0;",
         )
     }
     if information.c_name == "Spite_Attribute" {
@@ -16946,6 +17690,7 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         guarded_positions.append(guarded_at)
     }
     current_function_c_name = function.c_name
+    borrowed_names = List<String>()
     if not guarded and not function.is_constructor and not is_hot_class(information) and waiting.is_empty() {
         machine_candidate_names.append(function.c_name)
         machine_candidate_classes.append(information)
@@ -16957,6 +17702,9 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         add_hot_slot(information, function)
     }
     builder.add_user("{named_signature(information, function, defined_name)} \{")
+    if function.c_name == "Spite_Function_get_arguments" {
+        builder.add_user("spite_function_arguments_described(self);")
+    }
     var scope = parameter_scope(function)
     terminal_if = terminal_if_of(function.body)
     body_narrowed_names = List<String>()
@@ -17028,6 +17776,8 @@ func emit_class(information: Analysis.ClassInfo) {
         struct_lines.append("void (*spite_call)(void*);")
         struct_lines.append("void* spite_typed_call;")
         struct_lines.append("void* spite_text_call;")
+        struct_lines.append("void (*spite_add_arguments)(Spite_Function*);")
+        struct_lines.append("int32_t spite_arguments_lock;")
     }
     if information.c_name == "Spite_Attribute" {
         struct_lines.append("void* spite_owner;")
@@ -17099,6 +17849,11 @@ func emit_string_support(information: Analysis.ClassInfo) {
     builder.add_prototype("SpiteString* SpiteString_append(SpiteString* left, SpiteString* right);")
     builder.add_prototype("SpiteString* spite_string_from_bytes(const char* bytes, int64_t length);")
     builder.add_prototype("SpiteString* spite_string_from_cstring_owned(const char* text);")
+    builder.add_prototype("SpiteString* spite_string_join(int32_t count, SpiteString* const* pieces);")
+    builder.add_prototype("static int64_t spite_long_digits(char* digits, int64_t value);")
+    builder.add_support(
+        "static int64_t spite_long_digits(char* digits, int64_t value) \{\nchar reversed[24];\nint64_t count = 0;\nuint64_t rest = value < 0 ? (uint64_t)0 - (uint64_t)value : (uint64_t)value;\ndo \{ reversed[count] = (char)('0' + rest % 10); count = count + 1; rest = rest / 10; } while (rest != 0);\nint64_t length = 0;\nif (value < 0) \{ digits[0] = '-'; length = 1; }\nwhile (count > 0) \{ count = count - 1; digits[length] = reversed[count]; length = length + 1; }\nreturn length;\n}",
+    )
     var initialize_lines = List<String>()
     initialize_lines.append("void SpiteString___init(SpiteString* self) \{")
     var field_index = 0
@@ -17124,7 +17879,7 @@ func emit_string_support(information: Analysis.ClassInfo) {
     )
     crash information.drop_function
     builder.add_support(
-        "void SpiteString___release(SpiteString* self) \{\nif (self == 0 || self->_section_ == Spite_Memory_Section_constant) return;\nif (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;\n{information.drop_function.c_name}(self);\nSPITE_FREE(self);\n}",
+        "void SpiteString___release(SpiteString* self) \{\nif (self == 0 || self->_section_ == Spite_Memory_Section_constant) return;\nif (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;\n{information.drop_function.c_name}(self);\n{object_free("SpiteString")}\n}",
     )
     builder.add_support(
         "SpiteString* SpiteString_append(SpiteString* left, SpiteString* right) \{\nif (left->_section_ == Spite_Memory_Section_constant || left->header.ref_count != 1) \{\nSpiteString* alone = {unshared.c_name}(left);\nSpiteString___release(left);\nleft = alone;\n}\n{append_in_place.c_name}(left, SpiteString___retain(right));\nreturn left;\n}",
@@ -17134,6 +17889,9 @@ func emit_string_support(information: Analysis.ClassInfo) {
     )
     builder.add_support(
         "SpiteString* spite_string_from_cstring_owned(const char* text) \{\nreturn spite_string_from_bytes(text, (int64_t)strlen(text));\n}",
+    )
+    builder.add_support(
+        "SpiteString* spite_string_join(int32_t count, SpiteString* const* pieces) \{\nint64_t total = 0;\nfor (int32_t index = 0; index < count; index++) total += pieces[index]->_length_;\nchar* bytes = (char*)SPITE_MALLOC((size_t)total + 1);\nint64_t at = 0;\nfor (int32_t index = 0; index < count; index++) \{\nmemcpy(bytes + at, (const char*)(intptr_t)pieces[index]->_bytes_, (size_t)pieces[index]->_length_);\nat += pieces[index]->_length_;\n}\nreturn SpiteString___make((int64_t)(intptr_t)bytes, total);\n}",
     )
 }
 

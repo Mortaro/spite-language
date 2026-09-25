@@ -360,7 +360,10 @@ All of it is proposed by Claude, unconfirmed.
      the waiting thread. Is cores-minus-one right for the engine, or should it be every core?
 145. **A `Parallel` costs about two dozen allocations**, almost all of them the two `Spite.Function` values (each
      is its own reflection object, D39, with a list of `Spite.Argument`s). Making a function value's reflection
-     lazy would cut that to a handful; worth doing for every callback, not only here?
+     lazy would cut that to a handful; worth doing for every callback, not only here? *Built lazily for every
+     function value (2026-09-25, proposed by Claude, unconfirmed): `.arguments` is filled on first read, and the
+     discarded `Spite.Class('Nothing')` defaults are no longer made -- a `Parallel` makes 9 fewer allocations. Nothing
+     a program reads changed, so there is nothing left to decide unless you want it eager again.*
 146. **`finished` on a `Concurrent` does not run anything.** It reads the flag; the fiber only progresses when the
      program waits somewhere (`program.sleep(1)` in a polling loop). It could instead let ready fibers run once,
      which would make it a wait point in the D37 sense. Keep it a plain read?
