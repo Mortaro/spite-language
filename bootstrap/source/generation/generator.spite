@@ -161,6 +161,8 @@ var placed_frames = List<String>()
 var placed_receiver_names = List<String>()
 var placed_receiver_codes = List<String>()
 var boxed_value_types = Dictionary<Analysis.SpiteType>()
+var constant_boxes = List<String>()
+var box_release_emitted = false
 var synthetic_value_classes = List<Analysis.ClassInfo>()
 var synthetic_value_types = Dictionary<Analysis.SpiteType>()
 var attribute_object_used = false
@@ -2145,7 +2147,9 @@ func emit_union_release(information: Analysis.UnionInfo) {
     while member_index < information.members.count() {
         var member = information.members[member_index]
         var released = "{member.c_name}___release(({member.c_name}*)self)"
-        if boxed_value_types.has(member.c_name) {
+        if member.c_name == "SpiteString" {
+            released = "spite_string_box_release(self)"
+        } else if boxed_value_types.has(member.c_name) {
             released = "spite_box_release(self)"
         }
         release_lines.append("if {class_id_test("self", member)} \{ {released}; return; }")
@@ -2484,7 +2488,7 @@ func shaped_value(
         var string_class = find_class_by_c_name("SpiteString")
         crash string_class
         admit_to_union(information, string_class)
-        return "(({information.c_name})({code}))"
+        return "(({information.c_name})({boxed_text(code)}))"
     }
     var boxed_class = boxed_class_of(from)
     if boxed_class {
@@ -2623,12 +2627,12 @@ func automatic_debug(information: Analysis.ClassInfo): Analysis.FunctionInfo? {
         false,
     )
     function.has_body = false
-    var body = "{debug_class.c_name}* spite_debug = {singleton_call(debug_class)};\nSpiteString* spite_text = {described.c_name}(spite_debug, {retain_call(debugged_type, "self")});\n{debug_class.c_name}___release(spite_debug);\nreturn spite_text;"
+    var body = "{debug_class.c_name}* spite_debug = {singleton_call(debug_class)};\nSpiteString spite_text = {described.c_name}(spite_debug, {retain_call(debugged_type, "self")});\n{debug_class.c_name}___release(spite_debug);\nreturn spite_text;"
     function.supplied_body = body
     information.functions.append(function)
     if synthetic_value_types.has(information.c_name) {
         function.is_emitted = true
-        var signature = "SpiteString* {function.c_name}({c_type_name(debugged_type)} self)"
+        var signature = "SpiteString {function.c_name}({c_type_name(debugged_type)} self)"
         builder.add_prototype("{signature};")
         builder.add_support("{signature} \{\n{body}\n}")
         return function
@@ -2679,10 +2683,40 @@ func synthetic_value_class(c_name: String, value_type: Analysis.SpiteType, to_st
     created.functions.append(to_string)
     synthetic_value_classes.append(created)
     synthetic_value_types[c_name] = value_type
-    var signature = "SpiteString* {c_name}_to_string({c_type_name(value_type)} self)"
+    var signature = "SpiteString {c_name}_to_string({c_type_name(value_type)} self)"
     builder.add_prototype("{signature};")
     builder.add_support("{signature} \{\n{to_string_body}\n}")
     return created
+}
+
+func boxed_text(code: String): String {
+    var string_class = find_class_by_c_name("SpiteString")
+    crash string_class
+    if not boxed_value_types.has(string_class.c_name) {
+        var string_spite_type = string_type()
+        boxed_value_types[string_class.c_name] = string_spite_type
+        builder.add_prototype("void* spite_box_SpiteString(SpiteString value);")
+        builder.add_prototype("void spite_string_box_release(void* self);")
+        var boxed_registration = debug_registration("self", "{string_class.class_id}")
+        builder.add_support(
+            "void* spite_box_SpiteString(SpiteString value) \{\nSpiteBox_SpiteString* self = (SpiteBox_SpiteString*)SPITE_MALLOC(sizeof(SpiteBox_SpiteString));\nself->header.ref_count = 1;\nself->header.class_id = {string_class.class_id};\n{boxed_registration}self->value = value;\nreturn self;\n}",
+        )
+        builder.add_support(
+            "void spite_string_box_release(void* self) \{\nSpiteBox_SpiteString* box = (SpiteBox_SpiteString*)self;\nif (box->header.class_id < 0) return;\nif (SPITE_COUNT_DOWN(box->header.ref_count) > 0) return;\nSpiteString___release(box->value);\nSPITE_FREE(box);\n}",
+        )
+    }
+    var constant = constant_texts.get(code)
+    if constant {
+        var boxed_name = "{code}_box"
+        if not constant_boxes.contains(boxed_name) {
+            constant_boxes.append(boxed_name)
+            builder.add_typedef(
+                "static SpiteBox_SpiteString {boxed_name} = \{ \{ 0, -1 }, SPITE_STATIC_STRING(\"{escape_c_string(constant)}\", {constant.length()}) };",
+            )
+        }
+        return "((void*)&{boxed_name})"
+    }
+    return "spite_box_SpiteString({code})"
 }
 
 func ensure_box(member: Analysis.ClassInfo, value_type: Analysis.SpiteType): String {
@@ -2690,7 +2724,8 @@ func ensure_box(member: Analysis.ClassInfo, value_type: Analysis.SpiteType): Str
     if boxed_value_types.has(member.c_name) {
         return maker
     }
-    if boxed_value_types.count() == 0 {
+    if not box_release_emitted {
+        box_release_emitted = true
         builder.add_prototype("void spite_box_release(void* self);")
         builder.add_support(
             "void spite_box_release(void* self) \{\nif (SPITE_COUNT_DOWN(((SpiteHeader*)self)->ref_count) > 0) return;\nSPITE_FREE(self);\n}",
@@ -4224,6 +4259,11 @@ func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInf
         index = index + 1
     }
     var class_path = folders.join("/")
+    var storage_body = string_storage_body(information, function.name)
+    if not storage_body.is_empty() {
+        function.supplied_body = storage_body
+        return
+    }
     var supplied = Prelude().supplied_body(class_path, function.name)
     if supplied {
         assert not information.is_generic_template
@@ -4949,6 +4989,20 @@ func resolve_nullable_argument(named: Syntax.Types.NamedType, current_namespace:
     return null
 }
 
+func null_code(inner: Analysis.SpiteType): String {
+    if type_shape.as_string(inner) or type_shape.is_symbol(inner) {
+        return "SPITE_STRING_NULL"
+    }
+    return "0"
+}
+
+func present_code(code: String, inner: Analysis.SpiteType): String {
+    if type_shape.as_string(inner) or type_shape.is_symbol(inner) {
+        return "(!SPITE_STRING_IS_NULL({code}))"
+    }
+    return "(({code}) != 0)"
+}
+
 func type_is_reference(spite_type: Analysis.SpiteType): Boolean {
     if type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type) {
         return true
@@ -5198,7 +5252,7 @@ func c_type_name(spite_type: Analysis.SpiteType): String {
         return numeric_c_name(scalar.kind)
     }
     if type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type) {
-        return "SpiteString*"
+        return "SpiteString"
     }
     var class_ref = type_shape.as_class_ref(spite_type)
     if class_ref {
@@ -5254,7 +5308,7 @@ func default_value_for_type(spite_type: Analysis.SpiteType): String {
         return "0"
     }
     if type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type) {
-        return "(&spite_static_string_empty)"
+        return "SPITE_STRING_EMPTY"
     }
     var class_ref = type_shape.as_class_ref(spite_type)
     if class_ref {
@@ -5292,7 +5346,7 @@ func default_value_for_type(spite_type: Analysis.SpiteType): String {
     if nullable {
         var inner = nullable.get_inner()
         if type_is_reference(inner) {
-            return "0"
+            return null_code(inner)
         }
         var struct_name = ensure_nullable_scalar_typedef(inner)
         return "(({struct_name})\{ .has_value = false, .value = {default_value_for_type(inner)} })"
@@ -5320,7 +5374,7 @@ func string_conversion(code: String, from: Analysis.SpiteType): String {
         report(
             "{type_with_article(from)} becomes text through the to_string() function of its class in library/, and that class declares none",
         )
-        return "(&spite_static_string_empty)"
+        return "SPITE_STRING_EMPTY"
     }
     var enum_type = type_shape.as_enum(from)
     if enum_type {
@@ -5477,6 +5531,9 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
                 return shaped_value(code, from, to, shaped_union)
             }
         }
+        if type_shape.as_string(from) {
+            return "(({to_union.c_name})({boxed_text(code)}))"
+        }
         return "(({to_union.c_name})({code}))"
     }
     if type_shape.as_string(to) {
@@ -5494,7 +5551,7 @@ func cast(code: String, from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
         if to_enum {
             crash to_enum.values.count() > 0
             var chosen_code = enum_from_text_lines(to_enum, "spite_enum_text", "spite_enum_value", ";")
-            return "(\{ SpiteString* spite_enum_text = {code}; {to_enum.c_name} spite_enum_value = {to_enum.c_name}_{to_enum.values[0]}; {chosen_code} spite_enum_value; })"
+            return "(\{ SpiteString spite_enum_text = {code}; {to_enum.c_name} spite_enum_value = {to_enum.c_name}_{to_enum.values[0]}; {chosen_code} spite_enum_value; })"
         }
         var to_scalar = type_shape.as_scalar(to)
         if to_scalar {
@@ -5716,6 +5773,14 @@ func coerce_for_store(
         var joined_ast = implicit_join_ast(expression_ast)
         return coerce_for_store(joined_ast, expected_type, scope, class_information)
     }
+    var expected_union = expected_type_without_nullable(expected_type)
+    if type_shape.as_string(result_type) and type_shape.as_union(expected_union) {
+        var owned_text = result.code
+        if not owns(result, expression_ast) and not constant_texts.has(result.code) {
+            owned_text = retain_call(result_type, result.code)
+        }
+        return cast(owned_text, result_type, expected_type)
+    }
     var casted = cast(result.code, result_type, expected_type)
     if type_needs_drop(expected_type) {
         if owns(result, expression_ast) or is_boxed_into_shape(result_type, expected_type) {
@@ -5866,8 +5931,8 @@ func render_string_literal(value: String): String {
     var literal_name = "spite_lit_{literal_counter}"
     var escaped = escape_c_string(value)
     builder.add_typedef("static SpiteString {literal_name} = SPITE_STATIC_STRING(\"{escaped}\", {value.length()});")
-    constant_texts["(&{literal_name})"] = value
-    return "(&{literal_name})"
+    constant_texts[literal_name] = value
+    return literal_name
 }
 
 func lookup_static_type(
@@ -5941,6 +6006,9 @@ func generate_identifier(
             return void_result()
         }
         var field_type = field.get_type()
+        if class_information.c_name == "SpiteString" {
+            return string_storage_code(identifier.name, "self", field_type)
+        }
         if atomic_owner == class_information.c_name and atomic_fields.contains(identifier.name) {
             var loaded = "SPITE_SINGLETON_LOAD({class_information.c_name}, self->{c_value_name(identifier.name)})"
             return ExpressionResult(loaded, field_type)
@@ -6075,8 +6143,8 @@ func generate_string_binary(
     var left_temporary = next_temporary()
     var right_temporary = next_temporary()
     var lines = List<String>()
-    lines.append("SpiteString* {left_temporary} = {left_result.code};")
-    lines.append("SpiteString* {right_temporary} = {right_code_casted};")
+    lines.append("SpiteString {left_temporary} = {left_result.code};")
+    lines.append("SpiteString {right_temporary} = {right_code_casted};")
     var result_type: Analysis.SpiteType = Analysis.Types.StringType()
     var combine = ""
     if operator == 'add' {
@@ -6158,8 +6226,8 @@ func generate_text_join(
     }
     var parts = next_temporary()
     var result = next_temporary()
-    join.lines.append("SpiteString* {parts}[] = \{{join.codes.join(", ")}};")
-    join.lines.append("SpiteString* {result} = spite_string_join({join.codes.count()}, {parts});")
+    join.lines.append("SpiteString {parts}[] = \{{join.codes.join(", ")}};")
+    join.lines.append("SpiteString {result} = spite_string_join({join.codes.count()}, {parts});")
     var released_index = 0
     while released_index < join.released.count() {
         join.lines.append("SpiteString___release({join.released[released_index]});")
@@ -6193,8 +6261,8 @@ func add_text_piece(join: TextJoin, code: String, owned: Boolean) {
         var view = next_temporary()
         var viewed = digits_view(view, digits)
         join.lines.append(viewed)
-        join.codes.append("(&{view})")
-        join.views.append("(&{view})")
+        join.codes.append(view)
+        join.views.append(view)
         join.originals.append(code)
         return
     }
@@ -6205,7 +6273,7 @@ func add_text_piece(join: TextJoin, code: String, owned: Boolean) {
     }
     flush_constant_text(join)
     var temporary = next_temporary()
-    join.lines.append("SpiteString* {temporary} = {code};")
+    join.lines.append("SpiteString {temporary} = {code};")
     join.codes.append(temporary)
     if owned {
         join.released.append(temporary)
@@ -6901,7 +6969,7 @@ func generate_nullable_equality(
     var compared_name = next_temporary()
     var compared_scope = Scope(scope)
     compared_scope.declare(compared_name, inner)
-    var null_check = "{compared_name} != 0"
+    var null_check = present_code(compared_name, inner)
     if type_is_reference(inner) {
         compared_scope.set_override(compared_name, compared_name)
     } else {
@@ -6958,7 +7026,7 @@ func truth_of(result: ExpressionResult): String {
     if maybe_null {
         var maybe_null_inner = maybe_null.get_inner()
         if type_is_reference(maybe_null_inner) {
-            return "(({result.code}) != 0)"
+            return present_code(result.code, maybe_null_inner)
         }
         return "(({result.code}).has_value)"
     }
@@ -8355,7 +8423,7 @@ func generate_written_string_call(
     var receiver_code = object_result.code
     if owns(object_result, object_ast) {
         var object_temporary = next_temporary()
-        lines.append("SpiteString* {object_temporary} = {object_result.code};")
+        lines.append("SpiteString {object_temporary} = {object_result.code};")
         release = "SpiteString___release({object_temporary});"
         receiver_code = object_temporary
     }
@@ -10291,7 +10359,7 @@ func attribute_object_code(spite_type: Analysis.SpiteType, code: String, shape_t
     if nullable {
         var inner = nullable.get_inner()
         if type_is_reference(inner) {
-            return "({code} == 0 ? 0 : {attribute_object_code(inner, code, shape_type)})"
+            return "({present_code(code, inner)} ? {attribute_object_code(inner, code, shape_type)} : 0)"
         }
         return "({code}.has_value ? {attribute_object_code(inner, "{code}.value", shape_type)} : 0)"
     }
@@ -10571,7 +10639,7 @@ func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
         return function_c_name
     }
     reflect_function_names.append(function_c_name)
-    var signature = "Spite_Attribute* {function_c_name}(SpiteString* name, {c_type_name(spite_type)} value)"
+    var signature = "Spite_Attribute* {function_c_name}(SpiteString name, {c_type_name(spite_type)} value)"
     builder.add_prototype("{signature};")
     var lines = List<String>()
     lines.append("{signature} \{")
@@ -10675,7 +10743,7 @@ func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.Fie
     var function_c_name = "{information.c_name}___assign_{field.name}"
     var assigned_c = c_type_name(field_type)
     var lines = List<String>()
-    lines.append("bool {function_c_name}(void* owner, SpiteString* text) \{")
+    lines.append("bool {function_c_name}(void* owner, SpiteString text) \{")
     lines.append("{information.c_name}* self = ({information.c_name}*)owner;")
     switch field_type {
         Analysis.Types.StringType: lines.append("{assigned_c} assigned = SpiteString___retain(text);")
@@ -10706,7 +10774,7 @@ func ensure_assign_function(information: Analysis.ClassInfo, field: Analysis.Fie
     }
     lines.append("return true;")
     lines.append("}")
-    builder.add_prototype("bool {function_c_name}(void* owner, SpiteString* text);")
+    builder.add_prototype("bool {function_c_name}(void* owner, SpiteString text);")
     var joined_lines = lines.join("\n")
     builder.add_support(joined_lines)
     return function_c_name
@@ -10787,14 +10855,21 @@ func string_storage_read(
     }
     var field_type = field.get_type()
     if owns(object_result, object_ast) {
-        var held = next_temporary()
-        var value = next_temporary()
-        return ExpressionResult(
-            "(\{ SpiteString* {held} = {object_result.code}; {c_type_name(field_type)} {value} = {held}->{c_value_name(name)}; SpiteString___release({held}); {value}; })",
-            field_type,
-        )
+        report("'{name}' is read from a String that has a name: name this text with 'var' first")
+        return ExpressionResult("0", Analysis.Types.VoidType())
     }
-    return ExpressionResult("({object_result.code})->{c_value_name(name)}", field_type)
+    return string_storage_code(name, object_result.code, field_type)
+}
+
+func string_storage_code(name: String, code: String, field_type: Analysis.SpiteType): ExpressionResult {
+    if name == "_bytes" {
+        return ExpressionResult("((int64_t)(intptr_t)spite_string_bytes(&({code})))", field_type)
+    }
+    if name == "_length" {
+        return ExpressionResult("spite_string_length({code})", field_type)
+    }
+    report("a String is its characters and their length: read '_bytes' or '_length'")
+    return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
 func generate_memory_read(
@@ -10826,9 +10901,17 @@ func generate_memory_read(
     var bytes = "(int64_t)sizeof(*({held}))"
     var section = "Spite_Memory_Section_heap"
     if type_shape.as_string(object_type) {
-        address = "({held})->_bytes_"
-        bytes = "({held})->_length_"
-        section = "({held})->_section_"
+        var where_inline = "Spite_Memory_Section_stack"
+        var named = not owned and not is_owning_shape(object_ast)
+        if object_result.code.contains("->") or not named {
+            where_inline = "Spite_Memory_Section_heap"
+        }
+        address = "(int64_t)(intptr_t)spite_string_bytes(&({held}))"
+        if named {
+            address = "(int64_t)(intptr_t)spite_string_bytes(&({object_result.code}))"
+        }
+        bytes = "spite_string_length({held})"
+        section = "(SPITE_STRING_IS_HEAP({held}) ? Spite_Memory_Section_heap : SPITE_STRING_IS_INLINE({held}) ? {where_inline} : Spite_Memory_Section_constant)"
     } else if type_shape.as_scalar(object_type) or is_enum_type(object_type) {
         if owned or is_owning_shape(object_ast) {
             report("only a named value has memory of its own: give this value a name with 'var' first")
@@ -11355,7 +11438,7 @@ func generate_index_read(
         var lookup_declaration = "{c_type_name(nullable_type)} {lookup_temporary} = {lookup.code};"
         if type_is_reference(value_type) {
             return ExpressionResult(
-                "(\{ {lookup_declaration} {lookup_temporary} != 0 ? {lookup_temporary} : {default_value_for_type(value_type)}; })",
+                "(\{ {lookup_declaration} {present_code(lookup_temporary, value_type)} ? {lookup_temporary} : {default_value_for_type(value_type)}; })",
                 value_type,
             )
         }
@@ -11726,16 +11809,16 @@ func crash_operand_statement(
     var result = as_text(generated_expression)
     var result_type = result.get_type()
     var temporary = next_temporary()
-    var written = "fwrite((const char*)(intptr_t){temporary}->_bytes_, 1, (size_t){temporary}->_length_, stderr);"
+    var written = "fwrite(spite_string_bytes(&{temporary}), 1, (size_t)spite_string_length({temporary}), stderr);"
     if type_shape.as_string(result_type) {
         var release_line = ""
         if owns(result, expression_ast) {
             release_line = " SpiteString___release({temporary});"
         }
-        return "\{ SpiteString* {temporary} = {result.code}; {written}{release_line} }"
+        return "\{ SpiteString {temporary} = {result.code}; {written}{release_line} }"
     }
     var converted = string_conversion(result.code, result_type)
-    return "\{ SpiteString* {temporary} = {converted}; {written} SpiteString___release({temporary}); }"
+    return "\{ SpiteString {temporary} = {converted}; {written} SpiteString___release({temporary}); }"
 }
 
 func collect_static_segments(expression: Syntax.Expressions.Expression, out: List<String>): Boolean {
@@ -11820,7 +11903,7 @@ func as_text(result: ExpressionResult): ExpressionResult {
 func ensure_symbol(name: String): String {
     if symbol_positions.has(name) {
         crash symbol_positions[name]
-        return "(&spite_symbol_{symbol_positions[name]})"
+        return "spite_symbol_{symbol_positions[name]}"
     }
     var position = symbol_names.count()
     symbol_names.append(name)
@@ -11828,8 +11911,8 @@ func ensure_symbol(name: String): String {
     builder.add_typedef(
         "static SpiteString spite_symbol_{position} = SPITE_STATIC_STRING(\"{escape_c_string(name)}\", {name.length()});",
     )
-    constant_texts["(&spite_symbol_{position})"] = name
-    return "(&spite_symbol_{position})"
+    constant_texts["spite_symbol_{position}"] = name
+    return "spite_symbol_{position}"
 }
 
 func generate_symbol_lookup(
@@ -11842,7 +11925,7 @@ func generate_symbol_lookup(
         return void_result()
     }
     if not symbol_lookup_used {
-        builder.add_prototype("SpiteString* spite_symbol_find(SpiteString* text);")
+        builder.add_prototype("SpiteString spite_symbol_find(SpiteString text);")
     }
     symbol_lookup_used = true
     var string_spite_type = string_type()
@@ -11865,7 +11948,7 @@ func emit_symbol_table() {
     }
     entries.append("0")
     builder.add_support(
-        "static SpiteString* spite_symbol_table[] = \{ {entries.join(", ")} };\nSpiteString* spite_symbol_find(SpiteString* text) \{\nSpiteString* found = 0;\nfor (int64_t index = 0; spite_symbol_table[index] != 0; index = index + 1) \{\nif (SpiteString_equals(text, spite_symbol_table[index])) \{ found = spite_symbol_table[index]; break; }\n}\nSpiteString___release(text);\nreturn found;\n}",
+        "static SpiteString* spite_symbol_table[] = \{ {entries.join(", ")} };\nSpiteString spite_symbol_find(SpiteString text) \{\nSpiteString found = SPITE_STRING_NULL;\nfor (int64_t index = 0; spite_symbol_table[index] != 0; index = index + 1) \{\nif (SpiteString_equals(text, *spite_symbol_table[index])) \{ found = *spite_symbol_table[index]; break; }\n}\nSpiteString___release(text);\nreturn found;\n}",
     )
 }
 
@@ -12000,12 +12083,12 @@ func generate_foreign_call(
             passed.append("(int64_t)({argument.code})")
         } else if type_shape.as_string(argument_type) {
             var text = next_temporary()
-            lines.append("SpiteString* {text} = {argument.code};")
+            lines.append("SpiteString {text} = {argument.code};")
             if owns(argument, arguments_ast[index]) {
                 releases.append("SpiteString___release({text});")
             }
             parameter_types.append("const char*")
-            passed.append("(const char*)(intptr_t){text}->_bytes_")
+            passed.append("spite_string_bytes(&{text})")
         } else if passes_as_array(argument_type) {
             var held_list = next_temporary()
             lines.append("{c_type_name(argument_type)} {held_list} = {argument.code};")
@@ -12022,21 +12105,19 @@ func generate_foreign_call(
             var held_shape = next_temporary()
             var struct_value = next_temporary()
             lines.append("{passed_union.c_name} {held_shape} = {argument.code};")
-            var members = List<String>()
             var initial = List<String>()
             var field_index = 0
             while field_index < shaped.shape_fields.count() {
                 var field = shaped.shape_fields[field_index]
                 var field_type = shape_field_type(shaped, field.name)
                 crash field_type
-                members.append("{c_type_name(field_type)} {c_value_name(field.name)};")
                 initial.append("{ensure_shape_reader(shaped, field.name, field_type)}({held_shape})")
                 afters.append(
                     "{ensure_shape_writer(shaped, field.name, field_type)}({held_shape}, {struct_value}.{c_value_name(field.name)});",
                 )
                 field_index = field_index + 1
             }
-            lines.append("struct \{ {members.join(" ")} } {struct_value} = \{ {initial.join(", ")} };")
+            lines.append("{shape_struct_code(shaped)} {struct_value} = \{ {initial.join(", ")} };")
             crash library < foreign_library_headers.count()
             if not foreign_library_headers[library].is_empty() and foreign_library_namings[library] == "windows" {
                 lines.append(
@@ -12427,12 +12508,56 @@ func generate_member_read(
     return result
 }
 
+func type_size_read(
+    member: Syntax.Expressions.MemberExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    crash member.object
+    var named = shape.as_identifier(member.object)
+    assert named
+    assert not scope.lookup_type(named.name) and not class_information.find_field(named.name)
+    var sized = find_union(named.name)
+    assert sized
+    var struct_code = shape_struct_code(sized)
+    if struct_code.is_empty() {
+        report(
+            "'{named.name}.size' is the size of the C struct a type is at a foreign call, and only a type whose attributes are all numbers is one",
+        )
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    var long_spite_type = long_type()
+    return ExpressionResult("((int64_t)sizeof({struct_code}))", long_spite_type)
+}
+
+func shape_struct_code(shaped: Analysis.UnionInfo): String {
+    assert shaped.is_shape and not shaped.shape_fields.is_empty()
+    var members = List<String>()
+    var index = 0
+    while index < shaped.shape_fields.count() {
+        var field = shaped.shape_fields[index]
+        assert not field.is_function
+        var field_type = shape_field_type(shaped, field.name)
+        assert field_type
+        assert type_shape.as_scalar(field_type)
+        members.append("{c_type_name(field_type)} {c_value_name(field.name)};")
+        index = index + 1
+    }
+    return "struct \{ {members.join(" ")} }"
+}
+
 func generate_member_read_raw(
     member: Syntax.Expressions.MemberExpression,
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     crash member.object
+    if member.name == "size" {
+        var type_size = type_size_read(member, scope, class_information)
+        if type_size {
+            return type_size
+        }
+    }
     if member.name == "instances" {
         var named_class = try_resolve_static_path(member.object, class_information.qualified_dotted)
         if named_class {
@@ -13110,7 +13235,7 @@ func try_nullable_guard(
     var guard_code = ""
     var override_code = ""
     if type_is_reference(inner) {
-        guard_code = "({base_result.code}) != 0"
+        guard_code = present_code(base_result.code, inner)
         override_code = base_result.code
     } else {
         guard_code = "({base_result.code}).has_value"
@@ -13138,7 +13263,8 @@ func joined_guard(
     scope.declare_owned(held_name, result_type)
     var inner = nullable.get_inner()
     if type_is_reference(inner) {
-        return NullableGuard(name, inner, "({held}) != 0", held)
+        var held_present = present_code(held, inner)
+        return NullableGuard(name, inner, held_present, held)
     }
     return NullableGuard(name, inner, "({held}).has_value", "({held}).value")
 }
@@ -13218,9 +13344,9 @@ func link_test(
     }
     if type_needs_drop(inner) and owns(link_result, link_ast) {
         var value_temporary = next_temporary()
-        return "(\{ {c_type_name(inner)} {value_temporary} = {link_result.code}; int path_narrowed = {value_temporary} != 0; {release_call(inner, value_temporary)}; path_narrowed; })"
+        return "(\{ {c_type_name(inner)} {value_temporary} = {link_result.code}; int path_narrowed = {present_code(value_temporary, inner)}; {release_call(inner, value_temporary)}; path_narrowed; })"
     }
-    return "(({link_result.code}) != 0)"
+    return present_code(link_result.code, inner)
 }
 
 func emit_scope_drops(scope: Scope, all_the_way_up: Boolean) {
@@ -14679,14 +14805,14 @@ func emit_append_in_place(
         var temporary = next_temporary()
         var digits = digits_of(piece_code)
         if digits.is_empty() {
-            builder.add_user("SpiteString* {temporary} = {piece_code};")
+            builder.add_user("SpiteString {temporary} = {piece_code};")
             builder.add_user("{target} = SpiteString_append({target}, {temporary});")
             if owns(piece_result, piece) or not type_shape.as_string(piece_type) {
                 builder.add_user("SpiteString___release({temporary});")
             }
         } else {
             builder.add_user(
-                "\{ {digits_view(temporary, digits)} {target} = SpiteString_append({target}, &{temporary}); }",
+                "\{ {digits_view(temporary, digits)} {target} = SpiteString_append({target}, {temporary}); }",
             )
         }
         index = index + 1
@@ -18192,7 +18318,7 @@ func union_member_call(
 
 func default_value_for_scalar_or_null(spite_type: Analysis.SpiteType): String {
     if type_is_reference(spite_type) {
-        return "0"
+        return null_code(spite_type)
     }
     return default_value_for_type(spite_type)
 }
@@ -19504,7 +19630,7 @@ func emit_class(information: Analysis.ClassInfo) {
     if information.c_name == "Spite_Attribute" {
         struct_lines.append("void* spite_owner;")
         struct_lines.append("void (*spite_release_owner)(void*);")
-        struct_lines.append("bool (*spite_assign)(void*, SpiteString*);")
+        struct_lines.append("bool (*spite_assign)(void*, SpiteString);")
         struct_lines.append("void* spite_held;")
         struct_lines.append("void (*spite_release_held)(void*);")
         struct_lines.append("void* (*spite_held_attributes)(void*);")
@@ -19535,8 +19661,9 @@ func emit_value_class(information: Analysis.ClassInfo) {
     }
     var function_index = 0
     while function_index < information.functions.count() {
-        if not is_inline_supplied(information.functions[function_index]) {
-            builder.add_prototype("{function_signature(information, information.functions[function_index])};")
+        var declared = information.functions[function_index]
+        if not is_inline_supplied(declared) {
+            builder.add_prototype("{function_signature(information, declared)};")
         }
         function_index = function_index + 1
     }
@@ -19550,71 +19677,61 @@ func emit_value_class(information: Analysis.ClassInfo) {
     }
 }
 
+func string_storage_body(information: Analysis.ClassInfo, name: String): String {
+    if information.c_name == "SpiteString" and name == "sum" {
+        return "SpiteString pieces[2] = \{ self, other_ };\nSpiteString joined = spite_string_join(2, pieces);\nSpiteString___release(other_);\nreturn joined;"
+    }
+    if information.qualified_dotted == "Memory.Address" and name == "text" {
+        return "return spite_string_from_bytes((const char*)(intptr_t)self, length_);"
+    }
+    if information.c_name == "SpiteString" and name == "code_at" {
+        return "#define SpiteString_code_at(self, index) spite_string_code_at(&(self), (index))"
+    }
+    return ""
+}
+
 func emit_string_support(information: Analysis.ClassInfo) {
     current_path = information.source_path
     current_owner = "String"
     current_function = ""
-    var constructor_parameters = constructor_parameter_list(information)
-    var unshared = information.find_function("_unshared")
-    var append_in_place = information.find_function("_append_in_place")
-    crash unshared
-    crash append_in_place
-    var address_class = find_class_by_qualified("Memory.Address")
-    crash address_class
-    var address_text = address_class.find_function("text")
-    crash address_text
-    builder.add_prototype("void SpiteString___init(SpiteString* self);")
-    builder.add_prototype("SpiteString* SpiteString___allocate(void);")
-    builder.add_prototype("SpiteString* SpiteString___make({constructor_parameters});")
-    builder.add_prototype("SpiteString* SpiteString___retain(SpiteString* self);")
-    builder.add_prototype("void SpiteString___release(SpiteString* self);")
-    builder.add_prototype("SpiteString* SpiteString_append(SpiteString* left, SpiteString* right);")
-    builder.add_prototype("SpiteString* spite_string_from_bytes(const char* bytes, int64_t length);")
-    builder.add_prototype("SpiteString* spite_string_from_cstring_owned(const char* text);")
-    builder.add_prototype("SpiteString* spite_string_join(int32_t count, SpiteString* const* pieces);")
+    var class_id = information.class_id
+    var registered = debug_registration("block", "{class_id}")
+    var freed = "SPITE_FREE(block);"
+    builder.add_prototype("SpiteString SpiteString___retain(SpiteString self);")
+    builder.add_prototype("void SpiteString___release(SpiteString self);")
+    builder.add_prototype("SpiteString SpiteString_append(SpiteString left, SpiteString right);")
+    builder.add_prototype("SpiteString spite_string_from_bytes(const char* bytes, int64_t length);")
+    builder.add_prototype("SpiteString spite_string_from_cstring_owned(const char* text);")
+    builder.add_prototype("SpiteString spite_string_join(int32_t count, const SpiteString* pieces);")
     builder.add_prototype("static int64_t spite_long_digits(char* digits, int64_t value);")
+    builder.add_prototype("static SpiteStringBlock* spite_string_block(int64_t length);")
+    builder.add_prototype("static SpiteString spite_string_held(SpiteStringBlock* block, int64_t length);")
     builder.add_support(
         "static int64_t spite_long_digits(char* digits, int64_t value) \{\nchar reversed[24];\nint64_t count = 0;\nuint64_t rest = value < 0 ? (uint64_t)0 - (uint64_t)value : (uint64_t)value;\ndo \{ reversed[count] = (char)('0' + rest % 10); count = count + 1; rest = rest / 10; } while (rest != 0);\nint64_t length = 0;\nif (value < 0) \{ digits[0] = '-'; length = 1; }\nwhile (count > 0) \{ count = count - 1; digits[length] = reversed[count]; length = length + 1; }\nreturn length;\n}",
     )
-    var initialize_lines = List<String>()
-    initialize_lines.append("void SpiteString___init(SpiteString* self) \{")
-    var field_index = 0
-    while field_index < information.fields.count() {
-        var field = information.fields[field_index]
-        initialize_lines.append("self->{c_value_name(field.name)} = {field.default_value_code};")
-        field_index = field_index + 1
-    }
-    initialize_lines.append("}")
-    var joined_initialize_lines = initialize_lines.join("\n")
-    builder.add_support(joined_initialize_lines)
-    var registered = debug_registration("self", "{information.class_id}")
     builder.add_support(
-        "SpiteString* SpiteString___allocate(void) \{\nSpiteString* self = (SpiteString*)SPITE_MALLOC(sizeof(SpiteString));\nself->header.ref_count = 1;\nself->header.class_id = {information.class_id};\n{registered}SpiteString___init(self);\nreturn self;\n}",
-    )
-    crash information.constructor
-    var arguments = c_parameter_names(information.constructor.parameters)
-    arguments.prepend("self")
-    builder.add_support(
-        "SpiteString* SpiteString___make({constructor_parameters}) \{\nSpiteString* self = SpiteString___allocate();\n{information.constructor.c_name}({arguments.join(", ")});\nreturn self;\n}",
+        "static SpiteStringBlock* spite_string_block(int64_t length) \{\nsize_t size = ((size_t)length + 17 + 15) & ~(size_t)15;\nSpiteStringBlock* block = (SpiteStringBlock*)SPITE_MALLOC(size);\nblock->header.ref_count = 1;\nblock->header.class_id = {class_id};\n{registered}block->capacity = (int64_t)size - 17;\nreturn block;\n}",
     )
     builder.add_support(
-        "SpiteString* SpiteString___retain(SpiteString* self) \{\nif (self != 0 && self->_section_ != Spite_Memory_Section_constant) SPITE_COUNT_UP(self->header.ref_count);\nreturn self;\n}",
-    )
-    crash information.drop_function
-    builder.add_support(
-        "void SpiteString___release(SpiteString* self) \{\nif (self == 0 || self->_section_ == Spite_Memory_Section_constant) return;\nif (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;\n{information.drop_function.c_name}(self);\nSPITE_FREE(self);\n}",
+        "static SpiteString spite_string_held(SpiteStringBlock* block, int64_t length) \{\nblock->bytes[length] = 0;\nSpiteString held;\nheld._bytes_ = (int64_t)(intptr_t)block->bytes;\nheld._length_ = length | SPITE_STRING_HEAP;\nreturn held;\n}",
     )
     builder.add_support(
-        "SpiteString* SpiteString_append(SpiteString* left, SpiteString* right) \{\nif (left->_section_ == Spite_Memory_Section_constant || left->header.ref_count != 1) \{\nSpiteString* alone = {unshared.c_name}(left);\nSpiteString___release(left);\nleft = alone;\n}\n{append_in_place.c_name}(left, SpiteString___retain(right));\nreturn left;\n}",
+        "SpiteString SpiteString___retain(SpiteString self) \{\nif (SPITE_STRING_IS_HEAP(self)) SPITE_COUNT_UP(SPITE_STRING_BLOCK(self)->header.ref_count);\nreturn self;\n}",
     )
     builder.add_support(
-        "SpiteString* spite_string_from_bytes(const char* bytes, int64_t length) \{\nreturn {address_text.c_name}((int64_t)(intptr_t)bytes, length);\n}",
+        "void SpiteString___release(SpiteString self) \{\nif (!SPITE_STRING_IS_HEAP(self)) return;\nSpiteStringBlock* block = SPITE_STRING_BLOCK(self);\nif (SPITE_COUNT_DOWN(block->header.ref_count) > 0) return;\n{freed}\n}",
     )
     builder.add_support(
-        "SpiteString* spite_string_from_cstring_owned(const char* text) \{\nreturn spite_string_from_bytes(text, (int64_t)strlen(text));\n}",
+        "SpiteString spite_string_from_bytes(const char* bytes, int64_t length) \{\nif (length <= SPITE_STRING_INLINE) \{\nSpiteString made = \{ 0, 0 };\nif (length > 0) memcpy(&made, bytes, (size_t)length);\n((char*)&made)[15] = (char)(SPITE_STRING_INLINE - length);\nreturn made;\n}\nSpiteStringBlock* block = spite_string_block(length);\nmemcpy(block->bytes, bytes, (size_t)length);\nreturn spite_string_held(block, length);\n}",
     )
     builder.add_support(
-        "SpiteString* spite_string_join(int32_t count, SpiteString* const* pieces) \{\nint64_t total = 0;\nfor (int32_t index = 0; index < count; index++) total += pieces[index]->_length_;\nchar* bytes = (char*)SPITE_MALLOC((size_t)total + 1);\nint64_t at = 0;\nfor (int32_t index = 0; index < count; index++) \{\nmemcpy(bytes + at, (const char*)(intptr_t)pieces[index]->_bytes_, (size_t)pieces[index]->_length_);\nat += pieces[index]->_length_;\n}\nreturn SpiteString___make((int64_t)(intptr_t)bytes, total);\n}",
+        "SpiteString spite_string_from_cstring_owned(const char* text) \{\nreturn spite_string_from_bytes(text, (int64_t)strlen(text));\n}",
+    )
+    builder.add_support(
+        "SpiteString spite_string_join(int32_t count, const SpiteString* pieces) \{\nint64_t total = 0;\nfor (int32_t index = 0; index < count; index++) total += spite_string_length(pieces[index]);\nSpiteString made = \{ 0, 0 };\nSpiteStringBlock* block = 0;\nchar* at = (char*)&made;\nif (total > SPITE_STRING_INLINE) \{ block = spite_string_block(total); at = block->bytes; }\nfor (int32_t index = 0; index < count; index++) \{\nint64_t length = spite_string_length(pieces[index]);\nif (length > 0) memcpy(at, spite_string_bytes(&pieces[index]), (size_t)length);\nat += length;\n}\nif (block != 0) return spite_string_held(block, total);\n((char*)&made)[15] = (char)(SPITE_STRING_INLINE - total);\nreturn made;\n}",
+    )
+    builder.add_support(
+        "SpiteString SpiteString_append(SpiteString left, SpiteString right) \{\nint64_t left_length = spite_string_length(left);\nint64_t right_length = spite_string_length(right);\nint64_t total = left_length + right_length;\nconst char* right_bytes = spite_string_bytes(&right);\nif (SPITE_STRING_IS_INLINE(left) && total <= SPITE_STRING_INLINE) \{\nif (right_length > 0) memcpy((char*)&left + left_length, right_bytes, (size_t)right_length);\n((char*)&left)[15] = (char)(SPITE_STRING_INLINE - total);\nreturn left;\n}\nif (SPITE_STRING_IS_HEAP(left) && left._bytes_ != right._bytes_) \{\nSpiteStringBlock* block = SPITE_STRING_BLOCK(left);\nif (block->header.ref_count == 1) \{\nif (total > block->capacity) \{\nint64_t capacity = block->capacity * 2;\nif (capacity < total) capacity = total;\nsize_t size = ((size_t)capacity + 17 + 15) & ~(size_t)15;\nblock = (SpiteStringBlock*)SPITE_REALLOC(block, size);\n{registered}block->capacity = (int64_t)size - 17;\n}\nmemcpy(block->bytes + left_length, right_bytes, (size_t)right_length);\nreturn spite_string_held(block, total);\n}\n}\nint64_t capacity = left_length * 2;\nif (capacity < total) capacity = total;\nSpiteStringBlock* block = spite_string_block(capacity);\nif (left_length > 0) memcpy(block->bytes, spite_string_bytes(&left), (size_t)left_length);\nif (right_length > 0) memcpy(block->bytes + left_length, right_bytes, (size_t)right_length);\nSpiteString___release(left);\nreturn spite_string_held(block, total);\n}",
     )
 }
 
@@ -19697,40 +19814,63 @@ func string_layout(): String {
     current_path = string_class.source_path
     current_owner = "String"
     current_function = ""
-    var storage = ["_bytes", "_length", "_section"]
-    var storage_types = ["int64_t", "int64_t", "Spite_Memory_Section"]
+    if string_class.fields.count() != 2 {
+        report(
+            "library/string.spite declares the memory a String is, '_bytes: Memory.Address' and '_length: Long', and nothing else: the compiler keeps short text in those sixteen bytes",
+        )
+    }
+    var storage = ["_bytes", "_length"]
     var storage_index = 0
     while storage_index < storage.count() {
         var name = storage[storage_index]
-        var wanted = storage_types[storage_index]
         var field = string_class.find_field(name)
         var declared = ""
         if field {
             var field_type = field.get_type()
             declared = c_type_name(field_type)
         }
-        if declared != wanted {
+        if declared != "int64_t" {
             report(
-                "library/string.spite declares the memory a String holds, and needs '_bytes: Long' (the address of its characters), '_length: Long' and '_section: Spite.Memory.Section' (where the compiler placed them): '{name}' is missing or has another type",
+                "library/string.spite declares the memory a String holds, and needs '_bytes: Memory.Address' (where its characters are) and '_length: Long': '{name}' is missing or has another type",
             )
         }
         storage_index = storage_index + 1
     }
-    var lines = List<String>()
-    lines.append("struct SpiteString \{")
-    lines.append("SpiteHeader header;")
-    var field_index = 0
-    while field_index < string_class.fields.count() {
-        var field = string_class.fields[field_index]
-        var field_type = field.get_type()
-        lines.append("{c_type_name(field_type)} {c_value_name(field.name)};")
-        field_index = field_index + 1
-    }
-    lines.append("};")
-    lines.append(
-        "#define SPITE_STATIC_STRING(text, length) \{ .header = \{ 0, -1 }, ._bytes_ = (int64_t)(intptr_t)(text), ._length_ = (length), ._section_ = Spite_Memory_Section_constant }",
-    )
-    lines.append("static SpiteString spite_static_string_empty = SPITE_STATIC_STRING(\"\", 0);")
+    var lines = [
+        "struct SpiteString \{"
+        "int64_t _bytes_;"
+        "int64_t _length_;"
+        "};"
+        "typedef struct SpiteStringBlock \{ SpiteHeader header; int64_t capacity; char bytes[]; } SpiteStringBlock;"
+        "typedef struct SpiteBox_SpiteString \{ SpiteHeader header; SpiteString value; } SpiteBox_SpiteString;"
+        "_Static_assert(sizeof(SpiteString) == 16 && sizeof(SpiteStringBlock) == 16, \"a String is 16 bytes and its block's characters start 16 bytes in\");"
+        "#define SPITE_STRING_INLINE 15"
+        "#define SPITE_STRING_HEAP ((int64_t)0x4000000000000000)"
+        "#define SPITE_STRING_FORM(text) ((uint64_t)(text)._length_ >> 56)"
+        "#define SPITE_STRING_IS_INLINE(text) (SPITE_STRING_FORM(text) <= SPITE_STRING_INLINE)"
+        "#define SPITE_STRING_IS_HEAP(text) (SPITE_STRING_FORM(text) == 0x40)"
+        "#define SPITE_STRING_IS_CONSTANT(text) (SPITE_STRING_FORM(text) == 0x80)"
+        "#define SPITE_STRING_BLOCK(text) ((SpiteStringBlock*)(intptr_t)((text)._bytes_ - 16))"
+        "#define SPITE_STATIC_STRING(text, length) \{ (int64_t)(intptr_t)(text), (int64_t)(length) | INT64_MIN }"
+        "#define SPITE_STRING_NULL ((SpiteString)\{ 0, INT64_MIN })"
+        "#define SPITE_STRING_EMPTY ((SpiteString)\{ 0, (int64_t)SPITE_STRING_INLINE << 56 })"
+        "#define SPITE_STRING_IS_NULL(text) ((text)._bytes_ == 0 && (text)._length_ == INT64_MIN)"
+        "static inline int64_t spite_string_length(SpiteString text) \{"
+        "uint64_t form = (uint64_t)text._length_ >> 56;"
+        "if (form <= SPITE_STRING_INLINE) return (int64_t)(SPITE_STRING_INLINE - form);"
+        "return (int64_t)((uint64_t)text._length_ & 0x00FFFFFFFFFFFFFF);"
+        "}"
+        "static inline const char* spite_string_bytes(const SpiteString* text) \{"
+        "if (SPITE_STRING_IS_INLINE(*text)) return (const char*)text;"
+        "return (const char*)(intptr_t)text->_bytes_;"
+        "}"
+        "static inline int32_t spite_string_code_at(const SpiteString* text, int32_t index) \{"
+        "const char* bytes = spite_string_bytes(text);"
+        "int32_t length = (int32_t)spite_string_length(*text);"
+        "if (index < 0 || index > length) index = length;"
+        "return (int32_t)(uint8_t)bytes[index];"
+        "}"
+    ]
     return lines.join("\n")
 }
 

@@ -568,7 +568,8 @@ All of it is proposed by Claude, unconfirmed.
 
 ## Data-oriented components (D203, from SlopEngine)
 
-183. **A fixed-size text for inline components.** With D203, text up to 22 bytes is inline, so `Vector<Name>` has a
+183. **A fixed-size text for inline components.** With D203, text up to 15 bytes is inline (built: a `String` is
+     sixteen bytes; 22 would have made it twenty-four, see `docs/optimizations.md`), so `Vector<Name>` has a
      fixed stride and only a longer name points out to the heap. Is that enough, or do you want a capped
      `ShortText<32>` that refuses longer text?
 
@@ -626,3 +627,11 @@ All of it is proposed by Claude, unconfirmed.
      Windows): about 700 ms to a file against about 140 ms buffered until exit; the same to a pipe or the null
      device. Nothing cheaper shows every line promptly without a thread. Keep it for every program, or should a
      program be able to say it prints to a file nobody watches (a build setting, say) and keep the buffer?
+
+## Short text inside the `String` (D203)
+
+198. **What `.memory.section` says for short text (D203).** Text of up to 15 bytes lives in the sixteen bytes of
+     the `String` itself, so its characters are wherever the value is. Built (Claude, unconfirmed): `'stack'` for
+     a local, `'heap'` read from an attribute, `'constant'` for a literal as before, and `'heap'` for long text.
+     Would you rather have a fourth section, `'inline'`, that says the characters are in the value, wherever it
+     is?

@@ -80,7 +80,9 @@ leaves at an address -- a name inside a struct C filled in, or a `_as_long` resu
 With a header as the third argument, a snake_case read is a constant -- `user32.mouseeventf_leftdown` is
 `MOUSEEVENTF_LEFTDOWN`, an `Integer` -- and under the `'windows'` rule the compiler checks that a `type` passed as a
 struct has the size of the header's struct of the derived name (`PointPair` against `POINT_PAIR`), so a missing
-padding field fails the build at the Spite line. The reflection members every value has (`.class`,
+padding field fails the build at the Spite line. A function that wants the struct's size, as `SendInput` does, is
+given `PointPair.size`: the bytes of the struct the call passes, a `Long` the compiler knows while it compiles. The
+reflection members every value has (`.class`,
 `.attributes`, `.functions`, `.memory`) and `DynamicLibrary`'s own members (`file_name`, `handle`) are never read
 as foreign symbols ([what a member of a library means](#what-a-member-of-a-library-means)).
 
@@ -154,7 +156,7 @@ decide that nothing the compiler supplies stays hidden or ties Spite to C, so th
 the few operations each backend lowers ([D178](decisions.md)) -- **not built** for these three.
 
 **Not built yet:** the naming rule and the calls as reopenable Spite (`missing_function` and
-`missing_attribute`), a naming rule of your own, `Type.size`, reading a header's types through reflection,
+`missing_attribute`), a naming rule of your own, reading a header's types through reflection,
 callbacks from C into Spite, and C's variadic functions
 ([the rules in full](#foreign-libraries--partial)).
 
@@ -202,7 +204,7 @@ Choices Claude made while building it (proposed, unconfirmed):
 - `--final-classes` writes no resolved-name comments, which D34 would reject (how to show them is open question
   10).
 
-**Not built:** `Type.size`, reading a header's types as Spite reflection, `missing_function`/`missing_attribute`
+**Not built:** reading a header's types as Spite reflection, `missing_function`/`missing_attribute`
 as reopenable Spite, a user-written naming rule, callbacks, and C's variadic functions.
 
 D4 (decided by Mortaro, 2026-09-19): **a native library is a class, not a keyword.** There is no `external`
@@ -362,7 +364,12 @@ func _send(event: UnsignedInteger, wheel_amount: UnsignedInteger) {
   This is the same bargain `#[repr(C)]`, `extern struct` and `ctypes` make, and it is the price of never naming
   the C type in your own source.
 - `Input.size` is `sizeof` of the struct the compiler emitted -- ordinary reflection on a Spite type, with no
-  library in the expression. **Not built** (`Type.size`).
+  library in the expression. It is a `Long` the compiler writes as a C `sizeof`, so it costs nothing at run time,
+  and it is the same struct a foreign call passes, padding included (`conformance/stage6/type_size`: a `Byte`, a
+  `Long` and a `Boolean` are 24 bytes). A `type` with anything but numbers in it is no C struct, so its `.size`
+  is an error: `'Labelled.size' is the size of the C struct a type is at a foreign call, and only a type whose
+  attributes are all numbers is one` (`diagnostics/type_size_mistakes`; the reading proposed by Claude,
+  unconfirmed). **Built** (`Type.size`).
 - **The compiler checks your work for free.** When the library was given a header and uses the `'windows'` rule,
   it derives the C name (`Input` -> `INPUT`) and emits
   `_Static_assert(sizeof(INPUT) == sizeof(Mouse_Input), "mouse.spite:12 type Input does not match INPUT");`.
