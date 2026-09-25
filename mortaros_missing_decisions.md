@@ -377,12 +377,6 @@ All of it is proposed by Claude, unconfirmed.
 
 ## SlopEngine's entity API (D123, D124)
 
-124. **Is "any" a built-in type, or does each program declare its own?** `attribute.object` needed a type, so
-     `library/spite/attribute.spite` declares `type Object { }` and `.object` is `Spite.Attribute.Object?`
-     (proposed by Claude, unconfirmed). SlopEngine keeps declaring `type Anything { }`, and a value of one empty
-     `type` passes to another. The alternative is one built-in name every program shares, such as `Spite.Object`
-     (or `Anything` itself), declared once in `library/spite/` -- which would also give `.object` a shorter
-     type name. Keep "declare your own empty `type`", or add the built-in?
 125. **A number, `Bool` or enum attribute's `.object`: boxed or `null`?** It is boxed (proposed by Claude,
      unconfirmed), as D109 boxes a plain value passed where a `type` is wanted, so `speed: Int` hands
      `add_component` an object whose `.class` is `Int` and `if component == Int` narrows it back. The other
