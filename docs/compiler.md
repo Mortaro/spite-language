@@ -96,6 +96,11 @@ Whole-program steps -- tree shaking, the constants `Build` folds, which template
 program before any output is written, so the C written beside an executable is the C that executable was built
 from.
 
+In that C, every local, parameter and attribute has a `_` after its Spite name (`var near = 3` is
+`int32_t near_ = 3;`, an attribute `pascal` is `self->pascal_`), and a function is its class's name joined to its
+own (`Map_far`). No snake_case name ends in `_`, so no Spite name can meet a C keyword or a macro from a system
+header (Windows defines `near`, `far` and `pascal`): C reserves nothing in Spite (D168).
+
 ## Where the outputs go
 
 Each output has its own path option, and without one it is written **beside the program**, in its own folder:

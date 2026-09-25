@@ -896,7 +896,7 @@ readings below proposed by Claude, unconfirmed]**
 - **Reopening adds values.** A file that reopens a class (section 11) and declares one of its enums again adds
   the values it lists to that enum instead of replacing it. They come after the values already merged, in merge
   order -- the program's own folder, then each loaded folder in load order -- and a value the enum already has
-  stays where it was, so a reopening may restate the whole enum (as `--final_classes` output does) without
+  stays where it was, so a reopening may restate the whole enum (as `--final-classes` output does) without
   changing it. Nothing removes a value. `conformance/stage6/enum_reopening` reopens one from a loaded folder and
   from the program's own folder.
 - **`course: Symbol<Course>` walks the values** of an enum, the way `Symbol<Label>` walks a class's attributes
@@ -904,7 +904,7 @@ readings below proposed by Claude, unconfirmed]**
   the plural (`list_courses()` for `list_course`) calls the template once per value in the enum's order;
   `list_soup()` calls it for one, and a name the enum does not have is an error listing the ones it does.
 - **All of it is compile time and tree-shaken (D177).** A walk expands into one ordinary call per value, and
-  `course.value` into the constant, as `--final_classes` shows; no table of an enum's values, names or order
+  `course.value` into the constant, as `--final-classes` shows; no table of an enum's values, names or order
   exists at run time, and a program that never walks an enum carries nothing for it.
 - A name pattern's hole is constrained by an enum the same way (section 8). D180 says environments will be an
   enum too; that is not built.
@@ -2276,12 +2276,14 @@ gives an error, nothing is left to the user's taste. The only printout that used
   reserved: a class may declare `allocate`, `make` or `release` (`conformance/stage6/generated_names`). A class's
   `copy()`, `to_string()` and `to_debug()` are Spite functions every class answers and a class may declare, and
   keep their plain names.
-- **Names C reserves** cannot name a variable, attribute, parameter or function: `auto`, `bool`, `break`, `case`,
-  `char`, `const`, `continue`, `default`, `do`, `double`, `extern`, `float`, `goto`, `inline`, `int`, `long`,
-  `main`, `register`, `restrict`, `short`, `signed`, `sizeof`, `static`, `stderr`, `stdin`, `stdout`, `struct`,
-  `typedef`, `unsigned`, `void`, `volatile`. The error lists all of them, so the next name tried is not another
-  one (proposed by Claude, unconfirmed, 2026-09-24; `diagnostics/reserved_name`). Whether a function, whose C
-  name is always joined to its class's, needs the list at all is open (`mortaros_missing_decisions.md` item 107).
+- **No name is taken by C** (D168): `register`, `short`, `default`, `static`, `unsigned`, `stdout`, and the
+  words Windows headers define as macros (`near`, `far`, `pascal`, `cdecl`, `interface`), are ordinary names for
+  a variable, attribute, parameter or function wherever Spite's own rules allow them -- `int`, `char`, `bool`,
+  `min` and `max` are still abbreviations. The C backend writes every local, parameter and attribute with a `_`
+  after it (`near` is `near_` in the C, `self->near_` for an attribute), and no snake_case name ends in `_`, so
+  no Spite name can meet a C keyword, a header's macro, a C library function or a name the compiler makes up.
+  A function's C name is always joined to its class's. Reflection, `--final-classes`, crash traces and every
+  error keep the Spite name (`conformance/stage6/backend_words`).
 - Single-letter names are always errors -- no exceptions -- because they read either as a stray leftover or as
   a puzzle for whoever reads the code next.
 - **Abbreviations.** An identifier is split into `_`-separated words and each word is checked against a
@@ -4333,3 +4335,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | (implements D180; the spellings and readings below proposed by Claude, unconfirmed) **An enum reopens by adding values, is walked by `Symbol<Enum>`, and a name pattern's hole is the enum named for it.** A reopening that declares an enum again appends the values it lists that the enum lacks, in merge order (the program's own folder, then loaded folders in load order); a restated value stays where it was, so `--final_classes` output still recompiles, and nothing removes one. `course: Symbol<Course>` is a template over the values: `course.name` is the text, `course.value` the value typed `Course`, and the plural calls it once per value in order. A pattern's hole `phase` matches only the values of the enum `Phase`, resolved as that type name would be from the template's class; with no such enum the template is an error, the plural walks matches in the enum's order rather than declaration order, `phase.value` is the matched value, a call naming a non-value lists the values, and a folded `has_function("<phase>_each")` reads the hole the same way while the run-time `has_function`/`name_fits` still take any text. All compile time: each walk expands to ordinary calls and constants, nothing is emitted for an enum nobody walks (D177). Supersedes the "enums declared again still register twice" note of the 2026-09-24 `type`-reopening row. Sections 7, 8, 11; `conformance/stage6/enum_reopening`, `conformance/stage6/system_phases`, `diagnostics/hole_values`, `docs/values_and_types.md`, `docs/packages.md`, `docs/metaprogramming.md`. |
 | 2026-09-25 | (implements D175; the readings proposed by Claude, unconfirmed) **Constrained generics are built.** `generic $item_type: Printable` parses a type after the colon, and the formatter keeps it. The constraint must resolve to a `type` (not a class, a union or a number type), an error on the `generic` line otherwise (`diagnostics/generic_constraint_not_a_type`). Each instance is checked where the compiler first makes it, from written values or inferred ones, with section 7's fitting rule (the check `type` admission already used, now one function): a class with the listed functions and attributes, `String`, numbers, enums and containers with what the `type` needs, and the `type` itself fit; a `T?` and a function value do not. The error names the class, the `type`, the generic and what is missing, at the use site; after it the instance is compiled with the `type` in place of the class, so the generic's body adds no errors (`diagnostics/generic_constraints`, `conformance/stage6/generic_constraints`, `docs/metaprogramming.md`). Zero run-time cost: the check is the compiler's alone. |
 | 2026-09-25 | (implements D138; the readings proposed by Claude, unconfirmed) **`Json` takes its value, and inference reads through `?`, `List` and `Dictionary`.** Inferring a generic class's codegen values from its constructor's arguments now matches a parameter typed `$name?` (a `T` or a `T?` both give `T`), `List<$name>` and `Dictionary<$name>`, besides `$name` and `Spite.Function<...>`; nothing names `Json`. `library/json.spite` holds `var value: $value_type? = null` set by `func Json(new_value: $value_type?)`: `Json(order).write()` writes, `Json<Order>(null).read(text)` reads (the class named, since there is no object yet), and `write()` of an empty value is `null`. Containers make one `Json` for their elements and give it each element as its `value`, so writing allocates no more than before (a `T?` attribute one `Json` fewer, being inferred as `Json<T>`). `tests/json_tests.spite`, `conformance/stage6/json_crash` and `docs/json.md` migrated. |
+| 2026-09-25 | (implements D168) **The C backend renames every local, parameter and attribute, and the reserved-name list is gone.** Each is written with a `_` after it (`near_`, `self->pascal_`), which no snake_case name can end in, so a Spite name never meets a C keyword, a Windows header macro (`near`, `far`, `pascal`, `cdecl`, `interface`, found as `var pascal = ""` and `var near = ...` in the compiler's own generator failing under clang on Windows), a C library function a body calls (`free`, `memcpy`) or a compiler temporary. Function names were already joined to their class's. The compiler's hand-written C (the supplied bodies of `Memory`, `Console`, `DynamicLibrary`, the number classes, `TypedMemory` and `HotReload`, and the reflection, String and collection support) names the renamed members. Reflection, `--final_classes`, crash traces and diagnostics keep the Spite names. `diagnostics/reserved_name` is removed; `conformance/stage6/backend_words` uses `near`, `far`, `pascal`, `cdecl`, `interface`, `register`, `default`, `static`, `short`, `unsigned`, `for`, `goto`, `stdin`, `stderr`, `free`, `memcpy` and more as locals, parameters, attributes and functions. |

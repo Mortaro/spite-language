@@ -508,3 +508,9 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   `spread_template`/`spread_into` expand `f(value_arguments())` into one call per argument, and
   `generate_sequenced_call` evaluates them left to right in temporaries (C leaves argument order open, and clang
   on Windows went right to left). `function_question` folds `$type.has_function(...)` in `constant_condition`.
+- 2026-09-25 (D168): `c_value_name` writes every local, parameter and attribute with a `_` after it, at each place
+  the generator names one in C: `generate_identifier`, `generate_store`, declarations, scope drops and rebinding,
+  signatures and `c_parameter_names` (constructors), the waiting and hot-slot wrappers, struct members (a class,
+  `SpiteString`, a shape passed to a foreign library) and every `->member`. The hand-written C that names a
+  Spite member or parameter says so (`->_bytes_`, `->item_count_`, `address_`, `count_` in `Prelude`, the
+  `TypedMemory` and `HotReload` bodies). `reserved_names` and its diagnostic are gone.

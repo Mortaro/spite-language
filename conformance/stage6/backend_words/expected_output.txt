@@ -1,0 +1,4 @@
+14 pascal cdecl! 37 harbour pascal cdecl! default 2 51 pascal cdecl!/harbour 21 true
+harbour 4 5
+interface,near,pascal,cdecl,default,volatile,unix,linux,errno
+3 3 42 3
