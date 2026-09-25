@@ -374,3 +374,72 @@ func MemorySections() {
 stack 4
 constant 5 true
 ```
+
+### Choosing an allocator: `.memory.allocator`
+
+Every object is made on `Memory.Heap` unless its program says otherwise, and it says so on the line right after
+the object is made ([D152](../manual.md#decision-log)):
+
+```gdscript
+var spark = Particle("spark", 1.5)
+spark.memory.allocator = arena
+```
+
+The compiler reads the two lines as one intent: `spark` is made in `arena` from the start. Nothing is allocated
+on the heap first and moved, and nothing is looked up while the program runs -- the constructor is handed the
+arena's memory instead of the heap's. An allocator is any class that answers `allocate(bytes: Long):
+Memory.Address` and `free(address: Memory.Address)`; the standard library's is **`Memory.Arena(block_bytes)`**,
+which hands out memory from blocks of that size, one after another, never gives any of it back one piece at a
+time, and frees every block at once when the arena itself goes. An object made in an arena holds the arena, so
+the arena cannot go while anything made in it is alive.
+
+- **Only right after it is made.** A constructor, `List<T>()` or `.copy()` on one line, and the allocator on the
+  next. Once the object was used, its memory stays where it is, and setting the allocator is an error that says
+  to copy it: `var moved = spark.copy()`, then `moved.memory.allocator = arena`
+  ([D153](../manual.md#decision-log)).
+- **The allocator is a name**, bound on a line of its own (`var arena = Memory.Arena(65536)`); setting
+  `Memory.Heap()` is the default and changes nothing.
+- **Only an object.** A number, a `String` and the reflection objects are placed by the compiler (D108), so
+  giving one an allocator is an error.
+- **A list holds references** ([D154](../manual.md#decision-log)): giving a `List` an allocator places the list
+  itself there, and each element lives wherever it was made. **Not built yet:** the list's buffer of references
+  still comes from the heap, and `Vector<T>`, which holds its items inline, does not exist yet.
+- **It costs nothing where it is not used** ([D177](../manual.md#decision-log)): only a class some program line
+  gives an allocator carries the two hidden pointers that remember it (sixteen bytes more per object of that
+  class), and no other class changes at all.
+
+```gdscript title=arena_particles/particle.spite
+var name = ""
+var life = 0.0
+
+func Particle(new_name: String, new_life: Float) {
+    name = new_name
+    life = new_life
+}
+```
+```gdscript title=arena_particles/arena_particles.spite entry
+var console = Console()
+var heap = Memory.Heap()
+
+func ArenaParticles() {
+    var arena = Memory.Arena(4096)
+    var before = heap.live_allocations()
+    var spark = Particle("spark", 1.5)
+    spark.memory.allocator = arena
+    var ember = Particle("ember", 2.0)
+    ember.memory.allocator = arena
+    var during = heap.live_allocations()
+    console.print(spark.name, ember.name, "heap allocations:", during - before)
+    var ash = Particle("ash", 0.5)
+    var kept = ash.copy()
+    kept.memory.allocator = arena
+    kept.life = 3.0
+    console.print(ash.life, kept.life)
+}
+```
+```output
+spark ember heap allocations: 1
+0.5 3
+```
+
+The one heap allocation is the arena's first block; both particles are inside it.

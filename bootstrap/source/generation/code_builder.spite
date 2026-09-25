@@ -82,6 +82,22 @@ func add_support(line: String) {
     support_bodies.append(line)
 }
 
+func support_count(): Int {
+    return support_bodies.count()
+}
+
+func typedef_at(position: Int): String {
+    return typedefs.get_at(position)
+}
+
+func support_at(position: Int): String {
+    return support_bodies.get_at(position)
+}
+
+func replace_support(position: Int, line: String) {
+    support_bodies.set_at(position, line)
+}
+
 func add_user(line: String) {
     user_bodies.append(line)
 }

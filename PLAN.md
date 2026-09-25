@@ -294,6 +294,12 @@ and balanced allocations.
     and every class binds `var heap = Memory.Heap()`. **Waiting on Mortaro:** `mortaros_missing_decisions.md`
     142-143. **Not done:** D178's allocation from operating-system pages, and copying and comparing through
     `DynamicLibrary` (the heap is still `malloc`).
+27. **Done (2026-09-25): D152 and D153 -- choosing an allocator** (manual.md section 10, "Allocators"; the
+    "implements D152 and D153" row). `x.memory.allocator = arena` on the line after `x` is made makes `x` in the
+    arena from the start (constructors, `List<T>()`, `Dictionary<T>()`, `.copy()`); anywhere later it is an
+    error naming `copy()`. `Memory.Arena` is built; only a class some line places carries the allocator's two
+    pointers. **Waiting on Mortaro:** `mortaros_missing_decisions.md` 144-146. **Not done:** D154's list buffer
+    following its list, `Vector<T>`, `Memory.Frame`, an arena's `reset()`, reading `.memory.allocator`.
 
 ## Later, deliberately deferred
 

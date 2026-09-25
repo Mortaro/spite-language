@@ -330,6 +330,22 @@ reads its memory this way.
 
 **What you notice.** Nothing: there is no other way these could run. **Built** (D178).
 
+### An allocator set after construction is where the object is made
+
+**What it does.** `var spark = Particle("spark", 1.5)` followed by `spark.memory.allocator = arena` reads as
+though it made the particle on the heap and then moved it. The compiler makes it in `arena` from the start: the
+two lines become one construction that asks the arena for the memory, with nothing allocated twice and nothing
+decided while the program runs ([D152](../manual.md#decision-log), [memory.md](memory.md#choosing-an-allocator-memoryallocator)).
+The same holds for `var kept = ash.copy()` followed by `kept.memory.allocator = arena`.
+
+**When.** Always, for the line right after the one that makes the object; anywhere else setting the allocator is
+an error (D153).
+
+**What you notice.** Under `--debug_memory`, an object made in an arena is not an allocation of its own: the
+arena's blocks are. A class some line gives an allocator is sixteen bytes larger per object (two hidden pointers:
+the allocator, and the function that gives the memory back), on every object of that class, heap ones included;
+no other class changes. Setting `Memory.Heap()` is the default and costs nothing. **Built** (D152, D153).
+
 ### Singletons: made on first use, never counted
 
 **What it does.** A singleton is made the first time something asks for it, not when the program starts, so a

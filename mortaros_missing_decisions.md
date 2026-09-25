@@ -364,3 +364,21 @@ All of it is proposed by Claude, unconfirmed.
 143. **`Memory.Heap`'s names.** `allocate(bytes)`, `resize(address, bytes)`, `free(address)` and
      `live_allocations()` (was `allocate_bytes`); every class of `library/` binds it as `var heap = Memory.Heap()`.
      Keep, or another spelling?
+144. **`Memory.Arena` and `Memory.Frame`.** D151 names `Memory.Heap`, `Memory.Arena` and `Memory.Frame`. Built:
+     `Memory.Arena(block_bytes)` hands out memory from chained blocks and frees them all when the arena itself is
+     dropped; everything made in it holds it, so it cannot go while they live. Not built: a `reset()` that
+     reuses the blocks each frame, and `Memory.Frame`. Both need `mortaros_allocators_proposal.md` question 3
+     (an object must not outlive a reset). Is `Memory.Frame` an arena the engine resets once per frame (and
+     storing a frame-made object anywhere that outlives the frame a compile error), or something else -- a ring
+     of two arenas, say? Until then, is an arena without `reset()` the right first step?
+145. **Where `.memory.allocator` may be set.** Built as: only the statement right after `var name = ...` whose value
+     makes the object (a constructor, `List<T>()`, `Dictionary<T>()` or `.copy()`), and only to a name or a path
+     of names. D152 says "before the object escapes"; a line in between that does not mention the object is
+     still an error. Widen it to "any line before the object is first used", or keep "the next line"?
+146. **D154's list buffer and `Vector<T>`.** A `List` placed in an arena keeps its buffer of references on the
+     heap: for the buffer to follow, `library/list.spite` has to ask its own object for its allocator, and
+     Spite has no way yet for a class to read its own `.memory` (`this` only passes the object, D146). Proposal
+     (Claude): inside a class, `memory.allocator` reads the object's own allocator, the way a number's `this`
+     is its value. Also `examples/vectors` has a user class `Vector`, which a library `Vector<T>` would turn into
+     a reopening of the library's class. Name it `Vector<T>` anyway (the example renames its class), or another
+     name?

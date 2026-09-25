@@ -224,6 +224,9 @@ func is_alive(): Bool {
   `resize`, `free`, each on a `Memory.Address`; the compiler places each allocation) and a
   `TypedMemory<$value_type>` (`read_value`, `write_value`, `release_value`, `value_bytes`), as
   `library/list.spite` is. `address.read_long(offset)` and the other reads and writes are for `library/` only.
+- An object is made on the heap unless the line right after it names another allocator:
+  `var spark = Particle()` then `spark.memory.allocator = arena` (`var arena = Memory.Arena(65536)` beforehand)
+  makes it in the arena from the start. Later, it is an error: copy it and set the copy's allocator.
 
 ## Built in classes
 

@@ -97,6 +97,13 @@ var first_discovered_class = 0
 var hardcoded_settings = List<Syntax.Statements.VariableDeclaration>()
 var placement = Placement()
 var frame_candidates = List<String>()
+var pending_allocator: Syntax.Statements.AssignmentStatement? = null
+var chosen_allocator_lines = List<String>()
+var allocated_classes = List<Analysis.ClassInfo>()
+var allocated_class_names = List<String>()
+var made_in_names = List<String>()
+var copied_in_names = List<String>()
+var given_back_names = List<String>()
 var placed_names = List<String>()
 var placed_frames = List<String>()
 var placed_receiver_names = List<String>()
@@ -449,6 +456,7 @@ func generate(
     if not has_error {
         report_unused_attributes()
     }
+    finish_allocated_classes()
     builder.shakes = not development
     builder.hot_reload = hot_reload
     return builder.render()
@@ -10301,6 +10309,10 @@ func generate_variable_declaration(
     class_information: Analysis.ClassInfo,
 ) {
     assert declaration.value
+    if pending_allocator {
+        generate_allocated_declaration(declaration, pending_allocator, scope, class_information)
+        return
+    }
     var frame_key = placement.frame_key(declaration)
     var frame_placed = frame_candidates.contains("{current_path}:{current_function}:{frame_key}") and not scope.entry_names.contains(declaration.name) and placed_in_frame(declaration, scope, class_information)
     assert not frame_placed
@@ -10320,6 +10332,283 @@ func generate_variable_declaration(
         scope.check_last(current_line)
         check_value_name(declaration.name, "variable")
     }
+}
+
+func choose_allocator_after(statements: List<Syntax.Statements.Statement>, index: Int) {
+    pending_allocator = null
+    assert index + 1 < statements.count()
+    var declaration = shape.as_variable_declaration(statements[index])
+    assert declaration
+    var setting = shape.as_assignment_statement(statements[index + 1])
+    assert setting
+    crash setting.target
+    assert allocator_object_name(setting.target) == declaration.name
+    pending_allocator = setting
+    chosen_allocator_lines.append("{current_path}:{setting.line}")
+}
+
+func allocator_object_name(target: Syntax.Expressions.Expression): String {
+    var chosen = shape.as_member(target)
+    assert chosen
+    assert chosen.name == "allocator"
+    crash chosen.object
+    var memory = shape.as_member(chosen.object)
+    assert memory
+    assert memory.name == "memory"
+    crash memory.object
+    var object_text = operand_text(memory.object)
+    if object_text.is_empty() {
+        return "this object"
+    }
+    return object_text
+}
+
+func is_name_path(expression: Syntax.Expressions.Expression): Bool {
+    if shape.as_identifier(expression) {
+        return true
+    }
+    var member = shape.as_member(expression)
+    assert member
+    crash member.object
+    return is_name_path(member.object)
+}
+
+func generate_allocated_declaration(
+    declaration: Syntax.Statements.VariableDeclaration,
+    setting: Syntax.Statements.AssignmentStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    pending_allocator = null
+    current_line = setting.line
+    var allocated = allocated_declaration(declaration, setting, scope, class_information)
+    current_line = declaration.line
+    if not allocated {
+        generate_variable_declaration(declaration, scope, class_information)
+    }
+}
+
+func allocated_declaration(
+    declaration: Syntax.Statements.VariableDeclaration,
+    setting: Syntax.Statements.AssignmentStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Bool {
+    crash declaration.value
+    crash setting.value
+    var saved_counter = temporary_counter
+    var probe = generate_expression(setting.value, scope, class_information)
+    temporary_counter = saved_counter
+    var allocator_type = probe.get_type()
+    var allocator_class = allocator_class_of(allocator_type)
+    assert allocator_class
+    var allocating = allocator_class.find_function("allocate")
+    var freeing = allocator_class.find_function("free")
+    crash allocating
+    crash freeing
+    if not is_name_path(setting.value) {
+        report(
+            "an allocator is made on a line of its own and then named here: 'var arena = Memory.Arena(65536)', and then '{declaration.name}.memory.allocator = arena'",
+        )
+        return false
+    }
+    current_line = declaration.line
+    var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
+    var placed_class = allocatable_class(declared_type)
+    if not placed_class {
+        var display_name = type_display_name(declared_type)
+        current_line = setting.line
+        report(
+            "only an object gets an allocator of its own, and '{declaration.name}' is a value of type {display_name}, which the compiler places itself",
+        )
+    }
+    assert placed_class
+    var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
+    var allocator_name = next_temporary()
+    var given_back = ensure_given_back(allocator_class, freeing)
+    var head = "{allocator_name}, {given_back}, {allocating.c_name}({allocator_name}, (int64_t)sizeof({placed_class.c_name}))"
+    var placed_code = allocated_code(placed_class, value_code, head)
+    if placed_code.is_empty() {
+        current_line = setting.line
+        report(
+            "'{declaration.name}' gets an allocator only on the line right after the line that makes it: a constructor, 'List<T>()' or '.copy()'",
+        )
+        return false
+    }
+    var allocator_code = coerce_for_store(setting.value, allocator_type, scope, class_information)
+    builder.add_user("{c_type_name(allocator_type)} {allocator_name} = {allocator_code};")
+    builder.add_user("{c_type_name(declared_type)} {declaration.name} = {placed_code};")
+    scope.declare_owned(declaration.name, declared_type)
+    scope.check_last(current_line)
+    check_value_name(declaration.name, "variable")
+    if not allocated_class_names.contains(placed_class.c_name) {
+        allocated_class_names.append(placed_class.c_name)
+        allocated_classes.append(placed_class)
+    }
+    return true
+}
+
+func allocator_class_of(allocator_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var reference = type_shape.as_class_ref(allocator_type)
+    if reference {
+        var found = find_class_by_c_name(reference.c_name)
+        if found {
+            assert found.qualified_dotted != "Memory.Heap"
+            if found.find_function("allocate") and found.find_function("free") {
+                return found
+            }
+        }
+    }
+    var display_name = type_display_name(allocator_type)
+    report(
+        "'{display_name}' is not an allocator: an allocator answers 'allocate(bytes: Long): Memory.Address' and 'free(address: Memory.Address)', like 'Memory.Arena'",
+    )
+    return null
+}
+
+func mark_names_used_in(expression: Syntax.Expressions.Expression, scope: Scope) {
+    var mentioned = List<String>()
+    collect_each_mentioned_name([expression], mentioned)
+    mark_each_used(mentioned, scope)
+}
+
+func allocatable_class(declared_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var placed_c_name = ""
+    var reference = type_shape.as_class_ref(declared_type)
+    if reference {
+        placed_c_name = reference.c_name
+    }
+    var listed = type_shape.as_list(declared_type)
+    if listed {
+        var listed_element = listed.get_element()
+        placed_c_name = ensure_list(listed_element)
+    }
+    var dictionary = type_shape.as_dictionary(declared_type)
+    if dictionary {
+        var dictionary_element = dictionary.get_element()
+        placed_c_name = ensure_dictionary(dictionary_element)
+    }
+    var placed_class = find_class_by_c_name(placed_c_name)
+    assert placed_class
+    assert not placed_class.is_singleton and not placed_class.is_value_class
+    assert placed_class.c_name != "Spite_Function" and placed_class.c_name != "Spite_Attribute"
+    return placed_class
+}
+
+func allocated_code(placed_class: Analysis.ClassInfo, value_code: String, head: String): String {
+    var code_length = value_code.length()
+    var made = "{placed_class.c_name}___make("
+    if value_code.starts_with(made) {
+        var made_length = made.length()
+        var made_rest = value_code.slice(made_length, code_length)
+        ensure_made_in(placed_class)
+        if made_rest == ")" {
+            return "{placed_class.c_name}___make_in({head})"
+        }
+        return "{placed_class.c_name}___make_in({head}, {made_rest}"
+    }
+    var copied = "{placed_class.c_name}_copy("
+    assert value_code.starts_with(copied) and not placed_class.find_function("copy")
+    var copied_length = copied.length()
+    var copied_rest = value_code.slice(copied_length, code_length)
+    if not copied_in_names.contains(placed_class.c_name) {
+        copied_in_names.append(placed_class.c_name)
+        builder.add_prototype(
+            "{placed_class.c_name}* {placed_class.c_name}_copy_in(void* spite_allocator, void (*spite_give_back)(void*, void*), int64_t spite_address, {placed_class.c_name}* self);",
+        )
+    }
+    return "{placed_class.c_name}_copy_in({head}, {copied_rest}"
+}
+
+func ensure_given_back(allocator_class: Analysis.ClassInfo, freeing: Analysis.FunctionInfo): String {
+    var name = "spite_give_back_{allocator_class.c_name}"
+    if not given_back_names.contains(name) {
+        given_back_names.append(name)
+        builder.add_prototype("void {name}(void* allocator, void* object);")
+        builder.add_support(
+            "void {name}(void* allocator, void* object) \{\n{freeing.c_name}(({allocator_class.c_name}*)allocator, (int64_t)(intptr_t)object);\n{allocator_class.c_name}___release(({allocator_class.c_name}*)allocator);\n}",
+        )
+    }
+    return name
+}
+
+func ensure_made_in(information: Analysis.ClassInfo) {
+    assert not made_in_names.contains(information.c_name)
+    made_in_names.append(information.c_name)
+    var parameters = "void* spite_allocator, void (*spite_give_back)(void*, void*), int64_t spite_address"
+    var constructor_parameters = constructor_parameter_list(information)
+    if constructor_parameters != "void" {
+        parameters = "{parameters}, {constructor_parameters}"
+    }
+    var signature = "{information.c_name}* {information.c_name}___make_in({parameters})"
+    builder.add_prototype("{signature};")
+    var lines = List<String>()
+    lines.append("{signature} \{")
+    lines.append("{information.c_name}* self = ({information.c_name}*)(intptr_t)spite_address;")
+    lines.append("self->header.ref_count = 1;")
+    lines.append("self->header.class_id = {information.class_id};")
+    lines.append("{information.c_name}___init(self);")
+    lines.append("self->spite_allocator = spite_allocator;")
+    lines.append("self->spite_give_back = spite_give_back;")
+    lines.append("#ifdef SPITE_TRACKS_{information.c_name}")
+    lines.append("spite_track_{information.c_name}(self);")
+    lines.append("#endif")
+    if information.constructor {
+        var arguments = information.constructor.parameters.map_name()
+        arguments.prepend("self")
+        lines.append("{information.constructor.c_name}({arguments.join(", ")});")
+    }
+    lines.append("return self;")
+    lines.append("}")
+    var joined_lines = lines.join("\n")
+    builder.add_support(joined_lines)
+}
+
+func finish_allocated_classes() {
+    allocated_classes.each_finish_allocated_class()
+}
+
+func finish_allocated_class(information: Analysis.ClassInfo) {
+    crash information.struct_position >= 0 and information.allocate_position >= 0 and information.release_position >= 0
+    var laid_out = builder.typedef_at(information.struct_position)
+    var with_allocator = laid_out.replace(
+        "SpiteHeader header;",
+        "SpiteHeader header;\nvoid* spite_allocator;\nvoid (*spite_give_back)(void*, void*);",
+    )
+    builder.replace_typedef(information.struct_position, with_allocator)
+    var allocated = builder.support_at(information.allocate_position)
+    var allocated_on_heap = allocated.replace(
+        "{information.c_name}___init(self);",
+        "{information.c_name}___init(self);\nself->spite_allocator = 0;",
+    )
+    builder.replace_support(information.allocate_position, allocated_on_heap)
+    var released = builder.support_at(information.release_position)
+    var given_back = released.replace(
+        "SPITE_FREE(self);",
+        "if (self->spite_allocator != 0) \{\nself->spite_give_back(self->spite_allocator, self);\nreturn;\n}\nSPITE_FREE(self);",
+    )
+    builder.replace_support(information.release_position, given_back)
+    assert information.copy_position >= 0
+    var class_id_line = "spite_copy->header.class_id = {information.class_id};"
+    var copied = builder.support_at(information.copy_position)
+    var copied_on_heap = copied.replace(class_id_line, "{class_id_line}\nspite_copy->spite_allocator = 0;")
+    builder.replace_support(information.copy_position, copied_on_heap)
+    assert copied_in_names.contains(information.c_name)
+    var c_name = information.c_name
+    var copied_in = copied.replace(
+        "{c_name}* {c_name}_copy({c_name}* self) \{",
+        "{c_name}* {c_name}_copy_in(void* spite_allocator, void (*spite_give_back)(void*, void*), int64_t spite_address, {c_name}* self) \{",
+    )
+    copied_in = copied_in.replace("({c_name}*)SPITE_MALLOC(sizeof({c_name}))", "({c_name}*)(intptr_t)spite_address")
+    copied_in = copied_in.replace(
+        "#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(spite_copy, {information.class_id});\n#endif\n",
+        "",
+    )
+    copied_in = copied_in.replace(
+        class_id_line,
+        "{class_id_line}\nspite_copy->spite_allocator = spite_allocator;\nspite_copy->spite_give_back = spite_give_back;",
+    )
+    builder.add_support(copied_in)
 }
 
 func placed_in_frame(
@@ -10554,6 +10843,16 @@ func generate_assignment(
 ) {
     assert assignment.target
     assert assignment.value
+    var chosen_object = allocator_object_name(assignment.target)
+    if not chosen_object.is_empty() {
+        if not chosen_allocator_lines.contains("{current_path}:{assignment.line}") {
+            report(
+                "'{chosen_object}' was already used, so its allocator can no longer change: an object's allocator is set on the line right after it is made. To move it, copy it and set the copy's: 'var moved = {chosen_object}.copy()' and then 'moved.memory.allocator = ...'",
+            )
+            mark_names_used_in(assignment.value, scope)
+        }
+        return
+    }
     var index_target = shape.as_index(assignment.target)
     if index_target {
         if is_bound_member_index(index_target) {
@@ -10890,7 +11189,9 @@ func generate_statement_list(
         if index > 0 {
             report_caller_walk(statements[index - 1], statements[index], scope, class_information)
         }
+        choose_allocator_after(statements, index)
         ended_in_return = generate_statement(statements[index], scope, class_information, function_information)
+        pending_allocator = null
         var folded_return = ended_in_return and statements[index] == Syntax.Statements.IfStatement
         index = index + 1
         if folded_return and index < statements.count() {
@@ -13847,6 +14148,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
     allocate_lines.append("return self;")
     allocate_lines.append("}")
     var joined_allocate_lines = allocate_lines.join("\n")
+    information.allocate_position = builder.support_count()
     builder.add_support(joined_allocate_lines)
     var default_instance = "{information.c_name}___allocate()"
     if information.is_stateless_singleton {
@@ -13926,6 +14228,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
     release_lines.append("SPITE_FREE(self);")
     release_lines.append("}")
     var joined_release_lines = release_lines.join("\n")
+    information.release_position = builder.support_count()
     builder.add_support(joined_release_lines)
     assert not information.find_function("copy")
     if information.is_singleton {
@@ -13970,6 +14273,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
     copy_lines.append("return spite_copy;")
     copy_lines.append("}")
     var joined_copy_lines = copy_lines.join("\n")
+    information.copy_position = builder.support_count()
     builder.add_support(joined_copy_lines)
 }
 
@@ -14086,6 +14390,7 @@ func emit_class(information: Analysis.ClassInfo) {
     }
     struct_lines.append("};")
     var joined_struct_lines = struct_lines.join("\n")
+    information.struct_position = builder.typedef_count()
     builder.add_typedef(joined_struct_lines)
     emit_class_prototypes(information)
     emit_class_support(information)
