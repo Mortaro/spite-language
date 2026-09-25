@@ -1,0 +1,68 @@
+var console = Console()
+var target: Monster? = null
+var names = List<String>()
+var greetings = 0
+
+func CallUndoesProof() {
+    target = Monster()
+    names.append("ada")
+    forgetting()
+    shrinking()
+    passing()
+    keeping()
+    looping()
+}
+
+func forgetting() {
+    assert target
+    forget_target()
+    console.print(target.name)
+}
+
+func shrinking() {
+    crash names[0]
+    clear_names()
+    var first = names[0]
+    console.print(first)
+}
+
+func passing() {
+    var local_names = ["grace"]
+    crash local_names[0]
+    empty(local_names)
+    var first = local_names[0]
+    console.print(first)
+}
+
+func keeping() {
+    assert target
+    crash names[0]
+    greet()
+    console.print(target.name, names[0])
+}
+
+func looping() {
+    assert target
+    var index = 0
+    while index < 2 {
+        console.print(target.name)
+        forget_target()
+        index = index + 1
+    }
+}
+
+func forget_target() {
+    target = null
+}
+
+func clear_names() {
+    names.clear()
+}
+
+func empty(list: List<String>) {
+    list.clear()
+}
+
+func greet() {
+    greetings = greetings + 1
+}

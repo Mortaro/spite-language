@@ -1,0 +1,19 @@
+var key = ""
+var keys = List<String>()
+var key_set = Dictionary<Bool>()
+var fresh_keys = List<String>()
+var calls = List<EffectCall>()
+var incoming = List<EffectCall>()
+var waiting = true
+
+func FunctionEffects(function_key: String) {
+    key = function_key
+}
+
+func add(added: String): Bool {
+    assert not key_set.has(added)
+    key_set.set(added, true)
+    keys.append(added)
+    fresh_keys.append(added)
+    return true
+}

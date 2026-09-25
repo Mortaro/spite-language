@@ -28,6 +28,7 @@ func run_first(stages: List<Runnable>) {
     var work = Parallel(stages[0].run_once)
     work.wait()
     var labelled = stages[0].label
+    var first_name = stages[0].name
     var text = labelled()
-    console.print(text, stages[0].name)
+    console.print(text, first_name)
 }

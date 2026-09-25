@@ -114,6 +114,9 @@ var shape_flow_targets = List<Analysis.UnionInfo>()
 var read_attributes = Dictionary<Bool>()
 var folded_words = Dictionary<Bool>()
 var loaded_folders = List<String>()
+var call_effects = CallEffects()
+var pending_calls = List<Syntax.Expressions.Expression>()
+var pending_call_lines = List<Int>()
 
 func report(message: String) {
     has_error = true
@@ -394,6 +397,7 @@ func generate(
     emit_unions()
     resolve_classes(discovery.class_files)
     report_shadowed_functions(discovery.class_files)
+    call_effects.study(discovery.class_files)
     var string_layout_code = string_layout()
     builder.replace_typedef(string_layout_position, string_layout_code)
     check_number_memory()
@@ -1022,8 +1026,9 @@ func instantiated_with(
     bound_function_name = ""
     bound_display_name = ""
     crash discovered_classes[template.entry_index]
-    resolve_class_body(discovered_classes[template.entry_index], instance, true)
-    resolve_class_body(discovered_classes[template.entry_index], instance, false)
+    var discovered = discovered_classes[template.entry_index]
+    resolve_class_body(discovered, instance, true)
+    resolve_class_body(discovered, instance, false)
     if template.qualified_dotted == "Concurrent" or template.qualified_dotted == "Parallel" {
         supply_concurrency_functions(instance)
     }
@@ -10062,7 +10067,10 @@ func generate_expression(
     }
     var generic_call = shape.as_generic_call(expression)
     if generic_call {
-        return generate_generic_constructor(generic_call, scope, class_information)
+        var constructed = generate_generic_constructor(generic_call, scope, class_information)
+        pending_calls.append(expression)
+        pending_call_lines.append(current_line)
+        return constructed
     }
     var index_expression = shape.as_index(expression)
     if index_expression {
@@ -10078,7 +10086,10 @@ func generate_expression(
     }
     var call = shape.as_call(expression)
     if call {
-        return generate_call(call, scope, class_information)
+        var called = generate_call(call, scope, class_information)
+        pending_calls.append(expression)
+        pending_call_lines.append(current_line)
+        return called
     }
     var member = shape.as_member(expression)
     if member {
@@ -10092,6 +10103,326 @@ func generate_expression(
     }
     report("unsupported expression kind in this stage")
     return ExpressionResult("0", Analysis.Types.VoidType())
+}
+
+func undo_proofs_after_calls(scope: Scope, class_information: Analysis.ClassInfo) {
+    assert not pending_calls.is_empty()
+    var calls = pending_calls
+    var lines = pending_call_lines
+    pending_calls = List<Syntax.Expressions.Expression>()
+    pending_call_lines = List<Int>()
+    var saved_line = current_line
+    var index = 0
+    while index < calls.count() {
+        crash lines[index]
+        current_line = lines[index]
+        undo_after_call(calls[index], scope, class_information)
+        index = index + 1
+    }
+    current_line = saved_line
+}
+
+func undo_after_call(called: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo) {
+    var call = shape.as_call(called)
+    if call {
+        crash call.callee
+        undo_proofs_after_call(call.callee, call.arguments, scope, class_information)
+        return
+    }
+    var construction = shape.as_generic_call(called)
+    crash construction
+    crash construction.callee
+    undo_proofs_after_call(construction.callee, construction.arguments, scope, class_information)
+}
+
+func undo_proofs_after_call(
+    callee: Syntax.Expressions.Expression,
+    arguments: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    assert scope.holds_proofs()
+    var effects = called_effects(callee, scope, class_information)
+    assert not effects.is_empty()
+    var crossed = List<String>()
+    var paths = scope.visible_narrowed_paths()
+    var path_index = 0
+    while path_index < paths.count() {
+        var path = paths[path_index]
+        var dependencies = proof_dependencies(path, scope, class_information)
+        var effect = changing_effect(effects, dependencies, path, arguments)
+        if not effect.is_empty() and scope.forget_path(path, true, List<String>()) {
+            crossed.append(path)
+        }
+        path_index = path_index + 1
+    }
+    var attributes = scope.narrowed_attributes()
+    var attribute_index = 0
+    while attribute_index < attributes.count() {
+        var attribute = attributes[attribute_index]
+        var attribute_dependency = ["{class_information.simple_name}#{attribute}"]
+        var effect = changing_effect(effects, attribute_dependency, attribute, arguments)
+        if not effect.is_empty() and scope.forget_override(attribute, false) {
+            crossed.append(attribute)
+        }
+        attribute_index = attribute_index + 1
+    }
+    assert not crossed.is_empty()
+    var printer = Syntax.SourcePrinter()
+    var callee_text = printer.source_expression(callee)
+    var crossed_text = crossed.join("', '")
+    report(
+        "'{callee_text}()' inside this loop may change '{crossed_text}', which undoes what was proven about it before the loop, and the next pass would read it unproven: prove it inside the loop instead",
+    )
+}
+
+func called_effects(
+    callee: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): List<String> {
+    var unknown = ["field:*", "shrink:*"]
+    var identifier = shape.as_identifier(callee)
+    if identifier {
+        var held = scope.written_type(identifier.name)
+        var held_field = class_information.find_field(identifier.name)
+        if held or held_field {
+            return unknown
+        }
+        if call_effects.names_a_class(identifier.name) {
+            return call_effects.effects_of(identifier.name, identifier.name)
+        }
+        return call_effects.effects_of(class_information.simple_name, identifier.name)
+    }
+    var member = shape.as_member(callee)
+    if member {
+        if member.name == "call_function" {
+            return unknown
+        }
+        if call_effects.names_a_class(member.name) {
+            return call_effects.effects_of(member.name, member.name)
+        }
+        crash member.object
+        var receiver_type = receiver_type_of(member.object, scope, class_information)
+        var owner = owner_name(receiver_type)
+        return call_effects.effects_of(owner, member.name)
+    }
+    return unknown
+}
+
+func receiver_type_of(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        var local_type = scope.written_type(identifier.name)
+        if local_type {
+            return local_type
+        }
+        var field = class_information.find_field(identifier.name)
+        assert field
+        return field.get_type()
+    }
+    var member = shape.as_member(expression)
+    assert member
+    crash member.object
+    var object_type = receiver_type_of(member.object, scope, class_information)
+    return member_type_through(object_type, member.name)
+}
+
+func changing_effect(
+    effects: List<String>,
+    dependencies: List<String>,
+    path: String,
+    arguments: List<Syntax.Expressions.Expression>,
+): String {
+    var index = 0
+    while index < effects.count() {
+        var effect = effects[index]
+        if effect_changes(effect, dependencies, path, arguments) {
+            return effect
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func effect_changes(
+    effect: String,
+    dependencies: List<String>,
+    path: String,
+    arguments: List<Syntax.Expressions.Expression>,
+): Bool {
+    if effect.starts_with("parameter:") {
+        var passed = passed_list_path(effect, arguments)
+        return not passed.is_empty() and path.starts_with("{passed}[")
+    }
+    var index = 0
+    while index < dependencies.count() {
+        var dependency = dependencies[index]
+        if dependency_changes(effect, dependency) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func dependency_changes(effect: String, dependency: String): Bool {
+    var is_list = dependency.starts_with("list:")
+    if effect == "field:*" {
+        return not is_list
+    }
+    if effect == "shrink:*" {
+        return is_list
+    }
+    var effect_length = effect.length()
+    if effect.starts_with("shrink:") {
+        assert is_list
+        var shrunk_link = effect.slice(7, effect_length)
+        var dependency_length = dependency.length()
+        var list_link = dependency.slice(5, dependency_length)
+        return links_meet(shrunk_link, list_link)
+    }
+    assert not is_list
+    var written_link = effect.slice(6, effect_length)
+    return links_meet(written_link, dependency)
+}
+
+func links_meet(changed_link: String, link: String): Bool {
+    var changed_parts = changed_link.split("#")
+    var parts = link.split("#")
+    assert changed_parts.count() == 2 and parts.count() == 2
+    var same_class = changed_parts[0] == "*" or parts[0] == "*" or changed_parts[0] == parts[0]
+    return same_class and changed_parts[1] == parts[1]
+}
+
+func passed_list_path(effect: String, arguments: List<Syntax.Expressions.Expression>): String {
+    var effect_length = effect.length()
+    var position_text = effect.slice(10, effect_length)
+    var position = position_text.to_int()
+    assert position < arguments.count()
+    return operand_text(arguments[position])
+}
+
+func proof_dependencies(path: String, scope: Scope, class_information: Analysis.ClassInfo): List<String> {
+    var dependencies = List<String>()
+    var root = scope.path_root(path)
+    var current = scope.written_type(root)
+    var link = "local"
+    var root_local = scope.unnarrowed_type(root)
+    if not root_local {
+        link = "{class_information.simple_name}#{root}"
+        dependencies.append(link)
+        var root_field = class_information.find_field(root)
+        if root_field {
+            current = root_field.get_type()
+        }
+    }
+    var position = root.length()
+    var path_length = path.length()
+    while position < path_length {
+        var code = path.code_at(position)
+        if code == 46 {
+            var name_end = scope.name_end(path, position + 1)
+            var member_name = path.slice(position + 1, name_end)
+            var owner = owner_name(current)
+            link = "{owner}#{member_name}"
+            dependencies.append(link)
+            current = member_type_through(current, member_name)
+            position = name_end
+        } else {
+            var key_end = scope.key_end(path, position)
+            var key_text = path.slice(position + 1, key_end)
+            collect_key_dependencies(key_text, scope, class_information, dependencies)
+            dependencies.append("list:{link}")
+            current = element_type_through(current)
+            link = "element"
+            position = key_end + 1
+        }
+    }
+    return dependencies
+}
+
+func owner_name(spite_type: Analysis.SpiteType?): String {
+    var owner_class = class_behind(spite_type)
+    if owner_class {
+        return owner_class.simple_name
+    }
+    return "*"
+}
+
+func class_behind(spite_type: Analysis.SpiteType?): Analysis.ClassInfo? {
+    assert spite_type
+    var plain = spite_type
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        plain = nullable.get_inner()
+    }
+    var class_ref = type_shape.as_class_ref(plain)
+    assert class_ref
+    return find_class_by_c_name(class_ref.c_name)
+}
+
+func member_type_through(spite_type: Analysis.SpiteType?, member_name: String): Analysis.SpiteType? {
+    var owner_class = class_behind(spite_type)
+    assert owner_class
+    return member_type_of(owner_class, member_name)
+}
+
+func element_type_through(spite_type: Analysis.SpiteType?): Analysis.SpiteType? {
+    assert spite_type
+    var plain = spite_type
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        plain = nullable.get_inner()
+    }
+    var listed = type_shape.as_list(plain)
+    assert listed
+    return listed.get_element()
+}
+
+func collect_key_dependencies(
+    key_text: String,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    dependencies: List<String>,
+) {
+    var position = 0
+    var key_length = key_text.length()
+    var previous = 0
+    while position < key_length {
+        var name_end = scope.name_end(key_text, position)
+        var starts_word = name_end > position and not scope.is_name_code(previous)
+        if starts_word {
+            var word = key_text.slice(position, name_end)
+            add_key_dependency(word, previous == 46, scope, class_information, dependencies)
+            position = name_end
+        } else {
+            position = position + 1
+        }
+        previous = key_text.code_at(position - 1)
+    }
+}
+
+func add_key_dependency(
+    word: String,
+    after_dot: Bool,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    dependencies: List<String>,
+) {
+    if after_dot {
+        dependencies.append("*#{word}")
+        return
+    }
+    var local = scope.unnarrowed_type(word)
+    assert not local
+    var field = class_information.find_field(word)
+    assert field
+    dependencies.append("{class_information.simple_name}#{word}")
 }
 
 func narrow_by_guard(scope: Scope, guard: NullableGuard) {
@@ -10820,10 +11151,12 @@ func generate_statement_list(
         var folded_return = ended_in_return and statements[index] == Syntax.Statements.IfStatement
         index = index + 1
         if folded_return and index < statements.count() {
+            undo_proofs_after_calls(scope, class_information)
             mark_rest_used(statements, index, scope)
             return true
         }
     }
+    undo_proofs_after_calls(scope, class_information)
     return ended_in_return
 }
 
@@ -14156,6 +14489,7 @@ func generate_statement(
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ): Bool {
+    undo_proofs_after_calls(scope, class_information)
     current_line = statement.line
     var saved_poisoned = statement_poisoned
     var mentioned = List<String>()
@@ -14625,6 +14959,7 @@ func emit_string_support(information: Analysis.ClassInfo) {
     current_path = information.source_path
     current_owner = "String"
     current_function = ""
+    var constructor_parameters = constructor_parameter_list(information)
     crash information.constructor
     crash information.drop_function
     var unshared = information.find_function("_unshared")
@@ -14636,7 +14971,6 @@ func emit_string_support(information: Analysis.ClassInfo) {
     var memory_text = memory_class.find_function("text")
     crash memory_text
     var memory = singleton_call(memory_class)
-    var constructor_parameters = constructor_parameter_list(information)
     builder.add_prototype("void SpiteString___init(SpiteString* self);")
     builder.add_prototype("SpiteString* SpiteString___allocate(void);")
     builder.add_prototype("SpiteString* SpiteString___make({constructor_parameters});")

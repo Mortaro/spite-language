@@ -425,9 +425,25 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   numbers, `true`/`false`, enum values, operators and other `[]` reads; two indices are the same when D78's
   printer prints them the same, so spacing and redundant parentheses do not matter. Assigning any name the index
   reads undoes it, as assigning the index itself does. A call anywhere in the index keeps the read a plain `T?`,
-  since the call could answer something else the second time. A call *between* the check and the read does not
-  undo it, exactly as for `glyphs[index]` (the read still checks its bounds). `conformance/stage6/structural_index`,
+  since the call could answer something else the second time. A call *between* the check and the read undoes it
+  only when the call may change the list or what the index reads (D169, below). `conformance/stage6/structural_index`,
   `diagnostics/structural_index_undone`.
+- **A call undoes a proof only if it may change what the proof depends on** (D169, decided by Mortaro,
+  2026-09-25): "we need to be smart enough at compiler to figure out if going down into that function has any
+  chances of altering that value (without needing to have a const keyword)." This covers every proof -- a
+  narrowed path or attribute and a proven `[]` read alike. The compiler follows the called function and what it
+  calls, and collects which attributes it may assign and which lists it may shrink (`clear`, `remove_at`,
+  `remove_first`, `remove_last`, `remove`); a proof that reads through one of them is undone, and reading it again
+  unproven is the usual error. How it is followed (proposed by Claude, unconfirmed): an attribute is known by its
+  class and name, so assigning `Scope.owned` does not undo a proof about `Monster.owned`; a receiver's class is
+  read from declared types (a parameter's type, a `var` built by a constructor or annotated), and a call whose
+  receiver's class cannot be told is followed into every function of that name; a list passed to a function that
+  shrinks its parameter undoes proofs about the list passed; calling a function value may do anything, so it
+  undoes every proof that reads an attribute or a list; operator functions and getters are not followed; a
+  constructor's own assignments are to the new object and change nothing proven. A local that aliases an
+  attribute's list is not tracked (a proven read still checks its bounds). Inside a `while`, a call that undoes a
+  proof made before the loop and read inside it is an error naming the call (`diagnostics/call_undoes_proof`).
+  All of it happens while compiling; nothing is emitted. **[implemented]**
 - **A proven read still checks its bounds at runtime** and answers the default out of range, so a counter that
   went negative gives a wrong value rather than reading memory it does not own.
 - **A `Bool?` cannot be a condition** -- not in `if`, `while`, `assert` or `crash`, and not under `not`, `and`
@@ -4080,3 +4096,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | (implements D170; the readings proposed by Claude, unconfirmed) **An `if`/`else` directly inside a branch of another `if`/`else` is an error** naming a function or a `switch`. An `else if` link counts as a branch of its chain; an `if` without an `else`, and an `if`/`else` inside a `while` or `switch` inside the branch, are not counted. The message names a `switch` only for unions, since `switch` does not take an enum yet. Checked on every `if` the compiler generates; the compiler's nine cases became six named functions and three flat chains. Section 6, `diagnostics/nested_if_else`, `docs/control_flow.md`. |
 | 2026-09-25 | (implements D171; the exact shape proposed by Claude, unconfirmed) **A `while` that only walks every element of a list doing what a member template does is an error naming the template.** Counter declared `0` right before the loop, condition `counter < list.count()` over a `List` of a class, `counter = counter + 1` last and the counter read nowhere else nor after the loop; the body calls, collects (`map_`, `copy()`), keeps (`filter_`, `filter_().map_()`), counts, adds up, finds by a member (`find_by_`) or answers `any_`/`all_`, the result list or total declared empty or `0` earlier in the block. Checked on every statement list the compiler generates. Function values for `each`/`map`/`filter` (D148) are not built, so only member templates are named. Section 6, `diagnostics/template_walk`, `docs/collections.md`. |
 | 2026-09-25 | (implements D172; the readings proposed by Claude, unconfirmed) **A local, parameter or attribute named like a function of its class is an error**, the functions being those declared in the class's file and its reopenings (the names a bare call reaches). Checked once over every discovered class file, generic templates and functions nothing calls included, so `library/` is held to it whether or not a program uses the code. About 170 names were renamed across `bootstrap/`, `library/` (with the OS folders), `conformance/`, `examples/` and `docs/`; no output changed. Section 5, `diagnostics/shadowed_function`, `docs/functions_and_operators.md`. |
+| 2026-09-25 | (implements D169; how calls are followed proposed by Claude, unconfirmed) **A call undoes a proof only if it may change what the proof reads.** Before generating, the compiler studies every function of the program once (`CallEffects`): which attributes it assigns (by class and name), which lists it shrinks (an attribute's, a parameter's, or unknown), and what it calls, resolving a receiver's class from declared types and falling back to every function of that name; the effects are closed over the call graph. After each statement, the calls it made undo the narrowed paths, narrowed attributes and proven `[]` reads that read through what they may change; a function value undoes every such proof. Applies to narrowed attributes too, which a call could set to null unnoticed before (a segfault, now a compile error). Operators and getters are not followed, and a local aliasing an attribute's list is not tracked. Compiling the compiler costs about 0.4 s more. The compiler needed two rewrites (`emit_string_support` asks for the constructor's parameters before proving it, `instantiated_with` binds the proven entry once), `conformance/stage6/shape_members` one. Section 5, `diagnostics/call_undoes_proof`, `docs/failure.md`, `docs/optimizations.md`. |

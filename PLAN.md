@@ -291,7 +291,9 @@ and balanced allocations.
     `if`/`else` directly inside a branch of another `if`/`else` is an error naming a function or a `switch`
     (`diagnostics/nested_if_else`). **D171 done (2026-09-25):** a `while` that only does what a member template
     does is an error naming the template (`diagnostics/template_walk`). **D172 done (2026-09-25):** a variable
-    named like a function of its class is an error (`diagnostics/shadowed_function`).
+    named like a function of its class is an error (`diagnostics/shadowed_function`). **D169 done (2026-09-25):** a
+    call undoes a proof only if, followed through what it calls, it may assign an attribute or shrink a list the
+    proof reads (`diagnostics/call_undoes_proof`; `bootstrap/source/generation/call_effects.spite`).
 
 ## Later, deliberately deferred
 

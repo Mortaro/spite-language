@@ -170,6 +170,10 @@ func is_alive(): Bool {
   Narrow the name or the path itself -- `assert target`, `assert target.weapon` -- never a local copied from it,
   which is an error. Comparing needs no narrowing: `target.name == "rat"` needs `target` narrowed, but
   `maybe_name == "rat"` is simply false when it is null.
+- A call between a proof and a read undoes the proof when the called code (followed all the way down) may assign
+  an attribute the proof reads or shrink a list it reads; prove it again after such a call, or read what you need
+  before it. A call that cannot change it keeps the proof. Calling a function value keeps no proof about
+  attributes or lists.
 - A `switch` is over a union or a `T?` and covers every member; `_:` as the last case answers for the rest, and
   two cases doing the same thing are an error: write it once as `_:`. An enum is compared with `==`, not switched.
 - `value == Monster` is a class test (false for `null`), and `if value == Monster { }` narrows `value` inside. A
