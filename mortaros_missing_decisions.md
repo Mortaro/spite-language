@@ -294,13 +294,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     syntax but only covers the self-reference case, and a name then means different things in different files.
     Nothing is built; which, if either?
 
-## From the binary format ports (PSD, zstd, .blend)
-
-106. **Does a call between a check and a read undo a proven `list[...]`?** `crash glyphs[code - 32]` now proves
-    `glyphs[code - 32]` like `glyphs[index]`, and assigning `code` or `glyphs` undoes it. A call in between does
-    not, for either form, although a call could change a field the index reads or clear a list held in a field;
-    the read still checks its bounds, so the cost is a default value, not memory. Keep it, or should a call
-    undo every proven read whose list or index is a field?
 ## From SlopEngine adopting D114-D116
 
 108. **Passing a template's symbol to a helper** (proposed by Claude, unconfirmed; manual section 8). A function
