@@ -130,6 +130,7 @@ var bound_enum_c_name = ""
 var arguments_parameter_names = List<String>()
 var temporary_counter = 0
 var literal_counter = 0
+var constant_texts = Dictionary<String>()
 var first_discovered_class = 0
 var hardcoded_settings = List<Syntax.Statements.VariableDeclaration>()
 var placement = Placement()
@@ -1570,19 +1571,21 @@ func shape_function_value(
         var arguments_list_name = ensure_list(class_type)
         var returned = signature.returns
         crash returned
+        var argument_lines = List<String>()
+        var parameter_index = 0
+        while parameter_index < parameter_types.count() {
+            var argument_symbol = ensure_symbol("argument_{parameter_index}")
+            argument_lines.append(
+                "{arguments_list_name}_append(described->_arguments_, Spite_Argument___make({argument_symbol}, {class_object_call(parameter_types[parameter_index])}));",
+            )
+            parameter_index = parameter_index + 1
+        }
         var lines = List<String>()
         lines.append("Spite_Function* {maker}({information.c_name} owner) \{")
         lines.append(
             "Spite_Function* described = Spite_Function___make({ensure_symbol(wanted.name)}, {class_object_call(returned)});",
         )
-        var parameter_index = 0
-        while parameter_index < parameter_types.count() {
-            var argument_symbol = ensure_symbol("argument_{parameter_index}")
-            lines.append(
-                "{arguments_list_name}_append(described->_arguments_, Spite_Argument___make({argument_symbol}, {class_object_call(parameter_types[parameter_index])}));",
-            )
-            parameter_index = parameter_index + 1
-        }
+        add_lazy_arguments(maker, argument_lines, lines)
         lines.append("described->spite_owner = {information.c_name}___retain(owner);")
         lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
         if parameter_types.is_empty() and type_shape.is_void(return_type) {
@@ -5153,6 +5156,7 @@ func render_string_literal(value: String): String {
     var literal_name = "spite_lit_{literal_counter}"
     var escaped = escape_c_string(value)
     builder.add_typedef("static SpiteString {literal_name} = SPITE_STATIC_STRING(\"{escaped}\", {value.length()});")
+    constant_texts["(&{literal_name})"] = value
     return "(&{literal_name})"
 }
 
@@ -5376,6 +5380,111 @@ func generate_string_binary(
     }
     lines.append("{result_temporary};")
     return ExpressionResult("(\{ {lines.join(" ")} })", result_type)
+}
+
+func generate_text_join(
+    binary: Syntax.Expressions.BinaryExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    var pieces = List<Syntax.Expressions.Expression>()
+    var leftmost = text_join_leftmost(binary, pieces)
+    if not shape.as_string_literal(leftmost) {
+        var saved_counter = temporary_counter
+        var probe = generate_joined(leftmost, scope, class_information)
+        rewind_temporaries(saved_counter)
+        var probe_text = as_text(probe)
+        var probe_type = probe_text.get_type()
+        assert type_shape.as_string(probe_type)
+    }
+    var join = TextJoin()
+    var first = generate_joined(leftmost, scope, class_information)
+    first = as_text(first)
+    var first_owned = owns(first, leftmost)
+    add_text_piece(join, first.code, first_owned)
+    var index = 0
+    while index < pieces.count() {
+        var piece = pieces[index]
+        var piece_result = generate_joined(piece, scope, class_information)
+        var piece_value_type = piece_result.get_type()
+        var became_text = false
+        if text_converter(piece_value_type) {
+            became_text = true
+        }
+        piece_result = text_of_class(piece, piece_result, scope, class_information)
+        var piece_type = piece_result.get_type()
+        var string_spite_type = string_type()
+        var piece_code = cast(piece_result.code, piece_type, string_spite_type)
+        var converted = not type_shape.as_string(piece_type)
+        var owned = owns(piece_result, piece) or converted or became_text
+        add_text_piece(join, piece_code, owned)
+        index = index + 1
+    }
+    flush_constant_text(join)
+    var text_type = string_type()
+    if join.codes.is_empty() {
+        var empty = render_string_literal("")
+        return ExpressionResult(empty, text_type)
+    }
+    if join.codes.count() == 1 {
+        var only = join.codes.first()
+        if join.lines.is_empty() or join.released.contains(only) {
+            join.lines.append("{only};")
+        } else {
+            join.lines.append("SpiteString___retain({only});")
+        }
+        return ExpressionResult("(\{ {join.lines.join(" ")} })", text_type)
+    }
+    var parts = next_temporary()
+    var result = next_temporary()
+    join.lines.append("SpiteString* {parts}[] = \{{join.codes.join(", ")}};")
+    join.lines.append("SpiteString* {result} = spite_string_join({join.codes.count()}, {parts});")
+    var released_index = 0
+    while released_index < join.released.count() {
+        join.lines.append("SpiteString___release({join.released[released_index]});")
+        released_index = released_index + 1
+    }
+    join.lines.append("{result};")
+    return ExpressionResult("(\{ {join.lines.join(" ")} })", text_type)
+}
+
+func text_join_leftmost(
+    binary: Syntax.Expressions.BinaryExpression,
+    pieces: List<Syntax.Expressions.Expression>,
+): Syntax.Expressions.Expression {
+    crash binary.left
+    crash binary.right
+    var leftmost = binary.left
+    var left_binary = shape.as_binary(binary.left)
+    if left_binary {
+        if left_binary.operator == 'add' {
+            leftmost = text_join_leftmost(left_binary, pieces)
+        }
+    }
+    pieces.append(binary.right)
+    return leftmost
+}
+
+func add_text_piece(join: TextJoin, code: String, owned: Boolean) {
+    var constant = constant_texts.get(code)
+    if constant {
+        join.constant = "{join.constant}{constant}"
+        return
+    }
+    flush_constant_text(join)
+    var temporary = next_temporary()
+    join.lines.append("SpiteString* {temporary} = {code};")
+    join.codes.append(temporary)
+    if owned {
+        join.released.append(temporary)
+    }
+}
+
+func flush_constant_text(join: TextJoin) {
+    assert not join.constant.is_empty()
+    var literal = render_string_literal(join.constant)
+    join.codes.append(literal)
+    join.constant = ""
 }
 
 func text_comparison(
@@ -5680,6 +5789,12 @@ func generate_binary(
         var swapped_left_code = coerce_for_store(binary.left, swapped_right_type, scope, class_information)
         var swapped_code = "({swapped_left_code} {binary_operator_symbol(binary.operator)} {swapped_right.code})"
         return ExpressionResult(swapped_code, Analysis.Types.ScalarType('boolean_kind'))
+    }
+    if binary.operator == 'add' {
+        var joined_text = generate_text_join(binary, scope, class_information)
+        if joined_text {
+            return joined_text
+        }
     }
     var left = generate_joined(binary.left, scope, class_information)
     var left_type = left.get_type()
@@ -6595,20 +6710,22 @@ func function_value(
         crash argument_class
         var class_type = class_type_of(argument_class)
         var arguments_list_name = ensure_list(class_type)
+        var argument_lines = List<String>()
+        var parameter_index = 0
+        while parameter_index < function.parameters.count() {
+            var parameter = function.parameters[parameter_index]
+            var parameter_type = parameter.get_type()
+            argument_lines.append(
+                "{arguments_list_name}_append(described->_arguments_, Spite_Argument___make({ensure_symbol(parameter.name)}, {class_object_call(parameter_type)}));",
+            )
+            parameter_index = parameter_index + 1
+        }
         var lines = List<String>()
         lines.append("Spite_Function* {maker}({information.c_name}* owner) \{")
         lines.append(
             "Spite_Function* described = Spite_Function___make({ensure_symbol(function.name)}, {returned_class_object_call(function)});",
         )
-        var parameter_index = 0
-        while parameter_index < function.parameters.count() {
-            var parameter = function.parameters[parameter_index]
-            var parameter_type = parameter.get_type()
-            lines.append(
-                "{arguments_list_name}_append(described->_arguments_, Spite_Argument___make({ensure_symbol(parameter.name)}, {class_object_call(parameter_type)}));",
-            )
-            parameter_index = parameter_index + 1
-        }
+        add_lazy_arguments(maker, argument_lines, lines)
         lines.append("described->spite_owner = {information.c_name}___retain(owner);")
         lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
         var function_return_type = function.get_return_type()
@@ -6632,6 +6749,14 @@ func function_value(
     var made = ExpressionResult(code, signature)
     made.owning_override = true
     return made
+}
+
+func add_lazy_arguments(maker: String, argument_lines: List<String>, lines: List<String>) {
+    assert not argument_lines.is_empty()
+    var describer = "{maker}___arguments"
+    builder.add_prototype("static void {describer}(Spite_Function* described);")
+    builder.add_support("static void {describer}(Spite_Function* described) \{\n{argument_lines.join("\n")}\n}")
+    lines.append("described->spite_add_arguments = {describer};")
 }
 
 func call_function_value(
@@ -10695,6 +10820,7 @@ func ensure_symbol(name: String): String {
     builder.add_typedef(
         "static SpiteString spite_symbol_{position} = SPITE_STATIC_STRING(\"{escape_c_string(name)}\", {name.length()});",
     )
+    constant_texts["(&spite_symbol_{position})"] = name
     return "(&spite_symbol_{position})"
 }
 
@@ -12341,6 +12467,14 @@ func finish_allocated_class(information: Analysis.ClassInfo) {
         "{information.c_name}___init(self);\nself->spite_allocator = 0;",
     )
     builder.replace_support(information.allocate_position, allocated_on_heap)
+    if information.constructed_allocate_position >= 0 {
+        var constructed = builder.support_at(information.constructed_allocate_position)
+        var constructed_on_heap = constructed.replace(
+            "{information.c_name}___init_constructed(self);",
+            "{information.c_name}___init_constructed(self);\nself->spite_allocator = 0;",
+        )
+        builder.replace_support(information.constructed_allocate_position, constructed_on_heap)
+    }
     var released = builder.support_at(information.release_position)
     var given_back = released.replace(
         "SPITE_FREE(self);",
@@ -16696,6 +16830,181 @@ func named_signature(information: Analysis.ClassInfo, function: Analysis.Functio
     return "{c_type_name(function_return_type)} {c_name}({parts.join(", ")})"
 }
 
+func emit_constructed_allocate(
+    information: Analysis.ClassInfo,
+    replaced: List<String>,
+    allocate_lines: List<String>,
+): String {
+    var c_name = information.c_name
+    var initialize_lines = List<String>()
+    initialize_lines.append("static void {c_name}___init_constructed({c_name}* self) \{")
+    var field_index = 0
+    while field_index < information.fields.count() {
+        var field = information.fields[field_index]
+        var initial = field.default_value_code
+        if replaced.contains(field.name) {
+            initial = "0"
+        }
+        initialize_lines.append("self->{c_value_name(field.name)} = {initial};")
+        field_index = field_index + 1
+    }
+    initialize_lines.append("}")
+    var joined_initialize_lines = initialize_lines.join("\n")
+    builder.add_support(joined_initialize_lines)
+    var joined_allocate_lines = allocate_lines.join("\n")
+    var constructed = joined_allocate_lines.replace(
+        "{c_name}* {c_name}___allocate(void) \{",
+        "static {c_name}* {c_name}___allocate_constructed(void) \{",
+    )
+    constructed = constructed.replace("{c_name}___init(self);", "{c_name}___init_constructed(self);")
+    information.constructed_allocate_position = builder.support_count()
+    builder.add_support(constructed)
+    return "{c_name}___allocate_constructed"
+}
+
+func constructor_replaced_fields(information: Analysis.ClassInfo): List<String> {
+    var replaced = List<String>()
+    assert information.constructor and not hot_reload and not information.is_singleton
+    assert not information.is_value_class and information.c_name != "Spite_Function" and information.c_name != "Spite_Attribute"
+    var parameter_names = information.constructor.parameters.map_name()
+    var body = information.constructor.body
+    var index = 0
+    var leading = true
+    while leading and index < body.count() {
+        var target = replaced_by_statement(information, body[index], parameter_names)
+        leading = not target.is_empty()
+        if leading and not replaced.contains(target) {
+            var field = information.find_field(target)
+            crash field
+            var field_type = field.get_type()
+            var visiting = List<String>()
+            if type_needs_drop(field_type) and pure_construction_code(field.default_value_code, visiting) {
+                replaced.append(target)
+            }
+        }
+        index = index + 1
+    }
+    return replaced
+}
+
+func replaced_by_statement(
+    information: Analysis.ClassInfo,
+    statement: Syntax.Statements.Statement,
+    parameter_names: List<String>,
+): String {
+    var assignment = shape.as_assignment_statement(statement)
+    assert assignment
+    crash assignment.target
+    crash assignment.value
+    var target = shape.as_identifier(assignment.target)
+    assert target
+    assert information.find_field(target.name) and not parameter_names.contains(target.name)
+    assert constant_or_parameter(assignment.value, parameter_names)
+    return target.name
+}
+
+func constant_or_parameter(value: Syntax.Expressions.Expression, parameter_names: List<String>): Boolean {
+    var identifier = shape.as_identifier(value)
+    if identifier {
+        return parameter_names.contains(identifier.name)
+    }
+    if shape.as_string_literal(value) or shape.as_integer_literal(value) or shape.as_float_literal(value) {
+        return true
+    }
+    return shape.is_true_literal(value) or shape.is_false_literal(value) or shape.is_null_literal(value)
+}
+
+func pure_construction_code(code: String, visiting: List<String>): Boolean {
+    var opening = code.index_of("(")
+    assert opening > 0 and code.ends_with(")")
+    var code_length = code.length()
+    var callee = code.slice(0, opening)
+    var arguments = code.slice(opening + 1, code_length - 1)
+    assert callee.ends_with("___make") and (arguments.is_empty() or constant_arguments(arguments))
+    var callee_length = callee.length()
+    var class_c_name = callee.slice(0, callee_length - 7)
+    return pure_class(class_c_name, visiting)
+}
+
+func constant_arguments(arguments: String): Boolean {
+    assert not arguments.is_empty()
+    var parts = arguments.split(", ")
+    var index = 0
+    while index < parts.count() {
+        var part = parts[index]
+        assert constant_texts.has(part) or constant_number(part)
+        index = index + 1
+    }
+    return true
+}
+
+func constant_number(part: String): Boolean {
+    var index = 0
+    while index < part.length() {
+        var code = part.code_at(index)
+        var digit = code >= 48 and code <= 57
+        assert digit or code == 45 or code == 46
+        index = index + 1
+    }
+    return not part.is_empty()
+}
+
+func pure_class(class_c_name: String, visiting: List<String>): Boolean {
+    assert not visiting.contains(class_c_name)
+    visiting.append(class_c_name)
+    var information = find_class_by_c_name(class_c_name)
+    assert information
+    if information.qualified_dotted == "List" or information.qualified_dotted == "Dictionary" {
+        return true
+    }
+    assert not information.is_singleton and not information.drop_function and not information.is_value_class
+    assert not is_hot_class(information) and not information.is_generic_template
+    if information.constructor {
+        var parameter_names = information.constructor.parameters.map_name()
+        var index = 0
+        while index < information.constructor.body.count() {
+            var target = replaced_by_statement(information, information.constructor.body[index], parameter_names)
+            assert not target.is_empty()
+            index = index + 1
+        }
+    }
+    var field_index = 0
+    while field_index < information.fields.count() {
+        var field = information.fields[field_index]
+        var field_type = field.get_type()
+        if type_needs_drop(field_type) {
+            assert pure_construction_code(field.default_value_code, visiting) or constant_text_code(field.default_value_code)
+        } else {
+            assert constant_scalar_code(field.default_value_code)
+        }
+        field_index = field_index + 1
+    }
+    return true
+}
+
+func constant_text_code(code: String): Boolean {
+    return constant_texts.has(code) or code == "0"
+}
+
+func constant_scalar_code(code: String): Boolean {
+    var index = 0
+    var name_start = 0
+    while index < code.length() {
+        var code_point = code.code_at(index)
+        var letter = code_point >= 65 and code_point <= 90 or code_point >= 97 and code_point <= 122 or code_point == 95
+        var digit = code_point >= 48 and code_point <= 57
+        if code_point == 40 {
+            var called = code.slice(name_start, index)
+            assert called.is_empty() or called.starts_with("Spite") and called.contains("_from_")
+        }
+        if not letter and not digit {
+            name_start = index + 1
+        }
+        index = index + 1
+    }
+    return true
+}
+
 func emit_class_prototypes(information: Analysis.ClassInfo) {
     builder.add_prototype("void {information.c_name}___init({information.c_name}* self);")
     builder.add_prototype("{information.c_name}* {information.c_name}___allocate(void);")
@@ -16742,6 +17051,8 @@ func emit_class_support(information: Analysis.ClassInfo) {
         initialize_lines.append("self->spite_call = 0;")
         initialize_lines.append("self->spite_typed_call = 0;")
         initialize_lines.append("self->spite_text_call = 0;")
+        initialize_lines.append("self->spite_add_arguments = 0;")
+        initialize_lines.append("self->spite_arguments_lock = 0;")
     }
     if information.c_name == "Spite_Attribute" {
         var cleared_links = hidden_attribute_links_cleared("self")
@@ -16750,6 +17061,12 @@ func emit_class_support(information: Analysis.ClassInfo) {
     initialize_lines.append("}")
     var joined_initialize_lines = initialize_lines.join("\n")
     builder.add_support(joined_initialize_lines)
+    if information.c_name == "Spite_Function" {
+        builder.add_prototype("static void spite_function_arguments_described(Spite_Function* self);")
+        builder.add_support(
+            "static void spite_function_arguments_described(Spite_Function* self) \{\nif (SPITE_SINGLETON_FOUND(self->spite_add_arguments) == 0) return;\nSPITE_LOCK(self->spite_arguments_lock);\nvoid (*adding)(Spite_Function*) = self->spite_add_arguments;\nif (adding != 0) \{\nadding(self);\nSPITE_SINGLETON_PUBLISH(self->spite_add_arguments, (void (*)(Spite_Function*))0);\n}\nSPITE_UNLOCK(self->spite_arguments_lock);\n}",
+        )
+    }
     var allocate_lines = List<String>()
     allocate_lines.append("{information.c_name}* {information.c_name}___allocate(void) \{")
     allocate_lines.append(
@@ -16774,9 +17091,14 @@ func emit_class_support(information: Analysis.ClassInfo) {
         default_instance = singleton_call(information)
     }
     builder.add_support("{information.c_name}* {information.c_name}___default(void) \{ return {default_instance}; }")
+    var allocating = "{information.c_name}___allocate"
+    var replaced = constructor_replaced_fields(information)
+    if not replaced.is_empty() {
+        allocating = emit_constructed_allocate(information, replaced, allocate_lines)
+    }
     var make_lines = List<String>()
     make_lines.append("{information.c_name}* {information.c_name}___make({constructor_parameter_list(information)}) \{")
-    make_lines.append("{information.c_name}* self = {information.c_name}___allocate();")
+    make_lines.append("{information.c_name}* self = {allocating}();")
     if information.constructor {
         var arguments = c_parameter_names(information.constructor.parameters)
         arguments.prepend("self")
@@ -16866,6 +17188,9 @@ func emit_class_support(information: Analysis.ClassInfo) {
     copy_lines.append("#ifdef SPITE_DEBUG_MEMORY")
     copy_lines.append("spite_debug_register_object(spite_copy, {class_id_text});")
     copy_lines.append("#endif")
+    if information.c_name == "Spite_Function" {
+        copy_lines.append("spite_function_arguments_described(self);")
+    }
     var copy_field_index = 0
     while copy_field_index < information.fields.count() {
         var field = information.fields[copy_field_index]
@@ -16879,7 +17204,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
     }
     if information.c_name == "Spite_Function" {
         copy_lines.append(
-            "spite_copy->spite_owner = 0; spite_copy->spite_release_owner = 0; spite_copy->spite_call = 0; spite_copy->spite_typed_call = 0; spite_copy->spite_text_call = 0;",
+            "spite_copy->spite_owner = 0; spite_copy->spite_release_owner = 0; spite_copy->spite_call = 0; spite_copy->spite_typed_call = 0; spite_copy->spite_text_call = 0; spite_copy->spite_add_arguments = 0; spite_copy->spite_arguments_lock = 0;",
         )
     }
     if information.c_name == "Spite_Attribute" {
@@ -16957,6 +17282,9 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         add_hot_slot(information, function)
     }
     builder.add_user("{named_signature(information, function, defined_name)} \{")
+    if function.c_name == "Spite_Function_get_arguments" {
+        builder.add_user("spite_function_arguments_described(self);")
+    }
     var scope = parameter_scope(function)
     terminal_if = terminal_if_of(function.body)
     body_narrowed_names = List<String>()
@@ -17028,6 +17356,8 @@ func emit_class(information: Analysis.ClassInfo) {
         struct_lines.append("void (*spite_call)(void*);")
         struct_lines.append("void* spite_typed_call;")
         struct_lines.append("void* spite_text_call;")
+        struct_lines.append("void (*spite_add_arguments)(Spite_Function*);")
+        struct_lines.append("int32_t spite_arguments_lock;")
     }
     if information.c_name == "Spite_Attribute" {
         struct_lines.append("void* spite_owner;")
@@ -17099,6 +17429,7 @@ func emit_string_support(information: Analysis.ClassInfo) {
     builder.add_prototype("SpiteString* SpiteString_append(SpiteString* left, SpiteString* right);")
     builder.add_prototype("SpiteString* spite_string_from_bytes(const char* bytes, int64_t length);")
     builder.add_prototype("SpiteString* spite_string_from_cstring_owned(const char* text);")
+    builder.add_prototype("SpiteString* spite_string_join(int32_t count, SpiteString* const* pieces);")
     var initialize_lines = List<String>()
     initialize_lines.append("void SpiteString___init(SpiteString* self) \{")
     var field_index = 0
@@ -17134,6 +17465,9 @@ func emit_string_support(information: Analysis.ClassInfo) {
     )
     builder.add_support(
         "SpiteString* spite_string_from_cstring_owned(const char* text) \{\nreturn spite_string_from_bytes(text, (int64_t)strlen(text));\n}",
+    )
+    builder.add_support(
+        "SpiteString* spite_string_join(int32_t count, SpiteString* const* pieces) \{\nint64_t total = 0;\nfor (int32_t index = 0; index < count; index++) total += pieces[index]->_length_;\nchar* bytes = (char*)SPITE_MALLOC((size_t)total + 1);\nint64_t at = 0;\nfor (int32_t index = 0; index < count; index++) \{\nmemcpy(bytes + at, (const char*)(intptr_t)pieces[index]->_bytes_, (size_t)pieces[index]->_length_);\nat += pieces[index]->_length_;\n}\nreturn SpiteString___make((int64_t)(intptr_t)bytes, total);\n}",
     )
 }
 

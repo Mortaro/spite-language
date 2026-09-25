@@ -1,0 +1,12 @@
+var name = ""
+var strength = 0
+var agility = 0
+var level = 0
+var alive = true
+
+func Stats(new_name: String, new_level: Integer) {
+    name = new_name
+    level = new_level
+    strength = new_level * 3
+    agility = new_level % 7
+}

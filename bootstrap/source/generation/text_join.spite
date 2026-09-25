@@ -1,0 +1,4 @@
+var lines = List<String>()
+var codes = List<String>()
+var released = List<String>()
+var constant = ""

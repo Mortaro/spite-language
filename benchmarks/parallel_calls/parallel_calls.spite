@@ -1,0 +1,16 @@
+var console = Console()
+
+func ParallelCalls() {
+    var total: Long = 0
+    var round = 0
+    while round < 20000 {
+        var first = Summer(round % 100)
+        var second = Summer(round % 70)
+        var first_sum = Parallel(first.total)
+        var second_sum = Parallel(second.total)
+        var both: Long = first_sum + second_sum
+        total = total + both
+        round = round + 1
+    }
+    console.print("total", total)
+}

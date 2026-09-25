@@ -17,6 +17,7 @@ var memory_path = ""
 var memory_line = 0
 var struct_position = -1
 var allocate_position = -1
+var constructed_allocate_position = -1
 var release_position = -1
 var copy_position = -1
 var entry_index = 0

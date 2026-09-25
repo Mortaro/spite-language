@@ -51,6 +51,9 @@ function with a visible effect can show, no optimisation changes what a program 
 | [Reading an address is one machine operation](#reading-an-address-is-one-machine-operation) | built | every | nothing |
 | [An allocator set after construction is where the object is made](#an-allocator-set-after-construction-is-where-the-object-is-made) | built | every | the arena's blocks are the allocations; sixteen bytes more per object of a class given an allocator |
 | [Proofs that survive a call](#proofs-that-survive-a-call) | built | every | a proof after a call that may change it is written again |
+| [Text joined in one piece](#text-joined-in-one-piece) | built | every | fewer allocations; a text made only of constants is constant |
+| [Defaults the constructor replaces are never made](#defaults-the-constructor-replaces-are-never-made) | built | every but `--hot-reload` | fewer allocations |
+| [A function value describes its arguments when asked](#a-function-value-describes-its-arguments-when-asked) | built | every | fewer allocations per function value and per `Parallel` |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
@@ -748,6 +751,61 @@ of a `+` (an address plus an offset is an address); a call on a value whose clas
 function of that name. It runs entirely while compiling and emits nothing. What you can
 observe: a proof after a call that may change it must be written again, and a call through a function value
 keeps no proof about attributes or lists ([failure.md](failure.md#a-call-may-undo-a-proof)).
+
+### Text joined in one piece
+
+**What it does.** `"line {index} of {round};"` and `prefix + name + suffix` are one join, not a chain of pairs:
+every piece is computed in order, left to right as written, and the text is made once, at its final length. Before,
+each `+` (and each `{...}` hole) made a whole new text, so a text of five pieces made four texts and threw three
+away. Pieces the compiler already knows -- written text, a symbol's name such as `attribute.name` in a Symbol
+walk -- are joined while compiling, and empty ones are dropped, so `"{index}"` is just the number's text and
+`"{attribute.name}="` is one constant.
+
+**When.** Every `+` whose left side is text, and every text with `{...}` holes, in every build. `text = "{text}..."`
+still grows `text` in place ([above](#appending-to-text-in-place)).
+
+**What you notice.** Fewer allocations under `--debug-memory` (two per piece that used to be joined:
+`conformance/stage6/text_building` went from 43 to 39, `benchmarks/reflection_walks` from 16 356 022 to
+11 756 022), and a text built only from pieces the compiler knows answers `'constant'` to `.memory.section`
+instead of `'heap'`, as a written text does. `"{name}"` where `name` is text is that same text, not a copy -- text
+cannot change, so nothing else can tell. **Built** (2026-09-25; proposed by Claude, unconfirmed).
+
+### Defaults the constructor replaces are never made
+
+**What it does.** `var owner = Owner(0)` followed by a constructor whose first lines are `owner = new_owner` used to
+make an `Owner`, then throw it away. Now the object is made with that attribute empty, and the constructor's line
+fills it: the default is never made. It applies to each attribute the constructor sets in its opening run of lines
+that assign an attribute a parameter or a literal -- before anything else can read it -- when the default is a
+construction that has no effect but the memory it takes: a `List`, a `Dictionary`, or a class with no `drop()`,
+not a singleton, whose own constructor only copies its parameters and literals into its attributes and whose
+own defaults are made the same way. `Spite.Class('Nothing')`, the default of every function value's `returns`
+and every argument's `class`, is one; a default whose constructor prints is not.
+
+**When.** Every build but `--hot-reload` (whose constructors can be swapped for ones that read the attribute first),
+for objects made by their constructor; an object given an allocator on the next line still makes its defaults.
+
+**What you notice.** Fewer allocations under `--debug-memory` -- one per discarded object, and those it holds:
+`benchmarks/fused_chain`, which makes 100 000 items that each replace their default `Owner`, went from 300 009 to
+200 009. Nothing else: the discarded default was never reachable. **Built** (2026-09-25; proposed by Claude,
+unconfirmed).
+
+### A function value describes its arguments when asked
+
+**What it does.** A function value is its own reflection object ([D39](decisions.md)), with `.arguments`, a list of
+`Spite.Argument`s. That list used to be filled when the value was made -- two objects per argument, and each
+argument's class -- though almost no program reads it. Now the value carries a pointer to a function the compiler
+wrote for it, and `.arguments` fills the list the first time it is read (under a lock in a program with threads,
+so two threads reading it at once see one list). Together with the discarded defaults above, this answers
+`mortaros_missing_decisions.md` item 145 without changing what `.arguments` answers.
+
+**When.** Every function value the compiler makes: `Parallel(summer.total)`, `apply(scorer.score, 3)`, a shape's
+function passed on. A `.functions` list is reflection read on purpose, so its values are still described at once.
+
+**What you notice.** Fewer allocations: a `Parallel` makes 9 fewer (`conformance/stage6/singleton_counts`, two
+`Parallel`s, went from 134 to 116; `benchmarks/parallel_calls` from 52 per round of two to 34), and passing a
+function value makes 5 instead of 10 (`benchmarks/function_values`, from 2 000 019 to 1 000 019). `.arguments`
+answers the same list, in the same order, whenever it is read. **Built** (2026-09-25; proposed by Claude,
+unconfirmed).
 
 ## Planned
 

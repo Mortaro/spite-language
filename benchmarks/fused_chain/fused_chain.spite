@@ -1,0 +1,21 @@
+var console = Console()
+
+func FusedChain() {
+    var items = List<Item>()
+    var index = 0
+    while index < 100000 {
+        var owner = Owner(index % 90)
+        items.append(Item(index % 1000, index % 3 != 0, owner))
+        index = index + 1
+    }
+    var total: Long = 0
+    var round = 0
+    while round < 300 {
+        var prices = items.filter_is_active().sum_price()
+        var ages = items.filter_is_active().map_owner().filter_is_adult().sum_age()
+        var adults = items.map_owner().count_is_adult()
+        total = total + prices + ages + adults
+        round = round + 1
+    }
+    console.print("total", total)
+}
