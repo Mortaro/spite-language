@@ -1,0 +1,2 @@
+loaded 8000 on the pool while 1000 frames ran
+the cache knows 8001 textures after 9000 loads

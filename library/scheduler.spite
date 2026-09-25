@@ -69,6 +69,19 @@ func finish_fiber(waiter: Long) {
     suspend()
 }
 
+func check_point() {
+    assert started and current_thread() == scheduler_thread
+    if commands {
+        commands()
+    }
+    reload_at_check_point()
+}
+
+func reload_at_check_point() {
+    assert reloads
+    reloads()
+}
+
 func yield_now() {
     if commands {
         commands()

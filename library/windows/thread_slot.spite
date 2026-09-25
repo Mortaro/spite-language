@@ -1,0 +1,19 @@
+var _kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+
+func create_key(): Long {
+    var created = _kernel.TlsAlloc_as_long()
+    crash created != 4294967295
+    return created
+}
+
+func read_key(key: Long): Long {
+    return _kernel.TlsGetValue_as_long(key)
+}
+
+func write_key(key: Long, value: Long) {
+    _kernel.TlsSetValue(key, value)
+}
+
+func delete_key(key: Long) {
+    _kernel.TlsFree(key)
+}

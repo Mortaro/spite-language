@@ -1,0 +1,24 @@
+var _library = DynamicLibrary("libSystem.dylib", 'identity', "")
+var _memory = Memory()
+
+func create_key(): Long {
+    var slot = _memory.allocate_bytes(8)
+    var no_value: Long = 0
+    var created = _library.pthread_key_create(slot, no_value)
+    var key = _memory.read_long(slot, 0)
+    _memory.free(slot)
+    crash created == 0
+    return key
+}
+
+func read_key(key: Long): Long {
+    return _library.pthread_getspecific_as_long(key)
+}
+
+func write_key(key: Long, value: Long) {
+    _library.pthread_setspecific(key, value)
+}
+
+func delete_key(key: Long) {
+    _library.pthread_key_delete(key)
+}

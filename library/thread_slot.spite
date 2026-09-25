@@ -1,0 +1,17 @@
+var _key: Long = 0
+
+func ThreadSlot() {
+    _key = create_key()
+}
+
+func read(): Long {
+    return read_key(_key)
+}
+
+func write(value: Long) {
+    write_key(_key, value)
+}
+
+func drop() {
+    delete_key(_key)
+}

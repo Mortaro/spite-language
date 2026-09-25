@@ -1,0 +1,21 @@
+var _library = DynamicLibrary("libSystem.dylib", 'identity', "")
+
+func create_lock(): Long {
+    var created = _memory.allocate_bytes(64)
+    var no_value: Long = 0
+    _library.pthread_mutex_init(created, no_value)
+    return created
+}
+
+func acquire(held: Long) {
+    _library.pthread_mutex_lock(held)
+}
+
+func release_lock(held: Long) {
+    _library.pthread_mutex_unlock(held)
+}
+
+func destroy_lock(held: Long) {
+    _library.pthread_mutex_destroy(held)
+    _memory.free(held)
+}

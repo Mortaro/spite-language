@@ -1,0 +1,4 @@
+after two steps the positions add up to 99990000
+after a step of the awake ones only 124985000
+every element ran on a pool worker or on this thread: true
+a list of one and an empty list: 1 0

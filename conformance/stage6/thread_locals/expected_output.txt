@@ -1,0 +1,4 @@
+every run saw only its own thread's value: true
+the main thread still reads thread -1
+counted under the lock: 200
+a new ThreadLocal is empty on every thread

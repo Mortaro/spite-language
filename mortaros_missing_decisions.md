@@ -341,3 +341,43 @@ All of it is proposed by Claude, unconfirmed.
      in place stay on in every build, since they change speed rather than what reflection sees. Keep that, or should
      a plain build be inspectable too, leaving hiding to `--optimized` alone (every ordinary build then allocates
      `Memory` and `Build` and carries unshaken C)?
+
+## From D134 and D135 (the thread pool and join on first use; manual section 15, `docs/concurrency.md`)
+
+All of it is proposed by Claude, unconfirmed.
+
+143. **Where a handle becomes its value.** Everywhere a `T` is expected (typed `var`, argument, `return`,
+     operand, text, a member the handle lacks, a condition) the compiler reads the value; an untyped `var` keeps
+     the handle, and `finished` is the handle's own. `wait()` and `join()` are removed rather than kept as an
+     explicit form. Two consequences to confirm: `a == b` on two handles compares their values, and there is no
+     way to compare the handles themselves; a `Concurrent<Nothing>`/`Parallel<Nothing>` is only waited for by
+     dropping it (SlopEngine's `running[index].join()` becomes `running.clear()`, or leaving the function).
+144. **`ThreadPool` as a visible singleton**, with `size()` and `worker_index()`. The name says what it is; it
+     could instead stay hidden behind `Parallel`. Workers are one per core but one (the program's thread keeps
+     one), started by the first `Parallel`, first in first out. Waiting for a job no worker has started runs it on
+     the waiting thread. Is cores-minus-one right for the engine, or should it be every core?
+145. **A `Parallel` costs about two dozen allocations**, almost all of them the two `Spite.Function` values (each
+     is its own reflection object, D39, with a list of `Spite.Argument`s). Making a function value's reflection
+     lazy would cut that to a handful; worth doing for every callback, not only here?
+146. **`finished` on a `Concurrent` does not run anything.** It reads the flag; the fiber only progresses when the
+     program waits somewhere (`program.sleep(1)` in a polling loop). It could instead let ready fibers run once,
+     which would make it a wait point in the D37 sense. Keep it a plain read?
+147. **`ThreadLocal<T>`, `Lock` and `ThreadSlot`**: the names, `while_locked(function)` as the main way to hold a
+     lock (with `lock()`/`unlock()` kept), and a `ThreadLocal` keeping every thread's value until it is itself
+     dropped (no per-thread destructor). A lock that is not reentrant crashes nothing: taking it twice on one
+     thread deadlocks. Should a second `lock()` on the same thread be a crash instead?
+148. **`parallel_each_`'s rule** (D35 as built): plain-value attributes, library singletons and locals only;
+     `filter_` steps allowed, `map_` refused; a list of a `type` refused. Is refusing `List<Particle>` members that
+     own a list of their own (`trail.append(...)`) too strict for the engine? The honest alternative is an
+     ownership marker on the attribute, which is new syntax.
+149. **Reads in a row overlap only among themselves**, and only `File.read`/`Socket.read_line` into a fresh
+     untyped name. Should a read also overlap the statements after it until its name is used, which is faster but
+     needs the compiler to prove those statements do not touch the file?
+150. **`File`'s byte functions**: the names, positions instead of an open handle with a cursor, and each call
+     opening the file. A `File.Reader` with its own position and `drop()` closing it would suit record-by-record
+     scanning; wanted?
+151. **D174's check point** is a call per pass (thread check, two atomic loads). A C-level flag that the REPL's
+     thread sets would make it one load; worth the extra hidden code (D147)?
+152. **D183 as built locks every call** to a program singleton that can change, from any thread, in a program that
+     uses `Parallel`, not only the calls a `Parallel` makes: telling them apart needs a walk of everything a
+     `Parallel` can reach. Acceptable as the fallback until D184, or should that walk come first?

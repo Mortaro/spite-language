@@ -1,0 +1,38 @@
+var console = Console()
+var pool = ThreadPool()
+
+func ThreadPoolReuse() {
+    var workers = pool.size()
+    var seen = List<Int>()
+    var total = 0
+    var round = 0
+    while round < 10 {
+        var parallels = List<Parallel<Int>>()
+        var index = 0
+        while index < 100 {
+            parallels.append(Parallel(worker_of_this))
+            index = index + 1
+        }
+        index = 0
+        while index < parallels.count() {
+            var worker: Int = parallels.get_at(index)
+            if not seen.contains(worker) {
+                seen.append(worker)
+            }
+            total = total + 1
+            index = index + 1
+        }
+        round = round + 1
+    }
+    var distinct = seen.count()
+    var size_now = pool.size()
+    var outside = pool.worker_index()
+    console.print(total, "parallels ran")
+    console.print("each on one of the pool's workers or on the thread that joined it:", distinct <= workers + 1)
+    console.print("the pool never grew:", size_now == workers)
+    console.print("outside the pool the worker index is", outside)
+}
+
+func worker_of_this(): Int {
+    return pool.worker_index()
+}

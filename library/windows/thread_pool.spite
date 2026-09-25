@@ -1,0 +1,60 @@
+var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+
+func processor_count(): Int {
+    var all_groups = 65535
+    return kernel.GetActiveProcessorCount(all_groups)
+}
+
+func current_thread(): Long {
+    return kernel.GetCurrentThreadId_as_long()
+}
+
+func start_thread(entry: Long, argument: Long): Long {
+    var no_value: Long = 0
+    return kernel.CreateThread_as_long(no_value, no_value, entry, argument, 0, no_value)
+}
+
+func join_thread(thread: Long) {
+    kernel.WaitForSingleObject(thread, -1)
+    kernel.CloseHandle(thread)
+}
+
+func create_lock(): Long {
+    var created = memory.allocate_bytes(8)
+    kernel.InitializeSRWLock(created)
+    return created
+}
+
+func destroy_lock(created: Long) {
+    memory.free(created)
+}
+
+func lock_queue() {
+    kernel.AcquireSRWLockExclusive(queue_lock)
+}
+
+func unlock_queue() {
+    kernel.ReleaseSRWLockExclusive(queue_lock)
+}
+
+func create_condition(): Long {
+    var created = memory.allocate_bytes(8)
+    kernel.InitializeConditionVariable(created)
+    return created
+}
+
+func destroy_condition(created: Long) {
+    memory.free(created)
+}
+
+func wait_for_signal(condition: Long) {
+    kernel.SleepConditionVariableSRW(condition, queue_lock, -1, 0)
+}
+
+func signal_one(condition: Long) {
+    kernel.WakeConditionVariable(condition)
+}
+
+func signal_all(condition: Long) {
+    kernel.WakeAllConditionVariable(condition)
+}

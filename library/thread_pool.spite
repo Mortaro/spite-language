@@ -1,0 +1,171 @@
+singleton
+
+var memory = Memory()
+var workers: Long = 0
+var worker_count = 0
+var worker_threads: Long = 0
+var registered = 0
+var jobs = List<ThreadPoolJob>()
+var queue_lock: Long = 0
+var work_ready: Long = 0
+var work_done: Long = 0
+var stopping = false
+
+func size(): Int {
+    start()
+    return worker_count
+}
+
+func worker_index(): Int {
+    if worker_count == 0 {
+        return -1
+    }
+    var current = current_thread()
+    lock_queue()
+    var index = registered - 1
+    while index >= 0 and memory.read_long(worker_threads, index * 8) != current {
+        index = index - 1
+    }
+    unlock_queue()
+    return index
+}
+
+func submit(job: Spite.Function<Int, Int, Nothing>, first: Int, end: Int, state: Long) {
+    start()
+    memory.write_long_atomically(state, 0, 0)
+    var queued = ThreadPoolJob()
+    queued.work = job
+    queued.first = first
+    queued.end = end
+    queued.state = state
+    lock_queue()
+    jobs.append(queued)
+    signal_one(work_ready)
+    unlock_queue()
+}
+
+func is_done(state: Long): Bool {
+    return memory.read_long_atomically(state, 0) == 2
+}
+
+func join(state: Long) {
+    lock_queue()
+    var position = jobs.count() - 1
+    while position >= 0 and jobs.get_at(position).state != state {
+        position = position - 1
+    }
+    if position >= 0 {
+        run_queued(position)
+    }
+    while not is_done(state) {
+        wait_for_signal(work_done)
+    }
+    unlock_queue()
+}
+
+func run_pieces(piece: Spite.Function<Int, Int, Nothing>, count: Int) {
+    var pieces = (size() + 1) * 4
+    if pieces > count {
+        pieces = count
+    }
+    if pieces < 2 {
+        piece(0, count)
+        return
+    }
+    var block = memory.allocate_bytes(pieces * 8)
+    var base = count / pieces
+    var extra = count % pieces
+    var index = 1
+    while index < pieces {
+        var first = piece_start(index, base, extra)
+        var end = piece_start(index + 1, base, extra)
+        submit(piece, first, end, block + index * 8)
+        index = index + 1
+    }
+    var first_end = piece_start(1, base, extra)
+    piece(0, first_end)
+    index = 1
+    while index < pieces {
+        join(block + index * 8)
+        index = index + 1
+    }
+    memory.free(block)
+}
+
+func piece_start(index: Int, base: Int, extra: Int): Int {
+    if index < extra {
+        return index * base + index
+    }
+    return index * base + extra
+}
+
+func start() {
+    if worker_count == 0 {
+        queue_lock = create_lock()
+        work_ready = create_condition()
+        work_done = create_condition()
+        var wanted = processor_count() - 1
+        if wanted < 1 {
+            wanted = 1
+        }
+        workers = memory.allocate_bytes(wanted * 8)
+        worker_threads = memory.allocate_bytes(wanted * 8)
+        var entry = entry_address()
+        var pool = address()
+        var index = 0
+        while index < wanted {
+            var thread = start_thread(entry, pool)
+            crash thread != 0
+            memory.write_long(workers, index * 8, thread)
+            index = index + 1
+        }
+        worker_count = wanted
+    }
+}
+
+func _serve() {
+    var thread = current_thread()
+    lock_queue()
+    memory.write_long(worker_threads, registered * 8, thread)
+    registered = registered + 1
+    while not stopping or not jobs.is_empty() {
+        if jobs.is_empty() {
+            wait_for_signal(work_ready)
+        } else {
+            run_queued(0)
+        }
+    }
+    unlock_queue()
+}
+
+func run_queued(position: Int) {
+    var job = jobs.get_at(position)
+    jobs.remove_at(position)
+    memory.write_long_atomically(job.state, 0, 1)
+    unlock_queue()
+    crash job.work
+    job.work.call_function(job.first, job.end)
+    lock_queue()
+    memory.write_long_atomically(job.state, 0, 2)
+    signal_all(work_done)
+}
+
+func drop() {
+    if worker_count > 0 {
+        lock_queue()
+        stopping = true
+        signal_all(work_ready)
+        unlock_queue()
+        var index = 0
+        while index < worker_count {
+            var worker = memory.read_long(workers, index * 8)
+            join_thread(worker)
+            index = index + 1
+        }
+        memory.free(workers)
+        memory.free(worker_threads)
+        destroy_condition(work_ready)
+        destroy_condition(work_done)
+        destroy_lock(queue_lock)
+    }
+}

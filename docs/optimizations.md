@@ -42,9 +42,11 @@ function with a visible effect can show, no optimisation changes what a program 
 | [Atomic reference counts only with threads](#atomic-reference-counts-only-with-threads) | built | every, decided per program | nothing |
 | [Boxing only where a value travels as a shape](#boxing-only-where-a-value-travels-as-a-shape) | built | every | one allocation per boxed value |
 | [Concurrency machinery only where it is used](#concurrency-machinery-only-where-it-is-used) | built | every, decided per program | nothing |
+| [The thread pool only where a `Parallel` is made](#the-thread-pool-only-where-a-parallel-is-made) | built | every, decided per program | nothing until the first `Parallel` |
+| [Singletons a `Parallel` reaches take a lock](#singletons-a-parallel-reaches-take-a-lock) | built (the fallback) | every, decided per program | an uncontended lock per call, only with `Parallel` |
 | [REPL, live reload and debug machinery only in those builds](#repl-live-reload-and-debug-machinery-only-in-those-builds) | built | the builds that ask for it | nothing in an ordinary build |
 | [Smaller ones](#smaller-ones) | built | every | nothing |
-| [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | planned | | |
+| [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | planned (the lock fallback is built) | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | planned | | |
 | [Proofs that survive a call](#proofs-that-survive-a-call) | planned | | |
@@ -496,12 +498,38 @@ ask for it:
 - `--debug_memory`: the allocation table that names leaked objects. Every other build counts allocations with
   one increment.
 
+- `--repl_port` and `--hot_reload`: a check point at the end of every pass of every loop in the program's own
+  code ([D174](../manual.md#decision-log)), one call that answers a waiting command or reload, so a program that
+  never waits still answers.
+
 **When.** Only in those builds ([D143](../manual.md#decision-log), [D112](../manual.md#decision-log)). This is
 not an optimisation an inspectable build turns off: it is the inspecting itself, present only where it is asked
 for.
-**What you notice.** Nothing in an ordinary build. **Built.** Planned with it: [D174](../manual.md#decision-log)'s
-one-flag check at the end of every loop iteration, so a program that never waits still answers its REPL -- in REPL
-builds only.
+**What you notice.** Nothing in an ordinary build: its C is byte for byte the same with or without the check
+points. **Built.**
+
+### The thread pool only where a `Parallel` is made
+
+**What it does.** `ThreadPool` is a singleton made the first time a `Parallel` (or a `parallel_each_` pass) needs
+it, and it starts its worker threads then, once ([D135](../manual.md#decision-log), [D191](../manual.md#decision-log)).
+A program that never makes one starts no thread and allocates nothing for it; its functions are tree-shaken with
+the rest. `ThreadLocal` asks the system for its per-thread slot only when one is made, and `Lock` likewise.
+
+**When.** Always. **What you notice.** Nothing until the first `Parallel`, which pays for starting the workers.
+**Built.** [concurrency.md](concurrency.md#the-thread-pool).
+
+### Singletons a `Parallel` reaches take a lock
+
+**What it does.** In a program that makes a `Parallel`, every singleton of the program's own that can change after
+it is made (it assigns one of its attributes outside its constructor, or holds an object, a list or a dictionary)
+gets a lock of its own, taken around every one of its functions; a call it makes to itself does not take it again
+([D183](../manual.md#decision-log)). A singleton that never changes gets nothing. This is the fallback of the plan
+below: [D184](../manual.md#decision-log)'s cheaper forms (atomics, per-thread buffers, reader-writer locks) are
+not built, nor is the check that its functions hand out nothing they own.
+
+**When.** Only in programs that make a `Parallel` or run a `parallel_each_` pass. **What you notice.** An
+uncontended lock per call to such a singleton (two atomic operations), and waiting when two threads call it at
+once. **Built** (the lock).
 
 ### Smaller ones
 
@@ -530,7 +558,7 @@ order; state each thread touches its own part of is split per thread; reads that
 reader-writer lock; and only when nothing cheaper is proven safe does every outside call take the singleton's own
 lock. Its functions may hand out only numbers, text, copies or other singletons made safe the same way, which is a
 compile-time check at `return`. All of it is absent from a program that never makes a `Parallel`. You will write
-nothing.
+nothing. The last step, the lock, is built (above); the cheaper forms and the `return` check are not.
 
 ### Copies that cost nothing
 

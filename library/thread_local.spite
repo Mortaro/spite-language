@@ -1,0 +1,27 @@
+generic $value_type
+
+var _slot = ThreadSlot()
+var _lock = Lock()
+var _values = List<$value_type>()
+
+func get(): $value_type? {
+    var position = _slot.read()
+    assert position != 0
+    _lock.lock()
+    var value = _values.get_at(position - 1)
+    _lock.unlock()
+    return value
+}
+
+func set(value: $value_type) {
+    var position = _slot.read()
+    _lock.lock()
+    if position == 0 {
+        _values.append(value)
+        var count = _values.count()
+        _slot.write(count)
+    } else {
+        _values.set_at(position - 1, value)
+    }
+    _lock.unlock()
+}

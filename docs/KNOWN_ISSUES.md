@@ -9,9 +9,9 @@ page that describes them, not here.
 
 - **Cycles leak.** Reference counting cannot free two objects that hold each other; clear one side by hand
   ([memory.md](memory.md#cycles-leak)). Weak references are the planned fix.
-- **What a `Parallel` function touches is not checked.** Two threads writing one field, or one writing what
-  another reads, is the program's mistake, and with reference-counted fields it can free a value another thread
-  is reading ([concurrency.md](concurrency.md#parallel-work-that-computes)).
+- **What a `Parallel(function)` touches is not checked** (a `parallel_each_` pass is). Two threads writing one
+  field, or one writing what another reads, is the program's mistake, and with reference-counted fields it can
+  free a value another thread is reading ([concurrency.md](concurrency.md#parallel-work-that-computes)).
 - **Only Windows runs.** The Linux and macOS folders of the library, and the concurrency built on them, are held to
   compiling by `check.sh`, not run.
 - **An enum cannot be switched over**; compare it with `==` in an `if` chain.

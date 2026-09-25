@@ -172,7 +172,7 @@ func reopened_classes(): List<String> {
         "dynamic_library"
         "hot_reload"
         "concurrent"
-        "parallel"
+        "thread_pool"
         "spite/attribute"
         "spite/function"
     ]
@@ -307,7 +307,7 @@ func supplied_members(stem: String): List<String> {
     if stem == "typed_memory" {
         return typed_memory_members()
     }
-    if stem == "concurrent" or stem == "parallel" {
+    if stem == "concurrent" or stem == "thread_pool" {
         return task_members()
     }
     var numbers = number_classes()
@@ -398,9 +398,9 @@ func memory_members(): List<String> {
 func task_members(): List<String> {
     return [
         "func entry_address(): Long"
-        "written per instantiation by the generator: the address of its fiber or thread entry"
+        "written by the generator: the address of the fiber or thread entry that runs this class"
         "func address(): Long"
-        "written per instantiation by the generator: the address of the task itself"
+        "written by the generator: the address of the object itself"
     ]
 }
 

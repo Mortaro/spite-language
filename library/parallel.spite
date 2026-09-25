@@ -1,37 +1,31 @@
 generic $result_type
 
-var work: Spite.Function<$result_type>? = null
-var results = List<$result_type>()
-var thread: Long = 0
+var _pool = ThreadPool()
+var _memory = Memory()
+var _call = ParallelCall<$result_type>()
+var _state = _memory.allocate_bytes(8)
 
 func Parallel(starting_work: Spite.Function<$result_type>) {
-    work = starting_work
-    var entry = entry_address()
-    var instance = address()
-    thread = start_thread(entry, instance)
-    if thread == 0 {
-        run()
-    }
+    _call.work = starting_work
+    _pool.submit(_call.run, 0, 0, _state)
 }
 
-func run() {
-    assert work
-    var value: $result_type = work()
-    results.append(value)
+func get_finished(): Bool {
+    return _memory.read_long_atomically(_state, 0) == 2
 }
 
-func wait(): $result_type {
-    join()
-    return results.get_at(0)
+func _result(): $result_type {
+    _join()
+    return _call.results.get_at(0)
 }
 
-func join() {
-    if thread != 0 {
-        join_thread(thread)
-        thread = 0
+func _join() {
+    if not get_finished() {
+        _pool.join(_state)
     }
 }
 
 func drop() {
-    join()
+    _join()
+    _memory.free(_state)
 }

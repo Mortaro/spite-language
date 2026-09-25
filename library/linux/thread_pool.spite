@@ -1,0 +1,69 @@
+var library = DynamicLibrary("libc.so.6", 'identity', "")
+
+func processor_count(): Int {
+    var processors_online = 84
+    return library.sysconf(processors_online)
+}
+
+func current_thread(): Long {
+    return library.pthread_self_as_long()
+}
+
+func start_thread(entry: Long, argument: Long): Long {
+    var slot = memory.allocate_bytes(8)
+    var no_value: Long = 0
+    var created = library.pthread_create(slot, no_value, entry, argument)
+    var started = memory.read_long(slot, 0)
+    memory.free(slot)
+    assert created == 0
+    return started
+}
+
+func join_thread(thread: Long) {
+    var no_value: Long = 0
+    library.pthread_join(thread, no_value)
+}
+
+func create_lock(): Long {
+    var created = memory.allocate_bytes(64)
+    var no_value: Long = 0
+    library.pthread_mutex_init(created, no_value)
+    return created
+}
+
+func destroy_lock(created: Long) {
+    library.pthread_mutex_destroy(created)
+    memory.free(created)
+}
+
+func lock_queue() {
+    library.pthread_mutex_lock(queue_lock)
+}
+
+func unlock_queue() {
+    library.pthread_mutex_unlock(queue_lock)
+}
+
+func create_condition(): Long {
+    var created = memory.allocate_bytes(64)
+    var no_value: Long = 0
+    library.pthread_cond_init(created, no_value)
+    return created
+}
+
+func destroy_condition(created: Long) {
+    library.pthread_cond_destroy(created)
+    memory.free(created)
+}
+
+func wait_for_signal(condition: Long) {
+    library.pthread_cond_wait(condition, queue_lock)
+}
+
+func signal_one(condition: Long) {
+    library.pthread_cond_signal(condition)
+}
+
+func signal_all(condition: Long) {
+    library.pthread_cond_broadcast(condition)
+}
