@@ -27,8 +27,12 @@ func month_ends() {
 }
 
 func leap_years() {
-    var years = [1900, 2000, 2023, 2024, 2100, -4]
-    years.each_show_leap_year()
+    show_leap_year(1900)
+    show_leap_year(2000)
+    show_leap_year(2023)
+    show_leap_year(2024)
+    show_leap_year(2100)
+    show_leap_year(-4)
     var february = LocalDate(2100, 2, 1)
     var april = LocalDate(2024, 4, 1)
     console.print(february.days_in_month, april.days_in_month)
