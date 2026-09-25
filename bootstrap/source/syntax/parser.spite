@@ -257,7 +257,7 @@ func borrowed_word_lesson(word: String): String {
         return "there is no 'self': a class reads its own attributes by name ('name', not 'self.name'), and 'this' is the value itself"
     }
     if word == "import" or word == "require" {
-        return "there are no imports: 'load(\"folder\")' inside a function brings a folder into the program, and everything shares one namespace"
+        return "there are no imports: 'load \"folder\"' inside a function brings a folder into the program, and everything shares one namespace"
     }
     if word == "elif" {
         return "Spite writes 'else if'"
@@ -320,7 +320,35 @@ func parse_statement_without_line(): Syntax.Statements.Statement {
     if check('keyword_return') {
         return parse_return_statement()
     }
+    if check('identifier') and current().lexeme == "load" {
+        return parse_load_statement()
+    }
     return parse_expression_or_assignment_statement()
+}
+
+func parse_load_statement(): Syntax.Statements.Statement {
+    advance()
+    var opening = current()
+    var folder = parse_expression()
+    if opening.kind == 'left_paren' and not has_error {
+        var printer = Syntax.SourcePrinter()
+        var written = printer.source_expression(folder)
+        fail("'load' is a keyword, not a function: write it without parentheses, 'load {written}'")
+        error_line = opening.line
+        error_column = opening.column
+        return dummy_statement()
+    }
+    consume_statement_terminator()
+    var callee = Syntax.Expressions.IdentifierExpression("load")
+    var arguments = List<Syntax.Expressions.Expression>()
+    arguments.append(folder)
+    var call = Syntax.Expressions.CallExpression(callee, arguments)
+    return Syntax.Statements.ExpressionStatement(call)
+}
+
+func reject_load_name(kind: String) {
+    assert check('identifier') and current().lexeme == "load"
+    fail("'load' is a keyword and cannot name a {kind}: give it a name that says what it loads, like 'load_texture'")
 }
 
 func parse_generics_declaration(): Syntax.Statements.Statement {
@@ -346,6 +374,7 @@ func parse_generic_declaration(): Syntax.Statements.Statement {
 func parse_variable_declaration(): Syntax.Statements.Statement {
     advance()
     reject_borrowed_name("variable")
+    reject_load_name("variable")
     var name = expect('identifier', "a variable name")
     var type_reference: Syntax.Types.Type? = null
     if check('colon') {
@@ -360,6 +389,7 @@ func parse_variable_declaration(): Syntax.Statements.Statement {
 
 func parse_function_declaration(): Syntax.Statements.Statement {
     advance()
+    reject_load_name("function")
     var name = expect('identifier', "a function name")
     if check('less') {
         reject_constructor_codegen_list(name.text)
@@ -450,6 +480,7 @@ func parameter_name(): String {
         return "type"
     }
     reject_borrowed_name("parameter")
+    reject_load_name("parameter")
     var name = expect('identifier', "a parameter name")
     return name.text
 }
@@ -1280,6 +1311,13 @@ func parse_primary(): Syntax.Expressions.Expression {
         var borrowed = borrowed_word_lesson(lexeme)
         if not borrowed.is_empty() {
             fail(borrowed)
+            advance()
+            return dummy_expression()
+        }
+        if lexeme == "load" {
+            fail(
+                "'load' is a keyword that starts a line of its own, like 'load \"folder\"': it is not a function, and it has no value",
+            )
             advance()
             return dummy_expression()
         }

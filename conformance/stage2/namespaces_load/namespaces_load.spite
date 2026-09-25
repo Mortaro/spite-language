@@ -1,7 +1,7 @@
 var console = Console()
 
 func NamespacesLoad() {
-    load("package")
+    load "package"
     var widget = Widgets.Widget("gadget", 3)
     var description = widget.describe()
     console.print(description)

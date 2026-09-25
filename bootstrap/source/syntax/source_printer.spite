@@ -134,6 +134,9 @@ func source_statement(statement: Syntax.Statements.Statement, depth: Int): Strin
         }
         Syntax.Statements.ExpressionStatement: {
             crash statement.value
+            if loaded_folder(statement.value) {
+                return printed
+            }
             return broken_or(printed, indent, statement.value, depth)
         }
         _: return printed
@@ -263,9 +266,23 @@ func source_statement_line(statement: Syntax.Statements.Statement, depth: Int): 
         }
         Syntax.Statements.ExpressionStatement: {
             crash statement.value
+            var folder = loaded_folder(statement.value)
+            if folder {
+                return "{indent}load {source_expression(folder)}"
+            }
             return "{indent}{source_expression(statement.value)}"
         }
     }
+}
+
+func loaded_folder(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
+    var call = shape.as_call(expression)
+    assert call
+    crash call.callee
+    var identifier = shape.as_identifier(call.callee)
+    assert identifier
+    assert identifier.name == "load" and call.arguments.count() == 1
+    return call.arguments[0]
 }
 
 func spread_mark(parameter: Syntax.Statements.Parameter): String {

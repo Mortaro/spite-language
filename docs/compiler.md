@@ -227,7 +227,7 @@ still alive, which is how a leaked cycle shows up ([memory.md](memory.md#cycles-
 ## Inspect merged classes
 
 `--final_classes=folder` writes the discovered, merged classes as readable `.spite` files -- one per class, under
-the namespace folders it belongs to. It is useful after `load(...)` or a reopening: the file holds the declarations
+the namespace folders it belongs to. It is useful after a `load` or a reopening: the file holds the declarations
 that won, so reopening stops being invisible. What it writes is a program, not a report: running the printed
 entry file runs the same program, which `check.sh` proves on every run. `Build` is printed with the defaults it
 was declared with, not the values this build folded, so running the printed program takes its flags again.

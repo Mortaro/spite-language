@@ -1,6 +1,6 @@
 var console = Console()
 
 func EntryClassReopened() {
-    load("bundle")
+    load "bundle"
     console.print("never")
 }

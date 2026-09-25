@@ -226,13 +226,13 @@ in the folder `spite` was run from ([compiler.md](compiler.md#where-it-runs)).
 var build = Build()
 
 func Launcher() {
-    load("library")
-    load("library/{build.target_operating_system}")
-    load(build.program)
+    load "library"
+    load "library/{build.target_operating_system}"
+    load build.program
 }
 ```
 
-The compiler reads that file first and follows its `load` calls in order:
+The compiler reads that file first and follows its `load` lines in order:
 
 1. `library/`, the standard library every system shares;
 2. the folder of the operating system the program is compiled for -- `library/windows/`, `library/linux/` or

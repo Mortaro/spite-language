@@ -92,9 +92,9 @@ constructs, and its constructor is the whole of how a program is loaded:
 var build = Build()
 
 func Launcher() {
-    load("library")
-    load("library/{build.target_operating_system}")
-    load(build.program)
+    load "library"
+    load "library/{build.target_operating_system}"
+    load build.program
 }
 ```
 
@@ -488,7 +488,7 @@ What counts as a read, and the exceptions **(proposed by Claude, unconfirmed)**:
 - **A read takes the value**: the attribute's name in its own class's functions or attribute defaults,
   `thing.world` from another class (including through a union's members or a `type` a class is admitted to), a
   getter answering that read, `x.attributes[attribute]` or `attributes[attribute]` in a template, `thing.attributes`
-  (the values), a `load(...)` argument the compiler reads, and the REPL's `attributes` in a `--repl`/`--repl_port`
+  (the values), a `load` line's folder the compiler reads, and the REPL's `attributes` in a `--repl`/`--repl_port`
   build. The class-level `Class.attributes` (names and types) does not count.
 - **Writing is not reading.** An attribute that is only assigned, from inside or outside, is unused -- the same
   rule as locals since D136.
@@ -1018,7 +1018,7 @@ Everything is a class, including classes. Reflection is resolved at compile time
 
 Metaprogramming classes live in the `Spite` namespace (decided 2026-09-19:
 `Spite.Class`, `Spite.Attribute`, not `SpiteClass`/`SpiteAttribute`). `Spite` is a reserved root namespace: a
-user folder named `spite` (or `load("spite")`) is a diagnostic.
+user folder named `spite` (or `load "spite"`) is a diagnostic.
 
 D12 (decided by Mortaro, 2026-09-19): **every reflection object lives in the `Spite` namespace** -- `Spite.Class`,
 `Spite.Function`, `Spite.Argument`, `Spite.Attribute`, and whatever else reflection grows. One namespace, and
@@ -1088,7 +1088,7 @@ detail.** An unused field costs a program nothing, while a missing one costs a d
 the way printing a `Spite.Class` prints its `.name`.
 
 It mirrors what already exists. Section 11 builds namespaces out of folders, so `Spite.Namespace` is that tree
-made readable: `.parent` walks up it, `.classes` and `.namespaces` walk down. A `load(...)` root therefore
+made readable: `.parent` walks up it, `.classes` and `.namespaces` walk down. A `load`-ed root therefore
 becomes something a program can enumerate -- which is what D13's isomorphic split needs when it partitions a
 package's functions, and what the deferred compile-time class generation would extend.
 
@@ -1276,7 +1276,7 @@ the default `Spite.Class` declares; what follows still holds for the line.
   a call site is never told and never needs to know; the AI writing the code learns it from the class file and
   from `docs/for_ai_writers.md`.
 - **One instance per distinct constructor argument list**, and a singleton's constructor arguments must be
-  literals (the rule `load(...)` already has). `Console()` is one object;
+  literals (the rule `load` already has). `Console()` is one object;
   `DynamicLibrary("user32.dll", 'windows', "windows.h")` is one object however many classes ask for it, and
   `"gdi32.dll"` is a second one. The compiler emits one static slot per distinct argument list, so there is no
   runtime registry walk -- only a guarded branch the first time.
@@ -1896,8 +1896,8 @@ There are no imports. Everything lives in one global namespace, populated by loa
 
 ```gdscript
 func Game() {
-    load("package")
-    load("cookie_clicker")
+    load "package"
+    load "cookie_clicker"
 }
 ```
 
@@ -1911,7 +1911,7 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
 - `spite game/game.spite` **loads the entry file's parent folder** (second batch item 1, decided 2026-09-19,
   replacing "the entry folder is flat"): the entry folder is a real root exactly like a `load`-ed one, so every
   subfolder inside it is a namespace, recursively, with no explicit `load` needed. The two differences from a
-  `load`-ed root: a subfolder the entry file itself explicitly `load(...)`s is left to that call (a `load`-ed
+  `load`-ed root: a subfolder the entry file itself explicitly `load`s is left to that line (a `load`-ed
   root's own folder is never itself a namespace segment), and only the entry file itself is scanned from the
   entry root -- an unrelated sibling file next to it is still pulled in whenever it is reachable as a class, but
   its own `load`s are not followed.
@@ -1958,16 +1958,20 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   `library/file.spite` calls `open_file` without declaring it: every system's folder defines it, with the same
   signature.  **[implemented; only `library/windows/` runs here -- `check.sh` holds the linux and mac
   folders to compiling, by writing the compiler out once with each]**
+- **`load` is a keyword, written without parentheses** (D186): `load "package"`, on a line of its own inside a
+  function. `load("package")` is a parse error naming the keyword form ("'load' is a keyword, not a function:
+  write it without parentheses, 'load "package"'"), and so is `load` used as a value
+  (`diagnostics/load_parentheses`, `diagnostics/load_as_value`). It stays reserved (D166): a function, variable
+  or parameter named `load` is an error suggesting a descriptive name like `load_texture`
+  (`diagnostics/load_function`). The launcher's own lines use it the same way, with a `Build` field:
+  `load "library/{build.target_operating_system}"`, `load build.program`.
 - `load` takes a literal string, so the compiler always knows every bundle; anything else (a variable, an expression) is a
   diagnostic. The compiler finds every `load` reachable from the entry file's own constructor at compile time (a `load` inside
   already-loaded code counts too), and records each root as a bundle (its name and whether the `load` that introduced it sits
   inside an `if`/`while`) in the program model, for dynamic libraries/lazy loading to build on later.
 - `load` marks a **bundle boundary**, like an async import in webpack: each loaded root can become a separate dynamic library,
   tree shaking is computed per bundle, and a `load` inside an `if` is loaded lazily when that line runs.  **[planned: every
-  bundle is linked statically into the one executable for now, and the `load(...)` call itself compiles to nothing]**
-- **`load` is not a keyword** (proposed by Claude, unconfirmed, 2026-09-25): in a class that declares a function
-  named `load`, `load(x)` calls that function, and discovery reads no folder from that file's `load("...")`
-  statements (`conformance/stage6/load_function`).
+  bundle is linked statically into the one executable for now, and the `load` line itself compiles to nothing]**
 - Because patching is dangerous to read, the toolchain writes a **final class** folder: every class after all codegen, with the
   winning function of every replacement, each preceded by a `#` comment naming the root it came from (and which roots it
   replaced) -- see `--final_classes` in [Command line](#13-command-line). The language server reads it too.
@@ -2065,7 +2069,7 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   top-level link comments (the only comments D34 allows) kept before the declaration they preceded, and the
   blank-line rule for grouped `var`s. **Safety check:** the formatted text must lex, parse, print to the same
   fully-parenthesised program as the original, and keep every comment, or the file is left alone and the reason
-  printed. **Every compile formats** the entry folder's files and every `load()`ed root once the whole program is
+  printed. **Every compile formats** the entry folder's files and every `load`-ed root once the whole program is
   read (not `library/`), printing `formatted <path>` for each file it rewrote and reading the program again when one
   was; `--format=false` skips it. A file
   whose function body has an empty line is left alone, so D55's error still fires instead of the formatter
@@ -2292,7 +2296,7 @@ directory (`check.sh` runs `conformance/stage6/working_directory` from another f
 - **Automatic formatting (milestone 7a; since D128 an output decided after the whole program is read).** Every
   `spite program ...` compile formats every `.spite`
   file that belongs to the program -- the entry file's own folder (flat, matching section 11's discovery
-  rule), plus every `load(...)`-ed root, recursively -- rewriting a file only when its formatted text differs
+  rule), plus every `load`-ed root, recursively -- rewriting a file only when its formatted text differs
   from what is on disk, and printing `formatted <path>` to
   stderr for each one, then reads the program again when one changed. A file with a parse error is left untouched (the ordinary diagnostics still report it);
   a file the formatter's own safety check refuses to touch (see [Style](#12-style-implemented)) prints an
@@ -2300,7 +2304,7 @@ directory (`check.sh` runs `conformance/stage6/working_directory` from another f
   this -- needed by anything that asserts diagnostic positions against a fixture kept deliberately unformatted.
 - `spite format <file-or-folder> ...` runs the same formatter standalone, without compiling, and is a command of
   the compiler itself (like `spite connect`), not an option: a file formats just
-  itself, a folder recurses into every `.spite` file under it except `.spite-cache/` folders (no bundle/`load()`
+  itself, a folder recurses into every `.spite` file under it except `.spite-cache/` folders (no bundle/`load`
   awareness -- every file found is formatted, unconditionally). `--check` rewrites nothing and instead lists (to stdout) every file
   that would change, exiting 1 if that list is non-empty (0 if the whole tree is already clean).
 
@@ -3197,7 +3201,7 @@ inside `library/list.spite` as a constant read (`conformance/stage6/settings_and
 
 ### The class
 
-`DynamicLibrary(file_name, naming, header)`. Every argument must be a literal (the same rule `load(...)` already
+`DynamicLibrary(file_name, naming, header)`. Every argument must be a literal (the same rule `load` already
 has, section 11), because the compiler reads them during codegen.
 
 ```dynamic_library.spite
@@ -3374,7 +3378,7 @@ loading and reopening, plus a codegen value.
   name in section 13.
 - **Platform code is chosen by reopening, not by an abstraction layer.** `platform_web/console.spite` and
   `platform_native/console.spite` reopen the same `Console`; the entry constructor does
-  `if $target == 'web' { load("platform_web") } else { load("platform_native") }`, and section 9's compile-time
+  `if $target == 'web' { load "platform_web" } else { load "platform_native" }`, and section 9's compile-time
   folding plus tree shaking remove the loser entirely. This is the game-mod mechanism from section 11 aimed at
   platforms.
 - **The web bridge is `DynamicLibrary` reopened.** `platform_web/dynamic_library.spite` replaces `_open`/`_call`
@@ -3444,7 +3448,7 @@ D20 (decided by Mortaro, 2026-09-19): a class says where it can run by overridin
 and `Html` answers `['web']`. Using a class against the wrong `$target` is a compile error naming the class, the
 target and the flag. This replaces any special rule about `File`, `Directory` and `Process` on the web: they
 declare their targets like everything else. The check runs after compile time folding and tree shaking, so a
-`load(...)` behind `if $target == 'web'` stays legal: only a class still reachable in the built program is checked.
+`load` behind `if $target == 'web'` stays legal: only a class still reachable in the built program is checked.
 
 ### Html: the browser as a library  **[planned]**
 
@@ -4023,3 +4027,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | **D186** (decided by Mortaro, superseding D166's reading of `load`): **`load` is a keyword written without parentheses**: `load "../../plugins/render_vulkan"`. "load(...) makes me think load is a function of the class, we should make load a proper keyword." `load(...)` with parentheses becomes a parse error naming the keyword form. |
 | 2026-09-25 | **D187** (decided by Mortaro): **no line-width limit, but a line that would be too long may not construct an object inside a call**: "i dont want to just simply have a limit on width of a line, just a limit on how things need to behave at different sizes. if a line is going to be to big and has a instantiation happening, it should require it to be instantiated into a variable first." So `var button = world.create_entity_from_bundle(Bundle.CounterButton(screen.id))`, over the formatter's width, is an error asking for `var counter_button = Bundle.CounterButton(screen.id)` on its own line first; a short line may keep D77's one level of constructor inside a call. |
 | 2026-09-25 | **D188** (decided by Mortaro, revising the flag spelling of D85/D120): **command-line flags are kebab-case, and the `Build` field behind each stays snake_case**: "all languages use --repl-port instead of --repl_port, the _ feels weird for flags, we should use - for flags only but the variable name becomes snake case." `--repl-port=4000` sets `Build.repl_port`, `--hot-reload` sets `hot_reload`, `--final-classes`, `--c-source`, `--executable-path` and so on; an underscore in a flag is an error naming the hyphen form. |
+| 2026-09-25 | (implements D186 and keeps D166; the readings below proposed by Claude, unconfirmed) **`load` is a statement, one value after the keyword, on a line of its own.** `load("x")` is a parse error pointing at the `(`: "'load' is a keyword, not a function: write it without parentheses, 'load "x"'" (`diagnostics/load_parentheses`). `load` anywhere a value goes is an error too, since it has none (`diagnostics/load_as_value`), and D166's reservation covers a variable and a parameter as well as a function: "'load' is a keyword and cannot name a function: give it a name that says what it loads, like 'load_texture'" (`diagnostics/load_function`); `conformance/stage6/load_function`, which proved a class's own `load` shadowing the keyword, is removed. The value is any expression the launcher can fold, so its lines read `load "library/{build.target_operating_system}"` and `load build.program`. A `load` inside an `if` parses like any statement. The formatter prints the keyword form, which is how the repository was migrated, through a compiler that read both forms. Compile time only: the line still compiles to nothing (D177). |

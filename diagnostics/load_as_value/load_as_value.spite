@@ -1,0 +1,3 @@
+func LoadAsValue() {
+    var loaded = load "level"
+}

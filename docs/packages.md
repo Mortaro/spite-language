@@ -4,8 +4,8 @@ There are no imports. Everything lives in one global namespace, populated by loa
 
 ```gdscript
 func Game() {
-    load("package")
-    load("cookie_clicker")
+    load "package"
+    load "cookie_clicker"
 }
 ```
 
@@ -88,8 +88,8 @@ func taunt(): String {
 var console = Console()
 
 func PackageDemo() {
-    load("package")
-    load("mods")
+    load "package"
+    load "mods"
     var renderer = Engine.Renderer()
     var rendered = renderer.render()
     console.print(rendered)
@@ -176,12 +176,12 @@ Console
 
 Every class object in the program answers `name_with_namespaces()` from then on, because there is one `Spite.Class` and
 that folder reopened it. A *new* class under `Spite` is a diagnostic instead -- that namespace holds the
-standard library's own classes, and a class of your own belongs in a namespace of your own. `load("spite")` is
+standard library's own classes, and a class of your own belongs in a namespace of your own. `load "spite"` is
 a diagnostic too:
 
 ```gdscript title=spite_namespace_error/spite_namespace_error.spite entry error
 func SpiteNamespaceError() {
-    load("spite")
+    load "spite"
 }
 ```
 ```diagnostic
@@ -191,14 +191,26 @@ func SpiteNamespaceError() {
 ## `load` is a bundle boundary
 
 `load` marks where a dynamic library or lazy-loaded bundle could split, the way an async `import()` does in
-webpack. Today every root is linked into the one executable, and a `load(...)` call compiles to nothing at run
-time -- except the launcher's `load(build.program)`, which runs the program by constructing its entry class.
-`load` is not a reserved word: a class that declares its own `func load(...)` calls that function with `load(x)`,
-and its file loads no folder. Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are decided but not built
+webpack. Today every root is linked into the one executable, and a `load` line compiles to nothing at run
+time -- except the launcher's `load build.program`, which runs the program by constructing its entry class.
+`load` is a keyword written without parentheses, on a line of its own (D186): `load("folder")` is an error naming
+`load "folder"`, and nothing else may be named `load` -- a function that loads something says what,
+`load_texture` (D166).
+
+```gdscript title=load_parentheses_error/load_parentheses_error.spite entry error
+func LoadParenthesesError() {
+    load("level")
+}
+```
+```diagnostic
+'load' is a keyword, not a function: write it without parentheses, 'load "level"'
+```
+
+Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are decided but not built
 ([manual section 11](../manual.md#11-packages-namespaces-and-loading--partial)).
 
-A dependency will be a git URL pinned to a commit in the `load` call itself --
-`load("github.com/mortaro/engine@a3f2c91")` -- fetched by the ordinary compile, with no package manager, registry
+A dependency will be a git URL pinned to a commit in the `load` line itself --
+`load "github.com/mortaro/engine@a3f2c91"` -- fetched by the ordinary compile, with no package manager, registry
 or lockfile. That is decided and not built ([manual, decision D38](../manual.md#decision-log)).
 
 ## Final classes

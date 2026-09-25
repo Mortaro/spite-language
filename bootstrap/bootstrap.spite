@@ -11,7 +11,7 @@ var language_folder = "."
 var reloading = false
 
 func Bootstrap() {
-    load("source")
+    load "source"
     var arguments = Arguments()
     var command = first_argument(arguments)
     if command == "connect" {

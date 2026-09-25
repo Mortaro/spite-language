@@ -9741,7 +9741,7 @@ func generate_call(
     crash call.callee
     var callee_identifier = shape.as_identifier(call.callee)
     if callee_identifier {
-        if callee_identifier.name == "load" and not class_information.find_function("load") {
+        if callee_identifier.name == "load" {
             var loaded_names = List<String>()
             collect_each_mentioned_name(call.arguments, loaded_names)
             mark_names_read(class_information, loaded_names)
