@@ -7,17 +7,17 @@ the compiler does the rest, and the program means exactly what its source says.
 
 Two rules decide what belongs here.
 
-**Zero runtime, and everything tree-shakeable** ([D177](../manual.md#decision-log)). A program that does not use
+**Zero runtime, and everything tree-shakeable** ([D177](decisions.md)). A program that does not use
 a feature carries none of it. Nothing needs a scheduler, an interpreter or a registry shipped beside the program:
 the work is done at compile time instead. REPL, live reload and debugging features may cost something while the
-program runs, but only in the builds that ask for them ([D143](../manual.md#decision-log)).
+program runs, but only in the builds that ask for them ([D143](decisions.md)).
 
-**Hidden optimisations are good, hidden costs are bad** ([D36](../manual.md#decision-log)). Code that runs faster
+**Hidden optimisations are good, hidden costs are bad** ([D36](decisions.md)). Code that runs faster
 than you expect is a free win, so the compiler optimises silently and never asks you to mark anything. Code that
 runs *slower* than you expect is the only real surprise, so every cost that remains is written down on this page,
 under the optimisation it belongs to.
 
-**Internals stay ordinary objects where you inspect them** ([D143](../manual.md#decision-log)). A `--repl`,
+**Internals stay ordinary objects where you inspect them** ([D143](decisions.md)). A `--repl`,
 `--repl-port`, `--hot-reload` or `--development` build is an *inspectable* build: nothing is tree-shaken, and
 the standard library's internals -- `Memory`, `Build`, `TypedMemory<T>` -- are ordinary objects that reflection
 (`.instances`, `.attributes`) sees. Every other build, ordinary or `--optimized`, is a production build, and only
@@ -66,11 +66,11 @@ whichever C compiler you bring.
 
 **When.** Production builds only. An inspectable build -- `--repl`, `--repl-port`, `--hot-reload` or
 `--development` -- keeps everything, so live reload has every function to swap and the REPL can reach every
-internal ([D143](../manual.md#decision-log), [compiler.md](compiler.md#development-builds-and-tree-shaking)).
+internal ([D143](decisions.md), [compiler.md](compiler.md#development-builds-and-tree-shaking)).
 
 **What you notice.** Nothing, except that `--c-source` writes less. A function nobody calls, outside a generic class, is still
-compiled and checked, so a mistake in it is still reported ([D140](../manual.md#decision-log)) -- it just is not in the
-binary. **Built** (the tree shaker and `--development` rows of the [decision log](../manual.md#decision-log),
+compiled and checked, so a mistake in it is still reported ([D140](decisions.md)) -- it just is not in the
+binary. **Built** (the tree shaker and `--development` rows of the [decision log](decisions.md),
 2026-09-24).
 
 The same pass decides which native symbols are looked up. A `DynamicLibrary` looks up every symbol the program
@@ -88,13 +88,13 @@ is generated. The branch not taken is not in the program at all -- not skipped a
 even use things that would not compile for this build. That covers:
 
 - a field of [`Build`](programs.md#compile-time-settings-build): every `Build` field is a constant of the built
-  program, set by a flag or taken from its declared default ([D84, D85](../manual.md#decision-log));
+  program, set by a flag or taken from its declared default ([D84, D85](decisions.md));
 - a codegen value, `if $is_magic { }`, and a test on a codegen type, `if $value_type == List { }`
   ([metaprogramming.md](metaprogramming.md#tree-shaking));
 - a class test the value's type already answers, `if item == $wanted_type`, and one that can never be true for one
   instantiation of a generic, which folds to `false` there instead of being an error
-  ([D167](../manual.md#decision-log));
-- `$system_type.has_function('run_each')` ([D114](../manual.md#decision-log));
+  ([D167](decisions.md));
+- `$system_type.has_function('run_each')` ([D114](decisions.md));
 - `not`, `and`, `or`, `==` and `!=` over any of these.
 
 A function of a generic class is then compiled for one instantiation only when code that survived folding names
@@ -158,17 +158,17 @@ an optimized build
 **What you notice.** Nothing. Changing a `Build` field means rebuilding, which is what a build fact is; a setting
 that should change without rebuilding belongs to [`Environment`](programs.md), which is read when the program runs.
 Names used only inside a removed branch still count as used, so the unused rule judges the source, not one
-instantiation. **Built** (section 9 of the [manual](../manual.md#decision-log), D84, D85, D167, and the
+instantiation. **Built** ([Codegen values](metaprogramming.md#codegen-values---implemented), D84, D85, D167, and the
 "only what survives folding is compiled" row).
 
 ### Reflection, symbols and registries only where read
 
 **What it does.** Reflection is decided at compile time, so the compiler knows exactly what a program reads and
-emits only that ([D42, D57](../manual.md#decision-log)): a class object's `.attributes`, `.functions` and
+emits only that ([D42, D57](decisions.md)): a class object's `.attributes`, `.functions` and
 `.namespace`, `value.attributes`, `value.memory`, `attribute.value`, the per-class `Person.instances` registry (a
 class is only tracked when something asks for its instances), `Spite.Class.instances`, and a class's `to_debug()`.
 A symbol literal is an entry of a table the compiler writes with only the symbols the program uses; it is
-constant text, so storing and comparing symbols allocates nothing ([D70](../manual.md#decision-log)). A Symbol
+constant text, so storing and comparing symbols allocates nothing ([D70](decisions.md)). A Symbol
 codegen template exists only for the names a program calls: a program that never calls `sum_price()` has no
 `sum_price`. An enum's reflection is the same kind of template (D180): `Symbol<Phase>` and a name pattern's hole
 become one call per value, with `phase.value` the constant itself, so no table of an enum's values, names or
@@ -183,7 +183,7 @@ exit, so `--debug-memory` does not count it. **Built.**
 
 **What it does.** `teams.filter_is_active().map_lead().sum_age()` reads as three steps, and that is what it means,
 but the compiler writes it as one loop over `teams` with no list in between: each element is tested, mapped and
-added before the next one is read ([D105](../manual.md#decision-log)).
+added before the next one is read ([D105](decisions.md)).
 
 **When.** A template called directly on a `filter_` or `map_` call, on a `List` or `Dictionary`; the steps in the
 middle are `filter_` and `map_` (to a member that is a class), and the last may be any template. A list you name
@@ -281,14 +281,14 @@ abc a
 ```
 
 **What you notice.** Fewer allocations and a faster loop. Nothing else: build text the obvious way. **Built**
-(the "appending to a text the variable alone holds" row of the [decision log](../manual.md#decision-log);
+(the "appending to a text the variable alone holds" row of the [decision log](decisions.md);
 [values_and_types.md](values_and_types.md)).
 
 ### The compiler places memory
 
 **What it does.** A program has one way to ask for raw memory, `heap.allocate(bytes)` on `Memory.Heap()`, and one
-way to give it back, `heap.free(address)`. Where the bytes live is the compiler's choice ([D108](../manual.md#decision-log),
-[manual section 10](../manual.md#10-memory--implemented)):
+way to give it back, `heap.free(address)`. Where the bytes live is the compiler's choice ([D108](decisions.md),
+[Placement](memory.md#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed)):
 
 - **Register:** a number's own memory (`var _memory = heap.allocate(4)` in `library/int.spite`) is its C
   scalar. A number is never an object.
@@ -345,7 +345,7 @@ yourself: there is no second way to allocate, so there is no address to keep pas
 ### Reading an address is one machine operation
 
 **What it does.** `address.read_long(16)`, `address.write_float(8, value)` and the other reads, writes and
-atomics of `Memory.Address` are primitives of the language, like `+` ([D178](../manual.md#decision-log)): the
+atomics of `Memory.Address` are primitives of the language, like `+` ([D178](decisions.md)): the
 compiler writes each one where it is called, as the single load, store or atomic instruction, with no call and
 no check. `copy_to` and `compare_bytes` are written the same way, as the C library's copy and comparison.
 
@@ -359,7 +359,7 @@ reads its memory this way.
 **What it does.** `var spark = Particle("spark", 1.5)` followed by `spark.memory.allocator = arena` reads as
 though it made the particle on the heap and then moved it. The compiler makes it in `arena` from the start: the
 two lines become one construction that asks the arena for the memory, with nothing allocated twice and nothing
-decided while the program runs ([D152](../manual.md#decision-log), [memory.md](memory.md#choosing-an-allocator-memoryallocator)).
+decided while the program runs ([D152](decisions.md), [memory.md](memory.md#choosing-an-allocator-memoryallocator)).
 The same holds for `var kept = ash.copy()` followed by `kept.memory.allocator = arena`.
 
 **When.** Always, for the line right after the one that makes the object; anywhere else setting the allocator is
@@ -373,7 +373,7 @@ no other class changes. Setting `Memory.Heap()` is the default and costs nothing
 ### Singletons: made on first use, never counted
 
 **What it does.** A singleton is made the first time something asks for it, not when the program starts, so a
-program pays only for the singletons it reaches. It is never reference counted ([D142](../manual.md#decision-log)):
+program pays only for the singletons it reaches. It is never reference counted ([D142](decisions.md)):
 fetching one is a load from a static slot, with no count to raise or lower, so threads sharing it never contend on
 it (two threads fetching one 20 million times each took 0.8 s counted and 0.04 s not). At exit every singleton is
 destroyed in reverse creation order, its `drop()` running then, and every `DynamicLibrary` after all of them.
@@ -437,7 +437,7 @@ greeter dropped after 2 greetings
 
 **What you notice.** A singleton's constructor runs at its first use, which is only visible if it prints. A
 `drop()` that fetches a singleton made after its own (so already destroyed) halts with a message saying to keep
-that singleton in an attribute ([D141](../manual.md#decision-log),
+that singleton in an attribute ([D141](decisions.md),
 [classes_and_files.md](classes_and_files.md#singletons)). `--debug-memory` still names an object a program leaked,
 even one that points at a singleton. **Built** (D8, D142, D141).
 
@@ -448,7 +448,7 @@ element type), and `Build`, whose attributes are all settings folded into the pr
 never allocated, never counted, never freed. `Memory.Heap()` costs nothing, and every program allocates once
 fewer for each.
 
-**When.** Production builds only ([D143](../manual.md#decision-log)). In an inspectable build -- `--repl`,
+**When.** Production builds only ([D143](decisions.md)). In an inspectable build -- `--repl`,
 `--repl-port`, `--hot-reload` or `--development` -- each is an ordinary singleton: allocated at first use, one of
 its class's `.instances`, and destroyed at exit. Since it holds nothing, it may be made again if something
 destroyed after it asks for it at exit, so the order of teardown never matters for it.
@@ -505,7 +505,7 @@ thread" row; [concurrency.md](concurrency.md)).
 **What it does.** A number, `Bool`, enum value or `Symbol` is a plain value everywhere the compiler can see its
 type. It is put in a box -- one small object, released like any other -- only where it has to travel as a `type`
 shape (a `Printable`, a `Debuggable`, an empty `type` that accepts anything) and be called through it
-([D109, D164](../manual.md#decision-log)). `String` and class instances are objects already and are never boxed.
+([D109, D164](decisions.md)). `String` and class instances are objects already and are never boxed.
 
 **When.** Passing a plain value where a shape is wanted, reading `attribute.value` of a number
 attribute, or a class test against a number class.
@@ -522,11 +522,11 @@ row; D164 is decided and partly built).
 (`Program.sleep`, `Console.read_line`, `File.read`/`write`/`append`, `Socket.accept_client`/`read_line`) exist only
 in a program that makes a `Concurrent` or is built with `--repl-port` or `--hot-reload`. Every other program's
 waits are the plain system calls. Even in a program that has the scheduler, a wait with no `Concurrent` alive and
-no REPL listening makes the plain blocking call, because that is faster ([D99](../manual.md#decision-log)): you
+no REPL listening makes the plain blocking call, because that is faster ([D99](decisions.md)): you
 never choose between blocking and waiting, and you never see which one ran.
 
 **When.** Decided per program, from what it uses. **What you notice.** Nothing. **Built**, on stackful fibers,
-which [D176](../manual.md#decision-log) replaces (below). [concurrency.md](concurrency.md).
+which [D176](decisions.md) replaces (below). [concurrency.md](concurrency.md).
 
 ### REPL, live reload and debug machinery only in those builds
 
@@ -542,10 +542,10 @@ ask for it:
   one increment.
 
 - `--repl-port` and `--hot-reload`: a check point at the end of every pass of every loop in the program's own
-  code ([D174](../manual.md#decision-log)), one call that answers a waiting command or reload, so a program that
+  code ([D174](decisions.md)), one call that answers a waiting command or reload, so a program that
   never waits still answers.
 
-**When.** Only in those builds ([D143](../manual.md#decision-log), [D112](../manual.md#decision-log)). This is
+**When.** Only in those builds ([D143](decisions.md), [D112](decisions.md)). This is
 not an optimisation an inspectable build turns off: it is the inspecting itself, present only where it is asked
 for.
 **What you notice.** Nothing in an ordinary build: its C is byte for byte the same with or without the check
@@ -554,7 +554,7 @@ points. **Built.**
 ### The thread pool only where a `Parallel` is made
 
 **What it does.** `ThreadPool` is a singleton made the first time a `Parallel` (or a `parallel_each_` pass) needs
-it, and it starts its worker threads then, once ([D135](../manual.md#decision-log), [D191](../manual.md#decision-log)).
+it, and it starts its worker threads then, once ([D135](decisions.md), [D191](decisions.md)).
 A program that never makes one starts no thread and allocates nothing for it; its functions are tree-shaken with
 the rest. `ThreadLocal` asks the system for its per-thread slot only when one is made, and `Lock` likewise;
 its `get()` never locks, and only a thread's `set` does
@@ -568,8 +568,8 @@ its `get()` never locks, and only a thread's `set` does
 **What it does.** In a program that makes a `Parallel`, every singleton of the program's own that can change after
 it is made (it assigns one of its attributes outside its constructor, or holds an object, a list or a dictionary)
 gets a lock of its own, taken around every one of its functions; a call it makes to itself does not take it again
-([D183](../manual.md#decision-log)). A singleton that never changes gets nothing. This is the fallback of the plan
-below: [D184](../manual.md#decision-log)'s cheaper forms (atomics, per-thread buffers, reader-writer locks) are
+([D183](decisions.md)). A singleton that never changes gets nothing. This is the fallback of the plan
+below: [D184](decisions.md)'s cheaper forms (atomics, per-thread buffers, reader-writer locks) are
 not built, nor is the check that its functions hand out nothing they own.
 
 **When.** Only in programs that make a `Parallel` or run a `parallel_each_` pass. **What you notice.** An
@@ -581,18 +581,18 @@ once. **Built** (the lock).
 All **built**, and none of them needs anything from you:
 
 - `join` writes every piece once into one buffer instead of copying the text so far at each step.
-- Converting text to text, in `join` on a `List<String>`, is folded away ([D58](../manual.md#decision-log)).
+- Converting text to text, in `join` on a `List<String>`, is folded away ([D58](decisions.md)).
 - A `T?` of a class, list or text is the reference itself, with `null` as the absent case: no wrapper object.
 - A generic singleton has one static slot per set of codegen values, so `Column<Health>()` is found without any
   lookup.
 - An `assert` in `library/` writes nothing into the crash trace, decided when compiling, so a library guard costs
-  what an `if` costs ([D189](../manual.md#decision-log)). What you notice: a crash report lists only the failed
+  what an `if` costs ([D189](decisions.md)). What you notice: a crash report lists only the failed
   asserts of the program and its `load`-ed packages ([failure.md](failure.md#what-a-crash-reports)).
 
 ### Proofs that survive a call
 
 **Built.** A proof -- `assert target`, `crash list[index]`, a bound in a `while` -- lets the reads after it skip
-the null test and the narrowing ([D169](../manual.md#decision-log)). A call between the proof and the read keeps
+the null test and the narrowing ([D169](decisions.md)). A call between the proof and the read keeps
 it unless the compiler, following the called function and what it calls, finds that the call may assign an
 attribute the proof reads through or shrink a list it reads; so no check is repeated after a call that provably
 cannot, and no `const` keyword is needed. To know which function a call reaches, it reads the class of the value
@@ -610,8 +610,8 @@ Decided by Mortaro, not built yet. When one is built, it moves up to **Built** i
 ### Thread safety for singletons, the cheapest safe form
 
 A singleton reached from a `Parallel` is made thread-safe by the compiler, with no keyword
-([D183](../manual.md#decision-log)), and the compiler picks the cheapest form that is safe for what that singleton's
-functions actually do ([D184](../manual.md#decision-log)): read-only state needs nothing; a single counter or flag
+([D183](decisions.md)), and the compiler picks the cheapest form that is safe for what that singleton's
+functions actually do ([D184](decisions.md)): read-only state needs nothing; a single counter or flag
 becomes an atomic; state that is only appended to (a log, a command queue) gets a buffer per thread merged in
 order; state each thread touches its own part of is split per thread; reads that far outnumber writes take a
 reader-writer lock; and only when nothing cheaper is proven safe does every outside call take the singleton's own
@@ -622,39 +622,39 @@ nothing. The last step, the lock, is built (above); the cheaper forms and the `r
 ### Copies that cost nothing
 
 Every class is passed by reference and `copy()` gives an independent one; that is the whole API, and the compiler
-optimises behind it ([D149](../manual.md#decision-log)): a copy used only once is passed by value instead of
+optimises behind it ([D149](decisions.md)): a copy used only once is passed by value instead of
 allocated; a copy that is never changed shares the original, when that is cheaper; an object that never escapes
 its function is laid out inline or in registers; and reference counting is left out wherever ownership is
-provable. [D152](../manual.md#decision-log) adds that setting an object's allocator right after it is made
+provable. [D152](decisions.md) adds that setting an object's allocator right after it is made
 (`scratch.memory.allocator = frame`) is where it was allocated from the start, never a second allocation and a
 move. You keep writing `copy()` where you mean an independent object.
 
 ### Hidden async/await as compile-time state machines
 
 Waiting on IO is written as an ordinary call and the compiler turns it into a suspension (D35, D99). Today that is
-done with fibers; [D176](../manual.md#decision-log) replaces them with a compile-time transform: each function that
+done with fibers; [D176](decisions.md) replaces them with a compile-time transform: each function that
 can reach a wait becomes a resumable state machine, and what is left at run time is a minimal loop continuing work
 when IO completes -- in a browser, the browser's own. No stack per fiber, no scheduler to ship, and nothing that
 bloats a WebAssembly build. The source does not change and no function is coloured. With it,
-[D134](../manual.md#decision-log): `File`, `Directory`, `Socket` and the other IO classes start their work
+[D134](decisions.md): `File`, `Directory`, `Socket` and the other IO classes start their work
 concurrently themselves and hand back values that wait where they are first used, so independent reads overlap
 without the program asking.
 
 ### Other planned optimisations
 
-- **A thread pool for `Parallel`** ([D135](../manual.md#decision-log)): today every `Parallel` starts an operating
+- **A thread pool for `Parallel`** ([D135](decisions.md)): today every `Parallel` starts an operating
   system thread of its own; the pool reuses a fixed set, and `list.parallel_each_update()` splits a list across it.
-- **Short symbols inline** ([D70](../manual.md#decision-log)): a short symbol held as a small inline string rather
+- **Short symbols inline** ([D70](decisions.md)): a short symbol held as a small inline string rather
   than a pointer into the symbol table.
-- **Crash text out of the binary** ([D32](../manual.md#decision-log)): a `crash` or `assert` site's source text
+- **Crash text out of the binary** ([D32](decisions.md)): a `crash` or `assert` site's source text
   lives only in the `<output>.crashes` map written beside the program, and an optimised build carries just the id.
   The map is written today, but the binary still carries the text.
-- **A build report of what could not be optimised** ([D36](../manual.md#decision-log)): not "400 copies elided"
+- **A build report of what could not be optimised** ([D36](decisions.md)): not "400 copies elided"
   but "3 copies could not be elided, and the callee that writes the field", so every line is actionable.
 
 ## Adding one
 
 Every optimisation the compiler starts making on its own is added to this page in the same change, with what it
-does, when, whether it is built, and anything a user could observe ([D185](../manual.md#decision-log),
-[D102](../manual.md#decision-log)). An optimisation with a cost that cannot be removed says so here; one that
-contradicts the manual is recorded in `mortaros_missing_decisions.md` for Mortaro.
+does, when, whether it is built, and anything a user could observe ([D185](decisions.md),
+[D102](decisions.md)). An optimisation with a cost that cannot be removed says so here; one that
+contradicts the rules on another page is recorded in `mortaros_missing_decisions.md` for Mortaro.

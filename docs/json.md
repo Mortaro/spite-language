@@ -9,7 +9,7 @@ then `write()`. Reading has no value yet, so it names the class it reads into an
 `Json<Order>(null)`, then `read(text)`.
 
 JSON is for talking to systems that are not Spite. Two Spite programs do not need it: they compile from the same
-source, so both ends already know every type (manual section 15, "The wire format").
+source, so both ends already know every type ([The wire format](targets.md#the-wire-format--planned)).
 
 ## Write and read a class
 
@@ -184,3 +184,80 @@ typed functions in the C the program compiles to.
 
 Reading text goes through `JsonReader` (`library/json_reader.spite`), a cursor over the text that remembers the
 first thing that went wrong.
+
+## Rules in full
+
+The normative rules for this part of the language, in full: what the sections above teach, with the edge
+cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
+manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
+fix. A `D` number is a row of the [decision log](decisions.md).
+
+### JSON is reflection, not a library  **[implemented]**
+
+D22 and D23 (decided by Mortaro, 2026-09-19), amended by D31: writing JSON is walking a value's attributes and
+reading it is a series of symbol keyed writes, so JSON needs no machinery of its own: a `type` shape is the JSON
+shape. It is written WITH the metaprogramming once the standard library lives in Spite, which is the other half
+of [Pure Spite](standard_library.md#pure-spite-dissolving-the-runtime--planned). JSON is a format for talking to foreign systems; it is
+not what Spite programs send each other (see [The wire format](targets.md#the-wire-format--planned)).
+
+- Writing never fails at run time: a class that cannot be serialised is a compile error, the same check
+  isomorphic classes already need. Only parsing can fail, and it follows the failure model: a parse that may not
+  succeed returns a `T?`, and a variant that crashes exists for callers who want the report instead.
+- Open: the names of that pair. Mortaro sketched `to_json`/`to_crashing_json`; Claude prefers
+  `parse_json()`/`parse_json_or_crash()` (unconfirmed).
+
+**`Json<T>`** (D95, decided by Mortaro, 2026-09-24: "json with a generic should be part of our standard library
+using metaprograming to easily convert to and from json").  **[implemented]** `library/json.spite` is one generic
+class, and every conversion it makes is a function the compiler writes from it for the types a program actually
+uses, so a program that never names `Json` carries none of it (D42).
+
+```gdscript
+var json = Json(order)                  # Json<Order>, read from the argument (D138)
+var text = json.write()                 # String: never fails
+var reading = Json<Order>(null)         # no object yet, so the class is named
+var read = reading.read(text)           # Order?: null on text that is not an Order
+var order = reading.read_or_crash(text) # Order: halts, naming the position and what was expected
+```
+
+**`Json` takes the object in its constructor** (D138, decided by Mortaro, 2026-09-25) and infers its generic
+from it, by the general rule of [Codegen values (`$`)](metaprogramming.md#codegen-values---implemented) for a constructor that takes a `$name`; nothing about `Json` is special
+to the compiler. Reading keeps a way to name the class it reads into, since there is no object yet. As built
+(proposed by Claude, unconfirmed): the constructor takes a `$value_type?`, so reading names the class and passes
+`null`, `Json<Order>(null)`; a `T?` argument gives `Json<T>`, and `write()` of an empty one is `null`. `read`
+makes a new value and leaves the one the `Json` holds alone, so one `Json(order)` can write and read.
+
+- **What it is written with** is [Symbol codegen](metaprogramming.md#symbol-codegen--implemented) and [Codegen values (`$`)](metaprogramming.md#codegen-values---implemented)'s metaprogramming and nothing else: `if $value_type ==
+  List { }` chooses what a type becomes at compile time, `Json<$value_type.element_type>(null)` recurses into
+  what a container holds (one per container, given each element in turn as its `value`), and a class is walked by a Symbol codegen template over `Symbol<$value_type>`, called for every
+  attribute at once by its plural (`write_attributes`, `read_attributes`). Reading keeps a `JsonReader`
+  (`library/json_reader.spite`), a cursor over the text holding the first failure.
+- **What each type becomes:** `String` is text (`"`, `\` and control characters escaped, `\uXXXX` read back as
+  UTF-8, surrogate pairs included); every number type is a number; `Bool` is `true`/`false`; an enum is its value's
+  name as text; a class is an object with one key per attribute in declaration order; `List<T>` is an array;
+  `Dictionary<T>` is an object; `T?` is `null` or what `T` becomes. Nested classes, lists of lists and
+  dictionaries of classes are the same rules again.
+
+What follows is Claude's reading where D22 and D95 are not specific (proposed by Claude, unconfirmed):
+
+- **The API is a class you make once per value, or once per type to read**, `Json(order)` or
+  `Json<Order>(null)`, with `write`, `read` and `read_or_crash`. The generic is on the class because that is
+  where Spite puts generics (D138 moved the value to the constructor, so writing names no type at all). The
+  pair D22 asked for is `read`/`read_or_crash`, following the suffix Claude proposed for `parse_json_or_crash`;
+  `write` needs no pair, since it cannot fail.
+- **Reading input is strict about what it cannot use and lenient about what it does not need** ([Failure: three outcomes and no others](failure.md#failure-three-outcomes-and-no-others--partial)'s
+  three outcomes). A key the class does not have is skipped, whatever it holds, because foreign systems send more
+  than a program asks for. An attribute the text does not mention keeps the default its class declares, which is
+  the value [Variables and values](values_and_types.md#variables-and-values--implemented) already gives anything never set. A value of the wrong kind -- text for a number, `null` for
+  an attribute that is not a `T?`, an enum name the enum lacks, a missing brace, anything after the value -- makes
+  `read` answer `null`: the object would be wrong, and a wrong object that looks right is the surprise D27 exists
+  to prevent. `read_or_crash` crashes on the same inputs, and its crash line carries
+  `failure=expected <what> at character <n>`.
+- **A number reads into whatever number type the attribute has** through the ordinary text-to-number cast, so
+  `3.7` read into an `Int` is `3`; JSON has one number type and the class already says which one it wants.
+- **Not handled yet:** a `Float` or `Double` holding infinity or not-a-number is written as `inf`/`nan`, which is
+  not JSON; a `Symbol` attribute (as opposed to an enum) does not read, since text becomes a `Symbol` only through
+  `Symbol(text)` (D70); and `--final-classes` does not print the functions `Json<Order>` generated, because a
+  generic class's file is shared by all its instances.
+
+`tests/json_tests.spite`, `conformance/stage6/json_crash`, `docs/json.md`.

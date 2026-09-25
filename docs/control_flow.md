@@ -54,7 +54,7 @@ func letter_for(grade: Int): String {
 An `if` that only returns the function's default is an `assert` spelled the long way, and is an error naming
 it ([failure.md](failure.md#an-if-that-only-returns-the-default-is-an-assert)).
 
-**An `if`/`else` directly inside a branch of another `if`/`else` is an error** ([D170](../manual.md#decision-log)).
+**An `if`/`else` directly inside a branch of another `if`/`else` is an error** ([D170](decisions.md)).
 Two stacked decisions are two things to hold in your head at once, so the inner one gets a name: move it into a
 function named for what it decides, or, when both test which member of a union a value is, use one `switch`. A flat
 `else if` chain is fine, and so is an `if` with no `else` inside a branch, or an `if`/`else` inside a `while` or a
@@ -136,7 +136,7 @@ Spite only has 'while' loops
 
 A loop that only does what a [member template](collections.md#member-templates-loops-you-do-not-write) does
 -- calling, collecting, keeping, counting, adding up or finding a member of each element -- is an error naming
-the template ([D171](../manual.md#decision-log)).
+the template ([D171](decisions.md)).
 
 When you do need to walk a list by hand, index it. The loop's condition `index < numbers.count()` proves
 `numbers[index]` inside the body, so the read needs no narrowing:
@@ -417,3 +417,86 @@ this switch only asks what class 'creature' is: write 'return creature == Fish'
 
 Anything that would need an `else` stays a switch, and so does a switch with more cases: `_:` narrows to each
 remaining member, which an `else` cannot.
+
+## Rules in full
+
+The normative rules for this part of the language, in full: what the sections above teach, with the edge
+cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
+manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
+fix. A `D` number is a row of the [decision log](decisions.md).
+
+### Control flow  **[implemented]**
+
+```
+if condition { } else { }
+if nullable_value { } else { }     # runs with nullable_value unwrapped in place when it is not null; else when it is
+while condition { }
+switch enemy {
+    Player: enemy.hurt()
+    Monster: { enemy.die() }
+}
+```
+
+An `if` on a `T?` narrows the value in place ([Null safety and `assert` narrowing](failure.md#null-safety-and-assert-narrowing--implemented)): the block runs with `value` as a plain `T`,
+and the `else` runs exactly when it is null/absent -- one rule for narrowing everywhere, `assert`/`if`/`switch`
+alike (second batch item 2, decided 2026-09-19: `if value do name { }` is gone, and `do` is no longer a
+keyword, [Lexical structure](classes_and_files.md#lexical-structure--implemented)). The terminal-`if` lint ([Null safety and `assert` narrowing](failure.md#null-safety-and-assert-narrowing--implemented)) applies only when the `if` has no `else` -- one with
+an `else` already handles the missing case explicitly, so there is nothing left to rewrite with `assert`. D3
+(decided by Mortaro, 2026-09-19) was the decision that first gave the form its `else`; the 2026-09-20 removal
+of `do` simply renamed the unwrapped value's block to the in-place narrowing above.
+
+There is deliberately no `break`/`continue` (D2, decided by Mortaro, 2026-09-19): `while` is the only loop
+construct Spite has, full stop. An early exit re-checks a boolean flag in the loop's own condition instead
+(`var stopped = false` ... `while not stopped { ... }`).
+writeup of what this costs in practice (found while writing the bootstrap compiler in Spite) and why the
+language owner chose to keep it this way regardless.
+
+`while` is the only loop. There is no `for`: the language owner's call (2026-09-19) is "only the
+while loop, no for; that makes people favor the metaprogramming" -- reach for `List<T>`/`Dictionary<T>`
+metaprogramming ([List<T> additions](collections.md#listt-additions--implemented)) first, and index with `while index < list.count() { }` when a loop is
+genuinely needed. Writing `for` is a parse error naming `while` and the metaprogramming helpers instead
+of silently doing something else. Loops and ifs are otherwise discouraged in application code; reach for
+standard library metaprogramming first.
+
+**An `if` with an `else`, directly inside a branch of another `if` with an `else`, is a compile error** (D170,
+decided by Mortaro, 2026-09-25). The message names the fix: "this 'if'/'else' is inside a branch of another
+'if'/'else': move it into a function named for what it decides, or, when both test which member of a union a
+value is, use one 'switch'". An `else if` link counts as a branch of its chain, so an `if`/`else` inside the body
+of an `else if` is caught too. Not counted: a flat `else if` chain; an `if` without an `else` inside a branch; and
+an `if`/`else` inside a `while` or `switch` inside the branch, since the loop or the switch is the unit. The
+message says "union" and not "union or enum" because `switch` does not accept an enum yet ([Types](values_and_types.md#types)). The
+compiler's nine nested decisions became six named functions (`talk`, `text_comparison`, `union_member_call`,
+`report_misplaced_rest_case`, `check_asserted_condition`, `parse_dotted_segment`) and three flattened chains in
+the tree shaker and the quiet type parser (`diagnostics/nested_if_else`). **[implemented]**
+
+**A `while` that only walks every element of a list, doing what a member template does, is a compile error naming
+the template** (D171, decided by Mortaro, 2026-09-25); `while` stays for loops over state. The shape is exact
+(proposed by Claude, unconfirmed): the statement before the loop is `var counter = 0`; the condition is
+`counter < list.count()` with `list` a name or a path of type `List<T>` and `T` a class; the last statement is
+`counter = counter + 1`; the counter is read nowhere else in the body and not at all after the loop; and the
+rest of the body reads `list[counter]` -- directly, or through one `var item = list[counter]` first -- and is
+exactly one of these, with `m` and `n` members of `T` that are not private (an attribute or a function taking
+nothing):
+
+| Body | The error names |
+|---|---|
+| `item.m()` | `list.each_m()` |
+| `result.append(item.m)`, or `var value = item.m` then `result.append(value)` | `var result = list.map_m()` |
+| `result.append(item)` | `var result = list.copy()` |
+| `if item.m { result.append(item) }` | `var result = list.filter_m()` |
+| `if item.m { result.append(item.n) }` | `var result = list.filter_m().map_n()` |
+| `if item.m { total = total + 1 }` | `var total = list.count_m()` |
+| `total = total + item.m` | `var total = list.sum_m()` |
+| `if item.m == value { return item }`, the loop followed by `return null` | `return list.find_by_m(value)` |
+| `if item.m { return true }`, the loop followed by `return false` | `return list.any_m()` |
+| `if not item.m { return false }`, the loop followed by `return true` | `return list.all_m()` |
+
+`result` must be a local declared `List<...>()` earlier in the same block and `total` one declared `0`, neither
+mentioned between its declaration and the loop, and `value` may not mention the counter or the element. The
+message reads `this 'while' walks every element of 'items' only to add up 'price': write 'var total =
+items.sum_price()'` (`diagnostics/template_walk`). Loops that pass extra arguments, need the index, walk two
+lists, scan text, stop early any other way or walk state are not touched. A function value passed to
+`each`/`map`/`filter` (D148) is not built yet, so the rule names member templates only; D113's rule for a
+function of the caller ([Standard library metaprogramming](collections.md#standard-library-metaprogramming--partial)) still names `list.each_f()`. Only the compiler's `hardcoded_setting` had the
+shape; it is `find_by_name` now. **[implemented]**
