@@ -10485,17 +10485,18 @@ func check_value_name(name: String, what: String) {
         report("the {what} '{name}' is a single letter: give it a name that says what it holds")
         return
     }
-    if is_reserved_name(bare) {
+    var reserved = reserved_names()
+    if reserved.contains(bare) {
         report(
-            "the {what} '{name}' has a reserved name: it means something else in the C this compiles to, so give it a name of your own",
+            "the {what} '{name}' has a reserved name: it means something else in the C this compiles to, so give it a name of your own. The reserved names are {reserved.join(", ")}",
         )
         return
     }
     check_abbreviations(bare)
 }
 
-func is_reserved_name(name: String): Bool {
-    var reserved = [
+func reserved_names(): List<String> {
+    return [
         "auto"
         "bool"
         "break"
@@ -10528,7 +10529,6 @@ func is_reserved_name(name: String): Bool {
         "void"
         "volatile"
     ]
-    return reserved.contains(name)
 }
 
 func check_type_name(name: String, what: String) {

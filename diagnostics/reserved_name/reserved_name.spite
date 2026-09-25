@@ -2,5 +2,10 @@ var console = Console()
 var unsigned = 0
 
 func ReservedName() {
-    console.print(unsigned)
+    var value = short()
+    console.print(unsigned, value)
+}
+
+func short(): Int {
+    return 2
 }

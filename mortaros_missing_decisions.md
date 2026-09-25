@@ -459,3 +459,8 @@ Behaviour that does not match the manual. The language was not changed; each is 
     not, for either form, although a call could change a field the index reads or clear a list held in a field;
     the read still checks its bounds, so the cost is a default value, not memory. Keep it, or should a call
     undo every proven read whose list or index is a field?
+107. **Does a function still need the C-reserved list?** Every function's C name is joined to its class's with
+    `___`, so `func short()` would compile as `Class___short`, yet it is still rejected with `int`, `static` and
+    the rest, because variables and parameters keep their names in C. The error now lists all 31 names. Should a
+    function (and an attribute, which is a struct member) be allowed any of them, leaving the list to locals and
+    parameters only?
