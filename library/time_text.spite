@@ -6,8 +6,7 @@ func read_instant(text: String): Instant? {
     var offset_seconds = reader.read_offset()
     reader.skip_annotations()
     assert reader.finish()
-    var zones = TimeZones()
-    var zone = zones.fixed_offset(Duration(offset_seconds, 'seconds'))
+    var zone = TimeZone("", ZoneRules(offset_seconds))
     return zone.to_instant(local, 'compatible')
 }
 

@@ -4,6 +4,7 @@ enum Ambiguity {
     'later'
 }
 
+var time_text = TimeText()
 var _name = ""
 var _rules = ZoneRules(0)
 
@@ -75,8 +76,7 @@ func to_instant(local: LocalDateTime, ambiguity: Ambiguity): Instant {
 func to_text(instant: Instant): String {
     var local = to_local(instant)
     var seconds = _offset_seconds_at(instant)
-    var text = TimeText()
-    var offset = text.write_offset(seconds)
+    var offset = time_text.write_offset(seconds)
     return "{local}{offset}"
 }
 

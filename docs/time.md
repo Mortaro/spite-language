@@ -232,7 +232,7 @@ The rules are the operating system's, so a change in a country's daylight-saving
 with the system's own updates, and a program carries no copy of the database:
 
 - **Windows** reads them through `icu.dll`, the ICU library Windows 10 (version 1903 and later) and Windows 11
-  ship and update, which holds the IANA database under its IANA names (`library/windows/zone_rules.spite`, over
+  ship and update, which holds the IANA database under its IANA names (`library/windows/zone_calendar.spite`, over
   `DynamicLibrary`). Windows' own registry zones are not used: they have Windows names, and less history.
 - **Linux and macOS** read the compiled database in `/usr/share/zoneinfo`, one TZif file per zone (RFC 8536),
   through `File` and parsed in Spite (`library/tzif_reader.spite`); `system()` follows `TZ`, then the

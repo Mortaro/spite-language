@@ -1,78 +1,12 @@
-var _calendar: Long = 0
+var _calendar: ZoneCalendar? = null
 
-func open_calendar(name: String): Bool {
-    var icu = DynamicLibrary("icu.dll", 'identity', "")
-    var memory = Memory()
-    var length = name.length()
-    var characters = memory.allocate_bytes(length * 2 + 2)
-    var index = 0
-    while index < length {
-        var code = name.code_at(index)
-        memory.write_short(characters, index * 2, code)
-        index = index + 1
-    }
-    var status = memory.allocate_bytes(4)
-    var is_system = memory.allocate_bytes(4)
-    var canonical = memory.allocate_bytes(512)
-    memory.write_int(status, 0, 0)
-    memory.write_int(is_system, 0, 0)
-    icu.ucal_getCanonicalTimeZoneID(characters, length, canonical, 256, is_system, status)
-    var known = memory.read_int(status, 0) <= 0 and memory.read_byte(is_system, 0) != 0
-    if known {
-        _calendar = icu.ucal_open_as_long(characters, length, "", 1, status)
-        known = memory.read_int(status, 0) <= 0 and _calendar != 0
-    }
-    memory.free(canonical)
-    memory.free(is_system)
-    memory.free(status)
-    memory.free(characters)
-    return known
-}
-
-func open_system_calendar(): String {
-    var icu = DynamicLibrary("icu.dll", 'identity', "")
-    var memory = Memory()
-    var characters = memory.allocate_bytes(512)
-    var status = memory.allocate_bytes(4)
-    memory.write_int(status, 0, 0)
-    var length = icu.ucal_getDefaultTimeZone(characters, 256, status)
-    if memory.read_int(status, 0) > 0 {
-        length = 0
-    }
-    var bytes = memory.allocate_bytes(length + 1)
-    var index = 0
-    while index < length {
-        var code = memory.read_unsigned_short(characters, index * 2)
-        memory.write_byte(bytes, index, code)
-        index = index + 1
-    }
-    var name = memory.text(bytes, length)
-    memory.free(bytes)
-    memory.free(status)
-    memory.free(characters)
-    assert open_calendar(name)
-    return name
+func follow_calendar(calendar: ZoneCalendar) {
+    _calendar = calendar
 }
 
 func offset_seconds_at(unix_seconds: Long): Int {
-    if _calendar == 0 {
-        return transition_offset_seconds_at(unix_seconds)
+    if _calendar {
+        return _calendar.offset_seconds_at(unix_seconds)
     }
-    var icu = DynamicLibrary("icu.dll", 'identity', "")
-    var memory = Memory()
-    var status = memory.allocate_bytes(4)
-    memory.write_int(status, 0, 0)
-    var milliseconds: Double = unix_seconds * 1000
-    icu.ucal_setMillis(_calendar, milliseconds, status)
-    var zone = icu.ucal_get(_calendar, 15, status)
-    var daylight = icu.ucal_get(_calendar, 16, status)
-    memory.free(status)
-    return (zone + daylight) / 1000
-}
-
-func drop() {
-    if _calendar != 0 {
-        var icu = DynamicLibrary("icu.dll", 'identity', "")
-        icu.ucal_close(_calendar)
-    }
+    return transition_offset_seconds_at(unix_seconds)
 }

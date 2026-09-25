@@ -1,0 +1,88 @@
+var icu = DynamicLibrary("icu.dll", 'identity', "")
+var memory = Memory()
+var _name = ""
+var _handle: Long = 0
+
+func ZoneCalendar(name: String) {
+    _name = name
+    if name.is_empty() {
+        _name = _default_name()
+    }
+    _handle = _opened()
+}
+
+func get_name(): String {
+    return _name
+}
+
+func get_is_open(): Bool {
+    return _handle != 0
+}
+
+func offset_seconds_at(unix_seconds: Long): Int {
+    var status = memory.allocate_bytes(4)
+    memory.write_int(status, 0, 0)
+    var milliseconds: Double = unix_seconds * 1000
+    icu.ucal_setMillis(_handle, milliseconds, status)
+    var zone = icu.ucal_get(_handle, 15, status)
+    var daylight = icu.ucal_get(_handle, 16, status)
+    memory.free(status)
+    return (zone + daylight) / 1000
+}
+
+func drop() {
+    if _handle != 0 {
+        icu.ucal_close(_handle)
+    }
+}
+
+func _opened(): Long {
+    var length = _name.length()
+    var characters = memory.allocate_bytes(length * 2 + 2)
+    var index = 0
+    while index < length {
+        var code = _name.code_at(index)
+        memory.write_short(characters, index * 2, code)
+        index = index + 1
+    }
+    var status = memory.allocate_bytes(4)
+    var is_system = memory.allocate_bytes(4)
+    var canonical = memory.allocate_bytes(512)
+    memory.write_int(status, 0, 0)
+    memory.write_int(is_system, 0, 0)
+    icu.ucal_getCanonicalTimeZoneID(characters, length, canonical, 256, is_system, status)
+    var handle: Long = 0
+    if memory.read_int(status, 0) <= 0 and memory.read_byte(is_system, 0) != 0 {
+        handle = icu.ucal_open_as_long(characters, length, "", 1, status)
+    }
+    if memory.read_int(status, 0) > 0 {
+        handle = 0
+    }
+    memory.free(canonical)
+    memory.free(is_system)
+    memory.free(status)
+    memory.free(characters)
+    return handle
+}
+
+func _default_name(): String {
+    var characters = memory.allocate_bytes(512)
+    var status = memory.allocate_bytes(4)
+    memory.write_int(status, 0, 0)
+    var length = icu.ucal_getDefaultTimeZone(characters, 256, status)
+    if memory.read_int(status, 0) > 0 {
+        length = 0
+    }
+    var bytes = memory.allocate_bytes(length + 1)
+    var index = 0
+    while index < length {
+        var code = memory.read_unsigned_short(characters, index * 2)
+        memory.write_byte(bytes, index, code)
+        index = index + 1
+    }
+    var name = memory.text(bytes, length)
+    memory.free(bytes)
+    memory.free(status)
+    memory.free(characters)
+    return name
+}

@@ -1,4 +1,6 @@
 var library = DynamicLibrary("libc.so.6", 'identity', "")
+var program = Program()
+var memory = Memory()
 
 func find(name: String): TimeZone? {
     assert not name.is_empty() and not name.starts_with("/") and not name.contains("..")
@@ -9,7 +11,6 @@ func find(name: String): TimeZone? {
 }
 
 func system(): TimeZone {
-    var program = Program()
     var variable = program.environment("TZ")
     if variable {
         var start = 0
@@ -45,7 +46,6 @@ func system(): TimeZone {
 }
 
 func _local_time_link(): String {
-    var memory = Memory()
     var buffer = memory.allocate_bytes(1024)
     var length = library.readlink_as_long("/etc/localtime", buffer, 1023)
     if length < 0 {

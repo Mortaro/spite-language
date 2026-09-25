@@ -1,5 +1,6 @@
 singleton
 
+var time_text = TimeText()
 var _utc = TimeZone("UTC", ZoneRules(0))
 
 func utc(): TimeZone {
@@ -9,8 +10,7 @@ func utc(): TimeZone {
 func fixed_offset(offset: Duration): TimeZone {
     var seconds = offset.total('seconds')
     crash seconds > -86400 and seconds < 86400
-    var text = TimeText()
-    var name = text.write_offset(seconds)
+    var name = time_text.write_offset(seconds)
     return TimeZone(name, ZoneRules(seconds))
 }
 

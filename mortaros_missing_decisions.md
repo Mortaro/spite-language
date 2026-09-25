@@ -377,3 +377,36 @@ Behaviour that does not match the manual. The language was not changed; each is 
      Resource.World()`: the marker is noise, and the engine should learn "this system changes the world" from the
      compiler -- which functions it calls (`Spawn`, `Insert`, `Remove`), which singletons it touches -- as a
      compile-time reflection like D114's (`function.calls(Spawn)`, or the singletons a function reaches). Wanted?
+
+## From D127 (dates, times and time zones; manual section 15, `docs/time.md`)
+
+Numbered after 112, since D136, D137 and D140 cite 110 to 112. All of it is proposed by Claude, unconfirmed.
+
+113. **The names.** `Instant`, `Duration`, `Period`, `LocalDate`, `LocalTime`, `LocalDateTime`, `TimeZone`,
+     `TimeZones()` (the database, a singleton) and `TimeText()` (ISO 8601, a singleton). `Local` is the word
+     D127 used and the one `java.time` and NodaTime use; the alternatives are Temporal's `PlainDate`/
+     `PlainDateTime` (chosen there because "local" reads as "the machine's zone" to some) and jiff's `civil`.
+     `TimeText` could also be `Iso8601` (digits in a class name) or live on each type if Spite ever had a way to
+     read text into a class without a static function.
+114. **No stored zoned type.** Every design compared has one (`ZonedDateTime`, `Zoned`, `OffsetDateTime`); Spite
+     has none, because D127 makes a zone presentation: store the `Instant`, apply the zone when showing it.
+     "The same time tomorrow" is then three lines (`to_local`, `+ Period(1, 'days')`, `to_instant`). Keep it out?
+115. **Every `to_instant` names its ambiguity rule**: `'compatible'`, `'earlier'` or `'later'`, with no default.
+     A `'reject'` (Temporal's fourth value) would make every call answer `Instant?`, so it is left out; a caller
+     who must refuse an ambiguous reading compares `'earlier'` with `'later'`. Is the required argument right,
+     or should `'compatible'` be the one behaviour with no argument?
+116. **The constructors.** `Instant(since_1970: Duration)`, `Duration(amount, unit)` and `Period(amount, unit)`
+     with a unit enum, since Spite has no static functions for `Duration.of_hours(2)`. With no overloading,
+     `instant - instant` is the `Duration` between them and going back is `instant + -duration`. A date that
+     does not exist (`LocalDate(2023, 2, 29)`) halts, while `TimeText` answers `null` for such text.
+117. **Where zones come from.** The operating system's database: Windows through `icu.dll` (Windows 10 1903 and
+     later; its registry zones have Windows names and less history), Linux and macOS through
+     `/usr/share/zoneinfo`, read in Spite. Nothing is embedded; `zones.read_tzif(name, data)` takes a TZif file
+     a program ships. The Linux and macOS path compiles in `check.sh` but has never run.
+118. **`Clock.unix_milliseconds()` is gone**, replaced by `now(): Instant`; the monotonic `elapsed_*` readings stay.
+119. **Reading text is lenient where RFC 3339 is**: `t` or a space for `T`, `z` for `Z`, `,` before a fraction, a
+     leap second read as the second before it, and an RFC 9557 `[zone]` after an offset read and ignored. Writing
+     is always the one form. Stricter instead?
+120. **`far` and `near` are not in the C-reserved list**, but `windows.h` defines them as macros, so a local named
+     `far` compiled to broken C (found writing `calendar_math`). Add them, and whatever else `windows.h` defines
+     in lower case, to the list item 107 is about?
