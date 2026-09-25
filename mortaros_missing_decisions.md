@@ -569,3 +569,21 @@ All of it is proposed by Claude, unconfirmed.
      fixed stride and only a longer name points out to the heap. Is that enough, or do you want a capped
      `ShortText<32>` that refuses longer text?
 
+
+## `Socket` for game servers (from SlopEngine)
+
+184. **How a closed peer shows.** Built as a `closed: Boolean` attribute: `read_bytes_now` answers `0` both for
+     "nothing yet" and for "the other end hung up", `read_line_now` answers `null` for both, and `closed` tells
+     them apart (D24's "a distinction that matters is data"). The alternative was a count of `-1`, which every
+     caller would have to remember to test before adding the count to a length. Keep `closed`?
+185. **The names of the calls that never wait.** Built with a `_now` suffix beside the waiting calls:
+     `accept_client_now(): Socket?`, `read_line_now(): String?`, `read_bytes_now(address, count): Integer`,
+     `write_bytes_now(address, count): Integer`; and `listen_everywhere(port)`, `listen_at(host, port)`,
+     `connect(host, port)` beside `listen_locally` and `connect_locally`. Other spellings weighed: a mode on the
+     socket (`socket.waits = false`), which would make the same call mean two things, and `poll_`/`try_`
+     prefixes. Keep the names?
+186. **Every printed line is written out at once.** `print`, `error` and `debug` now flush, so a server's log
+     redirected to a file shows each line as it happens. Measured with `benchmarks/console_lines` (200 000 lines,
+     Windows): about 700 ms to a file against about 140 ms buffered until exit; the same to a pipe or the null
+     device. Nothing cheaper shows every line promptly without a thread. Keep it for every program, or should a
+     program be able to say it prints to a file nobody watches (a build setting, say) and keep the buffer?

@@ -38,7 +38,7 @@ REPL can look at any of it ([D143](decisions.md)).
 | `Json<T>` | any value to JSON text and back | [json.md](json.md) |
 | `Concurrent`, `Parallel`, `ThreadPool` | run a function while waiting, or on the thread pool; the handle is the value | [concurrency.md](concurrency.md) |
 | `ThreadLocal<T>`, `Lock`, `ThreadSlot` | a value per thread, and a lock | [concurrency.md](concurrency.md#a-value-per-thread-and-a-lock) |
-| `Socket` | TCP on `127.0.0.1`, which the remote REPL uses | [below](#socket) |
+| `Socket` | TCP over IPv4: listen, connect, lines and bytes, waiting or not | [below](#socket) |
 | `Memory.Address`, `Memory.Heap`, `Memory.Arena`, `TypedMemory<T>` | a place in memory, the allocators that own it, and values of any type there: the floor every other type is built on | [memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it) |
 | `DynamicLibrary` | call a native library | [foreign_libraries.md](foreign_libraries.md) |
 | `Spite.Class`, `Spite.Function`, ... | reflection | [reflection.md](reflection.md) |
@@ -170,9 +170,9 @@ a file written by the next statement is written after every read has finished
 ([concurrency.md](concurrency.md#reads-in-a-row-overlap)). What it costs is what a `Concurrent` costs, a frame on
 the heap for each read but the last and the event loop that finishes them, and only in a program that reads this
 way ([optimizations.md](optimizations.md#concurrency-machinery-only-where-it-is-used)). A read or write of a
-`File`, `console.read_line()`, a `Socket`'s `accept_client()` and `read_line()`, and `program.sleep()` are the
-library's waits: inside a `Concurrent` each lets other work run. Everything else, `Process.run()` included,
-blocks the thread that calls it.
+`File`, `console.read_line()`, a `Socket`'s `accept_client()`, `read_line()` and `read_bytes()`, and
+`program.sleep()` are the library's waits: inside a `Concurrent` each lets other work run. Everything else,
+`Process.run()` included, blocks the thread that calls it, except a `Socket`'s `_now` calls, which never wait.
 
 ## List a directory
 
@@ -350,6 +350,12 @@ meanwhile ([which calls wait](#read-and-write-a-file)).
 | `flush()` | writes out whatever the output and error streams still hold |
 | `read_line()` | one line of input without its line break, as a `String?`: `null` only at the end of the input |
 
+**Every line is written out as it is printed.** `print`, `error` and `debug` end a line and hand it to the
+operating system at once, whether the output is a terminal, a file or a pipe, so a server's log redirected to a
+file shows each line when it happens rather than when the program ends. `write` leaves its text for the next line
+end or `flush()`. It costs one system call per line when the output is a file or a pipe
+([the rule and its measurement](#system-classes--implemented)).
+
 `print`, `write` and `error` are ordinary functions in `library/console.spite`, taking
 `...values: List<Printable>`, where `Printable` is a `type` that requires `to_string(): String`. Every number,
 `Boolean`, `String`, `Symbol`, enum value, `Spite.Class` and `Spite.Namespace` answers it, and a class of yours
@@ -506,12 +512,51 @@ waited at least 4 ms: true
 
 ## `Socket`
 
-`Socket()` is a TCP connection on `127.0.0.1` and nowhere else, which is what `--repl-port` and `spite connect`
-are written with: `listen_locally(port)`, `accept_client(): Socket?`, `connect_locally(port)`,
-`read_line(): String?`, `write_line(text)` and `close()`. A program that uses it waits in `accept_client` and
-`read_line` the way it waits anywhere, so other `Concurrent` work runs meanwhile. It is public library surface
-([D126](decisions.md)), and the networking library is to grow from it: HTTP and WebSocket, and TCP and UDP for
-games, none of them built yet.
+`Socket()` is a TCP connection over IPv4, the same on Windows (winsock), Linux and macOS. `--repl-port` and
+`spite connect` are written with it, and so is a game server. It is public library surface
+([D126](decisions.md)); the names below are proposed by Claude, unconfirmed.
+
+| Member | Does |
+|---|---|
+| `listen_locally(port)`, `listen_everywhere(port)`, `listen_at(host, port)` | listens on `127.0.0.1`, on every interface, or on the one interface a host name or IPv4 address names; `false` when it cannot |
+| `connect_locally(port)`, `connect(host, port)` | connects to `127.0.0.1`, or to a host name (`"example.com"`, `"localhost"`) or IPv4 address (`"192.168.1.20"`); `false` when the name does not resolve or nobody answers |
+| `accept_client(): Socket?` | waits for the next client |
+| `read_line(): String?` | waits for a whole line, without its line break |
+| `read_bytes(address, count): Integer` | waits until at least one byte has arrived, puts up to `count` at `address`, and answers how many |
+| `write_line(text): Boolean`, `write_bytes(address, count): Boolean` | sends all of it, waiting while the system's buffer is full |
+| `accept_client_now(): Socket?` | the next client if one is already connecting, otherwise `null` at once |
+| `read_line_now(): String?` | a whole line if one has arrived, otherwise `null` at once |
+| `read_bytes_now(address, count): Integer` | puts what has already arrived, up to `count`, at `address` and answers how many: `0` is nothing yet |
+| `write_bytes_now(address, count): Integer` | hands the system as much as it takes now and answers how many; the rest is the caller's to send later |
+| `closed: Boolean` | `true` once the other end has closed the connection (or it broke, or `close()` was called) |
+| `close()` | closes it |
+
+**Waiting and not waiting.** The calls without `_now` wait the way a program waits anywhere: inside a
+`Concurrent`, `accept_client`, `read_line` and `read_bytes` are points the state machine returns from, so other
+work runs meanwhile ([concurrency.md](concurrency.md#what-the-compiler-does-at-a-wait)). The `_now` calls never
+wait and are plain calls, for a loop that polls every connection once a tick -- a game server, which has its own
+frame to keep. Resolving a host name and connecting always wait in place.
+
+**A closed peer is an answer, not a failure** ([D199](decisions.md)). `read_line()` answers `null` when the
+connection ended before a whole line; `read_line_now()` answers `null` for that and when no whole line has arrived
+yet, and `read_bytes_now` answers `0` both for "nothing yet" and for "closed". `closed` is what tells them apart
+(proposed by Claude, unconfirmed, over a count of `-1`), so a count stays a count:
+
+```gdscript
+func poll(connection: Socket) {
+    var received = connection.read_bytes_now(buffer, 4096)
+    if received > 0 {
+        handle(received)
+    } else if connection.closed {
+        forget(connection)
+    }
+}
+```
+
+A write to a closed connection sends nothing, answers `false` or `0`, and sets `closed` too; nothing crashes.
+Addresses are `Memory.Address`es, so a buffer is `heap.allocate(bytes)` and its bytes are written with
+`TypedMemory<Byte>` or a class of the program's own over the heap ([memory.md](memory.md)). IPv6 is not built.
+HTTP, WebSocket and UDP are to grow from this class; none of them is built yet.
 
 ## Rules in full
 
@@ -592,7 +637,7 @@ each member answers is in the section of this page that teaches it.
 | `Clock()` | a singleton (names proposed): `elapsed_nanoseconds(): Long`, `elapsed_milliseconds(): Long`, `now(): Instant` (D127; it replaced `unix_milliseconds(): Long`) -- [Clock](#clock), [Time](time.md#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed) |
 | `Console()` | a singleton (D52): `print(...values)`, `write(...values)`, `error(...values)`, `debug(...values)`, `flush()`, `read_line(): String?` -- [Console](#console), and below |
 | `Watcher()` | D194 (the name and the members proposed; `mortaros_missing_decisions.md` asks for the final name): `watch(path): Boolean`, `changes(): List<String>`, `wait_for_changes()` -- [Watch files and folders](#watch-files-and-folders), which is the rule. `HotReload` is built on it ([REPL and live reload](repl.md#repl-and-live-reload--partial)) |
-| `Socket()` | public library surface (D126; the members proposed): `listen_locally(port): Boolean`, `accept_client(): Socket?`, `connect_locally(port): Boolean`, `read_line(): String?`, `write_line(text): Boolean`, `close()` -- TCP on `127.0.0.1` only, which `--repl-port` and `spite connect` use ([REPL and live reload](repl.md#repl-and-live-reload--partial)) |
+| `Socket()` | public library surface (D126; the members proposed): `listen_locally(port): Boolean`, `listen_everywhere(port): Boolean`, `listen_at(host, port): Boolean`, `connect_locally(port): Boolean`, `connect(host, port): Boolean`, `accept_client(): Socket?`, `read_line(): String?`, `read_bytes(address, count): Integer`, `write_line(text): Boolean`, `write_bytes(address, count): Boolean`, the calls that never wait `accept_client_now(): Socket?`, `read_line_now(): String?`, `read_bytes_now(address, count): Integer` and `write_bytes_now(address, count): Integer`, `closed: Boolean`, `close()` -- TCP over IPv4 on every system ([Socket](#socket), and below); `--repl-port` and `spite connect` use `listen_locally` and `connect_locally` ([REPL and live reload](repl.md#repl-and-live-reload--partial)) |
 | `Concurrent(function)`, `Parallel(function)` | names decided (D133): the handle stands in for what the function returned, and reading it is the wait (D134); `finished: Boolean` never waits; dropping the handle waits for it; there is no `wait()` and no `join()` -- [concurrency.md](concurrency.md) |
 | `ThreadPool()` | the singleton every `Parallel` runs on (D135, D191; members proposed): `size(): Integer` worker threads, `worker_index(): Integer` (`-1` off the pool) -- [The thread pool](concurrency.md#the-thread-pool) |
 | `ThreadLocal<T>()`, `Lock()`, `ThreadSlot()` | proposed: one value per thread, `get(): T?`, `set(value)`; a lock, `while_locked(function)`, `lock()`, `unlock()`; the raw per-thread `Long` both are built on, `read()`, `write(value)` -- [A value per thread, and a lock](concurrency.md#a-value-per-thread-and-a-lock) |
@@ -626,6 +671,19 @@ writes a required function as `to_string(): String` today, and which form a shap
 [open question 11](open_questions.md). What stays the compiler's is only the floor: `_write_output(text)`,
 `_write_error(text)` and `flush()` are declared nowhere in Spite, and the compiler supplies their C (`fwrite` and
 `fflush`), as it does `Memory.Heap`'s. D147 wants even these as Spite over a few named primitives; not built.
+
+**A printed line is written out at once** (proposed by Claude, unconfirmed; `mortaros_missing_decisions.md` asks).
+`print`, `error` and `debug` call `flush()` after their line break, so output redirected to a file or a pipe
+shows each line when it is printed instead of when the C library's buffer fills or the program exits; `write`
+does not, so a prompt or a line built from pieces goes out with the next line end. The C library already writes
+a terminal's output promptly, so nothing changes there. Chosen as the cheapest way that shows every line:
+`benchmarks/console_lines` prints 200 000 lines, and on Windows to a file it takes about 700 ms flushed per line
+against about 140 ms buffered until exit (to a pipe or the null device the two cost the same, about 450 and 530
+ms) -- about 3 microseconds per line, one `WriteFile` or `write`. The alternatives cost the same or do not show
+every line: line buffering (`setvbuf` with `_IOLBF`) is one system call per line too, and the Windows C library
+treats it as full buffering; flushing on a timer, or only where the program waits, leaves the last line of a
+program that computes without waiting in the buffer. A program that prints a great deal to a file and does not
+need to be watched builds its text and prints it in fewer, longer lines.
 
 As implemented (proposed by Claude, unconfirmed): printing a value costs what the call says -- the list of values
 is a `List` like any variadic call's, a number goes through its box and its `to_string()`, and the text is written
@@ -693,6 +751,39 @@ What follows is Claude's reading (proposed by Claude, unconfirmed):
   `entries()` is the public listing and Spite has no overloading.
 - `--final-classes` prints `Directory` back out with its `union Entry`, which compiles because a union declared
   again replaces the earlier one ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)).
+
+**`Socket` does what a game server needs, on every system** (implements D126's growth, asked for by the
+SlopEngine session; the names and every reading below proposed by Claude, unconfirmed).  **[implemented]**
+`library/socket.spite` holds everything but the calls into each system's library, which `library/windows/`,
+`linux/` and `mac/socket.spite` reopen the class with (D80):
+
+- **Addresses.** `listen_locally` and `connect_locally` build `127.0.0.1` themselves, `listen_everywhere` builds
+  `0.0.0.0`, and `listen_at` and `connect` resolve the host with the system's `getaddrinfo`, asking for IPv4 and a
+  stream socket and taking the first answer; a name that does not resolve answers `false`. Resolving waits in
+  place, like connecting. The listening queue is 64 connections deep. IPv6 is not built.
+- **Waiting calls.** `accept_client`, `read_line` and `read_bytes` reach `Socket.accept_handle` and
+  `Socket.receive_into`, which are the compiler's waits ([concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows)):
+  in a `Concurrent` they return to the event loop while a helper thread makes the call. `write_line` and
+  `write_bytes` send until everything is sent, in place, as before.
+- **Calls that never wait** (`_now`) are ordinary calls, not waits, so they add nothing to a state machine. Linux
+  and macOS pass `MSG_DONTWAIT` to `recv` and `send` and ask `poll` with a timeout of 0 before `accept`, so a socket
+  stays in blocking mode and the waiting calls keep working on it. Windows has no such flag: a socket switches to
+  non-blocking mode (`ioctlsocket` with `FIONBIO`) the first time a `_now` call reaches it and back when a waiting
+  call does, so a loop that only polls pays for one switch, not one per call. A client that `accept_client_now`
+  hands back is in blocking mode, like every new `Socket`. "Nothing yet" is `EWOULDBLOCK` (`WSAEWOULDBLOCK` on
+  Windows, `EAGAIN` or `EINTR` elsewhere, read through `__errno_location` or `__error`); any other failure, or a
+  read of 0 bytes, is the end of the connection.
+- **`closed`** is an attribute: `false` from `listen_*` or `connect*`, `true` once a read sees the end of the
+  connection or a failure, once a write fails, or after `close()`. A read on a closed socket answers `0` or `null`
+  without calling the system, a write sends nothing, and nothing crashes (D199). `read_line` used to answer
+  `null` for a closed connection without saying so; it still answers `null`, and now sets `closed`.
+- **Lines and bytes mix.** Text `read_line` read past its line waits in the socket, and `read_bytes` and
+  `read_bytes_now` hand those bytes out first.
+- **What it costs** (D177): a `Boolean` per `Socket` (and on Windows one more for the mode), and the functions a
+  program calls: one that never polls has no `_now` code, and a system function only an unused call reaches
+  (`getaddrinfo`, `ioctlsocket`, ...) is never looked up. `conformance/stage6/socket_bytes` (a server and a client in one
+  program, bytes both ways and a line without waiting, then the close) and `socket_waits` (the waiting calls,
+  inside a `Concurrent`) are the proof; `check.sh` writes both out for Linux and macOS too.
 
 <a id="pure-spite-dissolving-the-runtime--planned"></a>
 

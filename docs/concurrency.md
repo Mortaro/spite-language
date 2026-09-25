@@ -5,7 +5,7 @@
 > `Parallel(function)` runs one on a fixed pool of worker threads; the handle stands in for what the function
 > returns, and reading it is what waits. `finished` answers whether the work is done without waiting, and dropping
 > the handle waits for it. Where a program already waits -- `Program.sleep`, `Console.read_line`, reading or
-> writing a `File`, a `Socket`'s `accept_client` and `read_line`, reading a `Concurrent` or a `Parallel` -- the
+> writing a `File`, a `Socket`'s `accept_client`, `read_line` and `read_bytes`, reading a `Concurrent` or a `Parallel` -- the
 > compiler turns the wait into a point the state machine returns from, so other work runs meanwhile, and a
 > `--repl-port` build answers its commands there.
 > `list.parallel_each_update()` runs a member on every element across the pool, and the compiler checks that the
@@ -141,7 +141,7 @@ the program's event loop (`library/scheduler.spite`) runs it again from where it
 | The program writes | While it waits |
 |---|---|
 | `program.sleep(milliseconds)` | the state machine returns, and is run again once its time has come |
-| `Console.read_line()`, reading or writing a `File`, a `Socket`'s `accept_client` or `read_line` | the one blocking system call runs on a short-lived helper thread, and the state machine is run again when it returns |
+| `Console.read_line()`, reading or writing a `File`, a `Socket`'s `accept_client`, `read_line` or `read_bytes` | the one blocking system call runs on a short-lived helper thread, and the state machine is run again when it returns |
 | reading a `Concurrent`'s value, or dropping it | the state machine is run again once that one has finished |
 | reading a `Parallel`'s value, or dropping it | the pool finishes it (the waiting thread runs it itself if no worker has started it), then anything ready runs once |
 
@@ -158,6 +158,11 @@ waits again on every pass). It runs before the rest of the statement it is writt
 right side of `and`/`or`, through a function value or a constructor -- still wait correctly but hold their
 `Concurrent` in place while the others keep running; [the rules](#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows)
 list them.
+
+**A call that never waits is not a wait.** A `Socket`'s `accept_client_now`, `read_line_now`, `read_bytes_now`
+and `write_bytes_now` answer at once with what is there ([standard_library.md](standard_library.md#socket)), so
+they are ordinary calls: a game loop that polls its connections every frame has no state machine and no helper
+thread for them, and it waits only where it sleeps until the next frame.
 
 **When blocking is faster, the compiler blocks.** A program that never makes a `Concurrent` has no state machines,
 no event loop and no helper threads: every wait is the plain blocking call. Inside a program that has them, a wait

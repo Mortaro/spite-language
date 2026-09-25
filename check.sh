@@ -337,8 +337,15 @@ for operating_system in windows linux mac; do
     echo "FAILED: Watcher does not compile with library/$operating_system"; exit 1; }
   "$CC_BIN" -fsyntax-only -w "$work/watching_$operating_system.c" 2> "$work/c_errors.txt" || {
     echo "FAILED: the Watcher C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
+  # The compiler only talks lines on 127.0.0.1, so programs that resolve names and move bytes, waiting and not, are too.
+  for socket_program in socket_bytes socket_waits; do
+    "$work/generation_two.exe" conformance/stage6/$socket_program --run=false --c-source --c-path="$work/${socket_program}_$operating_system.c" --target-operating-system=$operating_system || {
+      echo "FAILED: $socket_program does not compile with library/$operating_system"; exit 1; }
+    "$CC_BIN" -fsyntax-only -w "$work/${socket_program}_$operating_system.c" 2> "$work/c_errors.txt" || {
+      echo "FAILED: the C of $socket_program written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
+  done
 done
-echo "operating systems: the compiler, a time zone program and a file watching program compile with the windows, linux and mac library folders"
+echo "operating systems: the compiler, a time zone program, a file watching program and a socket program compile with the windows, linux and mac library folders"
 
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
 # already in the one style, so formatting it changes nothing. `spite format --check` lists every file that would

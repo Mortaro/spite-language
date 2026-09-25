@@ -1,0 +1,3 @@
+the client read back 4 bytes, the last 40
+no line: the server closed true
+the server echoed 4 bytes

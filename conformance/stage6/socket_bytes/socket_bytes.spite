@@ -1,0 +1,80 @@
+var console = Console()
+var program = Program()
+var heap = Memory.Heap()
+var bytes = TypedMemory<Byte>()
+var server = Socket()
+
+func SocketBytes() {
+    crash server.listen_at("127.0.0.1", 47313)
+    var nobody = server.accept_client_now()
+    if not nobody {
+        console.print("nobody is connecting yet")
+    }
+    var client = Socket()
+    crash client.connect("localhost", 47313)
+    var peer = accept_eventually()
+    var buffer = heap.allocate(16)
+    var nothing = peer.read_bytes_now(buffer, 16)
+    console.print("nothing yet:", nothing, peer.closed)
+    send(client, 1, 2, 250)
+    var received = receive(peer, buffer, 3)
+    var first = bytes.read_value(buffer, 0)
+    var third = bytes.read_value(buffer, 2)
+    console.print("peer received:", received, first, third)
+    send(peer, 7, 8, 9)
+    received = receive(client, buffer, 3)
+    var second = bytes.read_value(buffer, 1)
+    console.print("client received:", received, second)
+    crash peer.write_line("hello over the wire")
+    var line = client.read_line_now()
+    while not line {
+        program.sleep(1)
+        line = client.read_line_now()
+    }
+    crash line
+    console.print("client read the line:", line)
+    client.close()
+    var after = peer.read_bytes_now(buffer, 16)
+    while not peer.closed {
+        program.sleep(1)
+        after = peer.read_bytes_now(buffer, 16)
+    }
+    console.print("peer closed:", after, peer.closed)
+    var last_line = peer.read_line_now()
+    if not last_line {
+        console.print("no line after the close")
+    }
+    heap.free(buffer)
+    peer.close()
+    server.close()
+}
+
+func accept_eventually(): Socket {
+    var accepted = server.accept_client_now()
+    while not accepted {
+        program.sleep(1)
+        accepted = server.accept_client_now()
+    }
+    crash accepted
+    return accepted
+}
+
+func send(socket: Socket, first: Integer, second: Integer, third: Integer) {
+    var message = heap.allocate(3)
+    bytes.write_value(message, 0, first)
+    bytes.write_value(message, 1, second)
+    bytes.write_value(message, 2, third)
+    var sent = socket.write_bytes_now(message, 3)
+    console.print("sent without waiting:", sent)
+    heap.free(message)
+}
+
+func receive(socket: Socket, buffer: Memory.Address, wanted: Integer): Integer {
+    var received = socket.read_bytes_now(buffer, wanted)
+    while received < wanted and not socket.closed {
+        program.sleep(1)
+        var more = socket.read_bytes_now(buffer + received, wanted - received)
+        received = received + more
+    }
+    return received
+}
