@@ -270,7 +270,7 @@ func Engine() {
 }
 ```
 
-This works in the program's entry file and in any file of a loaded package, so a package can pick its own plugins.
+This works in every file of the program's folder and of a loaded package, so a package can pick its own plugins.
 Each path is relative to the folder of the file it is written in. A condition the compiler cannot decide, such as
 one that reads `Arguments()`, is an error rather than a folder that is quietly left out.
 
@@ -309,14 +309,23 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
 - `spite game` **loads the program's folder as a root** (a program is named by its folder, D130): the program's
   folder is a real root exactly like a `load`-ed one, so every subfolder inside it is a namespace, recursively,
   with no explicit `load` needed (D182: a swappable plugin therefore lives beside the program, not inside it).
-  The two differences from a `load`-ed root: a subfolder the entry file itself explicitly `load`s is left to
-  that line (a `load`-ed root's own folder is never itself a namespace segment), and only the entry file's
-  `load`s are followed in the program's own folder -- a sibling file next to it is pulled in whenever it is
-  reachable as a class, but a `load` it holds loads nothing, and says nothing either (a known gap).
+  The difference from a `load`-ed root: a subfolder that a file at the top of the program's folder explicitly
+  `load`s is left to that line (a `load`-ed root's own folder is never itself a namespace segment). Every file of
+  the program's folder has its `load`s followed, the entry file's first, like every file of a loaded root, so a
+  sibling file's `load "tools"` loads `tools/` as a package root (D195: a `load` works in any file, and the entry
+  file only names what runs first; `conformance/stage6/sibling_load`). The launcher class's own `load`s, printed
+  into a `--final-classes` folder, are the launcher's and are not followed from there. A file in a sub folder that loads a folder inside its own tree gets it twice,
+  as a namespace and as a root, as a package does (`mortaros_missing_decisions.md` item 154).
 - **Folder names are always lowercase snake_case, package roots included** (D181): `slop_window_plugin`, never
   `slop-window-plugin`, for every folder that actually contains a `.spite` file anywhere inside it (an unrelated
-  folder with none, such as `.git` or a build output directory, is never descended for classes).  **[not built:
-  no folder name is checked; `BadFolder/` becomes the namespace `BadFolder` and `load "../Slop-Plugin"` loads]**
+  folder with none, such as `.git` or a build output directory, is never descended for classes). A folder that
+  is not is an error before anything compiles, naming the snake_case to rename it to: "the folder 'BadFolder' is
+  not named in snake_case: every folder of a program, a package's own folder included, is lowercase words joined
+  by '_', so rename it 'bad_folder'" (`diagnostics/folder_name`, and `diagnostics/load_folder_name` for `load
+  "Slop-Plugin"`). What is checked (proposed by Claude, unconfirmed): the program's own folder, every folder
+  inside it and inside a loaded root, and a loaded root's own folder -- not the folders above them that a path
+  such as `../../plugins/render_vulkan` passes through, which are not part of the program. snake_case is a
+  lowercase letter, then lowercase letters, digits and single `_`, not ending in `_`.
 - Resolving an unqualified `Name` from inside a class tries, in order: that class's own namespace (so a nested enum/type/union
   resolves by its plain name from inside its own class), the same folder's namespace, each parent folder's namespace, then the
   whole program globally. Ambiguity *between roots* at the same level is never an error, because of the next rule.

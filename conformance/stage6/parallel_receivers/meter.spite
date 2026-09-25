@@ -1,3 +1,5 @@
+singleton
+
 var guard = Lock()
 var stopping = false
 var count: Long = 0

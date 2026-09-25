@@ -44,6 +44,8 @@ func PrintableValues() {
         index = index + 1
     }
     var first = labels.first()
+    crash first
     var last = labels.last()
+    crash last
     console.print(first, last)
 }

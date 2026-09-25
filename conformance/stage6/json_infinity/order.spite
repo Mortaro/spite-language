@@ -1,0 +1,2 @@
+var item = "tea"
+var price: Double = 2.5

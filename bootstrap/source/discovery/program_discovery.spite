@@ -16,7 +16,11 @@ var loaded_folders = List<String>()
 var program_paths = List<String>()
 var pending_files = List<Syntax.SourceFile>()
 var following_loads = false
+var walking_program = false
+var program_files = List<Syntax.SourceFile>()
+var program_load_names = List<String>()
 var printer = Syntax.SourcePrinter()
+var program_environment = Environment()
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
     choose_target_operating_system()
@@ -251,7 +255,6 @@ func discover_program(entry_path: String, entry_source: String) {
     }
     comment_root = directory_of(entry_path)
     check_comments(entry_path, lexer.tokens)
-    check_blank_lines(entry_path, lexer.tokens)
     assert not has_error
     var parser = Syntax.Parser(lexer.tokens)
     var entry_file = parser.parse_file()
@@ -266,18 +269,90 @@ func discover_program(entry_path: String, entry_source: String) {
     check_entry_constructor(entry_path, entry_file, pascal_name)
     assert not has_error
     var entry_directory = directory_of(entry_path)
+    check_folder_name(entry_directory, entry_path)
     var entry_stem = file_stem(entry_path)
     var entry_basename = basename(entry_path)
-    var load_names = List<String>()
-    collect_file_load_names(entry_file, load_names)
+    collect_file_load_names(entry_file, program_load_names)
     var empty_segments = List<String>()
     reopen_with_supplied_members()
     entry_file.path = entry_path
     add_parsed_file(entry_file, empty_segments, entry_stem)
     entry_qualified = compute_qualified(empty_segments, entry_stem)
     entry_file_path = entry_path
-    walk_directory(entry_directory, empty_segments, entry_basename, load_names)
+    walking_program = true
+    walk_directory(entry_directory, empty_segments, entry_basename, program_load_names)
+    walking_program = false
     pending_files.append(entry_file)
+    var index = 0
+    while index < program_files.count() {
+        pending_files.append(program_files[index])
+        index = index + 1
+    }
+}
+
+func check_folder_name(folder: String, named_by: String) {
+    var name = basename(folder)
+    assert name != "." and name != ".." and not has_error
+    assert not is_snake_case(name)
+    assert holds_spite_files(folder)
+    has_error = true
+    error_message = "{named_by}: error: the folder '{name}' is not named in snake_case: every folder of a program, a package's own folder included, is lowercase words joined by '_', so rename it '{snake_case_of(name)}'"
+}
+
+func is_snake_case(name: String): Boolean {
+    assert not name.is_empty()
+    var first = name.code_at(0)
+    assert first >= 97 and first <= 122
+    var index = 1
+    while index < name.length() {
+        var code = name.code_at(index)
+        assert code >= 97 and code <= 122 or code >= 48 and code <= 57 or code == 95
+        index = index + 1
+    }
+    return not name.ends_with("_") and not name.contains("__")
+}
+
+func snake_case_of(name: String): String {
+    var written = ""
+    var index = 0
+    while index < name.length() {
+        var letter = name.slice(index, index + 1)
+        var lower = letter.lower_case()
+        var separates = letter == "-" or letter == " " or letter == "." or letter == "_"
+        if separates {
+            lower = "_"
+        }
+        if lower != letter and not separates and index > 0 and not written.ends_with("_") {
+            written = "{written}_"
+        }
+        if not (separates and (written.is_empty() or written.ends_with("_"))) {
+            written = written + lower
+        }
+        index = index + 1
+    }
+    return written
+}
+
+func holds_spite_files(folder: String): Boolean {
+    var directory = Directory(folder)
+    assert directory.exists()
+    var files = directory.files()
+    if files.any(is_spite_file) {
+        return true
+    }
+    var folders = directory.folders()
+    var index = 0
+    while index < folders.count() {
+        if holds_spite_files("{folder}/{folders[index]}") {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func is_spite_file(name: String): Boolean {
+    return name.ends_with(".spite")
 }
 
 func load_root(entry_path: String, entry_directory: String, root_name: String) {
@@ -294,6 +369,8 @@ func load_root(entry_path: String, entry_directory: String, root_name: String) {
         error_message = "could not find the folder '{root_name}' loaded by {entry_path}"
         return
     }
+    check_folder_name(root_folder, entry_path)
+    assert not has_error
     loaded_folders.append("{root_folder}/")
     var empty_segments = List<String>()
     var no_skip: String? = null
@@ -437,42 +514,6 @@ func check_comments(path: String, tokens: List<Syntax.Token>) {
     }
 }
 
-func check_blank_lines(path: String, tokens: List<Syntax.Token>) {
-    var depth = 0
-    var in_function = false
-    var previous_line = 0
-    var previous_kind: Syntax.TokenKind = 'end_of_file'
-    var last_declaration: Syntax.TokenKind = 'end_of_file'
-    var index = 0
-    while index < tokens.count() {
-        var token = tokens[index]
-        if depth == 0 and (token.kind == 'function_keyword' or token.kind == 'keyword_type' or token.kind == 'keyword_enum' or token.kind == 'keyword_union') {
-            last_declaration = token.kind
-        }
-        if token.kind == 'left_brace' {
-            if depth == 0 {
-                in_function = last_declaration == 'function_keyword'
-            }
-            depth = depth + 1
-        }
-        if token.kind == 'right_brace' {
-            depth = depth - 1
-            if depth == 0 {
-                in_function = false
-            }
-        }
-        if in_function and depth > 0 and previous_kind == 'newline' and token.line - previous_line > 1 and not has_error {
-            has_error = true
-            error_message = "{path}:{previous_line + 1}: error: a function body holds no empty lines: the blank line is where a second function wants to be, so give the part below it a name and call it"
-        }
-        if token.kind != 'end_of_file' {
-            previous_line = token.line
-            previous_kind = token.kind
-        }
-        index = index + 1
-    }
-}
-
 func comment_problem(text: String, depth: Integer): String {
     if depth > 0 {
         return "a comment may not appear inside a function or a declaration body: a line that needs explaining becomes a named function instead. {comment_lesson()}"
@@ -547,6 +588,23 @@ func failure(message: String): DiscoveryResult {
     return DiscoveryResult(empty, "", true, message)
 }
 
+func is_program_path(path: String): Boolean {
+    return not path.is_empty() and not path.starts_with("library/")
+}
+
+func overrides_platform(variable: Syntax.Statements.VariableDeclaration): Boolean {
+    assert is_platform_setting(variable.name) and is_program_path(variable.source_path)
+    crash variable.value
+    var reader = literal_reader(variable.value)
+    assert not reader.is_empty()
+    var declared = literal_text(variable.value)
+    return not declared.is_empty() and declared != supplied_settings[variable.name]
+}
+
+func is_platform_setting(name: String): Boolean {
+    return name == "target_operating_system" or name == "operating_system"
+}
+
 func is_platform_folder(name: String): Boolean {
     return name == "windows" or name == "linux" or name == "mac"
 }
@@ -612,7 +670,10 @@ func walk_directory(
                 excluded = true
             }
         }
-        if not excluded {
+        if not excluded and not has_error {
+            check_folder_name("{folder_on_disk}/{folder_name}", folder_on_disk)
+        }
+        if not excluded and not has_error {
             var child_segments = copy_segments(segments)
             child_segments.append(folder_name)
             walk_directory(root_folder, child_segments, skip_basename, excluded_top_level)
@@ -648,7 +709,6 @@ func read_and_add_file(path: String, segments: List<String>) {
             return
         }
         check_comments(path, lexer.tokens)
-        check_blank_lines(path, lexer.tokens)
         assert not has_error
         var parser = Syntax.Parser(lexer.tokens)
         var parsed_file = parser.parse_file()
@@ -666,6 +726,13 @@ func read_and_add_file(path: String, segments: List<String>) {
         add_parsed_file(parsed_file, segments, stem)
         if following_loads and not walking_library {
             pending_files.append(parsed_file)
+        }
+        var follows_loads = walking_program and compute_qualified(segments, stem) != "Launcher"
+        if follows_loads {
+            program_files.append(parsed_file)
+        }
+        if follows_loads and segments.is_empty() {
+            collect_file_load_names(parsed_file, program_load_names)
         }
     } else {
         has_error = true
@@ -828,8 +895,13 @@ func hardcode_build(build: Syntax.SourceFile): List<String> {
                 error_message = "{variable.source_path}:{variable.line}: error: 'Build.format' cannot be declared: every compile formats the program's own files first, and nothing turns that off. To format files without compiling them: spite format file_or_folder"
                 return declared
             }
+            if overrides_platform(variable) {
+                has_error = true
+                error_message = "{variable.source_path}:{variable.line}: error: 'Build.{variable.name}' cannot be declared by a program: the standard library for the target system is loaded before the program, so the target is given to the compiler, --target-operating-system=linux (or windows, or mac), and is the system doing the compiling otherwise"
+                return declared
+            }
             declared.append(variable.name)
-            var reader = setting_reader(variable, "Build")
+            var reader = setting_reader(variable, "Build", build.path)
             variable.hardcoded_value = variable.value
             if supplied_settings.has(variable.name) and not has_error {
                 hardcode_setting(variable, reader)
@@ -850,9 +922,9 @@ func read_environment(environment: Syntax.SourceFile): List<String> {
     var index = 0
     while index < environment.statements.count() and not has_error {
         var variable = shape.as_variable_declaration(environment.statements[index])
-        if variable {
+        if variable and not variable.name.starts_with("_") {
             declared.append(variable.name)
-            var reader = setting_reader(variable, "Environment")
+            var reader = setting_reader(variable, "Environment", environment.path)
             var reading = setting_reading(variable, reader)
             readings.append(reading)
         }
@@ -861,6 +933,9 @@ func read_environment(environment: Syntax.SourceFile): List<String> {
     if has_error or readings.is_empty() {
         return declared
     }
+    var first_reading = readings.first()
+    var check = spelling_check(declared, first_reading)
+    readings.insert(0, check)
     var constructor = environment_constructor(environment)
     var body_index = 0
     while body_index < constructor.body.count() {
@@ -869,6 +944,20 @@ func read_environment(environment: Syntax.SourceFile): List<String> {
     }
     constructor.body = readings
     return declared
+}
+
+func spelling_check(declared: List<String>, first_reading: Syntax.Statements.Statement): Syntax.Statements.Statement {
+    var names = List<Syntax.Expressions.Expression>()
+    var index = 0
+    while index < declared.count() {
+        names.append(Syntax.Expressions.StringLiteralExpression(declared[index]))
+        index = index + 1
+    }
+    var checker = Syntax.Expressions.IdentifierExpression("reject_misspelled_settings")
+    var call = Syntax.Expressions.CallExpression(checker, names)
+    var check = Syntax.Statements.ExpressionStatement(call)
+    check.line = line_of(first_reading)
+    return check
 }
 
 func class_file_named(qualified_name: String): Syntax.SourceFile? {
@@ -895,12 +984,16 @@ func environment_constructor(environment: Syntax.SourceFile): Syntax.Statements.
     return made
 }
 
-func setting_reader(variable: Syntax.Statements.VariableDeclaration, class_name: String): String {
+func setting_reader(variable: Syntax.Statements.VariableDeclaration, class_name: String, file_path: String): String {
     crash variable.value
     var reader = literal_reader(variable.value)
     if variable.type_reference or reader.is_empty() {
+        var declared_path = variable.source_path
+        if declared_path.is_empty() {
+            declared_path = file_path
+        }
         has_error = true
-        error_message = "{variable.source_path}:{variable.line}: error: '{class_name}.{variable.name}' is {setting_source(variable.name, class_name)}, so it is declared with only a literal default, and the literal is its type: 'var {variable.name} = false' (Boolean), 'var {variable.name} = 0' (Integer) or 'var {variable.name} = \"\"' (String)"
+        error_message = "{declared_path}:{variable.line}: error: '{class_name}.{variable.name}' is {setting_source(variable.name, class_name)}, so it is declared with only a literal default, and the literal is its type: 'var {variable.name} = false' (Boolean), 'var {variable.name} = 0' (Integer) or 'var {variable.name} = \"\"' (String)"
     }
     return reader
 }
@@ -928,7 +1021,7 @@ func hardcode_setting(variable: Syntax.Statements.VariableDeclaration, reader: S
         variable.hardcoded_value = literal
     } else {
         has_error = true
-        error_message = "{variable.source_path}:{variable.line}: error: '{given}' was given to the compiler, but 'Build.{variable.name}' is {setting_expectation(reader, variable.name)}"
+        error_message = "error: '{given}' was given to the compiler, but 'Build.{variable.name}' is {setting_expectation(reader, variable.name)}"
     }
 }
 
@@ -969,8 +1062,7 @@ func boolean_literal(text: String): Syntax.Expressions.Expression? {
 }
 
 func integer_literal(text: String): Syntax.Expressions.Expression? {
-    var environment = Environment()
-    assert environment.is_whole_number(text)
+    assert program_environment.is_whole_number(text)
     if text.starts_with("-") {
         var text_length = text.length()
         var magnitude_text = text.slice(1, text_length)
@@ -1401,7 +1493,9 @@ func join_with_slash(segments: List<String>): String {
 
 func basename(path: String): String {
     var segments = path.split("/")
-    return segments.last()
+    var last = segments.last()
+    crash last
+    return last
 }
 
 func file_stem(path: String): String {

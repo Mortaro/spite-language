@@ -1,0 +1,11 @@
+generic $value_type
+
+var _box: Memory.Address = 0
+
+func Weak(target: $value_type) {
+    _box = _box_of(target)
+}
+
+func drop() {
+    _release_box()
+}

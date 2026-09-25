@@ -1,11 +1,11 @@
 var limit = 0
-var names = List<String>()
 
 func Pump(starting_limit: Integer) {
     limit = starting_limit
 }
 
 func run(): Integer {
+    var names = List<String>()
     var index = 0
     while index < limit {
         names.append("pumped")

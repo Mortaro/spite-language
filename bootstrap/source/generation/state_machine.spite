@@ -327,8 +327,13 @@ func bind(name: String, field: String) {
     bound_depths.append(depth)
 }
 
+func deepest_binding(): Integer {
+    var binding_count = bound_depths.count()
+    return bound_depths.get_at(binding_count - 1)
+}
+
 func forget_deeper_bindings() {
-    while not bound_depths.is_empty() and bound_depths.last() > depth {
+    while not bound_depths.is_empty() and deepest_binding() > depth {
         bound_names.remove_last()
         bound_fields.remove_last()
         bound_depths.remove_last()

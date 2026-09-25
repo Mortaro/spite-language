@@ -3,12 +3,12 @@ singleton
 var console = Console()
 
 func start() {
-    var archive = Archive()
-    archive.store("started")
+    var entry = "started"
+    entry.store_in_archive()
 }
 
 func drop() {
     console.print("reporter dropping")
-    var archive = Archive()
-    archive.store("stopped")
+    var entry = "stopped"
+    entry.store_in_archive()
 }

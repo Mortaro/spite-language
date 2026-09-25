@@ -146,6 +146,14 @@ if ! grep -q "_Alignas(64) int64_t owner" "$locks" || ! grep -q "^Registry_count
   echo "FAILED: singleton_lock_calls should pad its lock, call itself unlocked, lock a write from outside and not lock Rules"; exit 1
 fi
 echo "production C: hello carries no unused class, singleton_forms takes no lock, singleton_lock_calls locks only Registry"
+# D201: a whole-number division checks its divisor for zero, except where a proof already shows it is not zero:
+# division_by_zero's 'whole / pieces' follows 'assert pieces != 0', so its C carries no check for it.
+"$work/generation_two.exe" conformance/stage6/division_by_zero --run=false --c-source --c-path="$work/division.c" > /dev/null 2>&1 || {
+  echo "FAILED: division_by_zero does not write its C"; exit 1; }
+if grep -q "whole / pieces" "$work/division.c" || ! grep -q "total / parts" "$work/division.c"; then
+  echo "FAILED: division_by_zero should check 'total / parts' and not the proven 'whole / pieces'"; exit 1
+fi
+echo "division: a proven divisor carries no zero check"
 
 # The benchmarks (benchmarks/README.md) are timed by hand with benchmarks/run.sh; here they only have to compile.
 benchmarked=0
@@ -191,6 +199,13 @@ for folder in diagnostics/*/; do
 done
 echo "diagnostics: $checked checked, $wrong wrong"
 [ "$wrong" == "0" ] || exit 1
+# Every compile formats first (D190) and the formatter deletes an empty line inside a function (D196), so compiling
+# diagnostics/blank_line above fixed its copy: the copy changed, and is now in the one style.
+if cmp -s "$work/unformatted/diagnostics/blank_line/blank_line.spite" diagnostics/blank_line/blank_line.spite \
+   || [ -n "$("$work/generation_two.exe" format --check "$work/unformatted/diagnostics/blank_line" 2>&1)" ]; then
+  echo "FAILED: compiling diagnostics/blank_line should have deleted the empty line inside its function"; exit 1
+fi
+echo "format: compiling deletes an empty line inside a function"
 
 # Every program written in docs/ and README.md is a program: scripts/docs_corpus (itself Spite) writes each titled
 # code block out, and each one has to compile, run, print its ```output block and free everything it took.

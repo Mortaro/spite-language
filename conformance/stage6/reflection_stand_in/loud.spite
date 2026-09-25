@@ -1,0 +1,11 @@
+var console = Console()
+var volume = 0
+
+func Loud() {
+    volume = 11
+    console.print("the constructor ran, which describing a class must never do")
+}
+
+func shout() {
+    console.print("volume", volume)
+}

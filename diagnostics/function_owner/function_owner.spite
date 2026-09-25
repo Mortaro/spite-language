@@ -1,0 +1,11 @@
+var console = Console()
+
+func FunctionOwner() {
+    var change = shouted
+    var owner = change.owner
+    console.print(owner)
+}
+
+func shouted(text: String): String {
+    return text.upper_case()
+}

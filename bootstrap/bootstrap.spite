@@ -127,7 +127,10 @@ func without_trailing_slashes(path: String): String {
 }
 
 func last_segment(path: String): String {
-    return path.replace("\\", "/").split("/").last()
+    var segments = path.replace("\\", "/").split("/")
+    var last = segments.last()
+    crash last
+    return last
 }
 
 func directory_of(path: String): String {
@@ -338,7 +341,6 @@ func configure(generator: Generation.Generator) {
     generator.hot_reload = is_on("hot_reload")
     generator.keeps_internals = generator.development or generator.read_evaluate_print_loop
     if generator.hot_reload {
-        var program = Program()
         generator.hot_reload_compiler = program.executable_path()
         generator.hot_reload_arguments = reload_arguments()
         generator.hot_reload_program_file = executable_path()
@@ -701,7 +703,6 @@ func find_c_compiler(): String {
 }
 
 func run_reload(discovery: Discovery.DiscoveryResult) {
-    var program = Program()
     var program_file = executable_path()
     var base = without_executable_extension(program_file)
     var host_text = File("{base}.reload_host").read()
@@ -1031,6 +1032,7 @@ func pretty_response(response: String): String {
     var succeeded_prefix_length = succeeded_prefix.length()
     var value = json_string_at(response, succeeded_prefix_length)
     var class_name = response.split("\",\"type\":\"").last()
+    crash class_name
     var class_name_length = class_name.length()
     if class_name_length <= 2 or class_name.starts_with("Nothing\"") {
         return value

@@ -14,11 +14,15 @@ func LiveInstances() {
     var copied = kept[0].copy()
     copied.name = "copy of rat"
     instances_count = Monster.instances.count()
-    var name = Monster.instances.last().name
+    var newest = Monster.instances.last()
+    crash newest
+    var name = newest.name
     console.print(instances_count, name)
     kept.clear()
     instances_count = Monster.instances.count()
-    var first_name = Monster.instances.first().name
+    var oldest = Monster.instances.first()
+    crash oldest
+    var first_name = oldest.name
     console.print(instances_count, first_name)
 }
 

@@ -1,0 +1,10 @@
+var console = Console()
+
+func WrittenHandleType() {
+    var total: Parallel<Integer> = Parallel(count)
+    console.print(total)
+}
+
+func count(): Integer {
+    return 3
+}

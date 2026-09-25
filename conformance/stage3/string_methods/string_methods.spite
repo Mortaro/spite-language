@@ -29,6 +29,7 @@ func StringMethods() {
     var rows = "one\ntwo\nthree".lines()
     var rows_count = rows.count()
     var last_row = rows.last()
+    crash last_row
     console.print(rows_count, last_row)
     var letters = "abc".split("")
     crash letters.count() == 3

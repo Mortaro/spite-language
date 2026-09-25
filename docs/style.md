@@ -210,20 +210,11 @@ this comment is not a link: a comment is one line holding only a link to a markd
 ## A function body holds no empty lines
 
 A blank line inside a function is where a second function wants to be: the part below it is a step with a
-name. Name it and call it. Blank lines stay legal between declarations.
-
-```gdscript title=blank_line_error/blank_line_error.spite entry error
-var console = Console()
-
-func BlankLineError() {
-    console.print("setup")
-
-    console.print("the part that wants a name")
-}
-```
-```diagnostic
-a function body holds no empty lines
-```
+name. Name it and call it. The formatter deletes an empty line inside a function body, and turns a run of empty
+lines outside functions into one (D196); every compile formats first (D190), so a body written with an empty line
+compiles, and the file comes back without it (`formatted path`). What stays is D55's rule: no formatted file has
+one, and the push to name the part below is yours, since the formatter only joins the halves. Between
+declarations one blank line stays.
 
 ## One call per line
 
@@ -260,6 +251,7 @@ func CallArgumentFixed() {
     tokens.append(Token(first_word))
     var word_count = source.split(" ").count()
     var first_token = tokens.first()
+    crash first_token
     console.print("{word_count} words, first token {first_token.text}")
 }
 ```
@@ -532,8 +524,9 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   read (not `library/`), printing `formatted <path>` for each file it rewrote and reading the program again when one
   was; nothing turns it off (D190; the errors for trying are in
   [compiler.md](compiler.md#formatting-before-compiling-and-spite-format)). `crash false` prints as a bare `crash` (D119). A file
-  whose function body has an empty line is left alone, so D55's error still fires instead of the formatter
-  quietly removing the line; a file the formatter refuses is left alone with its reason, as an error that stops
+  whose function body has an empty line has it deleted, and a run of empty lines outside functions becomes one
+  (D196, superseding the refusal D190 described), so compiling fixes it; `check.sh` compiles
+  `diagnostics/blank_line` from a copy and checks the copy came back formatted. A file the formatter refuses is left alone with its reason, as an error that stops
   the compile, so a program is never compiled from text that is not in the one style.
   `--final-classes` writes its classes already formatted. A list or object literal over 120 columns is written
   one entry per line with no commas. Every documentation program not marked `error` is formatted too, and `check.sh`

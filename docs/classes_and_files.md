@@ -451,8 +451,10 @@ fix. A `D` number is a row of the [decision log](decisions.md).
     each codegen value on its own line at the top of the file, like 'generic $damage_type'`.
 - There is no `do`: `if value { } else { }` narrows in place instead
   ([Null safety and `assert` narrowing](failure.md#null-safety-and-assert-narrowing--implemented)). Writing `do`
-  is a parse error; the rule is that it names the `if value { }` form, which is not built -- today it reads
-  `expected '{' but found 'do'`.
+  is a parse error naming that form: `Spite has no 'do': an 'if' on a value that may be null narrows it in place,
+  'if value { ... } else { ... }', and inside the block 'value' is the value itself` (`diagnostics/old_do`).
+- There is no `let` and no `const`: `let total = 1` is `Spite has no 'let': a variable is declared 'var name =
+  value', always with a default, and there is no 'const'` (`diagnostics/old_let`). Both stay usable as names.
 - There is no `class` keyword: `there is no 'class' keyword: a file is a class, named after the file, and its
   attributes and functions are written at the top level of that file` (`diagnostics/class_keyword`). `class`
   written bare inside a function is the instance's own `Spite.Class` ([reflection.md](reflection.md)).
@@ -531,9 +533,15 @@ var heap = Memory.Heap()
   reading of "one per literal argument list" for `generic` lines): `Column<Health>()` is one object wherever it
   is called and `Column<Label>()` is another (`conformance/stage6/generic_singletons`).
 - **A singleton is bound as an attribute, never a local** (D144): every singleton a class uses is visible at the
-  top of its file. The one exception is a value class such as `String`, which has no attribute to spare and
-  binds it as a local `var` in the function that needs it. **Not built:** the compiler does not yet reject a
-  local binding in an ordinary class, so `var console = Console()` inside a function still compiles.
+  top of its file. `var build = Build()` inside a function is "'Build' is a singleton, bound here as a local: bind
+  it once beside the attributes, 'var build = Build()', so every singleton the class uses is at the top of its
+  file" (`diagnostics/local_singleton`). The one exception is a value class such as `String`, which has no
+  attribute to spare and binds it as a local `var` in the function that needs it. As built (proposed by Claude,
+  unconfirmed): the exception covers every class the compiler treats as a value (`String` and the numbers) and
+  `List` and `Dictionary`, since an attribute there would be carried by every list; and a generic singleton whose
+  codegen values come from the function's own codegen or Symbol (`Query<argument.class>()`,
+  `Debug<$value_type.element_type>()` inside a codegen `if`) stays a local, since no attribute can name that type.
+  The singleton is then made when the object that binds it is, not when the function first runs.
 - **A singleton is always bound to a variable before it is used** (D110). A singleton's constructor call may
   only be the whole value of a `var`; a member read or call on it, passing it (`greet(Console())`, although D77
   lets other constructors be arguments), returning it, assigning it, putting it in an operation, or writing it
@@ -563,8 +571,10 @@ var heap = Memory.Heap()
   own, and any library. A `drop()` that fetches a singleton already destroyed -- one first made *after* the
   dropping singleton -- halts with `spite: a drop() at exit used the singleton Archive after it was destroyed:
   singletons are destroyed in reverse order of when they were made, so keep Archive in an attribute of the
-  singleton whose drop() uses it`. A singleton first made inside a `drop()` is destroyed right after it
-  (`conformance/stage6/singleton_teardown`, `conformance/stage6/singleton_used_after_exit`).
+  singleton whose drop() uses it`. Since D144 binds every singleton as an attribute, a class's own singletons
+  are made with it; the halt is left for a local binding D144 allows, such as one in a function of `String`
+  (`conformance/stage6/singleton_used_after_exit` reopens `String` for it). A singleton first made inside a
+  `drop()` is destroyed right after it (`conformance/stage6/singleton_teardown`).
 - **Made once, whichever thread asks first** (proposed by Claude, unconfirmed): in a program that starts
   threads, the first fetch of a singleton takes a lock of its own, checks again and makes it; every later fetch
   is still one load. A program with no threads keeps the plain check (`conformance/stage6/singleton_race`).

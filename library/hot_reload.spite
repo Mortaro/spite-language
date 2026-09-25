@@ -3,6 +3,7 @@ singleton
 var console = Console()
 var heap = Memory.Heap()
 var scheduler = Scheduler()
+var build = Build()
 var folder = ""
 var changes: Memory.Address = 0
 var reloading = false
@@ -13,7 +14,6 @@ var answer = ""
 var reported = false
 
 func start() {
-    var build = Build()
     folder = build.program
     changes = heap.allocate(8)
     changes.write_long(0, 0)

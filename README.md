@@ -30,6 +30,7 @@ func Arena() {
     var standing = monsters.filter_alive().sum_health()
     console.print("health still standing:", standing)
     var troll = monsters.last()
+    crash troll
     show_attributes(troll)
 }
 

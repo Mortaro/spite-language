@@ -100,6 +100,7 @@ func EveryAttribute() {
     console.print(joined)
     show_copies(label, lines)
     var last_line = lines.last()
+    crash last_line
     console.print(last_line)
 }
 
@@ -1167,6 +1168,7 @@ to spell:
 | `$value_type == Dictionary` | any `Dictionary<T>` |
 | `$value_type == Null` | any `T?` -- `Null` is a member of the union a `T?` is (D45) |
 | `$value_type == Symbol` | an enum, or `Symbol` -- an enum is a closed list of symbols (D10) |
+| `$value_type == Enum` | an enum only, not a plain `Symbol` (proposed by Claude, unconfirmed: `Json` needs it to read a plain `Symbol` through `Symbol(text)` and an enum through the text cast) |
 
 A union name is true for any of its members. Such a test always folds, `--development` included, because the
 branch it rules out would not compile.

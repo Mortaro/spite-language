@@ -1,0 +1,12 @@
+var console = Console()
+
+func LocalSingleton() {
+    var build = Build()
+    console.print("built for {build.target_operating_system}")
+    report()
+}
+
+func report() {
+    var program = Program()
+    program.exit(0)
+}

@@ -1,0 +1,1 @@
+diagnostics/target_in_build/build.spite:1: error: 'Build.target_operating_system' cannot be declared by a program: the standard library for the target system is loaded before the program, so the target is given to the compiler, --target-operating-system=linux (or windows, or mac), and is the system doing the compiling otherwise

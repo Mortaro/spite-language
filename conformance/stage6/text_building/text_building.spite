@@ -20,6 +20,7 @@ func TextBuilding() {
     kept.append(shared)
     shared = shared + piece
     var first_kept = kept.first()
+    crash first_kept
     console.print(first_kept, shared)
     var twice = "x"
     twice = "{twice}-{twice}"

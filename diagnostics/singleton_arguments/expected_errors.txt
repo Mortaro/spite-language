@@ -1,1 +1,1 @@
-diagnostics/singleton_arguments/singleton_arguments.spite:2: error: 'Registry' is a singleton, so its constructor takes no arguments: there is one instance, made the first time it is asked for (in SingletonArguments.SingletonArguments)
+diagnostics/singleton_arguments/singleton_arguments.spite:2: error: 'Registry' is a singleton, so its constructor takes no arguments: there is one instance, made the first time it is asked for (in SingletonArguments.)

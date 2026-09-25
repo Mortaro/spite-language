@@ -1,0 +1,5 @@
+var console = Console()
+
+func FlagValue() {
+    console.print("never built")
+}

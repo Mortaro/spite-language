@@ -1,0 +1,1 @@
+diagnostics/old_let/old_let.spite:4:5: Spite has no 'let': a variable is declared 'var name = value', always with a default, and there is no 'const'

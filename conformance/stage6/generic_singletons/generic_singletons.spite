@@ -1,11 +1,11 @@
 var console = Console()
+var healths = Column<Health>()
+var again = Column<Health>()
+var labels = Column<Label>()
 
 func GenericSingletons() {
-    var healths = Column<Health>()
     healths.values.append(Health())
-    var again = Column<Health>()
     again.values.append(Health())
-    var labels = Column<Label>()
     labels.values.append(Label())
     var health_count = again.values.count()
     var label_count = labels.values.count()

@@ -1,0 +1,1 @@
+error: '--player-name' is written '--player_name': a program's setting is spelled like its field, Environment.player_name, so '--player-name' would be ignored

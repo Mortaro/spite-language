@@ -1,7 +1,7 @@
 var console = Console()
+var tally = Tally<Integer>()
 
 func SingletonCounts() {
-    var tally = Tally<Integer>()
     tally.counted.append(1)
     var first_fetcher = Fetcher()
     var second_fetcher = Fetcher()

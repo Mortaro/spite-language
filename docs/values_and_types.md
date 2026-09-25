@@ -674,6 +674,21 @@ assignment parses it (defaulting to `0`/`0.0` on failure), through `String`'s on
 `to_unsigned_integer()`, `to_unsigned_long()`, `to_float()`, `to_double()`. `count()`, `length()`, and
 `index_of()` always return `Integer`, never a wider type.
 
+**Division by zero follows Go** (D201, decided by Mortaro). A whole-number `/` or `%` whose divisor is zero halts
+the program, naming the operation and the line -- `spite: 'total / parts' divided by zero, at
+game/game.spite:22 in Game.share` -- since dividing by zero is the developer's mistake (D199;
+`conformance/stage6/division_by_zero`). A divisor the compiler can see is zero, a constant (`total / 0`,
+`total % (2 - 2)`) or a codegen value folded to `0`, is a compile error instead: `'total / 0' divides by zero,
+which always halts the program` (`diagnostics/division_by_constant_zero`). Where a proof already shows the
+divisor is not zero -- `assert parts != 0`, `crash parts != 0`, `if parts != 0 { }`, `parts > 0`, or a `while`
+condition saying so, kept or undone by a call under D169's rule -- no check is emitted
+([optimizations.md](optimizations.md#a-proven-divisor-is-not-checked)). As in Go, the smallest signed value divided
+by `-1` wraps to itself and its remainder is `0`, where C would trap (proposed by Claude, unconfirmed: Go's
+answer). Float division stays IEEE 754 (D200): `x / 0.0` is infinity or not-a-number.
+- **Floats keep infinity and not-a-number** (D200, decided by Mortaro): `Float` and `Double` are IEEE 754 as the
+  hardware gives them, with no check after an operation that can overflow; they are dealt with where they cannot
+  be represented, as `Json` does (D198, [json.md](json.md)).
+
 Printing a `Float`/`Double` uses shortest-round-trip formatting (try the fewest significant digits that parse
 back to the exact same value) rather than a fixed number of digits, so an ordinary value like `0.1` prints `0.1`
 on a 32-bit `Float`, never `0.100000001`. A value whose shortest digits would need an exponent prints with
@@ -706,7 +721,10 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   `UnsignedInteger` and `UnsignedLong` each answer the functions in [the table above](#bitwise-functions):
   `shifted_left(count: Integer)`, `shifted_right(count: Integer)` and the three `bits_` functions of `other` and
   `bits_inverted()` return the receiver's type, and the three counts return an `Integer` (the width for 0). There
-  are no operator symbols for them. They are bodiless declarations the compiler
+  are no operator symbols for them, and writing one is an error naming its function: `<<` and `>>` (`Spite has no
+  '<<': bits are functions on the whole numbers, write 'value.shifted_left(count)'`), and a lone `&`, `|`, `^` or
+  `~` (`value.bits_and(mask)`, `bits_or`, `bits_exclusive_or`, `bits_inverted()`); `&&` and `||` keep their own
+  message (`diagnostics/old_shift`, `diagnostics/old_ampersand`). They are bodiless declarations the compiler
   supplies (D82), so `--final-classes` prints them in each class, and each body is the single C operation,
   inlined in an optimised build. The rules, so no undefined C behaviour reaches a program:
   - `shifted_right` is **arithmetic on a signed type** (the sign bit is copied in: an `Integer` -20 shifted right by 2

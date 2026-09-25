@@ -1,0 +1,23 @@
+var console = Console()
+
+func DivisionByZero() {
+    var halved = halves(10, 2)
+    var wrapped = remainder_of(-7, -1)
+    console.print(halved, wrapped)
+    var nobody = 0
+    var shared = share(7, nobody)
+    console.print("never printed", shared)
+}
+
+func halves(whole: Integer, pieces: Integer): Integer {
+    assert pieces != 0
+    return whole / pieces
+}
+
+func remainder_of(whole: Integer, divisor: Integer): Integer {
+    return whole % divisor
+}
+
+func share(total: Integer, parts: Integer): Integer {
+    return total / parts
+}

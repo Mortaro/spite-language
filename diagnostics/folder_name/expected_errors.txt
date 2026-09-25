@@ -1,0 +1,1 @@
+diagnostics/folder_name: error: the folder 'BadFolder' is not named in snake_case: every folder of a program, a package's own folder included, is lowercase words joined by '_', so rename it 'bad_folder'

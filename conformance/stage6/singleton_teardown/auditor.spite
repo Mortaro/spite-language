@@ -2,17 +2,16 @@ singleton
 
 var console = Console()
 var clerk = Clerk()
+var plain = DynamicLibrary("conformance/stage6/foreign_library/fixture.dll", 'identity', "")
+var ledger = Ledger()
 
 func check(): Integer {
-    var plain = DynamicLibrary("conformance/stage6/foreign_library/fixture.dll", 'identity', "")
     return plain.add_numbers(2, 3)
 }
 
 func drop() {
-    var ledger = Ledger()
     ledger.note("audited")
     clerk.file("audited")
-    var plain = DynamicLibrary("conformance/stage6/foreign_library/fixture.dll", 'identity', "")
     var sum = plain.add_numbers(4, 5)
     console.print("auditor dropped, the library still answers", sum)
 }

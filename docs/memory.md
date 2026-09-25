@@ -163,9 +163,52 @@ total 6
 ## Cycles leak
 
 Two objects that hold each other, directly or through several hops, keep each other's count above zero, so
-neither is ever freed. In a long-running program, clear the `T?` field that closes the loop when you are done with
-it. `--debug-memory`, below, is how you find one; the rule, and the weak reference planned to fix it, are in
-[the rules](#memory--implemented).
+neither is ever freed. The back reference is written with `Weak<T>` instead ([D197](decisions.md)): it holds a
+`T` without counting it, and `get()` answers a `T?` that is `null` once the object is freed, so the usual
+narrowing does the rest. A parent that owns its children and a child that knows its parent is the common case:
+
+```gdscript title=weak_family/parent.spite
+var name = ""
+var children = List<Child>()
+
+func Parent(new_name: String) {
+    name = new_name
+}
+
+func adopt(child_name: String) {
+    var child = Child(child_name, this)
+    children.append(child)
+}
+```
+```gdscript title=weak_family/child.spite
+var name = ""
+var parent = Weak<Parent>(null)
+
+func Child(new_name: String, new_parent: Parent) {
+    name = new_name
+    parent = Weak(new_parent)
+}
+```
+```gdscript title=weak_family/weak_family.spite entry
+var console = Console()
+
+func WeakFamily() {
+    var parent = Parent("ada")
+    parent.adopt("grace")
+    var child = parent.children.first()
+    crash child
+    var found = child.parent.get()
+    crash found
+    console.print(child.name, "belongs to", found.name)
+}
+```
+```output
+grace belongs to ada
+```
+
+Everything above is freed when `WeakFamily` returns, which is what `--debug-memory`, below, checks: a cycle left
+in shows up there as leaked objects by class. Without `Weak`, clear the `T?` field that closes the loop when you
+are done with it ([the rules](#memory--implemented)).
 
 ## `--debug-memory`
 
@@ -295,6 +338,8 @@ func drop() {
 ```
 ```gdscript title=ring_buffer_program/ring_buffer_program.spite entry
 var console = Console()
+var heap = Memory.Heap()
+var numbers = TypedMemory<Long>()
 
 func RingBufferProgram() {
     var names = RingBuffer<String>(3)
@@ -310,8 +355,6 @@ func RingBufferProgram() {
 }
 
 func sum_in_the_frame(count: Integer): Long {
-    var heap = Memory.Heap()
-    var numbers = TypedMemory<Long>()
     var before = heap.live_allocations()
     var slots = heap.allocate(count * 8)
     var index = 0
@@ -471,8 +514,18 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
 - **Cycles leak.** Reference counting cannot free a cycle (two objects holding a reference to each other, directly
   or through several hops): neither one's count ever reaches zero. This is a known, accepted tradeoff, not a bug --
   break a cycle by hand when you are done with it (set the back-reference to `null` inside `drop()`-time logic, or
-  clear a `T?` field that closes the loop) if it matters for a long-running program. **[planned]** A future
-  opt-in type (e.g. a weak reference) is the intended real fix; not implemented yet.
+  clear a `T?` field that closes the loop) if it matters for a long-running program, or hold one side with
+  `Weak<T>`.
+- **`Weak<T>` holds an object without counting it** (D197, decided by Mortaro: a generic library class, not a
+  keyword; `library/weak.spite`). `Weak(object)` makes one, `Weak<T>(null)` an empty one, and `get(): T?` answers
+  the object while something else keeps it alive and `null` once it has been freed. As built (proposed by Claude,
+  unconfirmed): the first `Weak` of an object makes a small box holding its address, found through a table keyed
+  by address; a class some `Weak` holds tells the table when an instance is freed, so its box answers `null`; the
+  box goes when the last `Weak` of it does. A program that never makes a `Weak` carries none of this: the table,
+  the boxes and the one check in the freeing of each weakly held class are written only for the classes a `Weak`
+  holds, and `T` must be a class (`Weak<Integer>` is an error, since a number is kept by value). Not safe across
+  threads yet: a `Weak` read on one thread while another frees the object is the program's race
+  (`conformance/stage6/weak_parent`).
 - Parameters follow the same rule as everything else in [Functions](functions_and_operators.md#functions--implemented): a scalar is passed by value (copied); anything
   else is passed by reference (the same object, retained for the callee's own binding and released when the
   callee's scope ends); nothing is written at the call site.

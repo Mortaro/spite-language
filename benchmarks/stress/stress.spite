@@ -1,5 +1,9 @@
 var world = World()
 var console = Console()
+var positions = Column<Component.Position>()
+var velocities = Column<Component.Velocity>()
+var healths = Column<Component.Health>()
+var regenerations = Column<Component.Regeneration>()
 
 func Stress() {
     var index = 0
@@ -13,8 +17,6 @@ func Stress() {
         schedule.tick()
         tick = tick + 1
     }
-    var positions = Column<Component.Position>()
-    var healths = Column<Component.Health>()
     var last = world.entity_count - 2
     var position = positions.of(last)
     var health = healths.of(last)
@@ -24,14 +26,10 @@ func Stress() {
 
 func spawn_body(index: Integer) {
     var entity = world.spawn()
-    var positions = Column<Component.Position>()
     positions.insert(entity, Component.Position())
-    var velocities = Column<Component.Velocity>()
     velocities.insert(entity, Component.Velocity())
     if index % 2 == 0 {
-        var healths = Column<Component.Health>()
-        healths.insert(entity, Component.Health())
-        var regenerations = Column<Component.Regeneration>()
+            healths.insert(entity, Component.Health())
         regenerations.insert(entity, Component.Regeneration())
     }
 }

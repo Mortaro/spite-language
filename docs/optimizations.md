@@ -933,6 +933,15 @@ and only when the value holding the component is itself held for the whole state
 `update_each` functions no longer count anything. Allocations and results are the same. **Built** (2026-09-25;
 proposed by Claude, unconfirmed).
 
+### A proven divisor is not checked
+
+**Built.** A whole-number `/` or `%` checks its divisor for zero (D201, [values_and_types.md](values_and_types.md)),
+unless the divisor is a constant other than zero, or a proof in scope says it is not zero: `assert parts != 0`,
+`crash parts != 0`, `if parts != 0 { }` or `parts > 0` in a condition, the same proofs D169 keeps across a call
+that cannot change `parts` and drops across one that may. The check, where it stays, is one compare and a
+branch the CPU predicts. What you can observe: nothing but speed; `check.sh` holds that
+`conformance/stage6/division_by_zero`'s proven `whole / pieces` carries no check in its C.
+
 ## Planned
 
 Decided by Mortaro, not built yet. When one is built, it moves up to **Built** in the same change.

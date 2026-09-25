@@ -294,13 +294,7 @@ func known_or_any(found_class: String): String {
 }
 
 func classified(expressions: List<Syntax.Expressions.Expression>): List<String> {
-    var expression_keys = List<String>()
-    var index = 0
-    while index < expressions.count() {
-        var expression_key = classify(expressions[index])
-        expression_keys.append(expression_key)
-        index = index + 1
-    }
+    var expression_keys = expressions.map(classify)
     return expression_keys
 }
 

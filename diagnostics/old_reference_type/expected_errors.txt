@@ -1,0 +1,1 @@
+diagnostics/old_reference_type/old_reference_type.spite:7: error: Spite has no '&Type': every class, list and text is passed by reference already, so write the type alone

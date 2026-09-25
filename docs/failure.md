@@ -272,7 +272,9 @@ func read_first_line(text: String?): String {
     assert text
     var text = text.trim()
     var lines = text.lines()
-    return lines.first()
+    var first = lines.first()
+    crash first
+    return first
 }
 ```
 ```output
@@ -786,8 +788,9 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   may be null (it is a Box?), so 'label' cannot be assigned through it yet: narrow it first with 'if value { }',
   'assert value' or 'crash value'" (`diagnostics/store_through_nullable`).
 
-`first()` and `last()` still answer the default on an empty list; whether they should answer `T?` too is
-open (Claude would say yes, by the same argument). `tests/list_tests`, `diagnostics/index_reads`.
+`first()` and `last()` answer a `T?` too, `null` on an empty list, by the same argument (proposed by Claude,
+unconfirmed; the compiler's own reads of them are narrowed with `crash`). `tests/list_tests`,
+`diagnostics/index_reads`.
 **[implemented]**
 
 **Comparing needs no narrowing** (D69, decided by Mortaro, 2026-09-23). `==` and `!=` accept a `T?` on the left:
@@ -809,6 +812,13 @@ tend to be useless: they tell us a message we have no action to take about them"
    enum ([Types](values_and_types.md#types)).
 2. **`assert`**, for when the program should keep running.
 3. **`crash`**, for when everything should stop so the code gets rewritten.
+
+**What `crash` is for** (D199, decided by Mortaro): what the compiler can prove away, so a program written with
+its help never meets it; what leaves the program unable to work at all; and a developer's mistake -- a whole
+number divided by zero (D201, [values_and_types.md](values_and_types.md)), a `Float` gone to infinity that `Json`
+is asked to write (D198, [json.md](json.md)). A condition the program can meet in normal use -- a missing file,
+a user's bad input, an absent record -- answers `T?` or an empty value (D24, D26), never a crash, and a library
+`crash` must be one the compiler can show the program how to avoid, or a bug in the program that made the value.
 
 `T?` is the only runtime failure value, and it carries no reason. A caller narrows it with `assert`,
 halts on it with `crash`, or handles the absent case with `if value { } else { }`.

@@ -1,0 +1,4 @@
+func store_in_archive() {
+    var archive = Archive()
+    archive.store(this)
+}

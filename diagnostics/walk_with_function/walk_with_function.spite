@@ -1,0 +1,72 @@
+var console = Console()
+
+func WalkWithFunction() {
+    var names = ["ada", "grace"]
+    var index = 0
+    while index < names.count() {
+        say_hello(names[index])
+        index = index + 1
+    }
+    var measured = lengths(names)
+    var kept = short_names(names)
+    var sum = total(names)
+    var joined = kept.join(", ")
+    var measured_count = measured.count()
+    console.print(joined, sum, measured_count)
+}
+
+func lengths(names: List<String>): List<Integer> {
+    var measured = List<Integer>()
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        var length = measure(name)
+        measured.append(length)
+        index = index + 1
+    }
+    return measured
+}
+
+func short_names(names: List<String>): List<String> {
+    var kept = List<String>()
+    var index = 0
+    while index < names.count() {
+        if is_short(names[index]) {
+            kept.append(names[index])
+        }
+        index = index + 1
+    }
+    return kept
+}
+
+func total(names: List<String>): Integer {
+    var sum = 0
+    var index = 0
+    while index < names.count() {
+        sum = sum + measure(names[index])
+        index = index + 1
+    }
+    return sum
+}
+
+func copied(numbers: List<Integer>): List<Integer> {
+    var result = List<Integer>()
+    var index = 0
+    while index < numbers.count() {
+        result.append(numbers[index])
+        index = index + 1
+    }
+    return result
+}
+
+func say_hello(name: String) {
+    console.print("hello {name}")
+}
+
+func measure(name: String): Integer {
+    return name.length()
+}
+
+func is_short(name: String): Boolean {
+    return name.length() < 4
+}

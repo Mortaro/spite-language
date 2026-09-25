@@ -1,11 +1,7 @@
 var meter = Meter()
-var names = List<String>()
-
-func Siphon(shared_meter: Meter) {
-    meter = shared_meter
-}
 
 func run() {
+    var names = List<String>()
     while not meter.is_stopping() {
         names.append("siphoned")
         if names.count() > 50 {

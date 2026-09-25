@@ -330,7 +330,8 @@ standard library -- because a class is an instance of `Spite.Class`. That is how
 without being told about them ([testing.md](testing.md)).
 
 A class object's `.attributes` and `.functions` are read from a stand-in the program makes for the purpose, with
-every attribute at its default, and the stand-in is not one of `.instances`: walking `Gadget.functions` leaves
+every attribute at its default -- its constructor never runs, whatever it takes, so describing a class prints
+nothing and opens nothing -- and the stand-in is not one of `.instances`: walking `Gadget.functions` leaves
 `Gadget.instances` as it was. A singleton's stand-in is not the singleton, so describing `Console` neither makes
 the program's console nor keeps a second one alive. Its attributes are released when it goes, but its `drop()`
 never runs: that belongs to the one real instance, at exit. A singleton whose attributes are all settings the
@@ -584,9 +585,11 @@ way. `Spite.Attribute.class` and `Spite.Argument.class` are real `Spite.Class` o
   its registry of instances; the compiler removes whatever is unused: only a class whose `.instances` some code
   reads is tracked, and for it each construction appends to the list and each release removes from it.
   **[implemented]**
-  A class object's `.attributes` and `.functions` are read from a stand-in instance at its defaults, which is not
+  A class object's `.attributes` and `.functions` are read from a stand-in instance at its defaults, made
+  without running any constructor (a function of it called through reflection sees those defaults), which is not
   one of `.instances`; a singleton's stand-in never runs its `drop()` and is destroyed with the singletons at exit
   rather than leaked (proposed by Claude, unconfirmed, 2026-09-25; `conformance/stage6/reflection_stand_in`,
+  `conformance/stage6/every_class`,
   `conformance/stage6/singleton_stand_in`). The program's entry class has no stand-in, since making one would run
   the program again: its `.functions` is empty and `has_function` asked of it is `false`.
   A singleton that holds nothing (`Build`, `TypedMemory<T>`) is an ordinary object, one of its `.instances`, only

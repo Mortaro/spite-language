@@ -1,0 +1,9 @@
+var console = Console()
+
+func OldReferenceType() {
+    console.print("never built")
+}
+
+func rename(monster: &Monster) {
+    monster.name = "rat"
+}

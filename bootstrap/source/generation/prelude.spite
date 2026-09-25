@@ -194,6 +194,7 @@ func reopened_classes(): List<String> {
         "memory/heap"
         "memory/address"
         "typed_memory"
+        "weak"
         "dynamic_library"
         "hot_reload"
         "concurrent"
@@ -345,6 +346,9 @@ func supplied_members(stem: String): List<String> {
     if stem == "typed_memory" {
         return typed_memory_members()
     }
+    if stem == "weak" {
+        return weak_members()
+    }
     if stem == "concurrent" {
         return concurrent_members()
     }
@@ -449,6 +453,17 @@ func scheduler_members(): List<String> {
     return [
         "func step_frame(frame: Long): Boolean"
         "return (*(bool (**)(void*))(intptr_t)frame_)((void*)(intptr_t)frame_);"
+    ]
+}
+
+func weak_members(): List<String> {
+    return [
+        "func _box_of(target: $value_type): Memory.Address"
+        "written per value type by the generator"
+        "func get(): $value_type?"
+        "written per value type by the generator"
+        "func _release_box()"
+        "written per value type by the generator"
     ]
 }
 

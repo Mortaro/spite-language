@@ -28,6 +28,7 @@ func shake(roots: String, body: String): String {
     }
     while not waiting.is_empty() {
         var next = waiting.last()
+        crash next
         waiting.remove_last()
         crash pieces[next]
         keep_named_in(pieces[next])
@@ -72,6 +73,7 @@ func shake_program(types: String, prototypes: String, main_function: String, bod
 func keep_waiting() {
     while not waiting.is_empty() {
         var next = waiting.last()
+        crash next
         waiting.remove_last()
         crash pieces[next]
         keep_named_in(pieces[next])

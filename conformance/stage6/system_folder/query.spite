@@ -4,10 +4,10 @@ generic $row_type
 
 var rows = List<$row_type>()
 var matched = true
+var world = World()
 
 func refresh() {
     rows.clear()
-    var world = World()
     var entity = 0
     while entity < world.entity_count {
         take(entity)

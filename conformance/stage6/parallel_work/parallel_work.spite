@@ -16,11 +16,13 @@ func ParallelWork() {
     }
     var index = 0
     while index < 20 {
-        var naming = Parallel(next_name)
+        var namer = Namer(index)
+        var naming = Parallel(namer.name)
         names.append(naming)
         index = index + 1
     }
     var last_name = names.last()
+    crash last_name
     console.print(last_name)
     count_and_forget()
 }
@@ -31,10 +33,6 @@ func greet(): String {
 
 func nobody_found(): String? {
     return null
-}
-
-func next_name(): String {
-    return "name {names.count()}"
 }
 
 func count_and_forget() {

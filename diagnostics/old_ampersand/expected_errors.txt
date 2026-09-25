@@ -1,0 +1,1 @@
+diagnostics/old_ampersand/old_ampersand.spite:5: error: Spite has no '&' operator: bits are functions on the whole numbers, write 'value.bits_and(mask)' (and 'and' for a condition)

@@ -1,0 +1,1 @@
+diagnostics/old_break/old_break.spite:7:13: Spite has no 'break': a loop stops in its own condition, like 'while index < count and not found', and a step it skips sits under an 'if'

@@ -1,7 +1,8 @@
 var console = Console()
+var another = Console()
+var local_console = Console()
 
 func ConsoleClass() {
-    var another = Console()
     var namespace_text = ""
     if console.class.namespace {
         namespace_text = console.class.namespace.name_with_namespaces
@@ -12,6 +13,5 @@ func ConsoleClass() {
     console.print("")
     var greeter = Greeter()
     greeter.greet()
-    var local_console = Console()
     local_console.print("a Console bound in a function prints too")
 }

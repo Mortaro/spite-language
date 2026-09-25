@@ -1,5 +1,8 @@
 singleton
 
+var _program = Program()
+var _console = Console()
+
 func setting(name: String): String? {
     var arguments = Arguments()
     var flag = "--{name}="
@@ -14,8 +17,38 @@ func setting(name: String): String? {
         index = index + 1
     }
     var upper_case_name = name.upper_case()
-    var program = Program()
-    return program.environment(upper_case_name)
+    return _program.environment(upper_case_name)
+}
+
+func reject_misspelled_settings(...declared: List<String>) {
+    var arguments = Arguments()
+    var index = 0
+    while index < arguments.count() and arguments.get(index) != "--" {
+        var argument = arguments.get(index)
+        reject_misspelled(argument, declared)
+        index = index + 1
+    }
+}
+
+func reject_misspelled(argument: String, declared: List<String>) {
+    assert argument.starts_with("--")
+    var written = setting_written(argument)
+    assert written.contains("-")
+    var field = written.replace("-", "_")
+    assert declared.contains(field)
+    _console.error(
+        "error: '--{written}' is written '--{field}': a program's setting is spelled like its field, Environment.{field}, so '--{written}' would be ignored",
+    )
+    _program.exit(1)
+}
+
+func setting_written(argument: String): String {
+    var argument_length = argument.length()
+    var equals_position = argument.index_of("=")
+    if equals_position > 2 {
+        return argument.slice(2, equals_position)
+    }
+    return argument.slice(2, argument_length)
 }
 
 func boolean_setting(name: String, declared: Boolean): Boolean {
