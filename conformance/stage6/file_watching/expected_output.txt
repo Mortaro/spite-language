@@ -1,0 +1,5 @@
+watching true
+note.txt changed true
+inner/deep.txt changed true
+paths 2
+paths from a second call 0

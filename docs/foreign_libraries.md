@@ -42,7 +42,8 @@ standard library itself does this more neatly, by reopening classes per system (
 - **One instance per distinct argument list.** `DynamicLibrary` is a singleton keyed by its arguments: every class
   asking for `DynamicLibrary("ucrtbase.dll", 'identity', "")` shares one library and one table of symbols.
 - **Only what is called is bound.** The symbols a program calls are looked up once, when the library opens, so
-  every later call is one indirect call. A missing library or a missing symbol stops the program at that point,
+  every later call is one indirect call. A symbol named only by code the program never reaches is not looked up
+  at all ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)), except in a `--development` build. A missing library or a missing symbol stops the program at that point,
   naming the file, or the symbol and the Spite function that wanted it.
 - **A foreign call goes through the attribute or variable holding the library**, so the compiler knows which
   table binds it.

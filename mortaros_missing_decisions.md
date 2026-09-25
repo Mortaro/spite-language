@@ -320,16 +320,18 @@ All of it is proposed by Claude, unconfirmed.
      formats files that need not be a program -- `library/`, which no program's compile formats. Keep both, or
      make formatting the library the job of compiling `bootstrap` (which loads it)?
 
-## File watching in the standard library (Mortaro's request via SlopEngine)
+## From building D194 (the file and folder watcher; manual section 15)
 
-141. **A file watcher for everyone** -- "the cook needs to constantly get informed of changes on the psd to rerun the
-     recipe if the psd change and update any textures that use it ingame. but spite hotreload also needs to watch
-     over files, so a way to watch files makes sense to be part of standard library." Proposal (spelling open):
-     `var watcher = FileWatcher()` (or `Directory.Watcher`), `watcher.watch("assets/ui")` or `watch_file(path)`, and
-     `watcher.changes()`, which never blocks and returns the paths changed since the last call, settled (bursts
-     coalesced). The operating system does the waiting (`ReadDirectoryChangesW`, `inotify`, `kqueue`), with no
-     polling; `HotReload` becomes its first user and SlopEngine's cooker the second. Tree-shaken when unused (D177).
-     Name: `FileWatcher` or `Directory.Watcher`?
+164. **What is the watcher called, and are its members right?** Built as `Watcher` (`library/watcher.spite`, with
+     `library/<system>/watcher.spite`), proposed by Claude, unconfirmed. D194 asked for a better name than
+     `FileWatcher`, since it watches folders too. Alternatives: `Watcher` (short, but says nothing of files --
+     a game may want its own `Watcher`), `FileSystem.Watcher` (namespaced; there is no `FileSystem` namespace
+     yet, and `File` and `Directory` would not move into it), `PathWatcher` (says what it takes and what it
+     answers: paths), `Directory.Watcher` (reads as a folder only). The members are also proposed:
+     `watch(path): Bool`, `changes(): List<String>` (never waits; answers once no change has been seen for 100 ms)
+     and a third, `wait_for_changes()`, which blocks the calling thread in the operating system until `changes()`
+     has something -- added because `HotReload`'s thread must sleep in the kernel rather than poll `changes()`.
+     Keep `wait_for_changes()` public, and should the 100 ms be a constructor argument?
 
 ## From building D143 (inspectable and production builds; manual sections 8 and 13)
 

@@ -32,14 +32,12 @@ func drop() {
 }
 
 func watch() {
-    var watched = watch_folder(folder)
-    assert watched != -1
+    var watcher = Watcher()
+    var watching = watcher.watch(folder)
+    assert watching
     while true {
-        wait_for_change(watched, -1)
-        var settling = true
-        while settling {
-            settling = wait_for_change(watched, 100)
-        }
+        watcher.wait_for_changes()
+        watcher.changes()
         memory.write_long_atomically(changes, 0, 1)
         scheduler.signal()
     }

@@ -1,0 +1,141 @@
+var library = DynamicLibrary("libc.so.6", 'identity', "")
+var notifier = -1
+var watch_numbers = List<Int>()
+var folders = List<String>()
+var file_names = List<String>()
+
+func watch_folder(path: String): Bool {
+    return add_folder(path, false)
+}
+
+func watch_file(path: String): Bool {
+    var cut = path.length()
+    var found = false
+    while cut > 0 and not found {
+        var before = path.character_at(cut - 1)
+        found = before == "/"
+        if not found {
+            cut = cut - 1
+        }
+    }
+    var path_length = path.length()
+    var name = path.slice(cut, path_length)
+    var folder = "."
+    if cut > 1 {
+        folder = path.slice(0, cut - 1)
+    } else if cut == 1 {
+        folder = "/"
+    }
+    return add_watch(folder, name)
+}
+
+func add_folder(path: String, report_files: Bool): Bool {
+    var added = add_watch(path, "")
+    assert added
+    var directory = Directory(path)
+    if report_files {
+        var names = directory.files()
+        var file_index = 0
+        while file_index < names.count() {
+            var name = names.get_at(file_index)
+            var file_path = joined(path, name)
+            note(file_path)
+            file_index = file_index + 1
+        }
+    }
+    var inner = directory.folders()
+    var index = 0
+    while index < inner.count() {
+        var name = inner.get_at(index)
+        var inner_path = joined(path, name)
+        add_folder(inner_path, report_files)
+        index = index + 1
+    }
+    return true
+}
+
+func add_watch(folder: String, file_name: String): Bool {
+    if notifier == -1 {
+        notifier = library.inotify_init1(526336)
+    }
+    assert notifier != -1
+    var number = library.inotify_add_watch(notifier, folder, 4042)
+    assert number != -1
+    watch_numbers.append(number)
+    folders.append(folder)
+    file_names.append(file_name)
+    return true
+}
+
+func collect() {
+    assert notifier != -1
+    var events = memory.allocate_bytes(4096)
+    var read = library.read_as_long(notifier, events, 4096)
+    while read > 0 {
+        var offset: Long = 0
+        while offset < read {
+            var number = memory.read_int(events, offset)
+            var mask = memory.read_int(events, offset + 4)
+            var name_length = memory.read_int(events, offset + 12)
+            var name = ""
+            if name_length > 0 {
+                name = memory.terminated_text(events + offset + 16)
+            }
+            note_event(number, mask, name)
+            offset = offset + 16 + name_length
+        }
+        read = library.read_as_long(notifier, events, 4096)
+    }
+    memory.free(events)
+}
+
+func note_event(number: Int, mask: Int, name: String) {
+    var index = 0
+    while index < watch_numbers.count() {
+        if watch_numbers.get_at(index) == number {
+            note_in(index, mask, name)
+        }
+        index = index + 1
+    }
+}
+
+func note_in(index: Int, mask: Int, name: String) {
+    var folder = folders.get_at(index)
+    var file_name = file_names.get_at(index)
+    if not file_name.is_empty() {
+        if name == file_name {
+            var file_path = joined(folder, name)
+            note(file_path)
+        }
+        return
+    }
+    if name.is_empty() {
+        if mask.bits_and(3072) != 0 {
+            note(folder)
+        }
+        return
+    }
+    var path = joined(folder, name)
+    var is_folder = mask.bits_and(1073741824) != 0
+    if is_folder and mask.bits_and(384) != 0 {
+        add_folder(path, true)
+    }
+    if not is_folder or mask.bits_and(2) == 0 {
+        note(path)
+    }
+}
+
+func wait_for_event(milliseconds: Long) {
+    assert notifier != -1
+    var polled = memory.allocate_bytes(8)
+    memory.write_int(polled, 0, notifier)
+    memory.write_int(polled, 4, 1)
+    library.poll(polled, 1, milliseconds)
+    memory.free(polled)
+}
+
+func drop() {
+    if notifier != -1 {
+        library.close(notifier)
+    }
+}

@@ -293,10 +293,11 @@ next save reloads.
   with the operating system's loader, the one `DynamicLibrary` uses, hands it the addresses of the program's
   functions, and re-points the slots. Nothing runs halfway through a step. The program waits while the library is
   compiled, typically well under a second.
-- **The watcher is the operating system's**, one per system folder of the library (`library/windows/hot_reload.spite`
-  and the rest), started on a thread of its own: `FindFirstChangeNotification` on Windows, `inotify` on Linux and
-  `kqueue` on macOS, with no polling. A burst of changes is waited out until 100 ms pass without one, so a save
-  that writes a file in pieces reloads once. The program's own folder is watched, not the folders it `load`s; send
+- **The watcher is the standard library's [`Watcher`](standard_library.md#watch-files-and-folders)**, the one any
+  program can use, started on a thread of its own: `ReadDirectoryChangesW` on Windows, `inotify` on Linux and
+  `kqueue` on macOS, with no polling. The thread sits in `wait_for_changes()`, which the operating system wakes;
+  a burst of changes is waited out until 100 ms pass without one, so a save that writes a file in pieces reloads
+  once. The program's own folder is watched with every folder below it, not the folders it `load`s; send
   `reload` after changing those. A build beside its program (the default) writes each reload's library into that
   folder too, which wakes the watcher once more for a check that finds nothing changed; `--executable-path=`
   elsewhere avoids it.

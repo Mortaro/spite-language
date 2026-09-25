@@ -1,0 +1,166 @@
+var library = DynamicLibrary("libSystem.dylib", 'identity', "")
+var queue = -1
+var descriptors = List<Int>()
+var paths = List<String>()
+var is_folders = List<Bool>()
+
+func watch_folder(path: String): Bool {
+    return add_folder(path, false)
+}
+
+func watch_file(path: String): Bool {
+    return add_entry(path, false)
+}
+
+func add_folder(path: String, report_files: Bool): Bool {
+    var added = add_entry(path, true)
+    assert added
+    var directory = Directory(path)
+    var names = directory.files()
+    var file_index = 0
+    while file_index < names.count() {
+        var name = names.get_at(file_index)
+        var file_path = joined(path, name)
+        add_entry(file_path, false)
+        if report_files {
+            note(file_path)
+        }
+        file_index = file_index + 1
+    }
+    var inner = directory.folders()
+    var index = 0
+    while index < inner.count() {
+        var name = inner.get_at(index)
+        var inner_path = joined(path, name)
+        add_folder(inner_path, report_files)
+        index = index + 1
+    }
+    return true
+}
+
+func add_entry(path: String, is_folder: Bool): Bool {
+    if queue == -1 {
+        queue = library.kqueue()
+    }
+    assert queue != -1 and not paths.contains(path)
+    var opened = library.open(path, 32768)
+    assert opened != -1
+    var change = memory.allocate_bytes(32)
+    memory.write_long(change, 0, opened)
+    memory.write_short(change, 8, -4)
+    memory.write_unsigned_short(change, 10, 33)
+    memory.write_int(change, 12, 47)
+    memory.write_long(change, 16, 0)
+    memory.write_long(change, 24, 0)
+    var no_value: Long = 0
+    library.kevent(queue, change, 1, no_value, 0, no_value)
+    memory.free(change)
+    descriptors.append(opened)
+    paths.append(path)
+    is_folders.append(is_folder)
+    return true
+}
+
+func collect() {
+    assert queue != -1
+    var no_wait = memory.allocate_bytes(16)
+    memory.write_long(no_wait, 0, 0)
+    memory.write_long(no_wait, 8, 0)
+    var event = memory.allocate_bytes(32)
+    var no_value: Long = 0
+    while library.kevent(queue, no_value, 0, event, 1, no_wait) > 0 {
+        var descriptor = memory.read_long(event, 0)
+        var flags = memory.read_int(event, 12)
+        note_event(descriptor, flags)
+    }
+    memory.free(event)
+    memory.free(no_wait)
+}
+
+func note_event(descriptor: Long, flags: Int) {
+    var index = 0
+    var found = -1
+    while index < descriptors.count() {
+        if descriptors.get_at(index) == descriptor {
+            found = index
+        }
+        index = index + 1
+    }
+    assert found != -1
+    var path = paths.get_at(found)
+    var is_folder = is_folders.get_at(found)
+    if is_folder and flags.bits_and(2) != 0 {
+        add_new_entries(path)
+    }
+    if not is_folder or flags.bits_and(33) != 0 {
+        note(path)
+    }
+    if flags.bits_and(33) != 0 {
+        library.close(descriptor)
+        descriptors.remove_at(found)
+        paths.remove_at(found)
+        is_folders.remove_at(found)
+        if not is_folder {
+            add_entry(path, false)
+        }
+    }
+}
+
+func add_new_entries(path: String) {
+    var directory = Directory(path)
+    var names = directory.files()
+    var file_index = 0
+    while file_index < names.count() {
+        var name = names.get_at(file_index)
+        var file_path = joined(path, name)
+        if not paths.contains(file_path) {
+            add_entry(file_path, false)
+            note(file_path)
+        }
+        file_index = file_index + 1
+    }
+    var inner = directory.folders()
+    var index = 0
+    while index < inner.count() {
+        var name = inner.get_at(index)
+        var inner_path = joined(path, name)
+        if not paths.contains(inner_path) {
+            add_folder(inner_path, true)
+            note(inner_path)
+        }
+        index = index + 1
+    }
+}
+
+func wait_for_event(milliseconds: Long) {
+    assert queue != -1
+    var timeout = memory.allocate_bytes(16)
+    memory.write_long(timeout, 0, milliseconds / 1000)
+    memory.write_long(timeout, 8, milliseconds % 1000 * 1000000)
+    var waiting: Long = timeout
+    if milliseconds < 0 {
+        waiting = 0
+    }
+    var event = memory.allocate_bytes(32)
+    var no_value: Long = 0
+    var ready = library.kevent(queue, no_value, 0, event, 1, waiting)
+    if ready > 0 {
+        var descriptor = memory.read_long(event, 0)
+        var flags = memory.read_int(event, 12)
+        note_event(descriptor, flags)
+    }
+    memory.free(event)
+    memory.free(timeout)
+}
+
+func drop() {
+    var index = 0
+    while index < descriptors.count() {
+        var descriptor = descriptors.get_at(index)
+        library.close(descriptor)
+        index = index + 1
+    }
+    if queue != -1 {
+        library.close(queue)
+    }
+}
