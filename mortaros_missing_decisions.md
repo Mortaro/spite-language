@@ -620,4 +620,12 @@ All of it is proposed by Claude, unconfirmed.
      no column is resized while it lives, the same proof as a local borrow. Measured on a stress-shaped program:
      5.9 ms per tick with `List` columns, 1.0 ms with `Vector` columns. Without it, systems must be written as
      member templates on the column (`velocities.each_integrate(delta)`), which cannot see two components at once.
+     **SlopEngine's case for it:** every structural change (create/add/remove component, despawn) is a queued
+     command applied by `world.flush()` after the whole stage, and two systems touching one component class never
+     share a stage, so a column never resizes during a system call -- the compiler can check it, since only
+     `flush` mutates `Column<T>`'s storage. Member templates see one component class at a time, so joins, relations
+     (`owner: Entity`) and `Added<T>`/`Removed<T>` filters would need engine-generated glue; a row holding borrows
+     costs the same as a template plus the join. Narrowest version it proposes: a borrow may be held by a `type`
+     value that is a parameter of the running function, for that call only, never stored anywhere else -- exactly
+     the `update_each(row)` shape.
 
