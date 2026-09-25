@@ -6,7 +6,7 @@ func EventBus() {
     bus.subscribe(counter.count_event)
     bus.subscribe(log_event)
     bus.publish(Arrival("ada"))
-    bus.publish(Departure("ada", 3))
+    bus.publish(Departure("ada"))
     bus.publish(Arrival("grace"))
     var joined_names = counter.names.join(",")
     console.print(counter.seen, joined_names)

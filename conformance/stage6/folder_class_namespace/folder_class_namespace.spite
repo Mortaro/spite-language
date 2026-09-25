@@ -1,5 +1,3 @@
-var console = Console()
-
 func FolderClassNamespace() {
     var composition = ClickTest.Composition()
     var click_test = composition.click_test

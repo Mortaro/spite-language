@@ -12,10 +12,6 @@ func is_adult(): Bool {
     return age >= 18
 }
 
-func badge(): Badge {
-    return Badge(age / 10)
-}
-
 func birthday() {
     age = age + 1
 }

@@ -76,6 +76,11 @@ func is_alive(): Bool {
 - A local or parameter that is never used is an error: remove it or name it `_name`. A `_name` that is used is an
   error too. A use inside a branch a codegen test rules out (`if $slot_type == Entity { ... }`) still counts, so
   a parameter only that branch reads is not unused in the other instantiations.
+- An attribute nothing reads is an error too (D118): remove it, or name it `_name`, which also makes it
+  private. Assigning it is not reading it. A Symbol template counts only when it reads the value,
+  `x.attributes[attribute]`: an attribute kept as a marker that a walk inspects through `attribute.name` or
+  `attribute.class` is unused, so say what the marker means some other way. A function nobody calls still
+  reads what it names.
 - The words other languages use for things Spite writes differently -- `none`, `nil`, `undefined`, `self`,
   `new`, `import`, `require`, `elif` -- are errors wherever they appear, naming the Spite form, so none of them
   can name a variable or a parameter either: `var none: Long = 0` says to write `null`. Pick another name

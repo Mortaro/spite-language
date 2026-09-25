@@ -1,5 +1,3 @@
-var console = Console()
-
 func MultipleClasses() {
     var engine = Engine(200)
     var car = Car("Roadster", engine)

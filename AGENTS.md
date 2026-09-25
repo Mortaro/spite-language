@@ -1,5 +1,10 @@
 # Working on Spite
 
+**Read [`mortaros_notes.md`](mortaros_notes.md) first, every time.** It is Mortaro's inbox. For each note: record the
+decision in `manual.md` (prose and decision log) or act on it, then delete the note, so the inbox only ever holds
+what nobody has handled yet. Questions only Mortaro can answer go to
+[`mortaros_missing_decisions.md`](mortaros_missing_decisions.md).
+
 Read [`SPITE.md`](SPITE.md) first. It lists what Mortaro hates and what to do instead, and it is the point of the
 project. Then [`manual.md`](manual.md), which is normative — when anything else disagrees with it, it wins.
 

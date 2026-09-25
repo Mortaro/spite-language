@@ -104,6 +104,8 @@ var placed_receiver_codes = List<String>()
 var boxed_value_types = Dictionary<Analysis.SpiteType>()
 var synthetic_value_classes = List<Analysis.ClassInfo>()
 var synthetic_value_types = Dictionary<Analysis.SpiteType>()
+var read_attributes = Dictionary<Bool>()
+var folded_words = Dictionary<Bool>()
 
 func report(message: String) {
     has_error = true
@@ -431,6 +433,9 @@ func generate(
     emit_pending_functions()
     emit_hot_reload_support()
     check_remote_loop_waits()
+    if not has_error {
+        report_unused_attributes()
+    }
     builder.shakes = not development
     builder.hot_reload = hot_reload
     return builder.render()
@@ -1509,6 +1514,7 @@ func emit_shape_bodies() {
                 var field_name = information.accessor_names[reader_index]
                 var field_type = shape_field_type(information, field_name)
                 if field_type {
+                    mark_members_read(information.members, field_name)
                     var lines = List<String>()
                     lines.append(
                         "{c_type_name(field_type)} {information.c_name}___read_{field_name}({information.c_name} self) \{",
@@ -1571,6 +1577,7 @@ func generate_shape_read(
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     crash field_type
+    mark_members_read(information.members, field_name)
     var reader = ensure_shape_reader(information, field_name, field_type)
     var lines = List<String>()
     lines.append("{information.c_name} spite_shaped = {object_result.code};")
@@ -4559,6 +4566,7 @@ func lookup_static_type(
     }
     var field = class_information.find_field(identifier.name)
     if field {
+        mark_attribute_read(class_information, identifier.name)
         return field.get_type()
     }
     return null
@@ -4594,6 +4602,7 @@ func generate_identifier(
     }
     var field = class_information.find_field(identifier.name)
     if field {
+        mark_attribute_read(class_information, identifier.name)
         if identifier.name == "_namespace" and class_information.c_name == "Spite_Class" {
             namespace_read_used = true
         }
@@ -7417,6 +7426,7 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
     lines.append("{list_name}* {function_c_name}({information.c_name}* self) \{")
     lines.append("{list_name}* result = {list_name}___make();")
     if read_evaluate_print_loop {
+        mark_every_attribute_read(information)
         builder.add_prototype("{list_name}* {function_c_name}({information.c_name}* self);")
         append_live_attributes(information, list_name, lines)
         var joined_lines = lines.join("\n")
@@ -7815,6 +7825,7 @@ func string_storage_read(
     crash string_class
     var field = string_class.find_field(name)
     assert field
+    mark_attribute_read(string_class, name)
     if class_information.c_name != string_class.c_name {
         report_private_member(string_class, name, class_information)
         return ExpressionResult("0", Analysis.Types.VoidType())
@@ -7925,6 +7936,7 @@ func generate_reflection_read(
             assert not object_class.find_function("get_{member_name}")
             var real_field = object_class.find_field(member_name)
             if real_field {
+                mark_attribute_read(object_class, member_name)
                 var real_field_type = real_field.get_type()
                 var retained_field = retain_call(real_field_type, "spite_reflected->{member_name}")
                 return ExpressionResult(
@@ -7946,6 +7958,7 @@ func generate_reflection_read(
                 return null
             }
             if member_name == "attributes" {
+                mark_every_attribute_read(object_class)
                 var attributes_function = ensure_attributes_function(object_class)
                 var attribute_class = find_class_by_c_name("Spite_Attribute")
                 if attribute_class {
@@ -8277,6 +8290,7 @@ func generate_index_read(
     }
     if is_bound_attributes_index(index_expression) {
         crash bound_field_type
+        mark_bound_attribute_read(class_information)
         return ExpressionResult("self->{bound_field_name}", bound_field_type)
     }
     var read_path = operand_text(index_expression)
@@ -9304,6 +9318,9 @@ func generate_call(
     var callee_identifier = shape.as_identifier(call.callee)
     if callee_identifier {
         if callee_identifier.name == "load" {
+            var loaded_names = List<String>()
+            collect_each_mentioned_name(call.arguments, loaded_names)
+            mark_names_read(class_information, loaded_names)
             if call.runs_program {
                 var program_run = program_run_code()
                 return ExpressionResult(program_run, Analysis.Types.VoidType())
@@ -9503,6 +9520,7 @@ func generate_member_read_raw(
     var target_class = find_class_by_c_name(object_class_ref.c_name)
     crash target_class
     report_private_member(target_class, member.name, class_information)
+    mark_attribute_read(target_class, member.name)
     var getter = find_getter(target_class, member.name, class_information)
     if getter {
         var no_types = no_types()
@@ -10831,6 +10849,200 @@ func report_unused(scope: Scope) {
     }
 }
 
+func mark_attribute_read(information: Analysis.ClassInfo, name: String) {
+    read_attributes["{information.qualified_dotted}.{name}"] = true
+}
+
+func mark_folded_words_read(statements: List<Syntax.Statements.Statement>) {
+    var text = Syntax.SourcePrinter().source_statement_list(statements, 0)
+    mark_words_read(text, false, List<String>())
+}
+
+func mark_words_read(text: String, members_only: Bool, metadata_receivers: List<String>) {
+    var text_length = text.length()
+    var start = 0
+    var position = 0
+    var previous_word = ""
+    while position <= text_length {
+        if position == text_length or not is_attribute_name_code(text, position) {
+            if position > start {
+                var word = text.slice(start, position)
+                if not members_only or is_member_read_at(text, start, position, previous_word, metadata_receivers) {
+                    folded_words[word] = true
+                }
+                previous_word = word
+            }
+            start = position + 1
+        }
+        position = position + 1
+    }
+}
+
+func is_member_read_at(text: String, start: Int, end: Int, receiver: String, metadata_receivers: List<String>): Bool {
+    assert start > 0 and text.code_at(start - 1) == 46
+    assert end == text.length() or text.code_at(end) != 40
+    return not metadata_receivers.contains(receiver)
+}
+
+func mark_uncompiled_bodies_read(information: Analysis.ClassInfo, statements: List<Syntax.Statements.Statement>) {
+    var index = 0
+    while index < statements.count() {
+        var function_declaration = shape.as_function_declaration(statements[index])
+        if function_declaration {
+            var metadata_receivers = symbol_parameter_names(function_declaration)
+            var is_template = not metadata_receivers.is_empty()
+            if is_template or information.is_generic_template {
+                var names = List<String>()
+                collect_block_names(function_declaration.body, names)
+                mark_names_read(information, names)
+            }
+            if is_template or information.is_generic_template and not is_emitted_in_an_instance(information, function_declaration.name) {
+                var text = Syntax.SourcePrinter().source_statement_list(function_declaration.body, 0)
+                metadata_receivers.append("class")
+                mark_words_read(text, true, metadata_receivers)
+            }
+        }
+        var variable_declaration = shape.as_variable_declaration(statements[index])
+        if variable_declaration {
+            if information.is_generic_template {
+                var default_names = List<String>()
+                collect_optional_names(variable_declaration.value, default_names)
+                mark_names_read(information, default_names)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func symbol_parameter_names(declaration: Syntax.Statements.FunctionDeclaration): List<String> {
+    var names = List<String>()
+    var index = 0
+    while index < declaration.parameters.count() {
+        var parameter = declaration.parameters[index]
+        if parameter.type_reference {
+            var named = shape.as_named_type(parameter.type_reference)
+            if named {
+                if named.path.first() == "Symbol" {
+                    names.append(parameter.name)
+                }
+            }
+        }
+        index = index + 1
+    }
+    return names
+}
+
+func is_emitted_in_an_instance(template: Analysis.ClassInfo, name: String): Bool {
+    var index = 0
+    while index < classes.count() {
+        var instance = classes[index]
+        if instance.is_instantiated and instance.qualified_dotted == template.qualified_dotted {
+            var function = instance.find_function(name)
+            if function {
+                if function.is_emitted {
+                    return true
+                }
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func is_attribute_name_code(text: String, position: Int): Bool {
+    var code = text.code_at(position)
+    return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
+}
+
+func mark_bound_attribute_read(class_information: Analysis.ClassInfo) {
+    var owner = find_class_by_c_name(bound_member_owner_c_name)
+    if owner {
+        mark_attribute_read(owner, bound_field_name)
+        return
+    }
+    mark_attribute_read(class_information, bound_field_name)
+}
+
+func mark_members_read(members: List<Analysis.ClassInfo>, name: String) {
+    var index = 0
+    while index < members.count() {
+        mark_attribute_read(members[index], name)
+        index = index + 1
+    }
+}
+
+func mark_every_attribute_read(information: Analysis.ClassInfo) {
+    var index = 0
+    while index < information.fields.count() {
+        mark_attribute_read(information, information.fields[index].name)
+        index = index + 1
+    }
+}
+
+func mark_names_read(information: Analysis.ClassInfo, names: List<String>) {
+    var index = 0
+    while index < names.count() {
+        mark_attribute_read(information, names[index])
+        index = index + 1
+    }
+}
+
+func report_unused_attributes() {
+    var checked = List<Analysis.ClassInfo>()
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        if not information.is_instantiated and not information.source_path.is_empty() {
+            checked.append(information)
+            var statements = class_statements(information)
+            mark_uncompiled_bodies_read(information, statements)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < checked.count() {
+        var information = checked[index]
+        if attributes_are_checked(information) {
+            var statements = class_statements(information)
+            report_unread_attributes(information, statements)
+        }
+        index = index + 1
+    }
+}
+
+func class_statements(information: Analysis.ClassInfo): List<Syntax.Statements.Statement> {
+    crash discovered_classes[information.entry_index]
+    return discovered_classes[information.entry_index].get_file().statements
+}
+
+func attributes_are_checked(information: Analysis.ClassInfo): Bool {
+    assert not information.is_value_class
+    assert information.qualified_dotted != "Build" and information.qualified_dotted != "Environment"
+    return true
+}
+
+func report_unread_attributes(information: Analysis.ClassInfo, statements: List<Syntax.Statements.Statement>) {
+    var index = 0
+    while index < statements.count() {
+        var declaration = shape.as_variable_declaration(statements[index])
+        if declaration {
+            var name = declaration.name
+            var read = read_attributes.has("{information.qualified_dotted}.{name}") or folded_words.has(name)
+            if not read and not name.starts_with("_") {
+                current_path = information.source_path
+                if not declaration.source_path.is_empty() {
+                    current_path = declaration.source_path
+                }
+                current_line = declaration.line
+                current_owner = information.qualified_dotted
+                current_function = ""
+                report("the attribute '{name}' is never read: remove it, or name it '_{name}' to say that is intended")
+            }
+        }
+        index = index + 1
+    }
+}
+
 func generate_block_in_scope(
     statements: List<Syntax.Statements.Statement>,
     block_scope: Scope,
@@ -11690,6 +11902,7 @@ func collect_mentioned_names(expression: Syntax.Expressions.Expression, names: L
 }
 
 func mark_folded_names_used(statements: List<Syntax.Statements.Statement>, scope: Scope) {
+    mark_folded_words_read(statements)
     var names = List<String>()
     collect_block_names(statements, names)
     var index = 0
@@ -12278,6 +12491,7 @@ func generate_union_dispatch(
         }
         crash first_field
         result_type = first_field.get_type()
+        mark_members_read(information.members, member_name)
     }
     var owning_object = owns(object_result, object_ast)
     var lines = List<String>()

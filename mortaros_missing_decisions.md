@@ -4,12 +4,6 @@ Agents add here what only Mortaro can decide; Mortaro answers inline or in `mort
 moves the answer into `manual.md` (prose and decision log) and removes the item. Each item links to where the
 manual argues it.
 
-## Naming
-
-1. **The two environments' names** (D85). Built as: `Build` for compile time (`var build = Build()`,
-   `build.target_operating_system`, reopened in `build.spite`) and `Environment` for run time. You said "make
-   better names, we can just change later".
-
 ## Open questions still open in manual.md
 
 2. **Open question 15: whether `while` goes.** Proposal: the index loop over a list (199 of 259 loops) becomes an
@@ -54,9 +48,6 @@ manual argues it.
 
 ## From hidden async/await (D99, D103)
 
-15. **The names `Concurrent` and `Parallel`** for D103's split (manual section 15, "Concurrency"):
-    `Concurrent(function)` runs on a fiber of the program's thread and is for work that waits, `Parallel(function)`
-    runs on a thread of its own and is for work that computes; both answer `wait()` and join when dropped.
 16. **The mechanism: stackful fibers plus a helper thread per blocking call**, chosen over a state-machine
     transform and over threads for everything (the decision-log row argues it). Built on Windows; the Linux and
     macOS folders (`makecontext`/`swapcontext`) are only compiled.
@@ -66,12 +57,6 @@ manual argues it.
     that rule with singletons allowed; or running a `Parallel` on a deep copy of its instance.
 18. **Inferring codegen values from constructor arguments** (`Concurrent(file.read)` without `<String?>`), which
     D35's own example needs and D9 did not foresee.
-19. **SPITE.md's line on `async`/`await`** says the handle "joins on first use -- no `.wait()` to remember". As
-    built, dropping the handle joins it and `wait()` is how the result is read; there is no implicit wait when the
-    value is first used. Say which you want.
-20. **A thread pool for `Parallel`**, and whether `parallel_each_` templates (D35 item 3) come before the engine
-    needs them.
-
 ## What the standard library offers
 
 21. **Go's standard library against Spite's**, package by package, with a suggested order of what to add:
@@ -125,8 +110,6 @@ manual argues it.
 
 ## Build, the launcher and the entry (D85, D86, D89, D97; manual sections 3, 9 and 13)
 
-37. **The launcher's name and place**: `launcher/launcher.spite`, class `Launcher`, at the repository root beside
-    `library/`. It is library code for reflection (`Spite.Class.instances` leaves it out).
 38. **Loading the program's folder runs it.** The launcher's `load(Build().program)` constructs the program's
     entry class; every other `load` still compiles to nothing at run time. And a launcher `load` may use `Build`
     fields (`"library/{Build().target_operating_system}"`), where every other `load` takes a literal.
@@ -134,11 +117,6 @@ manual argues it.
     after `Launcher` returns, releasing singletons and class objects and printing the `--debug_memory` report.
     Moving them into Spite needs a way for Spite to receive `argv` and to run code after the program ends (a
     `Launcher` that releases what the program left?) -- which is a language question.
-41. **`mode` and `format` come from the flag alone**, because the compiler needs them before it reads the program;
-    a program's `build.spite` can still declare them, but only its own code sees the value.
-42. **A path to a `.spite` file still names an entry** (`spite bootstrap/spite_compiler.spite`), because the
-    compiler's own entry is not named after its folder. The alternative is renaming the compiler's entry to
-    `bootstrap/bootstrap.spite` (class `Bootstrap`) or moving it into a folder of its own.
 43. **An unset `Build` field folds to its default** rather than being read at run time, so no `Build` value is
     ever read when the program runs. D84's words were "the others are runtime"; D85 moved run time to
     `Environment`, which is how this reads it.
@@ -174,11 +152,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
 54. **`allocate_stack_bytes` is removed**, since D108 gives the choice to the compiler and it was a second way to
     allocate. For an ECS that wants control, what stays is the layout: one allocation, offsets, `TypedMemory`.
     Is anything else wanted -- say, a hint that a structure is short-lived, which the compiler may ignore?
-55. **A singleton holding nothing is not an object at run time**: `Memory` is one static instance, never
-    counted or freed, which every program now allocates once less for, and without which `String.drop()` could
-    reach a `Memory` the program's exit had already released. `Memory.instances` would not list it. Fine as a
-    hidden optimisation (D36)?
-
 ## A function of the caller for each element (D113; manual section 8)
 
 57. **A caller function that needs more than the element** -- `print_statement(statement, depth)`, the typical
@@ -210,11 +183,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     (it replaced a one-line `Memory().allocate_bytes(4)` form). The binding is never a field of the number. The alternative was to exempt
     `var _memory = Memory().allocate_bytes(4)` from D110, because the compiler reads that line rather than
     running it; rejected so the file an AI reads to learn memory shows the bound form. Keep it?
-63. **`Build` is a static object**, like `Memory` in item 55: every field folds to a constant, so it holds
-    nothing at run time, and binding it (`var build = Build()` in the launcher and anywhere else) costs no
-    allocation. Reading a field of it any way but by name (reflection over its attributes) would see nothing.
-    Fine as a hidden optimisation (D36)?
-
 ## Live reload (D111, D112; manual section 14, "Live reload and 6b")
 
 64. **A changed attribute or enum is refused, with an error saying to restart.** D111 says a change rebuilds "what
@@ -289,10 +257,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     to `type Target { health: Health }` now holds `{health: Health()}`, whose `.class` answers `Object`. A `type`
     that requires a function has no default object and stays a null pointer that reads defaults. Should that
     case be a compile error naming the field instead?
-85. **A singleton is no longer reference counted** (D36; measured 0.8 s to 0.04 s for two threads fetching a
-    generic singleton 20 million times each). Singletons are destroyed at exit in the order they were made,
-    reversed; before, the counts decided it. One visible difference: a singleton still referenced by a leaked
-    object is destroyed anyway. Fine?
 ## From porting PSD, zstd and .blend to Spite (SlopEngine)
 
 88. **Arithmetic takes the left operand's type** (open question 3, "right-to-left casting"): an `Int` times a
@@ -311,11 +275,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     the entry class an error; this is the same trap one level down. Proposal: a loaded folder that has an entry
     file (a file named after the folder) keeps its root classes to itself, or merging with it must be asked for.
     Related to item 82.
-91. **Where a program runs, and where its build goes.** The compiler now finds `launcher/` and `library/` from its
-    own executable (the first folder above it holding `launcher/launcher.spite`, else the working directory),
-    the program runs in the caller's folder, and the build still goes to the language repository's
-    `.spite-cache/`, so a run leaves nothing in the caller's folder. Should the cache instead live beside the
-    program (`game/.spite-cache/`), which is where a user would look for the built executable?
 92. **The compiler's own C names use `___`, and a name has one `_` between words.** `allocate`, `make`,
     `retain`, `release` and the rest are ordinary method names now, and `hit__count`, `__strike` and `strike_`
     are naming errors. `init` stays an abbreviation error and `default` a C keyword error, so neither became a
@@ -375,11 +334,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 ## From the SlopEngine regressions after item 85
 
-104. **Teardown when a `drop()` needs a singleton made after it** (fixes item 85's regression in SlopEngine's
-    Vulkan renderer). Every `DynamicLibrary` is now unloaded after all singletons. Any other singleton first made
-    later than the one whose `drop()` fetches it has already been destroyed, so the fetch halts with a message
-    saying to keep it in an attribute (where it is made first). The alternatives: make a fresh one silently and
-    destroy it after, or run every `drop()` before freeing anything. Halting, as now?
 105. **Naming a root class that a nearer one shadows.** Inside `click_test/`, `Plugin()` finds `ClickTest.Plugin`
     first (the walk goes from the class's own namespace outward), so a `ClickTest.Composition` that wants both the
     game's root `Plugin` and its own `ClickTest.Plugin` cannot name the root one; SlopEngine renamed its own to

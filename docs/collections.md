@@ -303,17 +303,15 @@ the first list**, with no list in between: `teams.filter_active().map_lead().sum
 reads its lead, and adds the age, allocating nothing.
 
 ```gdscript title=fused_chain/person.spite
-var name = ""
 var age = 0
 
-func Person(new_name: String, new_age: Int) {
-    name = new_name
+func Person(new_age: Int) {
     age = new_age
 }
 ```
 ```gdscript title=fused_chain/team.spite
 var active = false
-var lead = Person("", 0)
+var lead = Person(0)
 
 func Team(new_active: Bool, new_lead: Person) {
     active = new_active
@@ -325,9 +323,9 @@ var console = Console()
 
 func FusedChain() {
     var teams = List<Team>()
-    var ann = Person("ann", 34)
+    var ann = Person(34)
     teams.append(Team(true, ann))
-    var bob = Person("bob", 67)
+    var bob = Person(67)
     teams.append(Team(false, bob))
     var ages = teams.filter_active().map_lead().sum_age()
     var active = teams.filter_active()

@@ -43,7 +43,6 @@ enum Sorting {
 }
 
 type Counted {
-    name: String
     count: Int
 }
 
@@ -59,11 +58,9 @@ func total(): Int {
 }
 ```
 ```gdscript title=ordered_file/crate.spite
-var name = ""
 var count = 0
 
-func Crate(new_name: String, new_count: Int) {
-    name = new_name
+func Crate(new_count: Int) {
     count = new_count
 }
 ```
@@ -72,8 +69,8 @@ var console = Console()
 
 func OrderedFile() {
     var inventory = Inventory<Crate>()
-    inventory.add(Crate("apples", 3))
-    inventory.add(Crate("pears", 4))
+    inventory.add(Crate(3))
+    inventory.add(Crate(4))
     var total = inventory.total()
     console.print(total, inventory.sorting)
 }
@@ -278,7 +275,6 @@ Two names can hold the same object, and a change through either shows up through
 independent object with the same field values when that sharing is not what you want:
 
 ```gdscript title=shared_member/member.spite
-var name = "unnamed"
 var level = 1
 ```
 ```gdscript title=shared_member/shared_member.spite entry
@@ -379,7 +375,8 @@ Lamp { room: "hall", lit: false }
 
 A name starting with `_` is private: it is read, written or called only inside its own class -- a reopening of
 the class counts as inside -- and using it from anywhere else is an error that names the getter when there is
-one. The same prefix marks a local or parameter as intentionally unused ([style.md](style.md#nothing-unused)).
+one. The same prefix marks a local, a parameter or an attribute as intentionally unused: an attribute nothing
+reads is an error unless its name starts with `_` ([style.md](style.md#nothing-unused)).
 
 ## Reopening a class
 

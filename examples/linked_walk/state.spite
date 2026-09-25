@@ -3,5 +3,3 @@ union State {
     Busy
     Broken
 }
-
-var unused = 0

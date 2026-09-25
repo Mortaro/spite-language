@@ -1,8 +1,8 @@
 var console = Console()
 
 func ReopenLibrary() {
-    var monster = Monster("rat")
-    var rat = Creatures.Rat(2)
+    var monster = Monster()
+    var rat = Creatures.Rat()
     var monster_class_name = monster.class.name_with_namespaces()
     var rat_class_name = rat.class.name_with_namespaces()
     console.print(monster_class_name, rat_class_name)

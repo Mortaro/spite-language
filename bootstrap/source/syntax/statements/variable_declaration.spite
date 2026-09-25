@@ -3,7 +3,6 @@ var type_reference: Syntax.Types.Type? = null
 var value: Syntax.Expressions.Expression? = null
 var line = 0
 var source_path = ""
-var overrides_declaration = false
 var hardcoded_value: Syntax.Expressions.Expression? = null
 
 func VariableDeclaration(
