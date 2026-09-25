@@ -13,7 +13,6 @@ manual argues it.
 
 ## Proposals built and waiting for a yes or no
 
-8. **D78's narrow form**: only a call with arguments, in every branch, at the start of the branches, counts.
 9. **The floor** (section 15, "The floor, named"): what stays C, and D82's form for showing it in
    `--final_classes`.
 10. **Rows marked "(proposed by Claude, unconfirmed)"** in the decision log from 2026-09-23 and 2026-09-24:
