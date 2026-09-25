@@ -1,0 +1,36 @@
+singleton
+
+var buffer = ThreadLocal<Int>()
+var id_lock = Lock()
+var next_id = 0
+var claims = 0
+var wrong_buffers = 0
+
+func claim(): Int {
+    id_lock.lock()
+    var claimed = next_id
+    next_id = next_id + 1
+    id_lock.unlock()
+    return claimed
+}
+
+func use_buffer(runner: Int) {
+    buffer.set(runner)
+}
+
+func check_buffer(runner: Int) {
+    var seen = buffer.get()
+    crash seen
+    if seen != runner {
+        wrong_buffers = wrong_buffers + 1
+    }
+    claims = claims + 1
+}
+
+func claimed(): Int {
+    return claims
+}
+
+func mismatches(): Int {
+    return wrong_buffers
+}

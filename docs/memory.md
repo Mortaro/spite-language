@@ -220,7 +220,10 @@ free. `Memory` is bound to `memory` first, as every singleton is
 `this` is the value itself: reading `_memory` is an error saying so.
 
 - **Allocating:** `memory.allocate_bytes(bytes)` returns an address (a `Long`); `resize` grows it and `free`
-  gives it back. Nothing frees it for you: a class that allocates frees in its `drop()`.
+  gives it back. Nothing frees it for you: a class that allocates frees in its `drop()`. The bytes are not
+  cleared: a new block, and the part `resize` adds, hold whatever was there before, so write a byte before
+  reading it. A read of a byte nobody wrote can pass on one machine and crash on the next, since what the heap
+  holds depends even on how the program was launched.
 - **Where it lives is the compiler's choice** (D108). An allocation a function frees itself, in the same block,
   whose address it only hands to `memory`'s reads, writes, copies, comparisons and `text` -- never stores,
   returns, resizes or passes anywhere else -- is placed in the function's own frame: up to 256 bytes cost no
