@@ -25,6 +25,23 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 
 ## Results
 
+### All four steps: the compiler before this work against the compiler after it
+
+Each side compiled in its own tree, so each reads its own `library/`; best of nine interleaved runs.
+
+| benchmark | before ms | after ms | before allocations | after allocations |
+|---|---|---|---|---|
+| fused_chain | 216 | 143 | 300 009 | 200 009 |
+| dictionary_keys | 391 | 197 | 2 208 012 | 1 104 014 |
+| text_building | 276 | 155 | 5 500 265 | 800 227 |
+| reflection_walks | 602 | 260 | 16 356 022 | 7 596 024 |
+| function_values | 119 | 67 | 2 000 019 | 400 019 |
+| small_allocations | 146 | 82 | 9 004 013 | 9 004 013 |
+| parallel_calls | 163 | 138 | 1 040 077 | 440 074 |
+| stress | 106 | 106 | 150 049 | 150 049 |
+
+Compiling the compiler (the compiler built with `clang -O1`, best of seven): 1 831 ms before, 1 318 ms after.
+
 Each step is one commit; `before` is the compiler before it. Best of nine interleaved runs.
 
 ### Step 1: text joined in one piece, replaced defaults never made, function arguments described on demand
