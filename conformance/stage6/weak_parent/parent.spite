@@ -1,0 +1,11 @@
+var name = ""
+var children = List<Child>()
+
+func Parent(new_name: String) {
+    name = new_name
+}
+
+func adopt(child_name: String) {
+    var child = Child(child_name, this)
+    children.append(child)
+}

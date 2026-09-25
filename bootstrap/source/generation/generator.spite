@@ -3840,6 +3840,9 @@ func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInf
         if class_path == "typed_memory" {
             function.supplied_body = typed_memory_body(information, function.name)
         }
+        if class_path == "weak" {
+            function.supplied_body = weak_body(information, function.name)
+        }
         if class_path == "concurrent" or class_path == "thread_pool" {
             function.supplied_body = task_body(information, function.name)
         }
@@ -3902,6 +3905,113 @@ func task_body(information: Analysis.ClassInfo, name: String): String {
         "static void* {entry}(void* pool) \{\n{information.c_name}__serve(({information.c_name}*)pool);\nreturn 0;\n}",
     )
     return "return (int64_t)(intptr_t)&{entry};"
+}
+
+func weak_body(information: Analysis.ClassInfo, name: String): String {
+    crash information.codegen_types[0]
+    var value_type = information.codegen_types[0]
+    var class_ref = type_shape.as_class_ref(value_type)
+    if not class_ref {
+        report(
+            "Weak holds an object without counting it, and {type_with_article(value_type)} is not an object: a number, a Boolean, an enum or a T? is kept by value, so hold it as it is",
+        )
+        return ""
+    }
+    crash class_ref
+    ensure_weak_runtime(class_ref.c_name)
+    if name == "_box_of" {
+        var released = release_call(value_type, "target_")
+        return "int64_t spite_box = spite_weak_box_of((void*)target_);\n{released};\nreturn spite_box;"
+    }
+    if name == "get" {
+        var retained = retain_call(value_type, "spite_object")
+        return "{class_ref.c_name}* spite_object = ({class_ref.c_name}*)spite_weak_object(self->_box_);\nif (spite_object == 0) return 0;\nreturn {retained};"
+    }
+    return "spite_weak_box_release(self->_box_);"
+}
+
+func ensure_weak_runtime(c_name: String) {
+    if not weak_classes.contains(c_name) {
+        weak_classes.append(c_name)
+        builder.add_typedef("#define SPITE_WEAK_{c_name} 1")
+    }
+    assert not weak_runtime_written
+    weak_runtime_written = true
+    builder.add_prototype("static void spite_weak_object_freed(void* object);")
+    var runtime = weak_runtime()
+    builder.add_support(runtime)
+}
+
+func weak_runtime(): String {
+    var lines = [
+        "typedef struct SpiteWeakBox \{ void* object; int64_t weak_count; } SpiteWeakBox;"
+        "static SpiteWeakBox** spite_weak_table = 0;"
+        "static int64_t spite_weak_capacity = 0;"
+        "static int64_t spite_weak_used = 0;"
+        "static int64_t spite_weak_filled = 0;"
+        "#define SPITE_WEAK_GONE ((SpiteWeakBox*)(intptr_t)1)"
+        "static int64_t spite_weak_find(void* object) \{"
+        "if (spite_weak_capacity == 0) return -1;"
+        "uint64_t spite_hash = (uint64_t)(uintptr_t)object; spite_hash ^= spite_hash >> 33; spite_hash *= 0xff51afd7ed558ccdULL; spite_hash ^= spite_hash >> 33;"
+        "int64_t spite_slot = (int64_t)(spite_hash & (uint64_t)(spite_weak_capacity - 1));"
+        "while (spite_weak_table[spite_slot] != 0) \{"
+        "if (spite_weak_table[spite_slot] != SPITE_WEAK_GONE && spite_weak_table[spite_slot]->object == object) return spite_slot;"
+        "spite_slot = (spite_slot + 1) & (spite_weak_capacity - 1);"
+        "}"
+        "return -1;"
+        "}"
+        "static void spite_weak_insert(SpiteWeakBox* box) \{"
+        "if ((spite_weak_filled + 1) * 2 > spite_weak_capacity) \{"
+        "SpiteWeakBox** spite_old = spite_weak_table; int64_t spite_old_capacity = spite_weak_capacity;"
+        "spite_weak_capacity = spite_weak_capacity == 0 ? 16 : (spite_weak_used + 1) * 4 > spite_weak_capacity ? spite_weak_capacity * 2 : spite_weak_capacity;"
+        "spite_weak_table = (SpiteWeakBox**)calloc((size_t)spite_weak_capacity, sizeof(SpiteWeakBox*));"
+        "spite_weak_filled = 0; spite_weak_used = 0;"
+        "for (int64_t spite_index = 0; spite_index < spite_old_capacity; spite_index = spite_index + 1) \{"
+        "if (spite_old[spite_index] != 0 && spite_old[spite_index] != SPITE_WEAK_GONE) spite_weak_insert(spite_old[spite_index]);"
+        "}"
+        "free(spite_old);"
+        "}"
+        "uint64_t spite_hash = (uint64_t)(uintptr_t)box->object; spite_hash ^= spite_hash >> 33; spite_hash *= 0xff51afd7ed558ccdULL; spite_hash ^= spite_hash >> 33;"
+        "int64_t spite_slot = (int64_t)(spite_hash & (uint64_t)(spite_weak_capacity - 1));"
+        "while (spite_weak_table[spite_slot] != 0 && spite_weak_table[spite_slot] != SPITE_WEAK_GONE) spite_slot = (spite_slot + 1) & (spite_weak_capacity - 1);"
+        "if (spite_weak_table[spite_slot] == 0) spite_weak_filled = spite_weak_filled + 1;"
+        "spite_weak_table[spite_slot] = box;"
+        "spite_weak_used = spite_weak_used + 1;"
+        "}"
+        "static void spite_weak_forget(int64_t spite_slot) \{"
+        "spite_weak_table[spite_slot] = SPITE_WEAK_GONE;"
+        "spite_weak_used = spite_weak_used - 1;"
+        "if (spite_weak_used == 0) \{ free(spite_weak_table); spite_weak_table = 0; spite_weak_capacity = 0; spite_weak_filled = 0; }"
+        "}"
+        "static int64_t spite_weak_box_of(void* object) \{"
+        "if (object == 0) return 0;"
+        "int64_t spite_slot = spite_weak_find(object);"
+        "if (spite_slot >= 0) \{ spite_weak_table[spite_slot]->weak_count = spite_weak_table[spite_slot]->weak_count + 1; return (int64_t)(intptr_t)spite_weak_table[spite_slot]; }"
+        "SpiteWeakBox* box = (SpiteWeakBox*)malloc(sizeof(SpiteWeakBox));"
+        "box->object = object; box->weak_count = 1;"
+        "spite_weak_insert(box);"
+        "return (int64_t)(intptr_t)box;"
+        "}"
+        "static void* spite_weak_object(int64_t box) \{"
+        "if (box == 0) return 0;"
+        "return ((SpiteWeakBox*)(intptr_t)box)->object;"
+        "}"
+        "static void spite_weak_box_release(int64_t box_address) \{"
+        "SpiteWeakBox* box = (SpiteWeakBox*)(intptr_t)box_address;"
+        "if (box == 0) return;"
+        "box->weak_count = box->weak_count - 1;"
+        "if (box->weak_count > 0) return;"
+        "if (box->object != 0) \{ int64_t spite_slot = spite_weak_find(box->object); if (spite_slot >= 0) spite_weak_forget(spite_slot); }"
+        "free(box);"
+        "}"
+        "static void spite_weak_object_freed(void* object) \{"
+        "int64_t spite_slot = spite_weak_find(object);"
+        "if (spite_slot < 0) return;"
+        "spite_weak_table[spite_slot]->object = 0;"
+        "spite_weak_forget(spite_slot);"
+        "}"
+    ]
+    return lines.join("\n")
 }
 
 func typed_memory_body(information: Analysis.ClassInfo, name: String): String {
@@ -17304,6 +17414,9 @@ func emit_class_support(information: Analysis.ClassInfo) {
     }
     release_lines.append("#ifdef SPITE_TRACKS_{information.c_name}")
     release_lines.append("spite_untrack_{information.c_name}(self);")
+    release_lines.append("#endif")
+    release_lines.append("#ifdef SPITE_WEAK_{information.c_name}")
+    release_lines.append("spite_weak_object_freed(self);")
     release_lines.append("#endif")
     release_lines.append("SPITE_FREE(self);")
     release_lines.append("}")

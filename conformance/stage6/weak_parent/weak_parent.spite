@@ -1,0 +1,34 @@
+var console = Console()
+
+func WeakParent() {
+    var kept = grow_family()
+    var parent = kept.parent.get()
+    if parent {
+        console.print("still reachable", parent.name)
+    } else {
+        console.print("the parent is gone, and", kept.name, "knows it")
+    }
+    show_living_family()
+}
+
+func grow_family(): Child {
+    var parent = Parent("ada")
+    parent.adopt("grace")
+    parent.adopt("linus")
+    var first = parent.children.first()
+    crash first
+    var first_parent = first.parent.get()
+    crash first_parent
+    console.print(first.name, "belongs to", first_parent.name)
+    return first
+}
+
+func show_living_family() {
+    var parent = Parent("barbara")
+    parent.adopt("edsger")
+    var child = parent.children.first()
+    crash child
+    var found = child.parent.get()
+    crash found
+    console.print(child.name, "belongs to", found.name, "while both live")
+}
