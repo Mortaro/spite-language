@@ -202,7 +202,10 @@ Hero and 7
 - **The values can be read from the arguments.** When every `$name` appears in the constructor's parameter
   types, a call may leave the `<...>` out: `Pair("Hero", 7)` is `Pair<String, Int>`, and a `$name` inside a
   function value's type is read from the function, so `Concurrent(file.read)` is a `Concurrent<String?>`
-  ([concurrency.md](concurrency.md)). When one cannot be read, the error asks for them between `<` and `>`.
+  ([concurrency.md](concurrency.md)). A parameter typed `$name?` reads the type without its `?`, so a `T` and a
+  `T?` both give `T` (that is how `Json(order)` is a `Json<Order>`, [json.md](json.md)); `List<$name>` and
+  `Dictionary<$name>` read what the container holds. A `null` argument says nothing, and when a `$name` cannot
+  be read, the error asks for the values between `<` and `>`.
 - `null` as the default of a field typed by a codegen value means that type's own default, not a `T?`
   (provisional: [manual, open question 1](../manual.md#open-questions)).
 
@@ -253,6 +256,96 @@ func CodegenCountError() {
 ```diagnostic
 takes 1 codegen value(s), in this order: $element_type
 ```
+
+### Constraining what a generic accepts
+
+A `generic` line may name a `type` after a colon. The class accepts only types that fit it, and a class that does
+not is an error where it is named, saying which function or attribute is missing -- not an error deep inside the
+generic's body, the first time some function happens to call what the class lacks.
+
+```gdscript title=generic_constraint/shelf.spite
+generic $item_type: Printable
+
+var items = List<$item_type>()
+
+func add(item: $item_type) {
+    items.append(item)
+}
+
+func describe(): String {
+    var texts = List<String>()
+    var index = 0
+    while index < items.count() {
+        var item = items.get_at(index)
+        var text = item.to_string()
+        texts.append(text)
+        index = index + 1
+    }
+    return texts.join(", ")
+}
+```
+```gdscript title=generic_constraint/book.spite
+var title = ""
+
+func Book(new_title: String) {
+    title = new_title
+}
+
+func to_string(): String {
+    return "'{title}'"
+}
+```
+```gdscript title=generic_constraint/generic_constraint.spite entry
+var console = Console()
+
+func GenericConstraint() {
+    var books = Shelf<Book>()
+    books.add(Book("Dune"))
+    var numbers = Shelf<Int>()
+    numbers.add(3)
+    var book_text = books.describe()
+    var number_text = numbers.describe()
+    console.print(book_text, number_text)
+}
+```
+```output
+'Dune' 3
+```
+
+```gdscript title=generic_constraint_error/generic_constraint_error.spite entry error
+var console = Console()
+
+func GenericConstraintError() {
+    var sounds = Chorus<Rock>()
+    var count = sounds.singers.count()
+    console.print(count)
+}
+```
+```gdscript title=generic_constraint_error/chorus.spite
+generic $singer_type: Singer
+
+type Singer {
+    sing(): String
+}
+
+var singers = List<$singer_type>()
+```
+```gdscript title=generic_constraint_error/rock.spite
+var weight = 3
+```
+```diagnostic
+'Rock' does not fit type 'Singer', which 'Chorus' requires of $singer_type: it has no function 'sing'
+```
+
+- **The constraint is optional** and names an existing `type` (`Printable` is `Console`'s, found like any type
+  name; a `type` of the generic's own file works too). Naming anything else -- a class, a union, a number type
+  -- is an error on the `generic` line.
+- **Everything a `type` accepts fits**: a class with the functions and attributes it lists, `String`, a number,
+  an enum, a `List<T>` or `Dictionary<T>` with what it needs. A `T?` does not fit, since null has none of it; nor
+  does a function value.
+- **It is checked wherever a class is given**, written out (`Shelf<Book>`) or read from the constructor's
+  arguments (`Label(book)`), once per class given. It costs nothing at run time: the check is the compiler's, and
+  the class made is the same one an unconstrained line would make.
 
 ### Asking what a generic was given
 

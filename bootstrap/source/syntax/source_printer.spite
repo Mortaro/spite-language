@@ -213,7 +213,12 @@ func source_statement_line(statement: Syntax.Statements.Statement, depth: Int): 
     var indent = source_indent(depth)
     switch statement {
         Syntax.Statements.SingletonDeclaration: return "{indent}singleton"
-        Syntax.Statements.GenericDeclaration: return "{indent}generic ${statement.name}"
+        Syntax.Statements.GenericDeclaration: {
+            if statement.constraint {
+                return "{indent}generic ${statement.name}: {source_type(statement.constraint)}"
+            }
+            return "{indent}generic ${statement.name}"
+        }
         Syntax.Statements.VariableDeclaration: {
             var type_text = ""
             if statement.type_reference {

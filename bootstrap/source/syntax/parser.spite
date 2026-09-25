@@ -382,8 +382,13 @@ func parse_generic_declaration(): Syntax.Statements.Statement {
         )
         return dummy_statement()
     }
+    var constraint: Syntax.Types.Type? = null
+    if check('colon') {
+        advance()
+        constraint = parse_type()
+    }
     consume_statement_terminator()
-    return Syntax.Statements.GenericDeclaration("{name.text}")
+    return Syntax.Statements.GenericDeclaration("{name.text}", constraint)
 }
 
 func parse_variable_declaration(): Syntax.Statements.Statement {

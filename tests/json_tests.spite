@@ -1,20 +1,23 @@
-var json = Json<Ship>()
+var json = Json<Ship>(null)
 
 func test_writes_every_kind_of_attribute() {
     var ship = full_ship()
-    var text = json.write(ship)
+    var ship_json = Json(ship)
+    var text = ship_json.write()
     crash text == "\{\"name\":\"Wren\",\"length\":12,\"speed\":7.5,\"rig\":\"schooner\",\"afloat\":true,\"crew\":[\{\"name\":\"Ada\",\"knots\":[\"bowline\",\"hitch\"]},\{\"name\":\"Bo\",\"knots\":[]}],\"cargo\":\{\"rope\":3,\"tea\":40},\"captain\":\{\"name\":\"Cy\",\"knots\":[]},\"launched\":1902,\"logbook\":[[\"calm\"],[]]}"
 }
 
 func test_writes_null_for_an_empty_nullable() {
     var ship = Ship()
-    var text = json.write(ship)
+    var ship_json = Json(ship)
+    var text = ship_json.write()
     crash text == "\{\"name\":\"\",\"length\":0,\"speed\":0,\"rig\":\"sloop\",\"afloat\":false,\"crew\":[],\"cargo\":\{},\"captain\":null,\"launched\":null,\"logbook\":[]}"
 }
 
 func test_reads_back_what_it_wrote() {
     var ship = full_ship()
-    var text = json.write(ship)
+    var ship_json = Json(ship)
+    var text = ship_json.write()
     var read = json.read(text)
     crash read
     crash read.name == "Wren"
@@ -28,7 +31,8 @@ func test_reads_back_what_it_wrote() {
     crash read.captain
     crash read.captain.name == "Cy"
     crash read.launched == 1902
-    var again = json.write(read)
+    var read_json = Json(read)
+    var again = read_json.write()
     crash again == text
 }
 
@@ -79,7 +83,8 @@ func test_malformed_text_reads_nothing() {
 func test_text_escapes_round_trip() {
     var ship = Ship()
     ship.name = "quote \" slash \\ line\nend\ttab"
-    var text = json.write(ship)
+    var ship_json = Json(ship)
+    var text = ship_json.write()
     crash text.starts_with("\{\"name\":\"quote \\\" slash \\\\ line\\nend\\ttab\",")
     var read = json.read(text)
     crash read
@@ -93,24 +98,34 @@ func test_unicode_escapes_become_utf8() {
 }
 
 func test_values_that_are_not_classes() {
-    var numbers = Json<List<Int>>()
-    var list_text = numbers.write([1, -2, 3])
+    var numbers = Json([1, -2, 3])
+    var list_text = numbers.write()
     crash list_text == "[1,-2,3]"
     var list_read = numbers.read(" [4, 5] ")
     crash list_read
     crash list_read.count() == 2
-    var sailors = Json<Dictionary<Sailor>>()
     var roster = Dictionary<Sailor>()
     roster.set("first", Sailor("Ada"))
-    var roster_text = sailors.write(roster)
+    var sailors = Json(roster)
+    var roster_text = sailors.write()
     crash roster_text == "\{\"first\":\{\"name\":\"Ada\",\"knots\":[]}}"
     var roster_read = sailors.read(roster_text)
     crash roster_read
     crash roster_read["first"]
     crash roster_read["first"].name == "Ada"
-    var text = Json<String>()
-    var quoted = text.write("hi")
+    var text = Json("hi")
+    var quoted = text.write()
     crash quoted == "\"hi\""
+}
+
+func test_a_missing_value_writes_null() {
+    var captain: Sailor? = null
+    var captain_json = Json(captain)
+    var captain_text = captain_json.write()
+    crash captain_text == "null"
+    var nothing_yet = Json<Ship>(null)
+    var nothing_text = nothing_yet.write()
+    crash nothing_text == "null"
 }
 
 func full_ship(): Ship {

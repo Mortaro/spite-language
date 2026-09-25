@@ -1,6 +1,8 @@
 var name = ""
+var constraint: Syntax.Types.Type? = null
 var line = 0
 
-func GenericDeclaration(starting_name: String) {
+func GenericDeclaration(starting_name: String, starting_constraint: Syntax.Types.Type?) {
     name = starting_name
+    constraint = starting_constraint
 }

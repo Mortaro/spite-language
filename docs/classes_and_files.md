@@ -10,7 +10,8 @@ put two classes in one file. Every other file of the program is another class, a
 A file contains only declarations, in this order:
 
 1. a `singleton` line, when the class has one instance ([below](#singletons));
-2. `generic $name` lines, one per codegen value a caller supplies ([metaprogramming.md](metaprogramming.md#generics-and-codegen-values-));
+2. `generic $name` lines, one per codegen value a caller supplies, each optionally constrained by a `type`
+   (`generic $name: Printable`, [metaprogramming.md](metaprogramming.md#generics-and-codegen-values-));
 3. `enum`, `union` and `type` declarations, namespaced under the class (`Player.Job`);
 4. `var` declarations: the attributes, each with a default value;
 5. the constructor;

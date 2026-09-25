@@ -1,0 +1,6 @@
+var console = Console()
+
+func GenericConstraintNotAType() {
+    var tally = Tally<Int>()
+    console.print(tally.count)
+}

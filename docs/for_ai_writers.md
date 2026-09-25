@@ -201,8 +201,10 @@ func is_alive(): Bool {
   identity.
 - Codegen values: `generic $damage_type` and `generic $is_magic`, one per line at the top of `weapon.spite`, and
   `Weapon<Int, true>(10)` supplies them in that order; `Pair("a", 1)` may leave them out when the constructor's
-  arguments say them. The constructor lists none: `func Weapon(damage: $damage_type)`. `$` is for generics only: a
-  `$name` with no `generic` line is an error. `if $is_magic { }` is decided at compile time.
+  arguments say them (through `$T`, `$T?`, `List<$T>`, `Dictionary<$T>` or a function value). The constructor
+  lists none: `func Weapon(damage: $damage_type)`. `$` is for generics only: a `$name` with no `generic` line is
+  an error. `if $is_magic { }` is decided at compile time. `generic $item_type: Printable` accepts only classes
+  that fit the `type` `Printable`; any other is an error where the class is named, not inside the generic.
 - Settings: reopen `Environment` in the program's `environment.spite` with one `var` per setting and a literal
   default (`var serve = false`), then bind `var environment = Environment()` and read `environment.serve`. The
   value comes from `--serve=true` after `--` on the command line, else the `SERVE` environment variable, else the
@@ -244,8 +246,8 @@ in for what the function returns and reading it is the wait (there is no `.wait(
 waiting, the type is never written, and dropping the handle waits for it. There is no `async`/`await`: a function
 that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can
 run ([concurrency.md](concurrency.md)).
-`Json<T>()` (`write(value): String`, `read(text): T?`, `read_or_crash(text): T`) converts any class, list,
-dictionary, enum, number, `Bool`, `String` or `T?` to JSON and back; `read` skips unknown keys, keeps defaults for
+`Json(value).write(): String` writes JSON and `Json<T>(null)` reads it (`read(text): T?`,
+`read_or_crash(text): T`), for any class, list, dictionary, enum, number, `Bool`, `String` or `T?`; `read` skips unknown keys, keeps defaults for
 missing ones, and is `null` on a value of the wrong kind (docs/json.md).
 Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(Duration(1710054000, 'seconds'))`.
 `Duration(90, 'minutes')` is exact time (no days); `Period(1, 'months')` is calendar time, added to a `LocalDate`,

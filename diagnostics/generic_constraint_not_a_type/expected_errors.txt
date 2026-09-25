@@ -1,0 +1,1 @@
+diagnostics/generic_constraint_not_a_type/tally.spite:1: error: '$count_type' is constrained by 'Int', which is not a 'type': a constraint names a 'type' the class given must fit, like 'generic $count_type: Printable' (in Tally.)

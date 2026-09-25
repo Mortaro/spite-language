@@ -52,7 +52,8 @@ This cannot be changed.
 A file contains only declarations:
 
 - a `singleton` line, when the class has one instance (section 8, D104)
-- `generic $name` lines: the codegen values a caller supplies (section 9, D87)
+- `generic $name` lines: the codegen values a caller supplies, each optionally constrained by a `type`,
+  `generic $name: Printable` (section 9, D87, D175)
 - `var` declarations: the attributes of the class
 - `func` declarations: the functions of the class
 - `type`, `enum` and `union` declarations, which are namespaced under the class (`Player.Job`)
@@ -1690,6 +1691,35 @@ var sword = Weapon<Magic, true>(10)
 - Writing `generics` is a parse error naming this form (as `for`, `&` and `Heap<T>` already are), and so is D9's
   `func Weapon<$damage_type, $is_magic>(...)`: the message lists the `generic` lines to write
   (`diagnostics/constructor_codegen_list`). A `generic` line inside a function is an error too.
+- **The values can be left out when the constructor's arguments say them** (proposed by Claude, unconfirmed,
+  2026-09-24, generalised for D138 on 2026-09-25): each parameter whose declared type mentions a `$name` is
+  matched against its argument's type -- `$name` itself, `$name?` (a `T` or a `T?` both give `T`), `List<$name>`,
+  `Dictionary<$name>`, and the arguments and return of a `Spite.Function<...>`. A `null` argument says nothing.
+  Only when every `$name` is found; otherwise the error asks for them between `<` and `>`. `Pair("Hero", 7)`,
+  `Concurrent(file.read)`, `Json(order)`.
+
+**A `generic` line may name a constraint** (D175, decided by Mortaro, 2026-09-25). **[implemented]**
+`generic $item_type: Printable` accepts only types that fit the `type` `Printable`, and a use that does not
+(`Shelf<Pet>`) is an error where the class is named, naming the constraint, the class and what it lacks --
+"'Pet' does not fit type 'Printable', which 'Shelf' requires of $item_type: it has no function 'to_string'" --
+instead of an error deep inside the generic's body. The constraint is optional and uses an existing `type`,
+resolved like any type name from the generic's file. What follows is Claude's reading where D175 is not specific
+(proposed by Claude, unconfirmed):
+
+- **Fitting is what section 7 already means by it**: the class a `type` would admit fits -- a class with the
+  listed functions and attributes, `String`, a number, an enum, a `List<T>` or `Dictionary<T>` with what the
+  `type` needs, and the `type` itself. A `T?` does not fit (null has none of what the `type` needs), and neither
+  does a function value.
+- **A constraint names a `type`, not a class or a union**: anything else is an error on the `generic` line.
+  Constraining by a union ("one of these classes") is not built.
+- **It is checked once per class given**, where the compiler first makes that instance, written out or read
+  from the constructor's arguments. After the error the generic is compiled as if it had been given the `type`
+  itself, so its body adds no errors of its own.
+- **It costs nothing at run time and tree-shakes as before**: the check is the compiler's alone, and the
+  instance made is the one an unconstrained line would make.
+
+`conformance/stage6/generic_constraints`, `diagnostics/generic_constraints`,
+`diagnostics/generic_constraint_not_a_type`, `docs/metaprogramming.md`.
 
 Conditions on codegen values are decided at compile time and the untaken branch is removed (tree shaking), in
 every build, `--development` and `--hot-reload` included (settled 2026-09-25 by keeping what was built): a
@@ -3248,15 +3278,23 @@ class, and every conversion it makes is a function the compiler writes from it f
 uses, so a program that never names `Json` carries none of it (D42).
 
 ```gdscript
-var json = Json<Order>()
-var text = json.write(order)            # String: never fails
-var read = json.read(text)              # Order?: null on text that is not an Order
-var order = json.read_or_crash(text)    # Order: halts, naming the position and what was expected
+var json = Json(order)                  # Json<Order>, read from the argument (D138)
+var text = json.write()                 # String: never fails
+var reading = Json<Order>(null)         # no object yet, so the class is named
+var read = reading.read(text)           # Order?: null on text that is not an Order
+var order = reading.read_or_crash(text) # Order: halts, naming the position and what was expected
 ```
 
+**`Json` takes the object in its constructor** (D138, decided by Mortaro, 2026-09-25) and infers its generic
+from it, by the general rule of section 9 for a constructor that takes a `$name`; nothing about `Json` is special
+to the compiler. Reading keeps a way to name the class it reads into, since there is no object yet. As built
+(proposed by Claude, unconfirmed): the constructor takes a `$value_type?`, so reading names the class and passes
+`null`, `Json<Order>(null)`; a `T?` argument gives `Json<T>`, and `write()` of an empty one is `null`. `read`
+makes a new value and leaves the one the `Json` holds alone, so one `Json(order)` can write and read.
+
 - **What it is written with** is section 8 and section 9's metaprogramming and nothing else: `if $value_type ==
-  List { }` chooses what a type becomes at compile time, `Json<$value_type.element_type>()` recurses into what a
-  container holds, and a class is walked by a Symbol codegen template over `Symbol<$value_type>`, called for every
+  List { }` chooses what a type becomes at compile time, `Json<$value_type.element_type>(null)` recurses into
+  what a container holds (one per container, given each element in turn as its `value`), and a class is walked by a Symbol codegen template over `Symbol<$value_type>`, called for every
   attribute at once by its plural (`write_attributes`, `read_attributes`). Reading keeps a `JsonReader`
   (`library/json_reader.spite`), a cursor over the text holding the first failure.
 - **What each type becomes:** `String` is text (`"`, `\` and control characters escaped, `\uXXXX` read back as
@@ -3267,10 +3305,11 @@ var order = json.read_or_crash(text)    # Order: halts, naming the position and 
 
 What follows is Claude's reading where D22 and D95 are not specific (proposed by Claude, unconfirmed):
 
-- **The API is a class you make once per type**, `Json<Order>()`, with `write`, `read` and `read_or_crash`. The
-  generic is on the class because that is where Spite puts generics, and naming the type once at the top reads
-  better than naming it on every call. The pair D22 asked for is `read`/`read_or_crash`, following the suffix
-  Claude proposed for `parse_json_or_crash`; `write` needs no pair, since it cannot fail.
+- **The API is a class you make once per value, or once per type to read**, `Json(order)` or
+  `Json<Order>(null)`, with `write`, `read` and `read_or_crash`. The generic is on the class because that is
+  where Spite puts generics (D138 moved the value to the constructor, so writing names no type at all). The
+  pair D22 asked for is `read`/`read_or_crash`, following the suffix Claude proposed for `parse_json_or_crash`;
+  `write` needs no pair, since it cannot fail.
 - **Reading input is strict about what it cannot use and lenient about what it does not need** (section 5's
   three outcomes). A key the class does not have is skipped, whatever it holds, because foreign systems send more
   than a program asks for. An attribute the text does not mention keeps the default its class declares, which is
@@ -4292,3 +4331,5 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | **D193** (decided by Mortaro): **`manual.md` is dissolved into `docs/` and removed, and the README gives a reading order with links to the docs**: "manual should be dissolved into docs and removed, and our readme should have a proper reading order with links for the docs". Every normative rule the manual states moves into the docs page that teaches that part of the language, so there is one place that both teaches and decides; the docs become normative. The decision log moves with it, whole and still append-only, to its own page (proposed by Claude, unconfirmed: `docs/decisions.md`), and every link to `manual.md#...` is repointed. `AGENTS.md`, `SPITE.md`, `PLAN.md` and the memory of every agent that says "the manual is normative" change to name the docs. Done in one pass once no other branch is editing the manual, so nothing written to it in parallel is lost. |
 | 2026-09-25 | **D194** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 141): **the standard library has a file and folder watcher, and the language's own hot reload uses it**: "you can build the filewatcher and use it for the hotreload of the language itself. should support any os, and perhaps name needs to be better since its also a directory watcher". One implementation on every system (`ReadDirectoryChangesW`, `inotify`, `kqueue`), never polling, tree-shaken when unused; `HotReload` is rewritten on top of it. The name is still open, because it watches folders as well as files. |
 | 2026-09-25 | (implements D180; the spellings and readings below proposed by Claude, unconfirmed) **An enum reopens by adding values, is walked by `Symbol<Enum>`, and a name pattern's hole is the enum named for it.** A reopening that declares an enum again appends the values it lists that the enum lacks, in merge order (the program's own folder, then loaded folders in load order); a restated value stays where it was, so `--final_classes` output still recompiles, and nothing removes one. `course: Symbol<Course>` is a template over the values: `course.name` is the text, `course.value` the value typed `Course`, and the plural calls it once per value in order. A pattern's hole `phase` matches only the values of the enum `Phase`, resolved as that type name would be from the template's class; with no such enum the template is an error, the plural walks matches in the enum's order rather than declaration order, `phase.value` is the matched value, a call naming a non-value lists the values, and a folded `has_function("<phase>_each")` reads the hole the same way while the run-time `has_function`/`name_fits` still take any text. All compile time: each walk expands to ordinary calls and constants, nothing is emitted for an enum nobody walks (D177). Supersedes the "enums declared again still register twice" note of the 2026-09-24 `type`-reopening row. Sections 7, 8, 11; `conformance/stage6/enum_reopening`, `conformance/stage6/system_phases`, `diagnostics/hole_values`, `docs/values_and_types.md`, `docs/packages.md`, `docs/metaprogramming.md`. |
+| 2026-09-25 | (implements D175; the readings proposed by Claude, unconfirmed) **Constrained generics are built.** `generic $item_type: Printable` parses a type after the colon, and the formatter keeps it. The constraint must resolve to a `type` (not a class, a union or a number type), an error on the `generic` line otherwise (`diagnostics/generic_constraint_not_a_type`). Each instance is checked where the compiler first makes it, from written values or inferred ones, with section 7's fitting rule (the check `type` admission already used, now one function): a class with the listed functions and attributes, `String`, numbers, enums and containers with what the `type` needs, and the `type` itself fit; a `T?` and a function value do not. The error names the class, the `type`, the generic and what is missing, at the use site; after it the instance is compiled with the `type` in place of the class, so the generic's body adds no errors (`diagnostics/generic_constraints`, `conformance/stage6/generic_constraints`, `docs/metaprogramming.md`). Zero run-time cost: the check is the compiler's alone. |
+| 2026-09-25 | (implements D138; the readings proposed by Claude, unconfirmed) **`Json` takes its value, and inference reads through `?`, `List` and `Dictionary`.** Inferring a generic class's codegen values from its constructor's arguments now matches a parameter typed `$name?` (a `T` or a `T?` both give `T`), `List<$name>` and `Dictionary<$name>`, besides `$name` and `Spite.Function<...>`; nothing names `Json`. `library/json.spite` holds `var value: $value_type? = null` set by `func Json(new_value: $value_type?)`: `Json(order).write()` writes, `Json<Order>(null).read(text)` reads (the class named, since there is no object yet), and `write()` of an empty value is `null`. Containers make one `Json` for their elements and give it each element as its `value`, so writing allocates no more than before (a `T?` attribute one `Json` fewer, being inferred as `Json<T>`). `tests/json_tests.spite`, `conformance/stage6/json_crash` and `docs/json.md` migrated. |

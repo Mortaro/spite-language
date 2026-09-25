@@ -1,0 +1,19 @@
+generic $item_type: Printable
+
+var items = List<$item_type>()
+
+func add(item: $item_type) {
+    items.append(item)
+}
+
+func describe(): String {
+    var texts = List<String>()
+    var index = 0
+    while index < items.count() {
+        var item = items.get_at(index)
+        var text = item.to_string()
+        texts.append(text)
+        index = index + 1
+    }
+    return texts.join(", ")
+}
