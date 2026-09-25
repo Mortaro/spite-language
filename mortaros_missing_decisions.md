@@ -361,12 +361,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 All of it is proposed by Claude, unconfirmed.
 
-115. **The names.** `Instant`, `Duration`, `Period`, `LocalDate`, `LocalTime`, `LocalDateTime`, `TimeZone`,
-     `TimeZones()` (the database, a singleton) and `TimeText()` (ISO 8601, a singleton). `Local` is the word
-     D127 used and the one `java.time` and NodaTime use; the alternatives are Temporal's `PlainDate`/
-     `PlainDateTime` (chosen there because "local" reads as "the machine's zone" to some) and jiff's `civil`.
-     `TimeText` could also be `Iso8601` (digits in a class name) or live on each type if Spite ever had a way to
-     read text into a class without a static function.
 116. **No stored zoned type.** Every design compared has one (`ZonedDateTime`, `Zoned`, `OffsetDateTime`); Spite
      has none, because D127 makes a zone presentation: store the `Instant`, apply the zone when showing it.
      "The same time tomorrow" is then three lines (`to_local`, `+ Period(1, 'days')`, `to_instant`). Keep it out?
