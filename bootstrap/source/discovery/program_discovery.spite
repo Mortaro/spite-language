@@ -762,7 +762,8 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
         error_message = "{parsed_file.path}: error: 'Spite' holds the standard library's own classes, so a file in a 'spite' folder may only reopen one of them: '{qualified_dotted}' is not one, and a new class of your own belongs in a namespace of your own"
         return
     }
-    class_files.append(DiscoveredClass(mangled_name, simple_name, namespace_dotted, qualified_dotted, parsed_file))
+    var discovered = DiscoveredClass(mangled_name, simple_name, namespace_dotted, qualified_dotted, parsed_file)
+    class_files.append(discovered)
 }
 
 func reopen_with_supplied_members() {
@@ -950,7 +951,8 @@ func spelling_check(declared: List<String>, first_reading: Syntax.Statements.Sta
     var names = List<Syntax.Expressions.Expression>()
     var index = 0
     while index < declared.count() {
-        names.append(Syntax.Expressions.StringLiteralExpression(declared[index]))
+        var checked_name = Syntax.Expressions.StringLiteralExpression(declared[index])
+        names.append(checked_name)
         index = index + 1
     }
     var checker = Syntax.Expressions.IdentifierExpression("reject_misspelled_settings")
@@ -1007,7 +1009,7 @@ func setting_source(name: String, class_name: String): String {
 
 func hardcode_setting(variable: Syntax.Statements.VariableDeclaration, reader: String) {
     crash supplied_settings[variable.name]
-    var literal = setting_literal(reader, supplied_settings[variable.name])
+    var literal = spelled_setting(reader, supplied_settings[variable.name])
     var flag = flag_of(variable.name)
     crash supplied_settings[variable.name]
     var given = "{flag}={supplied_settings[variable.name]}"
@@ -1041,7 +1043,7 @@ func flag_of(name: String): String {
     return "--{hyphenated}"
 }
 
-func setting_literal(reader: String, text: String): Syntax.Expressions.Expression? {
+func spelled_setting(reader: String, text: String): Syntax.Expressions.Expression? {
     if reader == "text_setting" {
         return Syntax.Expressions.StringLiteralExpression(text)
     }
@@ -1118,10 +1120,14 @@ func check_supplied_settings(build_names: List<String>, environment_names: List<
 
 func setting_reading(variable: Syntax.Statements.VariableDeclaration, reader: String): Syntax.Statements.Statement {
     var arguments = List<Syntax.Expressions.Expression>()
-    arguments.append(Syntax.Expressions.StringLiteralExpression(variable.name))
-    arguments.append(Syntax.Expressions.IdentifierExpression(variable.name))
-    var call = Syntax.Expressions.CallExpression(Syntax.Expressions.IdentifierExpression(reader), arguments)
-    var assignment = Syntax.Statements.AssignmentStatement(Syntax.Expressions.IdentifierExpression(variable.name), call)
+    var setting_name = Syntax.Expressions.StringLiteralExpression(variable.name)
+    arguments.append(setting_name)
+    var default_value = Syntax.Expressions.IdentifierExpression(variable.name)
+    arguments.append(default_value)
+    var reader_name = Syntax.Expressions.IdentifierExpression(reader)
+    var call = Syntax.Expressions.CallExpression(reader_name, arguments)
+    var target = Syntax.Expressions.IdentifierExpression(variable.name)
+    var assignment = Syntax.Statements.AssignmentStatement(target, call)
     assignment.line = variable.line
     return assignment
 }

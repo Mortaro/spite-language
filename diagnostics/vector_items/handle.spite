@@ -1,0 +1,6 @@
+var console = Console()
+var number = 0
+
+func drop() {
+    console.print("dropped", number)
+}

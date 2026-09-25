@@ -2,7 +2,8 @@ var console = Console()
 var repositories = List<Repository>()
 
 func MemberTemplateMistakes() {
-    repositories.append(Repository("engine", 10, true))
+    var engine = Repository("engine", 10, true)
+    repositories.append(engine)
     var names = repositories.sum_name()
     var counted = repositories.count_stars()
     repositories.each_name()

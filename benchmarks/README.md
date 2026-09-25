@@ -8,7 +8,7 @@ bash benchmarks/run.sh [compiler] [benchmark ...]
 ```
 
 `run.sh` has the compiler write each program's C, builds it with `clang -O2`, prints the best of seven runs, and
-builds the same C once more with `--debug-memory`'s table to print how many allocations it makes. The compiler
+builds the program once more with `--debug-memory` to print how many allocations it makes. The compiler
 defaults to `.spite-cache/spite_development.exe`, the one `check.sh` last built. Times are wall-clock milliseconds
 on Mortaro's Windows machine and move by 10-20% from run to run; the allocation counts are exact.
 
@@ -21,7 +21,9 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 | `function_values` | `each(f)`, `filter(f)`, `sum(f)`, `count(f)` and a function value passed 200 000 times |
 | `small_allocations` | three small objects made and dropped per pass, three million passes, and `copy()` |
 | `parallel_calls` | 20 000 rounds of two `Parallel`s |
+| `vector_items` | 200 000 `Velocity` items in a `List<Velocity>` and in a `Vector<Velocity>`, 100 ticks of `each_integrate()` and a fused `filter_moving().sum_across()` on each; prints the microseconds per tick of both |
 | `stress` | SlopEngine's `examples/stress` shape: component columns as generic singletons, `system/` classes with `update_each` over `type` rows filled by a Symbol walk, 50 000 entities, 20 ticks |
+| `console_lines` | 200 000 `console.print` lines, each written out as it is printed; `run.sh` times it into a pipe, and redirected to a file is where the write per line costs (about 700 ms against 140 ms buffered until exit, [standard_library.md](../docs/standard_library.md#system-classes--implemented)) |
 
 ## Results
 
@@ -106,3 +108,103 @@ raises and lowers the component's count, which none of these steps removes.
 In a program without threads a retain is one plain add and `stress` spends its time filling rows and spawning, so
 nothing moves; with atomic counts, as SlopEngine has whenever it runs systems in parallel, the ticks are a fifth
 faster. The second row is the same two C files built with `-DSPITE_THREADS` prepended.
+
+### Taken out again: freed small blocks kept for reuse (step 3)
+
+Mortaro's rule for step 3's small-block reuse was to keep it only if it is a measured gain for SlopEngine. It was
+measured on a copy of SlopEngine: each program's C written once by the compiler, then built with `clang -O2`
+twice -- as written (reuse) and with `SPITE_MALLOC`, `SPITE_REALLOC` and `SPITE_FREE` defined as the C library's
+`malloc`, `realloc` and `free` (plain, what every build now does) -- and run interleaved, nine times each. SlopEngine
+runs systems in parallel, so these programs count references atomically. Best of nine; the medians agree, and the
+ordinary machine noise is 2-5% (the UI tests and `flex_layout` also have occasional runs 250 ms slower on both
+sides).
+
+| SlopEngine program | reuse | plain |
+|---|---|---|
+| `stress`, average tick, parallel | 42.9 ms | 41.9 ms |
+| `stress`, average tick, single-threaded (`--parallel=false`) | 49.0 ms | 50.9 ms |
+| `stress`, spawning 200 000 bodies | 449 ms | 504 ms |
+| `stress`, 60 ticks after despawning them | 87.7 ms | 87.2 ms |
+| `flex_layout`, whole run | 68.9 ms | 72.4 ms |
+| `click_counter_test`, whole run (Vulkan, validation on) | 1 008 ms | 1 020 ms |
+| `text_field_test`, whole run | 827 ms | 820 ms |
+
+Three rounds agreed: the parallel tick, which is what SlopEngine runs, was 1-3% slower with reuse every time; the
+single-threaded tick 0-4% faster; only spawning (11%) and `flex_layout` (about 3 ms) were clearly faster, both
+one-off work. Not a clear gain on the engine, so it is gone, with up to 2 MB it kept per thread. The benchmarks
+here, the same way (best of nine, same C, only the allocator differs), are where it had helped:
+
+| benchmark | reuse ms | plain ms |
+|---|---|---|
+| fused_chain | 139 | 138 |
+| dictionary_keys | 185 | 185 |
+| text_building | 159 | 151 |
+| reflection_walks | 264 | 349 |
+| function_values | 67 | 72 |
+| small_allocations | 84 | 140 |
+| parallel_calls | 162 | 141 |
+| stress | 108 | 101 |
+
+After the change `run.sh` reports the same allocation counts as the "after" column at the top, every one: taking
+the reuse out, and leaving the counter out of builds that do not read it, change no allocation.
+
+### `Vector<T>`: items inline
+
+`vector_items`, best of seven, the compiler of the commit that adds `Vector<T>`:
+
+| layout | microseconds per tick | allocations while ticking |
+|---|---|---|
+| `List<Velocity>` | 443 | 0 |
+| `Vector<Velocity>` | 211 | 0 |
+
+A tick is `each_integrate()` over 200 000 items and a fused `filter_moving().sum_across()`. The list's objects were
+made one after another, so they sit close together on the heap, which is the best case for a list; the vector reads
+12 bytes per item where the list reads an 8-byte reference and then a 20-byte object somewhere else. The 200 149
+allocations are filling: the 200 000 `Velocity` objects the list holds, each also copied into the vector's block,
+which grows by doubling (a vector filled on its own would make each object only to copy it and let it go, which a
+planned optimisation in [optimizations.md](../docs/optimizations.md#other-planned-optimisations) removes).
+
+Shaped like SlopEngine's `examples/stress` (200 000 bodies, `Move` adding velocity to position and `Regenerate`
+adding to health, 20 ticks, one thread), with each component in its own column indexed by row: 1.0 ms per tick with
+four `Vector` columns against 5.9 ms with four `List` columns (whose objects were made interleaved). SlopEngine's own
+column code could not be moved to `Vector` as it is: its `Row` keeps each component in an attribute of a `type` row
+for the whole system call, which is exactly the keeping a borrowed item may not do (D204); its stress example runs at
+51 ms per tick on the same machine.
+
+### Short text inside the `String` (D203)
+
+A `String` is a sixteen-byte value and keeps text of up to 15 bytes in itself
+([optimizations.md](../docs/optimizations.md#short-text-lives-inside-the-string)). `before` is the compiler at
+`1e1162d`, each side in its own tree; best of three interleaved rounds of seven runs, on a machine other sessions
+were loading (the same binary moved by up to 80% between rounds, so a row within 10% has not moved). The
+allocation counts are exact.
+
+| benchmark | before ms | after ms | before allocations | after allocations |
+|---|---|---|---|---|
+| fused_chain | 154 | 155 | 200 009 | 200 007 |
+| dictionary_keys | 207 | 177 | 1 104 014 | 1 032 |
+| text_building | 173 | 143 | 800 227 | 165 |
+| reflection_walks | 298 | 219 | 7 596 024 | 3 999 918 |
+| function_values | 85 | 85 | 400 019 | 400 013 |
+| small_allocations | 100 | 99 | 9 004 013 | 9 004 009 |
+| parallel_calls | 176 | 164 | 440 074 | 440 041 |
+| stress | 127 | 128 | 150 049 | 150 043 |
+
+Compiling the compiler: 1 372 ms before, 1 295 ms after (best of five, interleaved). Of the 4.7 million texts it
+makes compiling itself, 68% are 15 bytes or fewer.
+
+SlopEngine, from a copy, each example built `--optimized` with `clang -O2` (best of five whole runs) and once more
+with `--debug-memory` for the count:
+
+| example | before ms | after ms | before allocations | after allocations |
+|---|---|---|---|---|
+| `stress` (200 000 entities) | 1 518 | 1 485 | 7 202 769 | 5 602 651 |
+| `click_counter_test` (Vulkan, hidden window) | 975 | 984 | 78 363 | 63 883 |
+| `flex_layout` | 71 | 73 | 127 330 | 99 824 |
+
+In `stress`, spawning (463 → 455 ms) and the average tick (43.0 → 42.6 ms) did not get slower, but the ticks right
+after despawning everything, which look each column up by a name of 16 to 22 bytes once per entity, did: 89 → 100
+ms for sixty ticks. A dictionary lookup by a key longer than 15 bytes is about 10% slower than before (a lookup
+loop over four such keys: 190 → 210 ms), because the key is passed as sixteen bytes rather than a pointer and
+compared through the form it takes. Before `code_at` became the compiler's (the third D203 commit) the same loop
+took 315 ms: the hash re-copied the key for every character.

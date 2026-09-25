@@ -76,12 +76,16 @@ func is_alive(): Boolean {
   parameter's type. The last parameter may be
   `...values: List<Type>`, and the caller writes the values one by one (passing a whole list there is an error).
 - A call is never passed straight into another call: compute it first into a named `var` and pass the name --
-  `var token_text = source.slice(start, end)`, then `tokens.append(Token("number", token_text))`. Only a
-  constructor may be an argument, one level deep (`Token("number", Text(token_text))` inside `append` is an
-  error). The error: `'text.slice(0, 1)' is called inside an argument of 'console.print': compute it first into a
-  named 'var' and pass the name`. The holes of a text are not arguments: `"{names.count()} names"` is fine. A line
-  too long for the formatter's width may not construct an object inside a call at all: make it first on its own
-  line (`var counter_button = CounterButton(...)`).
+  `var token_text = source.slice(start, end)`. The error: `'text.slice(0, 1)' is called inside an argument of
+  'console.print': compute it first into a named 'var' and pass the name`. The holes of a text are not
+  arguments: `"{names.count()} names"` is fine.
+- A constructor is not an argument either, on any line: make the object on a line of its own and pass its name --
+  `var token = Token("number", token_text)`, then `tokens.append(token)`. The error:
+  `'Bundle.CounterButton(screen.id)' is constructed inside an argument of 'world.create_entity_from_bundle': a
+  constructor call is never an argument, so make it first on a line of its own, 'var counter_button =
+  Bundle.CounterButton(screen.id)', and pass 'counter_button'`. That goes for `Label(Font())` and
+  `buffers.set(List<String>())` too. A constructor read at once is fine (`Json(order).write()`), and
+  `Parallel(worker.run)` passes a function, not an object.
 - The two branches of an `if`/`else` never compute the same call (`'measure(2)' is computed in both branches`):
   compute it once before the `if`.
 - An `if`/`else` never sits directly inside a branch of another `if`/`else`: move the inner decision into a
@@ -155,6 +159,15 @@ func is_alive(): Boolean {
   key). A list or a dictionary is not printable: `console.print(list)` is `'List<Integer>' does not fit type
   'Printable'`; print `list.join(", ")`, or `console.debug(list)`.
 - A chain of templates, `teams.filter_active().map_lead().sum_age()`, runs as one loop with no list in between.
+- `Vector<T>` holds its items inline for fast walks (`append`, `vector[index]`, `set_at`, `remove_at`, `count`,
+  `clear`, `copy`, and `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_`, `parallel_each_` templates).
+  An item is a number, `Boolean`, enum, `String`, or a class of only those (a `List` attribute is an error naming
+  it). `var velocity = velocities[index]` is the item itself, borrowed: `velocity.across = 3.0` writes the vector.
+  A borrowed item is used through its members only and never kept: storing it in an attribute or a list,
+  returning it, passing it as an argument, `velocity.integrate` as a function value, `var alias = velocity`, and
+  reading it after a line that may resize the vector (`append`, `remove_at`, `clear`, or a call that may do one)
+  are errors, each naming the fix: `velocity.copy()`, an independent object, or reading `velocities[index]` again.
+  A class kept in a `Vector` may not use `this` as a value, nor have a `drop()`.
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
   built or planned, and what it could ever change that you see, is in [optimizations.md](optimizations.md).
@@ -310,6 +323,15 @@ a class prints once it declares `func to_string(): String`, and `debug` shows an
 `Process(command, arguments)` (`run(): Integer`, `output()`: standard output only), `Program()` (`exit(code)`, `sleep(milliseconds)`,
 `environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere, bound once
 as `var console = Console()`.
+`print`, `error` and `debug` write their line out at once, so a log redirected to a file shows every line as it
+happens; `write` waits for the next line end or `flush()`.
+`Socket()` is TCP over IPv4 on every system: `listen_locally(port)`, `listen_everywhere(port)`, `listen_at(host,
+port)`, `connect_locally(port)`, `connect(host, port)`, then lines (`read_line(): String?`, `write_line(text)`) or
+bytes at a `Memory.Address` (`read_bytes(address, count): Integer`, `write_bytes(address, count)`), which wait.
+A loop that must not wait -- a game server's tick -- calls `accept_client_now(): Socket?`, `read_line_now():
+String?`, `read_bytes_now(address, count): Integer` (`0` is nothing yet) and `write_bytes_now(address, count):
+Integer` (how many the system took). A peer that hung up is not an error: `socket.closed` turns `true`, reads
+answer `0` or `null` and writes send nothing -- check `closed`, never a count of `-1`.
 `Concurrent(function)` runs a function as a compile-time state machine and `Parallel(function)` on the thread pool: the handle stands
 in for what the function returns and reading it is the wait (there is no `.wait()`: `an Integer has no function
 'wait'`), `finished` answers without waiting, and dropping the handle waits for it. A `parallel_each_<member>()`
@@ -323,7 +345,8 @@ uses. Writing a `Float` or `Double` that is infinity or not-a-number crashes nam
 is infinity, which JSON cannot hold`): check the number first if `null` is wanted. A union, a `type` (`Anything` included) or a function value anywhere in what `Json` sees is a compile error
 at the line that makes the `Json` (`Json cannot write or read 'Owner': 'Owner.pet' is the union Pet, ...`):
 keep what `Json` sees to the kinds above ([json.md](json.md)).
-Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(Duration(1710054000, 'seconds'))`.
+Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(since_1970)` with
+`var since_1970 = Duration(1710054000, 'seconds')`.
 `Duration(90, 'minutes')` is exact time (no days: `Duration(1, 'days')` is an error); `Period(1, 'months')` is
 calendar time, added to a `Date`,
 `Time` is a clock reading and `DateTime(date, time)` both, none of them an instant. A zone only shows or

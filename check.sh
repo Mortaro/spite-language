@@ -133,6 +133,11 @@ echo "run mode: the thread pool runs without --debug-memory"
 if grep -qE "struct (Watcher|Socket|Process|HotReload|ThreadPool|Scheduler) \{|(Watcher|Socket|ThreadPool|Scheduler)___allocate|spite_singleton_(ThreadPool|Scheduler)_cache" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C still carries library classes it never uses"; exit 1
 fi
+# --debug-memory's table and the allocation counter are only in builds that read them (D177): hello allocates with
+# the C library's malloc, realloc and free and nothing beside them.
+if grep -qE "AllocationTable|spite_debug_|spite_live_allocation|SPITE_DEBUG_MEMORY" "$work/hello_shaken.c"; then
+  echo "FAILED: examples/hello's C carries --debug-memory's table or an allocation counter"; exit 1
+fi
 "$work/generation_two.exe" conformance/stage6/singleton_forms --run=false --c-source --c-path="$work/singleton_forms.c" > /dev/null 2>&1 || {
   echo "FAILED: singleton_forms does not write its C"; exit 1; }
 if ! grep -q "^#define HitCounter___atomic 1$" "$work/singleton_forms.c" || grep -q "SpiteGuard [A-Za-z_]*___guard" "$work/singleton_forms.c"; then
@@ -145,7 +150,7 @@ if ! grep -q "_Alignas(64) int64_t owner" "$locks" || ! grep -q "^Registry_count
    || ! grep -q "^#define Registry___outside_enter() spite_guard_enter(&Registry___guard)" "$locks" || grep -q "Rules___guard" "$locks"; then
   echo "FAILED: singleton_lock_calls should pad its lock, call itself unlocked, lock a write from outside and not lock Rules"; exit 1
 fi
-echo "production C: hello carries no unused class, singleton_forms takes no lock, singleton_lock_calls locks only Registry"
+echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry"
 # D201: a whole-number division checks its divisor for zero, except where a proof already shows it is not zero:
 # division_by_zero's 'whole / pieces' follows 'assert pieces != 0', so its C carries no check for it.
 "$work/generation_two.exe" conformance/stage6/division_by_zero --run=false --c-source --c-path="$work/division.c" > /dev/null 2>&1 || {
@@ -178,8 +183,10 @@ if [ "$(echo "$test_output" | grep -vc '^allocations: ')" != "0" ] || [ -z "$tes
 fi
 echo "tests: passed"
 
-# The compiler is held to the corpus standard too: compiling itself, it frees everything it takes.
-"$CC_BIN" -O1 -w -DSPITE_DEBUG_MEMORY "$work/generation_two.c" -o "$work/generation_two_debug.exe" 2> "$work/c_errors.txt" || { head -20 "$work/c_errors.txt"; exit 1; }
+# The compiler is held to the corpus standard too: compiling itself, it frees everything it takes. The table that
+# counts is only in a --debug-memory build's C, so the compiler writes itself once more with it.
+"$work/generation_two.exe" bootstrap --run=false --c-source --debug-memory --c-path="$work/generation_two_debug.c" || { echo "FAILED: the compiler does not write itself with --debug-memory"; exit 1; }
+"$CC_BIN" -O1 -w "$work/generation_two_debug.c" -o "$work/generation_two_debug.exe" 2> "$work/c_errors.txt" || { head -20 "$work/c_errors.txt"; exit 1; }
 self_leaks=$("$work/generation_two_debug.exe" bootstrap --run=false 2>&1 > /dev/null | head -5)   # no output: compile only
 if [ -n "$self_leaks" ]; then echo "FAILED: the compiler leaks while compiling itself"; echo "$self_leaks"; exit 1; fi
 echo "compiler memory: compiling itself frees everything it takes"
@@ -352,8 +359,15 @@ for operating_system in windows linux mac; do
     echo "FAILED: Watcher does not compile with library/$operating_system"; exit 1; }
   "$CC_BIN" -fsyntax-only -w "$work/watching_$operating_system.c" 2> "$work/c_errors.txt" || {
     echo "FAILED: the Watcher C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
+  # The compiler only talks lines on 127.0.0.1, so programs that resolve names and move bytes, waiting and not, are too.
+  for socket_program in socket_bytes socket_waits; do
+    "$work/generation_two.exe" conformance/stage6/$socket_program --run=false --c-source --c-path="$work/${socket_program}_$operating_system.c" --target-operating-system=$operating_system || {
+      echo "FAILED: $socket_program does not compile with library/$operating_system"; exit 1; }
+    "$CC_BIN" -fsyntax-only -w "$work/${socket_program}_$operating_system.c" 2> "$work/c_errors.txt" || {
+      echo "FAILED: the C of $socket_program written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
+  done
 done
-echo "operating systems: the compiler, a time zone program and a file watching program compile with the windows, linux and mac library folders"
+echo "operating systems: the compiler, a time zone program, a file watching program and a socket program compile with the windows, linux and mac library folders"
 
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
 # already in the one style, so formatting it changes nothing. `spite format --check` lists every file that would

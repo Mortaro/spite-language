@@ -26,7 +26,8 @@ func entries(): List<Entry> {
     while index < folder_names.count() {
         var folder_name = folder_names.get_at(index)
         var folder_path = inside(folder_name)
-        result.append(Directory(folder_path))
+        var directory = Directory(folder_path)
+        result.append(directory)
         index = index + 1
     }
     var file_names = files()
@@ -34,7 +35,8 @@ func entries(): List<Entry> {
     while index < file_names.count() {
         var file_name = file_names.get_at(index)
         var file_path = inside(file_name)
-        result.append(File(file_path))
+        var file = File(file_path)
+        result.append(file)
         index = index + 1
     }
     return result

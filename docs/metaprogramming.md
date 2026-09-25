@@ -118,7 +118,10 @@ In a generic class the class inside the `Symbol` is usually a codegen value. `Li
 member templates over `member: Symbol<$element_type>`, so `item.attributes[member]` reads a member of the element
 -- that is how `filter_<member>()`, `sum_<member>()` and the rest are written, in Spite, in `library/list.spite`
 ([collections.md](collections.md#how-the-member-templates-are-written)) -- and the standard library's
-[`Json`](json.md) writes and reads any class over `attribute: Symbol<$value_type>`.
+[`Json`](json.md) writes and reads any class over `attribute: Symbol<$value_type>`. When there is nothing to walk
+-- a class with no attributes, a marker, or a codegen value that is no class at all, an `Integer` or a `T?` -- the
+plural is still there and calls nothing, so `Pack<Marker>` and `Pack<Integer?>` compile like any other
+(`conformance/stage6/empty_plural`).
 
 Reading `label.attributes[attribute]` reads every attribute the walk reaches, so they count as used;
 `attribute.name` and `attribute.class` do not ([the rule](#symbol-codegen--implemented),
@@ -304,7 +307,8 @@ var console = Console()
 
 func GenericConstraint() {
     var books = Shelf<Book>()
-    books.add(Book("Dune"))
+    var book = Book("Dune")
+    books.add(book)
     var numbers = Shelf<Integer>()
     numbers.add(3)
     var book_text = books.describe()
@@ -450,8 +454,10 @@ var console = Console()
 func GenericNeverTrue() {
     var labels = Detector<Label>()
     var healths = Detector<Health>()
-    var label_answer = labels.is_health(Label())
-    var health_answer = healths.is_health(Health())
+    var label = Label()
+    var label_answer = labels.is_health(label)
+    var health = Health()
+    var health_answer = healths.is_health(health)
     console.print(label_answer, health_answer)
 }
 ```
@@ -498,7 +504,11 @@ proposals, not yet confirmed ([the rules in full](#a-classs-functions-a-folders-
 ### Asking for a function, and walking its arguments
 
 `$target_type.has_function('run_each')` in a condition is decided while compiling, like `if $is_magic`. Only the
-branch taken is compiled, so it may call what only that type has. The name must be written as a literal.
+branch taken is compiled, so it may call what only that type has. The name must be written as a literal. It is
+decided wherever it is written, not only in an `if`: `return $target_type.has_function('run_each') or
+$target_type.has_function('run_all')` returns a constant, and no class's table of functions is built to answer it.
+Inside a template over a folder's classes, `system.class.has_function('run_each')` is decided the same way for
+each class walked ([below](#every-class-in-a-folder)).
 
 `argument: Symbol<$target_type.run_each>` ranges over the arguments of `run_each`. Inside, `argument.name` is the
 argument's name and `argument.class` is its type. The plural, `describe_arguments()`, calls the template once per
@@ -643,6 +653,41 @@ sweep runs
 plain calls, `add_system_greet()` and `add_tools_system_sweep()`: the symbol's word in the name is replaced by the
 class's dotted name in snake_case. Written with a generic, `Runner<system.class>()` makes one `Runner` per class
 found.
+
+Each class walked is known while compiling, so `system.class.has_function('run')` is decided for each one, as
+`$system_type.has_function` is in a generic class (D167): only the branch taken is compiled for that class, and it
+may call what only that class has.
+
+```gdscript title=folder_ask/system/wave.spite
+var console = Console()
+
+func run() {
+    console.print("wave runs")
+}
+```
+```gdscript title=folder_ask/system/idle.spite
+var seconds = 3
+```
+```gdscript title=folder_ask/folder_ask.spite entry
+var console = Console()
+
+func FolderAsk() {
+    ask_systems()
+}
+
+func ask_system(system: Symbol<System>) {
+    var made: system.class = null
+    if system.class.has_function('run') {
+        made.run()
+    } else {
+        console.print(system.name, "waits", made.seconds)
+    }
+}
+```
+```output
+System.Idle waits 3
+wave runs
+```
 
 ### A name that says when it runs
 
@@ -923,7 +968,10 @@ error](style.md#unused-is-an-error--implemented)).
   attribute, so 'count_attribute' has to return nothing" (`diagnostics/every_attribute`). It replaces the
   compile-time `for instance.attributes`, which went with `for`. Over another class's attributes it calls only
   the ones that class lets others read: a private `_` attribute is skipped rather than being the private error
-  (proposed by Claude, unconfirmed).
+  (proposed by Claude, unconfirmed). **A plural over nothing is an empty function**, not a missing one: over a class
+  with no attributes, and over a `Symbol<$value_type>` whose value is no class or `type` -- a number, a `T?`, a
+  `List` -- where the single template answers nothing, the plural calls nothing, so one generic compiles for a
+  marker and for a number alike (`conformance/stage6/empty_plural`).
 
 ```gdscript
 func show_attribute(attribute: Symbol<Label>, label: Label, lines: List<String>) {
@@ -949,7 +997,14 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
   `Spite.Class` (`library/spite/class.spite`, D92), so `klass.has_function("boost")` also answers at run time,
   from `.functions` -- which exists only in a program that reads it ([reflection.md](reflection.md)). Folded,
   it counts the functions the class declares: not its constructor, not a `_` function, and not what a template
-  generated for it.
+  generated for it. **It folds wherever it is written**, not only as an `if`'s condition: in a `return`, a `var`,
+  or on either side of `and`, `or` and `not`, `$system_type.has_function("run_each")` is the constant `true` or
+  `false`, exactly the value the `if` form decides on, and no class's table of functions is built to answer it
+  (`conformance/stage6/folded_function_value`, whose allocations are pinned). **The class a template walks is asked
+  the same way** (D167 read for walks): inside a template over `Symbol<System>` (or any range whose symbol is a
+  class), `system.class.has_function("run_each")` with a literal name folds for each class walked, and only the
+  branch taken is compiled for it; with a name that is not a literal it is the run-time question of
+  `Spite.Class`, since `system.class` is also an ordinary value (`conformance/stage6/symbol_class_function`).
 - **`argument: Symbol<$system_type.run_each>` ranges over the arguments of `run_each`** (D114). A `Symbol<X>`
   already ranged over X's members; a function's members are its arguments. Inside, `argument.name` is the
   argument's name and `argument.class` its type, written as a type (`Query<argument.class>()`,
@@ -961,7 +1016,7 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
   `system.run_each(row_arguments())` is `system.run_each(row_potion(), row_target())`, evaluated left to
   right. That is how one generic calls a function of any arity without variadic generics. Anywhere else such a
   plural is an error naming the call it belongs in, and so is passing it to a different function
-  (`diagnostics/function_reflection`). D77's one-level rule does not apply to it: the call it stands for is
+  (`diagnostics/function_reflection`). D77's rule does not apply to it: the call it stands for is
   written by the compiler.
 - **`system: Symbol<System>` ranges over the classes of every folder named `system`** (D115): `System.Heal`,
   `Ui.System.Interact` -- a range that names no class or type is read as the end of a dotted namespace, and the

@@ -1,0 +1,2 @@
+diagnostics/type_size_mistakes/type_size_mistakes.spite:13: error: 'Labelled.size' is the size of the C struct a type is at a foreign call, and only a type whose attributes are all numbers is one (in TypeSizeMistakes.TypeSizeMistakes)
+diagnostics/type_size_mistakes/type_size_mistakes.spite:14: error: 'Speaker.size' is the size of the C struct a type is at a foreign call, and only a type whose attributes are all numbers is one (in TypeSizeMistakes.TypeSizeMistakes)

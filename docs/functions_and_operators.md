@@ -110,7 +110,9 @@ func VariadicDoc() {
     console.print(line)
     var nobody = joined("-")
     console.print("[{nobody}]")
-    greet(Guest("Aria"), Guest("Bram"))
+    var aria = Guest("Aria")
+    var bram = Guest("Bram")
+    greet(aria, bram)
 }
 
 func joined(separator: String, ...words: List<String>): String {
@@ -204,7 +206,8 @@ func OperatorsAsFunctions() {
     var found = Money(50)
     var total = wallet + found
     console.print("total cents", total.cents)
-    var is_two_hundred = total.equals(Money(200))
+    var two_hundred = Money(200)
+    var is_two_hundred = total.equals(two_hundred)
     console.print("equal", is_two_hundred)
     console.print("greater", total > wallet)
 }
@@ -228,7 +231,9 @@ func Money(starting_cents: Integer) {
 var console = Console()
 
 func OperatorMissingError() {
-    console.print(Money(1) + Money(2))
+    var one = Money(1)
+    var two = Money(2)
+    console.print(one + two)
 }
 ```
 ```diagnostic
@@ -538,11 +543,11 @@ log()                     # lines is empty
 
 - **The element type may be a class or a `type`** ([Types](values_and_types.md#types)). With a `type`, each argument is whatever class
   fits the shape, and a call on an element is dispatched to the class it really is, exactly as a `List<Shape>`
-  already dispatches: `func announce(...things: List<Describable>)` takes `announce(Widget("gear"), Gadget(3))`.
+  already dispatches: `func announce(...things: List<Describable>)` takes `announce(gear, gadget)`, a `Widget` and a `Gadget` made on lines of their own.
 - **Only the last parameter**, and it must be written `List<Type>`: anything else is a parse error naming the
   form (`diagnostics/variadic_not_last`). Parameters before it are ordinary and positional.
 - Each value is an argument in every sense: it casts toward the element type like any argument ([Variables and values](values_and_types.md#variables-and-values--implemented)), and
-  D77 still applies to it, so only a constructor may be one, one level deep (`diagnostics/variadic_mistakes`).
+  D77 and D202 still apply to it, so it is never a call or a construction (`diagnostics/variadic_mistakes`).
 - A function value keeps the spread: naming `log` and calling the value with `("x", "y")` gathers them the same
   way (`conformance/stage6/variadic_arguments`).
 

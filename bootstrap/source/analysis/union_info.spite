@@ -10,6 +10,7 @@ var accessor_names = List<String>()
 var writer_names = List<String>()
 var peeker_names = List<String>()
 var caller_names = List<String>()
+var emitted_callers = 0
 var class_of_used = false
 var attributes_used = false
 

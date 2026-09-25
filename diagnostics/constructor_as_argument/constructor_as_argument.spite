@@ -1,0 +1,40 @@
+var console = Console()
+var buffers = Dictionary<List<String>>()
+
+func ConstructorAsArgument() {
+    var screen = Screen()
+    var button = screen.add(CounterButton(screen.id))
+    var label = Label(Font())
+    buffers.set("names", List<String>())
+    label = relabel(Label(Font()))
+    console.print("{relabel(Label(Font())).size} points", button)
+    checked(screen)
+    allowed()
+}
+
+func checked(screen: Screen) {
+    assert screen.holds(CounterButton(3))
+    console.print("held")
+}
+
+func made(): Label {
+    return relabel(Label(Font()))
+}
+
+func relabel(label: Label): Label {
+    return label
+}
+
+func allowed() {
+    var font = Font()
+    var label = Label(font)
+    var written = Json(label).write()
+    var sizes = Parallel(font_size)
+    var size: Integer = sizes
+    console.print(written, size)
+}
+
+func font_size(): Integer {
+    var font = Font()
+    return font.size
+}

@@ -2,15 +2,18 @@ var console = Console()
 
 func DeepCopies() {
     var team = Team("red")
-    team.members.append(Member("ada", 3))
-    team.members.append(Member("grace", 5))
+    var ada = Member("ada", 3)
+    team.members.append(ada)
+    var grace = Member("grace", 5)
+    team.members.append(grace)
     team.scores.set("first", 10)
     team.captain = team.members[0]
     var shallow = team.copy()
     var deep = team.deep_copy()
     crash team.members[0]
     team.members[0].level = 99
-    team.members.append(Member("alan", 1))
+    var alan = Member("alan", 1)
+    team.members.append(alan)
     team.scores.set("first", 11)
     crash shallow.members[0]
     crash shallow.scores["first"]

@@ -2,7 +2,8 @@ var console = Console()
 
 func ParallelReach() {
     var boids = List<Boid>()
-    boids.append(Boid())
+    var boid = Boid()
+    boids.append(boid)
     boids.parallel_each_follow()
     boids.parallel_each_flock()
     var speeds = List<Integer>()

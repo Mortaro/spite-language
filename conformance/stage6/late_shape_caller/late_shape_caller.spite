@@ -1,0 +1,11 @@
+var console = Console()
+
+func LateShapeCaller() {
+    var first = Step1()
+    var asked = "take"
+    var kind = first.class
+    var answer = kind.has_function(asked)
+    var talker = Talker()
+    var said = talker.speak()
+    console.print(answer, said)
+}

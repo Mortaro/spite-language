@@ -1,0 +1,47 @@
+var console = Console()
+var clock = Clock()
+
+func VectorItems() {
+    var listed = List<Velocity>()
+    var packed = Vector<Velocity>()
+    var index = 0
+    while index < 200000 {
+        var velocity = Velocity(index % 100, index % 7, index % 3 != 0)
+        listed.append(velocity)
+        packed.append(velocity)
+        index = index + 1
+    }
+    var list_start = clock.elapsed_nanoseconds()
+    var list_total = list_ticks(listed)
+    var list_end = clock.elapsed_nanoseconds()
+    var vector_total = vector_ticks(packed)
+    var vector_end = clock.elapsed_nanoseconds()
+    var list_microseconds = (list_end - list_start) / 100000
+    var vector_microseconds = (vector_end - list_end) / 100000
+    console.print("List<Velocity> microseconds per tick", list_microseconds, "total", list_total)
+    console.print("Vector<Velocity> microseconds per tick", vector_microseconds, "total", vector_total)
+}
+
+func list_ticks(velocities: List<Velocity>): Float {
+    var total = 0.0
+    var tick = 0
+    while tick < 100 {
+        velocities.each_integrate()
+        var moved = velocities.filter_moving().sum_across()
+        total = total + moved
+        tick = tick + 1
+    }
+    return total
+}
+
+func vector_ticks(velocities: Vector<Velocity>): Float {
+    var total = 0.0
+    var tick = 0
+    while tick < 100 {
+        velocities.each_integrate()
+        var moved = velocities.filter_moving().sum_across()
+        total = total + moved
+        tick = tick + 1
+    }
+    return total
+}

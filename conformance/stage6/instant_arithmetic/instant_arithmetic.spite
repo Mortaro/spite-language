@@ -7,8 +7,10 @@ func InstantArithmetic() {
 }
 
 func instants() {
-    var start = Instant(Duration(0, 'seconds'))
-    var moment = Instant(Duration(1710054000, 'seconds'))
+    var start_since_1970 = Duration(0, 'seconds')
+    var start = Instant(start_since_1970)
+    var moment_since_1970 = Duration(1710054000, 'seconds')
+    var moment = Instant(moment_since_1970)
     console.print(start, moment)
     var hour = Duration(1, 'hours')
     var later = moment + hour
@@ -16,17 +18,20 @@ func instants() {
     var forward = later - moment
     var backward = earlier - moment
     console.print(later, earlier, forward, backward)
-    var same = Instant(Duration(1710054000000, 'milliseconds'))
+    var same_since_1970 = Duration(1710054000000, 'milliseconds')
+    var same = Instant(same_since_1970)
     var equal = moment == same
     var ordered = earlier < moment and moment < later
     var reversed = later > earlier
     console.print(equal, ordered, reversed)
-    var precise = Instant(Duration(1700000000123, 'milliseconds'))
+    var precise_since_1970 = Duration(1700000000123, 'milliseconds')
+    var precise = Instant(precise_since_1970)
     var since_1970 = precise.since_1970
     var milliseconds = since_1970.total('milliseconds')
     var seconds = since_1970.total('seconds')
     console.print(precise, milliseconds, seconds)
-    var just_before = Instant(Duration(-1, 'nanoseconds'))
+    var just_before_1970 = Duration(-1, 'nanoseconds')
+    var just_before = Instant(just_before_1970)
     var gap = start - just_before
     console.print(just_before, gap)
 }
@@ -60,8 +65,10 @@ func durations() {
 }
 
 func far_instants() {
-    var first_year = Instant(Duration(-62135596800, 'seconds'))
-    var year_ten_thousand = Instant(Duration(253402300800, 'seconds'))
+    var first_year_since_1970 = Duration(-62135596800, 'seconds')
+    var first_year = Instant(first_year_since_1970)
+    var year_ten_thousand_since_1970 = Duration(253402300800, 'seconds')
+    var year_ten_thousand = Instant(year_ten_thousand_since_1970)
     var before_year_one = first_year + Duration(-1, 'seconds')
     console.print(first_year, year_ten_thousand, before_year_one)
 }

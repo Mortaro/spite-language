@@ -74,6 +74,15 @@ independent label b
 
 `deep_copy()` does not follow a cycle safely: see [the rules](#memory--implemented).
 
+## A `Vector` lends its items
+
+A `Vector<T>` is the one place a value is not a counted reference: it holds its items inline, one block of their
+attributes with no header ([collections.md](collections.md#vectort-items-inline)), and `velocities[index]` is the
+item inside that block, **borrowed**. Writing its attributes writes the vector's item; taking it and letting it go
+costs nothing. In exchange the compiler never lets it be kept -- in an attribute, a list, a returned value, a
+function value, or past a line that may grow or shrink the vector -- and each of those errors names `copy()`,
+which makes an independent object ([the rules](#borrowed-items-of-a-vectort--implemented)).
+
 ## `drop()` runs once, right before the object is freed
 
 A class may define a zero-argument `func drop() { ... }` for cleanup (closing a handle, clearing a
@@ -150,8 +159,11 @@ func total(): Integer {
 var console = Console()
 
 func TreeBasics() {
-    var small_branch = Branch(Leaf(1), Leaf(2))
-    var tree: TreeNode = Branch(small_branch, Leaf(3))
+    var first_leaf = Leaf(1)
+    var second_leaf = Leaf(2)
+    var small_branch = Branch(first_leaf, second_leaf)
+    var third_leaf = Leaf(3)
+    var tree: TreeNode = Branch(small_branch, third_leaf)
     var total = tree.total()
     console.print("total", total)
 }
@@ -240,26 +252,25 @@ what is not yet is in [the rules](#the-floor-memoryaddress-memoryheap-and-typedm
 ### Where `String` and `Integer` keep their memory
 
 A type's storage is attributes at the top of its file (D108). `library/string.spite` starts with the memory a
-`String` holds:
+`String` is:
 
 ```gdscript
 var _bytes: Memory.Address = 0
 var _length: Long = 0
-var _section: Spite.Memory.Section = 'heap'
-var _capacity: Long = 0
 ```
 
-`_bytes` is the address of its characters, which the heap handed out (with a 0 after the last one, for C);
-`_length` is how many there are; `_capacity` is how many fit before the bytes have to grow, which only building
-text in a loop uses; and `_section` is where the compiler placed them: `'heap'`, or `'constant'` for a literal,
-whose characters are part of the program and are never counted or freed. The compiler writes the C layout of a
-`String` from these declarations, in this order, after the header every object has (its reference count and its
-class). Everything else is Spite in the same file: `length()` answers `_length`, `code_at(index)` is
-`_bytes.read_byte(position)` (the 0 after the last one is what it answers past the end), `slice` and `+` copy
-with `copy_to` and end in the constructor `String(bytes, length)`, which takes bytes the heap handed out, and
-`drop()` gives `_bytes` back to the heap when the last reference goes. The only C about a `String` is what the
-header decides: a `'constant'` text is never counted, and `text = text + piece` grows in place only when
-nothing else holds the text.
+Sixteen bytes, kept wherever the `String` is -- in a local, an attribute, a list's element -- and never an object
+of their own. `_bytes` is where its characters are, with a 0 after the last one for C, and `_length` is how many
+there are. Where the characters live is the compiler's choice ([D203](decisions.md)): text of up to 15 bytes is
+kept in those sixteen bytes themselves, so it allocates nothing and is never counted; longer text is one block the
+heap hands out, with its reference count and capacity in front of the characters; and a written text (`"hello"`)
+points at the characters the program already carries, which are never counted or freed. Everything else is Spite
+in the same file: `length()` answers `_length`, `equals` and `less_than` compare `_bytes` with `compare_bytes`, and
+`slice` ends in `_bytes.text(length)`. What stays C is what depends on where the characters are: reading one
+(`code_at`, which answers the 0 after the last one past the end, and is one load in a loop over the text), making
+text from bytes (`Memory.Address.text`), joining two texts (`sum`), counting a block's references, and growing text
+in place, which fills the sixteen bytes first and moves the text into a block once it passes 15 bytes -- and only
+when nothing else holds that block.
 
 `library/integer.spite` starts with the memory an `Integer` is:
 
@@ -427,12 +438,14 @@ an arena holds the arena, so the arena cannot go while anything made in it is al
   next. To move an object that was already used, copy it and set the copy's allocator, as `kept` does below.
 - **Only an object.** A number or a `String` is placed by the compiler, not by an allocator.
 - **A list holds references** ([D154](decisions.md)): giving a `List` an allocator places the list itself there,
-  and each element lives wherever it was made.
+  and each element lives wherever it was made. A `Vector` holds its items inline
+  ([collections.md](collections.md#vectort-items-inline)); giving one an allocator places the vector object, and
+  its block of items stays on the heap for now.
 - **It costs nothing where it is not used** ([D177](decisions.md)): only a class some line gives an allocator
   grows, by sixteen bytes per object.
 
 The exact rules, the errors and what is not built yet are in
-[the rules](#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-vectort-planned).
+[the rules](#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-a-vectors-block-planned).
 
 ```gdscript title=arena_particles/particle.spite
 var name = ""
@@ -504,7 +517,8 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
 - **Identity vs equality.** `==` on two class instances calls `equals` if the class defines one ([Operators](functions_and_operators.md#operators--implemented));
   otherwise it compares **identity** -- are these two references the same object.
   `String` always compares by content, never by identity (sharing a `String`'s buffer is unobservable, since it is
-  immutable).
+  immutable, and so is its absence: text of up to 15 bytes has no buffer to share, each holder keeping it in its
+  own sixteen bytes, [D203](decisions.md)).
 - **`copy()`/`deep_copy()`** (names **proposed by Claude, unconfirmed**). Every non-scalar value has both:
   `copy()` is shallow -- a fresh object, its own attributes/elements the exact same references the source had
   (retained, not duplicated; a `String` field needs no special handling either way, since it is immutable).
@@ -550,18 +564,22 @@ named even when it points at a singleton, which is still destroyed at exit (D142
 -- the list behind `.instances`, the list of singletons to destroy -- is allocated outside the table and not counted
 (D143).
 
-**Run-time cost (D177).** The table and the summary exist only in a `--debug-memory` build. Every other build
-counts live allocations with one addition per allocation and one subtraction per free, which is what
-`Memory.Heap().live_allocations()` answers.
+**Run-time cost (D177).** The table and the summary exist only in a `--debug-memory` build: no other build's C
+has them. Every other build allocates with the C library's `malloc`, `realloc` and `free` and nothing else,
+unless the program reads `Memory.Heap().live_allocations()`: then, and only then, each allocation adds one to a
+counter and each free subtracts one, which is what it answers
+([optimizations.md](optimizations.md#allocation-is-the-c-librarys-counted-only-where-read)).
 
 #### Where a value lives: `.memory`
 
 Every named value has a read-only `.memory`, a `Spite.Memory` (`library/spite/memory.spite`): `address`, `bytes`,
 and `section`, one of `'heap'`, `'stack'` or `'constant'`. A class instance or a list answers with its object, a
-`String` with its characters (`'constant'` for a literal, whose characters are part of the program), and a number
-held in a local with the local itself (`'stack'`). A class with an attribute of its own named `memory` answers that
+`String` with its characters (`'constant'` for a literal, whose characters are part of the program; for text made
+while the program runs, `'heap'` when it is longer than 15 bytes and lives in a block, and otherwise wherever the
+value itself is, since the characters are in it: `'stack'` in a local, `'heap'` in an attribute, [D203](decisions.md)),
+and a number held in a local with the local itself (`'stack'`). A class with an attribute of its own named `memory` answers that
 attribute instead. `.memory` is built only where a program reads it, so it costs nothing anywhere else (D152); the
-same object is where an allocator is set ([below](#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-vectort-planned)).
+same object is where an allocator is set ([below](#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-a-vectors-block-planned)).
 
 #### The floor: `Memory.Address`, `Memory.Heap` and `TypedMemory<T>`  **[implemented; OS pages planned]**
 
@@ -627,8 +645,10 @@ is the same whichever it makes:
   in the function's frame (exactly the size, for a literal size up to 256), uses the heap when a run-time size
   is larger, and makes the `free` a no-op for the slot. A loop body is a block like any other, so the slot is
   reused on every pass. So `Double.bits()` allocates nothing, and `Long.to_string()` and `upper_case()` of a
-  short text allocate only the `String` they return.
-- **Constant:** a `String` literal's characters are part of the program (`_section` is `'constant'`).
+  short text allocate only the `String` they return -- which is nothing when it is 15 bytes or fewer.
+- **In the value:** text of up to 15 bytes is kept in the sixteen bytes of the `String` itself ([D203](decisions.md),
+  [optimizations.md](optimizations.md#short-text-lives-inside-the-string)).
+- **Constant:** a `String` literal's characters are part of the program (its `.memory.section` is `'constant'`).
 - **Heap:** everything else.
 
 There is no way to ask for the stack by name (D98's `allocate_stack_bytes` is gone): it would be a second way to
@@ -637,7 +657,7 @@ layout efficient stays its author's -- one allocation holding many values at off
 `TypedMemory<$value_type>` for values of any type, `resize` to grow. Placement runs entirely while compiling and
 costs nothing at run time (D177); a frame slot is cheaper than the heap call it replaces.
 
-#### Allocators: `.memory.allocator`  **[implemented for objects; a list's buffer and `Vector<T>` planned]**
+#### Allocators: `.memory.allocator`  **[implemented for objects; a list's buffer and a vector's block planned]**
 
 D150-D154 (decided by Mortaro): types never name an allocator; an **object** does, through its tree-shakeable
 `.memory`, on the line right after it is made -- `var scratch = List<Integer>()` then `scratch.memory.allocator =
@@ -674,5 +694,62 @@ built (2026-09-25; the readings marked are proposed by Claude, unconfirmed):
 - **Lists** (D154): a `List` given an allocator is made there itself; each element lives wherever it was made,
   since a list holds references.
 - **Not built:** D154's list buffer following its list's allocator (a list placed in an arena keeps its buffer of
-  references on the heap), `Vector<T>` with its items inline, `Memory.Frame` (`mortaros_missing_decisions.md`
+  references on the heap), and likewise a `Vector<T>`'s block of items (built, with its items inline, but its block
+  is on the heap wherever the vector object is: item 175's proposal for a class reading its own allocator is still
+  open), `Memory.Frame` (`mortaros_missing_decisions.md`
   item 173), `reset()` on an arena, and reading `.memory.allocator` back.
+
+#### Borrowed items of a `Vector<T>`  **[implemented]**
+
+D204 (decided by Mortaro, answering `mortaros_missing_decisions.md` item 182): **reading an item of a
+`Vector<T>` gives a borrowed reference into the vector**, and the compiler proves at compile time that it is never
+kept past its use. What is built (the error texts and the readings marked are proposed by Claude, unconfirmed):
+
+- **Layout.** A vector of a class keeps one block of memory: each item is the class's attributes laid out as its
+  object would lay them out, with no header, no class and no reference count, one after another
+  (`InlineMemory<T>`, `library/inline_memory.spite`, whose functions the compiler writes per item type). A vector
+  of numbers, `Boolean`s, enums or `String`s is a plain array of them, like a list's buffer.
+- **A borrowed item** is what `vector[index]`, `vector.get_at(index)` and the item a member template visits are.
+  It is the address of the item inside the block, and reading or writing its attributes (`first.down = 2.0`,
+  `velocities[0].across`, `first.integrate()`) reads and writes the vector's own item. It is never retained or
+  released: it costs nothing to take and nothing to let go.
+- **Where it may be named.** `var first = velocities[index]` names one, and the name is borrowed for the rest of
+  its block. Each of these is an error, named for where the item was going, and each names `copy()`, which makes an
+  independent object from it (the generated copy reads only the attributes):
+  - kept in an attribute: `'stored' is borrowed from 'velocities' and cannot be kept in the attribute 'kept':
+    keep 'stored.copy()', an independent object`;
+  - put in a list (`append`, `prepend`, `insert`, `set_at` or `list[index] = `): `... cannot be put in a list: a
+    list keeps 'stored.copy()', an independent object`;
+  - returned: `'velocities[0]' is borrowed from 'velocities' and cannot be returned: return 'velocities[0].copy()',
+    an independent object`;
+  - made into a function value: `'stored.integrate' would keep 'stored', which is borrowed from 'velocities', in a
+    function value: make it from a copy, 'var kept = stored.copy()' and then 'kept.integrate'`;
+  - passed as an argument, since a parameter is a reference the callee may keep: `'passed' is borrowed from
+    'velocities' and cannot be passed as an argument: pass 'passed.copy()', an independent object, or the
+    attributes the function needs`;
+  - given a second name (`var alias = stored`): `'stored' is borrowed from 'velocities', and a borrowed item has
+    one name: use 'stored' itself instead of 'alias', or keep 'stored.copy()', an independent object`;
+  - assigned again (`first = velocities[1]`): `'first' is borrowed from 'velocities' and is not assigned again:
+    read another item with a new 'var', such as 'var next = velocities[index]'`.
+- **Not past a change of size.** Growing a vector may move its block, and removing an item moves the ones after
+  it, so a borrowed name is not read after a statement that may change its vector's size: `append`, `prepend`,
+  `insert`, `remove_at`, `remove_first`, `remove_last` or `clear` on it, assigning the vector or anything on its
+  path, or a call that may do one of those. A call is followed with D169's call effects
+  (`generation/call_effects.spite`): a function that appends to a vector records a `grow:` effect on it as a
+  removal records `shrink:`, through its callers and through the parameters it was passed, and a call through a
+  function value may do anything. A statement in a loop that may change the size ends the borrow for the whole
+  loop. The error is on the statement that changes it: `'again' is borrowed from 'velocities', and 'spawn()' on
+  line 13 may move the items of 'velocities', so 'again' is not read after it: read 'velocities[index]' again after
+  that line, or keep 'again.copy()', an independent object`. A vector named by a local variable is taken to change
+  only through the calls it is passed to and through calls that resize an attribute holding a `Vector`.
+- **Inside the item's class.** A function of the item's class runs on a borrowed item when a template or a call
+  reaches it, so it may not use `this` as a value (the item-class error in
+  [collections.md's rules](collections.md#vectort--implemented)).
+- **What stays an object.** `append(value)` and `set_at(index, value)` copy the value's attributes in, counting
+  each `String` attribute once more, and the value stays an ordinary object; `remove_at`, `clear` and dropping the
+  vector release the `String`s of the items they remove.
+- **Run-time cost (D177).** None beyond the block: every rule above is proven while compiling, a borrowed item is
+  one address, and a program that makes no `Vector` carries none of `library/vector.spite` or `InlineMemory`.
+  Measured in `benchmarks/vector_items`.
+
+`diagnostics/vector_borrows`, `diagnostics/vector_items`, `conformance/stage6/vector_items`.

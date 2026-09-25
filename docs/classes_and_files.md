@@ -71,8 +71,10 @@ var console = Console()
 
 func OrderedFile() {
     var inventory = Inventory<Crate>()
-    inventory.add(Crate(3))
-    inventory.add(Crate(4))
+    var small_crate = Crate(3)
+    inventory.add(small_crate)
+    var large_crate = Crate(4)
+    inventory.add(large_crate)
     var total = inventory.total()
     console.print(total, inventory.sorting)
 }
@@ -116,8 +118,10 @@ var console = Console()
 
 func TeamRoster() {
     var members = List<Member>()
-    members.append(Member())
-    members.append(Member())
+    var first_member = Member()
+    members.append(first_member)
+    var second_member = Member()
+    members.append(second_member)
     var members_count = members.count()
     console.print("count", members_count)
     crash members.count() == 2
@@ -538,13 +542,13 @@ var heap = Memory.Heap()
   file" (`diagnostics/local_singleton`). The one exception is a value class such as `String`, which has no
   attribute to spare and binds it as a local `var` in the function that needs it. As built (proposed by Claude,
   unconfirmed): the exception covers every class the compiler treats as a value (`String` and the numbers) and
-  `List` and `Dictionary`, since an attribute there would be carried by every list; and a generic singleton whose
+  `List`, `Vector` and `Dictionary`, since an attribute there would be carried by every list; and a generic singleton whose
   codegen values come from the function's own codegen or Symbol (`Query<argument.class>()`,
   `Debug<$value_type.element_type>()` inside a codegen `if`) stays a local, since no attribute can name that type.
   The singleton is then made when the object that binds it is, not when the function first runs.
 - **A singleton is always bound to a variable before it is used** (D110). A singleton's constructor call may
-  only be the whole value of a `var`; a member read or call on it, passing it (`greet(Console())`, although D77
-  lets other constructors be arguments), returning it, assigning it, putting it in an operation, or writing it
+  only be the whole value of a `var`; a member read or call on it, passing it (`greet(Console())`, which
+  reports this rather than D202's constructor-as-argument error), returning it, assigning it, putting it in an operation, or writing it
   as a statement of its own is an error naming the fix (`diagnostics/inline_singleton`,
   `diagnostics/inline_singleton_attribute`):
 

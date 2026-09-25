@@ -1,0 +1,5 @@
+var words = 2
+
+func speak(): Integer {
+    return words
+}

@@ -2,8 +2,11 @@ var console = Console()
 var monsters = List<Monster>()
 
 func InteractiveTemplates() {
-    monsters.append(Monster("rat", 3))
-    monsters.append(Monster("bat", 5))
-    monsters.append(Monster("ant", 1))
+    var rat = Monster("rat", 3)
+    monsters.append(rat)
+    var bat = Monster("bat", 5)
+    monsters.append(bat)
+    var ant = Monster("ant", 1)
+    monsters.append(ant)
     console.print("ready")
 }

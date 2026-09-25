@@ -1,12 +1,7 @@
 var heap = Memory.Heap()
 var _memory = heap.allocate(8)
 
-func text(length: Long): String {
-    var heap = Memory.Heap()
-    var bytes = heap.allocate(length + 1)
-    copy_to(bytes, length)
-    return String(bytes, length)
-}
+func text(length: Long): String
 
 func terminated_text(): String {
     var length: Long = 0

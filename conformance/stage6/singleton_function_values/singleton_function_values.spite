@@ -1,0 +1,35 @@
+var console = Console()
+var rows = Row<Health>()
+
+func SingletonFunctionValues() {
+    rows.least = 250
+    var filling = List<Parallel<Integer>>()
+    var start = 0
+    while start < 400 {
+        var filler = Filler(start)
+        var fill = Parallel(filler.fill)
+        filling.append(fill)
+        start = start + 100
+    }
+    var index = 0
+    while index < filling.count() {
+        var seen: Integer = filling.get_at(index)
+        crash seen <= 400
+        index = index + 1
+    }
+    var matching = rows.matching()
+    var healths = List<Health>()
+    var points = 0
+    while points < 10 {
+        var health = Health(points * 50)
+        healths.append(health)
+        points = points + 1
+    }
+    var judge = Judge()
+    var strong = judge.count_strong(healths)
+    var check = rows.matches
+    var high = Health(300)
+    var passes = check(high)
+    var stored = rows.found.count()
+    console.print("stored", stored, "matching", matching, "strong", strong, "passes", passes)
+}

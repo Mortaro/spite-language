@@ -2,8 +2,10 @@ var console = Console()
 
 func GenericConstraints() {
     var books = Shelf<Book>()
-    books.add(Book("Dune"))
-    books.add(Book("Emma"))
+    var dune = Book("Dune")
+    books.add(dune)
+    var emma = Book("Emma")
+    books.add(emma)
     var numbers = Shelf<Integer>()
     numbers.add(3)
     numbers.add(-4)
@@ -15,7 +17,8 @@ func GenericConstraints() {
     console.print(book_text)
     console.print(number_text)
     console.print(word_text)
-    var label = Label(Book("Ivanhoe"))
+    var ivanhoe = Book("Ivanhoe")
+    var label = Label(ivanhoe)
     var label_text = label.text()
     console.print(label_text)
 }

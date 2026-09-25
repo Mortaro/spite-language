@@ -1,0 +1,16 @@
+var rows = Row<Health>()
+var first = 0
+
+func Filler(starting_first: Integer) {
+    first = starting_first
+}
+
+func fill(): Integer {
+    var index = 0
+    while index < 100 {
+        var health = Health(first + index)
+        rows.add(health)
+        index = index + 1
+    }
+    return rows.matching()
+}

@@ -77,8 +77,10 @@ var console = Console()
 
 func TourClasses() {
     var party = List<Person>()
-    party.append(Person(22, 'knight'))
-    party.append(Person(19, 'mage'))
+    var knight = Person(22, 'knight')
+    party.append(knight)
+    var mage = Person(19, 'mage')
+    party.append(mage)
     party.each(introduce)
     var sum_age = party.sum_age()
     console.print("total age", sum_age)

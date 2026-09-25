@@ -62,9 +62,10 @@ nothing at run time because they emit nothing.
 | [A function value describes its arguments when asked](#a-function-value-describes-its-arguments-when-asked) | built | every | fewer allocations per function value and per `Parallel` |
 | [A list's templates read its elements without counting them](#a-lists-templates-read-its-elements-without-counting-them) | built | every but `--hot-reload` | nothing but speed |
 | [A number joined into text is written in place](#a-number-joined-into-text-is-written-in-place) | built | every | fewer allocations |
-| [Freed small objects are kept for the next one](#freed-small-objects-are-kept-for-the-next-one) | built | production, not `--debug-memory` | memory a thread freed stays with the program |
+| [Allocation is the C library's, counted only where read](#allocation-is-the-c-librarys-counted-only-where-read) | built | every but `--debug-memory`, decided per program | nothing: `live_allocations()` still answers |
 | [A dictionary hashes a key once, cheaply](#a-dictionary-hashes-a-key-once-cheaply) | built | every | nothing but speed |
 | [Reading through a `type` without counting](#reading-through-a-type-without-counting) | built | every but `--hot-reload` | nothing but speed |
+| [Short text lives inside the `String`](#short-text-lives-inside-the-string) | built | every | fewer allocations; `.memory.section` of built text; a box when text travels as a shape |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
@@ -253,9 +254,12 @@ var console = Console()
 
 func FusedOrder() {
     var teams = List<Team>()
-    teams.append(Team("red", true, 3))
-    teams.append(Team("blue", false, 5))
-    teams.append(Team("green", true, 4))
+    var red = Team("red", true, 3)
+    teams.append(red)
+    var blue = Team("blue", false, 5)
+    teams.append(blue)
+    var green = Team("green", true, 4)
+    teams.append(green)
     var fused = teams.filter_is_active().sum_counted_size()
     console.print("one loop:", fused)
     var active = teams.filter_is_active()
@@ -536,24 +540,26 @@ thread" row; [concurrency.md](concurrency.md)).
 
 ### Boxing only where a value travels as a shape
 
-**What it does.** A number, `Boolean`, enum value or `Symbol` is a plain value everywhere the compiler can see its
-type. It is put in a box -- one small object, released like any other -- only where it has to travel as a `type`
-shape (a `Printable`, a `Debuggable`, an empty `type` that accepts anything) and be called through it
-([D109, D164](decisions.md)). `String` and class instances are objects already and are never boxed.
+**What it does.** A number, `Boolean`, enum value, `Symbol` or `String` is a plain value everywhere the compiler
+can see its type. It is put in a box -- one small object, released like any other -- only where it has to travel as
+a `type` shape (a `Printable`, a `Debuggable`, an empty `type` that accepts anything) and be called through it
+([D109, D164](decisions.md)). A written text's box is part of the program and allocates nothing
+([short text](#short-text-lives-inside-the-string)). Class instances are objects already and are never boxed.
 
-**When.** Passing a plain value where a shape is wanted, reading `attribute.value` of a number
+**When.** Passing a plain value where a shape is wanted, reading `attribute.value` of a number or text
 attribute, or a class test against a number class.
 
 **What you notice.** One allocation per boxed value under `--debug-memory`. The visible cost today: every value
 given to `console.print` is passed as a `Printable`, so printing a number boxes it, and the `...values` of every
-variadic call arrive in a `List` ([functions_and_operators.md](functions_and_operators.md)). Whether that list and
+variadic call arrive in a `List` ([functions_and_operators.md](functions_and_operators.md)); text made while the
+program runs is boxed too, since the sixteen bytes of a `String` are not an object. Whether that list and
 those boxes should live in the caller's frame is `mortaros_missing_decisions.md` item 74. **Built** (D109's print
 row, and D164's `attribute.value`, filled only in a program that reads it).
 
 ### Concurrency machinery only where it is used
 
 **What it does.** The scheduler, the state machines, the helper threads and the wrappers around every call that
-can wait (`Program.sleep`, `Console.read_line`, `File.read`/`write`/`append`, `Socket.accept_client`/`read_line`)
+can wait (`Program.sleep`, `Console.read_line`, `File.read`/`write`/`append`, `Socket.accept_client`/`read_line`/`read_bytes`)
 exist only in a program that makes a `Concurrent` (itself, or through [reads in a row](#reads-in-a-row-overlap)) or
 is built with `--repl-port` or `--hot-reload`. Every other program's waits are the plain system calls. Even in a program that has the scheduler, a wait with no `Concurrent` alive and
 no REPL listening makes the plain blocking call, because that is faster ([D99](decisions.md)): you
@@ -650,8 +656,10 @@ ask for it:
   member template instantiated for the classes a list reaches, so the prompt can call `monsters.sum_health()`.
 - `--hot-reload`: a function pointer per function and a forwarder in front of it (about a nanosecond a call), the
   file watcher and the reload manifest. Every other build calls functions directly and is tree-shaken.
-- `--debug-memory`: the allocation table that names leaked objects. Every other build counts allocations with
-  one increment.
+- `--debug-memory`: the allocation table that names leaked objects, and its C (`AllocationTable`, the functions
+  that call it, the class-name table) exists only in that build's C. Every other build allocates with the C
+  library's own `malloc`, `realloc` and `free` and nothing beside them, unless the program reads
+  `live_allocations()` ([Allocation is the C library's](#allocation-is-the-c-librarys-counted-only-where-read)).
 
 - `--repl-port` and `--hot-reload`: a check point at the end of every pass of every loop in the program's own
   code ([D174](decisions.md)), one call that answers a waiting command or reload, so a program that
@@ -695,7 +703,10 @@ How the lock is kept cheap:
   with no locks at all.
 - **A call to itself skips the lock.** Inside a locked function, a call to another function of the same singleton
   goes straight to that function's unlocked body (`Registry_count_one___unguarded(self)`), since the lock is
-  already held: no atomic load and no depth count per call.
+  already held: no atomic load and no depth count per call. A function value of it is not such a call:
+  `found.filter(matches)` inside the singleton makes a value that calls the locked function, because a value can be
+  kept and called from anywhere; called while the lock is held, that costs one atomic load and a depth count
+  (`conformance/stage6/singleton_function_values`).
 - **A write from another class takes the lock too.** `registry.last = name` written anywhere but `Registry` stores
   the value under `Registry`'s lock; the value is computed before the lock is taken, and an object it replaces is
   released after the lock is let go, so no other code runs while it is held.
@@ -774,6 +785,14 @@ All **built**, and none of them needs anything from you:
 - An `assert` in `library/` writes nothing into the crash trace, decided when compiling, so a library guard costs
   what an `if` costs ([D189](decisions.md)). What you notice: a crash report lists only the failed
   asserts of the program and its `load`-ed packages ([failure.md](failure.md#what-a-crash-reports)).
+- A program with no `crash` left after tree shaking writes nothing into the crash trace at all: the trace exists
+  only to be printed by a crash, so each `assert` of such a program compiles to its test and its `return`, and
+  the trace's 32 entries are not in the program ([D177](decisions.md)). A program that can crash records
+  exactly as before.
+- A foreign library is closed at exit only if the function that opens it is in the program, so a library nothing
+  opens leaves neither its handle nor the code to close it in the program ([D177](decisions.md)). `Console` still
+  opens the C library when it is made, since D144 binds its `DynamicLibrary` as an attribute: a program that only
+  prints opens it too.
 
 ### Proofs that survive a call
 
@@ -883,25 +902,31 @@ one text, since that text is the result.
 **What you notice.** Fewer allocations: `conformance/stage6/text_building` went from 39 to 35, and
 `benchmarks/text_building` from 5 500 225 to 800 267. **Built** (2026-09-25; proposed by Claude, unconfirmed).
 
-### Freed small objects are kept for the next one
+### Allocation is the C library's, counted only where read
 
-**What it does.** Most of what a program allocates is small objects made and dropped in a loop, and the system
-allocator's lock and bookkeeping were most of the cost of each (on Windows, `RtlAllocateHeap` and `RtlFreeHeap`
-were 40-70% of the time of `benchmarks/small_allocations`, `text_building` and `reflection_walks`). When an
-object of up to 256 bytes is freed, its block is now kept on a list for its size (in steps of 16 bytes), one set
-of lists per thread, and the next allocation of that size takes it back: two pointer moves instead of two calls
-into the system. Every block still comes from the C allocator, and anything larger, or any memory a program asks
-`Memory.Heap` for, goes straight to it.
+**What it does.** Every Spite object is made with `SPITE_MALLOC` and let go with `SPITE_FREE`, and what those are
+is decided per program. In an ordinary build they are the C library's `malloc`, `realloc` and `free`, with
+nothing beside them: no counter, no table, no list of kept blocks. A program that reads
+`Memory.Heap.live_allocations()` (or `Program.live_allocations()`, which asks it) gets a counter beside each call
+instead -- atomic in a program that starts a thread -- and the tree shaker decides which: the counter is written
+only when `live_allocations` is still in the program after shaking. A `--debug-memory` build routes every call
+through its allocation table instead, and only that build's C has the table.
 
-**When.** Production builds, the ones without `--debug-memory` (whose allocation table has to see every
-allocation and free, so it keeps doing so) or `--hot-reload`. It is the floor under every object, so every
-program that frees an object uses it; it is about thirty lines of the prelude, not a runtime of its own.
+**When.** Every build but `--debug-memory`. An inspectable build (`--development`, `--hot-reload`, `--repl`) is
+not shaken, so it counts ([D143](decisions.md)).
 
-**What you notice.** Speed: `benchmarks/small_allocations` went from 168 ms to 102 ms, `reflection_walks` from 507
-to 332, `text_building` from 333 to 275. `Program.live_allocations()` and `--debug-memory` count exactly as
-before, since a kept block counts as freed. The cost: up to 1 024 blocks of each of the 16 sizes -- about 2 MB at
-most -- stay with each thread that freed them instead of going back to the system, and a thread's kept blocks are
-not handed back when it ends. **Built** (2026-09-25; proposed by Claude, unconfirmed).
+**What you notice.** Nothing: `live_allocations()` answers the same wherever it is called. `examples/hello`'s C
+went from 1 356 lines to 762 with this, the crash trace and the foreign library changes in
+[Smaller ones](#smaller-ones); 922 once `Console` bound its library as an attribute (D144).
+
+**Not built: keeping freed small blocks for reuse.** Keeping each freed object of up to 256 bytes on a per-thread
+list for its size, for the next allocation of that size, was built and taken out again (2026-09-25): it was not a
+clear, repeatable gain on SlopEngine, the program it was for. Against the plain C allocator, `clang -O2`, best of
+nine interleaved runs on Mortaro's machine: `examples/stress` ticks 42.9 ms with it and 41.9 without in parallel,
+49.0 and 50.9 single-threaded, 60 ticks after despawning 87.7 and 87.2 ms; only the 200 000 spawns (449 and 504
+ms) and `flex_layout` (about 3 ms of 70) were faster; the Vulkan UI tests (`click_counter_test`,
+`text_field_test`) did not move beyond noise. It sped up the small benchmarks (`small_allocations` 84 against 140
+ms) at the cost of up to 2 MB kept per thread; `benchmarks/README.md` has both sets of numbers.
 
 ### A dictionary hashes a key once, cheaply
 
@@ -942,6 +967,41 @@ that cannot change `parts` and drops across one that may. The check, where it st
 branch the CPU predicts. What you can observe: nothing but speed; `check.sh` holds that
 `conformance/stage6/division_by_zero`'s proven `whole / pieces` carries no check in its C.
 
+### Short text lives inside the `String`
+
+**What it does.** A `String` is sixteen bytes wherever it is kept -- a local, an attribute, a list's element, a
+parameter -- and text of up to 15 bytes of UTF-8 is kept in those sixteen bytes themselves: no allocation, no
+reference count, and no pointer to follow to read it, so a name in a component column is read where the column
+already is in the CPU cache ([D203](decisions.md)). Longer text is one block on the heap -- its count, its capacity
+and its characters, with a 0 after them for C -- that the sixteen bytes point at, next to the length; it used to be
+two, the `String` object and its characters. A written text (`"hello"`) is part of the program as before, whatever
+its length: the sixteen bytes point at it, and nothing is counted or freed.
+
+**When.** Every `String`, in every build. Whatever makes text -- a join, `slice`, `upper_case()`, a number's
+`to_string()`, reading a file, the program's arguments, a foreign function's result -- keeps it inside the value when
+it fits. [Appending in place](#appending-to-text-in-place) fills the sixteen bytes first and moves the text into a
+block, with room to grow, once it passes 15 bytes. Reading a character (`code_at`) looks at the form where the
+`String` is kept rather than in a copy, so a loop over the characters of one text -- a dictionary hashing its key,
+`index_of`, `trim` -- decides the form once and then reads one byte per character, as it did before.
+
+**What you notice.** Fewer allocations under `--debug-memory`: none for short text, one instead of two for long
+text (`conformance/stage6/text_building` went from 35 to 31, `singleton_counts` from 200 104 to 200 069 and
+`fused_chain_allocations` from 15 to 13, most of it numbers turned into text to be printed). `.memory.section` of
+text made while the program runs answers `'stack'` when the text is short and held in a local (`'heap'` when it is
+read from an attribute, where the value lives in its object) and `'heap'` when it is long; written text is
+`'constant'`, as before. Text passed where a `type` shape is wanted -- a `Printable` given to `console.print`,
+`attribute.value` -- is put in a box, one allocation, as a number is (written text has a box in the program and
+allocates nothing) ([below](#boxing-only-where-a-value-travels-as-a-shape)). A `List<String>` holds sixteen bytes
+per element instead of an eight-byte pointer. Speed: `benchmarks/dictionary_keys` allocates 1 032 times instead of
+1 104 014, `text_building` 165 instead of 800 227 and `reflection_walks` 3 999 918 instead of 7 596 024, and each
+is 15-25% faster; SlopEngine's `stress` allocates 5.6 million times instead of 7.2. The cost that remains: a
+`Dictionary` looked up by a key longer than 15 bytes is about 10% slower, since the key travels as sixteen bytes
+and is compared through its form ([benchmarks/README.md](../benchmarks/README.md)). Why 15 and not 22: of the 4.7
+million texts the compiler makes compiling itself, 68% are 15 bytes or fewer and 78% are 22 or fewer, and 22 would
+take a third machine word in every `String` -- a `List<String>` half as large again -- where 15 fits in the two a
+long text needs anyway (where its characters are, and how many). **Built** (2026-09-26; the size and the layout
+proposed by Claude, unconfirmed).
+
 ## Planned
 
 Decided by Mortaro, not built yet. When one is built, it moves up to **Built** in the same change.
@@ -970,8 +1030,13 @@ construction, the one part of this already built, is [above](#an-allocator-set-a
 ### Other planned optimisations
 
 - **A list's buffer in its list's allocator** ([D154](decisions.md)): a `List` given an allocator is made there,
-  but its buffer of references still comes from the heap; and `Vector<T>`, which holds its items inline, does not
-  exist yet ([memory.md](memory.md#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-vectort-planned)).
+  but its buffer of references still comes from the heap, and so does a `Vector<T>`'s block of items
+  ([memory.md](memory.md#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-a-vectors-block-planned)).
+- **An appended item made in place**: `var slow = Velocity(1.0, 0.5)` and then `velocities.append(slow)` makes an
+  ordinary object, copies its attributes into the vector's block and lets the object go, so filling a vector
+  allocates once per item for a moment ([collections.md](collections.md#vectort--implemented)). Writing the
+  constructor's attributes straight into the block, when the object is used for nothing else, would make filling
+  it allocate only when the block grows.
 - **Short symbols inline** ([D70](decisions.md)): a short symbol held as a small inline string rather
   than a pointer into the symbol table.
 - **Crash text out of the binary** ([D32](decisions.md)): a `crash` or `assert` site's source text

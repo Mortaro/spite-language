@@ -1,0 +1,10 @@
+15 16 0 0
+true true true
+01234567890123456789 20
+012345678901234 012345678901234!
+abababababab
+abcdefghijklmno,abcdefghijklmnop,X abc
+1 2
+longer than 15: abcdefghijklmnop
+stack heap constant
+"abcdefghijklmno" "abcdefghijklmnop"

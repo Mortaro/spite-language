@@ -2,9 +2,11 @@ var console = Console()
 
 func GenericConstraints() {
     var pets = Shelf<Pet>()
-    pets.add(Pet())
+    var shelved_pet = Pet()
+    pets.add(shelved_pet)
     var maybe_numbers = Shelf<Integer?>()
-    var label = Label(Pet())
+    var labelled_pet = Pet()
+    var label = Label(labelled_pet)
     var pet_count = pets.items.count()
     var number_count = maybe_numbers.items.count()
     console.print(pet_count, number_count, label.item)

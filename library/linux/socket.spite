@@ -17,12 +17,25 @@ func write_family(address: Memory.Address) {
     address.write_byte(0, 2)
 }
 
+func resolve_name(host: String, hints: Memory.Address, found: Memory.Address): Integer {
+    var no_service: Long = 0
+    return library.getaddrinfo(host, no_service, hints, found)
+}
+
+func resolved_address_offset(): Integer {
+    return 24
+}
+
+func free_resolved(first: Memory.Address) {
+    library.freeaddrinfo(first)
+}
+
 func bind_address(address: Memory.Address): Boolean {
     return library.bind(handle, address, 16) == 0
 }
 
 func listen_for_clients(): Boolean {
-    return library.listen(handle, 1) == 0
+    return library.listen(handle, 64) == 0
 }
 
 func accept_handle(): Long {
@@ -42,6 +55,55 @@ func receive_into(buffer: Long, bytes: Integer): Integer {
 func send_text(text: String): Integer {
     var text_length: Long = text.length()
     return library.send_as_long(handle, text, text_length, 16384)
+}
+
+func send_from(buffer: Long, bytes: Integer): Integer {
+    var wanted: Long = bytes
+    return library.send_as_long(handle, buffer, wanted, 16384)
+}
+
+func use_blocking_calls() {}
+
+func accept_now(): Long {
+    var waiting = heap.allocate(8)
+    var descriptor: Integer = handle
+    waiting.write_integer(0, descriptor)
+    waiting.write_short(4, 1)
+    waiting.write_short(6, 0)
+    var watched: Long = 1
+    var ready = library.poll(waiting, watched, 0)
+    heap.free(waiting)
+    if ready <= 0 {
+        return -1
+    }
+    var no_address: Long = 0
+    return library.accept(handle, no_address, no_address)
+}
+
+func receive_now(buffer: Long, bytes: Integer): Integer {
+    var wanted: Long = bytes
+    var received = library.recv_as_long(handle, buffer, wanted, 64)
+    if received > 0 {
+        return received
+    }
+    assert received >= 0 or not would_block()
+    return -1
+}
+
+func send_now(buffer: Long, bytes: Integer): Integer {
+    var wanted: Long = bytes
+    var sent = library.send_as_long(handle, buffer, wanted, 16448)
+    if sent >= 0 {
+        return sent
+    }
+    assert not would_block()
+    return -1
+}
+
+func would_block(): Boolean {
+    var error: Memory.Address = library.__errno_location_as_long()
+    var code = error.read_integer(0)
+    return code == 11 or code == 4
 }
 
 func close_handle() {

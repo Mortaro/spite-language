@@ -1,0 +1,9 @@
+var console = Console()
+
+func ConsoleLines() {
+    var index = 0
+    while index < 200000 {
+        console.print("line", index, "of the log")
+        index = index + 1
+    }
+}

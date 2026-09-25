@@ -1,0 +1,9 @@
+var seen = 0
+
+func take(next: Step3) {
+    seen = next.seen
+}
+
+func total(): Integer {
+    return seen
+}

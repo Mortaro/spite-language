@@ -35,7 +35,8 @@ func parse_expression_rest(left: Expression): Expression {
         var operator_kind = current().kind
         advance()
         var parsed_term = parse_term()
-        return parse_expression_rest(BinaryExpression(operator_kind, left, parsed_term))
+        var binary = BinaryExpression(operator_kind, left, parsed_term)
+        return parse_expression_rest(binary)
     }
     return left
 }
@@ -50,7 +51,8 @@ func parse_term_rest(left: Expression): Expression {
         var operator_kind = current().kind
         advance()
         var parsed_factor = parse_factor()
-        return parse_term_rest(BinaryExpression(operator_kind, left, parsed_factor))
+        var binary = BinaryExpression(operator_kind, left, parsed_factor)
+        return parse_term_rest(binary)
     }
     return left
 }
@@ -59,7 +61,8 @@ func parse_factor(): Expression {
     if is_kind('minus') {
         advance()
         var parsed_factor = parse_factor()
-        return BinaryExpression('minus', NumberExpression(0.0), parsed_factor)
+        var zero = NumberExpression(0.0)
+        return BinaryExpression('minus', zero, parsed_factor)
     }
     if is_kind('left_paren') {
         advance()

@@ -9,8 +9,10 @@ var console = Console()
 
 func ShapeMembers() {
     var stages = List<Runnable>()
-    stages.append(Stage("physics"))
-    stages.append(Stage("render"))
+    var physics = Stage("physics")
+    stages.append(physics)
+    var render = Stage("render")
+    stages.append(render)
     run_first(stages)
     var names = stages.map_name()
     var labels = stages.map_label()
@@ -34,5 +36,6 @@ func run_first(stages: List<Runnable>) {
 
 func run_in_parallel(stage: Runnable) {
     var running = List<Parallel<Nothing>>()
-    running.append(Parallel(stage.run_once))
+    var stage_run = Parallel(stage.run_once)
+    running.append(stage_run)
 }

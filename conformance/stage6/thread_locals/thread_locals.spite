@@ -10,7 +10,8 @@ func ThreadLocals() {
     var runs = List<Parallel<Boolean>>()
     var index = 0
     while index < 200 {
-        runs.append(Parallel(keeps_own_name))
+        var run = Parallel(keeps_own_name)
+        runs.append(run)
         index = index + 1
     }
     var every_one = true

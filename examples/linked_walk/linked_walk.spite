@@ -16,9 +16,12 @@ func run() {
     }
     var joined_steps = steps.join(" -> ")
     console.print(walked, joined_steps)
-    var idle_description = describe(Idle())
-    var busy_description = describe(Busy(3))
-    var broken_description = describe(Broken())
+    var idle = Idle()
+    var idle_description = describe(idle)
+    var busy = Busy(3)
+    var busy_description = describe(busy)
+    var broken = Broken()
+    var broken_description = describe(broken)
     console.print(idle_description, busy_description, broken_description)
 }
 

@@ -521,7 +521,10 @@ All of it is proposed by Claude, unconfirmed.
      (Claude): inside a class, `memory.allocator` reads the object's own allocator, the way a number's `this`
      is its value. Also `examples/vectors` has a user class `Vector`, which a library `Vector<T>` would turn into
      a reopening of the library's class. Name it `Vector<T>` anyway (the example renames its class), or another
-     name?
+     name? Built as `Vector<T>` (`library/vector.spite`, D204's borrowed items): the user classes called `Vector`
+     in `examples/vectors`, `conformance/stage6/operators` and `benchmarks/small_allocations` are now
+     `Displacement`. The allocator half is not built: a vector's block of items is on the heap wherever the vector
+     object is placed, as a list's buffer is, until a class can read its own allocator.
 176. **How much of a singleton may be atomics instead of a lock (D184).** Built as: a singleton whose changing
      attributes are whole numbers or `Bool`s, where each function touches that state once (one read, one
      `x = x + step`, or one `flag = value`), is compiled to atomics and takes no lock; that keeps every function one
@@ -565,10 +568,10 @@ All of it is proposed by Claude, unconfirmed.
 
 ## Data-oriented components (D203, from SlopEngine)
 
-183. **A fixed-size text for inline components.** With D203, text up to 22 bytes is inline, so `Vector<Name>` has a
+183. **A fixed-size text for inline components.** With D203, text up to 15 bytes is inline (built: a `String` is
+     sixteen bytes; 22 would have made it twenty-four, see `docs/optimizations.md`), so `Vector<Name>` has a
      fixed stride and only a longer name points out to the heap. Is that enough, or do you want a capped
      `ShortText<32>` that refuses longer text?
-
 
 ## Found fixing the docs pass's shortfalls
 
@@ -576,7 +579,7 @@ All of it is proposed by Claude, unconfirmed.
      local REPL reads the console only after the entry constructor returns, so a check point there would answer
      nothing. Built as: no check points in a `--repl`-only build (docs/control_flow.md). Right, or should a local
      REPL become able to interrupt a running loop (which would mean reading the console on another thread)?
-185. **D144's exceptions.** Built as: `String`, the numbers, `List` and `Dictionary` may bind a singleton as a
+185. **D144's exceptions.** Built as: `String`, the numbers, `List`, `Vector` and `Dictionary` may bind a singleton as a
      local, and so may any function whose singleton's codegen value comes from its own codegen or Symbol
      (`Query<argument.class>()`). Binding as an attribute also moves when a singleton is made, to when the object
      holding it is made. Keep these, or narrow them?
@@ -612,7 +615,36 @@ All of it is proposed by Claude, unconfirmed.
      `remove_first()`/`remove_last()` still answer the default on an empty list; make them `T?` too?
 194. **`Weak<T>` across threads.** A `Weak` read on one thread while another frees the object is a race today;
      the table has no lock. Guard it in a program that uses `Parallel`, or forbid a `Weak` a `Parallel` reaches?
-195. **May a `type` row hold borrowed `Vector` items for one system call (D204)?** SlopEngine's `Row` fills a
+
+## `Socket` for game servers (from SlopEngine)
+
+195. **How a closed peer shows.** Built as a `closed: Boolean` attribute: `read_bytes_now` answers `0` both for
+     "nothing yet" and for "the other end hung up", `read_line_now` answers `null` for both, and `closed` tells
+     them apart (D24's "a distinction that matters is data"). The alternative was a count of `-1`, which every
+     caller would have to remember to test before adding the count to a length. Keep `closed`?
+196. **The names of the calls that never wait.** Built with a `_now` suffix beside the waiting calls:
+     `accept_client_now(): Socket?`, `read_line_now(): String?`, `read_bytes_now(address, count): Integer`,
+     `write_bytes_now(address, count): Integer`; and `listen_everywhere(port)`, `listen_at(host, port)`,
+     `connect(host, port)` beside `listen_locally` and `connect_locally`. Other spellings weighed: a mode on the
+     socket (`socket.waits = false`), which would make the same call mean two things, and `poll_`/`try_`
+     prefixes. Keep the names?
+197. **Every printed line is written out at once.** `print`, `error` and `debug` now flush, so a server's log
+     redirected to a file shows each line as it happens. Measured with `benchmarks/console_lines` (200 000 lines,
+     Windows): about 700 ms to a file against about 140 ms buffered until exit; the same to a pipe or the null
+     device. Nothing cheaper shows every line promptly without a thread. Keep it for every program, or should a
+     program be able to say it prints to a file nobody watches (a build setting, say) and keep the buffer?
+
+## Short text inside the `String` (D203)
+
+198. **What `.memory.section` says for short text (D203).** Text of up to 15 bytes lives in the sixteen bytes of
+     the `String` itself, so its characters are wherever the value is. Built (Claude, unconfirmed): `'stack'` for
+     a local, `'heap'` read from an attribute, `'constant'` for a literal as before, and `'heap'` for long text.
+     Would you rather have a fourth section, `'inline'`, that says the characters are in the value, wherever it
+     is?
+
+## Vector columns in SlopEngine (D204)
+
+199. **May a `type` row hold borrowed `Vector` items for one system call (D204)?** SlopEngine's `Row` fills a
      `type` row (`moving.position`, `moving.velocity`) with one entity's components and hands it to the system's
      `update_each`; with `Vector` columns those are borrowed items, and D204 forbids keeping a borrow in an
      attribute. Proposal (Claude, unconfirmed): a `type` value made and dropped inside one statement block may hold

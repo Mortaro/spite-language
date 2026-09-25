@@ -1,0 +1,15 @@
+var across = 0.0
+var down = 0.0
+
+func Displacement(new_across: Float, new_down: Float) {
+    across = new_across
+    down = new_down
+}
+
+func plus(other: Displacement): Displacement {
+    return Displacement(across + other.across, down + other.down)
+}
+
+func scaled(factor: Float): Displacement {
+    return Displacement(across * factor, down * factor)
+}

@@ -8,7 +8,8 @@ func ClockReading() {
     var finished = clock.elapsed_nanoseconds()
     var waited = (finished - started) / 1000000
     var now = clock.now()
-    var year_2020 = Instant(Duration(1577836800, 'seconds'))
+    var since_1970 = Duration(1577836800, 'seconds')
+    var year_2020 = Instant(since_1970)
     var after_2020 = now > year_2020
     var milliseconds = clock.elapsed_milliseconds()
     console.print(waited >= 19, waited < 5000, after_2020, milliseconds > 0)

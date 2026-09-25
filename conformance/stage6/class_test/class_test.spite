@@ -14,10 +14,13 @@ func ClassTest() {
     console.print(favorite == Circle)
     favorite = Square()
     console.print(favorite == Square)
-    console.print(Circle() == Circle)
-    var circle_description = describe(Circle())
+    var circle = Circle()
+    console.print(circle == Circle)
+    var described_circle = Circle()
+    var circle_description = describe(described_circle)
     console.print(circle_description)
-    var square_description = describe(Square())
+    var square = Square()
+    var square_description = describe(square)
     console.print(square_description)
 }
 

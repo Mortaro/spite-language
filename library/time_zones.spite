@@ -1,7 +1,8 @@
 singleton
 
 var _time_text = TimeText()
-var _utc = TimeZone("UTC", ZoneRules(0))
+var _utc_rules = ZoneRules(0)
+var _utc = TimeZone("UTC", _utc_rules)
 
 func utc(): TimeZone {
     return _utc
@@ -11,7 +12,8 @@ func fixed_offset(offset: Duration): TimeZone {
     var seconds = offset.total('seconds')
     crash seconds > -86400 and seconds < 86400
     var name = _time_text.write_offset(seconds)
-    return TimeZone(name, ZoneRules(seconds))
+    var zone_rules = ZoneRules(seconds)
+    return TimeZone(name, zone_rules)
 }
 
 func read_tzif(name: String, data: String): TimeZone? {

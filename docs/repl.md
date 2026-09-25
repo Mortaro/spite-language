@@ -55,8 +55,10 @@ var player_age = 20
 var monsters = List<Monster>()
 
 func ReplProgram() {
-    monsters.append(Monster("Goblin", 30))
-    monsters.append(Monster("Orc", 50))
+    var goblin = Monster("Goblin", 30)
+    monsters.append(goblin)
+    var orc = Monster("Orc", 50)
+    monsters.append(orc)
     console.print("player", player_name, "age", player_age)
     var monsters_count = monsters.count()
     console.print("monster count", monsters_count)
@@ -412,8 +414,8 @@ The choices below are **(proposed by Claude, unconfirmed)**:
 - **Spite, over `Socket`.** The server is `ReadEvaluatePrintLoop.serve` in `library/read_evaluate_print_loop.spite`,
   over the `Socket` class ([System classes](standard_library.md#system-classes--implemented)), whose operating-system members live in `library/windows/socket.spite`
   (`ws2_32.dll`), `library/linux/socket.spite` (`libc.so.6`) and `library/mac/socket.spite` (`libSystem.dylib`),
-  reopened per D80. `Socket` has no way to bind anything but `127.0.0.1`, so "loopback only" holds by
-  construction. `ws2_32.dll` is opened when the first `Socket` is made, so a program without a REPL never loads it.
+  reopened per D80. The REPL listens with `listen_locally`, which binds `127.0.0.1` and nothing else, so
+  "loopback only" holds by construction. `ws2_32.dll` is opened when the first `Socket` is made, so a program without a REPL never loads it.
 - **The thread.** The one piece of C this adds is written by the compiler, only in a `--repl-port` build: a
   two-line thread entry, `spite_remote_loop_thread`, that calls `ReadEvaluatePrintLoop.serve` with the entry
   instance. Spite starts it and waits for it through the operating system's folder (`CreateThread` and

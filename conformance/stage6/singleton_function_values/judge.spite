@@ -1,0 +1,6 @@
+var rows = Row<Health>()
+
+func count_strong(healths: List<Health>): Integer {
+    var strong = healths.filter(rows.matches)
+    return strong.count()
+}

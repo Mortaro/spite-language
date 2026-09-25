@@ -7,8 +7,10 @@ func Party() {
     console.print("hero job", hero.job)
     var members = List<Person>()
     members.append(hero)
-    members.append(Person(2, 'mage'))
-    members.append(Person(3, 'archer'))
+    var mage = Person(2, 'mage')
+    members.append(mage)
+    var archer = Person(3, 'archer')
+    members.append(archer)
     var members_count = members.count()
     console.print("member count", members_count)
     var index = 0

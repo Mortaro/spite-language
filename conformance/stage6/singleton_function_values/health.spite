@@ -1,0 +1,5 @@
+var points = 0
+
+func Health(starting_points: Integer) {
+    points = starting_points
+}

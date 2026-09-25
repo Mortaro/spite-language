@@ -11,7 +11,8 @@ func DaylightSaving() {
 }
 
 func around_the_change(zone: TimeZone) {
-    var before = Instant(Duration(1710053999, 'seconds'))
+    var last_winter_second = Duration(1710053999, 'seconds')
+    var before = Instant(last_winter_second)
     var after = before + Duration(1, 'seconds')
     var before_text = zone.to_text(before)
     var after_text = zone.to_text(after)
@@ -19,24 +20,31 @@ func around_the_change(zone: TimeZone) {
     var after_offset = zone.offset_at(after)
     console.print(zone.name, before_text, before_offset)
     console.print(zone.name, after_text, after_offset)
-    var history = Instant(Duration(-5364662400, 'seconds'))
+    var railway_time = Duration(-5364662400, 'seconds')
+    var history = Instant(railway_time)
     var history_text = zone.to_text(history)
     console.print("before railway time", history_text)
 }
 
 func the_gap(zone: TimeZone) {
-    var missing = DateTime(Date(2024, 3, 10), Time(2, 30, 0, 0))
+    var missing_day = Date(2024, 3, 10)
+    var missing_time = Time(2, 30, 0, 0)
+    var missing = DateTime(missing_day, missing_time)
     show(zone, missing, 'compatible')
     show(zone, missing, 'earlier')
     show(zone, missing, 'later')
 }
 
 func the_overlap(zone: TimeZone) {
-    var twice = DateTime(Date(2024, 11, 3), Time(1, 30, 0, 0))
+    var twice_day = Date(2024, 11, 3)
+    var twice_time = Time(1, 30, 0, 0)
+    var twice = DateTime(twice_day, twice_time)
     show(zone, twice, 'compatible')
     show(zone, twice, 'earlier')
     show(zone, twice, 'later')
-    var summer = DateTime(Date(2024, 7, 4), Time(12, 0, 0, 0))
+    var summer_day = Date(2024, 7, 4)
+    var summer_time = Time(12, 0, 0, 0)
+    var summer = DateTime(summer_day, summer_time)
     show(zone, summer, 'compatible')
     var instant = zone.to_instant(summer, 'compatible')
     var back = zone.to_local(instant)
@@ -49,9 +57,15 @@ func other_zones() {
     crash london
     var lord_howe = zones.find("Australia/Lord_Howe")
     crash lord_howe
-    var british_gap = DateTime(Date(2024, 3, 31), Time(1, 30, 0, 0))
-    var half_hour_gap = DateTime(Date(2024, 10, 6), Time(2, 15, 0, 0))
-    var half_hour_overlap = DateTime(Date(2024, 4, 7), Time(1, 45, 0, 0))
+    var british_gap_day = Date(2024, 3, 31)
+    var british_gap_time = Time(1, 30, 0, 0)
+    var british_gap = DateTime(british_gap_day, british_gap_time)
+    var half_hour_gap_day = Date(2024, 10, 6)
+    var half_hour_gap_time = Time(2, 15, 0, 0)
+    var half_hour_gap = DateTime(half_hour_gap_day, half_hour_gap_time)
+    var half_hour_overlap_day = Date(2024, 4, 7)
+    var half_hour_overlap_time = Time(1, 45, 0, 0)
+    var half_hour_overlap = DateTime(half_hour_overlap_day, half_hour_overlap_time)
     show(london, british_gap, 'compatible')
     show(lord_howe, half_hour_gap, 'compatible')
     show(lord_howe, half_hour_overlap, 'earlier')
