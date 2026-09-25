@@ -86,10 +86,6 @@ manual argues it.
 
 ## From D82, D83, D88, D92, D98, D100 and D101 (the compiler's reopening, numbers, reflection, memory)
 
-28. **A `func` without a body** is how a member the compiler supplies is written, in its reopening and in
-    `--final-classes` (`func allocate_bytes(bytes: Long): Long`); anywhere else it is an error. It borrows the
-    shape a `type` uses for a member without a body. The alternative is a marker of some other kind; say if you
-    want one. Manual section 11, "What the compiler supplies is a reopening too".
 29. **`_` now means private, enforced**: a `_name` is read, written or called only inside its own class. D88
     needed it (otherwise `klass._name = ...` undoes the read-only getters), and section 2 already said `_name` is
     private. Open question 6 (whether `_` means private *and* unused) is still yours.
@@ -365,3 +361,15 @@ Behaviour that does not match the manual. The language was not changed; each is 
      Resource.World()`: the marker is noise, and the engine should learn "this system changes the world" from the
      compiler -- which functions it calls (`Spawn`, `Insert`, `Remove`), which singletons it touches -- as a
      compile-time reflection like D114's (`function.calls(Spawn)`, or the singletons a function reaches). Wanted?
+
+## Zero hidden code (D147)
+
+113. **How Spite names the operations the machine does directly** (reading and writing the value at an address,
+     atomics), so `Memory`'s functions get real Spite bodies and a later backend can replace C. Every language
+     bottoms out here (Zig's `@builtins`, Rust's intrinsics); the choice is only how they are spelled and where
+     they live. Options to react to: (a) a reserved namespace of operations, `Spite.Machine.read_byte(address)`,
+     declared in one library file the backend implements; (b) operators on a pointer-like value type,
+     `address.byte_at(offset)`, where `Address` is a number class whose members the backend lowers; (c) something
+     you have in mind. The rest of the floor (allocation, copying, comparing, loading libraries) becomes plain Spite
+     calling the platform's library through `DynamicLibrary`.
+
