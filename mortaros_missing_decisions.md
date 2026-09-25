@@ -86,15 +86,9 @@ manual argues it.
 
 ## From D82, D83, D88, D92, D98, D100 and D101 (the compiler's reopening, numbers, reflection, memory)
 
-28. **A `func` without a body** is how a member the compiler supplies is written, in its reopening and in
-    `--final-classes` (`func allocate_bytes(bytes: Long): Long`); anywhere else it is an error. It borrows the
-    shape a `type` uses for a member without a body. The alternative is a marker of some other kind; say if you
-    want one. Manual section 11, "What the compiler supplies is a reopening too".
 29. **`_` now means private, enforced**: a `_name` is read, written or called only inside its own class. D88
     needed it (otherwise `klass._name = ...` undoes the read-only getters), and section 2 already said `_name` is
     private. Open question 6 (whether `_` means private *and* unused) is still yours.
-30. **`this` in every class**, not only numbers (`registry.append(this)`), with `this.member` an error. D83 said
-    "if needed"; say if it should stay number-only.
 31. **`value.memory` is shadowed by an attribute named `memory`**, and most of the standard library holds
     `var memory = Memory()`. Either rename those attributes (`heap`?) or give the reflection another name.
     Also the names: `Spite.Memory`, its sections `'heap'`, `'stack'`, `'constant'` (`static` is a C word).
@@ -152,47 +146,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
 54. **`allocate_stack_bytes` is removed**, since D108 gives the choice to the compiler and it was a second way to
     allocate. For an ECS that wants control, what stays is the layout: one allocation, offsets, `TypedMemory`.
     Is anything else wanted -- say, a hint that a structure is short-lived, which the compiler may ignore?
-55. **A singleton holding nothing is not an object at run time**: `Memory` is one static instance, never
-    counted or freed, which every program now allocates once less for, and without which `String.drop()` could
-    reach a `Memory` the program's exit had already released. `Memory.instances` would not list it. Fine as a
-    hidden optimisation (D36)?
-
-## A function of the caller for each element (D113; manual section 8)
-
-57. **A caller function that needs more than the element** -- `print_statement(statement, depth)`, the typical
-    loop of D94's review (143 of them stay `while`). Nothing is built. Options (proposed by Claude,
-    unconfirmed): (a) leave them as `while`, which is where they are now; (b) the template's own arguments go to
-    the function after the element, so `statements.each_print_statement(depth)` calls
-    `print_statement(statement, depth)` -- no new syntax, and each extra argument is evaluated once before the
-    loop, but `find_by_(value)` already takes an argument, so it would need a rule for which one is the value
-    (say: `find_by_` takes none extra); (c) move `depth` into an attribute so the function takes the element
-    alone, which the review called the esoteric outcome. I would build (b) for `each_` and `map_` first and
-    recount; the loop rule would then also name `statements.each_print_statement(depth)`.
-58. **When the element has a member and the caller a function of the same name**, the call is an error asking to
-    rename one (`'each_is_adult' could call 'is_adult' of each 'Person' or this class's own 'is_adult(Person)'`).
-    You asked for "the element's own member first, then the caller's function, or an error if ambiguous": I chose
-    the error, because with an order a member added to a class later silently changes what an unrelated caller
-    runs (D36's surprise, and D59's one name, one meaning). Keep the error, or let the element's member win?
-59. **The loop rule reaches only what is exactly rewritable**, and today that is 2 loops. It leaves a loop whose
-    function belongs to another object (`evaluator.process_line(lines[index])` in `examples/calculator`): a
-    template calls functions of the caller only. Should `lines.each_process_line()` look at the caller's
-    attributes too (here `evaluator`), or does that stay a `while`?
-
-## Singletons bound to a variable (D110; manual sections 8 and 12)
-
-60. **Where the binding lives**: an attribute ("on top") or a local `var` in a function are both accepted, and
-    the error names the attribute. Locals are what `String` uses for `Memory` (a value class has no attribute to
-    spare) and what an error path uses before `program.exit(1)`. Should a local binding be an error outside
-    value classes, so there is one place for it?
-62. **A number's storage is two lines**: `var memory = Memory()` and `var _memory = memory.allocate_bytes(4)`
-    (it replaced a one-line `Memory().allocate_bytes(4)` form). The binding is never a field of the number. The alternative was to exempt
-    `var _memory = Memory().allocate_bytes(4)` from D110, because the compiler reads that line rather than
-    running it; rejected so the file an AI reads to learn memory shows the bound form. Keep it?
-63. **`Build` is a static object**, like `Memory` in item 55: every field folds to a constant, so it holds
-    nothing at run time, and binding it (`var build = Build()` in the launcher and anywhere else) costs no
-    allocation. Reading a field of it any way but by name (reflection over its attributes) would see nothing.
-    Fine as a hidden optimisation (D36)?
-
 ## Live reload (D111, D112; manual section 14, "Live reload and 6b")
 
 64. **A changed attribute or enum is refused, with an error saying to restart.** D111 says a change rebuilds "what
@@ -267,10 +220,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     to `type Target { health: Health }` now holds `{health: Health()}`, whose `.class` answers `Object`. A `type`
     that requires a function has no default object and stays a null pointer that reads defaults. Should that
     case be a compile error naming the field instead?
-85. **A singleton is no longer reference counted** (D36; measured 0.8 s to 0.04 s for two threads fetching a
-    generic singleton 20 million times each). Singletons are destroyed at exit in the order they were made,
-    reversed; before, the counts decided it. One visible difference: a singleton still referenced by a leaked
-    object is destroyed anyway. Fine?
 ## From porting PSD, zstd and .blend to Spite (SlopEngine)
 
 88. **Arithmetic takes the left operand's type** (open question 3, "right-to-left casting"): an `Int` times a
@@ -348,11 +297,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 ## From the SlopEngine regressions after item 85
 
-104. **Teardown when a `drop()` needs a singleton made after it** (fixes item 85's regression in SlopEngine's
-    Vulkan renderer). Every `DynamicLibrary` is now unloaded after all singletons. Any other singleton first made
-    later than the one whose `drop()` fetches it has already been destroyed, so the fetch halts with a message
-    saying to keep it in an attribute (where it is made first). The alternatives: make a fresh one silently and
-    destroy it after, or run every `drop()` before freeing anything. Halting, as now?
 105. **Naming a root class that a nearer one shadows.** Inside `click_test/`, `Plugin()` finds `ClickTest.Plugin`
     first (the walk goes from the class's own namespace outward), so a `ClickTest.Composition` that wants both the
     game's root `Plugin` and its own `ClickTest.Plugin` cannot name the root one; SlopEngine renamed its own to
@@ -397,12 +341,31 @@ Behaviour that does not match the manual. The language was not changed; each is 
      compiler -- which functions it calls (`Spawn`, `Insert`, `Remove`), which singletons it touches -- as a
      compile-time reflection like D114's (`function.calls(Spawn)`, or the singletons a function reaches). Wanted?
 
-112. **An uncalled function keeps an attribute alive.** The rule is source-level, so `func describe(): String {
-     return "{name}" }` that nothing calls makes `name` used, and tree shaking then removes both the function and
-     the read. Four fixtures kept their metadata-only attributes exactly this way. Fine, or should only code a
-     program can reach count?
+## Zero hidden code (D147)
 
-113. **Which folders D118 judges.** D136 says a public attribute is reported only where every reader is visible.
+113. **How Spite names the operations the machine does directly** (reading and writing the value at an address,
+     atomics), so `Memory`'s functions get real Spite bodies and a later backend can replace C. Every language
+     bottoms out here (Zig's `@builtins`, Rust's intrinsics); the choice is only how they are spelled and where
+     they live. Options to react to: (a) a reserved namespace of operations, `Spite.Machine.read_byte(address)`,
+     declared in one library file the backend implements; (b) operators on a pointer-like value type,
+     `address.byte_at(offset)`, where `Address` is a number class whose members the backend lowers; (c) something
+     you have in mind. The rest of the floor (allocation, copying, comparing, loading libraries) becomes plain Spite
+     calling the platform's library through `DynamicLibrary`.
+     *Mortaro (2026-09-25):* likes `Address` only if "the code you see is what you get"; otherwise prefers what the OS
+     offers through `DynamicLibrary`, and needs convincing with limitations and downsides. *Claude's case:* the OS
+     offers memory pages (`VirtualAlloc`/`mmap`), so allocation, freeing, copying and loading libraries can all be
+     visible Spite calling the OS -- at the cost of writing our own small-object allocator in Spite on top of pages.
+     No OS offers "the byte at this address": that is one CPU load instruction. Doing it through a DLL call
+     (`RtlMoveMemory`/`memcpy` per read) works but costs a call per access with no inlining, roughly 5-20x slower
+     on memory-heavy code (zstd, ECS loops, text). `address.byte_at(offset)` is a language primitive in the same
+     sense as `+` on two integers -- one instruction, nothing below it -- that each backend lowers; downsides: it can
+     read a wrong address (so `library/` only), and every backend must implement ~10-15 such operations.
+     Recommendation: OS for pages, libraries and files (with a Spite allocator); `Address` only for loads, stores and
+     atomics.
+
+## Behind D136 (which attributes one program judges)
+
+114. **Which folders D118 judges.** D136 says a public attribute is reported only where every reader is visible.
      As built, "visible" means: the program's entry folder minus every folder its entry file `load`s (so a
      `load("package")` subfolder is exempt like `../../plugins/ui`), plus the standard library, which is compiled
      whole in every program and so always sees its own readers, plus private attributes everywhere. So a
