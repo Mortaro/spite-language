@@ -159,6 +159,8 @@ func is_alive(): Bool {
 - A `type` declares a shape -- `label: String` and `render(Int): String`, one per line, a required function
   naming the *types* it takes and never the names -- and accepts any class, or
   object literal `{ label: "x" }`, with those attributes and functions.
+- `Anything` is the built-in empty `type`, the counterpart of `Nothing`: `component: Anything` and
+  `List<Anything>()` accept any object (a number is boxed). Never declare an empty `type` of your own.
 
 ## Nothing, null, and failure
 

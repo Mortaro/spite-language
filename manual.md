@@ -629,6 +629,13 @@ notation invented for the type syntax -- it fills a hole the reflection already 
 off the end still returns nothing in the ordinary sense (section 5); `Nothing` is how that is *named* when a
 signature or a reflection object has to say it.
 
+**`Anything` is a built-in `type`, the counterpart of `Nothing`** (D163, decided by Mortaro).  **[implemented]**
+The library declares `type Anything { }` once (`library/nothing.spite`, beside `Nothing`), so a parameter or a
+list that accepts any object is written `component: Anything` or `List<Anything>()`, and a program no longer
+declares an empty `type` of its own for that. An empty `type` requires nothing, so every class fits it, and a
+number, `Bool` or enum passed to it is boxed like any plain value passed to a `type` (D109); `if component ==
+Health` narrows it back. `Spite.Attribute`'s object is typed `Anything?` (section 8).
+
 ### Variadic arguments  **[implemented]**
 
 D90 (decided by Mortaro, 2026-09-24, answering open question 14): "variadic arguments are going to be mapped to a
@@ -1066,7 +1073,7 @@ nothing in it can be mistaken for a user class. **[implemented]**
 | `Spite.Class` | `.name: Symbol` (D68), `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `has_function(name)` (D114; folds on a codegen type), plus the function of `Spite.Class`s a class may override ([above](#class-level-functions-and-why-there-are-no-static-functions-planned)) |
 | `Spite.Function` | `.name: String`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `.owner`, `call_function()`, `name_fits(pattern)` (D116) |
 | `Spite.Argument` | `.name: String`, `.class: Spite.Class` |
-| `Spite.Attribute` | `.name: String`, `.class: Spite.Class`, `.value: String`, `.object: Spite.Attribute.Object?` (below) |
+| `Spite.Attribute` | `.name: String`, `.class: Spite.Class`, `.value: String`, `.object: Anything?` (below) |
 | `Spite.Namespace` | `.name: String` (the segment), `.name_with_namespaces: String` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
 | `Spite.Memory` | `.address: Long`, `.bytes: Long`, `.section: Spite.Memory.Section` (`'heap'`, `'stack'`, `'constant'`) -- what `value.memory` answers (D101) |
 
@@ -1185,17 +1192,15 @@ below.]**
   codegen](#symbol-codegen-implemented) below).
 - **`attribute.object` is the attribute's value as an object** (D123's second request; the spelling and the
   readings proposed by Claude, unconfirmed, 2026-09-25), where `.value` is its text. Its type is
-  `Spite.Attribute.Object?`: `library/spite/attribute.spite` declares `type Object { }`, an empty `type`, which
-  accepts any class and fits any empty `type` a program declares (`type Anything { }`), so
-  `entity.add_component(attribute.object)` compiles once it is narrowed. There is no built-in "any" type: an
-  empty `type` already is one, and each program keeps declaring its own (`mortaros_missing_decisions.md` item
-  124). **A number, `Bool` or enum attribute is boxed**, as D109 boxes a plain value passed where a shape is
+  `Anything?`, the library's built-in empty `type` (D163, which replaced the `Spite.Attribute.Object` this
+  first declared), so `entity.add_component(attribute.object)` compiles once it is narrowed. **A number, `Bool`
+  or enum attribute is boxed**, as D109 boxes a plain value passed where a shape is
   wanted, so its `.class` is `Int` and `if object == Int` narrows it back; it is `null` only when the attribute
   holds `null` (item 125). **`value.attributes` works on a `type` or union value**, answered from the value's own
   class at run time, so `create_entity_from_bundle(bundle: Anything)` walks whatever bundle it is given. It is
   built only for a program that reads `.object`: every other program's attribute lists hold `null` there and
   admit nothing. Two mechanisms came with it: a class admitted to one `type` is admitted to every `type` a value
-  of it has already been passed on to (the `Object` a bundle's fields fill is passed to `Anything`), and
+  of it has already been passed on to (a value handed from one `type` to another), and
   `.attributes` through a `type` reads every attribute of every class admitted to it, for D118
   (`conformance/stage6/attribute_object`, `docs/reflection.md`).
 - `Person.instances` lists every live instance of a class. Conceptually each class is a variable living on the heap and so is
@@ -4250,3 +4255,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | (implements D139; the message and scope proposed by Claude, unconfirmed) **An expression statement that is a constructor call -- plain or generic, `Report(text)` or `Box<Int>(3)` -- is an error**: `'Report(text)' makes a 'Report' and drops it: a constructed object must be kept and used, so a class whose construction is the whole point should be a function instead -- turn 'Report' into a function of the class that needs it, or keep the object in a variable that is read`. A singleton's constructor is left to D110's error, and `load(...)` is not a constructor. The check is syntactic plus a class lookup at compile time and emits nothing. No program in the repository did this, so no site was rewritten (the constructors-as-actions D139 names are SlopEngine's, which migrates itself). `diagnostics/dropped_construction`, section 3, `docs/classes_and_files.md`. |
 | 2026-09-25 | (implements D157; the reading below proposed by Claude, unconfirmed) **D118's loaded-package exemption no longer covers an attribute whose default is a singleton construction** (`var world = World()`): unread, it is `the attribute 'world' is never read: remove it` in a loaded folder too. "Unread" is D118's usual reading -- a read from any class counts -- rather than only its own class's, since a read from outside can only hide the error, never cause one. The check is compile time only. No binding in the repository was unread, so no site was rewritten. `diagnostics/package_attributes` (a `var console = Console()` in the loaded `paint` folder). |
 | 2026-09-25 | (implements D166; the message proposed by Claude, unconfirmed) **A function named `load` is an error, and `load(...)` always loads a package**: `'load' is reserved: it always loads a package, so a function cannot be named 'load'. Name it for what it loads, such as 'load_texture'`. Removed: the generator's check that let a class's own `load` win, and discovery's rule that read no folder from a file declaring `load`. `conformance/stage6/load_function`, which proved the removed behaviour, became `diagnostics/load_function`; no other program declared `load`. Compile time only. `docs/packages.md`. |
+| 2026-09-25 | (implements D163; where it lives proposed by Claude, unconfirmed) **`type Anything { }` is declared once, in `library/nothing.spite` beside `Nothing`**, and resolves by its simple name everywhere, as every `type` does. `Spite.Attribute`'s object is `Anything?`, replacing `Spite.Attribute.Object`, and the generator boxes into it as it did into `Object`. Rewritten: 7 declarations removed -- `conformance/stage6/attribute_object`, `class_argument` and `codegen_class_test`, `diagnostics/class_as_value`, and 3 programs in `docs/` (`control_flow.md`'s `codegen_class_test_doc`, `reflection.md`'s `attribute_objects` and `passing_a_class`) -- plus `library/spite/attribute.spite`'s `type Object`. An empty `type` costs nothing until a value is passed to it: it holds no functions, and boxing happens only where a plain value is actually passed as `Anything`. Section 5, `docs/reflection.md`. |

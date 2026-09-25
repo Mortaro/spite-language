@@ -422,8 +422,8 @@ static SpiteArguments spite_program_arguments;
 typedef void* Console_Printable;
 typedef void* Console_Debuggable;
 typedef void* Directory_Entry;
+typedef void* Nothing_Anything;
 typedef void* ReadEvaluatePrintLoop_Answer;
-typedef void* Spite_Attribute_Object;
 typedef void* Analysis_SpiteType_SpiteType;
 typedef void* Syntax_Expressions_Expression_Expression;
 typedef void* Syntax_Statements_Statement_Statement;
@@ -1626,7 +1626,7 @@ SpiteHeader header;
 SpiteString* _name;
 Spite_Class* _class;
 SpiteString* _value;
-Spite_Attribute_Object _object;
+Nothing_Anything _object;
 void* spite_owner;
 void (*spite_release_owner)(void*);
 bool (*spite_assign)(void*, SpiteString*);
@@ -5614,10 +5614,10 @@ static SpiteString spite_lit_4304 = SPITE_STATIC_STRING("(", 1);
 static SpiteString spite_lit_4305 = SPITE_STATIC_STRING("* self);", 8);
 static SpiteString spite_lit_4306 = SPITE_STATIC_STRING("\n", 1);
 static SpiteString spite_lit_4307 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_4308 = SPITE_STATIC_STRING("Spite.Attribute", 15);
-static SpiteString spite_lit_4309 = SPITE_STATIC_STRING("Object", 6);
-static SpiteString spite_lit_4310 = SPITE_STATIC_STRING("Spite.Attribute", 15);
-static SpiteString spite_lit_4311 = SPITE_STATIC_STRING("Object", 6);
+static SpiteString spite_lit_4308 = SPITE_STATIC_STRING("Nothing", 7);
+static SpiteString spite_lit_4309 = SPITE_STATIC_STRING("Anything", 8);
+static SpiteString spite_lit_4310 = SPITE_STATIC_STRING("Nothing", 7);
+static SpiteString spite_lit_4311 = SPITE_STATIC_STRING("Anything", 8);
 static SpiteString spite_lit_4312 = SPITE_STATIC_STRING("spite_attribute_object_", 23);
 static SpiteString spite_lit_4313 = SPITE_STATIC_STRING("spite_attribute_object_", 23);
 static SpiteString spite_lit_4314 = SPITE_STATIC_STRING("", 0);
@@ -10684,7 +10684,7 @@ SpiteString* SpiteArguments_get(SpiteArguments* self, int64_t index);
 SpiteString* SpiteArguments_lookup(SpiteArguments* self, const char* key);
 Console_Printable Console_Printable___retain(Console_Printable self);
 void Console_Printable___release(Console_Printable self);
-void Spite_Attribute_Object___release(Spite_Attribute_Object self);
+void Nothing_Anything___release(Nothing_Anything self);
 Analysis_SpiteType_SpiteType Analysis_SpiteType_SpiteType___retain(Analysis_SpiteType_SpiteType self);
 void Analysis_SpiteType_SpiteType___release(Analysis_SpiteType_SpiteType self);
 Syntax_Expressions_Expression_Expression Syntax_Expressions_Expression_Expression___retain(Syntax_Expressions_Expression_Expression self);
@@ -15761,7 +15761,7 @@ if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;
 SpiteString___release(self->_name);
 Spite_Class___release(self->_class);
 SpiteString___release(self->_value);
-Spite_Attribute_Object___release(self->_object);
+Nothing_Anything___release(self->_object);
 if (self->spite_owner != 0 && self->spite_release_owner != 0) self->spite_release_owner(self->spite_owner);
 if (self->spite_held != 0 && self->spite_release_held != 0) self->spite_release_held(self->spite_held);
 #ifdef SPITE_TRACKS_Spite_Attribute
@@ -21118,7 +21118,7 @@ if (((SpiteHeader*)(self))->class_id <= 0) return SpiteString_to_string((SpiteSt
 if (((SpiteHeader*)(self))->class_id == 222) return SpiteLong_to_string(((SpiteBox_SpiteLong*)self)->value);
 return (&spite_static_string_empty);
 }
-void Spite_Attribute_Object___release(Spite_Attribute_Object self) {
+void Nothing_Anything___release(Nothing_Anything self) {
 if (self == 0) return;
 }
 static int32_t spite_foreign_library_0_lock = 0;

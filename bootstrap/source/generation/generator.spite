@@ -8518,7 +8518,7 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
 }
 
 func attribute_object_shape(): Analysis.UnionInfo {
-    var found = find_union_qualified("Spite.Attribute", "Object")
+    var found = find_union_qualified("Nothing", "Anything")
     crash found
     return found
 }

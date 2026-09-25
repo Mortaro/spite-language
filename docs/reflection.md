@@ -17,7 +17,7 @@ costs nothing.
 | `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)` |
 | `Spite.Function` | `.name`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()`, `name_fits(pattern)` |
 | `Spite.Argument` | `.name`, `.class: Spite.Class` |
-| `Spite.Attribute` | `.name`, `.class: Spite.Class`, `.value: String`, `.object: Spite.Attribute.Object?` |
+| `Spite.Attribute` | `.name`, `.class: Spite.Class`, `.value: String`, `.object: Anything?` |
 | `Spite.Namespace` | `.name` (the segment), `.name_with_namespaces` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
 | `Spite.Memory` | `.address: Long`, `.bytes: Long`, `.section` (`'heap'`, `'stack'`, `'constant'`) -- see [memory.md](memory.md#where-a-value-lives-memory) |
 
@@ -84,8 +84,8 @@ power Int 3
 ### An attribute's value as an object
 
 `.value` is the attribute rendered as text; `.object` is the value itself, as an object of any class:
-`Spite.Attribute.Object?`, an empty `type` the library declares, which fits any `type` of your own that accepts
-anything. A number, `Bool` or enum attribute is boxed, as it is whenever a plain value goes into a `type`; it is
+`Anything?`. `Anything` is the library's empty `type`, the counterpart of `Nothing`: every class fits it, so a
+function that takes any object says `component: Anything`, and a program never declares its own. A number, `Bool` or enum attribute is boxed, as it is whenever a plain value goes into a `type`; it is
 `null` only when the attribute holds `null`. `.attributes` works through a `type` too, answered from the value's
 real class at run time, so a function taking anything can walk what it was given and hand each attribute on:
 
@@ -98,9 +98,6 @@ var speed = 3
 var target: Health? = null
 ```
 ```gdscript title=attribute_objects/attribute_objects.spite entry
-type Anything {
-}
-
 var console = Console()
 var components = List<Anything>()
 
@@ -154,9 +151,6 @@ func amount(): Int {
 }
 ```
 ```gdscript title=passing_a_class/passing_a_class.spite entry
-type Anything {
-}
-
 var console = Console()
 var components = List<Anything>()
 
