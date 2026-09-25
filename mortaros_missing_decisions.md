@@ -175,10 +175,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 ## Singletons bound to a variable (D110; manual sections 8 and 12)
 
-60. **Where the binding lives**: an attribute ("on top") or a local `var` in a function are both accepted, and
-    the error names the attribute. Locals are what `String` uses for `Memory` (a value class has no attribute to
-    spare) and what an error path uses before `program.exit(1)`. Should a local binding be an error outside
-    value classes, so there is one place for it?
 62. **A number's storage is two lines**: `var memory = Memory()` and `var _memory = memory.allocate_bytes(4)`
     (it replaced a one-line `Memory().allocate_bytes(4)` form). The binding is never a field of the number. The alternative was to exempt
     `var _memory = Memory().allocate_bytes(4)` from D110, because the compiler reads that line rather than
