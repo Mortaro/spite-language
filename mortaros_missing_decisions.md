@@ -397,10 +397,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
      compiler -- which functions it calls (`Spawn`, `Insert`, `Remove`), which singletons it touches -- as a
      compile-time reflection like D114's (`function.calls(Spawn)`, or the singletons a function reaches). Wanted?
 
-110. **Should writing a local count as using it?** D118 was built so an attribute that is only assigned is unused
-     ("writing is not reading"). Locals are not held to that today: `var total = 1` then `total = 2`, never read,
-     compiles, because an assignment marks the local used. Make locals match (an assignment is not a read), or
-     keep the difference?
 111. **A dead private attribute passes.** For an attribute, `_` means both private and intended-unused, so D118
      never reports an unread `_name` attribute, and the fix the message offers (`name it '_world'`) also makes the
      attribute private. Keep that, or report a private attribute its own class never reads, and let an attribute
@@ -409,4 +405,3 @@ Behaviour that does not match the manual. The language was not changed; each is 
      return "{name}" }` that nothing calls makes `name` used, and tree shaking then removes both the function and
      the read. Four fixtures kept their metadata-only attributes exactly this way. Fine, or should only code a
      program can reach count?
-
