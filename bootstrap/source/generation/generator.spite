@@ -3817,6 +3817,11 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     if not declaration.has_body {
         supply_body(information, function)
     }
+    var storage_body = string_storage_body(information, declaration.name)
+    if declaration.has_body and not storage_body.is_empty() {
+        function.has_body = false
+        function.supplied_body = storage_body
+    }
     if declaration.name == "is_singleton" and information.qualified_dotted != "Spite.Class" {
         report(
             "a class says it is a singleton with a 'singleton' line at the top of its file, not with a function: delete 'is_singleton()' and write 'singleton' as the file's first line",
@@ -17961,6 +17966,9 @@ func string_storage_body(information: Analysis.ClassInfo, name: String): String 
     if information.qualified_dotted == "Memory.Address" and name == "text" {
         return "return spite_string_from_bytes((const char*)(intptr_t)self, length_);"
     }
+    if information.c_name == "SpiteString" and name == "code_at" {
+        return "#define SpiteString_code_at(self, index) spite_string_code_at(&(self), (index))"
+    }
     return ""
 }
 
@@ -18140,6 +18148,12 @@ func string_layout(): String {
         "static inline const char* spite_string_bytes(const SpiteString* text) \{"
         "if (SPITE_STRING_IS_INLINE(*text)) return (const char*)text;"
         "return (const char*)(intptr_t)text->_bytes_;"
+        "}"
+        "static inline int32_t spite_string_code_at(const SpiteString* text, int32_t index) \{"
+        "const char* bytes = spite_string_bytes(text);"
+        "int32_t length = (int32_t)spite_string_length(*text);"
+        "if (index < 0 || index > length) index = length;"
+        "return (int32_t)(uint8_t)bytes[index];"
         "}"
     ]
     return lines.join("\n")

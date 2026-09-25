@@ -949,7 +949,9 @@ its length: the sixteen bytes point at it, and nothing is counted or freed.
 **When.** Every `String`, in every build. Whatever makes text -- a join, `slice`, `upper_case()`, a number's
 `to_string()`, reading a file, the program's arguments, a foreign function's result -- keeps it inside the value when
 it fits. [Appending in place](#appending-to-text-in-place) fills the sixteen bytes first and moves the text into a
-block, with room to grow, once it passes 15 bytes.
+block, with room to grow, once it passes 15 bytes. Reading a character (`code_at`) looks at the form where the
+`String` is kept rather than in a copy, so a loop over the characters of one text -- a dictionary hashing its key,
+`index_of`, `trim` -- decides the form once and then reads one byte per character, as it did before.
 
 **What you notice.** Fewer allocations under `--debug-memory`: none for short text, one instead of two for long
 text (`conformance/stage6/text_building` went from 35 to 31, `singleton_counts` from 104 to 69 and
