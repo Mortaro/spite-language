@@ -40,31 +40,7 @@ wrench 1 1 2
 The manual says `.instances` is every live instance; a test runner that counts instances after walking
 `.functions` sees the extra one.
 
-## 2. A class of your own can hide a class the library nests
-
-A name is resolved from the class that uses it outwards: its own namespace first, then its folder, then the whole
-program. `library/directory.spite` declares the union `Entry` (`Directory.Entry`), but a program with a class of
-its own named `Entry` makes the library's `Directory.entries()` resolve `Entry` to the program's class, and the
-program no longer compiles:
-
-```gdscript title=nested_name_hidden/entry.spite
-var name = ""
-```
-```gdscript title=nested_name_hidden/nested_name_hidden.spite entry error
-var console = Console()
-
-func NestedNameHidden() {
-    var entry = Entry()
-    console.print(entry.name)
-}
-```
-```diagnostic
-a Directory cannot be used where a Entry is needed
-```
-
-Until it is fixed, do not name a class `Entry`.
-
-## 3. Everything else that is known
+## 2. Everything else that is known
 
 - **Cycles leak.** Reference counting cannot free two objects that hold each other; clear one side by hand
   ([memory.md](memory.md#cycles-leak)). Weak references are the planned fix.

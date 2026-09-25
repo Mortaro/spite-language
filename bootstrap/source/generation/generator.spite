@@ -2110,6 +2110,33 @@ func find_class(name: String, current_namespace: String): Analysis.ClassInfo? {
     return find_class_by_qualified(name)
 }
 
+func nearest_declaring_owner(name: String, current_namespace: String): String {
+    var segments = current_namespace.split(".")
+    if current_namespace.is_empty() {
+        segments.clear()
+    }
+    while not segments.is_empty() {
+        var owner = segments.join(".")
+        if declares_type_named(owner, name) {
+            return owner
+        }
+        assert not find_class_by_qualified("{owner}.{name}")
+        assert segments.last() != name or not find_class_by_qualified(owner)
+        segments.remove_last()
+    }
+    return ""
+}
+
+func declares_type_named(owner: String, name: String): Bool {
+    if find_union_qualified(owner, name) {
+        return true
+    }
+    if find_enum_qualified(owner, name) {
+        return true
+    }
+    return false
+}
+
 func resolve_classes(discovered: List<Discovery.DiscoveredClass>) {
     resolve_discovered(discovered, true)
     resolve_discovered(discovered, false)
@@ -3349,6 +3376,16 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
                 return list_type_of(list_element)
             }
             return null
+        }
+        var declaring_owner = nearest_declaring_owner(name, current_namespace)
+        if not declaring_owner.is_empty() {
+            var near_union = find_union_qualified(declaring_owner, name)
+            if near_union {
+                return union_type_of(near_union)
+            }
+            var near_enum = find_enum_qualified(declaring_owner, name)
+            crash near_enum
+            return enum_type_of(near_enum)
         }
         var found_class = find_class(name, current_namespace)
         if found_class {

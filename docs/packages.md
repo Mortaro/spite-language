@@ -29,6 +29,26 @@ func Game() {
   `window/component/requested.spite` without writing `Window.` (`conformance/stage6/relative_namespaces`).
   A folder's entry file owns the folder as its namespace, so `click_test/click_test.spite` reaches
   `click_test/system/verify.spite` as `System.Verify()` (`conformance/stage6/folder_class_namespace`).
+  A `type`, `union` or `enum` is part of the walk at the level of the class that declares it: one declared in
+  the using class wins over every class, and one declared in a folder's entry file wins over a class further
+  out. So `type Healing` in `system/regenerate.spite` is what `Healing` means there, even when the program's
+  entry class is also `Healing` (`conformance/stage6/nearest_type`). The library is held to the same walk, so a
+  program's own class `Entry` does not hide the union `Entry` that `library/directory.spite` declares:
+
+```gdscript title=own_entry_class/entry.spite
+var name = "mine"
+```
+```gdscript title=own_entry_class/own_entry_class.spite entry
+var console = Console()
+
+func OwnEntryClass() {
+    var entry = Entry()
+    console.print(entry.name)
+}
+```
+```output
+mine
+```
 
 ## Monkey patching (mods)
 

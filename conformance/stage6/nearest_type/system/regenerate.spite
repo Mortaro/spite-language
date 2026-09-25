@@ -1,0 +1,10 @@
+type NearestType {
+    amount: Int
+}
+
+var console = Console()
+
+func heal(patient: NearestType) {
+    patient.amount = patient.amount + 1
+    console.print("regenerated to", patient.amount)
+}
