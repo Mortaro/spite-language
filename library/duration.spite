@@ -15,13 +15,15 @@ func Duration(amount: Long, unit: Unit) {
     var per_second = _units_per_second(unit)
     var seconds_per_unit = _seconds_per_unit(unit)
     _seconds = amount / per_second * seconds_per_unit
-    _nanoseconds = amount % per_second * (1000000000 / per_second)
+    var nanoseconds_per_unit = _nanoseconds_per_unit(unit)
+    _nanoseconds = amount % per_second * nanoseconds_per_unit
 }
 
 func total(unit: Unit): Long {
     var per_second = _units_per_second(unit)
     var seconds_per_unit = _seconds_per_unit(unit)
-    return _seconds * per_second / seconds_per_unit + _nanoseconds / (1000000000 / per_second)
+    var nanoseconds_per_unit = _nanoseconds_per_unit(unit)
+    return _seconds * per_second / seconds_per_unit + _nanoseconds / nanoseconds_per_unit
 }
 
 func part(unit: Unit): Long {
@@ -34,8 +36,8 @@ func part(unit: Unit): Long {
     if unit == 'seconds' {
         return _seconds % 60
     }
-    var per_second = _units_per_second(unit)
-    return _nanoseconds / (1000000000 / per_second)
+    var nanoseconds_per_unit = _nanoseconds_per_unit(unit)
+    return _nanoseconds / nanoseconds_per_unit
 }
 
 func get_is_negative(): Bool {
@@ -132,6 +134,19 @@ func _units_per_second(unit: Unit): Long {
         return 1000
     }
     return 1
+}
+
+func _nanoseconds_per_unit(unit: Unit): Int {
+    if unit == 'nanoseconds' {
+        return 1
+    }
+    if unit == 'microseconds' {
+        return 1000
+    }
+    if unit == 'milliseconds' {
+        return 1000000
+    }
+    return 1000000000
 }
 
 func _seconds_per_unit(unit: Unit): Long {

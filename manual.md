@@ -157,12 +157,28 @@ var content = content.trim()     # String
 There is no cast syntax. The right side is always cast toward the left side.
 
 ```gdscript
-func sum(a: Int, b: Float): Int {
-    return a + b        # b is cast to Int
+func whole_part(value: Float): Int {
+    return value        # value is cast to Int
 }
 ```
 
 This applies to binary operations, assignment, arguments (toward the parameter type) and `return` (toward the return type).
+
+**Wider arithmetic is written wider operand first** (D162, decided by Mortaro; the errors below proposed by
+Claude, unconfirmed). **[implemented]** `Int * Long` is an `Int` multiply and `Long * Int` a `Long` one, so an
+arithmetic operator (`+`, `-`, `*`, `/`, `%`) whose right operand is wider than its left is a compile error that
+names the rule and the fix: `'count * total' is a multiplication in Int, since arithmetic takes the left side's
+type, and the right side is a Long, which would be cut to fit: write the Long first ('total * count'), or store the
+right side in an Int first if it fits one` (for `-`, `/` and `%`, where order matters, the fix is to store the left
+side in the wider type first). Wider means more bits (`Tiny`/`Byte` 8, `Short`/`UnsignedShort` 16,
+`Int`/`UnsignedInt`/`Float` 32, `Long`/`UnsignedLong`/`Double` 64), or a `Float`/`Double` right side under a whole
+number left side, which would lose its fraction; signedness alone is not wider. An integer literal on the right
+that fits the left type is not wider (`small + 1` with a `Byte` `small` is a `Byte` addition). A comparison is not
+arithmetic and is not checked: it still casts the right side toward the left, so `age > 0.5` with an `Int` `age`
+means `age > 0` (open question 3). A constant expression that overflows the `Int` its arithmetic is done in is an
+error too, naming its value: `'(65536 - 120) * 65536' is 4287102976, which does not fit in an Int, the type its
+arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long`.
+`diagnostics/wider_right_operand`.
 
 **Text casts to an enum by its name** (proposed by Claude, unconfirmed; built for D95's `Json`, 2026-09-24):
 `var course: Recipe.Course = name` is the value spelled `name`, or the enum's first value when none is, exactly as
@@ -3474,7 +3490,7 @@ payloads to JSON on demand, since the compiler knows the schema.
    literal with each attribute at its own default, admitted to the shape -- so writes through it are kept
    (proposed by Claude, unconfirmed, 2026-09-24; `conformance/stage6/shape_defaults`). A `type` that requires a
    function has no default object, since no literal can supply the function.
-3. Right-to-left casting makes `age > 0.5` with an Int `age` mean `age > 0`. Accept, or make comparisons cast toward the wider type.
+3. Right-to-left casting makes `age > 0.5` with an Int `age` mean `age > 0`. Accept, or make comparisons cast toward the wider type. D162 settled arithmetic (a wider right operand is an error); comparisons still cast right to left and are not checked (proposed by Claude, unconfirmed), so this stays open for them.
    - The abbreviation lint has no escape hatch for names that must mirror an external spelling (`keyword_var`). Keep it absolute, or allow a per line `# spelled: keyword_var` style exemption.
 6. `_` now means two things: private (section 2) and intentionally unused (section 5). They mostly agree (an unused
    private function is fine either way), but an unused PUBLIC function cannot be an error (libraries are full of them; tree
@@ -3965,3 +3981,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | **D165** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 126): **a bare class name is its class object only where a `Spite.Class` is expected**; `var kind = Health` with no type written stays an error pointing at the typed form, so a forgotten `()` is caught rather than silently becoming a class object. |
 | 2026-09-25 | **D166** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 127): **`load` is a reserved word**: it always means loading a package, so a function named `load` is an error suggesting a descriptive name (`load_texture`); the built behaviour that let a class's own `load` shadow it is removed. |
 | 2026-09-25 | (implements D148; the readings below proposed by Claude, unconfirmed) **The caller's function is passed: `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`, `find(f)`, `sort_by(f)` and `sum(f)` take a function of one argument, the element's exact type, bound to its owner.** `find(f)` answers the first element `f` is true for (`find_by_` with `true`); `count()` with no argument stays the size. A function written by name (`say_hello`, `greeter.greet`) instantiates the element template once per function and owner class with the owner as a hidden last parameter, so it allocates nothing and calls directly -- tree-shaken like every template, and free at run time; a function held in a variable is called through its `Spite.Function`. `map(f)`/`filter(f)` fuse in chains with the member templates (D105), the fused function taking each owner. D113's resolution through the caller, its ambiguity error and its `while` rule are removed; an element-template call whose member is missing while the caller has a function of that name says to pass it (`'each(say_hello)'`). Rewritten: 7 uses (`collect_body_facts` and two `map_class_member_name` calls in the compiler, `conformance/stage6/system_phases`, and `docs/`'s `name_phases`, `function_reflection` and `function_questions` -- 3 doc blocks), besides `conformance/stage6/caller_templates` and `diagnostics/caller_templates`, which became `passed_functions`. Section 8, `docs/collections.md`. |
+| 2026-09-25 | (implements D162; the readings below proposed by Claude, unconfirmed) **An arithmetic operator whose right operand is wider than its left is a compile error, and so is a constant expression that overflows `Int`.** Wider is more bits (8: `Tiny`, `Byte`; 16: `Short`, `UnsignedShort`; 32: `Int`, `UnsignedInt`, `Float`; 64: `Long`, `UnsignedLong`, `Double`), or a `Float`/`Double` right side under a whole-number left; signedness alone is not wider. An integer literal (or a negated one) on the right that fits the left type does not count, so `small + 1` on a `Byte` stays legal. **A comparison does not count**: it is not arithmetic, and it keeps casting the right side toward the left exactly as before (so `age > -0.5` on an `Int` is still `age > 0`, open question 3); the C for comparisons is unchanged. The message names the rule and the fix -- `'count * total' is a multiplication in Int, since arithmetic takes the left side's type, and the right side is a Long, which would be cut to fit: write the Long first ('total * count'), or store the right side in an Int first if it fits one`; for `-`, `/` and `%` the fix is `store the left side in a Long first ('var wide: Long = count')`. A constant is a tree of `Int` literals under `+ - * / %`; the first operation whose value leaves `Int` is reported once, with its value: `'(65536 - 120) * 65536' is 4287102976, which does not fit in an Int, the type its arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long`. Both checks happen at compile time and emit nothing. Rewritten: 17 sites, all in `library/` (`daylight_change`, `duration` three times through a new `_nanoseconds_per_unit`, `local_date` three, `long` two, `unsigned_long` two, `number_text`, `tzif_reader` four) plus `examples/hello`; outputs and allocations are unchanged. `diagnostics/wider_right_operand`, `docs/values_and_types.md`. |

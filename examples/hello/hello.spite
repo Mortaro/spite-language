@@ -11,7 +11,8 @@ func Hello() {
 }
 
 func add_stuff(first_value: Int, second_value: Float): Int {
-    return first_value + second_value
+    var whole_second_value: Int = second_value
+    return first_value + whole_second_value
 }
 
 func report_if_large(value: Int) {

@@ -12,18 +12,18 @@ func read_rules(): ZoneRules? {
     var time_bytes = 4
     if _data.code_at(4) != 0 {
         var first_block = _block_bytes(0, 4)
-        header = 44 + first_block
+        header = first_block + 44
         time_bytes = 8
         assert _is_header_at(header)
     }
     var time_count = _unsigned_at(header + 32, 4)
     var type_count = _unsigned_at(header + 36, 4)
     var block = _block_bytes(header, time_bytes)
-    var block_end = header + 44 + block
+    var block_end = block + header + 44
     assert type_count > 0 and block_end <= _data.length()
     var times = header + 44
-    var indices = times + time_count * time_bytes
-    var types = indices + time_count
+    var indices = time_count * time_bytes + times
+    var types = time_count + indices
     var first_offset = _signed_at(types, 4)
     var rules = ZoneRules(first_offset)
     var index = 0

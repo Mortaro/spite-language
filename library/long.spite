@@ -6,8 +6,9 @@ func to_string(): String {
         return "0"
     }
     var memory = Memory()
-    var address = memory.allocate_bytes(24)
-    var position: Long = 24
+    var buffer_bytes: Long = 24
+    var address = memory.allocate_bytes(buffer_bytes)
+    var position = buffer_bytes
     var rest = this
     while rest != 0 {
         var digit = rest % 10
@@ -15,14 +16,14 @@ func to_string(): String {
             digit = -digit
         }
         position = position - 1
-        memory.write_byte(address, position, 48 + digit)
+        memory.write_byte(address, position, digit + 48)
         rest = rest / 10
     }
     if this < 0 {
         position = position - 1
         memory.write_byte(address, position, 45)
     }
-    var text = memory.text(address + position, 24 - position)
+    var text = memory.text(address + position, buffer_bytes - position)
     memory.free(address)
     return text
 }

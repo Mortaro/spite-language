@@ -5171,6 +5171,10 @@ func generate_binary(
         var right = generate_expression(binary.right, scope, class_information)
         var right_type = right.get_type()
         right_code = cast(right.code, right_type, left_type)
+        if not is_boolean_result_operator(binary.operator) and is_wider_right(binary, left_type, right_type) {
+            report_wider_right(binary, left_type, right_type)
+        }
+        report_constant_overflow(binary)
     }
     var symbol = binary_operator_symbol(binary.operator)
     var code = "({left.code} {symbol} {right_code})"
@@ -5178,6 +5182,177 @@ func generate_binary(
         return ExpressionResult(code, Analysis.Types.ScalarType('boolean_kind'))
     }
     return ExpressionResult(code, left_type)
+}
+
+func is_wider_right(
+    binary: Syntax.Expressions.BinaryExpression,
+    left_type: Analysis.SpiteType,
+    right_type: Analysis.SpiteType,
+): Bool {
+    var left_scalar = type_shape.as_scalar(left_type)
+    var right_scalar = type_shape.as_scalar(right_type)
+    assert left_scalar and right_scalar
+    assert left_scalar.kind != 'boolean_kind' and right_scalar.kind != 'boolean_kind'
+    crash binary.right
+    assert not literal_fits(binary.right, left_scalar.kind)
+    if is_float_kind(right_scalar.kind) and not is_float_kind(left_scalar.kind) {
+        return true
+    }
+    return scalar_bits(right_scalar.kind) > scalar_bits(left_scalar.kind)
+}
+
+func scalar_bits(kind: Analysis.Types.NumericKind): Int {
+    if kind == 'tiny_kind' or kind == 'byte_kind' {
+        return 8
+    }
+    if kind == 'short_kind' or kind == 'unsigned_short_kind' {
+        return 16
+    }
+    if kind == 'long_kind' or kind == 'unsigned_long_kind' or kind == 'double_kind' {
+        return 64
+    }
+    return 32
+}
+
+func literal_fits(expression: Syntax.Expressions.Expression, kind: Analysis.Types.NumericKind): Bool {
+    var value = literal_value(expression)
+    assert value
+    var lowest: Long = 0
+    var highest: Long = 9223372036854775807
+    if kind == 'tiny_kind' {
+        lowest = -128
+        highest = 127
+    } else if kind == 'byte_kind' {
+        highest = 255
+    } else if kind == 'short_kind' {
+        lowest = -32768
+        highest = 32767
+    } else if kind == 'unsigned_short_kind' {
+        highest = 65535
+    } else if kind == 'integer_kind' {
+        lowest = -2147483648
+        highest = 2147483647
+    } else if kind == 'unsigned_integer_kind' {
+        highest = 4294967295
+    } else if kind != 'unsigned_long_kind' {
+        lowest = -9223372036854775807
+    }
+    return value >= lowest and value <= highest
+}
+
+func literal_value(expression: Syntax.Expressions.Expression): Long? {
+    var literal = shape.as_integer_literal(expression)
+    if literal {
+        return literal.value
+    }
+    var negated = shape.as_unary(expression)
+    assert negated
+    assert negated.operator == 'negate'
+    crash negated.operand
+    var negated_literal = shape.as_integer_literal(negated.operand)
+    assert negated_literal
+    return -negated_literal.value
+}
+
+func report_wider_right(
+    binary: Syntax.Expressions.BinaryExpression,
+    left_type: Analysis.SpiteType,
+    right_type: Analysis.SpiteType,
+) {
+    crash binary.left
+    crash binary.right
+    var printer = Syntax.SourcePrinter()
+    var left_text = printer.source_expression(binary.left)
+    var right_text = printer.source_expression(binary.right)
+    var symbol = binary_operator_symbol(binary.operator)
+    var left_name = type_display_name(left_type)
+    var right_name = type_display_name(right_type)
+    var fix = "store the left side in {with_article(right_name)} first ('var wide: {right_name} = {left_text}')"
+    if binary.operator == 'add' or binary.operator == 'multiply' {
+        fix = "write the {right_name} first ('{right_text} {symbol} {left_text}')"
+    }
+    report(
+        "'{left_text} {symbol} {right_text}' is {operation_name(binary.operator)} in {left_name}, since arithmetic takes the left side's type, and the right side is {with_article(right_name)}, which would be cut to fit: {fix}, or store the right side in {with_article(left_name)} first if it fits one",
+    )
+}
+
+func with_article(name: String): String {
+    var vowels = ["A", "E", "I", "O", "U"]
+    var first_letter = name.slice(0, 1)
+    if vowels.contains(first_letter) {
+        return "an {name}"
+    }
+    return "a {name}"
+}
+
+func operation_name(operator: Syntax.Expressions.BinaryOperator): String {
+    if operator == 'add' {
+        return "an addition"
+    }
+    if operator == 'subtract' {
+        return "a subtraction"
+    }
+    if operator == 'multiply' {
+        return "a multiplication"
+    }
+    if operator == 'divide' {
+        return "a division"
+    }
+    return "a remainder"
+}
+
+func report_constant_overflow(binary: Syntax.Expressions.BinaryExpression) {
+    crash binary.left
+    crash binary.right
+    var left_value = constant_integer(binary.left)
+    var right_value = constant_integer(binary.right)
+    assert left_value and right_value
+    var result = constant_operation(binary.operator, left_value, right_value)
+    assert result
+    assert result < -2147483648 or result > 2147483647
+    var printer = Syntax.SourcePrinter()
+    var expression: Syntax.Expressions.Expression = binary
+    var written = printer.source_expression(expression)
+    report(
+        "'{written}' is {result}, which does not fit in an Int, the type its arithmetic is done in, so it would wrap: write the number itself, {result}, which is a Long",
+    )
+}
+
+func constant_integer(expression: Syntax.Expressions.Expression): Long? {
+    var value = literal_value(expression)
+    if value {
+        assert value >= -2147483648 and value <= 2147483647
+        return value
+    }
+    var binary = shape.as_binary(expression)
+    assert binary
+    crash binary.left
+    crash binary.right
+    var left_value = constant_integer(binary.left)
+    var right_value = constant_integer(binary.right)
+    assert left_value and right_value
+    var result = constant_operation(binary.operator, left_value, right_value)
+    assert result
+    assert result >= -2147483648 and result <= 2147483647
+    return result
+}
+
+func constant_operation(operator: Syntax.Expressions.BinaryOperator, left_value: Long, right_value: Long): Long? {
+    if operator == 'add' {
+        return left_value + right_value
+    }
+    if operator == 'subtract' {
+        return left_value - right_value
+    }
+    if operator == 'multiply' {
+        return left_value * right_value
+    }
+    assert right_value != 0
+    if operator == 'divide' {
+        return left_value / right_value
+    }
+    assert operator == 'modulo'
+    return left_value % right_value
 }
 
 func generate_nullable_equality(

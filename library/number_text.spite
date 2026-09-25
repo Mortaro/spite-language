@@ -46,7 +46,7 @@ func exact_digits(multiplier: Long, exponent: Long): String {
         var place = 0
         while place < 9 {
             position = position - 1
-            memory.write_byte(address, position, 48 + limb % 10)
+            memory.write_byte(address, position, limb % 10 + 48)
             limb = limb / 10
             place = place + 1
         }

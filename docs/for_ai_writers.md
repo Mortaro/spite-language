@@ -104,7 +104,10 @@ func is_alive(): Bool {
 - Numbers: `Int` (32 bit, the default), `Long`, `Tiny`, `Short`, `Byte`, `UnsignedShort`, `UnsignedInt`,
   `UnsignedLong`, `Float` (the default for decimals), `Double`. `Bool`. `String` (double quotes only).
 - No cast syntax: the right side is cast toward the left. `"age {3}"` is `"age 3"`; `var total: Int = "12"` parses
-  it; an `Int` plus a `Float` is an `Int`. A value that does not fit wraps.
+  it. Arithmetic is done in the left side's type, so write the wider operand first: `total * count` with a `Long`
+  `total`, never `count * total`, which is an error (so is an `Int` plus a `Float`); a literal on the right that
+  fits is fine. A constant that overflows `Int` (`65536 * 65536`) is an error: write the number. Comparisons are
+  not checked and still cast the right side toward the left. A value that does not fit wraps.
 - Bits are functions on the whole numbers, never symbols: `value.shifted_left(count)`, `shifted_right(count)`
   (arithmetic on a signed type, logical on an unsigned one), `bits_and(mask)`, `bits_or(mask)`,
   `bits_exclusive_or(mask)`, `bits_inverted()`, `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()`.

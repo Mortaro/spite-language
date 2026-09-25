@@ -29,9 +29,44 @@ func NumericOverflow() {
 wraps to -128
 ```
 
+### Wider arithmetic goes wider operand first
+
+Arithmetic is done in the left side's type, and the right side is cast to it: `count * total` with an `Int`
+`count` and a `Long` `total` is an `Int` multiply. So a right side wider than the left -- more bits, or a
+`Float`/`Double` under a whole number -- is a compile error naming the fix: write the wider one first
+(`total * count`), or, for `-`, `/` and `%`, store the left side in the wider type first. A literal on the right
+that fits the left type is fine (`small + 1` stays a `Byte` addition). A constant that overflows the `Int` its
+arithmetic is done in is an error too, instead of wrapping:
+
+```gdscript title=wider_first/wider_first.spite entry error
+var console = Console()
+
+func WiderFirst() {
+    var width = 65536
+    var area: Long = 4294967296
+    var scaled = width * area
+    console.print(scaled)
+}
+```
+```diagnostic
+'width * area' is a multiplication in Int, since arithmetic takes the left side's type, and the right side is a Long, which would be cut to fit: write the Long first ('area * width')
+```
+
+```gdscript title=constant_overflow/constant_overflow.spite entry error
+var console = Console()
+
+func ConstantOverflow() {
+    var pixels: Long = (65536 - 120) * 65536
+    console.print(pixels)
+}
+```
+```diagnostic
+'(65536 - 120) * 65536' is 4287102976, which does not fit in an Int, the type its arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long
+```
+
 ### The sharp edge
 
-Because casting always goes right-to-left, comparing an `Int` against a `Float` literal casts the `Float` down
+A comparison is not arithmetic, so it is not checked, and because casting always goes right-to-left, comparing an `Int` against a `Float` literal casts the `Float` down
 to `Int` *before* comparing -- not the mathematically obvious thing:
 
 ```gdscript title=casting_edge/casting_edge.spite entry
@@ -54,8 +89,9 @@ total 6
 the comparison becomes `0 > 0`, which is false.
 
 Give the `Int` side a `Float`/`Double` type instead of comparing an `Int` variable directly against a
-non-integer literal, if you need the mathematical answer. (This is manual.md's own open question 3 --
-unresolved, and worth knowing before you write a comparison that mixes an `Int` and a fractional literal.)
+non-integer literal, if you need the mathematical answer. (D162 settled this for arithmetic; for comparisons it
+is still manual.md's open question 3, and worth knowing before you write a comparison that mixes an `Int` and a
+fractional literal.)
 
 `String` converts both ways: assigning a `String` to a numeric variable parses it (`0`/`0.0` on failure, never
 a crash), and every numeric type gets a `to_<name>()` method on `String` (`to_tiny()`, `to_int()`, `to_long()`,

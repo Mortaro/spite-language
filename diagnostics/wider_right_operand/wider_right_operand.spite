@@ -1,0 +1,19 @@
+var console = Console()
+
+func WiderRightOperand() {
+    var count = 3
+    var total: Long = 5000000000
+    var ratio: Double = 0.5
+    var small: Byte = 7
+    var product = count * total
+    var sum = count + ratio
+    var difference = count - total
+    var fits = small + 1
+    var too_big = small + 300
+    var wide_first = total * count
+    var compared = count < total
+    var wrapped = (65536 - 120) * 65536
+    var widened: Long = 65536
+    var kept = widened * 65536
+    console.print(product, sum, difference, fits, too_big, wide_first, compared, wrapped, kept)
+}
