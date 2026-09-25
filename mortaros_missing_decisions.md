@@ -57,9 +57,6 @@ manual argues it.
     that rule with singletons allowed; or running a `Parallel` on a deep copy of its instance.
 18. **Inferring codegen values from constructor arguments** (`Concurrent(file.read)` without `<String?>`), which
     D35's own example needs and D9 did not foresee.
-19. **SPITE.md's line on `async`/`await`** says the handle "joins on first use -- no `.wait()` to remember". As
-    built, dropping the handle joins it and `wait()` is how the result is read; there is no implicit wait when the
-    value is first used. Say which you want.
 20. **A thread pool for `Parallel`**, and whether `parallel_each_` templates (D35 item 3) come before the engine
     needs them.
 
