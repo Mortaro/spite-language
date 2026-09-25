@@ -4,12 +4,6 @@ Agents add here what only Mortaro can decide; Mortaro answers inline or in `mort
 moves the answer into `manual.md` (prose and decision log) and removes the item. Each item links to where the
 manual argues it.
 
-## Naming
-
-1. **The two environments' names** (D85). Built as: `Build` for compile time (`var build = Build()`,
-   `build.target_operating_system`, reopened in `build.spite`) and `Environment` for run time. You said "make
-   better names, we can just change later".
-
 ## Open questions still open in manual.md
 
 2. **Open question 15: whether `while` goes.** Proposal: the index loop over a list (199 of 259 loops) becomes an
