@@ -1,0 +1,2 @@
+diagnostics/division_by_constant_zero/division_by_constant_zero.spite:5: error: 'total / 0' divides by zero, which always halts the program: a whole number cannot be divided by zero, so divide by something else, or leave the step out (in DivisionByConstantZero.DivisionByConstantZero)
+diagnostics/division_by_constant_zero/division_by_constant_zero.spite:6: error: 'total % (2 - 2)' divides by zero, which always halts the program: a whole number cannot be divided by zero, so divide by something else, or leave the step out (in DivisionByConstantZero.DivisionByConstantZero)

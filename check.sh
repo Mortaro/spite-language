@@ -146,6 +146,14 @@ if ! grep -q "_Alignas(64) int64_t owner" "$locks" || ! grep -q "^Registry_count
   echo "FAILED: singleton_lock_calls should pad its lock, call itself unlocked, lock a write from outside and not lock Rules"; exit 1
 fi
 echo "production C: hello carries no unused class, singleton_forms takes no lock, singleton_lock_calls locks only Registry"
+# D201: a whole-number division checks its divisor for zero, except where a proof already shows it is not zero:
+# division_by_zero's 'whole / pieces' follows 'assert pieces != 0', so its C carries no check for it.
+"$work/generation_two.exe" conformance/stage6/division_by_zero --run=false --c-source --c-path="$work/division.c" > /dev/null 2>&1 || {
+  echo "FAILED: division_by_zero does not write its C"; exit 1; }
+if grep -q "whole / pieces" "$work/division.c" || ! grep -q "total / parts" "$work/division.c"; then
+  echo "FAILED: division_by_zero should check 'total / parts' and not the proven 'whole / pieces'"; exit 1
+fi
+echo "division: a proven divisor carries no zero check"
 
 # The tests: a package that crashes (D46). No framework: a test is a function, and `crash` is the assertion.
 test_output=$("$work/generation_two.exe" tests --debug-memory --executable-path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')

@@ -576,8 +576,8 @@ Every operator is a shortcut for a function, which a class can define to support
 | `a + b` | `sum(b)` | |
 | `a - b` | `subtract(b)` | |
 | `a * b` | `multiply(b)` | |
-| `a / b` | `divide(b)` | |
-| `a % b` | `remainder(b)` | |
+| `a / b` | `divide(b)` | on whole numbers, a zero divisor halts (D201, [values_and_types.md](values_and_types.md)) |
+| `a % b` | `remainder(b)` | the same |
 | `a == b` | `equals(b)` | |
 | `a != b` | negated `equals(b)` | |
 | `a < b` | `less_than(b)` | |

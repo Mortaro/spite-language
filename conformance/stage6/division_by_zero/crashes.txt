@@ -1,0 +1,1 @@
+this program is meant to crash: a whole number divided by zero halts, naming the operation and the line (D201)

@@ -26,6 +26,9 @@ var read_evaluate_print_loop = false
 var console_loop = false
 var remote_loop_port = 0
 var refused_json_path = ""
+var division_check_written = false
+var weak_runtime_written = false
+var weak_classes = List<String>()
 var scheduler_used = false
 var implicit_joins = List<Syntax.Expressions.MemberExpression>()
 var parallel_used = false
@@ -5830,10 +5833,68 @@ func generate_binary(
     }
     var symbol = binary_operator_symbol(binary.operator)
     var code = "({left.code} {symbol} {right_code})"
+    var checked = checked_division(binary, left.code, right_code, left_type, scope)
+    if not checked.is_empty() {
+        code = checked
+    }
     if is_boolean_result_operator(binary.operator) {
         return ExpressionResult(code, Analysis.Types.ScalarType('boolean_kind'))
     }
     return ExpressionResult(code, left_type)
+}
+
+func checked_division(
+    binary: Syntax.Expressions.BinaryExpression,
+    left_code: String,
+    right_code: String,
+    left_type: Analysis.SpiteType,
+    scope: Scope,
+): String {
+    assert binary.operator == 'divide' or binary.operator == 'modulo'
+    var scalar = type_shape.as_scalar(left_type)
+    assert scalar
+    assert scalar.kind != 'boolean_kind' and not is_float_kind(scalar.kind)
+    crash binary.right
+    var printer = Syntax.SourcePrinter()
+    var expression: Syntax.Expressions.Expression = binary
+    var written = printer.source_expression(expression)
+    var constant = constant_integer(binary.right)
+    if constant == 0 or right_code == "0" {
+        report(
+            "'{written}' divides by zero, which always halts the program: a whole number cannot be divided by zero, so divide by something else, or leave the step out",
+        )
+        return ""
+    }
+    assert not constant
+    var divisor_text = operand_text(binary.right)
+    assert divisor_text.is_empty() or not scope.is_path_narrowed("~[{divisor_text}]")
+    ensure_division_check()
+    var c_type = c_type_name(left_type)
+    var dividend = next_temporary()
+    var divisor = next_temporary()
+    var where = escape_c_string("{current_path}:{current_line} in {current_owner}.{current_function}")
+    var operation = escape_c_string(written)
+    var computed = "{dividend} {binary_operator_symbol(binary.operator)} {divisor}"
+    if is_signed_kind(scalar.kind) and binary.operator == 'divide' {
+        computed = "{divisor} == -1 ? ({c_type})(0 - (uint64_t){dividend}) : {dividend} / {divisor}"
+    }
+    if is_signed_kind(scalar.kind) and binary.operator == 'modulo' {
+        computed = "{divisor} == -1 ? ({c_type})0 : {dividend} % {divisor}"
+    }
+    return "(\{ {c_type} {dividend} = {left_code}; {c_type} {divisor} = {right_code}; if ({divisor} == 0) spite_divided_by_zero(\"{operation}\", \"{where}\"); ({c_type})({computed}); })"
+}
+
+func is_signed_kind(kind: Analysis.Types.NumericKind): Boolean {
+    return kind == 'tiny_kind' or kind == 'short_kind' or kind == 'integer_kind' or kind == 'long_kind'
+}
+
+func ensure_division_check() {
+    assert not division_check_written
+    division_check_written = true
+    builder.add_prototype("static void spite_divided_by_zero(const char* operation, const char* where);")
+    builder.add_support(
+        "static void spite_divided_by_zero(const char* operation, const char* where) \{\nfflush(stdout);\nfprintf(stderr, \"spite: '%s' divided by zero, at %s\\n\", operation, where);\nexit(1);\n}",
+    )
 }
 
 func is_wider_right(
@@ -16350,6 +16411,7 @@ func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scop
         narrow_proven_indices(binary.right, scope)
         return
     }
+    narrow_nonzero(binary, scope)
     if binary.operator == 'less' {
         narrow_counted_element(condition, scope)
         return
@@ -16375,6 +16437,18 @@ func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scop
         scope.narrow_bound_path("{counted}[{index}]", condition_text)
         index = index + 1
     }
+}
+
+func narrow_nonzero(binary: Syntax.Expressions.BinaryExpression, scope: Scope) {
+    assert binary.operator == 'not_equal' or binary.operator == 'greater'
+    crash binary.left
+    crash binary.right
+    var bound = shape.as_integer_literal(binary.right)
+    assert bound
+    assert bound.value == 0
+    var divisor_text = operand_text(binary.left)
+    assert not divisor_text.is_empty()
+    scope.narrow_path("~[{divisor_text}]")
 }
 
 func narrow_counted_element(condition: Syntax.Expressions.Expression, scope: Scope) {

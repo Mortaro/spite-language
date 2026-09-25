@@ -1,0 +1,8 @@
+var console = Console()
+
+func DivisionByConstantZero() {
+    var total = 10
+    var halved = total / 0
+    var left = total % (2 - 2)
+    console.print(halved, left)
+}
