@@ -104,6 +104,13 @@ var placed_receiver_codes = List<String>()
 var boxed_value_types = Dictionary<Analysis.SpiteType>()
 var synthetic_value_classes = List<Analysis.ClassInfo>()
 var synthetic_value_types = Dictionary<Analysis.SpiteType>()
+var attribute_object_used = false
+var attribute_object_types = List<Analysis.SpiteType>()
+var attribute_object_names = List<String>()
+var attribute_objects_emitted = 0
+var shape_flow_keys = List<String>()
+var shape_flow_sources = List<String>()
+var shape_flow_targets = List<Analysis.UnionInfo>()
 var read_attributes = Dictionary<Bool>()
 var folded_words = Dictionary<Bool>()
 
@@ -413,13 +420,16 @@ func generate(
         emit_pending_functions()
         settle = settle + 1
     }
+    settle_shape_members()
     emit_shape_bodies()
     emit_union_class_of_bodies()
+    emit_union_attributes_bodies()
     var final_settle = 0
     while final_settle < 4 {
         emit_class_object_bodies()
         emit_namespace_object_bodies()
         emit_functions_function_bodies()
+        emit_attribute_object_bodies()
         emit_pending_functions()
         final_settle = final_settle + 1
     }
@@ -431,6 +441,7 @@ func generate(
     }
     emit_main(discovery.launcher_mangled_name)
     emit_pending_functions()
+    emit_attribute_object_bodies()
     emit_hot_reload_support()
     check_remote_loop_waits()
     if not has_error {
@@ -1427,6 +1438,7 @@ func admit_to_union(information: Analysis.UnionInfo, candidate: Analysis.ClassIn
         index = index + 1
     }
     information.members.append(candidate)
+    admit_along_flows(information, candidate)
 }
 
 func ensure_shape_reader(information: Analysis.UnionInfo, field_name: String, field_type: Analysis.SpiteType): String {
@@ -1801,11 +1813,33 @@ func shaped_value(
                 admit_to_union(information, from_information.members[member_index])
                 member_index = member_index + 1
             }
+            if from_information.is_shape {
+                record_shape_flow(from_information, information)
+            }
         }
     } else {
         report_mismatch(from, to)
     }
     return "(({information.c_name})({code}))"
+}
+
+func record_shape_flow(source: Analysis.UnionInfo, target: Analysis.UnionInfo) {
+    var key = "{source.c_name}>{target.c_name}"
+    assert not shape_flow_keys.contains(key)
+    shape_flow_keys.append(key)
+    shape_flow_sources.append(source.c_name)
+    shape_flow_targets.append(target)
+}
+
+func admit_along_flows(source: Analysis.UnionInfo, candidate: Analysis.ClassInfo) {
+    var index = 0
+    while index < shape_flow_sources.count() {
+        if shape_flow_sources[index] == source.c_name {
+            crash shape_flow_targets[index]
+            admit_to_union(shape_flow_targets[index], candidate)
+        }
+        index = index + 1
+    }
 }
 
 func is_boxed_into_shape(from: Analysis.SpiteType, to: Analysis.SpiteType): Bool {
@@ -4801,6 +4835,20 @@ func tested_class_of(
     expression: Syntax.Expressions.Expression,
     class_information: Analysis.ClassInfo,
 ): Analysis.ClassInfo? {
+    var tested = resolve_tested_class(expression, class_information)
+    assert tested
+    var value_type = instance_type_of(tested)
+    var boxed_class = boxed_class_of(value_type)
+    if boxed_class {
+        ensure_box(boxed_class, value_type)
+    }
+    return tested
+}
+
+func resolve_tested_class(
+    expression: Syntax.Expressions.Expression,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
     var codegen_type = shape.as_generic_identifier(expression)
     if codegen_type {
         return codegen_tested_class(codegen_type.name, class_information)
@@ -4829,10 +4877,6 @@ func codegen_tested_class(name: String, class_information: Analysis.ClassInfo): 
     crash class_information.codegen_codes[bound]
     assert class_information.codegen_codes[bound].is_empty()
     crash class_information.codegen_types[bound]
-    var boxed_class = boxed_class_of(class_information.codegen_types[bound])
-    if boxed_class {
-        ensure_box(boxed_class, class_information.codegen_types[bound])
-    }
     return class_of_type(class_information.codegen_types[bound])
 }
 
@@ -7623,8 +7667,10 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
             value_code = string_conversion("self->{field.name}", field_type)
         }
         lines.append(
-            "{list_name}_append(result, Spite_Attribute___make({ensure_symbol(field.name)}, {class_object_call(field_type)}, {value_code}));",
+            "\{ Spite_Attribute* spite_field = Spite_Attribute___make({ensure_symbol(field.name)}, {class_object_call(field_type)}, {value_code});",
         )
+        lines.append("spite_field->_object = {ensure_attribute_object(field_type)}(self->{field.name});")
+        lines.append("{list_name}_append(result, spite_field); }")
         index = index + 1
     }
     lines.append("(void)self;")
@@ -7634,6 +7680,160 @@ func ensure_attributes_function(information: Analysis.ClassInfo): String {
     var joined_lines = lines.join("\n")
     builder.add_support(joined_lines)
     return function_c_name
+}
+
+func attribute_object_shape(): Analysis.UnionInfo {
+    var found = find_union_qualified("Spite.Attribute", "Object")
+    crash found
+    return found
+}
+
+func ensure_attribute_object(spite_type: Analysis.SpiteType): String {
+    var function_c_name = "spite_attribute_object_{reflected_label(spite_type)}"
+    if attribute_object_names.contains(function_c_name) {
+        return function_c_name
+    }
+    attribute_object_names.append(function_c_name)
+    attribute_object_types.append(spite_type)
+    var information = attribute_object_shape()
+    builder.add_prototype("{information.c_name} {function_c_name}({c_type_name(spite_type)} value);")
+    return function_c_name
+}
+
+func emit_attribute_object_bodies() {
+    assert attribute_objects_emitted < attribute_object_names.count()
+    var information = attribute_object_shape()
+    var shape_type = union_type_of(information)
+    while attribute_objects_emitted < attribute_object_names.count() {
+        var position = attribute_objects_emitted
+        attribute_objects_emitted = attribute_objects_emitted + 1
+        crash attribute_object_types[position]
+        crash attribute_object_names[position]
+        var object_code = "0"
+        if attribute_object_used {
+            object_code = attribute_object_code(attribute_object_types[position], "value", shape_type)
+        }
+        builder.add_support(
+            "{information.c_name} {attribute_object_names[position]}({c_type_name(attribute_object_types[position])} value) \{\n(void)value;\nreturn {object_code};\n}",
+        )
+    }
+}
+
+func attribute_object_code(spite_type: Analysis.SpiteType, code: String, shape_type: Analysis.SpiteType): String {
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.get_inner()
+        if type_is_reference(inner) {
+            return "({code} == 0 ? 0 : {attribute_object_code(inner, code, shape_type)})"
+        }
+        return "({code}.has_value ? {attribute_object_code(inner, "{code}.value", shape_type)} : 0)"
+    }
+    if boxed_class_of(spite_type) {
+        return cast(code, spite_type, shape_type)
+    }
+    if not has_attribute_object(spite_type) {
+        return "0"
+    }
+    var retained = retain_call(spite_type, code)
+    return cast(retained, spite_type, shape_type)
+}
+
+func has_attribute_object(spite_type: Analysis.SpiteType): Bool {
+    if type_shape.as_class_ref(spite_type) or type_shape.as_string(spite_type) or type_shape.as_union(spite_type) {
+        return true
+    }
+    if type_shape.as_list(spite_type) or type_shape.as_dictionary(spite_type) {
+        return true
+    }
+    return false
+}
+
+func ensure_union_attributes(information: Analysis.UnionInfo): String {
+    var function_c_name = "{information.c_name}___attributes"
+    if not information.attributes_used {
+        information.attributes_used = true
+        var attribute_class = find_class_by_c_name("Spite_Attribute")
+        crash attribute_class
+        var class_type = class_type_of(attribute_class)
+        var list_name = ensure_list(class_type)
+        builder.add_prototype("{list_name}* {function_c_name}({information.c_name} self);")
+    }
+    return function_c_name
+}
+
+func attributes_described(member: Analysis.ClassInfo): Bool {
+    return not boxed_value_types.has(member.c_name) and not member.is_value_class and not member.is_container
+}
+
+func ensure_union_attribute_members() {
+    var index = 0
+    while index < unions.count() {
+        var information = unions[index]
+        if information.attributes_used {
+            var member_index = 0
+            while member_index < information.members.count() {
+                var member = information.members[member_index]
+                if attributes_described(member) {
+                    mark_every_attribute_read(member)
+                    ensure_attributes_function(member)
+                }
+                member_index = member_index + 1
+            }
+        }
+        index = index + 1
+    }
+}
+
+func shape_member_total(): Int {
+    var total = 0
+    var index = 0
+    while index < unions.count() {
+        total = total + unions[index].members.count()
+        index = index + 1
+    }
+    return total
+}
+
+func settle_shape_members() {
+    var before = -1
+    var after = shape_member_total()
+    while before != after or attribute_objects_emitted < attribute_object_names.count() {
+        before = after
+        ensure_union_attribute_members()
+        emit_attribute_object_bodies()
+        emit_class_object_bodies()
+        emit_pending_functions()
+        after = shape_member_total()
+    }
+}
+
+func emit_union_attributes_bodies() {
+    var attribute_class = find_class_by_c_name("Spite_Attribute")
+    assert attribute_class
+    var class_type = class_type_of(attribute_class)
+    var list_name = ensure_list(class_type)
+    var index = 0
+    while index < unions.count() {
+        var information = unions[index]
+        if information.attributes_used {
+            var lines = List<String>()
+            lines.append("{list_name}* {information.c_name}___attributes({information.c_name} self) \{")
+            var member_index = 0
+            while member_index < information.members.count() {
+                var member = information.members[member_index]
+                if attributes_described(member) {
+                    var described = ensure_attributes_function(member)
+                    lines.append("if {class_id_test("self", member)} return {described}(({member.c_name}*)self);")
+                }
+                member_index = member_index + 1
+            }
+            lines.append("return {list_name}___make();")
+            lines.append("}")
+            var joined_lines = lines.join("\n")
+            builder.add_support(joined_lines)
+        }
+        index = index + 1
+    }
 }
 
 func returned_class_object_call(function: Analysis.FunctionInfo): String {
@@ -7830,6 +8030,7 @@ func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
     lines.append(
         "Spite_Attribute* reflected = Spite_Attribute___make(name, {class_object_call(spite_type)}, {reflected_text(spite_type, "value")});",
     )
+    lines.append("reflected->_object = {ensure_attribute_object(spite_type)}(value);")
     var walked = walkable_class(spite_type)
     if walked {
         lines.append("reflected->spite_held = {walked.c_name}___retain(value);")
@@ -8149,6 +8350,20 @@ func generate_reflection_read(
                 return null
             }
         }
+    }
+    var attributes_union = type_shape.as_union(object_type)
+    if member_name == "attributes" and attributes_union {
+        var attributes_information = find_union_by_c_name(attributes_union.c_name)
+        crash attributes_information
+        var dispatch = ensure_union_attributes(attributes_information)
+        var attribute_class = find_class_by_c_name("Spite_Attribute")
+        crash attribute_class
+        var listed_type = class_type_of(attribute_class)
+        var attributes_type = list_type_of(listed_type)
+        return ExpressionResult(
+            "(\{ {object_c_type} spite_reflected = {object_result.code}; {c_type_name(attributes_type)} spite_reflected_value = {dispatch}(spite_reflected); {release_object} spite_reflected_value; })",
+            attributes_type,
+        )
     }
     if member_name == "class" {
         assert not type_shape.is_void(object_type)
@@ -9624,6 +9839,14 @@ func generate_member_read_raw(
         if namespace_receiver {
             if namespace_receiver.c_name == "Spite_Class" {
                 namespace_read_used = true
+            }
+        }
+    }
+    if member.name == "object" {
+        var object_receiver = type_shape.as_class_ref(object_result_type)
+        if object_receiver {
+            if object_receiver.c_name == "Spite_Attribute" {
+                attribute_object_used = true
             }
         }
     }

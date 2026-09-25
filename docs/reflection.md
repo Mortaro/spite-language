@@ -17,7 +17,7 @@ costs nothing.
 | `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)` |
 | `Spite.Function` | `.name`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()`, `name_fits(pattern)` |
 | `Spite.Argument` | `.name`, `.class: Spite.Class` |
-| `Spite.Attribute` | `.name`, `.class: Spite.Class`, `.value: String` |
+| `Spite.Attribute` | `.name`, `.class: Spite.Class`, `.value: String`, `.object: Spite.Attribute.Object?` |
 | `Spite.Namespace` | `.name` (the segment), `.name_with_namespaces` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
 | `Spite.Memory` | `.address: Long`, `.bytes: Long`, `.section` (`'heap'`, `'stack'`, `'constant'`) -- see [memory.md](memory.md#where-a-value-lives-memory) |
 
@@ -80,6 +80,60 @@ power Int 3
   object's own tag at run time, so it names the class the value really is; an object literal answers `Object`.
 - `value.attributes` holds the values; `Gadget.attributes` describes the declarations. The same word is right at
   both levels, and the case of the receiver says which one you mean.
+
+### An attribute's value as an object
+
+`.value` is the attribute rendered as text; `.object` is the value itself, as an object of any class:
+`Spite.Attribute.Object?`, an empty `type` the library declares, which fits any `type` of your own that accepts
+anything. A number, `Bool` or enum attribute is boxed, as it is whenever a plain value goes into a `type`; it is
+`null` only when the attribute holds `null`. `.attributes` works through a `type` too, answered from the value's
+real class at run time, so a function taking anything can walk what it was given and hand each attribute on:
+
+```gdscript title=attribute_objects/health.spite
+var amount = 10
+```
+```gdscript title=attribute_objects/player.spite
+var health = Health()
+var speed = 3
+var target: Health? = null
+```
+```gdscript title=attribute_objects/attribute_objects.spite entry
+type Anything {
+}
+
+var console = Console()
+var components = List<Anything>()
+
+func AttributeObjects() {
+    add_every_attribute(Player())
+    var index = 0
+    while index < components.count() {
+        var component = components[index]
+        var described = "{component.class}"
+        if component == Health {
+            described = "Health {component.amount}"
+        }
+        console.print(described)
+        index = index + 1
+    }
+}
+
+func add_every_attribute(bundle: Anything) {
+    var attributes = bundle.attributes
+    var index = 0
+    while index < attributes.count() {
+        var attribute = attributes[index]
+        if attribute.object {
+            components.append(attribute.object)
+        }
+        index = index + 1
+    }
+}
+```
+```output
+Health 10
+Int
+```
 
 ### Passing a class
 

@@ -1,0 +1,11 @@
+type Anything {
+}
+
+func AttributeObject() {
+    var world = World()
+    var player = world.create_entity_from_bundle(PlayerBundle())
+    player.show()
+    var bare = world.create_entity()
+    bare.add_component(Position())
+    bare.show()
+}

@@ -373,3 +373,30 @@ Behaviour that does not match the manual. The language was not changed; each is 
      you have in mind. The rest of the floor (allocation, copying, comparing, loading libraries) becomes plain Spite
      calling the platform's library through `DynamicLibrary`.
 
+## SlopEngine's entity API (D123, D124)
+
+114. **Is "any" a built-in type, or does each program declare its own?** `attribute.object` needed a type, so
+     `library/spite/attribute.spite` declares `type Object { }` and `.object` is `Spite.Attribute.Object?`
+     (proposed by Claude, unconfirmed). SlopEngine keeps declaring `type Anything { }`, and a value of one empty
+     `type` passes to another. The alternative is one built-in name every program shares, such as `Spite.Object`
+     (or `Anything` itself), declared once in `library/spite/` -- which would also give `.object` a shorter
+     type name. Keep "declare your own empty `type`", or add the built-in?
+115. **A number, `Bool` or enum attribute's `.object`: boxed or `null`?** It is boxed (proposed by Claude,
+     unconfirmed), as D109 boxes a plain value passed where a `type` is wanted, so `speed: Int` hands
+     `add_component` an object whose `.class` is `Int` and `if component == Int` narrows it back. The other
+     reading was `null` for anything that is not already an object, which would make a bundle's numbers vanish
+     silently. `null` is kept only for an attribute that holds `null`, so `.object` is still a `T?` to narrow.
+116. **Where does D124 apply?** Read as "wherever a `Spite.Class` is wanted" (proposed by Claude, unconfirmed):
+     an argument, `var kind: Spite.Class = Health`, an assignment to one and a `return`; an untyped `var kind =
+     Health` is still the "is a class, not a value" error, since a missing `()` is the likelier mistake. And
+     `kind == Health` with `kind` a `Spite.Class` now compares class objects instead of being D75's class test,
+     which could only be false. Should a bare class name be its class object everywhere instead?
+117. **`load` as a function name.** A class that declares `func load` now calls it with `load(x)` (proposed by
+     Claude, unconfirmed; SlopEngine's asset cache hit it); before, every `load(...)` was the package load and
+     compiled to nothing. The alternative was reserving the word and making `func load` an error naming the
+     launcher's `load`. Keep it an ordinary name?
+118. **A codegen value in a class test** (proposed by Claude, unconfirmed): `item == $wanted_type` folds to
+     `false` rather than D75's "never true" error when the value's union cannot hold the bound class, since a
+     generic class cannot avoid that for every binding. Item 44's question (should a class-level `.functions` be
+     bound to an instance at all) remains; its visible symptom, the extra member of `.instances`, is gone.
+
