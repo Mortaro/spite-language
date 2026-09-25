@@ -5,13 +5,7 @@ func length(): Integer {
     return _length
 }
 
-func code_at(index: Integer): Integer {
-    var position: Long = index
-    if index < 0 or index > _length {
-        position = _length
-    }
-    return _bytes.read_byte(position)
-}
+func code_at(index: Integer): Integer
 
 func slice(start: Integer, end: Integer): String {
     var first = _clamped(start)

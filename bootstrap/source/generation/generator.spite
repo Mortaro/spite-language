@@ -3817,11 +3817,6 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     if not declaration.has_body {
         supply_body(information, function)
     }
-    var storage_body = string_storage_body(information, declaration.name)
-    if declaration.has_body and not storage_body.is_empty() {
-        function.has_body = false
-        function.supplied_body = storage_body
-    }
     if declaration.name == "is_singleton" and information.qualified_dotted != "Spite.Class" {
         report(
             "a class says it is a singleton with a 'singleton' line at the top of its file, not with a function: delete 'is_singleton()' and write 'singleton' as the file's first line",

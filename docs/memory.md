@@ -210,12 +210,12 @@ there are. Where the characters live is the compiler's choice ([D203](decisions.
 kept in those sixteen bytes themselves, so it allocates nothing and is never counted; longer text is one block the
 heap hands out, with its reference count and capacity in front of the characters; and a written text (`"hello"`)
 points at the characters the program already carries, which are never counted or freed. Everything else is Spite
-in the same file: `length()` answers `_length`, `code_at(index)` is `_bytes.read_byte(position)` (the 0 after the
-last one is what it answers past the end), `equals` and `less_than` compare with `compare_bytes`, and `slice` ends
-in `_bytes.text(length)`. What stays C is what depends on where the characters are: making text from bytes
-(`Memory.Address.text`), joining two texts (`sum`), counting a block's references, and growing text in place, which
-fills the sixteen bytes first and moves the text into a block once it passes 15 bytes -- and only when nothing else
-holds that block.
+in the same file: `length()` answers `_length`, `equals` and `less_than` compare `_bytes` with `compare_bytes`, and
+`slice` ends in `_bytes.text(length)`. What stays C is what depends on where the characters are: reading one
+(`code_at`, which answers the 0 after the last one past the end, and is one load in a loop over the text), making
+text from bytes (`Memory.Address.text`), joining two texts (`sum`), counting a block's references, and growing text
+in place, which fills the sixteen bytes first and moves the text into a block once it passes 15 bytes -- and only
+when nothing else holds that block.
 
 `library/integer.spite` starts with the memory an `Integer` is:
 

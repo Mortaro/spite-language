@@ -541,10 +541,11 @@ text is one block on the heap, counted and freed with its last holder (D203; the
 Claude, unconfirmed). **Its storage is Spite** (D108; the attribute names proposed by Claude, unconfirmed):
 `library/string.spite` declares `_bytes: Memory.Address` (where the characters are, with a 0 after the last) and
 `_length: Long`, and nothing else -- the compiler lays the sixteen bytes out and reads them through the form the
-text takes -- and every member but two is a Spite function reading them
-([memory.md](memory.md#where-string-and-integer-keep-their-memory)). The two the compiler supplies are the ones
-that decide where characters go: `sum` (`+`), and `Memory.Address.text(length)`, which is how every `String` is
-made from bytes -- `slice`, `terminated_text()` and anything that fills a buffer itself end in it. The right side
+text takes -- and every member but three is a Spite function reading them
+([memory.md](memory.md#where-string-and-integer-keep-their-memory)). The three the compiler supplies are the ones
+that depend on where the characters are: `code_at` (reading one), `sum` (`+`), and
+`Memory.Address.text(length)`, which is how every `String` is made from bytes -- `slice`, `terminated_text()` and
+anything that fills a buffer itself end in it. The right side
 of `+` casts toward
 `String` (every numeric type, `Boolean`, and enum all format to text -- see
 [Numeric types](values_and_types.md#numeric-types--implemented-provisional) for `Float`/`Double`'s
@@ -734,7 +735,8 @@ the reads, writes and atomics at an address, as language primitives each backend
    (`bootstrap/source/generation/prelude.spite`) -- `Console`'s `_write_output`, `_write_error` and `flush`
    (`fwrite`, `fflush`); `Memory.Heap`'s `allocate`, `resize`, `free` and `live_allocations` (the C library's
    `malloc`, or the `--debug-memory` table) and `Memory.Address`'s `copy_to` and `compare_bytes` (`memmove`,
-   `memcmp`), `text(length)` and `String.sum` (which decide whether text fits inside the `String`, D203);
+   `memcmp`), `text(length)`, `String.sum` and `String.code_at` (which depend on whether text fits inside the
+   `String`, D203);
    `TypedMemory<T>`; the number classes' bit operations; `DynamicLibrary`'s opening, closing and
    symbol lookup (D82); the entry points and frames of `Concurrent`, `ThreadPool` and `Scheduler`; `HotReload`'s
    compiler hand-off; and `Spite.Attribute`'s and `Spite.Function`'s dispatch. **Not built (D147, D178):** each
