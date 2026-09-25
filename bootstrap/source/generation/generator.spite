@@ -6464,6 +6464,9 @@ func generate_constructor_call(
     if target_class.c_name == "DynamicLibrary" {
         return generate_library_constructor(arguments_ast)
     }
+    if target_class.qualified_dotted == "Parallel" and target_class.is_instantiated {
+        check_parallel_work(arguments_ast, scope, class_information)
+    }
     if target_class.is_generic_template {
         var inferred_class = inferred_instance(target_class, arguments_ast, scope, class_information)
         if inferred_class {
@@ -8195,6 +8198,12 @@ func check_parallel_name(
     var field = owner.find_field(name)
     if field {
         var field_type = field.get_type()
+        if reaches_shared(field_type) and template_name.starts_with("Parallel(") {
+            report(
+                "'{template_name}' runs '{function.name}' on another thread, so it may reach only the attributes of its own '{owner.simple_name}' that hold values, its locals and singletons (D179): '{name}' holds {type_with_article(field_type)}, which another thread may share. Give the work what it needs as numbers or text of its own, or make an object for the work alone and pass it in",
+            )
+            return
+        }
         if reaches_shared(field_type) {
             var template_length = template_name.length()
             var one_thread = template_name.slice(9, template_length)
@@ -8222,10 +8231,49 @@ func reaches_shared(spite_type: Analysis.SpiteType): Boolean {
     if class_ref {
         var held = find_class_by_c_name(class_ref.c_name)
         if held {
-            return not held.is_singleton
+            return not held.is_singleton and not is_thread_safe_class(held)
         }
     }
     return true
+}
+
+func is_thread_safe_class(information: Analysis.ClassInfo): Boolean {
+    return information.qualified_dotted == "Lock" or information.qualified_dotted == "ThreadLocal"
+}
+
+func check_parallel_work(
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    assert arguments_ast.count() == 1 and not current_path.starts_with("library/")
+    var work = arguments_ast.first()
+    var printer = Syntax.SourcePrinter()
+    var work_text = printer.source_expression(work)
+    var named = shape.as_identifier(work)
+    if named {
+        assert not scope.lookup_type(named.name)
+        var own = class_information.find_function(named.name)
+        assert own
+        var visited = List<String>()
+        check_parallel_reach(class_information, own, "Parallel({work_text})", visited)
+        return
+    }
+    var member = shape.as_member(work)
+    assert member
+    crash member.object
+    var saved_counter = temporary_counter
+    var probe = generate_expression(member.object, scope, class_information)
+    rewind_temporaries(saved_counter)
+    var probe_type = probe.get_type()
+    var owner_ref = type_shape.as_class_ref(probe_type)
+    assert owner_ref
+    var owner = find_class_by_c_name(owner_ref.c_name)
+    assert owner
+    var function = owner.find_function(member.name)
+    assert function
+    var visited = List<String>()
+    check_parallel_reach(owner, function, "Parallel({work_text})", visited)
 }
 
 func collect_declared_names(statements: List<Syntax.Statements.Statement>, names: List<String>) {

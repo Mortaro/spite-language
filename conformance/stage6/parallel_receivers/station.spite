@@ -5,7 +5,7 @@ var thread: Parallel<Nothing>? = null
 var pump: Siphon? = null
 
 func start() {
-    var created = Siphon(meter)
+    var created = Siphon()
     pump = created
     var started = Parallel(created.run)
     thread = started

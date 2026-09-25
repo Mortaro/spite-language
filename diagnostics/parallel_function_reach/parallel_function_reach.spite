@@ -1,0 +1,14 @@
+var console = Console()
+var seen = List<String>()
+
+func ParallelFunctionReach() {
+    var tally = Tally()
+    var counted = Parallel(tally.count_up)
+    var named = Parallel(remember)
+    console.print(counted, named)
+}
+
+func remember(): Integer {
+    seen.append("remembered")
+    return seen.count()
+}

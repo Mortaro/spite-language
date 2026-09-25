@@ -1,0 +1,9 @@
+var number = 0
+
+func Namer(starting_number: Integer) {
+    number = starting_number
+}
+
+func name(): String {
+    return "name {number}"
+}
