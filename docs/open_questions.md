@@ -8,38 +8,34 @@ answer are gathered in [`mortaros_missing_decisions.md`](../mortaros_missing_dec
 
 ## Decided by Mortaro, being implemented  **[planned]**
 
-Moved here from `mortaros_notes.md` on 2026-09-18. Each item moves into the page it belongs on once
-implemented. Items 2-5 moved out on 2026-09-19 (assert narrowing into [Null safety and `assert` narrowing](failure.md#null-safety-and-assert-narrowing--implemented), Operators into a new
-[Operators](functions_and_operators.md#operators--implemented) subsection, the `Spite` namespace into [Reflection objects](reflection.md#reflection-objects--partial), numeric types into [Variables and values](values_and_types.md#variables-and-values--implemented)); item 1 moved out on
-2026-09-19 too (the formatter/linter, into the new [Style](style.md#style--implemented) section). Item 6 (reference
-semantics) moved out on 2026-09-19 -- decided (a) (D1) and implemented in milestone 9a; see [Memory](memory.md#memory--implemented).
-The second batch moved out on 2026-09-20 with milestone 9c: item 1 (running a script loads its parent folder)
-into [Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial), item 2 (`do` removed, plain-`if` narrowing) into [Lexical structure](classes_and_files.md#lexical-structure--implemented), [Null safety and `assert` narrowing](failure.md#null-safety-and-assert-narrowing--implemented) and [Control flow](control_flow.md#control-flow--implemented), item 3 (no ambiguous standard
-library names) into [Standard library](standard_library.md#standard-library--partial), item 4 (variable shadowing) into [Variables and values](values_and_types.md#variables-and-values--implemented), item 5 (unused is an error) into
-[Unused is an error](style.md#unused-is-an-error--implemented), item 6 (the compiler has no warnings) into [Style](style.md#style--implemented), item 8 (`count()` vs `sum_<member>()`)
-into [Standard library metaprogramming](collections.md#standard-library-metaprogramming--partial) and [List<T> additions](collections.md#listt-additions--implemented). What remains from the second batch is item 7 (renumbered 1 below).
+Decisions Mortaro wrote into his notes (2026-09-18 to 2026-09-20) before they had a page. Each one moves into
+the page it belongs on once it is built; the earlier batches have all moved (the decision log says where), and
+these five are what is left, with where each stands today.
 
-From `mortaros_notes.md` on 2026-09-19 (second batch):
-
-1. **Standard library classes can be reopened** like any other class: the way to try out a package before upstreaming it.
+1. **Standard library classes can be reopened** like any other class: the way to try out a package before
+   upstreaming it. **Built**: a program's own `list.spite` reopens `List` like any class
+   ([packages.md](packages.md#monkey-patching-mods)); this item stays only as the record of why.
 2. **Comprehensive, Ruby grade reflection, at compile time.** Every object gets its reflection from source that Spite
    generates and that is VISIBLE in the final class output: `attributes` returning a `List<Spite.Attribute>`, `class`,
    `functions`, and so on are real generated members, not compiler magic. The goal is to cover most of what Ruby
    metaprogramming covers (enumerate and call functions by Symbol, respond-to checks, defining members from data,
-   hooks when a class is reopened) resolved at compile time. Needs a design pass: see PLAN.md milestones 10a/10b.
-3. **Errors: there are none to handle, only `crash`.** (third batch, 2026-09-20.) The main author of Spite code is an LLM, and
-   bubbling errors up for someone to eventually log only makes code defensive. So there are no exceptions and no result
-   types. Things that can simply not work return the default or a `T?` and are handled with `assert`.
-   Things that stop the program from functioning call `crash("message")` (name decided by Mortaro: it is clear the program
-   crashes and the AI needs to recode something). A crash stops the program with a report written for an LLM: the message,
-   the Spite stack trace with `file:line`, and the attribute and local values of each frame, as text and as JSON in
-   `.spite-cache/crash.json`. The same word works at compile time: lint rules and metaprogramming can `crash` the
-   compilation when code does not follow the required structure, so structure is enforced instead of suggested.
-   (proposed by Claude, unconfirmed: development builds log every `assert` that returned early, visible in the crash
-   report and the REPL, so silent defaults stay debuggable; compile errors get a `--diagnostics=json` form with a rule id
-   and the suggested fix.)
-4. **The compiler is also the language server**, so editors get real time validation. After the bootstrap, written in Spite.
-5. **Bootstrap as soon as possible** to start the repository; fancy features wait until after.
+   hooks when a class is reopened) resolved at compile time. **Partly built**: the read-only reflection objects,
+   `has_function` and the Symbol templates ([reflection.md](reflection.md), [metaprogramming.md](metaprogramming.md));
+   defining members from data and hooks on reopening are not.
+3. **Errors: there are none to handle, only `crash`.** (third batch, 2026-09-20.) The main author of Spite code is
+   an LLM, and bubbling errors up for someone to eventually log only makes code defensive. So there are no
+   exceptions and no result types: what can simply not work answers the default or a `T?` and is handled with
+   `assert`, and what stops the program from functioning crashes with a report written for an LLM. **Built** as
+   D24's three outcomes and D25's report ([failure.md](failure.md#three-outcomes-and-no-others)), in a different
+   shape from the note: `crash condition` takes a condition, not a message; the report is one tab-separated line
+   naming the site and the values the condition read, followed by the asserts that failed before it (the
+   standard library's own asserts are left out, D189), not a `.spite-cache/crash.json`. Not built from the note:
+   `crash` inside a lint at compile time, and a `--diagnostics=json` form for compile errors (proposed by Claude,
+   unconfirmed).
+4. **The compiler is also the language server**, so editors get real time validation. After the bootstrap,
+   written in Spite. **Not built.**
+5. **Bootstrap as soon as possible** to start the repository; fancy features wait until after. **Done**: the
+   compiler is Spite and compiles itself ([self_hosting.md](self_hosting.md)).
 
 ## Open questions
 
@@ -52,7 +48,9 @@ From `mortaros_notes.md` on 2026-09-19 (second batch):
    function has no default object, since no literal can supply the function.
 3. Right-to-left casting makes `age > 0.5` with an Integer `age` mean `age > 0`. Accept, or make comparisons cast toward the wider type. D162 settled arithmetic (a wider right operand is an error); comparisons still cast right to left and are not checked (proposed by Claude, unconfirmed), so this stays open for them.
    - The abbreviation lint has no escape hatch for names that must mirror an external spelling (`keyword_var`). Keep it absolute, or allow a per line `# spelled: keyword_var` style exemption.
-6. `_` now means two things: private ([Lexical structure](classes_and_files.md#lexical-structure--implemented)) and intentionally unused ([Unused is an error](style.md#unused-is-an-error--implemented)). They mostly agree (an unused
+6. **(Answered by D136 and D137: `_` means unused on purpose only on a parameter and private everywhere else, and
+   an unread local, parameter or attribute is always an error, [Unused is an error](style.md#unused-is-an-error--implemented).)**
+   `_` now means two things: private ([Lexical structure](classes_and_files.md#lexical-structure--implemented)) and intentionally unused ([Unused is an error](style.md#unused-is-an-error--implemented)). They mostly agree (an unused
    private function is fine either way), but an unused PUBLIC function cannot be an error (libraries are full of them; tree
    shaking removes them), so "unused" is only enforced for locals, parameters and private functions. Confirm.
    D118 adds attributes, where `_` already meant private: an unread `_name` attribute is never reported, since the
@@ -69,15 +67,17 @@ From `mortaros_notes.md` on 2026-09-19 (second batch):
      catches the accidents and leaves the genuinely ambiguous case -- same name, same type -- being treated as
      a getter, which is defensible. It is also the shape this language reaches for everywhere else: something
      the compiler can know becomes a compile error naming the fix, rather than a warning or a convention
-     ([Decided by Mortaro, being implemented](#decided-by-mortaro-being-implemented--planned) item 6, D24).
+     ([Style](style.md#style--implemented): the compiler has no warnings; D24).
    The residual case neither option catches is an unrelated function whose return type coincides with the
    attribute's. Claude would accept that.
-9. **Text with `${name}` in it prints literally** (found 2026-09-20 by writing the programs an AI would write).
-   Spite builds text with `+`, and `"hello ${name}"` is simply those characters, so the mistake is silent -- the
-   one outcome [Decided by Mortaro, being implemented](#decided-by-mortaro-being-implemented--planned) item 6 says a compiler should never produce. `$` is already the codegen sigil, so
+9. **Text with `${name}` in it prints a stray `$`** (found 2026-09-20 by writing the programs an AI would write;
+   restated 2026-09-25). Text holds its values in `{ }` (`"hello {name}"`), so JavaScript's `"hello ${name}"`
+   is a literal `$` followed by a hole and prints `hello $world` -- the mistake is silent, which a compiler that
+   has no warnings ([Style](style.md#style--implemented)) should never allow. `$` is already the codegen sigil, so
    `${` inside text is unlikely to be meant literally.
-   - **Make `${` inside text a compile error** naming `+` (proposed by Claude). A dollar before a brace has no
-     other use, and text that genuinely needs it can be built with `+` or written `$` `{` apart.
+   - **Make `${` inside text a compile error** naming `"hello {name}"` (proposed by Claude). A dollar before a
+     brace has no other use, and text that genuinely needs one can hold the dollar in a value
+     (`var dollar = "$"`, then `"{dollar}{name}"`).
    - **Leave it.** Text is text, and a rule about what may appear inside it is a rule to remember.
 10. **How `--final-classes` shows which root supplied a declaration.** D7 and milestone 10a both say a
     reopening must not be silent, and `--final-classes` is where it stops being silent -- but what it writes is
@@ -93,8 +93,8 @@ From `mortaros_notes.md` on 2026-09-19 (second batch):
     thinking aloud rather than deciding). Today a shape writes `hit(): Integer`; the alternative is
     `hit: Spite.Function<Integer>`, which would make a required function an ordinary attribute whose type happens to
     be a function, and would leave a `type` with exactly one kind of member instead of two.
-    - **It needs D39 first**: the typed `Spite.Function<Arguments..., Return>` does not exist yet, so the form
-      cannot be written or printed.
+    - **It could be written now**: the typed `Spite.Function<Arguments..., Return>` (D39) exists, so a shape
+      could name one; nothing has been decided.
     - Against: `hit(): Integer` reads like the declaration it matches, and a shape is matched against functions
       written `func hit(): Integer`.
     - For: one kind of member, and it composes -- a shape could then require a function value it will *store*,
@@ -153,7 +153,7 @@ From `mortaros_notes.md` on 2026-09-19 (second batch):
     which is not implemented; recorded so the design starts here.
 17. **(Answered by D83/D88: `this` where a class names itself.)** **A syntax for `this`** (Mortaro, 2026-09-23): to be discussed when something needs it. Today bare names
     reach attributes and `class` is the instance's class, so nothing does yet.
-18. **(Answered by D89.)** **The entry file is always the file named after its folder** (Mortaro, 2026-09-23, asked to be argued for).
+18. **(Answered by D89, and finished by D130: a `.spite` file path is an error naming the folder form.)** **The entry file is always the file named after its folder** (Mortaro, 2026-09-23, asked to be argued for).
     `spite hello` runs the `hello` folder's entry file; a file name on the command line is no longer accepted.
     The case for it (Claude): discovery already requires an entry folder, so the file name on the command line
     only restates the folder -- two ways to say one thing, and the second can disagree (`spite hello/other.spite`).
