@@ -296,6 +296,26 @@ All of it is proposed by Claude, unconfirmed.
 121. **Reading text is lenient where RFC 3339 is**: `t` or a space for `T`, `z` for `Z`, `,` before a fraction, a
      leap second read as the second before it, and an RFC 9557 `[zone]` after an offset read and ignored. Writing
      is always the one form. Stricter instead?
-122. **`far` and `near` are not in the C-reserved list**, but `windows.h` defines them as macros, so a local named
-     `far` compiled to broken C (found writing `calendar_math`). Add them, and whatever else `windows.h` defines
-     in lower case, to the list item 107 is about?
+## Outputs and paths (D128, D129, D130)
+
+134. **How outputs are chosen.** Built as `Bool` fields of `Build` -- `run` (default `true`), `executable`,
+     `c_source`, `format` (default `true`) -- plus `final_classes` as a folder (proposed by Claude, unconfirmed).
+     Because `run` defaults to `true`, asking for another output also runs the program unless `--run=false` is
+     given: `spite game --c_source --run=false` for the C alone. The alternatives: a program that names any output
+     on the command line gets only the outputs it named (shorter, but a flag then changes another flag's default),
+     or one list field, `--outputs=executable,c_source`. Keep the `Bool`s?
+135. **`target_operating_system` in a program's `build.spite`.** It is still read from the flag alone, because the
+     launcher needs it to pick `library/<system>/` before the rest of the program is read; a program that reopens it
+     is silently overridden today. Make that reopening an error, or read the program twice (once to find `Build`,
+     once with the right library folder)?
+136. **Where a run's executable goes.** With no flag it is built beside the program (`game/game.exe`, and
+     `game.crashes`), which D129's "build to the same folder" reads as, so every run leaves those two files in the
+     program's folder (`.gitignore` now ignores `*.crashes`). The one intermediate, the C compiled when `--c_source`
+     is off, goes to the language repository's `.spite-cache/<name>.c`. Should a plain run (no `--executable`)
+     build into the cache instead and leave the program's folder untouched? A `--hot_reload` build beside its program
+     also puts its reload libraries in the folder the watcher watches, so each reload wakes it once more.
+137. **`--mode=tokens` and `--mode=tree` are gone** rather than made outputs: nothing used them, and a `.spite` file
+     can no longer be named. Bring them back as outputs (`--tokens`, `--tree`, printing every program file)?
+138. **Two ways to format?** A compile formats the program's files (`format`, an output), and `spite format <path>`
+     formats files that need not be a program -- `library/`, which no program's compile formats. Keep both, or
+     make formatting the library the job of compiling `bootstrap` (which loads it)?

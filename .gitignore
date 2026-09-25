@@ -9,8 +9,15 @@
 *.lib
 *.ilk
 
-# Generated C from a manual --emit-c run at the repository root.
+# What a build writes beside its executable, which by default sits beside the program (D129).
+*.crashes
+*.reload_host
+*.reload_files
+*_reload_*.files
+
+# Generated C: the compiler's own --c_source output, and a manual run at the repository root.
 # bootstrap/seed/spite_compiler.c is NOT ignored: it is the committed fixpoint.
+/bootstrap/bootstrap.c
 /next.c
 /gen*.c
 # foreign library fixtures check.sh builds
