@@ -349,3 +349,21 @@ All of it is proposed by Claude, unconfirmed.
      polling; `HotReload` becomes its first user and SlopEngine's cooker the second. Tree-shaken when unused (D177).
      Name: `FileWatcher` or `Directory.Watcher`?
 
+
+## Found building D169-D172
+
+153. **D169 covers every proof, not only `[]` reads.** The question (item 106) was about proven `list[...]`, but a
+     call could also set a narrowed attribute to `null` (`assert target`, `forget()`, `target.name` compiled and
+     then crashed on a null pointer), so a call now undoes narrowed attributes and paths too, by the same rule.
+     Right reading? The rule also treats a function value's call as able to change anything, does not follow
+     operator functions or getters, and does not track a local that aliases an attribute's list (a proven read
+     still checks its bounds). Should any of those be followed too?
+154. **D171 names member templates only.** D148's function values for `each`/`map`/`filter` are not built, so a
+     `while` that only passes each element to a function of another object (`evaluator.process_line(line)`) is not
+     an error yet, and D113's rule still names `list.each_f()` for a function of the caller. Once D148 is built,
+     should D171 name `list.each(f)` for those loops, replacing D113's rule?
+155. **D172's "visible" function names** are read as the functions of the variable's own class (its file and its
+     reopenings), which is what a bare name reaches. Should a variable also be kept from the name of a function of
+     a class it only uses (`var print = ...` beside `console.print`)?
+156. **D170's message names `switch` for unions only**, since `switch` does not take an enum. Decide enum
+     switches (review section 2), so the message can say "union or enum" as D170 wrote it?
