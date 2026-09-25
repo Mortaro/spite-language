@@ -394,3 +394,13 @@ All of it is proposed by Claude, unconfirmed.
      root of its own. Both compile, and tree shaking drops the unused one, but a folder named by a `load` could
      instead never be a namespace, as the entry folder already does for the folders its own file loads. Also: `Build`
      is read before any package is loaded, so a package's `build.spite` cannot add a field that decides a `load`.
+
+## From SlopEngine on the thread pool
+
+155. **Work that blocks for the program's whole life needs its own thread, not a pool worker.** SlopEngine's
+     window thread runs the Win32 message loop forever (messages only reach the thread that made the window); on a
+     pool of cores-minus-one it pins a worker for good, and a few such loops on a four-core machine starve the
+     engine's stages. Proposal (Claude, unconfirmed): `Thread(function)` -- a dedicated OS thread, same handle
+     shape as `Parallel` (`finished`, the value joins on first use, dropping waits) -- for loops that block on the
+     operating system, with `Parallel` staying for work that computes. Alternative: a marker on `Parallel`
+     (`Parallel(window.run, 'dedicated')`). Which, and what name?
