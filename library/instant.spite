@@ -1,0 +1,37 @@
+var _since_1970 = Duration(0, 'seconds')
+
+func Instant(since_1970: Duration) {
+    _since_1970 = since_1970
+}
+
+func get_since_1970(): Duration {
+    return _since_1970
+}
+
+func sum(duration: Duration): Instant {
+    var moved = _since_1970 + duration
+    return Instant(moved)
+}
+
+func subtract(other: Instant): Duration {
+    return _since_1970 - other._since_1970
+}
+
+func equals(other: Instant): Bool {
+    return _since_1970 == other._since_1970
+}
+
+func less_than(other: Instant): Bool {
+    return _since_1970 < other._since_1970
+}
+
+func greater_than(other: Instant): Bool {
+    return _since_1970 > other._since_1970
+}
+
+func to_string(): String {
+    var zones = TimeZones()
+    var universal = zones.utc()
+    var local = universal.to_local(this)
+    return "{local}Z"
+}

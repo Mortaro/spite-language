@@ -1,0 +1,102 @@
+singleton
+
+func read_instant(text: String): Instant? {
+    var reader = TimeTextReader(text)
+    var local = reader.read_date_time()
+    var offset_seconds = reader.read_offset()
+    reader.skip_annotations()
+    assert reader.finish()
+    var zones = TimeZones()
+    var zone = zones.fixed_offset(Duration(offset_seconds, 'seconds'))
+    return zone.to_instant(local, 'compatible')
+}
+
+func read_local_date_time(text: String): LocalDateTime? {
+    var reader = TimeTextReader(text)
+    var local = reader.read_date_time()
+    assert reader.finish()
+    return local
+}
+
+func read_local_date(text: String): LocalDate? {
+    var reader = TimeTextReader(text)
+    var date = reader.read_date()
+    assert reader.finish()
+    return date
+}
+
+func read_local_time(text: String): LocalTime? {
+    var reader = TimeTextReader(text)
+    var time = reader.read_time()
+    assert reader.finish()
+    return time
+}
+
+func read_duration(text: String): Duration? {
+    var reader = TimeTextReader(text)
+    var duration = reader.read_duration()
+    assert reader.finish()
+    return duration
+}
+
+func read_period(text: String): Period? {
+    var reader = TimeTextReader(text)
+    var period = reader.read_period()
+    assert reader.finish()
+    return period
+}
+
+func write_digits(value: Long, width: Int): String {
+    var digits = "{value}"
+    var sign = ""
+    if value < 0 {
+        sign = "-"
+        var length = digits.length()
+        digits = digits.slice(1, length)
+    }
+    while digits.length() < width {
+        digits = "0{digits}"
+    }
+    return "{sign}{digits}"
+}
+
+func write_year(year: Int): String {
+    if year >= 0 and year <= 9999 {
+        return write_digits(year, 4)
+    }
+    var sign = "+"
+    var size = year
+    if year < 0 {
+        sign = "-"
+        size = -year
+    }
+    var digits = write_digits(size, 6)
+    return "{sign}{digits}"
+}
+
+func write_fraction(nanoseconds: Int): String {
+    assert nanoseconds != 0
+    var digits = write_digits(nanoseconds, 9)
+    var length = digits.length()
+    while digits.code_at(length - 1) == 48 {
+        length = length - 1
+    }
+    var kept = digits.slice(0, length)
+    return ".{kept}"
+}
+
+func write_offset(seconds: Long): String {
+    var sign = "+"
+    var size = seconds
+    if seconds < 0 {
+        sign = "-"
+        size = -seconds
+    }
+    var hours = write_digits(size / 3600, 2)
+    var minutes = write_digits(size / 60 % 60, 2)
+    if size % 60 == 0 {
+        return "{sign}{hours}:{minutes}"
+    }
+    var remaining = write_digits(size % 60, 2)
+    return "{sign}{hours}:{minutes}:{remaining}"
+}

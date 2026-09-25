@@ -1,0 +1,57 @@
+var library = DynamicLibrary("libSystem.dylib", 'identity', "")
+
+func find(name: String): TimeZone? {
+    assert not name.is_empty() and not name.starts_with("/") and not name.contains("..")
+    var file = File("/usr/share/zoneinfo/{name}")
+    var data = file.read()
+    assert data
+    return read_tzif(name, data)
+}
+
+func system(): TimeZone {
+    var program = Program()
+    var variable = program.environment("TZ")
+    if variable {
+        var start = 0
+        if variable.starts_with(":") {
+            start = 1
+        }
+        var end = variable.length()
+        var name = variable.slice(start, end)
+        var named = find(name)
+        if named {
+            return named
+        }
+    }
+    var link = _local_time_link()
+    var position = link.index_of("zoneinfo/")
+    if position >= 0 {
+        var end = link.length()
+        var name = link.slice(position + 9, end)
+        var linked = find(name)
+        if linked {
+            return linked
+        }
+    }
+    var local_time = File("/etc/localtime")
+    var data = local_time.read()
+    if data {
+        var zone = read_tzif("localtime", data)
+        if zone {
+            return zone
+        }
+    }
+    return _utc
+}
+
+func _local_time_link(): String {
+    var memory = Memory()
+    var buffer = memory.allocate_bytes(1024)
+    var length = library.readlink_as_long("/etc/localtime", buffer, 1023)
+    if length < 0 {
+        length = 0
+    }
+    var link = memory.text(buffer, length)
+    memory.free(buffer)
+    return link
+}

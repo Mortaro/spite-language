@@ -1,0 +1,14 @@
+func find(name: String): TimeZone? {
+    var rules = ZoneRules(0)
+    assert rules.open_calendar(name)
+    return TimeZone(name, rules)
+}
+
+func system(): TimeZone {
+    var rules = ZoneRules(0)
+    var name = rules.open_system_calendar()
+    if name.is_empty() {
+        return _utc
+    }
+    return TimeZone(name, rules)
+}

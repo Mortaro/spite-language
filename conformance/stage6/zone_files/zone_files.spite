@@ -1,0 +1,64 @@
+var console = Console()
+var zones = TimeZones()
+
+func ZoneFiles() {
+    var eastern = read("Test/Eastern", "eastern")
+    var sydney = read("Test/Sydney", "sydney")
+    var lord_howe = read("Test/Lord_Howe", "lord_howe")
+    var eastern_moments: List<Long> = [
+        -5364662400
+        1205045999
+        1205046000
+        1225605599
+        1225605600
+        1710053999
+        1710054000
+    ]
+    var southern_moments: List<Long> = [1712415599, 1712415600, 1728143999, 1728144000, 1719792000, 1704067200]
+    var half_hour_moments: List<Long> = [1712415599, 1712415600, 1728142199, 1728142200]
+    show_all(eastern, eastern_moments)
+    show_all(sydney, southern_moments)
+    show_all(lord_howe, half_hour_moments)
+    var southern_gap = LocalDateTime(LocalDate(2024, 10, 6), LocalTime(2, 30, 0, 0))
+    var southern_overlap = LocalDateTime(LocalDate(2024, 4, 7), LocalTime(2, 30, 0, 0))
+    choose(sydney, southern_gap)
+    choose(sydney, southern_overlap)
+    refused("TZif2")
+    refused("not a zone at all")
+}
+
+func read(name: String, file_name: String): TimeZone {
+    var file = File("conformance/stage6/zone_files/{file_name}.tzif")
+    var data = file.read()
+    crash data
+    var zone = zones.read_tzif(name, data)
+    crash zone
+    return zone
+}
+
+func show_all(zone: TimeZone, moments: List<Long>) {
+    var index = 0
+    while index < moments.count() {
+        var moment = Instant(Duration(moments[index], 'seconds'))
+        var shown = zone.to_text(moment)
+        console.print(zone.name, moment, shown)
+        index = index + 1
+    }
+}
+
+func choose(zone: TimeZone, local: LocalDateTime) {
+    var earlier = zone.to_instant(local, 'earlier')
+    var later = zone.to_instant(local, 'later')
+    var earlier_text = zone.to_text(earlier)
+    var later_text = zone.to_text(later)
+    console.print(zone.name, local, earlier_text, later_text)
+}
+
+func refused(data: String) {
+    var zone = zones.read_tzif("Broken", data)
+    if zone {
+        console.print("read", zone.name)
+    } else {
+        console.print("refused {data.length()} bytes that are not a zone file")
+    }
+}

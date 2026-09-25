@@ -1,0 +1,73 @@
+enum Unit {
+    'days'
+    'weeks'
+    'months'
+    'years'
+}
+
+var _years = 0
+var _months = 0
+var _days = 0
+
+func Period(amount: Int, unit: Unit) {
+    if unit == 'years' {
+        _years = amount
+    } else if unit == 'months' {
+        _months = amount
+    } else if unit == 'weeks' {
+        _days = amount * 7
+    } else {
+        _days = amount
+    }
+}
+
+func get_years(): Int {
+    return _years
+}
+
+func get_months(): Int {
+    return _months
+}
+
+func get_days(): Int {
+    return _days
+}
+
+func get_is_zero(): Bool {
+    return _years == 0 and _months == 0 and _days == 0
+}
+
+func sum(other: Period): Period {
+    var made = Period(_years + other._years, 'years')
+    made._months = _months + other._months
+    made._days = _days + other._days
+    return made
+}
+
+func negate(): Period {
+    var made = Period(-_years, 'years')
+    made._months = -_months
+    made._days = -_days
+    return made
+}
+
+func equals(other: Period): Bool {
+    return _years == other._years and _months == other._months and _days == other._days
+}
+
+func to_string(): String {
+    if get_is_zero() {
+        return "P0D"
+    }
+    var written = "P"
+    if _years != 0 {
+        written = "{written}{_years}Y"
+    }
+    if _months != 0 {
+        written = "{written}{_months}M"
+    }
+    if _days != 0 {
+        written = "{written}{_days}D"
+    }
+    return written
+}

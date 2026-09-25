@@ -1,0 +1,22 @@
+singleton
+
+var _utc = TimeZone("UTC", ZoneRules(0))
+
+func utc(): TimeZone {
+    return _utc
+}
+
+func fixed_offset(offset: Duration): TimeZone {
+    var seconds = offset.total('seconds')
+    crash seconds > -86400 and seconds < 86400
+    var text = TimeText()
+    var name = text.write_offset(seconds)
+    return TimeZone(name, ZoneRules(seconds))
+}
+
+func read_tzif(name: String, data: String): TimeZone? {
+    var reader = TzifReader(data)
+    var rules = reader.read_rules()
+    assert rules
+    return TimeZone(name, rules)
+}

@@ -1,0 +1,81 @@
+var console = Console()
+var time_text = TimeText()
+
+func TimeTextErrors() {
+    var instants = [
+        "2024-03-10T07:00:00"
+        "2024-03-10"
+        "2024-02-30T00:00:00Z"
+        "2024-03-10T24:00:00Z"
+        "2024-03-10T07:00:00+24:00"
+        "2024-03-10T07:00:00Z junk"
+        "2024-03-10T07:00:00Z[America/New_York"
+        "-000000-01-01T00:00:00Z"
+        ""
+    ]
+    instants.each_refuse_instant()
+    var date_times = ["2024-03-10T02:30:00Z", "2024-3-10T02:30", "2024-03-10T2:30"]
+    date_times.each_refuse_date_time()
+    var dates = ["2023-02-29", "2024-13-01", "2024-00-10", "20240310", "2024-04-31"]
+    dates.each_refuse_date()
+    var times = ["25:00", "12:60", "12:30:00.1234567890", "12", "12:30:00."]
+    times.each_refuse_time()
+    var durations = ["P1D", "PT", "P", "PT1.5H", "PT1S2M", "1H", "PT1H1H"]
+    durations.each_refuse_duration()
+    var periods = ["PT1H", "P", "P1D2M", "P1.5Y", "P1Y1Y"]
+    periods.each_refuse_period()
+}
+
+func refuse_instant(text: String) {
+    var read = time_text.read_instant(text)
+    if read {
+        console.print("instant '{text}' was read as", read)
+    } else {
+        console.print("instant '{text}' is refused")
+    }
+}
+
+func refuse_date_time(text: String) {
+    var read = time_text.read_local_date_time(text)
+    if read {
+        console.print("date and time '{text}' was read as", read)
+    } else {
+        console.print("date and time '{text}' is refused")
+    }
+}
+
+func refuse_date(text: String) {
+    var read = time_text.read_local_date(text)
+    if read {
+        console.print("date '{text}' was read as", read)
+    } else {
+        console.print("date '{text}' is refused")
+    }
+}
+
+func refuse_time(text: String) {
+    var read = time_text.read_local_time(text)
+    if read {
+        console.print("time '{text}' was read as", read)
+    } else {
+        console.print("time '{text}' is refused")
+    }
+}
+
+func refuse_duration(text: String) {
+    var read = time_text.read_duration(text)
+    if read {
+        console.print("duration '{text}' was read as", read)
+    } else {
+        console.print("duration '{text}' is refused")
+    }
+}
+
+func refuse_period(text: String) {
+    var read = time_text.read_period(text)
+    if read {
+        console.print("period '{text}' was read as", read)
+    } else {
+        console.print("period '{text}' is refused")
+    }
+}

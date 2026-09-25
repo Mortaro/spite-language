@@ -1,0 +1,145 @@
+enum Unit {
+    'nanoseconds'
+    'microseconds'
+    'milliseconds'
+    'seconds'
+    'minutes'
+    'hours'
+}
+
+var _seconds: Long = 0
+var _nanoseconds = 0
+
+func Duration(amount: Long, unit: Unit) {
+    var per_second = _units_per_second(unit)
+    var seconds_per_unit = _seconds_per_unit(unit)
+    _seconds = amount / per_second * seconds_per_unit
+    _nanoseconds = amount % per_second * (1000000000 / per_second)
+}
+
+func total(unit: Unit): Long {
+    var per_second = _units_per_second(unit)
+    var seconds_per_unit = _seconds_per_unit(unit)
+    return _seconds * per_second / seconds_per_unit + _nanoseconds / (1000000000 / per_second)
+}
+
+func part(unit: Unit): Long {
+    if unit == 'hours' {
+        return _seconds / 3600
+    }
+    if unit == 'minutes' {
+        return _seconds / 60 % 60
+    }
+    if unit == 'seconds' {
+        return _seconds % 60
+    }
+    var per_second = _units_per_second(unit)
+    return _nanoseconds / (1000000000 / per_second)
+}
+
+func get_is_negative(): Bool {
+    return _seconds < 0 or _nanoseconds < 0
+}
+
+func get_is_zero(): Bool {
+    return _seconds == 0 and _nanoseconds == 0
+}
+
+func sum(other: Duration): Duration {
+    return _made(_seconds + other._seconds, _nanoseconds + other._nanoseconds)
+}
+
+func subtract(other: Duration): Duration {
+    return _made(_seconds - other._seconds, _nanoseconds - other._nanoseconds)
+}
+
+func multiply(times: Long): Duration {
+    var nanoseconds: Long = _nanoseconds
+    return _made(_seconds * times, nanoseconds * times)
+}
+
+func negate(): Duration {
+    return _made(-_seconds, -_nanoseconds)
+}
+
+func equals(other: Duration): Bool {
+    return _seconds == other._seconds and _nanoseconds == other._nanoseconds
+}
+
+func less_than(other: Duration): Bool {
+    if _seconds != other._seconds {
+        return _seconds < other._seconds
+    }
+    return _nanoseconds < other._nanoseconds
+}
+
+func greater_than(other: Duration): Bool {
+    return other.less_than(this)
+}
+
+func to_string(): String {
+    if get_is_zero() {
+        return "PT0S"
+    }
+    var sign = ""
+    var size = this
+    if get_is_negative() {
+        sign = "-"
+        size = negate()
+    }
+    var text = TimeText()
+    var hours = size.part('hours')
+    var minutes = size.part('minutes')
+    var seconds = size.part('seconds')
+    var fraction = text.write_fraction(size._nanoseconds)
+    var written = "{sign}PT"
+    if hours != 0 {
+        written = "{written}{hours}H"
+    }
+    if minutes != 0 {
+        written = "{written}{minutes}M"
+    }
+    if seconds != 0 or not fraction.is_empty() {
+        written = "{written}{seconds}{fraction}S"
+    }
+    return written
+}
+
+func _made(seconds: Long, nanoseconds: Long): Duration {
+    var whole = seconds + nanoseconds / 1000000000
+    var part = nanoseconds % 1000000000
+    if whole > 0 and part < 0 {
+        whole = whole - 1
+        part = part + 1000000000
+    }
+    if whole < 0 and part > 0 {
+        whole = whole + 1
+        part = part - 1000000000
+    }
+    var made = Duration(whole, 'seconds')
+    made._nanoseconds = part
+    return made
+}
+
+func _units_per_second(unit: Unit): Long {
+    if unit == 'nanoseconds' {
+        return 1000000000
+    }
+    if unit == 'microseconds' {
+        return 1000000
+    }
+    if unit == 'milliseconds' {
+        return 1000
+    }
+    return 1
+}
+
+func _seconds_per_unit(unit: Unit): Long {
+    if unit == 'hours' {
+        return 3600
+    }
+    if unit == 'minutes' {
+        return 60
+    }
+    return 1
+}

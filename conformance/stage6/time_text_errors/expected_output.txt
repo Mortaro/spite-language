@@ -1,0 +1,34 @@
+instant '2024-03-10T07:00:00' is refused
+instant '2024-03-10' is refused
+instant '2024-02-30T00:00:00Z' is refused
+instant '2024-03-10T24:00:00Z' is refused
+instant '2024-03-10T07:00:00+24:00' is refused
+instant '2024-03-10T07:00:00Z junk' is refused
+instant '2024-03-10T07:00:00Z[America/New_York' is refused
+instant '-000000-01-01T00:00:00Z' is refused
+instant '' is refused
+date and time '2024-03-10T02:30:00Z' is refused
+date and time '2024-3-10T02:30' is refused
+date and time '2024-03-10T2:30' is refused
+date '2023-02-29' is refused
+date '2024-13-01' is refused
+date '2024-00-10' is refused
+date '20240310' is refused
+date '2024-04-31' is refused
+time '25:00' is refused
+time '12:60' is refused
+time '12:30:00.1234567890' is refused
+time '12' is refused
+time '12:30:00.' is refused
+duration 'P1D' is refused
+duration 'PT' is refused
+duration 'P' is refused
+duration 'PT1.5H' is refused
+duration 'PT1S2M' is refused
+duration '1H' is refused
+duration 'PT1H1H' is refused
+period 'PT1H' is refused
+period 'P' is refused
+period 'P1D2M' is refused
+period 'P1.5Y' is refused
+period 'P1Y1Y' is refused

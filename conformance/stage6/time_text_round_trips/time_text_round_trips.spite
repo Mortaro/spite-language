@@ -1,0 +1,96 @@
+var console = Console()
+var time_text = TimeText()
+
+func TimeTextRoundTrips() {
+    var instants = [
+        "2024-03-10T07:00:00Z"
+        "2024-03-10T07:00:00.5Z"
+        "1969-12-31T23:59:59.999999999Z"
+        "0001-01-01T00:00:00Z"
+        "+010000-01-01T00:00:00Z"
+    ]
+    instants.each_instant_round_trip()
+    var dates = ["2024-02-29", "0000-01-01", "-000001-12-31", "+012345-06-07"]
+    dates.each_date_round_trip()
+    var times = ["00:00:00", "23:59:59.999999999", "12:30:00.25"]
+    times.each_time_round_trip()
+    var date_times = ["2024-03-10T02:30:00", "1970-01-01T00:00:00.000001"]
+    date_times.each_date_time_round_trip()
+    var durations = ["PT0S", "PT1H30M", "-PT0.5S", "PT36H", "PT1M0.000000001S"]
+    durations.each_duration_round_trip()
+    var periods = ["P0D", "P1Y2M3D", "P14D", "P-1M", "P-1Y2M"]
+    periods.each_period_round_trip()
+    other_spellings()
+}
+
+func instant_round_trip(text: String) {
+    var read = time_text.read_instant(text)
+    crash read
+    var written = read.to_string()
+    crash written == text
+    console.print("instant", written)
+}
+
+func date_round_trip(text: String) {
+    var read = time_text.read_local_date(text)
+    crash read
+    var written = read.to_string()
+    crash written == text
+    console.print("date", written)
+}
+
+func time_round_trip(text: String) {
+    var read = time_text.read_local_time(text)
+    crash read
+    var written = read.to_string()
+    crash written == text
+    console.print("time", written)
+}
+
+func date_time_round_trip(text: String) {
+    var read = time_text.read_local_date_time(text)
+    crash read
+    var written = read.to_string()
+    crash written == text
+    console.print("date and time", written)
+}
+
+func duration_round_trip(text: String) {
+    var read = time_text.read_duration(text)
+    crash read
+    var written = read.to_string()
+    crash written == text
+    console.print("duration", written)
+}
+
+func period_round_trip(text: String) {
+    var read = time_text.read_period(text)
+    crash read
+    var written = read.to_string()
+    crash written == text
+    console.print("period", written)
+}
+
+func other_spellings() {
+    var instants = [
+        "2024-03-10T02:00:00-05:00"
+        "2024-03-10T12:30:00+05:30"
+        "2024-03-10T03:00:00-04:00[America/New_York]"
+        "2024-03-10t07:00:00z"
+        "2024-03-10 07:00:00,5Z"
+        "2024-03-10T06:59:60Z"
+    ]
+    instants.each_show_instant()
+    var local = time_text.read_local_date_time("2024-03-10 02:30")
+    var ninety = time_text.read_duration("PT90M")
+    var fortnight = time_text.read_period("P2W")
+    var later = time_text.read_period("-P1Y-2M")
+    crash local and ninety and fortnight and later
+    console.print(local, ninety, fortnight, later)
+}
+
+func show_instant(text: String) {
+    var read = time_text.read_instant(text)
+    crash read
+    console.print(text, "is", read)
+}

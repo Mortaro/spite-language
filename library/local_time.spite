@@ -1,0 +1,60 @@
+var _hour = 0
+var _minute = 0
+var _second = 0
+var _nanosecond = 0
+
+func LocalTime(hour: Int, minute: Int, second: Int, nanosecond: Int) {
+    crash hour >= 0 and hour <= 23
+    crash minute >= 0 and minute <= 59
+    crash second >= 0 and second <= 59
+    crash nanosecond >= 0 and nanosecond <= 999999999
+    _hour = hour
+    _minute = minute
+    _second = second
+    _nanosecond = nanosecond
+}
+
+func get_hour(): Int {
+    return _hour
+}
+
+func get_minute(): Int {
+    return _minute
+}
+
+func get_second(): Int {
+    return _second
+}
+
+func get_nanosecond(): Int {
+    return _nanosecond
+}
+
+func get_second_of_day(): Int {
+    return _hour * 3600 + _minute * 60 + _second
+}
+
+func equals(other: LocalTime): Bool {
+    return get_second_of_day() == other.second_of_day and _nanosecond == other._nanosecond
+}
+
+func less_than(other: LocalTime): Bool {
+    var second_of_day = get_second_of_day()
+    if second_of_day != other.second_of_day {
+        return second_of_day < other.second_of_day
+    }
+    return _nanosecond < other._nanosecond
+}
+
+func greater_than(other: LocalTime): Bool {
+    return other.less_than(this)
+}
+
+func to_string(): String {
+    var text = TimeText()
+    var hour = text.write_digits(_hour, 2)
+    var minute = text.write_digits(_minute, 2)
+    var second = text.write_digits(_second, 2)
+    var fraction = text.write_fraction(_nanosecond)
+    return "{hour}:{minute}:{second}{fraction}"
+}

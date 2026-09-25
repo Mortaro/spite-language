@@ -1,0 +1,224 @@
+var _data = ""
+var _position = 0
+var _failed = false
+
+func TzifReader(data: String) {
+    _data = data
+}
+
+func read_rules(): ZoneRules? {
+    assert _is_header_at(0)
+    var header = 0
+    var time_bytes = 4
+    if _data.code_at(4) != 0 {
+        var first_block = _block_bytes(0, 4)
+        header = 44 + first_block
+        time_bytes = 8
+        assert _is_header_at(header)
+    }
+    var time_count = _unsigned_at(header + 32, 4)
+    var type_count = _unsigned_at(header + 36, 4)
+    var block = _block_bytes(header, time_bytes)
+    var block_end = header + 44 + block
+    assert type_count > 0 and block_end <= _data.length()
+    var times = header + 44
+    var indices = times + time_count * time_bytes
+    var types = indices + time_count
+    var first_offset = _signed_at(types, 4)
+    var rules = ZoneRules(first_offset)
+    var index = 0
+    while index < time_count {
+        var time = _signed_at(times + index * time_bytes, time_bytes)
+        var type_index = _data.code_at(indices + index)
+        assert type_index < type_count
+        var offset = _signed_at(types + type_index * 6, 4)
+        rules.append_transition(time, offset)
+        index = index + 1
+    }
+    if time_bytes == 4 {
+        return rules
+    }
+    assert _data.code_at(block_end) == 10
+    var footer_end = block_end + 1
+    while footer_end < _data.length() and _data.code_at(footer_end) != 10 {
+        footer_end = footer_end + 1
+    }
+    if footer_end == block_end + 1 {
+        return rules
+    }
+    var footer = _data.slice(block_end + 1, footer_end)
+    var footer_reader = TzifReader(footer)
+    var yearly_rule = footer_reader.read_daylight_rule()
+    assert yearly_rule
+    rules.follow_yearly_rule(yearly_rule)
+    return rules
+}
+
+func read_daylight_rule(): DaylightRule? {
+    _position = 0
+    _skip_zone_name()
+    var standard_offset = -_read_offset()
+    var rule = DaylightRule(standard_offset)
+    assert not _failed
+    if _position == _data.length() {
+        return rule
+    }
+    _skip_zone_name()
+    var daylight_offset = standard_offset + 3600
+    var next = _data.code_at(_position)
+    if next == 43 or next == 45 or _is_digit(next) {
+        daylight_offset = -_read_offset()
+    }
+    assert not _failed
+    if _position == _data.length() {
+        return rule
+    }
+    _expect(44)
+    var start = _read_change()
+    _expect(44)
+    var end = _read_change()
+    assert not _failed and _position == _data.length()
+    rule.observe_daylight(daylight_offset, start, end)
+    return rule
+}
+
+func _is_header_at(position: Long): Bool {
+    var magic = _data.slice(position, position + 4)
+    return magic == "TZif" and position + 44 <= _data.length()
+}
+
+func _block_bytes(header: Long, time_bytes: Long): Long {
+    var universal_count = _unsigned_at(header + 20, 4)
+    var standard_count = _unsigned_at(header + 24, 4)
+    var leap_count = _unsigned_at(header + 28, 4)
+    var time_count = _unsigned_at(header + 32, 4)
+    var type_count = _unsigned_at(header + 36, 4)
+    var character_count = _unsigned_at(header + 40, 4)
+    var transitions = time_count * (time_bytes + 1)
+    var leap_seconds = leap_count * (time_bytes + 4)
+    return transitions + type_count * 6 + character_count + leap_seconds + standard_count + universal_count
+}
+
+func _unsigned_at(position: Long, bytes: Long): Long {
+    var value: Long = 0
+    var index: Long = 0
+    while index < bytes {
+        var byte: Long = _data.code_at(position + index)
+        value = value.shifted_left(8)
+        value = value.bits_or(byte)
+        index = index + 1
+    }
+    return value
+}
+
+func _signed_at(position: Long, bytes: Long): Long {
+    var value = _unsigned_at(position, bytes)
+    if bytes == 4 and value >= 2147483648 {
+        return value - 4294967296
+    }
+    return value
+}
+
+func _skip_zone_name() {
+    var start = _position
+    if _data.code_at(_position) == 60 {
+        while _position < _data.length() and _data.code_at(_position) != 62 {
+            _position = _position + 1
+        }
+        _expect(62)
+        return
+    }
+    var code = _data.code_at(_position)
+    while _is_letter(code) {
+        _position = _position + 1
+        code = _data.code_at(_position)
+    }
+    if _position == start {
+        _failed = true
+    }
+}
+
+func _read_offset(): Int {
+    var sign = 1
+    if _data.code_at(_position) == 45 {
+        sign = -1
+    }
+    if _data.code_at(_position) == 43 or sign == -1 {
+        _position = _position + 1
+    }
+    var seconds = _read_number() * 3600
+    if _data.code_at(_position) == 58 {
+        _position = _position + 1
+        seconds = seconds + _read_number() * 60
+    }
+    if _data.code_at(_position) == 58 {
+        _position = _position + 1
+        seconds = seconds + _read_number()
+    }
+    return sign * seconds
+}
+
+func _read_change(): DaylightChange {
+    var letter = _data.code_at(_position)
+    var kind: DaylightChange.Kind = 'day_of_year'
+    if letter == 77 or letter == 74 {
+        _position = _position + 1
+    }
+    if letter == 74 {
+        kind = 'day_of_year_without_leap_day'
+    }
+    var number = _read_number()
+    var week = 0
+    var weekday = 0
+    if letter == 77 {
+        _expect(46)
+        week = _read_number()
+        _expect(46)
+        weekday = _read_number()
+        _failed = _failed or number < 1 or number > 12 or week < 1 or week > 5 or weekday > 6
+    } else if letter == 74 {
+        _failed = _failed or number < 1 or number > 365
+    } else {
+        _failed = _failed or number > 365
+    }
+    var time_seconds = 7200
+    if _data.code_at(_position) == 47 {
+        _position = _position + 1
+        time_seconds = _read_offset()
+    }
+    var change = DaylightChange(kind, number, time_seconds)
+    if letter == 77 {
+        change.on_weekday_of_month(number, week, weekday)
+    }
+    return change
+}
+
+func _read_number(): Int {
+    var start = _position
+    var value = 0
+    var code = _data.code_at(_position)
+    while _is_digit(code) and not _failed {
+        value = value * 10 + code - 48
+        _position = _position + 1
+        code = _data.code_at(_position)
+        _failed = _failed or _position - start > 6
+    }
+    _failed = _failed or _position == start
+    return value
+}
+
+func _expect(code: Int) {
+    if _data.code_at(_position) == code {
+        _position = _position + 1
+    } else {
+        _failed = true
+    }
+}
+
+func _is_digit(code: Int): Bool {
+    return code >= 48 and code <= 57
+}
+
+func _is_letter(code: Int): Bool {
+    return code >= 65 and code <= 90 or code >= 97 and code <= 122
+}

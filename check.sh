@@ -260,8 +260,13 @@ for operating_system in windows linux mac; do
     echo "FAILED: the compiler does not compile with library/$operating_system"; exit 1; }
   "$CC_BIN" -fsyntax-only -w "$work/compiler_$operating_system.c" 2> "$work/c_errors.txt" || {
     echo "FAILED: the C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
+  # The compiler names no time zone, so a program that does is written out too: each system reads zones its own way.
+  "$work/generation_two.exe" conformance/stage6/daylight_saving --mode=c --target_operating_system=$operating_system > "$work/zones_$operating_system.c" || {
+    echo "FAILED: time zones do not compile with library/$operating_system"; exit 1; }
+  "$CC_BIN" -fsyntax-only -w "$work/zones_$operating_system.c" 2> "$work/c_errors.txt" || {
+    echo "FAILED: the time zone C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
 done
-echo "operating systems: the compiler compiles with the windows, linux and mac library folders"
+echo "operating systems: the compiler and a time zone program compile with the windows, linux and mac library folders"
 
 # The compiler is the formatter: every file outside diagnostics/ (whose expected errors carry line numbers) is
 # already in the one style, so formatting it changes nothing.

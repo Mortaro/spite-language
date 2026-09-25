@@ -1,0 +1,90 @@
+enum Ambiguity {
+    'compatible'
+    'earlier'
+    'later'
+}
+
+var _name = ""
+var _rules = ZoneRules(0)
+
+func TimeZone(name: String, rules: ZoneRules) {
+    _name = name
+    _rules = rules
+}
+
+func get_name(): String {
+    return _name
+}
+
+func offset_at(instant: Instant): Duration {
+    var seconds = _offset_seconds_at(instant)
+    return Duration(seconds, 'seconds')
+}
+
+func to_local(instant: Instant): LocalDateTime {
+    var offset = offset_at(instant)
+    var wall = instant.since_1970 + offset
+    var seconds = wall.total('seconds')
+    var nanosecond = wall.part('nanoseconds')
+    if nanosecond < 0 {
+        nanosecond = nanosecond + 1000000000
+        seconds = seconds - 1
+    }
+    var second_of_day = seconds % 86400
+    if second_of_day < 0 {
+        second_of_day = second_of_day + 86400
+    }
+    var first_day = LocalDate(1970, 1, 1)
+    var date = first_day + Period((seconds - second_of_day) / 86400, 'days')
+    var time = LocalTime(second_of_day / 3600, second_of_day / 60 % 60, second_of_day % 60, nanosecond)
+    return LocalDateTime(date, time)
+}
+
+func to_instant(local: LocalDateTime, ambiguity: Ambiguity): Instant {
+    var date = local.date
+    var time = local.time
+    var wall = date.days_since_1970 * 86400 + time.second_of_day
+    var offset_before = _rules.offset_seconds_at(wall - 86400)
+    var offset_after = _rules.offset_seconds_at(wall + 86400)
+    var before = wall - offset_before
+    var after = wall - offset_after
+    var before_fits = _rules.offset_seconds_at(before) == offset_before
+    var after_fits = _rules.offset_seconds_at(after) == offset_after
+    var earliest = before
+    var latest = after
+    if after < before {
+        earliest = after
+        latest = before
+    }
+    var in_gap = not before_fits and not after_fits
+    var in_overlap = before_fits and after_fits and before != after
+    var chosen = before
+    if in_gap or in_overlap {
+        chosen = latest
+        if ambiguity == 'earlier' or ambiguity == 'compatible' and in_overlap {
+            chosen = earliest
+        }
+    } else if after_fits {
+        chosen = after
+    }
+    var whole = Duration(chosen, 'seconds')
+    var part = Duration(time.nanosecond, 'nanoseconds')
+    return Instant(whole + part)
+}
+
+func to_text(instant: Instant): String {
+    var local = to_local(instant)
+    var seconds = _offset_seconds_at(instant)
+    var text = TimeText()
+    var offset = text.write_offset(seconds)
+    return "{local}{offset}"
+}
+
+func _offset_seconds_at(instant: Instant): Int {
+    var since_1970 = instant.since_1970
+    var seconds = since_1970.total('seconds')
+    if since_1970.part('nanoseconds') < 0 {
+        seconds = seconds - 1
+    }
+    return _rules.offset_seconds_at(seconds)
+}
