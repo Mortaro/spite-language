@@ -376,7 +376,7 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 ## From D127 (dates, times and time zones; manual section 15, `docs/time.md`)
 
-Numbered after 114 (D136, D137 and D140 cite 110 to 112). All of it is proposed by Claude, unconfirmed.
+All of it is proposed by Claude, unconfirmed.
 
 115. **The names.** `Instant`, `Duration`, `Period`, `LocalDate`, `LocalTime`, `LocalDateTime`, `TimeZone`,
      `TimeZones()` (the database, a singleton) and `TimeText()` (ISO 8601, a singleton). `Local` is the word
