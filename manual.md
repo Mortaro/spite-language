@@ -452,10 +452,15 @@ only when `equals` takes that class.  **[implemented]**
 
 ### Unused is an error  **[implemented]**
 
-Second batch item 5 (decided 2026-09-19): a local variable or parameter that is never read is a compile error
-unless its name starts with `_`. An unused `_name` is fine; a `_name` that *is* used is also an error, naming
-the fix (remove the `_` or the read). Parameters whose signature is dictated from outside are **exempt** from
-the read requirement, because the author never chose them:
+Second batch item 5 (decided 2026-09-19): a local variable or parameter that is never read is a compile error.
+**Only a read counts** (D136, decided by Mortaro, 2026-09-25): a local or parameter that is only ever assigned
+is unused, `'total' is never read: remove it`; a read in the new value, `label = "{label} of things"`, is a read
+(`diagnostics/written_not_read`). **Only a parameter may be `_name`** (D137, decided by Mortaro, 2026-09-25): a
+signature can need a parameter its body ignores, and `_name` says so; a local has no such reason, so an unread
+local is an error whatever its name, and the message only says to remove it. A `_name` that *is* read is also
+an error, naming the fix (remove the `_` or the read). A declaration whose own statement already failed is not
+reported as unread as well **(proposed by Claude, unconfirmed)**. Parameters whose signature is dictated from
+outside are **exempt** from the read requirement, because the author never chose them:
 
 - operator functions (`sum`, `subtract`, `equals`, `get_at`, ... -- the Operators table above): `a + b` calls
   `sum(b)`, so the parameter is the operator's, not the author's
@@ -471,7 +476,7 @@ parameters are the author's free choice and the ordinary rule applies.
 
 **An attribute nothing reads is an error too** (D118, decided by Mortaro, 2026-09-24): "world is never used,
 unused variable declarations should cause a compiler error." The message names the attribute and the fix,
-`the attribute 'world' is never read: remove it, or name it '_world' to say that is intended`
+`the attribute 'world' is never read: remove it` -- since D137 no spelling keeps an unread attribute
 (`diagnostics/unused_attributes`, `conformance/stage6/attribute_uses`, `docs/style.md`). **A compile-time walk
 counts only when it reads the attribute's value** (decided by Mortaro, 2026-09-25, relayed by the coordinating
 session): `x.attributes[attribute]` read in a Symbol template, and so `Json` and `to_debug()`, and the REPL's
@@ -485,25 +490,32 @@ What counts as a read, and the exceptions **(proposed by Claude, unconfirmed)**:
   getter answering that read, `x.attributes[attribute]` or `attributes[attribute]` in a template, `thing.attributes`
   (the values), a `load(...)` argument the compiler reads, and the REPL's `attributes` in a `--repl`/`--repl_port`
   build. The class-level `Class.attributes` (names and types) does not count.
-- **Writing is not reading.** An attribute that is only assigned, from inside or outside, is unused. This is
-  stricter than locals today, where an assignment marks the local used (`mortaros_missing_decisions.md` item 110).
+- **Writing is not reading.** An attribute that is only assigned, from inside or outside, is unused -- the same
+  rule as locals since D136.
 - **Source-level, not reachability.** A function nothing calls still reads what it names; tree shaking removes it
   later. Where the compiler does not compile a body -- a branch a codegen or `Build` test folds away, a function of
   a generic class no instance emits, a Symbol template no range reaches -- its reads still count: bare names as
   the class's own attributes, and `x.name` by name for any class (so a fold can hide an unused attribute of the
   same name elsewhere, never report a used one).
-- **`_name` says it is intended**, and for an attribute `_` also means private. So a private attribute is never
-  reported, and an attribute kept only for its constructor's side effect (a singleton binding such as
-  `var server = Server()` whose construction starts something) is written `_server`. A public binding nothing reads,
-  singleton or not, is an error.
-- **Never checked**: a number class's or `String`'s storage (`_memory`, `_bytes`, ... -- private anyway, and the
-  compiler reads them), and every attribute of `Build` and `Environment`, which the compiler and the program's
+- **`_name` is only private** (D137): a private attribute nothing reads is an error like a public one, judged by
+  its own class, which is its only reader. An attribute kept only for its constructor's side effect (a binding
+  such as `var server = Server()` whose construction starts something) is an error too, whatever its name.
+- **Never checked**: a number class's or `String`'s storage (`_memory`, `_bytes`, ... -- the compiler reads
+  them), and every attribute of `Build` and `Environment`, which the compiler and the program's
   flags read.
 - **A library is judged on its own code.** Every non-generic library class is compiled whole in every program,
   and a generic one's uncompiled functions count as above, so the library's own reads are the same in every
   program: an attribute the library itself reads is never an error for a program that ignores it, and `check.sh`
   holds the library to that (every library attribute is read by library code). A program's read of a library
   attribute counts too, which can only hide an error, never cause one.
+- **A loaded package's public attributes are not checked** (D136 says a public attribute is reported only where
+  every reader is visible; which folders count is **proposed by Claude, unconfirmed**). A public attribute is
+  data offered to code its package cannot see: SlopEngine's `ui` package declares `BackgroundColor.color` for its
+  `render` package to read, and a program that loads `ui` without `render` must still compile. So the check
+  covers the program's own folder (its entry folder, minus the folders it `load`s), the standard library (as
+  above), and private attributes everywhere, whose only reader is their own class. An attribute a program adds
+  by reopening a loaded class is the program's and is checked
+  (`conformance/stage6/package_attributes`, `diagnostics/package_attributes`).
 - The check runs only when the program has no other error, so a failed statement does not report the attributes
   it would have read.
 
@@ -3824,3 +3836,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | **D149** (decided by Mortaro, answering `mortaros_allocators_proposal.md` question 1): **no value classes: every class is passed by reference, `copy()` gives an independent copy, and the compiler optimises behind that.** "each class always pass as a reference, BUT we can call copy on a instance to pass a reference to the copy by value. this is very simple for coders to understand. BUT again we need compiler to be super smart and understand that if a copy is only used in that single reference it can be passed by value, or if the copy isnt even mutated, it can just reference original if cheaper and so on. up to you to dig all possible optimizations for compiler, while keeping the api surface super simple." So the performance the ECS needs (packed component data, no counting) comes from the compiler proving what the source does not say: a copy used once passed by value, an unmutated copy sharing the original, objects that never escape laid out inline or in registers, reference counting elided where ownership is provable. The API stays reference-only. |
 | 2026-09-25 | **D150** (decided by Mortaro, answering `mortaros_allocators_proposal.md` question 4, names open): **one class is the place in memory and allocators are its owners, and choosing an allocator never means redeclaring types.** "i agree but we need better names then, Memory and Address do not tell me i have to use either Memory or Arena ... how do we change allocators if we want? ... does that mean we need to redeclare EVERY type in spite system for each allocator possible? sounds like overengineering." Answer built into the rule: types are allocator-agnostic; a `List`, a `String` or any object takes memory from whichever allocator is current, and a program or engine sets the current allocator around a scope, so switching is one line where the engine runs a system. The names for the place and for the allocators are still to choose (`mortaros_missing_decisions.md`). |
 | 2026-09-25 | **D151** (decided by Mortaro, naming D150): **memory lives in its own namespace, and each allocator is named for what it is.** "memory is such a basic construct and a dangerous one i think it needs its own namespace so its Memory.Address and Memory.Allocator but then instead of Allocator have which allocator it is." So the place is `Memory.Address`, and the owners are `Memory.Heap` (the default), `Memory.Arena`, `Memory.Frame` and so on, each answering the same shape so any of them can be the current allocator; there is no class called `Allocator` a program uses directly. |
+| 2026-09-25 | (implements D136 and D137, and the D118 fixes SlopEngine needed; the readings below proposed by Claude, unconfirmed) **Only a read uses a name, only a parameter may be `_name`, and a loaded package's public attributes are not judged by one program.** An assignment no longer marks a local or parameter used (`x = "{x} more"` still reads it); an unread local is `'total' is never read: remove it` whatever its name; an unread parameter says `remove it, or name it '_amount' if the signature needs it`; the attribute message drops its `_name` suggestion, and a private attribute nothing reads is reported. A declaration whose own statement failed is not also reported as unread. **Packages:** D118 skips a public attribute declared in a folder the entry file `load`s -- judged by the declaration's own file, so an attribute a program adds by reopening a loaded class is still checked -- and keeps checking the program's folder, the standard library and every private attribute; this is what makes SlopEngine's `flex_layout` compile (`Ui.Component.BackgroundColor.color`, read only by the render package). **The Spawn walk was not missed:** `Spawn`'s `insert_attribute` reads `bundle.attributes[attribute]` and does count for every bundle a program spawns (`click_counter`, which spawns `Window.Bundle.Window`, compiled under D118); `flex_layout` and `render_parity` load the window package but never spawn a window, so no walk is bound to that bundle there -- a package case, fixed by the rule above rather than by counting a generic template's walk for every class. Repo rewrites: `var _ringing = Concurrent(ring)` and `var _counting = Parallel(say_done)` now read their handle; fixtures that kept `_` locals renamed them. `diagnostics/written_not_read`, `diagnostics/package_attributes`, `conformance/stage6/package_attributes`, `mortaros_missing_decisions.md` item 114. |

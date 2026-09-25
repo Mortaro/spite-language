@@ -41,7 +41,8 @@ func inner_count(): Int {
 }
 
 func ring_and_forget() {
-    var _ringing = Concurrent(ring)
+    var ringing = Concurrent(ring)
+    log.append("ring has finished: {ringing.finished}")
 }
 
 func ring() {

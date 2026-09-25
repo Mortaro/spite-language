@@ -4,6 +4,7 @@ var has_error = false
 var error_message = ""
 var build_values = Dictionary<String>()
 var launcher_mangled_name = ""
+var loaded_folders = List<String>()
 
 func DiscoveryResult(
     result_class_files: List<DiscoveredClass>,

@@ -117,7 +117,8 @@ func JoinedOnDrop() {
 }
 
 func start_and_forget() {
-    var _ringing = Concurrent(ring)
+    var ringing = Concurrent(ring)
+    console.print("ring has finished: {ringing.finished}")
 }
 
 func ring() {
@@ -126,6 +127,7 @@ func ring() {
 }
 ```
 ```output
+ring has finished: false
 ring
 the scope is left only after ring has finished
 ```

@@ -362,3 +362,14 @@ Behaviour that does not match the manual. The language was not changed; each is 
      read a wrong address (so `library/` only), and every backend must implement ~10-15 such operations.
      Recommendation: OS for pages, libraries and files (with a Spite allocator); `Address` only for loads, stores and
      atomics.
+
+## Behind D136 (which attributes one program judges)
+
+114. **Which folders D118 judges.** D136 says a public attribute is reported only where every reader is visible.
+     As built, "visible" means: the program's entry folder minus every folder its entry file `load`s (so a
+     `load("package")` subfolder is exempt like `../../plugins/ui`), plus the standard library, which is compiled
+     whole in every program and so always sees its own readers, plus private attributes everywhere. So a
+     package's dead public attribute is never reported by a program that loads it; SlopEngine found its own
+     (`Psd.Layer.opacity`, `Box.order`) only because the check briefly covered every loaded folder. Keep that
+     line, or add a way to check a package on its own (a `spite check` of a folder, every public attribute read
+     by the package itself or reported)?
