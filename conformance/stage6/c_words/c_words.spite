@@ -1,0 +1,26 @@
+var console = Console()
+var unsigned = 0
+var volatile = "kept"
+var interface = Register("far")
+
+func CWords() {
+    var register = short()
+    var default = register + 1
+    var far = "near"
+    var near = far.length()
+    var small = List<String>()
+    small.append(volatile)
+    var static = signed(default, near)
+    var stdout = small.count()
+    unsigned = unsigned + static
+    console.print(unsigned, register, default, far, near, stdout, interface.extern)
+}
+
+func short(): Int {
+    return 2
+}
+
+func signed(auto: Int, goto: Int): Int {
+    var sizeof = auto + goto
+    return sizeof
+}

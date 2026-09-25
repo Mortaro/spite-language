@@ -332,9 +332,9 @@ func supplied_members(stem: String): List<String> {
 func console_members(): List<String> {
     return [
         "func _write_output(text: String)"
-        "fwrite((const char*)(intptr_t)text->_bytes, 1, (size_t)text->_length, stdout);\nSpiteString___release(text);"
+        "fwrite((const char*)(intptr_t)text->_bytes_, 1, (size_t)text->_length_, stdout);\nSpiteString___release(text);"
         "func _write_error(text: String)"
-        "fwrite((const char*)(intptr_t)text->_bytes, 1, (size_t)text->_length, stderr);\nSpiteString___release(text);"
+        "fwrite((const char*)(intptr_t)text->_bytes_, 1, (size_t)text->_length_, stderr);\nSpiteString___release(text);"
         "func flush()"
         "fflush(stdout);\nfflush(stderr);"
     ]
@@ -420,9 +420,9 @@ func typed_memory_members(): List<String> {
 func dynamic_library_members(): List<String> {
     return [
         "func open_library(file: String): Long"
-        "#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA((const char*)(intptr_t)file->_bytes);\n#else\nvoid* opened = dlopen((const char*)(intptr_t)file->_bytes, RTLD_NOW);\n#endif\nif (opened == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: could not open the library '%s'\\n\", (const char*)(intptr_t)file->_bytes);\nexit(1);\n}\nSpiteString___release(file);\nreturn (int64_t)(intptr_t)opened;"
+        "#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA((const char*)(intptr_t)file->_bytes_);\n#else\nvoid* opened = dlopen((const char*)(intptr_t)file->_bytes_, RTLD_NOW);\n#endif\nif (opened == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: could not open the library '%s'\\n\", (const char*)(intptr_t)file->_bytes_);\nexit(1);\n}\nSpiteString___release(file);\nreturn (int64_t)(intptr_t)opened;"
         "func find_symbol(name: String, wanted_by: String): Long"
-        "#ifdef _WIN32\nvoid* found = (void*)GetProcAddress((HMODULE)(intptr_t)self->handle, (const char*)(intptr_t)name->_bytes);\n#else\nvoid* found = dlsym((void*)(intptr_t)self->handle, (const char*)(intptr_t)name->_bytes);\n#endif\nif (found == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: the library '%s' has no '%s', which %s calls\\n\", (const char*)(intptr_t)self->file_name->_bytes, (const char*)(intptr_t)name->_bytes, (const char*)(intptr_t)wanted_by->_bytes);\nexit(1);\n}\nSpiteString___release(name);\nSpiteString___release(wanted_by);\nreturn (int64_t)(intptr_t)found;"
+        "#ifdef _WIN32\nvoid* found = (void*)GetProcAddress((HMODULE)(intptr_t)self->handle_, (const char*)(intptr_t)name->_bytes_);\n#else\nvoid* found = dlsym((void*)(intptr_t)self->handle_, (const char*)(intptr_t)name->_bytes_);\n#endif\nif (found == 0) \{\nfflush(stdout);\nfprintf(stderr, \"spite: the library '%s' has no '%s', which %s calls\\n\", (const char*)(intptr_t)self->file_name_->_bytes_, (const char*)(intptr_t)name->_bytes_, (const char*)(intptr_t)wanted_by->_bytes_);\nexit(1);\n}\nSpiteString___release(name);\nSpiteString___release(wanted_by);\nreturn (int64_t)(intptr_t)found;"
         "func close_library(opened: Long)"
         "if (opened == 0) return;\n#ifdef _WIN32\nFreeLibrary((HMODULE)(intptr_t)opened);\n#else\ndlclose((void*)(intptr_t)opened);\n#endif"
     ]
@@ -439,7 +439,7 @@ func hot_reload_members(): List<String> {
         "func watcher_entry(): Long"
         "written per build by the generator: the address of the watcher thread's entry"
         "func open(file: String): Long"
-        "#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA((const char*)(intptr_t)file->_bytes);\n#else\nvoid* opened = dlopen((const char*)(intptr_t)file->_bytes, RTLD_NOW);\n#endif\nSpiteString___release(file);\nreturn (int64_t)(intptr_t)opened;"
+        "#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA((const char*)(intptr_t)file->_bytes_);\n#else\nvoid* opened = dlopen((const char*)(intptr_t)file->_bytes_, RTLD_NOW);\n#endif\nSpiteString___release(file);\nreturn (int64_t)(intptr_t)opened;"
         "func install(library: Long): String"
         "written per build by the generator: binds the library to the program and swaps its functions in"
     ]

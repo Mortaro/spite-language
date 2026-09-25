@@ -1,0 +1,5 @@
+var extern = ""
+
+func Register(inline: String) {
+    extern = inline
+}

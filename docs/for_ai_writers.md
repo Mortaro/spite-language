@@ -91,12 +91,10 @@ func is_alive(): Bool {
   can name a variable or a parameter either: `var none: Long = 0` says to write `null`. Pick another name
   (`no_handle`, `empty`). `load` is reserved too: it always loads a package, so a function that loads something
   says what (`load_texture`).
-- A few names are taken by the C that Spite compiles to, and cannot name a variable, attribute, parameter or
-  function: `auto`, `bool`, `break`, `case`, `char`, `const`, `continue`, `default`, `do`, `double`, `extern`,
-  `float`, `goto`, `inline`, `int`, `long`, `main`, `register`, `restrict`, `short`, `signed`, `sizeof`,
-  `static`, `stderr`, `stdin`, `stdout`, `struct`, `typedef`, `unsigned`, `void`, `volatile`. The error lists
-  them. Say what the value is instead: `read_short` for a function, `flags` rather than `unsigned`
-  (`diagnostics/reserved_name`). `allocate`, `make`, `retain` and `release` are ordinary names.
+- C's words are ordinary names: `register`, `short`, `default`, `static`, `stdout` or `far` can name a variable,
+  attribute, parameter or function, since the C backend renames everything it emits (D168). `int`, `bool` and
+  `char` are still abbreviations, and that error names the word to write. `allocate`, `make`, `retain` and
+  `release` are ordinary names too.
 - A function body holds no empty lines: the blank line is where a second function wants to be, so name the part
   below it and call it. An `if` whose only statement is a bare `return` is an error too -- that is a
   precondition, and a precondition is written `assert condition`.

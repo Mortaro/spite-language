@@ -1,5 +1,6 @@
 var parent: Scope? = null
 var entry_names = List<String>()
+var entry_emitted = List<String>()
 var entry_types = List<Analysis.SpiteType>()
 var entry_used = List<Bool>()
 var entry_lines = List<Int>()
@@ -20,7 +21,12 @@ func Scope(starting_parent: Scope?) {
 }
 
 func declare(name: String, spite_type: Analysis.SpiteType) {
+    declare_emitted(name, name, spite_type)
+}
+
+func declare_emitted(name: String, emitted: String, spite_type: Analysis.SpiteType) {
     entry_names.append(name)
+    entry_emitted.append(emitted)
     entry_types.append(spite_type)
     entry_used.append(false)
     entry_lines.append(0)
@@ -68,8 +74,27 @@ func forget_owned(name: String) {
 }
 
 func declare_owned(name: String, spite_type: Analysis.SpiteType) {
-    declare(name, spite_type)
-    owned.append(OwnedLocal(name, spite_type))
+    declare_owned_emitted(name, name, spite_type)
+}
+
+func declare_owned_emitted(name: String, emitted: String, spite_type: Analysis.SpiteType) {
+    declare_emitted(name, emitted, spite_type)
+    owned.append(OwnedLocal(name, emitted, spite_type))
+}
+
+func emitted_name(name: String): String {
+    var index = entry_names.count() - 1
+    while index >= 0 {
+        if entry_names[index] == name {
+            crash index < entry_emitted.count()
+            return entry_emitted[index]
+        }
+        index = index - 1
+    }
+    if parent {
+        return parent.emitted_name(name)
+    }
+    return name
 }
 
 func set_override(name: String, code: String) {
@@ -291,6 +316,7 @@ func remove_last_entry(name: String) {
     while index >= 0 {
         if entry_names[index] == name {
             entry_names.remove_at(index)
+            entry_emitted.remove_at(index)
             entry_types.remove_at(index)
             entry_used.remove_at(index)
             entry_lines.remove_at(index)

@@ -1,8 +1,10 @@
 var name = ""
+var emitted = ""
 var spite_type: Analysis.SpiteType? = null
 
-func OwnedLocal(starting_name: String, starting_spite_type: Analysis.SpiteType) {
+func OwnedLocal(starting_name: String, starting_emitted: String, starting_spite_type: Analysis.SpiteType) {
     name = starting_name
+    emitted = starting_emitted
     spite_type = starting_spite_type
 }
 
