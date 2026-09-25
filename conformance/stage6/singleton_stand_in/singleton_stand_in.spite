@@ -1,0 +1,17 @@
+var console = Console()
+var shelf = Shelf()
+var ledger = Ledger()
+
+func SingletonStandIn() {
+    shelf.label("jar")
+    ledger.record(4)
+    var ledger_class = ledger.class
+    var functions = ledger_class.functions
+    var function_count = functions.count()
+    var attributes = ledger_class.attributes
+    var attribute_count = attributes.count()
+    var shelf_attributes = Shelf.attributes
+    var shelf_attribute_count = shelf_attributes.count()
+    var entry_count = ledger.entries.count()
+    console.print(function_count, attribute_count, shelf_attribute_count, entry_count)
+}

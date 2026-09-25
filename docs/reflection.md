@@ -327,7 +327,8 @@ is how the test package finds its tests without being told about them ([testing.
 A class object's `.attributes` and `.functions` are read from a stand-in the program makes for the purpose, with
 every attribute at its default, and the stand-in is not one of `.instances`: walking `Gadget.functions` leaves
 `Gadget.instances` as it was. A singleton's stand-in is not the singleton, so describing `Console` neither makes
-the program's console nor keeps a second one alive.
+the program's console nor keeps a second one alive. Its attributes are released when it goes, but its `drop()`
+never runs: that belongs to the one real instance, at exit.
 
 ```gdscript title=live_registry/monster.spite
 var name = ""

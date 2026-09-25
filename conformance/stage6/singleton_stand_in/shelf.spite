@@ -1,0 +1,7 @@
+singleton
+
+var labels = List<String>()
+
+func label(text: String) {
+    labels.append(text)
+}

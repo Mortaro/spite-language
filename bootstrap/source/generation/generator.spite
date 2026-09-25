@@ -7373,13 +7373,25 @@ func emit_class_object_bodies() {
     }
 }
 
+func singleton_destroyed(information: Analysis.ClassInfo): String {
+    var lines = List<String>()
+    lines.append("void {information.c_name}___destroy({information.c_name}* self) \{")
+    lines.append("if (self == 0) return;")
+    if information.drop_function {
+        lines.append("{information.drop_function.c_name}(self);")
+    }
+    lines.append("{information.c_name}___discard(self);")
+    lines.append("}")
+    return lines.join("\n")
+}
+
 func untracked_stand_in(described: Analysis.ClassInfo): String {
     return "#ifdef SPITE_TRACKS_{described.c_name}\nspite_untrack_{described.c_name}(fresh);\n#endif"
 }
 
 func released_stand_in(described: Analysis.ClassInfo): String {
     if described.is_singleton and not described.is_stateless_singleton {
-        return "{described.c_name}___destroy(fresh);"
+        return "{described.c_name}___discard(fresh);"
     }
     return "{described.c_name}___release(fresh);"
 }
@@ -7390,7 +7402,7 @@ func kept_stand_in(described: Analysis.ClassInfo, thunk: String): String {
     }
     var kept = "{thunk}_stand_in"
     builder.add_support(
-        "static {described.c_name}* {kept} = 0;\nstatic void {kept}_teardown(void) \{\n{described.c_name}___destroy({kept});\n{kept} = 0;\n}",
+        "static {described.c_name}* {kept} = 0;\nstatic void {kept}_teardown(void) \{\n{described.c_name}___discard({kept});\n{kept} = 0;\n}",
     )
     return "{kept} = fresh;\nspite_singleton_created({kept}_teardown);"
 }
@@ -13779,9 +13791,12 @@ func emit_class_support(information: Analysis.ClassInfo) {
     var release_name = "release"
     if information.is_singleton {
         retain_body = "return self;"
-        release_name = "destroy"
+        release_name = "discard"
         builder.add_support("void {information.c_name}___release({information.c_name}* self) \{ (void)self; }")
         builder.add_prototype("void {information.c_name}___destroy({information.c_name}* self);")
+        builder.add_prototype("void {information.c_name}___discard({information.c_name}* self);")
+        var destroyed = singleton_destroyed(information)
+        builder.add_support(destroyed)
     }
     builder.add_support(
         "{information.c_name}* {information.c_name}___retain({information.c_name}* self) \{ {retain_body} }",
@@ -13790,9 +13805,9 @@ func emit_class_support(information: Analysis.ClassInfo) {
     release_lines.append("if (self == 0) return;")
     if not information.is_singleton {
         release_lines.append("if (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;")
-    }
-    if information.drop_function {
-        release_lines.append("{information.drop_function.c_name}(self);")
+        if information.drop_function {
+            release_lines.append("{information.drop_function.c_name}(self);")
+        }
     }
     var drop_field_index = 0
     while drop_field_index < information.fields.count() {

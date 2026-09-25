@@ -398,5 +398,5 @@ Behaviour that does not match the manual. The language was not changed; each is 
      launcher's `load`. Keep it an ordinary name?
 119. **A codegen value in a class test** (proposed by Claude, unconfirmed): `item == $wanted_type` folds to
      `false` rather than D75's "never true" error when the value's union cannot hold the bound class, since a
-     generic class cannot avoid that for every binding. Item 44's question (should a class-level `.functions` be
+     generic class cannot avoid that for every binding. Item 44's question (should a class object's `.functions` be
      bound to an instance at all) remains; its visible symptom, the extra member of `.instances`, is gone.
