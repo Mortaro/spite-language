@@ -66,6 +66,7 @@ func StringMembers() {
     var line = "  ada, grace, linus  "
     var names = line.trim().split(", ")
     var first = names.first()
+    crash first
     var shouted = first.upper_case()
     var count: Integer = "3"
     var missing = line.index_of("barbara")

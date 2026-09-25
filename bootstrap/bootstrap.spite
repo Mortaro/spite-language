@@ -127,7 +127,10 @@ func without_trailing_slashes(path: String): String {
 }
 
 func last_segment(path: String): String {
-    return path.replace("\\", "/").split("/").last()
+    var segments = path.replace("\\", "/").split("/")
+    var last = segments.last()
+    crash last
+    return last
 }
 
 func directory_of(path: String): String {
@@ -1029,6 +1032,7 @@ func pretty_response(response: String): String {
     var succeeded_prefix_length = succeeded_prefix.length()
     var value = json_string_at(response, succeeded_prefix_length)
     var class_name = response.split("\",\"type\":\"").last()
+    crash class_name
     var class_name_length = class_name.length()
     if class_name_length <= 2 or class_name.starts_with("Nothing\"") {
         return value

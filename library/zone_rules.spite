@@ -22,11 +22,11 @@ func offset_seconds_at(unix_seconds: Long): Integer {
 
 func transition_offset_seconds_at(unix_seconds: Long): Integer {
     var count = _times.count()
-    var after_last = count == 0 or unix_seconds >= _times.last()
+    var after_last = count == 0 or unix_seconds >= _times.get_at(count - 1)
     if _yearly_rule and after_last {
         return _yearly_rule.offset_seconds_at(unix_seconds)
     }
-    if count == 0 or unix_seconds < _times.first() {
+    if count == 0 or unix_seconds < _times.get_at(0) {
         return _first_offset
     }
     var low = 0

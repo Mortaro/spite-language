@@ -50,6 +50,7 @@ func report(file: File) {
     if content {
         var lines_count = content.lines().count()
         var last_line = content.lines().last()
+        crash last_line
         console.print(lines_count, last_line)
     } else {
         console.print("cannot read")

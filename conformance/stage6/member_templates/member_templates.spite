@@ -19,7 +19,9 @@ func MemberTemplates() {
     var names_by_stars = repositories.sort_by_stars().map_name().join(",")
     var names_by_name = repositories.sort_by_name().map_name().join(",")
     console.print(names_by_stars, names_by_name)
-    var first_by_label = repositories.sort_by_label().first().name
+    var first_labelled = repositories.sort_by_label().first()
+    crash first_labelled
+    var first_by_label = first_labelled.name
     var popular_names = repositories.filter_is_popular().map_name().join(",")
     console.print(first_by_label, popular_names)
     repositories.each_bump_stars()
@@ -40,7 +42,9 @@ func MemberTemplates() {
     var stars_by_name = by_name.sum_stars()
     var active_names = by_name.filter_active().map_name().join(",")
     var any_active_by_name = by_name.any_active()
-    var first_by_stars = by_name.sort_by_stars().first().name
+    var least_starred = by_name.sort_by_stars().first()
+    crash least_starred
+    var first_by_stars = least_starred.name
     console.print(stars_by_name, active_names, any_active_by_name, first_by_stars)
     var missing = repositories.find_by_stars(999)
     if missing {

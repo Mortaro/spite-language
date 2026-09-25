@@ -8,7 +8,9 @@ func Lists() {
     names.prepend("alan")
     var names_count = names.count()
     var first_name = names.first()
+    crash first_name
     var last_name = names.last()
+    crash last_name
     console.print(names_count, first_name, last_name)
     var joined_names = names.join(", ")
     console.print(joined_names)
@@ -47,13 +49,17 @@ func Lists() {
     }
     items[1].quantity = 50
     var second_description = items[1].describe()
-    var last_description = items.last().describe()
+    var last_item = items.last()
+    crash last_item
+    var last_description = last_item.describe()
     console.print(second_description, last_description)
     var holder = Holder()
     holder.keep(items)
     holder.keep_one(Item("extra", 9))
     var items_count = holder.items.count()
-    var extra_name = holder.items.last().name
+    var extra = holder.items.last()
+    crash extra
+    var extra_name = extra.name
     console.print(items_count, extra_name)
     var words = ["one", "two"]
     var joined_words = words.join("+")

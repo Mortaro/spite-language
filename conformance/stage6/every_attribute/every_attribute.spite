@@ -18,6 +18,7 @@ func EveryAttribute() {
     var portion_lines = List<String>()
     describer.describe_portions(recipe, portion_lines)
     var portion_line = portion_lines.first()
+    crash portion_line
     var shown = describer.show_portions(recipe)
     console.print(portion_line, shown)
 }

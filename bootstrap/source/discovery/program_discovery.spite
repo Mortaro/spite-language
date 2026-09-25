@@ -1493,7 +1493,9 @@ func join_with_slash(segments: List<String>): String {
 
 func basename(path: String): String {
     var segments = path.split("/")
-    return segments.last()
+    var last = segments.last()
+    crash last
+    return last
 }
 
 func file_stem(path: String): String {

@@ -340,6 +340,7 @@ func GenericClassTestDoc() {
     console.print(holds_words, holds_numbers)
     if counted == Storage<String> {
         var first = counted.items.first()
+        crash first
         console.print(first)
     }
 }

@@ -5,7 +5,8 @@ type Buildable {
 }
 
 func take(more: List<Buildable>) {
-    more.first().build()
+    crash more[0]
+    more[0].build()
 }
 
 func take_named(named: Dictionary<Buildable>) {

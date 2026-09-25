@@ -251,6 +251,7 @@ func CallArgumentFixed() {
     tokens.append(Token(first_word))
     var word_count = source.split(" ").count()
     var first_token = tokens.first()
+    crash first_token
     console.print("{word_count} words, first token {first_token.text}")
 }
 ```

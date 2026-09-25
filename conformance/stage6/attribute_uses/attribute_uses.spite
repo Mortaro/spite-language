@@ -9,6 +9,7 @@ func AttributeUses() {
     console.print(joined)
     var reflected = shelf.attributes
     var first = reflected.first()
+    crash first
     var first_text = text_of(first)
     console.print(first.name, first_text)
 }

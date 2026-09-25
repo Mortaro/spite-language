@@ -118,6 +118,12 @@ func scan_one(): Boolean {
     return scan_operator()
 }
 
+func last_kind(): TokenKind {
+    var token_count = tokens.count()
+    var last_token = tokens.get_at(token_count - 1)
+    return last_token.kind
+}
+
 func scan_newline(): Boolean {
     var token_line = line
     var token_column = column
@@ -125,7 +131,7 @@ func scan_newline(): Boolean {
     if paren_depth == 0 {
         var last_is_newline = tokens.is_empty()
         if not last_is_newline {
-            if tokens.last().kind == 'newline' {
+            if last_kind() == 'newline' {
                 last_is_newline = true
             }
         }
@@ -421,7 +427,7 @@ func lone_operator_lesson(code: Integer, doubled: Boolean): String {
 func names_a_type_next(): Boolean {
     assert current_code() >= 65 and current_code() <= 90
     assert not tokens.is_empty()
-    var before = tokens.last().kind
+    var before = last_kind()
     return before == 'colon' or before == 'less' or before == 'left_paren' or before == 'comma'
 }
 

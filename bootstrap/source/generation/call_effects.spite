@@ -72,6 +72,7 @@ func type_class_name(type_reference: Syntax.Types.Type): String {
     assert named
     assert not named.path.is_empty()
     var last = named.path.last()
+    crash last
     if last != "Nullable" {
         return last
     }

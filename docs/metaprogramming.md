@@ -100,6 +100,7 @@ func EveryAttribute() {
     console.print(joined)
     show_copies(label, lines)
     var last_line = lines.last()
+    crash last_line
     console.print(last_line)
 }
 

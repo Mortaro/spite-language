@@ -83,16 +83,18 @@ func remove_first(): $element_type {
     }
 }
 
-func first(): $element_type {
+func first(): $element_type? {
     if item_count > 0 {
         return values.read_value(items, 0)
     }
+    return null
 }
 
-func last(): $element_type {
+func last(): $element_type? {
     if item_count > 0 {
         return values.read_value(items, item_count - 1)
     }
+    return null
 }
 
 func clear() {

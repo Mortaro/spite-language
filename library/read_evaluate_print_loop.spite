@@ -490,6 +490,7 @@ func call(command: String, program: Spite.Attribute): Answer {
         return failure("program is not callable")
     }
     var name = path.last()
+    crash name
     path.remove_last()
     var owner = resolve(program, path, 0)
     if not owner {

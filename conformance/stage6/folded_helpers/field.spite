@@ -19,6 +19,7 @@ func write(value: $value_type): String {
 func write_list(value: $value_type): String {
     var count = value.count()
     var last = value.last()
+    crash last
     return "{name}: {count} numbers, the last {last}"
 }
 

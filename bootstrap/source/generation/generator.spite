@@ -553,8 +553,8 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
                 entry.qualified_dotted,
                 0,
             )
+            value_class.is_value_class = true
             classes.append(value_class)
-            classes.last().is_value_class = true
         } else {
             var class_id = allocate_class_id(entry.mangled_name)
             var discovered_class = Analysis.ClassInfo(
@@ -566,13 +566,15 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
             )
             classes.append(discovered_class)
         }
-        classes.last().source_path = entry.get_file().path
-        classes.last().entry_index = index
-        classes.last().codegen_names = declared_codegen_names(entry)
-        classes.last().is_singleton = has_singleton_line(entry)
-        classes.last().holds_nothing = classes.last().is_singleton and holds_nothing(entry)
-        classes.last().is_stateless_singleton = classes.last().holds_nothing and not keeps_internals
-        classes.last().is_generic_template = not classes.last().codegen_names.is_empty()
+        var registered = classes.last()
+        crash registered
+        registered.source_path = entry.get_file().path
+        registered.entry_index = index
+        registered.codegen_names = declared_codegen_names(entry)
+        registered.is_singleton = has_singleton_line(entry)
+        registered.holds_nothing = registered.is_singleton and holds_nothing(entry)
+        registered.is_stateless_singleton = registered.holds_nothing and not keeps_internals
+        registered.is_generic_template = not registered.codegen_names.is_empty()
         discovered_classes.append(entry)
         register_enums(entry)
         register_unions(entry)
@@ -1042,29 +1044,30 @@ func instantiate_generic(
         if boolean_argument {
             var boolean_spite_type = boolean_type()
             types.append(boolean_spite_type)
+            var boolean_code = "false"
             if boolean_argument.value {
-                codes.append("true")
-            } else {
-                codes.append("false")
+                boolean_code = "true"
             }
-            texts.append("b:{codes.last()}")
-            label = "{label}_{codes.last()}"
+            codes.append(boolean_code)
+            texts.append("b:{boolean_code}")
+            label = "{label}_{boolean_code}"
         }
         var integer_argument = shape.as_integer_argument(argument)
         if integer_argument {
             var integer_spite_type = integer_type()
             types.append(integer_spite_type)
-            codes.append("{integer_argument.value}")
-            texts.append("i:{codes.last()}")
-            label = "{label}_{codes.last()}"
+            var integer_code = "{integer_argument.value}"
+            codes.append(integer_code)
+            texts.append("i:{integer_code}")
+            label = "{label}_{integer_code}"
         }
         var float_argument = shape.as_float_argument(argument)
         if float_argument {
             var float_spite_type = float_type()
             types.append(float_spite_type)
-            codes.append("{float_argument.value}")
-            texts.append("f:{codes.last()}")
-            var last_code = codes.last()
+            var last_code = "{float_argument.value}"
+            codes.append(last_code)
+            texts.append("f:{last_code}")
             label = "{label}_{generic_argument_label(last_code)}"
         }
         var string_argument = shape.as_string_argument(argument)
@@ -1543,7 +1546,9 @@ func required_function_problem(
             if not types_equal(parameter_type, wanted_types[index]) {
                 var names = type_display_names(parameter_type, wanted_types[index])
                 var found_name = names.first()
+                crash found_name
                 var wanted_name = names.last()
+                crash wanted_name
                 return "argument {index + 1} of its '{wanted.name}' is {with_article(found_name)}, but the type needs {with_article(wanted_name)}"
             }
             index = index + 1
@@ -1553,7 +1558,9 @@ func required_function_problem(
         if not types_equal(function_return_type, wanted_return) {
             var names = type_display_names(function_return_type, wanted_return)
             var returned_name = names.first()
+            crash returned_name
             var needed_name = names.last()
+            crash needed_name
             var returned = returned_display(function_return_type, returned_name)
             var needed = returned_display(wanted_return, needed_name)
             return "its '{wanted.name}' returns {returned}, but the type needs {needed}"
@@ -1785,7 +1792,9 @@ func shape_fit_problem(information: Analysis.UnionInfo, candidate: Analysis.Clas
                 if not types_equal(found_type, wanted_type) {
                     var names = type_display_names(found_type, wanted_type)
                     var found_name = names.first()
+                    crash found_name
                     var wanted_name = names.last()
+                    crash wanted_name
                     return "attribute '{wanted.name}' is {with_article(found_name)}, but the type needs {with_article(wanted_name)}"
                 }
             }
@@ -2816,6 +2825,7 @@ func template_range_kind(information: Analysis.ClassInfo, template: Analysis.Tem
     if is_function_range(information, template) {
         var path = range_path(template)
         var last_segment = path.last()
+        crash last_segment
         if ("_{last_segment}_").contains("_{template.symbol_parameter}_") {
             return "pattern"
         }
@@ -2826,6 +2836,7 @@ func template_range_kind(information: Analysis.ClassInfo, template: Analysis.Tem
         return "class"
     }
     var first_segment = path.first()
+    crash first_segment
     if first_segment.starts_with("$") {
         return "class"
     }
@@ -2840,6 +2851,7 @@ func template_range_kind(information: Analysis.ClassInfo, template: Analysis.Tem
     owner_path.remove_last()
     var joined_owner_path = owner_path.join(".")
     var last_segment = path.last()
+    crash last_segment
     if find_union_qualified(joined_owner_path, last_segment) {
         return "class"
     }
@@ -2957,7 +2969,9 @@ func is_function_range(information: Analysis.ClassInfo, template: Analysis.Templ
     var path = range_path(template)
     assert path.count() >= 2
     var last_segment = path.last()
+    crash last_segment
     var first_segment = path.first()
+    crash first_segment
     if first_segment.starts_with("$") {
         assert path.count() == 2
         var bare_name = without_dollar(first_segment)
@@ -2992,6 +3006,7 @@ func is_function_range(information: Analysis.ClassInfo, template: Analysis.Templ
 func range_function_owner(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): Analysis.ClassInfo? {
     var path = range_path(template)
     var first_segment = path.first()
+    crash first_segment
     if first_segment.starts_with("$") {
         var bare_name = without_dollar(first_segment)
         var bound = codegen_index(information, bare_name)
@@ -3009,6 +3024,7 @@ func range_function_owner(information: Analysis.ClassInfo, template: Analysis.Te
 func range_function_name(template: Analysis.TemplateInfo): String {
     var path = range_path(template)
     var last_segment = path.last()
+    crash last_segment
     if last_segment == bound_pattern and not bound_pattern.is_empty() {
         return bound_function_name
     }
@@ -3040,7 +3056,9 @@ func declared_functions_of(owner: Analysis.ClassInfo): List<Analysis.FunctionInf
 
 func pattern_prefix(template: Analysis.TemplateInfo): String {
     var path = range_path(template)
-    var padded = "_{path.last()}_"
+    var last_segment = path.last()
+    crash last_segment
+    var padded = "_{last_segment}_"
     var position = padded.index_of("_{template.symbol_parameter}_")
     assert position >= 0
     return padded.slice(1, position + 1)
@@ -3048,7 +3066,9 @@ func pattern_prefix(template: Analysis.TemplateInfo): String {
 
 func pattern_suffix(template: Analysis.TemplateInfo): String {
     var path = range_path(template)
-    var padded = "_{path.last()}_"
+    var last_segment = path.last()
+    crash last_segment
+    var padded = "_{last_segment}_"
     var position = padded.index_of("_{template.symbol_parameter}_")
     assert position >= 0
     var hole_end = position + template.symbol_parameter.length() + 1
@@ -3297,7 +3317,9 @@ func describe_range_binding(
     var kind = template_range_owner(information, template)
     if kind == "pattern" {
         var path = range_path(template)
-        instance.symbol_pattern = path.last()
+        var pattern = path.last()
+        crash pattern
+        instance.symbol_pattern = pattern
         instance.symbol_function_name = "{pattern_prefix(template)}{instance.symbol_field_name}{pattern_suffix(template)}"
     }
     if kind == "pattern" or kind == "enum" {
@@ -3405,8 +3427,10 @@ func instantiate_every_attribute(
     if declaration.return_type {
         if kind == "function" {
             var range = range_path(template)
+            var ranged_function = range.last()
+            crash ranged_function
             report(
-                "'{template.prefix}{template.symbol_parameter}s{template.suffix}' makes one value for each argument of '{range.last()}', so it can only be the whole argument list of a call to '{range.last()}', as in '{range.last()}({template.prefix}{template.symbol_parameter}s{template.suffix}())' -- or '{declaration.name}' has to return nothing",
+                "'{template.prefix}{template.symbol_parameter}s{template.suffix}' makes one value for each argument of '{ranged_function}', so it can only be the whole argument list of a call to '{ranged_function}', as in '{ranged_function}({template.prefix}{template.symbol_parameter}s{template.suffix}())' -- or '{declaration.name}' has to return nothing",
             )
             return null
         }
@@ -4195,6 +4219,7 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
     owner_path.remove_last()
     var joined_owner_path = owner_path.join(".")
     var last_segment = named.path.last()
+    crash last_segment
     var owner_class = find_class(joined_owner_path, current_namespace)
     if owner_class {
         joined_owner_path = owner_class.qualified_dotted
@@ -4237,7 +4262,9 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
 
 func resolve_single_type_argument(named: Syntax.Types.NamedType, current_namespace: String): Analysis.SpiteType? {
     if named.arguments.count() != 1 {
-        report("{named.path.last()} takes exactly one type argument")
+        var type_name = named.path.last()
+        crash type_name
+        report("{type_name} takes exactly one type argument")
         return null
     }
     return resolve_generic_argument(named.arguments[0], current_namespace)
@@ -4264,6 +4291,7 @@ func bound_type_member(named: Syntax.Types.NamedType): Analysis.SpiteType? {
 
 func resolve_codegen_member(named: Syntax.Types.NamedType): Analysis.SpiteType? {
     var written = named.path.first()
+    crash written
     var generic_name = without_dollar(written)
     var bound_type: Analysis.SpiteType? = null
     if current_class {
@@ -4768,7 +4796,9 @@ func default_value_for_type(spite_type: Analysis.SpiteType): String {
     }
     var enum_type = type_shape.as_enum(spite_type)
     if enum_type {
-        return "{enum_type.c_name}_{enum_type.values.first()}"
+        var first_value = enum_type.values.first()
+        crash first_value
+        return "{enum_type.c_name}_{first_value}"
     }
     var list_type = type_shape.as_list(spite_type)
     if list_type {
@@ -4787,7 +4817,9 @@ func default_value_for_type(spite_type: Analysis.SpiteType): String {
             if union_information.is_shape {
                 return shape_default(union_information)
             }
-            return "(({union_type.c_name}){union_information.members.first().c_name}___default())"
+            var first_member = union_information.members.first()
+            crash first_member
+            return "(({union_type.c_name}){first_member.c_name}___default())"
         }
     }
     var nullable = type_shape.as_nullable(spite_type)
@@ -5041,7 +5073,9 @@ func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType) {
     assert not (type_shape.is_void(from) or type_shape.is_void(to))
     var names = type_display_names(from, to)
     var first_name = names.first()
+    crash first_name
     var last_name = names.last()
+    crash last_name
     var found_name = with_article(first_name)
     var wanted_name = with_article(last_name)
     if type_shape.as_nullable(from) {
@@ -6509,6 +6543,7 @@ func whole_list_passed(
     var element_type = gathered_list.get_element()
     assert not type_shape.as_list(element_type) and not is_shape_type(element_type)
     var only = elements.first()
+    crash only
     crash only.value
     var passed_type = lookup_static_type(only.value, scope, class_information)
     assert passed_type
@@ -7494,8 +7529,10 @@ func spread_into(
     if not same_function {
         var printer = Syntax.SourcePrinter()
         var passed_text = printer.source_expression(arguments_ast[0])
+        var ranged_function = range.last()
+        crash ranged_function
         report(
-            "'{passed_text}' fills the arguments of '{range.last()}', one value per argument, so it is only the whole argument list of a call to '{range.last()}', not of '{function.name}'",
+            "'{passed_text}' fills the arguments of '{ranged_function}', one value per argument, so it is only the whole argument list of a call to '{ranged_function}', not of '{function.name}'",
         )
         return List<Syntax.Expressions.Expression>()
     }
@@ -8149,6 +8186,7 @@ func fused_function(
 ): Analysis.FunctionInfo? {
     var names = step_names_of(steps)
     var last_name = names.last()
+    crash last_name
     if last_name.starts_with("parallel_each_") {
         var joined_names = names.join("_then_")
         return base_list.find_function(joined_names)
@@ -8175,6 +8213,7 @@ func generate_parallel_each(
         return existing
     }
     var last_name = names.last()
+    crash last_name
     var name_length = last_name.length()
     var member_name = last_name.slice(14, name_length)
     var element_label = type_display_name(element)
@@ -8617,6 +8656,7 @@ func fused_chain_source(
     }
     var owner_count = owners.count()
     var last_call = steps.last()
+    crash last_call
     var last = fused_step(base_list, current_type, last_call, owners, scope, class_information)
     assert last
     var last_step_name = fused_step_name(last_call, owners, owner_count)
@@ -9195,6 +9235,7 @@ func emit_namespace_object_bodies() {
         var function_c_name = "spite_namespace_object_{namespace_dotted.replace(".", "_")}"
         var segments = namespace_dotted.split(".")
         var namespace_name = segments.last()
+        crash namespace_name
         var lines = List<String>()
         lines.append("Spite_Namespace* {function_c_name}(void) \{")
         lines.append("if ({function_c_name}_cache == 0) \{")
@@ -11068,7 +11109,10 @@ func generate_library_constructor(arguments_ast: List<Syntax.Expressions.Express
     crash file
     crash naming
     crash header
-    if not file.value.replace("\\", "/").split("/").last().contains(".") {
+    var file_segments = file.value.replace("\\", "/").split("/")
+    var file_leaf = file_segments.last()
+    crash file_leaf
+    if not file_leaf.contains(".") {
         report(
             "'{file.value}' has no extension: name the library file exactly as it is on disk, like \"user32.dll\" or \"libc.so.6\" -- a wrapper for another platform names that platform's file",
         )
@@ -13605,6 +13649,7 @@ func passed_function_fits(name: String, tests: Boolean, scope: Scope, class_info
     }
     assert parts.count() == 2
     var receiver_name = parts.first()
+    crash receiver_name
     var owner_type = scope.lookup_type(receiver_name)
     if not owner_type {
         var owner_field = class_information.find_field(receiver_name)
@@ -13617,6 +13662,7 @@ func passed_function_fits(name: String, tests: Boolean, scope: Scope, class_info
     var owner_class = find_class_by_c_name(owner_class_ref.c_name)
     assert owner_class
     var function_name = parts.last()
+    crash function_name
     return takes_one_argument(owner_class, function_name, tests)
 }
 
@@ -13676,6 +13722,7 @@ func template_walk_of(core: List<Syntax.Statements.Statement>, element_text: Str
     }
     assert core.count() == 1
     var only = core.first()
+    crash only
     switch only {
         Syntax.Statements.ExpressionStatement: return walk_by_call(only, element_text, list_text)
         Syntax.Statements.AssignmentStatement: return walk_by_sum(only, element_text, list_text)
@@ -16405,6 +16452,7 @@ func generate_union_dispatch(
         return generate_shape_read(information, member_name, object_result, object_ast)
     }
     var first_member = information.members.first()
+    crash first_member
     var result_type = void_type()
     var expected_types = no_types()
     if is_call {
@@ -19051,12 +19099,18 @@ func hoisted_wait(
 
 func rewind_temporaries(saved: Integer) {
     temporary_counter = saved
-    while not wait_mark_counters.is_empty() and wait_mark_counters.last() >= saved {
+    while not wait_mark_counters.is_empty() and newest_wait_counter() >= saved {
         var position = wait_mark_positions.last()
+        crash position
         var user_count = builder.user_count()
         builder.remove_user_range(position, user_count)
         drop_last_wait_mark()
     }
+}
+
+func newest_wait_counter(): Integer {
+    var counter_count = wait_mark_counters.count()
+    return wait_mark_counters.get_at(counter_count - 1)
 }
 
 func drop_last_wait_mark() {
@@ -19069,8 +19123,11 @@ func drop_last_wait_mark() {
 func drop_unread_waits(first: Integer) {
     while wait_mark_counters.count() > first {
         var result = wait_mark_results.last()
+        crash result
         var start = wait_mark_positions.last()
+        crash start
         var end = wait_mark_ends.last()
+        crash end
         if not user_lines_mention(end, result) {
             builder.remove_user_range(start, end)
         }

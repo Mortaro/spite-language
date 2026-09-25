@@ -11,8 +11,8 @@ func WalkWithFunction() {
     var kept = short_names(names)
     var sum = total(names)
     var joined = kept.join(", ")
-    var first_length = measured.first()
-    console.print(joined, sum, first_length)
+    var measured_count = measured.count()
+    console.print(joined, sum, measured_count)
 }
 
 func lengths(names: List<String>): List<Integer> {

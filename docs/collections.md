@@ -32,7 +32,7 @@ var empty = List<String>()
 | `get_at(index)` | `T` | the default when out of range |
 | `remove_at(index)` | | nothing happens out of range |
 | `remove_first()` / `remove_last()` | `T` | removes and returns it; the default when empty |
-| `first()` / `last()` | `T` | the default when empty |
+| `first()` / `last()` | `T?` | `null` when empty, like `[]` (proposed by Claude, unconfirmed): narrow it, `crash first` or `if first { }` |
 | `count()` / `is_empty()` | `Integer` / `Boolean` | `count()` is only ever the list's size |
 | `contains(value)` | `Boolean` | elements that are numbers, `Boolean`, `String` or an enum only |
 | `clear()` / `reverse()` | | in place; `clear()` keeps the buffer's capacity |
