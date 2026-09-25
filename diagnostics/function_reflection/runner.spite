@@ -1,0 +1,17 @@
+generic $system_type
+
+var system: $system_type = null
+var wanted = "run_each"
+
+func run() {
+    if $system_type.has_function(wanted) {
+        return
+    }
+    system.run_all(value_arguments())
+    var _values = value_arguments()
+}
+
+func value_argument(argument: Symbol<$system_type.run_each>): argument.class {
+    var value: argument.class = null
+    return value
+}

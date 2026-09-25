@@ -14,7 +14,8 @@ func read_into(buffer: Long, bytes: Long, handle: Long): Long {
 }
 
 func close_process(handle: Long): Int {
-    return library.pclose(handle) / 256 % 256
+    var status = library.pclose(handle)
+    return status.shifted_right(8).bits_and(255)
 }
 
 func shell_line(line: String, _command_is_quoted: Bool): String {

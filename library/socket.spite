@@ -83,8 +83,10 @@ func local_address(port: Int): Long {
         index = index + 1
     }
     write_family(address)
-    memory.write_byte(address, 2, port / 256)
-    memory.write_byte(address, 3, port % 256)
+    var port_high = port.shifted_right(8)
+    var port_low = port.bits_and(255)
+    memory.write_byte(address, 2, port_high)
+    memory.write_byte(address, 3, port_low)
     memory.write_byte(address, 4, 127)
     memory.write_byte(address, 7, 1)
     return address

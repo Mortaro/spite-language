@@ -1,0 +1,11 @@
+found System.DrinkPotion
+found System.ReportHealth
+found Ui.System.ShowNames
+ann drinks tonic and has 15
+bob drinks tonic and has 25
+2 patients with 40 health
+on screen: tonic, ann, bob
+ann drinks tonic and has 20
+bob drinks tonic and has 30
+2 patients with 50 health
+on screen: tonic, ann, bob

@@ -108,6 +108,47 @@ the compiler supplies -- a C cast, written inline, so a cast costs exactly what 
 function needs to hand itself to something -- `registry.append(this)`. Reading your own members through it is
 an error, because a class already reads them by name: write `name`, not `this.name`.
 
+### Bitwise functions
+
+There are no bitwise operator symbols. Every whole-number class (`Tiny` to `UnsignedLong`, not `Float`, `Double`
+or `Bool`) answers them as functions, each compiled to the one C operation and inlined in an optimised build
+(D117; the names are proposed by Claude, unconfirmed):
+
+| Function | Answers |
+|---|---|
+| `shifted_left(count)` | the bits moved `count` places up, zeros coming in |
+| `shifted_right(count)` | moved down: a signed type copies its sign bit in (arithmetic), an unsigned type zeros (logical) |
+| `bits_and(other)`, `bits_or(other)`, `bits_exclusive_or(other)` | the bits set in both, in either, in exactly one |
+| `bits_inverted()` | every bit flipped |
+| `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()` | how many bits are set, and how many zeros stand above the highest set bit and below the lowest, as an `Int` (the width, for 0) |
+
+Each answers the receiver's type, and `other` is cast to it the way any argument is cast to its parameter: a
+`Byte` and a `Long` mask give a `Byte`. A shift count of the width or more moves every bit out (0, or -1 for a
+negative value shifted right), and a negative count halts the program with the function and the count named,
+so C's undefined shifts never happen.
+
+```gdscript title=bitwise_basics/bitwise_basics.spite entry
+var console = Console()
+
+func BitwiseBasics() {
+    var flags = 12
+    var mask = 10
+    console.print("{flags.bits_and(mask)} {flags.bits_or(mask)} {flags.bits_exclusive_or(mask)}")
+    var packed = flags.shifted_left(4).bits_or(3)
+    console.print("{packed} {packed.shifted_right(4)} {packed.bits_and(15)}")
+    var negative = -16
+    var small: Byte = 240
+    console.print("{negative.shifted_right(2)} {small.shifted_right(2)} {small.bits_inverted()}")
+    console.print("{flags.shifted_left(32)} {negative.shifted_right(40)} {small.set_bit_count()}")
+}
+```
+```output
+8 14 6
+195 12 3
+-4 60 15
+0 -1 4
+```
+
 ## `String`
 
 Immutable, length-prefixed (not a bare `char*`), reference counted. A value is placed inside written text rather

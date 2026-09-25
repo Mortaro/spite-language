@@ -1,0 +1,17 @@
+type Patient {
+    health: Component.Health
+    label: Component.Label
+}
+
+var console = Console()
+
+func render_all(patients: List<Patient>) {
+    var total = 0
+    var index = 0
+    while index < patients.count() {
+        total = total + patients[index].health.amount
+        index = index + 1
+    }
+    var patients_count = patients.count()
+    console.print(patients_count, "patients with", total, "health")
+}

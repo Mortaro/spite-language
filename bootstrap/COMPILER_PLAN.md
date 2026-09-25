@@ -495,3 +495,15 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   an enum or a `Symbol` is boxed as. `shape_call_parameter_types`/`shape_call_return_type` let a shape call
   `to_debug` without requiring it; `emit_shape_callers` and the union dispatch find each member's function with
   `find_or_instantiate_function`. `instantiate_every_attribute` skips `_` attributes of another class.
+- 2026-09-24 (D114, D115, D116): `template_range_kind` sorts a Symbol range into `class` (as before), `function`
+  (`$system_type.run_each`, by `is_function_range`), `pattern` (the parameter's name is a word of that function
+  name) and `namespace` (a path naming no class or type); `template_range_owner` answers the kind for the new
+  ones, and `template_attribute_names`/`template_member_type` read arguments (`range_function`), matched names
+  (`pattern_matches`) or classes (`namespace_classes`, named by `class_member_name`). `describe_range_binding`
+  stores the pattern and matched function (`symbol_pattern`, `symbol_function_name`) and a class's dotted name
+  (`symbol_display_name`) on the instance, and `bind_symbol_of` restores them as `bound_pattern`,
+  `bound_function_name` and `bound_display_name`: `generate_method_call` renames a call to the pattern, and
+  `find_or_instantiate_function` keys an instance made under a pattern as `<name>_in_<function>`.
+  `spread_template`/`spread_into` expand `f(value_arguments())` into one call per argument, and
+  `generate_sequenced_call` evaluates them left to right in temporaries (C leaves argument order open, and clang
+  on Windows went right to left). `function_question` folds `$type.has_function(...)` in `constant_condition`.

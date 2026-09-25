@@ -93,6 +93,11 @@ func is_alive(): Bool {
   `UnsignedLong`, `Float` (the default for decimals), `Double`. `Bool`. `String` (double quotes only).
 - No cast syntax: the right side is cast toward the left. `"age {3}"` is `"age 3"`; `var total: Int = "12"` parses
   it; an `Int` plus a `Float` is an `Int`. A value that does not fit wraps.
+- Bits are functions on the whole numbers, never symbols: `value.shifted_left(count)`, `shifted_right(count)`
+  (arithmetic on a signed type, logical on an unsigned one), `bits_and(mask)`, `bits_or(mask)`,
+  `bits_exclusive_or(mask)`, `bits_inverted()`, `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()`.
+  The mask is cast to the receiver's type; a count of the width or more shifts everything out, a negative one
+  halts. Do not fake them with `/` and `%` by powers of two.
 - Everything that is not a number, a `Bool` or an enum value is a reference: passing, assigning and storing share
   the same object. `copy()` copies one level, `deep_copy()` all the way down. `drop()` runs when the last reference
   goes. Two objects that refer to each other leak: clear one side.
@@ -233,6 +238,7 @@ round trip, and this list is cheaper to read than to rediscover.
 | Written elsewhere | Written in Spite |
 |---|---|
 | `a && b`, `a \|\| b`, `!a` | `a and b`, `a or b`, `not a` |
+| `a << 3`, `a >> 3`, `a & mask`, `a \| mask`, `a ^ mask`, `~a` | `a.shifted_left(3)`, `a.shifted_right(3)`, `a.bits_and(mask)`, `a.bits_or(mask)`, `a.bits_exclusive_or(mask)`, `a.bits_inverted()` |
 | `count++`, `count += 1` | `count = count + 1` |
 | `condition ? a : b` | an `if` with an `else`, or a function that returns one or the other |
 | `new Monster()` | `Monster()` |
