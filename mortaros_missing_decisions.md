@@ -173,12 +173,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     template calls functions of the caller only. Should `lines.each_process_line()` look at the caller's
     attributes too (here `evaluator`), or does that stay a `while`?
 
-## Singletons bound to a variable (D110; manual sections 8 and 12)
-
-62. **A number's storage is two lines**: `var memory = Memory()` and `var _memory = memory.allocate_bytes(4)`
-    (it replaced a one-line `Memory().allocate_bytes(4)` form). The binding is never a field of the number. The alternative was to exempt
-    `var _memory = Memory().allocate_bytes(4)` from D110, because the compiler reads that line rather than
-    running it; rejected so the file an AI reads to learn memory shows the bound form. Keep it?
 ## Live reload (D111, D112; manual section 14, "Live reload and 6b")
 
 64. **A changed attribute or enum is refused, with an error saying to restart.** D111 says a change rebuilds "what
