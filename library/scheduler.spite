@@ -9,6 +9,9 @@ var wake_times = List<Long>()
 var offloads = List<Long>()
 var offload_fibers = List<Long>()
 var fibers_alive = 0
+var tasks = List<Long>()
+var deadlines = List<Long>()
+var offloads_running = 0
 var serving = false
 var commands: Spite.Function<Nothing>? = null
 var reloads: Spite.Function<Nothing>? = null
@@ -25,7 +28,7 @@ func start() {
 }
 
 func suspends_here(): Bool {
-    assert started and not paused and (fibers_alive != 0 or serving)
+    assert started and not paused and (fibers_alive != 0 or not tasks.is_empty() or serving)
     return current_thread() == scheduler_thread
 }
 
@@ -42,6 +45,76 @@ func spawn(entry: Long, argument: Long): Long {
     runnable.prepend(current)
     switch_to(fiber)
     return fiber
+}
+
+func begin(frame: Long) {
+    start()
+    if not run_frame(frame) {
+        tasks.append(frame)
+    }
+}
+
+func run_frame(frame: Memory.Address): Bool {
+    frame.write_int(12, 1)
+    var done = step_frame(frame)
+    if done {
+        frame.write_int(12, 2)
+    } else {
+        frame.write_int(12, 0)
+    }
+    return done
+}
+
+func frame_done(frame: Memory.Address): Bool {
+    return frame.read_int(12) == 2
+}
+
+func run_ready(): Int {
+    var finished = 0
+    var index = 0
+    while index < tasks.count() {
+        var frame: Memory.Address = tasks.get_at(index)
+        if frame.read_int(12) == 0 and run_frame(frame) {
+            remove_one(tasks, frame)
+            finished = finished + 1
+        } else {
+            index = index + 1
+        }
+    }
+    return finished
+}
+
+func wait_for(frame: Long) {
+    while not frame_done(frame) {
+        if runnable.is_empty() {
+            idle()
+        } else {
+            runnable.append(current)
+            suspend()
+        }
+    }
+}
+
+func timer_start(milliseconds: Int): Long {
+    var deadline = clock() + milliseconds
+    deadlines.append(deadline)
+    return deadline
+}
+
+func timer_over(deadline: Long): Bool {
+    assert clock() >= deadline
+    remove_one(deadlines, deadline)
+    return true
+}
+
+func remove_one(values: List<Long>, value: Long) {
+    var index = 0
+    while index < values.count() and values.get_at(index) != value {
+        index = index + 1
+    }
+    if index < values.count() {
+        values.remove_at(index)
+    }
 }
 
 func suspend() {
@@ -89,6 +162,7 @@ func yield_now() {
         reloads()
     }
     wake_finished()
+    run_ready()
     if not runnable.is_empty() {
         runnable.append(current)
         suspend()
@@ -112,6 +186,20 @@ func offload(call: Memory.Address, entry: Long): Bool {
     return true
 }
 
+func offload_start(call: Memory.Address, entry: Long): Long {
+    var thread = start_thread(entry, call)
+    crash thread != 0
+    offloads_running = offloads_running + 1
+    return thread
+}
+
+func offload_over(call: Memory.Address, thread: Long): Bool {
+    assert call.read_long_atomically(0) == 1
+    end_thread(thread)
+    offloads_running = offloads_running - 1
+    return true
+}
+
 func offload_done(call: Memory.Address) {
     call.write_long_atomically(0, 1)
     signal()
@@ -129,9 +217,10 @@ func idle() {
         reloads()
     }
     wake_finished()
-    if runnable.is_empty() {
+    var finished = run_ready()
+    if runnable.is_empty() and finished == 0 {
         var wait_limit = timeout()
-        crash wait_limit >= 0 or not offloads.is_empty() or serving
+        crash wait_limit >= 0 or not offloads.is_empty() or offloads_running > 0 or serving
         wait_event(wait_limit)
         wake_finished()
     }
@@ -166,19 +255,27 @@ func wake_finished() {
 }
 
 func timeout(): Int {
-    if sleepers.is_empty() {
+    if sleepers.is_empty() and deadlines.is_empty() {
         return -1
     }
     var now = clock()
-    var earliest = wake_times.get_at(0)
-    var index = 1
+    var earliest: Long = -1
+    var index = 0
     while index < wake_times.count() {
         var wake_time = wake_times.get_at(index)
-        if wake_time < earliest {
+        if earliest < 0 or wake_time < earliest {
             earliest = wake_time
         }
         index = index + 1
     }
-    assert earliest >= now
+    index = 0
+    while index < deadlines.count() {
+        var deadline = deadlines.get_at(index)
+        if earliest < 0 or deadline < earliest {
+            earliest = deadline
+        }
+        index = index + 1
+    }
+    assert earliest > now
     return earliest - now
 }

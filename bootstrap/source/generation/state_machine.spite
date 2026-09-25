@@ -1,0 +1,365 @@
+var field_names = List<String>()
+var field_types = List<String>()
+var field_suffixes = List<String>()
+var bound_names = List<String>()
+var bound_fields = List<String>()
+var bound_depths = List<Int>()
+var depth = 0
+var resume_points = List<Int>()
+
+func bind_parameter(c_type: String, name: String) {
+    var field = allocate_field(name, c_type, "")
+    bind(name, field)
+}
+
+func rewrite(lines: List<String>): List<String> {
+    var result = List<String>()
+    var index = 0
+    while index < lines.count() {
+        var line = lines.get_at(index)
+        var pieces = line.split("\n")
+        var piece_index = 0
+        while piece_index < pieces.count() {
+            var piece = pieces.get_at(piece_index)
+            var rewritten = rewrite_line(piece)
+            if not rewritten.is_empty() {
+                result.append(rewritten)
+            }
+            piece_index = piece_index + 1
+        }
+        index = index + 1
+    }
+    return result
+}
+
+func frame_fields(): String {
+    var declarations = List<String>()
+    var index = 0
+    while index < field_names.count() {
+        var c_type = field_types.get_at(index)
+        var name = field_names.get_at(index)
+        var suffix = field_suffixes.get_at(index)
+        declarations.append("{c_type} {name}{suffix};")
+        index = index + 1
+    }
+    return declarations.join(" ")
+}
+
+func resume_switch(): String {
+    var cases = List<String>()
+    var index = 0
+    while index < resume_points.count() {
+        var point = resume_points.get_at(index)
+        cases.append("case {point}: goto spite_resume_{point};")
+        index = index + 1
+    }
+    return "switch (spite_frame->spite_head.state) \{ {cases.join(" ")} default: break; }"
+}
+
+func rewrite_line(line: String): String {
+    note_resume_point(line)
+    var name_end = declared_name_end(line)
+    if name_end <= 0 {
+        var renamed = rewritten_names(line)
+        return rewritten_returns(renamed)
+    }
+    var name_start = declared_name_start(line, name_end)
+    var c_type = line.slice(0, name_start - 1)
+    var name = line.slice(name_start, name_end)
+    var line_length = line.length()
+    var rest = line.slice(name_end, line_length)
+    if rest.starts_with("[") {
+        var closing = rest.index_of("]")
+        var suffix = rest.slice(0, closing + 1)
+        var array_field = allocate_field(name, c_type, suffix)
+        bind(name, array_field)
+        return ""
+    }
+    if rest == ";" {
+        var plain_field = allocate_field(name, c_type, "")
+        bind(name, plain_field)
+        return ""
+    }
+    var rest_length = rest.length()
+    var value = rest.slice(3, rest_length)
+    var renamed_value = rewritten_names(value)
+    var field = allocate_field(name, c_type, "")
+    bind(name, field)
+    return rewritten_returns("spite_frame->{field} = {renamed_value}")
+}
+
+func note_resume_point(line: String) {
+    assert line.starts_with("spite_resume_")
+    var colon = line.index_of(":")
+    var digits = line.slice(13, colon)
+    var point = digits.to_int()
+    resume_points.append(point)
+}
+
+func declared_name_end(line: String): Int {
+    var type_end = name_end_at(line, 0)
+    assert type_end > 0
+    var first_word = line.slice(0, type_end)
+    assert not is_keyword(first_word)
+    var position = type_end
+    while line.code_at(position) == 42 {
+        position = position + 1
+    }
+    assert line.code_at(position) == 32 and name_starts_at(line, position + 1)
+    var name_end = name_end_at(line, position + 1)
+    var line_length = line.length()
+    var rest = line.slice(name_end, line_length)
+    assert rest.starts_with(" = ") or rest == ";" or rest.starts_with("[")
+    return name_end
+}
+
+func declared_name_start(line: String, name_end: Int): Int {
+    var start = name_end
+    while start > 0 and name_continues_at(line, start - 1) {
+        start = start - 1
+    }
+    return start
+}
+
+func name_end_at(text: String, start: Int): Int {
+    assert start < text.length() and name_starts_at(text, start)
+    var index = start
+    while index < text.length() and name_continues_at(text, index) {
+        index = index + 1
+    }
+    return index
+}
+
+func is_keyword(word: String): Bool {
+    var keywords = [
+        "return"
+        "goto"
+        "else"
+        "if"
+        "while"
+        "for"
+        "switch"
+        "case"
+        "break"
+        "continue"
+        "do"
+        "sizeof"
+        "typedef"
+        "struct"
+        "union"
+        "enum"
+        "static"
+        "default"
+    ]
+    return keywords.contains(word)
+}
+
+func name_starts_at(text: String, index: Int): Bool {
+    var code = text.code_at(index)
+    return is_name_start(code)
+}
+
+func name_continues_at(text: String, index: Int): Bool {
+    var code = text.code_at(index)
+    return is_name_code(code)
+}
+
+func number_continues_at(text: String, index: Int): Bool {
+    var code = text.code_at(index)
+    return is_name_code(code) or code == 46
+}
+
+func is_name_start(code: Int): Bool {
+    return code == 95 or code >= 65 and code <= 90 or code >= 97 and code <= 122
+}
+
+func is_name_code(code: Int): Bool {
+    return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
+}
+
+func rewritten_names(text: String): String {
+    var pieces = List<String>()
+    var copied_from = 0
+    var index = 0
+    var text_length = text.length()
+    while index < text_length {
+        var code = text.code_at(index)
+        if code == 34 or code == 39 {
+            index = literal_end(text, index)
+        } else if is_name_start(code) {
+            var end = name_end_at(text, index)
+            var word = text.slice(index, end)
+            var field = bound_field(word)
+            if not field.is_empty() and not follows_member_access(text, index) {
+                var before = text.slice(copied_from, index)
+                pieces.append(before)
+                pieces.append("spite_frame->{field}")
+                copied_from = end
+            }
+            index = end
+        } else if code >= 48 and code <= 57 {
+            index = number_end(text, index)
+        } else if code == 123 {
+            depth = depth + 1
+            index = index + 1
+        } else if code == 125 {
+            depth = depth - 1
+            forget_deeper_bindings()
+            index = index + 1
+        } else {
+            index = index + 1
+        }
+    }
+    var rest = text.slice(copied_from, text_length)
+    pieces.append(rest)
+    return pieces.join("")
+}
+
+func number_end(text: String, start: Int): Int {
+    var index = start + 1
+    while index < text.length() and number_continues_at(text, index) {
+        index = index + 1
+    }
+    return index
+}
+
+func literal_end(text: String, start: Int): Int {
+    var quote = text.code_at(start)
+    var index = start + 1
+    while index < text.length() and text.code_at(index) != quote {
+        if text.code_at(index) == 92 {
+            index = index + 1
+        }
+        index = index + 1
+    }
+    return index + 1
+}
+
+func follows_member_access(text: String, index: Int): Bool {
+    assert index > 0
+    if text.code_at(index - 1) == 46 {
+        return true
+    }
+    return index > 1 and text.code_at(index - 1) == 62 and text.code_at(index - 2) == 45
+}
+
+func rewritten_returns(text: String): String {
+    var pieces = List<String>()
+    var copied_from = 0
+    var index = 0
+    var text_length = text.length()
+    while index < text_length {
+        var code = text.code_at(index)
+        if code == 34 or code == 39 {
+            index = literal_end(text, index)
+        } else if is_name_start(code) {
+            var end = name_end_at(text, index)
+            var word = text.slice(index, end)
+            index = end
+            if word == "return" and not follows_member_access(text, end - 6) {
+                var value_end = statement_end(text, end)
+                var value = text.slice(end, value_end)
+                var before = text.slice(copied_from, end - 6)
+                pieces.append(before)
+                var finished = finishing(value)
+                pieces.append(finished)
+                copied_from = value_end + 1
+                index = value_end + 1
+            }
+        } else {
+            index = index + 1
+        }
+    }
+    var rest = text.slice(copied_from, text_length)
+    pieces.append(rest)
+    return pieces.join("")
+}
+
+func finishing(value: String): String {
+    var trimmed_value = value.trim()
+    if trimmed_value.is_empty() {
+        return "return true;"
+    }
+    return "\{ spite_frame->spite_result = {trimmed_value}; return true; }"
+}
+
+func statement_end(text: String, start: Int): Int {
+    var nesting = 0
+    var index = start
+    while index < text.length() {
+        var code = text.code_at(index)
+        if code == 34 or code == 39 {
+            index = literal_end(text, index)
+        } else if code == 59 and nesting == 0 {
+            return index
+        } else {
+            nesting = nesting + nesting_change(code)
+            index = index + 1
+        }
+    }
+    return index
+}
+
+func nesting_change(code: Int): Int {
+    if code == 40 or code == 123 or code == 91 {
+        return 1
+    }
+    if code == 41 or code == 125 or code == 93 {
+        return -1
+    }
+    return 0
+}
+
+func bound_field(name: String): String {
+    var index = bound_names.count() - 1
+    while index >= 0 {
+        if bound_names.get_at(index) == name {
+            return bound_fields.get_at(index)
+        }
+        index = index - 1
+    }
+    return ""
+}
+
+func bind(name: String, field: String) {
+    bound_names.append(name)
+    bound_fields.append(field)
+    bound_depths.append(depth)
+}
+
+func forget_deeper_bindings() {
+    while not bound_depths.is_empty() and bound_depths.last() > depth {
+        bound_names.remove_last()
+        bound_fields.remove_last()
+        bound_depths.remove_last()
+    }
+}
+
+func allocate_field(name: String, c_type: String, suffix: String): String {
+    var candidate = name
+    var number = 1
+    while field_conflicts(candidate, c_type, suffix) {
+        number = number + 1
+        candidate = "{name}_{number}"
+    }
+    if not field_names.contains(candidate) {
+        field_names.append(candidate)
+        field_types.append(c_type)
+        field_suffixes.append(suffix)
+    }
+    return candidate
+}
+
+func field_conflicts(candidate: String, c_type: String, suffix: String): Bool {
+    if bound_fields.contains(candidate) {
+        return true
+    }
+    var index = 0
+    while index < field_names.count() {
+        if field_names.get_at(index) == candidate {
+            return field_types.get_at(index) != c_type or field_suffixes.get_at(index) != suffix
+        }
+        index = index + 1
+    }
+    return false
+}

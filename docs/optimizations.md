@@ -51,7 +51,7 @@ function with a visible effect can show, no optimisation changes what a program 
 | [Proofs that survive a call](#proofs-that-survive-a-call) | built | every | a proof after a call that may change it is written again |
 | [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | planned (the lock fallback is built) | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
-| [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | planned | | |
+| [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | being built: state machines run beside the fibers | programs that make a `Concurrent` | one heap frame per waiting call instead of a stack |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
 
 ## Built
@@ -635,7 +635,10 @@ Waiting on IO is written as an ordinary call and the compiler turns it into a su
 done with fibers; [D176](../manual.md#decision-log) replaces them with a compile-time transform: each function that
 can reach a wait becomes a resumable state machine, and what is left at run time is a minimal loop continuing work
 when IO completes -- in a browser, the browser's own. No stack per fiber, no scheduler to ship, and nothing that
-bloats a WebAssembly build. The source does not change and no function is coloured. With it,
+bloats a WebAssembly build. The source does not change and no function is coloured. **Being built** (2026-09-25): a
+`Concurrent` whose function can wait is already a state machine, with every wait inside it (`program.sleep`,
+`File`, `Console` and `Socket` reads and writes, reading another `Concurrent`) a point it returns from; the fibers
+are left only for a `Concurrent` whose function the compiler cannot make one, and are removed next. With it,
 [D134](../manual.md#decision-log): `File`, `Directory`, `Socket` and the other IO classes start their work
 concurrently themselves and hand back values that wait where they are first used, so independent reads overlap
 without the program asking.
