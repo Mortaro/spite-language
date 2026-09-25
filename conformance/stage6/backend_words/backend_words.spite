@@ -1,0 +1,34 @@
+var console = Console()
+
+func BackendWords() {
+    var map = Map("harbour", 3)
+    var near = map.far(2, 5)
+    var pascal = "pascal"
+    var callback = map.short("cdecl")
+    var winapi = map.register(near)
+    var main = map.interface
+    var stdin = "{pascal} {callback}"
+    var stderr = map.default
+    var free = map.volatile.count()
+    var memcpy = near + winapi
+    var printf = stdin
+    var result = map.static(printf)
+    var value = result.length()
+    var assigned = map.unix
+    var copied = map.copy()
+    console.print(near, pascal, callback, winapi, main, stdin, stderr, free, memcpy, result, value, assigned)
+    console.print(copied.interface, copied.linux, copied.errno)
+    var names = map.attributes.map_name().join(",")
+    console.print(names)
+    var auto = 0
+    var double = 1.5
+    var float = 0
+    var long = 0
+    while auto < 3 {
+        float = float + auto
+        long = long + near
+        auto = auto + 1
+    }
+    var inline = double * 2.0
+    console.print(auto, float, long, inline)
+}

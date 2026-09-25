@@ -87,12 +87,10 @@ func is_alive(): Bool {
   `new`, `import`, `require`, `elif` -- are errors wherever they appear, naming the Spite form, so none of them
   can name a variable or a parameter either: `var none: Long = 0` says to write `null`. Pick another name
   (`no_handle`, `empty`).
-- A few names are taken by the C that Spite compiles to, and cannot name a variable, attribute, parameter or
-  function: `auto`, `bool`, `break`, `case`, `char`, `const`, `continue`, `default`, `do`, `double`, `extern`,
-  `float`, `goto`, `inline`, `int`, `long`, `main`, `register`, `restrict`, `short`, `signed`, `sizeof`,
-  `static`, `stderr`, `stdin`, `stdout`, `struct`, `typedef`, `unsigned`, `void`, `volatile`. The error lists
-  them. Say what the value is instead: `read_short` for a function, `flags` rather than `unsigned`
-  (`diagnostics/reserved_name`). `allocate`, `make`, `retain` and `release` are ordinary names.
+- No name is taken by the C that Spite compiles to (D168): `short`, `default`, `register`, `static`, `unsigned`,
+  `stdout`, `near`, `far` and `pascal` are ordinary names for a variable, attribute, parameter or function, and
+  so are `allocate`, `make`, `retain` and `release`. Do not rename around C. (`int`, `char`, `bool`, `min` and
+  `max` are still errors, as abbreviations.)
 - A function body holds no empty lines: the blank line is where a second function wants to be, so name the part
   below it and call it. An `if` whose only statement is a bare `return` is an error too -- that is a
   precondition, and a precondition is written `assert condition`.
@@ -282,7 +280,7 @@ round trip, and this list is cheaper to read than to rediscover.
 | `timestamp + 86400000` for tomorrow | `zone.to_local(instant) + Period(1, 'days')`, then `zone.to_instant(tomorrow, 'compatible')`: a day is not always 24 hours |
 | `text[0]` | `text.character_at(0)`, or `text.slice(start, end)` |
 | `// comment`, `/* comment */` | nothing, or `# docs/page.md#section` on its own line outside a function |
-| a variable named `int`, `static`, `unsigned`, `stdout` | any name that is not reserved in C |
+| renaming `short`, `static` or `near` because C takes them | the name you meant: Spite reserves nothing for C |
 
 Text is written with its values inside it: `"hello {name}"`, where `{ }` holds one value of any type and
 `\{` is a brace meant literally. Joining written text with `+` is an error; two values still join with `+`.
