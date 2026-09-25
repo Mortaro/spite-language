@@ -397,10 +397,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
      compiler -- which functions it calls (`Spawn`, `Insert`, `Remove`), which singletons it touches -- as a
      compile-time reflection like D114's (`function.calls(Spawn)`, or the singletons a function reaches). Wanted?
 
-111. **A dead private attribute passes.** For an attribute, `_` means both private and intended-unused, so D118
-     never reports an unread `_name` attribute, and the fix the message offers (`name it '_world'`) also makes the
-     attribute private. Keep that, or report a private attribute its own class never reads, and let an attribute
-     kept for its constructor's effect say so some other way?
 112. **An uncalled function keeps an attribute alive.** The rule is source-level, so `func describe(): String {
      return "{name}" }` that nothing calls makes `name` used, and tree shaking then removes both the function and
      the read. Four fixtures kept their metadata-only attributes exactly this way. Fine, or should only code a
