@@ -161,10 +161,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     the compiler rejects any singleton constructor with parameters (`diagnostics/singleton_arguments`) except
     `DynamicLibrary`'s, which keeps the per-argument-list behaviour. Which is the rule, and is `DynamicLibrary` the
     exception or the rule?
-48. **A bare `crash` is formatted to `crash false`.** Section 5 describes bare `crash` as the form for an
-    unreachable branch; the formatter rewrites it, so formatted code never shows it. Keep bare `crash` (and teach
-    the formatter), or make `crash false` the one form?
-
 ## Visible storage and placement (D107, D108; manual sections 4, 10 and 15)
 
 50. **How `String` declares its storage**: private attributes read by name -- `_bytes: Long` (the address of

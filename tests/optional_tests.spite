@@ -12,14 +12,14 @@ func test_if_narrows_for_the_whole_block() {
     if found {
         crash found.name == "rat"
     } else {
-        crash false
+        crash
     }
 }
 
 func test_else_runs_when_there_is_nothing() {
     var missing = maybe_creature(false)
     if missing {
-        crash false
+        crash
     } else {
         crash true
     }
@@ -34,7 +34,7 @@ func test_crash_narrows_for_the_rest_of_the_function() {
 func test_switch_covers_both_sides() {
     var missing = maybe_creature(false)
     switch missing {
-        Creature: crash false
+        Creature: crash
         Null: crash true
     }
 }

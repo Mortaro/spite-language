@@ -465,8 +465,8 @@ func ConstructorAssertError() {
 
 `crash condition` mirrors `assert` exactly -- same polarity, same narrowing -- with the other severity: when the
 condition is false, the program halts. The compiler captures the condition's source text and the values of its
-operands, so nothing has to be written and nothing can drift out of date. `crash false` marks a branch that
-cannot happen (a bare `crash` is formatted to it).
+operands, so nothing has to be written and nothing can drift out of date. A bare `crash` marks a branch that
+cannot happen (`crash false` is formatted to it).
 
 ```gdscript title=crash_guard/crash_guard.spite entry
 var console = Console()
@@ -494,7 +494,7 @@ func describe(value: Int): String {
     if value < 1 {
         return "not positive"
     }
-    crash false
+    crash
 }
 ```
 ```output
