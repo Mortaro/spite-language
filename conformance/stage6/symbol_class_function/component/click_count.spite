@@ -1,0 +1,5 @@
+var clicks = 3
+
+func mirrored_from(environment: String): Boolean {
+    return environment == "server" and clicks > 0
+}

@@ -1,0 +1,7 @@
+generic $held_type
+
+var count = 0
+
+func describe(item: $held_type): String {
+    return item.to_debug()
+}

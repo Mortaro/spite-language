@@ -1,0 +1,7 @@
+var console = Console()
+
+func SymbolClassFunction() {
+    var replication = Replication()
+    var encoded = replication.encode()
+    console.print(encoded)
+}

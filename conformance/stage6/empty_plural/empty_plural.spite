@@ -1,0 +1,22 @@
+var console = Console()
+
+func EmptyPlural() {
+    var lines = List<String>()
+    var count = Count()
+    var marker = Component.Arrived()
+    var maybe: Count? = null
+    var count_pack = Pack<Count>()
+    var marker_pack = Pack<Component.Arrived>()
+    var maybe_pack = Pack<Count?>()
+    var number_pack = Pack<Integer>()
+    count_pack.write(count, lines)
+    marker_pack.write(marker, lines)
+    maybe_pack.write(maybe, lines)
+    number_pack.write(7, lines)
+    marker_pack.read_into(marker, lines)
+    maybe_pack.read_into(maybe, lines)
+    number_pack.read_into(7, lines)
+    count_pack.read_into(count, lines)
+    var joined = lines.join(", ")
+    console.print(joined, count.clicks)
+}

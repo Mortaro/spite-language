@@ -1,0 +1,9 @@
+var seen = 0
+
+func take(holder: Holder<Speaker>) {
+    seen = holder.count
+}
+
+func total(): Integer {
+    return seen
+}

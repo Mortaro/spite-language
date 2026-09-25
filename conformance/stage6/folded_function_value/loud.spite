@@ -1,0 +1,5 @@
+var level = 3
+
+func shout(): Integer {
+    return level
+}
