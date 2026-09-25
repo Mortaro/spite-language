@@ -17,6 +17,7 @@ var symbol_through_caller = false
 var symbol_pattern = ""
 var symbol_function_name = ""
 var symbol_display_name = ""
+var symbol_range = ""
 
 func FunctionInfo(
     starting_name: String,

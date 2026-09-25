@@ -1,0 +1,11 @@
+found System.Move
+found System.Rest
+starting update
+move ticks 1
+finished update
+starting render
+move draws
+finished render
+starting update
+rest
+finished update

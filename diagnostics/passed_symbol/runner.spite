@@ -1,0 +1,21 @@
+generic $system_type
+
+var system: $system_type = null
+
+func run() {
+    announce('update')
+    run_phases_all()
+}
+
+func run_phase_all(phase: Symbol<$system_type.phase_all>) {
+    announce(phase)
+    place(phase)
+}
+
+func announce(phase: Symbol<$system_type.phase_all>) {
+    system.phase_all()
+}
+
+func place(phase: Symbol<$system_type.phase_each>) {
+    system.phase_each()
+}

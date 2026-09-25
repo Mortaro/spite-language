@@ -585,6 +585,64 @@ draw
 rows queried per argument and `run_each` called once per combination, is
 `conformance/stage6/system_phases`.
 
+### Passing the symbol to a helper
+
+A function whose `Symbol<...>` parameter is not a word of its own name is not called by a spelled-out name.
+Instead the template's own symbol is passed to it, by name, and it is compiled once for each symbol passed, like
+the template itself. The range must be the same as the template's, and the helper keeps everything the symbol
+means: `phase.name`, the matched function, and the templates over its arguments. That lets a long template be cut
+into functions:
+
+```gdscript title=passed_phase/system/wave.spite
+var console = Console()
+
+func greet_all() {
+    console.print("wave")
+}
+
+func leave_all() {
+    console.print("wave goodbye")
+}
+```
+```gdscript title=passed_phase/runner.spite
+generic $system_type
+
+var system: $system_type = null
+var console = Console()
+
+func run() {
+    run_phases_all()
+}
+
+func run_phase_all(phase: Symbol<$system_type.phase_all>) {
+    announce(phase, "before")
+    system.phase_all()
+    announce(phase, "after")
+}
+
+func announce(phase: Symbol<$system_type.phase_all>, word: String) {
+    console.print(word, phase.name)
+}
+```
+```gdscript title=passed_phase/passed_phase.spite entry
+func PassedPhase() {
+    var runner = Runner<System.Wave>()
+    runner.run()
+}
+```
+```output
+before greet
+wave
+after greet
+before leave
+wave goodbye
+after leave
+```
+
+`RunnerWave` has `announce_for_greet(word: String)` and `announce_for_leave(word: String)`. Anything else passed
+there is an error, since there is no symbol to compile it for (`diagnostics/passed_symbol`); a `Symbol` without a
+range is still an ordinary value, and a function taking one is an ordinary function.
+
 ## Tree shaking
 
 Spite removes what a program does not use, and it can do so exactly, because everything it generates is decided

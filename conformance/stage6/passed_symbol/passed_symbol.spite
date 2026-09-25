@@ -1,0 +1,21 @@
+type Runnable {
+    run()
+}
+
+var runners = List<Runnable>()
+var console = Console()
+
+func PassedSymbol() {
+    add_systems()
+    runners.each_run()
+}
+
+func add_system(system: Symbol<System>) {
+    var runner = Runner<system.class>()
+    runners.append(runner)
+    describe(system)
+}
+
+func describe(system: Symbol<System>) {
+    console.print("found", system.name)
+}

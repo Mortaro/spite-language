@@ -1,0 +1,5 @@
+var console = Console()
+
+func update_all() {
+    console.print("move")
+}

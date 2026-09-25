@@ -1,0 +1,2 @@
+diagnostics/passed_symbol/runner.spite:6: error: 'announce' is compiled once for each 'phase' of 'Symbol<$system_type.phase_all>', so its 'phase' can only be the symbol of a template over that same range, passed by name from inside it, as in 'announce(phase)' (in Runner.run)
+diagnostics/passed_symbol/runner.spite:12: error: 'place' is compiled once for each 'phase' of 'Symbol<$system_type.phase_each>', so its 'phase' can only be the symbol of a template over that same range, passed by name from inside it, as in 'place(phase)' (in Runner.run_update_all)

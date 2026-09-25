@@ -3,6 +3,7 @@ var symbol_parameter = ""
 var prefix = ""
 var suffix = ""
 var range: Syntax.Types.Type? = null
+var passed = false
 
 func TemplateInfo(
     starting_declaration: Syntax.Statements.FunctionDeclaration,
@@ -22,6 +23,7 @@ func get_declaration(): Syntax.Statements.FunctionDeclaration {
 }
 
 func member_name_for(call_name: String): String {
+    assert not passed
     assert call_name.length() > prefix.length() + suffix.length()
     assert call_name.starts_with(prefix)
     assert call_name.ends_with(suffix)

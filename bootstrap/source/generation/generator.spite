@@ -87,6 +87,7 @@ var bound_through_caller = false
 var bound_pattern = ""
 var bound_function_name = ""
 var bound_display_name = ""
+var bound_range = ""
 var arguments_parameter_names = List<String>()
 var temporary_counter = 0
 var literal_counter = 0
@@ -180,8 +181,30 @@ func instantiated_function_source(information: Analysis.ClassInfo, function: Ana
     if not function.symbol_pattern.is_empty() {
         body = body.replace(".{function.symbol_pattern}(", ".{function.symbol_function_name}(")
     }
+    body = passed_calls_source(information, function, body)
     body = replace_word(body, symbol, "'{function.symbol_field_name}'")
     return "func {function.name}({parameters.join(", ")}){returns} \{\n{body}\n}"
+}
+
+func passed_calls_source(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, body: String): String {
+    var result = body
+    var index = 0
+    while index < information.templates.count() {
+        var template = information.templates[index]
+        if template.passed and range_text(template) == function.symbol_range {
+            var instance_name = passed_instance_name(
+                information,
+                template,
+                function.symbol_field_name,
+                function.symbol_pattern,
+                function.symbol_function_name,
+            )
+            result = result.replace("{template.prefix}({function.symbol_name}, ", "{instance_name}(")
+            result = result.replace("{template.prefix}({function.symbol_name})", "{instance_name}()")
+        }
+        index = index + 1
+    }
+    return result
 }
 
 func type_source_name(spite_type: Analysis.SpiteType): String {
@@ -2298,7 +2321,15 @@ func register_template(declaration: Syntax.Statements.FunctionDeclaration, infor
     assert not symbol_parameter.is_empty()
     var padded_name = "_{declaration.name}_"
     var position = padded_name.index_of("_{symbol_parameter}_")
-    assert position >= 0
+    if position < 0 {
+        var passed_range = symbol_range_of(declaration, symbol_parameter)
+        assert passed_range
+        var passed_template = Analysis.TemplateInfo(declaration, symbol_parameter, declaration.name, "")
+        passed_template.range = passed_range
+        passed_template.passed = true
+        information.templates.append(passed_template)
+        return true
+    }
     var prefix = declaration.name.slice(0, position)
     var symbol_parameter_length = symbol_parameter.length()
     var name_length = declaration.name.length()
@@ -2961,6 +2992,7 @@ func instantiate_template(
     function.symbol_field_type = member_type
     function.symbol_owner_c_name = member_owner_c_name
     function.symbol_through_caller = not caller_c_name.is_empty()
+    function.symbol_range = range_text(template)
     if not declaration.has_body {
         function.has_body = false
         function.supplied_body = "#define {function.c_name}(self, value) (({c_type_name(return_type)})(value))"
@@ -2983,7 +3015,18 @@ func instantiate_template(
     return function
 }
 
+func range_text(template: Analysis.TemplateInfo): String {
+    if template.range {
+        var named = shape.as_named_type(template.range)
+        if named {
+            return named.path.join(".")
+        }
+    }
+    return ""
+}
+
 func bind_symbol_of(function: Analysis.FunctionInfo) {
+    bound_range = function.symbol_range
     bound_symbol_name = function.symbol_name
     bound_field_name = function.symbol_field_name
     bound_field_type = function.symbol_field_type
@@ -5605,6 +5648,10 @@ func generate_own_function_call(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
+    var passed = passed_template(class_information, name)
+    if passed {
+        return generate_passed_symbol_call(passed, arguments_ast, scope, class_information)
+    }
     var function = find_or_instantiate_function(class_information, name)
     var held_type = scope.lookup_type(name)
     if not held_type {
@@ -5655,6 +5702,113 @@ func generate_own_function_call(
     full_arguments.prepend("self")
     var function_return_type = function.get_return_type()
     return ExpressionResult("{function.c_name}({full_arguments.join(", ")})", function_return_type)
+}
+
+func passed_template(information: Analysis.ClassInfo, name: String): Analysis.TemplateInfo? {
+    var index = 0
+    while index < information.templates.count() {
+        var template = information.templates[index]
+        if template.passed and template.prefix == name {
+            return template
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func passed_instance_name(
+    information: Analysis.ClassInfo,
+    template: Analysis.TemplateInfo,
+    member_name: String,
+    pattern: String,
+    function_name: String,
+): String {
+    var name = "{template.prefix}_for_{member_name}"
+    if pattern.is_empty() or template_range_owner(information, template) == "pattern" {
+        return name
+    }
+    return "{name}_in_{function_name}"
+}
+
+func passed_instance(
+    information: Analysis.ClassInfo,
+    template: Analysis.TemplateInfo,
+    registered_name: String,
+): Analysis.FunctionInfo {
+    var existing = information.find_function(registered_name)
+    if existing {
+        return existing
+    }
+    var member_type = template_member_type(information, template, bound_field_name)
+    crash member_type
+    var member_owner = template_range_owner(information, template)
+    if member_owner == "function" or member_owner == "pattern" or member_owner == "namespace" {
+        member_owner = ""
+    }
+    var instance = instantiate_template(
+        information,
+        template,
+        bound_field_name,
+        member_type,
+        member_owner,
+        registered_name,
+        "",
+    )
+    describe_range_binding(information, template, instance)
+    return instance
+}
+
+func generate_passed_symbol_call(
+    template: Analysis.TemplateInfo,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var declaration = template.get_declaration()
+    var range = range_text(template)
+    var symbol_position = -1
+    var parameter_index = 0
+    while parameter_index < declaration.parameters.count() {
+        if declaration.parameters[parameter_index].name == template.symbol_parameter {
+            symbol_position = parameter_index
+        }
+        parameter_index = parameter_index + 1
+    }
+    var remaining = List<Syntax.Expressions.Expression>()
+    var passed_name = ""
+    var index = 0
+    while index < arguments_ast.count() {
+        var argument = arguments_ast[index]
+        if index == symbol_position {
+            var passed_identifier = shape.as_identifier(argument)
+            if passed_identifier {
+                passed_name = passed_identifier.name
+            }
+        } else {
+            remaining.append(argument)
+        }
+        index = index + 1
+    }
+    if passed_name.is_empty() or passed_name != bound_symbol_name or range != bound_range {
+        report(
+            "'{template.prefix}' is compiled once for each '{template.symbol_parameter}' of 'Symbol<{range}>', so its '{template.symbol_parameter}' can only be the symbol of a template over that same range, passed by name from inside it, as in '{template.prefix}({template.symbol_parameter})'",
+        )
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    var registered_name = passed_instance_name(
+        class_information,
+        template,
+        bound_field_name,
+        bound_pattern,
+        bound_function_name,
+    )
+    var instance = passed_instance(class_information, template, registered_name)
+    var parameter_types = parameter_types_of(instance.parameters)
+    var argument_codes = generate_argument_list(remaining, parameter_types, scope, class_information)
+    var full_arguments = argument_codes.copy()
+    full_arguments.prepend("self")
+    var instance_return_type = instance.get_return_type()
+    return ExpressionResult("{instance.c_name}({full_arguments.join(", ")})", instance_return_type)
 }
 
 func generate_generic_call(

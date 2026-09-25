@@ -1,0 +1,4 @@
+func PassedSymbol() {
+    var runner = Runner<Move>()
+    runner.run()
+}

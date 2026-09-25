@@ -1,0 +1,27 @@
+generic $system_type
+
+var system: $system_type = null
+var console = Console()
+
+func run() {
+    run_phases_all()
+}
+
+func run_phase_all(phase: Symbol<$system_type.phase_all>) {
+    announce(phase, "starting")
+    call_system(phase)
+}
+
+func announce(phase: Symbol<$system_type.phase_all>, word: String) {
+    console.print(word, phase.name)
+}
+
+func call_system(phase: Symbol<$system_type.phase_all>) {
+    system.phase_all(made_arguments())
+    announce(phase, "finished")
+}
+
+func made_argument(argument: Symbol<$system_type.phase_all>): argument.class {
+    var made: argument.class = null
+    return made
+}

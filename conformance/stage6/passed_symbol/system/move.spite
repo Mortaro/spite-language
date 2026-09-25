@@ -1,0 +1,10 @@
+var console = Console()
+
+func update_all(counter: Counter) {
+    counter.ticks = counter.ticks + 1
+    console.print("move ticks", counter.ticks)
+}
+
+func render_all() {
+    console.print("move draws")
+}

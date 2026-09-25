@@ -473,3 +473,14 @@ Behaviour that does not match the manual. The language was not changed; each is 
     a reference to the class itself (`var counter = Plugin()` written inside `ClickTest.Plugin`). (b) needs no
     syntax but only covers the self-reference case, and a name then means different things in different files.
     Nothing is built; which, if either?
+
+## From SlopEngine adopting D114-D116
+
+108. **Passing a template's symbol to a helper** (proposed by Claude, unconfirmed; manual section 8). A function
+    whose ranged `Symbol<...>` parameter is not a word of its own name, such as `run_combination(phase:
+    Symbol<$system_type.phase_each>, combination: Int)`, is now a template reached by passing it the calling
+    template's own symbol by name, `run_combination(phase, combination)`, and it is compiled once per symbol
+    (`run_combination_for_update`). Two readings came with it: whether a template is spelled by its name or
+    reached by a passed symbol now depends on whether the parameter's name is a word of the function's name, and
+    the passed symbol must be over exactly the same range text. Keep the rule, or would you rather the helper be
+    spelled some other way (a name with the hole, `run_phase_combination()`, reached from inside the template)?
