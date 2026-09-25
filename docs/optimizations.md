@@ -65,6 +65,7 @@ nothing at run time because they emit nothing.
 | [Freed small objects are kept for the next one](#freed-small-objects-are-kept-for-the-next-one) | built | production, not `--debug-memory` | memory a thread freed stays with the program |
 | [A dictionary hashes a key once, cheaply](#a-dictionary-hashes-a-key-once-cheaply) | built | every | nothing but speed |
 | [Reading through a `type` without counting](#reading-through-a-type-without-counting) | built | every but `--hot-reload` | nothing but speed |
+| [Short text lives inside the `String`](#short-text-lives-inside-the-string) | built | every | fewer allocations; `.memory.section` of built text; a box when text travels as a shape |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
@@ -536,17 +537,19 @@ thread" row; [concurrency.md](concurrency.md)).
 
 ### Boxing only where a value travels as a shape
 
-**What it does.** A number, `Boolean`, enum value or `Symbol` is a plain value everywhere the compiler can see its
-type. It is put in a box -- one small object, released like any other -- only where it has to travel as a `type`
-shape (a `Printable`, a `Debuggable`, an empty `type` that accepts anything) and be called through it
-([D109, D164](decisions.md)). `String` and class instances are objects already and are never boxed.
+**What it does.** A number, `Boolean`, enum value, `Symbol` or `String` is a plain value everywhere the compiler
+can see its type. It is put in a box -- one small object, released like any other -- only where it has to travel as
+a `type` shape (a `Printable`, a `Debuggable`, an empty `type` that accepts anything) and be called through it
+([D109, D164](decisions.md)). A written text's box is part of the program and allocates nothing
+([short text](#short-text-lives-inside-the-string)). Class instances are objects already and are never boxed.
 
-**When.** Passing a plain value where a shape is wanted, reading `attribute.value` of a number
+**When.** Passing a plain value where a shape is wanted, reading `attribute.value` of a number or text
 attribute, or a class test against a number class.
 
 **What you notice.** One allocation per boxed value under `--debug-memory`. The visible cost today: every value
 given to `console.print` is passed as a `Printable`, so printing a number boxes it, and the `...values` of every
-variadic call arrive in a `List` ([functions_and_operators.md](functions_and_operators.md)). Whether that list and
+variadic call arrive in a `List` ([functions_and_operators.md](functions_and_operators.md)); text made while the
+program runs is boxed too, since the sixteen bytes of a `String` are not an object. Whether that list and
 those boxes should live in the caller's frame is `mortaros_missing_decisions.md` item 74. **Built** (D109's print
 row, and D164's `attribute.value`, filled only in a program that reads it).
 
@@ -932,6 +935,35 @@ and only when the value holding the component is itself held for the whole state
 **What you notice.** Speed, in systems that walk components through a `type`: `benchmarks/stress`'s
 `update_each` functions no longer count anything. Allocations and results are the same. **Built** (2026-09-25;
 proposed by Claude, unconfirmed).
+
+### Short text lives inside the `String`
+
+**What it does.** A `String` is sixteen bytes wherever it is kept -- a local, an attribute, a list's element, a
+parameter -- and text of up to 15 bytes of UTF-8 is kept in those sixteen bytes themselves: no allocation, no
+reference count, and no pointer to follow to read it, so a name in a component column is read where the column
+already is in the CPU cache ([D203](decisions.md)). Longer text is one block on the heap -- its count, its capacity
+and its characters, with a 0 after them for C -- that the sixteen bytes point at, next to the length; it used to be
+two, the `String` object and its characters. A written text (`"hello"`) is part of the program as before, whatever
+its length: the sixteen bytes point at it, and nothing is counted or freed.
+
+**When.** Every `String`, in every build. Whatever makes text -- a join, `slice`, `upper_case()`, a number's
+`to_string()`, reading a file, the program's arguments, a foreign function's result -- keeps it inside the value when
+it fits. [Appending in place](#appending-to-text-in-place) fills the sixteen bytes first and moves the text into a
+block, with room to grow, once it passes 15 bytes.
+
+**What you notice.** Fewer allocations under `--debug-memory`: none for short text, one instead of two for long
+text (`conformance/stage6/text_building` went from 35 to 31, `singleton_counts` from 104 to 69 and
+`fused_chain_allocations` from 15 to 13, most of it numbers turned into text to be printed). `.memory.section` of
+text made while the program runs answers `'stack'` when the text is short and held in a local (`'heap'` when it is
+read from an attribute, where the value lives in its object) and `'heap'` when it is long; written text is
+`'constant'`, as before. Text passed where a `type` shape is wanted -- a `Printable` given to `console.print`,
+`attribute.value` -- is put in a box, one allocation, as a number is (written text has a box in the program and
+allocates nothing) ([below](#boxing-only-where-a-value-travels-as-a-shape)). A `List<String>` holds sixteen bytes
+per element instead of an eight-byte pointer. Why 15 and not 22: of the 4.7 million texts the compiler makes
+compiling itself, 68% are 15 bytes or fewer and 78% are 22 or fewer, and 22 would take a third machine word in
+every `String` -- a `List<String>` half as large again -- where 15 fits in the two a long text needs anyway (where
+its characters are, and how many). **Built** (2026-09-26; the size and the layout proposed by Claude,
+unconfirmed).
 
 ## Planned
 
