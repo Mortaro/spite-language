@@ -84,7 +84,9 @@ struct has the size of the header's struct of the derived name (`PointPair` agai
 padding field fails the build at the Spite line. A header path that exists relative to the working directory is
 included as a file; anything else as a system header. The reflection members every value has -- `.class`,
 `.attributes`, `.functions` and `.memory` -- are never read as constants, so a generic class instantiated
-over `DynamicLibrary` can still ask `current.class.name`.
+over `DynamicLibrary` can still ask `current.class.name`. Neither are `DynamicLibrary`'s own members, such as
+`file_name`: a `List<DynamicLibrary>`'s member templates (`find_by_file_name`, `sort_by_handle`) read the
+attribute, which is what the templates mean whenever a program describes that list's functions.
 
 ### Argument widths
 

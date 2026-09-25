@@ -1,0 +1,31 @@
+type Anything {
+}
+
+var components = List<Anything>()
+
+func add_component(component: Anything) {
+    components.append(component)
+}
+
+func remove_component(component_class: Spite.Class) {
+    var kept = List<Anything>()
+    var index = 0
+    while index < components.count() {
+        var component = components[index]
+        if component.class != component_class {
+            kept.append(component)
+        }
+        index = index + 1
+    }
+    components = kept
+}
+
+func has_component(component_class: Spite.Class): Bool {
+    var found = false
+    var index = 0
+    while not found and index < components.count() {
+        found = components[index].class == component_class
+        index = index + 1
+    }
+    return found
+}

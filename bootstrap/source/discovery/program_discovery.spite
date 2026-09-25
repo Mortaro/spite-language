@@ -1031,6 +1031,7 @@ func literal_reader(declared: Syntax.Expressions.Expression): String {
 }
 
 func scan_top_level_loads(file: Syntax.SourceFile, found: List<String>) {
+    assert not declares_load(file)
     var index = 0
     while index < file.statements.count() {
         var function_declaration = shape.as_function_declaration(file.statements[index])
@@ -1039,6 +1040,20 @@ func scan_top_level_loads(file: Syntax.SourceFile, found: List<String>) {
         }
         index = index + 1
     }
+}
+
+func declares_load(file: Syntax.SourceFile): Bool {
+    var index = 0
+    while index < file.statements.count() {
+        var function_declaration = shape.as_function_declaration(file.statements[index])
+        if function_declaration {
+            if function_declaration.name == "load" {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func scan_function_body_loads(statements: List<Syntax.Statements.Statement>, found: List<String>) {

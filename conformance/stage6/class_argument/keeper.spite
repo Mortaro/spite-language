@@ -1,0 +1,5 @@
+generic $kept_type
+
+func kind(): Spite.Class {
+    return $kept_type
+}

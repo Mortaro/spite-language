@@ -1,0 +1,7 @@
+Health 10
+Position
+Int 4
+String
+components 4
+Position
+components 1

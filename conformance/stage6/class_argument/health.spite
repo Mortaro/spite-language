@@ -1,0 +1,3 @@
+func amount(): Int {
+    return 10
+}

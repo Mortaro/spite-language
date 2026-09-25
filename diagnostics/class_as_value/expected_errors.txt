@@ -1,0 +1,2 @@
+diagnostics/class_as_value/class_as_value.spite:7: error: 'Health' is a class, not a value: write 'Health()' to make one, and give it a name with 'var ... = ' -- or, for the class itself, pass it where a 'Spite.Class' is wanted (in ClassAsValue.ClassAsValue)
+diagnostics/class_as_value/class_as_value.spite:9: error: 'Health' is a class, not a value: write 'Health()' to make one, and give it a name with 'var ... = ' -- or, for the class itself, pass it where a 'Spite.Class' is wanted (in ClassAsValue.ClassAsValue)

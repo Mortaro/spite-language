@@ -162,6 +162,7 @@ func is_alive(): Bool {
   two cases doing the same thing are an error: write it once as `_:`. An enum is compared with `==`, not switched.
 - `value == Monster` is a class test (false for `null`), and `if value == Monster { }` narrows `value` inside. A
   switch that is one class case and `_:`, each a `return`, is an error: write the `if`, or `return value == Monster`.
+  In a generic class, `value == $wanted_type` tests for the class the codegen value is bound to.
 - There are no exceptions and no error values. Three outcomes only:
   - the compiler can know it: a compile error;
   - absence is fine: `assert condition` returns the function's default quietly (`false`, `0`, `""`, `null`,

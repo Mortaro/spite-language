@@ -273,6 +273,52 @@ true false
 hello
 ```
 
+Inside a generic class, a codegen value bound to a class tests for that class: `item == $wanted_type`. A value
+read through a `type` that accepts anything is narrowed to the bound class, so a function can find the first
+value of the class it was made for without a generic function (there are none). A number is boxed when it goes
+into a `type`, so `Find<Int>` finds it too. Where the value's own type already answers -- a `Health` tested
+against `$wanted_type` bound to `Health`, or a union that does not hold the bound class -- the test is decided
+while compiling, and it is never the "never true" error, since another binding may make it true.
+
+```gdscript title=codegen_class_test_doc/find.spite
+generic $wanted_type
+
+func first(items: List<Anything>): $wanted_type? {
+    var index = 0
+    var found: $wanted_type? = null
+    while index < items.count() {
+        var item = items[index]
+        if item == $wanted_type {
+            found = item
+        }
+        index = index + 1
+    }
+    return found
+}
+```
+```gdscript title=codegen_class_test_doc/codegen_class_test_doc.spite entry
+type Anything {
+}
+
+var console = Console()
+
+func CodegenClassTestDoc() {
+    var items = List<Anything>()
+    items.append("hello")
+    items.append(42)
+    var find_text = Find<String>()
+    var text = find_text.first(items)
+    crash text
+    var find_number = Find<Int>()
+    var number = find_number.first(items)
+    crash number
+    console.print(text, number + 1)
+}
+```
+```output
+hello 43
+```
+
 **So a switch that is one early return is an error.** A switch with one class case and `_:`, each a single
 `return`, says no more than `if value == Class { return ... }` followed by what `_:` returns -- and when both
 return `Bool` literals, it is `return value == Class`. The error names the form to write:

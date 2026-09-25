@@ -6,15 +6,6 @@ manual argues it.
 
 ## Open questions still open in manual.md
 
-2. **Open question 15: whether `while` goes.** Proposal: the index loop over a list (199 of 259 loops) becomes an
-   error naming the member template; `while` stays for loops over state.
-   D94 review: [mortaros_review_while_and_else_if.md](mortaros_review_while_and_else_if.md). Of 472 loops, 31 are
-   replaceable today and the exact-shape rule there catches about 10; most index loops pass the element to a
-   function of the caller, which no template expresses.
-3. **Open question 20: whether a nested `if`/`else` is an error.** Proposal: an `if` with an `else` inside a
-   branch of another `if` with an `else` is an error naming "extract a function".
-   D94 review: [mortaros_review_while_and_else_if.md](mortaros_review_while_and_else_if.md), section 3 (16 cases,
-   with the `else if` chains and a proposed `switch` over an enum).
 5. **Open question 16: two versions of one dependency.** Needs D38 (git dependencies) first.
 6. **Open questions 1, 3, 6, 8, 9, 10, 11**, the older ones: `= null` on a generic field, right-to-left casting
    in comparisons, `_` meaning private and unused, an unrelated `get_x()` intercepting `.x`, `${` in text,
@@ -22,11 +13,6 @@ manual argues it.
 
 ## Proposals built and waiting for a yes or no
 
-7. **D77, the five interpretations** (manual section 12): the rule covers constructor calls too; any call
-   anywhere inside an argument counts; text holes are not arguments; calls moved out of `while` conditions and
-   the right of `and`/`or` only where harmless; a hoisted variable may reuse the function's name
-   (`var file_stem = file_stem(path)`).
-8. **D78's narrow form**: only a call with arguments, in every branch, at the start of the branches, counts.
 9. **The floor** (section 15, "The floor, named"): what stays C, and D82's form for showing it in
    `--final_classes`.
 10. **Rows marked "(proposed by Claude, unconfirmed)"** in the decision log from 2026-09-23 and 2026-09-24:
@@ -35,22 +21,8 @@ manual argues it.
     D86, and spelled `operating_system` now), the containers row, and the D91/D105 rows (a `List` template's symbol names the element's member;
     how a chain fuses).
 
-## From the remote REPL
-
-11. **D37 drain points, as built.** The remote REPL's commands are answered on the program's thread at its waits
-    (manual section 14, "Answered where the program waits"). Confirm the compile error's rule: a `--repl_port`
-    build is rejected when none of the program's own code waits and it has a `while` loop -- which also rejects
-    a loop that does end.
-## Variadic arguments
-
-14. **Whether a generic line can name a constraint**, `generic $sub_type: Openable` (open question 12's own
-    proposal). D87 decided the lines and not this half.
-
 ## From hidden async/await (D99, D103)
 
-16. **The mechanism: stackful fibers plus a helper thread per blocking call**, chosen over a state-machine
-    transform and over threads for everything (the decision-log row argues it). Built on Windows; the Linux and
-    macOS folders (`makecontext`/`swapcontext`) are only compiled.
 17. **What a `Parallel` function may touch.** Nothing is checked yet, and with reference-counted fields a race can
     free a value another thread is reading. Options: D35's syntactic rule (it reaches only its own instance and its
     locals, which rejects `Parallel(file.read)` because `File` reaches `Memory` and its library through fields);
@@ -214,12 +186,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     to `type Target { health: Health }` now holds `{health: Health()}`, whose `.class` answers `Object`. A `type`
     that requires a function has no default object and stays a null pointer that reads defaults. Should that
     case be a compile error naming the field instead?
-## From porting PSD, zstd and .blend to Spite (SlopEngine)
-
-88. **Arithmetic takes the left operand's type** (open question 3, "right-to-left casting"): an `Int` times a
-    `Long` is an `Int` multiply, so `253 * 2^24` silently overflowed in a little-endian reader even though the result
-    was stored in a `Long`. Widen to the wider operand, or make a wider right-hand side a compile error?
-
 ## From the Vulkan renderer bugs (manual sections 11, 12, 13, 15 and 17)
 
 89. **A loaded package cannot find its own folder at run time.** SlopEngine locates its shader sources by
@@ -300,19 +266,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     syntax but only covers the self-reference case, and a name then means different things in different files.
     Nothing is built; which, if either?
 
-## From the binary format ports (PSD, zstd, .blend)
-
-106. **Does a call between a check and a read undo a proven `list[...]`?** `crash glyphs[code - 32]` now proves
-    `glyphs[code - 32]` like `glyphs[index]`, and assigning `code` or `glyphs` undoes it. A call in between does
-    not, for either form, although a call could change a field the index reads or clear a list held in a field;
-    the read still checks its bounds, so the cost is a default value, not memory. Keep it, or should a call
-    undo every proven read whose list or index is a field?
-107. **Does a function still need the C-reserved list?** Every function's C name is joined to its class's with
-    `___`, so `func short()` would compile as `Class___short`, yet it is still rejected with `int`, `static` and
-    the rest, because variables and parameters keep their names in C. The error now lists all 31 names. Should a
-    function (and an attribute, which is a struct member) be allowed any of them, leaving the list to locals and
-    parameters only?
-
 ## From SlopEngine adopting D114-D116
 
 108. **Passing a template's symbol to a helper** (proposed by Claude, unconfirmed; manual section 8). A function
@@ -361,27 +314,10 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 All of it is proposed by Claude, unconfirmed.
 
-115. **The names.** `Instant`, `Duration`, `Period`, `LocalDate`, `LocalTime`, `LocalDateTime`, `TimeZone`,
-     `TimeZones()` (the database, a singleton) and `TimeText()` (ISO 8601, a singleton). `Local` is the word
-     D127 used and the one `java.time` and NodaTime use; the alternatives are Temporal's `PlainDate`/
-     `PlainDateTime` (chosen there because "local" reads as "the machine's zone" to some) and jiff's `civil`.
-     `TimeText` could also be `Iso8601` (digits in a class name) or live on each type if Spite ever had a way to
-     read text into a class without a static function.
-116. **No stored zoned type.** Every design compared has one (`ZonedDateTime`, `Zoned`, `OffsetDateTime`); Spite
-     has none, because D127 makes a zone presentation: store the `Instant`, apply the zone when showing it.
-     "The same time tomorrow" is then three lines (`to_local`, `+ Period(1, 'days')`, `to_instant`). Keep it out?
-117. **Every `to_instant` names its ambiguity rule**: `'compatible'`, `'earlier'` or `'later'`, with no default.
-     A `'reject'` (Temporal's fourth value) would make every call answer `Instant?`, so it is left out; a caller
-     who must refuse an ambiguous reading compares `'earlier'` with `'later'`. Is the required argument right,
-     or should `'compatible'` be the one behaviour with no argument?
 118. **The constructors.** `Instant(since_1970: Duration)`, `Duration(amount, unit)` and `Period(amount, unit)`
      with a unit enum, since Spite has no static functions for `Duration.of_hours(2)`. With no overloading,
      `instant - instant` is the `Duration` between them and going back is `instant + -duration`. A date that
      does not exist (`LocalDate(2023, 2, 29)`) halts, while `TimeText` answers `null` for such text.
-119. **Where zones come from.** The operating system's database: Windows through `icu.dll` (Windows 10 1903 and
-     later; its registry zones have Windows names and less history), Linux and macOS through
-     `/usr/share/zoneinfo`, read in Spite. Nothing is embedded; `zones.read_tzif(name, data)` takes a TZif file
-     a program ships. The Linux and macOS path compiles in `check.sh` but has never run.
 120. **`Clock.unix_milliseconds()` is gone**, replaced by `now(): Instant`; the monotonic `elapsed_*` readings stay.
 121. **Reading text is lenient where RFC 3339 is**: `t` or a space for `T`, `z` for `Z`, `,` before a fraction, a
      leap second read as the second before it, and an RFC 9557 `[zone]` after an offset read and ignored. Writing
@@ -390,27 +326,35 @@ All of it is proposed by Claude, unconfirmed.
      `far` compiled to broken C (found writing `calendar_math`). Add them, and whatever else `windows.h` defines
      in lower case, to the list item 107 is about?
 
+## From SlopEngine's system phases (D116)
+
+123. **Limiting a name pattern to a known set.** SlopEngine's private helpers `interact_all(...)` and `drag_all(...)`
+     were matched by `Symbol<$system_type.phase_all>` as phases called "interact" and "drag", with errors far from the
+     cause. Options: let a pattern's hole be constrained to a list the engine owns (`phase` must be one of
+     `App.phases`), so a non-phase `_all` function stays ordinary; or make a function that fits a walked pattern but
+     is not meant as one an error at its declaration; or leave naming discipline to the program.
+
 ## From D134 and D135 (the thread pool and join on first use; manual section 15, `docs/concurrency.md`)
 
 All of it is proposed by Claude, unconfirmed.
 
-123. **Where a handle becomes its value.** Everywhere a `T` is expected (typed `var`, argument, `return`,
+129. **Where a handle becomes its value.** Everywhere a `T` is expected (typed `var`, argument, `return`,
      operand, text, a member the handle lacks, a condition) the compiler reads the value; an untyped `var` keeps
      the handle, and `finished` is the handle's own. `wait()` and `join()` are removed rather than kept as an
      explicit form. Two consequences to confirm: `a == b` on two handles compares their values, and there is no
      way to compare the handles themselves; a `Concurrent<Nothing>`/`Parallel<Nothing>` is only waited for by
      dropping it (SlopEngine's `running[index].join()` becomes `running.clear()`, or leaving the function).
-124. **`ThreadPool` as a visible singleton**, with `size()` and `worker_index()`. The name says what it is; it
+130. **`ThreadPool` as a visible singleton**, with `size()` and `worker_index()`. The name says what it is; it
      could instead stay hidden behind `Parallel`. Workers are one per core but one (the program's thread keeps
      one), started by the first `Parallel`, first in first out. Waiting for a job no worker has started runs it on
      the waiting thread. Is cores-minus-one right for the engine, or should it be every core?
-125. **A `Parallel` costs about two dozen allocations**, almost all of them the two `Spite.Function` values (each
+131. **A `Parallel` costs about two dozen allocations**, almost all of them the two `Spite.Function` values (each
      is its own reflection object, D39, with a list of `Spite.Argument`s). Making a function value's reflection
      lazy would cut that to a handful; worth doing for every callback, not only here?
-126. **`finished` on a `Concurrent` does not run anything.** It reads the flag; the fiber only progresses when the
+132. **`finished` on a `Concurrent` does not run anything.** It reads the flag; the fiber only progresses when the
      program waits somewhere (`program.sleep(1)` in a polling loop). It could instead let ready fibers run once,
      which would make it a wait point in the D37 sense. Keep it a plain read?
-127. **`ThreadLocal<T>`, `Lock` and `ThreadSlot`**: the names, `while_locked(function)` as the main way to hold a
+133. **`ThreadLocal<T>`, `Lock` and `ThreadSlot`**: the names, `while_locked(function)` as the main way to hold a
      lock (with `lock()`/`unlock()` kept), and a `ThreadLocal` keeping every thread's value until it is itself
      dropped (no per-thread destructor). A lock that is not reentrant crashes nothing: taking it twice on one
      thread deadlocks. Should a second `lock()` on the same thread be a crash instead?

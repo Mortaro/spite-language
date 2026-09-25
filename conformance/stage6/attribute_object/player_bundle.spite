@@ -1,0 +1,5 @@
+var health = Health()
+var position = Position()
+var speed = 3
+var title = "hero"
+var target: Health? = null

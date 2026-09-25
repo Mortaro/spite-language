@@ -1,0 +1,17 @@
+func create_entity(): Entity {
+    return Entity()
+}
+
+func create_entity_from_bundle(bundle: Anything): Entity {
+    var entity = create_entity()
+    var attributes = bundle.attributes
+    var index = 0
+    while index < attributes.count() {
+        var attribute = attributes[index]
+        if attribute.object {
+            entity.add_component(attribute.object)
+        }
+        index = index + 1
+    }
+    return entity
+}

@@ -1,0 +1,24 @@
+var console = Console()
+var components = List<Anything>()
+
+func add_component(component: Anything) {
+    components.append(component)
+}
+
+func show() {
+    var index = 0
+    while index < components.count() {
+        var component = components[index]
+        var described = "{component.class}"
+        if component == Health {
+            described = "Health {component.amount}"
+        }
+        if component == Int {
+            described = "Int {component + 1}"
+        }
+        console.print(described)
+        index = index + 1
+    }
+    var counted = components.count()
+    console.print("components", counted)
+}

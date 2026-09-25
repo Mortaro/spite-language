@@ -17,7 +17,7 @@ costs nothing.
 | `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)` |
 | `Spite.Function` | `.name`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()`, `name_fits(pattern)` |
 | `Spite.Argument` | `.name`, `.class: Spite.Class` |
-| `Spite.Attribute` | `.name`, `.class: Spite.Class`, `.value: String` |
+| `Spite.Attribute` | `.name`, `.class: Spite.Class`, `.value: String`, `.object: Spite.Attribute.Object?` |
 | `Spite.Namespace` | `.name` (the segment), `.name_with_namespaces` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
 | `Spite.Memory` | `.address: Long`, `.bytes: Long`, `.section` (`'heap'`, `'stack'`, `'constant'`) -- see [memory.md](memory.md#where-a-value-lives-memory) |
 
@@ -80,6 +80,112 @@ power Int 3
   object's own tag at run time, so it names the class the value really is; an object literal answers `Object`.
 - `value.attributes` holds the values; `Gadget.attributes` describes the declarations. The same word is right at
   both levels, and the case of the receiver says which one you mean.
+
+### An attribute's value as an object
+
+`.value` is the attribute rendered as text; `.object` is the value itself, as an object of any class:
+`Spite.Attribute.Object?`, an empty `type` the library declares, which fits any `type` of your own that accepts
+anything. A number, `Bool` or enum attribute is boxed, as it is whenever a plain value goes into a `type`; it is
+`null` only when the attribute holds `null`. `.attributes` works through a `type` too, answered from the value's
+real class at run time, so a function taking anything can walk what it was given and hand each attribute on:
+
+```gdscript title=attribute_objects/health.spite
+var amount = 10
+```
+```gdscript title=attribute_objects/player.spite
+var health = Health()
+var speed = 3
+var target: Health? = null
+```
+```gdscript title=attribute_objects/attribute_objects.spite entry
+type Anything {
+}
+
+var console = Console()
+var components = List<Anything>()
+
+func AttributeObjects() {
+    add_every_attribute(Player())
+    var index = 0
+    while index < components.count() {
+        var component = components[index]
+        var described = "{component.class}"
+        if component == Health {
+            described = "Health {component.amount}"
+        }
+        console.print(described)
+        index = index + 1
+    }
+}
+
+func add_every_attribute(bundle: Anything) {
+    var attributes = bundle.attributes
+    var index = 0
+    while index < attributes.count() {
+        var attribute = attributes[index]
+        if attribute.object {
+            components.append(attribute.object)
+        }
+        index = index + 1
+    }
+}
+```
+```output
+Health 10
+Int
+```
+
+### Passing a class
+
+A class name given where a `Spite.Class` is wanted -- an argument, a `var` declared `Spite.Class`, an assignment
+to one, a `return` -- is its class object: you are not passing the class, you are passing the instance of
+`Spite.Class` that describes it. Anywhere else a bare class name is still the error that says to write `Gadget()`,
+since that is almost always what was meant. `==` between a `Spite.Class` and a class name compares the class
+objects, so a function can ask which class it was handed:
+
+```gdscript title=passing_a_class/ui/pressed.spite
+func count(): Int {
+    return 1
+}
+```
+```gdscript title=passing_a_class/health.spite
+func amount(): Int {
+    return 10
+}
+```
+```gdscript title=passing_a_class/passing_a_class.spite entry
+type Anything {
+}
+
+var console = Console()
+var components = List<Anything>()
+
+func PassingAClass() {
+    components.append(Health())
+    components.append(Ui.Pressed())
+    remove_component(Ui.Pressed)
+    var kind: Spite.Class = Health
+    var kept = components.count()
+    crash components[0]
+    console.print(kept, components[0].class == kind, kind == Health)
+}
+
+func remove_component(component_class: Spite.Class) {
+    var kept = List<Anything>()
+    var index = 0
+    while index < components.count() {
+        var component = components[index]
+        if component.class != component_class {
+            kept.append(component)
+        }
+        index = index + 1
+    }
+    components = kept
+}
+```
+```output
+1 true true
+```
 
 ## Namespaces
 
@@ -222,7 +328,9 @@ A class object's `.attributes` and `.functions` are read from a stand-in the pro
 every attribute at its default, and the stand-in is not one of `.instances`: walking `Gadget.functions` leaves
 `Gadget.instances` as it was. A singleton's stand-in is not the singleton, so describing `Console` neither makes
 the program's console nor keeps a second one alive. Its attributes are released when it goes, but its `drop()`
-never runs: that belongs to the one real instance, at exit.
+never runs: that belongs to the one real instance, at exit. A singleton whose attributes are all settings the
+compiler already knows, such as `Build`, holds nothing at run time, so its `.attributes` answer those settings:
+`build.class.attributes` lists `mode` with the value `run`.
 
 ```gdscript title=live_registry/monster.spite
 var name = ""

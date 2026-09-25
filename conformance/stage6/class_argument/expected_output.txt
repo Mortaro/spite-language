@@ -1,0 +1,4 @@
+components 2 1
+has false true Health
+same true true true
+generic Health true

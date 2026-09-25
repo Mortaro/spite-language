@@ -1,0 +1,35 @@
+generic $wanted_type
+
+func first(store: Store): $wanted_type? {
+    var index = 0
+    var found: $wanted_type? = null
+    while index < store.items.count() {
+        var item = store.items[index]
+        if item == $wanted_type {
+            found = item
+        }
+        index = index + 1
+    }
+    return found
+}
+
+func others(store: Store): Int {
+    var index = 0
+    var counted = 0
+    while index < store.items.count() {
+        var item = store.items[index]
+        if item != $wanted_type {
+            counted = counted + 1
+        }
+        index = index + 1
+    }
+    return counted
+}
+
+func is_wanted(health: Health): Bool {
+    return health == $wanted_type
+}
+
+func is_part(part: Part): Bool {
+    return part == $wanted_type
+}
