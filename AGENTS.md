@@ -5,6 +5,11 @@ decision in `manual.md` (prose and decision log) or act on it, then delete the n
 what nobody has handled yet. Questions only Mortaro can answer go to
 [`mortaros_missing_decisions.md`](mortaros_missing_decisions.md).
 
+**Ask of everything you build: can it be tree-shaken, and does it keep Spite at zero runtime?** A program that does
+not use a feature must carry none of it, and nothing may need a shipped scheduler, interpreter or registry --
+compile-time work instead (Mortaro, 2026-09-25; D147, D176). Debug and REPL features may cost something only in
+those builds (D143). Say how a proposal tree-shakes and what it costs at run time.
+
 Read [`SPITE.md`](SPITE.md) first. It lists what Mortaro hates and what to do instead, and it is the point of the
 project. Then [`manual.md`](manual.md), which is normative — when anything else disagrees with it, it wins.
 

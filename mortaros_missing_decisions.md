@@ -6,15 +6,6 @@ manual argues it.
 
 ## Open questions still open in manual.md
 
-2. **Open question 15: whether `while` goes.** Proposal: the index loop over a list (199 of 259 loops) becomes an
-   error naming the member template; `while` stays for loops over state.
-   D94 review: [mortaros_review_while_and_else_if.md](mortaros_review_while_and_else_if.md). Of 472 loops, 31 are
-   replaceable today and the exact-shape rule there catches about 10; most index loops pass the element to a
-   function of the caller, which no template expresses.
-3. **Open question 20: whether a nested `if`/`else` is an error.** Proposal: an `if` with an `else` inside a
-   branch of another `if` with an `else` is an error naming "extract a function".
-   D94 review: [mortaros_review_while_and_else_if.md](mortaros_review_while_and_else_if.md), section 3 (16 cases,
-   with the `else if` chains and a proposed `switch` over an enum).
 5. **Open question 16: two versions of one dependency.** Needs D38 (git dependencies) first.
 6. **Open questions 1, 3, 6, 8, 9, 10, 11**, the older ones: `= null` on a generic field, right-to-left casting
    in comparisons, `_` meaning private and unused, an unrelated `get_x()` intercepting `.x`, `${` in text,
@@ -22,11 +13,6 @@ manual argues it.
 
 ## Proposals built and waiting for a yes or no
 
-7. **D77, the five interpretations** (manual section 12): the rule covers constructor calls too; any call
-   anywhere inside an argument counts; text holes are not arguments; calls moved out of `while` conditions and
-   the right of `and`/`or` only where harmless; a hoisted variable may reuse the function's name
-   (`var file_stem = file_stem(path)`).
-8. **D78's narrow form**: only a call with arguments, in every branch, at the start of the branches, counts.
 9. **The floor** (section 15, "The floor, named"): what stays C, and D82's form for showing it in
    `--final_classes`.
 10. **Rows marked "(proposed by Claude, unconfirmed)"** in the decision log from 2026-09-23 and 2026-09-24:
@@ -35,22 +21,8 @@ manual argues it.
     D86, and spelled `operating_system` now), the containers row, and the D91/D105 rows (a `List` template's symbol names the element's member;
     how a chain fuses).
 
-## From the remote REPL
-
-11. **D37 drain points, as built.** The remote REPL's commands are answered on the program's thread at its waits
-    (manual section 14, "Answered where the program waits"). Confirm the compile error's rule: a `--repl_port`
-    build is rejected when none of the program's own code waits and it has a `while` loop -- which also rejects
-    a loop that does end.
-## Variadic arguments
-
-14. **Whether a generic line can name a constraint**, `generic $sub_type: Openable` (open question 12's own
-    proposal). D87 decided the lines and not this half.
-
 ## From hidden async/await (D99, D103)
 
-16. **The mechanism: stackful fibers plus a helper thread per blocking call**, chosen over a state-machine
-    transform and over threads for everything (the decision-log row argues it). Built on Windows; the Linux and
-    macOS folders (`makecontext`/`swapcontext`) are only compiled.
 17. **What a `Parallel` function may touch.** Nothing is checked yet, and with reference-counted fields a race can
     free a value another thread is reading. Options: D35's syntactic rule (it reaches only its own instance and its
     locals, which rejects `Parallel(file.read)` because `File` reaches `Memory` and its library through fields);
@@ -294,19 +266,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     syntax but only covers the self-reference case, and a name then means different things in different files.
     Nothing is built; which, if either?
 
-## From the binary format ports (PSD, zstd, .blend)
-
-106. **Does a call between a check and a read undo a proven `list[...]`?** `crash glyphs[code - 32]` now proves
-    `glyphs[code - 32]` like `glyphs[index]`, and assigning `code` or `glyphs` undoes it. A call in between does
-    not, for either form, although a call could change a field the index reads or clear a list held in a field;
-    the read still checks its bounds, so the cost is a default value, not memory. Keep it, or should a call
-    undo every proven read whose list or index is a field?
-107. **Does a function still need the C-reserved list?** Every function's C name is joined to its class's with
-    `___`, so `func short()` would compile as `Class___short`, yet it is still rejected with `int`, `static` and
-    the rest, because variables and parameters keep their names in C. The error now lists all 31 names. Should a
-    function (and an attribute, which is a struct member) be allowed any of them, leaving the list to locals and
-    parameters only?
-
 ## From SlopEngine adopting D114-D116
 
 108. **Passing a template's symbol to a helper** (proposed by Claude, unconfirmed; manual section 8). A function
@@ -374,33 +333,6 @@ All of it is proposed by Claude, unconfirmed.
      cause. Options: let a pattern's hole be constrained to a list the engine owns (`phase` must be one of
      `App.phases`), so a non-phase `_all` function stays ordinary; or make a function that fits a walked pattern but
      is not meant as one an error at its declaration; or leave naming discipline to the program.
-
-## SlopEngine's entity API (D123, D124)
-
-124. **Is "any" a built-in type, or does each program declare its own?** `attribute.object` needed a type, so
-     `library/spite/attribute.spite` declares `type Object { }` and `.object` is `Spite.Attribute.Object?`
-     (proposed by Claude, unconfirmed). SlopEngine keeps declaring `type Anything { }`, and a value of one empty
-     `type` passes to another. The alternative is one built-in name every program shares, such as `Spite.Object`
-     (or `Anything` itself), declared once in `library/spite/` -- which would also give `.object` a shorter
-     type name. Keep "declare your own empty `type`", or add the built-in?
-125. **A number, `Bool` or enum attribute's `.object`: boxed or `null`?** It is boxed (proposed by Claude,
-     unconfirmed), as D109 boxes a plain value passed where a `type` is wanted, so `speed: Int` hands
-     `add_component` an object whose `.class` is `Int` and `if component == Int` narrows it back. The other
-     reading was `null` for anything that is not already an object, which would make a bundle's numbers vanish
-     silently. `null` is kept only for an attribute that holds `null`, so `.object` is still a `T?` to narrow.
-126. **Where does D124 apply?** Read as "wherever a `Spite.Class` is wanted" (proposed by Claude, unconfirmed):
-     an argument, `var kind: Spite.Class = Health`, an assignment to one and a `return`; an untyped `var kind =
-     Health` is still the "is a class, not a value" error, since a missing `()` is the likelier mistake. And
-     `kind == Health` with `kind` a `Spite.Class` now compares class objects instead of being D75's class test,
-     which could only be false. Should a bare class name be its class object everywhere instead?
-127. **`load` as a function name.** A class that declares `func load` now calls it with `load(x)` (proposed by
-     Claude, unconfirmed; SlopEngine's asset cache hit it); before, every `load(...)` was the package load and
-     compiled to nothing. The alternative was reserving the word and making `func load` an error naming the
-     launcher's `load`. Keep it an ordinary name?
-128. **A codegen value in a class test** (proposed by Claude, unconfirmed): `item == $wanted_type` folds to
-     `false` rather than D75's "never true" error when the value's union cannot hold the bound class, since a
-     generic class cannot avoid that for every binding. Item 44's question (should a class object's `.functions` be
-     bound to an instance at all) remains; its visible symptom, the extra member of `.instances`, is gone.
 
 ## Outputs and paths (D128, D129, D130)
 
