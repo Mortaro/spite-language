@@ -1,0 +1,2 @@
+diagnostics/empty_folder_range/empty_folder_range.spite:4: error: 'add_system_wave' is 'add_system' for a class 'system_wave', but the folders named for 'System' hold only 'system_greet' (in EmptyFolderRange.EmptyFolderRange)
+diagnostics/empty_folder_range/empty_folder_range.spite:5: error: 'cook_recipe_bread' is 'cook_recipe' for a class 'recipe_bread', but no folder is named for 'Recipe', so 'Symbol<Recipe>' walks nothing here (in EmptyFolderRange.EmptyFolderRange)

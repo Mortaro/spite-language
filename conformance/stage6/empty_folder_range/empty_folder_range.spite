@@ -1,0 +1,10 @@
+var console = Console()
+
+func EmptyFolderRange() {
+    var schedule = Schedule()
+    schedule.add_systems()
+    schedule.add_plugins()
+    var found_count = schedule.names.count()
+    var joined = schedule.names.join(", ")
+    console.print(found_count, "found:", joined)
+}

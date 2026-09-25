@@ -1,0 +1,9 @@
+var names = List<String>()
+
+func add_system(system: Symbol<System>) {
+    names.append(system.name)
+}
+
+func add_plugin(plugin: Symbol<Plugin>) {
+    names.append(plugin.name)
+}

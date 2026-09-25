@@ -1,0 +1,6 @@
+func EmptyFolderRange() {
+    var schedule = Schedule()
+    schedule.add_system_greet()
+    schedule.add_system_wave()
+    schedule.cook_recipe_bread()
+}

@@ -442,7 +442,9 @@ is decided while compiling, so the name it asks for is written as a literal
 `System.Greet` and `Tools.System.Sweep`, in order of their dotted names. A range that names no class or type is
 read as the end of a folder's namespace. Inside, `system.class` is the class, as a type or as a value, and
 `system.name` is its dotted name. The plural calls the template for each class, so adding a file to a `system/`
-folder is how a system is added, with no list anywhere. A range that matches no folder at all is an error.
+folder is how a system is added, with no list anywhere. A range that matches no folder at all walks nothing, so
+an engine that walks `Symbol<Recipe>` still compiles for a program with no recipes; naming one class it does not
+hold, as in `cook_recipe_bread()`, is an error that lists the classes it does hold.
 
 ```gdscript title=folder_walk/system/greet.spite
 var console = Console()

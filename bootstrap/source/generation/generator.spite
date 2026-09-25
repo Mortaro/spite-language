@@ -2524,6 +2524,30 @@ func namespace_classes(template: Analysis.TemplateInfo): List<Analysis.ClassInfo
     return found.sort_by_qualified_dotted()
 }
 
+func folder_range_miss(information: Analysis.ClassInfo, name: String): String {
+    var index = 0
+    while index < information.templates.count() {
+        var template = information.templates[index]
+        var member_name = ""
+        if template.range {
+            member_name = template.member_name_for(name)
+        }
+        if not member_name.is_empty() and template_range_owner(information, template) == "namespace" {
+            var path = range_path(template)
+            var range = path.join(".")
+            var declaration = template.get_declaration()
+            var found = namespace_classes(template)
+            if found.is_empty() {
+                return "'{name}' is '{declaration.name}' for a class '{member_name}', but no folder is named for '{range}', so 'Symbol<{range}>' walks nothing here"
+            }
+            var members = found.map_class_member_name()
+            return "'{name}' is '{declaration.name}' for a class '{member_name}', but the folders named for '{range}' hold only '{members.join("', '")}'"
+        }
+        index = index + 1
+    }
+    return ""
+}
+
 func class_member_name(candidate: Analysis.ClassInfo): String {
     var segments = candidate.qualified_dotted.split(".")
     var words = List<String>()
@@ -2789,12 +2813,6 @@ func instantiate_every_attribute(
         return null
     }
     var attribute_names = template_attribute_names(information, template)
-    if kind == "namespace" and attribute_names.is_empty() {
-        var range = range_path(template)
-        report(
-            "'{range.join(".")}' in '{declaration.name}' names no class, type or folder: a 'Symbol' over a folder's name walks the classes of every folder by that name, and the program has none",
-        )
-    }
     var saved_class = current_class
     var saved_owner = current_owner
     current_class = information
@@ -5581,10 +5599,13 @@ func generate_own_function_call(
         )
     }
     if not function {
+        var folder_miss = folder_range_miss(class_information, name)
         if name == "print" or name == "println" or name == "echo" or name == "printf" {
             report(
                 "this class has no function '{name}': printing goes through the console -- 'var console = Console()' beside the attributes, then 'console.print(value)'",
             )
+        } else if not folder_miss.is_empty() {
+            report(folder_miss)
         } else {
             report("this class has no function '{name}'")
         }
@@ -5826,7 +5847,12 @@ func generate_method_call(
                 class_information,
             )
         }
-        report("'{object_class_ref.c_name}' does not define '{member.name}'")
+        var folder_miss = folder_range_miss(target_class, member.name)
+        if folder_miss.is_empty() {
+            report("'{object_class_ref.c_name}' does not define '{member.name}'")
+        } else {
+            report(folder_miss)
+        }
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     crash function

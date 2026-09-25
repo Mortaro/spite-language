@@ -1,0 +1,9 @@
+var names = List<String>()
+
+func add_system(system: Symbol<System>) {
+    names.append(system.name)
+}
+
+func cook_recipe(recipe: Symbol<Recipe>) {
+    names.append(recipe.name)
+}

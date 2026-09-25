@@ -434,6 +434,12 @@ Behaviour that does not match the manual. The language was not changed; each is 
     not compile for a program with no `system/` folder anywhere, the engine's own included. Keep both? And should
     `Symbol<System>` also reach classes in folders below a `system/` folder (`System.Combat.Hit`), which it does
     not today?
+    *Changed since (proposed by Claude, unconfirmed, 2026-09-24):* an empty range is now zero iterations, not an
+    error. SlopEngine's `Cook` walks `Symbol<Recipe>`, and a program with no recipes failed to compile although
+    it never called `Cook()`, since the error fired while generating every function. A typo is still caught
+    where one class is named (`cook_recipe_bread()` lists the classes the folders hold), but a misspelled range
+    (`Symbol<Sytem>`) walked by its plural now walks nothing, silently. Keep the empty walk, or go
+    back to an error, reported only where the walk is reached?
 100. **The D116 grammar as built**: one hole per pattern, spelled by the parameter's name being a word of the
     function name in the range (`phase: Symbol<$system_type.phase_each>`), exactly as a template's own name is
     spelled. Two readings came with it: `system.phase_each(...)` written inside that template calls the matched

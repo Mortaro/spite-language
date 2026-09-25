@@ -1,0 +1,10 @@
+var console = Console()
+
+func Cook() {
+    cook_recipes()
+}
+
+func cook_recipe(recipe: Symbol<Recipe>) {
+    var cooking = Cooking<recipe.class>()
+    console.print("cooking", cooking.dish.name)
+}
