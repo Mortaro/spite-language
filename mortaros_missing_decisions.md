@@ -208,9 +208,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     the error names the attribute. Locals are what `String` uses for `Memory` (a value class has no attribute to
     spare) and what an error path uses before `program.exit(1)`. Should a local binding be an error outside
     value classes, so there is one place for it?
-61. **`Program` is a singleton now**: D8 and section 15 said so, but `library/program.spite` had no `singleton`
-    line, so `Program().exit(1)` made a fresh object each time and was not covered by D110. It has the line now
-    and every inline use is bound. Confirm?
 62. **A number's storage is two lines**: `var memory = Memory()` and `var _memory = memory.allocate_bytes(4)`
     (it replaced a one-line `Memory().allocate_bytes(4)` form). The binding is never a field of the number. The alternative was to exempt
     `var _memory = Memory().allocate_bytes(4)` from D110, because the compiler reads that line rather than
