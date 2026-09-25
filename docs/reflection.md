@@ -250,7 +250,7 @@ var console = Console()
 
 func FunctionReflection() {
     var functions = Gadget.functions
-    functions.each_describe()
+    functions.each(describe)
     var library_names = Memory.functions.map_name()
     var has_allocate = library_names.contains('allocate_bytes')
     console.print("Memory has allocate_bytes", has_allocate)
@@ -299,7 +299,7 @@ func FunctionQuestions() {
     var updates = Sprinkler.has_function("<phase>_each")
     console.print(described, drains, fills, updates)
     var functions = Sprinkler.functions
-    functions.each_describe()
+    functions.each(describe)
 }
 
 func describe(function: Spite.Function) {

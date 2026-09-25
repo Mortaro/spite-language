@@ -125,14 +125,13 @@ func is_alive(): Bool {
 - On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Bool` member),
   `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<member>()`,
   `each_<member>()` (a function). A member is an attribute or a function that takes nothing.
-- The member can also be a function of the class you are writing in that takes the element and nothing else:
-  with `func say_hello(name: String)`, `names.each_say_hello()` calls it once per name, and `filter_`, `map_`,
-  `sum_` and the rest take such a function the same way, on a list of anything, chained or not. When the element
-  has a member of that name too, it is an error: rename one.
-- A `while` whose whole body passes each element of a list to one such function -- `var index = 0`,
-  `while index < names.count()`, `say_hello(names[index])`, `index = index + 1` -- is an error naming
-  `names.each_say_hello()`. A function that needs more than the element (`print_statement(statement, depth)`)
-  keeps its `while`.
+- A template sees only the element and the list, never your class: `names.each_say_hello()` looks for a member
+  `say_hello` of each name. To call a function of yours with each element, pass it: `names.each(say_hello)`,
+  `names.map(measure)`, `names.filter(is_short)`, and `any`, `all`, `count`, `find` (the first element it is true
+  for, a `T?`), `sort_by` and `sum` the same way, on a list or dictionary of anything, chained with the member
+  templates or not (`people.filter_active().map(greeter.label)`). The function takes the element as its only
+  argument and is bound to its owner: `greeter.label` is `greeter`'s. A function that needs more than the element
+  (`print_statement(statement, depth)`) keeps its `while`.
 - `enum`, `union` and `type` declarations take no `=`, one entry per line, no commas:
 
   ```spite

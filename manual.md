@@ -1554,42 +1554,43 @@ by element. `conformance/stage6/fused_chain_allocations` pins it: four chains ru
 nothing (15 allocations in all, the `Launcher` and printing the total included -- the `TypedMemory` its lists
 share is a static singleton -- against more than 16 000 step by step).
 
-**A function of the caller for each element** (D113, decided by Mortaro; the resolution rule, the loop rule's
-exact shape and the reading below are proposed by Claude, unconfirmed).  **[implemented]** The member a template
-names may also be a function of the *caller* -- the class the call is written in -- that takes the element as its
-only argument. With `func say_hello(name: String)` in the class, `names.each_say_hello()` calls `say_hello(name)`
-once per element, in order; `map_` collects what such a function returns (one returning nothing is the `map_`
-error, which now names `each_`); `filter_`, `count_`, `any_` and `all_` take one returning `Bool`, `sum_` one
-returning a number, `find_by_(value)` and `sort_by_` one returning something comparable. D15's table applies
-unchanged, read as "the function's return type". This works on a list or dictionary of anything, `String` and
-numbers included, which have no members of their own for a template to name.
+**Passing a function for each element** (D148, decided by Mortaro, superseding D113's caller-function templates;
+the forms' details below are proposed by Claude, unconfirmed).  **[implemented]** An iterator sees only the
+element and the list, never the class the call is written in: `people.each_say_hello()` names a member
+`say_hello` of each `Person`, and a function of the caller never answers
+it. When the calling class has a function of that name, the error says to pass it
+(`'String' has no attribute or zero argument function 'say_hello' for 'each_say_hello': a template reads a member
+of each element, never a function of this class, so pass this class's 'say_hello' instead: 'each(say_hello)'`).
+The caller's function is passed as a bound function value (D17/D39), owned by whoever it is bound to:
 
-- **Resolution.** The element's own member (field or zero-argument function) is looked up, then a function of
-  the caller with that name, one parameter, and a parameter type equal to the element type. When both exist the
-  call is an error naming both (`'each_is_adult' could call 'is_adult' of each 'Person' or this class's own
-  'is_adult(Person)': rename one of them so the template names only one`), rather than one quietly winning: D59
-  already refuses one name meaning two things, and a silent order would let a new member on the element change
-  what an unrelated caller runs. When neither exists, the error says what the caller's function of that name
-  lacks (no such function, the wrong number of arguments, or another parameter type).
+- **The forms.** `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`, `find(f)`, `sort_by(f)` and
+  `sum(f)` on a `List` or a `Dictionary` (through its values), for an element of any type. `f` takes the element
+  as its only argument, with exactly the element's type; D15's table applies to what it returns (`filter`, `any`,
+  `all`, `count` and `find` want `Bool`, `sum` a number, `sort_by` a number or a `String`, `map` a value, `each`
+  anything). `find(f)` answers the first element `f` is true for, or `null` -- the `find_by_` template with
+  `true` as its value. `count` with no argument stays the collection's size.
+- **The owner.** `say_hello` alone is bound to this instance; `greeter.greet` to `greeter`; a variable holding a
+  `Spite.Function<T, R>` is called through the value. `people.map(greeter.label).filter(is_short)` mixes owners.
 - **How it is written.** No template changes: the same `library/list.spite` template (`each_member(member:
-  Symbol<$element_type>)`) is instantiated once more per calling class, with a last hidden parameter holding the
-  caller (`self` at the call site), and `item.attributes[member]` reads as `caller.say_hello(item)`. A program's
-  own template in its `list.spite` therefore answers both kinds of member. These instances are not listed among
-  the list's `functions` (they need a caller), nor offered at a `--repl` prompt. A fused chain (D105) may mix
-  both kinds of step; a step through the caller may follow a `map_` to a number or a `String`, and the fused
-  function then takes the caller as its last parameter.
-- **The loop rule.** A `while` is an error naming the template when, exactly: the statement before it sets a
-  counter to `0` (`var index = 0` or `index = 0`); the condition is `counter < list.count()`, with `list` a name or
-  a path of type `List<T>`; and the body is `f(list[counter])` then `counter = counter + 1`, or
-  `var item = list[counter]`, `f(item)` and the increment (the increment may come right after the `var`), with
-  `f` a function of the class taking one `T` and the element having no member `f`. The message is `this 'while'
-  only calls 'say_hello' with each element of 'names': write 'names.each_say_hello()'`
-  (`diagnostics/caller_templates`). The counter may be read after the loop; only the loop is replaced.
-- **Extra arguments are not passed.** A function that needs more than the element (`print_statement(statement,
-  depth)`, the review's typical case) is not a template member, and its `while` stays. Ways to carry `depth` are
-  in `mortaros_missing_decisions.md`; none is built.
+  Symbol<$element_type>)`) is instantiated once per function and owner class, with a last hidden parameter holding
+  the owner (the function's instance, passed at the call site), and `item.attributes[member]` reads as
+  `owner.say_hello(item)` -- or `owner(item)` when the owner is a held function value. A function written by name
+  therefore costs no allocation and no indirect call; only a held value is called through `Spite.Function`. Only
+  the forms a program calls are instantiated, and these instances are not listed among the list's `functions`
+  nor offered at a `--repl` prompt.
+- **Chains.** A passed function chains and fuses with the member templates (D105): `map(f)` and `filter(f)` may
+  sit in the middle of a chain and any form may end one, so `people.filter_active().map(greeter.label)` and
+  `names.filter(is_short).map(measure).sum(double_of)` are each one loop; the fused function takes each owner as
+  a parameter. The element's own members still come only from the element (`people.map(say_hello).filter_active()`
+  reads `active` of whatever `say_hello` returns).
+- **Mistakes** name the form: `'map(say_hello)': 'say_hello' returns nothing, but 'map' needs it to return a value
+  (to only call it for each element, write 'each(say_hello)')`, `'each' calls 'greet_twice' with each 'String' as
+  its only argument, but 'greet_twice' takes 2`, `'each' calls 'count_to' with each 'String', but 'count_to' takes
+  'Int'`, and an argument that is no function at all.
+- **No loop rule.** D113's error for a `while` that only passes each element to a caller function is removed with
+  it. A function that needs more than the element (`print_statement(statement, depth)`) keeps its `while`.
 
-`conformance/stage6/caller_templates`, `docs/collections.md`.
+`conformance/stage6/passed_functions`, `diagnostics/passed_functions`, `docs/collections.md`.
 
 ## 9. Codegen values (`$`)  **[implemented]**
 
@@ -2574,8 +2575,10 @@ On top of `append`/`prepend`/`count`/index-read/index-write (iterate with `while
 | `map_<member>()` | `List<U>` | an `Int`/`Float`/`Bool`/`String`/enum attribute's values, one per element |
 | `any_<member>()` / `all_<member>()` | `Bool` | a `Bool` attribute, true for at least one / every element |
 
-Every `<member>` above may instead be a function of the calling class that takes one `T` (D113, section 8):
-`names.each_say_hello()` calls `say_hello(name)` for each element, for any `T`.
+A `<member>` is always the element's, never the calling class's (D148, section 8). A function of the caller is
+passed as a value instead, for any `T`: `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`,
+`find(f)` (the first element `f` is true for, a `T?`), `sort_by(f)` and `sum(f)`, where `f` takes one `T` --
+`names.each(say_hello)` calls `say_hello(name)` for each element.
 
 Naming (second batch item 3, decided 2026-09-19): `add` does not say where, so it is `append` (and `prepend`);
 `pop()` became `remove_last()`, plus `remove_first()` -- writing the old names is a compile error naming the
@@ -3961,3 +3964,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | **D164** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 125): **`attribute.value` is the actual instance the attribute refers to, and `attribute.object` goes.** "value should return the actual instance that the attribute refers to. we should try to optimize this as much as we can on compile time to, mostly tree shake it off, but in case of small numbers we could possibly just copy its value around during compile." `Spite.Attribute.value` is typed `Anything` (`Anything?` when the attribute can be null), so `entity.add_component(attribute.value)` works; text is `attribute.value.to_string()` (the REPL and `to_debug()` call it). The compiler resolves as much as it can at compile time and tree-shakes the rest; a number is passed as its plain value where the compiler can see its type, and boxed only where it must travel as `Anything`. |
 | 2026-09-25 | **D165** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 126): **a bare class name is its class object only where a `Spite.Class` is expected**; `var kind = Health` with no type written stays an error pointing at the typed form, so a forgotten `()` is caught rather than silently becoming a class object. |
 | 2026-09-25 | **D166** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 127): **`load` is a reserved word**: it always means loading a package, so a function named `load` is an error suggesting a descriptive name (`load_texture`); the built behaviour that let a class's own `load` shadow it is removed. |
+| 2026-09-25 | (implements D148; the readings below proposed by Claude, unconfirmed) **The caller's function is passed: `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`, `find(f)`, `sort_by(f)` and `sum(f)` take a function of one argument, the element's exact type, bound to its owner.** `find(f)` answers the first element `f` is true for (`find_by_` with `true`); `count()` with no argument stays the size. A function written by name (`say_hello`, `greeter.greet`) instantiates the element template once per function and owner class with the owner as a hidden last parameter, so it allocates nothing and calls directly -- tree-shaken like every template, and free at run time; a function held in a variable is called through its `Spite.Function`. `map(f)`/`filter(f)` fuse in chains with the member templates (D105), the fused function taking each owner. D113's resolution through the caller, its ambiguity error and its `while` rule are removed; an element-template call whose member is missing while the caller has a function of that name says to pass it (`'each(say_hello)'`). Rewritten: 7 uses (`collect_body_facts` and two `map_class_member_name` calls in the compiler, `conformance/stage6/system_phases`, and `docs/`'s `name_phases`, `function_reflection` and `function_questions` -- 3 doc blocks), besides `conformance/stage6/caller_templates` and `diagnostics/caller_templates`, which became `passed_functions`. Section 8, `docs/collections.md`. |

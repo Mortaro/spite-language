@@ -1,0 +1,42 @@
+var console = Console()
+
+func PassedFunctions() {
+    var names = ["Ada", "Grace"]
+    var greetings = names.map(say_hello)
+    names.each_wave()
+    names.each(greet_twice)
+    names.each(count_to)
+    var numbers = [1, 2]
+    numbers.each_say_hello()
+    var measured = names.filter(measure)
+    var counted = names.count(measure)
+    var sorted = names.sort_by(is_short)
+    names.each(numbers)
+    var people = List<Person>()
+    people.each_greet()
+    console.print(greetings, measured, counted, sorted)
+}
+
+func say_hello(name: String) {
+    console.print("hello, {name}")
+}
+
+func greet(person: Person) {
+    console.print(person.age)
+}
+
+func greet_twice(name: String, times: Int) {
+    console.print(name, times)
+}
+
+func count_to(value: Int) {
+    console.print(value)
+}
+
+func measure(name: String): Int {
+    return name.length()
+}
+
+func is_short(name: String): Bool {
+    return name.length() < 6
+}

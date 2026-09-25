@@ -1,0 +1,18 @@
+var console = Console()
+var greeting = ""
+
+func Greeter(starting_greeting: String) {
+    greeting = starting_greeting
+}
+
+func greet(person: Person) {
+    console.print("{greeting}, {person.name}")
+}
+
+func label(person: Person): String {
+    return person.name.upper_case()
+}
+
+func shout(name: String): String {
+    return "{name}!"
+}

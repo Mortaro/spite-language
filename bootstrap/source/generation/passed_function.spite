@@ -1,0 +1,39 @@
+var owner: Syntax.Expressions.Expression? = null
+var owner_type: Analysis.SpiteType? = null
+var function_name = ""
+var returned: Analysis.SpiteType? = null
+var parameter_types = List<Analysis.SpiteType>()
+var label = ""
+var instance: Analysis.FunctionInfo? = null
+
+func PassedFunction(
+    starting_owner: Syntax.Expressions.Expression,
+    starting_owner_type: Analysis.SpiteType,
+    starting_function_name: String,
+    starting_returned: Analysis.SpiteType,
+) {
+    owner = starting_owner
+    owner_type = starting_owner_type
+    function_name = starting_function_name
+    returned = starting_returned
+}
+
+func get_owner(): Syntax.Expressions.Expression {
+    crash owner
+    return owner
+}
+
+func get_owner_type(): Analysis.SpiteType {
+    crash owner_type
+    return owner_type
+}
+
+func get_returned(): Analysis.SpiteType {
+    crash returned
+    return returned
+}
+
+func get_instance(): Analysis.FunctionInfo {
+    crash instance
+    return instance
+}

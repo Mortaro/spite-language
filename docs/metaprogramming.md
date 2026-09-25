@@ -569,7 +569,7 @@ var console = Console()
 
 func NamePhases() {
     add_systems()
-    phases.each_run_phase()
+    phases.each(run_phase)
 }
 
 func add_system(system: Symbol<System>) {

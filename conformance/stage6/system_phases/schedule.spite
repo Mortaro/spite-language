@@ -19,7 +19,7 @@ func add_system(system: Symbol<System>) {
 }
 
 func tick() {
-    phases.each_run_phase()
+    phases.each(run_phase)
 }
 
 func run_phase(phase: String) {
