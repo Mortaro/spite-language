@@ -1,0 +1,19 @@
+singleton
+
+generic $item_type
+
+var found = List<$item_type>()
+var least = 0
+
+func add(item: $item_type) {
+    found.append(item)
+}
+
+func matches(item: $item_type): Boolean {
+    return item.points >= least
+}
+
+func matching(): Integer {
+    var kept = found.filter(matches)
+    return kept.count()
+}
