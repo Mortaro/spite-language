@@ -25,31 +25,37 @@ there are the two optimisations that hide something applied: tree shaking and st
 on this page changes how fast the program runs, not what it is made of, so it applies in every build. The
 **Builds** column below says which.
 
-What you can observe at all is short: the counts `--debug-memory` prints, where `.memory` says a value lives, the
-order in which a fused chain calls your member functions, and speed. Apart from that order, which only a member
-function with a visible effect can show, no optimisation changes what a program prints or computes.
+What you can observe at all is short: the counts `--debug-memory` prints, where `.memory` says a value lives, when a
+singleton's constructor runs, the order in which a fused chain calls your member functions, the point inside a
+statement where a `Concurrent` waits, and speed. Apart from those orders, which only code with a visible effect can
+show, no optimisation changes what a program prints or computes.
+
+The checks the compiler makes are not on this page: a wider right operand ([D162](decisions.md)), a proof a call
+may have undone, an unread name. They are rules of the language, on the pages that teach them, and they cost
+nothing at run time because they emit nothing.
 
 | Optimisation | Status | Builds | What you might notice |
 |---|---|---|---|
-| [Tree shaking the generated C](#tree-shaking-the-generated-c) | built | production | smaller C; an inspectable build keeps everything |
+| [Tree shaking the generated C](#tree-shaking-the-generated-c) | built | production | smaller C; fewer symbols looked up; an inspectable build keeps everything |
 | [Deciding conditions at compile time](#deciding-conditions-at-compile-time) | built | every | nothing: the branch not taken is not in the program |
 | [Reflection, symbols and registries only where read](#reflection-symbols-and-registries-only-where-read) | built | every | nothing |
 | [Template chains run as one loop](#template-chains-run-as-one-loop) | built | every | fewer allocations; member functions run element by element |
 | [Appending to text in place](#appending-to-text-in-place) | built | every | fewer allocations |
 | [The compiler places memory](#the-compiler-places-memory) | built | every | fewer allocations; `.memory.section` |
+| [Reading an address is one machine operation](#reading-an-address-is-one-machine-operation) | built | every | nothing |
+| [An allocator set after construction is where the object is made](#an-allocator-set-after-construction-is-where-the-object-is-made) | built | every | the arena's blocks are the allocations; sixteen bytes more per object of a class given an allocator |
 | [Singletons: made on first use, never counted](#singletons-made-on-first-use-never-counted) | built | every | the constructor runs at first use |
 | [Singletons that hold nothing are static objects](#singletons-that-hold-nothing-are-static-objects) | built | production | one allocation fewer each; not in `.instances` |
 | [Atomic reference counts only with threads](#atomic-reference-counts-only-with-threads) | built | every, decided per program | nothing |
 | [Boxing only where a value travels as a shape](#boxing-only-where-a-value-travels-as-a-shape) | built | every | one allocation per boxed value |
 | [Concurrency machinery only where it is used](#concurrency-machinery-only-where-it-is-used) | built | every, decided per program | nothing |
-| [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | built | programs that make a `Concurrent` | one heap frame per waiting call; a wait inside an expression runs first |
-| [The thread pool only where a `Parallel` is made](#the-thread-pool-only-where-a-parallel-is-made) | built | every, decided per program | nothing until the first `Parallel` |
-| [Singletons a `Parallel` reaches take a lock](#singletons-a-parallel-reaches-take-a-lock) | built (the fallback) | every, decided per program | an uncontended lock per call, only with `Parallel` |
-| [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | built: nothing, atomics, one-thread; planned: the rest | every, decided per program | no lock where one is not needed |
+| [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | built | every, in programs that make a `Concurrent` | one heap frame per waiting call; a wait inside an expression runs first |
+| [Reads in a row overlap](#reads-in-a-row-overlap) | built | every | the reads happen at once; the program carries the scheduler |
 | [REPL, live reload and debug machinery only in those builds](#repl-live-reload-and-debug-machinery-only-in-those-builds) | built | the builds that ask for it | nothing in an ordinary build |
+| [The thread pool only where a `Parallel` is made](#the-thread-pool-only-where-a-parallel-is-made) | built | every, decided per program | nothing until the first `Parallel` |
+| [Singletons a `Parallel` reaches take a lock](#singletons-a-parallel-reaches-take-a-lock) | built (the fallback) | every but `--hot-reload`, decided per program | an uncontended lock per call, only with `Parallel` |
+| [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | built: nothing, atomics, one-thread; planned: the rest | every but `--hot-reload`, decided per program | no lock where one is not needed |
 | [Smaller ones](#smaller-ones) | built | every | nothing |
-| [Reading an address is one machine operation](#reading-an-address-is-one-machine-operation) | built | every | nothing |
-| [An allocator set after construction is where the object is made](#an-allocator-set-after-construction-is-where-the-object-is-made) | built | every | the arena's blocks are the allocations; sixteen bytes more per object of a class given an allocator |
 | [Proofs that survive a call](#proofs-that-survive-a-call) | built | every | a proof after a call that may change it is written again |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
@@ -96,9 +102,9 @@ The same pass decides which native symbols are looked up. A `DynamicLibrary` loo
 calls when it opens, and a symbol is now looked up only when a function that calls it survived the shaking: a
 program that never uses `Watcher` does not look up `ReadDirectoryChangesW`, though `library/windows/watcher.spite`
 opens the same `kernel32.dll` as `Program.sleep`. **What you notice.** Fewer allocations under `--debug-memory`,
-since each lookup made two short-lived strings (`conformance/stage6/singleton_counts` went from 230 to 134), and a
-missing symbol that only unused code names no longer stops the program when the library opens. `--development`
-builds still look up every symbol. **Built** (2026-09-25, with `Watcher`; proposed by Claude, unconfirmed).
+since each lookup makes two short-lived strings, and a missing symbol that only unused code names does not stop
+the program when the library opens. An inspectable build is not shaken, so it looks up every symbol.
+**Built** (2026-09-25, with `Watcher`; proposed by Claude, unconfirmed).
 
 ### Deciding conditions at compile time
 
@@ -512,8 +518,9 @@ singleton row, and D143; `conformance/stage6/development_internals`).
 ### Atomic reference counts only with threads
 
 **What it does.** Retaining and releasing a reference is plain arithmetic, except in a program that can share an
-object between threads: one that makes a `Concurrent` or a `Parallel`, or is built with `--repl-port` or
-`--hot-reload`. Only those are compiled with atomic counts (and a lock around the `--debug-memory` table).
+object between threads: one that makes a `Concurrent` or a `Parallel` (reads in a row included), runs a
+`parallel_each_` pass, or is built with `--repl-port` or `--hot-reload`. Only those are compiled with atomic counts
+(and a lock around the `--debug-memory` table).
 
 **When.** Decided per program, from what it uses. **What you notice.** Nothing: the program that never starts a
 thread never pays for atomics. **Built** (the "reference counts are atomic only in a program that starts a
@@ -533,14 +540,14 @@ attribute, or a class test against a number class.
 given to `console.print` is passed as a `Printable`, so printing a number boxes it, and the `...values` of every
 variadic call arrive in a `List` ([functions_and_operators.md](functions_and_operators.md)). Whether that list and
 those boxes should live in the caller's frame is `mortaros_missing_decisions.md` item 74. **Built** (D109's print
-row; D164 is decided and partly built).
+row, and D164's `attribute.value`, filled only in a program that reads it).
 
 ### Concurrency machinery only where it is used
 
 **What it does.** The scheduler, the state machines, the helper threads and the wrappers around every call that
 can wait (`Program.sleep`, `Console.read_line`, `File.read`/`write`/`append`, `Socket.accept_client`/`read_line`)
-exist only in a program that makes a `Concurrent` or is built with `--repl-port` or `--hot-reload`. Every other program's
-waits are the plain system calls. Even in a program that has the scheduler, a wait with no `Concurrent` alive and
+exist only in a program that makes a `Concurrent` (itself, or through [reads in a row](#reads-in-a-row-overlap)) or
+is built with `--repl-port` or `--hot-reload`. Every other program's waits are the plain system calls. Even in a program that has the scheduler, a wait with no `Concurrent` alive and
 no REPL listening makes the plain blocking call, because that is faster ([D99](decisions.md)): you
 never choose between blocking and waiting, and you never see which one ran.
 
@@ -574,12 +581,12 @@ wait on may have happened.
 returns. It does not use IOCP, epoll or kqueue: an ordinary file is always "ready" to epoll and kqueue, so reading
 a file would still need a thread; the Windows console cannot be read through IOCP; and one mechanism keeps each
 system's folder to a handful of functions. The cost is a thread per system call in flight, which a server with
-thousands of connections would feel ([mortaros_missing_decisions.md](../mortaros_missing_decisions.md) asks
-whether sockets should move to the system's own readiness). In a browser the loop would be the browser's.
+thousands of connections would feel ([mortaros_missing_decisions.md](../mortaros_missing_decisions.md) item 180
+asks whether sockets should move to the system's own readiness). In a browser the loop would be the browser's.
 
 **When.** Only in a program that makes a `Concurrent`, and only for the functions a `Concurrent` can reach that
-wait: the plain version of every function stays as it is for the code outside a `Concurrent`, and the tree
-shaker drops whichever version nothing calls. A program that never makes a `Concurrent` has no frames, no step
+wait: the plain version of every function stays as it is for the code outside a `Concurrent`, and in a
+production build the tree shaker drops whichever version nothing calls. A program that never makes a `Concurrent` has no frames, no step
 functions, no event loop and no helper threads; its waits are the plain system calls.
 
 **What you notice.**
@@ -588,11 +595,13 @@ functions, no event loop and no helper threads; its waits are the plain system c
   `log.append("{name} read {file.read()}")`, the file is read first and `name` is read after it, so a change another
   `Concurrent` makes to `name` during the read is seen. Everywhere else the order is the one written.
 - A few waits inside a `Concurrent` are not points it returns from: one in the right side of `and` or `or`, one
-  reached through a function value or a constructor, and dropping a `Concurrent` there. They still wait correctly,
-  by running the event loop where they are, as waits outside a `Concurrent` do: the other `Concurrent`s keep going,
-  and this one holds its place until its wait is over. A `Concurrent` whose own function cannot be a state machine (a
-  function value made in another class of the standard library, say, or any function of the program in a
-  `--hot-reload` build, which is called through a slot that a reload swaps) runs to its end when it is started
+  reached through a function value, a union's dispatch or a constructor, and dropping a `Concurrent` there. They
+  still wait correctly, by running the event loop where they are, as waits outside a `Concurrent` do: the other
+  `Concurrent`s keep going, and this one holds its place until its wait is over. Two such waits that each wait for
+  the other would never end, and nothing reports it. A `Concurrent` whose own function cannot be a state machine
+  runs to its end when it is started: a function value a standard-library class made and stored before it reached
+  `Concurrent`, a shape's function, a singleton function that takes [the lock](#singletons-a-parallel-reaches-take-a-lock),
+  or any function of the program in a `--hot-reload` build, which is called through a slot that a reload swaps
   (`mortaros_missing_decisions.md` item 179).
 - Under `--debug-memory`, one allocation per waiting call a `Concurrent` makes (its frame), and none of the stacks
   and fiber bookkeeping the earlier design needed: `conformance/stage6/concurrent_waits` went from 191 allocations
@@ -603,6 +612,24 @@ functions, no event loop and no helper threads; its waits are the plain system c
 **Built** (2026-09-25, [D176](decisions.md)); the fibers that came before it, and each system's code
 for creating and switching them, are gone. Proposed by Claude, unconfirmed: the reading order above, and which
 waits fall back to running the loop in place.
+
+### Reads in a row overlap
+
+**What it does.** Two or more `var name = file.read()` (or `socket.read_line()`) written one after another, none
+naming a variable an earlier one declared, are started together: every read but the last becomes a `Concurrent`,
+and all of them are joined before the next statement ([D134](decisions.md),
+[concurrency.md](concurrency.md#reads-in-a-row-overlap), which has the exact shape).
+
+**When.** Every build, wherever the shape appears. A statement between two reads, a typed `var`, or a name
+assigned again later keeps each read where it is.
+
+**What you notice.** Nothing in what the program computes: the values are the same, and a file written by the
+next statement is written after the reads. The program waits for the slowest read instead of each in turn. The
+cost is that the program now carries the [concurrency machinery](#concurrency-machinery-only-where-it-is-used):
+the scheduler, a helper thread per read in flight, a `Concurrent` per overlapped read, and
+[atomic reference counts](#atomic-reference-counts-only-with-threads). Two files read in a row allocate 62 times
+under `--debug-memory` and compile to 2 865 lines of C; the same reads with a `console.print` between them
+allocate 19 times in 1 511 lines. **Built** (the "reads in a row overlap" row; proposed by Claude, unconfirmed).
 
 
 ### REPL, live reload and debug machinery only in those builds
@@ -731,6 +758,11 @@ All **built**, and none of them needs anything from you:
 - A `T?` of a class, list or text is the reference itself, with `null` as the absent case: no wrapper object.
 - A generic singleton has one static slot per set of codegen values, so `Column<Health>()` is found without any
   lookup.
+- A function passed to a template by name, `names.each(say_hello)` or `people.map(greeter.label)`, is not made into
+  a function value: the template is written once for that function and its owner, so the call allocates nothing
+  and calls it directly ([D148](decisions.md),
+  [collections.md](collections.md#passing-a-function-for-each-element)). Only a function held in a variable is
+  called through its `Spite.Function`.
 - An `assert` in `library/` writes nothing into the crash trace, decided when compiling, so a library guard costs
   what an `if` costs ([D189](decisions.md)). What you notice: a crash report lists only the failed
   asserts of the program and its `load`-ed packages ([failure.md](failure.md#what-a-crash-reports)).
@@ -771,14 +803,14 @@ Every class is passed by reference and `copy()` gives an independent one; that i
 optimises behind it ([D149](decisions.md)): a copy used only once is passed by value instead of
 allocated; a copy that is never changed shares the original, when that is cheaper; an object that never escapes
 its function is laid out inline or in registers; and reference counting is left out wherever ownership is
-provable. [D152](decisions.md) adds that setting an object's allocator right after it is made
-(`scratch.memory.allocator = frame`) is where it was allocated from the start, never a second allocation and a
-move. You keep writing `copy()` where you mean an independent object.
+provable. You keep writing `copy()` where you mean an independent object. (D152's allocator set right after
+construction, the one part of this already built, is [above](#an-allocator-set-after-construction-is-where-the-object-is-made).)
 
 ### Other planned optimisations
 
-- **A thread pool for `Parallel`** ([D135](decisions.md)): today every `Parallel` starts an operating
-  system thread of its own; the pool reuses a fixed set, and `list.parallel_each_update()` splits a list across it.
+- **A list's buffer in its list's allocator** ([D154](decisions.md)): a `List` given an allocator is made there,
+  but its buffer of references still comes from the heap; and `Vector<T>`, which holds its items inline, does not
+  exist yet ([memory.md](memory.md#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-vectort-planned)).
 - **Short symbols inline** ([D70](decisions.md)): a short symbol held as a small inline string rather
   than a pointer into the symbol table.
 - **Crash text out of the binary** ([D32](decisions.md)): a `crash` or `assert` site's source text
