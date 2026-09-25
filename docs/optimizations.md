@@ -46,10 +46,12 @@ function with a visible effect can show, no optimisation changes what a program 
 | [Singletons a `Parallel` reaches take a lock](#singletons-a-parallel-reaches-take-a-lock) | built (the fallback) | every, decided per program | an uncontended lock per call, only with `Parallel` |
 | [REPL, live reload and debug machinery only in those builds](#repl-live-reload-and-debug-machinery-only-in-those-builds) | built | the builds that ask for it | nothing in an ordinary build |
 | [Smaller ones](#smaller-ones) | built | every | nothing |
+| [Reading an address is one machine operation](#reading-an-address-is-one-machine-operation) | built | every | nothing |
+| [An allocator set after construction is where the object is made](#an-allocator-set-after-construction-is-where-the-object-is-made) | built | every | the arena's blocks are the allocations; sixteen bytes more per object of a class given an allocator |
+| [Proofs that survive a call](#proofs-that-survive-a-call) | built | every | a proof after a call that may change it is written again |
 | [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | planned (the lock fallback is built) | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | planned | | |
-| [Proofs that survive a call](#proofs-that-survive-a-call) | planned | | |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
 
 ## Built
@@ -163,7 +165,7 @@ instantiation. **Built** (section 9 of the [manual](../manual.md#decision-log), 
 
 **What it does.** Reflection is decided at compile time, so the compiler knows exactly what a program reads and
 emits only that ([D42, D57](../manual.md#decision-log)): a class object's `.attributes`, `.functions` and
-`.namespace`, `value.attributes`, `value.memory`, `attribute.object`, the per-class `Person.instances` registry (a
+`.namespace`, `value.attributes`, `value.memory`, `attribute.value`, the per-class `Person.instances` registry (a
 class is only tracked when something asks for its instances), `Spite.Class.instances`, and a class's `to_debug()`.
 A symbol literal is an entry of a table the compiler writes with only the symbols the program uses; it is
 constant text, so storing and comparing symbols allocates nothing ([D70](../manual.md#decision-log)). A Symbol
@@ -505,7 +507,7 @@ type. It is put in a box -- one small object, released like any other -- only wh
 shape (a `Printable`, a `Debuggable`, an empty `type` that accepts anything) and be called through it
 ([D109, D164](../manual.md#decision-log)). `String` and class instances are objects already and are never boxed.
 
-**When.** Passing a plain value where a shape is wanted, reading `attribute.object` of a number
+**When.** Passing a plain value where a shape is wanted, reading `attribute.value` of a number
 attribute, or a class test against a number class.
 
 **What you notice.** One allocation per boxed value under `--debug-memory`. The visible cost today: every value

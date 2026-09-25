@@ -1,2 +1,3 @@
 diagnostics/package_attributes/brush.spite:2: error: the attribute 'color' is never read: remove it (in Brush.)
 diagnostics/package_attributes/paint/tint.spite:3: error: the attribute '_mixed' is never read: remove it (in Tint.)
+diagnostics/package_attributes/paint/tint.spite:4: error: the attribute 'console' is never read: remove it (in Tint.)

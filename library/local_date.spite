@@ -166,9 +166,9 @@ func _from_days(days_since_1970: Long): LocalDate {
     }
     var day_of_era = shifted - era * 146097
     var year_of_era = (day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146096) / 365
-    var day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100)
-    var shifted_month = (5 * day_of_year + 2) / 153
-    var day = day_of_year - (153 * shifted_month + 2) / 5 + 1
+    var day_of_year = day_of_era - (year_of_era * 365 + year_of_era / 4 - year_of_era / 100)
+    var shifted_month = (day_of_year * 5 + 2) / 153
+    var day = day_of_year - (shifted_month * 153 + 2) / 5 + 1
     var month = shifted_month + 3
     var year = year_of_era + era * 400
     if shifted_month >= 10 {

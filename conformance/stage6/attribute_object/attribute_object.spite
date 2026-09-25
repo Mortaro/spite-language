@@ -1,6 +1,3 @@
-type Anything {
-}
-
 func AttributeObject() {
     var world = World()
     var player = world.create_entity_from_bundle(PlayerBundle())

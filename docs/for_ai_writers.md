@@ -53,6 +53,8 @@ func is_alive(): Bool {
   functions. Every `var` has a default value. A name starting with `_` is private to its class.
 - The function named like the class is the constructor. Do not write an empty one: a class without a constructor
   is made from its defaults, and `func Monster() { }` is an error.
+- A constructed object is kept and used: `Report(text)` written as a statement of its own is an error. A class
+  whose construction is the whole point is a function instead (`report(text)` on the class that needs it).
 - A program is a folder, and it starts by constructing the class of the file named after the folder
   (`game/game.spite` is `Game`). That constructor takes no arguments: settings come from `Environment()` and
   `Build()` below, and `Arguments()` is the raw command line anywhere (`.count()`, `.get(0)`, and `.player` for
@@ -85,14 +87,16 @@ func is_alive(): Bool {
   a parameter only that branch reads is not unused in the other instantiations.
 - An attribute nothing reads is an error too (D118): remove it. A private `_name` attribute is checked too.
   Assigning it is not reading it. A public attribute of a folder the program `load`s is not checked, since
-  code the program does not load may read it. A Symbol template counts only when it reads the value,
+  code the program does not load may read it -- except a singleton binding (`var world = World()`), which is an
+  error unread anywhere: a class that needs the singleton binds it itself. A Symbol template counts only when it reads the value,
   `x.attributes[attribute]`: an attribute kept as a marker that a walk inspects through `attribute.name` or
   `attribute.class` is unused, so say what the marker means some other way. A function nobody calls still
   reads what it names.
 - The words other languages use for things Spite writes differently -- `none`, `nil`, `undefined`, `self`,
   `new`, `import`, `require`, `elif` -- are errors wherever they appear, naming the Spite form, so none of them
   can name a variable or a parameter either: `var none: Long = 0` says to write `null`. Pick another name
-  (`no_handle`, `empty`).
+  (`no_handle`, `empty`). `load` is reserved too: it always loads a package, so a function that loads something
+  says what (`load_texture`).
 - No name is taken by the C that Spite compiles to (D168): `short`, `default`, `register`, `static`, `unsigned`,
   `stdout`, `near`, `far` and `pascal` are ordinary names for a variable, attribute, parameter or function, and
   so are `allocate`, `make`, `retain` and `release`. Do not rename around C. (`int`, `char`, `bool`, `min` and
@@ -109,7 +113,10 @@ func is_alive(): Bool {
 - Numbers: `Int` (32 bit, the default), `Long`, `Tiny`, `Short`, `Byte`, `UnsignedShort`, `UnsignedInt`,
   `UnsignedLong`, `Float` (the default for decimals), `Double`. `Bool`. `String` (double quotes only).
 - No cast syntax: the right side is cast toward the left. `"age {3}"` is `"age 3"`; `var total: Int = "12"` parses
-  it; an `Int` plus a `Float` is an `Int`. A value that does not fit wraps.
+  it. Arithmetic is done in the left side's type, so write the wider operand first: `total * count` with a `Long`
+  `total`, never `count * total`, which is an error (so is an `Int` plus a `Float`); a literal on the right that
+  fits is fine. A constant that overflows `Int` (`65536 * 65536`) is an error: write the number. Comparisons are
+  not checked and still cast the right side toward the left. A value that does not fit wraps.
 - Bits are functions on the whole numbers, never symbols: `value.shifted_left(count)`, `shifted_right(count)`
   (arithmetic on a signed type, logical on an unsigned one), `bits_and(mask)`, `bits_or(mask)`,
   `bits_exclusive_or(mask)`, `bits_inverted()`, `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()`.
@@ -136,14 +143,13 @@ func is_alive(): Bool {
 - A `while` that only walks a list doing what one of these does -- `var index = 0`, `while index <
   items.count()`, `total = total + items[index].price`, `index = index + 1` -- is an error naming
   `items.sum_price()`. Keep `while` for loops that need the index, pass more than the element, or walk state.
-- The member can also be a function of the class you are writing in that takes the element and nothing else:
-  with `func say_hello(name: String)`, `names.each_say_hello()` calls it once per name, and `filter_`, `map_`,
-  `sum_` and the rest take such a function the same way, on a list of anything, chained or not. When the element
-  has a member of that name too, it is an error: rename one.
-- A `while` whose whole body passes each element of a list to one such function -- `var index = 0`,
-  `while index < names.count()`, `say_hello(names[index])`, `index = index + 1` -- is an error naming
-  `names.each_say_hello()`. A function that needs more than the element (`print_statement(statement, depth)`)
-  keeps its `while`.
+- A template sees only the element and the list, never your class: `names.each_say_hello()` looks for a member
+  `say_hello` of each name. To call a function of yours with each element, pass it: `names.each(say_hello)`,
+  `names.map(measure)`, `names.filter(is_short)`, and `any`, `all`, `count`, `find` (the first element it is true
+  for, a `T?`), `sort_by` and `sum` the same way, on a list or dictionary of anything, chained with the member
+  templates or not (`people.filter_active().map(greeter.label)`). The function takes the element as its only
+  argument and is bound to its owner: `greeter.label` is `greeter`'s. A function that needs more than the element
+  (`print_statement(statement, depth)`) keeps its `while`.
 - `enum`, `union` and `type` declarations take no `=`, one entry per line, no commas:
 
   ```spite
@@ -164,6 +170,8 @@ func is_alive(): Bool {
 - A `type` declares a shape -- `label: String` and `render(Int): String`, one per line, a required function
   naming the *types* it takes and never the names -- and accepts any class, or
   object literal `{ label: "x" }`, with those attributes and functions.
+- `Anything` is the built-in empty `type`, the counterpart of `Nothing`: `component: Anything` and
+  `List<Anything>()` accept any object (a number is boxed). Never declare an empty `type` of your own.
 
 ## Nothing, null, and failure
 
@@ -227,7 +235,7 @@ func is_alive(): Bool {
   reading its members: `assert value.class.namespace` narrows the path itself and its prefixes for the rest of
   the block -- `.name_with_namespaces`, `.parent`, `.classes`,
   `.namespaces`), `.functions`), `value.attributes`
-  (`.name`, `.class`, `.value`), `value.functions` (`.name`, `.arguments`, `.returns`, `call_function()` for
+  (`.name`, `.class`, `.value`: the value itself, an `Anything?` whose text is `.value.to_string()`), `value.functions` (`.name`, `.arguments`, `.returns`, `call_function()` for
   functions that take nothing and return `Nothing`), a function named without calling it (`shouter.shout`, a
   `Spite.Function<String, String>` bound to `shouter`, called as `change(text)`), `Monster.instances` (live instances), and
   `Spite.Class.instances` (every class of the program). `class`, bare inside a class's function, is the class

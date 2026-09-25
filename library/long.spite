@@ -6,8 +6,9 @@ func to_string(): String {
         return "0"
     }
     var heap = Memory.Heap()
-    var address = heap.allocate(24)
-    var position: Long = 24
+    var buffer_bytes: Long = 24
+    var address = heap.allocate(buffer_bytes)
+    var position = buffer_bytes
     var rest = this
     while rest != 0 {
         var digit = rest % 10
@@ -15,14 +16,14 @@ func to_string(): String {
             digit = -digit
         }
         position = position - 1
-        address.write_byte(position, 48 + digit)
+        address.write_byte(position, digit + 48)
         rest = rest / 10
     }
     if this < 0 {
         position = position - 1
         address.write_byte(position, 45)
     }
-    var text = (address + position).text(24 - position)
+    var text = (address + position).text(buffer_bytes - position)
     heap.free(address)
     return text
 }

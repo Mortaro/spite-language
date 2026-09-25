@@ -17,7 +17,7 @@ costs nothing.
 | `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)` |
 | `Spite.Function` | `.name`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()`, `name_fits(pattern)` |
 | `Spite.Argument` | `.name`, `.class: Spite.Class` |
-| `Spite.Attribute` | `.name`, `.class: Spite.Class`, `.value: String`, `.object: Spite.Attribute.Object?` |
+| `Spite.Attribute` | `.name`, `.class: Spite.Class`, `.value: Anything?` (the value itself; `.value.to_string()` is its text) |
 | `Spite.Namespace` | `.name` (the segment), `.name_with_namespaces` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
 | `Spite.Memory` | `.address: Long`, `.bytes: Long`, `.section` (`'heap'`, `'stack'`, `'constant'`) -- see [memory.md](memory.md#where-a-value-lives-memory) |
 
@@ -27,8 +27,8 @@ expected (every `String` function answers on it) and costs no allocation to pass
 ## `.class` and `.attributes`
 
 `value.class` is a `Spite.Class`, and printing one prints its `.name`. `value.attributes` is a real, run-time
-`List<Spite.Attribute>`, one entry per field, each with its `.name`, its `.class`, and its `.value` rendered as
-text (`""` for a field with no plain textual form, such as a class or a list):
+`List<Spite.Attribute>`, one entry per field, each with its `.name`, its `.class`, and its `.value` -- the value
+itself, an `Anything?` ([below](#an-attributes-value)), whose text is `.value.to_string()`:
 
 ```gdscript title=reflection_basics/gadget.spite
 var name = ""
@@ -55,9 +55,15 @@ func describe(gadget: Gadget) {
     var index = 0
     while index < attributes.count() {
         var attribute = attributes[index]
-        console.print(attribute.name, attribute.class, attribute.value)
+        var shown = text_of(attribute)
+        console.print(attribute.name, attribute.class, shown)
         index = index + 1
     }
+}
+
+func text_of(attribute: Spite.Attribute): String {
+    assert attribute.value
+    return attribute.value.to_string()
 }
 ```
 ```output
@@ -81,13 +87,17 @@ power Int 3
 - `value.attributes` holds the values; `Gadget.attributes` describes the declarations. The same word is right at
   both levels, and the case of the receiver says which one you mean.
 
-### An attribute's value as an object
+### An attribute's value
 
-`.value` is the attribute rendered as text; `.object` is the value itself, as an object of any class:
-`Spite.Attribute.Object?`, an empty `type` the library declares, which fits any `type` of your own that accepts
-anything. A number, `Bool` or enum attribute is boxed, as it is whenever a plain value goes into a `type`; it is
-`null` only when the attribute holds `null`. `.attributes` works through a `type` too, answered from the value's
-real class at run time, so a function taking anything can walk what it was given and hand each attribute on:
+`.value` is the instance the attribute refers to, as an object of any class: `Anything?`. `Anything` is the
+library's empty `type`, the counterpart of `Nothing`: every class fits it, so a function that takes any object
+says `component: Anything`, and a program never declares its own. A number, `Bool`, enum or `Symbol` attribute
+is boxed, as it is whenever a plain value goes into a `type`; the value is `null` only when the attribute holds
+`null`. Its text is `.value.to_string()`: a class's own `to_string()` when it has one, a number's or a `String`'s
+usual text, and `to_debug()` for anything else (a list, or a class that does not say how to print). Only a
+program that reads `.value` builds the objects; every other program's attributes carry nothing. `.attributes`
+works through a `type` too, answered from the value's real class at run time, so a function taking anything can
+walk what it was given and hand each attribute on:
 
 ```gdscript title=attribute_objects/health.spite
 var amount = 10
@@ -98,9 +108,6 @@ var speed = 3
 var target: Health? = null
 ```
 ```gdscript title=attribute_objects/attribute_objects.spite entry
-type Anything {
-}
-
 var console = Console()
 var components = List<Anything>()
 
@@ -123,8 +130,8 @@ func add_every_attribute(bundle: Anything) {
     var index = 0
     while index < attributes.count() {
         var attribute = attributes[index]
-        if attribute.object {
-            components.append(attribute.object)
+        if attribute.value {
+            components.append(attribute.value)
         }
         index = index + 1
     }
@@ -154,9 +161,6 @@ func amount(): Int {
 }
 ```
 ```gdscript title=passing_a_class/passing_a_class.spite entry
-type Anything {
-}
-
 var console = Console()
 var components = List<Anything>()
 
@@ -250,7 +254,7 @@ var console = Console()
 
 func FunctionReflection() {
     var functions = Gadget.functions
-    functions.each_describe()
+    functions.each(describe)
     var library_names = Memory.Heap.functions.map_name()
     var has_allocate = library_names.contains('allocate')
     console.print("Memory.Heap has allocate", has_allocate)
@@ -299,7 +303,7 @@ func FunctionQuestions() {
     var updates = Sprinkler.has_function("<phase>_each")
     console.print(described, drains, fills, updates)
     var functions = Sprinkler.functions
-    functions.each_describe()
+    functions.each(describe)
 }
 
 func describe(function: Spite.Function) {

@@ -45,7 +45,12 @@ and the lookups still wait.
 
 Line numbers are still those of 122c39f.
 
-## Built (D113)
+## Built (D113), then superseded (D148)
+
+D148 removed what follows: a template no longer reaches the caller's functions, and the `while` rule that named
+one is gone. The caller's function is passed as a value instead (`statements.each(collect_statement_facts)`,
+`functions.each(describe)`); manual section 8, "Passing a function for each element". The record below is kept
+as it was built.
 
 Templates now take a function of the caller that receives the element and nothing else
 (`names.each_say_hello()`), and a `while` written only to do that is an error naming the template (manual

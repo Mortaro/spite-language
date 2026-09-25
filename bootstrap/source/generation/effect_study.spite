@@ -29,7 +29,7 @@ func take_parameters(declared: List<Syntax.Statements.Parameter>) {
 }
 
 func study_block(statements: List<Syntax.Statements.Statement>) {
-    statements.each_study_statement()
+    statements.each(study_statement)
 }
 
 func study_statement(statement: Syntax.Statements.Statement) {
@@ -47,7 +47,7 @@ func study_statement(statement: Syntax.Statements.Statement) {
         }
         Syntax.Statements.SwitchStatement: {
             study_optional(statement.subject)
-            statement.cases.each_study_case()
+            statement.cases.each(study_case)
         }
         Syntax.Statements.AssertStatement: study_optional(statement.value)
         Syntax.Statements.ReturnStatement: study_optional(statement.value)
@@ -116,7 +116,7 @@ func study_assignment(assignment: Syntax.Statements.AssignmentStatement) {
 }
 
 func study_expressions(expressions: List<Syntax.Expressions.Expression>) {
-    expressions.each_study_expression()
+    expressions.each(study_expression)
 }
 
 func study_expression(expression: Syntax.Expressions.Expression) {
@@ -135,8 +135,8 @@ func study_expression(expression: Syntax.Expressions.Expression) {
             study_optional(expression.object)
             study_optional(expression.index)
         }
-        Syntax.Expressions.ListLiteralExpression: expression.elements.each_study_element()
-        Syntax.Expressions.ObjectLiteralExpression: expression.fields.each_study_field()
+        Syntax.Expressions.ListLiteralExpression: expression.elements.each(study_element)
+        Syntax.Expressions.ObjectLiteralExpression: expression.fields.each(study_field)
         _: return
     }
 }

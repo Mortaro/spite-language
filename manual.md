@@ -112,6 +112,15 @@ is library code for reflection (`Spite.Class.instances` does not list it) and `-
 
 Configuration files are ordinary classes whose constructor sets the state.
 
+**A constructed object must be kept and used** (D139, decided by Mortaro; the message proposed by Claude,
+unconfirmed). **[implemented]** A constructor call written as a statement on its own (`Spawn(bundle)`,
+`Report(text)`, `Box<Int>(3)`) is an error: `'Report(text)' makes a 'Report' and drops it: a constructed object
+must be kept and used, so a class whose construction is the whole point should be a function instead -- turn
+'Report' into a function of the class that needs it, or keep the object in a variable that is read`. One stored in
+a variable nothing reads is already the unused-name error (D118, D136). A singleton is exempt: it is bound as an
+attribute (D110, D144), and a bare `Console()` statement is D110's inline-singleton error instead.
+`diagnostics/dropped_construction`, `docs/classes_and_files.md`.
+
 ## 4. Variables and values  **[implemented]**
 
 ```gdscript
@@ -158,12 +167,28 @@ var content = content.trim()     # String
 There is no cast syntax. The right side is always cast toward the left side.
 
 ```gdscript
-func sum(a: Int, b: Float): Int {
-    return a + b        # b is cast to Int
+func whole_part(value: Float): Int {
+    return value        # value is cast to Int
 }
 ```
 
 This applies to binary operations, assignment, arguments (toward the parameter type) and `return` (toward the return type).
+
+**Wider arithmetic is written wider operand first** (D162, decided by Mortaro; the errors below proposed by
+Claude, unconfirmed). **[implemented]** `Int * Long` is an `Int` multiply and `Long * Int` a `Long` one, so an
+arithmetic operator (`+`, `-`, `*`, `/`, `%`) whose right operand is wider than its left is a compile error that
+names the rule and the fix: `'count * total' is a multiplication in Int, since arithmetic takes the left side's
+type, and the right side is a Long, which would be cut to fit: write the Long first ('total * count'), or store the
+right side in an Int first if it fits one` (for `-`, `/` and `%`, where order matters, the fix is to store the left
+side in the wider type first). Wider means more bits (`Tiny`/`Byte` 8, `Short`/`UnsignedShort` 16,
+`Int`/`UnsignedInt`/`Float` 32, `Long`/`UnsignedLong`/`Double`/`Memory.Address` 64), or a `Float`/`Double` right side under a whole
+number left side, which would lose its fraction; signedness alone is not wider. An integer literal on the right
+that fits the left type is not wider (`small + 1` with a `Byte` `small` is a `Byte` addition). A comparison is not
+arithmetic and is not checked: it still casts the right side toward the left, so `age > 0.5` with an `Int` `age`
+means `age > 0` (open question 3). A constant expression that overflows the `Int` its arithmetic is done in is an
+error too, naming its value: `'(65536 - 120) * 65536' is 4287102976, which does not fit in an Int, the type its
+arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long`.
+`diagnostics/wider_right_operand`.
 
 **Text casts to an enum by its name** (proposed by Claude, unconfirmed; built for D95's `Json`, 2026-09-24):
 `var course: Recipe.Course = name` is the value spelled `name`, or the enum's first value when none is, exactly as
@@ -532,7 +557,12 @@ What counts as a read, and the exceptions **(proposed by Claude, unconfirmed)**:
   covers the program's own folder (its entry folder, minus the folders it `load`s), the standard library (as
   above), and private attributes everywhere, whose only reader is their own class. An attribute a program adds
   by reopening a loaded class is the program's and is checked
-  (`conformance/stage6/package_attributes`, `diagnostics/package_attributes`).
+  (`conformance/stage6/package_attributes`, `diagnostics/package_attributes`). A loaded package's unused public
+  data is tree-shaken rather than reported (D157).
+- **An unused singleton binding is an error everywhere** (D157, decided by Mortaro), a loaded package included:
+  `var world = World()` that nothing reads is `the attribute 'world' is never read: remove it` even in a folder
+  the program `load`s, since a class that needs a singleton binds it itself. (Proposed by Claude, unconfirmed: a
+  read of the binding from another class still counts, as it does for any attribute.)
 - The check runs only when the program has no other error, so a failed statement does not report the attributes
   it would have read.
 
@@ -624,6 +654,13 @@ function with arguments; and a class attribute initialised with a function value
 notation invented for the type syntax -- it fills a hole the reflection already had. A function whose body falls
 off the end still returns nothing in the ordinary sense (section 5); `Nothing` is how that is *named* when a
 signature or a reflection object has to say it.
+
+**`Anything` is a built-in `type`, the counterpart of `Nothing`** (D163, decided by Mortaro).  **[implemented]**
+The library declares `type Anything { }` once (`library/nothing.spite`, beside `Nothing`), so a parameter or a
+list that accepts any object is written `component: Anything` or `List<Anything>()`, and a program no longer
+declares an empty `type` of its own for that. An empty `type` requires nothing, so every class fits it, and a
+number, `Bool` or enum passed to it is boxed like any plain value passed to a `type` (D109); `if component ==
+Health` narrows it back. `Spite.Attribute`'s object is typed `Anything?` (section 8).
 
 ### Variadic arguments  **[implemented]**
 
@@ -1124,7 +1161,7 @@ nothing in it can be mistaken for a user class. **[implemented]**
 | `Spite.Class` | `.name: Symbol` (D68), `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `has_function(name)` (D114; folds on a codegen type), plus the function of `Spite.Class`s a class may override ([above](#class-level-functions-and-why-there-are-no-static-functions-planned)) |
 | `Spite.Function` | `.name: String`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `.owner`, `call_function()`, `name_fits(pattern)` (D116) |
 | `Spite.Argument` | `.name: String`, `.class: Spite.Class` |
-| `Spite.Attribute` | `.name: String`, `.class: Spite.Class`, `.value: String`, `.object: Spite.Attribute.Object?` (below) |
+| `Spite.Attribute` | `.name: String`, `.class: Spite.Class`, `.value: Anything?` (the value itself; its text is `.value.to_string()`, below) |
 | `Spite.Namespace` | `.name: String` (the segment), `.name_with_namespaces: String` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
 | `Spite.Memory` | `.address: Long`, `.bytes: Long`, `.section: Spite.Memory.Section` (`'heap'`, `'stack'`, `'constant'`) -- what `value.memory` answers (D101) |
 
@@ -1236,26 +1273,30 @@ below.]**
   is an instance of `Health`, which a class object never is, and before this it was silently `false`.
 - `value.attributes` is a real, runtime `List<Spite.Attribute>` (built fresh, one entry per field, only for a
   class that actually uses `.attributes` -- nothing is generated for a class that never does): each entry has
-  `.name: String`, `.class: Spite.Class` (D12) and `.value: String` (the field
-  rendered as text; `""` for a field with no obvious textual form, such as a class, list, or union). Because
+  `.name: String`, `.class: Spite.Class` (D12) and `.value` (below). Because
   it is an ordinary `List<T>`, reading it uses `while`, not a special loop form. `attributes[symbol]` inside a
   class is a separate, compile-time-only form: that same field indexed by a `Symbol` (see [Symbol
   codegen](#symbol-codegen-implemented) below).
-- **`attribute.object` is the attribute's value as an object** (D123's second request; the spelling and the
-  readings proposed by Claude, unconfirmed, 2026-09-25), where `.value` is its text. Its type is
-  `Spite.Attribute.Object?`: `library/spite/attribute.spite` declares `type Object { }`, an empty `type`, which
-  accepts any class and fits any empty `type` a program declares (`type Anything { }`), so
-  `entity.add_component(attribute.object)` compiles once it is narrowed. There is no built-in "any" type: an
-  empty `type` already is one, and each program keeps declaring its own (`mortaros_missing_decisions.md` item
-  124). **A number, `Bool` or enum attribute is boxed**, as D109 boxes a plain value passed where a shape is
-  wanted, so its `.class` is `Int` and `if object == Int` narrows it back; it is `null` only when the attribute
-  holds `null` (item 125). **`value.attributes` works on a `type` or union value**, answered from the value's own
-  class at run time, so `create_entity_from_bundle(bundle: Anything)` walks whatever bundle it is given. It is
-  built only for a program that reads `.object`: every other program's attribute lists hold `null` there and
-  admit nothing. Two mechanisms came with it: a class admitted to one `type` is admitted to every `type` a value
-  of it has already been passed on to (the `Object` a bundle's fields fill is passed to `Anything`), and
-  `.attributes` through a `type` reads every attribute of every class admitted to it, for D118
-  (`conformance/stage6/attribute_object`, `docs/reflection.md`).
+- **`attribute.value` is the actual instance the attribute refers to** (D164, decided by Mortaro, replacing the
+  text `.value` and the `.object` D123 added; the readings below proposed by Claude, unconfirmed).
+  **[implemented]** Its type is `Anything?`, the library's built-in empty `type` (D163), so
+  `entity.add_component(attribute.value)` compiles once it is narrowed. **A number, `Bool`, enum or `Symbol`
+  attribute is boxed**, as D109 boxes a plain value passed where a shape is wanted, so its `.class` is `Int` and
+  `if value == Int` narrows it back; it is `null` only when the attribute holds `null`. **Its text is
+  `attribute.value.to_string()`**: through `Anything`, `to_string()` answers each class's own `to_string()` (a
+  `String` itself, a number's usual text), and `to_debug()` for a class that has none, a `List` or a
+  `Dictionary`; the REPL's display calls it for a number, text or enum. **It costs nothing unless read**: the
+  objects are built only in a program whose own code reads `.value` (the REPL library's reads count only in a
+  `--repl`/`--repl_port` build), every other program's attribute lists hold `null` there and box nothing, and no
+  attribute carries text any more, so a program walking `.attributes` allocates no strings for it. A number is
+  never boxed where its type is known: `x.attributes[attribute]` in a Symbol template reads the plain field.
+  **`value.attributes` works on a `type` or union value**, answered from the value's own class at run time, so
+  `create_entity_from_bundle(bundle: Anything)` walks whatever bundle it is given. An attribute holding a
+  `Dictionary` now lists its entries as attributes named by their keys, as a `List` lists its elements, which is
+  how the REPL counts both. Two mechanisms came with `.value`: a class admitted to one `type` is admitted to
+  every `type` a value of it has already been passed on to, and `.attributes` through a `type` reads every
+  attribute of every class admitted to it, for D118 (`conformance/stage6/attribute_object`,
+  `conformance/stage6/reflection`, `docs/reflection.md`).
 - `Person.instances` lists every live instance of a class. Conceptually each class is a variable living on the heap and so is
   its registry of instances; the compiler removes whatever is unused.  **[implemented]**
   A class object's `.attributes` and `.functions` are read from a stand-in instance at its defaults, which is not
@@ -1667,42 +1708,43 @@ by element. `conformance/stage6/fused_chain_allocations` pins it: four chains ru
 nothing (15 allocations in all, the `Launcher` and printing the total included -- the `TypedMemory` its lists
 share is a static singleton -- against more than 16 000 step by step).
 
-**A function of the caller for each element** (D113, decided by Mortaro; the resolution rule, the loop rule's
-exact shape and the reading below are proposed by Claude, unconfirmed).  **[implemented]** The member a template
-names may also be a function of the *caller* -- the class the call is written in -- that takes the element as its
-only argument. With `func say_hello(name: String)` in the class, `names.each_say_hello()` calls `say_hello(name)`
-once per element, in order; `map_` collects what such a function returns (one returning nothing is the `map_`
-error, which now names `each_`); `filter_`, `count_`, `any_` and `all_` take one returning `Bool`, `sum_` one
-returning a number, `find_by_(value)` and `sort_by_` one returning something comparable. D15's table applies
-unchanged, read as "the function's return type". This works on a list or dictionary of anything, `String` and
-numbers included, which have no members of their own for a template to name.
+**Passing a function for each element** (D148, decided by Mortaro, superseding D113's caller-function templates;
+the forms' details below are proposed by Claude, unconfirmed).  **[implemented]** An iterator sees only the
+element and the list, never the class the call is written in: `people.each_say_hello()` names a member
+`say_hello` of each `Person`, and a function of the caller never answers
+it. When the calling class has a function of that name, the error says to pass it
+(`'String' has no attribute or zero argument function 'say_hello' for 'each_say_hello': a template reads a member
+of each element, never a function of this class, so pass this class's 'say_hello' instead: 'each(say_hello)'`).
+The caller's function is passed as a bound function value (D17/D39), owned by whoever it is bound to:
 
-- **Resolution.** The element's own member (field or zero-argument function) is looked up, then a function of
-  the caller with that name, one parameter, and a parameter type equal to the element type. When both exist the
-  call is an error naming both (`'each_is_adult' could call 'is_adult' of each 'Person' or this class's own
-  'is_adult(Person)': rename one of them so the template names only one`), rather than one quietly winning: D59
-  already refuses one name meaning two things, and a silent order would let a new member on the element change
-  what an unrelated caller runs. When neither exists, the error says what the caller's function of that name
-  lacks (no such function, the wrong number of arguments, or another parameter type).
+- **The forms.** `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`, `find(f)`, `sort_by(f)` and
+  `sum(f)` on a `List` or a `Dictionary` (through its values), for an element of any type. `f` takes the element
+  as its only argument, with exactly the element's type; D15's table applies to what it returns (`filter`, `any`,
+  `all`, `count` and `find` want `Bool`, `sum` a number, `sort_by` a number or a `String`, `map` a value, `each`
+  anything). `find(f)` answers the first element `f` is true for, or `null` -- the `find_by_` template with
+  `true` as its value. `count` with no argument stays the collection's size.
+- **The owner.** `say_hello` alone is bound to this instance; `greeter.greet` to `greeter`; a variable holding a
+  `Spite.Function<T, R>` is called through the value. `people.map(greeter.label).filter(is_short)` mixes owners.
 - **How it is written.** No template changes: the same `library/list.spite` template (`each_member(member:
-  Symbol<$element_type>)`) is instantiated once more per calling class, with a last hidden parameter holding the
-  caller (`self` at the call site), and `item.attributes[member]` reads as `caller.say_hello(item)`. A program's
-  own template in its `list.spite` therefore answers both kinds of member. These instances are not listed among
-  the list's `functions` (they need a caller), nor offered at a `--repl` prompt. A fused chain (D105) may mix
-  both kinds of step; a step through the caller may follow a `map_` to a number or a `String`, and the fused
-  function then takes the caller as its last parameter.
-- **The loop rule.** A `while` is an error naming the template when, exactly: the statement before it sets a
-  counter to `0` (`var index = 0` or `index = 0`); the condition is `counter < list.count()`, with `list` a name or
-  a path of type `List<T>`; and the body is `f(list[counter])` then `counter = counter + 1`, or
-  `var item = list[counter]`, `f(item)` and the increment (the increment may come right after the `var`), with
-  `f` a function of the class taking one `T` and the element having no member `f`. The message is `this 'while'
-  only calls 'say_hello' with each element of 'names': write 'names.each_say_hello()'`
-  (`diagnostics/caller_templates`). The counter may be read after the loop; only the loop is replaced.
-- **Extra arguments are not passed.** A function that needs more than the element (`print_statement(statement,
-  depth)`, the review's typical case) is not a template member, and its `while` stays. Ways to carry `depth` are
-  in `mortaros_missing_decisions.md`; none is built.
+  Symbol<$element_type>)`) is instantiated once per function and owner class, with a last hidden parameter holding
+  the owner (the function's instance, passed at the call site), and `item.attributes[member]` reads as
+  `owner.say_hello(item)` -- or `owner(item)` when the owner is a held function value. A function written by name
+  therefore costs no allocation and no indirect call; only a held value is called through `Spite.Function`. Only
+  the forms a program calls are instantiated, and these instances are not listed among the list's `functions`
+  nor offered at a `--repl` prompt.
+- **Chains.** A passed function chains and fuses with the member templates (D105): `map(f)` and `filter(f)` may
+  sit in the middle of a chain and any form may end one, so `people.filter_active().map(greeter.label)` and
+  `names.filter(is_short).map(measure).sum(double_of)` are each one loop; the fused function takes each owner as
+  a parameter. The element's own members still come only from the element (`people.map(say_hello).filter_active()`
+  reads `active` of whatever `say_hello` returns).
+- **Mistakes** name the form: `'map(say_hello)': 'say_hello' returns nothing, but 'map' needs it to return a value
+  (to only call it for each element, write 'each(say_hello)')`, `'each' calls 'greet_twice' with each 'String' as
+  its only argument, but 'greet_twice' takes 2`, `'each' calls 'count_to' with each 'String', but 'count_to' takes
+  'Int'`, and an argument that is no function at all.
+- **No loop rule.** D113's error for a `while` that only passes each element to a caller function is removed with
+  it. A function that needs more than the element (`print_statement(statement, depth)`) keeps its `while`.
 
-`conformance/stage6/caller_templates`, `docs/collections.md`.
+`conformance/stage6/passed_functions`, `diagnostics/passed_functions`, `docs/collections.md`.
 
 ## 9. Codegen values (`$`)  **[implemented]**
 
@@ -2853,8 +2895,10 @@ On top of `append`/`prepend`/`count`/index-read/index-write (iterate with `while
 | `map_<member>()` | `List<U>` | an `Int`/`Float`/`Bool`/`String`/enum attribute's values, one per element |
 | `any_<member>()` / `all_<member>()` | `Bool` | a `Bool` attribute, true for at least one / every element |
 
-Every `<member>` above may instead be a function of the calling class that takes one `T` (D113, section 8):
-`names.each_say_hello()` calls `say_hello(name)` for each element, for any `T`.
+A `<member>` is always the element's, never the calling class's (D148, section 8). A function of the caller is
+passed as a value instead, for any `T`: `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`,
+`find(f)` (the first element `f` is true for, a `T?`), `sort_by(f)` and `sum(f)`, where `f` takes one `T` --
+`names.each(say_hello)` calls `say_hello(name)` for each element.
 
 Naming (second batch item 3, decided 2026-09-19): `add` does not say where, so it is `append` (and `prepend`);
 `pop()` became `remove_last()`, plus `remove_first()` -- writing the old names is a compile error naming the
@@ -3912,7 +3956,7 @@ payloads to JSON on demand, since the compiler knows the schema.
    literal with each attribute at its own default, admitted to the shape -- so writes through it are kept
    (proposed by Claude, unconfirmed, 2026-09-24; `conformance/stage6/shape_defaults`). A `type` that requires a
    function has no default object, since no literal can supply the function.
-3. Right-to-left casting makes `age > 0.5` with an Int `age` mean `age > 0`. Accept, or make comparisons cast toward the wider type.
+3. Right-to-left casting makes `age > 0.5` with an Int `age` mean `age > 0`. Accept, or make comparisons cast toward the wider type. D162 settled arithmetic (a wider right operand is an error); comparisons still cast right to left and are not checked (proposed by Claude, unconfirmed), so this stays open for them.
    - The abbreviation lint has no escape hatch for names that must mirror an external spelling (`keyword_var`). Keep it absolute, or allow a per line `# spelled: keyword_var` style exemption.
 6. `_` now means two things: private (section 2) and intentionally unused (section 5). They mostly agree (an unused
    private function is fine either way), but an unused PUBLIC function cannot be an error (libraries are full of them; tree
@@ -4464,3 +4508,11 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | (implements D169; how calls are followed proposed by Claude, unconfirmed) **A call undoes a proof only if it may change what the proof reads.** Before generating, the compiler studies every function of the program once (`CallEffects`): which attributes it assigns (by class and name), which lists it shrinks (an attribute's, a parameter's, or unknown), and what it calls, resolving a receiver's class from declared types and falling back to every function of that name; the effects are closed over the call graph. After each statement, the calls it made undo the narrowed paths, narrowed attributes and proven `[]` reads that read through what they may change; a function value undoes every such proof. Applies to narrowed attributes too, which a call could set to null unnoticed before (a segfault, now a compile error). Operators and getters are not followed, and a local aliasing an attribute's list is not tracked. Compiling the compiler costs about 0.4 s more. The compiler needed two rewrites (`emit_string_support` asks for the constructor's parameters before proving it, `instantiated_with` binds the proven entry once), `conformance/stage6/shape_members` one. Section 5, `diagnostics/call_undoes_proof`, `docs/failure.md`, `docs/optimizations.md`. |
 | 2026-09-25 | (implements D178, D150 and D151; the readings below proposed by Claude, unconfirmed) **`Memory` is a namespace: `Memory.Address` is the place, `Memory.Heap` the default allocator, and the singleton `Memory` with its free functions is gone.** `Memory.Address` (`library/memory/address.spite`) is a number class of eight bytes that casts to and from `Long` like every number, so `address + 16` is an address and a foreign function's `Long` result is one by assignment. Its reads, writes and atomics take only the offset (`address.read_long(16)`, `address.write_float(8, value)`, `address.write_long_atomically(0, 1)`) and are bodiless declarations the compiler lowers where they are called, as one C statement in a macro with no call, like `+`. D178's "usable only from library/" is read as: a function of a class the standard library declares, including one a program reopens (the `--final_classes` output reopens every class it prints, and must still compile); any other class gets "'read_long' reads or writes the memory at an address, which only library/ does" (`diagnostics/memory_access`). `copy_to(target, bytes)` and `compare_bytes(other, bytes)` are not reads or writes and stay open to programs, as do `text(length)` and `terminated_text()`, which are Spite. `Memory.Heap` is a singleton with `allocate`, `resize`, `free` and `live_allocations` (the `_bytes` of `allocate_bytes` went: a heap only hands out bytes). Every `var memory = Memory()` in `library/` is `var heap = Memory.Heap()`, which also leaves the name `memory` to D152's `.memory`. `TypedMemory` takes a `Memory.Address`, and its `read_value`, `write_value` and `release_value` lend an address the way a read does, so a frame-placed allocation may go through them (D108's placement rule, widened). Not built: D178's allocation from operating-system pages and copying and comparing through `DynamicLibrary` -- the heap is still `malloc` and `copy_to` is `memmove`. Self-compile 1.7 s before and after (the reads were one C call each and are one C statement now). `conformance/stage6/memory_floor` (now over `TypedMemory`), `placed_free`, `diagnostics/memory_access`, `docs/memory.md`, `docs/optimizations.md`; questions in `mortaros_missing_decisions.md` 142-143. |
 | 2026-09-25 | (implements D152 and D153, and D154 for the list object itself; the readings below proposed by Claude, unconfirmed) **An object's allocator is set on the line right after it is made, and it is made there.** `var spark = Particle("spark", 1.5)` followed by `spark.memory.allocator = arena` compiles to one construction, `Particle___make_in(arena, give_back, Memory_Arena_allocate(arena, sizeof(Particle)), ...)`: nothing is allocated twice or moved, and nothing is decided at run time. The same works after `List<T>()`, `Dictionary<T>()` and `.copy()` of a class whose copy the compiler writes. Anywhere else -- a later line, an attribute, a number or `String` -- is an error: "'spark' was already used, so its allocator can no longer change ... 'var moved = spark.copy()' and then 'moved.memory.allocator = ...'" (D153), or "only an object gets an allocator", or "'Console' is not an allocator" (`diagnostics/allocator_after_use`). An allocator is any class answering `allocate(bytes: Long): Memory.Address` and `free(address: Memory.Address)`, named on that line (a name or a path of names, so evaluating it before the constructor changes nothing); `Memory.Heap` is the default and a no-op. `Memory.Arena(block_bytes)` is Spite over the heap: 16-byte-aligned bump allocation in chained blocks, a no-op `free`, and every block freed when the arena is dropped; no `reset()`, since resetting under live objects is the undecided safety question. An object made in an allocator holds a reference to it plus the allocator's `free` (two pointers in the object, written into the struct only for classes some line places -- D177: no other class changes, no registry, no current-allocator state), and gives its memory back through them when its count reaches zero, so an arena outlives everything made in it. Not built: D154's list buffer following the list's allocator, `Vector<T>`, `Memory.Frame`, and reading `.memory.allocator` back. Self-compile unchanged (the compiler places nothing). `conformance/stage6/allocator_choice`, `docs/memory.md` ("Choosing an allocator"), `docs/optimizations.md`; questions in `mortaros_missing_decisions.md` 144-146. |
+| 2026-09-25 | (implements D148; the readings below proposed by Claude, unconfirmed) **The caller's function is passed: `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`, `find(f)`, `sort_by(f)` and `sum(f)` take a function of one argument, the element's exact type, bound to its owner.** `find(f)` answers the first element `f` is true for (`find_by_` with `true`); `count()` with no argument stays the size. A function written by name (`say_hello`, `greeter.greet`) instantiates the element template once per function and owner class with the owner as a hidden last parameter, so it allocates nothing and calls directly -- tree-shaken like every template, and free at run time; a function held in a variable is called through its `Spite.Function`. `map(f)`/`filter(f)` fuse in chains with the member templates (D105), the fused function taking each owner. D113's resolution through the caller, its ambiguity error and its `while` rule are removed; an element-template call whose member is missing while the caller has a function of that name says to pass it (`'each(say_hello)'`). Rewritten: 7 uses (`collect_body_facts` and two `map_class_member_name` calls in the compiler, `conformance/stage6/system_phases`, and `docs/`'s `name_phases`, `function_reflection` and `function_questions` -- 3 doc blocks), besides `conformance/stage6/caller_templates` and `diagnostics/caller_templates`, which became `passed_functions`. Section 8, `docs/collections.md`. |
+| 2026-09-25 | (implements D162; the readings below proposed by Claude, unconfirmed) **An arithmetic operator whose right operand is wider than its left is a compile error, and so is a constant expression that overflows `Int`.** Wider is more bits (8: `Tiny`, `Byte`; 16: `Short`, `UnsignedShort`; 32: `Int`, `UnsignedInt`, `Float`; 64: `Long`, `UnsignedLong`, `Double`), or a `Float`/`Double` right side under a whole-number left; signedness alone is not wider. An integer literal (or a negated one) on the right that fits the left type does not count, so `small + 1` on a `Byte` stays legal. **A comparison does not count**: it is not arithmetic, and it keeps casting the right side toward the left exactly as before (so `age > -0.5` on an `Int` is still `age > 0`, open question 3); the C for comparisons is unchanged. The message names the rule and the fix -- `'count * total' is a multiplication in Int, since arithmetic takes the left side's type, and the right side is a Long, which would be cut to fit: write the Long first ('total * count'), or store the right side in an Int first if it fits one`; for `-`, `/` and `%` the fix is `store the left side in a Long first ('var wide: Long = count')`. A constant is a tree of `Int` literals under `+ - * / %`; the first operation whose value leaves `Int` is reported once, with its value: `'(65536 - 120) * 65536' is 4287102976, which does not fit in an Int, the type its arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long`. Both checks happen at compile time and emit nothing. Rewritten: 17 sites, all in `library/` (`daylight_change`, `duration` three times through a new `_nanoseconds_per_unit`, `local_date` three, `long` two, `unsigned_long` two, `number_text`, `tzif_reader` four) plus `examples/hello`; outputs and allocations are unchanged. `diagnostics/wider_right_operand`, `docs/values_and_types.md`. |
+| 2026-09-25 | (implements D139; the message and scope proposed by Claude, unconfirmed) **An expression statement that is a constructor call -- plain or generic, `Report(text)` or `Box<Int>(3)` -- is an error**: `'Report(text)' makes a 'Report' and drops it: a constructed object must be kept and used, so a class whose construction is the whole point should be a function instead -- turn 'Report' into a function of the class that needs it, or keep the object in a variable that is read`. A singleton's constructor is left to D110's error, and `load(...)` is not a constructor. The check is syntactic plus a class lookup at compile time and emits nothing. No program in the repository did this, so no site was rewritten (the constructors-as-actions D139 names are SlopEngine's, which migrates itself). `diagnostics/dropped_construction`, section 3, `docs/classes_and_files.md`. |
+| 2026-09-25 | (implements D157; the reading below proposed by Claude, unconfirmed) **D118's loaded-package exemption no longer covers an attribute whose default is a singleton construction** (`var world = World()`): unread, it is `the attribute 'world' is never read: remove it` in a loaded folder too. "Unread" is D118's usual reading -- a read from any class counts -- rather than only its own class's, since a read from outside can only hide the error, never cause one. The check is compile time only. No binding in the repository was unread, so no site was rewritten. `diagnostics/package_attributes` (a `var console = Console()` in the loaded `paint` folder). |
+| 2026-09-25 | (implements D166; the message proposed by Claude, unconfirmed) **A function named `load` is an error, and `load(...)` always loads a package**: `'load' is reserved: it always loads a package, so a function cannot be named 'load'. Name it for what it loads, such as 'load_texture'`. Removed: the generator's check that let a class's own `load` win, and discovery's rule that read no folder from a file declaring `load`. `conformance/stage6/load_function`, which proved the removed behaviour, became `diagnostics/load_function`; no other program declared `load`. Compile time only. `docs/packages.md`. |
+| 2026-09-25 | (implements D163; where it lives proposed by Claude, unconfirmed) **`type Anything { }` is declared once, in `library/nothing.spite` beside `Nothing`**, and resolves by its simple name everywhere, as every `type` does. `Spite.Attribute`'s object is `Anything?`, replacing `Spite.Attribute.Object`, and the generator boxes into it as it did into `Object`. Rewritten: 7 declarations removed -- `conformance/stage6/attribute_object`, `class_argument` and `codegen_class_test`, `diagnostics/class_as_value`, and 3 programs in `docs/` (`control_flow.md`'s `codegen_class_test_doc`, `reflection.md`'s `attribute_objects` and `passing_a_class`) -- plus `library/spite/attribute.spite`'s `type Object`. An empty `type` costs nothing until a value is passed to it: it holds no functions, and boxing happens only where a plain value is actually passed as `Anything`. Section 5, `docs/reflection.md`. |
+| 2026-09-25 | (implements D164; the readings below proposed by Claude, unconfirmed) **`Spite.Attribute` holds `.value: Anything?`, the instance itself, and no text; `.object` is gone.** A number, `Bool`, enum or `Symbol` is boxed into it; `null` stays `null`. **`to_string()` answers through any `type`** (as `to_debug()` already did): each member class's own `to_string()`, and `to_debug()` for a class without one, a `List` or a `Dictionary` -- so `attribute.value.to_string()` is `"rat"`, `"3"` or `"true"`, and a list's is its debug text (`[]`), where the old text was empty. **Zero cost unless read**: the generator fills `.value` only when the program's own code reads `.value` of a `Spite.Attribute` (the REPL library's reads count only in a `--repl`/`--repl_port` build); otherwise every reflected attribute's value is a `return 0` stub the C compiler folds away, and since no attribute renders text any more, walking `.attributes` allocates no strings at all. The REPL decides a value's kind from its class name, `null`, and whether the value has attributes or functions of its own, shows a number, text or enum through `value.to_string()`, and counts a `List` or `Dictionary` by its entries -- for which an attribute holding a `Dictionary` now lists its entries as attributes named by their keys; the documented REPL sessions answer exactly as before. `to_debug()` never went through `Spite.Attribute` (it reads fields through Symbol templates, unboxed), so it is unchanged. Rewritten: 9 sites -- `conformance/stage6/attribute_object`, `attribute_uses`, `class_attributes`, `reflection` (its list attribute now prints `[]`), `settings_and_libraries_reflected`, `examples/repository_list`, `tests/reflection_tests`, and `docs/reflection.md`'s `reflection_basics` and `attribute_objects`. Section 8, `docs/reflection.md`. |
+| 2026-09-25 | (merge note, proposed by Claude, unconfirmed) **D186's parser rule replaces the D166 check built above**: with `load` a keyword, the parser already rejects a function named `load` (`'load' is a keyword and cannot name a function`), so the generator's own D166 message was removed as unreachable and `diagnostics/load_function` is master's. |

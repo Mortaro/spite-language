@@ -6,15 +6,16 @@ func to_string(): String {
         return "0"
     }
     var heap = Memory.Heap()
-    var address = heap.allocate(24)
-    var position: Long = 24
+    var buffer_bytes: Long = 24
+    var address = heap.allocate(buffer_bytes)
+    var position = buffer_bytes
     var rest = this
     while rest != 0 {
         position = position - 1
-        address.write_byte(position, 48 + rest % 10)
+        address.write_byte(position, rest % 10 + 48)
         rest = rest / 10
     }
-    var text = (address + position).text(24 - position)
+    var text = (address + position).text(buffer_bytes - position)
     heap.free(address)
     return text
 }

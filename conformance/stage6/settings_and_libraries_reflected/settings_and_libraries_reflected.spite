@@ -6,7 +6,8 @@ func SettingsAndLibrariesReflected() {
     var index = 0
     while index < attributes.count() {
         if attributes[index].name == "run" or attributes[index].name == "optimized" {
-            console.print(attributes[index].name, attributes[index].value)
+            var value_text = text_of(attributes[index])
+            console.print(attributes[index].name, value_text)
         }
         index = index + 1
     }
@@ -17,4 +18,9 @@ func SettingsAndLibrariesReflected() {
     var held = shelf.libraries.count()
     var function_count = functions.count()
     console.print("shelf", shelf_count, held, function_count > 0)
+}
+
+func text_of(attribute: Spite.Attribute): String {
+    assert attribute.value
+    return attribute.value.to_string()
 }

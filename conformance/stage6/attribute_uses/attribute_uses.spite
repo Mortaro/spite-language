@@ -9,9 +9,15 @@ func AttributeUses() {
     console.print(joined)
     var reflected = shelf.attributes
     var first = reflected.first()
-    console.print(first.name, first.value)
+    var first_text = text_of(first)
+    console.print(first.name, first_text)
 }
 
 func show_attribute(attribute: Symbol<Lamp>, shown: Lamp, lines: List<String>) {
     lines.append("{attribute.name} = {shown.attributes[attribute]}")
+}
+
+func text_of(attribute: Spite.Attribute): String {
+    assert attribute.value
+    return attribute.value.to_string()
 }

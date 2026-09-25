@@ -162,7 +162,9 @@ to code it cannot see, so a folder the program `load`s is not held to what this 
 `ui` package's `color` that only a `render` package reads is fine in a program that loads `ui` without `render`.
 The check covers the program's own folder, the standard library (always compiled whole, so its reads are the
 same in every program), and every private attribute wherever it lives, since its own class is its only reader
-(D136; which folders count is proposed by Claude, unconfirmed).
+(D136; which folders count is proposed by Claude, unconfirmed). A singleton binding is checked everywhere, loaded
+packages included (D157): `var world = World()` offers nothing another class could not bind itself, so an unread
+one is the error above wherever it is.
 
 Unused means unread anywhere in the source, not unreachable: a function nothing calls still reads what it names,
 and the compiler removes it later ([compiler.md](compiler.md#development-builds-and-tree-shaking)). A few
@@ -338,11 +340,13 @@ page:
 | a `while` over `items` whose body only adds up `items[index].price` | `var total = items.sum_price()` | [collections.md](collections.md#member-templates-loops-you-do-not-write) |
 | an `if`/`else` directly inside a branch of another `if`/`else` | a function named for what the inner one decides, or one `switch` | [control_flow.md](control_flow.md#if) |
 | `"hello " + name` | `"hello {name}"` | [values_and_types.md](values_and_types.md#string) |
+| `count * total` with an `Int` `count` and a `Long` `total` | `total * count` | [values_and_types.md](values_and_types.md#wider-arithmetic-goes-wider-operand-first) |
+| `(65536 - 120) * 65536` | `4287102976` | [values_and_types.md](values_and_types.md#wider-arithmetic-goes-wider-operand-first) |
 | `func Holder() { }` | deleting it: a class without a constructor is made from its defaults | [classes_and_files.md](classes_and_files.md#constructors) |
+| `Report(text)` as a statement of its own | a function, `report(text)`, on the class that needs it | [classes_and_files.md](classes_and_files.md#constructors) |
 | `this.name` | `name` | [classes_and_files.md](classes_and_files.md#this) |
 | `Console().print(value)`, `Build().program`, `greet(Console())` | `var console = Console()` beside the attributes, then `console.print(value)` | [classes_and_files.md](classes_and_files.md#singletons) |
 | `enum Job = { 'knight', 'mage' }` | one entry per line, no `=`, no commas | [values_and_types.md](values_and_types.md#enums) |
-| a `while` whose body only passes each element of `names` to `say_hello` | `names.each_say_hello()` | [collections.md](collections.md#a-function-of-yours-for-each-element) |
 
 The reason is the same everywhere: Spite is written mostly by AI and read by people, and a long way round that the
 compiler accepts is a pattern that spreads.

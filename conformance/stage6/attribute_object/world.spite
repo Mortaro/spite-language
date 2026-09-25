@@ -8,8 +8,8 @@ func create_entity_from_bundle(bundle: Anything): Entity {
     var index = 0
     while index < attributes.count() {
         var attribute = attributes[index]
-        if attribute.object {
-            entity.add_component(attribute.object)
+        if attribute.value {
+            entity.add_component(attribute.value)
         }
         index = index + 1
     }

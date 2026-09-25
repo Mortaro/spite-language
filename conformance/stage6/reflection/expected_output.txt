@@ -3,7 +3,7 @@ name String rat|
 health Int 7|
 alive Bool true|
 mood Mood angry|
-friends List<Monster> |
+friends List<Monster> []|
 name,health,alive,mood,friends
 health:Int name:String friends:List<Monster>
 Int String Reflection2

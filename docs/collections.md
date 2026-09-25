@@ -90,8 +90,8 @@ not zero. `has(key)` asks the question directly.
 
 ## Member templates: loops you do not write
 
-A list of a class answers a family of functions named after the element's members (or after a function of your
-own, [below](#a-function-of-yours-for-each-element)). `chores.count_done()` counts
+A list of a class answers a family of functions named after the element's members (a function of your own is
+passed instead, [below](#passing-a-function-for-each-element)). `chores.count_done()` counts
 the chores whose `done` is true, `items.sum_price()` adds up their prices, and `repositories.map_name()` collects
 their names. A **member** is an attribute or a function that takes no arguments -- the two are the same to a
 template, since reading an attribute already goes through its getter -- and a template is compiled only for the
@@ -252,27 +252,43 @@ func TemplateLoopError() {
 this 'while' walks every element of 'items' only to add up 'price': write 'var total = items.sum_price()'
 ```
 
-## A function of yours for each element
+## Passing a function for each element
 
-The member a template names can also be a function of the class the call is written in, when it takes the
-element and nothing else. With `func say_hello(name: String)` in the class, `names.each_say_hello()` calls
-`say_hello` once for every name, in order; there is no `say_hello_to_everyone` to write. This works on a list of
-anything -- text and numbers included, which have no members of their own for a template to name -- and every
-template takes such a function the way it takes a member: `filter_`, `count_`, `any_` and `all_` a function
-returning `Bool`, `sum_` one returning a number, `map_` one returning a value, `find_by_(value)` and `sort_by_`
-one returning something comparable.
+A template sees only the element and the list: `names.each_say_hello()` looks for a member `say_hello` of each
+name, never for a function of the class the call is written in. A function of yours is passed as a value
+instead: `names.each(say_hello)` calls `say_hello` once for every name, in order, and there is no
+`say_hello_to_everyone` to write. The function is bound to whoever owns it ([functions_and_operators.md](functions_and_operators.md#functions-are-values)):
+`say_hello` alone is this instance's, and `people.each(greeter.greet)` calls `greet` on `greeter`.
 
-```gdscript title=caller_function/caller_function.spite entry
+`each`, `map`, `filter`, `any`, `all`, `count`, `find`, `sort_by` and `sum` each take such a function, which takes
+the element as its only argument: `filter`, `any`, `all`, `count` and `find` want one returning `Bool` (`find`
+answers the first element it is true for, or `null`), `sum` one returning a number, `sort_by` one returning a
+number or text, `map` one returning anything. This works on a list of anything -- text and numbers included, which
+have no members of their own for a template to name -- and on a `Dictionary`, through its values.
+
+```gdscript title=passed_function/greeter.spite
 var console = Console()
 
-func CallerFunction() {
+func greet(name: String) {
+    console.print("welcome, {name}")
+}
+```
+```gdscript title=passed_function/passed_function.spite entry
+var console = Console()
+var greeter = Greeter()
+
+func PassedFunction() {
     var names = ["Ada", "Grace", "Barbara"]
-    names.each_say_hello()
-    var short_names = names.filter_is_short()
+    names.each(say_hello)
+    names.filter(is_short).each(greeter.greet)
+    var short_names = names.filter(is_short)
     var joined = short_names.join(", ")
     console.print("short:", joined)
-    var letters = names.filter_is_short().map_measure().sum_double_of()
+    var letters = names.filter(is_short).map(measure).sum(double_of)
     console.print("letters, doubled:", letters)
+    var first_long = names.find(is_long)
+    crash first_long
+    console.print("first long name:", first_long)
 }
 
 func say_hello(name: String) {
@@ -281,6 +297,10 @@ func say_hello(name: String) {
 
 func is_short(name: String): Bool {
     return name.length() < 6
+}
+
+func is_long(name: String): Bool {
+    return name.length() > 6
 }
 
 func measure(name: String): Int {
@@ -295,29 +315,24 @@ func double_of(value: Int): Int {
 hello, Ada
 hello, Grace
 hello, Barbara
+welcome, Ada
+welcome, Grace
 short: Ada, Grace
 letters, doubled: 16
+first long name: Barbara
 ```
 
-Which function a name means is never a guess. The element's own member is looked for, then the calling class's
-function; when both exist, the call is an error asking to rename one, so adding a member to a class can never
-quietly change what a template somewhere else calls. The template sees only the element: a function that needs
-more, such as `print_statement(statement, depth)`, is still called from a `while`.
+A function written by name is compiled straight into the loop, so passing it costs nothing; a function value held
+in a variable (`var shout = greeter.shout`, then `names.map(shout)`) is called through the value. A function that
+does not fit is an error naming what the template needs:
 
-A loop written only to do this is an error that names the template: a counter from `0` to `list.count()`, and a
-body that passes `list[counter]` -- directly, or through one `var` -- to one function of the class and adds one to
-the counter.
-
-```gdscript title=caller_function_loop/caller_function_loop.spite entry error
+```gdscript title=passed_function_mistake/passed_function_mistake.spite entry error
 var console = Console()
 
-func CallerFunctionLoop() {
+func PassedFunctionMistake() {
     var names = ["Ada", "Grace"]
-    var index = 0
-    while index < names.count() {
-        say_hello(names[index])
-        index = index + 1
-    }
+    var greetings = names.map(say_hello)
+    console.print(greetings)
 }
 
 func say_hello(name: String) {
@@ -325,8 +340,11 @@ func say_hello(name: String) {
 }
 ```
 ```diagnostic
-this 'while' only calls 'say_hello' with each element of 'names': write 'names.each_say_hello()'
+'map(say_hello)': 'say_hello' returns nothing, but 'map' needs it to return a value (to only call it for each element, write 'each(say_hello)')
 ```
+
+The template still sees only the element: a function that needs more, such as `print_statement(statement, depth)`,
+is called from a `while`.
 
 ## Chains run as one loop
 
@@ -403,10 +421,11 @@ func filter_member(member: Symbol<$element_type>): List<$element_type> {
 }
 ```
 
-The same template answers a function of the calling class. For `names.each_say_hello()` the compiler compiles
-`each_member` once more for that class, with the caller passed in beside the list, and
-`item.attributes[member]` reads as `say_hello(item)` on it -- so a template a program adds answers both kinds of
-member without being written twice. A chain that uses one is still one loop.
+The same template answers a passed function. For `names.each(say_hello)` the compiler compiles `each_member`
+once more with the function's owner passed in beside the list, and `item.attributes[member]` reads as
+`say_hello(item)` on that owner (or as a call through the value, for a function held in a variable) -- so
+`filter_member` also answers `filter(is_short)` without being written twice. A chain that passes functions is still
+one loop.
 
 `values` is the list's `TypedMemory<$element_type>`: `values.read_value(items, index)` reads the element in slot
 `index` of the list's buffer, retained, the same way a container of your own would

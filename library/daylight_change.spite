@@ -33,7 +33,7 @@ func _day_since_1970(year: Int): Long {
     if _kind == 'weekday_of_month' {
         var first = LocalDate(year, _month, 1)
         var first_since_1970 = first.days_since_1970
-        var first_weekday = (first_since_1970 % 7 + 11) % 7
+        var first_weekday: Int = (first_since_1970 % 7 + 11) % 7
         var day = 1 + (_weekday - first_weekday + 7) % 7 + (_week - 1) * 7
         while day > first.days_in_month {
             day = day - 7

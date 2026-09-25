@@ -1,0 +1,7 @@
+generic $content_type
+
+var content: $content_type = null
+
+func Box(starting_content: $content_type) {
+    content = starting_content
+}

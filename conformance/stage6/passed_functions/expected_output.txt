@@ -5,14 +5,18 @@ hello, Edsger
 3, 5, 7, 6
 Ada, Grace
 2 true false 21
-Grace
+Barbara
 hello, Ada
 hello, Grace
 16
 Ada is 36
 Alan is 41
 2
+welcome, Ada
+welcome, Alan
+ADA, ALAN
 Grace is 85
 85
 Ada, Grace, Edsger, Barbara
+Ada!
 6

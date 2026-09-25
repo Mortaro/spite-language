@@ -362,9 +362,6 @@ func first(items: List<Anything>): $wanted_type? {
 }
 ```
 ```gdscript title=codegen_class_test_doc/codegen_class_test_doc.spite entry
-type Anything {
-}
-
 var console = Console()
 
 func CodegenClassTestDoc() {

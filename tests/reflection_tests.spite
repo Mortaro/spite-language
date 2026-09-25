@@ -18,8 +18,10 @@ func test_attributes_report_name_class_and_value() {
     crash attributes.count() == 3
     crash attributes[0].name == "name"
     crash attributes[0].class.name == "String"
-    crash attributes[0].value == "rat"
-    crash attributes[1].value == "3"
+    crash attributes[0].value
+    crash attributes[1].value
+    crash attributes[0].value.to_string() == "rat"
+    crash attributes[1].value.to_string() == "3"
 }
 
 func test_functions_report_their_names() {
