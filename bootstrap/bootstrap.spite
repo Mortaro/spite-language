@@ -1,3 +1,9 @@
+enum Formatting {
+    'unchanged'
+    'rewrote'
+    'refused'
+}
+
 var console = Console()
 var program = Program()
 var last_crash_map = ""
@@ -134,9 +140,16 @@ func compile_program(entry_path: String, may_format: Bool) {
         return
     }
     crash discovery
-    if may_format and is_on("format") and formatted_program_files(discovery) {
-        compile_program(entry_path, false)
-        return
+    if may_format {
+        var formatting = formatted_program_files(discovery)
+        if formatting == 'refused' {
+            program.exit(1)
+            return
+        }
+        if formatting == 'rewrote' {
+            compile_program(entry_path, false)
+            return
+        }
     }
     produce(discovery)
 }
@@ -161,35 +174,44 @@ func discovered_program(entry_path: String): Discovery.DiscoveryResult? {
     return discovery
 }
 
-func formatted_program_files(discovery: Discovery.DiscoveryResult): Bool {
-    var rewrote = false
+func formatted_program_files(discovery: Discovery.DiscoveryResult): Formatting {
+    var outcome = 'unchanged'
     var index = 0
     while index < discovery.program_paths.count() {
-        if rewrote_formatted(discovery.program_paths[index]) {
-            rewrote = true
+        var file_outcome = formatted_program_file(discovery.program_paths[index])
+        if file_outcome == 'refused' or outcome == 'unchanged' {
+            outcome = file_outcome
         }
         index = index + 1
     }
-    return rewrote
+    return outcome
 }
 
-func rewrote_formatted(path: String): Bool {
+func formatted_program_file(path: String): Formatting {
     var content = File(path).read()
-    assert content
+    if not content {
+        console.error("error: could not read '{path}'")
+        return 'refused'
+    }
+    crash content
     var formatter = Syntax.Formatter()
     var formatted = formatter.format(content)
     if not formatted {
-        console.error("{path}: not formatted: {formatter.refusal}")
-        return false
+        console.error(
+            "{path}: error: the formatter refuses it, and a program compiles only once formatted: {formatter.refusal}",
+        )
+        return 'refused'
     }
     crash formatted
-    assert formatted != content
+    if formatted == content {
+        return 'unchanged'
+    }
     if not File(path).write(formatted) {
-        console.error("error: could not write '{path}'")
-        return false
+        console.error("error: could not write the formatted '{path}'")
+        return 'refused'
     }
     console.error("formatted {path}")
-    return true
+    return 'rewrote'
 }
 
 func produce(discovery: Discovery.DiscoveryResult) {

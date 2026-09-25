@@ -467,6 +467,9 @@ All **built**, and none of them needs anything from you:
 - A `T?` of a class, list or text is the reference itself, with `null` as the absent case: no wrapper object.
 - A generic singleton has one static slot per set of codegen values, so `Column<Health>()` is found without any
   lookup.
+- An `assert` in `library/` writes nothing into the crash trace, decided when compiling, so a library guard costs
+  what an `if` costs ([D189](../manual.md#decision-log)). What you notice: a crash report lists only the failed
+  asserts of the program and its `load`-ed packages ([failure.md](failure.md#what-a-crash-reports)).
 
 ## Planned
 

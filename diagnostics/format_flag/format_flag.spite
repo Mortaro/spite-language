@@ -1,0 +1,5 @@
+var console = Console()
+
+func FormatFlag() {
+    console.print("never compiled")
+}

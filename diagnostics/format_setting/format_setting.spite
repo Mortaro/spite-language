@@ -1,0 +1,5 @@
+var console = Console()
+
+func FormatSetting() {
+    console.print("never compiled")
+}

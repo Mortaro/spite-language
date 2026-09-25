@@ -1,3 +1,4 @@
+formatted diagnostics/unused_names/unused_names.spite
 diagnostics/unused_names/unused_names.spite:4: error: 'forgotten' is never read: remove it (in UnusedNames.UnusedNames)
 diagnostics/unused_names/unused_names.spite:5: error: '_counted' is read, so it must not start with an underscore: only a parameter the body ignores is named that way (in UnusedNames.UnusedNames)
 diagnostics/unused_names/unused_names.spite:7: error: '_spare' is never read: remove it (in UnusedNames.UnusedNames)

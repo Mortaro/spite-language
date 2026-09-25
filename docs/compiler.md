@@ -25,7 +25,6 @@ spite program --executable --c_source --run=false build it and write its C, in o
 spite program --executable_path=build/game.exe    put the executable somewhere else (--c_path= for the C)
 spite program --run=false             compile the program and write nothing: its errors, if any
 spite program --final_classes=folder  also write the program back out as Spite, every class as it ended up
-spite program --format=false          leave the program's files as they are written
 spite program --target_operating_system=linux --c_source --run=false   write the C for another system
 spite format <file-or-folder> ...     format files without compiling them
 spite format --check <path> ...       rewrite nothing; fail listing every file that would change
@@ -77,12 +76,11 @@ Each output is a `Bool` field, and every one that is on is produced by the same 
 | `run` | `true` | builds the executable, then runs it with everything after `--` |
 | `executable` | `false` | builds the executable without needing to run it |
 | `c_source` | `false` | writes the generated C |
-| `format` | `true` | rewrites the program's own files in the one style ([below](#formatting)) |
 | `final_classes` | `""` | writes the program back out as Spite into this folder ([below](#inspect-merged-classes)) |
 
 Running a program runs its executable, so `run` builds it too, in the same place `executable` would. With every
 output off (`--run=false`), the compiler still reads and compiles the whole program and reports its errors, and
-writes nothing:
+writes nothing but the formatting, which is not an output: every compile does it first ([below](#formatting)):
 
 ```bash
 spite game                                      # build game/game.exe and run it
@@ -134,7 +132,6 @@ Every option is a `Build` field with a literal default, declared in `library/bui
 | `executable_path` | `""` | where the executable goes; `""` is beside the program |
 | `c_source` | `false` | writes the generated C |
 | `c_path` | `""` | where the C goes; `""` is beside the program |
-| `format` | `true` | rewrites the program's own files in the one style; `--format=false` leaves them |
 | `final_classes` | `""` | writes the merged classes to this folder |
 | `optimized` | `false` | asks the C compiler for `-O2` instead of `-O0` |
 | `development` | `false` | keeps everything, no tree shaking, for live reload |
@@ -154,7 +151,7 @@ spite game --executable --run=false --executable_path=build/game.exe --debug_mem
 
 A program may give an option a different default by reopening `Build` in its own `build.spite`
 (`var optimized = true`, or `var c_source = true` to always write its C), and add options of its own the same
-way. No option is read before the program is, so every one of them, the outputs and `format` included, can be
+way. No option is read before the program is, so every one of them, the outputs included, can be
 given a default there -- except `target_operating_system`, which the launcher needs to know which folder of
 `library/` is part of the program before it can read the rest, so it comes from the flag alone. Every `Build` field is a constant in the built program, so with `var build = Build()`
 beside the attributes, `if build.debug_memory { }` keeps one branch.
@@ -197,12 +194,13 @@ at all is an error listing the fields `Build` has, so typos never pass silently.
 
 ## Formatting
 
-**The compiler is the formatter.** Formatting is one of the outputs, decided like the others after the whole
-program has been read: with `format` on (the default), each of the program's own files -- the entry folder and
-every `load`-ed root, not `library/` -- whose formatted text differs from what is on disk is rewritten, printing
-`formatted <path>`. If any file was rewritten, the program is read again from disk before anything else is
-produced, so what is compiled, and every line an error names, is the formatted file. `--format=false`, or
-`var format = false` in the program's `build.spite`, leaves the files as they are.
+**The compiler is the formatter, and every compile formats first** (D190). Once the whole program has been read,
+each of the program's own files -- the entry folder and every `load`-ed root, not `library/` -- whose formatted
+text differs from what is on disk is rewritten, printing `formatted <path>`. If any file was rewritten, the program
+is read again from disk before anything else is produced, so what is compiled, and every line an error names, is
+the formatted file. Nothing turns this off: `--format` is an error, and so is a `format` field in the program's
+`build.spite`. A file the formatter refuses is an error of the compile, which stops there, naming the file and the
+reason; a program is never compiled from text that is not in the one style.
 
 `spite format` runs the same formatter on files rather than on a program: each file named, and every `.spite`
 file under each folder named (the whole tree, `library/` included, except `.spite-cache/` folders), without

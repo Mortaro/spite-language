@@ -520,3 +520,8 @@ The id is derived from the site's content, so it stays the same when unrelated l
 a `.crashes` file beside the executable it builds: one line per `assert` and `crash` site, sorted by id, with its file,
 line, class, function, kind and condition, so `grep 64b935f1 program.crashes` finds a site from a report.
 The trace keeps only the latest failed asserts, in a fixed-size ring, so it never allocates and never grows.
+It holds the asserts of the program and of every package it `load`s, never those of the standard library: an
+`assert` in `library/` is how the library answers routine questions (a key that is not there, text that does not
+match, a read past the end), and those would push the program's own entries out of the ring. The compiler leaves
+the record out of a library `assert` altogether, so it costs what an `if` costs. A crash inside the library still
+reports its own site ([D189](../manual.md#decision-log)).

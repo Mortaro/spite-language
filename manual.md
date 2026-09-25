@@ -721,6 +721,13 @@ assert firing is routine control flow -- thousands an hour on a server -- and on
 would come from unrelated requests, reading as a causal chain that does not exist. A per-site count covers them
 instead, which is one increment and never consumes the buffer.
 
+D189: **an `assert` in `library/` never enters the trace.** The trace explains how *the program* reached a crash,
+and the standard library's asserts are routine answers (a missing key, text that does not match, a read past the
+end) that fire constantly and would push the program's own entries out of the ring. The compiler leaves the ring
+write out of every `assert` site whose file is in `library/`, so a library guard costs what an `if` costs; the
+program's own files and every `load`ed package keep recording, and a crash inside the library still reports its
+own site (`conformance/stage5/library_guards_untraced`).
+
 D32: **a crash site is identified by a compile-time id, and the compiler emits an id-to-source map as a build
 artifact** rather than embedding the information in the program. The binary carries none of it, which matters
 most in a wasm module where size is startup time, and **the same logical site keeps the same id across every
@@ -1786,12 +1793,14 @@ is how it is built (proposed by Claude, unconfirmed, except where a decision is 
   Either way the value is written into the program: `build.serve` compiles to `true`, a condition on it is decided
   while compiling, the branch not taken is never generated, and nothing is read when the program runs. The field
   still exists on the `Build` singleton with that value, for reflection.
-- **The compiler's options are fields.** The outputs `run`, `executable`, `c_source`, `format` and
+- **The compiler's options are fields.** The outputs `run`, `executable`, `c_source` and
   `final_classes`, the paths `executable_path` and `c_path`, and `optimized`, `development`, `repl`, `repl_port`,
   `hot_reload` and `debug_memory` (the flag names follow the fields: `--final_classes=folder`,
-  `--repl_port=4000`, `--format=false`). The compiler reads them from the program's resolved `Build`, so a program
+  `--repl_port=4000`). Formatting is not one of them: every compile formats first and nothing turns it off
+  (D190), so `--format` and a `format` field in a program's `build.spite` are compile errors. The compiler reads
+  them from the program's resolved `Build`, so a program
   whose `build.spite` says `var optimized = true` is built optimized unless `--optimized=false` is given. Since
-  D128 no option is read before the program is, so there is no exception for `mode` or `format` any more (`mode`
+  D128 no option is read before the program is, so there is no exception for `mode` any more (`mode`
   is gone: section 13); only `target_operating_system`, which says which library folder is part of the program,
   comes from the flag alone.
 - **A `Bool` may be given bare**: `--optimized` is `--optimized=true`. Any other bare flag is an error naming the
@@ -1993,8 +2002,8 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
 Decided by Mortaro: "the compiler is the linter and the formatter. Style is
 arbitrary, it is Mortaro's taste, and it is the only way. The compiler rewrites source files to the one true
 style automatically instead of complaining." He left the specifics open, so every concrete rule below
-is **(proposed by Claude, unconfirmed)** except where noted -- revisit any of them on request. `--format=false`
-and `spite format` are documented in [Command line](#13-command-line); the naming/abbreviation lints that
+is **(proposed by Claude, unconfirmed)** except where noted -- revisit any of them on request. Formatting on
+every compile and `spite format` are documented in [Command line](#13-command-line); the naming/abbreviation lints that
 cannot be auto-fixed are their own subsection below.
 
 <a id="one-call-per-line-and-nothing-said-twice--planned"></a>
@@ -2067,9 +2076,10 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   fully-parenthesised program as the original, and keep every comment, or the file is left alone and the reason
   printed. **Every compile formats** the entry folder's files and every `load()`ed root once the whole program is
   read (not `library/`), printing `formatted <path>` for each file it rewrote and reading the program again when one
-  was; `--format=false` skips it. A file
+  was; nothing turns it off (D190). A file
   whose function body has an empty line is left alone, so D55's error still fires instead of the formatter
-  quietly removing the line; a file the formatter refuses is left alone with its reason printed.
+  quietly removing the line; a file the formatter refuses is left alone with its reason, as an error that stops
+  the compile, so a program is never compiled from text that is not in the one style.
   `--final_classes` writes its classes already formatted. A list or object literal over 120 columns is written
   one entry per line with no commas. Every documentation program not marked `error` is formatted too, and `check.sh`
   keeps it so.
@@ -2232,7 +2242,6 @@ spite program --final_classes=folder  write the final class folder
 spite connect 4000                    talk to a running --repl_port program (see section 14)
 spite connect 4000 --command="..."    send one REPL command, print its raw JSON response line, and exit
 spite program -- ada --player=x       run it, passing everything after -- to the program's Arguments
-spite program --format=false          skip the automatic formatting pass below
 spite program --c_source --run=false --target_operating_system=linux   write the C for another system (sections 9 and 11)
 spite format <file-or-folder> ...     format files without compiling (recursive on a folder)
 spite format --check <path> ...       rewrite nothing; exit 1 listing (to stdout) every file that would change
@@ -2250,8 +2259,7 @@ every `load` before it reads any option, and then decides what to produce from t
 so a program's own `build.spite` can set every option. The one exception is `target_operating_system`, which the
 launcher needs to know which folder of `library/` belongs to the program, so it is read from the flag alone. The
 outputs are `Bool` fields, and every one that is on comes from the same compile: `run` (default `true`: build the
-executable and run it), `executable` (build it without running), `c_source` (write the C), `format` (default
-`true`: rewrite the program's files in the one style), and `final_classes`, which stays the folder to write to
+executable and run it), `executable` (build it without running), `c_source` (write the C), and `final_classes`, which stays the folder to write to
 (`""` is off), since any folder inside the program would be read back as part of it. With every output off the
 compiler still compiles the whole program and reports its errors. Tree shaking and every other whole-program
 step run before any output is written.
@@ -2295,9 +2303,10 @@ directory (`check.sh` runs `conformance/stage6/working_directory` from another f
   rule), plus every `load(...)`-ed root, recursively -- rewriting a file only when its formatted text differs
   from what is on disk, and printing `formatted <path>` to
   stderr for each one, then reads the program again when one changed. A file with a parse error is left untouched (the ordinary diagnostics still report it);
-  a file the formatter's own safety check refuses to touch (see [Style](#12-style-implemented)) prints an
-  "internal formatter error" instead of being rewritten, without failing the build. `--format=false` skips all of
-  this -- needed by anything that asserts diagnostic positions against a fixture kept deliberately unformatted.
+  a file the formatter's own safety check refuses to touch (see [Style](#12-style-implemented)) is left as it is
+  and its reason is printed as an error, which stops the compile. Nothing turns this off (D190, which removed
+  `--format=false` and the `format` field): a test input kept deliberately unformatted, like `diagnostics/`, is
+  compiled from a copy by `check.sh`, so the formatting lands on the copy.
 - `spite format <file-or-folder> ...` runs the same formatter standalone, without compiling, and is a command of
   the compiler itself (like `spite connect`), not an option: a file formats just
   itself, a folder recurses into every `.spite` file under it except `.spite-cache/` folders (no bundle/`load()`
@@ -4026,3 +4035,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | **D189** (delegated by Mortaro: "you will be the one debugging, do whatever you think is best for AI at this one"; the design is Claude's): **an `assert` in `library/` never enters the D25 crash trace.** The trace exists to explain how *the program* reached a crash: which of its own assumptions failed first. The standard library's asserts are routine control flow (probing a `Dictionary`, matching text, reading past an end), fire thousands of times in a long-running program, and crowd out the program's own entries in the 32-entry ring, so an AI reading a crash sees library noise instead of the cause. The compiler therefore writes no ring entry for an `assert` site whose file is in `library/`: it is filtered at compile time, so it costs nothing at run time (D177) and a library guard is exactly as cheap as an `if`. The program's own folder and every `load`ed package keep full recording. A crash *inside* the library still reports its own site and the call chain, so nothing about the crash itself is lost; only the library's passing-through guards are left out. This settles D106-as-built's open question (skip the library, rather than rewriting each library guard as an expression). |
 | 2026-09-25 | **D190** (decided by Mortaro, revising D128's `format` output): **formatting a file never needs it to compile, and compiling always formats first -- there is no way to turn it off.** "we should be able to use --format (or --lint whichever makes more sense) to format files without having to fix all the code to compile, but we should never be able to compile without it formating the code first". `spite format <file-or-folder>` (already built: it needs a file to parse, not to compile) stays the name, since formatting is what it does. `--format=false` and `var format = false` in `build.spite` are removed: every compile formats the program's own files (the entry folder and every `load`ed root, not `library/`) before anything else, and a file the formatter refuses (D55's empty line, a failed safety check) is still left alone with its reason, which is an error in the compile it belongs to rather than a skipped step. Test inputs that must stay unformatted (`diagnostics/`) are compiled from a copy by `check.sh`, never by a flag. |
 | 2026-09-25 | **D191** (decided by Mortaro, relayed by the SlopEngine session, extending D135): **any code may hand work to the program's one thread pool.** "language should allow new things to ask for participation in the threadpool" -- an engine system, an asset cooker, a texture loader or a library class all submit work the same way, by `Parallel(function)`, and get back a handle whose `finished` never blocks and whose value joins on first use (D134); no submission starts an OS thread of its own, and there is no second pool to create or pass around. Mortaro also rejected a child process for SlopEngine's re-cooking: "you shouldnt need another process" -- long work runs in-process on the pool while frames continue. A singleton such work reaches is made safe by the compiler (D183), in the cheapest proven form (D184). A program that never uses `Parallel` carries no pool (D177). |
+| 2026-09-25 | (implements D189 and D190; the readings below proposed by Claude, unconfirmed) **A library `assert` is compiled without its ring write**: a site whose file path starts `library/` (the operating-system folders included, a program file reopening a library class not) keeps its branch, its drops and its default return, and loses only the store into the 32-entry ring, so it is exactly an `if`; its `.crashes` line stays, and `crash` sites are unchanged. `conformance/stage5/library_guards_untraced` fails three library guards (`String.slice` past the end, `matches_at` under `starts_with` and `ends_with`) around one program `assert`, then crashes: the report lists the program's assert alone. **`format` is gone from `library/build.spite`**, and naming it is a compile error rather than the generic unknown-flag one, whose advice (declare `var format = ...` in `build.spite`) would otherwise quietly add a program setting that formats nothing: `--format=...` is "not a compiler option: every compile formats ... first" (`diagnostics/format_flag`), and a `var format` in a program's `build.spite` is an error at its line (`diagnostics/format_setting`). **A file the formatter refuses stops the compile** with `path: error: the formatter refuses it, ...` and exit status 1; a file that does not lex or parse never reaches the formatter, because reading the program reports it first. `check.sh` compiles `diagnostics/` from a copy in its work folder, run from there so the paths in the expected errors are unchanged; three of those programs were unformatted (`empty_constructor`, `shape_mismatch`, `unused_names`), so their expected errors now open with the `formatted <path>` line the compile prints, and their line numbers did not move. The docs programs, the remote-REPL sessions and the live-reload copy are already copies in `.spite-cache`, so they just lost the flag. |
