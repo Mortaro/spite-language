@@ -1,0 +1,7 @@
+generic $item_type: Printable
+
+var item: $item_type = null
+
+func Label(new_item: $item_type) {
+    item = new_item
+}

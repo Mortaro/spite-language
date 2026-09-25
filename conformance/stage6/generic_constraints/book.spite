@@ -1,0 +1,9 @@
+var title = ""
+
+func Book(new_title: String) {
+    title = new_title
+}
+
+func to_string(): String {
+    return "'{title}'"
+}

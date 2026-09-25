@@ -4,6 +4,10 @@
 class in `library/json.spite`, written with Spite's own metaprogramming, and the compiler makes the functions a
 class needs only when a program uses `Json` with it. A program that never names `Json` carries none of it.
 
+`Json` takes the value in its constructor and reads its `T` from it, so writing names no type: `Json(order)`,
+then `write()`. Reading has no value yet, so it names the class it reads into and gives no value:
+`Json<Order>(null)`, then `read(text)`.
+
 JSON is for talking to systems that are not Spite. Two Spite programs do not need it: they compile from the same
 source, so both ends already know every type (manual section 15, "The wire format").
 
@@ -41,8 +45,8 @@ func JsonBasics() {
     order.total = 12.5
     order.status = 'shipped'
     order.items.append(Item("tea", 2))
-    var json = Json<Order>()
-    var text = json.write(order)
+    var json = Json(order)
+    var text = json.write()
     console.print(text)
     var read = json.read(text)
     crash read
@@ -55,10 +59,15 @@ func JsonBasics() {
 Ada "the" first shipped tea 2
 ```
 
-- `write(value): String` never fails: every attribute has a type the compiler knows, so there is nothing to
+- `Json(value)` is `Json<T>` for the value's type, read from the argument like any generic class whose
+  constructor takes its `$T` ([metaprogramming.md](metaprogramming.md#generics-and-codegen-values-)). A `T?`
+  gives `Json<T>`, and writes `null` when it is empty.
+- `write(): String` never fails: every attribute has a type the compiler knows, so there is nothing to
   go wrong at run time. Attributes are written in the order the class declares them.
-- `read(text): T?` answers `null` when the text is not JSON, or not this class's JSON. Narrow it like any other
-  `T?`: `crash` when bad input is a bug, `assert` when the program should carry on, `if` when absence is a case.
+- `read(text): T?` answers `null` when the text is not JSON, or not this class's JSON. It makes a new value and
+  leaves the one the `Json` was made with alone, so the `json` above reads an `Order` back. Narrow it like any
+  other `T?`: `crash` when bad input is a bug, `assert` when the program should carry on, `if` when absence is a
+  case.
 - `read_or_crash(text): T` halts on bad input instead, and the crash line says where and what was expected:
   `failure=expected a number at character 10`.
 
@@ -97,7 +106,7 @@ var tags = List<String>()
 var console = Console()
 
 func JsonInput() {
-    var json = Json<Reading>()
+    var json = Json<Reading>(null)
     var partial = json.read("\{ \"name\": \"probe\", \"vendor\": \{ \"id\": [1, 2] } }")
     crash partial
     var tag_count = partial.tags.count()
@@ -124,7 +133,8 @@ unclosed object
 
 ## Values that are not classes
 
-`Json` takes any type, not only classes: `Json<List<Int>>`, `Json<Dictionary<Item>>`, `Json<String>`.
+`Json` takes any type, not only classes: `Json(scores)` for a `Dictionary<Int>`, `Json<List<Double>>(null)` to
+read a list, `Json("text")`.
 
 ```gdscript title=json_values/json_values.spite entry
 var console = Console()
@@ -133,10 +143,10 @@ func JsonValues() {
     var scores = Dictionary<Int>()
     scores.set("ada", 3)
     scores.set("bo", 5)
-    var json = Json<Dictionary<Int>>()
-    var text = json.write(scores)
+    var json = Json(scores)
+    var text = json.write()
     console.print(text)
-    var numbers = Json<List<Double>>()
+    var numbers = Json<List<Double>>(null)
     var read = numbers.read("[1.5, -2, 3e2]")
     crash read
     var joined = read.join(" ")
@@ -153,20 +163,21 @@ func JsonValues() {
 `Json<T>` is ordinary Spite, and reading it is the best way to learn the two metaprogramming forms it rests on
 ([metaprogramming.md](metaprogramming.md)):
 
-- `if $value_type == List { }` asks at compile time what `T` is, and `Json<$value_type.element_type>()` makes the
-  `Json` for its elements. Only the branch that fits `T` is compiled.
+- `if $value_type == List { }` asks at compile time what `T` is, and `Json<$value_type.element_type>(null)` makes
+  the `Json` for its elements, once per list: each element is given to it in turn as its `value`. Only the branch
+  that fits `T` is compiled.
 - A class is written by a Symbol codegen template that ranges over `T`'s attributes, called for every one of them
   at once by its plural:
 
 ```gdscript
-func write_attribute(attribute: Symbol<$value_type>, value: $value_type, members: List<String>) {
-    var attribute_json = Json<attribute.class>()
-    var attribute_text = attribute_json.write(value.attributes[attribute])
+func write_attribute(attribute: Symbol<$value_type>, shown: $value_type, members: List<String>) {
+    var attribute_json = Json(shown.attributes[attribute])
+    var attribute_text = attribute_json.write()
     members.append("\"{attribute.name}\":{attribute_text}")
 }
 ```
 
-`write_attributes(value, members)` calls it once per attribute; `read_attributes` does the same with the key it
+`write_attributes(shown, members)` calls it once per attribute; `read_attributes` does the same with the key it
 just read, and the attribute whose name matches takes the value. `--final_classes` does not print these
 instances into `json.spite` (a generic class's file is shared by all of its instances), but they are ordinary
 typed functions in the C the program compiles to.

@@ -1,0 +1,3 @@
+generic $count_type: Int
+
+var count: $count_type = null

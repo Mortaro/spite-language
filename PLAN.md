@@ -287,6 +287,14 @@ and balanced allocations.
     and checks both paths keep its state. **Not done:** Linux and macOS are only compiled; instance migration,
     reflection that follows reloads, and compiling off the program's thread wait on
     `mortaros_missing_decisions.md` 64-69.
+26. **Done (2026-09-25): D175 and D138 -- constrained generics, and `Json` takes its value** (manual.md sections
+    9 and 15; the two "implements" rows of 2026-09-25). `generic $item_type: Printable` is checked where each
+    class is given, written out or inferred (`conformance/stage6/generic_constraints`,
+    `diagnostics/generic_constraints`, `diagnostics/generic_constraint_not_a_type`, `docs/metaprogramming.md`).
+    Inference reads a `$name` through `$name?`, `List<$name>` and `Dictionary<$name>` too, and `Json(order).write()`
+    and `Json<Order>(null).read(text)` use it with nothing special for `Json` (`tests/json_tests.spite`,
+    `docs/json.md`). **Waiting on Mortaro:** the reading spelling and the constraint readings in
+    `mortaros_missing_decisions.md`. **Not done:** a constraint by a union.
 
 ## Later, deliberately deferred
 

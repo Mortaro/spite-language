@@ -35,7 +35,12 @@ func print_statement_list(statements: List<Syntax.Statements.Statement>, depth: 
 func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
     switch statement {
         Syntax.Statements.SingletonDeclaration: print_line(depth, "Singleton")
-        Syntax.Statements.GenericDeclaration: print_line(depth, "Generic ${statement.name}")
+        Syntax.Statements.GenericDeclaration: {
+            print_line(depth, "Generic ${statement.name}")
+            if statement.constraint {
+                print_line(depth + 1, "Type {inline_type(statement.constraint)}")
+            }
+        }
         Syntax.Statements.VariableDeclaration: {
             print_line(depth, "VarDecl {statement.name}")
             if statement.type_reference {

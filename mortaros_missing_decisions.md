@@ -349,3 +349,20 @@ All of it is proposed by Claude, unconfirmed.
      polling; `HotReload` becomes its first user and SlopEngine's cooker the second. Tree-shaken when unused (D177).
      Name: `FileWatcher` or `Directory.Watcher`?
 
+
+## Constrained generics and `Json(order)` (D175, D138)
+
+142. **How `Json` reads** (D138: "Reading keeps a way to name the class it reads into"). Built as one constructor
+     taking a `$value_type?`: `Json(order).write()` to write, and `Json<Order>(null).read(text)` to read -- the
+     class named, and `null` for the object there is not yet. A `T?` argument gives `Json<T>`, whose `write()` of an
+     empty value is `null`, and `read` makes a new value, so one `Json(order)` also reads. The alternatives: a
+     second class for reading (`JsonReader<Order>`, the cursor being renamed), or `Json(Order())`, which names the
+     class through a throwaway default object. Keep `Json<Order>(null)`?
+143. **What fits a constraint** (proposed by Claude, unconfirmed). The same rule a `type` already admits values
+     by: a class with the functions and attributes, `String`, numbers, enums, a `List<T>` or `Dictionary<T>` with
+     what the `type` needs, and the `type` itself. A `T?` does not fit (`Shelf<Int?>` for a `Printable` shelf is
+     an error), nor does a function value. Should a `T?` fit when every use narrows it, and should a union be
+     allowed as a constraint ("one of these classes")? Neither is built.
+144. **After a constraint error the generic is compiled with the `type` in place of the class**, so its body adds
+     no errors, and the error is given once per class, where that instance is first made (a second
+     `Shelf<Pet>` elsewhere in the program is not reported again). Report every use site instead?

@@ -114,6 +114,13 @@ var shape_flow_targets = List<Analysis.UnionInfo>()
 var read_attributes = Dictionary<Bool>()
 var folded_words = Dictionary<Bool>()
 var loaded_folders = List<String>()
+var classes_resolved = false
+var pending_constraint_instances = List<Analysis.ClassInfo>()
+var pending_constraint_paths = List<String>()
+var pending_constraint_lines = List<Int>()
+var pending_constraint_owners = List<String>()
+var pending_constraint_functions = List<String>()
+var failed_constraints = List<String>()
 
 func report(message: String) {
     has_error = true
@@ -391,8 +398,11 @@ func generate(
     }
     emit_system_classes(system_structs, system_prototypes, system_bodies)
     resolve_union_members()
+    resolve_generic_constraints()
     emit_unions()
     resolve_classes(discovery.class_files)
+    classes_resolved = true
+    check_pending_constraints()
     var string_layout = string_layout()
     builder.replace_typedef(string_layout_position, string_layout)
     check_number_memory()
@@ -997,6 +1007,8 @@ func instantiated_with(
     instance.codegen_types = types
     instance.codegen_codes = codes
     instance.codegen_texts = texts
+    instance.codegen_constraints = template.codegen_constraints
+    constrain_codegen_types(instance)
     instance.is_singleton = template.is_singleton
     instance.is_stateless_singleton = template.is_stateless_singleton
     instance.is_container = template.qualified_dotted == "TypedMemory"
@@ -1039,6 +1051,138 @@ func instantiated_with(
     current_path = saved_path
     current_line = saved_line
     return instance
+}
+
+func resolve_generic_constraints() {
+    var index = 0
+    while index < classes.count() {
+        if classes[index].is_generic_template {
+            resolve_constraints_of(classes[index])
+        }
+        index = index + 1
+    }
+}
+
+func resolve_constraints_of(information: Analysis.ClassInfo) {
+    crash discovered_classes[information.entry_index]
+    var file = discovered_classes[information.entry_index].get_file()
+    var statement_index = 0
+    while statement_index < file.statements.count() {
+        var generic_line = shape.as_generic_declaration(file.statements[statement_index])
+        if generic_line {
+            current_path = file.path
+            current_line = generic_line.line
+            current_owner = information.qualified_dotted
+            current_function = ""
+            var constraint_name = generic_constraint_name(information, generic_line)
+            information.codegen_constraints.append(constraint_name)
+        }
+        statement_index = statement_index + 1
+    }
+}
+
+func generic_constraint_name(
+    information: Analysis.ClassInfo,
+    generic_line: Syntax.Statements.GenericDeclaration,
+): String {
+    assert generic_line.constraint
+    var bare_name = without_dollar(generic_line.name)
+    var resolved = resolve_type(generic_line.constraint, information.namespace_dotted)
+    assert resolved
+    var union_type = type_shape.as_union(resolved)
+    if union_type {
+        var constrained = find_union_by_c_name(union_type.c_name)
+        if constrained {
+            if constrained.is_shape {
+                return constrained.c_name
+            }
+        }
+    }
+    report(
+        "'${bare_name}' is constrained by '{type_display_name(resolved)}', which is not a 'type': a constraint names a 'type' the class given must fit, like 'generic ${bare_name}: Printable'",
+    )
+    return ""
+}
+
+func constrain_codegen_types(instance: Analysis.ClassInfo) {
+    if classes_resolved {
+        check_constraints_of(instance)
+        return
+    }
+    pending_constraint_instances.append(instance)
+    pending_constraint_paths.append(current_path)
+    pending_constraint_lines.append(current_line)
+    pending_constraint_owners.append(current_owner)
+    pending_constraint_functions.append(current_function)
+}
+
+func check_pending_constraints() {
+    var index = 0
+    while index < pending_constraint_instances.count() {
+        current_path = pending_constraint_paths.get_at(index)
+        current_line = pending_constraint_lines.get_at(index)
+        current_owner = pending_constraint_owners.get_at(index)
+        current_function = pending_constraint_functions.get_at(index)
+        var pending_instance = pending_constraint_instances.get_at(index)
+        check_constraints_of(pending_instance)
+        index = index + 1
+    }
+}
+
+func check_constraints_of(instance: Analysis.ClassInfo) {
+    var index = 0
+    while index < instance.codegen_constraints.count() and index < instance.codegen_types.count() {
+        var constraint_name = instance.codegen_constraints.get_at(index)
+        if not constraint_name.is_empty() {
+            var constrained = find_union_by_c_name(constraint_name)
+            crash constrained
+            var given = instance.codegen_types.get_at(index)
+            var problem = constraint_problem(constrained, given)
+            if not problem.is_empty() {
+                var constrained_name = instance.codegen_names.get_at(index)
+                report(
+                    "'{type_display_name(given)}' does not fit type '{constrained.simple_name}', which '{instance.simple_name}' requires of ${constrained_name}: {problem}",
+                )
+                instance.codegen_types[index] = union_type_of(constrained)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func constraint_problem(constrained: Analysis.UnionInfo, given: Analysis.SpiteType): String {
+    var constrained_type = union_type_of(constrained)
+    assert not types_equal(given, constrained_type)
+    if type_shape.as_nullable(given) {
+        return "it may be null, and null has none of what the type needs"
+    }
+    var candidate = class_of_given(given)
+    if candidate {
+        var problem = shape_fit_problem(constrained, candidate)
+        if not problem.is_empty() {
+            failed_constraints.append("{constrained.c_name}>{candidate.c_name}")
+        }
+        return problem
+    }
+    return "only a class can fit a 'type'"
+}
+
+func class_of_given(given: Analysis.SpiteType): Analysis.ClassInfo? {
+    if type_shape.as_string(given) {
+        return find_class_by_c_name("SpiteString")
+    }
+    var boxed_class = boxed_class_of(given)
+    if boxed_class {
+        return boxed_class
+    }
+    var container_class = container_class_of(given)
+    if container_class {
+        return container_class
+    }
+    var class_ref = type_shape.as_class_ref(given)
+    assert class_ref
+    assert not class_ref.has_signature
+    return find_class_by_c_name(class_ref.c_name)
 }
 
 func register_unions(entry: Discovery.DiscoveredClass) {
@@ -1403,44 +1547,43 @@ func admit_to_union(information: Analysis.UnionInfo, candidate: Analysis.ClassIn
         report("'{candidate.simple_name}' is not a member of union '{information.simple_name}'")
         return
     }
+    var problem = shape_fit_problem(information, candidate)
+    if not problem.is_empty() {
+        if not failed_constraints.contains("{information.c_name}>{candidate.c_name}") {
+            report("{fit_subject(candidate)} does not fit type '{information.simple_name}': {problem}")
+        }
+        return
+    }
+    information.members.append(candidate)
+    admit_along_flows(information, candidate)
+}
+
+func shape_fit_problem(information: Analysis.UnionInfo, candidate: Analysis.ClassInfo): String {
     var index = 0
     while index < information.shape_fields.count() {
         var wanted = information.shape_fields[index]
-        var wanted_type = shape_field_type(information, wanted.name)
         if wanted.is_function {
             var function_problem = required_function_problem(information, wanted, candidate)
             if not function_problem.is_empty() {
-                report("{fit_subject(candidate)} does not fit type '{information.simple_name}': {function_problem}")
-                return
+                return function_problem
             }
-        }
-        var found = candidate.find_field(wanted.name)
-        if wanted.is_function {
-            var void_type = void_type()
-            found = Analysis.FieldInfo(wanted.name, void_type, "")
-            wanted_type = null
-        }
-        if not found {
-            report(
-                "{fit_subject(candidate)} does not fit type '{information.simple_name}': it has no attribute '{wanted.name}'",
-            )
-            return
-        }
-        if found {
+        } else {
+            var found = candidate.find_field(wanted.name)
+            if not found {
+                return "it has no attribute '{wanted.name}'"
+            }
+            crash found
+            var wanted_type = shape_field_type(information, wanted.name)
             if wanted_type {
                 var found_type = found.get_type()
                 if not types_equal(found_type, wanted_type) {
-                    report(
-                        "{fit_subject(candidate)} does not fit type '{information.simple_name}': attribute '{wanted.name}' is a {type_display_name(found_type)}, but the type needs a {type_display_name(wanted_type)}",
-                    )
-                    return
+                    return "attribute '{wanted.name}' is a {type_display_name(found_type)}, but the type needs a {type_display_name(wanted_type)}"
                 }
             }
         }
         index = index + 1
     }
-    information.members.append(candidate)
-    admit_along_flows(information, candidate)
+    return ""
 }
 
 func ensure_shape_reader(information: Analysis.UnionInfo, field_name: String, field_type: Analysis.SpiteType): String {
@@ -5682,6 +5825,14 @@ func infer_codegen_values(
     }
     var named = shape.as_named_type(declared)
     assert named
+    var declared_inner = only_type_argument(named)
+    if declared_inner {
+        var given_inner = container_inner_type(named, given)
+        if given_inner {
+            infer_codegen_values(declared_inner, given_inner, inferred)
+        }
+        return
+    }
     var given_function = type_shape.as_class_ref(given)
     assert given_function
     var declared_path = named.path.join(".")
@@ -5701,6 +5852,34 @@ func infer_codegen_values(
         }
         index = index + 1
     }
+}
+
+func only_type_argument(named: Syntax.Types.NamedType): Syntax.Types.Type? {
+    var declared_path = named.path.join(".")
+    assert declared_path == "Nullable" or declared_path == "List" or declared_path == "Dictionary"
+    assert named.arguments.count() == 1
+    var type_argument = shape.as_type_argument(named.arguments[0])
+    assert type_argument
+    return type_argument.value
+}
+
+func container_inner_type(named: Syntax.Types.NamedType, given: Analysis.SpiteType): Analysis.SpiteType? {
+    var declared_path = named.path.join(".")
+    if declared_path == "Nullable" {
+        var given_nullable = type_shape.as_nullable(given)
+        if given_nullable {
+            return given_nullable.get_inner()
+        }
+        return given
+    }
+    if declared_path == "List" {
+        var given_list = type_shape.as_list(given)
+        assert given_list
+        return given_list.get_element()
+    }
+    var given_dictionary = type_shape.as_dictionary(given)
+    assert given_dictionary
+    return given_dictionary.get_element()
 }
 
 func returned_type(function: Analysis.Types.ClassRefType): Analysis.SpiteType {

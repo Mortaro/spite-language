@@ -1,0 +1,21 @@
+var console = Console()
+
+func GenericConstraints() {
+    var books = Shelf<Book>()
+    books.add(Book("Dune"))
+    books.add(Book("Emma"))
+    var numbers = Shelf<Int>()
+    numbers.add(3)
+    numbers.add(-4)
+    var words = Shelf<String>()
+    words.add("tea")
+    var book_text = books.describe()
+    var number_text = numbers.describe()
+    var word_text = words.describe()
+    console.print(book_text)
+    console.print(number_text)
+    console.print(word_text)
+    var label = Label(Book("Ivanhoe"))
+    var label_text = label.text()
+    console.print(label_text)
+}

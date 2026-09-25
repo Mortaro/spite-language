@@ -1,42 +1,61 @@
 generic $value_type
 
-func write(value: $value_type): String {
-    if $value_type == String {
-        return quoted(value)
-    } else if $value_type == Bool or $value_type == Int or $value_type == Long or $value_type == Float or $value_type == Double or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInt or $value_type == UnsignedLong {
-        return "{value}"
-    } else if $value_type == Symbol {
-        var name = "{value}"
-        return quoted(name)
-    } else if $value_type == Null {
-        if value {
-            var inner = Json<$value_type.value_type>()
-            return inner.write(value)
+var value: $value_type? = null
+
+func Json(new_value: $value_type?) {
+    value = new_value
+}
+
+func write(): String {
+    if $value_type == Null {
+        var inner = Json<$value_type.value_type>(value)
+        return inner.write()
+    } else if $value_type == Bool {
+        if value == true {
+            return "true"
+        }
+        if value == false {
+            return "false"
         }
         return "null"
+    }
+    if value {
+        return _written(value)
+    }
+    return "null"
+}
+
+func _written(shown: $value_type): String {
+    if $value_type == String {
+        return quoted(shown)
+    } else if $value_type == Int or $value_type == Long or $value_type == Float or $value_type == Double or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInt or $value_type == UnsignedLong {
+        return "{shown}"
+    } else if $value_type == Symbol {
+        var name = "{shown}"
+        return quoted(name)
     } else if $value_type == List {
-        var element_json = Json<$value_type.element_type>()
+        var element_json = Json<$value_type.element_type>(null)
         var elements = List<String>()
         var index = 0
-        while index < value.count() {
-            var element = value.get_at(index)
-            var element_text = element_json.write(element)
+        while index < shown.count() {
+            element_json.value = shown.get_at(index)
+            var element_text = element_json.write()
             elements.append(element_text)
             index = index + 1
         }
         var joined_elements = elements.join(",")
         return "[{joined_elements}]"
     } else if $value_type == Dictionary {
-        var entry_json = Json<$value_type.value_type>()
-        var keys = value.keys()
-        var values = value.values()
+        var entry_json = Json<$value_type.value_type>(null)
+        var keys = shown.keys()
+        var values = shown.values()
         var entries = List<String>()
         var index = 0
         while index < keys.count() {
             var key = keys.get_at(index)
             var quoted_key = quoted(key)
-            var entry = values.get_at(index)
-            var entry_text = entry_json.write(entry)
+            entry_json.value = values.get_at(index)
+            var entry_text = entry_json.write()
             entries.append("{quoted_key}:{entry_text}")
             index = index + 1
         }
@@ -44,33 +63,33 @@ func write(value: $value_type): String {
         return "\{{joined_entries}}"
     } else {
         var members = List<String>()
-        write_attributes(value, members)
+        write_attributes(shown, members)
         var joined_members = members.join(",")
         return "\{{joined_members}}"
     }
 }
 
-func write_attribute(attribute: Symbol<$value_type>, value: $value_type, members: List<String>) {
-    var attribute_json = Json<attribute.class>()
-    var attribute_text = attribute_json.write(value.attributes[attribute])
+func write_attribute(attribute: Symbol<$value_type>, shown: $value_type, members: List<String>) {
+    var attribute_json = Json(shown.attributes[attribute])
+    var attribute_text = attribute_json.write()
     members.append("\"{attribute.name}\":{attribute_text}")
 }
 
 func read(text: String): $value_type? {
     var reader = JsonReader(text)
-    var value = parse(reader)
+    var parsed = parse(reader)
     reader.finish()
     assert not reader.failed()
-    return value
+    return parsed
 }
 
 func read_or_crash(text: String): $value_type {
     var reader = JsonReader(text)
-    var value = parse(reader)
+    var parsed = parse(reader)
     reader.finish()
     var failure = reader.failure
     crash failure == ""
-    return value
+    return parsed
 }
 
 func parse(reader: JsonReader): $value_type {
@@ -91,11 +110,11 @@ func parse(reader: JsonReader): $value_type {
         return symbol
     } else if $value_type == Null {
         assert not reader.read_null()
-        var inner = Json<$value_type.value_type>()
+        var inner = Json<$value_type.value_type>(null)
         return inner.parse(reader)
     } else if $value_type == List {
         var list: $value_type = null
-        var element_json = Json<$value_type.element_type>()
+        var element_json = Json<$value_type.element_type>(null)
         reader.expect("[")
         var more = not reader.consume("]")
         while more and not reader.failed() {
@@ -109,7 +128,7 @@ func parse(reader: JsonReader): $value_type {
         return list
     } else if $value_type == Dictionary {
         var dictionary: $value_type = null
-        var entry_json = Json<$value_type.value_type>()
+        var entry_json = Json<$value_type.value_type>(null)
         reader.expect("\{")
         var more = not reader.consume("}")
         while more and not reader.failed() {
@@ -144,10 +163,10 @@ func parse(reader: JsonReader): $value_type {
     }
 }
 
-func read_attribute(attribute: Symbol<$value_type>, value: $value_type, key: String, reader: JsonReader) {
+func read_attribute(attribute: Symbol<$value_type>, created: $value_type, key: String, reader: JsonReader) {
     if key == attribute.name {
-        var attribute_json = Json<attribute.class>()
-        value.attributes[attribute] = attribute_json.parse(reader)
+        var attribute_json = Json<attribute.class>(null)
+        created.attributes[attribute] = attribute_json.parse(reader)
         reader.matched = true
     }
 }
