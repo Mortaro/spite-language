@@ -361,9 +361,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 All of it is proposed by Claude, unconfirmed.
 
-116. **No stored zoned type.** Every design compared has one (`ZonedDateTime`, `Zoned`, `OffsetDateTime`); Spite
-     has none, because D127 makes a zone presentation: store the `Instant`, apply the zone when showing it.
-     "The same time tomorrow" is then three lines (`to_local`, `+ Period(1, 'days')`, `to_instant`). Keep it out?
 118. **The constructors.** `Instant(since_1970: Duration)`, `Duration(amount, unit)` and `Period(amount, unit)`
      with a unit enum, since Spite has no static functions for `Duration.of_hours(2)`. With no overloading,
      `instant - instant` is the `Duration` between them and going back is `instant + -duration`. A date that
