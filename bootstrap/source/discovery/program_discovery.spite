@@ -951,7 +951,8 @@ func spelling_check(declared: List<String>, first_reading: Syntax.Statements.Sta
     var names = List<Syntax.Expressions.Expression>()
     var index = 0
     while index < declared.count() {
-        names.append(Syntax.Expressions.StringLiteralExpression(declared[index]))
+        var checked_name = Syntax.Expressions.StringLiteralExpression(declared[index])
+        names.append(checked_name)
         index = index + 1
     }
     var checker = Syntax.Expressions.IdentifierExpression("reject_misspelled_settings")
@@ -1008,7 +1009,7 @@ func setting_source(name: String, class_name: String): String {
 
 func hardcode_setting(variable: Syntax.Statements.VariableDeclaration, reader: String) {
     crash supplied_settings[variable.name]
-    var literal = setting_literal(reader, supplied_settings[variable.name])
+    var literal = spelled_setting(reader, supplied_settings[variable.name])
     var flag = flag_of(variable.name)
     crash supplied_settings[variable.name]
     var given = "{flag}={supplied_settings[variable.name]}"
@@ -1042,7 +1043,7 @@ func flag_of(name: String): String {
     return "--{hyphenated}"
 }
 
-func setting_literal(reader: String, text: String): Syntax.Expressions.Expression? {
+func spelled_setting(reader: String, text: String): Syntax.Expressions.Expression? {
     if reader == "text_setting" {
         return Syntax.Expressions.StringLiteralExpression(text)
     }

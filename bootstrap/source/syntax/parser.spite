@@ -8,7 +8,6 @@ var error_message = ""
 var quiet_generic_arguments_matched = false
 var quiet_generic_instantiation_matched = false
 var names_generic_class = false
-var block_depth = 0
 
 func Parser(starting_tokens: List<Token>) {
     tokens = starting_tokens
@@ -214,9 +213,7 @@ func parse_block(): List<Syntax.Statements.Statement> {
         return List<Syntax.Statements.Statement>()
     }
     expect('left_brace', "'\{'")
-    block_depth = block_depth + 1
     var statements = parse_statement_list_until('right_brace')
-    block_depth = block_depth - 1
     expect('right_brace', "'}'")
     return statements
 }
@@ -227,19 +224,7 @@ func parse_statement(): Syntax.Statements.Statement {
     switch statement {
         _: statement.line = line
     }
-    record_depth(statement)
     return statement
-}
-
-func record_depth(statement: Syntax.Statements.Statement) {
-    switch statement {
-        Syntax.Statements.VariableDeclaration: statement.depth = block_depth
-        Syntax.Statements.AssignmentStatement: statement.depth = block_depth
-        Syntax.Statements.ExpressionStatement: statement.depth = block_depth
-        Syntax.Statements.ReturnStatement: statement.depth = block_depth
-        Syntax.Statements.AssertStatement: statement.depth = block_depth
-        _: return
-    }
 }
 
 func parse_interpolation(hole: Token): Syntax.Expressions.Expression {
@@ -728,7 +713,6 @@ func parse_switch_statement(): Syntax.Statements.Statement {
     advance()
     var subject = parse_expression()
     expect('left_brace', "'\{' to start the switch body")
-    block_depth = block_depth + 1
     skip_trivia()
     var cases = List<Syntax.Statements.SwitchCase>()
     var finished = check('right_brace') or check('end_of_file')
@@ -743,7 +727,6 @@ func parse_switch_statement(): Syntax.Statements.Statement {
             finished = true
         }
     }
-    block_depth = block_depth - 1
     expect('right_brace', "'}' to close the switch body")
     return Syntax.Statements.SwitchStatement(subject, cases)
 }

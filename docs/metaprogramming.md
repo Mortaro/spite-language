@@ -307,7 +307,8 @@ var console = Console()
 
 func GenericConstraint() {
     var books = Shelf<Book>()
-    books.add(Book("Dune"))
+    var book = Book("Dune")
+    books.add(book)
     var numbers = Shelf<Integer>()
     numbers.add(3)
     var book_text = books.describe()
@@ -453,8 +454,10 @@ var console = Console()
 func GenericNeverTrue() {
     var labels = Detector<Label>()
     var healths = Detector<Health>()
-    var label_answer = labels.is_health(Label())
-    var health_answer = healths.is_health(Health())
+    var label = Label()
+    var label_answer = labels.is_health(label)
+    var health = Health()
+    var health_answer = healths.is_health(health)
     console.print(label_answer, health_answer)
 }
 ```
@@ -1013,7 +1016,7 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
   `system.run_each(row_arguments())` is `system.run_each(row_potion(), row_target())`, evaluated left to
   right. That is how one generic calls a function of any arity without variadic generics. Anywhere else such a
   plural is an error naming the call it belongs in, and so is passing it to a different function
-  (`diagnostics/function_reflection`). D77's one-level rule does not apply to it: the call it stands for is
+  (`diagnostics/function_reflection`). D77's rule does not apply to it: the call it stands for is
   written by the compiler.
 - **`system: Symbol<System>` ranges over the classes of every folder named `system`** (D115): `System.Heal`,
   `Ui.System.Interact` -- a range that names no class or type is read as the end of a dotted namespace, and the

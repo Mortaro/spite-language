@@ -6,7 +6,9 @@ func VariadicMistakes() {
     var joined = labeled()
     var first = "Aria"
     greet(first.upper_case())
-    greet(Badge(first.trim()))
+    var trimmed = first.trim()
+    var badge = Badge(trimmed)
+    greet(badge)
     console.print(joined)
 }
 

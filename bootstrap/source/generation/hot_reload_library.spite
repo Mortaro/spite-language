@@ -350,7 +350,8 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
         parts.append("#define SPITE_THREADS")
     }
     var joined_typedefs = builder.typedefs.join("\n")
-    var typedef_text = builder.guarded_types(joined_typedefs, TreeShaker(), true)
+    var typedef_shaker = TreeShaker()
+    var typedef_text = builder.guarded_types(joined_typedefs, typedef_shaker, true)
     parts.append(typedef_text)
     parts.append(prototype_text)
     index = 0

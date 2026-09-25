@@ -76,12 +76,16 @@ func is_alive(): Boolean {
   parameter's type. The last parameter may be
   `...values: List<Type>`, and the caller writes the values one by one (passing a whole list there is an error).
 - A call is never passed straight into another call: compute it first into a named `var` and pass the name --
-  `var token_text = source.slice(start, end)`, then `tokens.append(Token("number", token_text))`. Only a
-  constructor may be an argument, one level deep (`Token("number", Text(token_text))` inside `append` is an
-  error). The error: `'text.slice(0, 1)' is called inside an argument of 'console.print': compute it first into a
-  named 'var' and pass the name`. The holes of a text are not arguments: `"{names.count()} names"` is fine. A line
-  too long for the formatter's width may not construct an object inside a call at all: make it first on its own
-  line (`var counter_button = CounterButton(...)`).
+  `var token_text = source.slice(start, end)`. The error: `'text.slice(0, 1)' is called inside an argument of
+  'console.print': compute it first into a named 'var' and pass the name`. The holes of a text are not
+  arguments: `"{names.count()} names"` is fine.
+- A constructor is not an argument either, on any line: make the object on a line of its own and pass its name --
+  `var token = Token("number", token_text)`, then `tokens.append(token)`. The error:
+  `'Bundle.CounterButton(screen.id)' is constructed inside an argument of 'world.create_entity_from_bundle': a
+  constructor call is never an argument, so make it first on a line of its own, 'var counter_button =
+  Bundle.CounterButton(screen.id)', and pass 'counter_button'`. That goes for `Label(Font())` and
+  `buffers.set(List<String>())` too. A constructor read at once is fine (`Json(order).write()`), and
+  `Parallel(worker.run)` passes a function, not an object.
 - The two branches of an `if`/`else` never compute the same call (`'measure(2)' is computed in both branches`):
   compute it once before the `if`.
 - An `if`/`else` never sits directly inside a branch of another `if`/`else`: move the inner decision into a
@@ -341,7 +345,8 @@ uses. Writing a `Float` or `Double` that is infinity or not-a-number crashes nam
 is infinity, which JSON cannot hold`): check the number first if `null` is wanted. A union, a `type` (`Anything` included) or a function value anywhere in what `Json` sees is a compile error
 at the line that makes the `Json` (`Json cannot write or read 'Owner': 'Owner.pet' is the union Pet, ...`):
 keep what `Json` sees to the kinds above ([json.md](json.md)).
-Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(Duration(1710054000, 'seconds'))`.
+Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(since_1970)` with
+`var since_1970 = Duration(1710054000, 'seconds')`.
 `Duration(90, 'minutes')` is exact time (no days: `Duration(1, 'days')` is an error); `Period(1, 'months')` is
 calendar time, added to a `Date`,
 `Time` is a clock reading and `DateTime(date, time)` both, none of them an instant. A zone only shows or

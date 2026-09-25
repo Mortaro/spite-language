@@ -50,7 +50,8 @@ func Gadget(new_name: String, new_power: Integer) {
 var console = Console()
 
 func ReflectionBasics() {
-    describe(Gadget("wrench", 3))
+    var gadget = Gadget("wrench", 3)
+    describe(gadget)
 }
 
 func describe(gadget: Gadget) {
@@ -114,7 +115,8 @@ var console = Console()
 var components = List<Anything>()
 
 func AttributeObjects() {
-    add_every_attribute(Player())
+    var player = Player()
+    add_every_attribute(player)
     components.each(show_component)
 }
 
@@ -164,8 +166,10 @@ var console = Console()
 var components = List<Anything>()
 
 func PassingAClass() {
-    components.append(Health())
-    components.append(Ui.Pressed())
+    var health = Health()
+    components.append(health)
+    var pressed = Ui.Pressed()
+    components.append(pressed)
     remove_component(Ui.Pressed)
     var kind: Spite.Class = Health
     var kept = components.count()
@@ -207,7 +211,8 @@ func weight(): Integer {
 var console = Console()
 
 func NamespaceWalk() {
-    describe(Shop.Tools.Hammer())
+    var hammer = Shop.Tools.Hammer()
+    describe(hammer)
     var in_shop = NamespaceWalk.namespace == "Shop"
     console.print("entry class in Shop", in_shop)
 }
@@ -357,8 +362,10 @@ var console = Console()
 var kept = List<Monster>()
 
 func LiveRegistry() {
-    kept.append(Monster("rat"))
-    kept.append(Monster("bat"))
+    var rat = Monster("rat")
+    kept.append(rat)
+    var bat = Monster("bat")
+    kept.append(bat)
     spawn_and_forget()
     var names = Monster.instances.map_name()
     var joined_names = names.join(", ")
@@ -548,8 +555,8 @@ way. `Spite.Attribute.class` and `Spite.Argument.class` are real `Spite.Class` o
   passes the same way. `Storage<Health>` without parentheses is still read only on the right of `==`. Anywhere else -- `var kind = Health`,
   or an argument whose parameter is a `type` -- a bare class name is still "'Health' is a class, not a value",
   since `Health()` is what was nearly always meant; the message now names the `Spite.Class` form
-  (`diagnostics/class_as_value`). This does not meet D77, which is about calls: `f(Health())` passes an instance
-  and `f(Health)` its class object, and the parameter's type decides which one compiles. **On the right of `==`
+  (`diagnostics/class_as_value`). This does not meet D77, which is about calls: `f(health)` passes an instance
+  (made first, `var health = Health()`, D202) and `f(Health)` its class object, and the parameter's type decides which one compiles. **On the right of `==`
   a class name stays a class test (D75), except when the left side is itself a `Spite.Class`**: then the two
   class objects are compared, so `component.class == component_class` and `kind == Health` both mean "the same
   class" (`conformance/stage6/class_argument`). A class test on a `Spite.Class` value could only ask whether it
