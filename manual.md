@@ -1310,6 +1310,10 @@ the default `Spite.Class` declares; what follows still holds for the line.
   starts threads, the first fetch of a singleton takes a lock of its own, checks again and makes it; every later
   fetch is still one load. Two `Parallel` threads first touching `Shelf<Int>()` made it twice before, and one
   copy leaked (`conformance/stage6/singleton_race`). A program with no threads keeps the plain check.
+- **A singleton that holds nothing** -- no attributes but settings the compiler folds, and no `drop()`, such as
+  `Memory`, `Build` and `TypedMemory<T>` -- is one static object in a production build and an ordinary singleton
+  in an inspectable one (D143, section 13). There it may be made again if something destroyed after it at exit
+  asks for it, since it has nothing to lose (proposed by Claude, unconfirmed).
 - **Standard library:** `Console`, `Program` and `DynamicLibrary` are singletons. `File`, `Directory` and
   `Process` are not -- they are values (a path, a spawned command), and several may exist at once.
 - A later root reopening the class (section 11) may not disagree about it; that is a diagnostic. Reopening
@@ -1653,8 +1657,10 @@ var sword = Weapon<Magic, true>(10)
   `func Weapon<$damage_type, $is_magic>(...)`: the message lists the `generic` lines to write
   (`diagnostics/constructor_codegen_list`). A `generic` line inside a function is an error too.
 
-Conditions on codegen values are decided at compile time and the untaken branch is removed (tree shaking).
-In development mode they are kept as runtime values so live reload can change them.
+Conditions on codegen values are decided at compile time and the untaken branch is removed (tree shaking), in
+every build, `--development` and `--hot_reload` included (settled 2026-09-25 by keeping what was built): a
+codegen value is part of which class this is -- `Weapon<Magic, true>` and `Weapon<Magic, false>` are two classes --
+so there is no run-time value for live reload to change. To change one, change the call site.
 
 **Asking what type a generic was given** (proposed by Claude, unconfirmed; built for D95's `Json`, 2026-09-24).
 **[implemented]** When a codegen value is a type, `$value_type == String` is decided at compile time like any
@@ -2232,7 +2238,7 @@ spite program --c_source              also write program/program.c (--c_path=pat
 spite program --executable --run=false   build without running (--executable_path=path puts it elsewhere)
 spite program --run=false             compile the whole program and write nothing
 spite program --optimized             optimized build
-spite program --development           keep everything (no tree shaking), for live reload
+spite program --development           an inspectable build: no tree shaking, internals as ordinary objects (D143)
 spite program --hot_reload            swap changed classes into the running program (implies --development)
 spite program --repl                  run with an in-place REPL
 spite program --repl_port=4000        run with a remote REPL an AI can connect to, to explore memory and debug
@@ -2248,9 +2254,19 @@ spite format --check <path> ...       rewrite nothing; exit 1 listing (to stdout
 spite reload program ... --executable_path=<running>   what a --hot_reload program runs to rebuild itself
 ```
 
-Flags mix freely (a production build may keep the REPL). Building and running are the same command. Every flag
-is a field of `Build` (section 9), and a program is named only by its folder (D89, D130): a path to a `.spite`
-file is an error naming the folder form, and the compiler compiles itself as `spite bootstrap`, whose entry is
+**Inspectable and production builds** (D143, decided by Mortaro; the readings below proposed by Claude,
+unconfirmed; implemented 2026-09-25). A build with `--development`, `--hot_reload`, `--repl` or `--repl_port` is
+*inspectable*: nothing is tree-shaken, and the singletons that hold nothing (`Memory`, `Build`, `TypedMemory<T>`,
+section 8) are ordinary objects -- allocated at first use, listed by `.instances`, destroyed at exit -- so the REPL
+and reflection see the internals as normal classes. Every other build, the ordinary one included and not only
+`--optimized`, is a *production* build, where those singletons are static objects and everything unused is
+tree-shaken. The optimisations that change only speed (chains as one loop, placement, text appended in place)
+apply in both; `docs/optimizations.md` says which build each optimisation applies in
+(`conformance/stage6/development_internals`).
+
+Flags mix freely (an `--optimized` build may keep the REPL, and is then inspectable). Building and running are
+the same command. Every flag is a field of `Build` (section 9), and a program is named only by its folder (D89,
+D130): a path to a `.spite` file is an error naming the folder form, and the compiler compiles itself as `spite bootstrap`, whose entry is
 `bootstrap/bootstrap.spite`, class `Bootstrap`.
 
 **The whole program first, then the outputs** (D128, D129; the spelling below proposed by Claude, unconfirmed;
@@ -4036,3 +4052,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | **D190** (decided by Mortaro, revising D128's `format` output): **formatting a file never needs it to compile, and compiling always formats first -- there is no way to turn it off.** "we should be able to use --format (or --lint whichever makes more sense) to format files without having to fix all the code to compile, but we should never be able to compile without it formating the code first". `spite format <file-or-folder>` (already built: it needs a file to parse, not to compile) stays the name, since formatting is what it does. `--format=false` and `var format = false` in `build.spite` are removed: every compile formats the program's own files (the entry folder and every `load`ed root, not `library/`) before anything else, and a file the formatter refuses (D55's empty line, a failed safety check) is still left alone with its reason, which is an error in the compile it belongs to rather than a skipped step. Test inputs that must stay unformatted (`diagnostics/`) are compiled from a copy by `check.sh`, never by a flag. |
 | 2026-09-25 | **D191** (decided by Mortaro, relayed by the SlopEngine session, extending D135): **any code may hand work to the program's one thread pool.** "language should allow new things to ask for participation in the threadpool" -- an engine system, an asset cooker, a texture loader or a library class all submit work the same way, by `Parallel(function)`, and get back a handle whose `finished` never blocks and whose value joins on first use (D134); no submission starts an OS thread of its own, and there is no second pool to create or pass around. Mortaro also rejected a child process for SlopEngine's re-cooking: "you shouldnt need another process" -- long work runs in-process on the pool while frames continue. A singleton such work reaches is made safe by the compiler (D183), in the cheapest proven form (D184). A program that never uses `Parallel` carries no pool (D177). |
 | 2026-09-25 | (implements D189 and D190; the readings below proposed by Claude, unconfirmed) **A library `assert` is compiled without its ring write**: a site whose file path starts `library/` (the operating-system folders included, a program file reopening a library class not) keeps its branch, its drops and its default return, and loses only the store into the 32-entry ring, so it is exactly an `if`; its `.crashes` line stays, and `crash` sites are unchanged. `conformance/stage5/library_guards_untraced` fails three library guards (`String.slice` past the end, `matches_at` under `starts_with` and `ends_with`) around one program `assert`, then crashes: the report lists the program's assert alone. **`format` is gone from `library/build.spite`**, and naming it is a compile error rather than the generic unknown-flag one, whose advice (declare `var format = ...` in `build.spite`) would otherwise quietly add a program setting that formats nothing: `--format=...` is "not a compiler option: every compile formats ... first" (`diagnostics/format_flag`), and a `var format` in a program's `build.spite` is an error at its line (`diagnostics/format_setting`). **A file the formatter refuses stops the compile** with `path: error: the formatter refuses it, ...` and exit status 1; a file that does not lex or parse never reaches the formatter, because reading the program reports it first. `check.sh` compiles `diagnostics/` from a copy in its work folder, run from there so the paths in the expected errors are unchanged; three of those programs were unformatted (`empty_constructor`, `shape_mismatch`, `unused_names`), so their expected errors now open with the `formatted <path>` line the compile prints, and their line numbers did not move. The docs programs, the remote-REPL sessions and the live-reload copy are already copies in `.spite-cache`, so they just lost the flag. |
+| 2026-09-25 | (implements D143, and settles `mortaros_missing_decisions.md` items 139 and 140; the readings proposed by Claude, unconfirmed) **Inspectable builds keep the internals as ordinary objects; production builds hide them.** A `--development`, `--hot_reload`, `--repl` or `--repl_port` build is inspectable: the C is not tree-shaken (before, only `--development` and `--hot_reload` turned the shaker off), and a singleton that holds nothing (`Memory`, `Build`, `TypedMemory<T>`) is an ordinary singleton -- allocated at first use, one of `.instances`, destroyed at exit -- where every other build makes it one static object. Readings: every build that is not inspectable is a production build, the ordinary one included, not only `--optimized`; `--optimized` with a REPL flag is inspectable; only tree shaking and static singletons count as hiding an internal, so every speed-only optimisation applies in both kinds of build; a holds-nothing singleton may be made again when something destroyed after it at exit asks for it, since it has no state and no `drop()` (`Memory`'s own `.instances` list is untracked through a `TypedMemory` destroyed before it); and the list behind `.instances` is the compiler's bookkeeping, allocated outside `--debug_memory`'s counts like the list of singletons to destroy (a `Memory` first made inside the allocation table had its list allocated outside it and then freed through it). Item 140: section 9's sentence that `--development` keeps conditions on codegen values as run-time values is replaced by what is built, folding in every build. `conformance/stage6/development_internals`, `docs/optimizations.md` (a Builds column), `docs/compiler.md`, `docs/metaprogramming.md`. |

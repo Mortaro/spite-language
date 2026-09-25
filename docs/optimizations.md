@@ -17,30 +17,38 @@ than you expect is a free win, so the compiler optimises silently and never asks
 runs *slower* than you expect is the only real surprise, so every cost that remains is written down on this page,
 under the optimisation it belongs to.
 
+**Internals stay ordinary objects where you inspect them** ([D143](../manual.md#decision-log)). A `--repl`,
+`--repl_port`, `--hot_reload` or `--development` build is an *inspectable* build: nothing is tree-shaken, and
+the standard library's internals -- `Memory`, `Build`, `TypedMemory<T>` -- are ordinary objects that reflection
+(`.instances`, `.attributes`) sees. Every other build, ordinary or `--optimized`, is a production build, and only
+there are the two optimisations that hide something applied: tree shaking and static singletons. Everything else
+on this page changes how fast the program runs, not what it is made of, so it applies in every build. The
+**Builds** column below says which.
+
 What you can observe at all is short: the counts `--debug_memory` prints, where `.memory` says a value lives, the
 order in which a fused chain calls your member functions, and speed. Apart from that order, which only a member
 function with a visible effect can show, no optimisation changes what a program prints or computes.
 
-| Optimisation | Status | What you might notice |
-|---|---|---|
-| [Tree shaking the generated C](#tree-shaking-the-generated-c) | built | smaller C; `--development` keeps everything |
-| [Deciding conditions at compile time](#deciding-conditions-at-compile-time) | built | nothing: the branch not taken is not in the program |
-| [Reflection, symbols and registries only where read](#reflection-symbols-and-registries-only-where-read) | built | nothing |
-| [Template chains run as one loop](#template-chains-run-as-one-loop) | built | fewer allocations; member functions run element by element |
-| [Appending to text in place](#appending-to-text-in-place) | built | fewer allocations |
-| [The compiler places memory](#the-compiler-places-memory) | built | fewer allocations; `.memory.section` |
-| [Singletons: made on first use, never counted](#singletons-made-on-first-use-never-counted) | built | the constructor runs at first use |
-| [Singletons that hold nothing are static objects](#singletons-that-hold-nothing-are-static-objects) | built | one allocation fewer each |
-| [Atomic reference counts only with threads](#atomic-reference-counts-only-with-threads) | built | nothing |
-| [Boxing only where a value travels as a shape](#boxing-only-where-a-value-travels-as-a-shape) | built | one allocation per boxed value |
-| [Concurrency machinery only where it is used](#concurrency-machinery-only-where-it-is-used) | built | nothing |
-| [REPL, live reload and debug machinery only in those builds](#repl-live-reload-and-debug-machinery-only-in-those-builds) | built | nothing in an ordinary build |
-| [Smaller ones](#smaller-ones) | built | nothing |
-| [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | planned | |
-| [Copies that cost nothing](#copies-that-cost-nothing) | planned | |
-| [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | planned | |
-| [Proofs that survive a call](#proofs-that-survive-a-call) | planned | |
-| [Other planned optimisations](#other-planned-optimisations) | planned | |
+| Optimisation | Status | Builds | What you might notice |
+|---|---|---|---|
+| [Tree shaking the generated C](#tree-shaking-the-generated-c) | built | production | smaller C; an inspectable build keeps everything |
+| [Deciding conditions at compile time](#deciding-conditions-at-compile-time) | built | every | nothing: the branch not taken is not in the program |
+| [Reflection, symbols and registries only where read](#reflection-symbols-and-registries-only-where-read) | built | every | nothing |
+| [Template chains run as one loop](#template-chains-run-as-one-loop) | built | every | fewer allocations; member functions run element by element |
+| [Appending to text in place](#appending-to-text-in-place) | built | every | fewer allocations |
+| [The compiler places memory](#the-compiler-places-memory) | built | every | fewer allocations; `.memory.section` |
+| [Singletons: made on first use, never counted](#singletons-made-on-first-use-never-counted) | built | every | the constructor runs at first use |
+| [Singletons that hold nothing are static objects](#singletons-that-hold-nothing-are-static-objects) | built | production | one allocation fewer each; not in `.instances` |
+| [Atomic reference counts only with threads](#atomic-reference-counts-only-with-threads) | built | every, decided per program | nothing |
+| [Boxing only where a value travels as a shape](#boxing-only-where-a-value-travels-as-a-shape) | built | every | one allocation per boxed value |
+| [Concurrency machinery only where it is used](#concurrency-machinery-only-where-it-is-used) | built | every, decided per program | nothing |
+| [REPL, live reload and debug machinery only in those builds](#repl-live-reload-and-debug-machinery-only-in-those-builds) | built | the builds that ask for it | nothing in an ordinary build |
+| [Smaller ones](#smaller-ones) | built | every | nothing |
+| [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | planned | | |
+| [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
+| [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | planned | | |
+| [Proofs that survive a call](#proofs-that-survive-a-call) | planned | | |
+| [Other planned optimisations](#other-planned-optimisations) | planned | | |
 
 ## Built
 
@@ -52,10 +60,11 @@ prototype (`bootstrap/source/generation/tree_shaker.spite`). A small program's C
 about 2 000. The compiler does this itself rather than leaving dead code for the C compiler to find, so it holds
 whichever C compiler you bring.
 
-**When.** Every build except `--development`, which keeps everything so live reload has every function to swap
-([compiler.md](compiler.md#development-builds-and-tree-shaking)); `--hot_reload` implies `--development`.
+**When.** Production builds only. An inspectable build -- `--repl`, `--repl_port`, `--hot_reload` or
+`--development` -- keeps everything, so live reload has every function to swap and the REPL can reach every
+internal ([D143](../manual.md#decision-log), [compiler.md](compiler.md#development-builds-and-tree-shaking)).
 
-**What you notice.** Nothing, except that `--mode=c` prints less. A function nobody calls, outside a generic class, is still
+**What you notice.** Nothing, except that `--c_source` writes less. A function nobody calls, outside a generic class, is still
 compiled and checked, so a mistake in it is still reported ([D140](../manual.md#decision-log)) -- it just is not in the
 binary. **Built** (the tree shaker and `--development` rows of the [decision log](../manual.md#decision-log),
 2026-09-24).
@@ -79,7 +88,9 @@ even use things that would not compile for this build. That covers:
 A function of a generic class is then compiled for one instantiation only when code that survived folding names
 it, so a helper reached only from a removed branch is never checked against a type it cannot work with.
 
-**When.** Always, `--development` included.
+**When.** Every build, inspectable ones included. A folded branch hides nothing from the REPL: the branch not
+taken is not part of this program, since a `Build` field or a codegen value is a fact of the build, not a value
+that could change while it runs.
 
 **Example.** `Describer<Int>` never contains `value.count()`, which an `Int` does not have:
 
@@ -138,9 +149,6 @@ Names used only inside a removed branch still count as used, so the unused rule 
 instantiation. **Built** (section 9 of the [manual](../manual.md#decision-log), D84, D85, D167, and the
 "only what survives folding is compiled" row).
 
-Note: manual section 9 says that in development mode conditions on codegen values stay run-time values; the
-compiler folds them in every build (`mortaros_missing_decisions.md` item 140).
-
 ### Reflection, symbols and registries only where read
 
 **What it does.** Reflection is decided at compile time, so the compiler knows exactly what a program reads and
@@ -152,8 +160,10 @@ constant text, so storing and comparing symbols allocates nothing ([D70](../manu
 codegen template exists only for the names a program calls: a program that never calls `sum_price()` has no
 `sum_price`.
 
-**When.** Always. **What you notice.** Nothing: reflection may be as detailed as it likes, because a program that
-never reads it carries none of it. **Built.**
+**When.** Every build: what a REPL reads is compiled into the REPL build, so it is read there too. **What you
+notice.** Nothing: reflection may be as detailed as it likes, because a program that never reads it carries none
+of it. The list behind `.instances` is the compiler's bookkeeping, like the list of singletons to destroy at
+exit, so `--debug_memory` does not count it. **Built.**
 
 ### Template chains run as one loop
 
@@ -393,14 +403,47 @@ even one that points at a singleton. **Built** (D8, D142, D141).
 type), and `Build`, whose attributes are all settings folded into the program -- is one static object: never
 allocated, never counted, never freed. `Memory()` costs nothing, and every program allocates once fewer for each.
 
-**When.** Today, in every build. [D143](../manual.md#decision-log) decided that in `--repl`, `--repl_port`,
-`--hot_reload` and `--development` builds these internals are ordinary objects that reflection (`.instances`,
-`.attributes`) sees, and are static objects only in production builds; that split is not built yet, and the
-compiler makes them static everywhere (`mortaros_missing_decisions.md` item 139).
+**When.** Production builds only ([D143](../manual.md#decision-log)). In an inspectable build -- `--repl`,
+`--repl_port`, `--hot_reload` or `--development` -- each is an ordinary singleton: allocated at first use, one of
+its class's `.instances`, and destroyed at exit. Since it holds nothing, it may be made again if something
+destroyed after it asks for it at exit, so the order of teardown never matters for it.
 
-**What you notice.** One allocation fewer per such singleton under `--debug_memory`. Reading `Build`'s attributes
-through reflection answers the folded settings. **Built** (the D108 second-step row, D110's `Build` row, and the
-generic singleton row).
+**Example.** The same program in both kinds of build: the production build has no `Memory` object to list.
+
+```gdscript title=production_internals/production_internals.spite entry
+var console = Console()
+var memory = Memory()
+
+func ProductionInternals() {
+    var bytes = memory.allocate_bytes(8)
+    memory.free(bytes)
+    var memories = Memory.instances.count()
+    console.print("Memory objects:", memories)
+}
+```
+```output
+Memory objects: 0
+```
+
+```gdscript title=inspectable_internals/inspectable_internals.spite entry build=development:true
+var console = Console()
+var memory = Memory()
+
+func InspectableInternals() {
+    var bytes = memory.allocate_bytes(8)
+    memory.free(bytes)
+    var memories = Memory.instances.count()
+    console.print("Memory objects:", memories)
+}
+```
+```output
+Memory objects: 1
+```
+
+**What you notice.** One allocation fewer per such singleton under `--debug_memory` in a production build, so the
+counts of one program differ between the two kinds of build. Reading `Build`'s attributes through reflection
+answers the folded settings in both. **Built** (the D108 second-step row, D110's `Build` row, the generic
+singleton row, and D143; `conformance/stage6/development_internals`).
 
 ### Atomic reference counts only with threads
 
@@ -453,7 +496,9 @@ ask for it:
 - `--debug_memory`: the allocation table that names leaked objects. Every other build counts allocations with
   one increment.
 
-**When.** Only in those builds ([D143](../manual.md#decision-log), [D112](../manual.md#decision-log)).
+**When.** Only in those builds ([D143](../manual.md#decision-log), [D112](../manual.md#decision-log)). This is
+not an optimisation an inspectable build turns off: it is the inspecting itself, present only where it is asked
+for.
 **What you notice.** Nothing in an ordinary build. **Built.** Planned with it: [D174](../manual.md#decision-log)'s
 one-flag check at the end of every loop iteration, so a program that never waits still answers its REPL -- in REPL
 builds only.

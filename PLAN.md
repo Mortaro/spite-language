@@ -276,7 +276,9 @@ and balanced allocations.
     derives `SpiteString`'s layout from them, and every `String` function is Spite, down to its constructor and
     `drop()`; `TextBytes`, `Memory.take_text` and `Memory.address_of` are gone and `Memory.text` is Spite. Each
     number declares `var _memory = Memory().allocate_bytes(N)`. The compiler places allocations (register,
-    frame, constant, heap) and `allocate_stack_bytes` is removed; `Memory` is a static object. **Waiting on
+    frame, constant, heap) and `allocate_stack_bytes` is removed; `Memory` is a static object in a production build and an ordinary one in
+    an inspectable build (`--repl`, `--repl_port`, `--hot_reload`, `--development`; D143, done 2026-09-25, which
+    also keeps those builds unshaken). **Waiting on
     Mortaro:** `mortaros_missing_decisions.md` 50-56. **Not done:** `Arguments` is still C in the prelude; a
     `List` or `Dictionary` does not declare a layout the compiler reads (they are ordinary classes already).
 25. **Done on Windows (2026-09-24): milestone 6b, live reload -- D111 and D112** (manual.md section 14, "Live

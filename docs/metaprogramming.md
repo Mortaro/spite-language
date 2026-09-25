@@ -683,7 +683,8 @@ at compile time:
 
 This is tree shaking over the program's own model, not dead-code elimination left to the C compiler.
 
-`--development` keeps every generated function instead of only the ones reachable from `main`, so live reload has
-all of them to swap. Conditions on codegen values and `Build` fields still fold under `--development`; manual
-section 9 says they should stay run-time values there, which is not built. Every optimisation the compiler makes
-on its own is listed in [optimizations.md](optimizations.md).
+An inspectable build -- `--development`, `--hot_reload`, `--repl` or `--repl_port` -- keeps every generated
+function instead of only the ones reachable from `main`, so live reload has all of them to swap and the REPL can
+reach them ([D143](../manual.md#decision-log)). Conditions on codegen values and `Build` fields fold there too: a
+codegen value is part of which class this is, and a `Build` field is a fact of the build. Every optimisation the
+compiler makes on its own, and the builds it applies in, is listed in [optimizations.md](optimizations.md).
