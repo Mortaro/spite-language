@@ -197,26 +197,25 @@ what is not yet is in [the rules](#the-floor-memoryaddress-memoryheap-and-typedm
 ### Where `String` and `Integer` keep their memory
 
 A type's storage is attributes at the top of its file (D108). `library/string.spite` starts with the memory a
-`String` holds:
+`String` is:
 
 ```gdscript
 var _bytes: Memory.Address = 0
 var _length: Long = 0
-var _section: Spite.Memory.Section = 'heap'
-var _capacity: Long = 0
 ```
 
-`_bytes` is the address of its characters, which the heap handed out (with a 0 after the last one, for C);
-`_length` is how many there are; `_capacity` is how many fit before the bytes have to grow, which only building
-text in a loop uses; and `_section` is where the compiler placed them: `'heap'`, or `'constant'` for a literal,
-whose characters are part of the program and are never counted or freed. The compiler writes the C layout of a
-`String` from these declarations, in this order, after the header every object has (its reference count and its
-class). Everything else is Spite in the same file: `length()` answers `_length`, `code_at(index)` is
-`_bytes.read_byte(position)` (the 0 after the last one is what it answers past the end), `slice` and `+` copy
-with `copy_to` and end in the constructor `String(bytes, length)`, which takes bytes the heap handed out, and
-`drop()` gives `_bytes` back to the heap when the last reference goes. The only C about a `String` is what the
-header decides: a `'constant'` text is never counted, and `text = text + piece` grows in place only when
-nothing else holds the text.
+Sixteen bytes, kept wherever the `String` is -- in a local, an attribute, a list's element -- and never an object
+of their own. `_bytes` is where its characters are, with a 0 after the last one for C, and `_length` is how many
+there are. Where the characters live is the compiler's choice ([D203](decisions.md)): text of up to 15 bytes is
+kept in those sixteen bytes themselves, so it allocates nothing and is never counted; longer text is one block the
+heap hands out, with its reference count and capacity in front of the characters; and a written text (`"hello"`)
+points at the characters the program already carries, which are never counted or freed. Everything else is Spite
+in the same file: `length()` answers `_length`, `code_at(index)` is `_bytes.read_byte(position)` (the 0 after the
+last one is what it answers past the end), `equals` and `less_than` compare with `compare_bytes`, and `slice` ends
+in `_bytes.text(length)`. What stays C is what depends on where the characters are: making text from bytes
+(`Memory.Address.text`), joining two texts (`sum`), counting a block's references, and growing text in place, which
+fills the sixteen bytes first and moves the text into a block once it passes 15 bytes -- and only when nothing else
+holds that block.
 
 `library/integer.spite` starts with the memory an `Integer` is:
 
@@ -461,7 +460,8 @@ Scalars (every numeric type, `Boolean`, an enum value) are plain values, copied.
 - **Identity vs equality.** `==` on two class instances calls `equals` if the class defines one ([Operators](functions_and_operators.md#operators--implemented));
   otherwise it compares **identity** -- are these two references the same object.
   `String` always compares by content, never by identity (sharing a `String`'s buffer is unobservable, since it is
-  immutable).
+  immutable, and so is its absence: text of up to 15 bytes has no buffer to share, each holder keeping it in its
+  own sixteen bytes, [D203](decisions.md)).
 - **`copy()`/`deep_copy()`** (names **proposed by Claude, unconfirmed**). Every non-scalar value has both:
   `copy()` is shallow -- a fresh object, its own attributes/elements the exact same references the source had
   (retained, not duplicated; a `String` field needs no special handling either way, since it is immutable).
@@ -505,8 +505,10 @@ counts live allocations with one addition per allocation and one subtraction per
 
 Every named value has a read-only `.memory`, a `Spite.Memory` (`library/spite/memory.spite`): `address`, `bytes`,
 and `section`, one of `'heap'`, `'stack'` or `'constant'`. A class instance or a list answers with its object, a
-`String` with its characters (`'constant'` for a literal, whose characters are part of the program), and a number
-held in a local with the local itself (`'stack'`). A class with an attribute of its own named `memory` answers that
+`String` with its characters (`'constant'` for a literal, whose characters are part of the program; for text made
+while the program runs, `'heap'` when it is longer than 15 bytes and lives in a block, and otherwise wherever the
+value itself is, since the characters are in it: `'stack'` in a local, `'heap'` in an attribute, [D203](decisions.md)),
+and a number held in a local with the local itself (`'stack'`). A class with an attribute of its own named `memory` answers that
 attribute instead. `.memory` is built only where a program reads it, so it costs nothing anywhere else (D152); the
 same object is where an allocator is set ([below](#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-vectort-planned)).
 
@@ -574,8 +576,10 @@ is the same whichever it makes:
   in the function's frame (exactly the size, for a literal size up to 256), uses the heap when a run-time size
   is larger, and makes the `free` a no-op for the slot. A loop body is a block like any other, so the slot is
   reused on every pass. So `Double.bits()` allocates nothing, and `Long.to_string()` and `upper_case()` of a
-  short text allocate only the `String` they return.
-- **Constant:** a `String` literal's characters are part of the program (`_section` is `'constant'`).
+  short text allocate only the `String` they return -- which is nothing when it is 15 bytes or fewer.
+- **In the value:** text of up to 15 bytes is kept in the sixteen bytes of the `String` itself ([D203](decisions.md),
+  [optimizations.md](optimizations.md#short-text-lives-inside-the-string)).
+- **Constant:** a `String` literal's characters are part of the program (its `.memory.section` is `'constant'`).
 - **Heap:** everything else.
 
 There is no way to ask for the stack by name (D98's `allocate_stack_bytes` is gone): it would be a second way to

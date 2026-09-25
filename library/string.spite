@@ -1,19 +1,5 @@
 var _bytes: Memory.Address = 0
 var _length: Long = 0
-var _section: Spite.Memory.Section = 'heap'
-var _capacity: Long = 0
-
-func String(bytes: Memory.Address, text_length: Long) {
-    bytes.write_byte(text_length, 0)
-    _bytes = bytes
-    _length = text_length
-    _capacity = text_length
-}
-
-func drop() {
-    var heap = Memory.Heap()
-    heap.free(_bytes)
-}
 
 func length(): Integer {
     return _length
@@ -42,14 +28,7 @@ func _clamped(position: Integer): Integer {
     return position
 }
 
-func sum(other: String): String {
-    var total = _length + other._length
-    var heap = Memory.Heap()
-    var bytes = heap.allocate(total + 1)
-    _bytes.copy_to(bytes, _length)
-    other._bytes.copy_to(bytes + _length, other._length)
-    return String(bytes, total)
-}
+func sum(other: String): String
 
 func equals(other: String): Boolean {
     return _length == other._length and (_bytes == other._bytes or _bytes.compare_bytes(other._bytes, _length) == 0)
@@ -69,26 +48,6 @@ func less_than(other: String): Boolean {
 
 func greater_than(other: String): Boolean {
     return other.less_than(this)
-}
-
-func _unshared(): String {
-    return _bytes.text(_length)
-}
-
-func _append_in_place(piece: String) {
-    var total = _length + piece._length
-    var heap = Memory.Heap()
-    if total > _capacity {
-        var capacity = _capacity * 2
-        if capacity < total {
-            capacity = total
-        }
-        _bytes = heap.resize(_bytes, capacity + 1)
-        _capacity = capacity
-    }
-    piece._bytes.copy_to(_bytes + _length, piece._length)
-    _bytes.write_byte(total, 0)
-    _length = total
 }
 
 func is_empty(): Boolean {

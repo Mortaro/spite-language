@@ -1,0 +1,72 @@
+var console = Console()
+var names = List<String>()
+var label = ""
+
+func ShortText() {
+    var letters = "abcdefghijklmn"
+    var fifteen = "{letters}o"
+    var sixteen = "{fifteen}p"
+    var fifteen_length = fifteen.length()
+    var sixteen_length = sixteen.length()
+    var after_fifteen = fifteen.code_at(15)
+    var after_sixteen = sixteen.code_at(16)
+    console.print(fifteen_length, sixteen_length, after_fifteen, after_sixteen)
+    console.print(fifteen == "abcdefghijklmno", sixteen == "abcdefghijklmnop", fifteen < sixteen)
+    var grown = ""
+    var index = 0
+    while index < 20 {
+        grown = "{grown}{index % 10}"
+        index = index + 1
+    }
+    var grown_length = grown.length()
+    console.print(grown, grown_length)
+    var kept = grown.slice(0, 15)
+    var before = kept
+    kept = "{kept}!"
+    console.print(before, kept)
+    var twice = "ab"
+    twice = twice + twice
+    twice = twice + twice + twice
+    console.print(twice)
+    names.append(fifteen)
+    names.append(sixteen)
+    var shouted = "x".upper_case()
+    names.append(shouted)
+    label = fifteen.slice(0, 3)
+    var joined = names.join(",")
+    console.print(joined, label)
+    var counts = Dictionary<Integer>()
+    counts["{label}1"] = 1
+    counts[sixteen] = 2
+    var short_count = counts["abc1"]
+    var long_count = counts["abcdefghijklmnop"]
+    if short_count and long_count {
+        console.print(short_count, long_count)
+    }
+    var nothing_longer = longer_than(20)
+    var some = longer_than(15)
+    if nothing_longer {
+        console.print("a name longer than 20")
+    }
+    if some {
+        console.print("longer than 15:", some)
+    }
+    var short_memory = before.memory
+    var long_memory = grown.memory
+    var written = "written"
+    var written_memory = written.memory
+    console.print(short_memory.section, long_memory.section, written_memory.section)
+    console.debug(fifteen, sixteen)
+}
+
+func longer_than(limit: Integer): String? {
+    var index = 0
+    while index < names.count() {
+        var name = names[index]
+        if name.length() > limit {
+            return name
+        }
+        index = index + 1
+    }
+    return null
+}

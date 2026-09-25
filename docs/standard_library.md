@@ -51,7 +51,9 @@ program has no reason to call.
 
 ## `String`
 
-Immutable and reference counted. A value is placed inside written text, `"hello {name}"`, and two values join
+Immutable. Text of up to 15 bytes is kept inside the `String` value itself and allocates nothing; longer text is
+one reference-counted block ([optimizations.md](optimizations.md#short-text-lives-inside-the-string)), and none of
+it changes what a program means. A value is placed inside written text, `"hello {name}"`, and two values join
 with `+` ([values_and_types.md](values_and_types.md#string)). `==`, `!=`, `<` and `>` compare by content.
 
 No member of a `String` can fail: an index past the end answers `""` or `0`, a range is clamped to the text, a
@@ -533,15 +535,17 @@ says what is still the compiler's).
 
 #### String  **[implemented]**
 
-An immutable value with a length (not a bare `char*`). A literal is static and never allocates; every other
-`String` owns one buffer, freed once by its owner. **Its storage is Spite** (D108; the attribute names and the
-constructor proposed by Claude, unconfirmed): `library/string.spite` declares `_bytes: Memory.Address` (the
-characters, from `Memory.Heap`, with a 0 after the last), `_length: Long`, `_section: Spite.Memory.Section`
-(`'heap'`, or `'constant'` for a literal) and `_capacity: Long`, the compiler writes the C layout from them, and
-every member, `drop()` (which frees `_bytes`) and the in-place append are Spite functions reading them
-([memory.md](memory.md#where-string-and-integer-keep-their-memory)). `String(bytes, length)` makes a `String` that
-owns `length` bytes at `bytes`, which `heap.allocate` handed out with room for one more; it is what an address's
-`text` and `sum` end in, and anything that fills a buffer itself can use it. The right side of `+` casts toward
+An immutable value with a length (not a bare `char*`), sixteen bytes wherever it is kept. A literal is static and
+never allocates; other text of up to 15 bytes is kept in those sixteen bytes and never allocates either; longer
+text is one block on the heap, counted and freed with its last holder (D203; the size and the layout proposed by
+Claude, unconfirmed). **Its storage is Spite** (D108; the attribute names proposed by Claude, unconfirmed):
+`library/string.spite` declares `_bytes: Memory.Address` (where the characters are, with a 0 after the last) and
+`_length: Long`, and nothing else -- the compiler lays the sixteen bytes out and reads them through the form the
+text takes -- and every member but two is a Spite function reading them
+([memory.md](memory.md#where-string-and-integer-keep-their-memory)). The two the compiler supplies are the ones
+that decide where characters go: `sum` (`+`), and `Memory.Address.text(length)`, which is how every `String` is
+made from bytes -- `slice`, `terminated_text()` and anything that fills a buffer itself end in it. The right side
+of `+` casts toward
 `String` (every numeric type, `Boolean`, and enum all format to text -- see
 [Numeric types](values_and_types.md#numeric-types--implemented-provisional) for `Float`/`Double`'s
 shortest-round-trip printing); assigning a `String` to any numeric variable parses it, defaulting to `0`/`0.0` on
@@ -552,7 +556,8 @@ failure. `==`/`!=`/`<`/`>` compare by content, and
 **Building text in a loop is linear** (proposed by Claude, unconfirmed; D36's hidden optimisation). `text = text +
 piece`, `text = "{text}{piece}"` and any longer join that starts with the variable it is stored back into append
 to that text in place when nothing else holds it, and otherwise copy it once with room to grow, so a `String`
-shared by two names never changes under the other one. When it applies and what it saves is
+shared by two names never changes under the other one. Short text grows inside its sixteen bytes and moves into a
+block once it passes 15 bytes. When it applies and what it saves is
 [optimizations.md](optimizations.md#appending-to-text-in-place)'s; `conformance/stage6/text_building` pins the
 allocation counts.
 
@@ -729,15 +734,16 @@ the reads, writes and atomics at an address, as language primitives each backend
    (`bootstrap/source/generation/prelude.spite`) -- `Console`'s `_write_output`, `_write_error` and `flush`
    (`fwrite`, `fflush`); `Memory.Heap`'s `allocate`, `resize`, `free` and `live_allocations` (the C library's
    `malloc`, or the `--debug-memory` table) and `Memory.Address`'s `copy_to` and `compare_bytes` (`memmove`,
-   `memcmp`); `TypedMemory<T>`; the number classes' bit operations; `DynamicLibrary`'s opening, closing and
+   `memcmp`), `text(length)` and `String.sum` (which decide whether text fits inside the `String`, D203);
+   `TypedMemory<T>`; the number classes' bit operations; `DynamicLibrary`'s opening, closing and
    symbol lookup (D82); the entry points and frames of `Concurrent`, `ThreadPool` and `Scheduler`; `HotReload`'s
    compiler hand-off; and `Spite.Attribute`'s and `Spite.Function`'s dispatch. **Not built (D147, D178):** each
    of these as Spite -- allocation from the operating system's pages, copying and comparing through
    `DynamicLibrary` -- so that no Spite source needs C.
 3. **The object header**: retain, release and the class id are code the compiler emits, not functions anyone
    calls. For `String` that includes the two decisions only the header can make: a `'constant'` text is never
-   counted, and `text = text + piece` grows the text in place only when its count is one (the compiler asks, then
-   calls `String._unshared()` and `String._append_in_place(piece)`, which are Spite).
+   counted, and `text = text + piece` grows the text in place only when its block's count is one, or inside the
+   `String` itself while it is 15 bytes or fewer (D203).
 4. **Entry and exit**: `main`, and text literals, which are static data in the `'constant'` section, as symbols
    are (D70).
 
