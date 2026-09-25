@@ -1,2 +1,6 @@
 var text = "fragile"
 var copies = 2
+
+func summary(): String {
+    return "{copies} copies of {text}"
+}

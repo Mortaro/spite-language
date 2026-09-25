@@ -24,7 +24,7 @@ func check() {
 
 func find(name: String): Creature? {
     if name == "rat" {
-        return Creature(name)
+        return Creature()
     }
     return null
 }

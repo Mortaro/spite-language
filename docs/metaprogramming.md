@@ -114,6 +114,10 @@ member templates over `member: Symbol<$element_type>`, so `item.attributes[membe
 ([standard_library.md](collections.md#how-the-member-templates-are-written)) -- and the standard library's
 [`Json`](json.md) writes and reads any class over `attribute: Symbol<$value_type>`.
 
+Reading `label.attributes[attribute]` is a read of every attribute the walk reaches, so it keeps them from being
+unused ([style.md](style.md#nothing-unused)). `attribute.name` and `attribute.class` are not: they describe the
+attribute without reading it, so an attribute that only such a walk looks at is an error.
+
 The class inside the `Symbol` may also be a `type`. The template then ranges over the attributes the type names,
 and over the functions it requires that take no arguments; `row.attributes[attribute]` reads or writes that member
 of whatever class the value really is, and the plural calls the template once per attribute the type lists, in
@@ -475,7 +479,9 @@ func run() {
 }
 ```
 ```gdscript title=folder_walk/tools/broom.spite
-var bristles = 40
+func bristles(): Int {
+    return 40
+}
 ```
 ```gdscript title=folder_walk/folder_walk.spite entry
 type Runnable {

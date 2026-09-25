@@ -1,7 +1,5 @@
 var name = ""
-var hours = 0
 
-func Departure(leaving: String, stayed: Int) {
+func Departure(leaving: String) {
     name = leaving
-    hours = stayed
 }

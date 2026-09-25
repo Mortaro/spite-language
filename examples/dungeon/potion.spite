@@ -1,7 +1,0 @@
-var name = "Potion"
-var healing = 0
-
-func Potion(new_name: String, new_healing: Int) {
-    name = new_name
-    healing = new_healing
-}

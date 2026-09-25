@@ -12,7 +12,7 @@ var console = Console()
 
 func Battle() {
     var enemies = List<Enemy>()
-    enemies.append(Player(10, "knight"))
+    enemies.append(Player(10))
     enemies.append(Monster(6))
     var index = 0
     while index < enemies.count() {
@@ -21,12 +21,12 @@ func Battle() {
         console.print("health", enemy.health, "alive", enemy_is_alive)
         index = index + 1
     }
-    var duelist: Enemy = Player(10, "knight")
+    var duelist: Enemy = Player(10)
     switch duelist {
         _: duelist.hurt(3)
     }
     console.print("duelist health", duelist.health)
-    var mage = Player(5, "mage")
+    var mage = Player(5)
     var hero_loadout: Loadout = mage
     console.print("hero loadout", hero_loadout.weapon, hero_loadout.power)
     var beast = Monster(8)

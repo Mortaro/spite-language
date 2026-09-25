@@ -4,7 +4,6 @@ var return_type: Syntax.Types.Type? = null
 var body = List<Statement>()
 var has_body = true
 var source_path = ""
-var overrides_declaration = false
 var line = 0
 
 func FunctionDeclaration(
