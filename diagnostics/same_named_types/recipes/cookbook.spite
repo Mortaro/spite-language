@@ -1,0 +1,18 @@
+singleton
+
+type Buildable {
+    build()
+}
+
+func take(more: List<Buildable>) {
+    more.first().build()
+}
+
+func take_named(named: Dictionary<Buildable>) {
+    crash named["soup"]
+    named["soup"].build()
+}
+
+func take_one(recipe: Buildable) {
+    recipe.build()
+}
