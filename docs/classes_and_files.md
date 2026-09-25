@@ -538,7 +538,7 @@ var heap = Memory.Heap()
   file" (`diagnostics/local_singleton`). The one exception is a value class such as `String`, which has no
   attribute to spare and binds it as a local `var` in the function that needs it. As built (proposed by Claude,
   unconfirmed): the exception covers every class the compiler treats as a value (`String` and the numbers) and
-  `List` and `Dictionary`, since an attribute there would be carried by every list; and a generic singleton whose
+  `List`, `Vector` and `Dictionary`, since an attribute there would be carried by every list; and a generic singleton whose
   codegen values come from the function's own codegen or Symbol (`Query<argument.class>()`,
   `Debug<$value_type.element_type>()` inside a codegen `if`) stays a local, since no attribute can name that type.
   The singleton is then made when the object that binds it is, not when the function first runs.

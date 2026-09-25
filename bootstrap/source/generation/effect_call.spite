@@ -11,6 +11,18 @@ func EffectCall(called_class: String, called: String, argument_keys: List<String
 }
 
 func translated(key: String): String {
+    if key.starts_with("grow:parameter:") and not passes_parameters {
+        var key_length = key.length()
+        var parameter_key = key.slice(5, key_length)
+        var passed = translated(parameter_key)
+        assert not passed.is_empty()
+        var passed_length = passed.length()
+        if passed.starts_with("shrink:") {
+            return "grow:{passed.slice(7, passed_length)}"
+        }
+        assert passed.starts_with("parameter:")
+        return "grow:{passed}"
+    }
     if passes_parameters or not key.starts_with("parameter:") {
         return key
     }

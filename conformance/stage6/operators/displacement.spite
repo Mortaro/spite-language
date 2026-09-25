@@ -1,0 +1,58 @@
+var across = 0
+var up = 0
+
+func Displacement(starting_across: Integer, starting_up: Integer) {
+    across = starting_across
+    up = starting_up
+}
+
+func sum(other: Displacement): Displacement {
+    return Displacement(across + other.across, up + other.up)
+}
+
+func subtract(other: Displacement): Displacement {
+    return Displacement(across - other.across, up - other.up)
+}
+
+func multiply(factor: Integer): Displacement {
+    return Displacement(across * factor, up * factor)
+}
+
+func negate(): Displacement {
+    return Displacement(0 - across, 0 - up)
+}
+
+func equals(other: Displacement): Boolean {
+    return across == other.across and up == other.up
+}
+
+func less_than(other: Displacement): Boolean {
+    return across + up < other.across + other.up
+}
+
+func greater_than(other: Displacement): Boolean {
+    return across + up > other.across + other.up
+}
+
+func get_at(index: Integer): Integer {
+    if index == 0 {
+        return across
+    }
+    if index == 1 {
+        return up
+    }
+    return 0 - 1
+}
+
+func set_at(index: Integer, value: Integer) {
+    if index == 0 {
+        across = value
+    }
+    if index == 1 {
+        up = value
+    }
+}
+
+func describe(): String {
+    return "({across}, {up})"
+}

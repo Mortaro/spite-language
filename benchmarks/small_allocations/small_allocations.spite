@@ -1,11 +1,11 @@
 var console = Console()
 
 func SmallAllocations() {
-    var sum = Vector(0.0, 0.0)
-    var kept = List<Vector>()
+    var sum = Displacement(0.0, 0.0)
+    var kept = List<Displacement>()
     var index = 0
     while index < 3000000 {
-        var step = Vector(1.0, 0.5)
+        var step = Displacement(1.0, 0.5)
         var scaled_step = step.scaled(0.001)
         var moved = sum.plus(scaled_step)
         sum = moved

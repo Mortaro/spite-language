@@ -463,7 +463,7 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   - The rule is the same for every call, a constructor included: `var token = Token(kind, Text(x))` is legal
     (`Text(x)` is one level deep), `var token = Token(kind, source.slice(a, b))` is not.
   - Anything inside an argument counts, not only the argument itself: `counts.append(count_words(text) + 1)`,
-    `print(names[index_of(name)])` and `print(first == Vector(1, 2))` put a call inside an argument, and only the
+    `print(names[index_of(name)])` and `print(first == Displacement(1, 2))` put a call inside an argument, and only the
     last is legal (the one constructor level may sit inside an operator, a list or an index).
   - A method called on a call's result is not an argument: `source.slice(0, 2).upper_case()` is fine on its own,
     and an error only when it is itself passed to something.

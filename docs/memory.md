@@ -74,6 +74,15 @@ independent label b
 
 `deep_copy()` does not follow a cycle safely: see [the rules](#memory--implemented).
 
+## A `Vector` lends its items
+
+A `Vector<T>` is the one place a value is not a counted reference: it holds its items inline, one block of their
+attributes with no header ([collections.md](collections.md#vectort-items-inline)), and `velocities[index]` is the
+item inside that block, **borrowed**. Writing its attributes writes the vector's item; taking it and letting it go
+costs nothing. In exchange the compiler never lets it be kept -- in an attribute, a list, a returned value, a
+function value, or past a line that may grow or shrink the vector -- and each of those errors names `copy()`,
+which makes an independent object ([the rules](#borrowed-items-of-a-vectort--implemented)).
+
 ## `drop()` runs once, right before the object is freed
 
 A class may define a zero-argument `func drop() { ... }` for cleanup (closing a handle, clearing a
@@ -427,12 +436,14 @@ an arena holds the arena, so the arena cannot go while anything made in it is al
   next. To move an object that was already used, copy it and set the copy's allocator, as `kept` does below.
 - **Only an object.** A number or a `String` is placed by the compiler, not by an allocator.
 - **A list holds references** ([D154](decisions.md)): giving a `List` an allocator places the list itself there,
-  and each element lives wherever it was made.
+  and each element lives wherever it was made. A `Vector` holds its items inline
+  ([collections.md](collections.md#vectort-items-inline)); giving one an allocator places the vector object, and
+  its block of items stays on the heap for now.
 - **It costs nothing where it is not used** ([D177](decisions.md)): only a class some line gives an allocator
   grows, by sixteen bytes per object.
 
 The exact rules, the errors and what is not built yet are in
-[the rules](#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-vectort-planned).
+[the rules](#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-a-vectors-block-planned).
 
 ```gdscript title=arena_particles/particle.spite
 var name = ""
@@ -563,7 +574,7 @@ and `section`, one of `'heap'`, `'stack'` or `'constant'`. A class instance or a
 `String` with its characters (`'constant'` for a literal, whose characters are part of the program), and a number
 held in a local with the local itself (`'stack'`). A class with an attribute of its own named `memory` answers that
 attribute instead. `.memory` is built only where a program reads it, so it costs nothing anywhere else (D152); the
-same object is where an allocator is set ([below](#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-vectort-planned)).
+same object is where an allocator is set ([below](#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-a-vectors-block-planned)).
 
 #### The floor: `Memory.Address`, `Memory.Heap` and `TypedMemory<T>`  **[implemented; OS pages planned]**
 
@@ -639,7 +650,7 @@ layout efficient stays its author's -- one allocation holding many values at off
 `TypedMemory<$value_type>` for values of any type, `resize` to grow. Placement runs entirely while compiling and
 costs nothing at run time (D177); a frame slot is cheaper than the heap call it replaces.
 
-#### Allocators: `.memory.allocator`  **[implemented for objects; a list's buffer and `Vector<T>` planned]**
+#### Allocators: `.memory.allocator`  **[implemented for objects; a list's buffer and a vector's block planned]**
 
 D150-D154 (decided by Mortaro): types never name an allocator; an **object** does, through its tree-shakeable
 `.memory`, on the line right after it is made -- `var scratch = List<Integer>()` then `scratch.memory.allocator =
@@ -676,5 +687,62 @@ built (2026-09-25; the readings marked are proposed by Claude, unconfirmed):
 - **Lists** (D154): a `List` given an allocator is made there itself; each element lives wherever it was made,
   since a list holds references.
 - **Not built:** D154's list buffer following its list's allocator (a list placed in an arena keeps its buffer of
-  references on the heap), `Vector<T>` with its items inline, `Memory.Frame` (`mortaros_missing_decisions.md`
+  references on the heap), and likewise a `Vector<T>`'s block of items (built, with its items inline, but its block
+  is on the heap wherever the vector object is: item 175's proposal for a class reading its own allocator is still
+  open), `Memory.Frame` (`mortaros_missing_decisions.md`
   item 173), `reset()` on an arena, and reading `.memory.allocator` back.
+
+#### Borrowed items of a `Vector<T>`  **[implemented]**
+
+D204 (decided by Mortaro, answering `mortaros_missing_decisions.md` item 182): **reading an item of a
+`Vector<T>` gives a borrowed reference into the vector**, and the compiler proves at compile time that it is never
+kept past its use. What is built (the error texts and the readings marked are proposed by Claude, unconfirmed):
+
+- **Layout.** A vector of a class keeps one block of memory: each item is the class's attributes laid out as its
+  object would lay them out, with no header, no class and no reference count, one after another
+  (`InlineMemory<T>`, `library/inline_memory.spite`, whose functions the compiler writes per item type). A vector
+  of numbers, `Boolean`s, enums or `String`s is a plain array of them, like a list's buffer.
+- **A borrowed item** is what `vector[index]`, `vector.get_at(index)` and the item a member template visits are.
+  It is the address of the item inside the block, and reading or writing its attributes (`first.down = 2.0`,
+  `velocities[0].across`, `first.integrate()`) reads and writes the vector's own item. It is never retained or
+  released: it costs nothing to take and nothing to let go.
+- **Where it may be named.** `var first = velocities[index]` names one, and the name is borrowed for the rest of
+  its block. Each of these is an error, named for where the item was going, and each names `copy()`, which makes an
+  independent object from it (the generated copy reads only the attributes):
+  - kept in an attribute: `'stored' is borrowed from 'velocities' and cannot be kept in the attribute 'kept':
+    keep 'stored.copy()', an independent object`;
+  - put in a list (`append`, `prepend`, `insert`, `set_at` or `list[index] = `): `... cannot be put in a list: a
+    list keeps 'stored.copy()', an independent object`;
+  - returned: `'velocities[0]' is borrowed from 'velocities' and cannot be returned: return 'velocities[0].copy()',
+    an independent object`;
+  - made into a function value: `'stored.integrate' would keep 'stored', which is borrowed from 'velocities', in a
+    function value: make it from a copy, 'var kept = stored.copy()' and then 'kept.integrate'`;
+  - passed as an argument, since a parameter is a reference the callee may keep: `'passed' is borrowed from
+    'velocities' and cannot be passed as an argument: pass 'passed.copy()', an independent object, or the
+    attributes the function needs`;
+  - given a second name (`var alias = stored`): `'stored' is borrowed from 'velocities', and a borrowed item has
+    one name: use 'stored' itself instead of 'alias', or keep 'stored.copy()', an independent object`;
+  - assigned again (`first = velocities[1]`): `'first' is borrowed from 'velocities' and is not assigned again:
+    read another item with a new 'var', such as 'var next = velocities[index]'`.
+- **Not past a change of size.** Growing a vector may move its block, and removing an item moves the ones after
+  it, so a borrowed name is not read after a statement that may change its vector's size: `append`, `prepend`,
+  `insert`, `remove_at`, `remove_first`, `remove_last` or `clear` on it, assigning the vector or anything on its
+  path, or a call that may do one of those. A call is followed with D169's call effects
+  (`generation/call_effects.spite`): a function that appends to a vector records a `grow:` effect on it as a
+  removal records `shrink:`, through its callers and through the parameters it was passed, and a call through a
+  function value may do anything. A statement in a loop that may change the size ends the borrow for the whole
+  loop. The error is on the statement that changes it: `'again' is borrowed from 'velocities', and 'spawn()' on
+  line 13 may move the items of 'velocities', so 'again' is not read after it: read 'velocities[index]' again after
+  that line, or keep 'again.copy()', an independent object`. A vector named by a local variable is taken to change
+  only through the calls it is passed to and through calls that resize an attribute holding a `Vector`.
+- **Inside the item's class.** A function of the item's class runs on a borrowed item when a template or a call
+  reaches it, so it may not use `this` as a value (the item-class error in
+  [collections.md's rules](collections.md#vectort--implemented)).
+- **What stays an object.** `append(value)` and `set_at(index, value)` copy the value's attributes in, counting
+  each `String` attribute once more, and the value stays an ordinary object; `remove_at`, `clear` and dropping the
+  vector release the `String`s of the items they remove.
+- **Run-time cost (D177).** None beyond the block: every rule above is proven while compiling, a borrowed item is
+  one address, and a program that makes no `Vector` carries none of `library/vector.spite` or `InlineMemory`.
+  Measured in `benchmarks/vector_items`.
+
+`diagnostics/vector_borrows`, `diagnostics/vector_items`, `conformance/stage6/vector_items`.

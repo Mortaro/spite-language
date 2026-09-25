@@ -1,17 +1,18 @@
 var console = Console()
 
 func Operators() {
-    var first = Vector(1, 2)
-    var second = Vector(3, 4)
+    var first = Displacement(1, 2)
+    var second = Displacement(3, 4)
     var total = first + second
     var total_description = total.describe()
     var difference_description = (first - second).describe()
     var scaled_description = (first * 3).describe()
     console.print(total_description, difference_description, scaled_description)
-    var sum_description = (first + second + Vector(10, 10)).describe()
+    var sum_description = (first + second + Displacement(10, 10)).describe()
     var negated_description = (-first).describe()
     console.print(sum_description, negated_description)
-    console.print(first == Vector(1, 2), first != second, first < second, first >= second, first <= Vector(1, 2))
+    var equal_to_first = Displacement(1, 2)
+    console.print(first == equal_to_first, first != second, first < second, first >= second, first <= equal_to_first)
     console.print(total[0], total[1], total[7])
     total[0] = 40
     total[1] = total[0] + 2

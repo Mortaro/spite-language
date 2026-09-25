@@ -1,0 +1,19 @@
+var across = 0.0
+var down = 0.0
+var name = ""
+var moving = false
+
+func Velocity(new_across: Float, new_down: Float, new_name: String) {
+    across = new_across
+    down = new_down
+    name = new_name
+}
+
+func integrate() {
+    across = across + 1.0
+    moving = true
+}
+
+func speed(): Float {
+    return across + down
+}

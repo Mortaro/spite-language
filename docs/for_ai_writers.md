@@ -155,6 +155,15 @@ func is_alive(): Boolean {
   key). A list or a dictionary is not printable: `console.print(list)` is `'List<Integer>' does not fit type
   'Printable'`; print `list.join(", ")`, or `console.debug(list)`.
 - A chain of templates, `teams.filter_active().map_lead().sum_age()`, runs as one loop with no list in between.
+- `Vector<T>` holds its items inline for fast walks (`append`, `vector[index]`, `set_at`, `remove_at`, `count`,
+  `clear`, `copy`, and `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_`, `parallel_each_` templates).
+  An item is a number, `Boolean`, enum, `String`, or a class of only those (a `List` attribute is an error naming
+  it). `var velocity = velocities[index]` is the item itself, borrowed: `velocity.across = 3.0` writes the vector.
+  A borrowed item is used through its members only and never kept: storing it in an attribute or a list,
+  returning it, passing it as an argument, `velocity.integrate` as a function value, `var alias = velocity`, and
+  reading it after a line that may resize the vector (`append`, `remove_at`, `clear`, or a call that may do one)
+  are errors, each naming the fix: `velocity.copy()`, an independent object, or reading `velocities[index]` again.
+  A class kept in a `Vector` may not use `this` as a value, nor have a `drop()`.
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
   built or planned, and what it could ever change that you see, is in [optimizations.md](optimizations.md).
