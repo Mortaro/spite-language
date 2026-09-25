@@ -843,6 +843,37 @@ compiler's nine nested decisions became six named functions (`talk`, `text_compa
 `report_misplaced_rest_case`, `check_asserted_condition`, `parse_dotted_segment`) and three flattened chains in
 the tree shaker and the quiet type parser (`diagnostics/nested_if_else`). **[implemented]**
 
+**A `while` that only walks every element of a list, doing what a member template does, is a compile error naming
+the template** (D171, decided by Mortaro, 2026-09-25); `while` stays for loops over state. The shape is exact
+(proposed by Claude, unconfirmed): the statement before the loop is `var counter = 0`; the condition is
+`counter < list.count()` with `list` a name or a path of type `List<T>` and `T` a class; the last statement is
+`counter = counter + 1`; the counter is read nowhere else in the body and not at all after the loop; and the
+rest of the body reads `list[counter]` -- directly, or through one `var item = list[counter]` first -- and is
+exactly one of these, with `m` and `n` members of `T` that are not private (an attribute or a function taking
+nothing):
+
+| Body | The error names |
+|---|---|
+| `item.m()` | `list.each_m()` |
+| `result.append(item.m)`, or `var value = item.m` then `result.append(value)` | `var result = list.map_m()` |
+| `result.append(item)` | `var result = list.copy()` |
+| `if item.m { result.append(item) }` | `var result = list.filter_m()` |
+| `if item.m { result.append(item.n) }` | `var result = list.filter_m().map_n()` |
+| `if item.m { total = total + 1 }` | `var total = list.count_m()` |
+| `total = total + item.m` | `var total = list.sum_m()` |
+| `if item.m == value { return item }`, the loop followed by `return null` | `return list.find_by_m(value)` |
+| `if item.m { return true }`, the loop followed by `return false` | `return list.any_m()` |
+| `if not item.m { return false }`, the loop followed by `return true` | `return list.all_m()` |
+
+`result` must be a local declared `List<...>()` earlier in the same block and `total` one declared `0`, neither
+mentioned between its declaration and the loop, and `value` may not mention the counter or the element. The
+message reads `this 'while' walks every element of 'items' only to add up 'price': write 'var total =
+items.sum_price()'` (`diagnostics/template_walk`). Loops that pass extra arguments, need the index, walk two
+lists, scan text, stop early any other way or walk state are not touched. A function value passed to
+`each`/`map`/`filter` (D148) is not built yet, so the rule names member templates only; D113's rule for a
+function of the caller (section 8) still names `list.each_f()`. Only the compiler's `hardcoded_setting` had the
+shape; it is `find_by_name` now. **[implemented]**
+
 ## 7. Types
 
 ### Enums  **[implemented]**
@@ -3602,7 +3633,8 @@ payloads to JSON on demand, since the compiler knows the schema.
     already says everything: the `...` means "the caller writes these one by one", the list is the type the
     function receives. For `Console.print`, which takes anything, the element type is a `type` every printable
     value satisfies -- `...values: List<Printable>` -- so the language needs no new class, only `...`.
-15. **Whether `while` can go** (Mortaro, 2026-09-23: investigate every use; if it can be rewritten with
+15. **(Answered by D171: it stays, and a `while` doing only what a member template does is an error. Built
+    2026-09-25, section 6.)** **Whether `while` can go** (Mortaro, 2026-09-23: investigate every use; if it can be rewritten with
     metaprogramming, make it an error). Measured on 2026-09-23 over the compiler, `library/`, `scripts/`, the
     tests, the examples and the corpus: 259 `while` loops, and 199 of them are the same shape -- an index from 0
     to `list.count()`, reading `list[index]`. Every one of those is a member template (`each_`, `map_`,
@@ -4037,3 +4069,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | **D189** (delegated by Mortaro: "you will be the one debugging, do whatever you think is best for AI at this one"; the design is Claude's): **an `assert` in `library/` never enters the D25 crash trace.** The trace exists to explain how *the program* reached a crash: which of its own assumptions failed first. The standard library's asserts are routine control flow (probing a `Dictionary`, matching text, reading past an end), fire thousands of times in a long-running program, and crowd out the program's own entries in the 32-entry ring, so an AI reading a crash sees library noise instead of the cause. The compiler therefore writes no ring entry for an `assert` site whose file is in `library/`: it is filtered at compile time, so it costs nothing at run time (D177) and a library guard is exactly as cheap as an `if`. The program's own folder and every `load`ed package keep full recording. A crash *inside* the library still reports its own site and the call chain, so nothing about the crash itself is lost; only the library's passing-through guards are left out. This settles D106-as-built's open question (skip the library, rather than rewriting each library guard as an expression). |
 | 2026-09-25 | **D190** (decided by Mortaro, revising D128's `format` output): **formatting a file never needs it to compile, and compiling always formats first -- there is no way to turn it off.** "we should be able to use --format (or --lint whichever makes more sense) to format files without having to fix all the code to compile, but we should never be able to compile without it formating the code first". `spite format <file-or-folder>` (already built: it needs a file to parse, not to compile) stays the name, since formatting is what it does. `--format=false` and `var format = false` in `build.spite` are removed: every compile formats the program's own files (the entry folder and every `load`ed root, not `library/`) before anything else, and a file the formatter refuses (D55's empty line, a failed safety check) is still left alone with its reason, which is an error in the compile it belongs to rather than a skipped step. Test inputs that must stay unformatted (`diagnostics/`) are compiled from a copy by `check.sh`, never by a flag. |
 | 2026-09-25 | (implements D170; the readings proposed by Claude, unconfirmed) **An `if`/`else` directly inside a branch of another `if`/`else` is an error** naming a function or a `switch`. An `else if` link counts as a branch of its chain; an `if` without an `else`, and an `if`/`else` inside a `while` or `switch` inside the branch, are not counted. The message names a `switch` only for unions, since `switch` does not take an enum yet. Checked on every `if` the compiler generates; the compiler's nine cases became six named functions and three flat chains. Section 6, `diagnostics/nested_if_else`, `docs/control_flow.md`. |
+| 2026-09-25 | (implements D171; the exact shape proposed by Claude, unconfirmed) **A `while` that only walks every element of a list doing what a member template does is an error naming the template.** Counter declared `0` right before the loop, condition `counter < list.count()` over a `List` of a class, `counter = counter + 1` last and the counter read nowhere else nor after the loop; the body calls, collects (`map_`, `copy()`), keeps (`filter_`, `filter_().map_()`), counts, adds up, finds by a member (`find_by_`) or answers `any_`/`all_`, the result list or total declared empty or `0` earlier in the block. Checked on every statement list the compiler generates. Function values for `each`/`map`/`filter` (D148) are not built, so only member templates are named. Section 6, `diagnostics/template_walk`, `docs/collections.md`. |

@@ -218,6 +218,40 @@ func TemplateMistake() {
 but 'count_' needs it to return Bool (to add up a numeric member use 'sum_stars')
 ```
 
+**A `while` that only does what a template does is an error naming the template**
+([D171](../manual.md#decision-log)). The shape is exact: a counter declared `0` just before the loop, the
+condition `counter < list.count()`, the last statement `counter = counter + 1` and the counter read nowhere
+else, and a body that reads `list[counter]` -- directly or through one `var` -- and does only one of these with a
+member of the element: calls it, appends it (or the element) to a list declared empty before the loop, keeps the
+elements where it is true, counts them, adds it up into a number that starts at `0`, or returns the first element
+whose member equals a value (then `null`), or `true` when any is true (then `false`). Loops that need the index,
+pass more than the element, stop early any other way, or walk state keep their `while`.
+
+```gdscript title=template_loop_error/item.spite
+var price = 0
+
+func Item(item_price: Int) {
+    price = item_price
+}
+```
+```gdscript title=template_loop_error/template_loop_error.spite entry error
+var console = Console()
+
+func TemplateLoopError() {
+    var items = [Item(3), Item(5)]
+    var total = 0
+    var index = 0
+    while index < items.count() {
+        total = total + items[index].price
+        index = index + 1
+    }
+    console.print(total)
+}
+```
+```diagnostic
+this 'while' walks every element of 'items' only to add up 'price': write 'var total = items.sum_price()'
+```
+
 ## A function of yours for each element
 
 The member a template names can also be a function of the class the call is written in, when it takes the

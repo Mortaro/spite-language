@@ -134,6 +134,10 @@ func ForRejected() {
 Spite only has 'while' loops
 ```
 
+A loop that only does what a [member template](collections.md#member-templates-loops-you-do-not-write) does
+-- calling, collecting, keeping, counting, adding up or finding a member of each element -- is an error naming
+the template ([D171](../manual.md#decision-log)).
+
 When you do need to walk a list by hand, index it. The loop's condition `index < numbers.count()` proves
 `numbers[index]` inside the body, so the read needs no narrowing:
 
