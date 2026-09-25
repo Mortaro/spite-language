@@ -44,12 +44,13 @@ function with a visible effect can show, no optimisation changes what a program 
 | [Concurrency machinery only where it is used](#concurrency-machinery-only-where-it-is-used) | built | every, decided per program | nothing |
 | [The thread pool only where a `Parallel` is made](#the-thread-pool-only-where-a-parallel-is-made) | built | every, decided per program | nothing until the first `Parallel` |
 | [Singletons a `Parallel` reaches take a lock](#singletons-a-parallel-reaches-take-a-lock) | built (the fallback) | every, decided per program | an uncontended lock per call, only with `Parallel` |
+| [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | built: nothing, atomics, one-thread; planned: the rest | every, decided per program | no lock where one is not needed |
 | [REPL, live reload and debug machinery only in those builds](#repl-live-reload-and-debug-machinery-only-in-those-builds) | built | the builds that ask for it | nothing in an ordinary build |
 | [Smaller ones](#smaller-ones) | built | every | nothing |
 | [Reading an address is one machine operation](#reading-an-address-is-one-machine-operation) | built | every | nothing |
 | [An allocator set after construction is where the object is made](#an-allocator-set-after-construction-is-where-the-object-is-made) | built | every | the arena's blocks are the allocations; sixteen bytes more per object of a class given an allocator |
 | [Proofs that survive a call](#proofs-that-survive-a-call) | built | every | a proof after a call that may change it is written again |
-| [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | planned (the lock fallback is built) | | |
+| [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | planned | | |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
@@ -60,9 +61,26 @@ function with a visible effect can show, no optimisation changes what a program 
 
 **What it does.** After the program is generated, the compiler keeps only the C that `main` can reach: every
 function nothing calls, from your classes, `library/` or the compiler's own prelude, is dropped along with its
-prototype (`bootstrap/source/generation/tree_shaker.spite`). A small program's C goes from about 5 800 lines to
-about 2 000. The compiler does this itself rather than leaving dead code for the C compiler to find, so it holds
-whichever C compiler you bring.
+prototype (`bootstrap/source/generation/tree_shaker.spite`). So is every class nothing reachable uses: its
+`struct` and the `typedef` that names it, its `___allocate`, `___init`, `___default`, `___retain`, `___release`
+and `_copy`, its singleton slot and that slot's lock, its reflection class object and the lines in `main` that
+would free that object at exit, and every text literal, static table and prototype only dropped code named. A
+program that never makes a `Watcher`, `Socket`, `Process`, `HotReload`, `ThreadPool` or `Scheduler` has none of
+their C. The compiler does this itself rather than leaving dead code for the C compiler to find, so it holds
+whichever C compiler you bring -- and a C compiler cannot find most of it anyway, since a function it is not told
+is private has to stay in the executable.
+
+Measured with `--c-source`, before and after classes were shaken too (the executable is `clang -O2` on Windows):
+
+| Program | C lines | C bytes | `struct`s | Executable |
+|---|---|---|---|---|
+| `examples/hello` | 5 130 → 1 332 | 233 588 → 62 732 | 75 → 10 | 192 000 → 158 208 |
+| `examples/dungeon` | 5 958 → 2 348 | 268 925 → 101 165 | 80 → 21 | 207 360 → 173 568 |
+| `conformance/stage3/interpolation` | 5 222 → 1 497 | 241 343 → 72 403 | 76 → 13 | 195 072 → 162 304 |
+| `conformance/stage6/parallel_each` | 5 990 → 2 972 | 277 303 → 133 127 | 78 → 34 | 211 968 → 184 320 |
+| `conformance/stage6/singleton_guard` | 6 392 → 3 407 | 294 742 → 150 397 | 82 → 40 | 219 136 → 190 464 |
+
+`examples/hello --development` is 14 885 lines both before and after: an inspectable build keeps everything.
 
 **When.** Production builds only. An inspectable build -- `--repl`, `--repl-port`, `--hot-reload` or
 `--development` -- keeps everything, so live reload has every function to swap and the REPL can reach every
@@ -71,7 +89,8 @@ internal ([D143](decisions.md), [compiler.md](compiler.md#development-builds-and
 **What you notice.** Nothing, except that `--c-source` writes less. A function nobody calls, outside a generic class, is still
 compiled and checked, so a mistake in it is still reported ([D140](decisions.md)) -- it just is not in the
 binary. **Built** (the tree shaker and `--development` rows of the [decision log](decisions.md),
-2026-09-24).
+2026-09-24; classes, slots and statics 2026-09-25, proposed by Claude, unconfirmed). `check.sh` holds it: the C of
+`examples/hello` must carry no struct, allocate or singleton slot of those library classes.
 
 The same pass decides which native symbols are looked up. A `DynamicLibrary` looks up every symbol the program
 calls when it opens, and a symbol is now looked up only when a function that calls it survived the shaking: a
@@ -566,15 +585,84 @@ its `get()` never locks, and only a thread's `set` does
 ### Singletons a `Parallel` reaches take a lock
 
 **What it does.** In a program that makes a `Parallel`, every singleton of the program's own that can change after
-it is made (it assigns one of its attributes outside its constructor, or holds an object, a list or a dictionary)
-gets a lock of its own, taken around every one of its functions; a call it makes to itself does not take it again
-([D183](decisions.md)). A singleton that never changes gets nothing. This is the fallback of the plan
-below: [D184](decisions.md)'s cheaper forms (atomics, per-thread buffers, reader-writer locks) are
-not built, nor is the check that its functions hand out nothing they own.
+it is made gets a lock of its own, taken around every one of its functions ([D183](decisions.md)).
+It can change when one of its functions assigns one of its attributes outside its constructor, when code in
+another class assigns one (`registry.last = name`), or when it holds a list, a dictionary, a function value, or an
+object of a class that can change -- an object whose class never assigns its attributes after its constructor,
+and holds nothing that can change either, is as read-only as a number, so a `Rules` holding a `Limits` made once
+takes no lock. This is the fallback of [D184](decisions.md): the compiler takes it only when none of
+the cheaper forms in the next section is proven safe for that singleton. The check that its functions hand out
+nothing they own is not built.
 
-**When.** Only in programs that make a `Parallel` or run a `parallel_each_` pass. **What you notice.** An
+How the lock is kept cheap:
+
+- **Each lock has a cache line of its own.** A lock is 64 bytes, aligned to 64 (`_Alignas(64)`, C11), so two
+  singletons' locks never share a line and taking one never makes another core reload the other. In SlopEngine's
+  stress test (200 000 entities, two `parallel_each_` systems) this took a tick from 108 ms to 45 ms, the same as
+  with no locks at all.
+- **A call to itself skips the lock.** Inside a locked function, a call to another function of the same singleton
+  goes straight to that function's unlocked body (`Registry_count_one___unguarded(self)`), since the lock is
+  already held: no atomic load and no depth count per call.
+- **A write from another class takes the lock too.** `registry.last = name` written anywhere but `Registry` stores
+  the value under `Registry`'s lock; the value is computed before the lock is taken, and an object it replaces is
+  released after the lock is let go, so no other code runs while it is held.
+- **A singleton is never counted.** Fetching one (`var registry = Registry()` in a function) is one load, and
+  letting go of it is nothing: a singleton's retain and release compile to nothing
+  ([D142](decisions.md)), in generic singletons too.
+
+**When.** Only in programs that make a `Parallel` or run a `parallel_each_` pass, and only for a singleton that a
+`Parallel` can reach; in any other program a write from another class is a plain store. **What you notice.** An
 uncontended lock per call to such a singleton (two atomic operations), and waiting when two threads call it at
-once. **Built** (the lock).
+once. `conformance/stage6/singleton_lock_calls` holds all four points from its C in `check.sh`: `Registry` is
+locked, pads its lock, calls itself unlocked and locks the write `registry.last = ...` from the entry class, and
+`Rules` takes no lock. **Built** (the lock; the padding, the unlocked calls to itself, the locked writes from
+outside and the read-only held objects 2026-09-25, proposed by Claude, unconfirmed).
+
+### Thread safety for singletons, the cheapest safe form
+
+**What it does.** For each singleton of the program's own that can change after it is made, the compiler picks
+the cheapest form that is as safe as the lock, from what that singleton's functions actually do
+([D184](decisions.md)). You write nothing; the source is the same in every form. Three forms are
+built, tried in this order:
+
+1. **Nothing, because no `Parallel` reaches it.** The compiler walks the program's calls from every function a
+   `Parallel` or the thread pool can run -- every function passed or stored as a value, which is how a function
+   reaches `Parallel(worker.run)` or `ThreadPool.submit`, and the member and `filter_` members of every
+   `parallel_each_` pass -- following each call to the functions it can reach (by the class of the value it is
+   made on, or every class's function of that name when the class is not known, and every member a template name
+   such as `sum_price` can stand for). A singleton none of those functions calls is used by one thread only, the
+   program's own, and takes no lock. A singleton with a function the compiler can call without a call being
+   written -- an operator (`sum`, `equals`, ...), a getter or setter (`get_`/`set_`), `get_at`/`set_at`,
+   `missing_function`, `to_string` or `to_debug` -- is always counted as reached.
+2. **Nothing, because it never changes.** A singleton whose functions never assign one of its attributes after its
+   constructor, whose attributes no other class assigns, and that holds no list, dictionary, function value or
+   object that can change, is read-only once made: it takes nothing.
+3. **Atomics, for counters and flags.** A singleton whose attributes that change are all whole numbers or `Bool`s
+   (every other attribute set only by the constructor, none holding anything that can change, and none assigned
+   from another class), where each function touches that changing state at most once -- one read, one
+   `count = count + step` or `count = count - step`, or one `flag = value`, where neither `step` nor `value`
+   reads the changing state, and not inside a `while` or through another function of its own that touches it
+   too -- has every one of those reads and writes compiled as a single atomic instruction (`__atomic_load_n`,
+   `__atomic_fetch_add`, `__atomic_store_n`) and takes no lock. One touch per function is what makes this exactly
+   as safe as the lock: the lock makes each function one indivisible step, and so does one atomic instruction.
+
+Only when none of these applies does the singleton take [the lock](#singletons-a-parallel-reaches-take-a-lock).
+
+**Example.** `conformance/stage6/singleton_forms`: four `Parallel` workers and the program's own thread record
+41 000 hits into a `HitCounter` (atomics), read a `Settings` made once (nothing), while only the program's thread
+writes a `Journal` holding a `List` (nothing: no `Parallel` reaches it). Before, `HitCounter` and `Journal` each
+took a lock; now no singleton in it does, and `check.sh` holds that from its C.
+
+**When.** Every build that is not `--hot-reload` (which is not guarded at all yet), in programs that make a
+`Parallel` or run a `parallel_each_` pass. An atomic singleton in a program without `Parallel`, or one no
+`Parallel` reaches, compiles its reads and writes as plain ones: the executable is the same as with no form at
+all.
+
+**What you notice.** Nothing in what a program prints or computes, and no waiting on a counter two threads bump at
+once. What a lock gave and these forms keep: each function of the singleton is still one indivisible step. A
+singleton whose attribute another class assigns is locked instead (its write takes the lock, above); reading a
+singleton's attribute directly from another class takes nothing in any form. **Built** (2026-09-25; proposed by
+Claude, unconfirmed: which forms, their order, and the one-touch rule).
 
 ### Smaller ones
 
@@ -607,17 +695,17 @@ keeps no proof about attributes or lists ([failure.md](failure.md#a-call-may-und
 
 Decided by Mortaro, not built yet. When one is built, it moves up to **Built** in the same change.
 
-### Thread safety for singletons, the cheapest safe form
+### Thread safety for singletons, the rest of the plan
 
 A singleton reached from a `Parallel` is made thread-safe by the compiler, with no keyword
 ([D183](decisions.md)), and the compiler picks the cheapest form that is safe for what that singleton's
-functions actually do ([D184](decisions.md)): read-only state needs nothing; a single counter or flag
-becomes an atomic; state that is only appended to (a log, a command queue) gets a buffer per thread merged in
-order; state each thread touches its own part of is split per thread; reads that far outnumber writes take a
-reader-writer lock; and only when nothing cheaper is proven safe does every outside call take the singleton's own
-lock. Its functions may hand out only numbers, text, copies or other singletons made safe the same way, which is a
-compile-time check at `return`. All of it is absent from a program that never makes a `Parallel`. You will write
-nothing. The last step, the lock, is built (above); the cheaper forms and the `return` check are not.
+functions actually do ([D184](decisions.md)). Built (above): nothing for read-only state or a
+singleton no `Parallel` reaches, atomics for counters and flags, and the lock as the fallback. Not built yet: state
+that is only appended to (a log, a command queue) gets a buffer per thread merged in order; state each thread
+touches its own part of is split per thread; and reads that far outnumber writes take a reader-writer lock. Its
+functions may hand out only numbers, text, copies or other singletons made safe the same way, which is a
+compile-time check at `return`, also not built. All of it is absent from a program that never makes a `Parallel`.
+You will write nothing.
 
 ### Copies that cost nothing
 

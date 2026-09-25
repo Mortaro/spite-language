@@ -124,6 +124,29 @@ if [ "$plain" != "$(tr -d '\r' < "$stages/expected_output.txt")" ]; then
 fi
 echo "run mode: the thread pool runs without --debug-memory"
 
+# What a production build leaves out is only visible in its C (docs/optimizations.md): hello carries no struct,
+# allocate or singleton slot of a library class it never makes, and each singleton singleton_forms reaches from a
+# Parallel takes its cheapest safe form -- atomics for a counter, nothing for one that never changes or that no
+# Parallel reaches -- so no lock at all.
+"$work/generation_two.exe" examples/hello --run=false --c-source --c-path="$work/hello_shaken.c" > /dev/null 2>&1 || {
+  echo "FAILED: examples/hello does not write its C"; exit 1; }
+if grep -qE "struct (Watcher|Socket|Process|HotReload|ThreadPool|Scheduler) \{|(Watcher|Socket|ThreadPool|Scheduler)___allocate|spite_singleton_(ThreadPool|Scheduler)_cache" "$work/hello_shaken.c"; then
+  echo "FAILED: examples/hello's C still carries library classes it never uses"; exit 1
+fi
+"$work/generation_two.exe" conformance/stage6/singleton_forms --run=false --c-source --c-path="$work/singleton_forms.c" > /dev/null 2>&1 || {
+  echo "FAILED: singleton_forms does not write its C"; exit 1; }
+if ! grep -q "^#define HitCounter___atomic 1$" "$work/singleton_forms.c" || grep -q "SpiteGuard [A-Za-z_]*___guard" "$work/singleton_forms.c"; then
+  echo "FAILED: singleton_forms should make HitCounter atomic and lock no singleton"; exit 1
+fi
+locks="$work/singleton_lock_calls.c"
+"$work/generation_two.exe" conformance/stage6/singleton_lock_calls --run=false --c-source --c-path="$locks" > /dev/null 2>&1 || {
+  echo "FAILED: singleton_lock_calls does not write its C"; exit 1; }
+if ! grep -q "_Alignas(64) int64_t owner" "$locks" || ! grep -q "^Registry_count_one___unguarded(self);" "$locks" \
+   || ! grep -q "^#define Registry___outside_enter() spite_guard_enter(&Registry___guard)" "$locks" || grep -q "Rules___guard" "$locks"; then
+  echo "FAILED: singleton_lock_calls should pad its lock, call itself unlocked, lock a write from outside and not lock Rules"; exit 1
+fi
+echo "production C: hello carries no unused class, singleton_forms takes no lock, singleton_lock_calls locks only Registry"
+
 # The tests: a package that crashes (D46). No framework: a test is a function, and `crash` is the assertion.
 test_output=$("$work/generation_two.exe" tests --debug-memory --executable-path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
 if echo "$test_output" | grep -q "failed to check cache"; then

@@ -1,0 +1,11 @@
+singleton
+
+var lines = List<String>()
+
+func note(line: String) {
+    lines.append(line)
+}
+
+func written(): Int {
+    return lines.count()
+}

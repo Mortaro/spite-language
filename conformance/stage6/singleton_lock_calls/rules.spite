@@ -1,0 +1,7 @@
+singleton
+
+var limits = Limits(3000)
+
+func allows(size: Int): Bool {
+    return limits.allows(size)
+}

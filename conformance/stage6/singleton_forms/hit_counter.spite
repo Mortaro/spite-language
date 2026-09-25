@@ -1,0 +1,33 @@
+singleton
+
+var hits = 0
+var active = 0
+var stopped = false
+
+func record(amount: Int) {
+    hits = hits + amount
+}
+
+func enter() {
+    active = active + 1
+}
+
+func leave() {
+    active = active - 1
+}
+
+func stop() {
+    stopped = true
+}
+
+func total(): Int {
+    return hits
+}
+
+func running(): Int {
+    return active
+}
+
+func is_stopped(): Bool {
+    return stopped
+}

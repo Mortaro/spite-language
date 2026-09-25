@@ -1,0 +1,3 @@
+hits 41000 after 20000 rounds on the pool
+still running: 0 stopped: true
+journal lines: 2

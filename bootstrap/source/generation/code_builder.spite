@@ -7,6 +7,8 @@ var slot_lines = List<String>()
 var slot_names = List<String>()
 var binding_names = List<String>()
 var binding_lines = Dictionary<String>()
+var guard_names = List<String>()
+var guard_lines = List<String>()
 var shakes = true
 var threads = false
 var hot_reload = false
@@ -108,12 +110,52 @@ func user_count(): Int {
     return user_bodies.count()
 }
 
+func user_at(position: Int): String {
+    return user_bodies.get_at(position)
+}
+
 func replace_user(position: Int, line: String) {
     user_bodies.set_at(position, line)
 }
 
 func add_main(line: String) {
     main_lines.append(line)
+}
+
+func add_main_if_kept(guard: String, line: String) {
+    var position = guard_names.count()
+    guard_names.append(guard)
+    guard_lines.append(line)
+    main_lines.append("/*spite_guard {position}*/")
+}
+
+func guarded(text: String, shaker: TreeShaker, keeps_all: Bool): String {
+    if guard_names.is_empty() {
+        return text
+    }
+    var parts = text.split("/*spite_guard ")
+    var result = List<String>()
+    var index = 0
+    while index < parts.count() {
+        var part = parts.get_at(index)
+        if index == 0 {
+            result.append(part)
+        } else {
+            var end = part.index_of("*/")
+            var digits = part.slice(0, end)
+            var position = digits.to_int()
+            var part_length = part.length()
+            var rest = part.slice(end + 2, part_length)
+            var guard = guard_names.get_at(position)
+            if keeps_all or shaker.is_kept_name(guard) {
+                var line = guard_lines.get_at(position)
+                result.append(line)
+            }
+            result.append(rest)
+        }
+        index = index + 1
+    }
+    return result.join("")
 }
 
 func render(): String {
@@ -133,12 +175,18 @@ func render(): String {
     if shakes {
         var shaker = TreeShaker()
         shaker.watched_names = binding_names
-        bodies = shaker.shake("{typedef_text}\n{main_function}", bodies)
+        shaker.guard_names = guard_names
+        shaker.guard_lines = guard_lines
+        bodies = shaker.shake_program(typedef_text, prototype_lines, main_function, bodies)
+        main_function = guarded(main_function, shaker, false)
+        typedef_text = shaker.kept_types()
         prototype_lines = shaker.kept_prototypes(prototype_lines)
         var kept_bindings = shaker.kept_watched_names()
         bodies = bound(bodies, kept_bindings)
     } else {
         bodies = bound(bodies, binding_names)
+        var unused_shaker = TreeShaker()
+        main_function = guarded(main_function, unused_shaker, true)
     }
     var threads_line = ""
     if threads {

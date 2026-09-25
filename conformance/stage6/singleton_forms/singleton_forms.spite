@@ -1,0 +1,38 @@
+var console = Console()
+var counter = HitCounter()
+var journal = Journal()
+var settings = Settings()
+
+func SingletonForms() {
+    journal.note("starting")
+    var working = List<Parallel<Int>>()
+    var started = 0
+    while started < 4 {
+        counter.enter()
+        var worker = Worker(5000)
+        working.append(Parallel(worker.run))
+        started = started + 1
+    }
+    var main_rounds = 0
+    while main_rounds < 1000 {
+        counter.record(1)
+        main_rounds = main_rounds + 1
+    }
+    var rounds = 0
+    var index = 0
+    while index < working.count() {
+        var done: Int = working.get_at(index)
+        rounds = rounds + done
+        index = index + 1
+    }
+    counter.stop()
+    journal.note("finished")
+    var name = settings.name()
+    var total = counter.total()
+    var running = counter.running()
+    var stopped = counter.is_stopped()
+    var written = journal.written()
+    console.print(name, total, "after", rounds, "rounds on the pool")
+    console.print("still running:", running, "stopped:", stopped)
+    console.print("journal lines:", written)
+}

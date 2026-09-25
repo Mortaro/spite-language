@@ -4,6 +4,8 @@ var key_set = Dictionary<Bool>()
 var fresh_keys = List<String>()
 var calls = List<EffectCall>()
 var incoming = List<EffectCall>()
+var taken = List<String>()
+var member_writes = List<String>()
 var waiting = true
 
 func FunctionEffects(function_key: String) {
