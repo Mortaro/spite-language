@@ -15,9 +15,12 @@ func LibraryCard() {
 }
 
 func stock() {
-    books.append(Book("Dune", 'fiction'))
-    books.append(Book("Atlas", 'reference'))
-    books.append(Book("Moon", 'childrens'))
+    var dune = Book("Dune", 'fiction')
+    books.append(dune)
+    var atlas = Book("Atlas", 'reference')
+    books.append(atlas)
+    var moon = Book("Moon", 'childrens')
+    books.append(moon)
 }
 
 func lend(title: String, reader: String) {

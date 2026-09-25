@@ -6,7 +6,8 @@ func SingletonGuard() {
     var start = 0
     while start < 8000 {
         var loader = Loader(start)
-        loading.append(Parallel(loader.load_many))
+        var loading_run = Parallel(loader.load_many)
+        loading.append(loading_run)
         start = start + 2000
     }
     var frames = 0

@@ -1,9 +1,12 @@
 var creatures = List<Creature>()
 
 func MemberTests() {
-    creatures.append(Creature("rat", 3, true))
-    creatures.append(Creature("dragon", 90, false))
-    creatures.append(Creature("bat", 1, true))
+    var rat = Creature("rat", 3, true)
+    creatures.append(rat)
+    var dragon = Creature("dragon", 90, false)
+    creatures.append(dragon)
+    var bat = Creature("bat", 1, true)
+    creatures.append(bat)
 }
 
 func test_filter_keeps_the_true_ones() {

@@ -12,8 +12,10 @@ var console = Console()
 
 func Battle() {
     var enemies = List<Enemy>()
-    enemies.append(Player(10))
-    enemies.append(Monster(6))
+    var player = Player(10)
+    enemies.append(player)
+    var monster = Monster(6)
+    enemies.append(monster)
     var index = 0
     while index < enemies.count() {
         var enemy = enemies[index]

@@ -5,8 +5,10 @@ type Renderable {
 var console = Console()
 
 func ShapeFunctionMismatch() {
-    show(Silent())
-    show(Numbered())
+    var silent = Silent()
+    show(silent)
+    var numbered = Numbered()
+    show(numbered)
 }
 
 func show(part: Renderable) {

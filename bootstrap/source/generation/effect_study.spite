@@ -189,7 +189,8 @@ func study_construction(construction: Syntax.Expressions.GenericCallExpression) 
     construction.arguments.each(take_value)
     var argument_keys = classified(construction.arguments)
     var constructed = called_name(construction.callee)
-    calls.append(EffectCall(constructed, constructed, argument_keys))
+    var effect_call = EffectCall(constructed, constructed, argument_keys)
+    calls.append(effect_call)
 }
 
 func study_call(call: Syntax.Expressions.CallExpression) {
@@ -210,7 +211,8 @@ func study_call(call: Syntax.Expressions.CallExpression) {
         if table.names_a_class(callee_identifier.name) {
             callee_class = callee_identifier.name
         }
-        calls.append(EffectCall(callee_class, callee_identifier.name, argument_keys))
+        var effect_call = EffectCall(callee_class, callee_identifier.name, argument_keys)
+        calls.append(effect_call)
         return
     }
     var member = shape.as_member(call.callee)
@@ -245,7 +247,8 @@ func study_method_call(member: Syntax.Expressions.MemberExpression, argument_key
     if table.names_a_class(member.name) {
         receiver_class = member.name
     }
-    calls.append(EffectCall(receiver_class, member.name, argument_keys))
+    var effect_call = EffectCall(receiver_class, member.name, argument_keys)
+    calls.append(effect_call)
 }
 
 func owner_class(expression: Syntax.Expressions.Expression): String {

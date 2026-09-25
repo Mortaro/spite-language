@@ -672,7 +672,8 @@ func write_companions(output_path: String) {
 
 func append_shared_runtime(process_arguments: List<String>, c_compiler: String) {
     assert option("target_operating_system") == "windows"
-    var probe = Process("{c_compiler} -dumpmachine", List<String>())
+    var no_arguments = List<String>()
+    var probe = Process("{c_compiler} -dumpmachine", no_arguments)
     probe.run()
     var machine = probe.output()
     if machine.contains("msvc") {
@@ -691,7 +692,8 @@ func find_c_compiler(): String {
     var candidates = ["cc", "clang", "gcc"]
     var index = 0
     while index < candidates.count() {
-        var probe = Process("{candidates[index]} --version 2>&1", List<String>())
+        var no_arguments = List<String>()
+        var probe = Process("{candidates[index]} --version 2>&1", no_arguments)
         if probe.run() == 0 {
             return candidates[index]
         }

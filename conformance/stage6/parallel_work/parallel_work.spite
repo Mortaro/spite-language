@@ -39,7 +39,8 @@ func next_name(): String {
 
 func count_and_forget() {
     var running = List<Parallel<Nothing>>()
-    running.append(Parallel(say_done))
+    var farewell = Parallel(say_done)
+    running.append(farewell)
 }
 
 func say_done() {

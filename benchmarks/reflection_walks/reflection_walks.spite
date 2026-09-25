@@ -4,7 +4,8 @@ func ReflectionWalks() {
     var everyone = List<Stats>()
     var index = 0
     while index < 20000 {
-        everyone.append(Stats("hero{index}", index % 50))
+        var hero = Stats("hero{index}", index % 50)
+        everyone.append(hero)
         index = index + 1
     }
     var walked: Long = 0

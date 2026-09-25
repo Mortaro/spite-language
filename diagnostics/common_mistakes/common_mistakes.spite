@@ -16,6 +16,7 @@ func CommonMistakes() {
     var list = [1, 2]
     list.push(3)
     var unknown = unknown_function()
-    console.print(unknown, Unknown())
+    var stranger = Unknown()
+    console.print(unknown, stranger)
     console.print(score, number)
 }

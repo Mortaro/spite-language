@@ -8,8 +8,10 @@ var shapes = List<Shape>()
 var favorite: Shape? = null
 
 func Unions() {
-    shapes.append(Circle(2))
-    shapes.append(Square(3))
+    var circle = Circle(2)
+    shapes.append(circle)
+    var square = Square(3)
+    shapes.append(square)
     var index = 0
     while index < shapes.count() {
         var description = describe(shapes[index])
@@ -31,7 +33,8 @@ func Unions() {
     var pick_name = pick(false).name
     console.print(name, pick_name)
     var lookup = Dictionary<Shape>()
-    lookup.set("round", Circle(1))
+    var round = Circle(1)
+    lookup.set("round", round)
     var found = lookup.get("round")
     if found {
         var found_description = describe(found)

@@ -2,9 +2,12 @@ var console = Console()
 
 func RepositoryList() {
     var repositories = List<Repository>()
-    repositories.append(Repository("engine", 10, true))
-    repositories.append(Repository("cookie_clicker", 3, false))
-    repositories.append(Repository("compiler", 20, true))
+    var engine = Repository("engine", 10, true)
+    repositories.append(engine)
+    var cookie_clicker = Repository("cookie_clicker", 3, false)
+    repositories.append(cookie_clicker)
+    var compiler = Repository("compiler", 20, true)
+    repositories.append(compiler)
     crash repositories[0]
     var first = repositories[0]
     first.set_stars(15)

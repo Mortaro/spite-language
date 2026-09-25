@@ -16,7 +16,8 @@ func Shapes() {
     console.print(planet.size, pet.size, pet.kind)
     var things = List<Named>()
     things.append(planet)
-    things.append(Pet("tom", 4, "cat"))
+    var tom = Pet("tom", 4, "cat")
+    things.append(tom)
     things.append({name: "box", size: 9})
     var index = 0
     var total = 0

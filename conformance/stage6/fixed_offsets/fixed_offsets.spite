@@ -2,13 +2,19 @@ var console = Console()
 var zones = TimeZones()
 
 func FixedOffsets() {
-    var moment = Instant(Duration(1710054000, 'seconds'))
+    var since_1970 = Duration(1710054000, 'seconds')
+    var moment = Instant(since_1970)
     var universal = zones.utc()
-    var india = zones.fixed_offset(Duration(330, 'minutes'))
-    var brazil = zones.fixed_offset(Duration(-3, 'hours'))
-    var line_islands = zones.fixed_offset(Duration(14, 'hours'))
-    var baker_island = zones.fixed_offset(Duration(-12, 'hours'))
-    var local_mean_time = zones.fixed_offset(Duration(-17762, 'seconds'))
+    var india_offset = Duration(330, 'minutes')
+    var india = zones.fixed_offset(india_offset)
+    var brazil_offset = Duration(-3, 'hours')
+    var brazil = zones.fixed_offset(brazil_offset)
+    var line_islands_offset = Duration(14, 'hours')
+    var line_islands = zones.fixed_offset(line_islands_offset)
+    var baker_island_offset = Duration(-12, 'hours')
+    var baker_island = zones.fixed_offset(baker_island_offset)
+    var local_mean_offset = Duration(-17762, 'seconds')
+    var local_mean_time = zones.fixed_offset(local_mean_offset)
     var offsets = [universal, india, brazil, line_islands, baker_island, local_mean_time]
     var index = 0
     while index < offsets.count() {
@@ -18,11 +24,14 @@ func FixedOffsets() {
         console.print(zone.name, shown, offset)
         index = index + 1
     }
-    var noon = DateTime(Date(2024, 3, 10), Time(12, 30, 0, 0))
+    var noon_day = Date(2024, 3, 10)
+    var noon_time = Time(12, 30, 0, 0)
+    var noon = DateTime(noon_day, noon_time)
     var from_india = india.to_instant(noon, 'compatible')
     var same_moment = from_india == moment
     console.print(from_india, same_moment)
-    var summer = Instant(Duration(1720000000, 'seconds'))
+    var summer_since_1970 = Duration(1720000000, 'seconds')
+    var summer = Instant(summer_since_1970)
     var winter_offset = brazil.offset_at(moment)
     var summer_offset = brazil.offset_at(summer)
     var unchanged = winter_offset == summer_offset

@@ -1,2 +1,2 @@
-diagnostics/switch_single_case/switch_single_case.spite:17: error: this switch only asks what class 'creature' is: write 'return creature == Fish' (in SwitchSingleCase.is_fish)
-diagnostics/switch_single_case/switch_single_case.spite:24: error: a switch with one case and '_:' is an if: write 'if creature == Fish { ... }', returning early, and then what '_:' does (in SwitchSingleCase.fins_of)
+diagnostics/switch_single_case/switch_single_case.spite:18: error: this switch only asks what class 'creature' is: write 'return creature == Fish' (in SwitchSingleCase.is_fish)
+diagnostics/switch_single_case/switch_single_case.spite:25: error: a switch with one case and '_:' is an if: write 'if creature == Fish { ... }', returning early, and then what '_:' does (in SwitchSingleCase.fins_of)

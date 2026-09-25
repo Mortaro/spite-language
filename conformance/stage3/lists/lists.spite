@@ -51,7 +51,8 @@ func Lists() {
     console.print(second_description, last_description)
     var holder = Holder()
     holder.keep(items)
-    holder.keep_one(Item("extra", 9))
+    var extra_item = Item("extra", 9)
+    holder.keep_one(extra_item)
     var items_count = holder.items.count()
     var extra_name = holder.items.last().name
     console.print(items_count, extra_name)
@@ -74,7 +75,8 @@ func build_items(count: Integer): List<Item> {
     var result = List<Item>()
     var index = 0
     while index < count {
-        result.append(Item("item{index}", index * 2))
+        var item = Item("item{index}", index * 2)
+        result.append(item)
         index = index + 1
     }
     return result

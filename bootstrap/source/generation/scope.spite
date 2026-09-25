@@ -69,7 +69,8 @@ func forget_owned(name: String) {
 
 func declare_owned(name: String, spite_type: Analysis.SpiteType) {
     declare(name, spite_type)
-    owned.append(OwnedLocal(name, spite_type))
+    var owned_local = OwnedLocal(name, spite_type)
+    owned.append(owned_local)
 }
 
 func set_override(name: String, code: String) {

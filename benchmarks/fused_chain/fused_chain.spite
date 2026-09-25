@@ -5,7 +5,8 @@ func FusedChain() {
     var index = 0
     while index < 100000 {
         var owner = Owner(index % 90)
-        items.append(Item(index % 1000, index % 3 != 0, owner))
+        var item = Item(index % 1000, index % 3 != 0, owner)
+        items.append(item)
         index = index + 1
     }
     var total: Long = 0

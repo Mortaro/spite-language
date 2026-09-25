@@ -7,9 +7,12 @@ union Creature {
 var console = Console()
 
 func RestCase() {
-    describe(Cat())
-    describe(Dog())
-    describe(Fish())
+    var cat = Cat()
+    describe(cat)
+    var dog = Dog()
+    describe(dog)
+    var fish = Fish()
+    describe(fish)
 }
 
 func describe(creature: Creature) {

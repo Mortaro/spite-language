@@ -40,8 +40,10 @@ func Dictionaries() {
     var q_label = lookup("q")
     console.print(y_label, q_label)
     var pets = Dictionary<Animal>()
-    pets.set("rex", Animal("dog"))
-    pets.set("tom", Animal("cat"))
+    var dog = Animal("dog")
+    pets.set("rex", dog)
+    var cat = Animal("cat")
+    pets.set("tom", cat)
     var rex = pets.get("rex")
     if rex {
         console.print(rex.kind)

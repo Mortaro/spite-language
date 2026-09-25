@@ -25,13 +25,17 @@ func Stress() {
 func spawn_body(index: Integer) {
     var entity = world.spawn()
     var positions = Column<Component.Position>()
-    positions.insert(entity, Component.Position())
+    var position = Component.Position()
+    positions.insert(entity, position)
     var velocities = Column<Component.Velocity>()
-    velocities.insert(entity, Component.Velocity())
+    var velocity = Component.Velocity()
+    velocities.insert(entity, velocity)
     if index % 2 == 0 {
         var healths = Column<Component.Health>()
-        healths.insert(entity, Component.Health())
+        var health = Component.Health()
+        healths.insert(entity, health)
         var regenerations = Column<Component.Regeneration>()
-        regenerations.insert(entity, Component.Regeneration())
+        var regeneration = Component.Regeneration()
+        regenerations.insert(entity, regeneration)
     }
 }

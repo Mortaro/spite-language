@@ -10,7 +10,8 @@ func ThreadPoolReuse() {
         var parallels = List<Parallel<Integer>>()
         var index = 0
         while index < 100 {
-            parallels.append(Parallel(worker_of_this))
+            var work = Parallel(worker_of_this)
+            parallels.append(work)
             index = index + 1
         }
         index = 0

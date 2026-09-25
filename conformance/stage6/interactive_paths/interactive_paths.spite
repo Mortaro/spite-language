@@ -5,8 +5,10 @@ var target: Monster? = null
 var turn = 1
 
 func InteractivePaths() {
-    monsters.append(Monster("rat", 3))
-    monsters.append(Monster("bat", 5))
+    var rat = Monster("rat", 3)
+    monsters.append(rat)
+    var bat = Monster("bat", 5)
+    monsters.append(bat)
     console.print("ready")
 }
 

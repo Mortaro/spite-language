@@ -312,7 +312,8 @@ func PerThreadBuffers() {
     var runs = List<Parallel<Integer>>()
     var index = 0
     while index < 8 {
-        runs.append(Parallel(record_commands))
+        var run = Parallel(record_commands)
+        runs.append(run)
         index = index + 1
     }
     var recorded = 0
@@ -328,7 +329,8 @@ func PerThreadBuffers() {
 func record_commands(): Integer {
     var buffer = buffers.get()
     if not buffer {
-        buffers.set(List<String>())
+        var fresh_buffer = List<String>()
+        buffers.set(fresh_buffer)
     }
     var own = buffers.get()
     crash own
@@ -425,7 +427,8 @@ func ParallelPass() {
     var particles = List<Particle>()
     var index = 0
     while index < 3000 {
-        particles.append(Particle(index))
+        var particle = Particle(index)
+        particles.append(particle)
         index = index + 1
     }
     particles.parallel_each_step()
@@ -461,7 +464,8 @@ var console = Console()
 
 func ParallelReach() {
     var boids = List<Boid>()
-    boids.append(Boid())
+    var boid = Boid()
+    boids.append(boid)
     boids.parallel_each_follow()
     var count = boids.count()
     console.print(count)

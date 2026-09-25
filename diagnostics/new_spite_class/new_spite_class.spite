@@ -1,5 +1,6 @@
 var console = Console()
 
 func NewSpiteClass() {
-    console.print(Spite.Gadget("wrench").name)
+    var wrench = Spite.Gadget("wrench")
+    console.print(wrench.name)
 }

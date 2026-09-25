@@ -2,8 +2,10 @@ var console = Console()
 
 func ClassArgument() {
     var entity = Entity()
-    entity.add_component(Health())
-    entity.add_component(Ui.Component.Pressed())
+    var health = Health()
+    entity.add_component(health)
+    var pressed = Ui.Component.Pressed()
+    entity.add_component(pressed)
     var before = entity.components.count()
     entity.remove_component(Ui.Component.Pressed)
     var after = entity.components.count()

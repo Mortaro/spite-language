@@ -3,9 +3,11 @@ var teams = List<Team>()
 
 func FusedChainAllocations() {
     var ann = Person("ann", 34, false)
-    teams.append(Team(4, true, ann))
+    var ann_team = Team(4, true, ann)
+    teams.append(ann_team)
     var dee = Person("dee", 71, true)
-    teams.append(Team(5, true, dee))
+    var dee_team = Team(5, true, dee)
+    teams.append(dee_team)
     var total = 0
     var round = 0
     while round < 1000 {
