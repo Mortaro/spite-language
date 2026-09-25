@@ -11,10 +11,6 @@ manual argues it.
    D94 review: [mortaros_review_while_and_else_if.md](mortaros_review_while_and_else_if.md). Of 472 loops, 31 are
    replaceable today and the exact-shape rule there catches about 10; most index loops pass the element to a
    function of the caller, which no template expresses.
-3. **Open question 20: whether a nested `if`/`else` is an error.** Proposal: an `if` with an `else` inside a
-   branch of another `if` with an `else` is an error naming "extract a function".
-   D94 review: [mortaros_review_while_and_else_if.md](mortaros_review_while_and_else_if.md), section 3 (16 cases,
-   with the `else if` chains and a proposed `switch` over an enum).
 5. **Open question 16: two versions of one dependency.** Needs D38 (git dependencies) first.
 6. **Open questions 1, 3, 6, 8, 9, 10, 11**, the older ones: `= null` on a generic field, right-to-left casting
    in comparisons, `_` meaning private and unused, an unrelated `get_x()` intercepting `.x`, `${` in text,
