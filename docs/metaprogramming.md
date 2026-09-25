@@ -3,11 +3,15 @@
 There are no macros. Spite's answer to "write this for every attribute" is **Symbol codegen**: a function whose
 name has a hole in it, which the compiler fills once for every name a program calls. Its answer to "one class for
 many types" is **generics**, codegen values declared with `generic` lines. Both are ordinary functions and
-classes, so what they generate is typed, visible in `--final-classes`, and removed when nothing calls it.
+classes, so what they generate is typed, visible in `--final-classes`, and removed when nothing calls it. All of
+it happens while compiling: a program pays at run time only for the ordinary functions and classes it was
+expanded into, and nothing for a template, a walk or a generic it never uses ([Tree shaking](#tree-shaking)).
 
 Reading a program's structure at run time -- `.class`, `.attributes`, `.functions` -- is
 [reflection.md](reflection.md). The standard library's member templates (`filter_<member>()`,
-`sum_<member>()`, ...) are Symbol codegen written in Spite, in [collections.md](collections.md).
+`sum_<member>()`, ...) are Symbol codegen written in Spite, in [collections.md](collections.md). They look only at
+the element: a function of the calling class is passed as a value, `people.each(say_hello)`, never found by name
+([D148](decisions.md), [collections.md](collections.md#passing-a-function-for-each-element)).
 
 ## Symbol codegen, step by step
 
@@ -59,7 +63,7 @@ func SymbolCodegen() {
     var person_age = person.get_age()
     person.set_age(person_age + 1)
     console.print("age", person.age)
-    person.set_name("bea")
+    person.name = "bea"
     console.print("name", person.name)
 }
 ```
@@ -68,7 +72,8 @@ age 21
 name BEA
 ```
 
-`set_age` and `get_age` are generated on demand by those two calls.
+`set_age` and `get_age` are generated on demand by those two calls, and `get_name` by the read of `person.name`;
+no other instance exists. The exact rules are in [Symbol codegen](#symbol-codegen--implemented).
 
 ### Another class's attributes, and all of them at once
 
@@ -111,17 +116,19 @@ The member may also be a function that takes no arguments: `label.attributes[att
 In a generic class the class inside the `Symbol` is usually a codegen value. `List<$element_type>` writes its
 member templates over `member: Symbol<$element_type>`, so `item.attributes[member]` reads a member of the element
 -- that is how `filter_<member>()`, `sum_<member>()` and the rest are written, in Spite, in `library/list.spite`
-([standard_library.md](collections.md#how-the-member-templates-are-written)) -- and the standard library's
+([collections.md](collections.md#how-the-member-templates-are-written)) -- and the standard library's
 [`Json`](json.md) writes and reads any class over `attribute: Symbol<$value_type>`.
 
-Reading `label.attributes[attribute]` is a read of every attribute the walk reaches, so it keeps them from being
-unused ([style.md](style.md#nothing-unused)). `attribute.name` and `attribute.class` are not: they describe the
-attribute without reading it, so an attribute that only such a walk looks at is an error.
+Reading `label.attributes[attribute]` reads every attribute the walk reaches, so they count as used;
+`attribute.name` and `attribute.class` do not ([the rule](#symbol-codegen--implemented),
+[style.md](style.md#nothing-unused)).
 
 The class inside the `Symbol` may also be a `type`. The template then ranges over the attributes the type names,
 and over the functions it requires that take no arguments; `row.attributes[attribute]` reads or writes that member
 of whatever class the value really is, and the plural calls the template once per attribute the type lists, in
-its order. This is how a query row declared as a `type` is filled attribute by attribute.
+its order. This is how a query row declared as a `type` is filled attribute by attribute. The walk is still
+expanded while compiling; what is left for run time is the read or write itself, answered from the value's class
+the way every read through a `type` is ([values_and_types.md](values_and_types.md#inline-types-and-duck-typing)).
 
 ```gdscript title=shape_attributes/filler.spite
 generic $row_type
@@ -154,8 +161,9 @@ func ShapeAttributes() {
 
 `$name` means "replaced at code generation", and it is for generics only. A class declares each one on a
 `generic` line of its own at the top of the file, and a caller gives the values positionally, in the order of
-those lines: `Pair<String, Integer>(...)`. A `$name` with no `generic` line is an error that points at
-[`Environment`](programs.md#run-time-settings-environment), which is where a program's settings live.
+those lines: `Pair<String, Integer>(...)`. A `$name` with no `generic` line is an error; used as a value, as in
+`if $verbose { }`, the error points at [`Environment`](programs.md#run-time-settings-environment), which is where
+a program's settings live.
 
 ```gdscript title=generics_basics/pair.spite
 generic $left_type
@@ -190,24 +198,19 @@ Aria and 42
 Hero and 7
 ```
 
-- **One line per value**, after a `singleton` line and before everything else, so skimming the top of a file
-  shows what a class accepts. A comma on a `generic` line is an error naming the next line to write, and so is
-  listing the values on the constructor, `func Pair<$left_type, $right_type>(...)`.
-- **Call sites are positional, always**, in the order of the lines. Reordering the lines changes what every call
-  means; where the values are of different kinds the compiler notices, and where they are not, the tests have to.
-- **Every hole is filled.** There are no defaults: the wrong number of values is an error naming the class's
-  values in order, and a `$name` with no `generic` line is an error too.
-- **A generic class needs no constructor.** `library/list.spite` is `generic $element_type` and its functions,
-  and `List<Integer>()` is made from its defaults.
-- **The values can be read from the arguments.** When every `$name` appears in the constructor's parameter
-  types, a call may leave the `<...>` out: `Pair("Hero", 7)` is `Pair<String, Integer>`, and a `$name` inside a
-  function value's type is read from the function, so `Concurrent(file.read)` is a `Concurrent<String?>`
-  ([concurrency.md](concurrency.md)). A parameter typed `$name?` reads the type without its `?`, so a `T` and a
-  `T?` both give `T` (that is how `Json(order)` is a `Json<Order>`, [json.md](json.md)); `List<$name>` and
-  `Dictionary<$name>` read what the container holds. A `null` argument says nothing, and when a `$name` cannot
-  be read, the error asks for the values between `<` and `>`.
-- `null` as the default of a field typed by a codegen value means that type's own default, not a `T?`
-  (provisional: [open question 1](open_questions.md#open-questions)).
+One line declares one value, and the lines sit at the top of the file, so skimming it shows what a class
+accepts. Every hole is filled at every call: there are no defaults, and the wrong number of values is an error
+that lists the class's values in order (the second program below). A generic class needs no constructor --
+`library/list.spite` is `generic $element_type` and its functions -- and when the constructor's arguments say
+every value, the `<...>` may be left out: `Pair("Hero", 7)` is a `Pair<String, Integer>`, `Json(order)` a
+`Json<Order>` ([json.md](json.md)) and `Concurrent(file.read)` a `Concurrent<String?>`
+([concurrency.md](concurrency.md)). `null` as the default of a field typed `$left_type` means that type's own
+default, not a `T?` (provisional: [open question 1](open_questions.md#open-questions)).
+
+Only a class has codegen values. A function never lists its own (`func pick<$value_type>(...)` is an error), and
+there are no generic functions to write instead ([D123](decisions.md)): a function that takes any class takes a
+`type`, such as the built-in empty `Anything` ([reflection.md](reflection.md#an-attributes-value)), or it belongs to a
+generic class. The exact forms and error texts are in [Codegen values](#codegen-values---implemented).
 
 A codegen value may be a value rather than a type. A condition on it is decided while compiling, so each set of
 values is its own class with only its own branch in it:
@@ -337,40 +340,31 @@ var weight = 3
 'Rock' does not fit type 'Singer', which 'Chorus' requires of $singer_type: it has no function 'sing'
 ```
 
-- **The constraint is optional** and names an existing `type` (`Printable` is `Console`'s, found like any type
-  name; a `type` of the generic's own file works too). Naming anything else -- a class, a union, a number type
-  -- is an error on the `generic` line.
-- **Everything a `type` accepts fits**: a class with the functions and attributes it lists, `String`, a number,
-  an enum, a `List<T>` or `Dictionary<T>` with what it needs. A `T?` does not fit, since null has none of it; nor
-  does a function value.
-- **It is checked wherever a class is given**, written out (`Shelf<Book>`) or read from the constructor's
-  arguments (`Label(book)`), once per class given. It costs nothing at run time: the check is the compiler's, and
-  the class made is the same one an unconstrained line would make.
+The constraint is optional and names an existing `type` -- `Printable` is `Console`'s, found like any type name,
+and a `type` of the generic's own file works too. What fits is what the `type` would accept anywhere, so
+`Shelf<Integer>` above is fine, while a `T?` or a function value is not. It is checked wherever a class is given,
+written out or read from the constructor's arguments, and it costs nothing at run time: the check is the
+compiler's, and the class made is the one an unconstrained line would make
+([the rules](#codegen-values---implemented)).
 
 ### Asking what a generic was given
 
 When a codegen value is a type, `if $value_type == String { }` asks which type it is. The answer is known when
 the class is made, so only the branch taken is compiled, and each branch may use what only that type has. Besides
-naming a type exactly, four names ask for a kind:
+naming a type exactly, four names ask for a kind: `List`, `Dictionary`, `Null` (any `T?`) and `Symbol` (an enum)
+-- the table is in [the rules](#codegen-values---implemented).
 
-| Test | True when the type is |
-|---|---|
-| `$value_type == List` | any `List<T>` |
-| `$value_type == Dictionary` | any `Dictionary<T>` |
-| `$value_type == Null` | any `T?` |
-| `$value_type == Symbol` | an enum (a closed list of symbols), or `Symbol` itself |
-
-What the branch ruled out is not compiled at all, and neither is what only it reaches: a function of a generic
-class is compiled for one instantiation only when code that survives for that instantiation calls it, and the
-statements after an `if` chain whose taken branch returns are not compiled either. So one class may keep a helper
-per kind, and `Field<Integer>` never checks the helper that calls `.count()` (`conformance/stage6/folded_helpers`):
+What the branch ruled out is not compiled at all, and neither is what only it reaches. Below, `Field<Integer>`
+compiles `write` without the `List` branch, never compiles `write_list`, and so never checks its `.count()`
+against an `Integer`; the statements after a taken branch that returns are left out the same way. One generic
+class can therefore keep a helper per kind (`conformance/stage6/folded_helpers`):
 
 ```gdscript
 func write(value: $value_type): String {
     if $value_type == List {
-        return write_list(value)       # compiled only for a List
+        return write_list(value)
     }
-    return write_number(value)         # compiled only when the branch above is not taken
+    return write_number(value)
 }
 ```
 
@@ -420,13 +414,53 @@ text, or nothing
 something else
 ```
 
-A test on a type always decides at compile time, `--development` included, since the branch it rules out would
-not compile.
+A class test on a value folds the same way inside a generic. In `Detector<Label>`, `item == Health` can never be
+true, so it is `false` and its branch is removed from that copy, while `Detector<Health>` keeps it. Outside a
+generic the same never-true test is an error, since there it is always a mistake; inside one, code a particular
+copy cannot use is what tree shaking is for ([D167](decisions.md), [control_flow.md](control_flow.md#value--class)).
+
+```gdscript title=generic_never_true/detector.spite
+generic $item_type
+
+func is_health(item: $item_type): Boolean {
+    if item == Health {
+        return true
+    }
+    return false
+}
+```
+```gdscript title=generic_never_true/health.spite
+var points = 3
+
+func total(): Integer {
+    return points
+}
+```
+```gdscript title=generic_never_true/label.spite
+var text = "fragile"
+
+func shown(): String {
+    return text
+}
+```
+```gdscript title=generic_never_true/generic_never_true.spite entry
+var console = Console()
+
+func GenericNeverTrue() {
+    var labels = Detector<Label>()
+    var healths = Detector<Health>()
+    var label_answer = labels.is_health(Label())
+    var health_answer = healths.is_health(Health())
+    console.print(label_answer, health_answer)
+}
+```
+```output
+false true
+```
 
 A codegen value that is a type reads as its class wherever a class name would: `$component_type.name` is the
-bound class's name the way `Health.name` is, and `$component_type.attributes` its attributes. It allocates
-nothing, since the class object already exists; a value of the type is not needed to ask. On its own, `$name` is
-still not a value -- only a member read through it is.
+bound class's name the way `Health.name` is, and `$component_type.attributes` its attributes, with no value of
+the type made to ask. On its own, `$name` is still not a value -- only a member read through it is.
 
 ```gdscript title=codegen_class_name/column.spite
 generic $component_type
@@ -455,8 +489,10 @@ The templates above range over a class's attributes. They range over four more t
 the arguments of one function, the classes of every folder with a given name, the functions whose names fit a
 pattern, and an enum's values ([values_and_types.md](values_and_types.md#walking-an-enums-values)). With
 `has_function`, which asks a generic's type a question while compiling, this is how an engine finds its systems
-and calls them with nothing registered. It all happens at compile time, and only what a program
-calls is generated. These spellings are proposals ([the rules in full](#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)), not yet confirmed.
+and calls them with nothing registered. It all happens at compile time: each walk becomes ordinary calls, no
+list of functions or classes exists at run time, and only what a program calls is generated. What these ranges
+do was decided by Mortaro (D114-D116, and D180 for the enum a pattern's hole matches); the spellings are
+proposals, not yet confirmed ([the rules in full](#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)).
 
 ### Asking for a function, and walking its arguments
 
@@ -554,9 +590,8 @@ is decided while compiling, so the name it asks for is written as a literal
 `System.Greet` and `Tools.System.Sweep`, in order of their dotted names. A range that names no class or type is
 read as the end of a folder's namespace. Inside, `system.class` is the class, as a type or as a value, and
 `system.name` is its dotted name. The plural calls the template for each class, so adding a file to a `system/`
-folder is how a system is added, with no list anywhere. A range that matches no folder at all walks nothing, so
-an engine that walks `Symbol<Recipe>` still compiles for a program with no recipes; naming one class it does not
-hold, as in `cook_recipe_bread()`, is an error that lists the classes it does hold.
+folder is how a system is added, with no list anywhere. A range that matches no folder walks nothing, and naming
+one class it does not hold is an error ([the rules](#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)).
 
 ```gdscript title=folder_walk/system/greet.spite
 var console = Console()
@@ -603,8 +638,10 @@ greet runs
 sweep runs
 ```
 
-`Tools.Broom` is not in a `system` folder, so it is not walked. Written with a generic,
-`Runner<system.class>()` makes one `Runner` per class found.
+`Tools.Broom` is not in a `system` folder, so it is not walked. In `--final-classes`, `add_systems()` is two
+plain calls, `add_system_greet()` and `add_tools_system_sweep()`: the symbol's word in the name is replaced by the
+class's dotted name in snake_case. Written with a generic, `Runner<system.class>()` makes one `Runner` per class
+found.
 
 ### A name that says when it runs
 
@@ -708,14 +745,14 @@ draw 3 shapes
 ```
 
 `--final-classes` shows what was made: `RunnerMove` has `place_update_all()` and `run_update_all()`,
-`add_systems()` calls `add_system_system_draw()` and `add_system_system_move()`, and `run_phases()` calls
+`add_systems()` calls `add_system_draw()` and `add_system_move()`, and `run_phases()` calls
 `run_update()` and `run_render()`. `RunnerDraw` has no `place_count_all()`, since `count` is not a `Phase`. A
 program adds a phase by reopening the enum ([packages.md](packages.md#reopening-an-enum-adds-values)), and every
 system with a function for it is then run in it.
 
 Calling a single instance names a value, and one the enum does not have is an error listing the ones it does:
 `run_updat_all()` here is "'updat' is not a value of 'NamePhases.Phase', which has 'update', 'render'", and
-`run_render_all()` in `RunnerMove` says `System.Move` has no function `render_all`. A pattern whose
+`run_render_all()` in `RunnerMove` says 'Move' has no function 'render_all'. A pattern whose
 hole names no enum is an error at the template, asking for `enum Phase` (`diagnostics/hole_values`). As a
 condition, `$system_type.has_function("<phase>_all")` asks whether any function fits the pattern, its hole read
 the same way. A fuller engine, with rows queried per argument and `run_each` called once per combination, is
@@ -798,19 +835,26 @@ at compile time:
   or a name pattern are expanded into ordinary calls. No list of functions or classes exists at run time.
 - **An enum's values** are walked the same way: `Symbol<Phase>` and a pattern's hole become one call per value,
   so no table of an enum's values exists at run time, and a program that never walks an enum pays nothing for it.
+- A **generic class** exists only for the values a program gives it, and each of its functions is compiled for
+  one set of values only when surviving code calls it; a [constraint](#constraining-what-a-generic-accepts)
+  is checked by the compiler and emits nothing.
 - **Reflection** is built only where it is read ([reflection.md](reflection.md)), and a generic class such as
   [`Json`](json.md) exists only for the types a program uses it with.
-- A **class** nothing reaches is not emitted.
-- The **concurrency scheduler**, the state machines and atomic reference counts exist only in a program that
-  makes a `Concurrent` or a `Parallel`, or is built with `--repl-port` ([concurrency.md](concurrency.md)).
+- In a production build, a **function or class** nothing reachable uses is not emitted
+  ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)).
+- The **concurrency machinery** -- the state machines of a `Concurrent` and the loop that runs them, the thread
+  pool, atomic reference counts -- exists only in a program that makes a `Concurrent` or a `Parallel`, or is
+  built with `--repl-port` or `--hot-reload`
+  ([optimizations.md](optimizations.md#concurrency-machinery-only-where-it-is-used)).
 
 This is tree shaking over the program's own model, not dead-code elimination left to the C compiler.
 
-An inspectable build -- `--development`, `--hot-reload`, `--repl` or `--repl-port` -- keeps every generated
-function instead of only the ones reachable from `main`, so live reload has all of them to swap and the REPL can
-reach them ([D143](decisions.md)). Conditions on codegen values and `Build` fields fold there too: a
-codegen value is part of which class this is, and a `Build` field is a fact of the build. Every optimisation the
-compiler makes on its own, and the builds it applies in, is listed in [optimizations.md](optimizations.md).
+An inspectable build -- `--development`, `--hot-reload`, `--repl` or `--repl-port` -- keeps every function and
+class the program generated instead of only the ones reachable from `main`, so live reload has all of them to
+swap and the REPL can reach them ([D143](decisions.md), [compiler.md](compiler.md#development-builds-and-tree-shaking)).
+What is decided while compiling is decided there too: templates are still generated only for the names called,
+and [conditions on codegen values](#codegen-values---implemented) still fold. Every optimisation the compiler
+makes on its own, and the builds it applies in, is listed in [optimizations.md](optimizations.md).
 
 ## Rules in full
 
@@ -822,13 +866,14 @@ fix. A `D` number is a row of the [decision log](decisions.md).
 
 ### Symbol codegen  **[implemented]**
 
-There are no macros. A parameter of class `Symbol` whose name is a segment of its function's name turns the function into codegen
-for every name that fits: below, `set_attribute` answers `set_age`, `set_name`, and so on, for each attribute of the class.
-Inside, the symbol names that attribute: written as a type (`value: attribute.class`, `): attribute.class`), it
-is the attribute's actual type; written as an expression, `attribute.class` is a `Spite.Class`
-naming that type, printing just like the type name would -- `"{attribute.class}"` included, since a text hole
+There are no macros. A parameter of class `Symbol` whose name is a segment of its function's name turns the
+function into codegen for every name that fits: below, `set_attribute` answers `set_age`, `set_name`, and so on,
+for each attribute of the class. Inside, the symbol names that attribute: written as a type (`value:
+attribute.class`, `): attribute.class`), it is the attribute's actual type; written as an expression,
+`attribute.class` is a `Spite.Class` naming that type, printing just like the type name would --
+`"{attribute.class}"` included, since a text hole
 holding a value whose class declares `to_string()` calls it (D109's reading of printable, applied to text;
-proposed by Claude, unconfirmed, 2026-09-24; `conformance/stage6/class_text`).
+proposed by Claude, unconfirmed; `conformance/stage6/class_text`).
 
 ```person.spite
 func set_attribute(attribute: Symbol, value: attribute.class) {
@@ -845,17 +890,20 @@ var person = Person(1)
 person.set_age(2)
 ```
 
-A function with the exact name always wins over codegen. Only the names actually called are generated.
+A function with the exact name always wins over codegen, for that one name: an exact `set_name` answers a write
+of `name` while its read still goes through `get_attribute`. Only the names actually called are generated, in
+every build; the template itself emits nothing, and each instance is an ordinary function that costs what its
+body costs. A generated `get_<attribute>()` of an owning attribute (a `String`, `List<T>` or `Dictionary<T>`)
+returns a retained, independent value, exactly as an explicit getter does, which is what lets D15 treat a field
+and a zero-argument function as the same member.
 
-**Fixed in milestone 9a:** a `get_<attribute>()` generated this way used to double-free when the attribute was
-an owning one (a `String`, `List<T>` or `Dictionary<T>` field). Reference counting made every return a properly
-retained, independent value, so a generated getter is now exactly as safe as an explicit one -- which is what
-lets D15 (next subsection) treat a field and a zero-argument function as the same member. See `docs/KNOWN_ISSUES.md`
-item 2, closed.
+A walk makes an attribute used only when it reads its value: `x.attributes[attribute]` counts as a read of every
+attribute it reaches, while `attribute.name` and `attribute.class` describe the attribute without reading it, so
+an attribute only they look at is the unread-attribute error (D118, [Unused is an
+error](style.md#unused-is-an-error--implemented)).
 
 **Another class's attributes, and every attribute at once** (proposed by Claude, unconfirmed; built for D95's
-`Json`, 2026-09-24).  **[implemented]** Two additions, both needed to write JSON with the metaprogramming rather
-than beside it:
+`Json`).  **[implemented]**
 
 - **`attribute: Symbol<Label>` ranges over `Label`'s members** instead of the template's own class: its
   attributes, and its functions that take no arguments (D15). Inside, `label.attributes[attribute]` is that member
@@ -863,19 +911,18 @@ than beside it:
   `attribute.class` mean what they always did. `List`'s member templates are written this way,
   `member: Symbol<$element_type>` (D91). In a generic class the class is usually the codegen value,
   `Symbol<$value_type>`; when that value is not a class the template answers nothing.
-- **`Symbol<Row>` over a `type`** (proposed by Claude, unconfirmed, 2026-09-24) ranges over the attributes the
-  type names and the functions it requires with no arguments; `row.attributes[attribute]` is the shape's own
-  read, write or call, answered from the value's class at run time, and the plural walks the type's attributes in
-  its order (`conformance/stage6/shape_attributes`).
+- **`Symbol<Row>` over a `type`** (proposed by Claude, unconfirmed) ranges over the attributes the type names
+  and the functions it requires with no arguments; `row.attributes[attribute]` is the shape's own read, write or
+  call, answered from the value's class at run time like any read through a `type`, and the plural walks the
+  type's attributes in its order (`conformance/stage6/shape_attributes`).
 - **The plural calls it for every attribute.** `show_attributes(label, lines)`, for a template `show_attribute`
   whose symbol is `attribute`, calls `show_<name>(label, lines)` once per attribute, in declaration order. It is
   an ordinary generated function whose body is those calls, so it is typed, visible and shaken like any other,
-  and the template it repeats must return nothing (`diagnostics/every_attribute`). The plural is the word
-  `attributes` already means "all of them" in, which is why it was chosen over a new keyword or loop form: the
-  old compile-time-unrolled `for instance.attributes` went with `for`, and this is its replacement without one.
-  Over another class's attributes it calls only the ones that class lets others read: a private `_` attribute
-  is skipped rather than being the private error (proposed by Claude, unconfirmed; found by D109's
-  `to_debug()`).
+  and the template it repeats must return nothing: "'count_attributes' calls 'count_attribute' once for every
+  attribute, so 'count_attribute' has to return nothing" (`diagnostics/every_attribute`). It replaces the
+  compile-time `for instance.attributes`, which went with `for`. Over another class's attributes it calls only
+  the ones that class lets others read: a private `_` attribute is skipped rather than being the private error
+  (proposed by Claude, unconfirmed).
 
 ```gdscript
 func show_attribute(attribute: Symbol<Label>, label: Label, lines: List<String>) {
@@ -887,19 +934,21 @@ func show_attribute(attribute: Symbol<Label>, label: Label, lines: List<String>)
 
 ### A class's functions, a folder's classes and a name's pattern  **[implemented; the spellings proposed by Claude, unconfirmed]**
 
-D114, D115 and D116 (decided by Mortaro in the SlopEngine session) are one mechanism: the Symbol templates above,
-ranging over three more things a program already has -- a function's arguments, a folder's classes, and the
-functions whose names fit a pattern -- plus one question a generic asks of its type. Everything is decided while
-compiling: there is no registry, no list walked at run time, and nothing is generated for a name no program
-calls. The spellings below are Claude's (2026-09-24), chosen to be the existing forms read one step further:
+D114, D115 and D116 (decided by Mortaro) are one mechanism: the Symbol templates above, ranging over three more
+things a program already has -- a function's arguments, a folder's classes, and the functions whose names fit a
+pattern -- plus one question a generic asks of its type. Everything is decided while compiling: each walk expands
+into ordinary calls, there is no registry and no list walked at run time, and nothing is generated for a name no
+program calls (D177). The spellings below are Claude's, chosen to be the existing forms read one step further:
 
 - **`$system_type.has_function('run_each')` in a condition folds like `if $is_magic`** (D114). The name is a
   literal -- a symbol, or text holding a pattern such as `"<phase>_each"` (D116), which is true when some
   function's name fits it with a non-empty middle. Only the taken branch is compiled, so it may call what only
-  that type has; any other argument is an error (`diagnostics/function_reflection`). It is an ordinary member of
+  that type has; any other argument is an error: "'$system_type.has_function(...)' is decided while compiling, so
+  the name it asks for is written as a literal" (`diagnostics/function_reflection`). It is an ordinary member of
   `Spite.Class` (`library/spite/class.spite`, D92), so `klass.has_function("boost")` also answers at run time,
-  from `.functions`. Folded, it counts the functions the class declares: not its constructor, not a `_`
-  function, and not what a template generated for it.
+  from `.functions` -- which exists only in a program that reads it ([reflection.md](reflection.md)). Folded,
+  it counts the functions the class declares: not its constructor, not a `_` function, and not what a template
+  generated for it.
 - **`argument: Symbol<$system_type.run_each>` ranges over the arguments of `run_each`** (D114). A `Symbol<X>`
   already ranged over X's members; a function's members are its arguments. Inside, `argument.name` is the
   argument's name and `argument.class` its type, written as a type (`Query<argument.class>()`,
@@ -917,12 +966,13 @@ calls. The spellings below are Claude's (2026-09-24), chosen to be the existing 
   `Ui.System.Interact` -- a range that names no class or type is read as the end of a dotted namespace, and the
   classes of every namespace ending in it are walked in order of their dotted names. Inside, `system.class` is
   the class (so `Runner<system.class>()` instantiates the generic per class) and `system.name` its dotted name;
-  the single instance is named after the whole path (`add_system_ui_system_interact`). A generic class there is
-  skipped, since it has no values to be made with. A range that matches no folder at all walks nothing, like a
-  class with no attributes (proposed by Claude, unconfirmed, 2026-09-24; it was an error, which failed an engine
-  that walks `Symbol<Recipe>` for a program with no recipes even where nothing called the walk). A typo is caught
-  where a single class is named instead: `cook_recipe_bread()` for a class no folder holds is an error listing
-  the ones it does (`conformance/stage6/empty_folder_range`, `diagnostics/empty_folder_range`).
+  the single instance replaces the symbol's word with the whole path in snake_case (`add_system` for
+  `Ui.System.Interact` is `add_ui_system_interact`, for `System.Heal` `add_system_heal`). A generic class there
+  is skipped, since it has no values to be made with. A range that matches no folder at all walks nothing, like a
+  class with no attributes, so an engine that walks `Symbol<Recipe>` compiles for a program with no recipes
+  (proposed by Claude, unconfirmed). A typo is caught where a single class is named instead: "'cook_recipe_bread'
+  is 'cook_recipe' for a class 'recipe_bread', but no folder is named for 'Recipe'", or, when the folders exist,
+  a list of the classes they do hold (`conformance/stage6/empty_folder_range`, `diagnostics/empty_folder_range`).
 - **`phase: Symbol<$system_type.phase_each>` ranges over the functions whose names fit `<phase>_each`** (D116):
   when the parameter's own name is a word of the function name in the range, that word is the hole, exactly as
   it is in a template's own name. `update_each` gives `phase` = `'update'`; `run_each_before_phase` would match
@@ -931,30 +981,34 @@ calls. The spellings below are Claude's (2026-09-24), chosen to be the existing 
   from inside walks that function's arguments, its instances named for it (`row_potion_in_update_each`) so two
   matched functions never share one. The engine owns the list of phases and decides what they mean; the language
   only reads the name.
-- **The hole matches only the values of an enum** (D180, decided by Mortaro, 2026-09-25; how the enum is found
-  proposed by Claude, unconfirmed). The engine's phases are an enum, and the enum is the one named for the hole --
+- **The hole matches only the values of an enum** (D180, decided by Mortaro; how the enum is found proposed by
+  Claude, unconfirmed). The engine's phases are an enum, and the enum is the one named for the hole --
   `Phase` for `phase`, `RenderStep` for `render_step` -- resolved as a type written that way would be from the
   template's class (its own class, its folders, then the whole program when only one class declares it). A
   function that fits the pattern without naming a value, such as a helper `count_all` when `count` is not a
   `Phase`, is an ordinary function. The plural (`run_phases_each()`) walks the matching functions **in the enum's
-  order** (it was their declaration order), and `phase.value` is the matched value, typed as the enum, so an
-  engine stores and compares phases as values rather than text. A hole no enum is named for is an error at the
-  template asking for one; calling an instance for a name the enum does not have is an error listing its values,
-  and one for a value the type has no function for says so (`diagnostics/hole_values`). A folded
-  `$type.has_function("<phase>_each")` reads its hole the same way; `has_function` and `name_fits` answered at
-  run time, from `.functions`, still take any text in the hole. A program adds a phase by reopening the enum
-  ([Types](values_and_types.md#types)), and every system with a function for it is then run in it (`conformance/stage6/system_phases`,
-  where a system's `sum_all` helper stays ordinary).
-- **A template's symbol is passed to a helper by name** (proposed by Claude, unconfirmed, 2026-09-24; SlopEngine's
-  runner had to keep its whole loop inside `run_phase_each`). A function whose `Symbol<...>` parameter is not a
-  word of its own name -- `run_combination(phase: Symbol<$system_type.phase_each>, combination: Integer)` -- is not
+  order**, not their declaration order, and `phase.value` is the matched value, typed as the enum, so an engine
+  stores and compares phases as values rather than text. A hole no enum is named for is an error at the template:
+  "the hole '<stage>' of '<stage>_all' matches only the values of an enum named for it, and there is no enum
+  'Stage'"; calling an instance for a name the enum does not have is an error listing its values ("'updat' is not
+  a value of 'Runner.Phase', which has 'update', 'render'"), and one for a value the type has no function for
+  says so (`diagnostics/hole_values`). A folded `$type.has_function("<phase>_each")` reads its hole the same way;
+  `has_function` and `name_fits` answered at run time, from `.functions`, still take any text in the hole. A
+  program adds a phase by reopening the enum ([packages.md](packages.md#reopening-an-enum-adds-values)), and
+  every system with a function for it is then run in it (`conformance/stage6/system_phases`, where a system's
+  `sum_all` helper stays ordinary). Walking the enum emits one call per value and no table of its values (D177).
+- **A template's symbol is passed to a helper by name** (proposed by Claude, unconfirmed). A function whose
+  `Symbol<...>` parameter is not a word of its own name --
+  `run_combination(phase: Symbol<$system_type.phase_each>, combination: Integer)` -- is not
   an ordinary function taking a run-time `Symbol`: it is a template compiled once for each symbol passed to it,
   and the only thing its symbol argument may be is the calling template's own symbol over the same range, written
   by name: `run_combination(phase, combination)`. Its instance is `run_combination_for_update`, keyed
   `_in_<function>` as above when its range is a function's arguments inside a pattern; inside it `phase` means
   everything it meant in the caller, so `system.phase_each(row_arguments())` works there too. Anything else passed
-  is an error, and so is a call from outside such a template (`conformance/stage6/passed_symbol`,
-  `diagnostics/passed_symbol`). A plain `Symbol` parameter, with no range, stays a run-time value.
+  is an error, and so is a call from outside such a template: "'announce' is compiled once for each 'phase' of
+  'Symbol<$system_type.phase_all>', so its 'phase' can only be the symbol of a template over that same range,
+  passed by name from inside it" (`conformance/stage6/passed_symbol`, `diagnostics/passed_symbol`). A plain
+  `Symbol` parameter, with no range, stays a run-time value.
 
 ```gdscript
 func add_system(system: Symbol<System>) {
@@ -986,8 +1040,8 @@ chosen by `has_function`), `conformance/stage6/system_folder` (`system/` and `ui
 
 `$name` means "replaced at code generation". That is its only meaning, everywhere it appears.
 
-D87 (decided by Mortaro, 2026-09-24, superseding D9's constructor list): **a class declares each codegen value on
-a `generic` line of its own, at the top of the file**, "instead of constructor":
+D87 (decided by Mortaro, superseding D9's constructor list): **a class declares each codegen value on a `generic`
+line of its own, at the top of the file**, "instead of constructor":
 
 ```weapon.spite
 generic $damage_type
@@ -1008,42 +1062,58 @@ func hit(): Integer {
 ```
 
 ```gdscript
-var sword = Weapon<Magic, true>(10)
+var sword = Weapon<Integer, true>(10)
 ```
 
 - **Every value is declared, even a single one**, so skimming the top of a file is how a human sees what a class
-  accepts. The lines come after a `singleton` line and before everything else (D67); one line declares one value.
+  accepts. The lines come after a `singleton` line and before everything else (D67); one line declares one value,
+  and a comma is an error naming the line to write: "a 'generic' line declares one codegen value: write 'generic
+  $left_type' and put the next one on its own line".
 - **Call sites are positional, always, in the order of the lines.** There is no named form: `List<Integer>()`,
-  `Weapon<Magic, true>(10)`.
-- **`$` is for generics only** (D76, decided by Mortaro, 2026-09-23, superseding D9's "undeclared means supplied
-  by a compiler flag"). Every `$name` a class uses has a `generic` line and is supplied by the caller, so the
-  lines are exactly "what a caller must pass". A `$name` with no line is a compile error pointing at
-  [`Environment`](programs.md#program-settings-environment--implemented), which is where a program's settings live now
-  (`diagnostics/codegen_values`).
+  `Weapon<Integer, true>(10)`.
+- **`$` is for generics only** (D76, decided by Mortaro, superseding D9's "undeclared means supplied by a
+  compiler flag"). Every `$name` a class uses has a `generic` line and is supplied by the caller, so the lines
+  are exactly "what a caller must pass". A `$name` with no line is a compile error. Used as a value it points at
+  [`Environment`](programs.md#program-settings-environment--implemented), which is where a program's settings
+  live: "'Game' has no 'generic $verbose' line, and '$' is for generics only: a program's settings are fields of
+  Environment -- ..."; used as a type it is "this class has no 'generic $other_type' line, so '$other_type' cannot
+  be used as a type" (`diagnostics/codegen_values`).
+- **Only a class has codegen values; there are no generic functions** (D123, decided by Mortaro: "function
+  generics can ONLY come if the class has a generic declared for it"). A function reads the `generic` lines of its
+  class and declares none of its own; a function that must accept any class takes a `type` -- the built-in empty
+  `Anything` (D163) accepts every class -- and `value.class` is the real class
+  ([reflection.md](reflection.md#an-attributes-value)). Listing values on a function is the D9 error below.
 - **A class needs no constructor to take codegen values.** That was D9's cost, and the reason for D87:
   `library/list.spite` is `generic $element_type` and its functions, and `library/dictionary.spite` is `generic
   $value_type`; an empty constructor is still an error.
 - **Every hole must be filled.** There are no defaults. A call supplying the wrong number is a compile error
-  naming the class's codegen values, in order, so the mistake is corrected from the message rather than by
-  opening the class. A `$name` that is not declared is an error too -- which is what a typo like `$is_magik`
-  produces.
+  naming the class's codegen values, in order -- "'Box' takes 1 codegen value(s), in this order: $held_type --
+  but 2 were given" -- so the mistake is corrected from the message rather than by opening the class. A `$name`
+  that is not declared is an error too -- which is what a typo like `$is_magik` produces.
 - Reordering the `generic` lines changes what every existing positional call site means. Where the values
   have different kinds (a class versus a `Boolean`) the compiler catches it immediately; where they are the same
   kind (`Pair<Integer, String>` swapped) it compiles and means something else, and the tests are what catch it. This
-  is a deliberate, accepted trade (Mortaro, 2026-09-19).
-- `--final-classes` prints each class with its codegen values already bound, which is where `true` reads as
-  `is_magic` again.
+  is a deliberate, accepted trade (Mortaro).
+- **Each set of values is its own class**, made only where a program names it, with its own copy of every
+  function surviving code calls. Nothing chooses between them at run time; what a generic costs is that code,
+  once per set of values used, and a generic nobody makes costs nothing (D177). `--final-classes` prints each
+  class with its codegen values already bound, which is where `true` reads as `is_magic` again.
 - Writing `generics` is a parse error naming this form (as `for`, `&` and `Heap<T>` already are), and so is D9's
-  `func Weapon<$damage_type, $is_magic>(...)`: the message lists the `generic` lines to write
-  (`diagnostics/constructor_codegen_list`). A `generic` line inside a function is an error too.
-- **The values can be left out when the constructor's arguments say them** (proposed by Claude, unconfirmed,
-  2026-09-24, generalised for D138 on 2026-09-25): each parameter whose declared type mentions a `$name` is
+  `func Weapon<$damage_type, $is_magic>(...)`, on a constructor or any other function: "a function no longer
+  lists codegen values between '<' and '>': declare each at the top of the file on its own line ('generic
+  $damage_type', 'generic $is_magic'), and write 'func Weapon(' here" (`diagnostics/constructor_codegen_list`).
+  A `generic` line inside a function is an error too.
+- **The values can be left out when the constructor's arguments say them** (proposed by Claude, unconfirmed;
+  generalised for D138): each parameter whose declared type mentions a `$name` is
   matched against its argument's type -- `$name` itself, `$name?` (a `T` or a `T?` both give `T`), `List<$name>`,
   `Dictionary<$name>`, and the arguments and return of a `Spite.Function<...>`. A `null` argument says nothing.
-  Only when every `$name` is found; otherwise the error asks for them between `<` and `>`. `Pair("Hero", 7)`,
+  Only when every `$name` is found; otherwise the error asks for them between `<` and `>`: "'Box' takes 1 codegen
+  value(s), in this order: $held_type -- write them between < and > before the arguments". `Pair("Hero", 7)`,
   `Concurrent(file.read)`, `Json(order)`.
+- `null` as the default of an attribute typed by a codegen value means that type's own default, not a `T?`
+  (provisional, [open question 1](open_questions.md#open-questions)).
 
-**A `generic` line may name a constraint** (D175, decided by Mortaro, 2026-09-25). **[implemented]**
+**A `generic` line may name a constraint** (D175, decided by Mortaro). **[implemented]**
 `generic $item_type: Printable` accepts only types that fit the `type` `Printable`, and a use that does not
 (`Shelf<Pet>`) is an error where the class is named, naming the constraint, the class and what it lacks --
 "'Pet' does not fit type 'Printable', which 'Shelf' requires of $item_type: it has no function 'to_string'" --
@@ -1051,12 +1121,15 @@ instead of an error deep inside the generic's body. The constraint is optional a
 resolved like any type name from the generic's file. What follows is Claude's reading where D175 is not specific
 (proposed by Claude, unconfirmed):
 
-- **Fitting is what [Types](values_and_types.md#types) already means by it**: the class a `type` would admit fits -- a class with the
-  listed functions and attributes, `String`, a number, an enum, a `List<T>` or `Dictionary<T>` with what the
-  `type` needs, and the `type` itself. A `T?` does not fit (null has none of what the `type` needs), and neither
-  does a function value.
-- **A constraint names a `type`, not a class or a union**: anything else is an error on the `generic` line.
-  Constraining by a union ("one of these classes") is not built.
+- **Fitting is what [Types](values_and_types.md#types) already means by it**: the class a `type` would admit
+  fits -- a class with the listed functions and attributes, `String`, a number, an enum, a `List<T>` or
+  `Dictionary<T>` with what the `type` needs, and the `type` itself. A `T?` does not fit ("'Integer?' does not fit
+  type 'Printable', which 'Shelf' requires of $item_type: it may be null, and null has none of what the type
+  needs"), and neither does a function value.
+- **A constraint names a `type`, not a class, a union or a number type**: anything else is an error on the
+  `generic` line -- "'$count_type' is constrained by 'Integer', which is not a 'type': a constraint names a
+  'type' the class given must fit, like 'generic $count_type: Printable'". Constraining by a union ("one of these
+  classes") is not built.
 - **It is checked once per class given**, where the compiler first makes that instance, written out or read
   from the constructor's arguments. After the error the generic is compiled as if it had been given the `type`
   itself, so its body adds no errors of its own.
@@ -1066,17 +1139,27 @@ resolved like any type name from the generic's file. What follows is Claude's re
 `conformance/stage6/generic_constraints`, `diagnostics/generic_constraints`,
 `diagnostics/generic_constraint_not_a_type`, `docs/metaprogramming.md`.
 
-Conditions on codegen values are decided at compile time and the untaken branch is removed (tree shaking), in
-every build, `--development` and `--hot-reload` included (settled 2026-09-25 by keeping what was built): a
-codegen value is part of which class this is -- `Weapon<Magic, true>` and `Weapon<Magic, false>` are two classes --
-so there is no run-time value for live reload to change. To change one, change the call site.
+**Conditions on codegen values fold.** They are decided at compile time and the untaken branch is removed (tree
+shaking), in every build, `--development`, `--hot-reload` and the REPL builds included (the D143 row that settled
+what `--development` does): a codegen value is part of which class this is -- `Weapon<Integer, true>` and
+`Weapon<Integer, false>` are two classes -- so there is no run-time value for live reload to change. To change
+one, change the call site.
 
-**Asking what type a generic was given** (proposed by Claude, unconfirmed; built for D95's `Json`, 2026-09-24).
+**A class test that can never be true for one instantiation folds to `false`** (D167, decided by Mortaro): inside
+a generic class, `if item == Health { }` where `item`'s type comes from a codegen value that is not `Health` in
+this copy is `false`, and its branch is removed from that copy only -- "generics being possibly unused code is
+used for tree shake, its on purpose not an error". Outside generics the never-true test stays D75's error
+([control_flow.md](control_flow.md#control-flow--implemented)). A codegen value bound to a class is itself a
+class test on the right of `==`, `item == $wanted_type`
+([values_and_types.md](values_and_types.md#unions--implemented)).
+
+**Asking what type a generic was given** (proposed by Claude, unconfirmed; built for D95's `Json`).
 **[implemented]** When a codegen value is a type, `$value_type == String` is decided at compile time like any
 other condition on a codegen value, and only the branch taken is compiled -- so each branch may use what only
 that type has, which is what lets one generic class treat text, numbers, lists and classes differently. It is
-[Types](values_and_types.md#types)'s class test (D75) asked of a type instead of a value. A type name asks for exactly that type; four
-names ask for a kind, since the type has arguments the test does not want to spell:
+the class test (D75, [control_flow.md](control_flow.md#value--class)) asked of a type instead of a value. A type
+name asks for exactly that type; four names ask for a kind, since the type has arguments the test does not want
+to spell:
 
 | Test | True when the type is |
 |---|---|
@@ -1088,35 +1171,27 @@ names ask for a kind, since the type has arguments the test does not want to spe
 A union name is true for any of its members. Such a test always folds, `--development` included, because the
 branch it rules out would not compile.
 
-**Only what survives folding is compiled** (proposed by Claude, unconfirmed, 2026-09-24). A function of a generic
-class is compiled, and so type-checked, for one instantiation only when code already compiled for the program
-names it -- a call that survived folding, a function value, a reflection table, or a call through a `type` the
-class is a member of -- so a helper reached only from a
-branch the instantiation rules out is never checked against that type. When a folded `if` (or `else if` chain)
-takes a branch that ends in `return`, the statements after it in the same block are not compiled either, and
-the names they read count as used, as for the untaken branch. Before, `Field<Integer>.write_list` was checked for
-`.count()` on an `Integer`, and the only way out was one generic class per kind. A class that is not generic still
-compiles every function. `conformance/stage6/folded_helpers`.
+**Only what survives folding is compiled** (proposed by Claude, unconfirmed). A function of a generic class is
+compiled, and so type-checked, for one instantiation only when code already compiled for the program names it --
+a call that survived folding, a function value, a reflection table, or a call through a `type` the class is a
+member of -- so a helper reached only from a branch the instantiation rules out is never checked against that
+type. When a folded `if` (or `else if` chain) takes a branch that ends in `return`, the statements after it in the
+same block are not compiled either, and the names they read count as used, as for the untaken branch. This holds
+in every build, inspectable ones included. A class that is not generic still compiles every function, so a
+mistake in an uncalled one is still reported (D140). `conformance/stage6/folded_helpers`.
 
 **The types a type was built from are read by their codegen names**: `$value_type.element_type` for a
 `List<$element_type>`, `$value_type.value_type` for a `Dictionary<$value_type>` or a `$value_type?`, and a generic
 class's own names for one of its instances -- the names this section already gives the containers. Reading a name
-the type does not have is an error listing them (`diagnostics/every_attribute`).
-`conformance/stage6/every_attribute`, `docs/metaprogramming.md`.
+the type does not have is an error listing them: "a List<Integer> has no codegen value named '$value_type' --
+List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own"
+(`diagnostics/every_attribute`). `conformance/stage6/every_attribute`, `docs/metaprogramming.md`.
 
-**A codegen value that is a type reads as its class** (proposed by Claude, unconfirmed, 2026-09-24): a member
+**A codegen value that is a type reads as its class** (proposed by Claude, unconfirmed): a member
 read through it, `$component_type.name` or `$component_type.attributes`, is read from the bound class's
 `Spite.Class`, exactly as `Health.name` is -- no value of the type is made. `$component_type` alone in an
 expression is still the "is a type here" error (`conformance/stage6/codegen_class_name`).
 
-**How this got here.** The `generics` header line existed to give positional call sites an order to follow;
-Mortaro's objection (2026-09-19) was that a bare first-line declaration "feels outside of our patterns". Three
-replacements were tried and rejected in order: a `$name = default` declaration form (kept a declaration alive for
-its own sake -- a codegen value is a hole, not a variable); no declaration at all, with call sites naming the
-values (`Weapon<$damage_type: Magic, $is_magic: true>`, which made every call site restate what the class already
-knew); and a class-level `generics()` function returning a list of symbols (the wrong category -- class-level
-functions answer questions *about* a class, while codegen values are inputs to constructing one, and it needed a
-second list of names kept in sync with the real holes). D9 then put the ordered list on the constructor, which
-forced a constructor on every generic class, even an empty one only there to hold the list; D87 moved it to one
-`generic` line per value, which is a declaration like `var` rather than a header list, and made the header a
-pattern shared with `singleton` (D104).
+The `generic` line replaced the `generics` header, which "feels outside of our patterns" (D5), and D9's list on
+the constructor, which forced a constructor on every generic class (D87); it is a declaration like `var`, and a
+header pattern shared with `singleton` (D104). The alternatives tried on the way are in the decision log.
