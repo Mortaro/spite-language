@@ -44,7 +44,8 @@ func JsonBasics() {
     order.customer = "Ada \"the\" first"
     order.total = 12.5
     order.status = 'shipped'
-    order.items.append(Item("tea", 2))
+    var tea = Item("tea", 2)
+    order.items.append(tea)
     var json = Json(order)
     var text = json.write()
     console.print(text)

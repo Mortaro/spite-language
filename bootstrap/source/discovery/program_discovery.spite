@@ -762,7 +762,8 @@ func add_parsed_file(parsed_file: Syntax.SourceFile, segments: List<String>, ste
         error_message = "{parsed_file.path}: error: 'Spite' holds the standard library's own classes, so a file in a 'spite' folder may only reopen one of them: '{qualified_dotted}' is not one, and a new class of your own belongs in a namespace of your own"
         return
     }
-    class_files.append(DiscoveredClass(mangled_name, simple_name, namespace_dotted, qualified_dotted, parsed_file))
+    var discovered = DiscoveredClass(mangled_name, simple_name, namespace_dotted, qualified_dotted, parsed_file)
+    class_files.append(discovered)
 }
 
 func reopen_with_supplied_members() {
@@ -1118,10 +1119,14 @@ func check_supplied_settings(build_names: List<String>, environment_names: List<
 
 func setting_reading(variable: Syntax.Statements.VariableDeclaration, reader: String): Syntax.Statements.Statement {
     var arguments = List<Syntax.Expressions.Expression>()
-    arguments.append(Syntax.Expressions.StringLiteralExpression(variable.name))
-    arguments.append(Syntax.Expressions.IdentifierExpression(variable.name))
-    var call = Syntax.Expressions.CallExpression(Syntax.Expressions.IdentifierExpression(reader), arguments)
-    var assignment = Syntax.Statements.AssignmentStatement(Syntax.Expressions.IdentifierExpression(variable.name), call)
+    var setting_name = Syntax.Expressions.StringLiteralExpression(variable.name)
+    arguments.append(setting_name)
+    var default_value = Syntax.Expressions.IdentifierExpression(variable.name)
+    arguments.append(default_value)
+    var reader_name = Syntax.Expressions.IdentifierExpression(reader)
+    var call = Syntax.Expressions.CallExpression(reader_name, arguments)
+    var target = Syntax.Expressions.IdentifierExpression(variable.name)
+    var assignment = Syntax.Statements.AssignmentStatement(target, call)
     assignment.line = variable.line
     return assignment
 }

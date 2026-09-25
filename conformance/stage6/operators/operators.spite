@@ -20,5 +20,7 @@ func Operators() {
     console.print(total_description)
     var same = first
     var holder = Holder()
-    console.print(holder == holder, same == first, Holder() == holder, holder != Holder())
+    var other_holder = Holder()
+    var another_holder = Holder()
+    console.print(holder == holder, same == first, other_holder == holder, holder != another_holder)
 }

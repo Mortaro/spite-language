@@ -105,7 +105,8 @@ func test_values_that_are_not_classes() {
     crash list_read
     crash list_read.count() == 2
     var roster = Dictionary<Sailor>()
-    roster.set("first", Sailor("Ada"))
+    var ada = Sailor("Ada")
+    roster.set("first", ada)
     var sailors = Json(roster)
     var roster_text = sailors.write()
     crash roster_text == "\{\"first\":\{\"name\":\"Ada\",\"knots\":[]}}"
@@ -139,12 +140,14 @@ func full_ship(): Ship {
     ada.knots.append("bowline")
     ada.knots.append("hitch")
     ship.crew.append(ada)
-    ship.crew.append(Sailor("Bo"))
+    var bo = Sailor("Bo")
+    ship.crew.append(bo)
     ship.cargo.set("rope", 3)
     ship.cargo.set("tea", 40)
     ship.captain = Sailor("Cy")
     ship.launched = 1902
     ship.logbook.append(["calm"])
-    ship.logbook.append(List<String>())
+    var blank_page = List<String>()
+    ship.logbook.append(blank_page)
     return ship
 }

@@ -5,7 +5,8 @@ func ParallelEach() {
     var particles = List<Particle>()
     var index = 0
     while index < 10000 {
-        particles.append(Particle(index))
+        var particle = Particle(index)
+        particles.append(particle)
         index = index + 1
     }
     particles.parallel_each_step()
@@ -29,7 +30,8 @@ func ParallelEach() {
     var distinct_count = distinct.count()
     console.print("every element ran on a pool worker or on this thread:", distinct_count <= size + 1)
     var few = List<Particle>()
-    few.append(Particle(1))
+    var only_particle = Particle(1)
+    few.append(only_particle)
     few.parallel_each_step()
     var empty = List<Particle>()
     empty.parallel_each_step()

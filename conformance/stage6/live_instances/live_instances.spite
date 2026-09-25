@@ -4,8 +4,8 @@ var kept = List<Monster>()
 func LiveInstances() {
     var instances_count = Monster.instances.count()
     console.print(instances_count)
-    kept.append(Monster("rat"))
-    kept.append(Monster("bat"))
+    keep("rat")
+    keep("bat")
     spawn_and_forget()
     instances_count = Monster.instances.count()
     var joined_map_name = Monster.instances.map_name().join(",")
@@ -24,6 +24,11 @@ func LiveInstances() {
     crash oldest
     var first_name = oldest.name
     console.print(instances_count, first_name)
+}
+
+func keep(name: String) {
+    var monster = Monster(name)
+    kept.append(monster)
 }
 
 func spawn_and_forget() {

@@ -55,8 +55,10 @@ var player_age = 20
 var monsters = List<Monster>()
 
 func ReplProgram() {
-    monsters.append(Monster("Goblin", 30))
-    monsters.append(Monster("Orc", 50))
+    var goblin = Monster("Goblin", 30)
+    monsters.append(goblin)
+    var orc = Monster("Orc", 50)
+    monsters.append(orc)
     console.print("player", player_name, "age", player_age)
     var monsters_count = monsters.count()
     console.print("monster count", monsters_count)

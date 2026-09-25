@@ -7,8 +7,10 @@ var tick = 0
 var environment = Environment()
 
 func Dungeon() {
-    monsters.append(Monster("Goblin", 30))
-    monsters.append(Monster("Orc", 50))
+    var goblin = Monster("Goblin", 30)
+    monsters.append(goblin)
+    var orc = Monster("Orc", 50)
+    monsters.append(orc)
     settings.set("volume", 80)
     settings.set("difficulty", 2)
     console.print("player age", player.age)

@@ -121,7 +121,8 @@ func period_until(other: Date): Period {
     var days: Long = other._day - _day
     if months > 0 and days < 0 {
         months = months - 1
-        var moved = sum(Period(months, 'months'))
+        var whole_months = Period(months, 'months')
+        var moved = sum(whole_months)
         days = moved.days_until(other)
     } else if months < 0 and days > 0 {
         months = months + 1

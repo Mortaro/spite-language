@@ -4,10 +4,13 @@ func Temporaries() {
     console.print("abcd")
     var made_greeting = make_greeting("world")
     console.print(made_greeting)
-    var unwrap_label = Wrapper(Inner("deep")).unwrap_label()
+    var deep_inner = Inner("deep")
+    var unwrap_label = Wrapper(deep_inner).unwrap_label()
     console.print(unwrap_label)
-    var first = Wrapper(Inner("first")).label()
-    var second = Wrapper(Inner("second")).label()
+    var first_inner = Inner("first")
+    var first = Wrapper(first_inner).label()
+    var second_inner = Inner("second")
+    var second = Wrapper(second_inner).label()
     console.print("{first} and {second}")
 }
 

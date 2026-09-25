@@ -6,7 +6,8 @@ func SingletonLockCalls() {
     var start = 0
     while start < 4000 {
         var loader = Loader(start)
-        loading.append(Parallel(loader.load_many))
+        var loading_run = Parallel(loader.load_many)
+        loading.append(loading_run)
         start = start + 1000
     }
     var loaded = 0

@@ -10,7 +10,8 @@ func SingletonForms() {
     while started < 4 {
         counter.enter()
         var worker = Worker(5000)
-        working.append(Parallel(worker.run))
+        var work = Parallel(worker.run)
+        working.append(work)
         started = started + 1
     }
     var main_rounds = 0

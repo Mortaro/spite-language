@@ -507,8 +507,10 @@ type Renderable {
 var console = Console()
 
 func ShapeFunctionsDoc() {
-    show(Badge("new"))
-    show(Banner())
+    var badge = Badge("new")
+    show(badge)
+    var banner = Banner()
+    show(banner)
 }
 
 func show(item: Renderable) {
@@ -553,8 +555,10 @@ var console = Console()
 
 func ShapeValuesDoc() {
     var jobs = List<Work>()
-    jobs.append(Job("wash"))
-    jobs.append(Job("dry"))
+    var wash = Job("wash")
+    jobs.append(wash)
+    var dry = Job("dry")
+    jobs.append(dry)
     finish_first(jobs)
     var names = jobs.map_name()
     var joined = names.join(", ")

@@ -8,8 +8,10 @@ var console = Console()
 
 func ShapeFunctions() {
     var parts = List<Renderable>()
-    parts.append(Button("ok"))
-    parts.append(Panel("side", 3))
+    var ok_button = Button("ok")
+    parts.append(ok_button)
+    var panel = Panel("side", 3)
+    parts.append(panel)
     var index = 0
     while index < parts.count() {
         parts[index].resize(2)
@@ -17,7 +19,8 @@ func ShapeFunctions() {
         console.print(parts[index].label, render)
         index = index + 1
     }
-    show(Button("direct"))
+    var direct_button = Button("direct")
+    show(direct_button)
 }
 
 func show(part: Renderable) {

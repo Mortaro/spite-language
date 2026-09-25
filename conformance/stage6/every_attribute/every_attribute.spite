@@ -8,9 +8,11 @@ func EveryAttribute() {
     recipe.title = "stew"
     recipe.servings = 9
     recipe.course = 'feast'
-    describer.reset_title(recipe, Recipe())
+    var fresh_recipe = Recipe()
+    describer.reset_title(recipe, fresh_recipe)
     console.print(recipe.title, recipe.servings, recipe.course)
-    describer.reset_attributes(recipe, Recipe())
+    var defaults = Recipe()
+    describer.reset_attributes(recipe, defaults)
     console.print(recipe.title, recipe.servings, recipe.course)
     var named: Recipe.Course = "dessert"
     var unknown: Recipe.Course = "brunch"

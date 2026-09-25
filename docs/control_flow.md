@@ -225,9 +225,12 @@ union Creature {
 var console = Console()
 
 func SwitchCases() {
-    describe(Dog())
-    describe(Fish())
-    describe(Cat())
+    var dog = Dog()
+    describe(dog)
+    var fish = Fish()
+    describe(fish)
+    var cat = Cat()
+    describe(cat)
 }
 
 func describe(creature: Creature) {
@@ -289,7 +292,8 @@ func ClassTestDoc() {
     console.print("swims", swims)
     var fins = fins_of(pet)
     console.print("fins", fins)
-    var cat_fins = fins_of(Cat())
+    var cat = Cat()
+    var cat_fins = fins_of(cat)
     console.print("a cat's fins", cat_fins)
 }
 
@@ -416,7 +420,8 @@ union Creature {
 var console = Console()
 
 func SingleCaseSwitchError() {
-    var swims = is_fish(Fish())
+    var fish = Fish()
+    var swims = is_fish(fish)
     console.print(swims)
 }
 

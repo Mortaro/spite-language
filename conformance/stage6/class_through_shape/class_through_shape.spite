@@ -10,8 +10,10 @@ type Labeled {
 var console = Console()
 
 func ClassThroughShape() {
-    describe(Widget("thing"))
-    describe(Gauge("dial"))
+    var widget = Widget("thing")
+    describe(widget)
+    var gauge = Gauge("dial")
+    describe(gauge)
     var readout: Readout = Gauge("second dial")
     console.print(readout.class)
     var shaped: Labeled = {label: "a literal"}

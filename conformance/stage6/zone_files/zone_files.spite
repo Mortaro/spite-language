@@ -19,8 +19,12 @@ func ZoneFiles() {
     show_all(eastern, eastern_moments)
     show_all(sydney, southern_moments)
     show_all(lord_howe, half_hour_moments)
-    var southern_gap = DateTime(Date(2024, 10, 6), Time(2, 30, 0, 0))
-    var southern_overlap = DateTime(Date(2024, 4, 7), Time(2, 30, 0, 0))
+    var southern_gap_day = Date(2024, 10, 6)
+    var southern_gap_time = Time(2, 30, 0, 0)
+    var southern_gap = DateTime(southern_gap_day, southern_gap_time)
+    var southern_overlap_day = Date(2024, 4, 7)
+    var southern_overlap_time = Time(2, 30, 0, 0)
+    var southern_overlap = DateTime(southern_overlap_day, southern_overlap_time)
     choose(sydney, southern_gap)
     choose(sydney, southern_overlap)
     refused("TZif2")
@@ -39,7 +43,8 @@ func read(name: String, file_name: String): TimeZone {
 func show_all(zone: TimeZone, moments: List<Long>) {
     var index = 0
     while index < moments.count() {
-        var moment = Instant(Duration(moments[index], 'seconds'))
+        var since_1970 = Duration(moments[index], 'seconds')
+        var moment = Instant(since_1970)
         var shown = zone.to_text(moment)
         console.print(zone.name, moment, shown)
         index = index + 1

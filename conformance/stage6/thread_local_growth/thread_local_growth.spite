@@ -11,7 +11,8 @@ func ThreadLocalGrowth() {
         var runs = List<Parallel<Boolean>>()
         var index = 0
         while index < 64 {
-            runs.append(Parallel(joins_and_reads))
+            var run = Parallel(joins_and_reads)
+            runs.append(run)
             index = index + 1
         }
         index = 0

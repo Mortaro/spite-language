@@ -52,40 +52,49 @@ func flush(end_index: Integer) {
     assert not (token_start < 0)
     var token_slice = source.slice(token_start, end_index)
     if buffer_is_number {
-        tokens.append(Token('number', token_slice))
+        var token = Token('number', token_slice)
+        tokens.append(token)
     } else {
-        tokens.append(Token('identifier', token_slice))
+        var token = Token('identifier', token_slice)
+        tokens.append(token)
     }
     token_start = -1
 }
 
 func add_operator(character: String) {
     if character == "+" {
-        tokens.append(Token('plus', "+"))
+        var token = Token('plus', "+")
+        tokens.append(token)
         return
     }
     if character == "-" {
-        tokens.append(Token('minus', "-"))
+        var token = Token('minus', "-")
+        tokens.append(token)
         return
     }
     if character == "*" {
-        tokens.append(Token('star', "*"))
+        var token = Token('star', "*")
+        tokens.append(token)
         return
     }
     if character == "/" {
-        tokens.append(Token('slash', "/"))
+        var token = Token('slash', "/")
+        tokens.append(token)
         return
     }
     if character == "(" {
-        tokens.append(Token('left_paren', "("))
+        var token = Token('left_paren', "(")
+        tokens.append(token)
         return
     }
     if character == ")" {
-        tokens.append(Token('right_paren', ")"))
+        var token = Token('right_paren', ")")
+        tokens.append(token)
         return
     }
     if character == "=" {
-        tokens.append(Token('equals', "="))
+        var token = Token('equals', "=")
+        tokens.append(token)
         return
     }
 }

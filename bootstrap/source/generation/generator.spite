@@ -683,7 +683,7 @@ func generate_codegen_value(name: String, class_information: Analysis.ClassInfo)
         crash class_information.codegen_codes[bound]
         if class_information.codegen_codes[bound].is_empty() {
             report("'${name}' is a type here, so it cannot be used as a value")
-            return ExpressionResult("0", Analysis.Types.VoidType())
+            return void_result()
         }
         crash class_information.codegen_types[bound]
         var bound_value = ExpressionResult(
@@ -698,7 +698,7 @@ func generate_codegen_value(name: String, class_information: Analysis.ClassInfo)
     report(
         "'{class_information.simple_name}' has no 'generic ${name}' line, and '$' is for generics only: a program's settings are fields of Environment -- reopen it in environment.spite with 'var {name} = ...' and read it through 'var environment = Environment()' as 'environment.{name}'",
     )
-    return ExpressionResult("0", Analysis.Types.VoidType())
+    return void_result()
 }
 
 func constant_condition(
@@ -957,7 +957,8 @@ func type_test(
         return is_enum_type(bound_type)
     }
     var kind_path = kind_name.split(".")
-    var kind_reference: Syntax.Types.Type = Syntax.Types.NamedType(kind_path, List<Syntax.Types.GenericArgument>())
+    var no_generic_arguments = List<Syntax.Types.GenericArgument>()
+    var kind_reference: Syntax.Types.Type = Syntax.Types.NamedType(kind_path, no_generic_arguments)
     var saved_class = current_class
     current_class = class_information
     var kind_type = resolve_type(kind_reference, class_information.qualified_dotted)
@@ -1855,7 +1856,7 @@ func generate_shape_call(
         report(
             "type '{information.simple_name}' does not require a function '{name}', so it cannot be called through it",
         )
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     var parameter_types = shape_call_parameter_types(information, name)
     var return_type = shape_call_return_type(information, name)
@@ -2252,7 +2253,7 @@ func generate_shape_read(
     var field_type = shape_field_type(information, field_name)
     if not field_type {
         report("type '{information.simple_name}' has no attribute '{field_name}'")
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     crash field_type
     mark_members_read(information.members, field_name)
@@ -2324,7 +2325,8 @@ func generate_object_literal(
             var listed_name = names[field_index]
             var listed_type = types[field_index]
             var default_value_code = default_value_for_type(listed_type)
-            created.fields.append(Analysis.FieldInfo(listed_name, listed_type, default_value_code))
+            var listed_field = Analysis.FieldInfo(listed_name, listed_type, default_value_code)
+            created.fields.append(listed_field)
             field_index = field_index + 1
         }
         classes.append(created)
@@ -2345,7 +2347,8 @@ func generate_object_literal(
         assign_index = assign_index + 1
     }
     lines.append("{temporary};")
-    var built = ExpressionResult("(\{ {lines.join(" ")} })", Analysis.Types.ClassRefType(label))
+    var class_type = Analysis.Types.ClassRefType(label)
+    var built = ExpressionResult("(\{ {lines.join(" ")} })", class_type)
     built.owning_override = true
     return built
 }
@@ -2376,7 +2379,8 @@ func shape_default(information: Analysis.UnionInfo): String {
             var listed_name = names[field_index]
             var listed_type = types[field_index]
             var default_value_code = default_value_for_type(listed_type)
-            created.fields.append(Analysis.FieldInfo(listed_name, listed_type, default_value_code))
+            var listed_field = Analysis.FieldInfo(listed_name, listed_type, default_value_code)
+            created.fields.append(listed_field)
             field_index = field_index + 1
         }
         classes.append(created)
@@ -3015,7 +3019,8 @@ func resolve_field(declaration: Syntax.Statements.VariableDeclaration, informati
         information.memory_path = current_path
         information.memory_line = current_line
         var memory_type = long_type()
-        information.fields.append(Analysis.FieldInfo(declaration.name, memory_type, "0"))
+        var field = Analysis.FieldInfo(declaration.name, memory_type, "0")
+        information.fields.append(field)
         return
     }
     var field_type = infer_declared_type(declaration.type_reference, declaration.value, scope, information)
@@ -3024,7 +3029,8 @@ func resolve_field(declaration: Syntax.Statements.VariableDeclaration, informati
         default_code = coerce_for_store(declaration.hardcoded_value, field_type, scope, information)
         hardcoded_settings.append(declaration)
     }
-    information.fields.append(Analysis.FieldInfo(declaration.name, field_type, default_code))
+    var field = Analysis.FieldInfo(declaration.name, field_type, default_code)
+    information.fields.append(field)
 }
 
 func hardcoded_setting(target_class: Analysis.ClassInfo, name: String): Syntax.Statements.VariableDeclaration? {
@@ -3807,7 +3813,8 @@ func instantiate_every_attribute(
         if parameter.name != template.symbol_parameter and parameter.type_reference {
             var parameter_type = resolve_type(parameter.type_reference, information.qualified_dotted)
             if parameter_type {
-                parameters.append(Analysis.ParamInfo(parameter.name, parameter_type))
+                var described_parameter = Analysis.ParamInfo(parameter.name, parameter_type)
+                parameters.append(described_parameter)
             }
         }
         parameter_index = parameter_index + 1
@@ -3887,14 +3894,16 @@ func instantiate_template(
                 var parameter_type = resolve_type(parameter.type_reference, information.qualified_dotted)
                 if parameter_type {
                     var receiving_type = received_type(parameter, parameter_type)
-                    parameters.append(Analysis.ParamInfo(parameter.name, receiving_type))
+                    var described_parameter = Analysis.ParamInfo(parameter.name, receiving_type)
+                    parameters.append(described_parameter)
                 }
             }
         }
         parameter_index = parameter_index + 1
     }
     if owner_type {
-        parameters.append(Analysis.ParamInfo("owner", owner_type))
+        var described_parameter = Analysis.ParamInfo("owner", owner_type)
+        parameters.append(described_parameter)
     }
     var return_type = void_type()
     if declaration.return_type {
@@ -4134,10 +4143,12 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
         var parameter_type = resolve_type(parameter.type_reference, information.qualified_dotted)
         if parameter_type {
             var receiving_type = received_type(parameter, parameter_type)
-            parameters.append(Analysis.ParamInfo(parameter.name, receiving_type))
+            var described_parameter = Analysis.ParamInfo(parameter.name, receiving_type)
+            parameters.append(described_parameter)
         } else {
             var void_spite_type = void_type()
-            parameters.append(Analysis.ParamInfo(parameter.name, void_spite_type))
+            var described_parameter = Analysis.ParamInfo(parameter.name, void_spite_type)
+            parameters.append(described_parameter)
         }
         parameter_index = parameter_index + 1
     }
@@ -4895,6 +4906,11 @@ func double_type(): Analysis.SpiteType {
 func void_type(): Analysis.SpiteType {
     var resolved: Analysis.SpiteType = Analysis.Types.VoidType()
     return resolved
+}
+
+func void_result(): ExpressionResult {
+    var nothing_type = void_type()
+    return ExpressionResult("0", nothing_type)
 }
 
 func no_types(): List<Analysis.SpiteType> {
@@ -5883,9 +5899,11 @@ func lookup_static_type(
 func generate_integer_literal(literal: Syntax.Expressions.IntegerLiteral): ExpressionResult {
     var value = literal.value
     if value >= -2147483648 and value <= 2147483647 {
-        return ExpressionResult("{value}", Analysis.Types.ScalarType('integer_kind'))
+        var result_type = Analysis.Types.ScalarType('integer_kind')
+        return ExpressionResult("{value}", result_type)
     }
-    return ExpressionResult("{value}", Analysis.Types.ScalarType('long_kind'))
+    var result_type = Analysis.Types.ScalarType('long_kind')
+    return ExpressionResult("{value}", result_type)
 }
 
 func generate_identifier(
@@ -5894,7 +5912,8 @@ func generate_identifier(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     if identifier.name == "self" {
-        return ExpressionResult("self", Analysis.Types.ClassRefType(class_information.c_name))
+        var self_type = Analysis.Types.ClassRefType(class_information.c_name)
+        return ExpressionResult("self", self_type)
     }
     if identifier.name == "this" {
         var receiver_type = value_class_type(class_information)
@@ -5919,7 +5938,7 @@ func generate_identifier(
             report(
                 "'{identifier.name}' is the memory {class_information.simple_name} is kept in, and the compiler keeps the value itself there: write 'this'",
             )
-            return ExpressionResult("0", Analysis.Types.VoidType())
+            return void_result()
         }
         var field_type = field.get_type()
         if atomic_owner == class_information.c_name and atomic_fields.contains(identifier.name) {
@@ -5929,7 +5948,8 @@ func generate_identifier(
         return ExpressionResult("self->{c_value_name(identifier.name)}", field_type)
     }
     if identifier.name == "class" {
-        var self_result = ExpressionResult("self", Analysis.Types.ClassRefType(class_information.c_name))
+        var self_type = Analysis.Types.ClassRefType(class_information.c_name)
+        var self_result = ExpressionResult("self", self_type)
         var class_of_self = generate_reflection_read("class", self_result, identifier)
         if class_of_self {
             class_of_self.owning_override = true
@@ -5940,7 +5960,8 @@ func generate_identifier(
     if named_function {
         if not named_function.is_constructor {
             var class_type = class_type_of(class_information)
-            return function_value(class_information, named_function, ExpressionResult("self", class_type), identifier)
+            var bound_receiver = ExpressionResult("self", class_type)
+            return function_value(class_information, named_function, bound_receiver, identifier)
         }
     }
     var named_class = find_class(identifier.name, class_information.qualified_dotted)
@@ -5951,7 +5972,7 @@ func generate_identifier(
     } else {
         report("unknown identifier '{identifier.name}'")
     }
-    return ExpressionResult("0", Analysis.Types.VoidType())
+    return void_result()
 }
 
 func is_boolean_result_operator(operator: Syntax.Expressions.BinaryOperator): Boolean {
@@ -6049,7 +6070,8 @@ func generate_string_binary(
         right_result = text_of_class(right_ast, right_result, scope, class_information)
     }
     var right_result_type = right_result.get_type()
-    var right_code_casted = cast(right_result.code, right_result_type, Analysis.Types.StringType())
+    var text_type = Analysis.Types.StringType()
+    var right_code_casted = cast(right_result.code, right_result_type, text_type)
     var left_temporary = next_temporary()
     var right_temporary = next_temporary()
     var lines = List<String>()
@@ -6546,7 +6568,8 @@ func generate_binary(
         var swapped_right_type = swapped_right.get_type()
         var swapped_left_code = coerce_for_store(binary.left, swapped_right_type, scope, class_information)
         var swapped_code = "({swapped_left_code} {binary_operator_symbol(binary.operator)} {swapped_right.code})"
-        return ExpressionResult(swapped_code, Analysis.Types.ScalarType('boolean_kind'))
+        var result_type = Analysis.Types.ScalarType('boolean_kind')
+        return ExpressionResult(swapped_code, result_type)
     }
     if binary.operator == 'add' {
         var joined_text = generate_text_join(binary, scope, class_information)
@@ -6574,7 +6597,7 @@ func generate_binary(
             report(
                 "this value may be null (it is {type_with_article(left_type)}), so '{binary_operator_symbol(binary.operator)}' cannot use it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
             )
-            return ExpressionResult("0", Analysis.Types.VoidType())
+            return void_result()
         }
     }
     left = as_text(left)
@@ -6608,7 +6631,8 @@ func generate_binary(
         report_maybe_boolean(left, "'{binary_operator_symbol(binary.operator)}'")
         report_maybe_boolean(other, "'{binary_operator_symbol(binary.operator)}'")
         var joined = "({owned_truth(left, binary.left)} {binary_operator_symbol(binary.operator)} {owned_truth(other, binary.right)})"
-        return ExpressionResult(joined, Analysis.Types.ScalarType('boolean_kind'))
+        var result_type = Analysis.Types.ScalarType('boolean_kind')
+        return ExpressionResult(joined, result_type)
     }
     var right_code = ""
     if is_enum_literal(binary.right) and is_enum_type(left_type) {
@@ -6629,7 +6653,8 @@ func generate_binary(
         code = checked
     }
     if is_boolean_result_operator(binary.operator) {
-        return ExpressionResult(code, Analysis.Types.ScalarType('boolean_kind'))
+        var result_type = Analysis.Types.ScalarType('boolean_kind')
+        return ExpressionResult(code, result_type)
     }
     return ExpressionResult(code, left_type)
 }
@@ -7032,7 +7057,7 @@ func generate_class_binary(
         return ExpressionResult("(\{ {lines.join(" ")} })", boolean_spite_type)
     }
     report("this operator on a '{left_class.simple_name}' needs it to define '{function_name}(other)'")
-    return ExpressionResult("0", Analysis.Types.VoidType())
+    return void_result()
 }
 
 func compares_identity_instead(
@@ -7102,7 +7127,8 @@ func generate_unary(
         return ExpressionResult("(-({operand.code}))", operand_type)
     }
     report_maybe_boolean(operand, "'not'")
-    return ExpressionResult("(!{owned_truth(operand, unary.operand)})", Analysis.Types.ScalarType('boolean_kind'))
+    var result_type = Analysis.Types.ScalarType('boolean_kind')
+    return ExpressionResult("(!{owned_truth(operand, unary.operand)})", result_type)
 }
 
 func generate_argument_list(
@@ -7164,7 +7190,8 @@ func generate_spread_arguments(
             var stored_code = coerce_for_store(arguments_ast[index], expected_types[index], scope, class_information)
             result.append(stored_code)
         } else {
-            elements.append(Syntax.Expressions.ListElement(arguments_ast[index]))
+            var element = Syntax.Expressions.ListElement(arguments_ast[index])
+            elements.append(element)
         }
         index = index + 1
     }
@@ -7270,7 +7297,7 @@ func generate_constructor_call(
         report(
             "'{target_class.simple_name}' takes {target_class.codegen_names.count()} codegen value(s), in this order: ${target_class.codegen_names.join(", $")} -- write them between < and > before the arguments",
         )
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     var expected_types = List<Analysis.SpiteType>()
     if target_class.constructor {
@@ -7283,7 +7310,8 @@ func generate_constructor_call(
             )
         }
         var singleton_code = singleton_call(target_class)
-        var shared = ExpressionResult(singleton_code, Analysis.Types.ClassRefType(target_class.c_name))
+        var class_type = Analysis.Types.ClassRefType(target_class.c_name)
+        var shared = ExpressionResult(singleton_code, class_type)
         shared.owning_override = true
         return shared
     }
@@ -7301,12 +7329,13 @@ func generate_constructor_call(
             report(
                 "'{target_class.simple_name}' has no constructor: {with_article(target_class.simple_name)} is written as a literal, or cast from another value by assigning it",
             )
-            return ExpressionResult("0", Analysis.Types.VoidType())
+            return void_result()
         }
         var value_type = value_class_type(target_class)
         return ExpressionResult(call_code, value_type)
     }
-    return ExpressionResult(call_code, Analysis.Types.ClassRefType(target_class.c_name))
+    var class_type = Analysis.Types.ClassRefType(target_class.c_name)
+    return ExpressionResult(call_code, class_type)
 }
 
 func inferred_instance(
@@ -7528,7 +7557,7 @@ func function_value(
             report(
                 "a function value needs the standard library: library/spite/function.spite was not found from the working directory",
             )
-            return ExpressionResult("0", Analysis.Types.VoidType())
+            return void_result()
         }
         crash argument_class
         var class_type = class_type_of(argument_class)
@@ -7684,7 +7713,7 @@ func generate_own_function_call(
         } else if not reported_old_spelling(name) {
             report("this class has no function '{name}'")
         }
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     crash function
     var parameter_types = parameter_types_of(function.parameters)
@@ -7792,7 +7821,7 @@ func generate_passed_symbol_call(
         report(
             "'{template.prefix}' is compiled once for each '{template.symbol_parameter}' of 'Symbol<{range}>', so its '{template.symbol_parameter}' can only be the symbol of a template over that same range, passed by name from inside it, as in '{template.prefix}({template.symbol_parameter})'",
         )
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     var registered_name = passed_instance_name(
         class_information,
@@ -7857,7 +7886,8 @@ func forget_indices_if_shrinking(name: String, object_ast: Syntax.Expressions.Ex
     assert name == "clear" or name == "remove_at" or name == "remove_first" or name == "remove_last"
     var shrunk = operand_text(object_ast)
     assert not shrunk.is_empty()
-    if scope.forget_path(shrunk, false, List<String>()) {
+    var crossed_loop_readers = List<String>()
+    if scope.forget_path(shrunk, false, crossed_loop_readers) {
         report(
             "'{shrunk}.{name}()' inside this loop undoes what was proven about '{shrunk}' before the loop, and the next pass would read it unproven: prove it inside the loop instead",
         )
@@ -7904,7 +7934,7 @@ func generate_method_call(
                 report(
                     "'{static_receiver.qualified_dotted}' is a class, not a value: write '{static_receiver.qualified_dotted}()' to make one, and give it a name with 'var ... = '",
                 )
-                return ExpressionResult("0", Analysis.Types.VoidType())
+                return void_result()
             }
         }
     }
@@ -7950,7 +7980,7 @@ func generate_method_call(
             return ExpressionResult("SpiteArguments_get(&({object_result.code}), {position})", string_spite_type)
         }
         report("Arguments has no method '{member.name}'")
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     var object_scalar = type_shape.as_scalar(object_result_type)
     if object_scalar {
@@ -8018,7 +8048,7 @@ func generate_method_call(
         } else {
             report("{object_type_name} has no function '{member.name}'")
         }
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     crash object_class_ref
     var target_class = find_class_by_c_name(object_class_ref.c_name)
@@ -8081,7 +8111,7 @@ func generate_method_call(
         } else {
             report(missed)
         }
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     crash function
     if member.name == "has_function" and target_class.c_name == "Spite_Class" {
@@ -8093,7 +8123,7 @@ func generate_method_call(
     if spread {
         var passed = spread_into(arguments_ast, spread, target_class, function, class_information)
         if passed.count() != function.parameters.count() {
-            return ExpressionResult("0", Analysis.Types.VoidType())
+            return void_result()
         }
         return generate_sequenced_call(
             function.c_name,
@@ -8244,7 +8274,7 @@ func generate_enum_method(
     report(
         "{type_with_article(enum_type)} value has no function '{name}': an enum value answers 'to_string()' and 'to_debug()'",
     )
-    return ExpressionResult("0", Analysis.Types.VoidType())
+    return void_result()
 }
 
 func generate_value_method(
@@ -8276,10 +8306,10 @@ func generate_value_method(
         report(
             "{type_display_name(object_result_type)} turns into text with 'to_string()', a cast like 'to_integer()': write 'to_string()'",
         )
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     if reported_old_spelling(name) {
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     var bitwise_names = [
         "shifted_left"
@@ -8296,16 +8326,16 @@ func generate_value_method(
         report(
             "{type_with_article(object_result_type)} has no function '{name}': the bitwise functions are on the whole numbers, Tiny to UnsignedLong. Cast it first, like 'var whole: Long = value'",
         )
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     if is_memory_access(name) {
         report(
             "{type_with_article(object_result_type)} has no function '{name}': reading and writing memory is a function of the address, so the value needs to be a 'Memory.Address'",
         )
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     report("{type_with_article(object_result_type)} has no function '{name}'")
-    return ExpressionResult("0", Analysis.Types.VoidType())
+    return void_result()
 }
 
 func is_memory_access(name: String): Boolean {
@@ -8360,18 +8390,18 @@ func generate_string_method(
             report(
                 "'{name}' takes {written.parameters.count()} argument(s), and this call passes {arguments_ast.count()}",
             )
-            return ExpressionResult("0", Analysis.Types.VoidType())
+            return void_result()
         }
         return generate_written_string_call(written, object_result, object_ast, arguments_ast, scope, class_information)
     }
     if name == "upper" or name == "lower" {
         report("text has no '{name}()': write '{name}_case()', which names what it does without abbreviating")
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     if not reported_old_spelling(name) {
         report("String has no method '{name}'")
     }
-    return ExpressionResult("0", Analysis.Types.VoidType())
+    return void_result()
 }
 
 func report_list_method_missing(name: String) {
@@ -8507,12 +8537,12 @@ func generate_list_method(
     var template = element_template_of(list_class, name)
     if not template {
         report_list_method_missing(name)
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     crash template
     var function = instantiate_element_template(list_class, element, template, name, class_information)
     if not function {
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     crash function
     var parameter_types = parameter_types_of(function.parameters)
@@ -8790,7 +8820,8 @@ func generate_fused_chain(
     assert not steps.is_empty()
     steps.reverse()
     var last_callee: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(object_ast, member.name)
-    steps.append(Syntax.Expressions.CallExpression(last_callee, arguments_ast))
+    var call = Syntax.Expressions.CallExpression(last_callee, arguments_ast)
+    steps.append(call)
     var saved_counter = temporary_counter
     var probe = generate_expression(base, scope, class_information)
     rewind_temporaries(saved_counter)
@@ -9714,7 +9745,7 @@ func generate_function_form(
 ): ExpressionResult {
     var passed = function_form_instance(list_class, element, name, argument, scope, class_information)
     if not passed {
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     crash passed
     var function = passed.get_instance()
@@ -10752,7 +10783,7 @@ func string_storage_read(
     mark_attribute_read(string_class, name)
     if class_information.c_name != string_class.c_name {
         report_private_member(string_class, name, class_information)
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     var field_type = field.get_type()
     if owns(object_result, object_ast) {
@@ -11113,7 +11144,7 @@ func generate_untyped_list_literal(
 ): ExpressionResult {
     if literal.elements.is_empty() {
         report("an empty list literal needs a declared type")
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     crash literal.elements[0].value
     var saved_counter = temporary_counter
@@ -11133,7 +11164,7 @@ func generate_generic_constructor(
         report(
             "a generic class written without '(...)' names the class, which only the right side of '==' or '!=' reads: call it to make one",
         )
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     var callee = shape.as_identifier(generic_call.callee)
     if callee {
@@ -11167,25 +11198,25 @@ func generate_generic_constructor(
                 return generate_constructor_call(generic_class, generic_call.arguments, scope, class_information)
             }
             poison_statement()
-            return ExpressionResult("0", Analysis.Types.VoidType())
+            return void_result()
         }
         report(
             "'{generic_template.simple_name}' takes no codegen values: write '{generic_template.simple_name}(...)' without '<...>'",
         )
         poison_statement()
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     var printer = Syntax.SourcePrinter()
     var callee_text = printer.source_expression(generic_call.callee)
     if reported_old_spelling(callee_text) {
         poison_statement()
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     report(
         "there is no generic class '{callee_text}' here: a name is looked up in this class's own namespace, its folder, each parent folder, then the whole program",
     )
     poison_statement()
-    return ExpressionResult("0", Analysis.Types.VoidType())
+    return void_result()
 }
 
 func poison_statement() {
@@ -11297,7 +11328,7 @@ func generate_index_read(
                 return got
             }
             report("indexing a '{indexed_class.simple_name}' needs it to define 'get_at(index)'")
-            return ExpressionResult("0", Analysis.Types.VoidType())
+            return void_result()
         }
     }
     var object_dictionary = type_shape.as_dictionary(object_result_type)
@@ -11342,7 +11373,7 @@ func generate_index_read(
             "{type_with_article(object_result_type)} is not indexed with [ ]: only a List<T> and a Dictionary<T> are",
         )
     }
-    return ExpressionResult("0", Analysis.Types.VoidType())
+    return void_result()
 }
 
 func ensure_list(element: Analysis.SpiteType): String {
@@ -11639,12 +11670,12 @@ func generate_dictionary_method(
     var template = element_template_of(list_class, name)
     if not template {
         report("Dictionary has no method '{name}'")
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     crash template
     var function = instantiate_element_template(list_class, element, template, name, class_information)
     if not function {
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     crash function
     var empty_types = no_types()
@@ -11808,7 +11839,7 @@ func generate_symbol_lookup(
 ): ExpressionResult {
     if arguments_ast.count() != 1 {
         report("Symbol(text) takes the text to look up, and nothing else")
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     if not symbol_lookup_used {
         builder.add_prototype("SpiteString* spite_symbol_find(SpiteString* text);")
@@ -11818,7 +11849,8 @@ func generate_symbol_lookup(
     var single_types = one_type(string_spite_type)
     var text_code = generate_argument_list(arguments_ast, single_types, scope, class_information)
     crash text_code.count() == 1
-    var nullable_type = nullable_type_of(Analysis.Types.SymbolType())
+    var symbol_type = Analysis.Types.SymbolType()
+    var nullable_type = nullable_type_of(symbol_type)
     var found = ExpressionResult("spite_symbol_find({text_code[0]})", nullable_type)
     return found
 }
@@ -11841,14 +11873,14 @@ func generate_library_constructor(arguments_ast: List<Syntax.Expressions.Express
     var shape_of_call = "DynamicLibrary(...) takes three literals the compiler reads while it compiles: the file, the naming rule ('identity', 'windows' or 'camel_case') and the header"
     if arguments_ast.count() != 3 {
         report(shape_of_call)
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     var file = shape.as_string_literal(arguments_ast[0])
     var naming = shape.as_enum_literal(arguments_ast[1])
     var header = shape.as_string_literal(arguments_ast[2])
     if not file or not naming or not header {
         report(shape_of_call)
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     crash file
     crash naming
@@ -11917,7 +11949,7 @@ func generate_foreign_call(
         report(
             "a foreign function is called through the attribute or variable that holds its DynamicLibrary(...), so the compiler knows which library to bind it in",
         )
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     var library = foreign.foreign_library
     crash library < foreign_library_namings.count()
@@ -12087,7 +12119,7 @@ func is_own_library_member(name: String): Boolean {
 func generate_foreign_constant(foreign: Analysis.Types.ClassRefType, name: String): ExpressionResult {
     if foreign.foreign_library < 0 {
         report("a foreign constant is read through the attribute or variable that holds its DynamicLibrary(...)")
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     crash foreign.foreign_library < foreign_library_headers.count()
     var header = foreign_library_headers[foreign.foreign_library]
@@ -12095,7 +12127,7 @@ func generate_foreign_constant(foreign: Analysis.Types.ClassRefType, name: Strin
         report(
             "'{name}' is a constant, and a constant comes from the library's header: name it as DynamicLibrary's third argument",
         )
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     ensure_foreign_header(header)
     var integer_spite_type = integer_type()
@@ -12318,9 +12350,11 @@ func generate_call(
             mark_names_read(class_information, loaded_names)
             if call.runs_program {
                 var program_run = program_run_code()
-                return ExpressionResult(program_run, Analysis.Types.VoidType())
+                var run_type = void_type()
+                return ExpressionResult(program_run, run_type)
             }
-            return ExpressionResult("(void)0", Analysis.Types.VoidType())
+            var nothing_type = void_type()
+            return ExpressionResult("(void)0", nothing_type)
         }
     }
     var target_class = try_resolve_static_path(call.callee, class_information.qualified_dotted)
@@ -12332,7 +12366,8 @@ func generate_call(
             return generate_symbol_lookup(call.arguments, scope, class_information)
         }
         if callee_identifier.name == "Arguments" and call.arguments.is_empty() {
-            return ExpressionResult("spite_program_arguments", Analysis.Types.ArgumentsType())
+            var result_type = Analysis.Types.ArgumentsType()
+            return ExpressionResult("spite_program_arguments", result_type)
         }
     }
     var member = shape.as_member(call.callee)
@@ -12363,7 +12398,7 @@ func generate_call(
         }
     }
     report("unsupported call form")
-    return ExpressionResult("0", Analysis.Types.VoidType())
+    return void_result()
 }
 
 func generate_member_read(
@@ -12412,7 +12447,7 @@ func generate_member_read_raw(
             }
             if named_class.is_generic_template {
                 report("'{named_class.simple_name}.instances' is not available for this class")
-                return ExpressionResult("0", Analysis.Types.VoidType())
+                return void_result()
             }
             var class_type = class_type_of(named_class)
             var list_type = list_type_of(class_type)
@@ -12545,7 +12580,7 @@ func generate_member_read_raw(
                 )
             }
         }
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     crash object_class_ref
     var target_class = find_class_by_c_name(object_class_ref.c_name)
@@ -12580,7 +12615,7 @@ func generate_member_read_raw(
             }
         }
         report("'{type_display_name(object_result_type)}' has no attribute '{member.name}'")
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     crash field
     var hardcoded = hardcoded_setting(target_class, member.name)
@@ -12624,10 +12659,12 @@ func generate_expression(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     if shape.is_true_literal(expression) {
-        return ExpressionResult("true", Analysis.Types.ScalarType('boolean_kind'))
+        var result_type = Analysis.Types.ScalarType('boolean_kind')
+        return ExpressionResult("true", result_type)
     }
     if shape.is_false_literal(expression) {
-        return ExpressionResult("false", Analysis.Types.ScalarType('boolean_kind'))
+        var result_type = Analysis.Types.ScalarType('boolean_kind')
+        return ExpressionResult("false", result_type)
     }
     var integer_literal = shape.as_integer_literal(expression)
     if integer_literal {
@@ -12639,12 +12676,14 @@ func generate_expression(
         if not literal_code.contains(".") and not literal_code.contains("e") {
             literal_code = "{literal_code}.0"
         }
-        return ExpressionResult(literal_code, Analysis.Types.ScalarType('float_kind'))
+        var result_type = Analysis.Types.ScalarType('float_kind')
+        return ExpressionResult(literal_code, result_type)
     }
     var string_literal = shape.as_string_literal(expression)
     if string_literal {
         var rendered_string_literal = render_string_literal(string_literal.value)
-        return ExpressionResult(rendered_string_literal, Analysis.Types.StringType())
+        var result_type = Analysis.Types.StringType()
+        return ExpressionResult(rendered_string_literal, result_type)
     }
     var identifier = shape.as_identifier(expression)
     if identifier {
@@ -12663,7 +12702,7 @@ func generate_expression(
             return ExpressionResult("{only_enum.c_name}_{enum_literal.value}", enum_type)
         }
         report("cannot tell which enum '{enum_literal.value}' belongs to here")
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     var list_literal = shape.as_list_literal(expression)
     if list_literal {
@@ -12707,10 +12746,10 @@ func generate_expression(
         report(
             "'null' is not a value to compare against or pass around: narrow the value instead, with 'if value \{ } else \{ }', 'assert value', 'crash value' or 'switch value \{ <Type>: ... Null: ... }'",
         )
-        return ExpressionResult("0", Analysis.Types.VoidType())
+        return void_result()
     }
     report("unsupported expression kind in this stage")
-    return ExpressionResult("0", Analysis.Types.VoidType())
+    return void_result()
 }
 
 func undo_proofs_after_calls(scope: Scope, class_information: Analysis.ClassInfo) {
@@ -12759,8 +12798,11 @@ func undo_proofs_after_call(
         var path = paths[path_index]
         var dependencies = proof_dependencies(path, scope, class_information)
         var effect = changing_effect(effects, dependencies, path, arguments)
-        if not effect.is_empty() and scope.forget_path(path, true, List<String>()) {
-            crossed.append(path)
+        if not effect.is_empty() {
+            var crossed_loop_readers = List<String>()
+            if scope.forget_path(path, true, crossed_loop_readers) {
+                crossed.append(path)
+            }
         }
         path_index = path_index + 1
     }
@@ -14508,7 +14550,8 @@ func forget_narrowing_under(
             }
         }
     }
-    if scope.forget_path(path, value_may_be_null, List<String>()) {
+    var crossed_loop_readers = List<String>()
+    if scope.forget_path(path, value_may_be_null, crossed_loop_readers) {
         report(
             "assigning to '{path}' inside this loop undoes a narrowing made before the loop, and the next pass would read it unproven: narrow it inside the loop instead",
         )
@@ -16123,7 +16166,8 @@ func mark_attribute_read(information: Analysis.ClassInfo, name: String) {
 
 func mark_folded_words_read(statements: List<Syntax.Statements.Statement>) {
     var text = Syntax.SourcePrinter().source_statement_list(statements, 0)
-    mark_words_read(text, false, List<String>())
+    var no_metadata_receivers = List<String>()
+    mark_words_read(text, false, no_metadata_receivers)
 }
 
 func mark_words_read(text: String, members_only: Boolean, metadata_receivers: List<String>) {
@@ -16357,7 +16401,8 @@ func generate_block(
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ) {
-    generate_block_in_scope(statements, Scope(parent_scope), class_information, function_information)
+    var block_scope = Scope(parent_scope)
+    generate_block_in_scope(statements, block_scope, class_information, function_information)
 }
 
 func terminal_if_of(body: List<Syntax.Statements.Statement>): Syntax.Statements.IfStatement? {
@@ -18056,7 +18101,7 @@ func generate_union_dispatch(
             report(
                 "'{first_member.simple_name}' does not define '{member_name}', so it cannot be called on union '{information.simple_name}'",
             )
-            return ExpressionResult("0", Analysis.Types.VoidType())
+            return void_result()
         }
         crash first_function
         result_type = first_function.get_return_type()
@@ -18067,7 +18112,7 @@ func generate_union_dispatch(
             report(
                 "'{first_member.simple_name}' has no attribute '{member_name}', so it cannot be read on union '{information.simple_name}'",
             )
-            return ExpressionResult("0", Analysis.Types.VoidType())
+            return void_result()
         }
         crash first_field
         result_type = first_field.get_type()

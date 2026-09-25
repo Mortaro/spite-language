@@ -21,7 +21,9 @@ func month_ends() {
     var old_year = Date(2024, 1, 1) + Period(-1, 'days')
     var next_week = Date(2024, 2, 26) + Period(1, 'weeks')
     var mixed = Date(2024, 1, 31) + Period(1, 'months') + Period(1, 'days')
-    var morning = DateTime(Date(2024, 1, 31), Time(9, 30, 0, 0))
+    var last_of_january = Date(2024, 1, 31)
+    var half_past_nine = Time(9, 30, 0, 0)
+    var morning = DateTime(last_of_january, half_past_nine)
     var month_later = morning + month
     console.print(new_year, old_year, next_week, mixed, month_later)
 }
@@ -62,7 +64,8 @@ func periods_between() {
     var forward = january.period_until(march)
     var age = birthday.period_until(today)
     var backward = today.period_until(january)
-    var days = Date(2024, 1, 1).days_until(Date(2025, 1, 1))
+    var next_new_year = Date(2025, 1, 1)
+    var days = Date(2024, 1, 1).days_until(next_new_year)
     console.print(forward, age, backward, days)
     var whole = Period(1, 'years') + Period(2, 'months') + Period(3, 'days')
     var weeks = Period(2, 'weeks')

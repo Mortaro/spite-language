@@ -5,7 +5,8 @@ func ParallelStages() {
     var runners = List<Runner>()
     var index = 0
     while index < 4 {
-        runners.append(Runner(index + 1))
+        var runner = Runner(index + 1)
+        runners.append(runner)
         index = index + 1
     }
     var tick = 0

@@ -1,4 +1,5 @@
 func SameNamedTypes() {
     var task = Recipes.CookTask()
-    task.run(Recipes.Soup())
+    var soup = Recipes.Soup()
+    task.run(soup)
 }

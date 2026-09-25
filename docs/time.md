@@ -46,8 +46,11 @@ The first of them is the type checker's to enforce, so the mistake never runs:
 var console = Console()
 
 func TimeReadingIsNotInstant() {
-    var meeting = DateTime(Date(2024, 3, 10), Time(9, 30, 0, 0))
-    var launch = Instant(Duration(1710054000, 'seconds'))
+    var meeting_day = Date(2024, 3, 10)
+    var meeting_time = Time(9, 30, 0, 0)
+    var meeting = DateTime(meeting_day, meeting_time)
+    var launch_since_1970 = Duration(1710054000, 'seconds')
+    var launch = Instant(launch_since_1970)
     console.print(meeting == launch)
 }
 ```
@@ -69,7 +72,8 @@ hours, minutes, seconds and a fraction; both round toward zero and keep the sign
 var console = Console()
 
 func TimeInstants() {
-    var launch = Instant(Duration(1710054000, 'seconds'))
+    var launch_since_1970 = Duration(1710054000, 'seconds')
+    var launch = Instant(launch_since_1970)
     var hour = Duration(1, 'hours')
     var later = launch + hour
     var earlier = launch + -hour
@@ -81,7 +85,8 @@ func TimeInstants() {
     var half = Duration(-500, 'milliseconds')
     console.print(lap, minutes, seconds, half, lap * 2)
     var in_order = earlier < launch and launch < later
-    console.print(in_order, between == Duration(120, 'minutes'))
+    var two_hours = Duration(120, 'minutes')
+    console.print(in_order, between == two_hours)
 }
 ```
 ```output
@@ -122,7 +127,8 @@ func TimeCalendar() {
     var age = born.period_until(today)
     var days = born.days_until(today)
     console.print(age, days, today.is_leap_year, today.days_in_month)
-    var meeting = DateTime(today, Time(9, 30, 0, 0))
+    var half_past_nine = Time(9, 30, 0, 0)
+    var meeting = DateTime(today, half_past_nine)
     var next_meeting = meeting + Period(1, 'months')
     console.print(meeting, next_meeting)
 }
@@ -175,12 +181,17 @@ var zones = TimeZones()
 func TimeZonesNamed() {
     var new_york = zones.find("America/New_York")
     crash new_york
-    var launch = Instant(Duration(1710054000, 'seconds'))
+    var launch_since_1970 = Duration(1710054000, 'seconds')
+    var launch = Instant(launch_since_1970)
     var shown = new_york.to_text(launch)
     var offset = new_york.offset_at(launch)
     console.print(launch, shown, offset)
-    var skipped = DateTime(Date(2024, 3, 10), Time(2, 30, 0, 0))
-    var repeated = DateTime(Date(2024, 11, 3), Time(1, 30, 0, 0))
+    var skipped_day = Date(2024, 3, 10)
+    var skipped_time = Time(2, 30, 0, 0)
+    var skipped = DateTime(skipped_day, skipped_time)
+    var repeated_day = Date(2024, 11, 3)
+    var repeated_time = Time(1, 30, 0, 0)
+    var repeated = DateTime(repeated_day, repeated_time)
     var after_gap = new_york.to_instant(skipped, 'compatible')
     var first = new_york.to_instant(repeated, 'earlier')
     var second = new_york.to_instant(repeated, 'later')
@@ -212,7 +223,8 @@ var zones = TimeZones()
 func TimeTomorrow() {
     var new_york = zones.find("America/New_York")
     crash new_york
-    var saturday = Instant(Duration(1709996400, 'seconds'))
+    var saturday_since_1970 = Duration(1709996400, 'seconds')
+    var saturday = Instant(saturday_since_1970)
     var local = new_york.to_local(saturday)
     var tomorrow = local + Period(1, 'days')
     var sunday = new_york.to_instant(tomorrow, 'compatible')
@@ -227,7 +239,8 @@ func TimeTomorrow() {
 
 ### Fixed offsets and UTC
 
-A fixed offset has no rules at all: `zones.fixed_offset(Duration(330, 'minutes'))` is named `+05:30` and is five
+A fixed offset has no rules at all: `zones.fixed_offset(india_offset)`, with `india_offset` a
+`Duration(330, 'minutes')`, is named `+05:30` and is five
 and a half hours ahead of UTC at every instant. It is the right zone for text that carries its own offset and
 nothing more, and the wrong one for a place, whose offset changes.
 
@@ -236,8 +249,10 @@ var console = Console()
 var zones = TimeZones()
 
 func TimeOffsets() {
-    var launch = Instant(Duration(1710054000, 'seconds'))
-    var india = zones.fixed_offset(Duration(330, 'minutes'))
+    var launch_since_1970 = Duration(1710054000, 'seconds')
+    var launch = Instant(launch_since_1970)
+    var india_offset = Duration(330, 'minutes')
+    var india = zones.fixed_offset(india_offset)
     var universal = zones.utc()
     var india_text = india.to_text(launch)
     var universal_text = universal.to_text(launch)

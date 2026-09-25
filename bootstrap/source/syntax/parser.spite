@@ -563,7 +563,8 @@ func parse_required_function(name: String): Syntax.Statements.FieldDeclaration {
     expect('right_paren', "')' to close the parameter list")
     var nothing_path = List<String>()
     nothing_path.append("Nothing")
-    var return_type: Syntax.Types.Type = Syntax.Types.NamedType(nothing_path, List<Syntax.Types.GenericArgument>())
+    var no_generic_arguments = List<Syntax.Types.GenericArgument>()
+    var return_type: Syntax.Types.Type = Syntax.Types.NamedType(nothing_path, no_generic_arguments)
     var returns_nothing = true
     if check('colon') {
         advance()
@@ -630,7 +631,8 @@ func parse_type_declaration(): Syntax.Statements.Statement {
         } else {
             expect('colon', "':' followed by the field's type")
             var field_type = parse_type()
-            fields.append(Syntax.Statements.FieldDeclaration(field_name.text, field_type))
+            var field = Syntax.Statements.FieldDeclaration(field_name.text, field_type)
+            fields.append(field)
         }
         consume_declaration_entry("type")
         if check('right_brace') or check('end_of_file') or has_error {
@@ -734,7 +736,8 @@ func parse_switch_statement(): Syntax.Statements.Statement {
         var case_type = parse_type()
         expect('colon', "':' followed by the case body")
         var body = parse_switch_case_body()
-        cases.append(Syntax.Statements.SwitchCase(case_type, body))
+        var switch_case = Syntax.Statements.SwitchCase(case_type, body)
+        cases.append(switch_case)
         skip_trivia()
         if check('right_brace') or check('end_of_file') or has_error {
             finished = true
@@ -856,7 +859,8 @@ func with_nullable_suffix(type_reference: Syntax.Types.Type): Syntax.Types.Type 
     while check('question') {
         advance()
         var wrapped_arguments = List<Syntax.Types.GenericArgument>()
-        wrapped_arguments.append(Syntax.Types.TypeArgument(result))
+        var type_argument = Syntax.Types.TypeArgument(result)
+        wrapped_arguments.append(type_argument)
         var wrapper_path = List<String>()
         wrapper_path.append("Nullable")
         result = Syntax.Types.NamedType(wrapper_path, wrapped_arguments)
@@ -939,7 +943,8 @@ func generic_member_type(generic_name: String): Syntax.Types.Type {
             fail("expected the name of a codegen value after '.' but found {found_text()}")
         }
     }
-    return Syntax.Types.NamedType(path, List<Syntax.Types.GenericArgument>())
+    var no_generic_arguments = List<Syntax.Types.GenericArgument>()
+    return Syntax.Types.NamedType(path, no_generic_arguments)
 }
 
 func parse_generic_argument(): Syntax.Types.GenericArgument {
@@ -1182,7 +1187,8 @@ func parse_binary_expression_rest(
     if joining {
         reject_written_text_join(left, right)
     }
-    return parse_binary_expression_rest(Syntax.Expressions.BinaryExpression(operator, left, right), minimum_precedence)
+    var binary = Syntax.Expressions.BinaryExpression(operator, left, right)
+    return parse_binary_expression_rest(binary, minimum_precedence)
 }
 
 func reject_shift(operator_token: Token) {
@@ -1238,17 +1244,20 @@ func parse_postfix_rest(expression: Syntax.Expressions.Expression): Syntax.Expre
     if check('dot') {
         advance()
         var name = expect('identifier', "a member name after '.'")
-        return parse_postfix_rest(Syntax.Expressions.MemberExpression(expression, name.text))
+        var member = Syntax.Expressions.MemberExpression(expression, name.text)
+        return parse_postfix_rest(member)
     }
     if check('left_paren') {
         var arguments = parse_argument_list()
-        return parse_postfix_rest(Syntax.Expressions.CallExpression(expression, arguments))
+        var call = Syntax.Expressions.CallExpression(expression, arguments)
+        return parse_postfix_rest(call)
     }
     if check('left_bracket') {
         advance()
         var index_expression = parse_expression()
         expect('right_bracket', "']' to close the index expression")
-        return parse_postfix_rest(Syntax.Expressions.IndexExpression(expression, index_expression))
+        var indexed = Syntax.Expressions.IndexExpression(expression, index_expression)
+        return parse_postfix_rest(indexed)
     }
     if check('less') {
         var type_arguments = try_parse_generic_instantiation_arguments()
@@ -1256,7 +1265,8 @@ func parse_postfix_rest(expression: Syntax.Expressions.Expression): Syntax.Expre
             return named_generic_class(expression)
         }
         var arguments = parse_argument_list()
-        return parse_postfix_rest(Syntax.Expressions.GenericCallExpression(expression, type_arguments, arguments))
+        var generic_call = Syntax.Expressions.GenericCallExpression(expression, type_arguments, arguments)
+        return parse_postfix_rest(generic_call)
     }
     return expression
 }
@@ -1421,7 +1431,8 @@ func parse_list_literal(): Syntax.Expressions.Expression {
     var finished = check('right_bracket') or check('end_of_file')
     while not finished {
         var value = parse_expression()
-        elements.append(Syntax.Expressions.ListElement(value))
+        var element = Syntax.Expressions.ListElement(value)
+        elements.append(element)
         consume_field_separator('right_bracket')
         skip_trivia()
         if check('right_bracket') or check('end_of_file') or has_error {
@@ -1441,7 +1452,8 @@ func parse_object_literal(): Syntax.Expressions.Expression {
         var name = expect('identifier', "a field name")
         expect('colon', "':' followed by the field's value")
         var value = parse_expression()
-        fields.append(Syntax.Expressions.ObjectField(name.text, value))
+        var field = Syntax.Expressions.ObjectField(name.text, value)
+        fields.append(field)
         consume_field_separator('right_brace')
         skip_trivia()
         if check('right_brace') or check('end_of_file') or has_error {

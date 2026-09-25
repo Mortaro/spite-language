@@ -1,2 +1,2 @@
-diagnostics/shape_function_mismatch/shape_function_mismatch.spite:8: error: 'Silent' does not fit type 'Renderable': it has no function 'render' (in ShapeFunctionMismatch.ShapeFunctionMismatch)
-diagnostics/shape_function_mismatch/shape_function_mismatch.spite:9: error: 'Numbered' does not fit type 'Renderable': its 'render' returns an Integer, but the type needs a String (in ShapeFunctionMismatch.ShapeFunctionMismatch)
+diagnostics/shape_function_mismatch/shape_function_mismatch.spite:9: error: 'Silent' does not fit type 'Renderable': it has no function 'render' (in ShapeFunctionMismatch.ShapeFunctionMismatch)
+diagnostics/shape_function_mismatch/shape_function_mismatch.spite:11: error: 'Numbered' does not fit type 'Renderable': its 'render' returns an Integer, but the type needs a String (in ShapeFunctionMismatch.ShapeFunctionMismatch)

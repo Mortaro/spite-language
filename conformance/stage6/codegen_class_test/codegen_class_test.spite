@@ -7,8 +7,10 @@ var console = Console()
 
 func CodegenClassTest() {
     var store = Store()
-    store.add(Health())
-    store.add(Label())
+    var stored_health = Health()
+    store.add(stored_health)
+    var stored_label = Label()
+    store.add(stored_label)
     store.add(7)
     var health_fetch = Fetch<Health>()
     var health = health_fetch.first(store)

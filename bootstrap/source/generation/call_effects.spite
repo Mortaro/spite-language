@@ -170,7 +170,8 @@ func effects_named(class_name: String, name: String): FunctionEffects {
     }
     var gathering = by_function.get(any_key)
     crash gathering
-    var passed_through = EffectCall(class_name, name, List<String>())
+    var no_arguments = List<String>()
+    var passed_through = EffectCall(class_name, name, no_arguments)
     passed_through.passes_parameters = true
     gathering.calls.append(passed_through)
     return created

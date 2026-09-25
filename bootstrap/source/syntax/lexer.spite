@@ -65,7 +65,8 @@ func advance_character(): Integer {
 }
 
 func push_token(kind: TokenKind, lexeme: String, text: String, token_line: Integer, token_column: Integer) {
-    tokens.append(Token(kind, lexeme, text, token_line, token_column))
+    var token = Token(kind, lexeme, text, token_line, token_column)
+    tokens.append(token)
 }
 
 func is_digit(code: Integer): Boolean {

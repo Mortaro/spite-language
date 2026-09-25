@@ -2,8 +2,10 @@ var console = Console()
 var items = List<Item>()
 
 func TemplateWalk() {
-    items.append(Item("apple", 3, true))
-    items.append(Item("pear", 5, false))
+    var apple = Item("apple", 3, true)
+    items.append(apple)
+    var pear = Item("pear", 5, false)
+    items.append(pear)
     restock_all()
     show()
 }

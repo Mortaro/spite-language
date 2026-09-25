@@ -7,10 +7,11 @@ union Creature {
 var console = Console()
 
 func SwitchRestCase() {
-    repeated(Cat())
-    same_as_rest(Cat())
-    rest_first(Cat())
-    rest_for_nothing(Cat())
+    var cat = Cat()
+    repeated(cat)
+    same_as_rest(cat)
+    rest_first(cat)
+    rest_for_nothing(cat)
 }
 
 func repeated(creature: Creature) {
