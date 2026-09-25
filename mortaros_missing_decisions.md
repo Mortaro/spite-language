@@ -93,8 +93,6 @@ manual argues it.
 29. **`_` now means private, enforced**: a `_name` is read, written or called only inside its own class. D88
     needed it (otherwise `klass._name = ...` undoes the read-only getters), and section 2 already said `_name` is
     private. Open question 6 (whether `_` means private *and* unused) is still yours.
-30. **`this` in every class**, not only numbers (`registry.append(this)`), with `this.member` an error. D83 said
-    "if needed"; say if it should stay number-only.
 31. **`value.memory` is shadowed by an attribute named `memory`**, and most of the standard library holds
     `var memory = Memory()`. Either rename those attributes (`heap`?) or give the reflection another name.
     Also the names: `Spite.Memory`, its sections `'heap'`, `'stack'`, `'constant'` (`static` is a C word).
