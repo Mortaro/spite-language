@@ -18,7 +18,8 @@ A file contains only declarations, in this order:
 6. the other `func`s.
 
 Anything out of that order is an error naming what came before it ([style.md](style.md#a-file-is-ordered)).
-There are **no file-level statements** -- no loop, `if` or call outside a function:
+There are **no file-level statements** -- no loop, `if` or call outside a function
+([rules](#files-are-classes--implemented)):
 
 ```gdscript title=file_scope_error/file_scope_error.spite entry error
 var console = Console()
@@ -145,18 +146,18 @@ func EmptyConstructorError() {
 'Holder' has an empty constructor: delete it
 ```
 
-Every value has a default: `Integer` is `0`, `Float` `0.0`, `Boolean` `false`, `String` `""`, an enum its first value,
-and a class its fields' defaults. There is no `null` for anything but a `T?` ([failure.md](failure.md)). A
-constructor is setup, not logic: `assert` is not allowed in one, and `crash` is how it says something is a bug
-([failure.md](failure.md#assert-is-not-allowed-in-a-constructor)). There is no `new`: `Person(30)` makes one.
+Every `var` is written with its default, so an object made with no arguments is already complete: a fresh
+`Member()` has every field at its declared default. There is no `null` for anything but a `T?`
+([failure.md](failure.md)). A constructor is setup, not logic: `assert` is not allowed in one, and `crash` is how
+it says something is a bug ([failure.md](failure.md#assert-is-not-allowed-in-a-constructor)). There is no `new`:
+`Person(30)` makes one.
 
 There is one function per name. A file declaring a name twice is an error, and there is no overloading: an
 argument is cast to the parameter's type instead ([functions_and_operators.md](functions_and_operators.md)).
 
 A constructed object is kept and used. A constructor call written as a statement of its own, `Report(text)`,
 makes an object and throws it away -- the construction was the whole point, so it is an error saying to write a
-function instead; storing it in a variable nothing reads is the unused-name error. A singleton is not affected: it
-is bound as an attribute (`var console = Console()`), never constructed as a statement.
+function instead ([rules](#a-constructed-object-must-be-kept-and-used)):
 
 ```gdscript title=dropped_report/report.spite
 var console = Console()
@@ -178,7 +179,8 @@ func DroppedReport() {
 
 A file whose first line is `singleton` has one instance: calling its constructor anywhere answers that same
 instance, made the first time it is asked for, and the constructor takes no arguments. `Console`, `Program`,
-`Environment`, `Build` and `Memory.Heap` are singletons; `File`, `Directory` and `Process` are not, since several may exist at once.
+`Environment`, `Build` and `Memory.Heap` are singletons; `File`, `Directory` and `Process` are not, since
+several may exist at once.
 
 ```gdscript title=singleton_basics/scoreboard.spite
 singleton
@@ -191,11 +193,11 @@ func score(amount: Integer) {
 ```
 ```gdscript title=singleton_basics/singleton_basics.spite entry
 var console = Console()
+var home = Scoreboard()
+var away = Scoreboard()
 
 func SingletonBasics() {
-    var home = Scoreboard()
     home.score(2)
-    var away = Scoreboard()
     away.score(3)
     var is_singleton = Scoreboard.is_singleton()
     console.print(home.points, home == away, is_singleton)
@@ -206,15 +208,18 @@ func SingletonBasics() {
 ```
 
 Call sites never change: `var console = Console()` reads the same whether or not the class is a singleton, and
-the class file is where that is said. A singleton lives until the program ends, and its `drop()` runs then, in
-reverse order of creation: a singleton is made when its constructor finishes, so whatever its attributes made
-outlives it, and every `DynamicLibrary` is unloaded after all of them. A `drop()` that fetches a singleton made
-later than its own, one already destroyed, halts with a message saying to keep it in an attribute instead. It is not reference counted: fetching one is a load from a static slot, with no count
-to raise or lower, so threads that share it never contend on it; the first fetch alone takes a lock, so two threads asking at
-once still get one object. `is_singleton()` is answered by `Spite.Class` for every class, from the line;
-declaring it yourself is an error that names the `singleton` line. `DynamicLibrary` is the one singleton that
-takes arguments: it has one instance per distinct list of literal arguments
-([foreign_libraries.md](foreign_libraries.md)).
+the class file is where that is said. `is_singleton()` is answered by `Spite.Class` for every class, from the
+line. `DynamicLibrary` is the one singleton that takes arguments: it has one instance per distinct list of
+literal arguments ([foreign_libraries.md](foreign_libraries.md)).
+
+A singleton lives until the program ends, and its `drop()` runs then, newest singleton first, so a `drop()` may
+use any singleton its class keeps in an attribute. What one costs at run time is a static slot, filled the first
+time it is asked for: fetching it is one load, it is never reference counted, and a program never pays for a
+singleton it does not reach ([optimizations.md](optimizations.md#singletons-made-on-first-use-never-counted)).
+A singleton that a `Parallel` can reach is made safe for threads by the compiler, with nothing written in the
+source, and only in programs that use `Parallel`
+([optimizations.md](optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form)). The details are in
+[the rules](#singletons--implemented).
 
 A singleton with `generic` lines has one instance per set of codegen values, the way `DynamicLibrary` has one
 per argument list: `Column<Health>()` is the same object everywhere, and `Column<Label>()` is a second one. This
@@ -229,13 +234,13 @@ var values = List<$component_type>()
 ```
 ```gdscript title=generic_singleton/generic_singleton.spite entry
 var console = Console()
+var numbers = Column<Integer>()
+var again = Column<Integer>()
+var words = Column<String>()
 
 func GenericSingleton() {
-    var numbers = Column<Integer>()
     numbers.values.append(1)
-    var again = Column<Integer>()
     again.values.append(2)
-    var words = Column<String>()
     var number_count = again.values.count()
     var word_count = words.values.count()
     console.print(numbers == again, number_count, word_count)
@@ -245,10 +250,10 @@ func GenericSingleton() {
 true 2 0
 ```
 
-A singleton is always bound to a `var` before it is used, beside the attributes or in a function, and used
-through that name. Reading or calling a member on the constructor call itself is an error, and so is passing it,
-returning it or storing it anywhere but a `var` of its own -- a constructor is otherwise allowed as an argument
-([style.md](style.md#one-call-per-line)), but not a singleton's:
+A singleton is bound once, as an attribute beside the others, and used through that name, so every singleton a
+class uses is visible at the top of its file. Reading or calling a member on the constructor call itself is an
+error, and so is passing it, returning it or storing it anywhere but a `var` of its own -- a constructor is
+otherwise allowed as an argument ([style.md](style.md#one-call-per-line)), but not a singleton's:
 
 ```gdscript title=singleton_inline_error/singleton_inline_error.spite entry error
 var console = Console()
@@ -294,7 +299,8 @@ name Aria level 2
 ```
 
 Two names can hold the same object, and a change through either shows up through the other. `copy()` makes an
-independent object with the same field values when that sharing is not what you want:
+independent object with the same field values when that sharing is not what you want
+([memory.md](memory.md#do-call-copydeep_copy-for-an-independent-object)):
 
 ```gdscript title=shared_member/member.spite
 var level = 1
@@ -320,7 +326,8 @@ independent level 9
 ## `this`
 
 A class reads and calls its own members by name: `level`, `score(2)`. There is no `self.` to write, and writing
-`this.level` is an error that says `level`. What `this` is for is handing the instance itself to something else:
+`this.level` is an error that says `level`. What `this` is for, in every class, is handing the instance itself
+to something else or returning it ([rules](values_and_types.md#numbers-are-classes-and-this--implemented)):
 
 ```gdscript title=this_basics/registry.spite
 var names = List<String>()
@@ -397,15 +404,17 @@ Lamp { room: "hall", lit: false }
 
 A name starting with `_` is private: it is read, written or called only inside its own class -- a reopening of
 the class counts as inside -- and using it from anywhere else is an error that names the getter when there is
-one. On a parameter, and only there, the prefix says instead that the body ignores it on purpose; a private
-attribute nothing reads is an error like any other ([style.md](style.md#nothing-unused)).
+one ([rules](#lexical-structure--implemented)). On a parameter, and only there, the prefix says
+instead that the body ignores it on purpose; a private attribute nothing reads is an error like any other, and
+no spelling silences it ([style.md](style.md#nothing-unused)).
 
 ## Reopening a class
 
 A second file with the same name, in a later loaded root, **reopens** the class instead of colliding with it:
 its functions and attributes replace the earlier ones of the same name and add the rest. That is how a program
 adds settings to `Environment`, a member template to `List`, a function to `Integer`, and how a mod changes a game
-([packages.md](packages.md#monkey-patching-mods)).
+([packages.md](packages.md#monkey-patching-mods)). The program's entry class is the one class nothing may
+reopen.
 
 ## Rules in full
 
@@ -424,37 +433,67 @@ fix. A `D` number is a row of the [decision log](decisions.md).
 - `name` (lowercase, snake_case) is a variable, attribute, function or folder.
 - `Name` (uppercase first letter) is a class or type, including the whole standard library.
 - `$name` is a codegen value: it is replaced at code generation time (see [Codegen values](metaprogramming.md#codegen-values---implemented)).
-- `_name` is private. (This may change.)
+- `_name` is private: read, written or called only inside its own class, a reopening included (D137). On a
+  parameter, and only there, it means instead that the body ignores the parameter on purpose
+  ([style.md](style.md#unused-is-an-error--implemented)). Using a private name from another class is an error
+  naming the getter when there is one: `'_hidden' is private to 'Secret': a name starting with '_' is used only
+  inside its own class, and 'hidden' reads it from outside`
+  ([Reflection objects](reflection.md#reflection-objects--partial)).
 - Keywords: `var func return if else while switch type enum union generic assert crash and or not null true false this`
-  (`generic` since D87, `this` since D83: the value a function answers on, [Variables and values](values_and_types.md#variables-and-values--implemented)), plus `singleton`, which is a keyword only as a line of its own at the top of a file
-  (D104; it stays usable as a name, since `Spite.Class` has an attribute called `singleton`) — there is
-  no `do` (second batch item 2, decided 2026-09-19: with `for` gone, `if value do name` had nothing to match, so
-  `if value { } else { }` narrows in place instead, [Null safety and `assert` narrowing](failure.md#null-safety-and-assert-narrowing--implemented)). Writing `do` is a parse error naming the
-  `if value { }` form.
+  (`generic` since D87; `this` since D83 and in every class since D146: it passes or returns the object itself,
+  [Numbers are classes, and `this`](values_and_types.md#numbers-are-classes-and-this--implemented)).
+  - `load` is a keyword at the start of a statement, written without parentheses (`load "engine"`, D186), and
+    cannot name a function, variable or parameter (D166)
+    ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)).
+  - `singleton` is a keyword only as a line of its own at the top of a file (D104); it stays usable as a name,
+    since `Spite.Class` has an attribute called `singleton`.
+  - `generics` is kept only to report the removed header list: `there is no 'generics' list: a class declares
+    each codegen value on its own line at the top of the file, like 'generic $damage_type'`.
+- There is no `do`: `if value { } else { }` narrows in place instead
+  ([Null safety and `assert` narrowing](failure.md#null-safety-and-assert-narrowing--implemented)). Writing `do`
+  is a parse error; the rule is that it names the `if value { }` form, which is not built -- today it reads
+  `expected '{' but found 'do'`.
+- There is no `class` keyword: `there is no 'class' keyword: a file is a class, named after the file, and its
+  attributes and functions are written at the top level of that file` (`diagnostics/class_keyword`). `class`
+  written bare inside a function is the instance's own `Spite.Class` ([reflection.md](reflection.md)).
 
 ### Files are classes  **[implemented]**
 
 Each `.spite` file is exactly one class, named by the file name in PascalCase (`repository_list.spite` is `RepositoryList`).
 This cannot be changed.
 
-A file contains only declarations:
+A file contains only declarations, in the order D67 enforces ([A file is ordered](style.md#style--implemented)):
 
 - a `singleton` line, when the class has one instance ([Singletons](#singletons--implemented), D104)
 - `generic $name` lines: the codegen values a caller supplies, each optionally constrained by a `type`,
   `generic $name: Printable` ([Codegen values (`$`)](metaprogramming.md#codegen-values---implemented), D87, D175)
-- `var` declarations: the attributes of the class
-- `func` declarations: the functions of the class
-- `type`, `enum` and `union` declarations, which are namespaced under the class (`Player.Job`)
+- `enum`, `union` and `type` declarations, which are namespaced under the class (`Player.Job`)
+- `var` declarations: the attributes of the class, each with a default
+- `func` declarations: the constructor, then the other functions of the class
 
-There are **no file level statements**: no loops, ifs or calls outside a function.
+There are **no file level statements**: no loops, ifs or calls outside a function. One is a parse error:
+`a file holds declarations and nothing else: move this statement into a function, or into the class's
+constructor` (`diagnostics/file_scope_statement`).
 
-```person.spite
-var age = 0
+The program's entry class may not be reopened by another file
+([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial),
+`diagnostics/entry_class_reopened`).
 
-func Person(new_age: Integer) {
-    age = new_age
-}
-```
+### Constructors  **[implemented]**
+
+- A function named exactly like its class is the constructor, and a call of the class's name makes an object;
+  there is no `new`.
+- A class with no constructor has an implicit one that takes no arguments and does nothing (D50): `Member()`
+  gives every field its declared default. An explicitly written empty constructor is an error: `'Holder' has an
+  empty constructor: delete it. A class without a constructor is already made from its defaults`
+  (`diagnostics/empty_constructor`). A generic class needs no constructor either: its codegen values are its
+  `generic` lines (D87).
+- `assert` is not allowed in any constructor
+  ([failure.md](failure.md#assert-is-not-allowed-in-a-constructor)).
+- One file declares each name once (D59, no overloading): `'DuplicateFunction' declares 'twice' twice: a later
+  file may reopen a class and replace a function, but one file declares each name once`
+  (`diagnostics/duplicate_function`). An argument casts to the parameter's type instead
+  ([functions_and_operators.md](functions_and_operators.md)).
 
 ### A constructed object must be kept and used
 
@@ -464,15 +503,16 @@ unconfirmed). **[implemented]** A constructor call written as a statement on its
 must be kept and used, so a class whose construction is the whole point should be a function instead -- turn
 'Report' into a function of the class that needs it, or keep the object in a variable that is read`. One stored in
 a variable nothing reads is already the unused-name error (D118, D136). A singleton is exempt: it is bound as an
-attribute (D110, D144), and a bare `Console()` statement is D110's inline-singleton error instead.
-`diagnostics/dropped_construction`, `docs/classes_and_files.md`.
+attribute (D110, D144), and a bare `Console()` statement is D110's inline-singleton error instead. The check is
+compile time only (`diagnostics/dropped_construction`).
 
 ### Singletons  **[implemented]**
 
-D104 (Mortaro, 2026-09-24, correcting an omission; superseding D8's function form): **a singleton says so with a
-`singleton` line at the top of its file**, first in D67's order -- before `generic` lines, enums, unions, types,
-variables, the constructor and functions. `is_singleton()` stays readable on `Spite.Class` (D88), answered from
-the line.
+**A singleton says so with a `singleton` line at the top of its file** (D104, superseding D8's
+`func is_singleton()` form), first in D67's order. `is_singleton()` stays readable on `Spite.Class` (D88),
+answered from the line; declaring `func is_singleton()` in any class but `Spite.Class` is an error naming the
+line: `a class says it is a singleton with a 'singleton' line at the top of its file, not with a function:
+delete 'is_singleton()' and write 'singleton' as the file's first line` (`diagnostics/singleton_function`).
 
 ```console.spite
 singleton
@@ -480,55 +520,24 @@ singleton
 var heap = Memory.Heap()
 ```
 
-Declaring `func is_singleton()` in any class but `Spite.Class` is an error naming the line
-(`diagnostics/singleton_function`). D8 (2026-09-19) had declared it with that function of `Spite.Class`, overriding
-the default `Spite.Class` declares; what follows still holds for the line.
-
-- **Call sites never change.** `var console = Console()` everywhere, exactly as it reads today. A human skimming
-  a call site is never told and never needs to know; the AI writing the code learns it from the class file and
-  from `docs/for_ai_writers.md`.
-- **One instance per distinct constructor argument list**, and a singleton's constructor arguments must be
-  literals (the rule `load` already has). `Console()` is one object;
-  `DynamicLibrary("user32.dll", 'windows', "windows.h")` is one object however many classes ask for it, and
-  `"gdi32.dll"` is a second one. The compiler emits one static slot per distinct argument list, so there is no
-  runtime registry walk -- only a guarded branch the first time.
-- **A generic singleton has one instance per set of codegen values** (proposed by Claude, unconfirmed; the
-  reading of "one per literal argument list" for `generic` lines, 2026-09-24): `Column<Health>()` is one object
-  wherever it is called and `Column<Label>()` is another, since codegen values are literals too. It was accepted
-  and silently made a new instance per call before (`conformance/stage6/generic_singletons`).
-- **Memory:** the slot holds one reference, so the count never reaches zero; `drop()` runs at program exit, in
-  reverse creation order, and `--debug-memory` counts singletons as roots, never as leaks. Since a singleton never
-  dies early, it is not counted at all (proposed by Claude, unconfirmed, 2026-09-24): its retain and release do
-  nothing, the program records each singleton as it is made, and destroys them in reverse at exit. Two
-  `Parallel` threads fetching `Slot<Integer>()` 40 million times took 0.8 s with the atomic count and 0.04 s without
-  (`conformance/stage6/singleton_counts`).
-- **Teardown order** (proposed by Claude, unconfirmed, 2026-09-24): a singleton counts as made when its
-  constructor *finishes*, so a singleton its attributes or constructor made is made before it and outlives it.
-  At exit standard output is flushed, then singletons are destroyed newest first, and every `DynamicLibrary` is
-  unloaded after all of them, since any code may call through a library and a library calls nothing back. A
-  `drop()` may therefore use any singleton made before its own, and any library. A `drop()` that fetches a
-  singleton already destroyed -- one first made *after* the dropping singleton, in a later call -- halts with
-  `spite: a drop() at exit used the singleton Archive after it was destroyed: ...`, naming the fix: keep it in
-  an attribute. A singleton first made inside a `drop()` is destroyed right after it
-  (`conformance/stage6/singleton_teardown`, `conformance/stage6/singleton_used_after_exit`).
-- **Made once, whichever thread asks first** (proposed by Claude, unconfirmed, 2026-09-24): in a program that
-  starts threads, the first fetch of a singleton takes a lock of its own, checks again and makes it; every later
-  fetch is still one load. Two `Parallel` threads first touching `Shelf<Integer>()` made it twice before, and one
-  copy leaked (`conformance/stage6/singleton_race`). A program with no threads keeps the plain check.
-- **A singleton that holds nothing** -- no attributes but settings the compiler folds, and no `drop()`, such as
-  `Memory`, `Build` and `TypedMemory<T>` -- is one static object in a production build and an ordinary singleton
-  in an inspectable one (D143, [Command line](compiler.md#command-line)). There it may be made again if something destroyed after it at exit
-  asks for it, since it has nothing to lose (proposed by Claude, unconfirmed).
-- **Standard library:** `Console`, `Program` and `DynamicLibrary` are singletons. `File`, `Directory` and
-  `Process` are not -- they are values (a path, a spawned command), and several may exist at once.
-- A later root reopening the class ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)) may not disagree about it; that is a diagnostic. Reopening
-  `Spite.Class` itself to move the default for every class at once is allowed and is D7's foot to shoot.
-- A class wanting an ordinary instance function named `is_singleton` gets the error above, which names the
-  `singleton` line.
-- **A singleton is always bound to a variable before it is used** (D110, decided by Mortaro): "always force
-  singletons to be used as variables first so AI does not get tempted to inline it." A singleton's constructor
-  call may only be the whole value of a `var`; a member read or call on it, passing it, returning it, assigning
-  it or putting it in an operation is an error naming the fix (`diagnostics/inline_singleton`,
+- **Call sites never change** (D8). `var console = Console()` reads the same for a singleton and for any other
+  class; the class file is where the difference is said.
+- **One instance per distinct constructor argument list** (D8). An ordinary singleton's constructor takes no
+  arguments: `'Registry' is a singleton, so its constructor takes no arguments: there is one instance, made the
+  first time it is asked for` (`diagnostics/singleton_arguments`). `DynamicLibrary` is the one that takes
+  arguments, and they must be literals: `DynamicLibrary("user32.dll", 'windows', "windows.h")` is one object
+  however many classes ask for it, and `"gdi32.dll"` is a second one.
+- **A generic singleton has one instance per set of codegen values** (proposed by Claude, unconfirmed: the
+  reading of "one per literal argument list" for `generic` lines): `Column<Health>()` is one object wherever it
+  is called and `Column<Label>()` is another (`conformance/stage6/generic_singletons`).
+- **A singleton is bound as an attribute, never a local** (D144): every singleton a class uses is visible at the
+  top of its file. The one exception is a value class such as `String`, which has no attribute to spare and
+  binds it as a local `var` in the function that needs it. **Not built:** the compiler does not yet reject a
+  local binding in an ordinary class, so `var console = Console()` inside a function still compiles.
+- **A singleton is always bound to a variable before it is used** (D110). A singleton's constructor call may
+  only be the whole value of a `var`; a member read or call on it, passing it (`greet(Console())`, although D77
+  lets other constructors be arguments), returning it, assigning it, putting it in an operation, or writing it
+  as a statement of its own is an error naming the fix (`diagnostics/inline_singleton`,
   `diagnostics/inline_singleton_attribute`):
 
   ```
@@ -537,20 +546,44 @@ the default `Spite.Class` declares; what follows still holds for the line.
   # 'build.target_operating_system'
   ```
 
-  The readings below are **(proposed by Claude, unconfirmed)**: the binding may be an attribute ("on top", which
-  the message names) or a local `var` in a function -- a value class such as `String` has no attribute to
-  spare, and an error path (`var program = Program()` before `program.exit(1)`) need not hold the program for
-  the object's whole life. D77 lets a constructor be an argument; a singleton's constructor is the exception
-  (`greet(Console())` is an error). A generic singleton (`TypedMemory<Integer>()`) is covered the same way. As
-  with D77, only code the compiler generates is checked: a function nothing calls is not.
-
-Rejected on the way here, each for a reason worth keeping: `$singleton = true` and `$instances = 1` (`$` means
-"replaced at code generation", and a directive the compiler reads and deletes is never replaced by anything); a
-bare `singleton` first line (the file-top declaration shape D5 removed for `generics` -- adopted after all by D67
-and D104, once `generic` lines made the header a pattern); `func Console(): Console`
-or `func Console(): Spite.Singleton` (the constructor's return type carrying the meaning -- quiet, and the second
-makes the return type describe how rather than what); `func shared_instance(): Console` (loudest and most honest,
-but "the constructor is named after the class" stops being one rule); a private constructor `func _Console()`
-(`_` would mean private, intentionally unused, *and* singleton); `var console = Console` without parentheses (the
-class can no longer enforce it); and a constructor hand-written to return `Class.instances.first()` (boilerplate
-in every singleton, plus a second way to allocate).
+  A generic singleton (`TypedMemory<Integer>()`) is covered the same way. As with D77, only code the compiler
+  generates is checked: a function nothing calls is not (proposed by Claude, unconfirmed).
+- **An unread singleton binding is an error everywhere** (D157): `var world = World()` that nothing in the
+  program reads is `the attribute 'world' is never read: remove it`, even inside a loaded package, whose other
+  unread public attributes are tree-shaken rather than reported ([style.md](style.md#unused-is-an-error--implemented)).
+- **Not counted** (D142). A singleton's retain and release do nothing: the program records each singleton as it
+  is made and destroys them at exit, so it is destroyed even when a leaked object still points at it, and
+  `--debug-memory` still reports that leaked object. Fetching one is a load from its static slot, with no count
+  for threads to contend on ([optimizations.md](optimizations.md#singletons-made-on-first-use-never-counted),
+  `conformance/stage6/singleton_counts`).
+- **Teardown order** (D141; the reading of "made" proposed by Claude, unconfirmed): a singleton counts as made
+  when its constructor *finishes*, so a singleton its attributes or constructor made is made before it and
+  outlives it. At exit standard output is flushed, then singletons are destroyed newest first, and every
+  `DynamicLibrary` is unloaded after all of them. A `drop()` may therefore use any singleton made before its
+  own, and any library. A `drop()` that fetches a singleton already destroyed -- one first made *after* the
+  dropping singleton -- halts with `spite: a drop() at exit used the singleton Archive after it was destroyed:
+  singletons are destroyed in reverse order of when they were made, so keep Archive in an attribute of the
+  singleton whose drop() uses it`. A singleton first made inside a `drop()` is destroyed right after it
+  (`conformance/stage6/singleton_teardown`, `conformance/stage6/singleton_used_after_exit`).
+- **Made once, whichever thread asks first** (proposed by Claude, unconfirmed): in a program that starts
+  threads, the first fetch of a singleton takes a lock of its own, checks again and makes it; every later fetch
+  is still one load. A program with no threads keeps the plain check (`conformance/stage6/singleton_race`).
+- **Safe for threads without a keyword** (D183, D184): a singleton a `Parallel` can reach is made thread-safe
+  by the compiler in the cheapest form proven safe, a lock of its own being the fallback, only in programs that
+  use `Parallel`. What is built is in
+  [optimizations.md](optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form) and
+  [concurrency.md](concurrency.md).
+- **A singleton that holds nothing** -- no attributes but settings the compiler folds, and no `drop()`, such as
+  `Memory.Heap`, `Build` and `TypedMemory<T>` -- is one static object in a production build and an ordinary
+  singleton in an inspectable one (D143, [Command line](compiler.md#command-line)). There it may be made again
+  if something destroyed after it at exit asks for it, since it has nothing to lose (proposed by Claude,
+  unconfirmed).
+- **Run-time cost** (D177): one static slot per singleton (per argument list, per set of codegen values) and one
+  guarded branch at its first fetch; a singleton nothing reaches is tree-shaken with its class.
+- **Standard library:** `Console`, `Program`, `Environment`, `Build`, `Clock`, `Memory.Heap`, `ThreadPool` and
+  `DynamicLibrary`, among others, are singletons. `File`, `Directory` and `Process` are not -- they are values (a
+  path, a spawned command), and several may exist at once.
+- **Reopening** ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)): a
+  reopening may add the `singleton` line (proposed by Claude, unconfirmed, as built), which makes the class a
+  singleton everywhere: every construction of it, in any file, then follows the rules above. Reopening `Spite.Class`
+  itself to move the default for every class at once is allowed and is D7's foot to shoot.
