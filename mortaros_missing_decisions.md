@@ -349,3 +349,29 @@ All of it is proposed by Claude, unconfirmed.
      polling; `HotReload` becomes its first user and SlopEngine's cooker the second. Tree-shaken when unused (D177).
      Name: `FileWatcher` or `Directory.Watcher`?
 
+
+## Found implementing D180 (enums an engine reopens and walks)
+
+142. **Which enum constrains a pattern's hole: the one named for it.** `phase: Symbol<$system_type.phase_all>` reads
+     the enum `Phase`, found as a type written `Phase` would be from the template's class (its class, its folders,
+     then the whole program if exactly one class declares one); `render_step` reads `RenderStep`. A hole no enum is
+     named for is an error at the template, so every pattern needs its enum (the corpus and docs gained one each).
+     The alternative is an explicit form such as `Symbol<Phase, $system_type.phase_all>`, which is new syntax. Keep
+     the naming rule, and keep it mandatory?
+143. **Enum reflection is spelled like the other templates.** `course: Symbol<Course>` ranges over the values;
+     `course.name` is the text, `course.value` the value typed `Course` (also inside a pattern template, where
+     `phase.value` is the matched `Phase`), and the plural calls it once per value in the enum's order. There is no
+     run-time list of values (nothing to tree-shake). Is `.value` the right word, and is a run-time form ever
+     wanted (`Course.values`)?
+144. **A pattern's plural now walks in the enum's order**, not the order the functions are declared in, since the
+     enum is the engine's list of phases. Keep that?
+145. **Where reopened values go.** They are appended in merge order, which puts the program's own folder before
+     every loaded folder, so a program's `schedule.spite` adding `'input'` to a loaded engine's `Phase` puts
+     `'input'` *first*, and a mod loaded after the engine puts it last. A value already present stays where it was
+     (so `--final_classes` output, which restates whole enums, still compiles); nothing removes or reorders one.
+     Should a reopening be able to say where its values go (before or after another value), and should the
+     program's own values come last instead?
+146. **`has_function` at run time still matches any text in a hole.** Folded (`$type.has_function("<phase>_each")`)
+     the hole is the enum's values, like a template's; `Sprinkler.has_function("<phase>_each")` and `name_fits` at
+     run time are plain text questions over `.functions`, since there is no run-time enum list. Keep the two
+     different, or make the run-time form read the enum too (which would need one)?

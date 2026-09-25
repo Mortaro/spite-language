@@ -358,10 +358,11 @@ a column of String
 
 ## A class's functions, a folder's classes and a name's pattern
 
-The templates above range over a class's attributes. They range over three more things a program already has:
-the arguments of one function, the classes of every folder with a given name, and the functions whose names fit
-a pattern. With `has_function`, which asks a generic's type a question while compiling, this is how an engine
-finds its systems and calls them with nothing registered. It all happens at compile time, and only what a program
+The templates above range over a class's attributes. They range over four more things a program already has:
+the arguments of one function, the classes of every folder with a given name, the functions whose names fit a
+pattern, and an enum's values ([values_and_types.md](values_and_types.md#walking-an-enums-values)). With
+`has_function`, which asks a generic's type a question while compiling, this is how an engine finds its systems
+and calls them with nothing registered. It all happens at compile time, and only what a program
 calls is generated. These spellings are proposals (manual section 8), not yet confirmed.
 
 ### Asking for a function, and walking its arguments
@@ -516,16 +517,26 @@ sweep runs
 
 When the parameter's own name is a word of the function named in the range, that word is a hole, exactly as it
 is in a template's own name: `phase: Symbol<$system_type.phase_all>` ranges over the functions whose names fit
-`<phase>_all`. For `update_all`, `phase.name` is `"update"`. Inside the template, the pattern written as a
-member, `system.phase_all()`, calls the matched function. Another template ranging over
-`$system_type.phase_all` that is called from inside walks the matched function's arguments. The engine owns the
-list of phases, so systems run in the engine's order, whatever order their files are in:
+`<phase>_all`. The hole matches only the values of the enum named for it, `Phase`, found the way a type written
+`Phase` would be from the template's class (D180). So the engine's phases are an enum, and a function whose name
+fits the pattern without naming one of its values -- `count_all` below -- is an ordinary function. For
+`update_all`, `phase.name` is `"update"` and `phase.value` is the enum value `'update'`. Inside the template, the
+pattern written as a member, `system.phase_all()`, calls the matched function. Another template ranging over
+`$system_type.phase_all` that is called from inside walks the matched function's arguments. The plural walks the
+matched functions in the enum's order, and the engine walks the enum itself (see
+[values_and_types.md](values_and_types.md#walking-an-enums-values)), so systems run in the engine's order,
+whatever order their files are in:
 
 ```gdscript title=name_phases/system/draw.spite
 var console = Console()
 
 func render_all() {
-    console.print("draw")
+    var shapes = count_all()
+    console.print("draw", shapes, "shapes")
+}
+
+func count_all(): Int {
+    return 3
 }
 ```
 ```gdscript title=name_phases/system/move.spite
@@ -539,14 +550,14 @@ func update_all() {
 generic $system_type
 
 var system: $system_type = null
-var placed_in = ""
+var placed_in: NamePhases.Phase = 'update'
 
 func Runner() {
     place_phases_all()
 }
 
 func place_phase_all(phase: Symbol<$system_type.phase_all>) {
-    placed_in = phase.name
+    placed_in = phase.value
 }
 
 func run() {
@@ -558,18 +569,22 @@ func run_phase_all(phase: Symbol<$system_type.phase_all>) {
 }
 ```
 ```gdscript title=name_phases/name_phases.spite entry
+enum Phase {
+    'update'
+    'render'
+}
+
 type Runnable {
-    placed_in: String
+    placed_in: Phase
     run()
 }
 
-var phases = ["update", "render"]
 var runners = List<Runnable>()
 var console = Console()
 
 func NamePhases() {
     add_systems()
-    phases.each_run_phase()
+    run_phases()
 }
 
 func add_system(system: Symbol<System>) {
@@ -578,15 +593,15 @@ func add_system(system: Symbol<System>) {
     console.print(system.name, "runs in", runner.placed_in)
 }
 
-func run_phase(phase: String) {
+func run_phase(phase: Symbol<Phase>) {
     var index = 0
     while index < runners.count() {
-        run_placed(runners[index], phase)
+        run_placed(runners[index], phase.value)
         index = index + 1
     }
 }
 
-func run_placed(runner: Runnable, phase: String) {
+func run_placed(runner: Runnable, phase: Phase) {
     if runner.placed_in == phase {
         runner.run()
     }
@@ -596,13 +611,21 @@ func run_placed(runner: Runnable, phase: String) {
 System.Draw runs in render
 System.Move runs in update
 move
-draw
+draw 3 shapes
 ```
 
-`--final_classes` shows what was made: `RunnerMove` has `place_update_all()` and `run_update_all()`, and
-`add_systems()` calls `add_system_system_draw()` and `add_system_system_move()`. As a condition,
-`$system_type.has_function("<phase>_all")` asks whether any function fits the pattern. A fuller engine, with
-rows queried per argument and `run_each` called once per combination, is
+`--final_classes` shows what was made: `RunnerMove` has `place_update_all()` and `run_update_all()`,
+`add_systems()` calls `add_system_system_draw()` and `add_system_system_move()`, and `run_phases()` calls
+`run_update()` and `run_render()`. `RunnerDraw` has no `place_count_all()`, since `count` is not a `Phase`. A
+program adds a phase by reopening the enum ([packages.md](packages.md#reopening-an-enum-adds-values)), and every
+system with a function for it is then run in it.
+
+Calling a single instance names a value, and one the enum does not have is an error listing the ones it does:
+`run_updat_all()` here is "'updat' is not a value of 'NamePhases.Phase', which has 'update', 'render'", and
+`run_render_all()` in `RunnerMove` says `System.Move` has no function `render_all`. A pattern whose
+hole names no enum is an error at the template, asking for `enum Phase` (`diagnostics/hole_values`). As a
+condition, `$system_type.has_function("<phase>_all")` asks whether any function fits the pattern, its hole read
+the same way. A fuller engine, with rows queried per argument and `run_each` called once per combination, is
 `conformance/stage6/system_phases`.
 
 ### Passing the symbol to a helper
@@ -626,6 +649,11 @@ func leave_all() {
 ```
 ```gdscript title=passed_phase/runner.spite
 generic $system_type
+
+enum Phase {
+    'greet'
+    'leave'
+}
 
 var system: $system_type = null
 var console = Console()
@@ -675,6 +703,8 @@ at compile time:
   `sum_price()` has no `sum_price`.
 - **`has_function`** is decided while compiling, and templates over a function's arguments, a folder's classes
   or a name pattern are expanded into ordinary calls. No list of functions or classes exists at run time.
+- **An enum's values** are walked the same way: `Symbol<Phase>` and a pattern's hole become one call per value,
+  so no table of an enum's values exists at run time, and a program that never walks an enum pays nothing for it.
 - **Reflection** is built only where it is read ([reflection.md](reflection.md)), and a generic class such as
   [`Json`](json.md) exists only for the types a program uses it with.
 - A **class** nothing reaches is not emitted.

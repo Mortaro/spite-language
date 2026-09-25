@@ -1,5 +1,9 @@
 generic $system_type
 
+enum Phase {
+    'update'
+}
+
 var system: $system_type = null
 
 func run() {

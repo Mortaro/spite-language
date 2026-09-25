@@ -300,6 +300,44 @@ dessert dessert true
 brunch starter false
 ```
 
+### Walking an enum's values
+
+`course: Symbol<Course>` makes a template over the enum's values, the way `Symbol<Label>` makes one over a
+class's attributes ([metaprogramming.md](metaprogramming.md#another-classs-attributes-and-all-of-them-at-once)).
+Inside, `course.name` is the value's name as text and `course.value` is the value itself, typed `Course`. The
+plural, `list_courses()`, calls the template once per value, in the order the enum lists them; `list_soup()`
+calls it for one.
+
+```gdscript title=enum_walk/enum_walk.spite entry
+enum Course {
+    'starter'
+    'soup'
+    'dessert'
+}
+
+var served: Course = 'soup'
+var console = Console()
+
+func EnumWalk() {
+    list_courses()
+}
+
+func list_course(course: Symbol<Course>) {
+    var is_served = course.value == served
+    console.print(course.name, is_served)
+}
+```
+```output
+starter false
+soup true
+dessert false
+```
+
+It is all decided while compiling: `list_courses()` becomes three calls, and `list_soup()` compares with
+`'soup'` directly. No list of an enum's values exists at run time, so a program that never walks one pays
+nothing for it. An enum is also open to the program that loads it: reopening its class declares the enum again
+with more values ([packages.md](packages.md#reopening-an-enum-adds-values)), and a walk then includes them.
+
 ## Unions
 
 A tagged union. A `switch` must cover every member, and narrows the value inside each case; when every member

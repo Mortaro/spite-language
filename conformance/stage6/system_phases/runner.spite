@@ -1,7 +1,7 @@
 generic $system_type
 
 var system: $system_type = null
-var placed_in = ""
+var placed_in: Schedule.Phase = 'update'
 var counts = List<Int>()
 var picked = List<Int>()
 var position = 0
@@ -12,11 +12,11 @@ func Runner() {
 }
 
 func place_phase_each(phase: Symbol<$system_type.phase_each>) {
-    placed_in = phase.name
+    placed_in = phase.value
 }
 
 func place_phase_all(phase: Symbol<$system_type.phase_all>) {
-    placed_in = phase.name
+    placed_in = phase.value
 }
 
 func run() {

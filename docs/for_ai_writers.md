@@ -24,7 +24,8 @@ A program lives in its own folder, and `spite game` runs it: `launcher/launcher.
 target system's folder of it, then `game/`, whose every sub folder is a
 namespace (`game/engine/renderer/debug.spite` is `Engine.Renderer.Debug`; a file named like its folder is the
 folder's own class). `load("folder")` inside a function loads another package; a file at the same namespace path
-reopens the class: same-named functions and attributes replace, the rest are added.
+reopens the class: same-named functions and attributes replace, the rest are added, and an enum declared again
+gains the values it lists.
 
 ## A file is a class
 
@@ -146,7 +147,11 @@ func is_alive(): Bool {
   }
   ```
 
-- An enum's values are single quoted and resolve from where they are used.
+- An enum's values are single quoted and resolve from where they are used. A reopening file that declares the
+  enum again adds the values it lists that it did not have. `course: Symbol<Course>` walks the values in order:
+  `course.name` is the text, `course.value` the value, and `list_courses()` calls `list_course` once per value.
+  A name pattern's hole (`phase: Symbol<$system_type.phase_all>`) matches only the values of the enum named for
+  it, `Phase`.
 - `union Enemy { Player Monster }`, written one member per line: `switch enemy { Player: ... Monster: { ... } }`
   must cover every member and narrows `enemy` inside each case; a function or attribute every member has can be
   used on the union directly.

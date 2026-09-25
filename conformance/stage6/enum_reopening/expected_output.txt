@@ -1,0 +1,5 @@
+fog false
+clear false
+rain true
+snow false
+now snow

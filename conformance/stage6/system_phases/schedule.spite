@@ -1,9 +1,13 @@
+enum Phase {
+    'update'
+    'render'
+}
+
 type Runnable {
-    placed_in: String
+    placed_in: Phase
     run()
 }
 
-var phases = ["update", "render"]
 var runners = List<Runnable>()
 var console = Console()
 
@@ -13,24 +17,23 @@ func Schedule() {
 
 func add_system(system: Symbol<System>) {
     var runner = Runner<system.class>()
-    crash phases.contains(runner.placed_in)
     runners.append(runner)
     console.print("placed", system.name, "in", runner.placed_in)
 }
 
 func tick() {
-    phases.each_run_phase()
+    run_phases()
 }
 
-func run_phase(phase: String) {
+func run_phase(phase: Symbol<Phase>) {
     var index = 0
     while index < runners.count() {
-        run_placed(runners[index], phase)
+        run_placed(runners[index], phase.value)
         index = index + 1
     }
 }
 
-func run_placed(runner: Runnable, phase: String) {
+func run_placed(runner: Runnable, phase: Phase) {
     if runner.placed_in == phase {
         runner.run()
     }

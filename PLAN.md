@@ -287,6 +287,14 @@ and balanced allocations.
     and checks both paths keep its state. **Not done:** Linux and macOS are only compiled; instance migration,
     reflection that follows reloads, and compiling off the program's thread wait on
     `mortaros_missing_decisions.md` 64-69.
+26. **Done (2026-09-25): D180, enums an engine can reopen and walk** (manual.md sections 7, 8 and 11;
+    `docs/values_and_types.md`, `docs/packages.md`, `docs/metaprogramming.md`). A reopening adds values to an
+    enum; `Symbol<Course>` walks its values (`.name`, `.value`, the plural in order); a name pattern's hole
+    matches only the values of the enum named for it, and the plural walks matches in the enum's order. All
+    compile time: nothing is emitted for an enum nobody walks. `conformance/stage6/enum_reopening`,
+    `conformance/stage6/system_phases`, `diagnostics/hole_values`. **Not done:** environments as a reopenable
+    enum (D180's last sentence); live reload still refuses a changed enum. The spellings wait on
+    `mortaros_missing_decisions.md` (the D180 questions).
 
 ## Later, deliberately deferred
 

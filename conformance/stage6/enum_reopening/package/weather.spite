@@ -1,0 +1,6 @@
+enum Sky {
+    'clear'
+    'rain'
+}
+
+var sky: Sky = 'clear'

@@ -313,9 +313,10 @@ update_each true
 drain false
 ```
 
-Here the answer is found at run time, from `.functions`. Asked of a generic's type, as in
-`if $system_type.has_function('run_each')`, it is decided while compiling instead, and only the branch taken is
-compiled. Walking a function's arguments, a folder's classes or the functions that fit a pattern at compile time
+Here the answer is found at run time, from `.functions`, and the hole is any text. Asked of a generic's type, as
+in `if $system_type.has_function('run_each')`, it is decided while compiling instead, and only the branch taken is
+compiled; there a pattern's hole matches only the values of the enum named for it, `Phase` for `<phase>`, as a
+name pattern's does (D180). Walking a function's arguments, a folder's classes or the functions that fit a pattern at compile time
 is in [metaprogramming.md](metaprogramming.md#a-classs-functions-a-folders-classes-and-a-names-pattern).
 
 ## Instances, and every class in the program
