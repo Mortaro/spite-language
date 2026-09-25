@@ -7,38 +7,28 @@ and every folder it `load`s -- and only then decides what to produce, from the p
 [`Build`](programs.md#compile-time-settings-build). Every option is a field of `Build`, given as `--name=value`
 (a `Boolean` option may be given bare, `--optimized`). A flag is written in kebab-case and sets the `snake_case` field
 of the same name: `--repl-port=4000` sets `Build.repl_port`, and a field a program declares in its own
-`build.spite`, `worker_stack_size`, is given as `--worker-stack-size=256` (D188). A flag written with an underscore
-is an error naming the hyphen form: `error: '--repl_port' is written '--repl-port': a flag is kebab-case, and it
-sets the Build field 'repl_port'`. By default the compiler builds the executable beside the program and runs it.
+`build.spite`, `worker_stack_size`, is given as `--worker-stack-size=256` ([D188](#flags-and-settings)). By default
+the compiler builds the executable beside the program and runs it.
 
 ```
-spite program                         build program/program.exe beside the program, and run it
-spite program --optimized             an optimized build
-spite program --development           an inspectable build: nothing tree-shaken, internals as ordinary objects
-spite program --debug-memory          count allocations and frees, and print the balance at the end
-spite program --repl                  run it, then open a REPL on the running program
-spite program --repl-port=4000        serve a REPL on 127.0.0.1:4000 while it runs
-spite program --hot-reload            swap edited classes into the running program, keeping its state
-spite program --serve=true            decide a Build field the program declares, while compiling
-spite program -- --serve=true         run it with a setting its Environment declares
-spite program --c-source              write program/program.c too, then build and run
-spite program --c-source --run=false  write the C and nothing else
-spite program --executable --run=false            build the executable without running it
-spite program --executable --c-source --run=false build it and write its C, in one compile
-spite program --executable-path=build/game.exe    put the executable somewhere else (--c-path= for the C)
-spite program --run=false             compile the program and write nothing: its errors, if any
-spite program --final-classes=folder  also write the program back out as Spite, every class as it ended up
-spite program --target-operating-system=linux --c-source --run=false   write the C for another system
-spite format <file-or-folder> ...     format files without compiling them
-spite format --check <path> ...       rewrite nothing; fail listing every file that would change
-spite connect 4000                    talk to a running --repl-port program
-spite connect 4000 --command="..."    send one REPL command and print its JSON answer
+spite game                          build game/game.exe beside the program, and run it
+spite game --debug-memory           the same, counting allocations and frees
+spite game --c-source               also write game/game.c
+spite game --run=false              only check that it compiles
+spite game --repl-port=4000         serve a REPL on 127.0.0.1:4000 while it runs
+spite game -- --name=production     run it with a setting its Environment declares
+spite format game                   format files without compiling them
+spite connect 4000                  talk to a program running with --repl-port=4000
 ```
 
-Flags mix freely -- a production build may keep the REPL -- and the outputs combine: one compile can build the
-executable, write its C and write its final classes. `bin/spite` is the command itself: it builds the compiler from
-`bootstrap/seed/spite_compiler.c` the first time (and again whenever the seed changes), finds a C compiler, and
-passes everything else through.
+Every command and flag, with exactly what it does, is listed under [Command line](#command-line). Flags mix
+freely -- a production build may keep the REPL -- and the outputs combine: one compile can build the executable,
+write its C and write its final classes.
+
+`bin/spite` (and `bin/spite.cmd`, which runs it from a Windows prompt) is the command itself: it builds the
+compiler from `bootstrap/seed/spite_compiler.c` into `.spite-cache/spite.exe` the first time, and again whenever the
+seed is newer, finds a C compiler, makes the folder and path arguments absolute, and passes everything else
+through.
 
 ## Name the program
 
@@ -49,15 +39,15 @@ spite game/
 
 The folder supplies the program's other classes, and the entry class's constructor takes no arguments: the
 program reads its command line through `Environment()`, what its build decided through `Build()`, and the raw
-arguments through `Arguments()`. A program is named only by its folder (D130): a path to a `.spite` file is an
-error that names the folder form, `error: 'game/game.spite' is a file, and a program is named by its folder:
-spite game`, and a folder with no entry file named after it is an error naming the file it looked for. The
-compiler compiles itself the same way, `spite bootstrap`, whose entry is `bootstrap/bootstrap.spite`.
+arguments through `Arguments()`. A program is named only by its folder (D130): `spite game/game.spite` is an
+error that answers with the folder form, `spite game`, and a folder with no entry file named after it is an error
+naming the file it looked for ([the texts](#naming-a-program)). The compiler compiles itself the same way,
+`spite bootstrap`, whose entry is `bootstrap/bootstrap.spite` ([self_hosting.md](self_hosting.md)).
 
 ## How a program is loaded
 
 The compiler reads `launcher/launcher.spite` first -- a Spite class whose constructor loads `library/`, then the
-target operating system's folder of it, then the program's folder -- and follows its `load` calls in order.
+target operating system's folder of it, then the program's folder -- and follows its `load` lines in order.
 [programs.md](programs.md#how-a-program-is-loaded) walks through it.
 
 ## Where it runs
@@ -72,14 +62,10 @@ that folder, not to the language's repository. A foreign library's header named 
 
 The compiler reads the program first, and decides what to produce only after, from `Build` -- so a program's own
 `build.spite` can choose its outputs like any other option ([programs.md](programs.md#compile-time-settings-build)).
-Each output is a `Boolean` field, and every one that is on is produced by the same compile:
-
-| Output | Default | What it produces |
-|---|---|---|
-| `run` | `true` | builds the executable, then runs it with everything after `--` |
-| `executable` | `false` | builds the executable without needing to run it |
-| `c_source` | `false` | writes the generated C |
-| `final_classes` | `""` | writes the program back out as Spite into this folder ([below](#inspect-merged-classes)) |
+There are four, and every one that is on is produced by the same compile: `run` (on by default: build the
+executable, then run it with everything after `--`), `executable` (build it without running it), `c_source` (write
+the generated C) and `final_classes` (write the program back out as Spite into a folder,
+[below](#inspect-merged-classes)); their defaults are in [Build options](#build-options).
 
 Running a program runs its executable, so `run` builds it too, in the same place `executable` would. With every
 output off (`--run=false`), the compiler still reads and compiles the whole program and reports its errors, and
@@ -99,7 +85,8 @@ from.
 In that C, every local, parameter and attribute has a `_` after its Spite name (`var near = 3` is
 `int32_t near_ = 3;`, an attribute `pascal` is `self->pascal_`), and a function is its class's name joined to its
 own (`Map_far`). No snake_case name ends in `_`, so no Spite name can meet a C keyword or a macro from a system
-header (Windows defines `near`, `far` and `pascal`): C reserves nothing in Spite (D168).
+header (Windows defines `near`, `far` and `pascal`): C reserves nothing in Spite (D168). Reflection,
+`--final-classes`, crash reports and error messages keep the Spite names.
 
 ## Where the outputs go
 
@@ -116,8 +103,8 @@ spite game --c-source --run=false --c-path=build/game.c
 ```
 
 A folder the path names is created. A path option given for an output that is off is an error saying which flag
-is missing (`--c-path` without `--c-source`), so a path never passes silently. Every `Build` field is a constant
-in the built program, the paths included.
+is missing (`--c-path` without `--c-source`, [the texts](#outputs)), so a path never passes silently. Every `Build`
+field is a constant in the built program, the paths included.
 
 What a build writes **beside its executable**, wherever that is: `game.crashes`, the map from a crash report's
 site ids to their lines ([failure.md](failure.md)), and, for a `--hot-reload` build, `game.reload_host`,
@@ -127,7 +114,8 @@ language repository's `.spite-cache/game.c`, and is overwritten by the next buil
 
 `spite reload <folder> ... --executable-path=<running executable>` is what a `--hot-reload` program runs to
 rebuild itself: given the options it was built with, it compiles only the classes whose files changed into a
-library beside the executable and prints what it rebuilt ([repl.md](repl.md#live-reload---hot-reload)).
+library beside the executable and prints what it rebuilt, or its errors, on standard output, where the running
+program reads them ([repl.md](repl.md#live-reload---hot-reload)). You never type it.
 
 ## Build options
 
@@ -142,13 +130,13 @@ Every option is a `Build` field with a literal default, declared in `library/bui
 | `c_path` | `""` | where the C goes; `""` is beside the program |
 | `final_classes` | `""` | writes the merged classes to this folder |
 | `optimized` | `false` | asks the C compiler for `-O2` instead of `-O0` |
-| `development` | `false` | an inspectable build: keeps everything, no tree shaking, internals as ordinary objects |
-| `repl` | `false` | runs the program with an in-place REPL |
-| `repl_port` | `0` | serves the remote REPL on this port (see [repl.md](repl.md)) |
-| `hot_reload` | `false` | swaps changed classes into the running program and implies `development` (see [repl.md](repl.md#live-reload---hot-reload)) |
-| `debug_memory` | `false` | counts allocations and frees and prints them when the program ends |
+| `development` | `false` | an [inspectable build](#development-builds-and-tree-shaking): nothing tree-shaken, internals as ordinary objects |
+| `repl` | `false` | runs the program, then opens a REPL on it at the terminal ([repl.md](repl.md)) |
+| `repl_port` | `0` (off) | serves the remote REPL on `127.0.0.1` at this port while the program runs ([repl.md](repl.md)) |
+| `hot_reload` | `false` | swaps changed classes into the running program; implies `development` ([repl.md](repl.md#live-reload---hot-reload)) |
+| `debug_memory` | `false` | counts allocations and frees and prints them when the program ends ([below](#counting-memory---debug-memory)) |
 | `operating_system` | the compiling machine | cannot be given: it is the system doing the compiling |
-| `target_operating_system` | `operating_system` | the system the program is compiled for |
+| `target_operating_system` | `operating_system` | the system the program is compiled for ([below](#compile-for-another-system)) |
 | `program` | the folder named | cannot be given: it is the folder on the command line, which the launcher loads |
 
 ```bash
@@ -159,15 +147,23 @@ spite game --executable --run=false --executable-path=build/game.exe --debug-mem
 
 A program may give an option a different default by reopening `Build` in its own `build.spite`
 (`var optimized = true`, or `var c_source = true` to always write its C), and add options of its own the same
-way. No option is read before the program is, so every one of them, the outputs included, can be
-given a default there -- except `target_operating_system`, which the launcher needs to know which folder of
-`library/` is part of the program before it can read the rest, so it comes from the flag alone. Every `Build` field is a constant in the built program, so with `var build = Build()`
-beside the attributes, `if build.debug_memory { }` keeps one branch.
+way. No option is read before the program is, so every one of them, the outputs included, can be given a default
+there -- except `target_operating_system`, which comes from the flag alone ([why](#outputs)). Every `Build` field is
+a constant in the built program, so with `var build = Build()` beside the attributes, `if build.debug_memory { }`
+keeps one branch.
 
-The compiler uses the `CC` environment variable when set; otherwise it tries `cc`, `clang`, then `gcc`:
+None of this is in the program that is built (D177): choosing, building and writing outputs is the compiler's own
+work, and `Build` is a folded singleton that holds nothing at run time. Only four options add code to the program,
+and only to a build that asks for them: `--debug-memory` its allocation table, `--repl` and `--repl-port` the REPL
+and the reflection it walks, and `--hot-reload` a slot per function and a file watcher. Each one's cost is on its
+page.
+
+The compiler hands the C it writes to the command in the `CC` environment variable when it is set; otherwise to the
+first of `cc`, `clang` and `gcc` that runs. `bin/spite` sets `CC` itself, to `SPITE_CC` when that is set and
+otherwise to the first of `cc`, `clang` and `gcc` on the `PATH`, or the clang inside Visual Studio on Windows:
 
 ```bash
-CC=clang spite game --optimized
+SPITE_CC=clang spite game --optimized
 ```
 
 ## Compile for another system
@@ -203,17 +199,18 @@ at all is an error listing the fields `Build` has, so typos never pass silently.
 ## Formatting
 
 **The compiler is the formatter, and every compile formats first** (D190). Once the whole program has been read,
-each of the program's own files -- the entry folder and every `load`-ed root, not `library/` -- whose formatted
-text differs from what is on disk is rewritten, printing `formatted <path>`. If any file was rewritten, the program
-is read again from disk before anything else is produced, so what is compiled, and every line an error names, is
-the formatted file. Nothing turns this off: `--format` is an error, and so is a `format` field in the program's
-`build.spite`. A file the formatter refuses is an error of the compile, which stops there, naming the file and the
-reason; a program is never compiled from text that is not in the one style.
+each of the program's own files whose formatted text differs from what is on disk is rewritten, printing
+`formatted <path>`, and the program is read again, so what is compiled, and every line an error names, is the
+formatted file. Nothing turns this off, and a file the formatter refuses stops the compile: a program is never
+compiled from text that is not in the one style ([the rules](#formatting-before-compiling-and-spite-format)).
 
-`spite format` runs the same formatter on files rather than on a program: each file named, and every `.spite`
-file under each folder named (the whole tree, `library/` included, except `.spite-cache/` folders), without
-compiling anything. `spite format --check` rewrites nothing and exits 1 listing every file that would change.
-What it rewrites, and what it refuses to (naming), is [style.md](style.md).
+```bash
+spite format game library/list.spite    # format a folder's files and one file, compiling nothing
+spite format --check game                # rewrite nothing: list every file that would change, and fail
+```
+
+`spite format` runs the same formatter on files rather than on a program, so a file that does not compile yet
+can still be formatted. What the formatter rewrites, and what it refuses to, is [style.md](style.md).
 
 ## Development builds and tree shaking
 
@@ -221,20 +218,21 @@ A normal build keeps only what the program uses: a condition on a codegen value 
 branch, a template exists only for the names called, and reflection only where it is read
 ([metaprogramming.md](metaprogramming.md#tree-shaking)).
 
-An **inspectable build** is one built with `--development`, `--hot-reload`, `--repl` or `--repl-port`
-([D143](decisions.md)). It keeps every generated function instead, so live reload has all of them to
-swap and the REPL can reach every internal, and the singletons that hold nothing -- `Memory`, `Build`,
-`TypedMemory<T>` -- are ordinary objects that `.instances` lists, instead of the static objects a production build
-makes of them. Every other build, ordinary or `--optimized`, is a production build. Conditions on codegen values
-and `Build` fields fold in both: they are facts of the build, not values the running program could change. Which
-optimisation applies in which build is in [optimizations.md](optimizations.md).
+An **inspectable build** -- `--development`, `--hot-reload`, `--repl` or `--repl-port` -- keeps every generated
+function instead, so live reload has all of them to swap and the REPL can reach every internal, and the
+singletons that hold nothing, such as `Build`, are ordinary objects that `.instances` lists. Every other build,
+ordinary or `--optimized`, is a production build ([the rule](#inspectable-and-production-builds)). Conditions on
+codegen values and `Build` fields fold in both: they are facts of the build, not values the running program could
+change. Which optimisation applies in which build is in [optimizations.md](optimizations.md).
 
 ## Counting memory: `--debug-memory`
 
 `--debug-memory` builds the program with an allocation table and prints `allocations: N frees: N` when it ends.
 The two numbers differ only when something leaked, and then the report names the classes whose instances are
 still alive, which is how a leaked cycle shows up ([memory.md](memory.md#cycles-leak)). Every program in
-`conformance/`, `examples/` and these pages is run this way by `check.sh`, and must balance.
+`conformance/`, `examples/` and these pages is run this way by `check.sh`, and must balance. The table costs a
+lookup under a lock on every allocation and free, and exists only in a `--debug-memory` build: any other build
+calls the allocator directly.
 
 ## Inspect merged classes
 
@@ -242,11 +240,13 @@ still alive, which is how a leaked cycle shows up ([memory.md](memory.md#cycles-
 the namespace folders it belongs to. It is useful after a `load` or a reopening: the file holds the declarations
 that won, so reopening stops being invisible. What it writes is a program, not a report: running the printed
 entry file runs the same program, which `check.sh` proves on every run. `Build` is printed with the defaults it
-was declared with, not the values this build folded, so running the printed program takes its flags again.
+was declared with (the program's own `build.spite` included), not the values this build folded, so running the
+printed program takes its flags again.
 
 What is written is what the program **ends up with**, not what was written down: the classes come from the
-generator after it has run, so a class tree shaking removed is not there, a generic template is not there, and
-each of its instantiations is.
+generator after it has run, so a class the generator never made is not there, a generic template is not there,
+and each of its instantiations is. The tree shaking of a production build's C runs after that, so a library class
+the program never uses (`Watcher`, `Socket`) may still be printed although its C was dropped.
 
 Every class the program names comes from a file in `library/`, including `Memory.Heap`, `DynamicLibrary`,
 `String` and the numbers (`Integer`, `Long`, `Double`, `Memory.Address`, ...), so every one of them is printed like a
@@ -269,7 +269,7 @@ again. Anywhere else, a `func` with no body is an error, because only the compil
 
 `instantiated/` holds one file per generic instantiation, named for the values it was given
 (`weapon_integer_true.spite`, class `WeaponIntegerTrue`), written as a `type` with the members that instantiation has.
-`Build` is printed with its declared defaults, and `Launcher` with the rest.
+`Launcher` is printed with the rest.
 
 Which root supplied each declaration is **not** shown yet. It cannot be a comment, since a comment is only ever
 a link to a markdown heading ([style.md](style.md#comments-are-links)), so it needs a form of its own
@@ -286,7 +286,8 @@ spite game --final-classes=.spite-cache/final --run=false
 
 With no program, the compiler prints its usage text and exits unsuccessfully. A `.spite` file named instead of
 its folder, a folder with no entry file, an entry constructor that takes arguments, a path option for an output
-that is off, and a `--name=value` before `--` that names no `Build` field are errors too.
+that is off, a flag with an underscore, and a `--name=value` before `--` that names no `Build` field are errors
+too, each naming the fix; their texts are [below](#naming-a-program).
 
 ## Rules in full
 
@@ -298,108 +299,164 @@ fix. A `D` number is a row of the [decision log](decisions.md).
 
 ### Command line
 
+Every command and flag the compiler has, as built. `program` is a folder; every flag before the first bare `--`
+is a field of `Build` ([Build options](#build-options), [programs.md](programs.md#build-settings-build--implemented)).
+
 ```
-spite program                         build program/program.exe beside the program and run it (programs.md)
-spite program --c-source              also write program/program.c (--c-path=path puts it elsewhere)
-spite program --executable --run=false   build without running (--executable-path=path puts it elsewhere)
-spite program --run=false             compile the whole program and write nothing
-spite program --optimized             optimized build
-spite program --development           an inspectable build: no tree shaking, internals as ordinary objects (D143)
-spite program --hot-reload            swap changed classes into the running program (implies --development)
-spite program --repl                  run with an in-place REPL
-spite program --repl-port=4000        run with a remote REPL an AI can connect to, to explore memory and debug
-spite program --serve=true            decide a Build field the program declares while compiling (programs.md)
-spite program -- --serve=true         run it with a setting its Environment declares (programs.md)
-spite program --final-classes=folder  write the final class folder
-spite connect 4000                    talk to a running --repl-port program (see repl.md)
-spite connect 4000 --command="..."    send one REPL command, print its raw JSON response line, and exit
-spite program -- ada --player=x       run it, passing everything after -- to the program's Arguments
-spite program --c-source --run=false --target-operating-system=linux   write the C for another system (metaprogramming.md and packages.md)
-spite format <file-or-folder> ...     format files without compiling (recursive on a folder)
-spite format --check <path> ...       rewrite nothing; exit 1 listing (to stdout) every file that would change
-spite reload program ... --executable-path=<running>   what a --hot-reload program runs to rebuild itself
+spite program                           build program/program.exe beside the program and run it
+spite program --run=false               compile the whole program and write nothing but its formatting
+spite program --executable --run=false  build the executable without running it
+spite program --executable-path=path    put the executable at path (with --executable, or with run on)
+spite program --c-source                also write program/program.c
+spite program --c-path=path             put the C at path (with --c-source)
+spite program --final-classes=folder    also write the final classes into folder (inspect merged classes)
+spite program --optimized               ask the C compiler for -O2 instead of -O0
+spite program --development             an inspectable build: no tree shaking, internals as ordinary objects (D143)
+spite program --debug-memory            count allocations and frees, print the balance when the program ends
+spite program --repl                    run it, then answer REPL commands at the terminal (repl.md)
+spite program --repl-port=4000          serve REPL commands on 127.0.0.1:4000 while it runs (repl.md)
+spite program --hot-reload              swap changed classes into the running program (implies --development)
+spite program --target-operating-system=linux   compile for another system: windows, linux or mac
+spite program --serve=true              set a Build field the program declares in its build.spite (programs.md)
+spite program -- ada --player=x         run it, passing everything after -- to the program (Arguments, Environment)
+spite format file_or_folder ...         format files without compiling them (a folder with every folder inside it)
+spite format --check file_or_folder ... rewrite nothing; list every file that would change, and exit 1 if any would
+spite connect port                      talk to a program running with --repl-port=port (repl.md)
+spite connect port --command="..."      send one REPL command, print its raw JSON answer line, and exit
+spite reload program ... --executable-path=running   what a --hot-reload program runs to rebuild itself (repl.md)
 ```
 
-**Inspectable and production builds** (D143, decided by Mortaro; the readings below proposed by Claude,
-unconfirmed; implemented 2026-09-25). A build with `--development`, `--hot-reload`, `--repl` or `--repl-port` is
-*inspectable*: nothing is tree-shaken, and the singletons that hold nothing (`Memory`, `Build`, `TypedMemory<T>`,
-[Singletons](classes_and_files.md#singletons--implemented)) are ordinary objects -- allocated at first use, listed by `.instances`, destroyed at exit -- so the REPL
-and reflection see the internals as normal classes. Every other build, the ordinary one included and not only
-`--optimized`, is a *production* build, where those singletons are static objects and everything unused is
-tree-shaken. The optimisations that change only speed (chains as one loop, placement, text appended in place)
-apply in both; `docs/optimizations.md` says which build each optimisation applies in
-(`conformance/stage6/development_internals`).
+A `Boolean` flag may be given bare: `--optimized` is `--optimized=true`, and `--optimized=false` stays allowed
+(D120). Flags mix freely, and every output that is on comes from the same compile: an `--optimized` build may keep
+the REPL (it is then inspectable), and `--executable --c-source --final-classes=folder --run=false` writes all
+three. Building and running are the same command. There is no `--mode`, `--output` or `--format`: the outputs are
+the four fields above, formatting is not an option, and `spite format`, `spite connect` and `spite reload` are
+commands of the compiler, not options.
 
-Flags mix freely (an `--optimized` build may keep the REPL, and is then inspectable). Building and running are
-the same command. Every flag is a field of `Build` ([Build settings: `Build`](programs.md#build-settings-build--implemented)), and a program is named only by its folder (D89,
-D130): a path to a `.spite` file is an error naming the folder form, and the compiler compiles itself as `spite bootstrap`, whose entry is
-`bootstrap/bootstrap.spite`, class `Bootstrap`.
+### Naming a program
 
-**The whole program first, then the outputs** (D128, D129; the spelling below proposed by Claude, unconfirmed;
-implemented 2026-09-25). The compiler reads the launcher, the library, the program's folder, its `build.spite` and
-every `load` before it reads any option, and then decides what to produce from the program's resolved `Build`,
-so a program's own `build.spite` can set every option. The one exception is `target_operating_system`, which the
-launcher needs to know which folder of `library/` belongs to the program, so it is read from the flag alone. The
-outputs are `Boolean` fields, and every one that is on comes from the same compile: `run` (default `true`: build the
-executable and run it), `executable` (build it without running), `c_source` (write the C), and `final_classes`, which stays the folder to write to
-(`""` is off), since any folder inside the program would be read back as part of it. With every output off the
-compiler still compiles the whole program and reports its errors. Tree shaking and every other whole-program
-step run before any output is written.
+A program is named only by its folder (D89, D130), and its entry file is the one named after the folder. The
+compiler's own entry is `bootstrap/bootstrap.spite`, class `Bootstrap`, so it compiles itself as `spite bootstrap`.
+With no folder named, the compiler prints its usage to the error output and exits 1.
+
+- A `.spite` path: `error: 'game/game.spite' is a file, and a program is named by its folder: spite game`.
+- A folder without its entry: `error: 'game' holds no program: a program is a folder holding an entry file named
+  after it, 'game/game.spite'`.
+- An entry constructor with parameters is an error at its line ([programs.md](programs.md#constructors-and-the-entrypoint);
+  `diagnostics/entry_constructor_arguments`).
+
+### Outputs
+
+**The whole program first, then the outputs** (D128, D129; the spellings proposed by Claude, unconfirmed). The
+compiler reads the launcher, the library, the program's folder, its `build.spite` and every `load` before it reads
+any option, and then decides what to produce from the program's resolved `Build`, so a program's own `build.spite`
+can set every option. The one exception is `target_operating_system`, which the launcher needs to know which
+folder of `library/` belongs to the program, so it is read from the flag alone: a `var target_operating_system`
+in a program's `build.spite` is overridden without a word today, which `mortaros_missing_decisions.md` asks about.
+The outputs are `Boolean` fields -- `run` (default `true`: build the executable and run it), `executable` (build it
+without running), `c_source` (write the C) -- and `final_classes`, which stays the folder to write to (`""` is
+off), since any folder inside the program would be read back as part of it. With every output off the compiler
+still compiles the whole program and reports its errors. Tree shaking and every other whole-program step run
+before any output is written.
 
 - **Where outputs go** (D129): `executable_path` and `c_path`, each `""` by default, which means beside the
-  program: `game/game.exe` (`game/game` for Linux and macOS) and `game/game.c`. A path option given on the
-  command line for an output that is off is an error naming the missing flag. What describes an executable stays
-  beside it wherever it goes: the `.crashes` map ([Failure: three outcomes and no others](failure.md#failure-three-outcomes-and-no-others--partial)) and a `--hot-reload` build's `.reload_host`,
-  `.reload_files` and `_reload_<n>` libraries. The one intermediate is the C the C compiler reads when `c_source`
-  is off, written to the language repository's `.spite-cache/<name>.c`.
-- **Formatting is an output** (D128): after the whole program is read, a file of the program whose formatted text
-  differs is rewritten, and if any was, the program is read again from disk before anything else is produced, so
-  what is compiled -- and every line an error names -- is the formatted file.
+  program: `game/game.exe` (`game/game` when the target is Linux or macOS) and `game/game.c`. A folder a path names
+  is created. A path option given on the command line for an output that is off is an error naming the missing
+  flag: `error: '--c-path' says where the C goes, and this build writes no C: give --c-source too`, and
+  `error: '--executable-path' says where the executable goes, and this build makes none: give --executable too`
+  (an executable is made when `executable` or `run` is on). What describes an executable stays beside it wherever
+  it goes: the `.crashes` map ([Failure: three outcomes and no others](failure.md#failure-three-outcomes-and-no-others--partial))
+  and a `--hot-reload` build's `.reload_host`, `.reload_files` and `_reload_<n>` libraries. The one intermediate
+  is the C the C compiler reads when `c_source` is off, written to the language repository's
+  `.spite-cache/<executable name>.c`.
 - **The compiler's own C goes to its default path**, `bootstrap/bootstrap.c`: every `Build` field is a constant in
   what is built, so a `--c-path` naming a different file each run would be written into the C and the fixpoint
-  would never hold.
-- `--mode`, `--output`, `--mode=tokens`, `--mode=tree` and the `.spite`-file forms of `--mode=format` are gone;
-  `spite format` formats files itself, and `spite reload` is a command the running program uses, not an output.
+  would never hold ([self_hosting.md](self_hosting.md)).
+- **Final classes** are described in full [above](#inspect-merged-classes): a program, not a report.
+- The C compiler is the command in `CC` (it may carry arguments), or else the first of `cc`, `clang` and `gcc`
+  that runs; none found is `error: no C compiler found. Set the CC environment variable to the command that
+  compiles C (for example CC=clang), or install cc, clang or gcc`. `bin/spite` exports `CC` itself, from `SPITE_CC`
+  or the first compiler it finds.
 
-**Where the compiler's flags end** (proposed by Claude, unconfirmed; implemented 2026-09-23): at the first bare
-`--`. Everything after it reaches the program's `Arguments` verbatim -- `arguments.get(0)` is the first,
-`arguments.player` reads `--player=...`, and `Environment` reads the settings it declares -- and none of it is
-read as a compiler flag or a file to compile. A program's own `Arguments` stops at `--` the same way, which is the ordinary meaning of `--`.
-Before this, a program run by the compiler received no arguments at all (`conformance/stage6/program_arguments`).
-
-**Where a program runs** (proposed by Claude, unconfirmed; implemented 2026-09-24): in the folder `spite` was run
-from. The compiler finds `launcher/` and `library/` from its own executable -- the first folder above it that
-holds `launcher/launcher.spite` -- and never from the working directory, so `bin/spite` no longer changes
-directory, and a relative path a program opens (`File`, `Directory`, a cache folder) is the caller's. The
-launcher's `load` paths are relative to that folder, and the executable is built beside the program (D129), so
-running a program leaves nothing in the caller's folder. Before this, every program ran with the repository as its working
-directory (`check.sh` runs `conformance/stage6/working_directory` from another folder).
+### Flags and settings
 
 - **Flags are kebab-case, fields stay snake_case** (D188, decided by Mortaro): `--repl-port=4000` sets
   `Build.repl_port`, `--hot-reload` sets `hot_reload`, and a program's own field `worker_stack_size` is
-  `--worker-stack-size=256` (`conformance/stage6/build_settings`). An underscore in a flag's name is an error
-  naming the hyphen form, "'--repl_port' is written '--repl-port': a flag is kebab-case, and it sets the Build
-  field 'repl_port'" (`diagnostics/underscore_flag`); the value after `=` is never touched. The readings below are
-  **(proposed by Claude, unconfirmed)**: the rule covers the compiler's flags before the `--`, and every message
-  that names a flag names the kebab form; a program's run-time settings after the `--`, read by `Environment` when
-  the program runs, keep their field's own spelling for now (`-- --player-name=x`), since translating them is a
-  question of its own (`mortaros_missing_decisions.md`). Compile time only (D177).
-- Before the `--`, a `--name=value` sets the `Build` field of that name, and one that names no field is an error
-  that shows both places a setting can belong -- `build.spite` to decide it while compiling, `environment.spite`
-  and `spite program -- --name=value` to read it when the program runs -- so typos never pass silently
-  (`diagnostics/unknown_compiler_flag`).
-- **Automatic formatting (milestone 7a; since D128 an output decided after the whole program is read).** Every
-  `spite program ...` compile formats every `.spite`
-  file that belongs to the program -- the entry file's own folder (flat, matching [Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)'s discovery
-  rule), plus every `load`-ed root, recursively -- rewriting a file only when its formatted text differs
-  from what is on disk, and printing `formatted <path>` to
-  stderr for each one, then reads the program again when one changed. A file with a parse error is left untouched (the ordinary diagnostics still report it);
-  a file the formatter's own safety check refuses to touch (see [Style](style.md#style--implemented)) is left as it is
-  and its reason is printed as an error, which stops the compile. Nothing turns this off (D190, which removed
-  `--format=false` and the `format` field): a test input kept deliberately unformatted, like `diagnostics/`, is
-  compiled from a copy by `check.sh`, so the formatting lands on the copy.
-- `spite format <file-or-folder> ...` runs the same formatter standalone, without compiling, and is a command of
-  the compiler itself (like `spite connect`), not an option: a file formats just
-  itself, a folder recurses into every `.spite` file under it except `.spite-cache/` folders (no bundle/`load`
-  awareness -- every file found is formatted, unconditionally). `--check` rewrites nothing and instead lists (to stdout) every file
-  that would change, exiting 1 if that list is non-empty (0 if the whole tree is already clean).
+  `--worker-stack-size=256` (`conformance/stage6/build_settings`). An underscore in a flag's name is an error,
+  checked before anything is read, naming the hyphen form: `error: '--repl_port' is written '--repl-port': a flag
+  is kebab-case, and it sets the Build field 'repl_port'` (`diagnostics/underscore_flag`); the value after `=` is
+  never touched. The readings below are **(proposed by Claude, unconfirmed)**: the rule covers the compiler's flags
+  before the `--`, and every message that names a flag names the kebab form; a program's run-time settings after
+  the `--`, read by `Environment` when the program runs, keep their field's own spelling for now
+  (`-- --player_name=x`), since translating them is a question of its own (`mortaros_missing_decisions.md`).
+- Before the `--`, a `--name=value` sets the `Build` field of that name, and is written into the build as a
+  constant. One that names no field is an error that shows both places a setting can belong
+  (`diagnostics/unknown_compiler_flag`): `error: '--serve' is not a compiler option, and this program's Build
+  declares no setting 'serve' (it declares run, executable, ...). To decide it when compiling, reopen Build in the
+  program's build.spite with 'var serve = ...'; to read it when the program runs, declare it in environment.spite
+  and give it after '--': spite program -- --serve=value`. One that names a field of `Environment` says to give it
+  after the `--` (`diagnostics/environment_setting_to_compiler`).
+- A value that does not fit the field is an error naming the forms it takes, such as `'--optimized=maybe' was given
+  to the compiler, but 'Build.optimized' is a Boolean: --optimized, --optimized=true or --optimized=false`.
+  `--repl-port` takes 1 to 65535: `error: --repl-port takes a port number from 1 to 65535: spite program
+  --repl-port=4000`. `--target-operating-system` takes `windows`, `linux` or `mac`: `error:
+  '--target-operating-system=beos' names no operating system the library has a folder for: windows, linux or mac`.
+- `--operating-system` and `--program` cannot be given: `error: '--operating-system' cannot be given:
+  Build.operating_system is the system doing the compiling (windows). To write the program for another system, give
+  --target-operating-system=linux (or windows, or mac)`, and `error: '--program' cannot be given: the program is
+  the folder named on the command line, 'spite folder', and Build.program is set from it`.
+- **Where the compiler's flags end** (proposed by Claude, unconfirmed): at the first bare `--`. Everything after it
+  reaches the program verbatim -- `arguments.get(0)` is the first, `arguments.player` reads `--player=...`, and
+  `Environment` reads the settings it declares -- and none of it is read as a compiler flag or a folder to compile
+  (`conformance/stage6/program_arguments`). A program's own `Arguments` stops at `--` the same way, which is the
+  ordinary meaning of `--`.
+- Every setting is decided while compiling and costs nothing at run time (D177); only the builds that ask for it
+  carry `--debug-memory`'s table, the REPL (`--repl`, `--repl-port`) or live reload (`--hot-reload`).
+
+### Inspectable and production builds
+
+(D143, decided by Mortaro; the readings below proposed by Claude, unconfirmed.) A build with `--development`,
+`--hot-reload`, `--repl` or `--repl-port` is *inspectable*: nothing is tree-shaken, and the singletons that hold
+nothing (`Build`, `TypedMemory<T>`, [Singletons](classes_and_files.md#singletons--implemented)) are ordinary
+objects -- allocated at first use, listed by `.instances`, destroyed at exit -- so the REPL and reflection see the
+internals as normal classes; since nothing is shaken, every `DynamicLibrary` looks up every symbol it declares.
+Every other build, the ordinary one included and not only `--optimized`, is a *production* build, where those
+singletons are static objects and everything unused is tree-shaken, down to the classes nothing reachable uses.
+`--optimized` with a REPL flag is inspectable. The optimisations that change only speed (chains as one loop,
+placement, text appended in place) apply in both; [optimizations.md](optimizations.md) says which build each
+optimisation applies in (`conformance/stage6/development_internals`).
+
+### Where a program runs
+
+(Proposed by Claude, unconfirmed.) In the folder `spite` was run from. The compiler finds `launcher/` and
+`library/` from its own executable -- the first folder above it that holds `launcher/launcher.spite` -- and never
+from the working directory, so a relative path a program opens (`File`, `Directory`, a cache folder) is the
+caller's. The launcher's `load` paths are relative to that folder, and the executable is built beside the program
+(D129), so running a program leaves nothing in the caller's folder (`check.sh` runs
+`conformance/stage6/working_directory` from another folder). A program built with `--repl`, `--repl-port` or
+`--hot-reload` runs attached to the terminal; any other run's output is printed when it ends, and the compiler
+exits with the program's exit code.
+
+### Formatting before compiling, and `spite format`
+
+- **Every compile formats first, and nothing turns it off** (D190, decided by Mortaro; the readings proposed by
+  Claude, unconfirmed). After the whole program is read, every `.spite` file of the program's own -- its folder
+  with every folder below it, and every `load`-ed root, never `library/` -- whose formatted text differs from what
+  is on disk is rewritten, printing `formatted <path>` to the error output, and the program is read again from
+  disk before anything else is produced, so what is compiled, and every line an error names, is the formatted
+  file. A file that does not lex or parse is reported by reading the program, before the formatter sees it. A file
+  the formatter's own safety check refuses ([Style](style.md#style--implemented)) stops the compile with exit
+  status 1: `<path>: error: the formatter refuses it, and a program compiles only once formatted: <reason>`.
+- There is no switch: `--format` (with any value) is `error: '--format' is not a compiler option: every compile
+  formats the program's own files first, and nothing turns that off. To format files without compiling them:
+  spite format file_or_folder` (`diagnostics/format_flag`), and a `var format` in a program's `build.spite` is
+  `<path>:<line>: error: 'Build.format' cannot be declared: ...` with the same advice (`diagnostics/format_setting`).
+  A test input kept unformatted on purpose, like `diagnostics/`, is compiled from a copy by `check.sh`, so the
+  formatting lands on the copy.
+- **`spite format <file-or-folder> ...`** runs the same formatter without compiling: a file formats just itself, a
+  folder every `.spite` file under it except in `.spite-cache/` folders, with no regard for what a program loads.
+  Each file rewritten prints `formatted <path>` to the error output; a file the formatter refuses is
+  `<path>: not formatted: <reason>`, and the command exits 1 after trying the rest. `--check` rewrites nothing,
+  prints each file that would change on standard output, and exits 1 if there is one (0 when everything is
+  already formatted). With no file or folder the compiler prints its usage and exits 1; `bin/spite format` with
+  none formats the current folder.

@@ -5,12 +5,12 @@
 > number, Boolean, text or enum literal (`monsters[0].health = 5`, which prints the value read back), and calls with
 > literal arguments that print what they return (`monsters[0].roar()`, `monsters.count()`), written in Spite
 > (`library/read_evaluate_print_loop.spite`). `--repl-port` answers the same commands over TCP, one JSON line
-> each, answered where the program waits ([concurrency.md](concurrency.md)), and `spite connect` is its
-> client. `--hot-reload` swaps the classes whose files changed into the running program, keeping its state,
-> when a file is saved or when the REPL is sent `reload` ([Live reload](#live-reload---hot-reload)); Windows runs it,
-> and Linux and macOS are held to compiling. **Not built yet:** the meta commands `classes`, `describe`, `enums`
-> and `memory`, walking a `Dictionary<T>` or a union, assigning a `T?`, a list element or a whole instance, and
-> reloading a change to a class's attributes ([the rules in full](#repl-and-live-reload--partial)).
+> each, answered where the program waits or at the end of a loop's pass ([concurrency.md](concurrency.md#the-repl-answers-at-the-waits)),
+> and `spite connect` is its client. `--hot-reload` swaps the classes whose files changed into the running
+> program, keeping its state, when a file is saved or when the REPL is sent `reload`
+> ([Live reload](#live-reload---hot-reload)); Windows runs it, and Linux and macOS are held to compiling.
+> **Not built yet:** the meta commands (`classes`, `describe`, `enums`, `memory`), a few paths and assignments,
+> and reloading a change to a class's attributes -- [the list](#repl-and-live-reload--partial).
 >
 > ```text
 > spite> monsters[0]
@@ -70,9 +70,11 @@ monster count 2
 What the loop needs to reach a live value -- the attributes and functions of every class the loop can reach,
 and the member templates that fit each list's elements, so `monsters.sum_health()` works at the prompt -- is
 compiled only into a `--repl`/`--repl-port` build, never into a normal one, so it costs nothing when you are not
-debugging. For the same reason the REPL's reads count only in that build: an attribute the program's own code
-never reads is still an error in a normal one ([style.md](style.md#nothing-unused)), which is why `Monster` above
-has an `is_alive()`.
+debugging (D177). A REPL build is also an [inspectable build](compiler.md#development-builds-and-tree-shaking):
+nothing is tree-shaken, so every internal can be reached, and the executable is larger than a production build of
+the same program. For the same reason the REPL's reads count only in that build: an attribute the program's own
+code never reads is still an error in a normal one ([style.md](style.md#nothing-unused)), which is why `Monster`
+above has an `is_alive()`.
 
 ## Local: `--repl`
 
@@ -95,12 +97,15 @@ one client at a time -- there is **no authentication**. Anyone who can reach tha
 and mutate the running program. This is a local debugging tool for you and an AI on the same machine, never
 something to expose past `127.0.0.1`. The program keeps running while it is served, and each command is answered
 on the program's own thread the next time it waits -- a `program.sleep`, a `Console.read_line()`, a file or socket
-read -- so a command never sees it halfway through a step ([concurrency.md](concurrency.md) has the details and a
-frame loop served between frames). When the constructor returns the process stays alive until a client sends
+read -- or reaches the end of a pass of one of its loops, so a command never sees it halfway through a step
+([concurrency.md](concurrency.md#the-repl-answers-at-the-waits) serves a frame loop between frames and a busy loop
+between passes). When the constructor returns the process stays alive until a client sends
 `exit`, which flushes what the program printed and ends it with exit code 0. The port is part of the build: a
 program built with `--repl-port` always listens on that port, and a port another program holds stops it before
 its constructor runs, with `error: the REPL could not listen on 127.0.0.1:<port>`. With `--repl` as well, the
-console loop runs first, and after its `exit` the process keeps serving the port.
+console loop runs first, and after its `exit` the process keeps serving the port. What serving costs, and only in
+a `--repl-port` build: one thread waiting on the socket, and a call with two atomic loads at the end of every pass
+of the program's own loops.
 
 Talk to it with the compiler's own client:
 
@@ -127,11 +132,11 @@ promise: the format is free to become whatever an AI client reads best, binary i
 The commands are the ones `--repl` answers:
 
 - **paths**: `program`, `program.monsters`, `program.monsters[0].health`. A `T?` that holds a value is walked
-  through.
+  through, and a `Dictionary`'s entries are walked by key: `program.settings.volume`.
 - **calls**: `program.monsters.count()`, `program.monsters[0].roar()`, with literal arguments. A call must be the
   last part of an expression; chaining after `()` is not supported yet.
-- **assignment**: `program.player_name = "Aria"` -- through `set_<attribute>` when the class declares one,
-  answering the value read back afterwards.
+- **assignment** of a number, `Boolean`, text or enum literal: `program.player_name = "Aria"` -- through
+  `set_<attribute>` when the class declares one, answering the value read back afterwards.
 - `attributes`, `functions`, `help`, `exit`.
 - `reload` and `last_reload`, which answer in a `--hot-reload` build ([Live reload](#live-reload---hot-reload)) and
   fail everywhere else with `'reload' answers in a program built with --hot-reload, which swaps its code while it
@@ -182,7 +187,8 @@ down to the value in question before mutating anything.
 
 `--hot-reload` builds a program that can take new code while it runs. Save a file of the program, and the classes
 that file declares are compiled again, on their own, into a small library the running program loads and swaps in
-the next time it waits -- the same moments the REPL is answered at. Objects, singletons and everything the REPL
+the next time it waits or ends a pass of a loop -- the same moments the REPL is answered at. Objects, singletons
+and everything the REPL
 changed stay as they were: only functions change.
 
 ```
@@ -279,9 +285,9 @@ next save reloads.
 - **One slot per function.** In a `--hot-reload` build, every function of the program's own classes (not the
   standard library's) is called through a slot the program can re-point: the function the rest of the code calls
   is a one-line forwarder to its slot. A normal build is untouched -- direct calls, and tree shaking. The slot
-  costs about a nanosecond per call (one indirect call, which the C compiler also cannot inline):
-  200 million calls to a one-line function took about 0.62 s instead of 0.44 s unoptimized, and 0.40 s instead of
-  0.18 s with `--optimized`.
+  costs about a nanosecond per call, one indirect call the C compiler cannot inline
+  ([measured](#live-reload-and-6b--implemented-on-windows-the-mechanism-and-the-rules-below-proposed-by-claude-unconfirmed)),
+  and only in a `--hot-reload` build.
 - **Only what changed is compiled again.** The build writes two files beside the executable: `game.reload_host`
   (every function the program has, its classes and their layouts) and `game.reload_files` (a hash of each of the
   program's files). A reload runs the compiler that built the program with the same options, as `spite reload`.
@@ -289,7 +295,8 @@ next save reloads.
   changed and whatever those need that the program does not already have, and compiles that into
   `game_reload_1.dll` (`.so` on Linux, `.dylib` on macOS). Everything else the new code calls, it reaches in the
   running program.
-- **The swap happens where the program waits** ([D37](decisions.md)): the program loads the library
+- **The swap happens where the program waits** ([D37](decisions.md)), or at the end of a pass of one of its
+  loops: the program loads the library
   with the operating system's loader, the one `DynamicLibrary` uses, hands it the addresses of the program's
   functions, and re-points the slots. Nothing runs halfway through a step. The program waits while the library is
   compiled, typically well under a second.
@@ -314,87 +321,68 @@ fix. A `D` number is a row of the [decision log](decisions.md).
 
 ### REPL and live reload  **[partial]**
 
-Milestone 6a: a REPL that inspects and drives the *running* program, local (`--repl`) and remote
-(`--repl-port`). **Status (2026-09-23), D72:** the REPL is written in Spite -- `library/read_evaluate_print_loop.spite` -- and
-`runtime/spite_repl.h`, the C interpreter the subsections below were first designed around, is deleted. `spite
-program.spite --repl` runs the entry constructor, then loops on `spite> `: `attributes` lists the entry instance's
-attributes, `functions` its functions with their arguments, `help`, `exit`, and the command language below is built
-for paths, assignment and calls (`conformance/stage6/interactive_loop`, `conformance/stage6/interactive_paths`):
-`player.weapon.damage`, `program.monsters[1].name`, `player.health = 12` (through `set_health` when the class has
-one), `player.job = 'knight'`, `add(2, 3)`, `monsters[0].roar()`, `monsters.count()`. The emitted `main` hands the
-loop the entry instance as a `Spite.Attribute` named `program` before every command, and a `run` build runs the
-program attached to the terminal instead of capturing its output. In a `--repl` build a `Spite.Attribute` stays
-linked to the live value it describes, through four functions the compiler supplies (proposed by Claude,
-unconfirmed): `value_attributes()` and `value_functions()` read the value's own attributes and functions (a
-list's attributes are its elements, named `0`, `1`, ...), `assign(text)` writes a number, Boolean, text or enum
-value into it and answers whether it could, and a `Spite.Function`'s `call_with_text(arguments)` calls it with
-literal arguments and answers its result as a `Spite.Attribute?` -- `null` when an argument is not one the loop
-can write. Outside `--repl` they answer an empty list, `false` and `null`. **Status (2026-09-24):** `--repl-port`
-and `spite connect` are built, in Spite, over `Socket` ([System classes](standard_library.md#system-classes--implemented)) through `DynamicLibrary` -- see their
-subsections below; `docs/repl.md`'s worked session is replayed by `check.sh` against a real program. **Not built
-yet:** walking a `Dictionary<T>` or a union, assigning a `T?`, a list element or a whole instance, the meta
-commands `classes`, `describe`, `enums` and `memory`. D37's drain points are built (2026-09-24): the remote loop's
-commands are answered on the program's thread where it waits -- see "Answered where the program waits" below and
-[Concurrency: `Concurrent`, `Parallel` and hidden waiting](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows-names-and-mechanism-proposed-by-claude-unconfirmed)'s "Concurrency". **Status (2026-09-24), milestone 6b:** live reload is built behind `--hot-reload`
-(D111, D112) on Windows, with the Linux and macOS folders held to compiling -- see "Live reload and 6b" below.
-Compiling and executing new Spite code typed at the prompt, and `Class.instances`, are not started.
+A REPL that inspects and drives the *running* program, local (`--repl`) and remote (`--repl-port`), and live
+reload (`--hot-reload`, D111, D112). The REPL is Spite, `library/read_evaluate_print_loop.spite` (D72), walking the
+program through reflection; nothing of it is in a build that did not ask for it (D177, D143). **Built:** paths,
+assignment of a literal, calls with literal arguments, `attributes`, `functions`, `help`, `exit`, `reload` and
+`last_reload` (`conformance/stage6/interactive_loop`, `conformance/stage6/interactive_paths`), `--repl-port` with
+`spite connect` over `Socket`, answered where the program waits and at each loop's check point (D37, D174), and
+live reload on Windows, with the Linux and macOS folders held to compiling. **Not built:** the meta commands
+`classes`, `describe`, `enums` and `memory`; a key in brackets (`settings["volume"]`) and walking into a union;
+assigning a `T?`, a list or dictionary element or a whole instance; chaining after a call; compiling new Spite
+code typed at the prompt; and reloading a change to a class's attributes.
 
-#### Reflection tables  **[planned]**
+#### Reflection in a REPL build  **[implemented]**
 
-Emitted only when `--repl` or `--repl-port` is given (never for a normal build): for every class the
-compiler actually emits, its qualified name, attributes (name, type name, C offset, kind), and every
-callable function whose parameters are all scalar/String/enum -- an ordinary method, or an already-
-*instantiated* Symbol-codegen function (`set_age`, ...; a template nothing calls is still never
-instantiated, so tree shaking for templates is unaffected). Each reflected function gets a generated
-uniform thunk, `(self pointer, parsed arguments) -> rendered String result`. Enums get their value
-names; `List<T>`/`Dictionary<T>`/`T?`/a union get the element/member kind and C offsets needed
-to walk them generically, all resolved with the real `offsetof`/`sizeof` operators at compile time, so
-the interpreter (`src/runtime/spite_repl.h`) never has to reason about struct layout itself. D1 (milestone
-9a): a class/`List<T>`/`Dictionary<T>`/`String` attribute (or a `T?` of one) is always itself a
-pointer now, so every one of those is `via_pointer` (walking through it -- and through a `T?` of
-one, which is just that same nullable pointer -- is always transparent); only a still-embedded scalar/
-enum/union attribute (or a `T?` of one) is not.
-
-A class itself was already emitted whenever reachable (unaffected by REPL mode); a class's own
-*functions*, it turns out, were never tree-shaken to begin with (`classes.emitClassBodies` already
-emits every function of a resolved class, called or not), so item 1 of the milestone -- "relax tree
-shaking of functions of reachable classes" -- needed no separate mechanism.
+(The mechanism proposed by Claude, unconfirmed.) The emitted `main` hands the loop the entry instance as a
+`Spite.Attribute` named `program` before every command. In a `--repl` or `--repl-port` build a `Spite.Attribute`
+stays linked to the live value it describes, through four functions the compiler supplies: `value_attributes()`
+and `value_functions()` read the value's own attributes and functions (a list's attributes are its elements, named
+`0`, `1`, ...; a dictionary's are its entries, named by their keys), `assign(text)` writes a number, `Boolean`,
+text or enum value into it -- through the class's `set_<attribute>(value)` when it declares one -- and answers
+whether it could, and a `Spite.Function`'s `call_with_text(arguments)` calls it with literal arguments and answers
+its result as a `Spite.Attribute?`, `null` when an argument is not one the loop can write. Outside those builds
+they answer an empty list, `false` and `null`, and the reflection they walk is not emitted. A function is
+callable from the prompt when every parameter is a number, `Boolean`, text or an enum; an instantiated
+Symbol-codegen function (`set_age`) is one like any other, and a template nothing calls is still never
+instantiated, so tree shaking of templates is unaffected. A REPL build is inspectable ([compiler.md](compiler.md#inspectable-and-production-builds)):
+nothing else is tree-shaken either.
 
 #### Command language
 
-A small subset of Spite expressions, interpreted by `src/runtime/spite_repl.h` directly over the
-reflection tables, rooted at the entry instance under the fixed name `program` (regardless of the
-entry class's own Spite name):
+A small subset of Spite expressions, rooted at the entry instance under the fixed name `program` (regardless of
+the entry class's own Spite name). Built:
 
-- **paths**: `program`, `program.monsters`, `program.monsters[0].health`, `program.settings["volume"]`,
-  `program.target`. Walking through a non-null `T?` is transparent; a union shows its active
-  member and walks straight into it.
+- **paths**: `program`, `program.monsters`, `program.monsters[0].health`, `program.settings.volume`,
+  `program.target`. A path may leave out the leading `program.`, so `player.health` and `program.player.health`
+  name the same value (proposed by Claude, unconfirmed). Walking through a non-null `T?` is transparent; a
+  dictionary's entries are walked by key.
 - **calls**: `program.monsters.count()`, `program.monsters[0].roar()`, `program.player.set_age(3)` (any
-  reflected function, including an instantiated Symbol-codegen one); `List<T>`'s `count()`;
-  `Dictionary<T>`'s `count()`/`keys()`/`has(key)`. A call must be the last part of an expression --
-  chaining a `.`/`[...]` after `()` is not supported this milestone.
-- **assignment** of a scalar/String/enum literal: `program.player.age = 5`, `program.monsters[1].name =
-  "rat"`, `program.player.job = 'knight'`. Always a raw field write; additionally, when a `set_<attribute>`
-  function is itself reflected (i.e. some Spite code already called it, instantiating it), the REPL calls
-  that instead of writing the field directly -- the same "attribute write goes through `set_<attribute>`"
-  rule ordinary compiled Spite code follows.
-- **meta commands**: `classes` (every reflected class's qualified name), `describe Engine.Renderer`
-  (its attributes and functions with signatures), `enums`, `memory` (live allocation count/bytes from the
-  debug allocator -- REPL modes always compile with it enabled, regardless of `--debug-memory`), `help`,
-  `exit`.
-- Printing a class instance shows `ClassName { attribute: value, ... }` one level deep: a nested class/
-  union attribute prints as `ClassName {...}` (never expanded further); a list/dictionary attribute
-  prints as `List<T>(count)`/`Dictionary<T>(count)` regardless of depth; a `T?` prints `null` or
-  transparently passes through to its held value at the *same* depth (it is never itself a level of
-  nesting).
-- Every error is one line and never a crash: an unknown attribute names the ones that do exist, an index
-  or key out of range says so, a scalar/String/enum-only operation on the wrong kind of value is a type
-  mismatch, and calling a non-function is "not callable".
-- (proposed by Claude, unconfirmed; built in `library/read_evaluate_print_loop.spite`) Where the above is silent:
-  a path may leave out the leading `program.`, so `player.health` and `program.player.health` name the same
-  value; text prints without quotes (`name: hero`); an assignment prints the value read back afterwards, so a
-  `set_<attribute>` that refused it shows the old one; a call that returns `Nothing` prints nothing; `functions`
-  prints `name(argument: Class, ...): Returns`; a text literal has no escapes yet.
+  callable function, including an instantiated Symbol-codegen one); `List<T>`'s and `Dictionary<T>`'s `count()`.
+  A call must be the last part of an expression.
+- **assignment** of a number, `Boolean`, text or enum literal: `program.player.age = 5`,
+  `program.monsters[1].name = "rat"`, `program.player.job = 'knight'`, through `set_<attribute>` when the class
+  declares one -- the same rule ordinary compiled Spite code follows. It answers the value read back afterwards,
+  so a `set_<attribute>` that refused it shows the old one. A text literal has no escapes yet.
+- `attributes` (the entry instance's attributes, `name: Class = value` a line), `functions` (its functions,
+  `name(argument: Class, ...): Returns` a line), `help`, `exit`, and `reload` and `last_reload`
+  ([Live reload and 6b](#live-reload-and-6b--implemented-on-windows-the-mechanism-and-the-rules-below-proposed-by-claude-unconfirmed)).
+- Printing a class instance shows `ClassName { attribute: value, ... }` one level deep: a nested class attribute
+  prints as `ClassName {...}`; a list or dictionary prints as `List<T>(count)`/`Dictionary<T>(count)` regardless
+  of depth; a `T?` prints `null` or its held value at the *same* depth; a union prints its active member through
+  its `to_string()` (`Circle { radius: 2 }`) at any depth; text prints without quotes (`name: hero`); a call that
+  returns `Nothing` prints nothing.
+- Every error is one line and never a crash: an unknown attribute names the ones that do exist (`no attribute
+  'monstrs' in program: console, player_name, player_age, monsters`), an index out of range says so (`index 5 is
+  out of range: names holds 2`), a literal of the wrong kind is a type mismatch (`type mismatch: target.health is
+  an Integer, and "x" is not one`), calling an attribute is `target.name is not callable`, and an unknown function
+  is `no function 'nope' in program: 'functions' lists them`.
+
+**Not built** (the design, kept for when it is): `program.settings["volume"]`; walking into a union's active
+member (`program.shape.radius`); `Dictionary<T>`'s `keys()` and `has(key)` at the prompt; assigning a `T?`, a list
+or dictionary element or a whole instance; chaining a `.`/`[...]` after `()`; and the meta commands `classes` (every reflected class's qualified name), `describe
+Engine.Renderer` (its attributes and functions with signatures), `enums` and `memory` (live allocation count and
+bytes).
 
 #### `--repl`  **[implemented]**
 
@@ -405,22 +393,21 @@ own tests are).
 
 #### `--repl-port=<port>`  **[implemented]**
 
-`repl_port` is a `Build` field ([Build settings: `Build`](programs.md#build-settings-build--implemented)), so the port is part of the build. Before the entry constructor runs, starts a background thread with a
-TCP server bound to `127.0.0.1:<port>` **only** -- it never listens on any other interface, and there is
-**no authentication**: anyone who can reach that port on that machine can read and mutate the running
-program. This is a local debugging tool, not something to expose past `127.0.0.1`.
+`repl_port` is a `Build` field ([Build settings: `Build`](programs.md#build-settings-build--implemented)), so the
+port is part of the build (D125: no run-time override; changing the port means rebuilding). Before the entry
+constructor runs, the program starts a background thread with a TCP server bound to `127.0.0.1:<port>` **only**
+-- it never listens on any other interface, and there is **no authentication**: anyone who can reach that port on
+that machine can read and mutate the running program. This is a local debugging tool, not something to expose
+past `127.0.0.1`.
 
 The line protocol is designed for an AI client: each request is one line of the command language; each
 response is one line of JSON, `{"ok":true,"value":"...","type":"Integer"}` on success or
-`{"ok":false,"error":"..."}` on failure (values and errors are JSON-escaped strings; a multi-line value,
-e.g. from `classes`/`enums`/`describe`, uses `\n` inside that one JSON string, never a real newline in the
-wire bytes). The program keeps running (data races with it are accepted -- this is a debug tool) while
-clients connect and disconnect one at a time; when the entry constructor returns, the process stays alive
-serving the REPL until a client sends `exit`, at which point the server thread calls `exit(0)` directly
-(there is no guarantee the main thread, possibly still inside the entry constructor's own `while` loop,
-will ever unwind back to a clean `main` return, so this does not attempt one).
+`{"ok":false,"error":"..."}` on failure (values and errors are JSON-escaped strings; a multi-line value, such as
+the answer to `attributes`, uses `\n` inside that one JSON string, never a real newline in the wire bytes).
+Clients connect and disconnect one at a time while the program keeps running; when the entry constructor returns,
+the process stays alive serving the REPL until a client sends `exit`.
 
-**As built (2026-09-24; the choices below proposed by Claude, unconfirmed):**
+The choices below are **(proposed by Claude, unconfirmed)**:
 
 - **Spite, over `Socket`.** The server is `ReadEvaluatePrintLoop.serve` in `library/read_evaluate_print_loop.spite`,
   over the `Socket` class ([System classes](standard_library.md#system-classes--implemented)), whose operating-system members live in `library/windows/socket.spite`
@@ -432,16 +419,17 @@ will ever unwind back to a clean `main` return, so this does not attempt one).
   instance. Spite starts it and waits for it through the operating system's folder (`CreateThread` and
   `WaitForSingleObject` from `kernel32.dll`; `pthread_create` and `pthread_join` elsewhere). No `Thread` class is
   added to the library: D35 already says how a program is concurrent, and this thread belongs to the REPL.
-- **Answered where the program waits** (D37, built 2026-09-24; proposed by Claude, unconfirmed). The socket thread
-  only reads a command, hands it to the program's scheduler ([Concurrency: `Concurrent`, `Parallel` and hidden waiting](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows-names-and-mechanism-proposed-by-claude-unconfirmed), "Concurrency") and waits for the answer.
-  The scheduler answers it on the program's thread the next time the program waits -- `program.sleep`,
-  `Console.read_line()`, a `File` or `Socket` read or write, a `Concurrent` wait, a `Parallel` join -- so a command
-  sees the program between two steps, never in the middle of one, and "data races are accepted" above no longer
-  applies. After the constructor returns, the program waits for nothing but commands. A program that never waits
-  is answered at its loops' check points (D174, below); `docs/concurrency.md` replays a frame loop served between
-  frames and a busy loop served between passes.
+- **Answered where the program waits** (D37). The socket thread only reads a command, hands it to the program's
+  scheduler ([concurrency.md](concurrency.md#the-repl-answers-at-the-waits)) and waits for the answer. The
+  scheduler answers it on the program's thread the next time the program waits -- `program.sleep`,
+  `Console.read_line()`, a `File` read or write, a `Socket` accept or read, reading an unfinished `Concurrent`'s
+  value, joining a `Parallel` -- so a command sees the program between two steps, never in the middle of one, and
+  the program's state is never read or written by two threads at once. After the constructor returns, the program
+  waits for nothing but commands. A program that never waits is answered at its loops' check points (D174,
+  below); `docs/concurrency.md` replays a frame loop served between frames and a busy loop served between passes.
+  The standard library's own loops have no check points, so a command waits for a library call to return.
 - **Every loop is a check point in a REPL build** (D174, decided by Mortaro; the mechanism proposed by Claude,
-  unconfirmed).  **[implemented]** In a `--repl-port` or `--hot-reload` build, the generator ends every pass of every
+  unconfirmed). In a `--repl-port` or `--hot-reload` build, the generator ends every pass of every
   `while` in the program's own code (not `library/` or `launcher/`) with a call to `Scheduler.check_point()`, which
   on the scheduler's thread answers a pending command (the handover flag `answer_pending` already reads) and runs a
   pending reload. On any other thread -- a `Parallel`, a helper -- it does nothing. A loop that never waits is
@@ -460,9 +448,10 @@ will ever unwind back to a clean `main` return, so this does not attempt one).
   JSON escapes are `\"`, `\\`, `\n`, `\r`, `\t` and `\u00XX` for any other control character.
 - **`exit`** answers `{"ok":true,"value":"","type":""}`, closes the connection and calls `program.exit(0)`,
   which flushes what the program printed. It is handed over like any command, so the program stops at a wait
-  first. When the constructor returns first, `main` serves commands until then. With `--repl` too, the console loop runs first, and after its `exit` the process keeps serving.
-- `spite program --repl-port=4000` is the form, as for every `Build` field; a port outside 1 to 65535 is an
-  error naming it.
+  first. When the constructor returns first, `main` serves commands until then. With `--repl` too, the console
+  loop runs first, and after its `exit` the process keeps serving.
+- `spite program --repl-port=4000` is the form, as for every `Build` field; a port outside 1 to 65535 is
+  `error: --repl-port takes a port number from 1 to 65535: spite program --repl-port=4000`.
 
 #### `spite connect <port>`  **[implemented]**
 
@@ -478,9 +467,8 @@ under it, the program must end with exit code 0 after `exit`, and what it printe
 #### Live reload and 6b  **[implemented on Windows; the mechanism and the rules below proposed by Claude, unconfirmed]**
 
 D111 (a change is seen through the operating system and only what changed is rebuilt) and D112 (`--hot-reload`, a
-flag of its own) as built on 2026-09-24. `docs/repl.md` ("Live reload") is the user's page, and `check.sh` runs its
-session against a copy of the program it edits. Still not started: compiling new Spite code typed at the prompt,
-and `Class.instances`.
+flag of its own), as built. [Live reload](#live-reload---hot-reload) above teaches it, and `check.sh` runs its
+session against a copy of the program it edits.
 
 - **The flag.** `hot_reload` is a `Build` field (default `false`). It **implies** `--development` rather than
   requiring it, since a new version of a class may call a function nothing called before. It works without a REPL:
@@ -490,8 +478,12 @@ and `Class.instances`.
   it has no slots, no watcher and no reload code: `reload` answers `'reload' answers in a program built with
   --hot-reload, which swaps its code while it runs, and this one was not`, from a branch folded on the `Build`
   constant. As with `--repl-port`, a `--hot-reload` build swaps where the program waits and at each loop's check
-  point (D174). `spite program --hot-reload` runs the
-  program attached to the terminal, like a REPL build.
+  point (D174). `spite program --hot-reload` runs the program attached to the terminal, like a REPL build.
+- **A `Concurrent` does not overlap in a `--hot-reload` build** (proposed by Claude, unconfirmed). A program
+  function, called through its slot, is not compiled into a state machine (D176), so a `Concurrent` of one runs to
+  its end when it is made, before the line
+  after it: `var ringing = Concurrent(ring)` followed by `console.print("started")` prints what `ring` prints
+  first. The program's results are the same; only the overlap is lost.
 - **The swap mechanism: one slot per function.** In a `--hot-reload` build every function of the program's own
   classes (not `library/` or `launcher/`), and each such class's `_init` (its attribute defaults), is written as
   `<name>_hot`, with a function pointer `<name>_slot` holding it, and `<name>` becomes a one-line forwarder through
@@ -520,8 +512,8 @@ and `Class.instances`.
   function it uses by name (the allocator included, so the library allocates and frees through the program) and then
   re-points the slots of the rebuilt functions whose prototypes are unchanged, with an atomic store. `reload` is a
   REPL command, so it runs where the program waits; the watcher's signal is handled in the scheduler's idle, beside
-  the REPL's commands. While a reload runs, waits block instead of suspending, so nothing else runs until the swap
-  is done; the program waits for the compile (under a second for a small program). After a swap the file hashes
+  the REPL's commands. While a reload runs, the scheduler is paused and a wait blocks where it is, so nothing else
+  runs until the swap is done; the program waits for the compile (under a second for a small program). After a swap the file hashes
   are updated. A library is never unloaded: values it made, such as its text literals, may still be referenced.
 - **What reloads.** A function body (the next call runs it; a call already running finishes the old one). A new
   function or a new class (the new code calls it; the REPL's `functions` and reflection keep what the program
