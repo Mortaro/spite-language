@@ -6,5 +6,6 @@ slow wakes up
 slow and fast are back
 read itself: true
 outer counted 42
+ring has finished: false
 ring
 ring was joined when its handle was dropped

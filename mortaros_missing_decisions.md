@@ -363,35 +363,46 @@ Behaviour that does not match the manual. The language was not changed; each is 
      Recommendation: OS for pages, libraries and files (with a Spite allocator); `Address` only for loads, stores and
      atomics.
 
+## Behind D136 (which attributes one program judges)
+
+114. **Which folders D118 judges.** D136 says a public attribute is reported only where every reader is visible.
+     As built, "visible" means: the program's entry folder minus every folder its entry file `load`s (so a
+     `load("package")` subfolder is exempt like `../../plugins/ui`), plus the standard library, which is compiled
+     whole in every program and so always sees its own readers, plus private attributes everywhere. So a
+     package's dead public attribute is never reported by a program that loads it; SlopEngine found its own
+     (`Psd.Layer.opacity`, `Box.order`) only because the check briefly covered every loaded folder. Keep that
+     line, or add a way to check a package on its own (a `spite check` of a folder, every public attribute read
+     by the package itself or reported)?
+
 ## From D127 (dates, times and time zones; manual section 15, `docs/time.md`)
 
-Numbered after 113 (D136, D137 and D140 cite 110 to 112). All of it is proposed by Claude, unconfirmed.
+Numbered after 114 (D136, D137 and D140 cite 110 to 112). All of it is proposed by Claude, unconfirmed.
 
-114. **The names.** `Instant`, `Duration`, `Period`, `LocalDate`, `LocalTime`, `LocalDateTime`, `TimeZone`,
+115. **The names.** `Instant`, `Duration`, `Period`, `LocalDate`, `LocalTime`, `LocalDateTime`, `TimeZone`,
      `TimeZones()` (the database, a singleton) and `TimeText()` (ISO 8601, a singleton). `Local` is the word
      D127 used and the one `java.time` and NodaTime use; the alternatives are Temporal's `PlainDate`/
      `PlainDateTime` (chosen there because "local" reads as "the machine's zone" to some) and jiff's `civil`.
      `TimeText` could also be `Iso8601` (digits in a class name) or live on each type if Spite ever had a way to
      read text into a class without a static function.
-115. **No stored zoned type.** Every design compared has one (`ZonedDateTime`, `Zoned`, `OffsetDateTime`); Spite
+116. **No stored zoned type.** Every design compared has one (`ZonedDateTime`, `Zoned`, `OffsetDateTime`); Spite
      has none, because D127 makes a zone presentation: store the `Instant`, apply the zone when showing it.
      "The same time tomorrow" is then three lines (`to_local`, `+ Period(1, 'days')`, `to_instant`). Keep it out?
-116. **Every `to_instant` names its ambiguity rule**: `'compatible'`, `'earlier'` or `'later'`, with no default.
+117. **Every `to_instant` names its ambiguity rule**: `'compatible'`, `'earlier'` or `'later'`, with no default.
      A `'reject'` (Temporal's fourth value) would make every call answer `Instant?`, so it is left out; a caller
      who must refuse an ambiguous reading compares `'earlier'` with `'later'`. Is the required argument right,
      or should `'compatible'` be the one behaviour with no argument?
-117. **The constructors.** `Instant(since_1970: Duration)`, `Duration(amount, unit)` and `Period(amount, unit)`
+118. **The constructors.** `Instant(since_1970: Duration)`, `Duration(amount, unit)` and `Period(amount, unit)`
      with a unit enum, since Spite has no static functions for `Duration.of_hours(2)`. With no overloading,
      `instant - instant` is the `Duration` between them and going back is `instant + -duration`. A date that
      does not exist (`LocalDate(2023, 2, 29)`) halts, while `TimeText` answers `null` for such text.
-118. **Where zones come from.** The operating system's database: Windows through `icu.dll` (Windows 10 1903 and
+119. **Where zones come from.** The operating system's database: Windows through `icu.dll` (Windows 10 1903 and
      later; its registry zones have Windows names and less history), Linux and macOS through
      `/usr/share/zoneinfo`, read in Spite. Nothing is embedded; `zones.read_tzif(name, data)` takes a TZif file
      a program ships. The Linux and macOS path compiles in `check.sh` but has never run.
-119. **`Clock.unix_milliseconds()` is gone**, replaced by `now(): Instant`; the monotonic `elapsed_*` readings stay.
-120. **Reading text is lenient where RFC 3339 is**: `t` or a space for `T`, `z` for `Z`, `,` before a fraction, a
+120. **`Clock.unix_milliseconds()` is gone**, replaced by `now(): Instant`; the monotonic `elapsed_*` readings stay.
+121. **Reading text is lenient where RFC 3339 is**: `t` or a space for `T`, `z` for `Z`, `,` before a fraction, a
      leap second read as the second before it, and an RFC 9557 `[zone]` after an offset read and ignored. Writing
      is always the one form. Stricter instead?
-121. **`far` and `near` are not in the C-reserved list**, but `windows.h` defines them as macros, so a local named
+122. **`far` and `near` are not in the C-reserved list**, but `windows.h` defines them as macros, so a local named
      `far` compiled to broken C (found writing `calendar_math`). Add them, and whatever else `windows.h` defines
      in lower case, to the list item 107 is about?

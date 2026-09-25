@@ -14,6 +14,7 @@ var bare_settings = List<String>()
 var build_values = Dictionary<String>()
 var entry_qualified = ""
 var entry_file_path = ""
+var loaded_folders = List<String>()
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
     choose_target_operating_system()
@@ -46,6 +47,7 @@ func discover(entry_path: String, entry_source: String): DiscoveryResult {
     var discovered = DiscoveryResult(class_files, entry_mangled_name, false, "")
     discovered.build_values = build_values
     discovered.launcher_mangled_name = "Launcher"
+    discovered.loaded_folders = loaded_folders
     return discovered
 }
 
@@ -292,6 +294,7 @@ func load_root(entry_path: String, entry_directory: String, root_name: String) {
         error_message = "could not find the folder '{root_name}' loaded by {entry_path}"
         return
     }
+    loaded_folders.append("{root_folder}/")
     var empty_segments = List<String>()
     var no_skip: String? = null
     var no_exclusions = List<String>()

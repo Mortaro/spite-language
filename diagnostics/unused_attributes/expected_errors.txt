@@ -1,3 +1,4 @@
-diagnostics/unused_attributes/unused_attributes.spite:3: error: the attribute 'forgotten' is never read: remove it, or name it '_forgotten' to say that is intended (in UnusedAttributes.)
-diagnostics/unused_attributes/unused_attributes.spite:4: error: the attribute 'written' is never read: remove it, or name it '_written' to say that is intended (in UnusedAttributes.)
-diagnostics/unused_attributes/mover.spite:1: error: the attribute 'world' is never read: remove it, or name it '_world' to say that is intended (in Mover.)
+diagnostics/unused_attributes/unused_attributes.spite:3: error: the attribute 'forgotten' is never read: remove it (in UnusedAttributes.)
+diagnostics/unused_attributes/unused_attributes.spite:4: error: the attribute 'written' is never read: remove it (in UnusedAttributes.)
+diagnostics/unused_attributes/unused_attributes.spite:5: error: the attribute '_kept_for_later' is never read: remove it (in UnusedAttributes.)
+diagnostics/unused_attributes/mover.spite:1: error: the attribute 'world' is never read: remove it (in Mover.)

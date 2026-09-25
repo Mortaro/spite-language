@@ -106,6 +106,7 @@ var synthetic_value_classes = List<Analysis.ClassInfo>()
 var synthetic_value_types = Dictionary<Analysis.SpiteType>()
 var read_attributes = Dictionary<Bool>()
 var folded_words = Dictionary<Bool>()
+var loaded_folders = List<String>()
 
 func report(message: String) {
     has_error = true
@@ -365,6 +366,7 @@ func generate(
     system_bodies: String,
 ): String {
     entry_class_c_name = discovery.entry_mangled_name
+    loaded_folders = discovery.loaded_folders
     builder.add_typedef(runtime_header_text)
     builder.add_typedef(
         "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_kept = spite_assert_total < 32 ? spite_assert_total : 32;\nfor (int64_t spite_index = spite_assert_total - spite_kept; spite_index < spite_assert_total; spite_index = spite_index + 1) \{ fputs(spite_assert_trace[spite_index % 32], stderr); }\nif (spite_assert_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_assert_total - 32)); }\n}",
@@ -10142,7 +10144,7 @@ func generate_store(
     assert assignment.value
     var identifier = shape.as_identifier(assignment.target)
     if identifier {
-        var scope_type = scope.lookup_type(identifier.name)
+        var scope_type = scope.written_type(identifier.name)
         if scope_type {
             var override = scope.lookup_override(identifier.name)
             var target_code = identifier.name
@@ -10162,6 +10164,7 @@ func generate_store(
             if not override and type_shape.as_string(scope_type) {
                 var pieces = List<Syntax.Expressions.Expression>()
                 if appends_to_itself(assignment.value, identifier.name, pieces) {
+                    scope.mark_used(identifier.name)
                     emit_append_in_place(identifier.name, pieces, scope, class_information)
                     return
                 }
@@ -10827,6 +10830,16 @@ func check_type_name(name: String, what: String) {
     check_abbreviations(name)
 }
 
+func report_unread_name(name: String, is_parameter: Bool) {
+    if not is_parameter {
+        report("'{name}' is never read: remove it")
+        return
+    }
+    if not name.starts_with("_") {
+        report("the parameter '{name}' is never read: remove it, or name it '_{name}' if the signature needs it")
+    }
+}
+
 func report_unused(scope: Scope) {
     var index = 0
     while index < scope.entry_names.count() {
@@ -10838,10 +10851,14 @@ func report_unused(scope: Scope) {
             crash scope.entry_lines[index]
             current_line = scope.entry_lines[index]
             if name.starts_with("_") and scope.entry_used[index] {
-                report("'{name}' is used, so it must not start with an underscore: that prefix says it is unused")
+                report(
+                    "'{name}' is read, so it must not start with an underscore: only a parameter the body ignores is named that way",
+                )
             }
-            if not name.starts_with("_") and not scope.entry_used[index] {
-                report("'{name}' is never used: remove it, or name it '_{name}' to say that is intended")
+            crash index < scope.entry_parameters.count()
+            var is_parameter = scope.entry_parameters[index]
+            if not scope.entry_used[index] {
+                report_unread_name(name, is_parameter)
             }
             current_line = saved_line
         }
@@ -11010,6 +11027,17 @@ func report_unused_attributes() {
     }
 }
 
+func is_in_loaded_folder(path: String): Bool {
+    var index = 0
+    while index < loaded_folders.count() {
+        if path.starts_with(loaded_folders[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
 func class_statements(information: Analysis.ClassInfo): List<Syntax.Statements.Statement> {
     crash discovered_classes[information.entry_index]
     return discovered_classes[information.entry_index].get_file().statements
@@ -11027,16 +11055,18 @@ func report_unread_attributes(information: Analysis.ClassInfo, statements: List<
         var declaration = shape.as_variable_declaration(statements[index])
         if declaration {
             var name = declaration.name
+            var declared_path = information.source_path
+            if not declaration.source_path.is_empty() {
+                declared_path = declaration.source_path
+            }
             var read = read_attributes.has("{information.qualified_dotted}.{name}") or folded_words.has(name)
-            if not read and not name.starts_with("_") {
-                current_path = information.source_path
-                if not declaration.source_path.is_empty() {
-                    current_path = declaration.source_path
-                }
+            var seen_whole = name.starts_with("_") or not is_in_loaded_folder(declared_path)
+            if not read and seen_whole {
+                current_path = declared_path
                 current_line = declaration.line
                 current_owner = information.qualified_dotted
                 current_function = ""
-                report("the attribute '{name}' is never read: remove it, or name it '_{name}' to say that is intended")
+                report("the attribute '{name}' is never read: remove it")
             }
         }
         index = index + 1
@@ -13126,8 +13156,12 @@ func generate_statement(
         statement_poisoned = true
         mark_each_used(mentioned, scope)
     }
+    var errors_before = error_lines.count()
     var ended_in_return = generate_statement_kind(statement, scope, class_information, function_information)
     var declared = shape.as_variable_declaration(statement)
+    if declared and error_lines.count() > errors_before {
+        scope.mark_used(declared.name)
+    }
     if declared and statement_poisoned {
         var key = poisoned_key(declared.name)
         poisoned_names.append(key)
@@ -13481,7 +13515,7 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
             scope.declare(parameter.name, parameter_type)
         }
         if not signature_is_dictated(function) {
-            scope.check_last(current_line)
+            scope.check_last_parameter(current_line)
         }
         parameter_index = parameter_index + 1
     }

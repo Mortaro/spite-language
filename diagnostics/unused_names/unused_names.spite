@@ -2,13 +2,13 @@ var console = Console()
 
 func UnusedNames() {
     var forgotten = 1
-    var _ignored = 2
     var _counted = 3
     console.print(_counted)
-    helper(4, 5)
+    var _spare = 2
+    helper(4, 5, 6)
 }
 
-func helper(used: Int, spare: Int) {
+func helper(used: Int, spare: Int, _ignored: Int) {
     console.print(used)
     if used > 1 {
         var inner = "never read"

@@ -1,0 +1,10 @@
+var console = Console()
+
+func PackageAttributes() {
+    load("paint")
+    var tint = Tint()
+    var shown = tint.describe()
+    var brush = Brush()
+    var drawn = brush.describe()
+    console.print(shown, drawn)
+}
