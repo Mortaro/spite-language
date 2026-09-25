@@ -27,6 +27,7 @@ var console_loop = false
 var remote_loop_port = 0
 var program_waits = false
 var scheduler_used = false
+var implicit_joins = List<Syntax.Expressions.MemberExpression>()
 var waiting_classes = List<Analysis.ClassInfo>()
 var waiting_functions = List<Analysis.FunctionInfo>()
 var waiting_kinds = List<String>()
@@ -3304,7 +3305,7 @@ func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInf
         if class_path == "typed_memory" {
             function.supplied_body = typed_memory_body(information, function.name)
         }
-        if class_path == "concurrent" or class_path == "parallel" {
+        if class_path == "concurrent" or class_path == "thread_pool" {
             function.supplied_body = task_body(information, function.name)
         }
         if class_path == "hot_reload" and function.name != "open" {
@@ -3324,6 +3325,11 @@ func task_body(information: Analysis.ClassInfo, name: String): String {
     var entry = "{information.c_name}___thread_entry"
     if information.qualified_dotted == "Concurrent" {
         entry = "{information.c_name}___fiber_entry"
+    } else {
+        builder.add_prototype("static void* {entry}(void* pool);")
+        builder.add_support(
+            "static void* {entry}(void* pool) \{\n{information.c_name}__serve(({information.c_name}*)pool);\nreturn 0;\n}",
+        )
     }
     return "return (int64_t)(intptr_t)&{entry};"
 }
@@ -4460,8 +4466,14 @@ func coerce_for_store(
             return cast(enum_value_code, expected_type_without_nullable, expected_type)
         }
     }
+    var saved_counter = temporary_counter
     var result = generate_expression(expression_ast, scope, class_information)
     var result_type = result.get_type()
+    if joins_into(result_type, expected_type) {
+        temporary_counter = saved_counter
+        var joined_ast = implicit_join_ast(expression_ast)
+        return coerce_for_store(joined_ast, expected_type, scope, class_information)
+    }
     var casted = cast(result.code, result_type, expected_type)
     if type_needs_drop(expected_type) {
         if owns(result, expression_ast) or is_boxed_into_shape(result_type, expected_type) {
@@ -4470,6 +4482,70 @@ func coerce_for_store(
         return retain_call(expected_type, casted)
     }
     return casted
+}
+
+func joinable_handle(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var class_ref = type_shape.as_class_ref(spite_type)
+    assert class_ref
+    var handle = find_class_by_c_name(class_ref.c_name)
+    assert handle
+    var is_handle = handle.qualified_dotted == "Concurrent" or handle.qualified_dotted == "Parallel"
+    assert is_handle and not handle.is_generic_template and not handle.codegen_types.is_empty()
+    var result_class = type_shape.as_class_ref(handle.codegen_types[0])
+    if result_class {
+        assert result_class.c_name != "Nothing"
+    }
+    return handle
+}
+
+func joins_into(result_type: Analysis.SpiteType, expected_type: Analysis.SpiteType): Bool {
+    assert joinable_handle(result_type)
+    var expected_type_without_nullable = expected_type_without_nullable(expected_type)
+    return not types_equal(result_type, expected_type_without_nullable)
+}
+
+func implicit_join_ast(handle_ast: Syntax.Expressions.Expression): Syntax.Expressions.Expression {
+    var joining = Syntax.Expressions.MemberExpression(handle_ast, "_result")
+    implicit_joins.append(joining)
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var joined: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(joining, no_arguments)
+    return joined
+}
+
+func is_implicit_join(member: Syntax.Expressions.MemberExpression): Bool {
+    assert member.name == "_result"
+    var index = 0
+    while index < implicit_joins.count() {
+        if implicit_joins.get_at(index) == member {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func forwards_to_result(handle: Analysis.ClassInfo, name: String): Bool {
+    assert name != "finished" and name != "class" and not name.starts_with("_")
+    assert not handle.find_function(name)
+    return true
+}
+
+func generate_joined(
+    expression_ast: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var saved_counter = temporary_counter
+    var result = generate_expression(expression_ast, scope, class_information)
+    var result_type = result.get_type()
+    if not joinable_handle(result_type) {
+        return result
+    }
+    temporary_counter = saved_counter
+    var joined_ast = implicit_join_ast(expression_ast)
+    var joined = generate_expression(joined_ast, scope, class_information)
+    joined.owning_override = true
+    return joined
 }
 
 func expected_type_without_nullable(expected_type: Analysis.SpiteType): Analysis.SpiteType {
@@ -4730,7 +4806,7 @@ func generate_string_binary(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
-    var right_result = generate_expression(right_ast, scope, class_information)
+    var right_result = generate_joined(right_ast, scope, class_information)
     var right_became_text = false
     if operator == 'add' {
         var right_value_type = right_result.get_type()
@@ -4903,7 +4979,7 @@ func generate_binary(
         var swapped_code = "({swapped_left_code} {binary_operator_symbol(binary.operator)} {swapped_right.code})"
         return ExpressionResult(swapped_code, Analysis.Types.ScalarType('boolean_kind'))
     }
-    var left = generate_expression(binary.left, scope, class_information)
+    var left = generate_joined(binary.left, scope, class_information)
     var left_type = left.get_type()
     var left_nullable = type_shape.as_nullable(left_type)
     if left_nullable {
@@ -4951,7 +5027,7 @@ func generate_binary(
         if binary.operator == 'logical_and' {
             narrow_proven_indices(binary.left, right_scope)
         }
-        var other = generate_expression(binary.right, right_scope, class_information)
+        var other = generate_joined(binary.right, right_scope, class_information)
         report_maybe_boolean(left, "'{binary_operator_symbol(binary.operator)}'")
         report_maybe_boolean(other, "'{binary_operator_symbol(binary.operator)}'")
         var joined = "({owned_truth(left, binary.left)} {binary_operator_symbol(binary.operator)} {owned_truth(other, binary.right)})"
@@ -4961,7 +5037,7 @@ func generate_binary(
     if is_enum_literal(binary.right) and is_enum_type(left_type) {
         right_code = coerce_for_store(binary.right, left_type, scope, class_information)
     } else {
-        var right = generate_expression(binary.right, scope, class_information)
+        var right = generate_joined(binary.right, scope, class_information)
         var right_type = right.get_type()
         right_code = cast(right.code, right_type, left_type)
     }
@@ -5175,7 +5251,7 @@ func generate_unary(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     crash unary.operand
-    var operand = generate_expression(unary.operand, scope, class_information)
+    var operand = generate_joined(unary.operand, scope, class_information)
     var operand_type = operand.get_type()
     var operand_class_ref = type_shape.as_class_ref(operand_type)
     if operand_class_ref {
@@ -5942,9 +6018,19 @@ func generate_method_call(
             }
         }
     }
+    var object_counter = temporary_counter
     var generated_member_object = generate_member_object(object_ast, scope, class_information)
     var object_result = as_text(generated_member_object)
     var object_result_type = object_result.get_type()
+    var handle = joinable_handle(object_result_type)
+    if handle {
+        if forwards_to_result(handle, member.name) {
+            temporary_counter = object_counter
+            var joined_ast = implicit_join_ast(object_ast)
+            var forwarded = Syntax.Expressions.MemberExpression(joined_ast, member.name)
+            return generate_method_call(forwarded, joined_ast, arguments_ast, scope, class_information)
+        }
+    }
     var foreign = type_shape.as_class_ref(object_result_type)
     if foreign {
         if foreign.c_name == "DynamicLibrary" and not declared_by_dynamic_library(member.name) {
@@ -6047,7 +6133,9 @@ func generate_method_call(
     crash object_class_ref
     var target_class = find_class_by_c_name(object_class_ref.c_name)
     crash target_class
-    report_private_member(target_class, member.name, class_information)
+    if not is_implicit_join(member) {
+        report_private_member(target_class, member.name, class_information)
+    }
     var function = find_or_instantiate_function(target_class, member.name)
     if not function {
         if member.name == "deep_copy" {
@@ -8512,12 +8600,9 @@ func supply_concurrency_functions(instance: Analysis.ClassInfo) {
         scheduler_used = true
         builder.add_prototype("static void {task}___fiber_entry(void* task);")
         builder.add_support(
-            "static void {task}___fiber_entry(void* task) \{\n{task}_run(({task}*)task);\n{task}_finish(({task}*)task);\n}",
+            "static void {task}___fiber_entry(void* task) \{\n{task}__run(({task}*)task);\n{task}__finish(({task}*)task);\n}",
         )
-        return
     }
-    builder.add_prototype("static void* {task}___thread_entry(void* task);")
-    builder.add_support("static void* {task}___thread_entry(void* task) \{\n{task}_run(({task}*)task);\nreturn 0;\n}")
 }
 
 func ensure_dictionary(element: Analysis.SpiteType): String {
@@ -9472,8 +9557,18 @@ func generate_member_read_raw(
             return ExpressionResult(class_object_call, spite_class_type)
         }
     }
+    var object_counter = temporary_counter
     var object_result = generate_member_object(member.object, scope, class_information)
     var object_result_type = object_result.get_type()
+    var handle = joinable_handle(object_result_type)
+    if handle {
+        if forwards_to_result(handle, member.name) {
+            temporary_counter = object_counter
+            var joined_ast = implicit_join_ast(member.object)
+            var forwarded = Syntax.Expressions.MemberExpression(joined_ast, member.name)
+            return generate_member_read(forwarded, scope, class_information)
+        }
+    }
     var foreign = type_shape.as_class_ref(object_result_type)
     if foreign {
         if foreign.c_name == "DynamicLibrary" and not is_reflection_member(member.name) {
@@ -9726,6 +9821,10 @@ func try_nullable_guard(
     assert identifier
     var static_type = lookup_static_type(condition_ast, scope, class_information)
     assert static_type
+    var handle = joinable_handle(static_type)
+    if handle {
+        return joined_guard(identifier.name, condition_ast, handle, scope, class_information)
+    }
     var nullable = type_shape.as_nullable(static_type)
     assert nullable
     var base_result = generate_expression(condition_ast, scope, class_information)
@@ -9741,6 +9840,29 @@ func try_nullable_guard(
         override_code = "({base_result.code}).value"
     }
     return NullableGuard(identifier.name, inner, guard_code, override_code)
+}
+
+func joined_guard(
+    name: String,
+    condition_ast: Syntax.Expressions.Expression,
+    handle: Analysis.ClassInfo,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): NullableGuard? {
+    crash handle.codegen_types[0]
+    var result_type = handle.codegen_types[0]
+    var nullable = type_shape.as_nullable(result_type)
+    assert nullable
+    var joined_ast = implicit_join_ast(condition_ast)
+    var joined = generate_expression(joined_ast, scope, class_information)
+    var held = next_temporary()
+    builder.add_user("{c_type_name(result_type)} {held} = {joined.code};")
+    scope.declare_owned(held, result_type)
+    var inner = nullable.get_inner()
+    if type_is_reference(inner) {
+        return NullableGuard(name, inner, "({held}) != 0", held)
+    }
+    return NullableGuard(name, inner, "({held}).has_value", "({held}).value")
 }
 
 func try_path_guard(
@@ -9842,7 +9964,7 @@ func generate_variable_declaration(
     assert not frame_placed
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
-    report_copy_for_narrowing(declaration.name, declaration.value, declared_type)
+    report_copy_for_narrowing(declaration.name, declaration.value, declared_type, scope, class_information)
     if scope.entry_names.contains(declaration.name) {
         value_code = rebind(declaration.name, value_code, declared_type, scope)
     }
@@ -9950,6 +10072,8 @@ func report_copy_for_narrowing(
     name: String,
     initializer: Syntax.Expressions.Expression,
     declared_type: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
 ) {
     var source = operand_text(initializer)
     assert not source.is_empty() and type_shape.as_nullable(declared_type)
@@ -9960,6 +10084,11 @@ func report_copy_for_narrowing(
         assert assigned != source and not source.starts_with("{assigned}.") and not source.starts_with("{assigned}[") and not source.contains("[{assigned}]")
         index = index + 1
     }
+    var saved_counter = temporary_counter
+    var copied = generate_expression(initializer, scope, class_information)
+    temporary_counter = saved_counter
+    var copied_type = copied.get_type()
+    assert not joinable_handle(copied_type)
     report(
         "'{name}' only copies '{source}' so it can be narrowed: narrow '{source}' itself ('assert {source}') and use it directly",
     )
@@ -11332,7 +11461,7 @@ func generate_plain_if(
     function_information: Analysis.FunctionInfo,
 ) {
     crash if_statement.condition
-    var condition_result = generate_expression(if_statement.condition, scope, class_information)
+    var condition_result = generate_joined(if_statement.condition, scope, class_information)
     check_condition(condition_result, "if")
     builder.add_user("if ({owned_truth(condition_result, if_statement.condition)}) \{")
     var proven_scope = Scope(scope)
@@ -12753,7 +12882,7 @@ func generate_while_statement(
         builder.add_user("}")
         return
     }
-    var condition_result = generate_expression(while_statement.condition, scope, class_information)
+    var condition_result = generate_joined(while_statement.condition, scope, class_information)
     check_condition(condition_result, "while")
     builder.add_user("while ({owned_truth(condition_result, while_statement.condition)}) \{")
     var body_scope = Scope(scope)
@@ -13037,7 +13166,7 @@ func and_side_test(
         narrow_by_guard(then_scope, guard)
         return "({guard.guard_code})"
     }
-    var side_result = generate_expression(side, then_scope, class_information)
+    var side_result = generate_joined(side, then_scope, class_information)
     check_condition(side_result, "if")
     narrow_proven_indices(side, then_scope)
     return "({owned_truth(side_result, side)})"
@@ -13071,7 +13200,7 @@ func generate_assert_statement(
         guard_code = guard.guard_code
         narrow_by_guard(scope, guard)
     } else {
-        var condition_result = generate_expression(assert_statement.value, scope, class_information)
+        var condition_result = generate_joined(assert_statement.value, scope, class_information)
         guard_code = owned_truth(condition_result, assert_statement.value)
         narrow_proven_indices(assert_statement.value, scope)
         var keyword = "assert"
@@ -13891,7 +14020,7 @@ func waiting_kind(information: Analysis.ClassInfo, function: Analysis.FunctionIn
     if owner == "Program" and name == "sleep" {
         return "sleep"
     }
-    if owner == "Parallel" and name == "join_thread" {
+    if owner == "ThreadPool" and name == "join" {
         return "yield"
     }
     var reads = owner == "Console" and name == "read_line_into"

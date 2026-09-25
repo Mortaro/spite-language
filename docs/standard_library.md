@@ -26,7 +26,8 @@ reopen the classes each system does differently, and the launcher loads the one 
 | `Instant`, `Duration`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Period`, `TimeZone`, `TimeZones`, `TimeText` | exact time, the calendar, time zones as presentation, ISO 8601 text | [time.md](time.md) |
 | `Environment`, `Build`, `Arguments` | settings and the command line | [programs.md](programs.md) |
 | `Json<T>` | any value to JSON text and back | [json.md](json.md) |
-| `Concurrent`, `Parallel` | run a function while waiting, or on a thread | [concurrency.md](concurrency.md) |
+| `Concurrent`, `Parallel`, `ThreadPool` | run a function while waiting, or on the thread pool; the handle is the value | [concurrency.md](concurrency.md) |
+| `ThreadLocal<T>`, `Lock`, `ThreadSlot` | a value per thread, and a lock | [concurrency.md](concurrency.md#a-value-per-thread-and-a-lock) |
 | `Socket` | TCP on `127.0.0.1`, which the remote REPL uses | [below](#socket) |
 | `Memory`, `TypedMemory<T>` | raw memory, the floor every other type is built on | [memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it) |
 | `DynamicLibrary` | call a native library | [foreign_libraries.md](foreign_libraries.md) |

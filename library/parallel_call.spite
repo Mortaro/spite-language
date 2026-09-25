@@ -1,0 +1,10 @@
+generic $result_type
+
+var work: Spite.Function<$result_type>? = null
+var results = List<$result_type>()
+
+func run(_first: Int, _end: Int) {
+    assert work
+    var value: $result_type = work()
+    results.append(value)
+}

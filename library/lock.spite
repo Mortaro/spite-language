@@ -1,0 +1,24 @@
+var _memory = Memory()
+var _handle: Long = 0
+
+func Lock() {
+    _handle = create_lock()
+}
+
+func lock() {
+    acquire(_handle)
+}
+
+func unlock() {
+    release_lock(_handle)
+}
+
+func while_locked(work: Spite.Function<Nothing>) {
+    acquire(_handle)
+    work()
+    release_lock(_handle)
+}
+
+func drop() {
+    destroy_lock(_handle)
+}

@@ -1,0 +1,28 @@
+var memory = Memory()
+var program = Program()
+var _flag = memory.allocate_bytes(8)
+
+func Gate() {
+    memory.write_long_atomically(_flag, 0, 0)
+}
+
+func open() {
+    memory.write_long_atomically(_flag, 0, 1)
+}
+
+func wait_until_open(): Int {
+    var spins = 0
+    while memory.read_long_atomically(_flag, 0) == 0 {
+        spins = spins + 1
+    }
+    return 42
+}
+
+func nap(): Int {
+    program.sleep(20)
+    return 20
+}
+
+func drop() {
+    memory.free(_flag)
+}

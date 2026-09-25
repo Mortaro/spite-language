@@ -1,0 +1,4 @@
+1000 parallels ran
+each on one of the pool's workers or on the thread that joined it: true
+the pool never grew: true
+outside the pool the worker index is -1

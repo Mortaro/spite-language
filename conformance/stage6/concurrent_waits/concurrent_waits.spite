@@ -8,17 +8,13 @@ func ConcurrentWaits() {
     var slow = Concurrent(slow_sleeper.nap)
     var fast = Concurrent(fast_sleeper.nap)
     log.append("both are waiting")
-    var slow_name = slow.wait()
-    var fast_name = fast.wait()
-    log.append("{slow_name} and {fast_name} are back")
+    log.append("{slow} and {fast} are back")
     var reading = Concurrent(read_itself)
-    var content = reading.wait()
-    if content {
-        log.append("read itself: {content.starts_with("var console")}")
+    if reading {
+        log.append("read itself: {reading.starts_with("var console")}")
     }
     var nested = Concurrent(outer)
-    var nested_count = nested.wait()
-    log.append("outer counted {nested_count}")
+    log.append("outer counted {nested}")
     ring_and_forget()
     log.append("ring was joined when its handle was dropped")
     var joined_log = log.join("\n")
@@ -32,7 +28,7 @@ func read_itself(): String? {
 func outer(): Int {
     var inner = Concurrent(inner_count)
     program.sleep(5)
-    return inner.wait() + 1
+    return inner + 1
 }
 
 func inner_count(): Int {

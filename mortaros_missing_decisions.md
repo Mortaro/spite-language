@@ -389,3 +389,28 @@ All of it is proposed by Claude, unconfirmed.
 122. **`far` and `near` are not in the C-reserved list**, but `windows.h` defines them as macros, so a local named
      `far` compiled to broken C (found writing `calendar_math`). Add them, and whatever else `windows.h` defines
      in lower case, to the list item 107 is about?
+
+## From D134 and D135 (the thread pool and join on first use; manual section 15, `docs/concurrency.md`)
+
+All of it is proposed by Claude, unconfirmed.
+
+123. **Where a handle becomes its value.** Everywhere a `T` is expected (typed `var`, argument, `return`,
+     operand, text, a member the handle lacks, a condition) the compiler reads the value; an untyped `var` keeps
+     the handle, and `finished` is the handle's own. `wait()` and `join()` are removed rather than kept as an
+     explicit form. Two consequences to confirm: `a == b` on two handles compares their values, and there is no
+     way to compare the handles themselves; a `Concurrent<Nothing>`/`Parallel<Nothing>` is only waited for by
+     dropping it (SlopEngine's `running[index].join()` becomes `running.clear()`, or leaving the function).
+124. **`ThreadPool` as a visible singleton**, with `size()` and `worker_index()`. The name says what it is; it
+     could instead stay hidden behind `Parallel`. Workers are one per core but one (the program's thread keeps
+     one), started by the first `Parallel`, first in first out. Waiting for a job no worker has started runs it on
+     the waiting thread. Is cores-minus-one right for the engine, or should it be every core?
+125. **A `Parallel` costs about two dozen allocations**, almost all of them the two `Spite.Function` values (each
+     is its own reflection object, D39, with a list of `Spite.Argument`s). Making a function value's reflection
+     lazy would cut that to a handful; worth doing for every callback, not only here?
+126. **`finished` on a `Concurrent` does not run anything.** It reads the flag; the fiber only progresses when the
+     program waits somewhere (`program.sleep(1)` in a polling loop). It could instead let ready fibers run once,
+     which would make it a wait point in the D37 sense. Keep it a plain read?
+127. **`ThreadLocal<T>`, `Lock` and `ThreadSlot`**: the names, `while_locked(function)` as the main way to hold a
+     lock (with `lock()`/`unlock()` kept), and a `ThreadLocal` keeping every thread's value until it is itself
+     dropped (no per-thread destructor). A lock that is not reentrant crashes nothing: taking it twice on one
+     thread deadlocks. Should a second `lock()` on the same thread be a crash instead?
