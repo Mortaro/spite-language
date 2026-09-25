@@ -1,0 +1,14 @@
+var build = Build()
+
+func Chef() {
+    if build.garnished and not (build.flavor == "sweet") {
+        load "garnish/pepper"
+    } else if build.garnished {
+        load "garnish/sugar"
+    }
+}
+
+func serve(): String {
+    var topping = Topping()
+    return topping.name()
+}

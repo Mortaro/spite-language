@@ -206,6 +206,23 @@ func LoadParenthesesError() {
 'load' is a keyword, not a function: write it without parentheses, 'load "level"'
 ```
 
+A `load` under an `if` is decided while compiling. The condition may read `Build` fields, text, whole numbers,
+`true` and `false`, joined by `==`, `!=`, `and`, `or` and `not`, and only the branch it picks is loaded:
+
+```
+var build = Build()
+
+func Engine() {
+    if build.target_operating_system == "windows" {
+        load "../plugins/windows_renderer"
+    }
+}
+```
+
+This works in the program's entry file and in any file of a loaded package, so a package can pick its own plugins.
+Each path is relative to the folder of the file it is written in. A condition the compiler cannot decide, such as
+one that reads `Arguments()`, is an error rather than a folder that is quietly left out.
+
 Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are decided but not built
 ([manual section 11](../manual.md#11-packages-namespaces-and-loading--partial)).
 

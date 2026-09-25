@@ -1,0 +1,1 @@
+diagnostics/load_unknown_condition/load_unknown_condition.spite:3: error: this 'if' holds a 'load', so the compiler decides it, and it cannot decide this condition: around a 'load' a condition reads only Build fields (through 'var build = Build()' beside the attributes), text, whole numbers, true and false, joined by ==, !=, and, or and not

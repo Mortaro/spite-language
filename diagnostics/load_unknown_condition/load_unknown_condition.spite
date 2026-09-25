@@ -1,0 +1,6 @@
+func LoadUnknownCondition() {
+    var arguments = Arguments()
+    if arguments.count() > 1 {
+        load "extras"
+    }
+}

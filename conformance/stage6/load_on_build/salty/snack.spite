@@ -1,0 +1,3 @@
+func describe(): String {
+    return "chips, loaded because --flavor=salty"
+}

@@ -1,0 +1,3 @@
+func name(): String {
+    return "pepper, chosen by a package"
+}

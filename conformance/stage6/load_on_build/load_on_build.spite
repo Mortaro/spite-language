@@ -1,0 +1,17 @@
+var build = Build()
+var console = Console()
+
+func LoadOnBuild() {
+    load "kitchen"
+    if build.flavor == "sweet" {
+        load "sweet"
+    } else {
+        load "salty"
+    }
+    var snack = Snack()
+    var described = snack.describe()
+    console.print(described)
+    var chef = Chef()
+    var served = chef.serve()
+    console.print(served)
+}
