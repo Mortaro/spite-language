@@ -462,7 +462,9 @@ one with an `else` already handles the missing case explicitly, so there is noth
 `assert`. `else if` is written on one line; the formatter joins an `else { if ... }` into it.
 
 There is deliberately no `break`/`continue` (D2): `while` is the only loop construct Spite has, full stop.
-Neither is a keyword, so `break` written as a statement is an unknown name (`unknown identifier 'break'`). An
+Neither is a keyword, but either written as a statement of its own is an error naming the form (`Spite has no
+'break': a loop stops in its own condition, like 'while index < count and not found', ...`,
+`diagnostics/old_break`), and both stay usable as names. An
 early exit says so in the loop's own condition -- a flag (`var stopped = false` ... `while not stopped { ... }`)
 or the bound itself (`while index < words.count() and words[index] != "stop"`).
 
@@ -478,8 +480,11 @@ code.
 `while` costs nothing at run time beyond the loop itself, with one exception in debugging builds: in a
 `--repl-port` or `--hot-reload` build, each pass of a `while` in the program's own code (not `library/` or
 `launcher/`) ends with a check point that answers a waiting REPL command or reload (D174,
-[repl.md](repl.md#remote---repl-port)); every other build has none. D174 names `--repl` builds too; a local
-`--repl` build gets no check point yet.
+[repl.md](repl.md#remote---repl-port)); every other build has none. D174 names `--repl` builds too, but a
+local `--repl` build reads its commands from the console only after the entry constructor returns, so a check
+point there would have nothing to answer and would cost a call per pass for nothing (D147): it gets none
+(proposed by Claude, unconfirmed, reading D174's purpose, "still answers the remote REPL", over its list of
+flags).
 
 #### Nested `if`/`else`
 
@@ -496,11 +501,12 @@ and still awaits a decision (D105). Compile time only. **[implemented]**
 
 **A `while` that only walks every element of a list, doing what a member template does, is a compile error naming
 the template** (D171); `while` stays for loops over state. The shape is exact (proposed by Claude, unconfirmed): the statement before the loop is `var counter = 0`; the condition is
-`counter < list.count()` with `list` a name or a path of type `List<T>` and `T` a class; the last statement is
+`counter < list.count()` with `list` a name or a path of type `List<T>`; the last statement is
 `counter = counter + 1`; the counter is read nowhere else in the body and not at all after the loop; and the
 rest of the body reads `list[counter]` -- directly, or through one `var item = list[counter]` first -- and is
 exactly one of these, with `m` and `n` members of `T` that are not private (an attribute or a function taking
-nothing):
+nothing), which needs `T` to be a class, or with `f` a function that takes the element as its only argument,
+which fits a list of anything -- numbers and `String` included:
 
 | Body | The error names |
 |---|---|
@@ -514,13 +520,23 @@ nothing):
 | `if item.m == value { return item }`, the loop followed by `return null` | `return list.find_by_m(value)` |
 | `if item.m { return true }`, the loop followed by `return false` | `return list.any_m()` |
 | `if not item.m { return false }`, the loop followed by `return true` | `return list.all_m()` |
+| `f(item)` | `list.each(f)` |
+| `result.append(f(item))`, or `var value = f(item)` then `result.append(value)` | `var result = list.map(f)` |
+| `if f(item) { result.append(item) }` | `var result = list.filter(f)` |
+| `if f(item) { total = total + 1 }` | `var total = list.count(f)` |
+| `total = total + f(item)` | `var total = list.sum(f)` |
+| `if f(item) { return item }`, the loop followed by `return null` | `return list.find(f)` |
+| `if f(item) { return true }`, the loop followed by `return false` | `return list.any(f)` |
+| `if not f(item) { return false }`, the loop followed by `return true` | `return list.all(f)` |
 
 `result` must be a local declared `List<...>()` earlier in the same block and `total` one declared `0`, neither
 mentioned between its declaration and the loop, and `value` may not mention the counter or the element. The
 message reads `this 'while' walks every element of 'items' only to add up 'price': write 'var total =
-items.sum_price()'` (`diagnostics/template_walk`). Loops that pass extra arguments, need the index, walk two
-lists, scan text, stop early any other way or walk state are not touched. Compile time only.
-**[partial]**: D171 also covers a walk that does what a function value passed to `each`/`map`/`filter` does
-([D148](collections.md#passing-a-function-for-each-element), built), but the check names member templates
-only: a loop whose body is `say_hello(items[index])` compiles today, where `items.each(say_hello)` says it. A
-list of numbers or `String`s is not checked either, since `T` must be a class.
+items.sum_price()'` (`diagnostics/template_walk`). `f` is a function of the class (`say_hello`), a function of an
+attribute or a local (`evaluator.process_line`), or a local or attribute holding a function value (D148); it
+takes exactly one argument, and where the loop tests it -- `filter`, `count`, `find`, `any`, `all` -- it returns
+`Boolean` (a function answering a `T?` there is a presence test, which no passed-function form says, so that loop
+stays). The message names it: `this 'while' walks every element of 'names' only to call 'say_hello' with each:
+write 'names.each(say_hello)'` (`diagnostics/walk_with_function`; proposed by Claude, unconfirmed: which callees
+count, and that a tested function must return `Boolean`). Loops that pass extra arguments, need the index, walk
+two lists, scan text, stop early any other way or walk state are not touched. Compile time only.

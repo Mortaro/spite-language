@@ -13146,9 +13146,8 @@ func report_template_walk(
     var listed = type_shape.as_list(probe_type)
     assert listed
     var element = listed.get_element()
-    var element_class = element_class_of(element)
-    assert element_class
-    assert members_exist(element_class, walk.members)
+    assert walked_members_exist(element, walk.members)
+    assert passed_functions_fit(walk, scope, class_information)
     var saved_line = current_line
     current_line = loop.line
     report("this 'while' walks every element of '{list_text}' only {walk.purpose}: write '{walk.replacement}'")
@@ -13258,6 +13257,90 @@ func is_new_list(expression: Syntax.Expressions.Expression): Boolean {
     return callee_text == "List"
 }
 
+func walked_members_exist(element: Analysis.SpiteType, members: List<String>): Boolean {
+    if members.is_empty() {
+        return true
+    }
+    var element_class = element_class_of(element)
+    assert element_class
+    return members_exist(element_class, members)
+}
+
+func passed_functions_fit(walk: TemplateWalk, scope: Scope, class_information: Analysis.ClassInfo): Boolean {
+    var index = 0
+    while index < walk.passed_functions.count() {
+        assert passed_function_fits(walk.passed_functions[index], walk.tests, scope, class_information)
+        index = index + 1
+    }
+    return true
+}
+
+func passed_function_fits(name: String, tests: Boolean, scope: Scope, class_information: Analysis.ClassInfo): Boolean {
+    var parts = name.split(".")
+    if parts.count() == 1 {
+        var held = scope.lookup_type(name)
+        if held {
+            return not tests and is_function_value_type(held)
+        }
+        return takes_one_argument(class_information, name, tests)
+    }
+    assert parts.count() == 2
+    var receiver_name = parts.first()
+    var owner_type = scope.lookup_type(receiver_name)
+    if not owner_type {
+        var owner_field = class_information.find_field(receiver_name)
+        assert owner_field
+        owner_type = owner_field.get_type()
+    }
+    crash owner_type
+    var owner_class_ref = type_shape.as_class_ref(owner_type)
+    assert owner_class_ref
+    var owner_class = find_class_by_c_name(owner_class_ref.c_name)
+    assert owner_class
+    var function_name = parts.last()
+    return takes_one_argument(owner_class, function_name, tests)
+}
+
+func takes_one_argument(information: Analysis.ClassInfo, name: String, tests: Boolean): Boolean {
+    var function = information.find_function(name)
+    assert function
+    assert function.parameters.count() == 1 and not function.is_constructor
+    var returned = function.get_return_type()
+    return not tests or is_boolean_type(returned)
+}
+
+func is_function_value_type(held: Analysis.SpiteType): Boolean {
+    var class_ref = type_shape.as_class_ref(held)
+    assert class_ref
+    return class_ref.has_signature
+}
+
+func passed_call(expression: Syntax.Expressions.Expression, element_text: String): String {
+    var called = shape.as_call(expression)
+    assert called
+    assert called.arguments.count() == 1
+    crash called.callee
+    var argument = called.arguments.first()
+    var argument_text = operand_text(argument)
+    assert argument_text == element_text
+    var callee_text = operand_text(called.callee)
+    assert not callee_text.is_empty() and not callee_text.contains("(") and not callee_text.contains("[")
+    assert not callee_text.contains(element_text) and callee_text.split(".").count() <= 2
+    return callee_text
+}
+
+func passed_walk(purpose: String, replacement: String, passed: String): TemplateWalk {
+    var walk = TemplateWalk(purpose, replacement)
+    walk.passed_functions.append(passed)
+    return walk
+}
+
+func passed_test(purpose: String, replacement: String, passed: String): TemplateWalk {
+    var walk = passed_walk(purpose, replacement, passed)
+    walk.tests = true
+    return walk
+}
+
 func members_exist(element_class: Analysis.ClassInfo, members: List<String>): Boolean {
     var index = 0
     while index < members.count() {
@@ -13339,7 +13422,12 @@ func walk_by_call(
         return each
     }
     var appending = append_call(statement)
-    assert appending
+    if not appending {
+        var passed = passed_call(statement.value, element_text)
+        assert not passed.is_empty()
+        return passed_walk("to call '{passed}' with each", "{list_text}.each({passed})", passed)
+    }
+    crash appending
     var result = appended_to(appending)
     assert result != list_text
     var appended = appending.arguments.first()
@@ -13350,7 +13438,17 @@ func walk_by_call(
         return copied
     }
     var mapped_member = element_member(appended, element_text)
-    assert not mapped_member.is_empty()
+    if mapped_member.is_empty() {
+        var mapper = passed_call(appended, element_text)
+        assert not mapper.is_empty()
+        var mapped_by = passed_walk(
+            "to collect what '{mapper}' answers for each",
+            "var {result} = {list_text}.map({mapper})",
+            mapper,
+        )
+        mapped_by.result_name = result
+        return mapped_by
+    }
     var mapped = TemplateWalk("to collect each '{mapped_member}'", "var {result} = {list_text}.map_{mapped_member}()")
     mapped.members.append(mapped_member)
     mapped.result_name = result
@@ -13367,7 +13465,6 @@ func walk_through_local(
     assert declared
     crash declared.value
     var member = element_member(declared.value, element_text)
-    assert not member.is_empty()
     var last = core.last()
     var appending = append_call(last)
     assert appending
@@ -13376,6 +13473,17 @@ func walk_through_local(
     assert appended_text == declared.name
     var result = appended_to(appending)
     assert result != list_text
+    if member.is_empty() {
+        var mapper = passed_call(declared.value, element_text)
+        assert not mapper.is_empty()
+        var mapped_by = passed_walk(
+            "to collect what '{mapper}' answers for each",
+            "var {result} = {list_text}.map({mapper})",
+            mapper,
+        )
+        mapped_by.result_name = result
+        return mapped_by
+    }
     var mapped = TemplateWalk("to collect each '{member}'", "var {result} = {list_text}.map_{member}()")
     mapped.members.append(member)
     mapped.result_name = result
@@ -13399,7 +13507,17 @@ func walk_by_sum(
     var left_text = operand_text(added.left)
     assert left_text == total.name
     var member = element_member(added.right, element_text)
-    assert not member.is_empty()
+    if member.is_empty() {
+        var adder = passed_call(added.right, element_text)
+        assert not adder.is_empty()
+        var summed_by = passed_walk(
+            "to add up what '{adder}' answers for each",
+            "var {total.name} = {list_text}.sum({adder})",
+            adder,
+        )
+        summed_by.total_name = total.name
+        return summed_by
+    }
     var summed = TemplateWalk("to add up '{member}'", "var {total.name} = {list_text}.sum_{member}()")
     summed.members.append(member)
     summed.total_name = total.name
@@ -13413,6 +13531,10 @@ func walk_by_test(statement: Syntax.Statements.IfStatement, element_text: String
     var tested = element_member(statement.condition, element_text)
     if not tested.is_empty() {
         return walk_by_kept(action, tested, element_text, list_text)
+    }
+    var tester = passed_call(statement.condition, element_text)
+    if not tester.is_empty() {
+        return walk_by_passed_test(action, tester, element_text, list_text)
     }
     var negated = shape.as_unary(statement.condition)
     if negated {
@@ -13469,6 +13591,82 @@ func walk_by_kept(
     return kept_and_mapped
 }
 
+func walk_by_passed_test(
+    action: Syntax.Statements.Statement,
+    tester: String,
+    element_text: String,
+    list_text: String,
+): TemplateWalk? {
+    var returned = shape.as_return_statement(action)
+    if returned {
+        assert returned.value
+        if shape.is_true_literal(returned.value) {
+            var any = passed_test(
+                "to ask whether '{tester}' is true for any element",
+                "return {list_text}.any({tester})",
+                tester,
+            )
+            any.returned_after = "false"
+            return any
+        }
+        var returned_text = operand_text(returned.value)
+        assert returned_text == element_text
+        var found = passed_test(
+            "to find the first element '{tester}' is true for",
+            "return {list_text}.find({tester})",
+            tester,
+        )
+        found.returned_after = "null"
+        return found
+    }
+    var counted = shape.as_assignment_statement(action)
+    if counted {
+        return walk_by_passed_count(counted, tester, list_text)
+    }
+    var appending = append_call(action)
+    assert appending
+    var result = appended_to(appending)
+    assert result != list_text
+    var appended = appending.arguments.first()
+    var appended_text = operand_text(appended)
+    assert appended_text == element_text
+    var kept = passed_test(
+        "to keep the elements '{tester}' is true for",
+        "var {result} = {list_text}.filter({tester})",
+        tester,
+    )
+    kept.result_name = result
+    return kept
+}
+
+func walk_by_passed_count(
+    counted: Syntax.Statements.AssignmentStatement,
+    tester: String,
+    list_text: String,
+): TemplateWalk? {
+    crash counted.target
+    crash counted.value
+    var total = shape.as_identifier(counted.target)
+    assert total
+    var added = shape.as_binary(counted.value)
+    assert added
+    assert added.operator == 'add'
+    crash added.left
+    crash added.right
+    var left_text = operand_text(added.left)
+    assert left_text == total.name
+    var step = shape.as_integer_literal(added.right)
+    assert step
+    assert step.value == 1
+    var counting = passed_test(
+        "to count the elements '{tester}' is true for",
+        "var {total.name} = {list_text}.count({tester})",
+        tester,
+    )
+    counting.total_name = total.name
+    return counting
+}
+
 func walk_by_count(counted: Syntax.Statements.AssignmentStatement, tested: String, list_text: String): TemplateWalk? {
     crash counted.target
     crash counted.value
@@ -13502,11 +13700,21 @@ func walk_by_every(
     assert negated.operator == 'logical_not'
     crash negated.operand
     var tested = element_member(negated.operand, element_text)
-    assert not tested.is_empty()
     var returned = shape.as_return_statement(action)
     assert returned
     assert returned.value
     assert shape.is_false_literal(returned.value)
+    if tested.is_empty() {
+        var tester = passed_call(negated.operand, element_text)
+        assert not tester.is_empty()
+        var every_passed = passed_test(
+            "to ask whether '{tester}' is true for every element",
+            "return {list_text}.all({tester})",
+            tester,
+        )
+        every_passed.returned_after = "true"
+        return every_passed
+    }
     var every = TemplateWalk("to ask whether every element's '{tested}' is true", "return {list_text}.all_{tested}()")
     every.members.append(tested)
     every.returned_after = "true"
@@ -15079,11 +15287,7 @@ func mark_folded_names_used(statements: List<Syntax.Statements.Statement>, scope
     mark_folded_words_read(statements)
     var names = List<String>()
     collect_block_names(statements, names)
-    var index = 0
-    while index < names.count() {
-        scope.mark_used(names[index])
-        index = index + 1
-    }
+    names.each(scope.mark_used)
 }
 
 func collect_block_names(statements: List<Syntax.Statements.Statement>, names: List<String>) {
@@ -16640,11 +16844,7 @@ func generate_statement(
 }
 
 func mark_each_used(names: List<String>, scope: Scope) {
-    var index = 0
-    while index < names.count() {
-        scope.mark_used(names[index])
-        index = index + 1
-    }
+    names.each(scope.mark_used)
 }
 
 func generate_statement_kind(
@@ -18181,11 +18381,7 @@ func emit_main(launcher_mangled_name: String) {
     }
     builder.add_main("{launcher_class.c_name}___release(spite_launcher);")
     emit_singleton_teardown()
-    var singleton_index = 0
-    while singleton_index < singleton_releases.count() {
-        builder.add_main(singleton_releases[singleton_index])
-        singleton_index = singleton_index + 1
-    }
+    singleton_releases.each(builder.add_main)
     var listed_name = ""
     if class_level_functions_used {
         var listed_class = find_class_by_c_name("Spite_Function")

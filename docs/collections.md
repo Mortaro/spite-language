@@ -236,10 +236,11 @@ but 'count_' needs it to return Boolean (to add up a numeric member use 'sum_sta
 ```
 
 **A `while` that only does what a template does is an error naming the template** ([D171](decisions.md)): a
-counter walking a list of a class from `0` to its `count()`, doing nothing with each element but what one
-template does with one of its members. Loops that need the index, pass more than the element, stop early for
-another reason, or walk state keep their `while`. The exact shape the compiler looks for, and what is not built
-yet, are in [control_flow.md's rules](control_flow.md#a-while-that-a-member-template-already-says).
+counter walking a list from `0` to its `count()`, doing nothing with each element but what one template does
+with one of its members, or what `each`, `map`, `filter`, `count`, `sum`, `find`, `any` or `all` does with a
+function passed the element -- on a list of anything, numbers and text included. Loops that need the index, pass
+more than the element, stop early for another reason, or walk state keep their `while`. The exact shape the
+compiler looks for is in [control_flow.md's rules](control_flow.md#a-while-that-a-member-template-already-says).
 
 ```gdscript title=template_loop_error/item.spite
 var price = 0
@@ -627,8 +628,9 @@ or a `while` that does more than they do.
 enum; on a list of a class the call is `List has no method 'contains'` -- ask with `any(f)` or `find_by_<member>`.
 
 Names say where: `add` does not, so it is `append` (and `prepend`); `pop()` is `remove_last()`, beside
-`remove_first()`. Writing an old name is meant to be a compile error naming the replacement. **Not built:** today
-it is `List has no method 'add'` (and `'pop'`), which names no fix.
+`remove_first()`. Writing an old name is a compile error naming the replacement: `List has no method 'add', which
+does not say where: write 'append' to add at the end, or 'prepend' at the start`, and `List has no method 'pop':
+write 'remove_last()', or 'remove_first()' to take from the start` (`diagnostics/old_list_names`).
 
 ### Dictionary\<T\>  **[implemented]**
 
@@ -658,5 +660,7 @@ class is always a heap object referred to by pointer. A `union Expression` of `N
 `BinaryExpression`, with `var left: Expression? = null` in `binary_expression.spite`, is the whole of it;
 [memory.md](memory.md#self-referential-classes-and-unions-just-work) has a tree that runs.
 
-Writing `Heap<T>`/`Heap<T>(value)` is meant to be a compile error naming this fix. **Not built:** today it is
-`unknown type 'Heap'`.
+Writing `Heap<T>`/`Heap<T>(value)` is a compile error naming this fix: `there is no 'Heap<T>': a class, a list and
+a text are references already, so a class that holds one of its own kind declares an ordinary attribute, like
+'var left: Expression? = null' ('Memory.Heap' is the allocator, for containers of your own)`
+(`diagnostics/old_list_names`).

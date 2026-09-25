@@ -5,6 +5,8 @@ var result_name = ""
 var total_name = ""
 var returned_after = ""
 var value_names = List<String>()
+var passed_functions = List<String>()
+var tests = false
 
 func TemplateWalk(walk_purpose: String, walk_replacement: String) {
     purpose = walk_purpose

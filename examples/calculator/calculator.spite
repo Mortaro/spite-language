@@ -5,9 +5,5 @@ func Calculator() {
     var content = program_file.read()
     crash content
     var lines = content.lines()
-    var index = 0
-    while index < lines.count() {
-        evaluator.process_line(lines[index])
-        index = index + 1
-    }
+    lines.each(evaluator.process_line)
 }
