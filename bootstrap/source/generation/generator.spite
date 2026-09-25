@@ -11225,21 +11225,19 @@ func generate_foreign_call(
             var held_shape = next_temporary()
             var struct_value = next_temporary()
             lines.append("{passed_union.c_name} {held_shape} = {argument.code};")
-            var members = List<String>()
             var initial = List<String>()
             var field_index = 0
             while field_index < shaped.shape_fields.count() {
                 var field = shaped.shape_fields[field_index]
                 var field_type = shape_field_type(shaped, field.name)
                 crash field_type
-                members.append("{c_type_name(field_type)} {c_value_name(field.name)};")
                 initial.append("{ensure_shape_reader(shaped, field.name, field_type)}({held_shape})")
                 afters.append(
                     "{ensure_shape_writer(shaped, field.name, field_type)}({held_shape}, {struct_value}.{c_value_name(field.name)});",
                 )
                 field_index = field_index + 1
             }
-            lines.append("struct \{ {members.join(" ")} } {struct_value} = \{ {initial.join(", ")} };")
+            lines.append("{shape_struct_code(shaped)} {struct_value} = \{ {initial.join(", ")} };")
             crash library < foreign_library_headers.count()
             if not foreign_library_headers[library].is_empty() and foreign_library_namings[library] == "windows" {
                 lines.append(
@@ -11610,12 +11608,56 @@ func generate_member_read(
     return result
 }
 
+func type_size_read(
+    member: Syntax.Expressions.MemberExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    crash member.object
+    var named = shape.as_identifier(member.object)
+    assert named
+    assert not scope.lookup_type(named.name) and not class_information.find_field(named.name)
+    var sized = find_union(named.name)
+    assert sized
+    var struct_code = shape_struct_code(sized)
+    if struct_code.is_empty() {
+        report(
+            "'{named.name}.size' is the size of the C struct a type is at a foreign call, and only a type whose attributes are all numbers is one",
+        )
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    var long_spite_type = long_type()
+    return ExpressionResult("((int64_t)sizeof({struct_code}))", long_spite_type)
+}
+
+func shape_struct_code(shaped: Analysis.UnionInfo): String {
+    assert shaped.is_shape and not shaped.shape_fields.is_empty()
+    var members = List<String>()
+    var index = 0
+    while index < shaped.shape_fields.count() {
+        var field = shaped.shape_fields[index]
+        assert not field.is_function
+        var field_type = shape_field_type(shaped, field.name)
+        assert field_type
+        assert type_shape.as_scalar(field_type)
+        members.append("{c_type_name(field_type)} {c_value_name(field.name)};")
+        index = index + 1
+    }
+    return "struct \{ {members.join(" ")} }"
+}
+
 func generate_member_read_raw(
     member: Syntax.Expressions.MemberExpression,
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     crash member.object
+    if member.name == "size" {
+        var type_size = type_size_read(member, scope, class_information)
+        if type_size {
+            return type_size
+        }
+    }
     if member.name == "instances" {
         var named_class = try_resolve_static_path(member.object, class_information.qualified_dotted)
         if named_class {

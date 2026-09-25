@@ -1,0 +1,16 @@
+type Labelled {
+    label: String
+    count: Integer
+}
+
+type Speaker {
+    speak(): String
+}
+
+var console = Console()
+
+func TypeSizeMistakes() {
+    var labelled_size = Labelled.size
+    var speaker_size = Speaker.size
+    console.print(labelled_size, speaker_size)
+}

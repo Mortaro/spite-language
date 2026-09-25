@@ -1,0 +1,27 @@
+type PointPair {
+    across: Integer
+    down: Integer
+}
+
+type Padded {
+    kind: Byte
+    amount: Long
+    flag: Boolean
+}
+
+type Sample {
+    level: Double
+    channel: Short
+    gain: Float
+}
+
+var console = Console()
+
+func TypeSize() {
+    var pair_size = PointPair.size
+    var padded_size = Padded.size
+    var sample_size = Sample.size
+    console.print(pair_size, padded_size, sample_size)
+    var buffer_bytes = pair_size * 4
+    console.print(buffer_bytes)
+}
