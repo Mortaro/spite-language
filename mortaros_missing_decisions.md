@@ -13,10 +13,6 @@ manual argues it.
 
 ## Proposals built and waiting for a yes or no
 
-7. **D77, the five interpretations** (manual section 12): the rule covers constructor calls too; any call
-   anywhere inside an argument counts; text holes are not arguments; calls moved out of `while` conditions and
-   the right of `and`/`or` only where harmless; a hoisted variable may reuse the function's name
-   (`var file_stem = file_stem(path)`).
 8. **D78's narrow form**: only a call with arguments, in every branch, at the start of the branches, counts.
 9. **The floor** (section 15, "The floor, named"): what stays C, and D82's form for showing it in
    `--final_classes`.
