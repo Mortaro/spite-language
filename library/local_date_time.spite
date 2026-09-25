@@ -1,0 +1,39 @@
+var _date = LocalDate(1970, 1, 1)
+var _time = LocalTime(0, 0, 0, 0)
+
+func LocalDateTime(date: LocalDate, time: LocalTime) {
+    _date = date
+    _time = time
+}
+
+func get_date(): LocalDate {
+    return _date
+}
+
+func get_time(): LocalTime {
+    return _time
+}
+
+func sum(period: Period): LocalDateTime {
+    var date = _date + period
+    return LocalDateTime(date, _time)
+}
+
+func equals(other: LocalDateTime): Bool {
+    return _date == other._date and _time == other._time
+}
+
+func less_than(other: LocalDateTime): Bool {
+    if _date != other._date {
+        return _date < other._date
+    }
+    return _time < other._time
+}
+
+func greater_than(other: LocalDateTime): Bool {
+    return other.less_than(this)
+}
+
+func to_string(): String {
+    return "{_date}T{_time}"
+}

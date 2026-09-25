@@ -23,6 +23,7 @@ reopen the classes each system does differently, and the launcher loads the one 
 | `Process` | run another program | [below](#run-a-process) |
 | `Program` | this program: exit, sleep, environment variables | [below](#program) |
 | `Clock` | elapsed time for measuring, and the wall clock | [below](#clock) |
+| `Instant`, `Duration`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Period`, `TimeZone`, `TimeZones`, `TimeText` | exact time, the calendar, time zones as presentation, ISO 8601 text | [time.md](time.md) |
 | `Environment`, `Build`, `Arguments` | settings and the command line | [programs.md](programs.md) |
 | `Json<T>` | any value to JSON text and back | [json.md](json.md) |
 | `Concurrent`, `Parallel` | run a function while waiting, or on a thread | [concurrency.md](concurrency.md) |
@@ -331,7 +332,7 @@ slept
 |---|---|
 | `elapsed_nanoseconds(): Long` | a monotonic clock with an arbitrary start: subtract two readings to measure |
 | `elapsed_milliseconds(): Long` | the same, in milliseconds |
-| `unix_milliseconds(): Long` | the wall clock: milliseconds since 1970-01-01 UTC |
+| `now(): Instant` | the wall clock, as an exact [`Instant`](time.md): show it through a time zone |
 
 Each system reads its own clock, in `library/windows/clock.spite` (`QueryPerformanceCounter`,
 `GetSystemTimeAsFileTime`) and the `linux` and `mac` folders (`clock_gettime`), through `DynamicLibrary`.

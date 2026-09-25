@@ -1,0 +1,263 @@
+var _text = ""
+var _position = 0
+var _failed = false
+
+func TimeTextReader(text: String) {
+    _text = text
+}
+
+func finish(): Bool {
+    return not _failed and _position == _text.length()
+}
+
+func read_date(): LocalDate {
+    var sign = _text.code_at(_position)
+    var year = 0
+    if sign == 43 or sign == 45 {
+        _position = _position + 1
+        year = _read_digits(6)
+        _failed = _failed or sign == 45 and year == 0
+        if sign == 45 {
+            year = -year
+        }
+    } else {
+        year = _read_digits(4)
+    }
+    _expect(45)
+    var month = _read_digits(2)
+    _expect(45)
+    var day = _read_digits(2)
+    _failed = _failed or month < 1 or month > 12 or day < 1
+    if _failed {
+        return LocalDate(1970, 1, 1)
+    }
+    var first = LocalDate(year, month, 1)
+    if day > first.days_in_month {
+        _failed = true
+        return first
+    }
+    return LocalDate(year, month, day)
+}
+
+func read_time(): LocalTime {
+    var hour = _read_digits(2)
+    _expect(58)
+    var minute = _read_digits(2)
+    var second = 0
+    var nanosecond = 0
+    if _text.code_at(_position) == 58 {
+        _position = _position + 1
+        second = _read_digits(2)
+        nanosecond = _read_fraction()
+    }
+    _failed = _failed or hour > 23 or minute > 59 or second > 60
+    if _failed {
+        return LocalTime(0, 0, 0, 0)
+    }
+    if second == 60 {
+        second = 59
+    }
+    return LocalTime(hour, minute, second, nanosecond)
+}
+
+func read_date_time(): LocalDateTime {
+    var date = read_date()
+    var separator = _text.code_at(_position)
+    if separator == 84 or separator == 116 or separator == 32 {
+        _position = _position + 1
+    } else {
+        _failed = true
+    }
+    var time = read_time()
+    return LocalDateTime(date, time)
+}
+
+func read_offset(): Long {
+    var sign = _text.code_at(_position)
+    if sign == 90 or sign == 122 {
+        _position = _position + 1
+        return 0
+    }
+    if sign != 43 and sign != 45 {
+        _failed = true
+        return 0
+    }
+    _position = _position + 1
+    var hours = _read_digits(2)
+    _expect(58)
+    var minutes = _read_digits(2)
+    var seconds = 0
+    if _text.code_at(_position) == 58 {
+        _position = _position + 1
+        seconds = _read_digits(2)
+    }
+    _failed = _failed or hours > 23 or minutes > 59 or seconds > 59
+    var offset: Long = hours * 3600 + minutes * 60 + seconds
+    if sign == 45 {
+        return -offset
+    }
+    return offset
+}
+
+func skip_annotations() {
+    while _text.code_at(_position) == 91 {
+        while _position < _text.length() and _text.code_at(_position) != 93 {
+            _position = _position + 1
+        }
+        _expect(93)
+    }
+}
+
+func read_duration(): Duration {
+    var negative = _read_sign()
+    _expect(80)
+    _expect(84)
+    var seconds: Long = 0
+    var nanoseconds = 0
+    var components = 0
+    var order = 0
+    while not _failed and _position < _text.length() {
+        var number = _read_number()
+        var fraction = _read_fraction()
+        var unit = _text.code_at(_position)
+        _position = _position + 1
+        components = components + 1
+        if unit == 72 and order < 1 and fraction == 0 {
+            seconds = seconds + number * 3600
+            order = 1
+        } else if unit == 77 and order < 2 and fraction == 0 {
+            seconds = seconds + number * 60
+            order = 2
+        } else if unit == 83 {
+            seconds = seconds + number
+            nanoseconds = fraction
+            order = 3
+        } else {
+            _failed = true
+        }
+        _failed = _failed or order == 3 and _position < _text.length()
+    }
+    _failed = _failed or components == 0
+    var whole = Duration(seconds, 'seconds')
+    var part = Duration(nanoseconds, 'nanoseconds')
+    var duration = whole + part
+    if negative {
+        return -duration
+    }
+    return duration
+}
+
+func read_period(): Period {
+    var negative = _read_sign()
+    _expect(80)
+    var years = 0
+    var months = 0
+    var days = 0
+    var components = 0
+    var order = 0
+    while not _failed and _position < _text.length() {
+        var component_negative = _read_sign()
+        var number: Int = _read_number()
+        if component_negative {
+            number = -number
+        }
+        var unit = _text.code_at(_position)
+        _position = _position + 1
+        components = components + 1
+        if unit == 89 and order < 1 {
+            years = number
+            order = 1
+        } else if unit == 77 and order < 2 {
+            months = number
+            order = 2
+        } else if unit == 87 and order < 3 {
+            days = number * 7
+            order = 3
+        } else if unit == 68 and order < 4 {
+            days = days + number
+            order = 4
+        } else {
+            _failed = true
+        }
+    }
+    _failed = _failed or components == 0
+    var whole_years = Period(years, 'years')
+    var whole_months = Period(months, 'months')
+    var whole_days = Period(days, 'days')
+    var period = whole_years + whole_months + whole_days
+    if negative {
+        return -period
+    }
+    return period
+}
+
+func _read_sign(): Bool {
+    var sign = _text.code_at(_position)
+    if sign == 43 or sign == 45 {
+        _position = _position + 1
+    }
+    return sign == 45
+}
+
+func _read_digits(count: Int): Int {
+    var value = 0
+    var index = 0
+    while index < count {
+        var code = _text.code_at(_position)
+        if code >= 48 and code <= 57 {
+            value = value * 10 + code - 48
+            _position = _position + 1
+        } else {
+            _failed = true
+        }
+        index = index + 1
+    }
+    return value
+}
+
+func _read_number(): Long {
+    var value: Long = 0
+    var digits = 0
+    var code = _text.code_at(_position)
+    while code >= 48 and code <= 57 {
+        if digits < 16 {
+            value = value * 10 + code - 48
+        }
+        digits = digits + 1
+        _position = _position + 1
+        code = _text.code_at(_position)
+    }
+    _failed = _failed or digits == 0 or digits > 15
+    return value
+}
+
+func _read_fraction(): Int {
+    var separator = _text.code_at(_position)
+    assert separator == 46 or separator == 44
+    _position = _position + 1
+    var value = 0
+    var digits = 0
+    var code = _text.code_at(_position)
+    while code >= 48 and code <= 57 {
+        if digits < 9 {
+            value = value * 10 + code - 48
+        }
+        digits = digits + 1
+        _position = _position + 1
+        code = _text.code_at(_position)
+    }
+    _failed = _failed or digits == 0 or digits > 9
+    while digits < 9 {
+        value = value * 10
+        digits = digits + 1
+    }
+    return value
+}
+
+func _expect(code: Int) {
+    if _text.code_at(_position) == code {
+        _position = _position + 1
+    } else {
+        _failed = true
+    }
+}

@@ -1,0 +1,46 @@
+var _first_offset = 0
+var _times = List<Long>()
+var _offsets = List<Int>()
+var _yearly_rule: DaylightRule? = null
+
+func ZoneRules(offset_seconds: Int) {
+    _first_offset = offset_seconds
+}
+
+func append_transition(time: Long, offset_seconds: Int) {
+    _times.append(time)
+    _offsets.append(offset_seconds)
+}
+
+func follow_yearly_rule(rule: DaylightRule) {
+    _yearly_rule = rule
+}
+
+func offset_seconds_at(unix_seconds: Long): Int {
+    return transition_offset_seconds_at(unix_seconds)
+}
+
+func transition_offset_seconds_at(unix_seconds: Long): Int {
+    var count = _times.count()
+    var after_last = count == 0 or unix_seconds >= _times.last()
+    if _yearly_rule and after_last {
+        return _yearly_rule.offset_seconds_at(unix_seconds)
+    }
+    if count == 0 or unix_seconds < _times.first() {
+        return _first_offset
+    }
+    var low = 0
+    var high = count - 1
+    while low < high {
+        var middle = (low + high + 1) / 2
+        crash _times[middle]
+        if _times[middle] <= unix_seconds {
+            low = middle
+        } else {
+            high = middle - 1
+        }
+    }
+    var offset = _offsets[low]
+    crash offset
+    return offset
+}

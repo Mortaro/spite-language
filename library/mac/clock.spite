@@ -4,9 +4,15 @@ func elapsed_nanoseconds(): Long {
     return read_clock(6)
 }
 
-func unix_milliseconds(): Long {
-    var nanoseconds = read_clock(0)
-    return nanoseconds / 1000000
+func now(): Instant {
+    var time = memory.allocate_bytes(16)
+    library.clock_gettime(0, time)
+    var seconds = memory.read_long(time, 0)
+    var nanoseconds = memory.read_long(time, 8)
+    memory.free(time)
+    var whole = Duration(seconds, 'seconds')
+    var part = Duration(nanoseconds, 'nanoseconds')
+    return Instant(whole + part)
 }
 
 func read_clock(clock: Int): Long {

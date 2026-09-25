@@ -1,0 +1,41 @@
+var _standard_offset = 0
+var _daylight_offset = 0
+var _start = DaylightChange('day_of_year', 0, 0)
+var _end = DaylightChange('day_of_year', 0, 0)
+var _has_daylight = false
+
+func DaylightRule(standard_offset: Int) {
+    _standard_offset = standard_offset
+    _daylight_offset = standard_offset
+}
+
+func observe_daylight(daylight_offset: Int, start: DaylightChange, end: DaylightChange) {
+    _daylight_offset = daylight_offset
+    _start = start
+    _end = end
+    _has_daylight = true
+}
+
+func offset_seconds_at(unix_seconds: Long): Int {
+    if not _has_daylight {
+        return _standard_offset
+    }
+    var local_seconds = unix_seconds + _standard_offset
+    var second_of_day = local_seconds % 86400
+    if second_of_day < 0 {
+        second_of_day = second_of_day + 86400
+    }
+    var first_day = LocalDate(1970, 1, 1)
+    var date = first_day + Period((local_seconds - second_of_day) / 86400, 'days')
+    var year = date.year
+    var start = _start.local_seconds_in(year) - _standard_offset
+    var end = _end.local_seconds_in(year) - _daylight_offset
+    var in_daylight = unix_seconds >= start and unix_seconds < end
+    if end < start {
+        in_daylight = unix_seconds < end or unix_seconds >= start
+    }
+    if in_daylight {
+        return _daylight_offset
+    }
+    return _standard_offset
+}
