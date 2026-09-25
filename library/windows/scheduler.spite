@@ -4,24 +4,6 @@ func current_thread(): Long {
     return kernel.GetCurrentThreadId_as_long()
 }
 
-func convert_thread(): Long {
-    var no_value: Long = 0
-    return kernel.ConvertThreadToFiber_as_long(no_value)
-}
-
-func create_fiber(entry: Long, argument: Long): Long {
-    var default_stack: Long = 0
-    return kernel.CreateFiber_as_long(default_stack, entry, argument)
-}
-
-func switch_fiber(previous: Long, next: Long) {
-    kernel.SwitchToFiber(next)
-}
-
-func delete_fiber(fiber: Long) {
-    kernel.DeleteFiber(fiber)
-}
-
 func create_event(): Long {
     var no_value: Long = 0
     return kernel.CreateEventA_as_long(no_value, 0, 0, no_value)

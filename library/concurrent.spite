@@ -3,25 +3,18 @@ generic $result_type
 var _scheduler = Scheduler()
 var _work: Spite.Function<$result_type>? = null
 var _results = List<$result_type>()
-var _fiber: Long = 0
 var _frame: Long = 0
 var _finished = false
-var _waiter: Long = 0
 
 func Concurrent(starting_work: Spite.Function<$result_type>) {
     _work = starting_work
     _frame = _start_frame()
-    if _frame != 0 {
+    if _frame == 0 {
+        _run()
+        _finished = true
+    } else {
         _scheduler.begin(_frame)
         _collect()
-    } else {
-        var entry = entry_address()
-        var instance = address()
-        _fiber = _scheduler.spawn(entry, instance)
-        if _fiber == 0 {
-            _run()
-            _finished = true
-        }
     }
 }
 
@@ -44,28 +37,15 @@ func _collect() {
     _finished = true
 }
 
-func _finish() {
-    _finished = true
-    _scheduler.finish_fiber(_waiter)
-}
-
 func _result(): $result_type {
     _join()
     return _results.get_at(0)
 }
 
 func _join() {
-    if not _finished and _frame != 0 {
+    if not _finished {
         _scheduler.wait_for(_frame)
         _collect()
-    }
-    if not _finished {
-        _waiter = _scheduler.current_fiber()
-        _scheduler.suspend()
-    }
-    if _fiber != 0 {
-        _scheduler.delete_fiber(_fiber)
-        _fiber = 0
     }
 }
 

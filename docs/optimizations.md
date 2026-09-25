@@ -42,6 +42,7 @@ function with a visible effect can show, no optimisation changes what a program 
 | [Atomic reference counts only with threads](#atomic-reference-counts-only-with-threads) | built | every, decided per program | nothing |
 | [Boxing only where a value travels as a shape](#boxing-only-where-a-value-travels-as-a-shape) | built | every | one allocation per boxed value |
 | [Concurrency machinery only where it is used](#concurrency-machinery-only-where-it-is-used) | built | every, decided per program | nothing |
+| [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | built | programs that make a `Concurrent` | one heap frame per waiting call; a wait inside an expression runs first |
 | [The thread pool only where a `Parallel` is made](#the-thread-pool-only-where-a-parallel-is-made) | built | every, decided per program | nothing until the first `Parallel` |
 | [Singletons a `Parallel` reaches take a lock](#singletons-a-parallel-reaches-take-a-lock) | built (the fallback) | every, decided per program | an uncontended lock per call, only with `Parallel` |
 | [REPL, live reload and debug machinery only in those builds](#repl-live-reload-and-debug-machinery-only-in-those-builds) | built | the builds that ask for it | nothing in an ordinary build |
@@ -51,7 +52,6 @@ function with a visible effect can show, no optimisation changes what a program 
 | [Proofs that survive a call](#proofs-that-survive-a-call) | built | every | a proof after a call that may change it is written again |
 | [Thread safety for singletons, the cheapest safe form](#thread-safety-for-singletons-the-cheapest-safe-form) | planned (the lock fallback is built) | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
-| [Hidden async/await as compile-time state machines](#hidden-asyncawait-as-compile-time-state-machines) | being built: state machines run beside the fibers | programs that make a `Concurrent` | one heap frame per waiting call instead of a stack |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
 
 ## Built
@@ -518,15 +518,73 @@ row; D164 is decided and partly built).
 
 ### Concurrency machinery only where it is used
 
-**What it does.** The scheduler, the fibers, the helper threads and the wrappers around every call that can wait
-(`Program.sleep`, `Console.read_line`, `File.read`/`write`/`append`, `Socket.accept_client`/`read_line`) exist only
-in a program that makes a `Concurrent` or is built with `--repl-port` or `--hot-reload`. Every other program's
+**What it does.** The scheduler, the state machines, the helper threads and the wrappers around every call that
+can wait (`Program.sleep`, `Console.read_line`, `File.read`/`write`/`append`, `Socket.accept_client`/`read_line`)
+exist only in a program that makes a `Concurrent` or is built with `--repl-port` or `--hot-reload`. Every other program's
 waits are the plain system calls. Even in a program that has the scheduler, a wait with no `Concurrent` alive and
 no REPL listening makes the plain blocking call, because that is faster ([D99](../manual.md#decision-log)): you
 never choose between blocking and waiting, and you never see which one ran.
 
-**When.** Decided per program, from what it uses. **What you notice.** Nothing. **Built**, on stackful fibers,
-which [D176](../manual.md#decision-log) replaces (below). [concurrency.md](concurrency.md).
+**When.** Decided per program, from what it uses. **What you notice.** Nothing. **Built**, on compile-time state
+machines ([below](#hidden-asyncawait-as-compile-time-state-machines)). [concurrency.md](concurrency.md).
+
+### Hidden async/await as compile-time state machines
+
+**What it does.** Waiting on IO is written as an ordinary call and the compiler turns it into a point where other
+work runs ([D35, D99](../manual.md#decision-log)). [D176](../manual.md#decision-log) asks for that to be done at
+compile time, with no stacks to switch, and that is how it is built: every function that can reach a wait from
+inside a `Concurrent` is compiled a second time as a **state machine**
+(`bootstrap/source/generation/state_machine.spite`, and the `emit_state_machines` part of the generator):
+
+- a **frame**, a C struct holding the function's parameters, every local and temporary of its body, and one slot
+  per wait for the frame of the function it is waiting on;
+- a **step function** that runs the body until it finishes (answering `true`) or reaches a wait that is not over
+  (answering `false`). It starts with a jump to the wait it stopped at, so the next step carries on from there. A
+  wait inside a `while` or an `if` is jumped back into directly: every local lives in the frame, so nothing is lost.
+
+A call that waits is found wherever it is written -- a statement, a `var`, an argument, a `{...}` inside text, a
+`while` condition (which waits again on each pass) -- and becomes: make the callee's frame, step it, and return
+from this step while it answers `false`. The waits at the bottom -- `Program.sleep`, the `File`, `Console` and
+`Socket` calls, and reading another `Concurrent` -- are small state machines the generator writes itself: a timer,
+a helper thread's flag, a finished flag. `Concurrent(function)` makes the function's frame and runs it to its first
+wait; `library/scheduler.spite` keeps the frames that are not finished and runs them again when something they
+wait on may have happened.
+
+**The event loop.** The loop waits on one operating system event -- an auto-reset event on Windows, a pipe with
+`poll` on Linux and macOS -- with a timeout of the nearest timer, and helper threads set it when their system call
+returns. It does not use IOCP, epoll or kqueue: an ordinary file is always "ready" to epoll and kqueue, so reading
+a file would still need a thread; the Windows console cannot be read through IOCP; and one mechanism keeps each
+system's folder to a handful of functions. The cost is a thread per system call in flight, which a server with
+thousands of connections would feel ([mortaros_missing_decisions.md](../mortaros_missing_decisions.md) asks
+whether sockets should move to the system's own readiness). In a browser the loop would be the browser's.
+
+**When.** Only in a program that makes a `Concurrent`, and only for the functions a `Concurrent` can reach that
+wait: the plain version of every function stays as it is for the code outside a `Concurrent`, and the tree
+shaker drops whichever version nothing calls. A program that never makes a `Concurrent` has no frames, no step
+functions, no event loop and no helper threads; its waits are the plain system calls.
+
+**What you notice.**
+
+- A wait written in the middle of an expression runs before the rest of that statement: in
+  `log.append("{name} read {file.read()}")`, the file is read first and `name` is read after it, so a change another
+  `Concurrent` makes to `name` during the read is seen. Everywhere else the order is the one written.
+- A few waits inside a `Concurrent` are not points it returns from: one in the right side of `and` or `or`, one
+  reached through a function value or a constructor, and dropping a `Concurrent` there. They still wait correctly,
+  by running the event loop where they are, as waits outside a `Concurrent` do: the other `Concurrent`s keep going,
+  and this one holds its place until its wait is over. A `Concurrent` whose own function cannot be a state machine (a
+  function value made in another class of the standard library, say, or any function of the program in a
+  `--hot-reload` build, which is called through a slot that a reload swaps) runs to its end when it is started
+  (`mortaros_missing_decisions.md` item 177).
+- Under `--debug-memory`, one allocation per waiting call a `Concurrent` makes (its frame), and none of the stacks
+  and fiber bookkeeping the earlier design needed: `conformance/stage6/concurrent_waits` went from 191 allocations
+  to 171, and its C from 345 825 bytes to 335 275.
+- The compiler itself makes no `Concurrent`, so compiling it is unchanged (about 1.7 seconds either way); its own C
+  grew by 161 kB, the transform's code.
+
+**Built** (2026-09-25, [D176](../manual.md#decision-log)); the fibers that came before it, and each system's code
+for creating and switching them, are gone. Proposed by Claude, unconfirmed: the reading order above, and which
+waits fall back to running the loop in place.
+
 
 ### REPL, live reload and debug machinery only in those builds
 
@@ -628,20 +686,6 @@ its function is laid out inline or in registers; and reference counting is left 
 provable. [D152](../manual.md#decision-log) adds that setting an object's allocator right after it is made
 (`scratch.memory.allocator = frame`) is where it was allocated from the start, never a second allocation and a
 move. You keep writing `copy()` where you mean an independent object.
-
-### Hidden async/await as compile-time state machines
-
-Waiting on IO is written as an ordinary call and the compiler turns it into a suspension (D35, D99). Today that is
-done with fibers; [D176](../manual.md#decision-log) replaces them with a compile-time transform: each function that
-can reach a wait becomes a resumable state machine, and what is left at run time is a minimal loop continuing work
-when IO completes -- in a browser, the browser's own. No stack per fiber, no scheduler to ship, and nothing that
-bloats a WebAssembly build. The source does not change and no function is coloured. **Being built** (2026-09-25): a
-`Concurrent` whose function can wait is already a state machine, with every wait inside it (`program.sleep`,
-`File`, `Console` and `Socket` reads and writes, reading another `Concurrent`) a point it returns from; the fibers
-are left only for a `Concurrent` whose function the compiler cannot make one, and are removed next. With it,
-[D134](../manual.md#decision-log): `File`, `Directory`, `Socket` and the other IO classes start their work
-concurrently themselves and hand back values that wait where they are first used, so independent reads overlap
-without the program asking.
 
 ### Other planned optimisations
 

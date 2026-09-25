@@ -397,19 +397,19 @@ func address_members(): List<String> {
 func task_members(): List<String> {
     return [
         "func entry_address(): Long"
-        "written by the generator: the address of the fiber or thread entry that runs this class"
+        "written by the generator: the address of the thread entry that runs this class"
         "func address(): Long"
         "written by the generator: the address of the object itself"
     ]
 }
 
 func concurrent_members(): List<String> {
-    var members = task_members()
-    members.append("func _start_frame(): Long")
-    members.append("written by the generator: the state machine of the work, or 0 when the work never waits")
-    members.append("func _frame_result(): $result_type")
-    members.append("written per result type by the generator: takes the result out of a finished state machine")
-    return members
+    return [
+        "func _start_frame(): Long"
+        "written by the generator: the state machine of the work, or 0 when the work never waits"
+        "func _frame_result(): $result_type"
+        "written per result type by the generator: takes the result out of a finished state machine"
+    ]
 }
 
 func scheduler_members(): List<String> {

@@ -263,7 +263,7 @@ a class prints once it declares `func to_string(): String`, and `debug` shows an
 `Process(command, arguments)` (`run(): Int`, `output()`), `Program()` (`exit(code)`, `sleep(milliseconds)`,
 `environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere, bound once
 as `var console = Console()`.
-`Concurrent(function)` runs a function on a fiber and `Parallel(function)` on the thread pool: the handle stands
+`Concurrent(function)` runs a function as a compile-time state machine and `Parallel(function)` on the thread pool: the handle stands
 in for what the function returns and reading it is the wait (there is no `.wait()`), `finished` answers without
 waiting, the type is never written, and dropping the handle waits for it. There is no `async`/`await`: a function
 that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can

@@ -2,13 +2,6 @@ singleton
 
 var started = false
 var scheduler_thread: Long = 0
-var current: Long = 0
-var runnable = List<Long>()
-var sleepers = List<Long>()
-var wake_times = List<Long>()
-var offloads = List<Long>()
-var offload_fibers = List<Long>()
-var fibers_alive = 0
 var tasks = List<Long>()
 var deadlines = List<Long>()
 var offloads_running = 0
@@ -22,29 +15,13 @@ func start() {
     if not started {
         started = true
         scheduler_thread = current_thread()
-        current = convert_thread()
         wake = create_event()
     }
 }
 
-func suspends_here(): Bool {
-    assert started and not paused and (fibers_alive != 0 or not tasks.is_empty() or serving)
+func waits_here(): Bool {
+    assert started and not paused and (not tasks.is_empty() or serving)
     return current_thread() == scheduler_thread
-}
-
-func current_fiber(): Long {
-    return current
-}
-
-func spawn(entry: Long, argument: Long): Long {
-    start()
-    assert current_thread() == scheduler_thread
-    var fiber = create_fiber(entry, argument)
-    assert fiber != 0
-    fibers_alive = fibers_alive + 1
-    runnable.prepend(current)
-    switch_to(fiber)
-    return fiber
 }
 
 func begin(frame: Long) {
@@ -86,12 +63,7 @@ func run_ready(): Int {
 
 func wait_for(frame: Long) {
     while not frame_done(frame) {
-        if runnable.is_empty() {
-            idle()
-        } else {
-            runnable.append(current)
-            suspend()
-        }
+        idle()
     }
 }
 
@@ -117,30 +89,6 @@ func remove_one(values: List<Long>, value: Long) {
     }
 }
 
-func suspend() {
-    while runnable.is_empty() {
-        idle()
-    }
-    var next = runnable.remove_first()
-    if next != current {
-        switch_to(next)
-    }
-}
-
-func switch_to(fiber: Long) {
-    var previous = current
-    current = fiber
-    switch_fiber(previous, fiber)
-}
-
-func finish_fiber(waiter: Long) {
-    fibers_alive = fibers_alive - 1
-    if waiter != 0 {
-        runnable.append(waiter)
-    }
-    suspend()
-}
-
 func check_point() {
     assert started and current_thread() == scheduler_thread
     if commands {
@@ -161,28 +109,21 @@ func yield_now() {
     if reloads {
         reloads()
     }
-    wake_finished()
     run_ready()
-    if not runnable.is_empty() {
-        runnable.append(current)
-        suspend()
-    }
 }
 
 func sleep(milliseconds: Int) {
-    var now = clock()
-    sleepers.append(current)
-    wake_times.append(now + milliseconds)
-    suspend()
+    var deadline = timer_start(milliseconds)
+    while not timer_over(deadline) {
+        idle()
+    }
 }
 
 func offload(call: Memory.Address, entry: Long): Bool {
-    var thread = start_thread(entry, call)
-    assert thread != 0
-    offloads.append(call)
-    offload_fibers.append(current)
-    suspend()
-    end_thread(thread)
+    var thread = offload_start(call, entry)
+    while not offload_over(call, thread) {
+        idle()
+    }
     return true
 }
 
@@ -216,62 +157,24 @@ func idle() {
     if reloads {
         reloads()
     }
-    wake_finished()
     var finished = run_ready()
-    if runnable.is_empty() and finished == 0 {
+    if finished == 0 {
         var wait_limit = timeout()
-        crash wait_limit >= 0 or not offloads.is_empty() or offloads_running > 0 or serving
+        crash wait_limit >= 0 or offloads_running > 0 or serving
         wait_event(wait_limit)
-        wake_finished()
-    }
-}
-
-func wake_finished() {
-    var index = 0
-    while index < offloads.count() {
-        var call: Memory.Address = offloads.get_at(index)
-        if call.read_long_atomically(0) == 1 {
-            var fiber = offload_fibers.get_at(index)
-            runnable.append(fiber)
-            offloads.remove_at(index)
-            offload_fibers.remove_at(index)
-        } else {
-            index = index + 1
-        }
-    }
-    var now = clock()
-    index = 0
-    while index < sleepers.count() {
-        var wake_time = wake_times.get_at(index)
-        if wake_time <= now {
-            var fiber = sleepers.get_at(index)
-            runnable.append(fiber)
-            sleepers.remove_at(index)
-            wake_times.remove_at(index)
-        } else {
-            index = index + 1
-        }
     }
 }
 
 func timeout(): Int {
-    if sleepers.is_empty() and deadlines.is_empty() {
+    if deadlines.is_empty() {
         return -1
     }
     var now = clock()
-    var earliest: Long = -1
-    var index = 0
-    while index < wake_times.count() {
-        var wake_time = wake_times.get_at(index)
-        if earliest < 0 or wake_time < earliest {
-            earliest = wake_time
-        }
-        index = index + 1
-    }
-    index = 0
+    var earliest = deadlines.get_at(0)
+    var index = 1
     while index < deadlines.count() {
         var deadline = deadlines.get_at(index)
-        if earliest < 0 or deadline < earliest {
+        if deadline < earliest {
             earliest = deadline
         }
         index = index + 1

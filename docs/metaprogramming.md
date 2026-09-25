@@ -801,8 +801,8 @@ at compile time:
 - **Reflection** is built only where it is read ([reflection.md](reflection.md)), and a generic class such as
   [`Json`](json.md) exists only for the types a program uses it with.
 - A **class** nothing reaches is not emitted.
-- The **concurrency scheduler**, fibers and atomic reference counts exist only in a program that makes a
-  `Concurrent` or a `Parallel`, or is built with `--repl-port` ([concurrency.md](concurrency.md)).
+- The **concurrency scheduler**, the state machines and atomic reference counts exist only in a program that
+  makes a `Concurrent` or a `Parallel`, or is built with `--repl-port` ([concurrency.md](concurrency.md)).
 
 This is tree shaking over the program's own model, not dead-code elimination left to the C compiler.
 

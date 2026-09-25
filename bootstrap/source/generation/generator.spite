@@ -3775,14 +3775,10 @@ func task_body(information: Analysis.ClassInfo, name: String): String {
         return frame_result_body(information)
     }
     var entry = "{information.c_name}___thread_entry"
-    if information.qualified_dotted == "Concurrent" {
-        entry = "{information.c_name}___fiber_entry"
-    } else {
-        builder.add_prototype("static void* {entry}(void* pool);")
-        builder.add_support(
-            "static void* {entry}(void* pool) \{\n{information.c_name}__serve(({information.c_name}*)pool);\nreturn 0;\n}",
-        )
-    }
+    builder.add_prototype("static void* {entry}(void* pool);")
+    builder.add_support(
+        "static void* {entry}(void* pool) \{\n{information.c_name}__serve(({information.c_name}*)pool);\nreturn 0;\n}",
+    )
     return "return (int64_t)(intptr_t)&{entry};"
 }
 
@@ -10243,7 +10239,6 @@ func supply_concurrency_functions(instance: Analysis.ClassInfo) {
     if instance.qualified_dotted == "Parallel" {
         parallel_used = true
     }
-    var task = instance.c_name
     if instance.qualified_dotted == "Concurrent" {
         if not scheduler_used {
             builder.add_typedef(
@@ -10254,10 +10249,6 @@ func supply_concurrency_functions(instance: Analysis.ClassInfo) {
             )
         }
         scheduler_used = true
-        builder.add_prototype("static void {task}___fiber_entry(void* task);")
-        builder.add_support(
-            "static void {task}___fiber_entry(void* task) \{\n{task}__run(({task}*)task);\n{task}__finish(({task}*)task);\n}",
-        )
     }
 }
 
@@ -17382,12 +17373,12 @@ func emit_waiting_wrapper(
     lines.append("Scheduler* spite_scheduler = {scheduler};")
     if kind == "yield" {
         lines.append("{waited};")
-        lines.append("if (Scheduler_suspends_here(spite_scheduler)) Scheduler_yield_now(spite_scheduler);")
+        lines.append("if (Scheduler_waits_here(spite_scheduler)) Scheduler_yield_now(spite_scheduler);")
         lines.append("Scheduler___release(spite_scheduler);")
     } else if kind == "sleep" {
         crash function.parameters[0]
         lines.append(
-            "if (Scheduler_suspends_here(spite_scheduler)) Scheduler_sleep(spite_scheduler, {c_value_name(function.parameters[0].name)}); else {waited};",
+            "if (Scheduler_waits_here(spite_scheduler)) Scheduler_sleep(spite_scheduler, {c_value_name(function.parameters[0].name)}); else {waited};",
         )
         lines.append("Scheduler___release(spite_scheduler);")
     } else {
@@ -17436,7 +17427,7 @@ func offloaded_call_lines(
         "static void {function.c_name}___perform(void* raw) \{\n{call_type}* call = ({call_type}*)raw;\n{stored}{function.c_name}___waiting({passed.join(", ")});\n}",
     )
     var lines = List<String>()
-    lines.append("if (!Scheduler_suspends_here(spite_scheduler)) \{ {blocked} }")
+    lines.append("if (!Scheduler_waits_here(spite_scheduler)) \{ {blocked} }")
     lines.append(
         "{call_type} spite_call = \{ \{ 0, &{function.c_name}___perform, spite_scheduler }, {arguments.join(", ")} };",
     )

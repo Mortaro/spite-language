@@ -160,16 +160,18 @@ and balanced allocations.
       D37's drain points -- **done (2026-09-24)**: commands are answered on the program's thread where it waits,
       through the scheduler below, and at a check point at the end of each loop pass (D174, 2026-09-25).
     - **15f. Hidden async/await and threads (D35, D37, D99, D103) -- done on Windows (2026-09-24).**
-      `Concurrent(function)` runs on a fiber (`library/concurrent.spite`, `library/scheduler.spite`, each system's
-      folder for fibers, an event and a clock); `Parallel(function)` on a thread (`library/parallel.spite`). The
+      `Concurrent(function)` runs as a state machine (`library/concurrent.spite`, `library/scheduler.spite`, each
+      system's folder for an event, a clock and helper threads); `Parallel(function)` on a thread (`library/parallel.spite`). The
       compiler wraps the blocking calls (`Program.sleep`, and the system call under `Console.read_line`, `File`
       reads and writes, `Socket.accept_client`/`read_line`) in programs that use the scheduler, blocks when nothing
       else could run, and counts references atomically only in programs that start a thread. Codegen values are
       inferred from constructor arguments. `docs/concurrency.md`, `conformance/stage6/concurrent_waits`,
       `conformance/stage6/parallel_work`. **2026-09-25:** `Parallel` runs on `ThreadPool` (D135), `parallel_each_`
       with D35's race rule checked, a handle joins where its value is read (D134), `finished`, reads in a row
-      overlap, `ThreadLocal`/`Lock`, `File` bytes. **Next:** D176's state-machine transform in place of fibers,
-      HTTP and database calls through the same waits, and running the Linux and macOS folders.
+      overlap, `ThreadLocal`/`Lock`, `File` bytes. **2026-09-25, D176:** a `Concurrent` is a compile-time state
+      machine (`bootstrap/source/generation/state_machine.spite`); the fibers are gone.
+      `conformance/stage6/state_machines`, `conformance/stage6/concurrent_sockets`. **Next:** HTTP and database
+      calls through the same waits, and running the Linux and macOS folders.
       Names and mechanism wait on Mortaro (`mortaros_missing_decisions.md` 13-18).
     - **15e.** The web shim: drive the hand-written portion to zero by generating the imports from `external js`
       declarations and the command-buffer drain loop from its opcode table (milestone 12). It cannot become
