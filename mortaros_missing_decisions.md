@@ -146,27 +146,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
 54. **`allocate_stack_bytes` is removed**, since D108 gives the choice to the compiler and it was a second way to
     allocate. For an ECS that wants control, what stays is the layout: one allocation, offsets, `TypedMemory`.
     Is anything else wanted -- say, a hint that a structure is short-lived, which the compiler may ignore?
-## A function of the caller for each element (D113; manual section 8)
-
-57. **A caller function that needs more than the element** -- `print_statement(statement, depth)`, the typical
-    loop of D94's review (143 of them stay `while`). Nothing is built. Options (proposed by Claude,
-    unconfirmed): (a) leave them as `while`, which is where they are now; (b) the template's own arguments go to
-    the function after the element, so `statements.each_print_statement(depth)` calls
-    `print_statement(statement, depth)` -- no new syntax, and each extra argument is evaluated once before the
-    loop, but `find_by_(value)` already takes an argument, so it would need a rule for which one is the value
-    (say: `find_by_` takes none extra); (c) move `depth` into an attribute so the function takes the element
-    alone, which the review called the esoteric outcome. I would build (b) for `each_` and `map_` first and
-    recount; the loop rule would then also name `statements.each_print_statement(depth)`.
-58. **When the element has a member and the caller a function of the same name**, the call is an error asking to
-    rename one (`'each_is_adult' could call 'is_adult' of each 'Person' or this class's own 'is_adult(Person)'`).
-    You asked for "the element's own member first, then the caller's function, or an error if ambiguous": I chose
-    the error, because with an order a member added to a class later silently changes what an unrelated caller
-    runs (D36's surprise, and D59's one name, one meaning). Keep the error, or let the element's member win?
-59. **The loop rule reaches only what is exactly rewritable**, and today that is 2 loops. It leaves a loop whose
-    function belongs to another object (`evaluator.process_line(lines[index])` in `examples/calculator`): a
-    template calls functions of the caller only. Should `lines.each_process_line()` look at the caller's
-    attributes too (here `evaluator`), or does that stay a `while`?
-
 ## Live reload (D111, D112; manual section 14, "Live reload and 6b")
 
 64. **A changed attribute or enum is refused, with an error saying to restart.** D111 says a change rebuilds "what
