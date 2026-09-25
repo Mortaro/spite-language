@@ -462,7 +462,7 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
         var value_type = value_type_named(entry.qualified_dotted)
         if value_type {
             classes.append(
-                Analysis.ClassInfo("Spite{entry.qualified_dotted}", entry.qualified_dotted, "", entry.qualified_dotted, 0),
+                Analysis.ClassInfo("Spite{entry.qualified_dotted.replace(".", "_")}", entry.qualified_dotted, "", entry.qualified_dotted, 0),
             )
             classes.last().is_value_class = true
         } else {
@@ -2298,8 +2298,8 @@ func resolve_field(declaration: Syntax.Statements.VariableDeclaration, informati
         information.memory_bytes = declared_memory_bytes(declaration, information)
         information.memory_path = current_path
         information.memory_line = current_line
-        var address_type = long_type()
-        information.fields.append(Analysis.FieldInfo(declaration.name, address_type, "0"))
+        var memory_type = long_type()
+        information.fields.append(Analysis.FieldInfo(declaration.name, memory_type, "0"))
         return
     }
     var field_type = infer_declared_type(declaration.type_reference, declaration.value, scope, information)
@@ -3347,11 +3347,43 @@ func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInf
         if class_path == "hot_reload" and function.name != "open" {
             function.supplied_body = hot_reload_body(function.name)
         }
+        if class_path == "memory/address" {
+            function.supplied_body = address_body(function)
+        }
         return
     }
     report(
         "'{information.simple_name}.{function.name}' has no body, and only a function whose body the compiler supplies is written without one: give it a body",
     )
+}
+
+func address_body(function: Analysis.FunctionInfo): String {
+    var name = function.name
+    var at = "((char*)(intptr_t)(self) + (offset))"
+    if name == "copy_to" {
+        return "#define {function.c_name}(self, target, bytes) memmove((void*)(intptr_t)(target), (void*)(intptr_t)(self), (size_t)(bytes))"
+    }
+    if name == "compare_bytes" {
+        return "#define {function.c_name}(self, other, bytes) (\{ int64_t spite_bytes = (bytes); spite_bytes > 0 ? (int32_t)memcmp((const void*)(intptr_t)(self), (const void*)(intptr_t)(other), (size_t)spite_bytes) : 0; })"
+    }
+    if name == "exchange_long" {
+        return "#define {function.c_name}(self, offset, value) __atomic_exchange_n((int64_t*){at}, (int64_t)(value), __ATOMIC_SEQ_CST)"
+    }
+    if name == "read_long_atomically" {
+        return "#define {function.c_name}(self, offset) __atomic_load_n((int64_t*){at}, __ATOMIC_SEQ_CST)"
+    }
+    if name == "write_long_atomically" {
+        return "#define {function.c_name}(self, offset, value) __atomic_store_n((int64_t*){at}, (int64_t)(value), __ATOMIC_SEQ_CST)"
+    }
+    var value_type = function.get_return_type()
+    if name.starts_with("write_") {
+        crash function.parameters[1]
+        value_type = function.parameters[1].get_type()
+        var written = c_type_name(value_type)
+        return "#define {function.c_name}(self, offset, value) memcpy({at}, &({written})\{ (value) }, sizeof({written}))"
+    }
+    var read = c_type_name(value_type)
+    return "#define {function.c_name}(self, offset) (\{ {read} spite_read; memcpy(&spite_read, {at}, sizeof(spite_read)); spite_read; })"
 }
 
 func task_body(information: Analysis.ClassInfo, name: String): String {
@@ -3415,6 +3447,10 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
         if named.path[0] == bound_symbol_name and named.path[1] == "class" {
             return bound_type_member(named)
         }
+    }
+    if named.path.count() == 2 and named.path[0] == "Memory" and named.path[1] == "Address" {
+        var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('address_kind')
+        return resolved
     }
     if named.path.count() == 1 {
         var name = named.path[0]
@@ -3708,6 +3744,7 @@ func value_class_names(): List<String> {
         "UnsignedShort"
         "UnsignedInt"
         "UnsignedLong"
+        "Memory.Address"
     ]
 }
 
@@ -3718,7 +3755,8 @@ func value_type_named(name: String): Analysis.SpiteType? {
     var names = value_class_names()
     assert names.contains(name)
     var no_arguments = List<Syntax.Types.GenericArgument>()
-    var named = Syntax.Types.NamedType([name], no_arguments)
+    var path = name.split(".")
+    var named = Syntax.Types.NamedType(path, no_arguments)
     return resolve_named_type(named, "")
 }
 
@@ -3735,6 +3773,11 @@ func value_class_type(information: Analysis.ClassInfo): Analysis.SpiteType {
     }
     var class_type: Analysis.SpiteType = Analysis.Types.ClassRefType(information.c_name)
     return class_type
+}
+
+func address_type(): Analysis.SpiteType {
+    var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('address_kind')
+    return resolved
 }
 
 func long_type(): Analysis.SpiteType {
@@ -3924,6 +3967,9 @@ func numeric_c_name(kind: Analysis.Types.NumericKind): String {
     if kind == 'unsigned_long_kind' {
         return "uint64_t"
     }
+    if kind == 'address_kind' {
+        return "int64_t"
+    }
     if kind == 'float_kind' {
         return "float"
     }
@@ -3959,6 +4005,9 @@ func type_label(spite_type: Analysis.SpiteType): String {
         }
         if scalar.kind == 'unsigned_long_kind' {
             return "UnsignedLong"
+        }
+        if scalar.kind == 'address_kind' {
+            return "Memory_Address"
         }
         if scalar.kind == 'float_kind' {
             return "Float"
@@ -6462,6 +6511,11 @@ func generate_value_method(
     if value_class {
         var function = find_or_instantiate_function(value_class, name)
         if function {
+            if kind == 'address_kind' and is_memory_access(name) and not is_library_class(class_information) {
+                report(
+                    "'{name}' reads or writes the memory at an address, which only library/ does: use a class of the standard library, or 'TypedMemory<T>' for values of any type",
+                )
+            }
             var parameter_types = parameter_types_of(function.parameters)
             var argument_codes = generate_argument_list(arguments_ast, parameter_types, scope, class_information)
             argument_codes.prepend(object_result.code)
@@ -6493,8 +6547,18 @@ func generate_value_method(
         )
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
+    if is_memory_access(name) {
+        report(
+            "a {type_display_name(object_result_type)} has no function '{name}': reading and writing memory is a function of the address, so the value needs to be a 'Memory.Address'",
+        )
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
     report("a {type_display_name(object_result_type)} has no function '{name}'")
     return ExpressionResult("0", Analysis.Types.VoidType())
+}
+
+func is_memory_access(name: String): Bool {
+    return name.starts_with("read_") or name.starts_with("write_") or name == "exchange_long"
 }
 
 func generate_written_string_call(
@@ -7637,6 +7701,12 @@ func type_display_name(spite_type: Analysis.SpiteType): String {
     if nullable_type {
         var nullable_type_inner = nullable_type.get_inner()
         return "{type_display_name(nullable_type_inner)}?"
+    }
+    var scalar = type_shape.as_scalar(spite_type)
+    if scalar {
+        if scalar.kind == 'address_kind' {
+            return "Memory.Address"
+        }
     }
     return type_label(spite_type)
 }
@@ -10268,11 +10338,12 @@ func placed_in_frame(
     crash receiver
     var receiver_result = generate_expression(allocating.object, scope, class_information)
     var receiver_type = receiver_result.get_type()
-    var memory_class = type_shape.as_class_ref(receiver_type)
-    assert memory_class
-    assert memory_class.c_name == "Memory"
-    var address_type = long_type()
-    var bytes_code = coerce_for_store(allocation.arguments[0], address_type, scope, class_information)
+    var heap_type = type_shape.as_class_ref(receiver_type)
+    assert heap_type
+    assert heap_type.c_name == "Memory_Heap"
+    var placed_type = address_type()
+    var bytes_type = long_type()
+    var bytes_code = coerce_for_store(allocation.arguments[0], bytes_type, scope, class_information)
     var frame_bytes = 256
     var literal_bytes = shape.as_integer_literal(allocation.arguments[0])
     if literal_bytes {
@@ -10285,9 +10356,9 @@ func placed_in_frame(
     builder.add_user("int64_t {frame}[{frame_bytes / 8}];")
     builder.add_user("int64_t {bytes} = {bytes_code};")
     builder.add_user(
-        "int64_t {declaration.name} = {bytes} <= {frame_bytes} ? (int64_t)(intptr_t){frame} : Memory_allocate_bytes({receiver_result.code}, {bytes});",
+        "int64_t {declaration.name} = {bytes} <= {frame_bytes} ? (int64_t)(intptr_t){frame} : Memory_Heap_allocate({receiver_result.code}, {bytes});",
     )
-    scope.declare(declaration.name, address_type)
+    scope.declare(declaration.name, placed_type)
     scope.check_last(current_line)
     check_value_name(declaration.name, "variable")
     placed_names.append(declaration.name)
@@ -10307,7 +10378,7 @@ func freed_from_frame(expression_statement: Syntax.Statements.ExpressionStatemen
             var frame = placed_frames.get_at(index)
             var receiver_code = placed_receiver_codes.get_at(index)
             scope.mark_used(freed)
-            builder.add_user("if ({freed} != (int64_t)(intptr_t){frame}) Memory_free({receiver_code}, {freed});")
+            builder.add_user("if ({freed} != (int64_t)(intptr_t){frame}) Memory_Heap_free({receiver_code}, {freed});")
             return true
         }
         index = index - 1
@@ -14031,7 +14102,7 @@ func emit_value_class(information: Analysis.ClassInfo) {
     if information.qualified_dotted != "String" and not information.fields.is_empty() and not declares_only_memory {
         current_path = information.source_path
         report(
-            "'{information.simple_name}' is a value the compiler keeps in one piece of memory, so it declares only that memory, 'var memory = Memory()' and then 'var _memory = memory.allocate_bytes(bytes)': keep what a function needs in its locals",
+            "'{information.simple_name}' is a value the compiler keeps in one piece of memory, so it declares only that memory, 'var heap = Memory.Heap()' and then 'var _memory = heap.allocate(bytes)': keep what a function needs in its locals",
         )
         return
     }
@@ -14062,11 +14133,10 @@ func emit_string_support(information: Analysis.ClassInfo) {
     var append_in_place = information.find_function("_append_in_place")
     crash unshared
     crash append_in_place
-    var memory_class = find_class_by_qualified("Memory")
-    crash memory_class
-    var memory_text = memory_class.find_function("text")
-    crash memory_text
-    var memory = singleton_call(memory_class)
+    var address_class = find_class_by_qualified("Memory.Address")
+    crash address_class
+    var address_text = address_class.find_function("text")
+    crash address_text
     var constructor_parameters = constructor_parameter_list(information)
     builder.add_prototype("void SpiteString___init(SpiteString* self);")
     builder.add_prototype("SpiteString* SpiteString___allocate(void);")
@@ -14105,7 +14175,7 @@ func emit_string_support(information: Analysis.ClassInfo) {
         "SpiteString* SpiteString_append(SpiteString* left, SpiteString* right) \{\nif (left->_section == Spite_Memory_Section_constant || left->header.ref_count != 1) \{\nSpiteString* alone = {unshared.c_name}(left);\nSpiteString___release(left);\nleft = alone;\n}\n{append_in_place.c_name}(left, SpiteString___retain(right));\nreturn left;\n}",
     )
     builder.add_support(
-        "SpiteString* spite_string_from_bytes(const char* bytes, int64_t length) \{\nMemory* spite_memory = {memory};\nSpiteString* spite_text = {memory_text.c_name}(spite_memory, (int64_t)(intptr_t)bytes, length);\nMemory___release(spite_memory);\nreturn spite_text;\n}",
+        "SpiteString* spite_string_from_bytes(const char* bytes, int64_t length) \{\nreturn {address_text.c_name}((int64_t)(intptr_t)bytes, length);\n}",
     )
     builder.add_support(
         "SpiteString* spite_string_from_cstring_owned(const char* text) \{\nreturn spite_string_from_bytes(text, (int64_t)strlen(text));\n}",
@@ -14125,7 +14195,7 @@ func declared_memory_bytes(declaration: Syntax.Statements.VariableDeclaration, i
             if memory {
                 through_memory = memory.name == information.memory_binding
             }
-            if allocating.name == "allocate_bytes" and through_memory and allocation.arguments.count() == 1 {
+            if allocating.name == "allocate" and through_memory and allocation.arguments.count() == 1 {
                 var bytes = shape.as_integer_literal(allocation.arguments[0])
                 if bytes {
                     return bytes.value
@@ -14134,7 +14204,7 @@ func declared_memory_bytes(declaration: Syntax.Statements.VariableDeclaration, i
         }
     }
     report(
-        "a number declares its memory as 'var memory = Memory()' and then 'var _memory = memory.allocate_bytes(bytes)', with the bytes written out: the compiler places that memory, and a number's is a register",
+        "a number declares its memory as 'var heap = Memory.Heap()' and then 'var _memory = heap.allocate(bytes)', with the bytes written out: the compiler places that memory, and a number's is a register",
     )
     return 0
 }
@@ -14170,7 +14240,7 @@ func check_number_memory() {
             var laid_out = scalar_c_bytes(c_type)
             if not information.find_field("_memory") {
                 report(
-                    "'{information.simple_name}' declares no memory: its file says what it is with 'var memory = Memory()' and then 'var _memory = memory.allocate_bytes({laid_out})', the {laid_out} bytes the compiler keeps it in",
+                    "'{information.simple_name}' declares no memory: its file says what it is with 'var heap = Memory.Heap()' and then 'var _memory = heap.allocate({laid_out})', the {laid_out} bytes the compiler keeps it in",
                 )
             } else if information.memory_bytes != laid_out {
                 report(

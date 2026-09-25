@@ -1,2 +1,2 @@
-var memory = Memory()
-var _memory = memory.allocate_bytes(8)
+var heap = Memory.Heap()
+var _memory = heap.allocate(8)

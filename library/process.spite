@@ -1,7 +1,7 @@
 var command = ""
 var arguments = List<String>()
 var last_output = ""
-var memory = Memory()
+var heap = Memory.Heap()
 
 func Process(starting_command: String, starting_arguments: List<String>) {
     command = starting_command
@@ -16,13 +16,13 @@ func run(): Int {
         return -1
     }
     var output = ""
-    var chunk = memory.allocate_bytes(4096)
+    var chunk = heap.allocate(4096)
     var got = read_into(chunk, 4096, handle)
     while got > 0 {
-        output = "{output}{memory.text(chunk, got)}"
+        output = "{output}{chunk.text(got)}"
         got = read_into(chunk, 4096, handle)
     }
-    memory.free(chunk)
+    heap.free(chunk)
     last_output = output
     return close_process(handle)
 }

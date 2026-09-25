@@ -1,8 +1,8 @@
 # Lists, dictionaries and member templates
 
 `List<T>` and `Dictionary<T>` are not built into the compiler. They are ordinary generic classes written in Spite
--- `library/list.spite` and `library/dictionary.spite` -- over `Memory`, the one type everything else is built
-on. The compiler keeps only the syntax: `[1, 2, 3]`, `list[index]`, and `List<T>()`. Read those two files to see
+-- `library/list.spite` and `library/dictionary.spite` -- over `Memory.Heap` and `Memory.Address`, the floor
+everything else is built on. The compiler keeps only the syntax: `[1, 2, 3]`, `list[index]`, and `List<T>()`. Read those two files to see
 exactly what a list does; write your own container the same way ([memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it)).
 
 ## `List<T>`
@@ -348,7 +348,7 @@ allocation count at 11; written step by step, the same program allocates 16 010 
 
 ## How the member templates are written
 
-The templates are ordinary Spite in `library/list.spite`, over the list's own `Memory` buffer. Each one is a
+The templates are ordinary Spite in `library/list.spite`, over the list's own buffer on the heap. Each one is a
 Symbol codegen template ([metaprogramming.md](metaprogramming.md)) whose parameter is
 `member: Symbol<$element_type>`: the symbol names a member of the *element*, and `item.attributes[member]` reads
 it -- the field itself, or a call to the zero-argument function. `filter_member` answers `filter_in_stock`,

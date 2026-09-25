@@ -1,4 +1,5 @@
 var library = DynamicLibrary("libc.so.6", 'identity', "")
+var heap = Memory.Heap()
 var signal_ending = 0
 var signal_byte: Long = 0
 
@@ -7,23 +8,23 @@ func current_thread(): Long {
 }
 
 func convert_thread(): Long {
-    var context = memory.allocate_bytes(1032)
+    var context = heap.allocate(1032)
     library.getcontext(context)
-    memory.write_long(context, 1024, 0)
+    context.write_long(1024, 0)
     return context
 }
 
 func create_fiber(entry: Long, argument: Long): Long {
-    var context = memory.allocate_bytes(1032)
+    var context = heap.allocate(1032)
     library.getcontext(context)
-    var stack = memory.allocate_bytes(262144)
+    var stack = heap.allocate(262144)
     var no_value: Long = 0
     var stack_bytes: Long = 262144
-    memory.write_long(context, 8, no_value)
-    memory.write_long(context, 16, stack)
-    memory.write_int(context, 24, 0)
-    memory.write_long(context, 32, stack_bytes)
-    memory.write_long(context, 1024, stack)
+    context.write_long(8, no_value)
+    context.write_long(16, stack)
+    context.write_int(24, 0)
+    context.write_long(32, stack_bytes)
+    context.write_long(1024, stack)
     library.makecontext(context, entry, 1, argument)
     return context
 }
@@ -32,19 +33,19 @@ func switch_fiber(previous: Long, next: Long) {
     library.swapcontext(previous, next)
 }
 
-func delete_fiber(fiber: Long) {
-    var stack = memory.read_long(fiber, 1024)
-    memory.free(stack)
-    memory.free(fiber)
+func delete_fiber(fiber: Memory.Address) {
+    var stack = fiber.read_long(1024)
+    heap.free(stack)
+    heap.free(fiber)
 }
 
 func create_event(): Long {
-    var ends = memory.allocate_bytes(8)
+    var ends = heap.allocate(8)
     library.pipe(ends)
-    var reading = memory.read_int(ends, 0)
-    signal_ending = memory.read_int(ends, 4)
-    memory.free(ends)
-    signal_byte = memory.allocate_bytes(8)
+    var reading = ends.read_int(0)
+    signal_ending = ends.read_int(4)
+    heap.free(ends)
+    signal_byte = heap.allocate(8)
     return reading
 }
 
@@ -53,32 +54,32 @@ func signal_event() {
 }
 
 func wait_event(milliseconds: Int) {
-    var watched = memory.allocate_bytes(8)
-    memory.write_int(watched, 0, wake)
-    memory.write_int(watched, 4, 1)
+    var watched = heap.allocate(8)
+    watched.write_int(0, wake)
+    watched.write_int(4, 1)
     if library.poll(watched, 1, milliseconds) > 0 {
-        var drained = memory.allocate_bytes(64)
+        var drained = heap.allocate(64)
         library.read(wake, drained, 64)
-        memory.free(drained)
+        heap.free(drained)
     }
-    memory.free(watched)
+    heap.free(watched)
 }
 
 func clock(): Long {
-    var time = memory.allocate_bytes(16)
+    var time = heap.allocate(16)
     library.clock_gettime(1, time)
-    var seconds = memory.read_long(time, 0)
-    var nanoseconds = memory.read_long(time, 8)
-    memory.free(time)
+    var seconds = time.read_long(0)
+    var nanoseconds = time.read_long(8)
+    heap.free(time)
     return seconds * 1000 + nanoseconds / 1000000
 }
 
 func start_thread(entry: Long, argument: Long): Long {
-    var slot = memory.allocate_bytes(8)
+    var slot = heap.allocate(8)
     var no_value: Long = 0
     var created = library.pthread_create(slot, no_value, entry, argument)
-    var thread = memory.read_long(slot, 0)
-    memory.free(slot)
+    var thread = slot.read_long(0)
+    heap.free(slot)
     assert created == 0
     return thread
 }

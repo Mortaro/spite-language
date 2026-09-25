@@ -287,6 +287,13 @@ and balanced allocations.
     and checks both paths keep its state. **Not done:** Linux and macOS are only compiled; instance migration,
     reflection that follows reloads, and compiling off the program's thread wait on
     `mortaros_missing_decisions.md` 64-69.
+26. **Done (2026-09-25): D178, D150 and D151 -- the `Memory` namespace** (manual.md sections 10, 11 and 15; the
+    "implements D178" row). `Memory.Address` is a number class whose reads, writes and atomics are primitives
+    the compiler lowers in place, callable only from the standard library's classes; `Memory.Heap` is the
+    default allocator. The singleton `Memory` and its free functions are gone from `library/` and the compiler,
+    and every class binds `var heap = Memory.Heap()`. **Waiting on Mortaro:** `mortaros_missing_decisions.md`
+    142-143. **Not done:** D178's allocation from operating-system pages, and copying and comparing through
+    `DynamicLibrary` (the heap is still `malloc`).
 
 ## Later, deliberately deferred
 

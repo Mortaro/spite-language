@@ -1,5 +1,5 @@
-var memory = Memory()
-var _memory = memory.allocate_bytes(1)
+var heap = Memory.Heap()
+var _memory = heap.allocate(1)
 
 func to_string(): String {
     if this {

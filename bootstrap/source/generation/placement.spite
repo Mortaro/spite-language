@@ -24,7 +24,7 @@ func allocating_receiver(declaration: Syntax.Statements.VariableDeclaration): St
     crash allocation.callee
     var allocating = shape.as_member(allocation.callee)
     assert allocating
-    assert allocating.name == "allocate_bytes" and allocation.arguments.count() == 1
+    assert allocating.name == "allocate" and allocation.arguments.count() == 1
     crash allocating.object
     var receiver = shape.as_identifier(allocating.object)
     assert receiver
@@ -156,6 +156,11 @@ func expression_keeps_in_frame(
                 assert expression_keeps_in_frame(name, receiver, expression.arguments[index], lends)
                 index = index + 1
             }
+            var at_address = shape.as_member(expression.callee)
+            if at_address and is_address_primitive(at_address.name) {
+                crash at_address.object
+                return expression_keeps_in_frame(name, receiver, at_address.object, true)
+            }
             return expression_keeps_in_frame(name, receiver, expression.callee, false)
         }
         Syntax.Expressions.MemberExpression: {
@@ -202,10 +207,21 @@ func expression_keeps_in_frame(
 func lends_address(callee: Syntax.Expressions.Expression, receiver: String): Bool {
     var member = shape.as_member(callee)
     assert member
+    if is_address_primitive(member.name) {
+        return true
+    }
+    var typed = ["read_value", "write_value", "release_value"]
+    if typed.contains(member.name) {
+        return true
+    }
     crash member.object
     var called_on = shape.as_identifier(member.object)
     assert called_on
-    var lending = [
+    return called_on.name == receiver and member.name == "free"
+}
+
+func is_address_primitive(name: String): Bool {
+    var primitives = [
         "read_byte"
         "read_int"
         "read_long"
@@ -222,10 +238,9 @@ func lends_address(callee: Syntax.Expressions.Expression, receiver: String): Boo
         "write_unsigned_short"
         "write_unsigned_int"
         "write_float"
-        "copy_bytes"
+        "copy_to"
         "compare_bytes"
         "text"
-        "free"
     ]
-    return called_on.name == receiver and lending.contains(member.name)
+    return primitives.contains(name)
 }

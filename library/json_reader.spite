@@ -2,7 +2,7 @@ var text = ""
 var position = 0
 var failure = ""
 var matched = false
-var memory = Memory()
+var heap = Memory.Heap()
 
 func JsonReader(starting_text: String) {
     text = starting_text
@@ -210,16 +210,16 @@ func text_of(code_point: Int): String {
         var continuation = code_point.shifted_right(shift).bits_and(63).bits_or(128)
         bytes.append(continuation)
     }
-    var address = memory.allocate_bytes(4)
+    var address = heap.allocate(4)
     var index = 0
     while index < bytes.count() {
         var byte = bytes.get_at(index)
-        memory.write_byte(address, index, byte)
+        address.write_byte(index, byte)
         index = index + 1
     }
     var length = bytes.count()
-    var result = memory.text(address, length)
-    memory.free(address)
+    var result = address.text(length)
+    heap.free(address)
     return result
 }
 

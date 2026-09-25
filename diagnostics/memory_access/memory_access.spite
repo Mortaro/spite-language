@@ -1,0 +1,13 @@
+var console = Console()
+var heap = Memory.Heap()
+
+func MemoryAccess() {
+    var address = heap.allocate(8)
+    address.write_long(0, 42)
+    var number = address.read_long(0)
+    heap.free(address)
+    console.print(number)
+    var count: Long = 7
+    var from_count = count.read_int(0)
+    console.print(from_count)
+}

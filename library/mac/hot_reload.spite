@@ -18,30 +18,30 @@ func watch_folder(path: String): Long {
 func watch_entry(queue: Int, path: String) {
     var opened = library.open(path, 32768)
     if opened >= 0 {
-        var change = memory.allocate_bytes(32)
-        memory.write_long(change, 0, opened)
-        memory.write_int(change, 8, 2228220)
-        memory.write_int(change, 12, 47)
-        memory.write_long(change, 16, 0)
-        memory.write_long(change, 24, 0)
+        var change = heap.allocate(32)
+        change.write_long(0, opened)
+        change.write_int(8, 2228220)
+        change.write_int(12, 47)
+        change.write_long(16, 0)
+        change.write_long(24, 0)
         var no_value: Long = 0
         library.kevent(queue, change, 1, no_value, 0, no_value)
-        memory.free(change)
+        heap.free(change)
     }
 }
 
 func wait_for_change(watched: Long, milliseconds: Int): Bool {
-    var event = memory.allocate_bytes(32)
-    var timeout = memory.allocate_bytes(16)
-    memory.write_long(timeout, 0, milliseconds / 1000)
-    memory.write_long(timeout, 8, milliseconds % 1000 * 1000000)
+    var event = heap.allocate(32)
+    var timeout = heap.allocate(16)
+    timeout.write_long(0, milliseconds / 1000)
+    timeout.write_long(8, milliseconds % 1000 * 1000000)
     var waiting: Long = timeout
     if milliseconds < 0 {
         waiting = 0
     }
     var no_value: Long = 0
     var ready = library.kevent(watched, no_value, 0, event, 1, waiting) > 0
-    memory.free(timeout)
-    memory.free(event)
+    heap.free(timeout)
+    heap.free(event)
     return ready
 }

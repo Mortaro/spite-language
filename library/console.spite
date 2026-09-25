@@ -13,7 +13,7 @@ type Debuggable {
     to_debug(): String
 }
 
-var memory = Memory()
+var heap = Memory.Heap()
 
 func print(...values: List<Printable>) {
     _write_values(values, 'output')
@@ -63,13 +63,13 @@ func _write_to(text: String, stream: Stream) {
 }
 
 func read_line(): String? {
-    var buffer = memory.allocate_bytes(256)
+    var buffer = heap.allocate(256)
     var line = ""
     var read_anything = false
     var more = read_line_into(buffer, 256)
     while more {
         read_anything = true
-        var piece = memory.terminated_text(buffer)
+        var piece = buffer.terminated_text()
         if piece.ends_with("\n") {
             var piece_length = piece.length()
             line = "{line}{piece.slice(0, piece_length - 1)}"
@@ -79,7 +79,7 @@ func read_line(): String? {
             more = read_line_into(buffer, 256)
         }
     }
-    memory.free(buffer)
+    heap.free(buffer)
     assert read_anything
     if line.ends_with("\r") {
         var line_length = line.length()

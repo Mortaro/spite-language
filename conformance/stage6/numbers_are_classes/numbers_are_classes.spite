@@ -21,6 +21,6 @@ func NumbersAreClasses() {
     second.append_to(registry)
     var labels = registry.map_label().join(", ")
     console.print(labels)
-    var memory_functions = Memory.functions.map_name().join(" ")
-    console.print(memory_functions)
+    var heap_functions = Memory.Heap.functions.map_name().join(" ")
+    console.print(heap_functions)
 }

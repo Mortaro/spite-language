@@ -349,3 +349,18 @@ All of it is proposed by Claude, unconfirmed.
      polling; `HotReload` becomes its first user and SlopEngine's cooker the second. Tree-shaken when unused (D177).
      Name: `FileWatcher` or `Directory.Watcher`?
 
+
+## Found building the `Memory` namespace (D178, D150, D151)
+
+142. **Who may read and write an address.** D178 says the reads and writes of `Memory.Address` are "usable only
+     from `library/`". Built as: a function of a class the standard library declares may call them, including a
+     function a program adds by reopening that class -- `--final_classes` prints every class it uses into the
+     program's own folder, and the printed program must still compile (check.sh runs it). Any other class gets
+     an error pointing at the standard library and `TypedMemory<T>`. `copy_to`, `compare_bytes`, `text` and
+     `terminated_text` are not reads or writes, so programs keep them. This also means a program such as
+     SlopEngine can no longer write a `Float` into a C struct with `write_float`; it uses `TypedMemory<Float>`.
+     Keep the reopening reading, or should only files under `library/` count (and `--final_classes` print the
+     standard library's classes some other way)?
+143. **`Memory.Heap`'s names.** `allocate(bytes)`, `resize(address, bytes)`, `free(address)` and
+     `live_allocations()` (was `allocate_bytes`); every class of `library/` binds it as `var heap = Memory.Heap()`.
+     Keep, or another spelling?

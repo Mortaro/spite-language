@@ -167,7 +167,8 @@ func path(): String {
 func reopened_classes(): List<String> {
     var classes = [
         "console"
-        "memory"
+        "memory/heap"
+        "memory/address"
         "typed_memory"
         "dynamic_library"
         "hot_reload"
@@ -301,8 +302,11 @@ func supplied_members(stem: String): List<String> {
     if stem == "console" {
         return console_members()
     }
-    if stem == "memory" {
-        return memory_members()
+    if stem == "memory/heap" {
+        return heap_members()
+    }
+    if stem == "memory/address" {
+        return address_members()
     }
     if stem == "typed_memory" {
         return typed_memory_members()
@@ -340,59 +344,47 @@ func console_members(): List<String> {
     ]
 }
 
-func memory_members(): List<String> {
+func heap_members(): List<String> {
     return [
-        "func allocate_bytes(bytes: Long): Long"
+        "func allocate(bytes: Long): Memory.Address"
         "return (int64_t)(intptr_t)SPITE_MALLOC((size_t)bytes);"
-        "func resize(address: Long, bytes: Long): Long"
+        "func resize(address: Memory.Address, bytes: Long): Memory.Address"
         "return (int64_t)(intptr_t)SPITE_REALLOC((void*)(intptr_t)address, (size_t)bytes);"
-        "func free(address: Long)"
+        "func free(address: Memory.Address)"
         "SPITE_FREE((void*)(intptr_t)address);"
-        "func read_byte(address: Long, offset: Long): Byte"
-        "return ((uint8_t*)(intptr_t)address)[offset];"
-        "func read_int(address: Long, offset: Long): Int"
-        "int32_t value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value;"
-        "func read_long(address: Long, offset: Long): Long"
-        "int64_t value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value;"
-        "func read_double(address: Long, offset: Long): Double"
-        "double value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value;"
-        "func read_short(address: Long, offset: Long): Short"
-        "int16_t value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value;"
-        "func read_unsigned_short(address: Long, offset: Long): UnsignedShort"
-        "uint16_t value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value;"
-        "func read_unsigned_int(address: Long, offset: Long): UnsignedInt"
-        "uint32_t value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value;"
-        "func read_float(address: Long, offset: Long): Float"
-        "float value; memcpy(&value, (char*)(intptr_t)address + offset, sizeof(value)); return value;"
-        "func write_byte(address: Long, offset: Long, value: Byte)"
-        "((uint8_t*)(intptr_t)address)[offset] = value;"
-        "func write_int(address: Long, offset: Long, value: Int)"
-        "memcpy((char*)(intptr_t)address + offset, &value, sizeof(value));"
-        "func write_long(address: Long, offset: Long, value: Long)"
-        "memcpy((char*)(intptr_t)address + offset, &value, sizeof(value));"
-        "func write_double(address: Long, offset: Long, value: Double)"
-        "memcpy((char*)(intptr_t)address + offset, &value, sizeof(value));"
-        "func write_short(address: Long, offset: Long, value: Short)"
-        "memcpy((char*)(intptr_t)address + offset, &value, sizeof(value));"
-        "func write_unsigned_short(address: Long, offset: Long, value: UnsignedShort)"
-        "memcpy((char*)(intptr_t)address + offset, &value, sizeof(value));"
-        "func write_unsigned_int(address: Long, offset: Long, value: UnsignedInt)"
-        "memcpy((char*)(intptr_t)address + offset, &value, sizeof(value));"
-        "func write_float(address: Long, offset: Long, value: Float)"
-        "memcpy((char*)(intptr_t)address + offset, &value, sizeof(value));"
-        "func copy_bytes(from: Long, to: Long, bytes: Long)"
-        "memmove((void*)(intptr_t)to, (void*)(intptr_t)from, (size_t)bytes);"
-        "func compare_bytes(first: Long, second: Long, bytes: Long): Int"
-        "return bytes > 0 ? (int32_t)memcmp((const void*)(intptr_t)first, (const void*)(intptr_t)second, (size_t)bytes) : 0;"
         "func live_allocations(): Int"
         "return (int32_t)spite_live_allocation_count();"
-        "func exchange_long(address: Long, offset: Long, value: Long): Long"
-        "return __atomic_exchange_n((int64_t*)(intptr_t)(address + offset), value, __ATOMIC_SEQ_CST);"
-        "func read_long_atomically(address: Long, offset: Long): Long"
-        "return __atomic_load_n((int64_t*)(intptr_t)(address + offset), __ATOMIC_SEQ_CST);"
-        "func write_long_atomically(address: Long, offset: Long, value: Long)"
-        "__atomic_store_n((int64_t*)(intptr_t)(address + offset), value, __ATOMIC_SEQ_CST);"
     ]
+}
+
+func address_members(): List<String> {
+    var members = [
+        "func from_type(type: Symbol, value: type.class): Memory.Address"
+        "written per type by the generator: a C cast"
+        "func copy_to(target: Memory.Address, bytes: Long)"
+        "written by the generator: one machine operation"
+        "func compare_bytes(other: Memory.Address, bytes: Long): Int"
+        "written by the generator: one machine operation"
+        "func exchange_long(offset: Long, value: Long): Long"
+        "written by the generator: one machine operation"
+        "func read_long_atomically(offset: Long): Long"
+        "written by the generator: one machine operation"
+        "func write_long_atomically(offset: Long, value: Long)"
+        "written by the generator: one machine operation"
+    ]
+    var types = ["Byte", "Short", "UnsignedShort", "Int", "UnsignedInt", "Long", "Float", "Double"]
+    var words = ["byte", "short", "unsigned_short", "int", "unsigned_int", "long", "float", "double"]
+    var index = 0
+    while index < types.count() {
+        var type_name = types.get_at(index)
+        var word = words.get_at(index)
+        members.append("func read_{word}(offset: Long): {type_name}")
+        members.append("written by the generator: one machine operation")
+        members.append("func write_{word}(offset: Long, value: {type_name})")
+        members.append("written by the generator: one machine operation")
+        index = index + 1
+    }
+    return members
 }
 
 func task_members(): List<String> {
@@ -406,11 +398,11 @@ func task_members(): List<String> {
 
 func typed_memory_members(): List<String> {
     return [
-        "func read_value(address: Long, index: Int): $value_type"
+        "func read_value(address: Memory.Address, index: Int): $value_type"
         "written per value type by the generator"
-        "func write_value(address: Long, index: Int, value: $value_type)"
+        "func write_value(address: Memory.Address, index: Int, value: $value_type)"
         "written per value type by the generator"
-        "func release_value(address: Long, index: Int)"
+        "func release_value(address: Memory.Address, index: Int)"
         "written per value type by the generator"
         "func value_bytes(): Long"
         "written per value type by the generator"

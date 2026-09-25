@@ -74,9 +74,10 @@ what the standard library does where Win32's own abbreviations follow no rule.
 
 A call returns an `Int`, and the ordinary right-to-left cast takes it from there. A result that is wider or not an
 integer is asked for by suffix: `strlen_as_long(...)` for a 64-bit integer or a pointer, `half_of_as_double(...)`
-for a `double`, and `greeting_as_text()` for a `const char*` copied into a `String`. An address is a `Long`; Spite
-has no pointer type. Text that C leaves at an address -- a name inside a struct C filled in, or a `_as_long`
-result that may be 0 -- is read with `memory.terminated_text(address)`, which copies up to the terminating zero.
+for a `double`, and `greeting_as_text()` for a `const char*` copied into a `String`. An address is a
+`Memory.Address`, a number of 64 bits that casts to and from a `Long`; Spite has no pointer type. Text that C
+leaves at an address -- a name inside a struct C filled in, or a `_as_long` result that may be 0 -- is read with
+`address.terminated_text()`, which copies up to the terminating zero.
 
 With a header as the third argument, a snake_case read is a constant -- `user32.mouseeventf_leftdown` is
 `MOUSEEVENTF_LEFTDOWN`, an `Int` -- and under the `'windows'` rule the compiler checks that a `type` passed as a
@@ -150,7 +151,7 @@ compiler out once for each.
 
 ## What the compiler supplies
 
-The members whose bodies stay C -- opening a library, finding a symbol, `Memory`'s reads and writes -- are
+The members whose bodies stay C -- opening a library, finding a symbol, `Memory.Heap`'s allocation -- are
 declared in Spite as a `func` with a signature and no body, which the compiler merges into the class as its own
 reopening ([compiler.md](compiler.md#inspect-merged-classes)). `library/dynamic_library.spite` holds the rest:
 the `singleton` line, `file_name` and `handle`, the constructor and `drop()`.

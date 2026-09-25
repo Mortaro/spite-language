@@ -1,6 +1,6 @@
 singleton
 
-var memory = Memory()
+var heap = Memory.Heap()
 
 func elapsed_milliseconds(): Long {
     var nanoseconds = elapsed_nanoseconds()

@@ -1,5 +1,5 @@
 var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
-var memory = Memory()
+var heap = Memory.Heap()
 
 func exists(): Bool {
     var attributes = kernel.GetFileAttributesA(path)
@@ -12,14 +12,14 @@ func create(): Bool {
 
 func entry_names(want_folders: Bool): List<String> {
     var names = List<String>()
-    var found = memory.allocate_bytes(600)
+    var found = heap.allocate(600)
     var search = kernel.FindFirstFileA_as_long("{path}/*", found)
     if search != -1 {
         var more = true
         while more {
-            var attributes = memory.read_int(found, 0)
+            var attributes = found.read_int(0)
             var is_folder = attributes.bits_and(16) != 0
-            var name = memory.terminated_text(found + 44)
+            var name = (found + 44).terminated_text()
             if is_folder == want_folders and name != "." and name != ".." {
                 names.append(name)
             }
@@ -27,6 +27,6 @@ func entry_names(want_folders: Bool): List<String> {
         }
         kernel.FindClose(search)
     }
-    memory.free(found)
+    heap.free(found)
     return names
 }

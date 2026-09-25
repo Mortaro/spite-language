@@ -1,7 +1,7 @@
 # Standard library
 
 The standard library is ordinary Spite in `library/`, and a program reads it the way it reads its own code:
-every class a program can name -- `String`, `List`, `Int`, `File`, `Memory` -- is a file there, and
+every class a program can name -- `String`, `List`, `Int`, `File`, `Memory.Heap` -- is a file there, and
 `--final_classes` prints each one as the program uses it. Its values are reference counted like every other
 object ([memory.md](memory.md)). When an operation cannot succeed it says so in its type rather than crashing:
 an index or a key that is not there reads as `T?`, a file that cannot be read answers `null`, and text that does
@@ -28,7 +28,7 @@ reopen the classes each system does differently, and the launcher loads the one 
 | `Json<T>` | any value to JSON text and back | [json.md](json.md) |
 | `Concurrent`, `Parallel` | run a function while waiting, or on a thread | [concurrency.md](concurrency.md) |
 | `Socket` | TCP on `127.0.0.1`, which the remote REPL uses | [below](#socket) |
-| `Memory`, `TypedMemory<T>` | raw memory, the floor every other type is built on | [memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it) |
+| `Memory.Address`, `Memory.Heap`, `TypedMemory<T>` | a place in memory, the allocator that owns it, and values of any type there: the floor every other type is built on | [memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it) |
 | `DynamicLibrary` | call a native library | [foreign_libraries.md](foreign_libraries.md) |
 | `Spite.Class`, `Spite.Function`, ... | reflection | [reflection.md](reflection.md) |
 

@@ -3,4 +3,4 @@
 255 18446744073709551615 true
 42 -7
 first, second
-text terminated_text allocate_bytes resize free read_byte read_int read_long read_double read_short read_unsigned_short read_unsigned_int read_float write_byte write_int write_long write_double write_short write_unsigned_short write_unsigned_int write_float copy_bytes compare_bytes live_allocations exchange_long read_long_atomically write_long_atomically
+allocate resize free live_allocations

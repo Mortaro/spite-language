@@ -1,10 +1,10 @@
 singleton
 
 var console = Console()
-var memory = Memory()
+var heap = Memory.Heap()
 var scheduler = Scheduler()
 var folder = ""
-var changes: Long = 0
+var changes: Memory.Address = 0
 var reloading = false
 var succeeded = false
 var last = "nothing has been reloaded yet"
@@ -15,8 +15,8 @@ var reported = false
 func start() {
     var build = Build()
     folder = build.program
-    changes = memory.allocate_bytes(8)
-    memory.write_long(changes, 0, 0)
+    changes = heap.allocate(8)
+    changes.write_long(0, 0)
     scheduler.start()
     scheduler.serving = true
     scheduler.reloads = reload_if_changed
@@ -27,7 +27,7 @@ func start() {
 
 func drop() {
     if changes != 0 {
-        memory.free(changes)
+        heap.free(changes)
     }
 }
 
@@ -40,14 +40,14 @@ func watch() {
         while settling {
             settling = wait_for_change(watched, 100)
         }
-        memory.write_long_atomically(changes, 0, 1)
+        changes.write_long_atomically(0, 1)
         scheduler.signal()
     }
 }
 
 func reload_if_changed() {
-    assert not reloading and memory.read_long_atomically(changes, 0) == 1
-    memory.write_long_atomically(changes, 0, 0)
+    assert not reloading and changes.read_long_atomically(0) == 1
+    changes.write_long_atomically(0, 0)
     reload()
     if reported {
         console.error("spite: {answer}")

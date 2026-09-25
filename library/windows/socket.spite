@@ -1,20 +1,20 @@
 var sockets = DynamicLibrary("ws2_32.dll", 'identity', "")
 
 func start_sockets() {
-    var information = memory.allocate_bytes(512)
+    var information = heap.allocate(512)
     sockets.WSAStartup(514, information)
-    memory.free(information)
+    heap.free(information)
 }
 
 func open_socket(): Long {
     return sockets.socket_as_long(2, 1, 6)
 }
 
-func write_family(address: Long) {
-    memory.write_byte(address, 0, 2)
+func write_family(address: Memory.Address) {
+    address.write_byte(0, 2)
 }
 
-func bind_address(address: Long): Bool {
+func bind_address(address: Memory.Address): Bool {
     return sockets.bind(handle, address, 16) == 0
 }
 
@@ -27,7 +27,7 @@ func accept_handle(): Long {
     return sockets.accept_as_long(handle, no_address, no_address)
 }
 
-func connect_address(address: Long): Bool {
+func connect_address(address: Memory.Address): Bool {
     return sockets.connect(handle, address, 16) == 0
 }
 

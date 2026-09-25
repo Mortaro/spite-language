@@ -1,5 +1,4 @@
 var library = DynamicLibrary("libc.so.6", 'identity', "")
-var memory = Memory()
 
 func exists(): Bool {
     var directory = library.opendir_as_long(path)
@@ -16,10 +15,10 @@ func entry_names(want_folders: Bool): List<String> {
     var names = List<String>()
     var directory = library.opendir_as_long(path)
     if directory != 0 {
-        var entry = library.readdir_as_long(directory)
+        var entry: Memory.Address = library.readdir_as_long(directory)
         while entry != 0 {
-            var is_folder = memory.read_byte(entry, 18) == 4
-            var name = memory.terminated_text(entry + 19)
+            var is_folder = entry.read_byte(18) == 4
+            var name = (entry + 19).terminated_text()
             if is_folder == want_folders and name != "." and name != ".." {
                 names.append(name)
             }

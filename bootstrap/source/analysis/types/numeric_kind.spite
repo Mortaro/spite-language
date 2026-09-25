@@ -10,4 +10,5 @@ enum NumericKind {
     'unsigned_short_kind'
     'unsigned_integer_kind'
     'unsigned_long_kind'
+    'address_kind'
 }

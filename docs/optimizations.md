@@ -262,14 +262,15 @@ abc a
 
 ### The compiler places memory
 
-**What it does.** A program has one way to ask for memory, `memory.allocate_bytes(bytes)`, and one way to give it
-back, `memory.free(address)`. Where the bytes live is the compiler's choice ([D108](../manual.md#decision-log),
+**What it does.** A program has one way to ask for raw memory, `heap.allocate(bytes)` on `Memory.Heap()`, and one
+way to give it back, `heap.free(address)`. Where the bytes live is the compiler's choice ([D108](../manual.md#decision-log),
 [manual section 10](../manual.md#10-memory--implemented)):
 
-- **Register:** a number's own memory (`var _memory = memory.allocate_bytes(4)` in `library/int.spite`) is its C
+- **Register:** a number's own memory (`var _memory = heap.allocate(4)` in `library/int.spite`) is its C
   scalar. A number is never an object.
-- **Frame:** an allocation a function frees itself, in the same block, whose address it only hands to `memory`'s
-  reads, writes, copies, comparisons and `text` -- never stores, returns, resizes or passes anywhere else -- gets a
+- **Frame:** an allocation a function frees itself, in the same block, whose address it only reads and writes
+  through, copies, compares, turns into `text` or hands to a `TypedMemory` -- never stores, returns, resizes or
+  passes anywhere else -- gets a
   slot in the function's own frame: 256 bytes, or exactly a literal size up to 256. A larger size at run time
   still goes to the heap, and the program's text is the same either way.
 - **Constant:** the characters of a text literal are part of the program, never counted or freed.
@@ -279,7 +280,8 @@ back, `memory.free(address)`. Where the bytes live is the compiler's choice ([D1
 
 ```gdscript title=frame_placement/frame_placement.spite entry
 var console = Console()
-var memory = Memory()
+var heap = Memory.Heap()
+var longs = TypedMemory<Long>()
 
 func FramePlacement() {
     var total = sum_of_squares(6)
@@ -287,21 +289,21 @@ func FramePlacement() {
 }
 
 func sum_of_squares(count: Int): Long {
-    var before = memory.live_allocations()
-    var squares = memory.allocate_bytes(count * 8)
+    var before = heap.live_allocations()
+    var squares = heap.allocate(count * 8)
     var index = 0
     while index < count {
-        memory.write_long(squares, index * 8, index * index)
+        longs.write_value(squares, index, index * index)
         index = index + 1
     }
     var total: Long = 0
     index = 0
     while index < count {
-        total = total + memory.read_long(squares, index * 8)
+        total = total + longs.read_value(squares, index)
         index = index + 1
     }
-    var during = memory.live_allocations()
-    memory.free(squares)
+    var during = heap.live_allocations()
+    heap.free(squares)
     console.print("heap allocations while summing:", during - before)
     return total
 }
@@ -315,6 +317,18 @@ sum of squares: 55
 `'heap'` or `'constant'` ([memory.md](memory.md#where-a-value-lives-memory)). You never choose the stack
 yourself: there is no second way to allocate, so there is no address to keep past a return by mistake.
 **Built** (D108 and its placement rows).
+
+### Reading an address is one machine operation
+
+**What it does.** `address.read_long(16)`, `address.write_float(8, value)` and the other reads, writes and
+atomics of `Memory.Address` are primitives of the language, like `+` ([D178](../manual.md#decision-log)): the
+compiler writes each one where it is called, as the single load, store or atomic instruction, with no call and
+no check. `copy_to` and `compare_bytes` are written the same way, as the C library's copy and comparison.
+
+**When.** Always; `library/` is the only place that may call them, so every `String`, `List` and `Dictionary`
+reads its memory this way.
+
+**What you notice.** Nothing: there is no other way these could run. **Built** (D178).
 
 ### Singletons: made on first use, never counted
 
@@ -389,9 +403,10 @@ even one that points at a singleton. **Built** (D8, D142, D141).
 
 ### Singletons that hold nothing are static objects
 
-**What it does.** A singleton with no attributes and no `drop()` -- `Memory`, `TypedMemory<T>` (one per element
-type), and `Build`, whose attributes are all settings folded into the program -- is one static object: never
-allocated, never counted, never freed. `Memory()` costs nothing, and every program allocates once fewer for each.
+**What it does.** A singleton with no attributes and no `drop()` -- `Memory.Heap`, `TypedMemory<T>` (one per
+element type), and `Build`, whose attributes are all settings folded into the program -- is one static object:
+never allocated, never counted, never freed. `Memory.Heap()` costs nothing, and every program allocates once
+fewer for each.
 
 **When.** Today, in every build. [D143](../manual.md#decision-log) decided that in `--repl`, `--repl_port`,
 `--hot_reload` and `--development` builds these internals are ordinary objects that reflection (`.instances`,

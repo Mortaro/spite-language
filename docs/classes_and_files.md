@@ -156,7 +156,7 @@ argument is cast to the parameter's type instead ([functions_and_operators.md](f
 
 A file whose first line is `singleton` has one instance: calling its constructor anywhere answers that same
 instance, made the first time it is asked for, and the constructor takes no arguments. `Console`, `Program`,
-`Environment`, `Build` and `Memory` are singletons; `File`, `Directory` and `Process` are not, since several may exist at once.
+`Environment`, `Build` and `Memory.Heap` are singletons; `File`, `Directory` and `Process` are not, since several may exist at once.
 
 ```gdscript title=singleton_basics/scoreboard.spite
 singleton

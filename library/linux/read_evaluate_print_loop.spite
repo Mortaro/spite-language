@@ -1,12 +1,12 @@
 var library = DynamicLibrary("libc.so.6", 'identity', "")
-var memory = Memory()
+var heap = Memory.Heap()
 
 func start_thread(entry: Long): Long {
-    var slot = memory.allocate_bytes(8)
+    var slot = heap.allocate(8)
     var no_value: Long = 0
     var created = library.pthread_create(slot, no_value, entry, no_value)
-    var started = memory.read_long(slot, 0)
-    memory.free(slot)
+    var started = slot.read_long(0)
+    heap.free(slot)
     assert created == 0
     return started
 }

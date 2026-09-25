@@ -9,15 +9,15 @@ func watch_folder(path: String): Long {
 }
 
 func wait_for_change(watched: Long, milliseconds: Int): Bool {
-    var polled = memory.allocate_bytes(8)
-    memory.write_int(polled, 0, watched)
-    memory.write_int(polled, 4, 1)
+    var polled = heap.allocate(8)
+    polled.write_int(0, watched)
+    polled.write_int(4, 1)
     var ready = library.poll(polled, 1, milliseconds) > 0
-    memory.free(polled)
+    heap.free(polled)
     if ready {
-        var events = memory.allocate_bytes(4096)
+        var events = heap.allocate(4096)
         library.read(watched, events, 4096)
-        memory.free(events)
+        heap.free(events)
     }
     return ready
 }

@@ -34,8 +34,8 @@ reads it best (`func`, `var`, `name: Type`, `#` comments). The code is Spite thr
 7. [control_flow.md](control_flow.md) -- `if`, `while` (the only loop), `switch` with `_:`, and `value == Class`.
 8. [style.md](style.md) -- the formatter and the lints: names, comments, blank lines, one call per line, and the
    short forms the compiler insists on.
-9. [memory.md](memory.md) -- reference counting, `copy`, `drop`, cycles, `Memory`, `TypedMemory`, and writing
-   your own container.
+9. [memory.md](memory.md) -- reference counting, `copy`, `drop`, cycles, `Memory.Address`, `Memory.Heap`,
+   `TypedMemory`, and writing your own container.
 10. [metaprogramming.md](metaprogramming.md) -- Symbol codegen, templates over another class, the plural walk,
     generics and compile-time type tests, tree shaking.
 11. [reflection.md](reflection.md) -- `Spite.Class`, `Spite.Function`, namespaces, instances; read-only by design.

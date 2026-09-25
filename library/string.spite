@@ -1,19 +1,18 @@
-var _bytes: Long = 0
+var _bytes: Memory.Address = 0
 var _length: Long = 0
 var _section: Spite.Memory.Section = 'heap'
 var _capacity: Long = 0
 
-func String(bytes: Long, length: Long) {
-    var memory = Memory()
-    memory.write_byte(bytes, length, 0)
+func String(bytes: Memory.Address, length: Long) {
+    bytes.write_byte(length, 0)
     _bytes = bytes
     _length = length
     _capacity = length
 }
 
 func drop() {
-    var memory = Memory()
-    memory.free(_bytes)
+    var heap = Memory.Heap()
+    heap.free(_bytes)
 }
 
 func length(): Int {
@@ -25,16 +24,14 @@ func code_at(index: Int): Int {
     if index < 0 or index > _length {
         position = _length
     }
-    var memory = Memory()
-    return memory.read_byte(_bytes, position)
+    return _bytes.read_byte(position)
 }
 
 func slice(start: Int, end: Int): String {
     var first = _clamped(start)
     var last = _clamped(end)
     assert last > first
-    var memory = Memory()
-    return memory.text(_bytes + first, last - first)
+    return (_bytes + first).text(last - first)
 }
 
 func _clamped(position: Int): Int {
@@ -47,16 +44,15 @@ func _clamped(position: Int): Int {
 
 func sum(other: String): String {
     var total = _length + other._length
-    var memory = Memory()
-    var bytes = memory.allocate_bytes(total + 1)
-    memory.copy_bytes(_bytes, bytes, _length)
-    memory.copy_bytes(other._bytes, bytes + _length, other._length)
+    var heap = Memory.Heap()
+    var bytes = heap.allocate(total + 1)
+    _bytes.copy_to(bytes, _length)
+    other._bytes.copy_to(bytes + _length, other._length)
     return String(bytes, total)
 }
 
 func equals(other: String): Bool {
-    var memory = Memory()
-    return _length == other._length and (_bytes == other._bytes or memory.compare_bytes(_bytes, other._bytes, _length) == 0)
+    return _length == other._length and (_bytes == other._bytes or _bytes.compare_bytes(other._bytes, _length) == 0)
 }
 
 func less_than(other: String): Bool {
@@ -64,8 +60,7 @@ func less_than(other: String): Bool {
     if other._length < shortest {
         shortest = other._length
     }
-    var memory = Memory()
-    var comparison = memory.compare_bytes(_bytes, other._bytes, shortest)
+    var comparison = _bytes.compare_bytes(other._bytes, shortest)
     if comparison != 0 {
         return comparison < 0
     }
@@ -77,23 +72,22 @@ func greater_than(other: String): Bool {
 }
 
 func _unshared(): String {
-    var memory = Memory()
-    return memory.text(_bytes, _length)
+    return _bytes.text(_length)
 }
 
 func _append_in_place(piece: String) {
     var total = _length + piece._length
-    var memory = Memory()
+    var heap = Memory.Heap()
     if total > _capacity {
         var capacity = _capacity * 2
         if capacity < total {
             capacity = total
         }
-        _bytes = memory.resize(_bytes, capacity + 1)
+        _bytes = heap.resize(_bytes, capacity + 1)
         _capacity = capacity
     }
-    memory.copy_bytes(piece._bytes, _bytes + _length, piece._length)
-    memory.write_byte(_bytes, total, 0)
+    piece._bytes.copy_to(_bytes + _length, piece._length)
+    _bytes.write_byte(total, 0)
     _length = total
 }
 
@@ -207,21 +201,21 @@ func lower_case(): String {
 }
 
 func shifted_case(first: Int, last: Int, shift: Int): String {
-    var memory = Memory()
+    var heap = Memory.Heap()
     var own_length = length()
-    var address = memory.allocate_bytes(own_length + 1)
+    var address = heap.allocate(own_length + 1)
     var index = 0
     while index < length() {
         var code = code_at(index)
         if code >= first and code <= last {
             code = code + shift
         }
-        memory.write_byte(address, index, code)
+        address.write_byte(index, code)
         index = index + 1
     }
     own_length = length()
-    var result = memory.text(address, own_length)
-    memory.free(address)
+    var result = address.text(own_length)
+    heap.free(address)
     return result
 }
 

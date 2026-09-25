@@ -55,7 +55,7 @@ bootstrap/seed/spite_compiler.c  the committed fixpoint
 ```
 
 What stays C is only what the compiler emits itself: the object header, retain and release, the few members of
-`Memory`, `DynamicLibrary` and the numbers declared without a body, and `main`, which constructs the launcher.
+`Memory.Heap`, `Memory.Address`, `DynamicLibrary` and the numbers declared without a body, and `main`, which constructs the launcher.
 Everything a program can name is Spite in `library/`.
 
 ## What the compiler does not do yet
