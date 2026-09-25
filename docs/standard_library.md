@@ -757,7 +757,7 @@ Supports `+ - * /`, unary `-`, parentheses, variable assignment (`x = 1 + 2`) an
 line. The lexer scans `source.split("")` with a `while` loop that passes each character and its index on (so it
 is not a loop a member template replaces, D171), keeping the current token's start as an attribute and slicing
 it out on a token boundary; the parser is recursive, including precedence climbing written as tail recursion
-(`parse_expression_rest`/`parse_term_rest`). The parser hands a freshly parsed operand to
-`BinaryExpression(...)` inline, the one level of construction inside a call a short line may keep (D77, D187):
+(`parse_expression_rest`/`parse_term_rest`). The parser makes each `BinaryExpression(...)` on a line
+of its own and hands it on by name, since no constructor is an argument (D202):
 `left_expression`/`right_expression` are ordinary by-reference parameters (D1), stored directly into the
 union-typed attribute.

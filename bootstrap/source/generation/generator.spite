@@ -166,7 +166,6 @@ var shape_flow_targets = List<Analysis.UnionInfo>()
 var read_attributes = Dictionary<Boolean>()
 var folded_words = Dictionary<Boolean>()
 var loaded_folders = List<String>()
-var long_line_callee = ""
 var classes_resolved = false
 var pending_constraint_instances = List<Analysis.ClassInfo>()
 var pending_constraint_paths = List<String>()
@@ -2649,7 +2648,6 @@ func resolve_field(declaration: Syntax.Statements.VariableDeclaration, informati
     assert declaration.value
     check_value_name(declaration.name, "attribute")
     report_nested_calls_in(declaration.value)
-    report_long_construction(declaration)
     report_singletons_in_declared(declaration.value, information)
     if information.is_value_class and information.c_name != "SpiteString" {
         var bound_singleton = constructed_singleton(declaration.value, information)
@@ -15724,7 +15722,6 @@ func collect_each_mentioned_name(expressions: List<Syntax.Expressions.Expression
 }
 
 func report_nested_calls(statement: Syntax.Statements.Statement, class_information: Analysis.ClassInfo) {
-    report_long_construction(statement)
     switch statement {
         Syntax.Statements.VariableDeclaration: {
             crash statement.value
@@ -15771,213 +15768,6 @@ func report_nested_calls(statement: Syntax.Statements.Statement, class_informati
             report_inline_singletons(statement.subject, class_information)
         }
         _: return
-    }
-}
-
-func report_long_construction(statement: Syntax.Statements.Statement) {
-    var depth = statement_depth(statement)
-    assert depth >= 0
-    var printer = Syntax.SourcePrinter()
-    var printed = printer.source_statement_line(statement, depth)
-    var columns = printed.length()
-    assert columns > printer.width
-    var construction = construction_in_statement(statement)
-    assert construction
-    var construction_text = printer.source_expression(construction)
-    var class_name = constructed_class_name(construction)
-    var variable = variable_name_for(class_name)
-    report(
-        "this line is {columns} columns, wider than the formatter's {printer.width}, and it constructs '{construction_text}' inside the arguments of '{long_line_callee}': a long line makes no object inside a call, so make it first on a line of its own, 'var {variable} = {construction_text}', and pass '{variable}'",
-    )
-}
-
-func statement_depth(statement: Syntax.Statements.Statement): Integer {
-    switch statement {
-        Syntax.Statements.VariableDeclaration: return statement.depth
-        Syntax.Statements.AssignmentStatement: return statement.depth
-        Syntax.Statements.ExpressionStatement: return statement.depth
-        Syntax.Statements.ReturnStatement: return statement.depth
-        Syntax.Statements.AssertStatement: return statement.depth
-        _: return -1
-    }
-}
-
-func construction_in_statement(statement: Syntax.Statements.Statement): Syntax.Expressions.Expression? {
-    switch statement {
-        Syntax.Statements.VariableDeclaration: {
-            crash statement.value
-            return construction_in_arguments(statement.value)
-        }
-        Syntax.Statements.AssignmentStatement: {
-            crash statement.value
-            return construction_in_arguments(statement.value)
-        }
-        Syntax.Statements.ExpressionStatement: {
-            crash statement.value
-            return construction_in_arguments(statement.value)
-        }
-        Syntax.Statements.ReturnStatement: {
-            assert statement.value
-            return construction_in_arguments(statement.value)
-        }
-        Syntax.Statements.AssertStatement: {
-            crash statement.value
-            return construction_in_arguments(statement.value)
-        }
-        _: return null
-    }
-}
-
-func construction_in_arguments(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
-    switch expression {
-        Syntax.Expressions.CallExpression: {
-            crash expression.callee
-            return construction_among(expression.callee, expression.arguments)
-        }
-        Syntax.Expressions.GenericCallExpression: {
-            crash expression.callee
-            return construction_among(expression.callee, expression.arguments)
-        }
-        Syntax.Expressions.BinaryExpression: {
-            crash expression.left
-            crash expression.right
-            assert not expression.is_text_join
-            var on_the_left = construction_in_arguments(expression.left)
-            if on_the_left {
-                return on_the_left
-            }
-            return construction_in_arguments(expression.right)
-        }
-        Syntax.Expressions.UnaryExpression: {
-            crash expression.operand
-            return construction_in_arguments(expression.operand)
-        }
-        Syntax.Expressions.MemberExpression: {
-            crash expression.object
-            return construction_in_arguments(expression.object)
-        }
-        Syntax.Expressions.IndexExpression: {
-            crash expression.object
-            crash expression.index
-            var in_object = construction_in_arguments(expression.object)
-            if in_object {
-                return in_object
-            }
-            return construction_in_arguments(expression.index)
-        }
-        _: return null
-    }
-}
-
-func construction_among(
-    callee: Syntax.Expressions.Expression,
-    arguments: List<Syntax.Expressions.Expression>,
-): Syntax.Expressions.Expression? {
-    var index = 0
-    while index < arguments.count() {
-        var constructed = construction_within(arguments[index])
-        if constructed {
-            var printer = Syntax.SourcePrinter()
-            long_line_callee = printer.source_expression(callee)
-            return constructed
-        }
-        index = index + 1
-    }
-    var in_callee = construction_in_arguments(callee)
-    if in_callee {
-        return in_callee
-    }
-    index = 0
-    while index < arguments.count() {
-        var nested = construction_in_arguments(arguments[index])
-        if nested {
-            return nested
-        }
-        index = index + 1
-    }
-    return null
-}
-
-func construction_within(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
-    switch expression {
-        Syntax.Expressions.CallExpression: {
-            crash expression.callee
-            assert not constructor_name(expression.callee).is_empty()
-            return expression
-        }
-        Syntax.Expressions.GenericCallExpression: {
-            crash expression.callee
-            assert not constructor_name(expression.callee).is_empty()
-            return expression
-        }
-        Syntax.Expressions.BinaryExpression: {
-            crash expression.left
-            crash expression.right
-            assert not expression.is_text_join
-            var on_the_left = construction_within(expression.left)
-            if on_the_left {
-                return on_the_left
-            }
-            return construction_within(expression.right)
-        }
-        Syntax.Expressions.UnaryExpression: {
-            crash expression.operand
-            return construction_within(expression.operand)
-        }
-        Syntax.Expressions.MemberExpression: {
-            crash expression.object
-            return construction_within(expression.object)
-        }
-        Syntax.Expressions.IndexExpression: {
-            crash expression.object
-            crash expression.index
-            var in_object = construction_within(expression.object)
-            if in_object {
-                return in_object
-            }
-            return construction_within(expression.index)
-        }
-        Syntax.Expressions.ListLiteralExpression: {
-            var index = 0
-            while index < expression.elements.count() {
-                var element_value = expression.elements[index].value
-                crash element_value
-                var in_element = construction_within(element_value)
-                if in_element {
-                    return in_element
-                }
-                index = index + 1
-            }
-            return null
-        }
-        Syntax.Expressions.ObjectLiteralExpression: {
-            var index = 0
-            while index < expression.fields.count() {
-                var field_value = expression.fields[index].value
-                crash field_value
-                var in_field = construction_within(field_value)
-                if in_field {
-                    return in_field
-                }
-                index = index + 1
-            }
-            return null
-        }
-        _: return null
-    }
-}
-
-func constructed_class_name(construction: Syntax.Expressions.Expression): String {
-    switch construction {
-        Syntax.Expressions.CallExpression: {
-            crash construction.callee
-            return constructor_name(construction.callee)
-        }
-        Syntax.Expressions.GenericCallExpression: {
-            crash construction.callee
-            return constructor_name(construction.callee)
-        }
-        _: return ""
     }
 }
 
@@ -16199,20 +15989,20 @@ func report_argument_calls(callee: Syntax.Expressions.Expression, arguments: Lis
     var called = printer.source_expression(callee)
     var index = 0
     while index < arguments.count() {
-        report_calls_in_argument(arguments[index], called, "")
+        report_calls_in_argument(arguments[index], called)
         index = index + 1
     }
 }
 
-func report_calls_in_argument(expression: Syntax.Expressions.Expression, called: String, constructor: String) {
+func report_calls_in_argument(expression: Syntax.Expressions.Expression, called: String) {
     switch expression {
         Syntax.Expressions.CallExpression: {
             crash expression.callee
-            report_call_in_argument(expression, expression.callee, expression.arguments, called, constructor)
+            report_call_in_argument(expression, expression.callee, called)
         }
         Syntax.Expressions.GenericCallExpression: {
             crash expression.callee
-            report_call_in_argument(expression, expression.callee, expression.arguments, called, constructor)
+            report_call_in_argument(expression, expression.callee, called)
         }
         Syntax.Expressions.BinaryExpression: {
             crash expression.left
@@ -16222,29 +16012,29 @@ func report_calls_in_argument(expression: Syntax.Expressions.Expression, called:
                 report_nested_calls_in(expression.right)
                 return
             }
-            report_calls_in_argument(expression.left, called, constructor)
-            report_calls_in_argument(expression.right, called, constructor)
+            report_calls_in_argument(expression.left, called)
+            report_calls_in_argument(expression.right, called)
         }
         Syntax.Expressions.UnaryExpression: {
             crash expression.operand
-            report_calls_in_argument(expression.operand, called, constructor)
+            report_calls_in_argument(expression.operand, called)
         }
         Syntax.Expressions.MemberExpression: {
             crash expression.object
-            report_calls_in_argument(expression.object, called, constructor)
+            report_calls_in_argument(expression.object, called)
         }
         Syntax.Expressions.IndexExpression: {
             crash expression.object
             crash expression.index
-            report_calls_in_argument(expression.object, called, constructor)
-            report_calls_in_argument(expression.index, called, constructor)
+            report_calls_in_argument(expression.object, called)
+            report_calls_in_argument(expression.index, called)
         }
         Syntax.Expressions.ListLiteralExpression: {
             var index = 0
             while index < expression.elements.count() {
                 var element_value = expression.elements[index].value
                 crash element_value
-                report_calls_in_argument(element_value, called, constructor)
+                report_calls_in_argument(element_value, called)
                 index = index + 1
             }
         }
@@ -16253,7 +16043,7 @@ func report_calls_in_argument(expression: Syntax.Expressions.Expression, called:
             while index < expression.fields.count() {
                 var field_value = expression.fields[index].value
                 crash field_value
-                report_calls_in_argument(field_value, called, constructor)
+                report_calls_in_argument(field_value, called)
                 index = index + 1
             }
         }
@@ -16264,30 +16054,23 @@ func report_calls_in_argument(expression: Syntax.Expressions.Expression, called:
 func report_call_in_argument(
     call: Syntax.Expressions.Expression,
     callee: Syntax.Expressions.Expression,
-    arguments: List<Syntax.Expressions.Expression>,
     called: String,
-    constructor: String,
 ) {
     var printer = Syntax.SourcePrinter()
     var call_text = printer.source_expression(call)
-    var callee_text = printer.source_expression(callee)
-    if not constructor.is_empty() {
+    var constructed = constructor_name(callee)
+    if constructed.is_empty() {
         report(
-            "'{call_text}' is passed to '{constructor}', which is itself passed to '{called}': compute it first into a named 'var' and pass the name. Only a constructor may be an argument, and only one level deep",
+            "'{call_text}' is called inside an argument of '{called}': compute it first into a named 'var' and pass the name",
         )
         return
     }
-    var constructed = constructor_name(callee)
-    if not constructed.is_empty() {
-        var index = 0
-        while index < arguments.count() {
-            report_calls_in_argument(arguments[index], called, callee_text)
-            index = index + 1
-        }
-        return
+    if current_class {
+        assert not constructed_singleton(call, current_class)
     }
+    var variable = variable_name_for(constructed)
     report(
-        "'{call_text}' is called inside an argument of '{called}': compute it first into a named 'var' and pass the name. Only a constructor may be an argument, and only one level deep",
+        "'{call_text}' is constructed inside an argument of '{called}': a constructor call is never an argument, so make it first on a line of its own, 'var {variable} = {call_text}', and pass '{variable}'",
     )
 }
 

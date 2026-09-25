@@ -227,8 +227,7 @@ a function body holds no empty lines
 
 ## One call per line
 
-**Only a constructor call may be an argument, and only one level deep.** Anything else is computed first into
-a named `var`, and the name is passed:
+**No call is an argument.** A call is computed first into a named `var`, and the name is passed:
 
 ```gdscript title=call_argument_error/call_argument_error.spite entry error
 var console = Console()
@@ -257,7 +256,8 @@ func CallArgumentFixed() {
     var first_word = source.slice(0, 5)
     console.print(first_word)
     var tokens = List<Token>()
-    tokens.append(Token(first_word))
+    var token = Token(first_word)
+    tokens.append(token)
     var word_count = source.split(" ").count()
     var first_token = tokens.first()
     console.print("{word_count} words, first token {first_token.text}")
@@ -268,40 +268,38 @@ spite
 3 words, first token spite
 ```
 
-A constructor is a call whose last name starts with an upper-case letter, so `tokens.append(Token(first_word))`
-is legal and a constructor inside that constructor is not. A method called on a call's result
-(`source.split(" ").count()`) and the holes of a text (`"{names.count()} names"`) are not arguments; a
-singleton's constructor never is one (`greet(Console())` is an error). Every case is
+A method called on a call's result (`source.split(" ").count()`) and the holes of a text
+(`"{names.count()} names"`) are not arguments. Every case is
 [in the rules](#one-call-per-line-and-nothing-said-twice--implemented).
 
-**A long line makes no object inside a call** (D187). There is no limit on how long a line may be. But if a line
-would be wider than the formatter's 120 columns when written on one line, it may not construct an object inside a
-call's arguments. Make the object first, on a line of its own, and pass its name. A short line may still pass one
-constructor, as above.
+**A constructor call is not an argument either** (D202). An object is made on a line of its own and passed by
+name, however short the line:
 
-```gdscript title=long_line_error/label.spite
+```gdscript title=constructor_argument_error/label.spite
 var text = ""
 
 func Label(starting_text: String) {
     text = starting_text
 }
 ```
-```gdscript title=long_line_error/long_line_error.spite entry error
+```gdscript title=constructor_argument_error/constructor_argument_error.spite entry error
 var console = Console()
 
-func LongLineError() {
+func ConstructorArgumentError() {
     var labels = List<Label>()
-    labels.append(Label("a label whose text is long enough to carry this line past the width that the formatter uses for lines"))
+    labels.append(Label("new"))
     var count = labels.count()
     console.print(count)
 }
 ```
 ```diagnostic
-a long line makes no object inside a call, so make it first on a line of its own, 'var label = Label(
+'Label("new")' is constructed inside an argument of 'labels.append': a constructor call is never an argument, so make it first on a line of its own, 'var label = Label("new")', and pass 'label'
 ```
 
-The line is measured as the formatter would print it on one line, indentation included. Breaking it over several
-lines does not change the result. The fix is `var label = Label("...")` followed by `labels.append(label)`.
+A constructor is a call whose last name starts with an upper-case letter, so this covers a constructor inside
+another constructor's arguments (`Label(Font())`) and a collection made for a call
+(`buffers.set(List<String>())`). An object made to be read at once is not an argument: `Json(order).write()` is
+fine, and so is `var label = Label("new")` itself. `Parallel(worker.run)` passes a function value, not an object.
 
 **An `if` and its `else` do not repeat the same work.** When both branches compute the same call, it is
 computed once before the `if`:
@@ -458,21 +456,18 @@ Decided by Mortaro (D77, D78, 2026-09-24), from the tokenizer's `flush()`:
 tokens.append(Token('number', source.slice(token_start, end_index)))    # error: slice() is passed as an argument
 ```
 
-- **Only a constructor call may be an argument, and only one deep** (D77). "only constructors can be used as
+- **No call is an argument** (D77, widened by D202). D77: "only constructors can be used as
   arguments of a call, any other functions need to be done outside, even in constructor case a 1 depth limit is
-  needed." `tokens.append(Token('number', token_slice))` is legal; `source.slice(...)` inside it is not, and neither is
-  a constructor inside a constructor inside the call. Anything else is computed first and named.
+  needed." `source.slice(...)` inside `tokens.append(...)` is an error; it is computed first and named.
   The error names the call and the call it is passed to: "'source.slice(0, 2)' is
-  called inside an argument of 'console.print': compute it first into a named 'var' and pass the name. Only a
-  constructor may be an argument, and only one level deep", or, one level down, "'Text(source)' is passed to
-  'Token', which is itself passed to 'tokens.append': ...". A constructor is a call whose callee's last name
-  starts with an upper-case letter (`Token(...)`, `List<String>()`, `Syntax.Expressions.IdentifierExpression(...)`).
+  called inside an argument of 'console.print': compute it first into a named 'var' and pass the name"
+  (`diagnostics/call_as_argument`). A constructor is a call whose callee's last name starts with an upper-case
+  letter (`Token(...)`, `List<String>()`, `Syntax.Expressions.IdentifierExpression(...)`).
   The readings below are **(proposed by Claude, unconfirmed)**:
-  - The rule is the same for every call, a constructor included: `var token = Token(kind, Text(x))` is legal
-    (`Text(x)` is one level deep), `var token = Token(kind, source.slice(a, b))` is not.
+  - The rule is the same for every call, a constructor included: `var token = Token(kind, source.slice(a, b))`
+    is an error.
   - Anything inside an argument counts, not only the argument itself: `counts.append(count_words(text) + 1)`,
-    `print(names[index_of(name)])` and `print(first == Vector(1, 2))` put a call inside an argument, and only the
-    last is legal (the one constructor level may sit inside an operator, a list or an index).
+    `print(names[index_of(name)])` and `print(first == Vector(1, 2))` put a call inside an argument.
   - A method called on a call's result is not an argument: `source.slice(0, 2).upper_case()` is fine on its own,
     and an error only when it is itself passed to something.
   - A text with holes is not a call argument, and each hole is read like a line of its own:
@@ -480,22 +475,24 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   - A call in an `if` or `while` condition, a `return`, an assignment or an index is not an argument.
   - A singleton's constructor is never an argument, nor anywhere but the whole value of a `var` (D110,
     [Singletons](classes_and_files.md#singletons--implemented)).
-- **A long line makes no object inside a call** (D187, decided by Mortaro: "i dont want to just simply have a
-  limit on width of a line, just a limit on how things need to behave at different sizes"). A statement whose
-  one-line printed form, indentation included, is wider than the formatter's width (120 columns, the width at
-  which it breaks a call one argument per line) may not construct an object anywhere inside a call's arguments:
-  "this line is 130 columns, wider than the formatter's 120, and it constructs 'CounterButton("a label ...")'
-  inside the arguments of 'world.create_entity_from_bundle': a long line makes no object inside a call, so make
-  it first on a line of its own, 'var counter_button = CounterButton("a label ...")', and pass 'counter_button'"
-  -- the message quotes the whole construction, arguments included (`diagnostics/long_line_construction`). A short line keeps D77's one constructor level. The readings below are
-  **(proposed by Claude, unconfirmed)**: the statements measured are the one-line ones (`var`, assignment, a call on
-  its own, `return`, `assert`, `crash`, and an attribute's default), since an `if` or `while` is never one line;
-  the width is measured on the printed form, so breaking the call over several lines by hand changes nothing;
-  a construction counts as D77's does (a call whose last name starts with an upper-case letter, `List<Integer>()`
-  included), anywhere inside an argument but in a text's holes; the suggested name is the class's name in
-  snake_case. **[implemented]**
+- **A constructor call is never an argument** (D202, decided by Mortaro, widening D187 from lines wider than the
+  formatter's 120 columns to every line: "lets also forbid constructors from being called inside a parameter,
+  this looks plain weird: `var button = world.create_entity_from_bundle(Bundle.CounterButton(screen.id))`").
+  Whatever the line's width, an object is made on a line of its own and passed by name. The error quotes the
+  whole construction and names the variable to make, the class's name in snake_case: "'CounterButton(screen.id)'
+  is constructed inside an argument of 'screen.add': a constructor call is never an argument, so make it first on
+  a line of its own, 'var counter_button = CounterButton(screen.id)', and pass 'counter_button'"
+  (`diagnostics/constructor_as_argument`, and `diagnostics/long_line_construction` for a long line). It covers a
+  constructor inside a constructor's arguments (`Label(Font())`), a generic collection made for a call
+  (`buffers.set(List<String>())`), and every argument list: of a `var`, an assignment, a call standing alone, a
+  `return`, an `assert` or `crash`, an `if`, `while` or `switch` condition, an attribute's default, and a call
+  inside a text's hole. The readings below are **(proposed by Claude, unconfirmed)**: a constructor used as a
+  receiver (`Json(order).write()`) and the whole value of a `var` are not arguments; `Parallel(worker.run)` and
+  `Concurrent(worker.run)` take a function value, so they are fine; a singleton's constructor passed as an
+  argument keeps its own error (D110) instead of this one. **[implemented]**
   - Open for Mortaro: D18's markup nests tag calls (`html.div({ class: "card" }, html.h1(title), ...)` in
-    [Markup](targets.md#markup--planned)), which this rule forbids as written unless a tag counts as a constructor.
+    [Markup](targets.md#markup--planned)), which D77 and D202 forbid as written, whether a tag counts as a
+    function or as a constructor.
 - **An `if` and its `else` do not repeat the same work** (D78): when both branches compute the same thing,
   it is computed once before the `if`. In the example, both branches sliced the same range. **It stays narrow**
   (D173): only a call with arguments that appears in every branch, at the start of the branches, is reported, so
