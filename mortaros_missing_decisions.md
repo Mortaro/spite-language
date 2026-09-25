@@ -433,3 +433,15 @@ Behaviour that does not match the manual. The language was not changed; each is 
     reached by a passed symbol now depends on whether the parameter's name is a word of the function's name, and
     the passed symbol must be over exactly the same range text. Keep the rule, or would you rather the helper be
     spelled some other way (a name with the hole, `run_phase_combination()`, reached from inside the template)?
+
+## Behind D118 (unused attributes), from SlopEngine
+
+109. **Should the compiler tell an engine what a function does?** SlopEngine marks systems with attributes nothing
+     reads -- `var world = Resource.World()` (it may spawn or despawn, so it runs alone in its stage) and
+     `var main_thread = Resource.MainThread()` (Win32 window procedures, Vulkan present) -- and its engine finds
+     them with a compile-time walk over each system's attributes. D118 keeps them legal because that walk counts
+     as a use. The session's guess at what you want, since your D118 example was exactly `var world =
+     Resource.World()`: the marker is noise, and the engine should learn "this system changes the world" from the
+     compiler -- which functions it calls (`Spawn`, `Insert`, `Remove`), which singletons it touches -- as a
+     compile-time reflection like D114's (`function.calls(Spawn)`, or the singletons a function reaches). Wanted?
+
