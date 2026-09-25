@@ -49,6 +49,7 @@ reads it best (`func`, `var`, `name: Type`, `#` comments). The code is Spite thr
 15. [collections.md](collections.md) -- `List` and `Dictionary` as library code, member templates, chains that
     run as one loop, templates of your own.
 16. [json.md](json.md) -- `Json<T>`: any value to JSON text and back.
+    [time.md](time.md) -- instants, durations, the calendar, time zones as presentation, and ISO 8601 text.
 17. [foreign_libraries.md](foreign_libraries.md) -- `DynamicLibrary`, and how each operating system's folder
     reopens the classes it changes.
 

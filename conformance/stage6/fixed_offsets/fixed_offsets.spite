@@ -1,0 +1,34 @@
+var console = Console()
+var zones = TimeZones()
+
+func FixedOffsets() {
+    var moment = Instant(Duration(1710054000, 'seconds'))
+    var universal = zones.utc()
+    var india = zones.fixed_offset(Duration(330, 'minutes'))
+    var brazil = zones.fixed_offset(Duration(-3, 'hours'))
+    var line_islands = zones.fixed_offset(Duration(14, 'hours'))
+    var baker_island = zones.fixed_offset(Duration(-12, 'hours'))
+    var local_mean_time = zones.fixed_offset(Duration(-17762, 'seconds'))
+    var offsets = [universal, india, brazil, line_islands, baker_island, local_mean_time]
+    var index = 0
+    while index < offsets.count() {
+        var zone = offsets[index]
+        var shown = zone.to_text(moment)
+        var offset = zone.offset_at(moment)
+        console.print(zone.name, shown, offset)
+        index = index + 1
+    }
+    var noon = LocalDateTime(LocalDate(2024, 3, 10), LocalTime(12, 30, 0, 0))
+    var from_india = india.to_instant(noon, 'compatible')
+    var same_moment = from_india == moment
+    console.print(from_india, same_moment)
+    var summer = Instant(Duration(1720000000, 'seconds'))
+    var winter_offset = brazil.offset_at(moment)
+    var summer_offset = brazil.offset_at(summer)
+    var unchanged = winter_offset == summer_offset
+    console.print("a fixed offset never changes:", unchanged)
+    var today = india.to_local(moment)
+    var yesterday = baker_island.to_local(moment)
+    var date_differs = today.date != yesterday.date
+    console.print(today.date, yesterday.date, date_differs)
+}

@@ -4773,7 +4773,12 @@ func generate_string_binary(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     var right_result = generate_expression(right_ast, scope, class_information)
+    var right_became_text = false
     if operator == 'add' {
+        var right_value_type = right_result.get_type()
+        if text_converter(right_value_type) {
+            right_became_text = true
+        }
         right_result = text_of_class(right_ast, right_result, scope, class_information)
     }
     var right_result_type = right_result.get_type()
@@ -4809,7 +4814,7 @@ func generate_string_binary(
         lines.append("SpiteString___release({left_temporary});")
     }
     var right_was_converted = not type_shape.as_string(right_result_type)
-    if owns(right_result, right_ast) or right_was_converted {
+    if owns(right_result, right_ast) or right_was_converted or right_became_text {
         lines.append("SpiteString___release({right_temporary});")
     }
     lines.append("{result_temporary};")

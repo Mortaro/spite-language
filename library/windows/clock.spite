@@ -12,10 +12,12 @@ func elapsed_nanoseconds(): Long {
     return ticks / per_second * 1000000000 + ticks % per_second * 1000000000 / per_second
 }
 
-func unix_milliseconds(): Long {
+func now(): Instant {
     var file_time = memory.allocate_bytes(8)
     kernel.GetSystemTimeAsFileTime(file_time)
     var hundreds_of_nanoseconds = memory.read_long(file_time, 0)
     memory.free(file_time)
-    return hundreds_of_nanoseconds / 10000 - 11644473600000
+    var whole = Duration(hundreds_of_nanoseconds / 10000000 - 11644473600, 'seconds')
+    var part = Duration(hundreds_of_nanoseconds % 10000000 * 100, 'nanoseconds')
+    return Instant(whole + part)
 }

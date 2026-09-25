@@ -237,6 +237,13 @@ run ([concurrency.md](concurrency.md)).
 `Json<T>()` (`write(value): String`, `read(text): T?`, `read_or_crash(text): T`) converts any class, list,
 dictionary, enum, number, `Bool`, `String` or `T?` to JSON and back; `read` skips unknown keys, keeps defaults for
 missing ones, and is `null` on a value of the wrong kind (docs/json.md).
+Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(Duration(1710054000, 'seconds'))`.
+`Duration(90, 'minutes')` is exact time (no days); `Period(1, 'months')` is calendar time, added to a `LocalDate`,
+`LocalTime` is a clock reading and `LocalDateTime(date, time)` both, none of them an instant. A zone only shows or
+reads a local reading: `var zones = TimeZones()`, `zones.find("America/New_York"): TimeZone?`, `zones.utc()`,
+`zones.fixed_offset(duration)`, then `zone.to_local(instant)`, `zone.to_text(instant)` and
+`zone.to_instant(local, 'compatible')` (or `'earlier'`/`'later'`, always written). `TimeText()` reads ISO 8601
+(`read_instant(text): Instant?`, `read_local_date`, `read_duration`, ...) and `to_string()` writes it (docs/time.md).
 `DynamicLibrary("ucrtbase.dll", 'identity', "")` calls a native library's functions as members
 (`c_runtime.strlen(text)`, `_as_long`/`_as_double`/`_as_text` for wider results); the standard library's
 `library/windows/`, `linux/` and `mac/` folders reopen the classes each system changes (docs/foreign_libraries.md).
@@ -267,6 +274,8 @@ round trip, and this list is cheaper to read than to rediscover.
 | `"hello ${name}"`, `"hello " + name` | `"hello {name}"` |
 | `for item in list` | `map_`/`filter_`/`each_<member>()`, or `list.each_<function>()` with a function of yours; `while index < list.count()` when the body needs more |
 | `value == null` | `if value { } else { }`, `assert value`, `crash value`, or `switch` |
+| `new Date()`, `DateTime.Now`, `datetime.now()` | `clock.now()`, an `Instant`; shown through a zone from `TimeZones()`, never stored as a local reading |
+| `timestamp + 86400000` for tomorrow | `zone.to_local(instant) + Period(1, 'days')`, then `zone.to_instant(tomorrow, 'compatible')`: a day is not always 24 hours |
 | `text[0]` | `text.character_at(0)`, or `text.slice(start, end)` |
 | `// comment`, `/* comment */` | nothing, or `# docs/page.md#section` on its own line outside a function |
 | a variable named `int`, `static`, `unsigned`, `stdout` | any name that is not reserved in C |

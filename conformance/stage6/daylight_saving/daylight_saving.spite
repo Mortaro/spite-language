@@ -1,0 +1,71 @@
+var console = Console()
+var zones = TimeZones()
+
+func DaylightSaving() {
+    var new_york = zones.find("America/New_York")
+    crash new_york
+    around_the_change(new_york)
+    the_gap(new_york)
+    the_overlap(new_york)
+    other_zones()
+}
+
+func around_the_change(zone: TimeZone) {
+    var before = Instant(Duration(1710053999, 'seconds'))
+    var after = before + Duration(1, 'seconds')
+    var before_text = zone.to_text(before)
+    var after_text = zone.to_text(after)
+    var before_offset = zone.offset_at(before)
+    var after_offset = zone.offset_at(after)
+    console.print(zone.name, before_text, before_offset)
+    console.print(zone.name, after_text, after_offset)
+    var history = Instant(Duration(-5364662400, 'seconds'))
+    var history_text = zone.to_text(history)
+    console.print("before railway time", history_text)
+}
+
+func the_gap(zone: TimeZone) {
+    var missing = LocalDateTime(LocalDate(2024, 3, 10), LocalTime(2, 30, 0, 0))
+    show(zone, missing, 'compatible')
+    show(zone, missing, 'earlier')
+    show(zone, missing, 'later')
+}
+
+func the_overlap(zone: TimeZone) {
+    var twice = LocalDateTime(LocalDate(2024, 11, 3), LocalTime(1, 30, 0, 0))
+    show(zone, twice, 'compatible')
+    show(zone, twice, 'earlier')
+    show(zone, twice, 'later')
+    var summer = LocalDateTime(LocalDate(2024, 7, 4), LocalTime(12, 0, 0, 0))
+    show(zone, summer, 'compatible')
+    var instant = zone.to_instant(summer, 'compatible')
+    var back = zone.to_local(instant)
+    var round_trip = back == summer
+    console.print("round trip", round_trip)
+}
+
+func other_zones() {
+    var london = zones.find("Europe/London")
+    crash london
+    var lord_howe = zones.find("Australia/Lord_Howe")
+    crash lord_howe
+    var british_gap = LocalDateTime(LocalDate(2024, 3, 31), LocalTime(1, 30, 0, 0))
+    var half_hour_gap = LocalDateTime(LocalDate(2024, 10, 6), LocalTime(2, 15, 0, 0))
+    var half_hour_overlap = LocalDateTime(LocalDate(2024, 4, 7), LocalTime(1, 45, 0, 0))
+    show(london, british_gap, 'compatible')
+    show(lord_howe, half_hour_gap, 'compatible')
+    show(lord_howe, half_hour_overlap, 'earlier')
+    show(lord_howe, half_hour_overlap, 'later')
+    var mars = zones.find("Mars/Olympus_Mons")
+    if mars {
+        console.print("found", mars.name)
+    } else {
+        console.print("no zone is called Mars/Olympus_Mons")
+    }
+}
+
+func show(zone: TimeZone, local: LocalDateTime, ambiguity: TimeZone.Ambiguity) {
+    var instant = zone.to_instant(local, ambiguity)
+    var shown = zone.to_text(instant)
+    console.print(zone.name, local, ambiguity, instant, shown)
+}

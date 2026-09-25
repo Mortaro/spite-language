@@ -1,0 +1,67 @@
+var console = Console()
+
+func InstantArithmetic() {
+    instants()
+    durations()
+    far_instants()
+}
+
+func instants() {
+    var start = Instant(Duration(0, 'seconds'))
+    var moment = Instant(Duration(1710054000, 'seconds'))
+    console.print(start, moment)
+    var hour = Duration(1, 'hours')
+    var later = moment + hour
+    var earlier = moment + -hour
+    var forward = later - moment
+    var backward = earlier - moment
+    console.print(later, earlier, forward, backward)
+    var same = Instant(Duration(1710054000000, 'milliseconds'))
+    var equal = moment == same
+    var ordered = earlier < moment and moment < later
+    var reversed = later > earlier
+    console.print(equal, ordered, reversed)
+    var precise = Instant(Duration(1700000000123, 'milliseconds'))
+    var since_1970 = precise.since_1970
+    var milliseconds = since_1970.total('milliseconds')
+    var seconds = since_1970.total('seconds')
+    console.print(precise, milliseconds, seconds)
+    var just_before = Instant(Duration(-1, 'nanoseconds'))
+    var gap = start - just_before
+    console.print(just_before, gap)
+}
+
+func durations() {
+    var ninety = Duration(90, 'minutes')
+    var hours = ninety.total('hours')
+    var minutes = ninety.total('minutes')
+    var minute_part = ninety.part('minutes')
+    console.print(ninety, hours, minutes, minute_part)
+    var longer = ninety + Duration(2500, 'milliseconds')
+    var shorter = ninety - Duration(91, 'minutes')
+    console.print(longer, shorter)
+    var negative = Duration(-1500, 'milliseconds')
+    var negative_seconds = negative.total('seconds')
+    var negative_milliseconds = negative.part('milliseconds')
+    var tripled = negative * 3
+    var flipped = -negative
+    console.print(negative, negative_seconds, negative_milliseconds, tripled, flipped)
+    var micro = Duration(1, 'microseconds')
+    var zero = micro - micro
+    var day = Duration(25, 'hours')
+    console.print(micro, zero, day, zero.is_zero, negative.is_negative)
+    var sixty = Duration(60, 'minutes')
+    var one = Duration(1, 'hours')
+    var fifty_nine = Duration(59, 'minutes')
+    var same = sixty == one
+    var less = fifty_nine < one
+    var greater = negative > zero
+    console.print(same, less, greater)
+}
+
+func far_instants() {
+    var first_year = Instant(Duration(-62135596800, 'seconds'))
+    var year_ten_thousand = Instant(Duration(253402300800, 'seconds'))
+    var before_year_one = first_year + Duration(-1, 'seconds')
+    console.print(first_year, year_ten_thousand, before_year_one)
+}
