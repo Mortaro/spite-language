@@ -267,10 +267,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     to `type Target { health: Health }` now holds `{health: Health()}`, whose `.class` answers `Object`. A `type`
     that requires a function has no default object and stays a null pointer that reads defaults. Should that
     case be a compile error naming the field instead?
-85. **A singleton is no longer reference counted** (D36; measured 0.8 s to 0.04 s for two threads fetching a
-    generic singleton 20 million times each). Singletons are destroyed at exit in the order they were made,
-    reversed; before, the counts decided it. One visible difference: a singleton still referenced by a leaked
-    object is destroyed anyway. Fine?
 ## From porting PSD, zstd and .blend to Spite (SlopEngine)
 
 88. **Arithmetic takes the left operand's type** (open question 3, "right-to-left casting"): an `Int` times a
