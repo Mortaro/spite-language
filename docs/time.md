@@ -7,7 +7,7 @@ in that zone would read, and turns such a reading back into an `Instant`. The ca
 are separate: a `Duration` is an exact amount of time, and a `Period` is an amount of calendar (years, months,
 days), whose real length depends on where it is applied.
 
-The names and the exact shape are proposed by Claude and wait on Mortaro (D127, manual section 15).
+The names and the exact shape are proposed by Claude and wait on Mortaro (D127; [the rules in full](#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed)).
 
 | Class | What it is | Stored as |
 |---|---|---|
@@ -358,3 +358,61 @@ the day a country changes its law, and every program built with it stays wrong u
 operating system's copy is updated for every program at once. It would also add a few hundred kilobytes to every
 program that names a zone. The costs are a machine with no database, where `find` answers `null` and
 `read_tzif` takes a file you ship, and Windows before 10 version 1903, which has no `icu.dll`.
+
+## Rules in full
+
+The normative rules for this part of the language, in full: what the sections above teach, with the edge
+cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
+manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
+fix. A `D` number is a row of the [decision log](decisions.md).
+
+### Time: one stored instant, zones for presentation  **[implemented on Windows; the shape proposed by Claude, unconfirmed]**
+
+D127 (decided by Mortaro): the best date and time support there is, so that Spite never repeats JavaScript's
+`Date` and the wrappers it bred, with **one stored format -- an exact instant -- and time zones only a
+presentation layer**, copied from the best modern design. `docs/time.md` compares `Temporal`, `java.time`,
+`jiff`/`chrono`, NodaTime and Go's `time` and argues the choice. Everything below is Claude's proposal
+(`mortaros_missing_decisions.md` items 115-122): NodaTime's model with Temporal's vocabulary, and no stored zoned
+type.
+
+| Class | What it is |
+|---|---|
+| `Instant(since_1970: Duration)` | a point on the universal time line; `+ Duration`, `- Instant` (a `Duration`), `==`, `<`, `>`; prints in UTC with `Z` |
+| `Duration(amount, unit)` | exact time, whole seconds and nanoseconds; units `'nanoseconds'` to `'hours'` and never days; `total(unit)`, `part(unit)`, `+`, `-`, `* Long`, unary `-`, `==`, `<`, `>` |
+| `Period(amount, unit)` | calendar time, years, months and days (`'weeks'` is seven days); `+`, unary `-`, `==`, and no `<` |
+| `LocalDate(year, month, day)` | a proleptic Gregorian date with no zone; `+ Period`, `weekday`, `day_of_year`, `days_in_month`, `is_leap_year`, `days_since_1970`, `days_until`, `period_until` |
+| `LocalTime(hour, minute, second, nanosecond)` | a clock reading with no date and no zone |
+| `LocalDateTime(date, time)` | both, with no zone; `+ Period` |
+| `TimeZone` | `to_local(instant)`, `to_instant(local, ambiguity)`, `to_text(instant)`, `offset_at(instant)`, `name` |
+| `TimeZones()` | the database, a singleton: `find(name): TimeZone?`, `utc()`, `fixed_offset(duration)`, `system()`, `read_tzif(name, data): TimeZone?` |
+| `TimeText()` | ISO 8601 (RFC 3339, RFC 9557), a singleton: `read_instant`, `read_local_date_time`, `read_local_date`, `read_local_time`, `read_duration`, `read_period`, each answering `T?`; writing is each type's `to_string()` |
+
+- **A local reading never becomes an instant without a zone.** No local type has a function answering an
+  `Instant`, `==` between the two kinds is a type error, and `zone.to_instant(local, ambiguity)` is the only
+  bridge. `TimeText.read_instant` refuses text without an offset, and `read_local_date_time` refuses text with one.
+- **Exact and calendar lengths never mix.** A `Duration` has no days, since a day is 23 to 25 hours where clocks
+  change; a `Period` has no hours and adds only to the local types, months first (a day past the new month's end
+  becomes its last day: January 31 plus a month is February 29 in 2024), then days. `period_until` is
+  `java.time`'s `Period.between`.
+- **Every gap and overlap is resolved by a rule the call names**: `'compatible'` (a gap resolves after it, an
+  overlap to its first instant -- RFC 5545's rule, and `java.time`'s and `Temporal`'s default), `'earlier'` or
+  `'later'`. The zone finds the offsets a day either side of the reading and keeps the ones that map back to it:
+  both for an overlap, neither for a gap.
+- **A value that cannot exist halts; text that cannot exist is `null`.** `LocalDate(2023, 2, 29)` and
+  `LocalTime(24, 0, 0, 0)` crash, since a program that builds one from its own numbers has a bug (D24); reading
+  text answers `T?`. A leap second in text reads as the second before it.
+- **The database is the operating system's, and nothing is embedded.** Windows reads IANA zones through
+  `icu.dll` (Windows 10 1903 and later), loaded only when a named zone is asked for
+  (`library/windows/zone_calendar.spite`); Linux and macOS read the TZif files under `/usr/share/zoneinfo` in Spite
+  (`library/tzif_reader.spite`: RFC 8536 versions 1 to 4 and the POSIX rule in the footer), and `system()` follows
+  `TZ`, then `/etc/localtime`. `read_tzif` is the same reader for a file a program brings. **The Linux and macOS
+  path is untested**: `check.sh` holds it to compiling (it writes `conformance/stage6/daylight_saving` for each
+  system), and `conformance/stage6/zone_files` runs the TZif reader on Windows over three files written for the
+  test and checked with Python's `zoneinfo`.
+- **Clock** keeps `elapsed_nanoseconds()` and `elapsed_milliseconds()` for measuring, and `now()` answers an
+  `Instant`.
+
+Not built: calendars other than ISO 8601's, leap seconds, formatting patterns and localized names, zone
+abbreviations. `conformance/stage6/instant_arithmetic`, `calendar_math`, `daylight_saving`, `zone_files`,
+`fixed_offsets`, `time_text_round_trips` and `time_text_errors`; `docs/time.md`.

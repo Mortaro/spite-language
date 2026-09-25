@@ -1,0 +1,5 @@
+Chore { work: null }
+Job { work: null, first: 0 }
+Job { work: Function {}, first: 0 }
+hello, Ada
+hello, Grace

@@ -2,7 +2,7 @@
 
 Mortaro asked for this in D94: every `while` checked against the member templates, the `else if` and `while`
 cases that cannot be simplified listed with examples, and some simplified ones "to make sure it didnt become
-esoteric shit". Open questions 15 and 20 in `manual.md`, items 2 and 3 in `mortaros_missing_decisions.md`.
+esoteric shit". Open questions 15 and 20 in `docs/open_questions.md`, items 2 and 3 in `mortaros_missing_decisions.md`.
 
 Everything below is analysis. No code was changed. The rules at the end are **(proposed by Claude,
 unconfirmed)**.
@@ -12,7 +12,7 @@ unconfirmed)**.
 Both proposed rules are decided and built (2026-09-25): the nested `if`/`else` rule of section 5 as written
 (`diagnostics/nested_if_else`; the compiler's nine remaining cases were rewritten), and the `while` rule with
 the table of section 5 (`diagnostics/template_walk`), which found one loop left in the tree
-(`hardcoded_setting`, now `find_by_name`). Manual section 6.
+(`hardcoded_setting`, now `find_by_name`). `docs/control_flow.md`.
 
 ## Built (D105)
 
@@ -49,12 +49,11 @@ Line numbers are still those of 122c39f.
 
 D148 removed what follows: a template no longer reaches the caller's functions, and the `while` rule that named
 one is gone. The caller's function is passed as a value instead (`statements.each(collect_statement_facts)`,
-`functions.each(describe)`); manual section 8, "Passing a function for each element". The record below is kept
+`functions.each(describe)`); `docs/collections.md`, "Passing a function for each element". The record below is kept
 as it was built.
 
 Templates now take a function of the caller that receives the element and nothing else
-(`names.each_say_hello()`), and a `while` written only to do that is an error naming the template (manual
-section 8, "A function of the caller for each element"). What that did to the 145 loops of the first (b) row:
+(`names.each_say_hello()`), and a `while` written only to do that is an error naming the template (`docs/collections.md`, "A function of the caller for each element"). What that did to the 145 loops of the first (b) row:
 
 - **Rewritten: 2.** `generator.spite` `collect_body_facts` is `statements.each_collect_statement_facts()`, and
   `docs/reflection.md`'s `function_reflection` is `functions.each_describe()`. They are the only two loops in the

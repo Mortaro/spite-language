@@ -1,7 +1,8 @@
 # Spite compiler plan
 
-Source of truth for language design is `manual.md`. This file tracks implementation milestones and decisions
-Source of truth for language design is `manual.md`. This file tracks what the compiler still has to build.
+Source of truth for language design is `docs/` (D193: each page's rules in full, and the decision log in
+`docs/decisions.md`). This file tracks implementation milestones and decisions
+Source of truth for language design is `docs/` (D193). This file tracks what the compiler still has to build.
 The compiler is written in Spite and compiles itself, emitting C.
 
 ## Layout
@@ -24,8 +25,8 @@ and balanced allocations.
 ## Milestones
 
 10. Ruby grade reflection and reopening the standard library. Split in two:
-   - **10a. Done.** Reopen standard library classes (manual.md section 16 item 1): the way to try out a
-     package before upstreaming it. Reopening `Spite.Class` is D7 (manual.md section 8, "Class-level
+   - **10a. Done.** Reopen standard library classes (`docs/open_questions.md` item 1): the way to try out a
+     package before upstreaming it. Reopening `Spite.Class` is D7 (`docs/reflection.md`, "Class-level
      functions") -- a root overrides a class-level default program-wide, a new hook name creates a new hook
      program-wide, and `--final-classes` shows each change with its root, so nothing about it is silent.
      Smaller than 10b (reopening is already implemented for user classes), this mostly needs the "library"
@@ -42,27 +43,27 @@ and balanced allocations.
      field's declared default.
      Calling by `Symbol` with arguments, defining members from data, and hooks that run when a class is
      reopened move out of this milestone (the design pass places them under compile-time class generation).
-     Comprehensive, Ruby grade reflection at compile time (manual.md section 16 item 2): `attributes`,
+     Comprehensive, Ruby grade reflection at compile time (`docs/open_questions.md` item 2): `attributes`,
      `class`, `functions`, `Class.instances`, enumerating and calling functions by `Symbol`, respond-to checks, defining
      members from data, and hooks when a class is reopened -- all resolved at compile time and all emitted as source that
-     section 16 item 2 and by milestone 11c below; this entry exists because the manual pointed at a milestone that was
+     section 16 item 2 and by milestone 11c below; this entry exists because the manual (now `docs/`) pointed at a milestone that was
      missing from this list. The design pass it needed is recorded in `bootstrap/COMPILER_PLAN.md`.
-     **D12 sets the shape** (manual.md section 8, "Reflection objects"): the whole family lives in the `Spite`
+     **D12 sets the shape** (`docs/reflection.md`, "Reflection objects"): the whole family lives in the `Spite`
      namespace -- `Spite.Class` (`.name`/`.namespace`/`.attributes`/`.functions`/`.instances`), `Spite.Function`
      (`.name`/`.arguments`/`.returns`), `Spite.Argument` (`.name`/`.class`), `Spite.Attribute`
      (`.name`/`.class`/`.value`) -- and `.class` becomes a real `Spite.Class` everywhere instead of the type name
      as a `String`, which is what the generator emits today. That change is what makes reflection
      composable (identity comparison rather than string matching) and it is what D13 in milestone 12 is built on,
      so it is the part of this milestone with a caller waiting.
-     **D6 lands here too** (manual.md section 8, "Class-level functions"): `Spite.Class` becomes a real standard
+     **D6 lands here too** (`docs/reflection.md`, "Class-level functions"): `Spite.Class` becomes a real standard
      library class declaring the class-level hooks, a class file defining one of those names overrides it for its own
      class object, and the override folds at compile time. Spite has no static functions and will not get any, so this
      is the only mechanism for a class-level fact. `func is_singleton(): Bool` is the first hook (D8, decided --
-     manual.md section 8, "Singletons"), keyed by a distinct literal constructor argument list and emitted as one
+     `docs/classes_and_files.md`, "Singletons"), keyed by a distinct literal constructor argument list and emitted as one
      static slot per argument list. A literal `return` folds without any evaluator, so the hook mechanism and
      `is_singleton()` can both ship ahead of the rest of this milestone.
-11. Foreign libraries (manual.md section 17, D4). Split in three:
-    - **11a. Done (2026-09-23)** -- see manual.md section 17 for what was built and the choices made. `DynamicLibrary` itself: the class, the `missing_function`/`missing_attribute` hooks
+11. Foreign libraries (`docs/foreign_libraries.md`, D4). Split in three:
+    - **11a. Done (2026-09-23)** -- see `docs/foreign_libraries.md` for what was built and the choices made. `DynamicLibrary` itself: the class, the `missing_function`/`missing_attribute` hooks
       (the Symbol-codegen segment rule at its limit, where the segment is the whole name, opted into by a reserved
       name), `LoadLibraryA`/`dlopen` + `GetProcAddress`/`dlsym` with the import table built from the tree-shaken call
       sites and resolved once in the constructor, the three built-in naming conventions (`'identity'`, `'windows'`,
@@ -71,7 +72,7 @@ and balanced allocations.
       small and useful on its own: `String.pascal_case()`, `String.camel_case()`, `String.abbreviated()` (the
       the linter abbreviation table read backwards -- one shared table, two directions), `Symbol.kind`
       (`'function'`/`'constant'`/`'type'`), and `Spite.Class.size`.
-    - **11b. Done (2026-09-23)** -- see manual.md section 17. The header half: `#include` of the constructor's header argument, constant reads
+    - **11b. Done (2026-09-23)** -- see `docs/foreign_libraries.md`. The header half: `#include` of the constructor's header argument, constant reads
       (`user32.mouseeventf_leftdown` -> `MOUSEEVENTF_LEFTDOWN`), PascalCase type reads, a scalar-only `type` passed by
       address as a C struct, `Type.size`, the generated `_Static_assert(sizeof(C_TYPE) == sizeof(spite_type))` layout
       check (name derived through the naming rule, used to verify and never to generate), and the diagnostic for a
@@ -81,11 +82,11 @@ and balanced allocations.
       11b ship the three built-in conventions first, so this is an upgrade, not a prerequisite.
     - **Decide before starting 11a:** open question 7 (`singleton`), since `DynamicLibrary` is declared one and two
       classes binding the same library must share one import table. Nothing in milestone 11 blocks on 6b or 8b.
-12. **Not started.** The web target (manual.md section 17, "Other environments"): `$target` as a reserved program
+12. **Not started.** The web target (`docs/targets.md`, "Other environments"): `$target` as a reserved program
     variable, C -> wasm through a C compiler targeting `wasm32-freestanding`, the generated JavaScript glue module,
     `DynamicLibrary` reopened over a JS module's exports, platform roots selected by `load` under a compile-time `if`,
     and `File`/`Directory`/`Process` diagnosed under `--target=web`.
-    **D13, the isomorphic split** (manual.md section 17, "Isomorphic classes"): partition every function by the
+    **D13, the isomorphic split** (`docs/targets.md`, "Isomorphic classes"): partition every function by the
     class of its first parameter -- `ServerContext` into the server bundle with a route registration and a
     generated network stub on the client, `ClientContext` into the client bundle, neither into both. Reads the
     signature through D12 reflection, comparing class identity rather than matching a name, so it needs milestone
@@ -94,7 +95,7 @@ and balanced allocations.
     type that cannot be serialised is a diagnostic naming it. **Blocked on the errors design** (`mortaros_notes.md`
     item 2): a network call fails in ways a local call cannot, and this is where "only errors that stop the
     program" has to be answered concretely. This is the Nullstack-in-Spite milestone.
-13. **Done.** D5 + D9, the codegen value form (manual.md section 9): remove the `generics` header line
+13. **Done.** D5 + D9, the codegen value form (`docs/metaprogramming.md`): remove the `generics` header line
     (writing it becomes a parse error naming the new form) and move the ordered list into the constructor --
     `func Weapon<$damage_type, $is_magic>(new_damage: $damage_type)`, called `Weapon<Magic, true>(10)`. Every
     codegen value a caller supplies is declared, even a single one; call sites stay positional with no named
@@ -117,7 +118,7 @@ and balanced allocations.
     (`bootstrap/source/syntax/`) changes with it. Mortaro wants to bootstrap as soon as possible
     (`mortaros_notes.md`, 2026-09-19: get rid of the old code), so a language change that is decided but not
     landed is rework waiting to happen for 8b -- this one is cheap and should go early.
-14. **Done, as D70 (2026-09-23)** -- symbols are tree-shakable runtime values from a table the compiler writes, which supersedes the compile-time-only rule below. D10 + D11, symbols and two-level reflection (manual.md sections 7 and 8): a symbol literal
+14. **Done, as D70 (2026-09-23)** -- symbols are tree-shakable runtime values from a table the compiler writes, which supersedes the compile-time-only rule below. D10 + D11, symbols and two-level reflection (`docs/values_and_types.md` and `docs/metaprogramming.md`): a symbol literal
     (`'age'`), legal only where an enum or `Symbol` is expected, with an enum checked as the closed list of
     symbols it accepts and no untyped symbol literal; `Symbol` staying compile-time only, so it cannot be stored
     in a field. Then the two levels: `weapon.attributes['damage']` for the value and
@@ -125,14 +126,14 @@ and balanced allocations.
     pay-off is that `attributes[symbol]` stops being a special compile-time-only form and becomes ordinary
     indexing, and that `person.set_attribute('age', 2)` becomes writable in source at all. Overlaps milestone 10b
     (the class-level mapping's shape is part of that design pass) and should probably land with it.
-15. **Nearly done (2026-09-24).** D14, dissolve the runtime (manual.md section 15, "Pure Spite"). `runtime/` is
+15. **Nearly done (2026-09-24).** D14, dissolve the runtime (`docs/standard_library.md`, "Pure Spite"). `runtime/` is
     deleted: the only hand-written C left is `bootstrap/source/generation/prelude.spite` (the allocator switch, the
     object header, `String`'s layout, and the `Memory`/`DynamicLibrary`/`Arguments` floor), and the generated C
     is tree-shaken so a program carries only what it calls. **D81/D82 done (2026-09-24):** no class is
     registered by hand; the members whose bodies stay C are declarations without a body in the compiler's
     reopening of `Memory`, `DynamicLibrary`, `TypedMemory`, the number classes, `Concurrent`/`Parallel` and the
     reflection classes (item 23). Ordered, because each step unblocks the next:
-    - **15a. Proposed (2026-09-23), waiting on Mortaro** -- manual.md section 15, "The floor, named". Name the floor: the five to ten intrinsics the compiler emits directly (raw memory in and out --
+    - **15a. Proposed (2026-09-23), waiting on Mortaro** -- `docs/standard_library.md`, "The floor, named". Name the floor: the five to ten intrinsics the compiler emits directly (raw memory in and out --
       `mmap`/`VirtualAlloc` through the FFI on native, `memory.grow` on wasm -- plus whatever the emitted C needs
       before any Spite exists). Nothing else is allowed to be hand-written C. This is a design step, and it gates
       the rest, because it decides what "pure" means precisely enough to check.
@@ -180,7 +181,7 @@ and balanced allocations.
     Performance is not a reason to delay any of this: the output is still C, so Spite-written standard library
     code meets the same optimiser the hand-written C does.
 
-16. **Done.** Being able to run tests (manual.md D46: a test is a package that crashes). The point was
+16. **Done.** Being able to run tests (D46, `docs/testing.md`: a test is a package that crashes). The point was
     to build only what tests actually need, not to wait for milestone 10. Ordered so that each step is usable on
     its own:
     - **16a. Done.** All nine examples migrated, each with an `expected_output.txt`, run by `check.sh` to the
@@ -212,17 +213,17 @@ and balanced allocations.
     Why this order: after 16a and 16b -- both small -- a failing test is a crash naming a file, a line, a class
     and a function, which is enough for an AI to fix it and re-run. Everything after that is refinement.
 
-17. **Mortaro's 2026-09-23 inbox** (manual.md decision log, D58-D69; open questions 12-20). Built:
+17. **Mortaro's 2026-09-23 inbox** (`docs/decisions.md`, D58-D69; open questions 12-20 in `docs/open_questions.md`). Built:
     D58 `join`, D59 (already true), D60 `_:` and repeated cases, D61 for Symbol codegen (the `List<T>` member
     templates wait on 15c), D63 copy-to-narrow, D64 `[]` answers `T?` with count/bound proofs, D65
     `name_with_namespaces`, D66 leak-proven tests, D67 file order, D69 `T? == value`. **Waiting on Mortaro:**
-    D68 (class names as `Symbol`) conflicts with D10 -- the manual records a proposal; open questions 12
+    D68 (class names as `Symbol`) conflicts with D10 -- the docs record a proposal; open questions 12
     (generic header syntax), 14 (variadic arguments), 15 (whether `while` goes), 18 (entry file convention),
     19 (constants and read-only reflection attributes) and 20 (nested `if`/`else`) each carry Claude's position.
-18. **Done (2026-09-23): the formatter** (manual.md sections 12 and 13): `bin/spite format [--check]`, a
+18. **Done (2026-09-23): the formatter** (`docs/style.md` and `docs/compiler.md`): `bin/spite format [--check]`, a
     safety check that refuses any rewrite that changes the program or loses a comment, and a tree kept in one
     style by `check.sh`. Not built: formatting on every compile, long list literals, `docs/` code blocks.
-19. **Done (2026-09-24): D76, `$` for generics only and `Environment` for settings** (manual.md section 9,
+19. **Done (2026-09-24): D76, `$` for generics only and `Environment` for settings** (`docs/metaprogramming.md`,
     "Program settings"). `library/environment.spite` is a singleton a program reopens in its own
     `environment.spite`; each declared field is read at run time from the program's `--name=value`, else the
     upper-case environment variable, else its literal default. An undeclared `$name` is an error pointing at
@@ -238,19 +239,18 @@ and balanced allocations.
     (`--final-classes`, `--repl-port`, `--format=false`), a `.spite` path still naming an entry, and the C that
     stays in `main` (`mortaros_missing_decisions.md`). **Not done:** `main`'s floor (arguments, `_setmode`,
     releasing singletons and class objects, the memory report) is still written in C by the compiler.
-20. **Done (2026-09-24): D87, D90 and D104, the header lines and variadic arguments** (manual.md sections 5, 8
-    and 9). `generic $name` lines replace the constructor's `<...>` list (a parse error now), so a generic class
+20. **Done (2026-09-24): D87, D90 and D104, the header lines and variadic arguments** (`docs/functions_and_operators.md` and `docs/metaprogramming.md`). `generic $name` lines replace the constructor's `<...>` list (a parse error now), so a generic class
     needs no constructor; `singleton` is a header line and `func is_singleton()` an error outside
     `Spite.Class`; D67's order starts with both. `...name: List<Type>` gathers the remaining arguments into a
     list, over a class or a `type`. **Waiting on Mortaro:** the interpretations in the three 2026-09-24
     "implements" rows, and whether `Console.print` takes `...values: List<Printable>` (what `Printable`
     requires). **Not done:** the named-constraint form open question 12 argued for (`generic $sub_type:
     Openable`), which D87 did not decide.
-21. **Done (2026-09-24): D93, a directory's entries** (manual.md section 15, "System classes"). `Directory.path`
+21. **Done (2026-09-24): D93, a directory's entries** (`docs/standard_library.md`, "System classes"). `Directory.path`
     and `entries(): List<Directory.Entry>`, a union of `Directory` and `File`
     (`conformance/stage4/directory_entries`, `docs/standard_library.md`). **Waiting on Mortaro:** the name
     `Entry`, the order, and removing `files()`/`folders()`.
-22. **Done (2026-09-24): D95, `Json<T>`** (manual.md section 15, "JSON is reflection, not a library"; sections 8
+22. **Done (2026-09-24): D95, `Json<T>`** (`docs/json.md`, "JSON is reflection, not a library"; sections 8
     and 9 for the metaprogramming it needed). `library/json.spite` and `library/json_reader.spite`, written with
     `Symbol<$value_type>` templates called for every attribute by their plural, compile-time type tests
     (`$value_type == List`) and `$value_type.element_type`; text casts to an enum by name
@@ -260,7 +260,7 @@ and balanced allocations.
     generic instance's generated functions in `--final-classes`.
 
 23. **Done (2026-09-24): D82, D83, D88, D92, D98, D100 and D101 -- the compiler's reopening, numbers as classes,
-    read-only reflection, and `Memory` as the floor** (manual.md sections 2, 4, 8, 11, 15 and 17; the five
+    read-only reflection, and `Memory` as the floor** (`docs/classes_and_files.md`, `docs/values_and_types.md`, `docs/metaprogramming.md`, `docs/packages.md`, `docs/standard_library.md` and `docs/foreign_libraries.md`; the five
     "implements" rows of 2026-09-24). A `func` without a body is a member the compiler supplies, merged as a
     reopening after `library/` and printed by `--final-classes`; `Memory`, `DynamicLibrary` and `TypedMemory` are
     `library/` files. `Int`, `Long`, `Double` and the rest are value classes with `text()` in Spite, `this` is a
@@ -275,7 +275,7 @@ and balanced allocations.
     the way back.
 
 24. **Done (2026-09-24): D107 and D108 -- `to_string()`, and every type's storage visible over `Memory`**
-    (manual.md sections 4, 10 and 15; the four "implements D107/D108" rows). Numbers and `Bool` answer
+    (`docs/values_and_types.md`, `docs/memory.md` and `docs/standard_library.md`; the four "implements D107/D108" rows). Numbers and `Bool` answer
     `to_string()`. `library/string.spite` declares `_bytes`, `_length`, `_section` and `_capacity`, the compiler
     derives `SpiteString`'s layout from them, and every `String` function is Spite, down to its constructor and
     `drop()`; `TextBytes`, `Memory.take_text` and `Memory.address_of` are gone and `Memory.text` is Spite. Each
@@ -285,7 +285,7 @@ and balanced allocations.
     also keeps those builds unshaken). **Waiting on
     Mortaro:** `mortaros_missing_decisions.md` 50-56. **Not done:** `Arguments` is still C in the prelude; a
     `List` or `Dictionary` does not declare a layout the compiler reads (they are ordinary classes already).
-25. **Done on Windows (2026-09-24): milestone 6b, live reload -- D111 and D112** (manual.md section 14, "Live
+25. **Done on Windows (2026-09-24): milestone 6b, live reload -- D111 and D112** (`docs/repl.md`, "Live
     reload and 6b"; `docs/repl.md`). `--hot-reload` calls the program's functions through re-pointable slots,
     rebuilds the classes whose files changed (and the callers of their changed signatures) into a library with
     `--mode=reload`, and swaps it in at a drain point, from the REPL's `reload` or the operating system's file
@@ -293,7 +293,7 @@ and balanced allocations.
     and checks both paths keep its state. **Not done:** Linux and macOS are only compiled; instance migration,
     reflection that follows reloads, and compiling off the program's thread wait on
     `mortaros_missing_decisions.md` 64-69.
-26. **Done (2026-09-25): D180, enums an engine can reopen and walk** (manual.md sections 7, 8 and 11;
+26. **Done (2026-09-25): D180, enums an engine can reopen and walk** (`docs/values_and_types.md`, `docs/metaprogramming.md` and `docs/packages.md`;
     `docs/values_and_types.md`, `docs/packages.md`, `docs/metaprogramming.md`). A reopening adds values to an
     enum; `Symbol<Course>` walks its values (`.name`, `.value`, the plural in order); a name pattern's hole
     matches only the values of the enum named for it, and the plural walks matches in the enum's order. All
@@ -301,36 +301,35 @@ and balanced allocations.
     `conformance/stage6/system_phases`, `diagnostics/hole_values`. **Not done:** environments as a reopenable
     enum (D180's last sentence); live reload still refuses a changed enum. The spellings wait on
     `mortaros_missing_decisions.md` (the D180 questions).
-27. **Done (2026-09-25): D175 and D138 -- constrained generics, and `Json` takes its value** (manual.md sections
-    9 and 15; the two "implements" rows of 2026-09-25). `generic $item_type: Printable` is checked where each
+27. **Done (2026-09-25): D175 and D138 -- constrained generics, and `Json` takes its value** (`docs/metaprogramming.md` and `docs/standard_library.md`; the two "implements" rows of 2026-09-25). `generic $item_type: Printable` is checked where each
     class is given, written out or inferred (`conformance/stage6/generic_constraints`,
     `diagnostics/generic_constraints`, `diagnostics/generic_constraint_not_a_type`, `docs/metaprogramming.md`).
     Inference reads a `$name` through `$name?`, `List<$name>` and `Dictionary<$name>` too, and `Json(order).write()`
     and `Json<Order>(null).read(text)` use it with nothing special for `Json` (`tests/json_tests.spite`,
     `docs/json.md`). **Waiting on Mortaro:** the reading spelling and the constraint readings in
     `mortaros_missing_decisions.md`. **Not done:** a constraint by a union.
-28. **Done on Windows (2026-09-25): D194, the standard library's file and folder watcher** (manual.md section 15,
+28. **Done on Windows (2026-09-25): D194, the standard library's file and folder watcher** (`docs/standard_library.md`,
     "System classes"; `docs/standard_library.md`, "Watch files and folders"). `Watcher` watches a file or a folder
     tree through `ReadDirectoryChangesW`, `inotify` or `kqueue`, and `changes()` answers the settled paths without
     waiting; live reload's watcher is now `Watcher` (the per-system `hot_reload.spite` files are gone). With it, a
     `DynamicLibrary` looks up only the symbols of functions that survive tree shaking. Tested by
     `conformance/stage6/file_watching` and `check.sh`'s live reload step. **Not done:** Linux and macOS are only
     compiled; the name waits on `mortaros_missing_decisions.md` 166.
-29. **D169-D172, four compile-time rules** (manual.md sections 5, 6 and 12). **D170 done (2026-09-25):** an
+29. **D169-D172, four compile-time rules** (`docs/functions_and_operators.md`, `docs/control_flow.md` and `docs/style.md`). **D170 done (2026-09-25):** an
     `if`/`else` directly inside a branch of another `if`/`else` is an error naming a function or a `switch`
     (`diagnostics/nested_if_else`). **D171 done (2026-09-25):** a `while` that only does what a member template
     does is an error naming the template (`diagnostics/template_walk`). **D172 done (2026-09-25):** a variable
     named like a function of its class is an error (`diagnostics/shadowed_function`). **D169 done (2026-09-25):** a
     call undoes a proof only if, followed through what it calls, it may assign an attribute or shrink a list the
     proof reads (`diagnostics/call_undoes_proof`; `bootstrap/source/generation/call_effects.spite`).
-30. **Done (2026-09-25): D178, D150 and D151 -- the `Memory` namespace** (manual.md sections 10, 11 and 15; the
+30. **Done (2026-09-25): D178, D150 and D151 -- the `Memory` namespace** (`docs/memory.md`, `docs/packages.md` and `docs/standard_library.md`; the
     "implements D178" row). `Memory.Address` is a number class whose reads, writes and atomics are primitives
     the compiler lowers in place, callable only from the standard library's classes; `Memory.Heap` is the
     default allocator. The singleton `Memory` and its free functions are gone from `library/` and the compiler,
     and every class binds `var heap = Memory.Heap()`. **Waiting on Mortaro:** `mortaros_missing_decisions.md`
     171-172. **Not done:** D178's allocation from operating-system pages, and copying and comparing through
     `DynamicLibrary` (the heap is still `malloc`).
-31. **Done (2026-09-25): D152 and D153 -- choosing an allocator** (manual.md section 10, "Allocators"; the
+31. **Done (2026-09-25): D152 and D153 -- choosing an allocator** (`docs/memory.md`, "Allocators"; the
     "implements D152 and D153" row). `x.memory.allocator = arena` on the line after `x` is made makes `x` in the
     arena from the start (constructors, `List<T>()`, `Dictionary<T>()`, `.copy()`); anywhere later it is an
     error naming `copy()`. `Memory.Arena` is built; only a class some line places carries the allocator's two

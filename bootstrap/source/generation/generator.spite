@@ -918,7 +918,26 @@ func exact_type_label(spite_type: Analysis.SpiteType): String {
         var dictionary_element = dictionary_type.get_element()
         return "Dictionary_{exact_type_label(dictionary_element)}"
     }
+    var function_type = type_shape.as_class_ref(spite_type)
+    if function_type {
+        if function_type.has_signature {
+            return function_type_label(function_type)
+        }
+    }
     return type_label(spite_type)
+}
+
+func function_type_label(function_type: Analysis.Types.ClassRefType): String {
+    var label = "Spite_Function_{function_type.arguments.count()}"
+    var index = 0
+    while index < function_type.arguments.count() {
+        label = "{label}_{exact_type_label(function_type.arguments[index])}"
+        index = index + 1
+    }
+    if function_type.returns {
+        label = "{label}_{exact_type_label(function_type.returns)}"
+    }
+    return label
 }
 
 func constant_text(expression: Syntax.Expressions.Expression): String? {

@@ -272,3 +272,173 @@ There is no configuration file format. A configuration is an ordinary class whos
 or -- for anything that should differ between runs or builds -- a field of `Environment` or `Build`, reopened in
 the program's own folder. Both are Spite, so a setting can be computed, reflected on, and read in the REPL like
 anything else.
+
+## Rules in full
+
+The normative rules for this part of the language, in full: what the sections above teach, with the edge
+cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
+manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
+fix. A `D` number is a row of the [decision log](decisions.md).
+
+### Constructors and the entrypoint
+
+A function named like its class is the constructor. A class without one is constructed with `Person()` and just gets its defaults.
+There is no `main`: a program is a folder, its entry file is the file named after the folder (`kal/kal.spite`), and
+the program is run by constructing that file's class. The entry constructor takes **no arguments** (D89,
+`diagnostics/entry_constructor_arguments`): the command line is read through `Environment()` (run-time settings),
+`Build()` (what the build decided) and `Arguments()` (the raw list), anywhere.
+
+```kal.spite
+func Kal() {
+    var some_key = Arguments().some_key
+    if some_key {
+        console.print(some_key)
+    }
+}
+```
+
+**Nothing starts a program behind its back** (D97; the details proposed by Claude, unconfirmed). Running one is
+itself Spite: `launcher/launcher.spite`, at the root of the repository, is the class the executable's `main`
+constructs, and its constructor is the whole of how a program is loaded:
+
+```launcher.spite
+var build = Build()
+
+func Launcher() {
+    load "library"
+    load "library/{build.target_operating_system}"
+    load build.program
+}
+```
+
+The compiler reads the launcher first and follows its `load` calls in order, instead of walking the standard
+library by a rule of its own: `library/`, then the folder of the operating system the program is compiled for
+(`library/windows/`, `library/linux/` and `library/mac/` are loaded only by name), then the program's folder,
+`build.program`, the folder named on the command line. A `load` in the launcher may use text and the `Build`
+fields the compiler knows before reading anything, read through a `var` of the launcher bound to `Build()` (D110) (`target_operating_system`, `operating_system`, `program`, and
+the ones given as flags); anywhere else `load` still takes a literal. Loading the program's folder is what runs
+it: that one `load` constructs the program's entry class, runs a `--repl` loop on it, and releases it. `main`
+keeps only the floor -- it hands `argv` to `Arguments()`, puts standard output in binary mode on Windows, and after
+`Launcher` returns releases the singletons and class objects and prints the `--debug-memory` balance. `Launcher`
+is library code for reflection (`Spite.Class.instances` does not list it) and `--final-classes` prints it.
+
+Configuration files are ordinary classes whose constructor sets the state.
+
+### Program settings: `Environment`  **[implemented]**
+
+D76 (decided by Mortaro, 2026-09-23): "using $variables for both command line environment setup and generics was
+a bad idea from my end, lets use it just for generics. instead lets have a singleton for dealing with Environment
+arguments so entrypoint is not forced to receive the args of the console." `Environment` is a standard library
+singleton (`library/environment.spite`), and a program **reopens** it ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)) with a file of its own named
+`environment.spite` to declare the settings it has:
+
+```environment.spite
+var serve = false
+var name = "client"
+var workers = 1
+```
+
+```gdscript
+var environment = Environment()
+
+func Dungeon() {
+    if environment.serve {
+        ...
+    }
+}
+```
+
+`Environment()` works anywhere, so the entry constructor no longer has to receive `Arguments` only to pass them
+down. Only the declared fields are read: nothing the program does not name is loaded, which is what makes it a
+deterministic replacement for packages like Node's dotenv. It mirrors Nullstack's `context.environment`, and it is
+how a program such as the game engine gets several environments.
+
+What follows is how it is implemented (proposed by Claude, unconfirmed):
+
+- **Where a value comes from.** Each field is read once, when the singleton is first made, from the first of:
+  the program's own command line, `--serve=true` (what the program receives -- after `--` when the compiler runs
+  it, [Command line](compiler.md#command-line) -- and stopping at the program's own `--`); the process environment variable named by the field
+  in upper case, `SERVE`; the declared default. The command line wins because it is the more deliberate of the
+  two. An argument that names no field is left alone for `Arguments` to read.
+- **The default's literal is the type.** A setting is declared with nothing but a literal default: `false`/`true`
+  is a `Bool`, a whole number (negative too) an `Int`, `""` a `String`. A type annotation, or any other default,
+  is a compile error naming the three forms (`diagnostics/environment_setting`). Text that is not a value of the
+  setting's type (`--serve=maybe`, `--workers=many`) **crashes** when the singleton is made (D24: a malformed
+  setting is a bug in how the program was started, and there is nothing sensible to continue with).
+- **How the fields get filled.** The compiler prepends one assignment per declared field to `Environment`'s
+  constructor -- `serve = boolean_setting("serve", serve)` -- where `boolean_setting`, `integer_setting` and
+  `text_setting` are ordinary Spite functions in `library/environment.spite`. The reading itself is Spite; the
+  compiler only writes the calls, the way it writes a Symbol codegen function.
+- **`Arguments()` is the command line, anywhere.** `library/environment.spite` reads the command line through
+  `Arguments()`, which the compiler answers in any function with the program's command line. It is available
+  to programs too, and since D89 it is how a program reaches arguments no setting names: the entry constructor
+  receives nothing.
+- **An `Environment` field is never given to the compiler.** `spite program --serve=true` is an error that says
+  to pass it after `--` (`diagnostics/environment_setting_to_compiler`); a value decided while compiling is a
+  `Build` field instead (below).
+
+### Build settings: `Build`  **[implemented]**
+
+D84 (decided by Mortaro), then D85 and D86 (decided by Mortaro): "Variables supplied as flags during compilation
+stay hardcoded the others are runtime", then "lets already implement Environment into two things, one for
+RuntimeEnvironment and one for CompileEnvironment but make better names for it, we can just change later, so
+compiler flags are explicitely its own thing. make all our compiler options pass as a normal program from
+CompileEnvironment so people can reopen to force them with defaults." `Environment` (above) is read when the
+program **runs**; `Build` (`library/build.spite`, a singleton) is decided when it is **compiled**. The names are
+Claude's proposal (`mortaros_missing_decisions.md`). Every compiler option is a `Build` field with a literal
+default, and a program adds its own the same way it adds `Environment` settings, by reopening `Build` in a file
+named `build.spite`:
+
+```build.spite
+var serve = false
+```
+
+```gdscript
+var build = Build()
+
+func Server() {
+    if build.serve {
+        listen()
+    }
+}
+```
+
+`spite server --serve=true` builds a server; `spite server` builds the one without `listen()` in it. What follows
+is how it is built (proposed by Claude, unconfirmed, except where a decision is named):
+
+- **Every field is a constant.** A `--name=value` before the `--` sets the field of that name; a field nobody
+  sets keeps its declared default -- the program's own `build.spite` if it reopens it, else `library/build.spite`.
+  Either way the value is written into the program: `build.serve` compiles to `true`, a condition on it is decided
+  while compiling, the branch not taken is never generated, and nothing is read when the program runs. The field
+  still exists on the `Build` singleton with that value, for reflection.
+- **The compiler's options are fields.** The outputs `run`, `executable`, `c_source` and
+  `final_classes`, the paths `executable_path` and `c_path`, and `optimized`, `development`, `repl`, `repl_port`,
+  `hot_reload` and `debug_memory` (the flag names follow the fields: `--final-classes=folder`,
+  `--repl-port=4000`). Formatting is not one of them: every compile formats first and nothing turns it off
+  (D190), so `--format` and a `format` field in a program's `build.spite` are compile errors. The compiler reads
+  them from the program's resolved `Build`, so a program
+  whose `build.spite` says `var optimized = true` is built optimized unless `--optimized=false` is given. Since
+  D128 no option is read before the program is, so there is no exception for `mode` any more (`mode`
+  is gone: [Command line](compiler.md#command-line)); only `target_operating_system`, which says which library folder is part of the program,
+  comes from the flag alone.
+- **A `Bool` may be given bare**: `--optimized` is `--optimized=true`. Any other bare flag is an error naming the
+  value it needs.
+- **Nothing passes silently.** A value that is not of the field's type is a compile error
+  (`diagnostics/build_setting_type`); a flag naming an `Environment` field is an error that says to pass it after
+  `--`; a flag naming no field is an error listing the fields `Build` has (`diagnostics/unknown_compiler_flag`).
+- **Two operating systems** (D86): `operating_system` is the system doing the compiling -- the compiler supplies
+  it, and giving it is an error -- and `target_operating_system` is the one the program is compiled for, which
+  defaults to it. `--target-operating-system=linux` loads `library/linux/` ([Constructors and the entrypoint](#constructors-and-the-entrypoint), the launcher) and folds,
+  so `if build.target_operating_system == "windows" { }` keeps one branch. Each system's folder reopens `Build`
+  with `var target_operating_system = "linux"`, which is only the default a compiler that does not fold `Build`
+  sees -- the seed while bootstrapping. The compiler learns which system it runs on from its own
+  `build.target_operating_system`, folded when it was built.
+- **`program`** is the folder named on the command line, which the launcher loads; the compiler supplies it and
+  giving it is an error.
+- **`--final-classes` prints `Build` with its declared defaults**, not the values one build folded, so running the
+  printed program takes its flags again instead of, say, printing its classes forever.
+
+This settles the compile-time home D76 left open (D13's isomorphic split and [Other environments](targets.md#other-environments--planned)'s `$target` read a
+`Build` field), and answers the reminder Mortaro asked for with D84 -- "we may split these both into two types of
+environments for runtime and compile time" -- which D85 did.

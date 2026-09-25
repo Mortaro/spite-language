@@ -1,0 +1,2 @@
+var work: Spite.Function<Int, Int, Nothing>? = null
+var first = 0
