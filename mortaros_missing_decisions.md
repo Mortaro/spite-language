@@ -562,12 +562,6 @@ All of it is proposed by Claude, unconfirmed.
 
 ## From docs/KNOWN_ISSUES.md: the entries only Mortaro can unblock
 
-182. **Cycles leak: weak references, and how to spell them.** Reference counting cannot free two objects that hold
-     each other; the docs name weak references as the planned fix but nothing is designed. Proposal (Claude,
-     unconfirmed): an attribute declared `weak var owner: Node?` holds without counting and reads as `null` once
-     the object is freed, so it is always narrowed before use (D24's null safety does the rest); only an attribute
-     can be weak, never a local or a list element. Alternatively a library class `Weak<Node>` with `get(): Node?`,
-     which needs no new keyword. Keyword, class, or something else?
 183. **`Json` and a `Float`/`Double` that is infinity or not-a-number.** It writes `inf`/`nan` today, which is not
      JSON. Options: write `null` (what JavaScript does, silently lossy), crash at the write (a `crash` naming the
      attribute), or refuse to write and return `null` from `write()` so the caller narrows it. Which?
