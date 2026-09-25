@@ -47,7 +47,7 @@ manual argues it.
     (manual section 14, "Answered where the program waits"). Confirm the compile error's rule: a `--repl_port`
     build is rejected when none of the program's own code waits and it has a `while` loop -- which also rejects
     a loop that does end.
-12. **`Socket` is new public library surface** (`library/socket.spite`), and the REPL's port is fixed at build time.
+12. **`Socket` is new public library surface** (`library/socket.spite`): keep it public, or library-internal until an HTTP layer needs it? (The port half was answered by D125.)
 
 ## Variadic arguments
 
