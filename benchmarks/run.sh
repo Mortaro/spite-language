@@ -34,8 +34,10 @@ for name in "${names[@]}"; do
         took=$(( (finish - start) / 1000000 ))
         if [ -z "$best" ] || [ "$took" -lt "$best" ]; then best=$took; fi
     done
-    # the same C built with --debug-memory's table, for the number of allocations it makes
-    "$CC" -O2 -w -DSPITE_DEBUG_MEMORY "$work/$name.c" -o "$work/${name}_counted.exe" 2> "$work/$name.log" || continue
+    # the program built again with --debug-memory's table, which only that build's C carries, for the number of
+    # allocations it makes
+    "$compiler" "benchmarks/$name" --run=false --c-source --debug-memory --c-path="$work/${name}_counted.c" > "$work/$name.log" 2>&1 || continue
+    "$CC" -O2 -w "$work/${name}_counted.c" -o "$work/${name}_counted.exe" 2> "$work/$name.log" || continue
     allocations=$("$work/${name}_counted.exe" 2>&1 | tr -d '\r' | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1/')
     printf "| %-18s | %8s | %12s | %s\n" "$name" "$best" "$allocations" "$output"
 done

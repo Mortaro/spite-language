@@ -80,6 +80,7 @@ var task_root_functions = List<Analysis.FunctionInfo>()
 var development = false
 var keeps_internals = false
 var hot_reload = false
+var debug_memory = false
 var hot_reload_compiler = ""
 var hot_reload_arguments = ""
 var hot_reload_program_file = ""
@@ -445,10 +446,16 @@ func generate(
 ): String {
     entry_class_c_name = discovery.entry_mangled_name
     loaded_folders = discovery.loaded_folders
-    builder.add_typedef(runtime_header_text)
+    var allocator = allocator_text()
+    var header_text = runtime_header_text.replace("/*spite_allocator*/", allocator)
+    builder.add_typedef(header_text)
     builder.add_typedef(
         "static const char* spite_assert_trace[32];\nstatic int64_t spite_assert_total = 0;\nstatic void spite_report_assert_trace(void) \{\nint64_t spite_kept = spite_assert_total < 32 ? spite_assert_total : 32;\nfor (int64_t spite_index = spite_assert_total - spite_kept; spite_index < spite_assert_total; spite_index = spite_index + 1) \{ fputs(spite_assert_trace[spite_index % 32], stderr); }\nif (spite_assert_total > 32) \{ fprintf(stderr, \"spite.assert\\tearlier=%lld\\n\", (long long)(spite_assert_total - 32)); }\n}",
     )
+    var traced = "#define SPITE_TRACE_ASSERT(site) (spite_assert_trace[spite_assert_total % 32] = (site), spite_assert_total = spite_assert_total + 1)"
+    var untraced = "#define SPITE_TRACE_ASSERT(site) ((void)0)"
+    var trace_macro = builder.type_placeholder_if_kept("spite_report_assert_trace", traced, untraced)
+    builder.add_typedef(trace_macro)
     register_classes(discovery.class_files)
     emit_enums()
     var string_layout_position = builder.typedef_count()
@@ -513,7 +520,9 @@ func generate(
     }
     emit_foreign_libraries()
     emit_symbol_table()
-    emit_allocation_table()
+    if debug_memory {
+        emit_allocation_table()
+    }
     if scheduler_used and not has_error {
         emit_state_machines()
     }
@@ -542,6 +551,7 @@ func generate(
     finish_allocated_classes()
     builder.shakes = not keeps_internals
     builder.hot_reload = hot_reload
+    builder.debug_memory = debug_memory
     return builder.render()
 }
 
@@ -2432,8 +2442,9 @@ func ensure_box(member: Analysis.ClassInfo, value_type: Analysis.SpiteType): Str
     var value_c_type = c_type_name(value_type)
     builder.add_typedef("typedef struct {box} \{ SpiteHeader header; {value_c_type} value; } {box};")
     builder.add_prototype("void* {maker}({value_c_type} value);")
+    var registered = debug_registration("self", "{member.class_id}")
     builder.add_support(
-        "void* {maker}({value_c_type} value) \{\n{box}* self = ({box}*)SPITE_MALLOC(sizeof({box}));\nself->header.ref_count = 1;\nself->header.class_id = {member.class_id};\n#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(self, {member.class_id});\n#endif\nself->value = value;\nreturn self;\n}",
+        "void* {maker}({value_c_type} value) \{\n{box}* self = ({box}*)SPITE_MALLOC(sizeof({box}));\nself->header.ref_count = 1;\nself->header.class_id = {member.class_id};\n{registered}self->value = value;\nreturn self;\n}",
     )
     return maker
 }
@@ -4940,6 +4951,21 @@ func string_conversion(code: String, from: Analysis.SpiteType): String {
 func long_text(code: String): String {
     var wide_type = long_type()
     return string_conversion("((int64_t)({code}))", wide_type)
+}
+
+func allocator_text(): String {
+    var prelude = Prelude()
+    if debug_memory {
+        return prelude.table_allocator()
+    }
+    var counted = prelude.counted_allocator()
+    var plain = prelude.plain_allocator()
+    return builder.type_placeholder_if_kept("Memory_Heap_live_allocations", counted, plain)
+}
+
+func debug_registration(pointer: String, class_id: String): String {
+    assert debug_memory
+    return "#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object({pointer}, {class_id});\n#endif\n"
 }
 
 func emit_allocation_table() {
@@ -11727,11 +11753,15 @@ func emit_singleton_teardown() {
     lines.append("static int32_t spite_singleton_capacity = 0;")
     lines.append("static int32_t spite_singleton_list_lock = 0;")
     lines.append("bool spite_singleton_tracked(void) \{")
-    lines.append("#ifdef SPITE_DEBUG_MEMORY")
-    lines.append("return !spite_allocation_table_busy;")
-    lines.append("#else")
-    lines.append("return true;")
-    lines.append("#endif")
+    if debug_memory {
+        lines.append("#ifdef SPITE_DEBUG_MEMORY")
+        lines.append("return !spite_allocation_table_busy;")
+        lines.append("#else")
+        lines.append("return true;")
+        lines.append("#endif")
+    } else {
+        lines.append("return true;")
+    }
     lines.append("}")
     lines.append("void spite_singleton_created(void (*teardown)(void)) \{")
     lines.append("if (!spite_singleton_tracked()) return;")
@@ -11760,16 +11790,19 @@ func emit_singleton_teardown() {
     lines.append("spite_singleton_teardowns[spite_singleton_total]();")
     lines.append("}")
     lines.append("free(spite_singleton_teardowns);")
-    var library = foreign_library_files.count()
-    while library > 0 {
-        library = library - 1
-        var cache = "spite_foreign_library_{library}_cache"
-        lines.append("if (spite_foreign_library_{library}_tracked) DynamicLibrary___destroy({cache});")
-    }
     lines.append("}")
     var joined_lines = lines.join("\n")
     builder.add_support(joined_lines)
     builder.add_main("spite_singletons_destroy();")
+    var library = foreign_library_files.count()
+    while library > 0 {
+        library = library - 1
+        var cache = "spite_foreign_library_{library}_cache"
+        builder.add_main_if_kept(
+            "spite_foreign_library_{library}",
+            "if (spite_foreign_library_{library}_tracked) DynamicLibrary___destroy({cache});",
+        )
+    }
 }
 
 func emit_foreign_libraries() {
@@ -13218,10 +13251,9 @@ func finish_allocated_class(information: Analysis.ClassInfo) {
         builder.replace_support(information.constructed_allocate_position, constructed_on_heap)
     }
     var released = builder.support_at(information.release_position)
-    var freed = object_free(information.c_name)
     var given_back = released.replace(
-        freed,
-        "if (self->spite_allocator != 0) \{\nself->spite_give_back(self->spite_allocator, self);\nreturn;\n}\n{object_free(information.c_name)}",
+        "SPITE_FREE(self);",
+        "if (self->spite_allocator != 0) \{\nself->spite_give_back(self->spite_allocator, self);\nreturn;\n}\nSPITE_FREE(self);",
     )
     builder.replace_support(information.release_position, given_back)
     assert information.copy_position >= 0
@@ -17640,7 +17672,7 @@ func record_in_assert_trace(
     function_information: Analysis.FunctionInfo,
 ) {
     builder.add_user(
-        "spite_assert_trace[spite_assert_total % 32] = {backslash_quote()}spite.assert{tab_text()}{current_site_id}{tab_text()}{escape_c_string(current_path)}:{current_line}{tab_text()}{current_owner}{tab_text()}{function_information.name}{tab_text()}{escape_c_string(assert_statement.condition_text)}{newline_text()}{backslash_quote()}; spite_assert_total = spite_assert_total + 1;",
+        "SPITE_TRACE_ASSERT({backslash_quote()}spite.assert{tab_text()}{current_site_id}{tab_text()}{escape_c_string(current_path)}:{current_line}{tab_text()}{current_owner}{tab_text()}{function_information.name}{tab_text()}{escape_c_string(assert_statement.condition_text)}{newline_text()}{backslash_quote()});",
     )
 }
 
@@ -18027,13 +18059,6 @@ func constant_scalar_code(code: String): Boolean {
     return true
 }
 
-func object_free(c_name: String): String {
-    if hot_reload {
-        return "SPITE_FREE(self);"
-    }
-    return "SPITE_FREE_SIZED(self, sizeof({c_name}));"
-}
-
 func emit_class_prototypes(information: Analysis.ClassInfo) {
     builder.add_prototype("void {information.c_name}___init({information.c_name}* self);")
     builder.add_prototype("{information.c_name}* {information.c_name}___allocate(void);")
@@ -18103,9 +18128,11 @@ func emit_class_support(information: Analysis.ClassInfo) {
     )
     allocate_lines.append("self->header.ref_count = 1;")
     allocate_lines.append("self->header.class_id = {class_id_text};")
-    allocate_lines.append("#ifdef SPITE_DEBUG_MEMORY")
-    allocate_lines.append("spite_debug_register_object(self, {class_id_text});")
-    allocate_lines.append("#endif")
+    if debug_memory {
+        allocate_lines.append("#ifdef SPITE_DEBUG_MEMORY")
+        allocate_lines.append("spite_debug_register_object(self, {class_id_text});")
+        allocate_lines.append("#endif")
+    }
     allocate_lines.append("{information.c_name}___init(self);")
     allocate_lines.append("#ifdef SPITE_TRACKS_{information.c_name}")
     allocate_lines.append("spite_track_{information.c_name}(self);")
@@ -18198,8 +18225,7 @@ func emit_class_support(information: Analysis.ClassInfo) {
     release_lines.append("#ifdef SPITE_WEAK_{information.c_name}")
     release_lines.append("spite_weak_object_freed(self);")
     release_lines.append("#endif")
-    var freed = object_free(information.c_name)
-    release_lines.append(freed)
+    release_lines.append("SPITE_FREE(self);")
     release_lines.append("}")
     var joined_release_lines = release_lines.join("\n")
     information.release_position = builder.support_count()
@@ -18218,9 +18244,11 @@ func emit_class_support(information: Analysis.ClassInfo) {
     )
     copy_lines.append("spite_copy->header.ref_count = 1;")
     copy_lines.append("spite_copy->header.class_id = {class_id_text};")
-    copy_lines.append("#ifdef SPITE_DEBUG_MEMORY")
-    copy_lines.append("spite_debug_register_object(spite_copy, {class_id_text});")
-    copy_lines.append("#endif")
+    if debug_memory {
+        copy_lines.append("#ifdef SPITE_DEBUG_MEMORY")
+        copy_lines.append("spite_debug_register_object(spite_copy, {class_id_text});")
+        copy_lines.append("#endif")
+    }
     if information.c_name == "Spite_Function" {
         copy_lines.append("spite_function_arguments_described(self);")
     }
@@ -18479,8 +18507,9 @@ func emit_string_support(information: Analysis.ClassInfo) {
     initialize_lines.append("}")
     var joined_initialize_lines = initialize_lines.join("\n")
     builder.add_support(joined_initialize_lines)
+    var registered = debug_registration("self", "{information.class_id}")
     builder.add_support(
-        "SpiteString* SpiteString___allocate(void) \{\nSpiteString* self = (SpiteString*)SPITE_MALLOC(sizeof(SpiteString));\nself->header.ref_count = 1;\nself->header.class_id = {information.class_id};\n#ifdef SPITE_DEBUG_MEMORY\nspite_debug_register_object(self, {information.class_id});\n#endif\nSpiteString___init(self);\nreturn self;\n}",
+        "SpiteString* SpiteString___allocate(void) \{\nSpiteString* self = (SpiteString*)SPITE_MALLOC(sizeof(SpiteString));\nself->header.ref_count = 1;\nself->header.class_id = {information.class_id};\n{registered}SpiteString___init(self);\nreturn self;\n}",
     )
     crash information.constructor
     var arguments = c_parameter_names(information.constructor.parameters)
@@ -18493,7 +18522,7 @@ func emit_string_support(information: Analysis.ClassInfo) {
     )
     crash information.drop_function
     builder.add_support(
-        "void SpiteString___release(SpiteString* self) \{\nif (self == 0 || self->_section_ == Spite_Memory_Section_constant) return;\nif (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;\n{information.drop_function.c_name}(self);\n{object_free("SpiteString")}\n}",
+        "void SpiteString___release(SpiteString* self) \{\nif (self == 0 || self->_section_ == Spite_Memory_Section_constant) return;\nif (SPITE_COUNT_DOWN(self->header.ref_count) > 0) return;\n{information.drop_function.c_name}(self);\nSPITE_FREE(self);\n}",
     )
     builder.add_support(
         "SpiteString* SpiteString_append(SpiteString* left, SpiteString* right) \{\nif (left->_section_ == Spite_Memory_Section_constant || left->header.ref_count != 1) \{\nSpiteString* alone = {unshared.c_name}(left);\nSpiteString___release(left);\nleft = alone;\n}\n{append_in_place.c_name}(left, SpiteString___retain(right));\nreturn left;\n}",
@@ -19504,10 +19533,10 @@ func program_run_code(): String {
 func emit_main(launcher_mangled_name: String) {
     var launcher_class = find_class_by_c_name(launcher_mangled_name)
     assert launcher_class
-    builder.add_main("#ifdef SPITE_DEBUG_MEMORY")
-    builder.add_main("static const char* spite_debug_class_name_table[] = {debug_memory_class_name_table()};")
-    builder.add_main("spite_debug_set_class_names(spite_debug_class_name_table, {class_names_by_id.count()});")
-    builder.add_main("#endif")
+    if debug_memory {
+        builder.add_main("static const char* spite_debug_class_name_table[] = {debug_memory_class_name_table()};")
+        builder.add_main("spite_debug_set_class_names(spite_debug_class_name_table, {class_names_by_id.count()});")
+    }
     builder.add_main("{launcher_class.c_name}* spite_launcher = {launcher_class.c_name}___allocate();")
     if launcher_class.constructor {
         builder.add_main("{launcher_class.constructor.c_name}(spite_launcher);")
@@ -19579,9 +19608,9 @@ func emit_main(launcher_mangled_name: String) {
             namespace_position = namespace_position + 1
         }
     }
-    builder.add_main("#ifdef SPITE_DEBUG_MEMORY")
-    builder.add_main("spite_debug_report();")
-    builder.add_main("#endif")
+    if debug_memory {
+        builder.add_main("spite_debug_report();")
+    }
 }
 
 func is_hot_class(information: Analysis.ClassInfo): Boolean {

@@ -8,7 +8,7 @@ bash benchmarks/run.sh [compiler] [benchmark ...]
 ```
 
 `run.sh` has the compiler write each program's C, builds it with `clang -O2`, prints the best of seven runs, and
-builds the same C once more with `--debug-memory`'s table to print how many allocations it makes. The compiler
+builds the program once more with `--debug-memory` to print how many allocations it makes. The compiler
 defaults to `.spite-cache/spite_development.exe`, the one `check.sh` last built. Times are wall-clock milliseconds
 on Mortaro's Windows machine and move by 10-20% from run to run; the allocation counts are exact.
 
@@ -106,3 +106,42 @@ raises and lowers the component's count, which none of these steps removes.
 In a program without threads a retain is one plain add and `stress` spends its time filling rows and spawning, so
 nothing moves; with atomic counts, as SlopEngine has whenever it runs systems in parallel, the ticks are a fifth
 faster. The second row is the same two C files built with `-DSPITE_THREADS` prepended.
+
+### Taken out again: freed small blocks kept for reuse (step 3)
+
+Mortaro's rule for step 3's small-block reuse was to keep it only if it is a measured gain for SlopEngine. It was
+measured on a copy of SlopEngine: each program's C written once by the compiler, then built with `clang -O2`
+twice -- as written (reuse) and with `SPITE_MALLOC`, `SPITE_REALLOC` and `SPITE_FREE` defined as the C library's
+`malloc`, `realloc` and `free` (plain, what every build now does) -- and run interleaved, nine times each. SlopEngine
+runs systems in parallel, so these programs count references atomically. Best of nine; the medians agree, and the
+ordinary machine noise is 2-5% (the UI tests and `flex_layout` also have occasional runs 250 ms slower on both
+sides).
+
+| SlopEngine program | reuse | plain |
+|---|---|---|
+| `stress`, average tick, parallel | 42.9 ms | 41.9 ms |
+| `stress`, average tick, single-threaded (`--parallel=false`) | 49.0 ms | 50.9 ms |
+| `stress`, spawning 200 000 bodies | 449 ms | 504 ms |
+| `stress`, 60 ticks after despawning them | 87.7 ms | 87.2 ms |
+| `flex_layout`, whole run | 68.9 ms | 72.4 ms |
+| `click_counter_test`, whole run (Vulkan, validation on) | 1 008 ms | 1 020 ms |
+| `text_field_test`, whole run | 827 ms | 820 ms |
+
+Three rounds agreed: the parallel tick, which is what SlopEngine runs, was 1-3% slower with reuse every time; the
+single-threaded tick 0-4% faster; only spawning (11%) and `flex_layout` (about 3 ms) were clearly faster, both
+one-off work. Not a clear gain on the engine, so it is gone, with up to 2 MB it kept per thread. The benchmarks
+here, the same way (best of nine, same C, only the allocator differs), are where it had helped:
+
+| benchmark | reuse ms | plain ms |
+|---|---|---|
+| fused_chain | 139 | 138 |
+| dictionary_keys | 185 | 185 |
+| text_building | 159 | 151 |
+| reflection_walks | 264 | 349 |
+| function_values | 67 | 72 |
+| small_allocations | 84 | 140 |
+| parallel_calls | 162 | 141 |
+| stress | 108 | 101 |
+
+After the change `run.sh` reports the same allocation counts as the "after" column at the top, every one: taking
+the reuse out, and leaving the counter out of builds that do not read it, change no allocation.
