@@ -66,6 +66,7 @@ Assigning text to a number calls the matching `to_<type>()`: `var age: Int = "42
 | `write(text)` / `append(text)` | `Bool` | replaces the content / adds to its end |
 | `exists()` / `remove()` | `Bool` | |
 | `size()` | `Long?` | how many bytes it holds; `null` when it cannot be opened |
+| `modified()` | `Instant?` | when it was last written ([time.md](time.md)); `null` when it does not exist |
 | `read_bytes(position, count, address)` | `Long?` | reads up to `count` bytes starting `position` bytes in, into memory at `address`; answers how many it read (`0` at the end), `null` when it cannot be opened |
 | `write_bytes(address, count)` | `Bool` | replaces the content with `count` bytes from memory at `address` |
 | `append_bytes(address, count)` | `Long?` | adds `count` bytes to the end; answers the position they start at, `null` when they could not all be written |

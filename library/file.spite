@@ -43,6 +43,14 @@ func size(): Long? {
     return bytes
 }
 
+func modified(): Instant? {
+    var nanoseconds = modified_nanoseconds()
+    assert nanoseconds
+    var whole = Duration(nanoseconds / 1000000000, 'seconds')
+    var part = Duration(nanoseconds % 1000000000, 'nanoseconds')
+    return Instant(whole + part)
+}
+
 func read_bytes(position: Long, count: Long, address: Long): Long? {
     var handle = open_file("rb")
     assert handle != 0

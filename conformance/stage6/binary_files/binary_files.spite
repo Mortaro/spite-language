@@ -1,5 +1,6 @@
 var console = Console()
 var memory = Memory()
+var clock = Clock()
 
 func BinaryFiles() {
     var store = File(".spite-cache/binary_files.bin")
@@ -26,10 +27,18 @@ func BinaryFiles() {
     var past_end = store.read_bytes(size, 8, read_back)
     crash past_end
     console.print("reading past the end gives", past_end, "bytes")
+    var written_at = store.modified()
+    crash written_at
+    var now = clock.now()
+    var age = now - written_at
+    var minute = Duration(60, 'seconds')
+    var skew = Duration(-5, 'seconds')
+    console.print("modified within the last minute:", age < minute and age > skew)
     var missing = File(".spite-cache/binary_files_missing.bin")
     var nothing = missing.read_bytes(0, 8, read_back)
     var no_size = missing.size()
-    if nothing or no_size {
+    var never = missing.modified()
+    if nothing or no_size or never {
         console.print("a missing file was read")
     } else {
         console.print("a missing file answers null")

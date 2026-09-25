@@ -2,4 +2,5 @@ wrote true appended at 12 size 20
 read 8 bytes at 4: 1234567890123
 the appended record: -42
 reading past the end gives 0 bytes
+modified within the last minute: true
 a missing file answers null
