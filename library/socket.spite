@@ -2,7 +2,7 @@ var handle: Long = -1
 var pending = ""
 var heap = Memory.Heap()
 
-func listen_locally(port: Int): Bool {
+func listen_locally(port: Integer): Boolean {
     start_sockets()
     handle = open_socket()
     assert handle != -1
@@ -12,7 +12,7 @@ func listen_locally(port: Int): Bool {
     return bound and listen_for_clients()
 }
 
-func connect_locally(port: Int): Bool {
+func connect_locally(port: Integer): Boolean {
     start_sockets()
     handle = open_socket()
     assert handle != -1
@@ -55,7 +55,7 @@ func read_line(): String? {
     return line
 }
 
-func write_line(text: String): Bool {
+func write_line(text: String): Boolean {
     var line = "{text}\n"
     var line_length = line.length()
     var written = 0
@@ -75,7 +75,7 @@ func close() {
     }
 }
 
-func local_address(port: Int): Long {
+func local_address(port: Integer): Long {
     var address = heap.allocate(16)
     var index = 0
     while index < 16 {

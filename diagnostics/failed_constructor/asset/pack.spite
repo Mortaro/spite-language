@@ -2,7 +2,7 @@ generic $item_type
 
 var items = List<$item_type>()
 
-func keep(item: $item_type): Int {
+func keep(item: $item_type): Integer {
     items.append(item)
     return items.count()
 }

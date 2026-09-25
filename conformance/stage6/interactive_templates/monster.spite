@@ -1,12 +1,12 @@
 var name = ""
 var health = 0
 
-func Monster(starting_name: String, starting_health: Int) {
+func Monster(starting_name: String, starting_health: Integer) {
     name = starting_name
     health = starting_health
 }
 
-func is_weak(): Bool {
+func is_weak(): Boolean {
     return health < 4
 }
 

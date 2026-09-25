@@ -19,7 +19,7 @@ func get_returns(): Spite.Class {
     return _returns
 }
 
-func name_fits(pattern: String): Bool {
+func name_fits(pattern: String): Boolean {
     var opening = pattern.index_of("<")
     var closing = pattern.index_of(">")
     if opening < 0 or closing < opening {

@@ -5,7 +5,7 @@ var settings = Settings()
 
 func SingletonForms() {
     journal.note("starting")
-    var working = List<Parallel<Int>>()
+    var working = List<Parallel<Integer>>()
     var started = 0
     while started < 4 {
         counter.enter()
@@ -21,7 +21,7 @@ func SingletonForms() {
     var rounds = 0
     var index = 0
     while index < working.count() {
-        var done: Int = working.get_at(index)
+        var done: Integer = working.get_at(index)
         rounds = rounds + done
         index = index + 1
     }

@@ -13,11 +13,11 @@ func step_back() {
     log.append("{name} back")
 }
 
-func battery(): Int {
+func battery(): Integer {
     return 80
 }
 
-func describe(prefix: String, times: Int): String {
+func describe(prefix: String, times: Integer): String {
     return prefix + name + times
 }
 

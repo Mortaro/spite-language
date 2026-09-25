@@ -9,7 +9,7 @@ var alive = true
 var mood: Mood = 'angry'
 var friends = List<Monster>()
 
-func Monster(starting_name: String, starting_health: Int) {
+func Monster(starting_name: String, starting_health: Integer) {
     name = starting_name
     health = starting_health
 }

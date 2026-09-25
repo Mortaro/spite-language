@@ -18,7 +18,7 @@ func CodegenClassTest() {
     var label = label_fetch.first(store)
     crash label
     console.print("label", label.text, label.class)
-    var number_fetch = Fetch<Int>()
+    var number_fetch = Fetch<Integer>()
     var number = number_fetch.first(store)
     crash number
     console.print("number", number)

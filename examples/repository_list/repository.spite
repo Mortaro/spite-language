@@ -2,7 +2,7 @@ var name = ""
 var stars = 0
 var active = false
 
-func Repository(new_name: String, new_stars: Int, new_active: Bool) {
+func Repository(new_name: String, new_stars: Integer, new_active: Boolean) {
     name = new_name
     stars = new_stars
     active = new_active

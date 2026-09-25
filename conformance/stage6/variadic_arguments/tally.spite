@@ -1,6 +1,6 @@
 var total = 0
 
-func add_all(...amounts: List<Int>) {
+func add_all(...amounts: List<Integer>) {
     var index = 0
     while index < amounts.count() {
         total = total + amounts[index]

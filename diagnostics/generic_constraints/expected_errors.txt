@@ -1,3 +1,3 @@
 diagnostics/generic_constraints/generic_constraints.spite:4: error: 'Pet' does not fit type 'Printable', which 'Shelf' requires of $item_type: it has no function 'to_string' (in GenericConstraints.GenericConstraints)
-diagnostics/generic_constraints/generic_constraints.spite:6: error: 'Int?' does not fit type 'Printable', which 'Shelf' requires of $item_type: it may be null, and null has none of what the type needs (in GenericConstraints.GenericConstraints)
+diagnostics/generic_constraints/generic_constraints.spite:6: error: 'Integer?' does not fit type 'Printable', which 'Shelf' requires of $item_type: it may be null, and null has none of what the type needs (in GenericConstraints.GenericConstraints)
 diagnostics/generic_constraints/generic_constraints.spite:7: error: 'Pet' does not fit type 'Printable', which 'Label' requires of $item_type: it has no function 'to_string' (in GenericConstraints.GenericConstraints)

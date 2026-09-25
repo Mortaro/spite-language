@@ -40,11 +40,11 @@ func Monster(starting_name: String) {
     name = starting_name
 }
 
-func hurt(amount: Int) {
+func hurt(amount: Integer) {
     health = health - amount
 }
 
-func is_alive(): Bool {
+func is_alive(): Boolean {
     return health > 0
 }
 ```
@@ -111,23 +111,23 @@ func is_alive(): Bool {
 
 ## Values
 
-- Numbers: `Int` (32 bit, the default), `Long`, `Tiny`, `Short`, `Byte`, `UnsignedShort`, `UnsignedInt`,
-  `UnsignedLong`, `Float` (the default for decimals), `Double`. `Bool`. `String` (double quotes only).
-- No cast syntax: the right side is cast toward the left. `"age {3}"` is `"age 3"`; `var total: Int = "12"` parses
+- Numbers: `Integer` (32 bit, the default), `Long`, `Tiny`, `Short`, `Byte`, `UnsignedShort`, `UnsignedInteger`,
+  `UnsignedLong`, `Float` (the default for decimals), `Double`. `Boolean`. `String` (double quotes only).
+- No cast syntax: the right side is cast toward the left. `"age {3}"` is `"age 3"`; `var total: Integer = "12"` parses
   it. Arithmetic is done in the left side's type, so write the wider operand first: `total * count` with a `Long`
-  `total`, never `count * total`, which is an error (so is an `Int` plus a `Float`); a literal on the right that
-  fits is fine. A constant that overflows `Int` (`65536 * 65536`) is an error: write the number. Comparisons are
+  `total`, never `count * total`, which is an error (so is an `Integer` plus a `Float`); a literal on the right that
+  fits is fine. A constant that overflows `Integer` (`65536 * 65536`) is an error: write the number. Comparisons are
   not checked and still cast the right side toward the left. A value that does not fit wraps.
 - Bits are functions on the whole numbers, never symbols: `value.shifted_left(count)`, `shifted_right(count)`
   (arithmetic on a signed type, logical on an unsigned one), `bits_and(mask)`, `bits_or(mask)`,
   `bits_exclusive_or(mask)`, `bits_inverted()`, `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()`.
   The mask is cast to the receiver's type; a count of the width or more shifts everything out, a negative one
   halts. Do not fake them with `/` and `%` by powers of two.
-- Everything that is not a number, a `Bool` or an enum value is a reference: passing, assigning and storing share
+- Everything that is not a number, a `Boolean` or an enum value is a reference: passing, assigning and storing share
   the same object. `copy()` copies one level, `deep_copy()` all the way down. `drop()` runs when the last reference
   goes. Two objects that refer to each other leak: clear one side.
 - `List<T>`: `[1, 2, 3]`, `append`, `prepend`, `insert`, `remove_at`, `remove_last`, `remove_first`, `first`,
-  `last`, `count`, `contains`, `is_empty`, `clear`, `reverse`, `join` (text, numbers, `Bool` and enum values
+  `last`, `count`, `contains`, `is_empty`, `clear`, `reverse`, `join` (text, numbers, `Boolean` and enum values
   all join), `list[index]` (a `T?`: out of range gives nothing -- `crash names[index]` narrows it like a path,
   and so does `crash glyphs[code - 32]`, or any index with no call in it, with no copy into a local first;
   `crash names.count() == 3` proves `names[0]` to `names[2]`, and `while index < names.count()` proves
@@ -138,7 +138,7 @@ func is_alive(): Bool {
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
   built or planned, and what it could ever change that you see, is in [optimizations.md](optimizations.md).
-- On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Bool` member),
+- On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Boolean` member),
   `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<member>()`,
   `each_<member>()` (a function). A member is an attribute or a function that takes nothing.
 - A `while` that only walks a list doing what one of these does -- `var index = 0`, `while index <
@@ -168,7 +168,7 @@ func is_alive(): Bool {
 - `union Enemy { Player Monster }`, written one member per line: `switch enemy { Player: ... Monster: { ... } }`
   must cover every member and narrows `enemy` inside each case; a function or attribute every member has can be
   used on the union directly.
-- A `type` declares a shape -- `label: String` and `render(Int): String`, one per line, a required function
+- A `type` declares a shape -- `label: String` and `render(Integer): String`, one per line, a required function
   naming the *types* it takes and never the names -- and accepts any class, or
   object literal `{ label: "x" }`, with those attributes and functions.
 - `Anything` is the built-in empty `type`, the counterpart of `Nothing`: `component: Anything` and
@@ -219,7 +219,7 @@ func is_alive(): Bool {
   `less_than`, `greater_than`, `negate`, `get_at(index)`, `set_at(index, value)`. Without `equals`, `==` compares
   identity.
 - Codegen values: `generic $damage_type` and `generic $is_magic`, one per line at the top of `weapon.spite`, and
-  `Weapon<Int, true>(10)` supplies them in that order; `Pair("a", 1)` may leave them out when the constructor's
+  `Weapon<Integer, true>(10)` supplies them in that order; `Pair("a", 1)` may leave them out when the constructor's
   arguments say them (through `$T`, `$T?`, `List<$T>`, `Dictionary<$T>` or a function value). The constructor
   lists none: `func Weapon(damage: $damage_type)`. `$` is for generics only: a `$name` with no `generic` line is
   an error. `if $is_magic { }` is decided at compile time. `generic $item_type: Printable` accepts only classes
@@ -261,7 +261,7 @@ a class prints once it declares `func to_string(): String`, and `debug` shows an
 `Name { attribute: value }`, through the `to_debug()` every value has), `File(path)` (`read(): String?`, `write`,
 `append`, `exists`, `remove`), `Directory(path)` (`path`, `entries(): List<Directory.Entry>` -- each a `Directory` or a `File`, switched on --,
 `files`, `folders`, `exists`, `create`),
-`Process(command, arguments)` (`run(): Int`, `output()`), `Program()` (`exit(code)`, `sleep(milliseconds)`,
+`Process(command, arguments)` (`run(): Integer`, `output()`), `Program()` (`exit(code)`, `sleep(milliseconds)`,
 `environment(name): String?`). `Console` is a singleton: `Console()` is the same instance everywhere, bound once
 as `var console = Console()`.
 `Concurrent(function)` runs a function as a compile-time state machine and `Parallel(function)` on the thread pool: the handle stands
@@ -270,20 +270,20 @@ waiting, the type is never written, and dropping the handle waits for it. There 
 that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can
 run ([concurrency.md](concurrency.md)).
 `Json(value).write(): String` writes JSON and `Json<T>(null)` reads it (`read(text): T?`,
-`read_or_crash(text): T`), for any class, list, dictionary, enum, number, `Bool`, `String` or `T?`; `read` skips unknown keys, keeps defaults for
+`read_or_crash(text): T`), for any class, list, dictionary, enum, number, `Boolean`, `String` or `T?`; `read` skips unknown keys, keeps defaults for
 missing ones, and is `null` on a value of the wrong kind (docs/json.md).
 Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(Duration(1710054000, 'seconds'))`.
-`Duration(90, 'minutes')` is exact time (no days); `Period(1, 'months')` is calendar time, added to a `LocalDate`,
-`LocalTime` is a clock reading and `LocalDateTime(date, time)` both, none of them an instant. A zone only shows or
+`Duration(90, 'minutes')` is exact time (no days); `Period(1, 'months')` is calendar time, added to a `Date`,
+`Time` is a clock reading and `DateTime(date, time)` both, none of them an instant. A zone only shows or
 reads a local reading: `var zones = TimeZones()`, `zones.find("America/New_York"): TimeZone?`, `zones.utc()`,
 `zones.fixed_offset(duration)`, then `zone.to_local(instant)`, `zone.to_text(instant)` and
 `zone.to_instant(local, 'compatible')` (or `'earlier'`/`'later'`, always written). `TimeText()` reads ISO 8601
-(`read_instant(text): Instant?`, `read_local_date`, `read_duration`, ...) and `to_string()` writes it (docs/time.md).
+(`read_instant(text): Instant?`, `read_date`, `read_duration`, ...) and `to_string()` writes it (docs/time.md).
 `DynamicLibrary("ucrtbase.dll", 'identity', "")` calls a native library's functions as members
 (`c_runtime.strlen(text)`, `_as_long`/`_as_double`/`_as_text` for wider results); the standard library's
 `library/windows/`, `linux/` and `mac/` folders reopen the classes each system changes (docs/foreign_libraries.md).
 Every class here, the numbers and `List` included, is a Spite file in `library/`, and a program's own file of the
-same name reopens it: `list.spite` adds a member template, `int.spite` a function on every `Int`.
+same name reopens it: `list.spite` adds a member template, `integer.spite` a function on every `Integer`.
 
 ## Habits from other languages that Spite rejects
 
@@ -296,6 +296,7 @@ round trip, and this list is cheaper to read than to rediscover.
 | `a << 3`, `a >> 3`, `a & mask`, `a \| mask`, `a ^ mask`, `~a` | `a.shifted_left(3)`, `a.shifted_right(3)`, `a.bits_and(mask)`, `a.bits_or(mask)`, `a.bits_exclusive_or(mask)`, `a.bits_inverted()` |
 | `count++`, `count += 1` | `count = count + 1` |
 | `condition ? a : b` | an `if` with an `else`, or a function that returns one or the other |
+| `int`, `Int`, `bool`, `Bool` | `Integer`, `Boolean`: no type name is abbreviated (D122) |
 | `new Monster()` | `Monster()` |
 | `this.name`, `self.name` | `name` |
 | `import`, `require` | `load "folder"`, a keyword on its own line inside a function |
@@ -310,6 +311,7 @@ round trip, and this list is cheaper to read than to rediscover.
 | `for item in list` | `map_`/`filter_`/`each_<member>()`, or `list.each_<function>()` with a function of yours; `while index < list.count()` when the body needs more |
 | `value == null` | `if value { } else { }`, `assert value`, `crash value`, or `switch` |
 | `new Date()`, `DateTime.Now`, `datetime.now()` | `clock.now()`, an `Instant`; shown through a zone from `TimeZones()`, never stored as a local reading |
+| `LocalDate`, `PlainDate`, `NaiveDate` | `Date`, `Time`, `DateTime`: a calendar reading with no zone (D160) |
 | `timestamp + 86400000` for tomorrow | `zone.to_local(instant) + Period(1, 'days')`, then `zone.to_instant(tomorrow, 'compatible')`: a day is not always 24 hours |
 | `text[0]` | `text.character_at(0)`, or `text.slice(start, end)` |
 | `// comment`, `/* comment */` | nothing, or `# docs/page.md#section` on its own line outside a function |

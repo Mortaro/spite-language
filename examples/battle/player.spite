@@ -2,16 +2,16 @@ var health = 0
 var weapon = "sword"
 var power = 0
 
-func Player(starting_health: Int) {
+func Player(starting_health: Integer) {
     health = starting_health
     weapon = "sword"
     power = 5
 }
 
-func is_alive(): Bool {
+func is_alive(): Boolean {
     return health > 0
 }
 
-func hurt(amount: Int) {
+func hurt(amount: Integer) {
     health = health - amount
 }

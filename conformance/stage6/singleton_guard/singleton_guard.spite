@@ -2,7 +2,7 @@ var console = Console()
 var cache = TextureCache()
 
 func SingletonGuard() {
-    var loading = List<Parallel<Int>>()
+    var loading = List<Parallel<Integer>>()
     var start = 0
     while start < 8000 {
         var loader = Loader(start)
@@ -17,7 +17,7 @@ func SingletonGuard() {
     var loaded = 0
     var index = 0
     while index < loading.count() {
-        var count: Int = loading.get_at(index)
+        var count: Integer = loading.get_at(index)
         loaded = loaded + count
         index = index + 1
     }

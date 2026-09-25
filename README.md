@@ -13,12 +13,12 @@ runs the program.
 var name = ""
 var health = 0
 
-func Monster(new_name: String, new_health: Int) {
+func Monster(new_name: String, new_health: Integer) {
     name = new_name
     health = new_health
 }
 
-func alive(): Bool {
+func alive(): Boolean {
     return health > 0
 }
 ```

@@ -4,7 +4,7 @@ func follow_calendar(calendar: ZoneCalendar) {
     _calendar = calendar
 }
 
-func offset_seconds_at(unix_seconds: Long): Int {
+func offset_seconds_at(unix_seconds: Long): Integer {
     if _calendar {
         return _calendar.offset_seconds_at(unix_seconds)
     }

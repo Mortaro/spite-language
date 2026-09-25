@@ -1,9 +1,9 @@
 var most = 0
 
-func Limits(starting_most: Int) {
+func Limits(starting_most: Integer) {
     most = starting_most
 }
 
-func allows(size: Int): Bool {
+func allows(size: Integer): Boolean {
     return size < most
 }

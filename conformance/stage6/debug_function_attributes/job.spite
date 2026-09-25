@@ -1,2 +1,2 @@
-var work: Spite.Function<Int, Int, Nothing>? = null
+var work: Spite.Function<Integer, Integer, Nothing>? = null
 var first = 0

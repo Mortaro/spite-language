@@ -1,11 +1,11 @@
 var horsepower = 0
 var speed = 0
 
-func Engine(starting_horsepower: Int) {
+func Engine(starting_horsepower: Integer) {
     horsepower = starting_horsepower
 }
 
-func push(amount: Int) {
+func push(amount: Integer) {
     speed = speed + amount
 }
 

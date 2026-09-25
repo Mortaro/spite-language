@@ -22,7 +22,7 @@ func offset_at(instant: Instant): Duration {
     return Duration(seconds, 'seconds')
 }
 
-func to_local(instant: Instant): LocalDateTime {
+func to_local(instant: Instant): DateTime {
     var offset = offset_at(instant)
     var wall = instant.since_1970 + offset
     var seconds = wall.total('seconds')
@@ -35,13 +35,13 @@ func to_local(instant: Instant): LocalDateTime {
     if second_of_day < 0 {
         second_of_day = second_of_day + 86400
     }
-    var first_day = LocalDate(1970, 1, 1)
+    var first_day = Date(1970, 1, 1)
     var date = first_day + Period((seconds - second_of_day) / 86400, 'days')
-    var time = LocalTime(second_of_day / 3600, second_of_day / 60 % 60, second_of_day % 60, nanosecond)
-    return LocalDateTime(date, time)
+    var time = Time(second_of_day / 3600, second_of_day / 60 % 60, second_of_day % 60, nanosecond)
+    return DateTime(date, time)
 }
 
-func to_instant(local: LocalDateTime, ambiguity: Ambiguity): Instant {
+func to_instant(local: DateTime, ambiguity: Ambiguity): Instant {
     var date = local.date
     var time = local.time
     var wall = date.days_since_1970 * 86400 + time.second_of_day
@@ -80,7 +80,7 @@ func to_text(instant: Instant): String {
     return "{local}{offset}"
 }
 
-func _offset_seconds_at(instant: Instant): Int {
+func _offset_seconds_at(instant: Instant): Integer {
     var since_1970 = instant.since_1970
     var seconds = since_1970.total('seconds')
     if since_1970.part('nanoseconds') < 0 {

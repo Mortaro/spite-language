@@ -5,7 +5,7 @@ func create_key(): Long {
     var slot = _heap.allocate(8)
     var no_value: Long = 0
     var created = _library.pthread_key_create(slot, no_value)
-    var key = slot.read_int(0)
+    var key = slot.read_integer(0)
     _heap.free(slot)
     crash created == 0
     return key

@@ -1,14 +1,14 @@
 var library = DynamicLibrary("libc.so.6", 'identity', "")
 var notifier = -1
-var watch_numbers = List<Int>()
+var watch_numbers = List<Integer>()
 var folders = List<String>()
 var file_names = List<String>()
 
-func watch_folder(path: String): Bool {
+func watch_folder(path: String): Boolean {
     return add_folder(path, false)
 }
 
-func watch_file(path: String): Bool {
+func watch_file(path: String): Boolean {
     var cut = path.length()
     var found = false
     while cut > 0 and not found {
@@ -29,7 +29,7 @@ func watch_file(path: String): Bool {
     return add_watch(folder, name)
 }
 
-func add_folder(path: String, report_files: Bool): Bool {
+func add_folder(path: String, report_files: Boolean): Boolean {
     var added = add_watch(path, "")
     assert added
     var directory = Directory(path)
@@ -54,7 +54,7 @@ func add_folder(path: String, report_files: Bool): Bool {
     return true
 }
 
-func add_watch(folder: String, file_name: String): Bool {
+func add_watch(folder: String, file_name: String): Boolean {
     if notifier == -1 {
         notifier = library.inotify_init1(526336)
     }
@@ -74,9 +74,9 @@ func collect() {
     while read > 0 {
         var offset: Long = 0
         while offset < read {
-            var number = events.read_int(offset)
-            var mask = events.read_int(offset + 4)
-            var name_length = events.read_int(offset + 12)
+            var number = events.read_integer(offset)
+            var mask = events.read_integer(offset + 4)
+            var name_length = events.read_integer(offset + 12)
             var name = ""
             if name_length > 0 {
                 name = (events + offset + 16).terminated_text()
@@ -89,7 +89,7 @@ func collect() {
     heap.free(events)
 }
 
-func note_event(number: Int, mask: Int, name: String) {
+func note_event(number: Integer, mask: Integer, name: String) {
     var index = 0
     while index < watch_numbers.count() {
         if watch_numbers.get_at(index) == number {
@@ -99,7 +99,7 @@ func note_event(number: Int, mask: Int, name: String) {
     }
 }
 
-func note_in(index: Int, mask: Int, name: String) {
+func note_in(index: Integer, mask: Integer, name: String) {
     var folder = folders.get_at(index)
     var file_name = file_names.get_at(index)
     if not file_name.is_empty() {
@@ -128,8 +128,8 @@ func note_in(index: Int, mask: Int, name: String) {
 func wait_for_event(milliseconds: Long) {
     assert notifier != -1
     var polled = heap.allocate(8)
-    polled.write_int(0, notifier)
-    polled.write_int(4, 1)
+    polled.write_integer(0, notifier)
+    polled.write_integer(4, 1)
     library.poll(polled, 1, milliseconds)
     heap.free(polled)
 }

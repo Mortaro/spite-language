@@ -11,36 +11,36 @@ var _weekday = 0
 var _day = 0
 var _time_seconds = 7200
 
-func DaylightChange(kind: Kind, day: Int, time_seconds: Int) {
+func DaylightChange(kind: Kind, day: Integer, time_seconds: Integer) {
     _kind = kind
     _day = day
     _time_seconds = time_seconds
 }
 
-func on_weekday_of_month(month: Int, week: Int, weekday: Int) {
+func on_weekday_of_month(month: Integer, week: Integer, weekday: Integer) {
     _kind = 'weekday_of_month'
     _month = month
     _week = week
     _weekday = weekday
 }
 
-func local_seconds_in(year: Int): Long {
+func local_seconds_in(year: Integer): Long {
     var day = _day_since_1970(year)
     return day * 86400 + _time_seconds
 }
 
-func _day_since_1970(year: Int): Long {
+func _day_since_1970(year: Integer): Long {
     if _kind == 'weekday_of_month' {
-        var first = LocalDate(year, _month, 1)
+        var first = Date(year, _month, 1)
         var first_since_1970 = first.days_since_1970
-        var first_weekday: Int = (first_since_1970 % 7 + 11) % 7
+        var first_weekday: Integer = (first_since_1970 % 7 + 11) % 7
         var day = 1 + (_weekday - first_weekday + 7) % 7 + (_week - 1) * 7
         while day > first.days_in_month {
             day = day - 7
         }
         return first_since_1970 + day - 1
     }
-    var january = LocalDate(year, 1, 1)
+    var january = Date(year, 1, 1)
     var since_1970 = january.days_since_1970
     if _kind == 'day_of_year_without_leap_day' and january.is_leap_year and _day >= 60 {
         return since_1970 + _day

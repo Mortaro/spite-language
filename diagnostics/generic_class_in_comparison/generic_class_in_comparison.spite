@@ -1,7 +1,7 @@
 var found = 0
 
 func GenericClassInComparison() {
-    if found < List<Int> {
+    if found < List<Integer> {
         found = 1
     }
 }

@@ -1,11 +1,11 @@
 var cache = TextureCache()
 var first = 0
 
-func Loader(starting_first: Int) {
+func Loader(starting_first: Integer) {
     first = starting_first
 }
 
-func load_many(): Int {
+func load_many(): Integer {
     var index = 0
     while index < 2000 {
         var number = first + index

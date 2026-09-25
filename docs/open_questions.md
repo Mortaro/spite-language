@@ -50,7 +50,7 @@ From `mortaros_notes.md` on 2026-09-19 (second batch):
    literal with each attribute at its own default, admitted to the shape -- so writes through it are kept
    (proposed by Claude, unconfirmed, 2026-09-24; `conformance/stage6/shape_defaults`). A `type` that requires a
    function has no default object, since no literal can supply the function.
-3. Right-to-left casting makes `age > 0.5` with an Int `age` mean `age > 0`. Accept, or make comparisons cast toward the wider type. D162 settled arithmetic (a wider right operand is an error); comparisons still cast right to left and are not checked (proposed by Claude, unconfirmed), so this stays open for them.
+3. Right-to-left casting makes `age > 0.5` with an Integer `age` mean `age > 0`. Accept, or make comparisons cast toward the wider type. D162 settled arithmetic (a wider right operand is an error); comparisons still cast right to left and are not checked (proposed by Claude, unconfirmed), so this stays open for them.
    - The abbreviation lint has no escape hatch for names that must mirror an external spelling (`keyword_var`). Keep it absolute, or allow a per line `# spelled: keyword_var` style exemption.
 6. `_` now means two things: private ([Lexical structure](classes_and_files.md#lexical-structure--implemented)) and intentionally unused ([Unused is an error](style.md#unused-is-an-error--implemented)). They mostly agree (an unused
    private function is fine either way), but an unused PUBLIC function cannot be an error (libraries are full of them; tree
@@ -90,15 +90,15 @@ From `mortaros_notes.md` on 2026-09-19 (second batch):
     - **Print it to the console** as the classes are written, so it is read once and not stored.
     - **Give the comment rule one more form**, a provenance line the compiler writes and a human never does.
 11. **Whether a `type`'s function members should be written as function-valued attributes** (Mortaro, 2026-09-21,
-    thinking aloud rather than deciding). Today a shape writes `hit(): Int`; the alternative is
-    `hit: Spite.Function<Int>`, which would make a required function an ordinary attribute whose type happens to
+    thinking aloud rather than deciding). Today a shape writes `hit(): Integer`; the alternative is
+    `hit: Spite.Function<Integer>`, which would make a required function an ordinary attribute whose type happens to
     be a function, and would leave a `type` with exactly one kind of member instead of two.
     - **It needs D39 first**: the typed `Spite.Function<Arguments..., Return>` does not exist yet, so the form
       cannot be written or printed.
-    - Against: `hit(): Int` reads like the declaration it matches, and a shape is matched against functions
-      written `func hit(): Int`.
+    - Against: `hit(): Integer` reads like the declaration it matches, and a shape is matched against functions
+      written `func hit(): Integer`.
     - For: one kind of member, and it composes -- a shape could then require a function value it will *store*,
-      which `hit(): Int` cannot express.
+      which `hit(): Integer` cannot express.
 
 12. **(Answered by D87: `generic $name` header lines. Built 2026-09-24, [Codegen values (`$`)](metaprogramming.md#codegen-values---implemented).)** **A header form for generics, with constraints** (Mortaro, 2026-09-23, asked to be argued with). The proposal:
     `generic $type` lines at the top of the file beside `singleton`, and a described generic

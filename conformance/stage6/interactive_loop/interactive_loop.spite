@@ -10,6 +10,6 @@ func increment() {
     count = count + 1
 }
 
-func doubled(): Int {
+func doubled(): Integer {
     return count * 2
 }

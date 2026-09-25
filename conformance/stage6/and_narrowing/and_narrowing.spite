@@ -15,12 +15,12 @@ func AndNarrowing() {
     console.print(before, after)
 }
 
-func show(names: List<String>, ages: List<Int>, position: Int) {
+func show(names: List<String>, ages: List<Integer>, position: Integer) {
     crash names[position] and ages[position]
     console.print(names[position], ages[position])
 }
 
-func shown_if_both(names: List<String>, ages: List<Int>, position: Int): String {
+func shown_if_both(names: List<String>, ages: List<Integer>, position: Integer): String {
     if names[position] and ages[position] {
         return "{names[position]} is {ages[position]}"
     }

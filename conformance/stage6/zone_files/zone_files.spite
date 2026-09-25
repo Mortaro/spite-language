@@ -19,8 +19,8 @@ func ZoneFiles() {
     show_all(eastern, eastern_moments)
     show_all(sydney, southern_moments)
     show_all(lord_howe, half_hour_moments)
-    var southern_gap = LocalDateTime(LocalDate(2024, 10, 6), LocalTime(2, 30, 0, 0))
-    var southern_overlap = LocalDateTime(LocalDate(2024, 4, 7), LocalTime(2, 30, 0, 0))
+    var southern_gap = DateTime(Date(2024, 10, 6), Time(2, 30, 0, 0))
+    var southern_overlap = DateTime(Date(2024, 4, 7), Time(2, 30, 0, 0))
     choose(sydney, southern_gap)
     choose(sydney, southern_overlap)
     refused("TZif2")
@@ -46,7 +46,7 @@ func show_all(zone: TimeZone, moments: List<Long>) {
     }
 }
 
-func choose(zone: TimeZone, local: LocalDateTime) {
+func choose(zone: TimeZone, local: DateTime) {
     var earlier = zone.to_instant(local, 'earlier')
     var later = zone.to_instant(local, 'later')
     var earlier_text = zone.to_text(earlier)

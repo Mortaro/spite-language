@@ -32,7 +32,7 @@ var name = ""
 var milliseconds = 0
 var log = List<String>()
 
-func Sleeper(starting_name: String, starting_milliseconds: Int, shared_log: List<String>) {
+func Sleeper(starting_name: String, starting_milliseconds: Integer, shared_log: List<String>) {
     name = starting_name
     milliseconds = starting_milliseconds
     log = shared_log
@@ -245,7 +245,7 @@ handle stands in for the result, `finished` never waits, and dropping it waits.
 ```gdscript title=parallel_tour/summer.spite
 var limit = 0
 
-func Summer(starting_limit: Int) {
+func Summer(starting_limit: Integer) {
     limit = starting_limit
 }
 
@@ -285,8 +285,8 @@ what is queued and stops its threads.
 
 | `ThreadPool()` | |
 |---|---|
-| `size(): Int` | how many worker threads it runs (starting them if it has not) |
-| `worker_index(): Int` | which worker is running this code, from `0`, or `-1` on a thread that is not one of them -- for scratch memory kept per worker |
+| `size(): Integer` | how many worker threads it runs (starting them if it has not) |
+| `worker_index(): Integer` | which worker is running this code, from `0`, or `-1` on a thread that is not one of them -- for scratch memory kept per worker |
 
 ### A value per thread, and a lock
 
@@ -303,7 +303,7 @@ var totals_lock = Lock()
 var commands = 0
 
 func PerThreadBuffers() {
-    var runs = List<Parallel<Int>>()
+    var runs = List<Parallel<Integer>>()
     var index = 0
     while index < 8 {
         runs.append(Parallel(record_commands))
@@ -312,14 +312,14 @@ func PerThreadBuffers() {
     var recorded = 0
     index = 0
     while index < runs.count() {
-        var count: Int = runs.get_at(index)
+        var count: Integer = runs.get_at(index)
         recorded = recorded + count
         index = index + 1
     }
     console.print(recorded, "commands recorded,", commands, "counted under the lock")
 }
 
-func record_commands(): Int {
+func record_commands(): Integer {
     var buffer = buffers.get()
     if not buffer {
         buffers.set(List<String>())
@@ -365,7 +365,7 @@ var position: Long = 0
 var speed = 0
 var awake = false
 
-func Particle(starting_speed: Int) {
+func Particle(starting_speed: Integer) {
     speed = starting_speed
     awake = starting_speed % 3 == 0
 }
@@ -396,7 +396,7 @@ the particles moved 5997000
 
 **The member may reach only its own element** (D35). Every element runs at the same time as the others, so the
 compiler reads the member -- and every function of the element's class it calls -- and allows only the element's
-own attributes that hold a value (a number, a `Bool`, text, an enum or a `Symbol`), any singleton and the
+own attributes that hold a value (a number, a `Boolean`, text, an enum or a `Symbol`), any singleton and the
 member's locals. A singleton of the program's own that can change is made safe for you in a program that uses
 `Parallel` -- with atomics when it only counts or flags, with a lock otherwise
 ([optimizations.md](optimizations.md#thread-safety-for-singletons-the-cheapest-safe-form)) -- so a `Parallel` or a
@@ -461,11 +461,11 @@ This session is replayed by `check.sh` against the program above while its loop 
 
 ```wire frame_loop
 $ spite connect 4000 --command="program.running"
-{"ok":true,"value":"true","type":"Bool"}
+{"ok":true,"value":"true","type":"Boolean"}
 
 # Answered between two frames: the loop sees the change at its next test.
 $ spite connect 4000 --command="program.running = false"
-{"ok":true,"value":"false","type":"Bool"}
+{"ok":true,"value":"false","type":"Boolean"}
 
 $ spite connect 4000 --command="exit"
 {"ok":true,"value":"","type":""}
@@ -496,7 +496,7 @@ stopped after at least one pass: true
 ```wire busy_loop
 # The loop never waits: the command is answered at the end of a pass.
 $ spite connect 4000 --command="program.running = false"
-{"ok":true,"value":"false","type":"Bool"}
+{"ok":true,"value":"false","type":"Boolean"}
 
 $ spite connect 4000 --command="exit"
 {"ok":true,"value":"","type":""}
@@ -531,7 +531,7 @@ the user's page for all of it.
   which has no value to read and is waited for by dropping it: keep such handles in a list, and clearing the list
   or leaving its function waits for all of them.
 - **Every attribute of both classes is private** (`_work`, `_results`, `_state`, ...), and the one public member is
-  `finished: Bool` (below). Nothing outside the class reaches the thread, the state machine or the work.
+  `finished: Boolean` (below). Nothing outside the class reaches the thread, the state machine or the work.
 
 **A concurrent result joins on first use** (D134, decided by Mortaro; the reading below is proposed by Claude,
 unconfirmed).  **[implemented]** There is no `wait()` and no `join()` any more: **the handle stands in for its
@@ -570,7 +570,7 @@ every system (`conformance/stage6/finished_polling`).
   elsewhere, for scratch memory kept per worker.
 - **The queue.** One lock and two condition variables (`SRWLOCK` and `CONDITION_VARIABLE` on Windows,
   `pthread_mutex_t` and `pthread_cond_t` elsewhere, each system's folder reopening the class). A job is a
-  `Spite.Function<Int, Int, Nothing>` with the two numbers it is given and the address of an 8-byte state its
+  `Spite.Function<Integer, Integer, Nothing>` with the two numbers it is given and the address of an 8-byte state its
   owner holds (queued, running, done). Workers take jobs in order; `finished` reads the state with an atomic load.
 - **Joining claims.** Waiting for a job that no worker has taken yet takes it out of the queue and runs it on the
   waiting thread, so a job that starts and waits for another job -- a `Parallel` inside a `Parallel`, or a
@@ -690,7 +690,7 @@ lock on that stream when the process exits.
 **`parallel_each_`** (D135, decided by Mortaro; D35's race rule, which Claude proposed, is built as below and is
 still unconfirmed).  **[implemented on Windows]** `list.parallel_each_update()` calls `update()` on every element,
 split across the pool, and returns when all are done. The generator writes two functions on the list's class, as
-it writes a fused chain (D105): `parallel_each_update_piece(first: Int, end: Int)`, a `while` over that range of
+it writes a fused chain (D105): `parallel_each_update_piece(first: Integer, end: Integer)`, a `while` over that range of
 the buffer, and `parallel_each_update()`, which hands the piece function to `ThreadPool.run_pieces(piece, count)`.
 That cuts the list into up to four pieces per thread (the workers and the caller), queues all but the first, runs
 the first on the calling thread and joins the rest, claiming any no worker has taken. One allocation per call for
@@ -701,7 +701,7 @@ elements may share.
 
 - **The race rule, D35 as a compile check.** The member, every function of the element's class it calls
   (transitively, by name), and every `filter_` member in the chain may read and write only the element's
-  attributes that hold a plain value -- a number, `Bool`, `String`, enum or `Symbol`, or a `T?` of one -- any
+  attributes that hold a plain value -- a number, `Boolean`, `String`, enum or `Symbol`, or a `T?` of one -- any
   singleton (the library's, and the program's own, which D183 makes safe below), and their own parameters and
   locals. An attribute holding an object, a list, a dictionary, a function value or a program's own singleton is an
   error naming the attribute, its type and the one-thread form (`diagnostics/parallel_reach`):

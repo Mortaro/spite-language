@@ -54,7 +54,7 @@ func stocked_items(): List<Item> {
     return stocked
 }
 
-func total_price(): Int {
+func total_price(): Integer {
     var total = 0
     var index = 0
     while index < items.count() {
@@ -76,7 +76,7 @@ func named(wanted: String): Item? {
     return null
 }
 
-func count_in_stock(): Int {
+func count_in_stock(): Integer {
     var stocked_count = 0
     var index = 0
     while index < items.count() {
@@ -88,7 +88,7 @@ func count_in_stock(): Int {
     return stocked_count
 }
 
-func any_in_stock(): Bool {
+func any_in_stock(): Boolean {
     var index = 0
     while index < items.count() {
         if items[index].in_stock {
@@ -99,8 +99,8 @@ func any_in_stock(): Bool {
     return false
 }
 
-func positions_of_stocked(): List<Int> {
-    var positions = List<Int>()
+func positions_of_stocked(): List<Integer> {
+    var positions = List<Integer>()
     var index = 0
     while index < items.count() {
         if items[index].in_stock {

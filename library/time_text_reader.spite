@@ -6,11 +6,11 @@ func TimeTextReader(text: String) {
     _text = text
 }
 
-func finish(): Bool {
+func finish(): Boolean {
     return not _failed and _position == _text.length()
 }
 
-func read_date(): LocalDate {
+func read_date(): Date {
     var sign = _text.code_at(_position)
     var year = 0
     if sign == 43 or sign == 45 {
@@ -29,17 +29,17 @@ func read_date(): LocalDate {
     var day = _read_digits(2)
     _failed = _failed or month < 1 or month > 12 or day < 1
     if _failed {
-        return LocalDate(1970, 1, 1)
+        return Date(1970, 1, 1)
     }
-    var first = LocalDate(year, month, 1)
+    var first = Date(year, month, 1)
     if day > first.days_in_month {
         _failed = true
         return first
     }
-    return LocalDate(year, month, day)
+    return Date(year, month, day)
 }
 
-func read_time(): LocalTime {
+func read_time(): Time {
     var hour = _read_digits(2)
     _expect(58)
     var minute = _read_digits(2)
@@ -52,15 +52,15 @@ func read_time(): LocalTime {
     }
     _failed = _failed or hour > 23 or minute > 59 or second > 60
     if _failed {
-        return LocalTime(0, 0, 0, 0)
+        return Time(0, 0, 0, 0)
     }
     if second == 60 {
         second = 59
     }
-    return LocalTime(hour, minute, second, nanosecond)
+    return Time(hour, minute, second, nanosecond)
 }
 
-func read_date_time(): LocalDateTime {
+func read_date_time(): DateTime {
     var date = read_date()
     var separator = _text.code_at(_position)
     if separator == 84 or separator == 116 or separator == 32 {
@@ -69,7 +69,7 @@ func read_date_time(): LocalDateTime {
         _failed = true
     }
     var time = read_time()
-    return LocalDateTime(date, time)
+    return DateTime(date, time)
 }
 
 func read_offset(): Long {
@@ -157,7 +157,7 @@ func read_period(): Period {
     var order = 0
     while not _failed and _position < _text.length() {
         var component_negative = _read_sign()
-        var number: Int = _read_number()
+        var number: Integer = _read_number()
         if component_negative {
             number = -number
         }
@@ -191,7 +191,7 @@ func read_period(): Period {
     return period
 }
 
-func _read_sign(): Bool {
+func _read_sign(): Boolean {
     var sign = _text.code_at(_position)
     if sign == 43 or sign == 45 {
         _position = _position + 1
@@ -199,7 +199,7 @@ func _read_sign(): Bool {
     return sign == 45
 }
 
-func _read_digits(count: Int): Int {
+func _read_digits(count: Integer): Integer {
     var value = 0
     var index = 0
     while index < count {
@@ -231,7 +231,7 @@ func _read_number(): Long {
     return value
 }
 
-func _read_fraction(): Int {
+func _read_fraction(): Integer {
     var separator = _text.code_at(_position)
     assert separator == 46 or separator == 44
     _position = _position + 1
@@ -254,7 +254,7 @@ func _read_fraction(): Int {
     return value
 }
 
-func _expect(code: Int) {
+func _expect(code: Integer) {
     if _text.code_at(_position) == code {
         _position = _position + 1
     } else {

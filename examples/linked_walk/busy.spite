@@ -1,5 +1,5 @@
 var jobs = 0
 
-func Busy(starting_jobs: Int) {
+func Busy(starting_jobs: Integer) {
     jobs = starting_jobs
 }

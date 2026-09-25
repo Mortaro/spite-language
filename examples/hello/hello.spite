@@ -10,12 +10,12 @@ func Hello() {
     report_if_large(count * 100)
 }
 
-func add_stuff(first_value: Int, second_value: Float): Int {
-    var whole_second_value: Int = second_value
+func add_stuff(first_value: Integer, second_value: Float): Integer {
+    var whole_second_value: Integer = second_value
     return first_value + whole_second_value
 }
 
-func report_if_large(value: Int) {
+func report_if_large(value: Integer) {
     assert value > 100
     console.print("large", value)
 }

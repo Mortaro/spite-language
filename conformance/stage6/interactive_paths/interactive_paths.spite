@@ -14,7 +14,7 @@ func weakest(): Monster {
     return Monster("mouse", 1)
 }
 
-func add(left: Int, right: Int): Int {
+func add(left: Integer, right: Integer): Integer {
     return left + right
 }
 

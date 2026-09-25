@@ -7,7 +7,7 @@ func Weapon(new_damage: $damage_type) {
     damage = new_damage
 }
 
-func hit(): Int {
+func hit(): Integer {
     if $is_magic {
         return 1
     } else {

@@ -40,7 +40,7 @@ There is no annotation, no naming convention and no compiler trick -- the framew
 with ordinary compile-time reflection ([Reflection objects](reflection.md#reflection-objects--partial)).
 
 ```user_repository.spite
-func find_user_by_id(context: ServerContext, id: Int): User { }
+func find_user_by_id(context: ServerContext, id: Integer): User { }
 
 func load_users(context: ClientContext) { }
 

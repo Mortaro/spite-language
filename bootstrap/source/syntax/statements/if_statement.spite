@@ -8,7 +8,7 @@ var line = 0
 func IfStatement(
     if_condition: Syntax.Expressions.Expression,
     if_then_branch: List<Statement>,
-    if_has_else_branch: Bool,
+    if_has_else_branch: Boolean,
     if_else_branch: List<Statement>,
 ) {
     condition = if_condition

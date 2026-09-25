@@ -1,3 +1,3 @@
-text is String, copies is Int
+text is String, copies is Integer
 Label
 Label

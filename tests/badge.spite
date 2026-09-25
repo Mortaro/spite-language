@@ -1,5 +1,5 @@
 var _number = 7
 
-func get_number(): Int {
+func get_number(): Integer {
     return _number
 }

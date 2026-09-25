@@ -1,10 +1,10 @@
 var parent: Scope? = null
 var entry_names = List<String>()
 var entry_types = List<Analysis.SpiteType>()
-var entry_used = List<Bool>()
-var entry_lines = List<Int>()
-var entry_checked = List<Bool>()
-var entry_parameters = List<Bool>()
+var entry_used = List<Boolean>()
+var entry_lines = List<Integer>()
+var entry_checked = List<Boolean>()
+var entry_parameters = List<Boolean>()
 var override_names = List<String>()
 var override_codes = List<String>()
 var owned = List<OwnedLocal>()
@@ -28,18 +28,18 @@ func declare(name: String, spite_type: Analysis.SpiteType) {
     entry_parameters.append(false)
 }
 
-func declare_checked(name: String, spite_type: Analysis.SpiteType, line: Int) {
+func declare_checked(name: String, spite_type: Analysis.SpiteType, line: Integer) {
     declare(name, spite_type)
     entry_lines[entry_lines.count() - 1] = line
     entry_checked[entry_checked.count() - 1] = true
 }
 
-func check_last(line: Int) {
+func check_last(line: Integer) {
     entry_lines[entry_lines.count() - 1] = line
     entry_checked[entry_checked.count() - 1] = true
 }
 
-func check_last_parameter(line: Int) {
+func check_last_parameter(line: Integer) {
     check_last(line)
     entry_parameters[entry_parameters.count() - 1] = true
 }
@@ -160,7 +160,7 @@ func forget_bound(path: String) {
     }
 }
 
-func is_path_narrowed(candidate: String): Bool {
+func is_path_narrowed(candidate: String): Boolean {
     return not narrowing_of(candidate).is_empty()
 }
 
@@ -184,7 +184,7 @@ func narrowing_of(candidate: String): String {
     return ""
 }
 
-func forget_path(path: String, include_itself: Bool, read_by_crossed_loops: List<String>): Bool {
+func forget_path(path: String, include_itself: Boolean, read_by_crossed_loops: List<String>): Boolean {
     var crossed_a_loop = false
     var index = narrowed_paths.count() - 1
     while index >= 0 {
@@ -215,7 +215,7 @@ func forget_path(path: String, include_itself: Bool, read_by_crossed_loops: List
     return crossed_a_loop
 }
 
-func holds_proofs(): Bool {
+func holds_proofs(): Boolean {
     if not narrowed_paths.is_empty() or not override_names.is_empty() {
         return true
     }
@@ -267,7 +267,7 @@ func path_root(path: String): String {
     return path.slice(0, root_end)
 }
 
-func name_end(text: String, start: Int): Int {
+func name_end(text: String, start: Integer): Integer {
     var position = start
     var text_length = text.length()
     var code = text.code_at(position)
@@ -278,7 +278,7 @@ func name_end(text: String, start: Int): Int {
     return position
 }
 
-func key_end(path: String, open_position: Int): Int {
+func key_end(path: String, open_position: Integer): Integer {
     var depth = 0
     var position = open_position
     var path_length = path.length()
@@ -297,7 +297,7 @@ func key_end(path: String, open_position: Int): Int {
     return position - 1
 }
 
-func key_mentions(narrowed: String, path: String): Bool {
+func key_mentions(narrowed: String, path: String): Boolean {
     var first_key = narrowed.index_of("[")
     assert first_key >= 0
     var path_length = path.length()
@@ -316,12 +316,12 @@ func key_mentions(narrowed: String, path: String): Bool {
     return false
 }
 
-func is_word_start(text: String, position: Int): Bool {
+func is_word_start(text: String, position: Integer): Boolean {
     var before = text.code_at(position - 1)
     return before != 46 and before != 34 and not is_name_code(before)
 }
 
-func is_name_code(code: Int): Bool {
+func is_name_code(code: Integer): Boolean {
     return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
 }
 
@@ -345,7 +345,7 @@ func unnarrowed_type(name: String): Analysis.SpiteType? {
     return null
 }
 
-func forget_override(name: String, below_a_loop: Bool): Bool {
+func forget_override(name: String, below_a_loop: Boolean): Boolean {
     var crossed_a_loop = false
     var index = override_names.count() - 1
     while index >= 0 {

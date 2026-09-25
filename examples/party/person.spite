@@ -7,11 +7,11 @@ enum Job {
 var age = 0
 var job: Job = 'knight'
 
-func Person(starting_age: Int, starting_job: Job) {
+func Person(starting_age: Integer, starting_job: Job) {
     age = starting_age
     job = starting_job
 }
 
-func is_knight(): Bool {
+func is_knight(): Boolean {
     return job == 'knight'
 }

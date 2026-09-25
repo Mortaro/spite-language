@@ -7,7 +7,7 @@ func Car(starting_name: String, starting_engine: Engine) {
     engine = starting_engine
 }
 
-func accelerate(amount: Int) {
+func accelerate(amount: Integer) {
     assert engine
     engine.push(amount)
 }

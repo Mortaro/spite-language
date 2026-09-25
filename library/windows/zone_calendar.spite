@@ -15,13 +15,13 @@ func get_name(): String {
     return _name
 }
 
-func get_is_open(): Bool {
+func get_is_open(): Boolean {
     return _handle != 0
 }
 
-func offset_seconds_at(unix_seconds: Long): Int {
+func offset_seconds_at(unix_seconds: Long): Integer {
     var status = heap.allocate(4)
-    status.write_int(0, 0)
+    status.write_integer(0, 0)
     var milliseconds: Double = unix_seconds * 1000
     icu.ucal_setMillis(_handle, milliseconds, status)
     var zone = icu.ucal_get(_handle, 15, status)
@@ -48,14 +48,14 @@ func _opened(): Long {
     var status = heap.allocate(4)
     var is_system = heap.allocate(4)
     var canonical = heap.allocate(512)
-    status.write_int(0, 0)
-    is_system.write_int(0, 0)
+    status.write_integer(0, 0)
+    is_system.write_integer(0, 0)
     icu.ucal_getCanonicalTimeZoneID(characters, length, canonical, 256, is_system, status)
     var handle: Long = 0
-    if status.read_int(0) <= 0 and is_system.read_byte(0) != 0 {
+    if status.read_integer(0) <= 0 and is_system.read_byte(0) != 0 {
         handle = icu.ucal_open_as_long(characters, length, "", 1, status)
     }
-    if status.read_int(0) > 0 {
+    if status.read_integer(0) > 0 {
         handle = 0
     }
     heap.free(canonical)
@@ -68,9 +68,9 @@ func _opened(): Long {
 func _default_name(): String {
     var characters = heap.allocate(512)
     var status = heap.allocate(4)
-    status.write_int(0, 0)
+    status.write_integer(0, 0)
     var length = icu.ucal_getDefaultTimeZone(characters, 256, status)
-    if status.read_int(0) > 0 {
+    if status.read_integer(0) > 0 {
         length = 0
     }
     var bytes = heap.allocate(length + 1)

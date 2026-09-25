@@ -1,6 +1,6 @@
 generic $slot_type
 
-func fetch(entity: Int, current: $slot_type): $slot_type {
+func fetch(entity: Integer, current: $slot_type): $slot_type {
     if $slot_type == Marker {
         current.id = entity
         return current

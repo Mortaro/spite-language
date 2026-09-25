@@ -15,6 +15,6 @@ func greet(...people: List<String>) {
     console.print(people_count)
 }
 
-func labeled(label: String, ...values: List<Int>): String {
+func labeled(label: String, ...values: List<Integer>): String {
     return "{label} {values.join(", ")}"
 }

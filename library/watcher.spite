@@ -3,7 +3,7 @@ var clock = Clock()
 var pending = List<String>()
 var last_change: Long = 0
 
-func watch(path: String): Bool {
+func watch(path: String): Boolean {
     var folder = Directory(path)
     if folder.exists() {
         return watch_folder(path)

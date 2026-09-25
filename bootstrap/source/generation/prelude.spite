@@ -189,16 +189,16 @@ func reopened_classes(): List<String> {
 
 func number_classes(): List<String> {
     return [
-        "int"
+        "integer"
         "long"
         "float"
         "double"
-        "bool"
+        "boolean"
         "tiny"
         "short"
         "byte"
         "unsigned_short"
-        "unsigned_int"
+        "unsigned_integer"
         "unsigned_long"
     ]
 }
@@ -217,7 +217,16 @@ func number_members(stem: String): List<String> {
         "func from_type(type: Symbol, value: type.class): {type_name}"
         "written per type by the generator: a C cast"
     ]
-    var whole_numbers = ["tiny", "short", "int", "long", "byte", "unsigned_short", "unsigned_int", "unsigned_long"]
+    var whole_numbers = [
+        "tiny"
+        "short"
+        "integer"
+        "long"
+        "byte"
+        "unsigned_short"
+        "unsigned_integer"
+        "unsigned_long"
+    ]
     var widths = [8, 16, 32, 64, 8, 16, 32, 64]
     var is_signed = not stem.starts_with("unsigned_") and stem != "byte"
     var index = 0
@@ -236,7 +245,7 @@ func number_members(stem: String): List<String> {
     return members
 }
 
-func bitwise_members(type_name: String, width: Int, is_signed: Bool): List<String> {
+func bitwise_members(type_name: String, width: Integer, is_signed: Boolean): List<String> {
     var value_type = "uint{width}_t"
     var right_shift = "if (count_ >= {width}) return 0;\nreturn ({value_type})(self >> count_);"
     if is_signed {
@@ -249,9 +258,9 @@ func bitwise_members(type_name: String, width: Int, is_signed: Bool): List<Strin
     var right_crash = negative_count_crash(type_name, "shifted_right")
     var above_width = 64 - width
     return [
-        "func shifted_left(count: Int): {type_name}"
+        "func shifted_left(count: Integer): {type_name}"
         "{left_crash}if (count_ >= {width}) return 0;\nreturn ({value_type})({bits_type})(({bits_type})self << count_);"
-        "func shifted_right(count: Int): {type_name}"
+        "func shifted_right(count: Integer): {type_name}"
         "{right_crash}{right_shift}"
         "func bits_and(other: {type_name}): {type_name}"
         "return ({value_type})(self & other_);"
@@ -261,11 +270,11 @@ func bitwise_members(type_name: String, width: Int, is_signed: Bool): List<Strin
         "return ({value_type})(self ^ other_);"
         "func bits_inverted(): {type_name}"
         "return ({value_type})~self;"
-        "func set_bit_count(): Int"
+        "func set_bit_count(): Integer"
         "return (int32_t)__builtin_popcountll((uint64_t)({bits_type})self);"
-        "func leading_zero_count(): Int"
+        "func leading_zero_count(): Integer"
         "if (({bits_type})self == 0) return {width};\nreturn (int32_t)__builtin_clzll((uint64_t)({bits_type})self) - {above_width};"
-        "func trailing_zero_count(): Int"
+        "func trailing_zero_count(): Integer"
         "if (({bits_type})self == 0) return {width};\nreturn (int32_t)__builtin_ctzll((uint64_t)({bits_type})self);"
     ]
 }
@@ -359,7 +368,7 @@ func heap_members(): List<String> {
         "return (int64_t)(intptr_t)SPITE_REALLOC((void*)(intptr_t)address_, (size_t)bytes_);"
         "func free(address: Memory.Address)"
         "SPITE_FREE((void*)(intptr_t)address_);"
-        "func live_allocations(): Int"
+        "func live_allocations(): Integer"
         "return (int32_t)spite_live_allocation_count();"
     ]
 }
@@ -370,7 +379,7 @@ func address_members(): List<String> {
         "written per type by the generator: a C cast"
         "func copy_to(target: Memory.Address, bytes: Long)"
         "written by the generator: one machine operation"
-        "func compare_bytes(other: Memory.Address, bytes: Long): Int"
+        "func compare_bytes(other: Memory.Address, bytes: Long): Integer"
         "written by the generator: one machine operation"
         "func exchange_long(offset: Long, value: Long): Long"
         "written by the generator: one machine operation"
@@ -379,8 +388,8 @@ func address_members(): List<String> {
         "func write_long_atomically(offset: Long, value: Long)"
         "written by the generator: one machine operation"
     ]
-    var types = ["Byte", "Short", "UnsignedShort", "Int", "UnsignedInt", "Long", "Float", "Double"]
-    var words = ["byte", "short", "unsigned_short", "int", "unsigned_int", "long", "float", "double"]
+    var types = ["Byte", "Short", "UnsignedShort", "Integer", "UnsignedInteger", "Long", "Float", "Double"]
+    var words = ["byte", "short", "unsigned_short", "integer", "unsigned_integer", "long", "float", "double"]
     var index = 0
     while index < types.count() {
         var type_name = types.get_at(index)
@@ -414,18 +423,18 @@ func concurrent_members(): List<String> {
 
 func scheduler_members(): List<String> {
     return [
-        "func step_frame(frame: Long): Bool"
+        "func step_frame(frame: Long): Boolean"
         "return (*(bool (**)(void*))(intptr_t)frame_)((void*)(intptr_t)frame_);"
     ]
 }
 
 func typed_memory_members(): List<String> {
     return [
-        "func read_value(address: Memory.Address, index: Int): $value_type"
+        "func read_value(address: Memory.Address, index: Integer): $value_type"
         "written per value type by the generator"
-        "func write_value(address: Memory.Address, index: Int, value: $value_type)"
+        "func write_value(address: Memory.Address, index: Integer, value: $value_type)"
         "written per value type by the generator"
-        "func release_value(address: Memory.Address, index: Int)"
+        "func release_value(address: Memory.Address, index: Integer)"
         "written per value type by the generator"
         "func value_bytes(): Long"
         "written per value type by the generator"
@@ -466,7 +475,7 @@ func attribute_members(): List<String> {
         "if (self->spite_held != 0 && self->spite_held_attributes != 0) return self->spite_held_attributes(self->spite_held);\nreturn List_Spite_Attribute___make();"
         "func value_functions(): List<Spite.Function>"
         "if (self->spite_held != 0 && self->spite_held_functions != 0) return self->spite_held_functions(self->spite_held);\nreturn List_Spite_Function___make();"
-        "func assign(text: String): Bool"
+        "func assign(text: String): Boolean"
         "bool assigned = false;\nif (self->spite_owner != 0 && self->spite_assign != 0) assigned = self->spite_assign(self->spite_owner, text_);\nSpiteString___release(text_);\nreturn assigned;"
     ]
 }

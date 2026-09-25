@@ -2,8 +2,8 @@ generic $system_type
 
 var system: $system_type = null
 var placed_in: Schedule.Phase = 'update'
-var counts = List<Int>()
-var picked = List<Int>()
+var counts = List<Integer>()
+var picked = List<Integer>()
 var position = 0
 
 func Runner() {
@@ -63,7 +63,7 @@ func every_argument(argument: Symbol<$system_type.phase_all>): argument.class {
     return query.rows
 }
 
-func combinations(): Int {
+func combinations(): Integer {
     var total = 1
     var index = 0
     while index < counts.count() {
@@ -73,7 +73,7 @@ func combinations(): Int {
     return total
 }
 
-func choose(combination: Int) {
+func choose(combination: Integer) {
     picked.clear()
     var remaining = combination
     var index = 0

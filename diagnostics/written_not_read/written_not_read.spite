@@ -10,7 +10,7 @@ func WrittenNotRead() {
     console.print(shown)
 }
 
-func count_twice(amount: Int): Int {
+func count_twice(amount: Integer): Integer {
     amount = 0
     return 2
 }

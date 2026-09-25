@@ -13,6 +13,6 @@ func Naming() {
     console.print(msg, playerName, btn_count, calcTotal(2))
 }
 
-func calcTotal(val: Int): Int {
+func calcTotal(val: Integer): Integer {
     return val * 2
 }

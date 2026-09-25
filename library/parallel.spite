@@ -10,7 +10,7 @@ func Parallel(starting_work: Spite.Function<$result_type>) {
     _pool.submit(_call.run, 0, 0, _state)
 }
 
-func get_finished(): Bool {
+func get_finished(): Boolean {
     return _state.read_long_atomically(0) == 2
 }
 

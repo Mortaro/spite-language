@@ -18,7 +18,7 @@ func setting(name: String): String? {
     return program.environment(upper_case_name)
 }
 
-func boolean_setting(name: String, declared: Bool): Bool {
+func boolean_setting(name: String, declared: Boolean): Boolean {
     var text = setting(name)
     if text {
         crash text == "true" or text == "false"
@@ -27,11 +27,11 @@ func boolean_setting(name: String, declared: Bool): Bool {
     return declared
 }
 
-func integer_setting(name: String, declared: Int): Int {
+func integer_setting(name: String, declared: Integer): Integer {
     var text = setting(name)
     if text {
         crash is_whole_number(text)
-        return text.to_int()
+        return text.to_integer()
     }
     return declared
 }
@@ -44,7 +44,7 @@ func text_setting(name: String, declared: String): String {
     return declared
 }
 
-func is_whole_number(text: String): Bool {
+func is_whole_number(text: String): Boolean {
     var index = 0
     if text.starts_with("-") {
         index = 1

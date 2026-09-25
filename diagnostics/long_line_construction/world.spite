@@ -1,6 +1,6 @@
 var entities = 0
 
-func create_entity_from_bundle(bundle: CounterButton): Int {
+func create_entity_from_bundle(bundle: CounterButton): Integer {
     entities = entities + 1
     return entities + bundle.label.length()
 }

@@ -26,7 +26,7 @@ func FunctionInfo(
     starting_parameters: List<ParamInfo>,
     starting_return_type: SpiteType,
     starting_body: List<Syntax.Statements.Statement>,
-    starting_is_constructor: Bool,
+    starting_is_constructor: Boolean,
 ) {
     name = starting_name
     c_name = starting_c_name

@@ -19,7 +19,7 @@ func scan() {
     flush(characters_count)
 }
 
-func consume(character: String, index: Int) {
+func consume(character: String, index: Integer) {
     if character == " " {
         flush(index)
         return
@@ -48,7 +48,7 @@ func consume(character: String, index: Int) {
     add_operator(character)
 }
 
-func flush(end_index: Int) {
+func flush(end_index: Integer) {
     assert not (token_start < 0)
     var token_slice = source.slice(token_start, end_index)
     if buffer_is_number {
@@ -90,12 +90,12 @@ func add_operator(character: String) {
     }
 }
 
-func is_digit_or_dot(character: String): Bool {
+func is_digit_or_dot(character: String): Boolean {
     var code = character.code_at(0)
     return code >= 48 and code <= 57 or character == "."
 }
 
-func is_letter(character: String): Bool {
+func is_letter(character: String): Boolean {
     var code = character.code_at(0)
     return code >= 97 and code <= 122 or code >= 65 and code <= 90
 }

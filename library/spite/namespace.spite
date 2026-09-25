@@ -29,7 +29,7 @@ func get_namespaces(): List<Spite.Namespace> {
     return _namespaces
 }
 
-func equals(other: String): Bool {
+func equals(other: String): Boolean {
     return _name_with_namespaces == other
 }
 

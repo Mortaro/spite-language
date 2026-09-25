@@ -19,15 +19,15 @@ func read(): String? {
     return content
 }
 
-func write(text: String): Bool {
+func write(text: String): Boolean {
     return put(text, "wb")
 }
 
-func append(text: String): Bool {
+func append(text: String): Boolean {
     return put(text, "ab")
 }
 
-func exists(): Bool {
+func exists(): Boolean {
     var handle = open_file("rb")
     assert handle != 0
     close_file(handle)
@@ -60,7 +60,7 @@ func read_bytes(position: Long, count: Long, address: Long): Long? {
     return got
 }
 
-func write_bytes(address: Long, count: Long): Bool {
+func write_bytes(address: Long, count: Long): Boolean {
     var handle = open_file("wb")
     assert handle != 0
     var written = write_from(address, count, handle)
@@ -79,7 +79,7 @@ func append_bytes(address: Long, count: Long): Long? {
     return start
 }
 
-func put(text: String, mode: String): Bool {
+func put(text: String, mode: String): Boolean {
     var handle = open_file(mode)
     assert handle != 0
     var written = write_text(text, handle)

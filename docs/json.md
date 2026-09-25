@@ -30,7 +30,7 @@ var note: String? = null
 var name = ""
 var count = 1
 
-func Item(starting_name: String, starting_count: Int) {
+func Item(starting_name: String, starting_count: Integer) {
     name = starting_name
     count = starting_count
 }
@@ -77,7 +77,7 @@ Ada "the" first shipped tea 2
 |---|---|
 | `String` | text, with `"`, `\`, and control characters escaped |
 | every number type | a number |
-| `Bool` | `true` or `false` |
+| `Boolean` | `true` or `false` |
 | an enum | its value's name, as text |
 | a class | an object, one key per attribute |
 | `List<T>` | an array |
@@ -133,14 +133,14 @@ unclosed object
 
 ## Values that are not classes
 
-`Json` takes any type, not only classes: `Json(scores)` for a `Dictionary<Int>`, `Json<List<Double>>(null)` to
+`Json` takes any type, not only classes: `Json(scores)` for a `Dictionary<Integer>`, `Json<List<Double>>(null)` to
 read a list, `Json("text")`.
 
 ```gdscript title=json_values/json_values.spite entry
 var console = Console()
 
 func JsonValues() {
-    var scores = Dictionary<Int>()
+    var scores = Dictionary<Integer>()
     scores.set("ada", 3)
     scores.set("bo", 5)
     var json = Json(scores)
@@ -233,7 +233,7 @@ makes a new value and leaves the one the `Json` holds alone, so one `Json(order)
   attribute at once by its plural (`write_attributes`, `read_attributes`). Reading keeps a `JsonReader`
   (`library/json_reader.spite`), a cursor over the text holding the first failure.
 - **What each type becomes:** `String` is text (`"`, `\` and control characters escaped, `\uXXXX` read back as
-  UTF-8, surrogate pairs included); every number type is a number; `Bool` is `true`/`false`; an enum is its value's
+  UTF-8, surrogate pairs included); every number type is a number; `Boolean` is `true`/`false`; an enum is its value's
   name as text; a class is an object with one key per attribute in declaration order; `List<T>` is an array;
   `Dictionary<T>` is an object; `T?` is `null` or what `T` becomes. Nested classes, lists of lists and
   dictionaries of classes are the same rules again.
@@ -254,7 +254,7 @@ What follows is Claude's reading where D22 and D95 are not specific (proposed by
   to prevent. `read_or_crash` crashes on the same inputs, and its crash line carries
   `failure=expected <what> at character <n>`.
 - **A number reads into whatever number type the attribute has** through the ordinary text-to-number cast, so
-  `3.7` read into an `Int` is `3`; JSON has one number type and the class already says which one it wants.
+  `3.7` read into an `Integer` is `3`; JSON has one number type and the class already says which one it wants.
 - **Not handled yet:** a `Float` or `Double` holding infinity or not-a-number is written as `inf`/`nan`, which is
   not JSON; a `Symbol` attribute (as opposed to an enum) does not read, since text becomes a `Symbol` only through
   `Symbol(text)` (D70); and `--final-classes` does not print the functions `Json<Order>` generated, because a

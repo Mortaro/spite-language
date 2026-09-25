@@ -1,6 +1,6 @@
 var speed = 1
 var leader: Boid? = null
-var trail = List<Int>()
+var trail = List<Integer>()
 
 func follow() {
     assert leader

@@ -11,7 +11,7 @@ func render_all(patients: List<Patient>) {
     console.print(patients_count, "patients with", total, "health")
 }
 
-func sum_all(patients: List<Patient>): Int {
+func sum_all(patients: List<Patient>): Integer {
     var total = 0
     var index = 0
     while index < patients.count() {

@@ -8,7 +8,7 @@ func Functions() {
     print_range(3)
 }
 
-func fibonacci(count: Int): Int {
+func fibonacci(count: Integer): Integer {
     var previous = 0
     var current = 1
     var index = 0
@@ -21,14 +21,14 @@ func fibonacci(count: Int): Int {
     return previous
 }
 
-func factorial(value: Int): Int {
+func factorial(value: Integer): Integer {
     if value <= 1 {
         return 1
     }
     return value * factorial(value - 1)
 }
 
-func print_range(count: Int) {
+func print_range(count: Integer) {
     var index = 0
     while index < count {
         console.print("range {index}")

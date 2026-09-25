@@ -1,5 +1,5 @@
 var value = false
 
-func BoolArgument(starting_value: Bool) {
+func BooleanArgument(starting_value: Boolean) {
     value = starting_value
 }

@@ -1,7 +1,7 @@
 var label = ""
 var rows = 0
 
-func Panel(starting_label: String, starting_rows: Int) {
+func Panel(starting_label: String, starting_rows: Integer) {
     label = starting_label
     rows = starting_rows
 }
@@ -10,6 +10,6 @@ func render(): String {
     return "panel {label} with {rows} rows"
 }
 
-func resize(factor: Int) {
+func resize(factor: Integer) {
     rows = rows * factor
 }

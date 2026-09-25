@@ -17,7 +17,7 @@ That is all of it: `if`, `while` and `switch`, plus `assert` and `crash` ([failu
 
 ## `if`
 
-Conditions are `Bool`s, joined with `and`, `or` and `not`, which short-circuit. An `if` on a `T?` narrows it in
+Conditions are `Boolean`s, joined with `and`, `or` and `not`, which short-circuit. An `if` on a `T?` narrows it in
 place: inside the block it is a plain value, and the `else` runs exactly when it is null
 ([failure.md](failure.md#narrowing)). `else if` is written on one line; the formatter joins an `else { if }` into
 it.
@@ -36,7 +36,7 @@ func IfChains() {
     }
 }
 
-func letter_for(grade: Int): String {
+func letter_for(grade: Integer): String {
     if grade >= 90 {
         return "A"
     } else if grade >= 70 {
@@ -68,7 +68,7 @@ func NestedDecisionError() {
     console.print(label)
 }
 
-func label_for(count: Int, loud: Bool): String {
+func label_for(count: Integer, loud: Boolean): String {
     if count == 0 {
         return "none"
     } else {
@@ -95,7 +95,7 @@ func NestedDecision() {
     console.print(label)
 }
 
-func label_for(count: Int, loud: Bool): String {
+func label_for(count: Integer, loud: Boolean): String {
     if count == 0 {
         return "none"
     } else {
@@ -104,7 +104,7 @@ func label_for(count: Int, loud: Bool): String {
     }
 }
 
-func said(text: String, loud: Bool): String {
+func said(text: String, loud: Boolean): String {
     if loud {
         return "{text}!"
     }
@@ -282,11 +282,11 @@ func ClassTestDoc() {
     console.print("a cat's fins", cat_fins)
 }
 
-func can_swim(creature: Creature): Bool {
+func can_swim(creature: Creature): Boolean {
     return creature == Fish
 }
 
-func fins_of(creature: Creature): Int {
+func fins_of(creature: Creature): Integer {
     if creature == Fish {
         return creature.fins
     }
@@ -309,13 +309,13 @@ generic $item_type
 
 var items = List<$item_type>()
 
-func count(): Int {
+func count(): Integer {
     return items.count()
 }
 ```
 ```gdscript title=generic_class_test_doc/generic_class_test_doc.spite entry
 type Counted {
-    count(): Int
+    count(): Integer
 }
 
 var console = Console()
@@ -325,7 +325,7 @@ func GenericClassTestDoc() {
     words.items.append("hello")
     var counted: Counted = words
     var holds_words = counted == Storage<String>
-    var holds_numbers = counted == Storage<Int>
+    var holds_numbers = counted == Storage<Integer>
     console.print(holds_words, holds_numbers)
     if counted == Storage<String> {
         var first = counted.items.first()
@@ -341,7 +341,7 @@ hello
 Inside a generic class, a codegen value bound to a class tests for that class: `item == $wanted_type`. A value
 read through a `type` that accepts anything is narrowed to the bound class, so a function can find the first
 value of the class it was made for without a generic function (there are none). A number is boxed when it goes
-into a `type`, so `Find<Int>` finds it too. Where the value's own type already answers -- a `Health` tested
+into a `type`, so `Find<Integer>` finds it too. Where the value's own type already answers -- a `Health` tested
 against `$wanted_type` bound to `Health`, or a union that does not hold the bound class -- the test is decided
 while compiling, and it is never the "never true" error, since another binding may make it true.
 
@@ -371,7 +371,7 @@ func CodegenClassTestDoc() {
     var find_text = Find<String>()
     var text = find_text.first(items)
     crash text
-    var find_number = Find<Int>()
+    var find_number = Find<Integer>()
     var number = find_number.first(items)
     crash number
     console.print(text, number + 1)
@@ -383,7 +383,7 @@ hello 43
 
 **So a switch that is one early return is an error.** A switch with one class case and `_:`, each a single
 `return`, says no more than `if value == Class { return ... }` followed by what `_:` returns -- and when both
-return `Bool` literals, it is `return value == Class`. The error names the form to write:
+return `Boolean` literals, it is `return value == Class`. The error names the form to write:
 
 ```gdscript title=single_case_switch_error/cat.spite
 var lives = 9
@@ -404,7 +404,7 @@ func SingleCaseSwitchError() {
     console.print(swims)
 }
 
-func is_fish(creature: Creature): Bool {
+func is_fish(creature: Creature): Boolean {
     switch creature {
         Fish: return true
         _: return false

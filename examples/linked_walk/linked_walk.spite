@@ -22,7 +22,7 @@ func run() {
     console.print(idle_description, busy_description, broken_description)
 }
 
-func build_chain(length: Int): Node? {
+func build_chain(length: Integer): Node? {
     var head: Node? = null
     var position = length
     while position > 0 {

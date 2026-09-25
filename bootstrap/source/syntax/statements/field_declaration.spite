@@ -9,6 +9,6 @@ func FieldDeclaration(field_name: String, field_type: Syntax.Types.Type) {
     type_reference = field_type
 }
 
-func is_attribute(): Bool {
+func is_attribute(): Boolean {
     return not is_function
 }

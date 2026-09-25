@@ -113,7 +113,7 @@ func collect_loads(statements: List<Syntax.Statements.Statement>, loads: List<Sy
     }
 }
 
-func is_load_call(call: Syntax.Expressions.CallExpression): Bool {
+func is_load_call(call: Syntax.Expressions.CallExpression): Boolean {
     crash call.callee
     var identifier = shape.as_identifier(call.callee)
     if identifier {
@@ -180,7 +180,7 @@ func load_path(expression: Syntax.Expressions.Expression): String? {
     return null
 }
 
-func launcher_binds_build(name: String): Bool {
+func launcher_binds_build(name: String): Boolean {
     var launcher = class_file_named("Launcher")
     crash launcher
     if declares_build(launcher.statements, name) {
@@ -199,7 +199,7 @@ func launcher_binds_build(name: String): Bool {
     return false
 }
 
-func declares_build(statements: List<Syntax.Statements.Statement>, name: String): Bool {
+func declares_build(statements: List<Syntax.Statements.Statement>, name: String): Boolean {
     var index = 0
     while index < statements.count() {
         var declaration = shape.as_variable_declaration(statements[index])
@@ -214,7 +214,7 @@ func declares_build(statements: List<Syntax.Statements.Statement>, name: String)
     return false
 }
 
-func is_build_call(expression: Syntax.Expressions.Expression): Bool {
+func is_build_call(expression: Syntax.Expressions.Expression): Boolean {
     var call = shape.as_call(expression)
     if call {
         crash call.callee
@@ -355,7 +355,7 @@ func check_entry_constructor(path: String, file: Syntax.SourceFile, class_name: 
     }
 }
 
-func order_rank(statement: Syntax.Statements.Statement, class_name: String): Int {
+func order_rank(statement: Syntax.Statements.Statement, class_name: String): Integer {
     assert not shape.as_singleton_declaration(statement)
     if shape.as_generic_declaration(statement) {
         return 1
@@ -382,7 +382,7 @@ func order_rank(statement: Syntax.Statements.Statement, class_name: String): Int
     return -1
 }
 
-func statement_line(statement: Syntax.Statements.Statement): Int {
+func statement_line(statement: Syntax.Statements.Statement): Integer {
     var enumeration = shape.as_enum_declaration(statement)
     if enumeration {
         return enumeration.line
@@ -473,7 +473,7 @@ func check_blank_lines(path: String, tokens: List<Syntax.Token>) {
     }
 }
 
-func comment_problem(text: String, depth: Int): String {
+func comment_problem(text: String, depth: Integer): String {
     if depth > 0 {
         return "a comment may not appear inside a function or a declaration body: a line that needs explaining becomes a named function instead. {comment_lesson()}"
     }
@@ -547,7 +547,7 @@ func failure(message: String): DiscoveryResult {
     return DiscoveryResult(empty, "", true, message)
 }
 
-func is_platform_folder(name: String): Bool {
+func is_platform_folder(name: String): Boolean {
     return name == "windows" or name == "linux" or name == "mac"
 }
 
@@ -779,7 +779,7 @@ func reopen_class(original: Syntax.SourceFile, reopening: Syntax.SourceFile) {
     }
 }
 
-func extend_enum(original: Syntax.SourceFile, reopened: Syntax.Statements.EnumDeclaration): Bool {
+func extend_enum(original: Syntax.SourceFile, reopened: Syntax.Statements.EnumDeclaration): Boolean {
     var index = 0
     while index < original.statements.count() {
         var existing = shape.as_enum_declaration(original.statements[index])
@@ -900,7 +900,7 @@ func setting_reader(variable: Syntax.Statements.VariableDeclaration, class_name:
     var reader = literal_reader(variable.value)
     if variable.type_reference or reader.is_empty() {
         has_error = true
-        error_message = "{variable.source_path}:{variable.line}: error: '{class_name}.{variable.name}' is {setting_source(variable.name, class_name)}, so it is declared with only a literal default, and the literal is its type: 'var {variable.name} = false' (Bool), 'var {variable.name} = 0' (Int) or 'var {variable.name} = \"\"' (String)"
+        error_message = "{variable.source_path}:{variable.line}: error: '{class_name}.{variable.name}' is {setting_source(variable.name, class_name)}, so it is declared with only a literal default, and the literal is its type: 'var {variable.name} = false' (Boolean), 'var {variable.name} = 0' (Integer) or 'var {variable.name} = \"\"' (String)"
     }
     return reader
 }
@@ -935,12 +935,12 @@ func hardcode_setting(variable: Syntax.Statements.VariableDeclaration, reader: S
 func setting_expectation(reader: String, name: String): String {
     var flag = flag_of(name)
     if reader == "boolean_setting" {
-        return "a Bool: {flag}, {flag}=true or {flag}=false"
+        return "a Boolean: {flag}, {flag}=true or {flag}=false"
     }
     if reader == "text_setting" {
         return "a String: {flag}=text"
     }
-    return "an Int: a whole number, like {flag}=3"
+    return "an Integer: a whole number, like {flag}=3"
 }
 
 func flag_of(name: String): String {
@@ -1107,7 +1107,7 @@ func load_of(statement: Syntax.Statements.Statement): Syntax.Expressions.Express
     return printer.loaded_folder(expression_statement.value)
 }
 
-func contains_load(statements: List<Syntax.Statements.Statement>): Bool {
+func contains_load(statements: List<Syntax.Statements.Statement>): Boolean {
     var index = 0
     while index < statements.count() {
         if load_of(statements[index]) {
@@ -1121,7 +1121,7 @@ func contains_load(statements: List<Syntax.Statements.Statement>): Bool {
     return false
 }
 
-func nested_contains_load(statement: Syntax.Statements.Statement): Bool {
+func nested_contains_load(statement: Syntax.Statements.Statement): Boolean {
     var if_statement = shape.as_if_statement(statement)
     if if_statement {
         return contains_load(if_statement.then_branch) or contains_load(if_statement.else_branch)
@@ -1188,13 +1188,13 @@ func load_roots_at(statement: Syntax.Statements.Statement, file: Syntax.SourceFi
     error_message = "{file.path}:{line}: error: a 'load' inside a 'while' or a 'switch' is never decided: the compiler reads every loaded folder before it compiles, so a 'load' stands in a function's body, or under an 'if' whose condition it can decide"
 }
 
-func line_of(statement: Syntax.Statements.Statement): Int {
+func line_of(statement: Syntax.Statements.Statement): Integer {
     switch statement {
         _: return statement.line
     }
 }
 
-func load_named_root(folder: Syntax.Expressions.Expression, file: Syntax.SourceFile, line: Int) {
+func load_named_root(folder: Syntax.Expressions.Expression, file: Syntax.SourceFile, line: Integer) {
     var literal = shape.as_string_literal(folder)
     if literal {
         var directory = directory_of(file.path)
@@ -1293,14 +1293,14 @@ func folded_binary(binary: Syntax.Expressions.BinaryExpression, file: Syntax.Sou
     return truth_text(left == "true" or right == "true")
 }
 
-func truth_text(value: Bool): String {
+func truth_text(value: Boolean): String {
     if value {
         return "true"
     }
     return "false"
 }
 
-func is_truth_text(text: String): Bool {
+func is_truth_text(text: String): Boolean {
     return text == "true" or text == "false"
 }
 

@@ -60,7 +60,7 @@ func Lists() {
     console.print(joined_words)
 }
 
-func total(values: List<Int>): Int {
+func total(values: List<Integer>): Integer {
     var sum = 0
     var index = 0
     while index < values.count() {
@@ -70,7 +70,7 @@ func total(values: List<Int>): Int {
     return sum
 }
 
-func build_items(count: Int): List<Item> {
+func build_items(count: Integer): List<Item> {
     var result = List<Item>()
     var index = 0
     while index < count {

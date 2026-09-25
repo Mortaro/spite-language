@@ -1,7 +1,7 @@
 var console = Console()
 var count = 0
 
-func allocate(amount: Int) {
+func allocate(amount: Integer) {
     count = count + amount
 }
 
@@ -9,15 +9,15 @@ func initialize() {
     count = count * 2
 }
 
-func make(amount: Int) {
+func make(amount: Integer) {
     count = count + amount
 }
 
-func retain(amount: Int) {
+func retain(amount: Integer) {
     count = count + amount
 }
 
-func release(amount: Int) {
+func release(amount: Integer) {
     count = count - amount
 }
 
@@ -27,7 +27,7 @@ func copy(): Pool {
     return copied
 }
 
-func total(): Int {
+func total(): Integer {
     return count
 }
 
@@ -39,15 +39,15 @@ func class_of(): String {
     return "a class of its own"
 }
 
-func attributes(): Int {
+func attributes(): Integer {
     return 1
 }
 
-func functions(): Int {
+func functions(): Integer {
     return 2
 }
 
-func instances(): Int {
+func instances(): Integer {
     return 3
 }
 
@@ -57,7 +57,7 @@ func deep_copy(): Pool {
     return copied
 }
 
-func run(amount: Int) {
+func run(amount: Integer) {
     count = count + amount
 }
 

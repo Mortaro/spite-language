@@ -3,7 +3,7 @@ var environment = Environment()
 
 func Arsenal() {
     var arguments = Arguments()
-    var sword = Weapon<Int, true>(10)
+    var sword = Weapon<Integer, true>(10)
     sword.hit()
     if environment.name == "server" {
         console.print("environment is server")

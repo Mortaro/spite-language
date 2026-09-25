@@ -66,7 +66,7 @@ func test_a_list_is_shared_not_copied() {
 }
 
 func test_a_list_can_hold_nothing() {
-    var values = List<Int?>()
+    var values = List<Integer?>()
     values.append(3)
     values.append(null)
     crash values.count() == 2

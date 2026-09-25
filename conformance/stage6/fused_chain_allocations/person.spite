@@ -2,13 +2,13 @@ var name = ""
 var age = 0
 var retired = false
 
-func Person(starting_name: String, starting_age: Int, starting_retired: Bool) {
+func Person(starting_name: String, starting_age: Integer, starting_retired: Boolean) {
     name = starting_name
     age = starting_age
     retired = starting_retired
 }
 
-func is_adult(): Bool {
+func is_adult(): Boolean {
     return age >= 18
 }
 

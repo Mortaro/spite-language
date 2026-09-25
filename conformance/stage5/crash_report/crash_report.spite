@@ -9,12 +9,12 @@ func CrashReport() {
     console.print("never printed")
 }
 
-func check(value: Int) {
+func check(value: Integer) {
     var limit = 0
     crash value > limit
 }
 
-func announce(amount: Int) {
+func announce(amount: Integer) {
     assert amount > 0
     console.print("announced", amount)
 }

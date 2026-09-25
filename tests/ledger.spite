@@ -1,7 +1,7 @@
 var balance = 0
 var owner = ""
 
-func Ledger(starting_balance: Int, starting_owner: String) {
+func Ledger(starting_balance: Integer, starting_owner: String) {
     balance = starting_balance
     owner = starting_owner
 }

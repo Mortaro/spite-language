@@ -1,6 +1,6 @@
 var console = Console()
 var target: Monster? = null
-var bonus: Int? = null
+var bonus: Integer? = null
 
 func NullableValues() {
     report()
@@ -26,7 +26,7 @@ func report() {
         Null: console.print("no target")
     }
     switch bonus {
-        Int: console.print("bonus", bonus + 1)
+        Integer: console.print("bonus", bonus + 1)
         Null: console.print("no bonus")
     }
 }

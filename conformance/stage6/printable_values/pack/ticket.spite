@@ -1,7 +1,7 @@
 var code = ""
 var seats = 0
 
-func Ticket(starting_code: String, starting_seats: Int) {
+func Ticket(starting_code: String, starting_seats: Integer) {
     code = starting_code
     seats = starting_seats
 }

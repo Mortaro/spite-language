@@ -24,11 +24,11 @@ func get_functions(): List<Spite.Function> {
     return _functions
 }
 
-func is_singleton(): Bool {
+func is_singleton(): Boolean {
     return _singleton
 }
 
-func has_function(name: String): Bool {
+func has_function(name: String): Boolean {
     var found = false
     var index = 0
     while not found and index < _functions.count() {

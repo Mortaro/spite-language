@@ -1,7 +1,7 @@
 var console = Console()
 var current_file: Syntax.SourceFile? = null
 
-func indent_text(depth: Int): String {
+func indent_text(depth: Integer): String {
     var text = ""
     var index = 0
     while index < depth {
@@ -11,7 +11,7 @@ func indent_text(depth: Int): String {
     return text
 }
 
-func print_line(depth: Int, text: String) {
+func print_line(depth: Integer, text: String) {
     var indentation = indent_text(depth)
     console.print(indentation + text)
 }
@@ -24,7 +24,7 @@ func print_file(file: Syntax.SourceFile) {
     print_statement_list(stored_file.statements, 1)
 }
 
-func print_statement_list(statements: List<Syntax.Statements.Statement>, depth: Int) {
+func print_statement_list(statements: List<Syntax.Statements.Statement>, depth: Integer) {
     var index = 0
     while index < statements.count() {
         print_statement(statements[index], depth)
@@ -32,7 +32,7 @@ func print_statement_list(statements: List<Syntax.Statements.Statement>, depth: 
     }
 }
 
-func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
+func print_statement(statement: Syntax.Statements.Statement, depth: Integer) {
     switch statement {
         Syntax.Statements.SingletonDeclaration: print_line(depth, "Singleton")
         Syntax.Statements.GenericDeclaration: {
@@ -144,7 +144,7 @@ func print_statement(statement: Syntax.Statements.Statement, depth: Int) {
     }
 }
 
-func print_function(function: Syntax.Statements.FunctionDeclaration, depth: Int) {
+func print_function(function: Syntax.Statements.FunctionDeclaration, depth: Integer) {
     var text = "FuncDecl {function.name}"
     text = "{text}("
     var index = 0
@@ -208,7 +208,7 @@ func inline_generic_argument(argument: Syntax.Types.GenericArgument): String {
             crash argument.value
             return inline_type(argument.value)
         }
-        Syntax.Types.BoolArgument: {
+        Syntax.Types.BooleanArgument: {
             if argument.value {
                 return "true"
             }
@@ -220,7 +220,7 @@ func inline_generic_argument(argument: Syntax.Types.GenericArgument): String {
     }
 }
 
-func print_expression(expression: Syntax.Expressions.Expression, depth: Int) {
+func print_expression(expression: Syntax.Expressions.Expression, depth: Integer) {
     switch expression {
         Syntax.Expressions.NullLiteral: print_line(depth, "Null")
         Syntax.Expressions.TrueLiteral: print_line(depth, "True")

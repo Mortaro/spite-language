@@ -13,7 +13,7 @@ func first(store: Store): $wanted_type? {
     return found
 }
 
-func others(store: Store): Int {
+func others(store: Store): Integer {
     var index = 0
     var counted = 0
     while index < store.items.count() {
@@ -26,10 +26,10 @@ func others(store: Store): Int {
     return counted
 }
 
-func is_wanted(health: Health): Bool {
+func is_wanted(health: Health): Boolean {
     return health == $wanted_type
 }
 
-func is_part(part: Part): Bool {
+func is_part(part: Part): Boolean {
     return part == $wanted_type
 }

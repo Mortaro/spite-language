@@ -1,2 +1,2 @@
 var serve = false
-var workers: Int = 4
+var workers: Integer = 4

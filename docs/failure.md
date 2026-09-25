@@ -58,7 +58,7 @@ an `and` narrows on its own, for `assert`, `crash` and `if` alike, since each is
 ```gdscript title=nullable_narrowing/monster.spite
 var health = 10
 
-func Monster(starting_health: Int) {
+func Monster(starting_health: Integer) {
     health = starting_health
 }
 ```
@@ -75,12 +75,12 @@ func NullableNarrowing() {
     }
 }
 
-func find_monster(missing: Bool): Monster? {
+func find_monster(missing: Boolean): Monster? {
     assert not missing
     return Monster(30)
 }
 
-func find_name(missing: Bool): String? {
+func find_name(missing: Boolean): String? {
     assert not missing
     return "kal"
 }
@@ -309,7 +309,7 @@ path. The compiler also understands the usual proofs, so most reads need nothing
   condition 'index < codes.count()', so this 'crash' proves nothing: remove it" -- so delete the line
   (`diagnostics/proven_element`).
 - A proven read still checks its bounds at run time and answers the default when out of range.
-- A `Bool?` cannot be a condition: `if flags[index]` would test that the element is there, not that it is true.
+- A `Boolean?` cannot be a condition: `if flags[index]` would test that the element is there, not that it is true.
   Prove it is there first, or compare it: `flags[index] == true`.
 
 ```gdscript title=index_reads_doc/index_reads_doc.spite entry
@@ -326,7 +326,7 @@ func IndexReadsDoc() {
         console.print(names[index], name_length)
         index = index + 1
     }
-    var ages = Dictionary<Int>()
+    var ages = Dictionary<Integer>()
     ages.set("ada", 36)
     crash ages["ada"]
     console.print("ada is", ages["ada"])
@@ -394,7 +394,7 @@ func AssertGuard() {
     console.print(total, refused)
 }
 
-func is_open(): Bool {
+func is_open(): Boolean {
     assert handle != -1
     return true
 }
@@ -428,7 +428,7 @@ func DefaultGuardError() {
     console.print(open)
 }
 
-func is_open(): Bool {
+func is_open(): Boolean {
     if handle == -1 {
         return false
     }
@@ -450,7 +450,7 @@ func DefaultGuardFixed() {
     console.print(open)
 }
 
-func is_open(): Bool {
+func is_open(): Boolean {
     assert handle != -1
     return true
 }
@@ -552,13 +552,13 @@ func CrashGuard() {
     console.print(description)
 }
 
-func full_name_length(key: String): Int {
+func full_name_length(key: String): Integer {
     var name = names.get(key)
     crash name
     return name.length()
 }
 
-func describe(value: Int): String {
+func describe(value: Integer): String {
     crash value > -5
     if value > 0 {
         return "positive"
@@ -662,7 +662,7 @@ a lint error.
 `while` or a nested `if` included, and the message names the `assert` of the opposite condition:
 
 ```gdscript
-func is_open(): Bool {
+func is_open(): Boolean {
     if handle == -1 {        # error: this 'if' only returns the default 'false':
         return false         #        write 'assert handle != -1' and let the rest run unindented
     }
@@ -671,7 +671,7 @@ func is_open(): Bool {
 ```
 
 It is the same rule as narrowing, so `if not value { return null }` becomes `assert value` and narrows `value`
-for the rest of the block. Returning anything else -- `return true` from a `Bool` function, `return -1` -- is an
+for the rest of the block. Returning anything else -- `return true` from a `Boolean` function, `return -1` -- is an
 answer, not a guard, and is left alone. How the condition is turned around (proposed by Claude, unconfirmed):
 `==` and `!=` swap, `<` becomes `>=` and `>` becomes `<=` (and back), `not x` becomes `x`, anything else becomes
 `not x`, and `and`/`or` are turned around by De Morgan, side by side -- `if count < 0 or count > limit` becomes
@@ -769,7 +769,7 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   All of it happens while compiling; nothing is emitted. **[implemented]**
 - **A proven read still checks its bounds at runtime** and answers the default out of range, so a counter that
   went negative gives a wrong value rather than reading memory it does not own.
-- **A `Bool?` cannot be a condition** -- not in `if`, `while`, `assert` or `crash`, and not under `not`, `and`
+- **A `Boolean?` cannot be a condition** -- not in `if`, `while`, `assert` or `crash`, and not under `not`, `and`
   or `or`: `if flags[index]` would test that the element is there, not that it is true, and the two mean
   opposite things for `false`. Prove the element is there first, or `switch` over it; `== true` also works,
   since comparing needs no narrowing.
@@ -822,13 +822,13 @@ spelled as an indented `if`, so the limit never removed the ambiguity, it only h
 `if` an error naming its `assert` ([Null safety and `assert` narrowing](#null-safety-and-assert-narrowing--implemented), "An `if` that only returns the default is an `assert`").
 
 ```gdscript
-func is_open(): Bool {
+func is_open(): Boolean {
     assert handle != -1              # a failed assert returns false
     return true
 }
 ```
 
-When the caller must tell absence from a real `0` or `false`, the choice is still deliberate: return `Int?`, or,
+When the caller must tell absence from a real `0` or `false`, the choice is still deliberate: return `Integer?`, or,
 if absence is a bug rather than a case, `crash`.
 
 D28: **`assert` is banned in a constructor**, including the entry class's own (D29). A constructor is setup, not
@@ -850,7 +850,7 @@ crash  database.connect()        # falsey: halt
 The compiler captures the condition's source text and every operand value, so nothing has to be written and
 nothing can drift out of sync. Bare `crash` is legal for an unreachable branch and reports its enclosing
 context. `crash user` narrows a `T?` exactly as `assert user` does, but never returns -- which filled the gap
-D27 opened, since a function returning `Int` could then guard without widening its signature (D106 has since
+D27 opened, since a function returning `Integer` could then guard without widening its signature (D106 has since
 let `assert` guard there too, returning the default).
 
 Absence is fine -> `assert`. Absence is a bug -> `crash`. Absence is meaningful -> `if ... do`.

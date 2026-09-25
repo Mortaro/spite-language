@@ -8,8 +8,8 @@ func Token(
     starting_kind: TokenKind,
     starting_lexeme: String,
     starting_text: String,
-    starting_line: Int,
-    starting_column: Int,
+    starting_line: Integer,
+    starting_column: Integer,
 ) {
     kind = starting_kind
     lexeme = starting_lexeme

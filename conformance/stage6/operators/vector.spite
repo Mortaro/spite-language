@@ -1,7 +1,7 @@
 var across = 0
 var up = 0
 
-func Vector(starting_across: Int, starting_up: Int) {
+func Vector(starting_across: Integer, starting_up: Integer) {
     across = starting_across
     up = starting_up
 }
@@ -14,7 +14,7 @@ func subtract(other: Vector): Vector {
     return Vector(across - other.across, up - other.up)
 }
 
-func multiply(factor: Int): Vector {
+func multiply(factor: Integer): Vector {
     return Vector(across * factor, up * factor)
 }
 
@@ -22,19 +22,19 @@ func negate(): Vector {
     return Vector(0 - across, 0 - up)
 }
 
-func equals(other: Vector): Bool {
+func equals(other: Vector): Boolean {
     return across == other.across and up == other.up
 }
 
-func less_than(other: Vector): Bool {
+func less_than(other: Vector): Boolean {
     return across + up < other.across + other.up
 }
 
-func greater_than(other: Vector): Bool {
+func greater_than(other: Vector): Boolean {
     return across + up > other.across + other.up
 }
 
-func get_at(index: Int): Int {
+func get_at(index: Integer): Integer {
     if index == 0 {
         return across
     }
@@ -44,7 +44,7 @@ func get_at(index: Int): Int {
     return 0 - 1
 }
 
-func set_at(index: Int, value: Int) {
+func set_at(index: Integer, value: Integer) {
     if index == 0 {
         across = value
     }

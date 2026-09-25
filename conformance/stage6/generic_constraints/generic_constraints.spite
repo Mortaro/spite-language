@@ -4,7 +4,7 @@ func GenericConstraints() {
     var books = Shelf<Book>()
     books.add(Book("Dune"))
     books.add(Book("Emma"))
-    var numbers = Shelf<Int>()
+    var numbers = Shelf<Integer>()
     numbers.add(3)
     numbers.add(-4)
     var words = Shelf<String>()

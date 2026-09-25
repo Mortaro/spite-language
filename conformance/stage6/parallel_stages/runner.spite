@@ -2,7 +2,7 @@ var ledger = Ledger()
 var number = 0
 var names = List<String>()
 
-func Runner(starting_number: Int) {
+func Runner(starting_number: Integer) {
     number = starting_number
 }
 

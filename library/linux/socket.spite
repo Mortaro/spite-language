@@ -6,7 +6,7 @@ func open_socket(): Long {
     var opened = library.socket(2, 1, 6)
     if opened >= 0 {
         var enabled = heap.allocate(4)
-        enabled.write_int(0, 1)
+        enabled.write_integer(0, 1)
         library.setsockopt(opened, 1, 2, enabled, 4)
         heap.free(enabled)
     }
@@ -17,11 +17,11 @@ func write_family(address: Memory.Address) {
     address.write_byte(0, 2)
 }
 
-func bind_address(address: Memory.Address): Bool {
+func bind_address(address: Memory.Address): Boolean {
     return library.bind(handle, address, 16) == 0
 }
 
-func listen_for_clients(): Bool {
+func listen_for_clients(): Boolean {
     return library.listen(handle, 1) == 0
 }
 
@@ -30,16 +30,16 @@ func accept_handle(): Long {
     return library.accept(handle, no_address, no_address)
 }
 
-func connect_address(address: Memory.Address): Bool {
+func connect_address(address: Memory.Address): Boolean {
     return library.connect(handle, address, 16) == 0
 }
 
-func receive_into(buffer: Long, bytes: Int): Int {
+func receive_into(buffer: Long, bytes: Integer): Integer {
     var wanted: Long = bytes
     return library.recv_as_long(handle, buffer, wanted, 0)
 }
 
-func send_text(text: String): Int {
+func send_text(text: String): Integer {
     var text_length: Long = text.length()
     return library.send_as_long(handle, text, text_length, 16384)
 }

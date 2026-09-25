@@ -2,7 +2,7 @@ var console = Console()
 var system = Program()
 var player = Player()
 var monsters = List<Monster>()
-var settings = Dictionary<Int>()
+var settings = Dictionary<Integer>()
 var tick = 0
 var environment = Environment()
 

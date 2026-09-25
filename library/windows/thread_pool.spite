@@ -1,6 +1,6 @@
 var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
 
-func processor_count(): Int {
+func processor_count(): Integer {
     var all_groups = 65535
     return kernel.GetActiveProcessorCount(all_groups)
 }

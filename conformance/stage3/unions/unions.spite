@@ -57,7 +57,7 @@ func grow(shape: Shape) {
     }
 }
 
-func pick(round: Bool): Shape {
+func pick(round: Boolean): Shape {
     if round {
         return Circle(9)
     }

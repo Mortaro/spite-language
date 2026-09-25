@@ -1,0 +1,18 @@
+var console = Console()
+var time_text = TimeText()
+
+func OldTypeSpellings() {
+    var count: Int = 3
+    var ready: Bool = true
+    var mask: UnsignedInt = 7
+    var text = "42"
+    var parsed = text.to_int()
+    var day = LocalDate(2024, 3, 10)
+    var clock: LocalTime? = null
+    var reading = time_text.read_local_date("2024-03-10")
+    var heap = Memory.Heap()
+    var address = heap.allocate(8)
+    var read = address.read_int(0)
+    heap.free(address)
+    console.print(count, ready, mask, parsed, day, clock, reading, read)
+}

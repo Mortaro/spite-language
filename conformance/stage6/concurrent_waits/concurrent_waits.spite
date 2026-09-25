@@ -25,13 +25,13 @@ func read_itself(): String? {
     return File("conformance/stage6/concurrent_waits/concurrent_waits.spite").read()
 }
 
-func outer(): Int {
+func outer(): Integer {
     var inner = Concurrent(inner_count)
     program.sleep(5)
     return inner + 1
 }
 
-func inner_count(): Int {
+func inner_count(): Integer {
     program.sleep(5)
     return 41
 }

@@ -1,9 +1,9 @@
 Monster Monster Creatures|
 name String rat|
-health Int 7|
-alive Bool true|
+health Integer 7|
+alive Boolean true|
 mood Mood angry|
 friends List<Monster> []|
 name,health,alive,mood,friends
-health:Int name:String friends:List<Monster>
-Int String Reflection2
+health:Integer name:String friends:List<Monster>
+Integer String Reflection2

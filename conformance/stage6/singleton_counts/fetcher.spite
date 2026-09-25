@@ -1,8 +1,8 @@
-func fetch_many(): Int {
+func fetch_many(): Integer {
     var index = 0
     var found = 0
     while index < 100000 {
-        var tally = Tally<Int>()
+        var tally = Tally<Integer>()
         found = found + tally.counted.count()
         index = index + 1
     }

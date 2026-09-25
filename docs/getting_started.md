@@ -62,7 +62,7 @@ enum Job {
 var age = 0
 var job: Job = 'knight'
 
-func Person(new_age: Int, new_job: Job) {
+func Person(new_age: Integer, new_job: Job) {
     age = new_age
     job = new_job
 }

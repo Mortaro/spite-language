@@ -3,7 +3,7 @@
 Spite stores time in one form: an `Instant`, an exact point on the universal time line. A time zone never
 changes what is stored. It is a presentation layer that turns an `Instant` into the date and clock time someone
 in that zone would read, and turns such a reading back into an `Instant`. The calendar has its own types
-(`LocalDate`, `LocalTime`, `LocalDateTime`) that cannot be mistaken for an instant, and the two kinds of length
+(`Date`, `Time`, `DateTime`) that cannot be mistaken for an instant, and the two kinds of length
 are separate: a `Duration` is an exact amount of time, and a `Period` is an amount of calendar (years, months,
 days), whose real length depends on where it is applied.
 
@@ -13,9 +13,9 @@ The names and the exact shape are proposed by Claude and wait on Mortaro (D127; 
 |---|---|---|
 | `Instant` | a point on the universal time line | a `Duration` since 1970-01-01T00:00:00Z |
 | `Duration` | an exact length of time, to the nanosecond | whole seconds and nanoseconds |
-| `LocalDate` | a calendar date with no zone: `2024-03-10` | year, month, day |
-| `LocalTime` | a clock reading with no date and no zone: `02:30:00` | hour, minute, second, nanosecond |
-| `LocalDateTime` | a date and a clock reading, with no zone | a `LocalDate` and a `LocalTime` |
+| `Date` | a calendar date with no zone: `2024-03-10` | year, month, day |
+| `Time` | a clock reading with no date and no zone: `02:30:00` | hour, minute, second, nanosecond |
+| `DateTime` | a date and a clock reading, with no zone | a `Date` and a `Time` |
 | `Period` | an amount of calendar: `P1Y2M3D` | years, months, days |
 | `TimeZone` | the rules that map instants to local readings | a name and its rules |
 | `TimeZones()` | the time zone database, a singleton | the operating system's |
@@ -24,7 +24,7 @@ The names and the exact shape are proposed by Claude and wait on Mortaro (D127; 
 
 What cannot happen, by construction:
 
-- **A local reading is never an instant.** `LocalDateTime` has no function that answers an `Instant`, and
+- **A local reading is never an instant.** `DateTime` has no function that answers an `Instant`, and
   comparing one with an `Instant` is a type error. The only way across is `zone.to_instant(local, ...)`, which
   names the zone.
 - **A day is never 24 hours by accident.** `Duration` has no days; `Period(1, 'days')` is one calendar day and is
@@ -75,11 +75,11 @@ frame or a request: the wall clock can jump when the machine's time is corrected
 
 ## Dates and periods
 
-`LocalDate(year, month, day)` is a date in the proleptic Gregorian calendar, the one ISO 8601 uses, for any year
-(year 0 is 1 BC). A date that does not exist -- `LocalDate(2023, 2, 29)` -- halts the program, since a program that
+`Date(year, month, day)` is a date in the proleptic Gregorian calendar, the one ISO 8601 uses, for any year
+(year 0 is 1 BC). A date that does not exist -- `Date(2023, 2, 29)` -- halts the program, since a program that
 builds one from its own numbers has a bug; text from outside is read with `TimeText` instead, which answers
-`null`. `LocalTime(hour, minute, second, nanosecond)` is the same for a clock reading, and
-`LocalDateTime(date, time)` joins the two.
+`null`. `Time(hour, minute, second, nanosecond)` is the same for a clock reading, and
+`DateTime(date, time)` joins the two.
 
 A `Period` adds to a date by months first and then by days, and a day of the month that the new month does not
 have becomes its last day: January 31 plus one month is February 29 in a leap year. `period_until` answers the
@@ -89,18 +89,18 @@ years, months and days between two dates the same way, so adding it back lands o
 var console = Console()
 
 func TimeCalendar() {
-    var end_of_january = LocalDate(2024, 1, 31)
+    var end_of_january = Date(2024, 1, 31)
     var month = Period(1, 'months')
     var leap = end_of_january + month
-    var common = LocalDate(2023, 1, 31) + month
+    var common = Date(2023, 1, 31) + month
     var fortnight = leap + Period(2, 'weeks')
     console.print(leap, common, fortnight, leap.weekday, leap.day_of_year)
-    var born = LocalDate(1990, 5, 15)
-    var today = LocalDate(2024, 3, 10)
+    var born = Date(1990, 5, 15)
+    var today = Date(2024, 3, 10)
     var age = born.period_until(today)
     var days = born.days_until(today)
     console.print(age, days, today.is_leap_year, today.days_in_month)
-    var meeting = LocalDateTime(today, LocalTime(9, 30, 0, 0))
+    var meeting = DateTime(today, Time(9, 30, 0, 0))
     var next_meeting = meeting + Period(1, 'months')
     console.print(meeting, next_meeting)
 }
@@ -126,7 +126,7 @@ What a zone answers:
 
 | Member | Answers |
 |---|---|
-| `to_local(instant)` | the `LocalDateTime` a clock in the zone reads at that instant |
+| `to_local(instant)` | the `DateTime` a clock in the zone reads at that instant |
 | `to_instant(local, ambiguity)` | the `Instant` at which the zone's clocks read `local` |
 | `to_text(instant)` | the local reading with its offset: `2024-03-10T03:00:00-04:00` |
 | `offset_at(instant)` | the zone's distance from UTC at that instant, as a `Duration` |
@@ -157,8 +157,8 @@ func TimeZonesNamed() {
     var shown = new_york.to_text(launch)
     var offset = new_york.offset_at(launch)
     console.print(launch, shown, offset)
-    var skipped = LocalDateTime(LocalDate(2024, 3, 10), LocalTime(2, 30, 0, 0))
-    var repeated = LocalDateTime(LocalDate(2024, 11, 3), LocalTime(1, 30, 0, 0))
+    var skipped = DateTime(Date(2024, 3, 10), Time(2, 30, 0, 0))
+    var repeated = DateTime(Date(2024, 11, 3), Time(1, 30, 0, 0))
     var after_gap = new_york.to_instant(skipped, 'compatible')
     var first = new_york.to_instant(repeated, 'earlier')
     var second = new_york.to_instant(repeated, 'later')
@@ -256,9 +256,9 @@ known up to when they were written, on every system: a future law change is not 
 | Function | Reads | Refuses |
 |---|---|---|
 | `read_instant(text)` | `2024-03-10T07:00:00Z`, `2024-03-10T03:00:00-04:00[America/New_York]` | a reading with no offset |
-| `read_local_date_time(text)` | `2024-03-10T02:30:00`, `2024-03-10 02:30` | a reading with an offset |
-| `read_local_date(text)` | `2024-02-29`, `+012345-06-07` | `2023-02-29` |
-| `read_local_time(text)` | `09:30`, `23:59:59.5` | `24:00` |
+| `read_date_time(text)` | `2024-03-10T02:30:00`, `2024-03-10 02:30` | a reading with an offset |
+| `read_date(text)` | `2024-02-29`, `+012345-06-07` | `2023-02-29` |
+| `read_time(text)` | `09:30`, `23:59:59.5` | `24:00` |
 | `read_duration(text)` | `PT1H30M`, `-PT0.5S` | `P1D`: a day is a `Period` |
 | `read_period(text)` | `P1Y2M3D`, `P2W` | `PT1H`: an hour is a `Duration` |
 
@@ -275,7 +275,7 @@ var time_text = TimeText()
 func TimeTextReading() {
     var exact = time_text.read_instant("2024-03-10T03:00:00-04:00[America/New_York]")
     crash exact
-    var local = time_text.read_local_date_time("2024-03-10 02:30")
+    var local = time_text.read_date_time("2024-03-10 02:30")
     crash local
     var lap = time_text.read_duration("PT90M")
     crash lap
@@ -286,7 +286,7 @@ func TimeTextReading() {
     } else {
         console.print("a local reading is not an instant")
     }
-    var no_such_day = time_text.read_local_date("2023-02-29")
+    var no_such_day = time_text.read_date("2023-02-29")
     if no_such_day {
         console.print("unexpected")
     } else {
@@ -333,7 +333,7 @@ modern designs were compared:
   ambiguous reading a value, but carries the zone as a type parameter, added month arithmetic late, and left the
   database to competing crates -- the ecosystem split D127 was written against.
 - **.NET's NodaTime** (by Jon Skeet, written because `DateTime` has the same fault as JavaScript's `Date`) is the
-  most principled: `Instant`, `LocalDate`/`LocalTime`/`LocalDateTime`, `Duration` apart from `Period`, a clock
+  most principled: `Instant`, NodaTime's `LocalDate`/`LocalTime`/`LocalDateTime`, `Duration` apart from `Period`, a clock
   that is a service rather than a global, and gap and overlap resolution that is always explicit
   (`AtStrictly`, `AtLeniently`, a resolver). It ships its own copy of the database, and it too has
   `ZonedDateTime` and `OffsetDateTime`.
@@ -344,14 +344,15 @@ modern designs were compared:
   embeddable copy as a fallback.
 
 **Spite copies NodaTime's model with Temporal's vocabulary.** From NodaTime and `java.time`: an `Instant`, the
-three `Local` types, and a `Duration` that can never hold a day beside a `Period` that can never hold an hour.
+three zone-less types, and a `Duration` that can never hold a day beside a `Period` that can never hold an hour.
 From Temporal: the ambiguity words, the ISO 8601 and RFC 9557 text, and printing an `Instant` in UTC with `Z`.
 From jiff: reading the operating system's database. What all of them have and Spite leaves out is a stored
 zoned type (`ZonedDateTime`, `Zoned`, `OffsetDateTime`): D127 makes a zone presentation, so an instant is stored
 and a zone is applied when it is shown, and the one conversion that needs a zone -- local reading to instant --
-names it and names its ambiguity rule every time. The local types are called `Local`, as in NodaTime and
-`java.time`, rather than Temporal's `Plain` or jiff's `civil`, because "local" is the word D127 used; both
-alternatives are listed in `mortaros_missing_decisions.md`.
+names it and names its ambiguity rule every time. The zone-less types are plainly `Date`, `Time` and `DateTime`
+(D160), jiff's words, rather than NodaTime's and `java.time`'s `Local*` or Temporal's `Plain*`: a reader takes
+"local" to mean "has a zone", which is the confusion Temporal's `Plain` avoided, and a type that does carry a zone
+for presentation gets a prefix.
 
 **Why not embed a copy of the database**, as NodaTime, Go's fallback and jiff on Windows do: a copy is out of date
 the day a country changes its law, and every program built with it stays wrong until it is rebuilt, while the
@@ -374,23 +375,24 @@ D127 (decided by Mortaro): the best date and time support there is, so that Spit
 presentation layer**, copied from the best modern design. `docs/time.md` compares `Temporal`, `java.time`,
 `jiff`/`chrono`, NodaTime and Go's `time` and argues the choice. Everything below is Claude's proposal
 (`mortaros_missing_decisions.md` items 115-122): NodaTime's model with Temporal's vocabulary, and no stored zoned
-type.
+type. The names are Mortaro's: `Instant`, `Duration` and `Period` (D158), and for a zone-less reading `Date`,
+`Time` and `DateTime` (D160), with no `Local` prefix.
 
 | Class | What it is |
 |---|---|
 | `Instant(since_1970: Duration)` | a point on the universal time line; `+ Duration`, `- Instant` (a `Duration`), `==`, `<`, `>`; prints in UTC with `Z` |
 | `Duration(amount, unit)` | exact time, whole seconds and nanoseconds; units `'nanoseconds'` to `'hours'` and never days; `total(unit)`, `part(unit)`, `+`, `-`, `* Long`, unary `-`, `==`, `<`, `>` |
 | `Period(amount, unit)` | calendar time, years, months and days (`'weeks'` is seven days); `+`, unary `-`, `==`, and no `<` |
-| `LocalDate(year, month, day)` | a proleptic Gregorian date with no zone; `+ Period`, `weekday`, `day_of_year`, `days_in_month`, `is_leap_year`, `days_since_1970`, `days_until`, `period_until` |
-| `LocalTime(hour, minute, second, nanosecond)` | a clock reading with no date and no zone |
-| `LocalDateTime(date, time)` | both, with no zone; `+ Period` |
+| `Date(year, month, day)` | a proleptic Gregorian date with no zone; `+ Period`, `weekday`, `day_of_year`, `days_in_month`, `is_leap_year`, `days_since_1970`, `days_until`, `period_until` |
+| `Time(hour, minute, second, nanosecond)` | a clock reading with no date and no zone |
+| `DateTime(date, time)` | both, with no zone; `+ Period` |
 | `TimeZone` | `to_local(instant)`, `to_instant(local, ambiguity)`, `to_text(instant)`, `offset_at(instant)`, `name` |
 | `TimeZones()` | the database, a singleton: `find(name): TimeZone?`, `utc()`, `fixed_offset(duration)`, `system()`, `read_tzif(name, data): TimeZone?` |
-| `TimeText()` | ISO 8601 (RFC 3339, RFC 9557), a singleton: `read_instant`, `read_local_date_time`, `read_local_date`, `read_local_time`, `read_duration`, `read_period`, each answering `T?`; writing is each type's `to_string()` |
+| `TimeText()` | ISO 8601 (RFC 3339, RFC 9557), a singleton: `read_instant`, `read_date_time`, `read_date`, `read_time`, `read_duration`, `read_period`, each answering `T?`; writing is each type's `to_string()` |
 
 - **A local reading never becomes an instant without a zone.** No local type has a function answering an
   `Instant`, `==` between the two kinds is a type error, and `zone.to_instant(local, ambiguity)` is the only
-  bridge. `TimeText.read_instant` refuses text without an offset, and `read_local_date_time` refuses text with one.
+  bridge. `TimeText.read_instant` refuses text without an offset, and `read_date_time` refuses text with one.
 - **Exact and calendar lengths never mix.** A `Duration` has no days, since a day is 23 to 25 hours where clocks
   change; a `Period` has no hours and adds only to the local types, months first (a day past the new month's end
   becomes its last day: January 31 plus a month is February 29 in 2024), then days. `period_until` is
@@ -399,8 +401,8 @@ type.
   overlap to its first instant -- RFC 5545's rule, and `java.time`'s and `Temporal`'s default), `'earlier'` or
   `'later'`. The zone finds the offsets a day either side of the reading and keeps the ones that map back to it:
   both for an overlap, neither for a gap.
-- **A value that cannot exist halts; text that cannot exist is `null`.** `LocalDate(2023, 2, 29)` and
-  `LocalTime(24, 0, 0, 0)` crash, since a program that builds one from its own numbers has a bug (D24); reading
+- **A value that cannot exist halts; text that cannot exist is `null`.** `Date(2023, 2, 29)` and
+  `Time(24, 0, 0, 0)` crash, since a program that builds one from its own numbers has a bug (D24); reading
   text answers `T?`. A leap second in text reads as the second before it.
 - **The database is the operating system's, and nothing is embedded.** Windows reads IANA zones through
   `icu.dll` (Windows 10 1903 and later), loaded only when a named zone is asked for

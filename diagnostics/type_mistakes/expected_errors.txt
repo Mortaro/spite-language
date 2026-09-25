@@ -1,7 +1,7 @@
 diagnostics/type_mistakes/type_mistakes.spite:5: error: this value may be null (it is a Pet?), so 'name' cannot be read from it yet: narrow it first with 'if value { }', 'assert value' or 'crash value' (in TypeMistakes.TypeMistakes)
 diagnostics/type_mistakes/type_mistakes.spite:7: error: a String cannot be used where a Pet is needed (in TypeMistakes.TypeMistakes)
 diagnostics/type_mistakes/type_mistakes.spite:8: error: a String cannot be used where a Pet is needed (in TypeMistakes.TypeMistakes)
-diagnostics/type_mistakes/type_mistakes.spite:9: error: a Pet cannot be used where a Int is needed (in TypeMistakes.TypeMistakes)
+diagnostics/type_mistakes/type_mistakes.spite:9: error: a Pet cannot be used where an Integer is needed (in TypeMistakes.TypeMistakes)
 diagnostics/type_mistakes/type_mistakes.spite:11: error: 'Pet' does not fit type 'Printable': it has no function 'to_string' (in TypeMistakes.TypeMistakes)
 diagnostics/type_mistakes/type_mistakes.spite:13: error: a Pet cannot be used where a String is needed (in TypeMistakes.TypeMistakes)
 diagnostics/type_mistakes/type_mistakes.spite:21: error: a String cannot be used where a Pet is needed (in TypeMistakes.give_back)

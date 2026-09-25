@@ -58,7 +58,12 @@ func memory_argument(expression: Syntax.Expressions.Expression, receiver: String
     return argument.name
 }
 
-func is_freed_later(name: String, receiver: String, statements: List<Syntax.Statements.Statement>, start: Int): Bool {
+func is_freed_later(
+    name: String,
+    receiver: String,
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+): Boolean {
     var index = start
     while index < statements.count() {
         if freed_name(statements[index], receiver) == name {
@@ -69,7 +74,12 @@ func is_freed_later(name: String, receiver: String, statements: List<Syntax.Stat
     return false
 }
 
-func stays_in_frame(name: String, receiver: String, statements: List<Syntax.Statements.Statement>, start: Int): Bool {
+func stays_in_frame(
+    name: String,
+    receiver: String,
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+): Boolean {
     var index = start
     while index < statements.count() {
         assert statement_keeps_in_frame(name, receiver, statements[index])
@@ -78,11 +88,11 @@ func stays_in_frame(name: String, receiver: String, statements: List<Syntax.Stat
     return true
 }
 
-func block_keeps_in_frame(name: String, receiver: String, statements: List<Syntax.Statements.Statement>): Bool {
+func block_keeps_in_frame(name: String, receiver: String, statements: List<Syntax.Statements.Statement>): Boolean {
     return stays_in_frame(name, receiver, statements, 0)
 }
 
-func statement_keeps_in_frame(name: String, receiver: String, statement: Syntax.Statements.Statement): Bool {
+func statement_keeps_in_frame(name: String, receiver: String, statement: Syntax.Statements.Statement): Boolean {
     switch statement {
         Syntax.Statements.VariableDeclaration: {
             crash statement.value
@@ -135,8 +145,8 @@ func expression_keeps_in_frame(
     name: String,
     receiver: String,
     expression: Syntax.Expressions.Expression,
-    lent: Bool,
-): Bool {
+    lent: Boolean,
+): Boolean {
     switch expression {
         Syntax.Expressions.IdentifierExpression: return lent or expression.name != name
         Syntax.Expressions.BinaryExpression: {
@@ -204,7 +214,7 @@ func expression_keeps_in_frame(
     }
 }
 
-func lends_address(callee: Syntax.Expressions.Expression, receiver: String): Bool {
+func lends_address(callee: Syntax.Expressions.Expression, receiver: String): Boolean {
     var member = shape.as_member(callee)
     assert member
     if is_address_primitive(member.name) {
@@ -220,23 +230,23 @@ func lends_address(callee: Syntax.Expressions.Expression, receiver: String): Boo
     return called_on.name == receiver and member.name == "free"
 }
 
-func is_address_primitive(name: String): Bool {
+func is_address_primitive(name: String): Boolean {
     var primitives = [
         "read_byte"
-        "read_int"
+        "read_integer"
         "read_long"
         "read_double"
         "read_short"
         "read_unsigned_short"
-        "read_unsigned_int"
+        "read_unsigned_integer"
         "read_float"
         "write_byte"
-        "write_int"
+        "write_integer"
         "write_long"
         "write_double"
         "write_short"
         "write_unsigned_short"
-        "write_unsigned_int"
+        "write_unsigned_integer"
         "write_float"
         "copy_to"
         "compare_bytes"

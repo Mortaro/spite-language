@@ -4,10 +4,10 @@ func DuplicateFunction() {
     console.print(twice())
 }
 
-func twice(): Int {
+func twice(): Integer {
     return 2
 }
 
-func twice(): Int {
+func twice(): Integer {
     return 3
 }

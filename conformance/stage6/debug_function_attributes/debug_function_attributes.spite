@@ -11,7 +11,7 @@ func DebugFunctionAttributes() {
     names.each(say_hello)
 }
 
-func step(first: Int, end: Int) {
+func step(first: Integer, end: Integer) {
     console.print(first, end)
 }
 

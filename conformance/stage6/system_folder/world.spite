@@ -2,7 +2,7 @@ singleton
 
 var entity_count = 0
 
-func spawn(): Int {
+func spawn(): Integer {
     entity_count = entity_count + 1
     return entity_count - 1
 }

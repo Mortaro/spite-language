@@ -5,7 +5,7 @@ Pack
 
 written 1 and 2.5
 rainy
-3 Int
+3 Integer
 rainy Weather
 hero String
 A12 for 3 Ticket

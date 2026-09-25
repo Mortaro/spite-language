@@ -70,7 +70,7 @@ progress log before it ends. `docs/` is the language (D193); this file is the co
 ## What the compiler supports
 
 Classes per file, namespaces from folders, `load`, reopening; attributes with defaults; functions, constructors,
-the entry constructor with `Arguments`; `Int`, `Long`, `Float`, `Double`, `Bool`, `String` and the casting rule;
+the entry constructor with `Arguments`; `Integer`, `Long`, `Float`, `Double`, `Boolean`, `String` and the casting rule;
 enums; unions with exhaustive narrowing `switch` and calls/reads directly on a union; `T?` with `assert`,
 `crash` and plain `if` narrowing; `List<T>` and `Dictionary<T>` with their methods and index sugar; String
 methods; `while`, `if`/`else`, `return`; reference counting with `copy()` and `drop()`; `Console`, `File`,
@@ -91,7 +91,7 @@ line.
    is overriding that ordinary function for its own class object. Built so far as compiler-provided answers:
    `is_singleton()` (D8), `Monster.instances`, `Spite.Class.instances` (D49), `some_class.functions`.
    **`is_singleton()` is now declared in `library/spite/class.spite`** and answers truthfully through the class
-   object: the library declares `var singleton = false` and `func is_singleton(): Bool { return singleton }`,
+   object: the library declares `var singleton = false` and `func is_singleton(): Boolean { return singleton }`,
    and the compiler fills the *data* when it writes the class object, never the behaviour. That is the shape
    the rest of D6 follows. **`functions` (D57) and `attributes` are now declared the same way**, filled when
    the class object is written -- a class-level `attributes` entry's `.value` is the field's declared default,

@@ -1,6 +1,6 @@
 var cents = 0
 
-func Money(starting_cents: Int) {
+func Money(starting_cents: Integer) {
     cents = starting_cents
 }
 
@@ -12,14 +12,14 @@ func subtract(other: Money): Money {
     return Money(cents - other.cents)
 }
 
-func equals(other: Money): Bool {
+func equals(other: Money): Boolean {
     return cents == other.cents
 }
 
-func less_than(other: Money): Bool {
+func less_than(other: Money): Boolean {
     return cents < other.cents
 }
 
-func greater_than(other: Money): Bool {
+func greater_than(other: Money): Boolean {
     return cents > other.cents
 }

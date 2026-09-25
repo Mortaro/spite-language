@@ -11,11 +11,11 @@ func LibraryGuardsUntraced() {
     console.print("never printed")
 }
 
-func announce(amount: Int) {
+func announce(amount: Integer) {
     assert amount > 0
     console.print("announced", amount)
 }
 
-func check(length: Int) {
+func check(length: Integer) {
     crash length > 9
 }

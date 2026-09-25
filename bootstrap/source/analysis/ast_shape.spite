@@ -40,15 +40,15 @@ func as_string_literal(expression: Syntax.Expressions.Expression): Syntax.Expres
     return null
 }
 
-func is_true_literal(expression: Syntax.Expressions.Expression): Bool {
+func is_true_literal(expression: Syntax.Expressions.Expression): Boolean {
     return expression == Syntax.Expressions.TrueLiteral
 }
 
-func is_false_literal(expression: Syntax.Expressions.Expression): Bool {
+func is_false_literal(expression: Syntax.Expressions.Expression): Boolean {
     return expression == Syntax.Expressions.FalseLiteral
 }
 
-func is_null_literal(expression: Syntax.Expressions.Expression): Bool {
+func is_null_literal(expression: Syntax.Expressions.Expression): Boolean {
     return expression == Syntax.Expressions.NullLiteral
 }
 
@@ -227,8 +227,8 @@ func as_generic_identifier(expression: Syntax.Expressions.Expression): Syntax.Ex
     return null
 }
 
-func as_boolean_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.BoolArgument? {
-    if argument == Syntax.Types.BoolArgument {
+func as_boolean_argument(argument: Syntax.Types.GenericArgument): Syntax.Types.BooleanArgument? {
+    if argument == Syntax.Types.BooleanArgument {
         return argument
     }
     return null

@@ -1,6 +1,6 @@
 var charges = 0
 
-func Gadget(new_charges: Int) {
+func Gadget(new_charges: Integer) {
     charges = new_charges
 }
 

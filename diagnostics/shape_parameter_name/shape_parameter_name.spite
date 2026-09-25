@@ -1,5 +1,5 @@
 type Drawable {
-    render(scale: Int): String
+    render(scale: Integer): String
 }
 
 var console = Console()

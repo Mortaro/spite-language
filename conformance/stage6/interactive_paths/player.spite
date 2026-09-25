@@ -15,7 +15,7 @@ func Player(starting_name: String) {
     name = starting_name
 }
 
-func set_health(new_health: Int) {
+func set_health(new_health: Integer) {
     if new_health < 0 {
         log.append("refused {new_health}")
         return
@@ -23,7 +23,7 @@ func set_health(new_health: Int) {
     health = new_health
 }
 
-func heal(amount: Int): Int {
+func heal(amount: Integer): Integer {
     health = health + amount
     return health
 }

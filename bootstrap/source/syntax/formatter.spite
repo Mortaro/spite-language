@@ -6,7 +6,7 @@ func format(source: String): String? {
         refusal = "it does not lex"
         return null
     }
-    var comment_lines = List<Int>()
+    var comment_lines = List<Integer>()
     var comment_texts = List<String>()
     var depth = 0
     var index = 0
@@ -34,7 +34,7 @@ func format(source: String): String? {
         refusal = "it does not parse"
         return null
     }
-    var lines = List<Int>()
+    var lines = List<Integer>()
     index = 0
     while index < file.statements.count() {
         var declared_line = declaration_line(file.statements[index])
@@ -76,7 +76,7 @@ func format(source: String): String? {
     return formatted
 }
 
-func declaration_line(statement: Syntax.Statements.Statement): Int {
+func declaration_line(statement: Syntax.Statements.Statement): Integer {
     switch statement {
         _: return statement.line
     }

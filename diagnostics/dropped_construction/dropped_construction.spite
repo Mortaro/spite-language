@@ -2,7 +2,7 @@ var console = Console()
 
 func DroppedConstruction() {
     Report("the door opens")
-    Box<Int>(3)
+    Box<Integer>(3)
     var kept = Report("kept")
     console.print(kept.text)
 }

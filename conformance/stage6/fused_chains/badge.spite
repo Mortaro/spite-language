@@ -1,5 +1,5 @@
 var level = 0
 
-func Badge(starting_level: Int) {
+func Badge(starting_level: Integer) {
     level = starting_level
 }

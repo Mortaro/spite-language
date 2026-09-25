@@ -1,0 +1,8 @@
+diagnostics/old_type_spellings/old_type_spellings.spite:5: error: 'Int' is spelled 'Integer' (in OldTypeSpellings.OldTypeSpellings)
+diagnostics/old_type_spellings/old_type_spellings.spite:6: error: 'Bool' is spelled 'Boolean' (in OldTypeSpellings.OldTypeSpellings)
+diagnostics/old_type_spellings/old_type_spellings.spite:7: error: 'UnsignedInt' is spelled 'UnsignedInteger' (in OldTypeSpellings.OldTypeSpellings)
+diagnostics/old_type_spellings/old_type_spellings.spite:9: error: 'to_int' is spelled 'to_integer' (in OldTypeSpellings.OldTypeSpellings)
+diagnostics/old_type_spellings/old_type_spellings.spite:10: error: 'LocalDate' is spelled 'Date' (in OldTypeSpellings.OldTypeSpellings)
+diagnostics/old_type_spellings/old_type_spellings.spite:11: error: 'LocalTime' is spelled 'Time' (in OldTypeSpellings.OldTypeSpellings)
+diagnostics/old_type_spellings/old_type_spellings.spite:12: error: 'read_local_date' is spelled 'read_date' (in OldTypeSpellings.OldTypeSpellings)
+diagnostics/old_type_spellings/old_type_spellings.spite:15: error: 'read_int' is spelled 'read_integer' (in OldTypeSpellings.OldTypeSpellings)

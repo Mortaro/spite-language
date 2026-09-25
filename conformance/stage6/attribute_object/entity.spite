@@ -13,8 +13,8 @@ func show() {
         if component == Health {
             described = "Health {component.amount}"
         }
-        if component == Int {
-            described = "Int {component + 1}"
+        if component == Integer {
+            described = "Integer {component + 1}"
         }
         console.print(described)
         index = index + 1

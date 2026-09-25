@@ -1,6 +1,6 @@
 var library = DynamicLibrary("libSystem.dylib", 'identity', "")
 
-func processor_count(): Int {
+func processor_count(): Integer {
     var processors_online = 58
     return library.sysconf(processors_online)
 }

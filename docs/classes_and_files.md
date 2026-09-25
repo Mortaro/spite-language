@@ -44,7 +44,7 @@ enum Sorting {
 }
 
 type Counted {
-    count: Int
+    count: Integer
 }
 
 var items = List<$item_type>()
@@ -54,14 +54,14 @@ func add(item: $item_type) {
     items.append(item)
 }
 
-func total(): Int {
+func total(): Integer {
     return items.sum_count()
 }
 ```
 ```gdscript title=ordered_file/crate.spite
 var count = 0
 
-func Crate(new_count: Int) {
+func Crate(new_count: Integer) {
     count = new_count
 }
 ```
@@ -87,7 +87,7 @@ A function named exactly like its class is the constructor:
 ```gdscript title=person_basics/person.spite
 var age = 0
 
-func Person(new_age: Int) {
+func Person(new_age: Integer) {
     age = new_age
 }
 ```
@@ -145,7 +145,7 @@ func EmptyConstructorError() {
 'Holder' has an empty constructor: delete it
 ```
 
-Every value has a default: `Int` is `0`, `Float` `0.0`, `Bool` `false`, `String` `""`, an enum its first value,
+Every value has a default: `Integer` is `0`, `Float` `0.0`, `Boolean` `false`, `String` `""`, an enum its first value,
 and a class its fields' defaults. There is no `null` for anything but a `T?` ([failure.md](failure.md)). A
 constructor is setup, not logic: `assert` is not allowed in one, and `crash` is how it says something is a bug
 ([failure.md](failure.md#assert-is-not-allowed-in-a-constructor)). There is no `new`: `Person(30)` makes one.
@@ -185,7 +185,7 @@ singleton
 
 var points = 0
 
-func score(amount: Int) {
+func score(amount: Integer) {
     points = points + amount
 }
 ```
@@ -231,9 +231,9 @@ var values = List<$component_type>()
 var console = Console()
 
 func GenericSingleton() {
-    var numbers = Column<Int>()
+    var numbers = Column<Integer>()
     numbers.values.append(1)
-    var again = Column<Int>()
+    var again = Column<Integer>()
     again.values.append(2)
     var words = Column<String>()
     var number_count = again.values.count()
@@ -263,7 +263,7 @@ func SingletonInlineError() {
 
 ## Classes are references
 
-A scalar (`Int`, `Float`, `Bool`, an enum value) is passed by value, copied at the call site. Everything else --
+A scalar (`Integer`, `Float`, `Boolean`, an enum value) is passed by value, copied at the call site. Everything else --
 a class instance, `List<T>`, `Dictionary<T>`, `String`, a union, an object literal -- is a reference: passing one
 shares the exact same object, so a function can change it and the caller sees the change. There is nothing
 special to write at the call site or in the parameter's type ([memory.md](memory.md)):
@@ -404,7 +404,7 @@ attribute nothing reads is an error like any other ([style.md](style.md#nothing-
 
 A second file with the same name, in a later loaded root, **reopens** the class instead of colliding with it:
 its functions and attributes replace the earlier ones of the same name and add the rest. That is how a program
-adds settings to `Environment`, a member template to `List`, a function to `Int`, and how a mod changes a game
+adds settings to `Environment`, a member template to `List`, a function to `Integer`, and how a mod changes a game
 ([packages.md](packages.md#monkey-patching-mods)).
 
 ## Rules in full
@@ -451,7 +451,7 @@ There are **no file level statements**: no loops, ifs or calls outside a functio
 ```person.spite
 var age = 0
 
-func Person(new_age: Int) {
+func Person(new_age: Integer) {
     age = new_age
 }
 ```
@@ -460,7 +460,7 @@ func Person(new_age: Int) {
 
 **A constructed object must be kept and used** (D139, decided by Mortaro; the message proposed by Claude,
 unconfirmed). **[implemented]** A constructor call written as a statement on its own (`Spawn(bundle)`,
-`Report(text)`, `Box<Int>(3)`) is an error: `'Report(text)' makes a 'Report' and drops it: a constructed object
+`Report(text)`, `Box<Integer>(3)`) is an error: `'Report(text)' makes a 'Report' and drops it: a constructed object
 must be kept and used, so a class whose construction is the whole point should be a function instead -- turn
 'Report' into a function of the class that needs it, or keep the object in a variable that is read`. One stored in
 a variable nothing reads is already the unused-name error (D118, D136). A singleton is exempt: it is bound as an
@@ -500,7 +500,7 @@ the default `Spite.Class` declares; what follows still holds for the line.
   reverse creation order, and `--debug-memory` counts singletons as roots, never as leaks. Since a singleton never
   dies early, it is not counted at all (proposed by Claude, unconfirmed, 2026-09-24): its retain and release do
   nothing, the program records each singleton as it is made, and destroys them in reverse at exit. Two
-  `Parallel` threads fetching `Slot<Int>()` 40 million times took 0.8 s with the atomic count and 0.04 s without
+  `Parallel` threads fetching `Slot<Integer>()` 40 million times took 0.8 s with the atomic count and 0.04 s without
   (`conformance/stage6/singleton_counts`).
 - **Teardown order** (proposed by Claude, unconfirmed, 2026-09-24): a singleton counts as made when its
   constructor *finishes*, so a singleton its attributes or constructor made is made before it and outlives it.
@@ -513,7 +513,7 @@ the default `Spite.Class` declares; what follows still holds for the line.
   (`conformance/stage6/singleton_teardown`, `conformance/stage6/singleton_used_after_exit`).
 - **Made once, whichever thread asks first** (proposed by Claude, unconfirmed, 2026-09-24): in a program that
   starts threads, the first fetch of a singleton takes a lock of its own, checks again and makes it; every later
-  fetch is still one load. Two `Parallel` threads first touching `Shelf<Int>()` made it twice before, and one
+  fetch is still one load. Two `Parallel` threads first touching `Shelf<Integer>()` made it twice before, and one
   copy leaked (`conformance/stage6/singleton_race`). A program with no threads keeps the plain check.
 - **A singleton that holds nothing** -- no attributes but settings the compiler folds, and no `drop()`, such as
   `Memory`, `Build` and `TypedMemory<T>` -- is one static object in a production build and an ordinary singleton
@@ -541,7 +541,7 @@ the default `Spite.Class` declares; what follows still holds for the line.
   the message names) or a local `var` in a function -- a value class such as `String` has no attribute to
   spare, and an error path (`var program = Program()` before `program.exit(1)`) need not hold the program for
   the object's whole life. D77 lets a constructor be an argument; a singleton's constructor is the exception
-  (`greet(Console())` is an error). A generic singleton (`TypedMemory<Int>()`) is covered the same way. As
+  (`greet(Console())` is an error). A generic singleton (`TypedMemory<Integer>()`) is covered the same way. As
   with D77, only code the compiler generates is checked: a function nothing calls is not.
 
 Rejected on the way here, each for a reason worth keeping: `$singleton = true` and `$instances = 1` (`$` means

@@ -13,14 +13,14 @@ var shakes = true
 var threads = false
 var hot_reload = false
 var host = HotReloadLibrary()
-var mentioned_names = Dictionary<Bool>()
+var mentioned_names = Dictionary<Boolean>()
 var scanned_typedefs = 0
 var scanned_support = 0
 var scanned_user = 0
 var scanned_main = 0
 var scanned_slots = 0
 
-func mentions(name: String): Bool {
+func mentions(name: String): Boolean {
     scanned_typedefs = scan_from(typedefs, scanned_typedefs)
     scanned_support = scan_from(support_bodies, scanned_support)
     scanned_user = scan_from(user_bodies, scanned_user)
@@ -29,7 +29,7 @@ func mentions(name: String): Bool {
     return mentioned_names.has(name)
 }
 
-func scan_from(lines: List<String>, start: Int): Int {
+func scan_from(lines: List<String>, start: Integer): Integer {
     var index = start
     while index < lines.count() {
         scan_names(lines[index])
@@ -57,7 +57,7 @@ func scan_names(line: String) {
     }
 }
 
-func is_name_code(code: Int): Bool {
+func is_name_code(code: Integer): Boolean {
     return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
 }
 
@@ -65,11 +65,11 @@ func add_typedef(line: String) {
     typedefs.append(line)
 }
 
-func typedef_count(): Int {
+func typedef_count(): Integer {
     return typedefs.count()
 }
 
-func replace_typedef(position: Int, line: String) {
+func replace_typedef(position: Integer, line: String) {
     typedefs.set_at(position, line)
 }
 
@@ -86,19 +86,19 @@ func add_support(line: String) {
     support_bodies.append(line)
 }
 
-func support_count(): Int {
+func support_count(): Integer {
     return support_bodies.count()
 }
 
-func typedef_at(position: Int): String {
+func typedef_at(position: Integer): String {
     return typedefs.get_at(position)
 }
 
-func support_at(position: Int): String {
+func support_at(position: Integer): String {
     return support_bodies.get_at(position)
 }
 
-func replace_support(position: Int, line: String) {
+func replace_support(position: Integer, line: String) {
     support_bodies.set_at(position, line)
 }
 
@@ -106,23 +106,23 @@ func add_user(line: String) {
     user_bodies.append(line)
 }
 
-func user_count(): Int {
+func user_count(): Integer {
     return user_bodies.count()
 }
 
-func user_at(position: Int): String {
+func user_at(position: Integer): String {
     return user_bodies.get_at(position)
 }
 
-func replace_user(position: Int, line: String) {
+func replace_user(position: Integer, line: String) {
     user_bodies.set_at(position, line)
 }
 
-func insert_user(position: Int, line: String) {
+func insert_user(position: Integer, line: String) {
     user_bodies.insert(position, line)
 }
 
-func remove_user_range(start: Int, end: Int) {
+func remove_user_range(start: Integer, end: Integer) {
     var index = end - 1
     while index >= start {
         user_bodies.remove_at(index)
@@ -130,7 +130,7 @@ func remove_user_range(start: Int, end: Int) {
     }
 }
 
-func take_user_from(start: Int): List<String> {
+func take_user_from(start: Integer): List<String> {
     var taken = List<String>()
     var index = start
     while index < user_bodies.count() {
@@ -154,7 +154,7 @@ func add_main_if_kept(guard: String, line: String) {
     main_lines.append("/*spite_guard {position}*/")
 }
 
-func guarded(text: String, shaker: TreeShaker, keeps_all: Bool): String {
+func guarded(text: String, shaker: TreeShaker, keeps_all: Boolean): String {
     if guard_names.is_empty() {
         return text
     }
@@ -168,7 +168,7 @@ func guarded(text: String, shaker: TreeShaker, keeps_all: Bool): String {
         } else {
             var end = part.index_of("*/")
             var digits = part.slice(0, end)
-            var position = digits.to_int()
+            var position = digits.to_integer()
             var part_length = part.length()
             var rest = part.slice(end + 2, part_length)
             var guard = guard_names.get_at(position)

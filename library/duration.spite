@@ -40,11 +40,11 @@ func part(unit: Unit): Long {
     return _nanoseconds / nanoseconds_per_unit
 }
 
-func get_is_negative(): Bool {
+func get_is_negative(): Boolean {
     return _seconds < 0 or _nanoseconds < 0
 }
 
-func get_is_zero(): Bool {
+func get_is_zero(): Boolean {
     return _seconds == 0 and _nanoseconds == 0
 }
 
@@ -65,18 +65,18 @@ func negate(): Duration {
     return _made(-_seconds, -_nanoseconds)
 }
 
-func equals(other: Duration): Bool {
+func equals(other: Duration): Boolean {
     return _seconds == other._seconds and _nanoseconds == other._nanoseconds
 }
 
-func less_than(other: Duration): Bool {
+func less_than(other: Duration): Boolean {
     if _seconds != other._seconds {
         return _seconds < other._seconds
     }
     return _nanoseconds < other._nanoseconds
 }
 
-func greater_than(other: Duration): Bool {
+func greater_than(other: Duration): Boolean {
     return other.less_than(this)
 }
 
@@ -136,7 +136,7 @@ func _units_per_second(unit: Unit): Long {
     return 1
 }
 
-func _nanoseconds_per_unit(unit: Unit): Int {
+func _nanoseconds_per_unit(unit: Unit): Integer {
     if unit == 'nanoseconds' {
         return 1
     }

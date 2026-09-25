@@ -15,7 +15,7 @@ func AllocatorChoice() {
     moved.memory.allocator = arena
     moved.life = 3.0
     console.print(spark.name, ember.name, ash.name, ash.life, moved.name, moved.life)
-    var scratch = List<Int>()
+    var scratch = List<Integer>()
     scratch.memory.allocator = arena
     scratch.append(3)
     scratch.append(4)

@@ -19,7 +19,7 @@ func start() {
     }
 }
 
-func waits_here(): Bool {
+func waits_here(): Boolean {
     assert started and not paused and (not tasks.is_empty() or serving)
     return current_thread() == scheduler_thread
 }
@@ -31,27 +31,27 @@ func begin(frame: Long) {
     }
 }
 
-func run_frame(frame: Memory.Address): Bool {
-    frame.write_int(12, 1)
+func run_frame(frame: Memory.Address): Boolean {
+    frame.write_integer(12, 1)
     var done = step_frame(frame)
     if done {
-        frame.write_int(12, 2)
+        frame.write_integer(12, 2)
     } else {
-        frame.write_int(12, 0)
+        frame.write_integer(12, 0)
     }
     return done
 }
 
-func frame_done(frame: Memory.Address): Bool {
-    return frame.read_int(12) == 2
+func frame_done(frame: Memory.Address): Boolean {
+    return frame.read_integer(12) == 2
 }
 
-func run_ready(): Int {
+func run_ready(): Integer {
     var finished = 0
     var index = 0
     while index < tasks.count() {
         var frame: Memory.Address = tasks.get_at(index)
-        if frame.read_int(12) == 0 and run_frame(frame) {
+        if frame.read_integer(12) == 0 and run_frame(frame) {
             remove_one(tasks, frame)
             finished = finished + 1
         } else {
@@ -67,13 +67,13 @@ func wait_for(frame: Long) {
     }
 }
 
-func timer_start(milliseconds: Int): Long {
+func timer_start(milliseconds: Integer): Long {
     var deadline = clock() + milliseconds
     deadlines.append(deadline)
     return deadline
 }
 
-func timer_over(deadline: Long): Bool {
+func timer_over(deadline: Long): Boolean {
     assert clock() >= deadline
     remove_one(deadlines, deadline)
     return true
@@ -112,14 +112,14 @@ func yield_now() {
     run_ready()
 }
 
-func sleep(milliseconds: Int) {
+func sleep(milliseconds: Integer) {
     var deadline = timer_start(milliseconds)
     while not timer_over(deadline) {
         idle()
     }
 }
 
-func offload(call: Memory.Address, entry: Long): Bool {
+func offload(call: Memory.Address, entry: Long): Boolean {
     var thread = offload_start(call, entry)
     while not offload_over(call, thread) {
         idle()
@@ -134,7 +134,7 @@ func offload_start(call: Memory.Address, entry: Long): Long {
     return thread
 }
 
-func offload_over(call: Memory.Address, thread: Long): Bool {
+func offload_over(call: Memory.Address, thread: Long): Boolean {
     assert call.read_long_atomically(0) == 1
     end_thread(thread)
     offloads_running = offloads_running - 1
@@ -165,7 +165,7 @@ func idle() {
     }
 }
 
-func timeout(): Int {
+func timeout(): Integer {
     if deadlines.is_empty() {
         return -1
     }

@@ -9,7 +9,7 @@ func ImplicitJoins() {
     console.print(shouted, letters)
     var counting = Concurrent(count_to_three)
     console.print(counting + 1, "and interpolated: {counting}")
-    var total: Int = counting
+    var total: Integer = counting
     var twice = doubled(counting)
     console.print(total * 2, twice)
     names.append(greeting)
@@ -32,7 +32,7 @@ func ImplicitJoins() {
     console.print("crash proved", checked)
     var ready = Parallel(is_ready)
     if ready and not not ready {
-        console.print("ready is a Bool")
+        console.print("ready is a Boolean")
     }
 }
 
@@ -40,7 +40,7 @@ func find_somebody(): String? {
     return "Ada"
 }
 
-func is_ready(): Bool {
+func is_ready(): Boolean {
     return true
 }
 
@@ -48,7 +48,7 @@ func greet(): String {
     return "hello"
 }
 
-func count_to_three(): Int {
+func count_to_three(): Integer {
     return 3
 }
 
@@ -56,11 +56,11 @@ func find_nobody(): String? {
     return null
 }
 
-func doubled(value: Int): Int {
+func doubled(value: Integer): Integer {
     return value * 2
 }
 
-func later_count(): Int {
+func later_count(): Integer {
     var later = Parallel(count_to_three)
     return later
 }

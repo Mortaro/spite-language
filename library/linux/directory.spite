@@ -1,17 +1,17 @@
 var library = DynamicLibrary("libc.so.6", 'identity', "")
 
-func exists(): Bool {
+func exists(): Boolean {
     var directory = library.opendir_as_long(path)
     assert directory != 0
     library.closedir(directory)
     return true
 }
 
-func create(): Bool {
+func create(): Boolean {
     return library.mkdir(path, 511) == 0 or exists()
 }
 
-func entry_names(want_folders: Bool): List<String> {
+func entry_names(want_folders: Boolean): List<String> {
     var names = List<String>()
     var directory = library.opendir_as_long(path)
     if directory != 0 {

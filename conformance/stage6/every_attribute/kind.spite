@@ -3,7 +3,7 @@ generic $kind_type
 func name(): String {
     if $kind_type == String {
         return "text"
-    } else if $kind_type == Int or $kind_type == Float {
+    } else if $kind_type == Integer or $kind_type == Float {
         return "a number"
     } else if $kind_type == Symbol {
         return "one of a closed list"

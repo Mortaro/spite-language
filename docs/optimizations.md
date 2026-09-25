@@ -123,7 +123,7 @@ it, so a helper reached only from a removed branch is never checked against a ty
 taken is not part of this program, since a `Build` field or a codegen value is a fact of the build, not a value
 that could change while it runs.
 
-**Example.** `Describer<Int>` never contains `value.count()`, which an `Int` does not have:
+**Example.** `Describer<Integer>` never contains `value.count()`, which an `Integer` does not have:
 
 ```gdscript title=folded_branch/describer.spite
 generic $value_type
@@ -140,12 +140,12 @@ func describe(value: $value_type): String {
 var console = Console()
 
 func FoldedBranch() {
-    var numbers = List<Int>()
+    var numbers = List<Integer>()
     numbers.append(4)
     numbers.append(9)
-    var lists = Describer<List<Int>>()
+    var lists = Describer<List<Integer>>()
     var first = lists.describe(numbers)
-    var singles = Describer<Int>()
+    var singles = Describer<Integer>()
     var second = singles.describe(7)
     console.print(first)
     console.print(second)
@@ -218,18 +218,18 @@ var name = ""
 var active = false
 var size = 0
 
-func Team(new_name: String, new_active: Bool, new_size: Int) {
+func Team(new_name: String, new_active: Boolean, new_size: Integer) {
     name = new_name
     active = new_active
     size = new_size
 }
 
-func is_active(): Bool {
+func is_active(): Boolean {
     console.print("checking", name)
     return active
 }
 
-func counted_size(): Int {
+func counted_size(): Integer {
     console.print("counting", name)
     return size
 }
@@ -309,7 +309,7 @@ abc a
 way to give it back, `heap.free(address)`. Where the bytes live is the compiler's choice ([D108](decisions.md),
 [Placement](memory.md#placement-the-compiler-decides-where-memory-lives--implemented-the-rule-proposed-by-claude-unconfirmed)):
 
-- **Register:** a number's own memory (`var _memory = heap.allocate(4)` in `library/int.spite`) is its C
+- **Register:** a number's own memory (`var _memory = heap.allocate(4)` in `library/integer.spite`) is its C
   scalar. A number is never an object.
 - **Frame:** an allocation a function frees itself, in the same block, whose address it only reads and writes
   through, copies, compares, turns into `text` or hands to a `TypedMemory` -- never stores, returns, resizes or
@@ -331,7 +331,7 @@ func FramePlacement() {
     console.print("sum of squares:", total)
 }
 
-func sum_of_squares(count: Int): Long {
+func sum_of_squares(count: Integer): Long {
     var before = heap.live_allocations()
     var squares = heap.allocate(count * 8)
     var index = 0
@@ -521,7 +521,7 @@ thread" row; [concurrency.md](concurrency.md)).
 
 ### Boxing only where a value travels as a shape
 
-**What it does.** A number, `Bool`, enum value or `Symbol` is a plain value everywhere the compiler can see its
+**What it does.** A number, `Boolean`, enum value or `Symbol` is a plain value everywhere the compiler can see its
 type. It is put in a box -- one small object, released like any other -- only where it has to travel as a `type`
 shape (a `Printable`, a `Debuggable`, an empty `type` that accepts anything) and be called through it
 ([D109, D164](decisions.md)). `String` and class instances are objects already and are never boxed.
@@ -695,7 +695,7 @@ built, tried in this order:
 2. **Nothing, because it never changes.** A singleton whose functions never assign one of its attributes after its
    constructor, whose attributes no other class assigns, and that holds no list, dictionary, function value or
    object that can change, is read-only once made: it takes nothing.
-3. **Atomics, for counters and flags.** A singleton whose attributes that change are all whole numbers or `Bool`s
+3. **Atomics, for counters and flags.** A singleton whose attributes that change are all whole numbers or `Boolean`s
    (every other attribute set only by the constructor, none holding anything that can change, and none assigned
    from another class), where each function touches that changing state at most once -- one read, one
    `count = count + step` or `count = count - step`, or one `flag = value`, where neither `step` nor `value`

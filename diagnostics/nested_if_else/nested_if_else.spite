@@ -7,7 +7,7 @@ func NestedIfElse() {
     console.print("{description} {letter} {flat}")
 }
 
-func describe(count: Int, loud: Bool): String {
+func describe(count: Integer, loud: Boolean): String {
     if count == 0 {
         return "none"
     } else {
@@ -20,7 +20,7 @@ func describe(count: Int, loud: Bool): String {
     }
 }
 
-func grade(score: Int): String {
+func grade(score: Integer): String {
     var text = ""
     if score > 90 {
         text = "top"
@@ -38,7 +38,7 @@ func grade(score: Int): String {
     return text
 }
 
-func allowed(count: Int, loud: Bool): String {
+func allowed(count: Integer, loud: Boolean): String {
     var text = "quiet"
     if count == 0 {
         text = "none"

@@ -32,7 +32,7 @@ func log(...lines: List<String>) {
     console.print(line_count, joined)
 }
 
-func sum_all(...values: List<Int>): Int {
+func sum_all(...values: List<Integer>): Integer {
     var total = 0
     var index = 0
     while index < values.count() {
@@ -42,7 +42,7 @@ func sum_all(...values: List<Int>): Int {
     return total
 }
 
-func labeled(label: String, ...values: List<Int>): String {
+func labeled(label: String, ...values: List<Integer>): String {
     return "{label} {values.join(", ")}"
 }
 

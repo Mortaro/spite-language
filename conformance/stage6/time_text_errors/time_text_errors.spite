@@ -48,7 +48,7 @@ func refuse_instant(text: String) {
 }
 
 func refuse_date_time(text: String) {
-    var read = time_text.read_local_date_time(text)
+    var read = time_text.read_date_time(text)
     if read {
         console.print("date and time '{text}' was read as", read)
     } else {
@@ -57,7 +57,7 @@ func refuse_date_time(text: String) {
 }
 
 func refuse_date(text: String) {
-    var read = time_text.read_local_date(text)
+    var read = time_text.read_date(text)
     if read {
         console.print("date '{text}' was read as", read)
     } else {
@@ -66,7 +66,7 @@ func refuse_date(text: String) {
 }
 
 func refuse_time(text: String) {
-    var read = time_text.read_local_time(text)
+    var read = time_text.read_time(text)
     if read {
         console.print("time '{text}' was read as", read)
     } else {

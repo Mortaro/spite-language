@@ -82,7 +82,7 @@ func read_daylight_rule(): DaylightRule? {
     return rule
 }
 
-func _is_header_at(position: Long): Bool {
+func _is_header_at(position: Long): Boolean {
     var magic = _data.slice(position, position + 4)
     return magic == "TZif" and position + 44 <= _data.length()
 }
@@ -138,7 +138,7 @@ func _skip_zone_name() {
     }
 }
 
-func _read_offset(): Int {
+func _read_offset(): Integer {
     var sign = 1
     if _data.code_at(_position) == 45 {
         sign = -1
@@ -193,7 +193,7 @@ func _read_change(): DaylightChange {
     return change
 }
 
-func _read_number(): Int {
+func _read_number(): Integer {
     var start = _position
     var value = 0
     var code = _data.code_at(_position)
@@ -207,7 +207,7 @@ func _read_number(): Int {
     return value
 }
 
-func _expect(code: Int) {
+func _expect(code: Integer) {
     if _data.code_at(_position) == code {
         _position = _position + 1
     } else {
@@ -215,10 +215,10 @@ func _expect(code: Int) {
     }
 }
 
-func _is_digit(code: Int): Bool {
+func _is_digit(code: Integer): Boolean {
     return code >= 48 and code <= 57
 }
 
-func _is_letter(code: Int): Bool {
+func _is_letter(code: Integer): Boolean {
     return code >= 65 and code <= 90 or code >= 97 and code <= 122
 }

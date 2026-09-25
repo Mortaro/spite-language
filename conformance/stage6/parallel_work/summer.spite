@@ -1,6 +1,6 @@
 var limit = 0
 
-func Summer(starting_limit: Int) {
+func Summer(starting_limit: Integer) {
     limit = starting_limit
 }
 

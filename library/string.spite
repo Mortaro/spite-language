@@ -15,11 +15,11 @@ func drop() {
     heap.free(_bytes)
 }
 
-func length(): Int {
+func length(): Integer {
     return _length
 }
 
-func code_at(index: Int): Int {
+func code_at(index: Integer): Integer {
     var position: Long = index
     if index < 0 or index > _length {
         position = _length
@@ -27,14 +27,14 @@ func code_at(index: Int): Int {
     return _bytes.read_byte(position)
 }
 
-func slice(start: Int, end: Int): String {
+func slice(start: Integer, end: Integer): String {
     var first = _clamped(start)
     var last = _clamped(end)
     assert last > first
     return (_bytes + first).text(last - first)
 }
 
-func _clamped(position: Int): Int {
+func _clamped(position: Integer): Integer {
     assert position >= 0
     if position > _length {
         return _length
@@ -51,11 +51,11 @@ func sum(other: String): String {
     return String(bytes, total)
 }
 
-func equals(other: String): Bool {
+func equals(other: String): Boolean {
     return _length == other._length and (_bytes == other._bytes or _bytes.compare_bytes(other._bytes, _length) == 0)
 }
 
-func less_than(other: String): Bool {
+func less_than(other: String): Boolean {
     var shortest = _length
     if other._length < shortest {
         shortest = other._length
@@ -67,7 +67,7 @@ func less_than(other: String): Bool {
     return _length < other._length
 }
 
-func greater_than(other: String): Bool {
+func greater_than(other: String): Boolean {
     return other.less_than(this)
 }
 
@@ -91,15 +91,15 @@ func _append_in_place(piece: String) {
     _length = total
 }
 
-func is_empty(): Bool {
+func is_empty(): Boolean {
     return length() == 0
 }
 
-func character_at(index: Int): String {
+func character_at(index: Integer): String {
     return slice(index, index + 1)
 }
 
-func matches_at(text: String, start: Int): Bool {
+func matches_at(text: String, start: Integer): Boolean {
     assert start >= 0 and start + text.length() <= length()
     var index = 0
     while index < text.length() {
@@ -109,7 +109,7 @@ func matches_at(text: String, start: Int): Bool {
     return true
 }
 
-func index_of(text: String): Int {
+func index_of(text: String): Integer {
     var start = 0
     while start + text.length() <= length() {
         if matches_at(text, start) {
@@ -120,15 +120,15 @@ func index_of(text: String): Int {
     return -1
 }
 
-func contains(text: String): Bool {
+func contains(text: String): Boolean {
     return index_of(text) >= 0
 }
 
-func starts_with(text: String): Bool {
+func starts_with(text: String): Boolean {
     return matches_at(text, 0)
 }
 
-func ends_with(text: String): Bool {
+func ends_with(text: String): Boolean {
     var own_length = length()
     var text_length = text.length()
     return matches_at(text, own_length - text_length)
@@ -175,7 +175,7 @@ func replace(from: String, to: String): String {
     return split(from).join(to)
 }
 
-func is_space_at(index: Int): Bool {
+func is_space_at(index: Integer): Boolean {
     var code = code_at(index)
     return code == 32 or code >= 9 and code <= 13
 }
@@ -200,7 +200,7 @@ func lower_case(): String {
     return shifted_case(65, 90, 32)
 }
 
-func shifted_case(first: Int, last: Int, shift: Int): String {
+func shifted_case(first: Integer, last: Integer, shift: Integer): String {
     var heap = Memory.Heap()
     var own_length = length()
     var address = heap.allocate(own_length + 1)
@@ -249,7 +249,7 @@ func to_long(): Long {
     return value
 }
 
-func to_int(): Int {
+func to_integer(): Integer {
     return to_long()
 }
 
@@ -269,7 +269,7 @@ func to_unsigned_short(): UnsignedShort {
     return to_long()
 }
 
-func to_unsigned_int(): UnsignedInt {
+func to_unsigned_integer(): UnsignedInteger {
     return to_long()
 }
 

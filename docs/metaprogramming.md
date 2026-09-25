@@ -27,7 +27,7 @@ turned into text by it). `attributes[attribute]` is a separate, compile-time-onl
 var age = 0
 var name = ""
 
-func Person(new_age: Int, new_name: String) {
+func Person(new_age: Integer, new_name: String) {
     age = new_age
     name = new_name
 }
@@ -132,8 +132,8 @@ func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, source: $row_t
 ```
 ```gdscript title=shape_attributes/shape_attributes.spite entry
 type Position {
-    x: Int
-    y: Int
+    x: Integer
+    y: Integer
 }
 
 var console = Console()
@@ -154,7 +154,7 @@ func ShapeAttributes() {
 
 `$name` means "replaced at code generation", and it is for generics only. A class declares each one on a
 `generic` line of its own at the top of the file, and a caller gives the values positionally, in the order of
-those lines: `Pair<String, Int>(...)`. A `$name` with no `generic` line is an error that points at
+those lines: `Pair<String, Integer>(...)`. A `$name` with no `generic` line is an error that points at
 [`Environment`](programs.md#run-time-settings-environment), which is where a program's settings live.
 
 ```gdscript title=generics_basics/pair.spite
@@ -177,7 +177,7 @@ func describe(): String {
 var console = Console()
 
 func GenericsBasics() {
-    var scoreboard = Pair<String, Int>("Aria", 42)
+    var scoreboard = Pair<String, Integer>("Aria", 42)
     var description = scoreboard.describe()
     console.print(description)
     var inferred = Pair("Hero", 7)
@@ -198,9 +198,9 @@ Hero and 7
 - **Every hole is filled.** There are no defaults: the wrong number of values is an error naming the class's
   values in order, and a `$name` with no `generic` line is an error too.
 - **A generic class needs no constructor.** `library/list.spite` is `generic $element_type` and its functions,
-  and `List<Int>()` is made from its defaults.
+  and `List<Integer>()` is made from its defaults.
 - **The values can be read from the arguments.** When every `$name` appears in the constructor's parameter
-  types, a call may leave the `<...>` out: `Pair("Hero", 7)` is `Pair<String, Int>`, and a `$name` inside a
+  types, a call may leave the `<...>` out: `Pair("Hero", 7)` is `Pair<String, Integer>`, and a `$name` inside a
   function value's type is read from the function, so `Concurrent(file.read)` is a `Concurrent<String?>`
   ([concurrency.md](concurrency.md)). A parameter typed `$name?` reads the type without its `?`, so a `T` and a
   `T?` both give `T` (that is how `Json(order)` is a `Json<Order>`, [json.md](json.md)); `List<$name>` and
@@ -233,7 +233,7 @@ func hit(): $damage_type {
 var console = Console()
 
 func CodegenValuesDoc() {
-    var staff = Weapon<Int, true>(10)
+    var staff = Weapon<Integer, true>(10)
     var club = Weapon<Float, false>(2.5)
     var staff_hit = staff.hit()
     var club_hit = club.hit()
@@ -248,7 +248,7 @@ func CodegenValuesDoc() {
 var console = Console()
 
 func CodegenCountError() {
-    var pairs = List<String, Int>()
+    var pairs = List<String, Integer>()
     var pairs_count = pairs.count()
     console.print(pairs_count)
 }
@@ -301,7 +301,7 @@ var console = Console()
 func GenericConstraint() {
     var books = Shelf<Book>()
     books.add(Book("Dune"))
-    var numbers = Shelf<Int>()
+    var numbers = Shelf<Integer>()
     numbers.add(3)
     var book_text = books.describe()
     var number_text = numbers.describe()
@@ -363,7 +363,7 @@ naming a type exactly, four names ask for a kind:
 What the branch ruled out is not compiled at all, and neither is what only it reaches: a function of a generic
 class is compiled for one instantiation only when code that survives for that instantiation calls it, and the
 statements after an `if` chain whose taken branch returns are not compiled either. So one class may keep a helper
-per kind, and `Field<Int>` never checks the helper that calls `.count()` (`conformance/stage6/folded_helpers`):
+per kind, and `Field<Integer>` never checks the helper that calls `.count()` (`conformance/stage6/folded_helpers`):
 
 ```gdscript
 func write(value: $value_type): String {
@@ -384,7 +384,7 @@ generic $kind_type
 func name(): String {
     if $kind_type == String {
         return "text"
-    } else if $kind_type == Int {
+    } else if $kind_type == Integer {
         return "a whole number"
     } else if $kind_type == Null {
         var inner = Kind<$kind_type.value_type>()
@@ -403,13 +403,13 @@ func name(): String {
 var console = Console()
 
 func DescribeKind() {
-    var nested = Kind<List<List<Int>>>()
+    var nested = Kind<List<List<Integer>>>()
     var nested_name = nested.name()
     console.print(nested_name)
     var maybe = Kind<String?>()
     var maybe_name = maybe.name()
     console.print(maybe_name)
-    var flag = Kind<Bool>()
+    var flag = Kind<Boolean>()
     var flag_name = flag.name()
     console.print(flag_name)
 }
@@ -573,7 +573,7 @@ func run() {
 }
 ```
 ```gdscript title=folder_walk/tools/broom.spite
-func bristles(): Int {
+func bristles(): Integer {
     return 40
 }
 ```
@@ -628,7 +628,7 @@ func render_all() {
     console.print("draw", shapes, "shapes")
 }
 
-func count_all(): Int {
+func count_all(): Integer {
     return 3
 }
 ```
@@ -790,7 +790,7 @@ Spite removes what a program does not use, and it can do so exactly, because eve
 at compile time:
 
 - A **condition on a codegen value** or on a [`Build`](programs.md#compile-time-settings-build) field is decided
-  while compiling, and the branch not taken is never generated: `Weapon<Int, true>` and `Weapon<Int, false>` are
+  while compiling, and the branch not taken is never generated: `Weapon<Integer, true>` and `Weapon<Integer, false>` are
   two classes, and each keeps only the branch of `if $is_magic { }` that it takes.
 - A **Symbol codegen template** is compiled only for the names a program calls: a program that never calls
   `sum_price()` has no `sum_price`.
@@ -947,7 +947,7 @@ calls. The spellings below are Claude's (2026-09-24), chosen to be the existing 
   where a system's `sum_all` helper stays ordinary).
 - **A template's symbol is passed to a helper by name** (proposed by Claude, unconfirmed, 2026-09-24; SlopEngine's
   runner had to keep its whole loop inside `run_phase_each`). A function whose `Symbol<...>` parameter is not a
-  word of its own name -- `run_combination(phase: Symbol<$system_type.phase_each>, combination: Int)` -- is not
+  word of its own name -- `run_combination(phase: Symbol<$system_type.phase_each>, combination: Integer)` -- is not
   an ordinary function taking a run-time `Symbol`: it is a template compiled once for each symbol passed to it,
   and the only thing its symbol argument may be is the calling template's own symbol over the same range, written
   by name: `run_combination(phase, combination)`. Its instance is `run_combination_for_update`, keyed
@@ -999,7 +999,7 @@ func Weapon(new_damage: $damage_type) {
     damage = new_damage
 }
 
-func hit(): Int {
+func hit(): Integer {
     if $is_magic {
         return 1
     }
@@ -1013,7 +1013,7 @@ var sword = Weapon<Magic, true>(10)
 
 - **Every value is declared, even a single one**, so skimming the top of a file is how a human sees what a class
   accepts. The lines come after a `singleton` line and before everything else (D67); one line declares one value.
-- **Call sites are positional, always, in the order of the lines.** There is no named form: `List<Int>()`,
+- **Call sites are positional, always, in the order of the lines.** There is no named form: `List<Integer>()`,
   `Weapon<Magic, true>(10)`.
 - **`$` is for generics only** (D76, decided by Mortaro, 2026-09-23, superseding D9's "undeclared means supplied
   by a compiler flag"). Every `$name` a class uses has a `generic` line and is supplied by the caller, so the
@@ -1028,8 +1028,8 @@ var sword = Weapon<Magic, true>(10)
   opening the class. A `$name` that is not declared is an error too -- which is what a typo like `$is_magik`
   produces.
 - Reordering the `generic` lines changes what every existing positional call site means. Where the values
-  have different kinds (a class versus a `Bool`) the compiler catches it immediately; where they are the same
-  kind (`Pair<Int, String>` swapped) it compiles and means something else, and the tests are what catch it. This
+  have different kinds (a class versus a `Boolean`) the compiler catches it immediately; where they are the same
+  kind (`Pair<Integer, String>` swapped) it compiles and means something else, and the tests are what catch it. This
   is a deliberate, accepted trade (Mortaro, 2026-09-19).
 - `--final-classes` prints each class with its codegen values already bound, which is where `true` reads as
   `is_magic` again.
@@ -1094,8 +1094,8 @@ names it -- a call that survived folding, a function value, a reflection table, 
 class is a member of -- so a helper reached only from a
 branch the instantiation rules out is never checked against that type. When a folded `if` (or `else if` chain)
 takes a branch that ends in `return`, the statements after it in the same block are not compiled either, and
-the names they read count as used, as for the untaken branch. Before, `Field<Int>.write_list` was checked for
-`.count()` on an `Int`, and the only way out was one generic class per kind. A class that is not generic still
+the names they read count as used, as for the untaken branch. Before, `Field<Integer>.write_list` was checked for
+`.count()` on an `Integer`, and the only way out was one generic class per kind. A class that is not generic still
 compiles every function. `conformance/stage6/folded_helpers`.
 
 **The types a type was built from are read by their codegen names**: `$value_type.element_type` for a

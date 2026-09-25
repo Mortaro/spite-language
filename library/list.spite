@@ -6,11 +6,11 @@ var items: Memory.Address = 0
 var item_count = 0
 var capacity = 0
 
-func count(): Int {
+func count(): Integer {
     return item_count
 }
 
-func is_empty(): Bool {
+func is_empty(): Boolean {
     return item_count == 0
 }
 
@@ -24,7 +24,7 @@ func prepend(value: $element_type) {
     insert(0, value)
 }
 
-func insert(index: Int, value: $element_type) {
+func insert(index: Integer, value: $element_type) {
     var position = index
     if position < 0 {
         position = 0
@@ -38,27 +38,27 @@ func insert(index: Int, value: $element_type) {
     item_count = item_count + 1
 }
 
-func get_at(index: Int): $element_type {
+func get_at(index: Integer): $element_type {
     if index >= 0 and index < item_count {
         return values.read_value(items, index)
     }
 }
 
-func find_at(index: Int): $element_type? {
+func find_at(index: Integer): $element_type? {
     if index >= 0 and index < item_count {
         return values.read_value(items, index)
     }
     return null
 }
 
-func set_at(index: Int, value: $element_type) {
+func set_at(index: Integer, value: $element_type) {
     if index >= 0 and index < item_count {
         values.release_value(items, index)
         values.write_value(items, index, value)
     }
 }
 
-func remove_at(index: Int) {
+func remove_at(index: Integer) {
     if index >= 0 and index < item_count {
         values.release_value(items, index)
         move_items(index + 1, index, item_count - index - 1)
@@ -121,7 +121,7 @@ func reverse() {
     }
 }
 
-func contains(value: $element_type): Bool {
+func contains(value: $element_type): Boolean {
     var index = 0
     while index < item_count {
         if values.read_value(items, index) == value {
@@ -195,7 +195,7 @@ func filter_member(member: Symbol<$element_type>): List<$element_type> {
     return filtered
 }
 
-func count_member(member: Symbol<$element_type>): Int {
+func count_member(member: Symbol<$element_type>): Integer {
     var counted = 0
     var index = 0
     while index < item_count {
@@ -208,7 +208,7 @@ func count_member(member: Symbol<$element_type>): Int {
     return counted
 }
 
-func any_member(member: Symbol<$element_type>): Bool {
+func any_member(member: Symbol<$element_type>): Boolean {
     var index = 0
     while index < item_count {
         var item = values.read_value(items, index)
@@ -220,7 +220,7 @@ func any_member(member: Symbol<$element_type>): Bool {
     return false
 }
 
-func all_member(member: Symbol<$element_type>): Bool {
+func all_member(member: Symbol<$element_type>): Boolean {
     var index = 0
     while index < item_count {
         var item = values.read_value(items, index)
@@ -309,7 +309,7 @@ func make_room() {
     }
 }
 
-func move_items(from: Int, to: Int, moved_count: Int) {
+func move_items(from: Integer, to: Integer, moved_count: Integer) {
     var bytes = values.value_bytes()
     (items + bytes * from).copy_to(items + bytes * to, bytes * moved_count)
 }

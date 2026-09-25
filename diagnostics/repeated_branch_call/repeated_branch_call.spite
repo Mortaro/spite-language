@@ -8,7 +8,7 @@ func RepeatedBranchCall() {
     allowed(true, 2)
 }
 
-func flush(is_number: Bool, end_index: Int) {
+func flush(is_number: Boolean, end_index: Integer) {
     if is_number {
         words.append("number {source.slice(0, end_index)}")
     } else {
@@ -16,7 +16,7 @@ func flush(is_number: Bool, end_index: Int) {
     }
 }
 
-func describe(count: Int) {
+func describe(count: Integer) {
     if count == 0 {
         console.print("none of {source.slice(0, count)}")
     } else if count == 1 {
@@ -35,7 +35,7 @@ func describe(count: Int) {
     }
 }
 
-func allowed(is_number: Bool, end_index: Int) {
+func allowed(is_number: Boolean, end_index: Integer) {
     if is_number {
         words.append("number {source.slice(0, end_index)}")
     } else {

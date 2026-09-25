@@ -134,7 +134,7 @@ func read_state(text: String) {
         var line = lines[index].trim()
         var words = line.split(" ")
         if words.count() == 2 and words[0] == "generation" {
-            generation = words[1].to_int()
+            generation = words[1].to_integer()
         } else if words.count() >= 3 and words[0] == "file" {
             var line_length = line.length()
             var path_start = words[0].length() + words[1].length() + 2
@@ -145,7 +145,7 @@ func read_state(text: String) {
     }
 }
 
-func state_text(next_generation: Int, paths: List<String>, hashes: List<String>): String {
+func state_text(next_generation: Integer, paths: List<String>, hashes: List<String>): String {
     var lines = List<String>()
     lines.append("generation {next_generation}")
     var index = 0
@@ -168,7 +168,7 @@ func hash_of(text: String): String {
     return "{hash}"
 }
 
-func is_changed(path: String, hash: String): Bool {
+func is_changed(path: String, hash: String): Boolean {
     if running_hashes[path] {
         return running_hashes[path] != hash
     }
@@ -209,7 +209,7 @@ func new_prototypes(prototype_text: String, shaker: TreeShaker): Dictionary<Stri
     return prototypes
 }
 
-func is_bound(name: String, prototypes: Dictionary<String>, local_names: Dictionary<String>): Bool {
+func is_bound(name: String, prototypes: Dictionary<String>, local_names: Dictionary<String>): Boolean {
     var running = host_prototypes[name]
     var prototype = prototypes[name]
     assert running and prototype
@@ -266,7 +266,7 @@ func callers_of(
     return callers
 }
 
-func mentions_any(text: String, names: List<String>): Bool {
+func mentions_any(text: String, names: List<String>): Boolean {
     var index = 0
     while index < names.count() {
         if text.contains("{names[index]}(") {
@@ -284,7 +284,7 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
     shaker.split_pieces(bodies)
     var prototypes = new_prototypes(prototype_text, shaker)
     var local_names = Dictionary<String>()
-    var roots = List<Int>()
+    var roots = List<Integer>()
     var index = 0
     while index < slot_names.count() and index < slot_owners.count() {
         var name = slot_names[index]
@@ -311,7 +311,7 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
         }
         index = index + 1
     }
-    var bound = List<Bool>()
+    var bound = List<Boolean>()
     index = 0
     while index < shaker.pieces.count() {
         crash shaker.piece_names[index]
@@ -382,7 +382,7 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
     return "{parts.join("\n")}\n"
 }
 
-func counts_memory(name: String): Bool {
+func counts_memory(name: String): Boolean {
     return name.starts_with("spite_debug_") or name.starts_with("spite_allocation_table")
 }
 

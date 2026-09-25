@@ -17,7 +17,7 @@ func storage(): Storage<$component_type> {
     return made
 }
 
-func holds_health(): Bool {
+func holds_health(): Boolean {
     var found = registry.storages[key]
     return found == Storage<Health>
 }

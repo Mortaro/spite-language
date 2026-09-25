@@ -13,7 +13,7 @@ func Lexer(starting_source: String) {
     run()
 }
 
-func fail_lex(message: String, at_line: Int) {
+func fail_lex(message: String, at_line: Integer) {
     assert not has_error
     has_error = true
     error_line = at_line
@@ -40,19 +40,19 @@ func run() {
     }
 }
 
-func at_end(): Bool {
+func at_end(): Boolean {
     return index >= source.length()
 }
 
-func current_code(): Int {
+func current_code(): Integer {
     return source.code_at(index)
 }
 
-func peek_code(offset: Int): Int {
+func peek_code(offset: Integer): Integer {
     return source.code_at(index + offset)
 }
 
-func advance_character(): Int {
+func advance_character(): Integer {
     var code = source.code_at(index)
     index = index + 1
     if code == 10 {
@@ -64,23 +64,23 @@ func advance_character(): Int {
     return code
 }
 
-func push_token(kind: TokenKind, lexeme: String, text: String, token_line: Int, token_column: Int) {
+func push_token(kind: TokenKind, lexeme: String, text: String, token_line: Integer, token_column: Integer) {
     tokens.append(Token(kind, lexeme, text, token_line, token_column))
 }
 
-func is_digit(code: Int): Bool {
+func is_digit(code: Integer): Boolean {
     return code >= 48 and code <= 57
 }
 
-func is_identifier_start(code: Int): Bool {
+func is_identifier_start(code: Integer): Boolean {
     return code >= 97 and code <= 122 or code >= 65 and code <= 90 or code == 95
 }
 
-func is_identifier_continue(code: Int): Bool {
+func is_identifier_continue(code: Integer): Boolean {
     return is_identifier_start(code) or is_digit(code)
 }
 
-func scan_one(): Bool {
+func scan_one(): Boolean {
     if at_end() {
         push_token('end_of_file', "", "", line, column)
         return true
@@ -118,7 +118,7 @@ func scan_one(): Bool {
     return scan_operator()
 }
 
-func scan_newline(): Bool {
+func scan_newline(): Boolean {
     var token_line = line
     var token_column = column
     advance_character()
@@ -136,7 +136,7 @@ func scan_newline(): Bool {
     return false
 }
 
-func scan_comment(): Bool {
+func scan_comment(): Boolean {
     var token_line = line
     var token_column = column
     var start_index = index
@@ -156,7 +156,7 @@ func scan_comment(): Bool {
     return false
 }
 
-func scan_number(): Bool {
+func scan_number(): Boolean {
     var start_index = index
     var token_line = line
     var token_column = column
@@ -185,7 +185,7 @@ func scan_number(): Bool {
     return false
 }
 
-func scan_identifier(): Bool {
+func scan_identifier(): Boolean {
     var start_index = index
     var token_line = line
     var token_column = column
@@ -267,7 +267,7 @@ func keyword_kind(text: String): TokenKind {
     return 'identifier'
 }
 
-func scan_generic_identifier(): Bool {
+func scan_generic_identifier(): Boolean {
     var start_index = index
     var token_line = line
     var token_column = column
@@ -315,7 +315,7 @@ func decode_escape(escaped_character: String): String {
     return escaped_character
 }
 
-func scan_quoted(quote_code: Int, kind: TokenKind): Bool {
+func scan_quoted(quote_code: Integer, kind: TokenKind): Boolean {
     var start_index = index
     var token_line = line
     var token_column = column
@@ -399,7 +399,7 @@ func scan_quoted(quote_code: Int, kind: TokenKind): Bool {
     return false
 }
 
-func skip_quoted_run(quote_code: Int) {
+func skip_quoted_run(quote_code: Integer) {
     advance_character()
     while not at_end() and current_code() != quote_code {
         if current_code() == 92 {
@@ -409,7 +409,7 @@ func skip_quoted_run(quote_code: Int) {
     }
 }
 
-func scan_operator(): Bool {
+func scan_operator(): Boolean {
     var token_line = line
     var token_column = column
     var start_index = index

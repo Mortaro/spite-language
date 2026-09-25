@@ -17,6 +17,6 @@ func silent() {
     return 5
 }
 
-func loud(): Int {
+func loud(): Integer {
     return
 }

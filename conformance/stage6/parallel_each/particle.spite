@@ -4,7 +4,7 @@ var speed = 0
 var awake = false
 var worker = -2
 
-func Particle(starting_speed: Int) {
+func Particle(starting_speed: Integer) {
     speed = starting_speed
     awake = starting_speed % 2 == 0
 }

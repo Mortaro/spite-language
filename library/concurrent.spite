@@ -18,7 +18,7 @@ func Concurrent(starting_work: Spite.Function<$result_type>) {
     }
 }
 
-func get_finished(): Bool {
+func get_finished(): Boolean {
     _collect()
     return _finished
 }

@@ -8,7 +8,7 @@ func JsonReader(starting_text: String) {
     text = starting_text
 }
 
-func failed(): Bool {
+func failed(): Boolean {
     return not failure.is_empty()
 }
 
@@ -36,7 +36,7 @@ func skip_space() {
     }
 }
 
-func consume(expected: String): Bool {
+func consume(expected: String): Boolean {
     skip_space()
     var end = position + expected.length()
     var found = text.slice(position, end)
@@ -53,11 +53,11 @@ func expect(expected: String) {
     }
 }
 
-func read_null(): Bool {
+func read_null(): Boolean {
     return consume("null")
 }
 
-func read_boolean(): Bool {
+func read_boolean(): Boolean {
     if consume("true") {
         return true
     }
@@ -156,7 +156,7 @@ func read_escape(): String {
     return text_of(code_point)
 }
 
-func read_hexadecimal(): Int {
+func read_hexadecimal(): Integer {
     var value = 0
     var digits = 0
     while digits < 4 {
@@ -172,7 +172,7 @@ func read_hexadecimal(): Int {
     return value
 }
 
-func hexadecimal_digit(at: Int): Int {
+func hexadecimal_digit(at: Integer): Integer {
     if at >= text.length() {
         return -1
     }
@@ -189,8 +189,8 @@ func hexadecimal_digit(at: Int): Int {
     return -1
 }
 
-func text_of(code_point: Int): String {
-    var bytes = List<Int>()
+func text_of(code_point: Integer): String {
+    var bytes = List<Integer>()
     var shift = 0
     var lead_marker = 0
     if code_point >= 65536 {
@@ -223,7 +223,7 @@ func text_of(code_point: Int): String {
     return result
 }
 
-func skip_character(code: Int): Bool {
+func skip_character(code: Integer): Boolean {
     if position < text.length() and text.code_at(position) == code {
         position = position + 1
         return true
@@ -231,7 +231,7 @@ func skip_character(code: Int): Bool {
     return false
 }
 
-func skip_digits(): Int {
+func skip_digits(): Integer {
     var start = position
     var digit = true
     while digit and position < text.length() {

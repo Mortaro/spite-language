@@ -1,7 +1,7 @@
 var name = "Monster"
 var health = 10
 
-func Monster(new_name: String, new_health: Int) {
+func Monster(new_name: String, new_health: Integer) {
     name = new_name
     health = new_health
 }
@@ -10,6 +10,6 @@ func roar(): String {
     return "{name} roars!"
 }
 
-func is_alive(): Bool {
+func is_alive(): Boolean {
     return health > 0
 }

@@ -2,15 +2,20 @@ var shape = Analysis.AstShape()
 
 var explicit_grouping = false
 var width = 120
-var comment_lines = List<Int>()
+var comment_lines = List<Integer>()
 var comment_texts = List<String>()
-var statement_lines = List<Int>()
+var statement_lines = List<Integer>()
 
 func source_file(file: Syntax.SourceFile): String {
     return source_statement_list(file.statements, 0)
 }
 
-func formatted_file(file: Syntax.SourceFile, lines: List<Int>, comments_at: List<Int>, comments: List<String>): String {
+func formatted_file(
+    file: Syntax.SourceFile,
+    lines: List<Integer>,
+    comments_at: List<Integer>,
+    comments: List<String>,
+): String {
     statement_lines = lines
     comment_lines = comments_at
     comment_texts = comments
@@ -46,7 +51,7 @@ func formatted_file(file: Syntax.SourceFile, lines: List<Int>, comments_at: List
     return "{text}\n"
 }
 
-func declarations_stand_apart(statements: List<Syntax.Statements.Statement>, index: Int): Bool {
+func declarations_stand_apart(statements: List<Syntax.Statements.Statement>, index: Integer): Boolean {
     crash index > 0
     var previous = index - 1
     crash statements[previous]
@@ -62,7 +67,7 @@ func declarations_stand_apart(statements: List<Syntax.Statements.Statement>, ind
     return true
 }
 
-func source_statement_list(statements: List<Syntax.Statements.Statement>, depth: Int): String {
+func source_statement_list(statements: List<Syntax.Statements.Statement>, depth: Integer): String {
     var text = ""
     var index = 0
     while index < statements.count() {
@@ -78,7 +83,7 @@ func source_statement_list(statements: List<Syntax.Statements.Statement>, depth:
     return text
 }
 
-func stands_apart(previous: Syntax.Statements.Statement, next: Syntax.Statements.Statement): Bool {
+func stands_apart(previous: Syntax.Statements.Statement, next: Syntax.Statements.Statement): Boolean {
     var previous_attribute = shape.as_variable_declaration(previous)
     var next_attribute = shape.as_variable_declaration(next)
     assert not previous_attribute or not next_attribute
@@ -92,7 +97,7 @@ func stands_apart(previous: Syntax.Statements.Statement, next: Syntax.Statements
     return not (shape.as_generic_declaration(previous) and shape.as_generic_declaration(next))
 }
 
-func source_indent(depth: Int): String {
+func source_indent(depth: Integer): String {
     var text = ""
     var index = 0
     while index < depth {
@@ -102,14 +107,14 @@ func source_indent(depth: Int): String {
     return text
 }
 
-func source_block(statements: List<Syntax.Statements.Statement>, depth: Int): String {
+func source_block(statements: List<Syntax.Statements.Statement>, depth: Integer): String {
     if statements.is_empty() {
         return "\{}"
     }
     return "\{\n{source_statement_list(statements, depth + 1)}\n{source_indent(depth)}}"
 }
 
-func source_statement(statement: Syntax.Statements.Statement, depth: Int): String {
+func source_statement(statement: Syntax.Statements.Statement, depth: Integer): String {
     var printed = source_statement_line(statement, depth)
     if printed.contains("\n") or printed.length() <= width {
         return printed
@@ -146,7 +151,7 @@ func source_statement(statement: Syntax.Statements.Statement, depth: Int): Strin
     }
 }
 
-func broken_or(printed: String, lead: String, expression: Syntax.Expressions.Expression, depth: Int): String {
+func broken_or(printed: String, lead: String, expression: Syntax.Expressions.Expression, depth: Integer): String {
     var broken = broken_expression(expression, depth)
     if broken.is_empty() {
         return printed
@@ -154,7 +159,7 @@ func broken_or(printed: String, lead: String, expression: Syntax.Expressions.Exp
     return "{lead}{broken}"
 }
 
-func broken_expression(expression: Syntax.Expressions.Expression, depth: Int): String {
+func broken_expression(expression: Syntax.Expressions.Expression, depth: Integer): String {
     var call = shape.as_call(expression)
     if call {
         return broken_call(call.callee, call.arguments, "", depth)
@@ -198,7 +203,7 @@ func broken_call(
     callee: Syntax.Expressions.Expression?,
     arguments: List<Syntax.Expressions.Expression>,
     type_arguments: String,
-    depth: Int,
+    depth: Integer,
 ): String {
     crash callee
     assert not arguments.is_empty()
@@ -211,7 +216,7 @@ func broken_call(
     return "{text}\n{source_indent(depth)})"
 }
 
-func source_statement_line(statement: Syntax.Statements.Statement, depth: Int): String {
+func source_statement_line(statement: Syntax.Statements.Statement, depth: Integer): String {
     var indent = source_indent(depth)
     switch statement {
         Syntax.Statements.SingletonDeclaration: return "{indent}singleton"
@@ -300,7 +305,7 @@ func spread_mark(parameter: Syntax.Statements.Parameter): String {
     return ""
 }
 
-func source_function(function: Syntax.Statements.FunctionDeclaration, depth: Int): String {
+func source_function(function: Syntax.Statements.FunctionDeclaration, depth: Integer): String {
     var parameters = ""
     var index = 0
     while index < function.parameters.count() {
@@ -334,7 +339,7 @@ func source_function(function: Syntax.Statements.FunctionDeclaration, depth: Int
     return "{source_indent(depth)}func {function.name}({parameters}){returns} {source_block(function.body, depth)}"
 }
 
-func source_type_declaration(declaration: Syntax.Statements.TypeDeclaration, depth: Int): String {
+func source_type_declaration(declaration: Syntax.Statements.TypeDeclaration, depth: Integer): String {
     var text = "{source_indent(depth)}type {declaration.name} \{"
     var index = 0
     while index < declaration.fields.count() {
@@ -363,7 +368,7 @@ func source_type_declaration(declaration: Syntax.Statements.TypeDeclaration, dep
     return "{text}\n{source_indent(depth)}}"
 }
 
-func source_names(names: List<String>, depth: Int): String {
+func source_names(names: List<String>, depth: Integer): String {
     var text = "\{"
     var index = 0
     while index < names.count() {
@@ -373,7 +378,7 @@ func source_names(names: List<String>, depth: Int): String {
     return "{text}\n{source_indent(depth)}}"
 }
 
-func source_types(types: List<Syntax.Types.Type>, depth: Int): String {
+func source_types(types: List<Syntax.Types.Type>, depth: Integer): String {
     var text = "\{"
     var index = 0
     while index < types.count() {
@@ -383,7 +388,7 @@ func source_types(types: List<Syntax.Types.Type>, depth: Int): String {
     return "{text}\n{source_indent(depth)}}"
 }
 
-func source_switch(statement: Syntax.Statements.SwitchStatement, depth: Int): String {
+func source_switch(statement: Syntax.Statements.SwitchStatement, depth: Integer): String {
     crash statement.subject
     var text = "{source_indent(depth)}switch {source_expression(statement.subject)} \{"
     var index = 0
@@ -402,7 +407,7 @@ func source_switch(statement: Syntax.Statements.SwitchStatement, depth: Int): St
     return "{text}\n{source_indent(depth)}}"
 }
 
-func one_line_case(body: List<Syntax.Statements.Statement>, depth: Int): String {
+func one_line_case(body: List<Syntax.Statements.Statement>, depth: Integer): String {
     if body.count() == 1 {
         var single = source_statement(body[0], depth + 1).trim()
         if not single.contains("\n") and not shape.as_if_statement(body[0]) and not shape.as_while_statement(body[0]) and not shape.as_switch_statement(body[0]) {
@@ -454,7 +459,7 @@ func source_generic_argument(argument: Syntax.Types.GenericArgument): String {
             crash argument.value
             return source_type(argument.value)
         }
-        Syntax.Types.BoolArgument: {
+        Syntax.Types.BooleanArgument: {
             if argument.value {
                 return "true"
             }
@@ -522,7 +527,11 @@ func source_receiver(expression: Syntax.Expressions.Expression): String {
     return source_expression(expression)
 }
 
-func source_operand(expression: Syntax.Expressions.Expression, parent_precedence: Int, on_the_right: Bool): String {
+func source_operand(
+    expression: Syntax.Expressions.Expression,
+    parent_precedence: Integer,
+    on_the_right: Boolean,
+): String {
     var binary = shape.as_binary(expression)
     if binary {
         if not binary.is_text_join {
@@ -535,7 +544,7 @@ func source_operand(expression: Syntax.Expressions.Expression, parent_precedence
     return source_expression(expression)
 }
 
-func operator_precedence(operator: Syntax.Expressions.BinaryOperator): Int {
+func operator_precedence(operator: Syntax.Expressions.BinaryOperator): Integer {
     if operator == 'logical_or' {
         return 1
     }

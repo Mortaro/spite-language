@@ -3,7 +3,7 @@ union Holding {
     Money
 }
 
-func held(creature: Bool): Holding {
+func held(creature: Boolean): Holding {
     if creature {
         var living: Holding = Creature("rat", 3, true)
         return living

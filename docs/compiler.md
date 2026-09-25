@@ -5,7 +5,7 @@
 first reads the **whole** program -- the launcher, the standard library, the program's folder, its `build.spite`
 and every folder it `load`s -- and only then decides what to produce, from the program's
 [`Build`](programs.md#compile-time-settings-build). Every option is a field of `Build`, given as `--name=value`
-(a `Bool` option may be given bare, `--optimized`). A flag is written in kebab-case and sets the `snake_case` field
+(a `Boolean` option may be given bare, `--optimized`). A flag is written in kebab-case and sets the `snake_case` field
 of the same name: `--repl-port=4000` sets `Build.repl_port`, and a field a program declares in its own
 `build.spite`, `worker_stack_size`, is given as `--worker-stack-size=256` (D188). A flag written with an underscore
 is an error naming the hyphen form: `error: '--repl_port' is written '--repl-port': a flag is kebab-case, and it
@@ -72,7 +72,7 @@ that folder, not to the language's repository. A foreign library's header named 
 
 The compiler reads the program first, and decides what to produce only after, from `Build` -- so a program's own
 `build.spite` can choose its outputs like any other option ([programs.md](programs.md#compile-time-settings-build)).
-Each output is a `Bool` field, and every one that is on is produced by the same compile:
+Each output is a `Boolean` field, and every one that is on is produced by the same compile:
 
 | Output | Default | What it produces |
 |---|---|---|
@@ -249,7 +249,7 @@ generator after it has run, so a class tree shaking removed is not there, a gene
 each of its instantiations is.
 
 Every class the program names comes from a file in `library/`, including `Memory.Heap`, `DynamicLibrary`,
-`String` and the numbers (`Int`, `Long`, `Double`, `Memory.Address`, ...), so every one of them is printed like a
+`String` and the numbers (`Integer`, `Long`, `Double`, `Memory.Address`, ...), so every one of them is printed like a
 class of your own. A function whose body the compiler supplies -- the floor that stays C, such as
 `Memory.Heap.allocate` -- is added to its class as the compiler's own reopening, and is printed as a declaration
 without a body. The printed `memory/heap.spite` is:
@@ -260,7 +260,7 @@ singleton
 func allocate(bytes: Long): Memory.Address
 func resize(address: Memory.Address, bytes: Long): Memory.Address
 func free(address: Memory.Address)
-func live_allocations(): Int
+func live_allocations(): Integer
 ```
 
 A declaration without a body is what the compiler reads back, so the printed program still compiles: the
@@ -268,7 +268,7 @@ printed `memory/heap.spite` reopens `Memory.Heap` with the same members, and the
 again. Anywhere else, a `func` with no body is an error, because only the compiler can supply one.
 
 `instantiated/` holds one file per generic instantiation, named for the values it was given
-(`weapon_int_true.spite`, class `WeaponIntTrue`), written as a `type` with the members that instantiation has.
+(`weapon_integer_true.spite`, class `WeaponIntegerTrue`), written as a `type` with the members that instantiation has.
 `Build` is printed with its declared defaults, and `Launcher` with the rest.
 
 Which root supplied each declaration is **not** shown yet. It cannot be a comment, since a comment is only ever
@@ -340,7 +340,7 @@ implemented 2026-09-25). The compiler reads the launcher, the library, the progr
 every `load` before it reads any option, and then decides what to produce from the program's resolved `Build`,
 so a program's own `build.spite` can set every option. The one exception is `target_operating_system`, which the
 launcher needs to know which folder of `library/` belongs to the program, so it is read from the flag alone. The
-outputs are `Bool` fields, and every one that is on comes from the same compile: `run` (default `true`: build the
+outputs are `Boolean` fields, and every one that is on comes from the same compile: `run` (default `true`: build the
 executable and run it), `executable` (build it without running), `c_source` (write the C), and `final_classes`, which stays the folder to write to
 (`""` is off), since any folder inside the program would be read back as part of it. With every output off the
 compiler still compiles the whole program and reports its errors. Tree shaking and every other whole-program

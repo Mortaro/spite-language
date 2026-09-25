@@ -1,8 +1,8 @@
-func touch_many(): Int {
+func touch_many(): Integer {
     var index = 0
     var total = 0
     while index < 1000 {
-        var shelf = Shelf<Int>()
+        var shelf = Shelf<Integer>()
         total = total + shelf.stamp
         index = index + 1
     }

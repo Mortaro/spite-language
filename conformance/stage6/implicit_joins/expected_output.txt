@@ -6,4 +6,4 @@ hello 3
 nobody was found
 found Ada with 3 letters
 crash proved Ada
-ready is a Bool
+ready is a Boolean

@@ -2,10 +2,10 @@ singleton
 
 var console = Console()
 var shelf = Shelf()
-var entries = List<Int>()
+var entries = List<Integer>()
 var notes = List<String>()
 
-func record(value: Int) {
+func record(value: Integer) {
     entries.append(value)
     notes.append("entry {value}")
     shelf.label("entry {value}")

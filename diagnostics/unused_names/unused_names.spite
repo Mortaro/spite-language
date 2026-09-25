@@ -8,11 +8,11 @@ func UnusedNames() {
     helper(4, 5, 6)
 }
 
-func helper(used: Int, spare: Int, _ignored: Int) {
+func helper(used: Integer, spare: Integer, _ignored: Integer) {
     console.print(used)
     if used > 1 {
         var inner = "never read"
     }
 }
 
-func set_anything(value: Int) { }
+func set_anything(value: Integer) { }

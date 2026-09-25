@@ -13,21 +13,21 @@ func SwitchSingleCase() {
     console.print(cat_is_fish, cat_fins, cat_allowed)
 }
 
-func is_fish(creature: Creature): Bool {
+func is_fish(creature: Creature): Boolean {
     switch creature {
         Fish: return true
         _: return false
     }
 }
 
-func fins_of(creature: Creature): Int {
+func fins_of(creature: Creature): Integer {
     switch creature {
         Fish: return creature.fins
         _: return 0
     }
 }
 
-func allowed(creature: Creature): Int {
+func allowed(creature: Creature): Integer {
     switch creature {
         Fish: console.print("a fish")
         _: console.print("not a fish")

@@ -8,6 +8,6 @@ func MemoryAccess() {
     heap.free(address)
     console.print(number)
     var count: Long = 7
-    var from_count = count.read_int(0)
+    var from_count = count.read_integer(0)
     console.print(from_count)
 }

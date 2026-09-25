@@ -12,7 +12,7 @@ func Arithmetic() {
     var remainder = 17 % 5
     console.print(remainder)
     var value: Double = 3.75
-    var truncated: Int = value
+    var truncated: Integer = value
     console.print(truncated)
     var count = 0
     console.print(count)
@@ -27,14 +27,14 @@ func Arithmetic() {
     console.print(minus_four_is_positive)
 }
 
-func add(left: Int, right: Int): Int {
+func add(left: Integer, right: Integer): Integer {
     return left + right
 }
 
-func negate(value: Int): Int {
+func negate(value: Integer): Integer {
     return -value
 }
 
-func is_positive(value: Int): Bool {
+func is_positive(value: Integer): Boolean {
     return value > 0
 }

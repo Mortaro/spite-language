@@ -1,10 +1,10 @@
 var library = DynamicLibrary("libSystem.dylib", 'identity', "")
 
-func sleep(milliseconds: Int) {
+func sleep(milliseconds: Integer) {
     library.usleep(milliseconds * 1000)
 }
 
-func exit_process(code: Int) {
+func exit_process(code: Integer) {
     library.exit(code)
 }
 
@@ -14,7 +14,7 @@ func environment_address(name: String): Long {
 
 func executable_path(): String {
     var buffer = heap.allocate(1032)
-    buffer.write_int(1024, 1024)
+    buffer.write_integer(1024, 1024)
     library._NSGetExecutablePath(buffer, buffer + 1024)
     var path = buffer.terminated_text()
     heap.free(buffer)

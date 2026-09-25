@@ -2,7 +2,7 @@ var console = Console()
 var name = ""
 var age = 0
 
-func Person(starting_name: String, starting_age: Int) {
+func Person(starting_name: String, starting_age: Integer) {
     name = starting_name
     age = starting_age
 }

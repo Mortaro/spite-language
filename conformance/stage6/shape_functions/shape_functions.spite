@@ -1,7 +1,7 @@
 type Renderable {
     label: String
     render(): String
-    resize(Int)
+    resize(Integer)
 }
 
 var console = Console()

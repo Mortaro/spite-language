@@ -2,11 +2,11 @@ var registry = Registry()
 var rules = Rules()
 var first = 0
 
-func Loader(starting_first: Int) {
+func Loader(starting_first: Integer) {
     first = starting_first
 }
 
-func load_many(): Int {
+func load_many(): Integer {
     var loaded = 0
     var index = 0
     while index < 1000 {

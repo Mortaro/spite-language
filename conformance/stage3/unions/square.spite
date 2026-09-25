@@ -1,10 +1,10 @@
 var side = 0
 var name = "square"
 
-func Square(starting_side: Int) {
+func Square(starting_side: Integer) {
     side = starting_side
 }
 
-func area(): Int {
+func area(): Integer {
     return side * side
 }

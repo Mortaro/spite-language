@@ -1,6 +1,6 @@
 var console = Console()
 
 func GenericConstraintNotAType() {
-    var tally = Tally<Int>()
+    var tally = Tally<Integer>()
     console.print(tally.count)
 }

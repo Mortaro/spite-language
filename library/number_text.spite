@@ -127,7 +127,7 @@ func rounded_digits(digits: String, count: Long): String {
     return text
 }
 
-func rounds_up(digits: String, count: Long): Bool {
+func rounds_up(digits: String, count: Long): Boolean {
     var next = digits.code_at(count)
     if next != 53 {
         return next > 53
@@ -150,7 +150,7 @@ func without_trailing_zeros(digits: String): String {
     return digits.slice(0, end)
 }
 
-func is_fixed(exponent: Long, precision: Long): Bool {
+func is_fixed(exponent: Long, precision: Long): Boolean {
     return exponent >= -4 and exponent < precision
 }
 

@@ -1,17 +1,17 @@
 singleton
 
-var sizes = Dictionary<Int>()
+var sizes = Dictionary<Integer>()
 var loads = 0
 
-func remember(name: String, size: Int) {
+func remember(name: String, size: Integer) {
     sizes.set(name, size)
     loads = loads + 1
 }
 
-func known(): Int {
+func known(): Integer {
     return sizes.count()
 }
 
-func total_loads(): Int {
+func total_loads(): Integer {
     return loads
 }

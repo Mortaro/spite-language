@@ -14,11 +14,11 @@ func write_family(address: Memory.Address) {
     address.write_byte(0, 2)
 }
 
-func bind_address(address: Memory.Address): Bool {
+func bind_address(address: Memory.Address): Boolean {
     return sockets.bind(handle, address, 16) == 0
 }
 
-func listen_for_clients(): Bool {
+func listen_for_clients(): Boolean {
     return sockets.listen(handle, 1) == 0
 }
 
@@ -27,15 +27,15 @@ func accept_handle(): Long {
     return sockets.accept_as_long(handle, no_address, no_address)
 }
 
-func connect_address(address: Memory.Address): Bool {
+func connect_address(address: Memory.Address): Boolean {
     return sockets.connect(handle, address, 16) == 0
 }
 
-func receive_into(buffer: Long, bytes: Int): Int {
+func receive_into(buffer: Long, bytes: Integer): Integer {
     return sockets.recv(handle, buffer, bytes, 0)
 }
 
-func send_text(text: String): Int {
+func send_text(text: String): Integer {
     var text_length = text.length()
     return sockets.send(handle, text, text_length, 0)
 }

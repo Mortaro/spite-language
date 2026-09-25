@@ -1,6 +1,6 @@
 label String untitled|
-amount Int 3|
-ready Bool false|
+amount Integer 3|
+ready Boolean false|
 pinned
 7
 true

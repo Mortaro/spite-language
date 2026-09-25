@@ -7,10 +7,10 @@ func DoubledUnderscore() {
     console.print(hit__count)
 }
 
-func __strike(amount: Int) {
+func __strike(amount: Integer) {
     hit__count = hit__count + amount
 }
 
-func strike_(amount: Int) {
+func strike_(amount: Integer) {
     hit__count = hit__count + amount
 }

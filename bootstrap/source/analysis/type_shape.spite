@@ -47,18 +47,18 @@ func as_union(spite_type: SpiteType): Analysis.Types.UnionType? {
     return null
 }
 
-func as_string(spite_type: SpiteType): Bool {
+func as_string(spite_type: SpiteType): Boolean {
     return spite_type == Analysis.Types.StringType
 }
 
-func is_void(spite_type: SpiteType): Bool {
+func is_void(spite_type: SpiteType): Boolean {
     return spite_type == Analysis.Types.VoidType
 }
 
-func is_arguments(spite_type: SpiteType): Bool {
+func is_arguments(spite_type: SpiteType): Boolean {
     return spite_type == Analysis.Types.ArgumentsType
 }
 
-func is_symbol(spite_type: SpiteType): Bool {
+func is_symbol(spite_type: SpiteType): Boolean {
     return spite_type == Analysis.Types.SymbolType
 }

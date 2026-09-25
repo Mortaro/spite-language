@@ -1,6 +1,6 @@
 # Memory
 
-Spite uses **reference counting**, JavaScript-like. A scalar (a number, a `Bool`, an enum value) is a plain
+Spite uses **reference counting**, JavaScript-like. A scalar (a number, a `Boolean`, an enum value) is a plain
 value, copied wherever it goes. Everything else -- a class instance, `List<T>`, `Dictionary<T>`, `String`, a
 union, an object literal -- is a **reference**: assigning it, passing it, storing it in a field, a list or a
 dictionary, and returning it all share the exact same object. There is no reference syntax to write: a reference
@@ -114,11 +114,11 @@ union TreeNode {
 ```gdscript title=tree_basics/leaf.spite
 var held_value = 0
 
-func Leaf(starting_value: Int) {
+func Leaf(starting_value: Integer) {
     held_value = starting_value
 }
 
-func total(): Int {
+func total(): Integer {
     return held_value
 }
 ```
@@ -131,7 +131,7 @@ func Branch(left_node: TreeNode, right_node: TreeNode) {
     right = right_node
 }
 
-func total(): Int {
+func total(): Integer {
     var result = 0
     if left {
         result = result + left.total()
@@ -196,7 +196,7 @@ that it would not do for yours -- read `library/list.spite` for a complete one.
 and `copy_to` and `compare_bytes` as plain Spite through `DynamicLibrary`. Today the heap is the C library's
 `malloc`, and copying and comparing are its `memmove` and `memcmp`, written in place like the reads.
 
-### Where `String` and `Int` keep their memory
+### Where `String` and `Integer` keep their memory
 
 A type's storage is attributes at the top of its file (D108). `library/string.spite` starts with the memory a
 `String` holds:
@@ -220,7 +220,7 @@ with `copy_to` and end in the constructor `String(bytes, length)`, which takes b
 header decides: a `'constant'` text is never counted, and `text = text + piece` grows in place only when
 nothing else holds the text.
 
-`library/int.spite` starts with the memory an `Int` is:
+`library/integer.spite` starts with the memory an `Integer` is:
 
 ```gdscript
 var heap = Memory.Heap()
@@ -231,7 +231,7 @@ Four bytes, allocated like everything else, and placed by the compiler: a number
 wherever the C compiler keeps an `int32_t`), so there is no address behind `this` and nothing to free. The heap
 is bound to `heap` first, as every singleton is ([classes_and_files.md](classes_and_files.md#singletons)); that
 binding is never a field of the number. Every number file says the same with its own width (`Long` 8, `Short` 2,
-`Byte` 1, `Bool` 1, `Double` 8, `Memory.Address` 8, ...), the compiler checks it against the C type it emits,
+`Byte` 1, `Boolean` 1, `Double` 8, `Memory.Address` 8, ...), the compiler checks it against the C type it emits,
 and `count.memory.bytes` reads it. Inside a number, `this` is the value itself: reading `_memory` is an error
 saying so.
 
@@ -247,7 +247,7 @@ saying so.
   time. Anything else is on the heap. The program writes the same `allocate` and `free` either way; there is no
   second way to ask for the stack.
 - **Reading and writing an address** ([D178](decisions.md)): `read_byte`, `read_short`,
-  `read_unsigned_short`, `read_int`, `read_unsigned_int`, `read_long`, `read_float` and `read_double`, each
+  `read_unsigned_short`, `read_integer`, `read_unsigned_integer`, `read_long`, `read_float` and `read_double`, each
   `(offset)`, and the matching `write_*(offset, value)` -- every width a C struct's fields use -- plus
   `exchange_long`, `read_long_atomically` and `write_long_atomically` for memory threads share. They are
   primitives of the language, like `+`: each is one machine operation that whichever backend compiles the
@@ -273,7 +273,7 @@ var capacity = 0
 var start = 0
 var used = 0
 
-func RingBuffer(starting_capacity: Int) {
+func RingBuffer(starting_capacity: Integer) {
     capacity = starting_capacity
     var value_bytes = values.value_bytes()
     slots = heap.allocate(value_bytes * capacity)
@@ -294,7 +294,7 @@ func oldest(): $value_type {
     return values.read_value(slots, start)
 }
 
-func count(): Int {
+func count(): Integer {
     return used
 }
 
@@ -323,7 +323,7 @@ func RingBufferProgram() {
     console.print(total)
 }
 
-func sum_in_the_frame(count: Int): Long {
+func sum_in_the_frame(count: Integer): Long {
     var heap = Memory.Heap()
     var numbers = TypedMemory<Long>()
     var before = heap.live_allocations()
@@ -460,7 +460,7 @@ fix. A `D` number is a row of the [decision log](decisions.md).
 D1 (decided by Mortaro, 2026-09-19): **reference counting is the default memory model**, JavaScript-like. Every
 non-scalar value (a class instance, `List<T>`, `Dictionary<T>`, `String`, a union of classes, an object literal) is
 a reference: passing it, assigning it, storing it in a field/list/dictionary, and returning it all share the exact
-same object. Scalars (every numeric type, `Bool`, an enum value) are still plain values, copied as always. `&` is
+same object. Scalars (every numeric type, `Boolean`, an enum value) are still plain values, copied as always. `&` is
 removed from the language entirely -- references are the default, so a parameter that used to need `&Type` just
 writes `Type`. A copy is always explicit: `copy()`/`deep_copy()` (below).
 
@@ -512,7 +512,7 @@ compiler decides best use placement." A program has one way to ask for raw memor
 live is the compiler's choice, and the program's text is the same whichever it makes:
 
 - **Register:** a number's own memory, declared in its file as `var heap = Memory.Heap()` and then
-  `var _memory = heap.allocate(4)` (for `Int`; the `heap` binding is never a field, D110). The wrapper is flattened: a number is its C scalar, and `this` is the value.
+  `var _memory = heap.allocate(4)` (for `Integer`; the `heap` binding is never a field, D110). The wrapper is flattened: a number is its C scalar, and `this` is the value.
 - **Frame:** `var name = heap.allocate(bytes)` in a function, when a later statement of the same block
   is `heap.free(name)` and every other use of `name` reads or writes through it (`name.read_long(offset)`, also
   as `(name + offset)`), copies or compares with it (`copy_to`, `compare_bytes`), turns it into `text`, or hands
@@ -535,7 +535,7 @@ stays exactly as it was. A temporary buffer a function uses and frees lands in i
 #### Allocators: `.memory.allocator`  **[implemented for objects; a list's buffer and `Vector<T>` planned]**
 
 D150-D154 (decided by Mortaro): types never name an allocator; an **object** does, through its tree-shakeable
-`.memory`, on the line right after it is made -- `var scratch = List<Int>()` then `scratch.memory.allocator =
+`.memory`, on the line right after it is made -- `var scratch = List<Integer>()` then `scratch.memory.allocator =
 arena` -- and the compiler reads the two lines as where the object was always meant to live (D152), so it is made
 there from the start. Setting it after the object was used is a compile error naming `copy()` (D153). What is
 built (2026-09-25; the readings marked are proposed by Claude, unconfirmed):

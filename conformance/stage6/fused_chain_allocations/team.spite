@@ -2,7 +2,7 @@ var size = 0
 var active = false
 var lead = Person("", 0, false)
 
-func Team(starting_size: Int, starting_active: Bool, starting_lead: Person) {
+func Team(starting_size: Integer, starting_active: Boolean, starting_lead: Person) {
     size = starting_size
     active = starting_active
     lead = starting_lead

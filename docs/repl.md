@@ -2,7 +2,7 @@
 
 > **What is built:** `spite program --repl` runs the program, then answers `attributes`,
 > `functions`, `help`, `exit`, paths such as `monsters[0].health` or `program.player_name`, assignment of a
-> number, Bool, text or enum literal (`monsters[0].health = 5`, which prints the value read back), and calls with
+> number, Boolean, text or enum literal (`monsters[0].health = 5`, which prints the value read back), and calls with
 > literal arguments that print what they return (`monsters[0].roar()`, `monsters.count()`), written in Spite
 > (`library/read_evaluate_print_loop.spite`). `--repl-port` answers the same commands over TCP, one JSON line
 > each, answered where the program waits ([concurrency.md](concurrency.md)), and `spite connect` is its
@@ -35,7 +35,7 @@ through reflection ([reflection.md](reflection.md)). It reads and changes the ru
 var name = "Monster"
 var health = 10
 
-func Monster(new_name: String, new_health: Int) {
+func Monster(new_name: String, new_health: Integer) {
     name = new_name
     health = new_health
 }
@@ -44,7 +44,7 @@ func roar(): String {
     return "{name} roars!"
 }
 
-func is_alive(): Bool {
+func is_alive(): Boolean {
     return health > 0
 }
 ```
@@ -115,7 +115,7 @@ exits -- the form tests and AI clients use.
 
 ## The wire protocol
 
-One command per line in, one line of JSON out: `{"ok":true,"value":"...","type":"Int"}` on success,
+One command per line in, one line of JSON out: `{"ok":true,"value":"...","type":"Integer"}` on success,
 `{"ok":false,"error":"..."}` on failure. A multi-line value (such as the answer to `attributes`) uses `\n`
 inside that one JSON string, never a real newline on the wire. `type` is the class of the value; it is empty
 for an answer that is not a value (`help`, `attributes`, `functions`, `exit`) and `Nothing` for a call that
@@ -147,7 +147,7 @@ $ spite connect 4000 --command="program.player_name"
 {"ok":true,"value":"Hero","type":"String"}
 
 $ spite connect 4000 --command="program.monsters.count()"
-{"ok":true,"value":"2","type":"Int"}
+{"ok":true,"value":"2","type":"Integer"}
 
 $ spite connect 4000 --command="program.monsters[0]"
 {"ok":true,"value":"Monster { name: Goblin, health: 30 }","type":"Monster"}
@@ -157,17 +157,17 @@ $ spite connect 4000 --command="program.monsters[0].roar()"
 
 # Debugging a suspiciously low health value: mutate it and confirm.
 $ spite connect 4000 --command="program.monsters[0].health = 5"
-{"ok":true,"value":"5","type":"Int"}
+{"ok":true,"value":"5","type":"Integer"}
 
 $ spite connect 4000 --command="program.monsters[0].health"
-{"ok":true,"value":"5","type":"Int"}
+{"ok":true,"value":"5","type":"Integer"}
 
 # A typo'd path is one line, never a crash.
 $ spite connect 4000 --command="program.monstrs"
 {"ok":false,"error":"no attribute 'monstrs' in program: console, player_name, player_age, monsters"}
 
 $ spite connect 4000 --command="attributes"
-{"ok":true,"value":"console: Console = Console {...}\nplayer_name: String = Hero\nplayer_age: Int = 20\nmonsters: List<Monster> = List<Monster>(2)","type":""}
+{"ok":true,"value":"console: Console = Console {...}\nplayer_name: String = Hero\nplayer_age: Integer = 20\nmonsters: List<Monster> = List<Monster>(2)","type":""}
 
 $ spite connect 4000 --command="exit"
 {"ok":true,"value":"","type":""}
@@ -175,7 +175,7 @@ $ spite connect 4000 --command="exit"
 
 For an AI driving this: issue one command per `spite connect --command="..."` call (or hold one interactive
 session open), read the single JSON line back, and branch on `"ok"`. `attributes` and `functions` first, to see
-what is there (only functions whose arguments are numbers, Bool, text or an enum can be called), then walk paths
+what is there (only functions whose arguments are numbers, Boolean, text or an enum can be called), then walk paths
 down to the value in question before mutating anything.
 
 ## Live reload: `--hot-reload`
@@ -234,7 +234,7 @@ hello, visit 1
 
 ```text
 $ spite connect 4000 --command="program.visits = 42"
-{"ok":true,"value":"42","type":"Int"}
+{"ok":true,"value":"42","type":"Integer"}
 
 # hot_counter.spite: greeting() now returns "welcome back, visit {visits}"
 $ spite connect 4000 --command="reload"
@@ -326,7 +326,7 @@ loop the entry instance as a `Spite.Attribute` named `program` before every comm
 program attached to the terminal instead of capturing its output. In a `--repl` build a `Spite.Attribute` stays
 linked to the live value it describes, through four functions the compiler supplies (proposed by Claude,
 unconfirmed): `value_attributes()` and `value_functions()` read the value's own attributes and functions (a
-list's attributes are its elements, named `0`, `1`, ...), `assign(text)` writes a number, Bool, text or enum
+list's attributes are its elements, named `0`, `1`, ...), `assign(text)` writes a number, Boolean, text or enum
 value into it and answers whether it could, and a `Spite.Function`'s `call_with_text(arguments)` calls it with
 literal arguments and answers its result as a `Spite.Attribute?` -- `null` when an argument is not one the loop
 can write. Outside `--repl` they answer an empty list, `false` and `null`. **Status (2026-09-24):** `--repl-port`
@@ -411,7 +411,7 @@ TCP server bound to `127.0.0.1:<port>` **only** -- it never listens on any other
 program. This is a local debugging tool, not something to expose past `127.0.0.1`.
 
 The line protocol is designed for an AI client: each request is one line of the command language; each
-response is one line of JSON, `{"ok":true,"value":"...","type":"Int"}` on success or
+response is one line of JSON, `{"ok":true,"value":"...","type":"Integer"}` on success or
 `{"ok":false,"error":"..."}` on failure (values and errors are JSON-escaped strings; a multi-line value,
 e.g. from `classes`/`enums`/`describe`, uses `\n` inside that one JSON string, never a real newline in the
 wire bytes). The program keeps running (data races with it are accepted -- this is a debug tool) while

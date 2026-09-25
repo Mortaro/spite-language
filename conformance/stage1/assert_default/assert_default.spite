@@ -9,17 +9,17 @@ func AssertDefault() {
     announce(5)
 }
 
-func safe_divide(numerator: Int, denominator: Int): Int? {
+func safe_divide(numerator: Integer, denominator: Integer): Integer? {
     assert denominator != 0
     return numerator / denominator
 }
 
-func report(result: Int?) {
+func report(result: Integer?) {
     assert result
     console.print(result)
 }
 
-func announce(value: Int) {
+func announce(value: Integer) {
     assert value > 0
     console.print("positive", value)
 }

@@ -9,7 +9,7 @@ var _years = 0
 var _months = 0
 var _days = 0
 
-func Period(amount: Int, unit: Unit) {
+func Period(amount: Integer, unit: Unit) {
     if unit == 'years' {
         _years = amount
     } else if unit == 'months' {
@@ -21,19 +21,19 @@ func Period(amount: Int, unit: Unit) {
     }
 }
 
-func get_years(): Int {
+func get_years(): Integer {
     return _years
 }
 
-func get_months(): Int {
+func get_months(): Integer {
     return _months
 }
 
-func get_days(): Int {
+func get_days(): Integer {
     return _days
 }
 
-func get_is_zero(): Bool {
+func get_is_zero(): Boolean {
     return _years == 0 and _months == 0 and _days == 0
 }
 
@@ -51,7 +51,7 @@ func negate(): Period {
     return made
 }
 
-func equals(other: Period): Bool {
+func equals(other: Period): Boolean {
     return _years == other._years and _months == other._months and _days == other._days
 }
 

@@ -1,13 +1,13 @@
 var _first_offset = 0
 var _times = List<Long>()
-var _offsets = List<Int>()
+var _offsets = List<Integer>()
 var _yearly_rule: DaylightRule? = null
 
-func ZoneRules(offset_seconds: Int) {
+func ZoneRules(offset_seconds: Integer) {
     _first_offset = offset_seconds
 }
 
-func append_transition(time: Long, offset_seconds: Int) {
+func append_transition(time: Long, offset_seconds: Integer) {
     _times.append(time)
     _offsets.append(offset_seconds)
 }
@@ -16,11 +16,11 @@ func follow_yearly_rule(rule: DaylightRule) {
     _yearly_rule = rule
 }
 
-func offset_seconds_at(unix_seconds: Long): Int {
+func offset_seconds_at(unix_seconds: Long): Integer {
     return transition_offset_seconds_at(unix_seconds)
 }
 
-func transition_offset_seconds_at(unix_seconds: Long): Int {
+func transition_offset_seconds_at(unix_seconds: Long): Integer {
     var count = _times.count()
     var after_last = count == 0 or unix_seconds >= _times.last()
     if _yearly_rule and after_last {

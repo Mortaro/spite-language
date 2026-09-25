@@ -48,7 +48,7 @@ func PassedFunctions() {
     console.print(greeted)
 }
 
-func age_of(person: Person): Int {
+func age_of(person: Person): Integer {
     return person.age
 }
 
@@ -57,19 +57,19 @@ func say_hello(name: String) {
     console.print("hello, {name}")
 }
 
-func measure(name: String): Int {
+func measure(name: String): Integer {
     return name.length()
 }
 
-func is_short(name: String): Bool {
+func is_short(name: String): Boolean {
     return name.length() < 6
 }
 
-func is_long(name: String): Bool {
+func is_long(name: String): Boolean {
     return name.length() > 6
 }
 
-func double_of(value: Int): Int {
+func double_of(value: Integer): Integer {
     return value * 2
 }
 

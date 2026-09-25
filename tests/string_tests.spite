@@ -27,8 +27,8 @@ func test_comparison_is_by_content() {
 }
 
 func test_parsing_a_number_that_is_not_one_gives_zero() {
-    crash "42".to_int() == 42
-    crash "forty two".to_int() == 0
+    crash "42".to_integer() == 42
+    crash "forty two".to_integer() == 0
 }
 
 func test_searching_finds_the_first_place() {
@@ -59,8 +59,8 @@ func test_trim_and_case() {
 }
 
 func test_parsing_reads_a_sign_and_stops_at_the_first_non_digit() {
-    crash " -12".to_int() == -12
-    crash "+7 days".to_int() == 7
+    crash " -12".to_integer() == -12
+    crash "+7 days".to_integer() == 7
     crash "9000000000".to_long() == 9000000000
     crash "2.5".to_double() == 2.5
     crash "nothing".to_double() == 0.0

@@ -100,7 +100,7 @@ func value_class_name(value: Syntax.Expressions.Expression): String {
     return callee_name
 }
 
-func names_a_class(name: String): Bool {
+func names_a_class(name: String): Boolean {
     var first_code = name.code_at(0)
     return first_code >= 65 and first_code <= 90
 }
@@ -223,7 +223,7 @@ func pass_to_callers(changed: FunctionEffects, fresh: List<String>, waiting: Lis
     }
 }
 
-func thread_reached_classes(): Dictionary<Bool> {
+func thread_reached_classes(): Dictionary<Boolean> {
     var entries = List<String>()
     var index = 0
     while index < function_keys.count() {
@@ -296,9 +296,9 @@ func resolved_key(key: String): String {
     return ""
 }
 
-func reached_classes(entries: List<String>): Dictionary<Bool> {
-    var classes = Dictionary<Bool>()
-    var seen = Dictionary<Bool>()
+func reached_classes(entries: List<String>): Dictionary<Boolean> {
+    var classes = Dictionary<Boolean>()
+    var seen = Dictionary<Boolean>()
     var waiting = entries.copy()
     while not waiting.is_empty() {
         var key = waiting.remove_last()

@@ -13,7 +13,7 @@ func current(): Token {
     return Token('end', "")
 }
 
-func is_kind(expected_kind: TokenKind): Bool {
+func is_kind(expected_kind: TokenKind): Boolean {
     return current().kind == expected_kind
 }
 

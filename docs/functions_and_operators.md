@@ -12,12 +12,12 @@ func function_name(first: Reference, second: Value): Tiny {
 - A function with no return type returns nothing.
 
 ```gdscript title=missing_colon_error/missing_colon_error.spite entry error
-func add_one(value: Int) Int {
+func add_one(value: Integer) Integer {
     return value + 1
 }
 ```
 ```diagnostic
-a return type is written '(): Int'
+a return type is written '(): Integer'
 ```
 
 ## Functions are values
@@ -170,7 +170,7 @@ Every operator is a shortcut for a function a class can define to support it:
 | `a / b` | `divide(b)` | | unary `-a` | `negate()` |
 | `a % b` | `remainder(b)` | | `a[x]` / `a[x] = v` | `get_at(x)` / `set_at(x, v)` |
 
-`not`/`and`/`or` stay built-in keywords, never functions. For `Int`/`Float`/`Bool`/enum/`String`/`List<T>`/
+`not`/`and`/`or` stay built-in keywords, never functions. For `Integer`/`Float`/`Boolean`/enum/`String`/`List<T>`/
 `Dictionary<T>` these compile to the same C as always; for a user class or union, the operator compiles to a
 call of the matching function, and the right side still casts toward the parameter type like any other
 argument:
@@ -178,7 +178,7 @@ argument:
 ```gdscript title=operators_as_functions/money.spite
 var cents = 0
 
-func Money(starting_cents: Int) {
+func Money(starting_cents: Integer) {
     cents = starting_cents
 }
 
@@ -186,11 +186,11 @@ func sum(other: Money): Money {
     return Money(cents + other.cents)
 }
 
-func equals(other: Money): Bool {
+func equals(other: Money): Boolean {
     return cents == other.cents
 }
 
-func greater_than(other: Money): Bool {
+func greater_than(other: Money): Boolean {
     return cents > other.cents
 }
 ```
@@ -218,7 +218,7 @@ Missing the function is a diagnostic that names exactly what to define:
 ```gdscript title=operator_missing_error/money.spite
 var cents = 0
 
-func Money(starting_cents: Int) {
+func Money(starting_cents: Integer) {
     cents = starting_cents
 }
 ```
@@ -245,7 +245,7 @@ reads through `get_age()` and writes through `set_age(...)`.
 var balance = 0
 var owner = ""
 
-func Account(starting_balance: Int, starting_owner: String) {
+func Account(starting_balance: Integer, starting_owner: String) {
     balance = starting_balance
     owner = starting_owner
 }
@@ -339,7 +339,7 @@ func ReadOnlyError() {
 
 There is no overloading: one name is one function. An argument is cast to its parameter's type by the ordinary
 right-to-left rule ([values_and_types.md](values_and_types.md#numeric-types-and-the-casting-rule)), so a
-function that takes a `Float` takes an `Int` too:
+function that takes a `Float` takes an `Integer` too:
 
 ```gdscript title=argument_casting/argument_casting.spite entry
 var console = Console()
@@ -384,7 +384,7 @@ func function_name(first: Reference, second: Value): Tiny {
   return type whose body falls off the end without a `return` gets the defensive default return of its
   return type, with no diagnostic.
 - A function with no return type returns nothing.
-- **Parameters** (D1, decided by Mortaro 2026-09-19): a scalar (every numeric type, `Bool`, an enum value) is
+- **Parameters** (D1, decided by Mortaro 2026-09-19): a scalar (every numeric type, `Boolean`, an enum value) is
   passed by value, copied. Everything else -- a class instance, `List<T>`, `Dictionary<T>`, `String`, a union, an
   object literal -- is passed by reference: the caller writes nothing special, and the callee shares the exact
   same object (mutating it through the parameter is visible to the caller). `&Type` no longer exists as syntax --
@@ -431,12 +431,12 @@ console.log(pretty_print)        # passes this instance's pretty_print
 arguments and its return, so the type of a function is written the same way any other generic type is:
 
 ```gdscript
-func log(printer: Spite.Function<String, Bool>)
+func log(printer: Spite.Function<String, Boolean>)
 ```
 
 The codegen values are positional and the **last one is the return**; everything before it is an argument, in
-order. `Spite.Function<Bool>` takes nothing and returns a `Bool`; `Spite.Function<String, Int, Bool>` takes a
-`String` and an `Int` and returns a `Bool`. They line up with `Spite.Function`'s own reflection members
+order. `Spite.Function<Boolean>` takes nothing and returns a `Boolean`; `Spite.Function<String, Integer, Boolean>` takes a
+`String` and an `Integer` and returns a `Boolean`. They line up with `Spite.Function`'s own reflection members
 ([Reflection objects](reflection.md#reflection-objects--partial), D12): the arguments are `.arguments`, the last is `.returns`. So there is nothing new to learn --
 the type of a function is its reflection, written down.
 
@@ -493,7 +493,7 @@ signature or a reflection object has to say it.
 The library declares `type Anything { }` once (`library/nothing.spite`, beside `Nothing`), so a parameter or a
 list that accepts any object is written `component: Anything` or `List<Anything>()`, and a program no longer
 declares an empty `type` of its own for that. An empty `type` requires nothing, so every class fits it, and a
-number, `Bool` or enum passed to it is boxed like any plain value passed to a `type` (D109); `if component ==
+number, `Boolean` or enum passed to it is boxed like any plain value passed to a `type` (D109); `if component ==
 Health` narrows it back. `Spite.Attribute`'s object is typed `Anything?` ([Reflection objects](reflection.md#reflection-objects--partial)).
 
 ### Variadic arguments  **[implemented]**
@@ -528,13 +528,13 @@ the other reading -- unless the element type is itself a list. Zero values is a 
 `Console.print`, `write` and `error` are ordinary variadic functions taking `...values: List<Printable>` (D109,
 [System classes](standard_library.md#system-classes--implemented)).
 
-**A number, a `Bool` or an enum value fits a `type` too** (proposed by Claude, unconfirmed; built for D109). A
+**A number, a `Boolean` or an enum value fits a `type` too** (proposed by Claude, unconfirmed; built for D109). A
 shape holds class instances, and these are plain values, so passing one where a `type` is wanted puts it in a
 small box the compiler allocates and frees like any object, and a call through the shape reaches its class's
-function (`Int.to_string()`, for an `Int`). A `String` needs no box; a `Symbol` gets one so that it keeps its
+function (`Integer.to_string()`, for an `Integer`). A `String` needs no box; a `Symbol` gets one so that it keeps its
 class. An enum value answers two functions, `to_string()` (its name as text -- `weather.to_string()` works on
 any enum value) and `to_debug()`, so that is all a shape can ask of one. `.class` read through the shape names the
-value's own class (`Int`, `Symbol`, the enum), as it does for a class instance. A value of a union passed where a
+value's own class (`Integer`, `Symbol`, the enum), as it does for a class instance. A value of a union passed where a
 `type` is wanted brings the union's members into the shape.
 
 ### Operators  **[implemented]**
@@ -561,7 +561,7 @@ Every operator is a shortcut for a function, which a class can define to support
 | `a[x]` | `get_at(x)` | |
 | `a[x] = v` | `set_at(x, v)` | |
 
-For `Int`/`Float`/`Bool`/enum/`String`/`List<T>`/`Dictionary<T>` these are intrinsic (they compile to exactly
+For `Integer`/`Float`/`Boolean`/enum/`String`/`List<T>`/`Dictionary<T>` these are intrinsic (they compile to exactly
 the same C as before this table existed); `String`/`List<T>`/`Dictionary<T>` additionally accept the explicit
 call form alongside the operator (`list.get_at(0)` next to `list[0]`, `"a".sum("b")` next to `"a" + "b"`).
 

@@ -10,8 +10,8 @@ func current_thread(): Long {
 func create_event(): Long {
     var ends = heap.allocate(8)
     library.pipe(ends)
-    var reading = ends.read_int(0)
-    signal_ending = ends.read_int(4)
+    var reading = ends.read_integer(0)
+    signal_ending = ends.read_integer(4)
     heap.free(ends)
     signal_byte = heap.allocate(8)
     return reading
@@ -21,10 +21,10 @@ func signal_event() {
     library.write(signal_ending, signal_byte, 1)
 }
 
-func wait_event(milliseconds: Int) {
+func wait_event(milliseconds: Integer) {
     var watched = heap.allocate(8)
-    watched.write_int(0, wake)
-    watched.write_int(4, 1)
+    watched.write_integer(0, wake)
+    watched.write_integer(4, 1)
     if library.poll(watched, 1, milliseconds) > 0 {
         var drained = heap.allocate(64)
         library.read(wake, drained, 64)

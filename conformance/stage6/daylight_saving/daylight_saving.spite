@@ -25,18 +25,18 @@ func around_the_change(zone: TimeZone) {
 }
 
 func the_gap(zone: TimeZone) {
-    var missing = LocalDateTime(LocalDate(2024, 3, 10), LocalTime(2, 30, 0, 0))
+    var missing = DateTime(Date(2024, 3, 10), Time(2, 30, 0, 0))
     show(zone, missing, 'compatible')
     show(zone, missing, 'earlier')
     show(zone, missing, 'later')
 }
 
 func the_overlap(zone: TimeZone) {
-    var twice = LocalDateTime(LocalDate(2024, 11, 3), LocalTime(1, 30, 0, 0))
+    var twice = DateTime(Date(2024, 11, 3), Time(1, 30, 0, 0))
     show(zone, twice, 'compatible')
     show(zone, twice, 'earlier')
     show(zone, twice, 'later')
-    var summer = LocalDateTime(LocalDate(2024, 7, 4), LocalTime(12, 0, 0, 0))
+    var summer = DateTime(Date(2024, 7, 4), Time(12, 0, 0, 0))
     show(zone, summer, 'compatible')
     var instant = zone.to_instant(summer, 'compatible')
     var back = zone.to_local(instant)
@@ -49,9 +49,9 @@ func other_zones() {
     crash london
     var lord_howe = zones.find("Australia/Lord_Howe")
     crash lord_howe
-    var british_gap = LocalDateTime(LocalDate(2024, 3, 31), LocalTime(1, 30, 0, 0))
-    var half_hour_gap = LocalDateTime(LocalDate(2024, 10, 6), LocalTime(2, 15, 0, 0))
-    var half_hour_overlap = LocalDateTime(LocalDate(2024, 4, 7), LocalTime(1, 45, 0, 0))
+    var british_gap = DateTime(Date(2024, 3, 31), Time(1, 30, 0, 0))
+    var half_hour_gap = DateTime(Date(2024, 10, 6), Time(2, 15, 0, 0))
+    var half_hour_overlap = DateTime(Date(2024, 4, 7), Time(1, 45, 0, 0))
     show(london, british_gap, 'compatible')
     show(lord_howe, half_hour_gap, 'compatible')
     show(lord_howe, half_hour_overlap, 'earlier')
@@ -64,7 +64,7 @@ func other_zones() {
     }
 }
 
-func show(zone: TimeZone, local: LocalDateTime, ambiguity: TimeZone.Ambiguity) {
+func show(zone: TimeZone, local: DateTime, ambiguity: TimeZone.Ambiguity) {
     var instant = zone.to_instant(local, ambiguity)
     var shown = zone.to_text(instant)
     console.print(zone.name, local, ambiguity, instant, shown)

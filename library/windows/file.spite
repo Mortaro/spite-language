@@ -9,7 +9,7 @@ func close_file(handle: Long) {
     library.fclose(handle)
 }
 
-func seek(handle: Long, offset: Long, origin: Int) {
+func seek(handle: Long, offset: Long, origin: Integer) {
     library._fseeki64(handle, offset, origin)
 }
 
@@ -40,6 +40,6 @@ func modified_nanoseconds(): Long? {
     return (written - 116444736000000000) * 100
 }
 
-func remove(): Bool {
+func remove(): Boolean {
     return library.remove(path) == 0
 }

@@ -4,6 +4,6 @@ func LoadFunction() {
     loads = 1
 }
 
-func load(id: String): Int {
+func load(id: String): Integer {
     return loads + id.length()
 }

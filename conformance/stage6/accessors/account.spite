@@ -6,7 +6,7 @@ func Account(starting_owner: String) {
     owner = starting_owner
 }
 
-func set_balance(new_balance: Int) {
+func set_balance(new_balance: Integer) {
     if new_balance < 0 {
         history.append("rejected {new_balance}")
         return

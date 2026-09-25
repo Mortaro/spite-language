@@ -28,7 +28,7 @@ func get(key: String): $value_type? {
     return null
 }
 
-func has(key: String): Bool {
+func has(key: String): Boolean {
     var existing = index_of_key(key)
     return existing >= 0
 }
@@ -36,15 +36,15 @@ func has(key: String): Bool {
 func remove(key: String) {
     var slot = find_slot(key)
     if slot >= 0 {
-        var position = slots.read_int(slot * 4) - 1
-        slots.write_int(slot * 4, -1)
+        var position = slots.read_integer(slot * 4) - 1
+        slots.write_integer(slot * 4, -1)
         entry_values.remove_at(position)
         entry_keys.remove_at(position)
         close_gap(position)
     }
 }
 
-func count(): Int {
+func count(): Integer {
     return entry_keys.count()
 }
 
@@ -74,49 +74,49 @@ func drop() {
     }
 }
 
-func index_of_key(key: String): Int {
+func index_of_key(key: String): Integer {
     var slot = find_slot(key)
     if slot < 0 {
         return -1
     }
-    return slots.read_int(slot * 4) - 1
+    return slots.read_integer(slot * 4) - 1
 }
 
-func find_slot(key: String): Int {
+func find_slot(key: String): Integer {
     if slot_count == 0 {
         return -1
     }
     var slot = home_slot(key)
-    var stored = slots.read_int(slot * 4)
+    var stored = slots.read_integer(slot * 4)
     while stored != 0 {
         if stored > 0 and entry_keys.get_at(stored - 1) == key {
             return slot
         }
         slot = next_slot(slot)
-        stored = slots.read_int(slot * 4)
+        stored = slots.read_integer(slot * 4)
     }
     return -1
 }
 
-func place(key: String, position: Int) {
+func place(key: String, position: Integer) {
     var slot = home_slot(key)
-    var stored = slots.read_int(slot * 4)
+    var stored = slots.read_integer(slot * 4)
     while stored > 0 {
         slot = next_slot(slot)
-        stored = slots.read_int(slot * 4)
+        stored = slots.read_integer(slot * 4)
     }
     if stored == 0 {
         used_slots = used_slots + 1
     }
-    slots.write_int(slot * 4, position + 1)
+    slots.write_integer(slot * 4, position + 1)
 }
 
-func close_gap(position: Int) {
+func close_gap(position: Integer) {
     var slot = 0
     while slot < slot_count {
-        var stored = slots.read_int(slot * 4)
+        var stored = slots.read_integer(slot * 4)
         if stored > position + 1 {
-            slots.write_int(slot * 4, stored - 1)
+            slots.write_integer(slot * 4, stored - 1)
         }
         slot = slot + 1
     }
@@ -141,7 +141,7 @@ func rebuild_slots() {
     used_slots = 0
     var slot = 0
     while slot < slot_count {
-        slots.write_int(slot * 4, 0)
+        slots.write_integer(slot * 4, 0)
         slot = slot + 1
     }
     var position = 0
@@ -152,7 +152,7 @@ func rebuild_slots() {
     }
 }
 
-func home_slot(key: String): Int {
+func home_slot(key: String): Integer {
     var hash: Long = 0
     var index = 0
     while index < key.length() {
@@ -162,7 +162,7 @@ func home_slot(key: String): Int {
     return hash % slot_count
 }
 
-func next_slot(slot: Int): Int {
+func next_slot(slot: Integer): Integer {
     assert slot + 1 != slot_count
     return slot + 1
 }

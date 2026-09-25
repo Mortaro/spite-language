@@ -2,6 +2,6 @@ singleton
 
 var limits = Limits(3000)
 
-func allows(size: Int): Bool {
+func allows(size: Integer): Boolean {
     return limits.allows(size)
 }

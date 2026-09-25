@@ -10,7 +10,7 @@ func write(): String {
     if $value_type == Null {
         var inner = Json<$value_type.value_type>(value)
         return inner.write()
-    } else if $value_type == Bool {
+    } else if $value_type == Boolean {
         if value == true {
             return "true"
         }
@@ -28,7 +28,7 @@ func write(): String {
 func _written(shown: $value_type): String {
     if $value_type == String {
         return quoted(shown)
-    } else if $value_type == Int or $value_type == Long or $value_type == Float or $value_type == Double or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInt or $value_type == UnsignedLong {
+    } else if $value_type == Integer or $value_type == Long or $value_type == Float or $value_type == Double or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInteger or $value_type == UnsignedLong {
         return "{shown}"
     } else if $value_type == Symbol {
         var name = "{shown}"
@@ -95,9 +95,9 @@ func read_or_crash(text: String): $value_type {
 func parse(reader: JsonReader): $value_type {
     if $value_type == String {
         return reader.read_text()
-    } else if $value_type == Bool {
+    } else if $value_type == Boolean {
         return reader.read_boolean()
-    } else if $value_type == Int or $value_type == Long or $value_type == Float or $value_type == Double or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInt or $value_type == UnsignedLong {
+    } else if $value_type == Integer or $value_type == Long or $value_type == Float or $value_type == Double or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInteger or $value_type == UnsignedLong {
         var number_text = reader.read_number()
         var number: $value_type = number_text
         return number
@@ -193,7 +193,7 @@ func quoted(text: String): String {
     return "\"{joined}\""
 }
 
-func escape_of(code: Int): String {
+func escape_of(code: Integer): String {
     if code == 34 {
         return "\\\""
     }

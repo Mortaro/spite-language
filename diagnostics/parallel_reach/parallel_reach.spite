@@ -5,7 +5,7 @@ func ParallelReach() {
     boids.append(Boid())
     boids.parallel_each_follow()
     boids.parallel_each_flock()
-    var speeds = List<Int>()
+    var speeds = List<Integer>()
     speeds.parallel_each_double()
     boids.map_leader().parallel_each_flock()
     var count = boids.count()

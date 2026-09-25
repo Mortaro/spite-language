@@ -1,7 +1,7 @@
 var name = ""
 var quantity = 0
 
-func Widget(starting_name: String, starting_quantity: Int) {
+func Widget(starting_name: String, starting_quantity: Integer) {
     name = starting_name
     quantity = starting_quantity
 }

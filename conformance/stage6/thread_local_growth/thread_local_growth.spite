@@ -8,7 +8,7 @@ func ThreadLocalGrowth() {
     while round < 20 {
         markers = ThreadLocal<String>()
         markers.set("main")
-        var runs = List<Parallel<Bool>>()
+        var runs = List<Parallel<Boolean>>()
         var index = 0
         while index < 64 {
             runs.append(Parallel(joins_and_reads))
@@ -16,7 +16,7 @@ func ThreadLocalGrowth() {
         }
         index = 0
         while index < runs.count() {
-            var kept: Bool = runs.get_at(index)
+            var kept: Boolean = runs.get_at(index)
             every_round = every_round and kept
             index = index + 1
         }
@@ -28,7 +28,7 @@ func ThreadLocalGrowth() {
     console.print("every read saw its own thread's value while others grew it:", every_round)
 }
 
-func joins_and_reads(): Bool {
+func joins_and_reads(): Boolean {
     var worker = pool.worker_index()
     var mine = "worker {worker}"
     var existing = markers.get()

@@ -131,7 +131,7 @@ The program's entry class is the one class nothing reopens: a loaded `bundle/pot
 The standard library is loaded before the program, so a program's own file reopens any class of it the same way:
 `environment.spite` adds settings to `Environment` ([programs.md](programs.md#run-time-settings-environment)),
 `list.spite` adds a member template to `List` ([collections.md](collections.md#write-your-own-member-template)),
-`int.spite` adds a function to every `Int` ([values_and_types.md](values_and_types.md#numbers-are-classes)), and
+`integer.spite` adds a function to every `Integer` ([values_and_types.md](values_and_types.md#numbers-are-classes)), and
 `string.spite` could replace how `String` trims. Your foot to shoot. Each operating system's folder of the library
 is built the same way: it reopens the classes that system does differently
 ([foreign_libraries.md](foreign_libraries.md#each-operating-system-reopens-what-it-changes)).
@@ -413,5 +413,5 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   borrows the shape a `type` already uses for a member without a body. Anywhere the compiler supplies nothing by
   that name, a bodiless `func` is an error ("give it a body"), so it is not a way to declare anything else. The
   compiler's own reopening is Spite source in `bootstrap/source/generation/prelude.spite`, beside the C each body
-  is; a body the compiler writes per instantiation (`TypedMemory<Int>`, `Float.from_int`) is written by the
-  generator. Supplied names skip the naming lint (`read_int` names the type `Int`), as conversions already did.
+  is; a body the compiler writes per instantiation (`TypedMemory<Integer>`, `Float.from_integer`) is written by the
+  generator. Supplied names skip the naming lint (`read_integer` names the type `Integer`), as conversions already did.

@@ -1,5 +1,5 @@
 var value = 0
 
-func Box(starting_value: Int) {
+func Box(starting_value: Integer) {
     value = starting_value
 }

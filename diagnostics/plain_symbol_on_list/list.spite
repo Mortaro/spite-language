@@ -1,4 +1,4 @@
-func total_member(member: Symbol): Int {
+func total_member(member: Symbol): Integer {
     var total = 0
     var index = 0
     while index < item_count {

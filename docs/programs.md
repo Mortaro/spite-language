@@ -109,14 +109,14 @@ Each field is read once, when `Environment()` is first made, from the first of:
 3. the declared default.
 
 Only declared fields are read, so nothing the program does not name is ever loaded. The default's literal is the
-setting's type -- `false` is a `Bool`, a whole number an `Int`, `""` a `String` -- and anything else, a type
+setting's type -- `false` is a `Boolean`, a whole number an `Integer`, `""` a `String` -- and anything else, a type
 annotation included, is an error naming the three forms. A value that is not of the setting's type
 (`--verbose=maybe`) crashes when `Environment()` is first made: the program was started wrong, and there is
 nothing sensible to continue with. The values are read when the program runs, so `if environment.verbose` is an
 ordinary `if`, with both branches compiled in.
 
 ```gdscript title=setting_type_error/environment.spite
-var workers: Int = 1
+var workers: Integer = 1
 ```
 ```gdscript title=setting_type_error/setting_type_error.spite entry error
 var console = Console()
@@ -166,9 +166,9 @@ was declared with. Either way `build.serve` is the literal `true` in the built p
 decided while compiling, the branch it does not take is never generated, and the program's own `--serve=false`
 changes nothing. `name` belongs to `Environment`, so it is still read when the program runs.
 
-- A `Bool` field may be given bare: `--optimized` is `--optimized=true`. Any other bare flag is an error naming
+- A `Boolean` field may be given bare: `--optimized` is `--optimized=true`. Any other bare flag is an error naming
   the value it needs.
-- The value has to be of the field's type (`--workers=many` for an `Int` is a compile error), a flag naming a
+- The value has to be of the field's type (`--workers=many` for an `Integer` is a compile error), a flag naming a
   field of `Environment` is a compile error that says to pass it after `--`, and a flag naming no field at all is
   a compile error listing the fields `Build` has. A typo never passes silently.
 ```gdscript title=unknown_flag_error/unknown_flag_error.spite entry error build=verbos:true
@@ -362,7 +362,7 @@ What follows is how it is implemented (proposed by Claude, unconfirmed):
   in upper case, `SERVE`; the declared default. The command line wins because it is the more deliberate of the
   two. An argument that names no field is left alone for `Arguments` to read.
 - **The default's literal is the type.** A setting is declared with nothing but a literal default: `false`/`true`
-  is a `Bool`, a whole number (negative too) an `Int`, `""` a `String`. A type annotation, or any other default,
+  is a `Boolean`, a whole number (negative too) an `Integer`, `""` a `String`. A type annotation, or any other default,
   is a compile error naming the three forms (`diagnostics/environment_setting`). Text that is not a value of the
   setting's type (`--serve=maybe`, `--workers=many`) **crashes** when the singleton is made (D24: a malformed
   setting is a bug in how the program was started, and there is nothing sensible to continue with).
@@ -422,7 +422,7 @@ is how it is built (proposed by Claude, unconfirmed, except where a decision is 
   D128 no option is read before the program is, so there is no exception for `mode` any more (`mode`
   is gone: [Command line](compiler.md#command-line)); only `target_operating_system`, which says which library folder is part of the program,
   comes from the flag alone.
-- **A `Bool` may be given bare**: `--optimized` is `--optimized=true`. Any other bare flag is an error naming the
+- **A `Boolean` may be given bare**: `--optimized` is `--optimized=true`. Any other bare flag is an error naming the
   value it needs.
 - **Nothing passes silently.** A value that is not of the field's type is a compile error
   (`diagnostics/build_setting_type`); a flag naming an `Environment` field is an error that says to pass it after

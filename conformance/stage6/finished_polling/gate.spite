@@ -8,14 +8,14 @@ func open() {
     guard.unlock()
 }
 
-func is_open(): Bool {
+func is_open(): Boolean {
     guard.lock()
     var seen = opened
     guard.unlock()
     return seen
 }
 
-func wait_until_open(): Int {
+func wait_until_open(): Integer {
     var spins = 0
     while not is_open() {
         spins = spins + 1
@@ -23,7 +23,7 @@ func wait_until_open(): Int {
     return 42
 }
 
-func nap(): Int {
+func nap(): Integer {
     program.sleep(20)
     return 20
 }

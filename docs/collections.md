@@ -28,10 +28,10 @@ var empty = List<String>()
 | `remove_at(index)` | | nothing happens out of range |
 | `remove_first()` / `remove_last()` | `T` | removes and returns it; the default when empty |
 | `first()` / `last()` | `T` | the default when empty |
-| `count()` / `is_empty()` | `Int` / `Bool` | `count()` is only ever the list's size |
-| `contains(value)` | `Bool` | |
+| `count()` / `is_empty()` | `Integer` / `Boolean` | `count()` is only ever the list's size |
+| `contains(value)` | `Boolean` | |
 | `clear()` / `reverse()` | | in place |
-| `join(separator)` | `String` | every element becomes text: a `String`, a number, a `Bool`, an enum value |
+| `join(separator)` | `String` | every element becomes text: a `String`, a number, a `Boolean`, an enum value |
 | `copy()` / `deep_copy()` | `List<T>` | one level, or all the way down ([memory.md](memory.md)) |
 
 Names say where: `append` and `prepend`, never `add`; `remove_last`, never `pop`. The old names are errors that
@@ -46,9 +46,9 @@ time however many keys there are -- it is a hash table over two lists.
 |---|---|---|
 | `set(key, value)` / `dictionary[key] = value` | | replaces the value of a key already there |
 | `get(key)` / `dictionary[key]` | `T?` | `null` when the key is absent |
-| `has(key)` | `Bool` | |
+| `has(key)` | `Boolean` | |
 | `remove(key)` | | |
-| `count()` | `Int` | |
+| `count()` | `Integer` | |
 | `keys()` / `values()` | `List<String>` / `List<T>` | a fresh list, in insertion order |
 | `copy()` / `deep_copy()` | `Dictionary<T>` | |
 
@@ -56,7 +56,7 @@ time however many keys there are -- it is a hash table over two lists.
 var console = Console()
 
 func DictionaryTasks() {
-    var inventory = Dictionary<Int>()
+    var inventory = Dictionary<Integer>()
     inventory.set("sword", 1)
     inventory.set("potion", 4)
     inventory.set("potion", 6)
@@ -99,9 +99,9 @@ names a program calls.
 
 | Template | Result | The member must |
 |---|---|---|
-| `filter_<member>()` | `List<T>`, the elements where it is true | take nothing, return `Bool` |
-| `count_<member>()` | `Int`, how many are true | take nothing, return `Bool` |
-| `any_<member>()` / `all_<member>()` | `Bool` | take nothing, return `Bool` |
+| `filter_<member>()` | `List<T>`, the elements where it is true | take nothing, return `Boolean` |
+| `count_<member>()` | `Integer`, how many are true | take nothing, return `Boolean` |
+| `any_<member>()` / `all_<member>()` | `Boolean` | take nothing, return `Boolean` |
 | `sum_<member>()` | the member's number type | take nothing, return a number |
 | `find_by_<member>(value)` | `T?`, the first element whose member equals `value` | return something comparable to `value` |
 | `sort_by_<member>()` | `List<T>`, sorted ascending | return a number or a `String` |
@@ -115,7 +115,7 @@ A member that does not fit is a compile error naming the member, what it is, and
 var title = ""
 var done = false
 
-func Chore(new_title: String, new_done: Bool) {
+func Chore(new_title: String, new_done: Boolean) {
     title = new_title
     done = new_done
 }
@@ -159,7 +159,7 @@ var name = ""
 var price = 0
 var in_stock = false
 
-func Item(new_name: String, new_price: Int, new_in_stock: Bool) {
+func Item(new_name: String, new_price: Integer, new_in_stock: Boolean) {
     name = new_name
     price = new_price
     in_stock = new_in_stock
@@ -215,7 +215,7 @@ func TemplateMistake() {
 }
 ```
 ```diagnostic
-but 'count_' needs it to return Bool (to add up a numeric member use 'sum_stars')
+but 'count_' needs it to return Boolean (to add up a numeric member use 'sum_stars')
 ```
 
 **A `while` that only does what a template does is an error naming the template**
@@ -230,7 +230,7 @@ pass more than the element, stop early any other way, or walk state keep their `
 ```gdscript title=template_loop_error/item.spite
 var price = 0
 
-func Item(item_price: Int) {
+func Item(item_price: Integer) {
     price = item_price
 }
 ```
@@ -261,7 +261,7 @@ instead: `names.each(say_hello)` calls `say_hello` once for every name, in order
 `say_hello` alone is this instance's, and `people.each(greeter.greet)` calls `greet` on `greeter`.
 
 `each`, `map`, `filter`, `any`, `all`, `count`, `find`, `sort_by` and `sum` each take such a function, which takes
-the element as its only argument: `filter`, `any`, `all`, `count` and `find` want one returning `Bool` (`find`
+the element as its only argument: `filter`, `any`, `all`, `count` and `find` want one returning `Boolean` (`find`
 answers the first element it is true for, or `null`), `sum` one returning a number, `sort_by` one returning a
 number or text, `map` one returning anything. This works on a list of anything -- text and numbers included, which
 have no members of their own for a template to name -- and on a `Dictionary`, through its values.
@@ -295,19 +295,19 @@ func say_hello(name: String) {
     console.print("hello, {name}")
 }
 
-func is_short(name: String): Bool {
+func is_short(name: String): Boolean {
     return name.length() < 6
 }
 
-func is_long(name: String): Bool {
+func is_long(name: String): Boolean {
     return name.length() > 6
 }
 
-func measure(name: String): Int {
+func measure(name: String): Integer {
     return name.length()
 }
 
-func double_of(value: Int): Int {
+func double_of(value: Integer): Integer {
     return value * 2
 }
 ```
@@ -357,7 +357,7 @@ reads its lead, and adds the age, allocating nothing.
 ```gdscript title=fused_chain/person.spite
 var age = 0
 
-func Person(new_age: Int) {
+func Person(new_age: Integer) {
     age = new_age
 }
 ```
@@ -365,7 +365,7 @@ func Person(new_age: Int) {
 var active = false
 var lead = Person(0)
 
-func Team(new_active: Bool, new_lead: Person) {
+func Team(new_active: Boolean, new_lead: Person) {
     active = new_active
     lead = new_lead
 }
@@ -455,7 +455,7 @@ func average_member(member: Symbol<$element_type>): Float {
 ```gdscript title=list_average/score.spite
 var points = 0
 
-func Score(new_points: Int) {
+func Score(new_points: Integer) {
     points = new_points
 }
 ```
@@ -478,7 +478,7 @@ The `<$element_type>` is what makes it a member of the element. A plain `member:
 list's own attributes, which are its buffer, so it is an error that says what to write:
 
 ```gdscript title=plain_symbol_template/list.spite
-func total_member(member: Symbol): Int {
+func total_member(member: Symbol): Integer {
     var total = 0
     var index = 0
     while index < item_count {
@@ -493,7 +493,7 @@ func total_member(member: Symbol): Int {
 var console = Console()
 
 func PlainSymbolTemplate() {
-    var scores = List<Int>()
+    var scores = List<Integer>()
     scores.append(3)
     var count = scores.count()
     console.print(count)
@@ -526,9 +526,9 @@ cases that used to reach for `for`.
 
 | Template | The member must |
 |---|---|
-| `filter_`, `any_`, `all_`, `count_` | take no arguments and return `Bool` |
+| `filter_`, `any_`, `all_`, `count_` | take no arguments and return `Boolean` |
 | `sum_` | take no arguments and return a numeric type |
-| `sort_by_` | take no arguments and return something ordered (`Int`/`Float`/`String`) |
+| `sort_by_` | take no arguments and return something ordered (`Integer`/`Float`/`String`) |
 | `find_by_(value)` | take no arguments and return something comparable to `value` |
 | `map_` | take no arguments and return anything; the result is a `List<U>` of that |
 | `each_` | take no arguments; its result, if any, is discarded |
@@ -539,7 +539,7 @@ not fit the template's requirement is a compile error naming the member, what it
 needs -- and `each_<member>()` on a plain field is one of those, since reading a field and discarding it does
 nothing.
 
-`count_<member>()` counts how many elements have a Bool member true; `sum_<member>()` adds up a numeric member
+`count_<member>()` counts how many elements have a Boolean member true; `sum_<member>()` adds up a numeric member
 across every element (second batch item 8, decided 2026-09-19: `count()` is only ever a collection's own size,
 and `count_<member>()` on a numeric member is a compile error naming the `sum_<member>()` fix).
 
@@ -590,7 +590,7 @@ The caller's function is passed as a bound function value (D17/D39), owned by wh
 - **The forms.** `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`, `find(f)`, `sort_by(f)` and
   `sum(f)` on a `List` or a `Dictionary` (through its values), for an element of any type. `f` takes the element
   as its only argument, with exactly the element's type; D15's table applies to what it returns (`filter`, `any`,
-  `all`, `count` and `find` want `Bool`, `sum` a number, `sort_by` a number or a `String`, `map` a value, `each`
+  `all`, `count` and `find` want `Boolean`, `sum` a number, `sort_by` a number or a `String`, `map` a value, `each`
   anything). `find(f)` answers the first element `f` is true for, or `null` -- the `find_by_` template with
   `true` as its value. `count` with no argument stays the collection's size.
 - **The owner.** `say_hello` alone is bound to this instance; `greeter.greet` to `greeter`; a variable holding a
@@ -610,7 +610,7 @@ The caller's function is passed as a bound function value (D17/D39), owned by wh
 - **Mistakes** name the form: `'map(say_hello)': 'say_hello' returns nothing, but 'map' needs it to return a value
   (to only call it for each element, write 'each(say_hello)')`, `'each' calls 'greet_twice' with each 'String' as
   its only argument, but 'greet_twice' takes 2`, `'each' calls 'count_to' with each 'String', but 'count_to' takes
-  'Int'`, and an argument that is no function at all.
+  'Integer'`, and an argument that is no function at all.
 - **No loop rule.** D113's error for a `while` that only passes each element to a caller function is removed with
   it. A function that needs more than the element (`print_statement(statement, depth)`) keeps its `while`.
 
@@ -631,19 +631,19 @@ On top of `append`/`prepend`/`count`/index-read/index-write (iterate with `while
 | `remove_last()` | `T` | removes and returns the last element; the default when empty |
 | `remove_first()` | `T` | removes and returns the first element; the default when empty |
 | `first()` / `last()` | `T` | the default when empty |
-| `contains(value)` | `Bool` | `Int`/`Float`/`Bool`/`String`/enum elements only |
-| `is_empty()` | `Bool` | |
+| `contains(value)` | `Boolean` | `Integer`/`Float`/`Boolean`/`String`/enum elements only |
+| `is_empty()` | `Boolean` | |
 | `clear()` | | drops every element, keeps the buffer's capacity |
 | `reverse()` | | in place |
-| `join(separator)` | `String` | every element that becomes text: `String`, a number, `Bool`, an enum value |
-| `filter_<member>()` | `List<T>` | a new list of the elements whose Bool attribute is true ([Standard library metaprogramming](#standard-library-metaprogramming--partial)) |
-| `count_<member>()` | `Int` | a Bool attribute: how many elements have it true ([Standard library metaprogramming](#standard-library-metaprogramming--partial)) |
-| `sum_<member>()` | `Int`/`Float` | adds that attribute up across every element ([Standard library metaprogramming](#standard-library-metaprogramming--partial)) |
+| `join(separator)` | `String` | every element that becomes text: `String`, a number, `Boolean`, an enum value |
+| `filter_<member>()` | `List<T>` | a new list of the elements whose Boolean attribute is true ([Standard library metaprogramming](#standard-library-metaprogramming--partial)) |
+| `count_<member>()` | `Integer` | a Boolean attribute: how many elements have it true ([Standard library metaprogramming](#standard-library-metaprogramming--partial)) |
+| `sum_<member>()` | `Integer`/`Float` | adds that attribute up across every element ([Standard library metaprogramming](#standard-library-metaprogramming--partial)) |
 | `find_by_<member>(value)` | `T?` | the first element whose attribute equals `value` |
-| `sort_by_<member>()` | `List<T>` | a new list sorted ascending by an `Int`/`Float`/`String` attribute |
+| `sort_by_<member>()` | `List<T>` | a new list sorted ascending by an `Integer`/`Float`/`String` attribute |
 | `each_<member>()` | | `T` a class: calls that zero-argument function on every element, mutating it in place |
-| `map_<member>()` | `List<U>` | an `Int`/`Float`/`Bool`/`String`/enum attribute's values, one per element |
-| `any_<member>()` / `all_<member>()` | `Bool` | a `Bool` attribute, true for at least one / every element |
+| `map_<member>()` | `List<U>` | an `Integer`/`Float`/`Boolean`/`String`/enum attribute's values, one per element |
+| `any_<member>()` / `all_<member>()` | `Boolean` | a `Boolean` attribute, true for at least one / every element |
 
 A `<member>` is always the element's, never the calling class's (D148, [Standard library metaprogramming](#standard-library-metaprogramming--partial)). A function of the caller is
 passed as a value instead, for any `T`: `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`,
@@ -664,9 +664,9 @@ however many keys there are (see the decision log's hash-table row, proposed by 
 |---|---|---|
 | `set(key, value)` | | replaces an existing key's value |
 | `get(key)` | `T?` | |
-| `has(key)` | `Bool` | |
+| `has(key)` | `Boolean` | |
 | `remove(key)` | | |
-| `count()` | `Int` | |
+| `count()` | `Integer` | |
 | `keys()` | `List<String>` | a view: a fresh list of the same keys |
 | `values()` | `List<T>` | a view: a fresh list of the same values |
 | `dictionary["key"]` (read) | `T` | the default when the key is absent |

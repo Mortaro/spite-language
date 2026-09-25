@@ -10,6 +10,6 @@ var course: Course = 'starter'
 var steps = ["chop", "boil"]
 var rating: Float? = null
 
-func portions(): Int {
+func portions(): Integer {
     return servings * 2
 }

@@ -4,7 +4,7 @@ var hits = 0
 var active = 0
 var stopped = false
 
-func record(amount: Int) {
+func record(amount: Integer) {
     hits = hits + amount
 }
 
@@ -20,14 +20,14 @@ func stop() {
     stopped = true
 }
 
-func total(): Int {
+func total(): Integer {
     return hits
 }
 
-func running(): Int {
+func running(): Integer {
     return active
 }
 
-func is_stopped(): Bool {
+func is_stopped(): Boolean {
     return stopped
 }

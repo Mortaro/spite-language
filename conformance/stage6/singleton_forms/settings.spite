@@ -8,7 +8,7 @@ func Settings() {
     label = "hits"
 }
 
-func step_size(): Int {
+func step_size(): Integer {
     return step
 }
 

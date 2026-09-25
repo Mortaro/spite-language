@@ -1,6 +1,6 @@
 var amount = 0
 var maximum = 10
 
-func is_full(): Bool {
+func is_full(): Boolean {
     return amount >= maximum
 }

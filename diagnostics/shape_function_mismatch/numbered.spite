@@ -1,3 +1,3 @@
-func render(): Int {
+func render(): Integer {
     return 1
 }

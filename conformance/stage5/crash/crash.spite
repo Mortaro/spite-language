@@ -11,13 +11,13 @@ func Crash() {
     console.print(minus_one_description)
 }
 
-func name_length(key: String): Int {
+func name_length(key: String): Integer {
     var name = names.get(key)
     crash name
     return name.length()
 }
 
-func describe(value: Int): String {
+func describe(value: Integer): String {
     crash value > 0 - 5
     if value > 0 {
         return "positive"

@@ -18,15 +18,15 @@ func subtract(other: Instant): Duration {
     return _since_1970 - other._since_1970
 }
 
-func equals(other: Instant): Bool {
+func equals(other: Instant): Boolean {
     return _since_1970 == other._since_1970
 }
 
-func less_than(other: Instant): Bool {
+func less_than(other: Instant): Boolean {
     return _since_1970 < other._since_1970
 }
 
-func greater_than(other: Instant): Bool {
+func greater_than(other: Instant): Boolean {
     return _since_1970 > other._since_1970
 }
 

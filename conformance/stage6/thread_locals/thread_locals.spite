@@ -7,7 +7,7 @@ var counted = 0
 func ThreadLocals() {
     var main_name = own_name()
     names.set(main_name)
-    var runs = List<Parallel<Bool>>()
+    var runs = List<Parallel<Boolean>>()
     var index = 0
     while index < 200 {
         runs.append(Parallel(keeps_own_name))
@@ -16,7 +16,7 @@ func ThreadLocals() {
     var every_one = true
     index = 0
     while index < runs.count() {
-        var kept: Bool = runs.get_at(index)
+        var kept: Boolean = runs.get_at(index)
         every_one = every_one and kept
         index = index + 1
     }
@@ -25,7 +25,7 @@ func ThreadLocals() {
     crash still
     console.print("the main thread still reads", still)
     console.print("counted under the lock:", counted)
-    var fresh = ThreadLocal<Int>()
+    var fresh = ThreadLocal<Integer>()
     var unset = fresh.get()
     if unset {
         console.print("a new ThreadLocal already has", unset)
@@ -39,7 +39,7 @@ func own_name(): String {
     return "thread {worker}"
 }
 
-func keeps_own_name(): Bool {
+func keeps_own_name(): Boolean {
     var mine = own_name()
     var existing = names.get()
     if not existing {

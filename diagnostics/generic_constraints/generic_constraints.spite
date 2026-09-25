@@ -3,7 +3,7 @@ var console = Console()
 func GenericConstraints() {
     var pets = Shelf<Pet>()
     pets.add(Pet())
-    var maybe_numbers = Shelf<Int?>()
+    var maybe_numbers = Shelf<Integer?>()
     var label = Label(Pet())
     var pet_count = pets.items.count()
     var number_count = maybe_numbers.items.count()

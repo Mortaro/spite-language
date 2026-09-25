@@ -17,7 +17,7 @@ func ForeignCall() {
     console.print(text_length)
 }
 
-func measure(text: String): Int {
+func measure(text: String): Integer {
     if build.target_operating_system == "windows" {
         var c_runtime = DynamicLibrary("ucrtbase.dll", 'identity', "")
         return c_runtime.strlen(text)
@@ -66,14 +66,14 @@ what the standard library does where Win32's own abbreviations follow no rule.
 
 | Spite | C |
 |---|---|
-| every number type, `Bool` | the same C type -- a number already is one, and see the widths below |
+| every number type, `Boolean` | the same C type -- a number already is one, and see the widths below |
 | `String`, as an argument | `const char*`, at no cost |
 | an enum value | its integer |
 | `List<T>` of numbers | its element array, by address; C's writes come back into the list |
 | a `type` whose attributes are all numbers | a C struct in declaration order, by address; C's writes come back |
 | a class instance | never: its layout is the compiler's business |
 
-A call returns an `Int`, and the ordinary right-to-left cast takes it from there. A result that is wider or not an
+A call returns an `Integer`, and the ordinary right-to-left cast takes it from there. A result that is wider or not an
 integer is asked for by suffix: `strlen_as_long(...)` for a 64-bit integer or a pointer, `half_of_as_double(...)`
 for a `double`, and `greeting_as_text()` for a `const char*` copied into a `String`. An address is a
 `Memory.Address`, a number of 64 bits that casts to and from a `Long`; Spite has no pointer type. Text that C
@@ -81,7 +81,7 @@ leaves at an address -- a name inside a struct C filled in, or a `_as_long` resu
 `address.terminated_text()`, which copies up to the terminating zero.
 
 With a header as the third argument, a snake_case read is a constant -- `user32.mouseeventf_leftdown` is
-`MOUSEEVENTF_LEFTDOWN`, an `Int` -- and under the `'windows'` rule the compiler checks that a `type` passed as a
+`MOUSEEVENTF_LEFTDOWN`, an `Integer` -- and under the `'windows'` rule the compiler checks that a `type` passed as a
 struct has the size of the header's struct of the derived name (`PointPair` against `POINT_PAIR`), so a missing
 padding field fails the build at the Spite line. A header path that exists relative to the working directory is
 included as a file; anything else as a system header. The reflection members every value has -- `.class`,
@@ -94,7 +94,7 @@ attribute, which is what the templates mean whenever a program describes that li
 
 **With a header**, the call goes through the header's own prototype: the function has to be declared there, the
 number of arguments is checked, and each argument is converted to its parameter's type the way C converts one --
-an `Int` literal where C wants a 64-bit `VkDeviceSize`, a `Double` where it wants a `float`. A `Long` handle goes
+an `Integer` literal where C wants a 64-bit `VkDeviceSize`, a `Double` where it wants a `float`. A `Long` handle goes
 where C wants a pointer, since Spite has no pointer type; that integer-to-pointer conversion is the one C
 complaint the call silences. A C function that returns `void` is called the same way, and its call reads as `0`.
 
@@ -103,8 +103,8 @@ passes anyway:
 
 | Spite argument | Passed as |
 |---|---|
-| `Tiny`, `Short`, `Int`, `Long`, `Bool`, an enum value | `int64_t`, sign-extended |
-| `Byte`, `UnsignedShort`, `UnsignedInt`, `UnsignedLong` | `uint64_t`, zero-extended |
+| `Tiny`, `Short`, `Integer`, `Long`, `Boolean`, an enum value | `int64_t`, sign-extended |
+| `Byte`, `UnsignedShort`, `UnsignedInteger`, `UnsignedLong` | `uint64_t`, zero-extended |
 | `Float` | `float` |
 | `Double` | `double` |
 | `String`, `List<T>` of numbers, a number-only `type` | an address |
@@ -128,11 +128,11 @@ naming the system's real file. `library/windows/program.spite` is all of `Progra
 var library = DynamicLibrary("ucrtbase.dll", 'identity', "")
 var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
 
-func sleep(milliseconds: Int) {
+func sleep(milliseconds: Integer) {
     kernel.Sleep(milliseconds)
 }
 
-func exit_process(code: Int) {
+func exit_process(code: Integer) {
     library.exit(code)
 }
 
@@ -181,10 +181,10 @@ while building it (proposed, unconfirmed): one library per distinct file and nam
 "one instance per literal argument list", opened on first use and closed at exit; the file is named exactly as it is on disk and a name without an
 extension is a compile error (D71 -- a wrapper for another platform names that platform's file), which `check.sh`
 meets by building each fixture's C into `fixture.dll` beside its program on every platform; `_as_long` beside
-`_as_double` and `_as_text`, since a plain call returns a 32-bit `Int` and a handle or pointer needs 64; the
+`_as_double` and `_as_text`, since a plain call returns a 32-bit `Integer` and a handle or pointer needs 64; the
 naming rule is a symbol literal (D70); a foreign function is called only through the attribute or variable that
 holds its `DynamicLibrary(...)`, so the compiler knows which table binds it; and `--final-classes` writes no
-resolved-name comments, which D34 would reject (how to show them is open question 10). A constant reads from the header (`user32.mouseeventf_leftdown` is `MOUSEEVENTF_LEFTDOWN`, an `Int`); a header path
+resolved-name comments, which D34 would reject (how to show them is open question 10). A constant reads from the header (`user32.mouseeventf_leftdown` is `MOUSEEVENTF_LEFTDOWN`, an `Integer`); a header path
 that exists relative to the working directory is included as a file, anything else as a system header. A `List<T>` of numbers crosses as its element array (C may write into it), and a value of a `type` whose attributes are all numbers crosses by address as a C struct
 in its declared order, and C's writes come back into the value afterwards; under the `'windows'` rule with a header,
 `_Static_assert` checks the layout against the header's struct, named `PointPair` -> `POINT_PAIR` (Claude: only
@@ -200,7 +200,7 @@ constant and type at compile time.
 ```mouse.spite
 var user32 = DynamicLibrary("user32.dll", 'windows', "windows.h")
 
-func move_to(x_position: Int, y_position: Int): Bool {
+func move_to(x_position: Integer, y_position: Integer): Boolean {
     return user32.set_cursor_position(x_position, y_position) != 0
 }
 ```
@@ -262,7 +262,7 @@ func symbol_name(symbol: Symbol): String {
     return symbol.name
 }
 
-func missing_function(function: Symbol, arguments: Arguments): Int {
+func missing_function(function: Symbol, arguments: Arguments): Integer {
     var name = symbol_name(function)
     return _call(_handle, name, arguments)
 }
@@ -295,7 +295,7 @@ foreign call, since `remove` and `exit` are names both a class and a C library c
   of the segment rule so that a class opts in by defining them, instead of silently swallowing every misspelled
   call. [Symbol codegen](metaprogramming.md#symbol-codegen--implemented)'s existing precedence is unchanged: a function with the exact name always wins.
 - `missing_attribute` returning `attribute.class` is the same form as [Symbol codegen](metaprogramming.md#symbol-codegen--implemented)'s `get_attribute(attribute:
-  Symbol): attribute.class` -- the return type is whatever that symbol turns out to be: an `Int` for a `#define`,
+  Symbol): attribute.class` -- the return type is whatever that symbol turns out to be: an `Integer` for a `#define`,
   a `Spite.Class` for a type name.
 - **The naming rule is a function, not a table.** Three rules cover a whole library, and binding one more symbol
   is one more call site, never a second line. `'windows'` runs `abbreviated()` before `pascal_case()`, so
@@ -314,17 +314,17 @@ annotation or from the parameter it feeds, exactly like any other object literal
 
 ```mouse.spite
 type Input {
-    kind: UnsignedInt
-    padding: UnsignedInt
-    x_movement: Int
-    y_movement: Int
-    wheel_amount: UnsignedInt
-    event: UnsignedInt
-    time_stamp: UnsignedInt
+    kind: UnsignedInteger
+    padding: UnsignedInteger
+    x_movement: Integer
+    y_movement: Integer
+    wheel_amount: UnsignedInteger
+    event: UnsignedInteger
+    time_stamp: UnsignedInteger
     extra_information: UnsignedLong
 }
 
-func _send(event: UnsignedInt, wheel_amount: UnsignedInt) {
+func _send(event: UnsignedInteger, wheel_amount: UnsignedInteger) {
     var input: Input = {
         kind: _mouse
         padding: 0
@@ -358,7 +358,7 @@ func _send(event: UnsignedInt, wheel_amount: UnsignedInt) {
 
 | Spite | C | Cost |
 |---|---|---|
-| `Tiny`..`Long`, `Byte`..`UnsignedLong`, `Float`/`Double`, `Bool` | `int8_t`..`uint64_t`, `float`/`double`, `bool` | zero -- [Variables and values](values_and_types.md#variables-and-values--implemented)'s numeric types already are the C types |
+| `Tiny`..`Long`, `Byte`..`UnsignedLong`, `Float`/`Double`, `Boolean` | `int8_t`..`uint64_t`, `float`/`double`, `bool` | zero -- [Variables and values](values_and_types.md#variables-and-values--implemented)'s numeric types already are the C types |
 | `String` (argument) | `const char*` | zero -- every `String` buffer is already NUL terminated |
 | `String` (result) | `const char*` | one copy; Spite never frees a buffer C owns |
 | an enum value | its integer | zero |
@@ -369,13 +369,13 @@ func _send(event: UnsignedInt, wheel_amount: UnsignedInt) {
 **Argument widths** (proposed by Claude, unconfirmed; implemented 2026-09-24). With a header, a call goes through
 the header's prototype (`__typeof__(&Symbol)`), so C checks the argument count and converts each argument to its
 parameter's type; integer-to-pointer conversion is allowed, because a handle is a `Long`, and a `void` function's
-call reads as `0`. Without one, every integer-like argument (`Tiny`..`Long`, `Bool`, enum values) is passed as
+call reads as `0`. Without one, every integer-like argument (`Tiny`..`Long`, `Boolean`, enum values) is passed as
 `int64_t`, and every unsigned one as `uint64_t`: the width x64 and 64-bit ARM pass in a register or stack slot
 anyway, so a literal `0` for a 64-bit parameter no longer leaves the upper half of the register undefined.
 `Float` and `Double` pass as themselves. Left open: a `Double` where C wants `float`, and Apple ARM's stack
 arguments past the eighth, which it packs at their own width -- both need the header.
 
-**Return types.** A foreign call returns `Int` (integer/pointer width) and [Variables and values](values_and_types.md#variables-and-values--implemented)'s right-to-left casting takes
+**Return types.** A foreign call returns `Integer` (integer/pointer width) and [Variables and values](values_and_types.md#variables-and-values--implemented)'s right-to-left casting takes
 it from there. A `Double` comes back in a different register and cannot be inferred from context, so it is asked
 for by suffix -- `user32.get_scale_as_double(...)`, and `..._as_text()` for a copied `const char*` -- which is
 [Symbol codegen](metaprogramming.md#symbol-codegen--implemented)'s ordinary segment template, not a new mechanism.

@@ -17,7 +17,7 @@ func label(): String {
     return "{title} ({shelf})"
 }
 
-func is_available(): Bool {
+func is_available(): Boolean {
     assert not borrowed_by
     return true
 }

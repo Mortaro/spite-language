@@ -1,0 +1,52 @@
+func new_spelling(name: String): String {
+    var old_names = [
+        "Int"
+        "UnsignedInt"
+        "Bool"
+        "LocalDate"
+        "LocalTime"
+        "LocalDateTime"
+        "to_int"
+        "to_unsigned_int"
+        "to_bool"
+        "from_int"
+        "from_unsigned_int"
+        "from_bool"
+        "read_int"
+        "write_int"
+        "read_unsigned_int"
+        "write_unsigned_int"
+        "read_local_date"
+        "read_local_time"
+        "read_local_date_time"
+    ]
+    var new_names = [
+        "Integer"
+        "UnsignedInteger"
+        "Boolean"
+        "Date"
+        "Time"
+        "DateTime"
+        "to_integer"
+        "to_unsigned_integer"
+        "to_boolean"
+        "from_integer"
+        "from_unsigned_integer"
+        "from_boolean"
+        "read_integer"
+        "write_integer"
+        "read_unsigned_integer"
+        "write_unsigned_integer"
+        "read_date"
+        "read_time"
+        "read_date_time"
+    ]
+    var index = 0
+    while index < old_names.count() {
+        if old_names[index] == name {
+            return new_names.get_at(index)
+        }
+        index = index + 1
+    }
+    return ""
+}

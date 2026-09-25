@@ -1,10 +1,10 @@
 started
 spite> console: Console = Console {...}
-count: Int = 1
+count: Integer = 1
 label: String = counter
 spite> spite> spite> 3
 spite> increment(): Nothing
-doubled(): Int
+doubled(): Integer
 spite> 6
 spite> no attribute 'missing' in program: console, count, label
 spite> 

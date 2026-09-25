@@ -1,3 +1,3 @@
 diagnostics/memory_access/memory_access.spite:6: error: 'write_long' reads or writes the memory at an address, which only library/ does: use a class of the standard library, or 'TypedMemory<T>' for values of any type (in MemoryAccess.MemoryAccess)
 diagnostics/memory_access/memory_access.spite:7: error: 'read_long' reads or writes the memory at an address, which only library/ does: use a class of the standard library, or 'TypedMemory<T>' for values of any type (in MemoryAccess.MemoryAccess)
-diagnostics/memory_access/memory_access.spite:11: error: a Long has no function 'read_int': reading and writing memory is a function of the address, so the value needs to be a 'Memory.Address' (in MemoryAccess.MemoryAccess)
+diagnostics/memory_access/memory_access.spite:11: error: a Long has no function 'read_integer': reading and writing memory is a function of the address, so the value needs to be a 'Memory.Address' (in MemoryAccess.MemoryAccess)

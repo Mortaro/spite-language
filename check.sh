@@ -268,7 +268,7 @@ for attempt in $(seq 1 100); do
   sleep 0.2
 done
 $listening || hot_fail "the program never listened on $port"
-expect 'program.visits = 42' '{"ok":true,"value":"42","type":"Int"}'
+expect 'program.visits = 42' '{"ok":true,"value":"42","type":"Integer"}'
 sed -i 's/hello, visit {visits}/welcome back, visit {visits}/' "$hot_folder/hot_counter.spite"
 reloaded=$(ask reload)   # the watcher may swap the code in first, and then there is nothing left for reload to do
 case "$reloaded" in

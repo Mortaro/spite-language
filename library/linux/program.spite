@@ -1,10 +1,10 @@
 var library = DynamicLibrary("libc.so.6", 'identity', "")
 
-func sleep(milliseconds: Int) {
+func sleep(milliseconds: Integer) {
     library.usleep(milliseconds * 1000)
 }
 
-func exit_process(code: Int) {
+func exit_process(code: Integer) {
     library.exit(code)
 }
 

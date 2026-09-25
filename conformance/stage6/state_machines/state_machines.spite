@@ -39,25 +39,25 @@ func tag_in_expression(): String {
     return tag
 }
 
-func napped_text(milliseconds: Int): String {
+func napped_text(milliseconds: Integer): String {
     program.sleep(milliseconds)
     return "{milliseconds}"
 }
 
-func deepest_total(): Int {
-    var numbers = List<Int>()
+func deepest_total(): Integer {
+    var numbers = List<Integer>()
     numbers.append(1)
     var total = level_one(numbers, "a")
     return total + numbers.count()
 }
 
-func level_one(numbers: List<Int>, label: String): Int {
+func level_one(numbers: List<Integer>, label: String): Integer {
     var first = level_two(numbers, "{label}b")
     var second = level_two(numbers, "{label}c")
     return first + second
 }
 
-func level_two(numbers: List<Int>, label: String): Int {
+func level_two(numbers: List<Integer>, label: String): Integer {
     program.sleep(10)
     var letters = label.length()
     numbers.append(letters)
@@ -65,7 +65,7 @@ func level_two(numbers: List<Int>, label: String): Int {
     return letters * 10
 }
 
-func poll_until_ready(): Int {
+func poll_until_ready(): Integer {
     var polls = 0
     while next_tick() < 3 {
         polls = polls + 1
@@ -73,7 +73,7 @@ func poll_until_ready(): Int {
     return polls
 }
 
-func next_tick(): Int {
+func next_tick(): Integer {
     program.sleep(5)
     ticks = ticks + 1
     return ticks
@@ -99,7 +99,7 @@ func napped_five(): String {
     return "five"
 }
 
-func spawn_and_join(): Int {
+func spawn_and_join(): Integer {
     var inner = Concurrent(inner_count)
     var outer_part = napped_text(5)
     var dropped = Concurrent(napped_five)
@@ -107,7 +107,7 @@ func spawn_and_join(): Int {
     return inner + outer_part.length()
 }
 
-func inner_count(): Int {
+func inner_count(): Integer {
     program.sleep(10)
     return 41
 }

@@ -9,7 +9,7 @@ func ProvenIndexCheck() {
     console.print(from_attribute, from_parameter)
 }
 
-func attribute_prefix(path: String): Bool {
+func attribute_prefix(path: String): Boolean {
     var index = 0
     var found = false
     while not found and index < skipped.count() {
@@ -20,7 +20,7 @@ func attribute_prefix(path: String): Bool {
     return found
 }
 
-func parameter_prefix(paths: List<String>, prefix: String): Bool {
+func parameter_prefix(paths: List<String>, prefix: String): Boolean {
     var index = 0
     var found = false
     while not found and index < paths.count() {

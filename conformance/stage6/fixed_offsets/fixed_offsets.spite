@@ -18,7 +18,7 @@ func FixedOffsets() {
         console.print(zone.name, shown, offset)
         index = index + 1
     }
-    var noon = LocalDateTime(LocalDate(2024, 3, 10), LocalTime(12, 30, 0, 0))
+    var noon = DateTime(Date(2024, 3, 10), Time(12, 30, 0, 0))
     var from_india = india.to_instant(noon, 'compatible')
     var same_moment = from_india == moment
     console.print(from_india, same_moment)

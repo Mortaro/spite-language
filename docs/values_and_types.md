@@ -9,11 +9,11 @@ assignment, a function argument (toward the parameter type), and `return` (towar
 |---|---|---|---|---|
 | `Tiny` | `int8_t` | | `Byte` | `uint8_t` |
 | `Short` | `int16_t` | | `UnsignedShort` | `uint16_t` |
-| `Int` (default integer) | `int32_t` | | `UnsignedInt` | `uint32_t` |
+| `Integer` (default integer) | `int32_t` | | `UnsignedInteger` | `uint32_t` |
 | `Long` | `int64_t` | | `UnsignedLong` | `uint64_t` |
 | `Float` (default decimal) | `float` (32-bit) | | `Double` | `double` (64-bit) |
 
-An integer literal is `Int`; one too big for `Int` becomes `Long` automatically. Converting between numeric
+An integer literal is `Integer`; one too big for `Integer` becomes `Long` automatically. Converting between numeric
 types **wraps** on overflow (plain C narrowing, not a crash or a saturate):
 
 ```gdscript title=numeric_overflow/numeric_overflow.spite entry
@@ -31,11 +31,11 @@ wraps to -128
 
 ### Wider arithmetic goes wider operand first
 
-Arithmetic is done in the left side's type, and the right side is cast to it: `count * total` with an `Int`
-`count` and a `Long` `total` is an `Int` multiply. So a right side wider than the left -- more bits, or a
+Arithmetic is done in the left side's type, and the right side is cast to it: `count * total` with an `Integer`
+`count` and a `Long` `total` is an `Integer` multiply. So a right side wider than the left -- more bits, or a
 `Float`/`Double` under a whole number -- is a compile error naming the fix: write the wider one first
 (`total * count`), or, for `-`, `/` and `%`, store the left side in the wider type first. A literal on the right
-that fits the left type is fine (`small + 1` stays a `Byte` addition). A constant that overflows the `Int` its
+that fits the left type is fine (`small + 1` stays a `Byte` addition). A constant that overflows the `Integer` its
 arithmetic is done in is an error too, instead of wrapping:
 
 ```gdscript title=wider_first/wider_first.spite entry error
@@ -49,7 +49,7 @@ func WiderFirst() {
 }
 ```
 ```diagnostic
-'width * area' is a multiplication in Int, since arithmetic takes the left side's type, and the right side is a Long, which would be cut to fit: write the Long first ('area * width')
+'width * area' is a multiplication in Integer, since arithmetic takes the left side's type, and the right side is a Long, which would be cut to fit: write the Long first ('area * width')
 ```
 
 ```gdscript title=constant_overflow/constant_overflow.spite entry error
@@ -61,22 +61,22 @@ func ConstantOverflow() {
 }
 ```
 ```diagnostic
-'(65536 - 120) * 65536' is 4287102976, which does not fit in an Int, the type its arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long
+'(65536 - 120) * 65536' is 4287102976, which does not fit in an Integer, the type its arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long
 ```
 
 ### The sharp edge
 
-A comparison is not arithmetic, so it is not checked, and because casting always goes right-to-left, comparing an `Int` against a `Float` literal casts the `Float` down
-to `Int` *before* comparing -- not the mathematically obvious thing:
+A comparison is not arithmetic, so it is not checked, and because casting always goes right-to-left, comparing an `Integer` against a `Float` literal casts the `Float` down
+to `Integer` *before* comparing -- not the mathematically obvious thing:
 
 ```gdscript title=casting_edge/casting_edge.spite entry
 var console = Console()
 
 func CastingEdge() {
-    var progress: Int = 0
+    var progress: Integer = 0
     console.print("mathematically true, but", progress > -0.5)
     var price: Float = 3.0
-    var quantity: Int = 2
+    var quantity: Integer = 2
     console.print("total", price * quantity)
 }
 ```
@@ -88,26 +88,26 @@ total 6
 `0 > -0.5` is mathematically true, but `-0.5` casts toward the left side's type first: it truncates to `0`, so
 the comparison becomes `0 > 0`, which is false.
 
-Give the `Int` side a `Float`/`Double` type instead of comparing an `Int` variable directly against a
+Give the `Integer` side a `Float`/`Double` type instead of comparing an `Integer` variable directly against a
 non-integer literal, if you need the mathematical answer. (D162 settled this for arithmetic; for comparisons it
-is still [open question 3](open_questions.md#open-questions), and worth knowing before you write a comparison that mixes an `Int` and a
+is still [open question 3](open_questions.md#open-questions), and worth knowing before you write a comparison that mixes an `Integer` and a
 fractional literal.)
 
 `String` converts both ways: assigning a `String` to a numeric variable parses it (`0`/`0.0` on failure, never
-a crash), and every numeric type gets a `to_<name>()` method on `String` (`to_tiny()`, `to_int()`, `to_long()`,
+a crash), and every numeric type gets a `to_<name>()` method on `String` (`to_tiny()`, `to_integer()`, `to_long()`,
 `to_unsigned_long()`, `to_float()`, `to_double()`, ...) in `library/string.spite`; assigning text to a number
 calls the same method.
 
 ### Numbers are classes
 
-`Int`, `Long`, `Float`, `Double`, `Bool` and the rest are classes in `library/` (`library/int.spite`,
+`Integer`, `Long`, `Float`, `Double`, `Boolean` and the rest are classes in `library/` (`library/integer.spite`,
 `library/double.spite`, ...), the way `String` is. Their functions are called on a value like any class's,
 and inside one of them `this` is the number itself. Turning a number into text is `to_string()` (D107), written in Spite in
 `library/long.spite` and `library/double.spite`, and it is what `"{count}"` calls. A program reopens a number
 class the way it reopens any class ([packages.md](packages.md#monkey-patching-mods)), with a file named after it:
 
-```gdscript title=number_methods/int.spite
-func doubled(): Int {
+```gdscript title=number_methods/integer.spite
+func doubled(): Integer {
     return this * 2
 }
 ```
@@ -130,12 +130,12 @@ func NumberMethods() {
 ```
 
 A number is still a value in the emitted C (`int32_t`, `double`, ...): the class gives it functions, not a
-header, and `this` inside `Int` is that `int32_t`.
+header, and `this` inside `Integer` is that `int32_t`.
 
 **Casting is a function of the class being cast to.** Every number class has
 `func from_type(type: Symbol, value: type.class)`, a Symbol codegen function whose symbol ranges over the
-types (not the attributes) of the program: the right-to-left cast of an `Int` into a `Float` is
-`Float.from_int(value)`, of a `Long` into a `Byte` `Byte.from_long(value)`, and so on. Its body is the one
+types (not the attributes) of the program: the right-to-left cast of an `Integer` into a `Float` is
+`Float.from_integer(value)`, of a `Long` into a `Byte` `Byte.from_long(value)`, and so on. Its body is the one
 the compiler supplies -- a C cast, written inline, so a cast costs exactly what it did -- and
 `--final-classes` shows the declaration in each number class. Casting text into a number goes through
 `String`'s `to_<name>()` in the same way.
@@ -147,7 +147,7 @@ an error, because a class already reads them by name: write `name`, not `this.na
 ### Bitwise functions
 
 There are no bitwise operator symbols. Every whole-number class (`Tiny` to `UnsignedLong`, not `Float`, `Double`
-or `Bool`) answers them as functions, each compiled to the one C operation and inlined in an optimised build
+or `Boolean`) answers them as functions, each compiled to the one C operation and inlined in an optimised build
 (D117; the names are proposed by Claude, unconfirmed):
 
 | Function | Answers |
@@ -156,7 +156,7 @@ or `Bool`) answers them as functions, each compiled to the one C operation and i
 | `shifted_right(count)` | moved down: a signed type copies its sign bit in (arithmetic), an unsigned type zeros (logical) |
 | `bits_and(other)`, `bits_or(other)`, `bits_exclusive_or(other)` | the bits set in both, in either, in exactly one |
 | `bits_inverted()` | every bit flipped |
-| `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()` | how many bits are set, and how many zeros stand above the highest set bit and below the lowest, as an `Int` (the width, for 0) |
+| `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()` | how many bits are set, and how many zeros stand above the highest set bit and below the lowest, as an `Integer` (the width, for 0) |
 
 Each answers the receiver's type, and `other` is cast to it the way any argument is cast to its parameter: a
 `Byte` and a `Long` mask give a `Byte`. A shift count of the width or more moves every bit out (0, or -1 for a
@@ -189,7 +189,7 @@ func BitwiseBasics() {
 
 Immutable, length-prefixed (not a bare `char*`), reference counted. A value is placed inside written text rather
 than joined to it with `+`: `"hello {name}"`, where `{ }` holds one value of any type (every numeric type,
-`Bool`, and enum format themselves) and `\{` is a brace meant literally. Two values still join with `+`, and
+`Boolean`, and enum format themselves) and `\{` is a brace meant literally. Two values still join with `+`, and
 joining written text with `+` is an error naming the form above. `==`/`!=`/`<`/`>` compare by content.
 
 Building text a piece at a time costs what the pieces cost, not the text so far: `text = "{text}{piece}"` (or
@@ -235,9 +235,9 @@ func StringBasics() {
     console.print("parts count", parts_count)
     var joined_parts = parts.join(" - ")
     console.print("joined", joined_parts)
-    var age: Int = "42"
+    var age: Integer = "42"
     console.print("parsed", age)
-    var not_a_number = "not a number".to_int()
+    var not_a_number = "not a number".to_integer()
     console.print("bad parse", not_a_number)
 }
 ```
@@ -277,7 +277,7 @@ func Player(starting_job: Job) {
     job = starting_job
 }
 
-func is_knight(): Bool {
+func is_knight(): Boolean {
     return job == 'knight'
 }
 ```
@@ -308,7 +308,7 @@ nothing to check it against, is an error too. A `Symbol` on its own is text from
 reflection answers class and function names as symbols -- and reads as text anywhere text is expected.
 
 Text becomes an enum value by assignment, the way it becomes a number: the value spelled that way, or the enum's
-first value when there is none, as `"x"` becomes `0` for an `Int`. Compare the text back to tell the two apart:
+first value when there is none, as `"x"` becomes `0` for an `Integer`. Compare the text back to tell the two apart:
 
 ```gdscript title=enum_from_text/enum_from_text.spite entry
 enum Course {
@@ -383,22 +383,22 @@ shares a function/attribute of the same shape, it can be called directly on the 
 ```gdscript title=union_basics/player.spite
 var health = 10
 
-func Player(starting_health: Int) {
+func Player(starting_health: Integer) {
     health = starting_health
 }
 
-func is_alive(): Bool {
+func is_alive(): Boolean {
     return health > 0
 }
 ```
 ```gdscript title=union_basics/monster.spite
 var health = 6
 
-func Monster(starting_health: Int) {
+func Monster(starting_health: Integer) {
     health = starting_health
 }
 
-func is_alive(): Bool {
+func is_alive(): Boolean {
     return health > 0
 }
 ```
@@ -439,14 +439,14 @@ including a plain object literal:
 var weapon = "sword"
 var power = 5
 
-func Player(starting_power: Int) {
+func Player(starting_power: Integer) {
     power = starting_power
 }
 ```
 ```gdscript title=duck_typing/duck_typing.spite entry
 type Loadout {
     weapon: String
-    power: Int
+    power: Integer
 }
 
 var console = Console()
@@ -478,7 +478,7 @@ default, whose `.class` answers `Object`. So `var target: $target_type = null` i
 `type` holds a real object, and what is written through it stays written.
 
 A `type` may require functions as well as attributes. A required function names the types it takes and returns,
-never the names of its parameters -- `render(Int): String` -- because the name a class gives its own parameter
+never the names of its parameters -- `render(Integer): String` -- because the name a class gives its own parameter
 does not matter to the shape. Any class with a function of that signature fits, which is how a list holds "any
 class that can render" without a union naming every class in advance:
 
@@ -489,18 +489,18 @@ func Badge(new_label: String) {
     label = new_label
 }
 
-func render(width: Int): String {
+func render(width: Integer): String {
     return "[{label}] ({width})"
 }
 ```
 ```gdscript title=shape_functions_doc/banner.spite
-func render(columns: Int): String {
+func render(columns: Integer): String {
     return "== banner {columns} =="
 }
 ```
 ```gdscript title=shape_functions_doc/shape_functions_doc.spite entry
 type Renderable {
-    render(Int): String
+    render(Integer): String
 }
 
 var console = Console()
@@ -544,7 +544,7 @@ func finish() {
 ```gdscript title=shape_values_doc/shape_values_doc.spite entry
 type Work {
     name: String
-    done: Bool
+    done: Boolean
     finish()
 }
 
@@ -598,7 +598,7 @@ var target: Monster? = null
 ```
 
 - Every variable has a default value. The type is inferred from it, or annotated with `: Type`.
-- Every class has a default value (`Int` 0, `Float` 0.0, `Bool` false, `String` "", a class: its attribute defaults).
+- Every class has a default value (`Integer` 0, `Float` 0.0, `Boolean` false, `String` "", a class: its attribute defaults).
   Operations that cannot succeed produce the default instead of crashing -- except reading with `[]`, which
   answers `T?` (D64): an index or key that may not be there is a value that may be null, narrowed like any other.
 - `null` exists only as the empty state of `T?`. See [Open questions](open_questions.md#open-questions) for `= null` on other types.
@@ -625,61 +625,64 @@ var content = content.trim()     # String
 There is no cast syntax. The right side is always cast toward the left side.
 
 ```gdscript
-func whole_part(value: Float): Int {
-    return value        # value is cast to Int
+func whole_part(value: Float): Integer {
+    return value        # value is cast to Integer
 }
 ```
 
 This applies to binary operations, assignment, arguments (toward the parameter type) and `return` (toward the return type).
 
 **Wider arithmetic is written wider operand first** (D162, decided by Mortaro; the errors below proposed by
-Claude, unconfirmed). **[implemented]** `Int * Long` is an `Int` multiply and `Long * Int` a `Long` one, so an
+Claude, unconfirmed). **[implemented]** `Integer * Long` is an `Integer` multiply and `Long * Integer` a `Long` one, so an
 arithmetic operator (`+`, `-`, `*`, `/`, `%`) whose right operand is wider than its left is a compile error that
-names the rule and the fix: `'count * total' is a multiplication in Int, since arithmetic takes the left side's
+names the rule and the fix: `'count * total' is a multiplication in Integer, since arithmetic takes the left side's
 type, and the right side is a Long, which would be cut to fit: write the Long first ('total * count'), or store the
-right side in an Int first if it fits one` (for `-`, `/` and `%`, where order matters, the fix is to store the left
+right side in an Integer first if it fits one` (for `-`, `/` and `%`, where order matters, the fix is to store the left
 side in the wider type first). Wider means more bits (`Tiny`/`Byte` 8, `Short`/`UnsignedShort` 16,
-`Int`/`UnsignedInt`/`Float` 32, `Long`/`UnsignedLong`/`Double`/`Memory.Address` 64), or a `Float`/`Double` right side under a whole
+`Integer`/`UnsignedInteger`/`Float` 32, `Long`/`UnsignedLong`/`Double`/`Memory.Address` 64), or a `Float`/`Double` right side under a whole
 number left side, which would lose its fraction; signedness alone is not wider. An integer literal on the right
 that fits the left type is not wider (`small + 1` with a `Byte` `small` is a `Byte` addition). A comparison is not
-arithmetic and is not checked: it still casts the right side toward the left, so `age > 0.5` with an `Int` `age`
-means `age > 0` (open question 3). A constant expression that overflows the `Int` its arithmetic is done in is an
-error too, naming its value: `'(65536 - 120) * 65536' is 4287102976, which does not fit in an Int, the type its
+arithmetic and is not checked: it still casts the right side toward the left, so `age > 0.5` with an `Integer` `age`
+means `age > 0` (open question 3). A constant expression that overflows the `Integer` its arithmetic is done in is an
+error too, naming its value: `'(65536 - 120) * 65536' is 4287102976, which does not fit in an Integer, the type its
 arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long`.
 `diagnostics/wider_right_operand`.
 
 **Text casts to an enum by its name** (proposed by Claude, unconfirmed; built for D95's `Json`, 2026-09-24):
 `var course: Recipe.Course = name` is the value spelled `name`, or the enum's first value when none is, exactly as
-text that does not parse becomes `0` for an `Int`. Compare `"{course}" == name` to tell the two apart. **[implemented]**
+text that does not parse becomes `0` for an `Integer`. Compare `"{course}" == name` to tell the two apart. **[implemented]**
 
 #### Numeric types  **[implemented, PROVISIONAL]**
 
 All the basic types a language has, with written names (decided 2026-09-19:
-"never `u64`"). **(proposed by Claude, unconfirmed: the exact width mapping below.)**
+"never `u64`"), and never abbreviated (D122): `Integer`, `UnsignedInteger` and `Boolean`, not `Int` and `Bool`,
+with every name built from them following (`to_integer()`, `read_unsigned_integer`, `library/integer.spite`).
+The old spelling is an error that names the new one: `'Int' is spelled 'Integer'`.
+**(proposed by Claude, unconfirmed: the exact width mapping below.)**
 
 | Type | C type | Notes |
 |---|---|---|
 | `Tiny` | `int8_t` | |
 | `Short` | `int16_t` | |
-| `Int` | `int32_t` | the default integer type |
+| `Integer` | `int32_t` | the default integer type |
 | `Long` | `int64_t` | |
 | `Byte` | `uint8_t` | |
 | `UnsignedShort` | `uint16_t` | |
-| `UnsignedInt` | `uint32_t` | |
+| `UnsignedInteger` | `uint32_t` | |
 | `UnsignedLong` | `uint64_t` | |
 | `Float` | `float` (32-bit) | the default decimal type |
 | `Double` | `double` (64-bit) | |
 
-An integer literal defaults to `Int`; one too large to fit becomes a `Long` instead. A decimal literal
+An integer literal defaults to `Integer`; one too large to fit becomes a `Long` instead. A decimal literal
 defaults to `Float`. All of them follow the same right-side-casts-toward-left-side rule as everything else
-(`var tiny: Tiny = some_int_variable` narrows with an ordinary cast); converting between two numeric types
+(`var tiny: Tiny = some_integer_variable` narrows with an ordinary cast); converting between two numeric types
 wraps on overflow (an out-of-range value assigned into a narrower type keeps its low bits, the same as a plain
 C cast) rather than crashing or saturating. `List<T>`, `Dictionary<T>`, `T?`, and generics all work
 with every numeric type; so does `String` conversion both ways -- casting a `String` to any numeric type by
-assignment parses it (defaulting to `0`/`0.0` on failure, like `Int`/`Float` always did), and `String` gains
-one `to_<name>()` method per type (`to_tiny()`, `to_short()`, `to_int()`, `to_long()`, `to_byte()`,
-`to_unsigned_short()`, `to_unsigned_int()`, `to_unsigned_long()`, `to_float()`, `to_double()`) alongside the
-existing `to_int()`/`to_float()`. `count()`, `length()`, and `index_of()` always return `Int`, never a wider
+assignment parses it (defaulting to `0`/`0.0` on failure, like `Integer`/`Float` always did), and `String` gains
+one `to_<name>()` method per type (`to_tiny()`, `to_short()`, `to_integer()`, `to_long()`, `to_byte()`,
+`to_unsigned_short()`, `to_unsigned_integer()`, `to_unsigned_long()`, `to_float()`, `to_double()`) alongside the
+existing `to_integer()`/`to_float()`. `count()`, `length()`, and `index_of()` always return `Integer`, never a wider
 type.
 
 Printing a `Float`/`Double` uses shortest-round-trip formatting (try the fewest significant digits that parse
@@ -692,34 +695,34 @@ confirmed by Mortaro; revisit if a different mapping is wanted.
 
 #### Numbers are classes, and `this`  **[implemented]**
 
-D83 (decided by Mortaro, 2026-09-24): every type in the table above, and `Bool`, is a class in `library/`
-(`library/int.spite`, `library/double.spite`, ...), the way `String` is. A number is still a plain C value in
-the emitted code -- the class gives it functions, not a header -- and a function of `Int` receives its `int32_t`
-as the receiver. Inside it, **`this`** is that value: `func doubled(): Int { return this * 2 }`, and
+D83 (decided by Mortaro, 2026-09-24): every type in the table above, and `Boolean`, is a class in `library/`
+(`library/integer.spite`, `library/double.spite`, ...), the way `String` is. A number is still a plain C value in
+the emitted code -- the class gives it functions, not a header -- and a function of `Integer` receives its `int32_t`
+as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer { return this * 2 }`, and
 `count.doubled()` calls it. A number class is reopened like any other ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)), by a file named after it.
 
 - **Writing a number as text is its `to_string()`** (D107, decided by Mortaro: converting to text is a cast like
-  `to_int()`), in Spite: `Long.to_string()` writes the digits, `Double.to_string()` is the
+  `to_integer()`), in Spite: `Long.to_string()` writes the digits, `Double.to_string()` is the
   shortest-round-trip formatting above (over the digit arithmetic in `library/number_text.spite`), and the
-  smaller types widen and call `Long.to_string()`. `Bool.to_string()` answers `"true"` or `"false"`.
+  smaller types widen and call `Long.to_string()`. `Boolean.to_string()` answers `"true"` or `"false"`.
   Interpolation (`"{count}"`) and `+` onto a `String` call it. Printing an integer with
   `console.print` is written straight to the stream by the compiler, with the same digits (proposed by Claude,
   unconfirmed: a hidden optimisation, D36).
 - **Casting is a function of the class cast to** (D100, decided by Mortaro): each number class has
   `func from_type(type: Symbol, value: type.class)`, a Symbol codegen function whose symbol ranges over the
-  program's types, so the right-to-left cast of an `Int` into a `Float` is `Float.from_int(value)`. Its body is
+  program's types, so the right-to-left cast of an `Integer` into a `Float` is `Float.from_integer(value)`. Its body is
   the compiler's (a C cast, emitted inline, so a cast costs what it did), and `--final-classes` prints the
   declaration in every number class. `type` may name a parameter and begin a type path for this, although it is
   a keyword elsewhere (proposed by Claude, unconfirmed).
 - **Bitwise operations are functions of the whole-number classes** (D117, decided by Mortaro; the names and the
-  rules below proposed by Claude, unconfirmed). `Tiny`, `Short`, `Int`, `Long`, `Byte`, `UnsignedShort`,
-  `UnsignedInt` and `UnsignedLong` each answer `shifted_left(count: Int)`, `shifted_right(count: Int)`,
+  rules below proposed by Claude, unconfirmed). `Tiny`, `Short`, `Integer`, `Long`, `Byte`, `UnsignedShort`,
+  `UnsignedInteger` and `UnsignedLong` each answer `shifted_left(count: Integer)`, `shifted_right(count: Integer)`,
   `bits_and(other)`, `bits_or(other)`, `bits_exclusive_or(other)` and `bits_inverted()`, all returning the
-  receiver's type, and `set_bit_count()`, `leading_zero_count()` and `trailing_zero_count()`, returning an `Int`
+  receiver's type, and `set_bit_count()`, `leading_zero_count()` and `trailing_zero_count()`, returning an `Integer`
   (the width for 0). There are no operator symbols for them. They are bodiless declarations the compiler
   supplies (D82), so `--final-classes` prints them in each class, and each body is the single C operation,
   inlined in an optimised build. The rules, so no undefined C behaviour reaches a program:
-  - `shifted_right` is **arithmetic on a signed type** (the sign bit is copied in: an `Int` -20 shifted right by 2
+  - `shifted_right` is **arithmetic on a signed type** (the sign bit is copied in: an `Integer` -20 shifted right by 2
     is -5) and **logical on an unsigned one** (zeros come in). `shifted_left` always brings zeros in, and a bit
     moved past the top is lost, so the result wraps like any narrowing (a `Tiny` 1 shifted left by 7 is -128).
   - **A count of the width or more shifts every bit out**: the answer is 0, or -1 for a negative signed value
@@ -727,9 +730,9 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Int { ret
     (`spite: UnsignedShort.shifted_right was given the count -2, and a shift count is 0 or more`).
   - **The other operand is cast to the receiver's type**, the ordinary argument-to-parameter cast: a `Byte`'s
     `bits_and` of a `Long` keeps the `Long`'s low 8 bits and answers a `Byte`; a `Long`'s `bits_and` of a `Byte`
-    widens the `Byte`. The count is an `Int`. This does not settle `mortaros_missing_decisions.md` item 88
+    widens the `Byte`. The count is an `Integer`. This does not settle `mortaros_missing_decisions.md` item 88
     (which operand's type arithmetic takes).
-  - Called on `Float`, `Double` or `Bool`, they are an error naming the whole numbers
+  - Called on `Float`, `Double` or `Boolean`, they are an error naming the whole numbers
     (`diagnostics/bitwise_on_float`). `conformance/stage6/bitwise_functions` and `negative_shift` pin them.
 - **`this` works in every class** (proposed by Claude, unconfirmed): it is the instance a function answers on,
   for handing itself to something -- `registry.append(this)`. Reading your own member through it is an error,
@@ -818,7 +821,7 @@ union Enemy {
     Monster
 }
 
-func attack(enemy: Enemy): Bool {
+func attack(enemy: Enemy): Boolean {
     switch enemy {
         Player: enemy.hurt()
         Monster: enemy.die()
@@ -848,7 +851,7 @@ by the test itself, so a value read back from a `Dictionary<AnyStorage>` can be 
 has stored one (`conformance/stage6/generic_class_test`).
 **A codegen value bound to a class is a class test too** (D123's request; the readings proposed by Claude,
 unconfirmed, 2026-09-25): inside `Fetch<$wanted_type>`, `if item == $wanted_type { found = item }` narrows `item`
-to the bound class, as `if item == Health` would. A binding that is a number, `Bool` or enum tests for its boxed
+to the bound class, as `if item == Health` would. A binding that is a number, `Boolean` or enum tests for its boxed
 class, since that is what such a value is inside a `type` (D109), and the narrowed name is the plain value again;
 `String`, a `List` or a `Dictionary` test for their own classes. Where the value's static type already answers,
 the test is decided while compiling instead: a `Health` against `$wanted_type` bound to `Health` is `true`, bound
@@ -858,7 +861,7 @@ null. A binding that is a `type` or a union is no class, so it is still "'$wante
 (`conformance/stage6/codegen_class_test`).
 **So a switch that is one early return is an error** (`diagnostics/switch_single_case`): one class case and
 `_:`, each a single `return`, is `if value == Class { return ... }` followed by what `_:` returns -- and when both
-return `Bool` literals it is `return value == Class` (or `!=`). In Mortaro's words, code that can be written
+return `Boolean` literals it is `return value == Class` (or `!=`). In Mortaro's words, code that can be written
 simpler with no cost to reading is made to be, but a one-liner nobody can read back is not the goal. Anything
 that would need an `else` stays a switch, and so does a switch with more cases: `_:` narrows to each remaining
 member (D60), which an `else` cannot.
@@ -876,7 +879,7 @@ func find_target(): Monster? {
 ```
 
 `Monster?` *is* `union { Monster, Null }` -- `Null` is an ordinary class whose only value is the literal `null`,
-the way `true` and `false` are the values of `Bool`. That is the point of the change: nullability stops being a
+the way `true` and `false` are the values of `Boolean`. That is the point of the change: nullability stops being a
 special case in the compiler and becomes a union like any other. `switch target { Monster: ... Null: ... }`
 works because it is a switch over a union; `assert`, `crash` and `if` narrow it because union narrowing
 already exists; and the pile of `Nullable<T>` exceptions collapses into rules the language already had.

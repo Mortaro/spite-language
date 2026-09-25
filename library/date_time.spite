@@ -1,0 +1,39 @@
+var _date = Date(1970, 1, 1)
+var _time = Time(0, 0, 0, 0)
+
+func DateTime(date: Date, time: Time) {
+    _date = date
+    _time = time
+}
+
+func get_date(): Date {
+    return _date
+}
+
+func get_time(): Time {
+    return _time
+}
+
+func sum(period: Period): DateTime {
+    var date = _date + period
+    return DateTime(date, _time)
+}
+
+func equals(other: DateTime): Boolean {
+    return _date == other._date and _time == other._time
+}
+
+func less_than(other: DateTime): Boolean {
+    if _date != other._date {
+        return _date < other._date
+    }
+    return _time < other._time
+}
+
+func greater_than(other: DateTime): Boolean {
+    return other.less_than(this)
+}
+
+func to_string(): String {
+    return "{_date}T{_time}"
+}

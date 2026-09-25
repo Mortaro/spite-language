@@ -5,7 +5,7 @@ union Enemy {
 
 type Loadout {
     weapon: String
-    power: Int
+    power: Integer
 }
 
 var console = Console()

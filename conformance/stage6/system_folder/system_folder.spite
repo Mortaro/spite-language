@@ -9,7 +9,7 @@ func SystemFolder() {
     schedule.tick()
 }
 
-func spawn_potion(text: String, amount: Int) {
+func spawn_potion(text: String, amount: Integer) {
     var entity = world.spawn()
     var healing = Component.Healing()
     healing.amount = amount
@@ -18,7 +18,7 @@ func spawn_potion(text: String, amount: Int) {
     label(entity, text)
 }
 
-func spawn_patient(text: String, amount: Int) {
+func spawn_patient(text: String, amount: Integer) {
     var entity = world.spawn()
     var health = Component.Health()
     health.amount = amount
@@ -27,7 +27,7 @@ func spawn_patient(text: String, amount: Int) {
     label(entity, text)
 }
 
-func label(entity: Int, text: String) {
+func label(entity: Integer, text: String) {
     var label_component = Component.Label()
     label_component.text = text
     var labels = Store<Component.Label>()

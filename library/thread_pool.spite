@@ -11,12 +11,12 @@ var work_ready: Long = 0
 var work_done: Long = 0
 var stopping = false
 
-func size(): Int {
+func size(): Integer {
     start()
     return worker_count
 }
 
-func worker_index(): Int {
+func worker_index(): Integer {
     if worker_count == 0 {
         return -1
     }
@@ -30,7 +30,7 @@ func worker_index(): Int {
     return index
 }
 
-func submit(job: Spite.Function<Int, Int, Nothing>, first: Int, end: Int, state: Memory.Address) {
+func submit(job: Spite.Function<Integer, Integer, Nothing>, first: Integer, end: Integer, state: Memory.Address) {
     start()
     state.write_long_atomically(0, 0)
     var queued = ThreadPoolJob()
@@ -44,7 +44,7 @@ func submit(job: Spite.Function<Int, Int, Nothing>, first: Int, end: Int, state:
     unlock_queue()
 }
 
-func is_done(state: Memory.Address): Bool {
+func is_done(state: Memory.Address): Boolean {
     return state.read_long_atomically(0) == 2
 }
 
@@ -63,7 +63,7 @@ func join(state: Memory.Address) {
     unlock_queue()
 }
 
-func run_pieces(piece: Spite.Function<Int, Int, Nothing>, count: Int) {
+func run_pieces(piece: Spite.Function<Integer, Integer, Nothing>, count: Integer) {
     var pieces = (size() + 1) * 4
     if pieces > count {
         pieces = count
@@ -92,7 +92,7 @@ func run_pieces(piece: Spite.Function<Int, Int, Nothing>, count: Int) {
     heap.free(block)
 }
 
-func piece_start(index: Int, base: Int, extra: Int): Int {
+func piece_start(index: Integer, base: Integer, extra: Integer): Integer {
     if index < extra {
         return index * base + index
     }
@@ -138,7 +138,7 @@ func _serve() {
     unlock_queue()
 }
 
-func run_queued(position: Int) {
+func run_queued(position: Integer) {
     var job = jobs.get_at(position)
     jobs.remove_at(position)
     job.state.write_long_atomically(0, 1)

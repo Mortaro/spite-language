@@ -1,5 +1,5 @@
 type NearestType {
-    amount: Int
+    amount: Integer
 }
 
 var console = Console()

@@ -15,7 +15,7 @@ func now(): Instant {
     return Instant(whole + part)
 }
 
-func read_clock(clock: Int): Long {
+func read_clock(clock: Integer): Long {
     var time = heap.allocate(16)
     library.clock_gettime(clock, time)
     var seconds = time.read_long(0)

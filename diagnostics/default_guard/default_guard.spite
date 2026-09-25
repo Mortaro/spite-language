@@ -16,14 +16,14 @@ func DefaultGuard() {
     checked(5)
 }
 
-func is_open(): Bool {
+func is_open(): Boolean {
     if handle == -1 {
         return false
     }
     return true
 }
 
-func first_code(text: String): Int {
+func first_code(text: String): Integer {
     if text.is_empty() {
         return 0
     }
@@ -37,14 +37,14 @@ func ratio(divisor: Float): Float {
     return 1.0 / divisor
 }
 
-func label(ready: Bool): String {
+func label(ready: Boolean): String {
     if not ready {
         return ""
     }
     return "ready"
 }
 
-func find_name(missing: Bool): String? {
+func find_name(missing: Boolean): String? {
     var name: String? = "kal"
     if missing {
         return null
@@ -55,7 +55,7 @@ func find_name(missing: Bool): String? {
     return name
 }
 
-func send(count: Int, limit: Int): Bool {
+func send(count: Integer, limit: Integer): Boolean {
     if count < 0 or count > limit {
         return false
     }
@@ -65,7 +65,7 @@ func send(count: Int, limit: Int): Bool {
     return true
 }
 
-func real_answers(value: Int): Int {
+func real_answers(value: Integer): Integer {
     if value < 0 {
         return -1
     }
@@ -75,7 +75,7 @@ func real_answers(value: Int): Int {
     return value
 }
 
-func walk(steps: Int): Int {
+func walk(steps: Integer): Integer {
     var index = 0
     while index < steps {
         if index > 2 {
@@ -86,7 +86,7 @@ func walk(steps: Int): Int {
     return index
 }
 
-func checked(value: Int) {
+func checked(value: Integer) {
     if value > 3 {
         console.print("big")
     } else if value < 0 {
@@ -95,7 +95,7 @@ func checked(value: Int) {
     console.print(value)
 }
 
-func kept_count(first: Bool, second: Bool, third: Bool): Int {
+func kept_count(first: Boolean, second: Boolean, third: Boolean): Integer {
     if first and second or not third {
         return 0
     }

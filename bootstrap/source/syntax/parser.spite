@@ -25,7 +25,7 @@ func current_kind(): TokenKind {
     return tokens[position].kind
 }
 
-func check(kind: TokenKind): Bool {
+func check(kind: TokenKind): Boolean {
     return current_kind() == kind
 }
 
@@ -82,7 +82,7 @@ func skip_trivia() {
     }
 }
 
-func at_statement_end(): Bool {
+func at_statement_end(): Boolean {
     return check('newline') or check('right_brace') or check('end_of_file') or check('comment')
 }
 
@@ -133,7 +133,7 @@ func parse_file(): Syntax.SourceFile {
     return Syntax.SourceFile(parsed_top_level_statements)
 }
 
-func is_declaration(statement: Syntax.Statements.Statement): Bool {
+func is_declaration(statement: Syntax.Statements.Statement): Boolean {
     switch statement {
         Syntax.Statements.SingletonDeclaration: return true
         Syntax.Statements.GenericDeclaration: return true
@@ -182,7 +182,7 @@ func parse_top_level_statement(): Syntax.Statements.Statement {
     return declaration
 }
 
-func at_singleton_line(): Bool {
+func at_singleton_line(): Boolean {
     assert check('identifier') and current().lexeme == "singleton"
     var following = next_kind()
     return following == 'newline' or following == 'end_of_file' or following == 'comment'
@@ -259,7 +259,7 @@ func parse_interpolation(hole: Token): Syntax.Expressions.Expression {
     return value
 }
 
-func at_end_of_tokens(): Bool {
+func at_end_of_tokens(): Boolean {
     skip_trivia()
     return check('end_of_file')
 }
@@ -469,7 +469,7 @@ func parse_function_declaration(): Syntax.Statements.Statement {
     return Syntax.Statements.FunctionDeclaration(name.text, parameters, return_type, body)
 }
 
-func is_list_type(type_reference: Syntax.Types.Type): Bool {
+func is_list_type(type_reference: Syntax.Types.Type): Boolean {
     var named = shape.as_named_type(type_reference)
     if named {
         return named.path.count() == 1 and named.path.join("") == "List" and named.arguments.count() == 1
@@ -763,7 +763,7 @@ func parse_crash_statement(): Syntax.Statements.Statement {
     return statement
 }
 
-func source_text_between(first_token: Int, after_last_token: Int): String {
+func source_text_between(first_token: Integer, after_last_token: Integer): String {
     var text = ""
     var index = first_token
     while index < after_last_token {
@@ -782,7 +782,7 @@ func source_text_between(first_token: Int, after_last_token: Int): String {
     return text
 }
 
-func same_place(token: Token, other: Token): Bool {
+func same_place(token: Token, other: Token): Boolean {
     return token.line == other.line and token.column == other.column
 }
 
@@ -873,7 +873,7 @@ func parse_type_without_suffix(): Syntax.Types.Type {
     return parse_type_path(path)
 }
 
-func parse_dotted_segment(path: List<String>): Bool {
+func parse_dotted_segment(path: List<String>): Boolean {
     assert check('dot')
     advance()
     if check('identifier') {
@@ -996,12 +996,12 @@ func try_parse_generic_argument_quiet(): Syntax.Types.GenericArgument? {
     }
     if check('keyword_true') {
         advance()
-        var argument: Syntax.Types.GenericArgument = Syntax.Types.BoolArgument(true)
+        var argument: Syntax.Types.GenericArgument = Syntax.Types.BooleanArgument(true)
         return argument
     }
     if check('keyword_false') {
         advance()
-        var argument: Syntax.Types.GenericArgument = Syntax.Types.BoolArgument(false)
+        var argument: Syntax.Types.GenericArgument = Syntax.Types.BooleanArgument(false)
         return argument
     }
     var type_result = try_parse_type_quiet()
@@ -1075,7 +1075,7 @@ func parse_expression(): Syntax.Expressions.Expression {
     return value
 }
 
-func binary_operator_precedence(kind: TokenKind): Int {
+func binary_operator_precedence(kind: TokenKind): Integer {
     if kind == 'keyword_or' {
         return 1
     }
@@ -1137,14 +1137,14 @@ func binary_operator_for(kind: TokenKind): Syntax.Expressions.BinaryOperator {
     return 'modulo'
 }
 
-func parse_binary_expression(minimum_precedence: Int): Syntax.Expressions.Expression {
+func parse_binary_expression(minimum_precedence: Integer): Syntax.Expressions.Expression {
     var parsed_unary = parse_unary()
     return parse_binary_expression_rest(parsed_unary, minimum_precedence)
 }
 
 func parse_binary_expression_rest(
     left: Syntax.Expressions.Expression,
-    minimum_precedence: Int,
+    minimum_precedence: Integer,
 ): Syntax.Expressions.Expression {
     var kind = current_kind()
     var precedence = binary_operator_precedence(kind)

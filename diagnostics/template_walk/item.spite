@@ -2,7 +2,7 @@ var name = "apple"
 var price = 3
 var in_stock = true
 
-func Item(item_name: String, item_price: Int, stocked: Bool) {
+func Item(item_name: String, item_price: Integer, stocked: Boolean) {
     name = item_name
     price = item_price
     in_stock = stocked

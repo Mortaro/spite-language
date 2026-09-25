@@ -1,1 +1,1 @@
-diagnostics/number_memory_read/int.spite:2: error: '_memory' is the memory Int is kept in, and the compiler keeps the value itself there: write 'this' (in Int.doubled)
+diagnostics/number_memory_read/integer.spite:2: error: '_memory' is the memory Integer is kept in, and the compiler keeps the value itself there: write 'this' (in Integer.doubled)

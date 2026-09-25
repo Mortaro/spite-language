@@ -9,6 +9,6 @@ func render(): String {
     return "[{label} x{width}]"
 }
 
-func resize(factor: Int) {
+func resize(factor: Integer) {
     width = width * factor
 }

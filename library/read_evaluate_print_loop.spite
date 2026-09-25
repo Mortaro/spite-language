@@ -1,5 +1,5 @@
 type Answer {
-    succeeded: Bool
+    succeeded: Boolean
     text: String
     class_name: String
 }
@@ -15,7 +15,7 @@ var pending_command = ""
 var answered: Answer? = null
 var served: Spite.Attribute? = null
 
-func step(program: Spite.Attribute): Bool {
+func step(program: Spite.Attribute): Boolean {
     console.write("spite> ")
     var line = console.read_line()
     if line {
@@ -32,7 +32,7 @@ func step(program: Spite.Attribute): Bool {
     return false
 }
 
-func listen_in_background(port: Int, entry: Long) {
+func listen_in_background(port: Integer, entry: Long) {
     if not server.listen_locally(port) {
         console.error("error: the REPL could not listen on 127.0.0.1:{port}")
         var program = Program()
@@ -162,7 +162,7 @@ func json_text(text: String): String {
     return pieces.join("")
 }
 
-func json_escape(code: Int): String {
+func json_escape(code: Integer): String {
     if code == 34 {
         return "\\\""
     }
@@ -250,7 +250,7 @@ func reloaded(command: String): Answer {
     )
 }
 
-func is_assignment(command: String): Bool {
+func is_assignment(command: String): Boolean {
     var equals = command.index_of("=")
     var opening = command.index_of("(")
     return equals >= 0 and (opening < 0 or equals < opening)
@@ -293,14 +293,14 @@ func path_of(text: String): List<String> {
     return path
 }
 
-func resolve(current: Spite.Attribute, path: List<String>, index: Int): Spite.Attribute? {
+func resolve(current: Spite.Attribute, path: List<String>, index: Integer): Spite.Attribute? {
     if index < path.count() {
         return resolve_child(current, path, index)
     }
     return current
 }
 
-func resolve_child(current: Spite.Attribute, path: List<String>, index: Int): Spite.Attribute? {
+func resolve_child(current: Spite.Attribute, path: List<String>, index: Integer): Spite.Attribute? {
     assert index < path.count()
     var children = current.value_attributes()
     var names = List<String>()
@@ -349,12 +349,12 @@ func text_of(attribute: Spite.Attribute): String {
     return attribute.value.to_string()
 }
 
-func held_count(attribute: Spite.Attribute): Int {
+func held_count(attribute: Spite.Attribute): Integer {
     var held = attribute.value_attributes()
     return held.count()
 }
 
-func shown(attribute: Spite.Attribute, nested: Bool): String {
+func shown(attribute: Spite.Attribute, nested: Boolean): String {
     var kind = kind_of(attribute)
     var class_name: String = attribute.class.name
     if kind == "list" or kind == "dictionary" {
@@ -394,7 +394,7 @@ func literal_text(literal: String, class_name: String): String? {
         }
         return null
     }
-    if class_name == "Bool" {
+    if class_name == "Boolean" {
         if literal == "true" {
             return "1"
         }
@@ -422,12 +422,12 @@ func literal_text(literal: String, class_name: String): String? {
     return null
 }
 
-func is_whole_class(class_name: String): Bool {
-    var wholes = ["Int", "Long", "Tiny", "Short", "Byte", "UnsignedShort", "UnsignedInt", "UnsignedLong"]
+func is_whole_class(class_name: String): Boolean {
+    var wholes = ["Integer", "Long", "Tiny", "Short", "Byte", "UnsignedShort", "UnsignedInteger", "UnsignedLong"]
     return wholes.contains(class_name)
 }
 
-func is_number(literal: String, fraction: Bool): Bool {
+func is_number(literal: String, fraction: Boolean): Boolean {
     var index = 0
     if literal.starts_with("-") {
         index = 1
@@ -509,7 +509,7 @@ func call(command: String, program: Spite.Attribute): Answer {
     }
     var kind = kind_of(owner)
     if name == "count" and literals.is_empty() and (kind == "list" or kind == "dictionary") {
-        return success("{held_count(owner)}", "Int")
+        return success("{held_count(owner)}", "Integer")
     }
     var attributes = owner.value_attributes()
     index = 0
@@ -545,7 +545,7 @@ func call_found(function: Spite.Function, literals: List<String>): Answer {
     var result = function.call_with_text(texts)
     if not result {
         return failure(
-            "'{function.name}' cannot take ({literals.join(", ")}): the loop writes numbers, Bool, text and an enum's own values",
+            "'{function.name}' cannot take ({literals.join(", ")}): the loop writes numbers, Boolean, text and an enum's own values",
         )
     }
     crash result

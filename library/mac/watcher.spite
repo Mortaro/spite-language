@@ -1,18 +1,18 @@
 var library = DynamicLibrary("libSystem.dylib", 'identity', "")
 var queue = -1
-var descriptors = List<Int>()
+var descriptors = List<Integer>()
 var paths = List<String>()
-var is_folders = List<Bool>()
+var is_folders = List<Boolean>()
 
-func watch_folder(path: String): Bool {
+func watch_folder(path: String): Boolean {
     return add_folder(path, false)
 }
 
-func watch_file(path: String): Bool {
+func watch_file(path: String): Boolean {
     return add_entry(path, false)
 }
 
-func add_folder(path: String, report_files: Bool): Bool {
+func add_folder(path: String, report_files: Boolean): Boolean {
     var added = add_entry(path, true)
     assert added
     var directory = Directory(path)
@@ -38,7 +38,7 @@ func add_folder(path: String, report_files: Bool): Bool {
     return true
 }
 
-func add_entry(path: String, is_folder: Bool): Bool {
+func add_entry(path: String, is_folder: Boolean): Boolean {
     if queue == -1 {
         queue = library.kqueue()
     }
@@ -49,7 +49,7 @@ func add_entry(path: String, is_folder: Bool): Bool {
     change.write_long(0, opened)
     change.write_short(8, -4)
     change.write_unsigned_short(10, 33)
-    change.write_int(12, 47)
+    change.write_integer(12, 47)
     change.write_long(16, 0)
     change.write_long(24, 0)
     var no_value: Long = 0
@@ -70,14 +70,14 @@ func collect() {
     var no_value: Long = 0
     while library.kevent(queue, no_value, 0, event, 1, no_wait) > 0 {
         var descriptor = event.read_long(0)
-        var flags = event.read_int(12)
+        var flags = event.read_integer(12)
         note_event(descriptor, flags)
     }
     heap.free(event)
     heap.free(no_wait)
 }
 
-func note_event(descriptor: Long, flags: Int) {
+func note_event(descriptor: Long, flags: Integer) {
     var index = 0
     var found = -1
     while index < descriptors.count() {
@@ -146,7 +146,7 @@ func wait_for_event(milliseconds: Long) {
     var ready = library.kevent(queue, no_value, 0, event, 1, waiting)
     if ready > 0 {
         var descriptor = event.read_long(0)
-        var flags = event.read_int(12)
+        var flags = event.read_integer(12)
         note_event(descriptor, flags)
     }
     heap.free(event)

@@ -1,5 +1,5 @@
 var _serial = 7
 
-func serial(): Int {
+func serial(): Integer {
     return _serial
 }

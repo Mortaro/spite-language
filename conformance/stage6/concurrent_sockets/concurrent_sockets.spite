@@ -11,7 +11,7 @@ func ConcurrentSockets() {
     server.close()
 }
 
-func serve_two(): Int {
+func serve_two(): Integer {
     var served = 0
     while served < 2 {
         var client = server.accept_client()

@@ -1,14 +1,14 @@
 func test_a_missing_key_is_null() {
-    var ages = Dictionary<Int>()
+    var ages = Dictionary<Integer>()
     var missing = ages.get("nobody")
     switch missing {
-        Int: crash
+        Integer: crash
         Null: crash ages.count() == 0
     }
 }
 
 func test_set_replaces_a_value() {
-    var ages = Dictionary<Int>()
+    var ages = Dictionary<Integer>()
     ages.set("ada", 36)
     ages.set("ada", 37)
     crash ages.count() == 1
@@ -16,21 +16,21 @@ func test_set_replaces_a_value() {
 }
 
 func test_keys_keep_insertion_order() {
-    var ages = Dictionary<Int>()
+    var ages = Dictionary<Integer>()
     ages.set("grace", 85)
     ages.set("ada", 36)
     crash ages.keys().join(",") == "grace,ada"
 }
 
 func test_remove_forgets_the_key() {
-    var ages = Dictionary<Int>()
+    var ages = Dictionary<Integer>()
     ages.set("ada", 36)
     ages.remove("ada")
     crash not ages.has("ada")
 }
 
 func test_growth_keeps_every_key_and_its_order() {
-    var squares = Dictionary<Int>()
+    var squares = Dictionary<Integer>()
     var index = 0
     while index < 1000 {
         squares.set("number {index}", index * index)
@@ -49,7 +49,7 @@ func test_growth_keeps_every_key_and_its_order() {
 }
 
 func test_removal_keeps_the_order_of_the_rest() {
-    var ages = Dictionary<Int>()
+    var ages = Dictionary<Integer>()
     ages.set("grace", 85)
     ages.set("ada", 36)
     ages.set("alan", 41)
@@ -62,7 +62,7 @@ func test_removal_keeps_the_order_of_the_rest() {
 }
 
 func test_a_removed_key_comes_back_at_the_end() {
-    var ages = Dictionary<Int>()
+    var ages = Dictionary<Integer>()
     ages.set("grace", 85)
     ages.set("ada", 36)
     ages.set("alan", 41)
@@ -74,7 +74,7 @@ func test_a_removed_key_comes_back_at_the_end() {
 }
 
 func test_many_removals_and_insertions_stay_consistent() {
-    var numbers = Dictionary<Int>()
+    var numbers = Dictionary<Integer>()
     var index = 0
     while index < 500 {
         numbers.set("key {index}", index)

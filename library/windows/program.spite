@@ -1,11 +1,11 @@
 var library = DynamicLibrary("ucrtbase.dll", 'identity', "")
 var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
 
-func sleep(milliseconds: Int) {
+func sleep(milliseconds: Integer) {
     kernel.Sleep(milliseconds)
 }
 
-func exit_process(code: Int) {
+func exit_process(code: Integer) {
     library.exit(code)
 }
 

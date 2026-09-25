@@ -34,7 +34,7 @@ func live_allocations(): Long {
     return live_count
 }
 
-func register_object(address: Long, class_id: Int) {
+func register_object(address: Long, class_id: Integer) {
     var slot = find(address)
     if slot >= 0 {
         kinds.write_long(slot * 8, class_id)
@@ -96,7 +96,7 @@ func remember(address: Long) {
     used_count = used_count + 1
 }
 
-func forget(address: Long): Bool {
+func forget(address: Long): Boolean {
     var slot = find(address)
     assert slot >= 0
     slots.write_long(slot * 8, 1)

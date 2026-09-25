@@ -1,6 +1,6 @@
 var stored: Creature? = null
 
-func maybe_creature(present: Bool): Creature? {
+func maybe_creature(present: Boolean): Creature? {
     if present {
         return Creature("rat", 3, true)
     }
@@ -48,7 +48,7 @@ func test_an_attribute_narrows_the_same_way() {
 
 func test_a_value_that_may_be_null_compares_without_narrowing() {
     var named: String? = "rat"
-    var counted: Int? = 3
+    var counted: Integer? = 3
     crash named == "rat"
     crash counted == 3
     crash counted != 4
@@ -56,7 +56,7 @@ func test_a_value_that_may_be_null_compares_without_narrowing() {
 
 func test_null_is_not_equal_to_anything() {
     var named: String? = null
-    var counted: Int? = null
+    var counted: Integer? = null
     crash named != "rat"
     crash not (counted == 0)
 }

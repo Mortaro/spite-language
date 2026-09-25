@@ -18,18 +18,18 @@ func multiply(factor: Float): Vector {
     return Vector(x_component * factor, y_component * factor)
 }
 
-func equals(other: Vector): Bool {
+func equals(other: Vector): Boolean {
     return x_component == other.x_component and y_component == other.y_component
 }
 
-func get_at(index: Int): Float {
+func get_at(index: Integer): Float {
     if index == 0 {
         return x_component
     }
     return y_component
 }
 
-func set_at(index: Int, value: Float) {
+func set_at(index: Integer, value: Float) {
     if index == 0 {
         x_component = value
     } else {

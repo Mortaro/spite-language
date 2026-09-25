@@ -1,10 +1,10 @@
 singleton
 
-var sizes = Dictionary<Int>()
+var sizes = Dictionary<Integer>()
 var added = 0
 var last = ""
 
-func add(name: String, size: Int) {
+func add(name: String, size: Integer) {
     sizes.set(name, size)
     count_one()
 }
@@ -13,11 +13,11 @@ func count_one() {
     added = added + 1
 }
 
-func total(): Int {
+func total(): Integer {
     return added
 }
 
-func known(): Int {
+func known(): Integer {
     return sizes.count()
 }
 

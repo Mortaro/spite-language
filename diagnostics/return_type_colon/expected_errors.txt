@@ -1,1 +1,1 @@
-diagnostics/return_type_colon/return_type_colon.spite:5:26: a return type is written '(): Int': add the ':' after the parameter list
+diagnostics/return_type_colon/return_type_colon.spite:5:30: a return type is written '(): Integer': add the ':' after the parameter list

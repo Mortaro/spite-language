@@ -29,7 +29,7 @@ func walk(directory: Directory, indent: String) {
     }
 }
 
-func count_files(directory: Directory): Int {
+func count_files(directory: Directory): Integer {
     var total = 0
     var entries = directory.entries()
     var index = 0

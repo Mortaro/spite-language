@@ -3,11 +3,11 @@ var pool = ThreadPool()
 
 func ThreadPoolReuse() {
     var workers = pool.size()
-    var seen = List<Int>()
+    var seen = List<Integer>()
     var total = 0
     var round = 0
     while round < 10 {
-        var parallels = List<Parallel<Int>>()
+        var parallels = List<Parallel<Integer>>()
         var index = 0
         while index < 100 {
             parallels.append(Parallel(worker_of_this))
@@ -15,7 +15,7 @@ func ThreadPoolReuse() {
         }
         index = 0
         while index < parallels.count() {
-            var worker: Int = parallels.get_at(index)
+            var worker: Integer = parallels.get_at(index)
             if not seen.contains(worker) {
                 seen.append(worker)
             }
@@ -33,6 +33,6 @@ func ThreadPoolReuse() {
     console.print("outside the pool the worker index is", outside)
 }
 
-func worker_of_this(): Int {
+func worker_of_this(): Integer {
     return pool.worker_index()
 }

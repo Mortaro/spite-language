@@ -37,7 +37,7 @@ func ClassInfo(
     starting_simple_name: String,
     starting_namespace_dotted: String,
     starting_qualified_dotted: String,
-    starting_class_id: Int,
+    starting_class_id: Integer,
 ) {
     c_name = starting_c_name
     simple_name = starting_simple_name

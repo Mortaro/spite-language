@@ -6,11 +6,11 @@ var buffers = List<Memory.Address>()
 var roots = List<String>()
 var file_names = List<String>()
 
-func watch_folder(path: String): Bool {
+func watch_folder(path: String): Boolean {
     return open_watch(path, path, "")
 }
 
-func watch_file(path: String): Bool {
+func watch_file(path: String): Boolean {
     var cut = path.length()
     var found = false
     while cut > 0 and not found {
@@ -32,7 +32,7 @@ func watch_file(path: String): Bool {
     return open_watch(folder, path, lower_name)
 }
 
-func open_watch(folder: String, root: String, file_name: String): Bool {
+func open_watch(folder: String, root: String, file_name: String): Boolean {
     var handle = kernel.CreateFileA_as_long(folder, 1, 7, 0, 3, 1107296256, 0)
     assert handle != -1
     var overlap = heap.allocate(32)
@@ -58,7 +58,7 @@ func open_watch(folder: String, root: String, file_name: String): Bool {
     return requested
 }
 
-func request(watching: Int): Bool {
+func request(watching: Integer): Boolean {
     var event = events.get_at(watching)
     kernel.ResetEvent(event)
     var subtree = 0
@@ -84,7 +84,7 @@ func collect() {
     heap.free(transferred)
 }
 
-func collect_from(watching: Int, transferred: Memory.Address) {
+func collect_from(watching: Integer, transferred: Memory.Address) {
     var handle = handles.get_at(watching)
     assert handle != -1
     transferred.write_long(0, 0)
@@ -97,7 +97,7 @@ func collect_from(watching: Int, transferred: Memory.Address) {
         }
         return
     }
-    var length = transferred.read_int(0)
+    var length = transferred.read_integer(0)
     if length == 0 {
         note(root)
     } else {
@@ -108,15 +108,15 @@ func collect_from(watching: Int, transferred: Memory.Address) {
     }
 }
 
-func read_notices(watching: Int) {
+func read_notices(watching: Integer) {
     var buffer = buffers.get_at(watching)
     var text = heap.allocate(1024)
     var offset: Long = 0
     var more = true
     while more {
-        var next = buffer.read_int(offset)
-        var action = buffer.read_int(offset + 4)
-        var name_bytes = buffer.read_int(offset + 8)
+        var next = buffer.read_integer(offset)
+        var action = buffer.read_integer(offset + 4)
+        var name_bytes = buffer.read_integer(offset + 8)
         var wide_name = buffer + offset + 12
         var wide_length = name_bytes / 2
         var no_value: Long = 0
@@ -130,7 +130,7 @@ func read_notices(watching: Int) {
     heap.free(text)
 }
 
-func note_notice(watching: Int, name: String, action: Int) {
+func note_notice(watching: Integer, name: String, action: Integer) {
     var root = roots.get_at(watching)
     var file_name = file_names.get_at(watching)
     if not file_name.is_empty() {
@@ -169,7 +169,7 @@ func wait_for_event(milliseconds: Long) {
     heap.free(waiting)
 }
 
-func close_watch(watching: Int) {
+func close_watch(watching: Integer) {
     var handle = handles.get_at(watching)
     assert handle != -1
     var overlap = overlaps.get_at(watching)

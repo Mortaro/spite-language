@@ -1,7 +1,7 @@
 # Standard library
 
 The standard library is ordinary Spite in `library/`, and a program reads it the way it reads its own code:
-every class a program can name -- `String`, `List`, `Int`, `File`, `Memory.Heap` -- is a file there, and
+every class a program can name -- `String`, `List`, `Integer`, `File`, `Memory.Heap` -- is a file there, and
 `--final-classes` prints each one as the program uses it. Its values are reference counted like every other
 object ([memory.md](memory.md)). When an operation cannot succeed it says so in its type rather than crashing:
 an index or a key that is not there reads as `T?`, a file that cannot be read answers `null`, and text that does
@@ -16,7 +16,7 @@ reopen the classes each system does differently, and the launcher loads the one 
 | Class | What it is | Page |
 |---|---|---|
 | `String` | immutable text | [below](#string) |
-| `Int`, `Long`, `Float`, `Double`, `Bool`, ... | numbers, as classes | [values_and_types.md](values_and_types.md#numbers-are-classes) |
+| `Integer`, `Long`, `Float`, `Double`, `Boolean`, ... | numbers, as classes | [values_and_types.md](values_and_types.md#numbers-are-classes) |
 | `List<T>`, `Dictionary<T>` | containers, and the member templates | [collections.md](collections.md) |
 | `Console` | the terminal: print, read a line | [below](#console) |
 | `File`, `Directory` | files and folders | [below](#read-and-write-a-file) |
@@ -24,7 +24,7 @@ reopen the classes each system does differently, and the launcher loads the one 
 | `Process` | run another program | [below](#run-a-process) |
 | `Program` | this program: exit, sleep, environment variables | [below](#program) |
 | `Clock` | elapsed time for measuring, and the wall clock | [below](#clock) |
-| `Instant`, `Duration`, `LocalDate`, `LocalTime`, `LocalDateTime`, `Period`, `TimeZone`, `TimeZones`, `TimeText` | exact time, the calendar, time zones as presentation, ISO 8601 text | [time.md](time.md) |
+| `Instant`, `Duration`, `Date`, `Time`, `DateTime`, `Period`, `TimeZone`, `TimeZones`, `TimeText` | exact time, the calendar, time zones as presentation, ISO 8601 text | [time.md](time.md) |
 | `Environment`, `Build`, `Arguments` | settings and the command line | [programs.md](programs.md) |
 | `Json<T>` | any value to JSON text and back | [json.md](json.md) |
 | `Concurrent`, `Parallel`, `ThreadPool` | run a function while waiting, or on the thread pool; the handle is the value | [concurrency.md](concurrency.md) |
@@ -41,20 +41,20 @@ with `+` ([values_and_types.md](values_and_types.md#string)). `==`, `!=`, `<` an
 
 | Member | Result | Notes |
 |---|---|---|
-| `length()` / `is_empty()` | `Int` / `Bool` | |
+| `length()` / `is_empty()` | `Integer` / `Boolean` | |
 | `slice(start, end)` | `String` | clamped; `""` for an empty or invalid range |
 | `character_at(index)` | `String` | `""` out of range |
-| `code_at(index)` | `Int` | the byte's value; `0` out of range |
-| `contains(text)` / `starts_with(text)` / `ends_with(text)` | `Bool` | |
-| `index_of(text)` | `Int` | `-1` when absent |
+| `code_at(index)` | `Integer` | the byte's value; `0` out of range |
+| `contains(text)` / `starts_with(text)` / `ends_with(text)` | `Boolean` | |
+| `index_of(text)` | `Integer` | `-1` when absent |
 | `replace(from, to)` | `String` | every occurrence |
 | `trim()` / `upper_case()` / `lower_case()` | `String` | |
 | `split(separator)` | `List<String>` | an empty separator splits into single characters |
 | `lines()` | `List<String>` | split on `
 ` |
-| `to_int()`, `to_long()`, `to_double()`, ... | a number | one per number type; `0` when it does not parse |
+| `to_integer()`, `to_long()`, `to_double()`, ... | a number | one per number type; `0` when it does not parse |
 
-Assigning text to a number calls the matching `to_<type>()`: `var age: Int = "42"` is `42`.
+Assigning text to a number calls the matching `to_<type>()`: `var age: Integer = "42"` is `42`.
 
 ## Read and write a file
 
@@ -64,12 +64,12 @@ Assigning text to a number calls the matching `to_<type>()`: `var age: Int = "42
 |---|---|---|
 | `path` | `String` | |
 | `read()` | `String?` | `null` when the file cannot be read |
-| `write(text)` / `append(text)` | `Bool` | replaces the content / adds to its end |
-| `exists()` / `remove()` | `Bool` | |
+| `write(text)` / `append(text)` | `Boolean` | replaces the content / adds to its end |
+| `exists()` / `remove()` | `Boolean` | |
 | `size()` | `Long?` | how many bytes it holds; `null` when it cannot be opened |
 | `modified()` | `Instant?` | when it was last written ([time.md](time.md)); `null` when it does not exist |
 | `read_bytes(position, count, address)` | `Long?` | reads up to `count` bytes starting `position` bytes in, into memory at `address`; answers how many it read (`0` at the end), `null` when it cannot be opened |
-| `write_bytes(address, count)` | `Bool` | replaces the content with `count` bytes from memory at `address` |
+| `write_bytes(address, count)` | `Boolean` | replaces the content with `count` bytes from memory at `address` |
 | `append_bytes(address, count)` | `Long?` | adds `count` bytes to the end; answers the position they start at, `null` when they could not all be written |
 
 ```gdscript title=file_tasks/file_tasks.spite entry
@@ -149,7 +149,7 @@ a file written by the next statement is written after every read has finished
 | `path` | `String` | |
 | `entries()` | `List<Directory.Entry>` | every folder and file inside it, as `Directory` and `File` values |
 | `folders()` / `files()` | `List<String>` | names only, sorted |
-| `exists()` / `create()` | `Bool` | |
+| `exists()` / `create()` | `Boolean` | |
 
 ```gdscript title=directory_tasks/directory_tasks.spite entry
 var console = Console()
@@ -222,7 +222,7 @@ asks):
 
 | Member | Result | Notes |
 |---|---|---|
-| `watch(path)` | `Bool` | a file, or a folder with everything below it; `false` when there is nothing there to watch |
+| `watch(path)` | `Boolean` | a file, or a folder with everything below it; `false` when there is nothing there to watch |
 | `changes()` | `List<String>` | never waits: the paths changed since the last call, each once, or none |
 | `wait_for_changes()` | | blocks this thread until `changes()` has something to answer |
 
@@ -312,7 +312,7 @@ output "build finished"
 
 `print`, `write` and `error` are ordinary functions in `library/console.spite`, taking
 `...values: List<Printable>`, where `Printable` is a `type` that requires `to_string(): String`. Every number,
-`Bool`, `String`, `Symbol`, enum value, `Spite.Class` and `Spite.Namespace` answers it, and a class of yours
+`Boolean`, `String`, `Symbol`, enum value, `Spite.Class` and `Spite.Namespace` answers it, and a class of yours
 prints once it declares `to_string()`. Passing one that does not is a compile error naming `to_string`. Writing
 the characters out is the compiler's part (`_write_output`, `_write_error` and `flush` have no body in Spite).
 
@@ -320,7 +320,7 @@ the characters out is the compiler's part (`_write_output`, `_write_error` and `
 var code = ""
 var seats = 0
 
-func Ticket(starting_code: String, starting_seats: Int) {
+func Ticket(starting_code: String, starting_seats: Integer) {
     code = starting_code
     seats = starting_seats
 }
@@ -494,7 +494,7 @@ or `'constant'` for a literal) and `_capacity: Long`, the compiler writes the C 
 the in-place append are Spite functions reading them. `String(bytes, length)` makes a `String` that owns `length`
 bytes at `bytes`, which `heap.allocate` handed out with room for one more; it is what an address's `text` and
 `sum` end in, and anything that fills a buffer itself can use it. The right side of `+` casts toward `String` (every numeric
-type, `Bool`, and enum all format to text -- see [Numeric types](values_and_types.md#numeric-types--implemented-provisional) for
+type, `Boolean`, and enum all format to text -- see [Numeric types](values_and_types.md#numeric-types--implemented-provisional) for
 `Float`/`Double`'s shortest-round-trip printing); assigning a `String` to any numeric variable parses it,
 defaulting to `0`/`0.0` on failure. `==`/`!=`/`<`/`>` compare by content, and ([Operators](functions_and_operators.md#operators--implemented)'s Operators
 table) also work as `equals(other)`/`less_than(other)`/`greater_than(other)`; `+` also works as `sum(other)`.
@@ -512,21 +512,21 @@ copies, as before); an attribute is not appended in place, since a call among th
 
 | Method | Result | Notes |
 |---|---|---|
-| `length()` | `Int` | |
-| `is_empty()` | `Bool` | |
+| `length()` | `Integer` | |
+| `is_empty()` | `Boolean` | |
 | `slice(start, end)` | `String` | clamped; `""` for an empty/invalid range |
 | `character_at(index)` | `String` | `""` out of range |
-| `code_at(index)` | `Int` | `0` out of range |
-| `contains(text)` / `starts_with(text)` / `ends_with(text)` | `Bool` | |
-| `index_of(text)` | `Int` | `-1` when absent |
+| `code_at(index)` | `Integer` | `0` out of range |
+| `contains(text)` / `starts_with(text)` / `ends_with(text)` | `Boolean` | |
+| `index_of(text)` | `Integer` | `-1` when absent |
 | `replace(from, to)` | `String` | replaces every occurrence |
 | `trim()` / `upper_case()` / `lower_case()` | `String` | |
 | `split(separator)` | `List<String>` | an empty separator splits into single characters |
 | `lines()` | `List<String>` | splits on `\n` |
-| `to_tiny()` / `to_short()` / `to_int()` / `to_long()` | `Tiny` / `Short` / `Int` / `Long` | `0` on a value that does not parse |
-| `to_byte()` / `to_unsigned_short()` / `to_unsigned_int()` / `to_unsigned_long()` | `Byte` / `UnsignedShort` / `UnsignedInt` / `UnsignedLong` | `0` on a value that does not parse |
+| `to_tiny()` / `to_short()` / `to_integer()` / `to_long()` | `Tiny` / `Short` / `Integer` / `Long` | `0` on a value that does not parse |
+| `to_byte()` / `to_unsigned_short()` / `to_unsigned_integer()` / `to_unsigned_long()` | `Byte` / `UnsignedShort` / `UnsignedInteger` / `UnsignedLong` | `0` on a value that does not parse |
 | `to_float()` / `to_double()` | `Float` / `Double` | `0.0` on a value that does not parse |
-| `sum(other)` / `equals(other)` / `less_than(other)` / `greater_than(other)` | `String` / `Bool` | the explicit call form of `+`/`==`/`<`/`>` |
+| `sum(other)` / `equals(other)` / `less_than(other)` / `greater_than(other)` | `String` / `Boolean` | the explicit call form of `+`/`==`/`<`/`>` |
 
 #### System classes  **[implemented]**
 
@@ -536,16 +536,16 @@ directory listing and process spawning).
 
 | Class | Members |
 |---|---|
-| `File(path)` | `read(): String?`, `write(text): Bool`, `append(text): Bool`, `exists(): Bool`, `remove(): Bool`; bytes (names proposed by Claude, unconfirmed): `size(): Long?`, `modified(): Instant?` (the last write, from `GetFileAttributesExA` or `stat`), `read_bytes(position, count, address): Long?` (how many were read, from any position), `write_bytes(address, count): Bool`, `append_bytes(address, count): Long?` (where they start) -- `null` when the file cannot be opened; each call opens and closes the file; `_fseeki64`/`_ftelli64` on Windows so a position past 2 GB works; `write_from` joins `read_into` among the waiting calls |
-| `Directory(path)` | `path: String`, `entries(): List<Directory.Entry>` (D93: every folder and file inside it, as `Directory` and `File` values whose `path` is joined to this one -- see below), `files(): List<String>` (names, sorted), `folders(): List<String>` (sorted), `exists(): Bool`, `create(): Bool` |
-| `Process(command, arguments)` | `run(): Int` (exit code; `arguments` is a `List<String>`, each shell-quoted), `output(): String` (stdout+stderr merged, valid after `run()`) |
+| `File(path)` | `read(): String?`, `write(text): Boolean`, `append(text): Boolean`, `exists(): Boolean`, `remove(): Boolean`; bytes (names proposed by Claude, unconfirmed): `size(): Long?`, `modified(): Instant?` (the last write, from `GetFileAttributesExA` or `stat`), `read_bytes(position, count, address): Long?` (how many were read, from any position), `write_bytes(address, count): Boolean`, `append_bytes(address, count): Long?` (where they start) -- `null` when the file cannot be opened; each call opens and closes the file; `_fseeki64`/`_ftelli64` on Windows so a position past 2 GB works; `write_from` joins `read_into` among the waiting calls |
+| `Directory(path)` | `path: String`, `entries(): List<Directory.Entry>` (D93: every folder and file inside it, as `Directory` and `File` values whose `path` is joined to this one -- see below), `files(): List<String>` (names, sorted), `folders(): List<String>` (sorted), `exists(): Boolean`, `create(): Boolean` |
+| `Process(command, arguments)` | `run(): Integer` (exit code; `arguments` is a `List<String>`, each shell-quoted), `output(): String` (stdout+stderr merged, valid after `run()`) |
 | `Program()` | `exit(code)`: exits the process immediately with `code` |
 | `Clock()` | a singleton (names proposed by Claude, unconfirmed, 2026-09-24): `elapsed_nanoseconds(): Long` and `elapsed_milliseconds(): Long` from a monotonic clock with an arbitrary start, for measuring; `now(): Instant`, the wall clock as an exact instant (D127, [Time](time.md#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed); it replaced `unix_milliseconds(): Long`). `library/clock.spite` with each system's reading in `library/windows|linux|mac/clock.spite` (`QueryPerformanceCounter`/`GetSystemTimeAsFileTime`, `clock_gettime`) |
 | `Console()` | `print(...values)`, `write(...values)`, `error(...values)`, `flush()`, `read_line(): String?` -- see below |
-| `Watcher()` (D194; the name and the members proposed by Claude, unconfirmed) | `watch(path): Bool` (a file, or a folder with everything below it; `false` when nothing is there), `changes(): List<String>` (never waits: the paths changed since the last call, each once, in the order they first changed, once the watcher has seen no change for 100 ms), `wait_for_changes()` (blocks the calling thread in the operating system until `changes()` has something) -- `ReadDirectoryChangesW`, `inotify` or `kqueue` from each system's folder, no polling; a folder is reported when created, removed or renamed, not when its contents change; `HotReload` is built on it ([REPL and live reload](repl.md#repl-and-live-reload--partial)) |
-| `Socket()` (proposed by Claude, unconfirmed) | `listen_locally(port): Bool`, `accept_client(): Socket?`, `connect_locally(port): Bool`, `read_line(): String?`, `write_line(text): Bool`, `close()` -- TCP on `127.0.0.1` only, which `--repl-port` and `spite connect` use ([REPL and live reload](repl.md#repl-and-live-reload--partial)) |
-| `Concurrent(function)`, `Parallel(function)` (names decided, D133) | the handle stands in for what the function returned, and reading it is the wait (D134); `finished: Bool` never waits; dropping the handle waits for it -- see "Concurrency" below |
-| `ThreadPool()` (proposed by Claude, unconfirmed) | the singleton the `Parallel`s run on (D135): `size(): Int` worker threads, `worker_index(): Int` (`-1` off the pool) -- see "Concurrency" below |
+| `Watcher()` (D194; the name and the members proposed by Claude, unconfirmed) | `watch(path): Boolean` (a file, or a folder with everything below it; `false` when nothing is there), `changes(): List<String>` (never waits: the paths changed since the last call, each once, in the order they first changed, once the watcher has seen no change for 100 ms), `wait_for_changes()` (blocks the calling thread in the operating system until `changes()` has something) -- `ReadDirectoryChangesW`, `inotify` or `kqueue` from each system's folder, no polling; a folder is reported when created, removed or renamed, not when its contents change; `HotReload` is built on it ([REPL and live reload](repl.md#repl-and-live-reload--partial)) |
+| `Socket()` (proposed by Claude, unconfirmed) | `listen_locally(port): Boolean`, `accept_client(): Socket?`, `connect_locally(port): Boolean`, `read_line(): String?`, `write_line(text): Boolean`, `close()` -- TCP on `127.0.0.1` only, which `--repl-port` and `spite connect` use ([REPL and live reload](repl.md#repl-and-live-reload--partial)) |
+| `Concurrent(function)`, `Parallel(function)` (names decided, D133) | the handle stands in for what the function returned, and reading it is the wait (D134); `finished: Boolean` never waits; dropping the handle waits for it -- see "Concurrency" below |
+| `ThreadPool()` (proposed by Claude, unconfirmed) | the singleton the `Parallel`s run on (D135): `size(): Integer` worker threads, `worker_index(): Integer` (`-1` off the pool) -- see "Concurrency" below |
 | `ThreadLocal<T>()`, `Lock()`, `ThreadSlot()` (proposed by Claude, unconfirmed) | one value per thread: `get(): T?`, `set(value)`; a lock: `while_locked(function)`, `lock()`, `unlock()`; the raw per-thread `Long` both are built on: `read()`, `write(value)` -- see "Concurrency" below |
 | `DynamicLibrary(file_name, naming, header)` | every foreign function, constant and type of a native library -- see [Foreign libraries](foreign_libraries.md#foreign-libraries--partial). `library/dynamic_library.spite` holds its `file_name` and `handle`, its constructor and `drop()`; opening, closing and finding a symbol are the compiler's reopening (D82) |
 | `Memory.Heap()`, `Memory.Arena(block_bytes)`, `Memory.Address` | the floor every other type is built on (D98, D101, D108, D151, D178): the heap's `allocate`, `resize` and `free`, and an address's reads and writes (`library/` only), `copy_to`, `compare_bytes`, `text`, ... -- see "The floor, named" below. `library/memory/heap.spite` is the `singleton` line and `library/memory/address.spite` the number's memory, `text` and `terminated_text`, in Spite; every other function is the compiler's reopening, and where an allocation lives is the compiler's choice unless an object names its allocator ([Memory](memory.md#memory--implemented), "Allocators") |
@@ -567,7 +567,7 @@ type Printable {
 }
 ```
 
-Every number, `Bool`, `String` (whose `to_string()` answers itself), `Symbol`, enum value, `Spite.Class` (its
+Every number, `Boolean`, `String` (whose `to_string()` answers itself), `Symbol`, enum value, `Spite.Class` (its
 `.name`) and `Spite.Namespace` (its `.name_with_namespaces`) answers it, so everything that printed before prints
 the same. A class of your own prints once it declares `func to_string(): String`, and passing one that does not is
 the ordinary shape error, naming the function: `'Pet' does not fit type 'Printable': it has no function
@@ -599,7 +599,7 @@ What follows is Claude's reading (proposed by Claude, unconfirmed):
   `Name {}` when it has none to show. An attribute that is a class is shown by *its* `to_debug()`, so a class that
   declares its own is shown by it wherever it appears. A `List` is `[a, b]`, a `Dictionary` is `{"key": value}`,
   text is quoted with `\"`, `\\` and `\n` escaped, a `Symbol` or enum value is written the way Spite writes it
-  (`'calm'`), a number and a `Bool` as they print, and an absent `T?` is `null`. A `Spite.Class` is its name.
+  (`'calm'`), a number and a `Boolean` as they print, and an absent `T?` is `null`. A `Spite.Class` is its name.
 - **Private attributes are left out.** The walk is the plural attribute template ([Symbol codegen](metaprogramming.md#symbol-codegen--implemented)) run from
   `Spite.DebugInstance`, and a plural over another class's attributes now ranges over the ones that class lets
   others read: a `_` attribute is its own business, and reading it from outside would be the ordinary private
@@ -627,7 +627,7 @@ is its parent's joined with its name, so a `switch` tells the two apart and a fo
 function on it again (`conformance/stage4/directory_entries`, `docs/standard_library.md`):
 
 ```gdscript
-func count_files(directory: Directory): Int {
+func count_files(directory: Directory): Integer {
     var total = 0
     var entries = directory.entries()
     var index = 0
@@ -700,7 +700,7 @@ Spite above them:
 
 1. **The `Memory` namespace** (D150, D151, D178; built 2026-09-25). **`Memory.Address`** is a place in memory: a
    number class (`library/memory/address.spite`, eight bytes, cast to and from `Long` like any number) whose
-   `read_byte`/`read_short`/`read_unsigned_short`/`read_int`/`read_unsigned_int`/`read_long`/`read_float`/
+   `read_byte`/`read_short`/`read_unsigned_short`/`read_integer`/`read_unsigned_integer`/`read_long`/`read_float`/
    `read_double(offset)`, the matching `write_*(offset, value)`, and `exchange_long`, `read_long_atomically` and
    `write_long_atomically` are **language primitives**: bodiless declarations each backend lowers where they are
    called, like `+` -- one load, store or atomic instruction in the C backend, written as a macro, with no call.

@@ -11,7 +11,7 @@ func ProvenElement() {
     show_names(1)
 }
 
-func show_names(position: Int) {
+func show_names(position: Integer) {
     var names = ["ada", "bo"]
     crash names.count() == 2
     assert names[1]

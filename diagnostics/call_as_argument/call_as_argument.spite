@@ -1,7 +1,7 @@
 var console = Console()
 var source = "12 apples"
 var tokens = List<Token>()
-var counts = List<Int>()
+var counts = List<Integer>()
 
 func CallAsArgument() {
     rejected()
@@ -28,7 +28,7 @@ func allowed() {
     console.print("{count_words(source)} words, the first is {source.slice(0, 2).upper_case()}")
 }
 
-func count_words(text: String): Int {
+func count_words(text: String): Integer {
     var words = text.split(" ")
     return words.count()
 }

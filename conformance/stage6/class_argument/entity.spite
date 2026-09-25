@@ -17,7 +17,7 @@ func remove_component(component_class: Spite.Class) {
     components = kept
 }
 
-func has_component(component_class: Spite.Class): Bool {
+func has_component(component_class: Spite.Class): Boolean {
     var found = false
     var index = 0
     while not found and index < components.count() {

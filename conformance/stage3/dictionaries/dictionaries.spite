@@ -1,5 +1,5 @@
 var console = Console()
-var ages = Dictionary<Int>()
+var ages = Dictionary<Integer>()
 var labels = Dictionary<String>()
 
 func Dictionaries() {

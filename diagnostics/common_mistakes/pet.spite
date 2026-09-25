@@ -1,5 +1,5 @@
 var name = "rex"
 
-func bark(times: Int): String {
+func bark(times: Integer): String {
     return name + times
 }

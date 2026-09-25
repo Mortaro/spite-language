@@ -3,7 +3,7 @@ var console = Console()
 func FoldedUses() {
     var markers = Slot<Marker>()
     var marker = markers.fetch(4, Marker())
-    var numbers = Slot<Int>()
+    var numbers = Slot<Integer>()
     var number = numbers.fetch(4, 9)
     console.print(marker.id, number)
 }

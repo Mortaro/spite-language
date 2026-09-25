@@ -1,5 +1,5 @@
 var age = 0
 
-func is_adult(): Bool {
+func is_adult(): Boolean {
     return age >= 18
 }

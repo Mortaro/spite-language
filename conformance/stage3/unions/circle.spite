@@ -1,10 +1,10 @@
 var radius = 0
 var name = "circle"
 
-func Circle(starting_radius: Int) {
+func Circle(starting_radius: Integer) {
     radius = starting_radius
 }
 
-func area(): Int {
+func area(): Integer {
     return 3 * radius * radius
 }

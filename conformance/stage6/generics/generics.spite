@@ -1,7 +1,7 @@
 var console = Console()
 
 func Generics() {
-    var sword = Weapon<Int, true>(10)
+    var sword = Weapon<Integer, true>(10)
     var club = Weapon<String, false>("heavy")
     var sword_hit = sword.hit()
     var sword_description = sword.describe()
@@ -9,12 +9,12 @@ func Generics() {
     var hit = club.hit()
     var club_description = club.describe()
     console.print(hit, "{club.damage}!", club_description)
-    var another: Weapon<Int, true> = Weapon<Int, true>(3)
+    var another: Weapon<Integer, true> = Weapon<Integer, true>(3)
     console.print(another.damage, sword.class, club.class)
-    var pair = Pair<String, Int>("answer", 42)
+    var pair = Pair<String, Integer>("answer", 42)
     var swapped_left = pair.swapped().left
     console.print(pair.left, pair.right, swapped_left)
-    var boxes = List<Weapon<Int, true>>()
+    var boxes = List<Weapon<Integer, true>>()
     boxes.append(sword)
     boxes.append(another)
     var sum_damage = boxes.sum_damage()

@@ -58,7 +58,7 @@ and balanced allocations.
      **D6 lands here too** (`docs/reflection.md`, "Class-level functions"): `Spite.Class` becomes a real standard
      library class declaring the class-level hooks, a class file defining one of those names overrides it for its own
      class object, and the override folds at compile time. Spite has no static functions and will not get any, so this
-     is the only mechanism for a class-level fact. `func is_singleton(): Bool` is the first hook (D8, decided --
+     is the only mechanism for a class-level fact. `func is_singleton(): Boolean` is the first hook (D8, decided --
      `docs/classes_and_files.md`, "Singletons"), keyed by a distinct literal constructor argument list and emitted as one
      static slot per argument list. A literal `return` folds without any evaluator, so the hook mechanism and
      `is_singleton()` can both ship ahead of the rest of this milestone.
@@ -235,7 +235,7 @@ and balanced allocations.
     `target_operating_system` replace `--operational_system`. A program is named by its folder and its entry
     constructor takes no arguments. `launcher/launcher.spite` loads `library/`, the target system's folder and the
     program with visible `load` calls, and `main` only constructs it. **Waiting on Mortaro:** the names `Build`
-    and `Launcher`, `mode`/`format` read from the flag alone, the bare-`Bool` flag form, the renamed flags
+    and `Launcher`, `mode`/`format` read from the flag alone, the bare-`Boolean` flag form, the renamed flags
     (`--final-classes`, `--repl-port`, `--format=false`), a `.spite` path still naming an entry, and the C that
     stays in `main` (`mortaros_missing_decisions.md`). **Not done:** `main`'s floor (arguments, `_setmode`,
     releasing singletons and class objects, the memory report) is still written in C by the compiler.
@@ -263,7 +263,7 @@ and balanced allocations.
     read-only reflection, and `Memory` as the floor** (`docs/classes_and_files.md`, `docs/values_and_types.md`, `docs/metaprogramming.md`, `docs/packages.md`, `docs/standard_library.md` and `docs/foreign_libraries.md`; the five
     "implements" rows of 2026-09-24). A `func` without a body is a member the compiler supplies, merged as a
     reopening after `library/` and printed by `--final-classes`; `Memory`, `DynamicLibrary` and `TypedMemory` are
-    `library/` files. `Int`, `Long`, `Double` and the rest are value classes with `text()` in Spite, `this` is a
+    `library/` files. `Integer`, `Long`, `Double` and the rest are value classes with `text()` in Spite, `this` is a
     keyword, and number casts go through each class's `from_type` (an inline C cast). Reflection keeps its data in
     private `_` fields behind getters, and `_` is enforced as private. `Memory.allocate_stack_bytes`,
     `TypedMemory<$value_type>` (which `List<T>` now uses) and `value.memory` (`Spite.Memory`) are built, with a
@@ -271,11 +271,11 @@ and balanced allocations.
     **Waiting on Mortaro:** `mortaros_missing_decisions.md` 28-36. **Not done:** `Arguments` is still the
     generator's (`Console`'s printing is Spite since D109); `String`'s `length`, `code_at` and `slice` are still emitted by name
     rather than declared in its reopening; `missing_function`/`missing_attribute` for `DynamicLibrary`; a
-    user generic instantiated with `Int` prints as `...Int` in `instantiated/`, which the name lint rejects on
+    user generic instantiated with `Integer` prints as `...Integer` in `instantiated/`, which the name lint rejects on
     the way back.
 
 24. **Done (2026-09-24): D107 and D108 -- `to_string()`, and every type's storage visible over `Memory`**
-    (`docs/values_and_types.md`, `docs/memory.md` and `docs/standard_library.md`; the four "implements D107/D108" rows). Numbers and `Bool` answer
+    (`docs/values_and_types.md`, `docs/memory.md` and `docs/standard_library.md`; the four "implements D107/D108" rows). Numbers and `Boolean` answer
     `to_string()`. `library/string.spite` declares `_bytes`, `_length`, `_section` and `_capacity`, the compiler
     derives `SpiteString`'s layout from them, and every `String` function is Spite, down to its constructor and
     `drop()`; `TextBytes`, `Memory.take_text` and `Memory.address_of` are gone and `Memory.text` is Spite. Each

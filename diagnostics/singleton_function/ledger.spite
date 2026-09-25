@@ -1,5 +1,5 @@
 var total = 0
 
-func is_singleton(): Bool {
+func is_singleton(): Boolean {
     return true
 }

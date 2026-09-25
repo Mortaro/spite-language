@@ -12,12 +12,12 @@ var deep_copy_names = List<String>()
 var terminal_if: Syntax.Statements.IfStatement? = null
 var symbol_names = List<String>()
 var symbol_lookup_used = false
-var symbol_positions = Dictionary<Int>()
+var symbol_positions = Dictionary<Integer>()
 var conversion_names = Dictionary<String>()
 var foreign_library_files = List<String>()
 var foreign_library_namings = List<String>()
 var foreign_library_headers = List<String>()
-var foreign_symbol_libraries = List<Int>()
+var foreign_symbol_libraries = List<Integer>()
 var foreign_symbol_names = List<String>()
 var foreign_symbol_wanted = List<String>()
 var foreign_headers_included = List<String>()
@@ -30,27 +30,27 @@ var implicit_joins = List<Syntax.Expressions.MemberExpression>()
 var parallel_used = false
 var guarded_classes = List<Analysis.ClassInfo>()
 var guarded_functions = List<Analysis.FunctionInfo>()
-var guarded_positions = List<Int>()
+var guarded_positions = List<Integer>()
 var atomic_fields = List<String>()
 var atomic_owner = ""
 var atomic_classes = List<Analysis.ClassInfo>()
 var atomic_class_names = List<String>()
-var guarded_ends = List<Int>()
+var guarded_ends = List<Integer>()
 var outside_classes = List<Analysis.ClassInfo>()
 var outside_class_names = List<String>()
-var outside_written = Dictionary<Bool>()
-var read_only_classes = Dictionary<Bool>()
+var outside_written = Dictionary<Boolean>()
+var read_only_classes = Dictionary<Boolean>()
 var emitted_guards = List<String>()
 var waiting_classes = List<Analysis.ClassInfo>()
 var waiting_functions = List<Analysis.FunctionInfo>()
 var waiting_kinds = List<String>()
-var waiting_positions = List<Int>()
+var waiting_positions = List<Integer>()
 var resumable_mode = false
 var conditional_depth = 0
 var resume_point_count = 0
-var wait_mark_counters = List<Int>()
-var wait_mark_positions = List<Int>()
-var wait_mark_ends = List<Int>()
+var wait_mark_counters = List<Integer>()
+var wait_mark_positions = List<Integer>()
+var wait_mark_ends = List<Integer>()
 var wait_mark_results = List<String>()
 var call_edge_callers = List<String>()
 var call_edge_callees = List<String>()
@@ -58,8 +58,8 @@ var current_function_c_name = ""
 var machine_candidate_names = List<String>()
 var machine_candidate_classes = List<Analysis.ClassInfo>()
 var machine_candidate_functions = List<Analysis.FunctionInfo>()
-var waiting_names = Dictionary<Bool>()
-var machine_names = Dictionary<Bool>()
+var waiting_names = Dictionary<Boolean>()
+var machine_names = Dictionary<Boolean>()
 var machine_queue_classes = List<Analysis.ClassInfo>()
 var machine_queue_functions = List<Analysis.FunctionInfo>()
 var machine_queue_kinds = List<String>()
@@ -79,7 +79,7 @@ var hot_reload_program_file = ""
 var hot_slot_names = List<String>()
 var hot_slot_owners = List<String>()
 var hot_slot_displays = List<String>()
-var seeded_class_ids = Dictionary<Int>()
+var seeded_class_ids = Dictionary<Integer>()
 var reflect_function_names = List<String>()
 var body_narrowed_names = List<String>()
 var body_assigned_paths = List<String>()
@@ -133,6 +133,7 @@ var literal_counter = 0
 var first_discovered_class = 0
 var hardcoded_settings = List<Syntax.Statements.VariableDeclaration>()
 var placement = Placement()
+var old_spellings = OldSpellings()
 var frame_candidates = List<String>()
 var pending_allocator: Syntax.Statements.AssignmentStatement? = null
 var chosen_allocator_lines = List<String>()
@@ -155,20 +156,20 @@ var attribute_objects_emitted = 0
 var shape_flow_keys = List<String>()
 var shape_flow_sources = List<String>()
 var shape_flow_targets = List<Analysis.UnionInfo>()
-var read_attributes = Dictionary<Bool>()
-var folded_words = Dictionary<Bool>()
+var read_attributes = Dictionary<Boolean>()
+var folded_words = Dictionary<Boolean>()
 var loaded_folders = List<String>()
 var long_line_callee = ""
 var classes_resolved = false
 var pending_constraint_instances = List<Analysis.ClassInfo>()
 var pending_constraint_paths = List<String>()
-var pending_constraint_lines = List<Int>()
+var pending_constraint_lines = List<Integer>()
 var pending_constraint_owners = List<String>()
 var pending_constraint_functions = List<String>()
 var failed_constraints = List<String>()
 var call_effects = CallEffects()
 var pending_calls = List<Syntax.Expressions.Expression>()
-var pending_call_lines = List<Int>()
+var pending_call_lines = List<Integer>()
 
 func report(message: String) {
     has_error = true
@@ -183,7 +184,7 @@ func report(message: String) {
     error_message = error_lines.join("\n")
 }
 
-func allocate_class_id(debug_name: String): Int {
+func allocate_class_id(debug_name: String): Integer {
     if class_names_by_id.is_empty() {
         class_names_by_id.append("String")
     }
@@ -306,7 +307,7 @@ func replace_word(text: String, word: String, replacement: String): String {
     return result
 }
 
-func is_word_character_at(text: String, index: Int): Bool {
+func is_word_character_at(text: String, index: Integer): Boolean {
     assert index >= 0 and index < text.length()
     var character = text.slice(index, index + 1)
     return character == "_" or character == "." or character.lower_case() != character.upper_case() or "0123456789".contains(character)
@@ -334,7 +335,7 @@ func class_view_source(information: Analysis.ClassInfo, display_name: String): S
     return lines.join("\n")
 }
 
-func is_instantiated_class(information: Analysis.ClassInfo): Bool {
+func is_instantiated_class(information: Analysis.ClassInfo): Boolean {
     return not information.is_generic_template and not information.is_container and not information.codegen_types.is_empty()
 }
 
@@ -375,7 +376,7 @@ func instantiated_class_name(information: Analysis.ClassInfo): String {
     return name
 }
 
-func codegen_value_name(information: Analysis.ClassInfo, index: Int): String {
+func codegen_value_name(information: Analysis.ClassInfo, index: Integer): String {
     crash information.codegen_codes[index]
     if information.codegen_codes[index].is_empty() {
         return type_display_name(information.codegen_types[index])
@@ -575,7 +576,7 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
     }
 }
 
-func has_singleton_line(entry: Discovery.DiscoveredClass): Bool {
+func has_singleton_line(entry: Discovery.DiscoveredClass): Boolean {
     var file = entry.get_file()
     var statement_index = 0
     while statement_index < file.statements.count() {
@@ -587,7 +588,7 @@ func has_singleton_line(entry: Discovery.DiscoveredClass): Bool {
     return false
 }
 
-func holds_nothing(entry: Discovery.DiscoveredClass): Bool {
+func holds_nothing(entry: Discovery.DiscoveredClass): Boolean {
     var file = entry.get_file()
     var statement_index = 0
     while statement_index < file.statements.count() {
@@ -605,7 +606,7 @@ func holds_nothing(entry: Discovery.DiscoveredClass): Bool {
     return true
 }
 
-func is_stateless_singleton(information: Analysis.ClassInfo): Bool {
+func is_stateless_singleton(information: Analysis.ClassInfo): Boolean {
     return information.is_stateless_singleton
 }
 
@@ -632,7 +633,7 @@ func without_dollar(name: String): String {
     return name
 }
 
-func codegen_index(information: Analysis.ClassInfo, name: String): Int {
+func codegen_index(information: Analysis.ClassInfo, name: String): Integer {
     var index = 0
     while index < information.codegen_names.count() {
         if information.codegen_names[index] == name {
@@ -673,7 +674,7 @@ func constant_condition(
     expression: Syntax.Expressions.Expression,
     scope: Scope,
     class_information: Analysis.ClassInfo,
-): Bool? {
+): Boolean? {
     var generic_identifier = shape.as_generic_identifier(expression)
     if generic_identifier {
         var bare_name = without_dollar(generic_identifier.name)
@@ -760,7 +761,7 @@ func constant_condition(
     return null
 }
 
-func function_question(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Bool? {
+func function_question(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Boolean? {
     var call = shape.as_call(expression)
     assert call
     crash call.callee
@@ -803,7 +804,7 @@ func written_name(arguments: List<Syntax.Expressions.Expression>): String? {
     return enum_literal.value
 }
 
-func class_has_function(owner: Analysis.ClassInfo, pattern: String, asking: Analysis.ClassInfo): Bool {
+func class_has_function(owner: Analysis.ClassInfo, pattern: String, asking: Analysis.ClassInfo): Boolean {
     var functions = declared_functions_of(owner)
     var names = functions.map_name()
     var opening = pattern.index_of("<")
@@ -875,7 +876,7 @@ func type_test(
     bound_type: Analysis.SpiteType,
     kind: Syntax.Expressions.Expression,
     class_information: Analysis.ClassInfo,
-): Bool {
+): Boolean {
     var kind_name = operand_text(kind)
     if kind_name == "List" {
         return bound_type == Analysis.Types.ListType
@@ -1352,7 +1353,7 @@ func register_shapes(entry: Discovery.DiscoveredClass) {
     }
 }
 
-func shape_position(c_name: String): Int {
+func shape_position(c_name: String): Integer {
     var index = 0
     while index < unions.count() {
         if unions[index].c_name == c_name {
@@ -1437,7 +1438,7 @@ func returned_display(spite_type: Analysis.SpiteType, display_name: String): Str
     if type_shape.is_void(spite_type) {
         return "Nothing"
     }
-    return "a {display_name}"
+    return with_article(display_name)
 }
 
 func required_function_problem(
@@ -1460,7 +1461,9 @@ func required_function_problem(
             var parameter_type = function.parameters[index].get_type()
             if not types_equal(parameter_type, wanted_types[index]) {
                 var names = type_display_names(parameter_type, wanted_types[index])
-                return "argument {index + 1} of its '{wanted.name}' is a {names.first()}, but the type needs a {names.last()}"
+                var found_name = names.first()
+                var wanted_name = names.last()
+                return "argument {index + 1} of its '{wanted.name}' is {with_article(found_name)}, but the type needs {with_article(wanted_name)}"
             }
             index = index + 1
         }
@@ -1700,7 +1703,9 @@ func shape_fit_problem(information: Analysis.UnionInfo, candidate: Analysis.Clas
                 var found_type = found.get_type()
                 if not types_equal(found_type, wanted_type) {
                     var names = type_display_names(found_type, wanted_type)
-                    return "attribute '{wanted.name}' is a {names.first()}, but the type needs a {names.last()}"
+                    var found_name = names.first()
+                    var wanted_name = names.last()
+                    return "attribute '{wanted.name}' is {with_article(found_name)}, but the type needs {with_article(wanted_name)}"
                 }
             }
         }
@@ -2114,7 +2119,7 @@ func admit_along_flows(source: Analysis.UnionInfo, candidate: Analysis.ClassInfo
     }
 }
 
-func is_boxed_into_shape(from: Analysis.SpiteType, to: Analysis.SpiteType): Bool {
+func is_boxed_into_shape(from: Analysis.SpiteType, to: Analysis.SpiteType): Boolean {
     var to_union = type_shape.as_union(to)
     assert to_union
     var information = find_union_by_c_name(to_union.c_name)
@@ -2127,7 +2132,7 @@ func is_boxed_into_shape(from: Analysis.SpiteType, to: Analysis.SpiteType): Bool
     return false
 }
 
-func is_shape_type(spite_type: Analysis.SpiteType): Bool {
+func is_shape_type(spite_type: Analysis.SpiteType): Boolean {
     var union_type = type_shape.as_union(spite_type)
     assert union_type
     var information = find_union_by_c_name(union_type.c_name)
@@ -2362,7 +2367,7 @@ func find_enum_qualified(owner_qualified: String, name: String): Analysis.EnumIn
     return null
 }
 
-func any_enum_has(value: String): Bool {
+func any_enum_has(value: String): Boolean {
     var index = 0
     while index < enums.count() {
         if enums[index].has_value(value) {
@@ -2478,7 +2483,7 @@ func nearest_declaring_owner(name: String, current_namespace: String): String {
     return ""
 }
 
-func declares_type_named(owner: String, name: String): Bool {
+func declares_type_named(owner: String, name: String): Boolean {
     if find_union_qualified(owner, name) {
         return true
     }
@@ -2493,7 +2498,7 @@ func resolve_classes(discovered: List<Discovery.DiscoveredClass>) {
     resolve_discovered(discovered, false)
 }
 
-func resolve_discovered(discovered: List<Discovery.DiscoveredClass>, functions_pass: Bool) {
+func resolve_discovered(discovered: List<Discovery.DiscoveredClass>, functions_pass: Boolean) {
     var index = 0
     while index < discovered.count() {
         var position = first_discovered_class + index
@@ -2505,7 +2510,7 @@ func resolve_discovered(discovered: List<Discovery.DiscoveredClass>, functions_p
     }
 }
 
-func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.ClassInfo, functions_pass: Bool) {
+func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.ClassInfo, functions_pass: Boolean) {
     var file = entry.get_file()
     current_owner = information.qualified_dotted
     current_class = information
@@ -2595,7 +2600,7 @@ func hardcoded_setting(target_class: Analysis.ClassInfo, name: String): Syntax.S
     return hardcoded_settings.find_by_name(name)
 }
 
-func is_hardcoded_setting_name(name: String): Bool {
+func is_hardcoded_setting_name(name: String): Boolean {
     var index = 0
     while index < hardcoded_settings.count() {
         if hardcoded_settings[index].name == name {
@@ -2638,7 +2643,7 @@ func symbol_parameter_of(declaration: Syntax.Statements.FunctionDeclaration): St
     return ""
 }
 
-func register_template(declaration: Syntax.Statements.FunctionDeclaration, information: Analysis.ClassInfo): Bool {
+func register_template(declaration: Syntax.Statements.FunctionDeclaration, information: Analysis.ClassInfo): Boolean {
     var symbol_parameter = symbol_parameter_of(declaration)
     assert not symbol_parameter.is_empty()
     var padded_name = "_{declaration.name}_"
@@ -2866,7 +2871,7 @@ func range_path(template: Analysis.TemplateInfo): List<String> {
     return named.path
 }
 
-func is_function_range(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): Bool {
+func is_function_range(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): Boolean {
     var path = range_path(template)
     assert path.count() >= 2
     var last_segment = path.last()
@@ -3230,7 +3235,7 @@ func describe_range_binding(
     }
 }
 
-func answers_through_pattern(information: Analysis.ClassInfo, name: String): Bool {
+func answers_through_pattern(information: Analysis.ClassInfo, name: String): Boolean {
     var index = 0
     while index < information.templates.count() {
         var template = information.templates[index]
@@ -3497,7 +3502,7 @@ func bind_symbol_of(function: Analysis.FunctionInfo) {
     bound_enum_c_name = function.symbol_enum_c_name
 }
 
-func is_bound_member_index(index_expression: Syntax.Expressions.IndexExpression): Bool {
+func is_bound_member_index(index_expression: Syntax.Expressions.IndexExpression): Boolean {
     assert not bound_member_owner_c_name.is_empty()
     crash index_expression.object
     crash index_expression.index
@@ -3527,7 +3532,7 @@ func bound_member_expression(index_expression: Syntax.Expressions.IndexExpressio
     return called
 }
 
-func bound_member_is_function(): Bool {
+func bound_member_is_function(): Boolean {
     var owner = find_class_by_c_name(bound_member_owner_c_name)
     if owner {
         assert not owner.find_field(bound_field_name)
@@ -3540,7 +3545,7 @@ func bound_member_is_function(): Bool {
     return true
 }
 
-func is_shape_member_read(expression: Syntax.Expressions.Expression): Bool {
+func is_shape_member_read(expression: Syntax.Expressions.Expression): Boolean {
     assert not bound_member_owner_c_name.is_empty()
     assert find_union_by_c_name(bound_member_owner_c_name)
     var indexed = shape.as_index(expression)
@@ -3548,7 +3553,7 @@ func is_shape_member_read(expression: Syntax.Expressions.Expression): Bool {
     return is_bound_member_index(indexed)
 }
 
-func is_caller_call(expression: Syntax.Expressions.Expression): Bool {
+func is_caller_call(expression: Syntax.Expressions.Expression): Boolean {
     assert bound_through_caller
     var indexed = shape.as_index(expression)
     assert indexed
@@ -3577,7 +3582,7 @@ func generate_bound_member_read(
     return generate_expression(read, scope, class_information)
 }
 
-func is_bound_attributes_index(index_expression: Syntax.Expressions.IndexExpression): Bool {
+func is_bound_attributes_index(index_expression: Syntax.Expressions.IndexExpression): Boolean {
     assert not bound_symbol_name.is_empty() and bound_member_owner_c_name.is_empty()
     if index_expression.object {
         if index_expression.index {
@@ -3620,7 +3625,7 @@ func emit_pending_functions() {
     }
 }
 
-func is_pending(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Bool {
+func is_pending(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
     assert not function.is_emitted
     if not information.is_instantiated {
         return true
@@ -3628,7 +3633,7 @@ func is_pending(information: Analysis.ClassInfo, function: Analysis.FunctionInfo
     return builder.mentions(function.c_name) or is_called_through_shape(information, function.name)
 }
 
-func is_called_through_shape(information: Analysis.ClassInfo, name: String): Bool {
+func is_called_through_shape(information: Analysis.ClassInfo, name: String): Boolean {
     var index = 0
     while index < unions.count() {
         if unions[index].is_shape and unions[index].caller_names.contains(name) {
@@ -3730,7 +3735,7 @@ func resolve_function(declaration: Syntax.Statements.FunctionDeclaration, inform
     information.functions.append(function)
 }
 
-func is_inline_supplied(function: Analysis.FunctionInfo): Bool {
+func is_inline_supplied(function: Analysis.FunctionInfo): Boolean {
     return not function.has_body and function.supplied_body.starts_with("#define")
 }
 
@@ -3874,7 +3879,7 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
     }
     if named.path.count() == 1 {
         var name = named.path[0]
-        if name == "Int" {
+        if name == "Integer" {
             var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('integer_kind')
             return resolved
         }
@@ -3898,7 +3903,7 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
             var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('unsigned_short_kind')
             return resolved
         }
-        if name == "UnsignedInt" {
+        if name == "UnsignedInteger" {
             var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('unsigned_integer_kind')
             return resolved
         }
@@ -3914,7 +3919,7 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
             var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('double_kind')
             return resolved
         }
-        if name == "Bool" {
+        if name == "Boolean" {
             var resolved: Analysis.SpiteType = Analysis.Types.ScalarType('boolean_kind')
             return resolved
         }
@@ -3988,7 +3993,9 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
         if found_union {
             return union_type_of(found_union)
         }
-        report("unknown type '{name}'")
+        if not reported_old_spelling(name) {
+            report("unknown type '{name}'")
+        }
         return null
     }
     var joined = named.path.join(".")
@@ -4053,7 +4060,7 @@ func bound_type_member(named: Syntax.Types.NamedType): Analysis.SpiteType? {
         var member_type = codegen_member_type(bound_type, segment)
         if not member_type {
             report(
-                "a {type_display_name(bound_type)} has no codegen value named '{segment}' -- List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own",
+                "{type_with_article(bound_type)} has no codegen value named '{segment}' -- List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own",
             )
             return null
         }
@@ -4083,7 +4090,7 @@ func resolve_codegen_member(named: Syntax.Types.NamedType): Analysis.SpiteType? 
         var member_type = codegen_member_type(bound_type, segment)
         if not member_type {
             report(
-                "a {type_display_name(bound_type)} has no codegen value named '${segment}' -- List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own",
+                "{type_with_article(bound_type)} has no codegen value named '${segment}' -- List<$element_type>, Dictionary<$value_type> and $value_type? name theirs, and a generic class names its own",
             )
             return null
         }
@@ -4153,16 +4160,16 @@ func string_type(): Analysis.SpiteType {
 
 func value_class_names(): List<String> {
     return [
-        "Int"
+        "Integer"
         "Long"
         "Float"
         "Double"
-        "Bool"
+        "Boolean"
         "Tiny"
         "Short"
         "Byte"
         "UnsignedShort"
-        "UnsignedInt"
+        "UnsignedInteger"
         "UnsignedLong"
         "Memory.Address"
     ]
@@ -4256,7 +4263,7 @@ func resolve_nullable_argument(named: Syntax.Types.NamedType, current_namespace:
     return null
 }
 
-func type_is_reference(spite_type: Analysis.SpiteType): Bool {
+func type_is_reference(spite_type: Analysis.SpiteType): Boolean {
     if type_shape.as_string(spite_type) or type_shape.is_symbol(spite_type) {
         return true
     }
@@ -4280,11 +4287,11 @@ func type_is_reference(spite_type: Analysis.SpiteType): Bool {
     return false
 }
 
-func type_needs_drop(spite_type: Analysis.SpiteType): Bool {
+func type_needs_drop(spite_type: Analysis.SpiteType): Boolean {
     return type_is_reference(spite_type)
 }
 
-func types_equal(left_type: Analysis.SpiteType, right_type: Analysis.SpiteType): Bool {
+func types_equal(left_type: Analysis.SpiteType, right_type: Analysis.SpiteType): Boolean {
     var left_scalar = type_shape.as_scalar(left_type)
     if left_scalar {
         var right_scalar = type_shape.as_scalar(right_type)
@@ -4403,7 +4410,7 @@ func type_label(spite_type: Analysis.SpiteType): String {
     var scalar = type_shape.as_scalar(spite_type)
     if scalar {
         if scalar.kind == 'integer_kind' {
-            return "Int"
+            return "Integer"
         }
         if scalar.kind == 'long_kind' {
             return "Long"
@@ -4421,7 +4428,7 @@ func type_label(spite_type: Analysis.SpiteType): String {
             return "UnsignedShort"
         }
         if scalar.kind == 'unsigned_integer_kind' {
-            return "UnsignedInt"
+            return "UnsignedInteger"
         }
         if scalar.kind == 'unsigned_long_kind' {
             return "UnsignedLong"
@@ -4435,7 +4442,7 @@ func type_label(spite_type: Analysis.SpiteType): String {
         if scalar.kind == 'double_kind' {
             return "Double"
         }
-        return "Bool"
+        return "Boolean"
     }
     if type_shape.as_string(spite_type) {
         return "String"
@@ -4603,7 +4610,7 @@ func default_value_for_type(spite_type: Analysis.SpiteType): String {
     return "0"
 }
 
-func is_float_kind(kind: Analysis.Types.NumericKind): Bool {
+func is_float_kind(kind: Analysis.Types.NumericKind): Boolean {
     if kind == 'float_kind' {
         return true
     }
@@ -4621,7 +4628,7 @@ func string_conversion(code: String, from: Analysis.SpiteType): String {
             }
         }
         report(
-            "a {type_display_name(from)} becomes text through the to_string() function of its class in library/, and that class declares none",
+            "{type_with_article(from)} becomes text through the to_string() function of its class in library/, and that class declares none",
         )
         return "(&spite_static_string_empty)"
     }
@@ -4841,13 +4848,17 @@ func numeric_conversion(from: Analysis.SpiteType, to: Analysis.SpiteType): Strin
 func report_mismatch(from: Analysis.SpiteType, to: Analysis.SpiteType) {
     assert not (type_shape.is_void(from) or type_shape.is_void(to))
     var names = type_display_names(from, to)
+    var first_name = names.first()
+    var last_name = names.last()
+    var found_name = with_article(first_name)
+    var wanted_name = with_article(last_name)
     if type_shape.as_nullable(from) {
         report(
-            "this value may be null (it is a {names.first()}), but a {names.last()} is needed: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+            "this value may be null (it is {found_name}), but {wanted_name} is needed: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
         )
         return
     }
-    report("a {names.first()} cannot be used where a {names.last()} is needed")
+    report("{found_name} cannot be used where {wanted_name} is needed")
 }
 
 func retain_call(spite_type: Analysis.SpiteType, code: String): String {
@@ -4910,7 +4921,7 @@ func release_call(spite_type: Analysis.SpiteType, code: String): String {
     return code
 }
 
-func owns(result: ExpressionResult, expression: Syntax.Expressions.Expression): Bool {
+func owns(result: ExpressionResult, expression: Syntax.Expressions.Expression): Boolean {
     if result.owning_override == true {
         return true
     }
@@ -4918,7 +4929,7 @@ func owns(result: ExpressionResult, expression: Syntax.Expressions.Expression): 
     return is_owning_shape(expression)
 }
 
-func is_owning_shape(expression: Syntax.Expressions.Expression): Bool {
+func is_owning_shape(expression: Syntax.Expressions.Expression): Boolean {
     var identifier = shape.as_identifier(expression)
     assert not identifier
     var indexed = shape.as_index(expression)
@@ -5019,7 +5030,7 @@ func joinable_handle(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
     return handle
 }
 
-func joins_into(result_type: Analysis.SpiteType, expected_type: Analysis.SpiteType): Bool {
+func joins_into(result_type: Analysis.SpiteType, expected_type: Analysis.SpiteType): Boolean {
     assert joinable_handle(result_type)
     var expected_inner = expected_type_without_nullable(expected_type)
     return not types_equal(result_type, expected_inner)
@@ -5033,7 +5044,7 @@ func implicit_join_ast(handle_ast: Syntax.Expressions.Expression): Syntax.Expres
     return joined
 }
 
-func is_implicit_join(member: Syntax.Expressions.MemberExpression): Bool {
+func is_implicit_join(member: Syntax.Expressions.MemberExpression): Boolean {
     assert member.name == "_result"
     var index = 0
     while index < implicit_joins.count() {
@@ -5045,7 +5056,7 @@ func is_implicit_join(member: Syntax.Expressions.MemberExpression): Bool {
     return false
 }
 
-func forwards_to_result(handle: Analysis.ClassInfo, name: String): Bool {
+func forwards_to_result(handle: Analysis.ClassInfo, name: String): Boolean {
     assert name != "finished" and name != "class" and not name.starts_with("_")
     assert not handle.find_function(name)
     return true
@@ -5077,14 +5088,14 @@ func expected_type_without_nullable(expected_type: Analysis.SpiteType): Analysis
     return expected_type
 }
 
-func is_enum_literal(expression: Syntax.Expressions.Expression): Bool {
+func is_enum_literal(expression: Syntax.Expressions.Expression): Boolean {
     if shape.as_enum_literal(expression) {
         return true
     }
     return false
 }
 
-func is_enum_type(spite_type: Analysis.SpiteType): Bool {
+func is_enum_type(spite_type: Analysis.SpiteType): Boolean {
     if type_shape.as_enum(spite_type) {
         return true
     }
@@ -5101,12 +5112,12 @@ func next_temporary(): String {
     return "spite_temp_{temporary_counter}"
 }
 
-func hex_digit(value: Int): String {
+func hex_digit(value: Integer): String {
     var digits = "0123456789abcdef"
     return digits.character_at(value)
 }
 
-func hex_escape(code: Int): String {
+func hex_escape(code: Integer): String {
     var high = code / 16
     var low = code % 16
     return "\\x{hex_digit(high)}{hex_digit(low)}"
@@ -5245,7 +5256,7 @@ func generate_identifier(
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
-func is_boolean_result_operator(operator: Syntax.Expressions.BinaryOperator): Bool {
+func is_boolean_result_operator(operator: Syntax.Expressions.BinaryOperator): Boolean {
     assert operator != 'add'
     assert operator != 'subtract'
     assert operator != 'multiply'
@@ -5390,7 +5401,7 @@ func maybe_null_only_on_the_right(
     binary: Syntax.Expressions.BinaryExpression,
     scope: Scope,
     class_information: Analysis.ClassInfo,
-): Bool {
+): Boolean {
     crash binary.left
     crash binary.right
     assert not shape.is_null_literal(binary.right) and not is_enum_literal(binary.left) and not is_enum_literal(binary.right)
@@ -5452,7 +5463,7 @@ func codegen_tested_class(name: String, class_information: Analysis.ClassInfo): 
     return class_of_type(class_information.codegen_types[bound])
 }
 
-func codegen_is_class(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Bool {
+func codegen_is_class(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Boolean {
     var codegen_type = shape.as_generic_identifier(expression)
     assert codegen_type
     if codegen_tested_class(codegen_type.name, class_information) {
@@ -5480,7 +5491,7 @@ func known_codegen_class_test(
     binary: Syntax.Expressions.BinaryExpression,
     scope: Scope,
     class_information: Analysis.ClassInfo,
-): Bool? {
+): Boolean? {
     crash binary.left
     crash binary.right
     assert shape.as_generic_identifier(binary.right)
@@ -5504,7 +5515,7 @@ func known_codegen_class_test(
     return known == false
 }
 
-func known_membership(subject_type: Analysis.SpiteType, tested_class: Analysis.ClassInfo): Bool? {
+func known_membership(subject_type: Analysis.SpiteType, tested_class: Analysis.ClassInfo): Boolean? {
     var subject_union = type_shape.as_union(subject_type)
     if subject_union {
         var union_information = find_union_by_c_name(subject_union.c_name)
@@ -5528,7 +5539,7 @@ func check_tested_member(information: Analysis.UnionInfo, tested_class: Analysis
     report("'{tested_class.simple_name}' is not a member of union '{information.simple_name}', so this is never true")
 }
 
-func is_class_object_type(spite_type: Analysis.SpiteType): Bool {
+func is_class_object_type(spite_type: Analysis.SpiteType): Boolean {
     var class_ref = type_shape.as_class_ref(spite_type)
     assert class_ref
     return class_ref.c_name == "Spite_Class" and not class_ref.has_signature
@@ -5538,7 +5549,7 @@ func generate_class_object_comparison(
     binary: Syntax.Expressions.BinaryExpression,
     tested: ExpressionResult,
     tested_class: Analysis.ClassInfo,
-    is_nullable: Bool,
+    is_nullable: Boolean,
 ): ExpressionResult {
     crash binary.left
     var temporary = next_temporary()
@@ -5615,7 +5626,7 @@ func generate_class_test(
             check_tested_member(union_information, tested_class)
         }
     } else if not type_shape.as_class_ref(value_type) {
-        report("'==' with a class asks what class a value is, and a {type_display_name(value_type)} is not an object")
+        report("'==' with a class asks what class a value is, and {type_with_article(value_type)} is not an object")
         var boolean_spite_type = boolean_type()
         return ExpressionResult("false", boolean_spite_type)
     }
@@ -5688,7 +5699,7 @@ func generate_binary(
         }
         if binary.operator != 'logical_and' and binary.operator != 'logical_or' {
             report(
-                "this value may be null (it is a {type_display_name(left_type)}), so '{binary_operator_symbol(binary.operator)}' cannot use it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+                "this value may be null (it is {type_with_article(left_type)}), so '{binary_operator_symbol(binary.operator)}' cannot use it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
             )
             return ExpressionResult("0", Analysis.Types.VoidType())
         }
@@ -5750,7 +5761,7 @@ func is_wider_right(
     binary: Syntax.Expressions.BinaryExpression,
     left_type: Analysis.SpiteType,
     right_type: Analysis.SpiteType,
-): Bool {
+): Boolean {
     var left_scalar = type_shape.as_scalar(left_type)
     var right_scalar = type_shape.as_scalar(right_type)
     assert left_scalar and right_scalar
@@ -5763,7 +5774,7 @@ func is_wider_right(
     return scalar_bits(right_scalar.kind) > scalar_bits(left_scalar.kind)
 }
 
-func scalar_bits(kind: Analysis.Types.NumericKind): Int {
+func scalar_bits(kind: Analysis.Types.NumericKind): Integer {
     if kind == 'tiny_kind' or kind == 'byte_kind' {
         return 8
     }
@@ -5776,7 +5787,7 @@ func scalar_bits(kind: Analysis.Types.NumericKind): Int {
     return 32
 }
 
-func literal_fits(expression: Syntax.Expressions.Expression, kind: Analysis.Types.NumericKind): Bool {
+func literal_fits(expression: Syntax.Expressions.Expression, kind: Analysis.Types.NumericKind): Boolean {
     var value = literal_value(expression)
     assert value
     var lowest: Long = 0
@@ -5838,6 +5849,11 @@ func report_wider_right(
     )
 }
 
+func type_with_article(spite_type: Analysis.SpiteType): String {
+    var name = type_display_name(spite_type)
+    return with_article(name)
+}
+
 func with_article(name: String): String {
     var vowels = ["A", "E", "I", "O", "U"]
     var first_letter = name.slice(0, 1)
@@ -5876,7 +5892,7 @@ func report_constant_overflow(binary: Syntax.Expressions.BinaryExpression) {
     var expression: Syntax.Expressions.Expression = binary
     var written = printer.source_expression(expression)
     report(
-        "'{written}' is {result}, which does not fit in an Int, the type its arithmetic is done in, so it would wrap: write the number itself, {result}, which is a Long",
+        "'{written}' is {result}, which does not fit in an Integer, the type its arithmetic is done in, so it would wrap: write the number itself, {result}, which is a Long",
     )
 }
 
@@ -5966,7 +5982,7 @@ func report_maybe_boolean(result: ExpressionResult, used_by: String) {
     var maybe_inner = maybe.get_inner()
     assert is_boolean_type(maybe_inner)
     report(
-        "this is a Bool? used by {used_by}, which would only test that it is there, not that it is true: prove it is there first -- 'crash index < flags.count()' proves 'flags[index]' -- or switch over it",
+        "this is a Boolean? used by {used_by}, which would only test that it is there, not that it is true: prove it is there first -- 'crash index < flags.count()' proves 'flags[index]' -- or switch over it",
     )
 }
 
@@ -6094,7 +6110,7 @@ func compares_identity_instead(
     right_ast: Syntax.Expressions.Expression,
     scope: Scope,
     class_information: Analysis.ClassInfo,
-): Bool {
+): Boolean {
     assert function.name == "equals"
     var saved_counter = temporary_counter
     var probe = generate_expression(right_ast, scope, class_information)
@@ -6345,7 +6361,7 @@ func generate_constructor_call(
     if target_class.is_value_class {
         if not target_class.constructor {
             report(
-                "'{target_class.simple_name}' has no constructor: a {target_class.simple_name} is written as a literal, or cast from another value by assigning it",
+                "'{target_class.simple_name}' has no constructor: {with_article(target_class.simple_name)} is written as a literal, or cast from another value by assigning it",
             )
             return ExpressionResult("0", Analysis.Types.VoidType())
         }
@@ -6516,7 +6532,7 @@ func function_type_from(named: Syntax.Types.NamedType, current_namespace: String
     return typed
 }
 
-func same_signature(left: Analysis.Types.ClassRefType, right: Analysis.Types.ClassRefType): Bool {
+func same_signature(left: Analysis.Types.ClassRefType, right: Analysis.Types.ClassRefType): Boolean {
     assert left.has_signature == right.has_signature
     if not left.has_signature {
         return true
@@ -6717,7 +6733,7 @@ func generate_own_function_call(
             )
         } else if not missed.is_empty() {
             report(missed)
-        } else {
+        } else if not reported_old_spelling(name) {
             report("this class has no function '{name}'")
         }
         return ExpressionResult("0", Analysis.Types.VoidType())
@@ -7044,13 +7060,13 @@ func generate_method_call(
     }
     var object_class_ref = type_shape.as_class_ref(object_result_type)
     if not object_class_ref {
-        var object_type_name = type_display_name(object_result_type)
+        var object_type_name = type_with_article(object_result_type)
         if type_shape.as_nullable(object_result_type) {
             report(
-                "this value may be null (it is a {object_type_name}), so '{member.name}' cannot be called on it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+                "this value may be null (it is {object_type_name}), so '{member.name}' cannot be called on it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
             )
         } else {
-            report("a {object_type_name} has no function '{member.name}'")
+            report("{object_type_name} has no function '{member.name}'")
         }
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
@@ -7095,7 +7111,9 @@ func generate_method_call(
         }
         var missed = range_miss(target_class, member.name)
         if missed.is_empty() {
-            report("'{object_class_ref.c_name}' does not define '{member.name}'")
+            if not reported_old_spelling(member.name) {
+                report("'{object_class_ref.c_name}' does not define '{member.name}'")
+            }
         } else {
             report(missed)
         }
@@ -7256,7 +7274,7 @@ func generate_enum_method(
         }
     }
     report(
-        "a {type_display_name(enum_type)} value has no function '{name}': an enum value answers 'to_string()' and 'to_debug()'",
+        "{type_with_article(enum_type)} value has no function '{name}': an enum value answers 'to_string()' and 'to_debug()'",
     )
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
@@ -7288,8 +7306,11 @@ func generate_value_method(
     var object_result_type = object_result.get_type()
     if name == "text" {
         report(
-            "{type_display_name(object_result_type)} turns into text with 'to_string()', a cast like 'to_int()': write 'to_string()'",
+            "{type_display_name(object_result_type)} turns into text with 'to_string()', a cast like 'to_integer()': write 'to_string()'",
         )
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    if reported_old_spelling(name) {
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     var bitwise_names = [
@@ -7305,21 +7326,21 @@ func generate_value_method(
     ]
     if bitwise_names.contains(name) {
         report(
-            "a {type_display_name(object_result_type)} has no function '{name}': the bitwise functions are on the whole numbers, Tiny to UnsignedLong. Cast it first, like 'var whole: Long = value'",
+            "{type_with_article(object_result_type)} has no function '{name}': the bitwise functions are on the whole numbers, Tiny to UnsignedLong. Cast it first, like 'var whole: Long = value'",
         )
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     if is_memory_access(name) {
         report(
-            "a {type_display_name(object_result_type)} has no function '{name}': reading and writing memory is a function of the address, so the value needs to be a 'Memory.Address'",
+            "{type_with_article(object_result_type)} has no function '{name}': reading and writing memory is a function of the address, so the value needs to be a 'Memory.Address'",
         )
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
-    report("a {type_display_name(object_result_type)} has no function '{name}'")
+    report("{type_with_article(object_result_type)} has no function '{name}'")
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
-func is_memory_access(name: String): Bool {
+func is_memory_access(name: String): Boolean {
     return name.starts_with("read_") or name.starts_with("write_") or name == "exchange_long"
 }
 
@@ -7379,8 +7400,17 @@ func generate_string_method(
         report("text has no '{name}()': write '{name}_case()', which names what it does without abbreviating")
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
-    report("String has no method '{name}'")
+    if not reported_old_spelling(name) {
+        report("String has no method '{name}'")
+    }
     return ExpressionResult("0", Analysis.Types.VoidType())
+}
+
+func reported_old_spelling(name: String): Boolean {
+    var spelled = old_spellings.new_spelling(name)
+    assert not spelled.is_empty()
+    report("'{name}' is spelled '{spelled}'")
+    return true
 }
 
 func generate_list_method(
@@ -7546,7 +7576,7 @@ func member_function(element_class: Analysis.ClassInfo, member_name: String): An
     return null
 }
 
-func is_numeric_type(spite_type: Analysis.SpiteType): Bool {
+func is_numeric_type(spite_type: Analysis.SpiteType): Boolean {
     var scalar = type_shape.as_scalar(spite_type)
     if scalar {
         return scalar.kind != 'boolean_kind'
@@ -7554,7 +7584,7 @@ func is_numeric_type(spite_type: Analysis.SpiteType): Bool {
     return false
 }
 
-func is_boolean_type(spite_type: Analysis.SpiteType): Bool {
+func is_boolean_type(spite_type: Analysis.SpiteType): Boolean {
     var scalar = type_shape.as_scalar(spite_type)
     if scalar {
         return scalar.kind == 'boolean_kind'
@@ -7633,7 +7663,7 @@ func shape_of(spite_type: Analysis.SpiteType): Analysis.UnionInfo? {
     return shaped
 }
 
-func element_member_is_field(element: Analysis.SpiteType, member_name: String): Bool {
+func element_member_is_field(element: Analysis.SpiteType, member_name: String): Boolean {
     var element_class = element_class_of(element)
     if element_class {
         return is_field_of(element_class, member_name)
@@ -7654,7 +7684,7 @@ func element_owner_c_name(element: Analysis.SpiteType): String {
     return element_shape.c_name
 }
 
-func is_field_of(element_class: Analysis.ClassInfo, member_name: String): Bool {
+func is_field_of(element_class: Analysis.ClassInfo, member_name: String): Boolean {
     var field = element_class.find_field(member_name)
     assert field
     return true
@@ -7664,21 +7694,22 @@ func described_member(member_type: Analysis.SpiteType): String {
     if type_shape.is_void(member_type) {
         return "returns nothing"
     }
-    return "is a {type_label(member_type)}"
+    var label = type_label(member_type)
+    return "is {with_article(label)}"
 }
 
 func member_requirement(
     template_prefix: String,
-    is_field: Bool,
+    is_field: Boolean,
     member_name: String,
     member_type: Analysis.SpiteType,
 ): String {
     var wants_boolean = template_prefix == "filter_" or template_prefix == "any_" or template_prefix == "all_" or template_prefix == "count_"
     if wants_boolean and not is_boolean_type(member_type) {
         if template_prefix == "count_" and is_numeric_type(member_type) {
-            return "return Bool (to add up a numeric member use 'sum_{member_name}')"
+            return "return Boolean (to add up a numeric member use 'sum_{member_name}')"
         }
-        return "return Bool"
+        return "return Boolean"
     }
     if template_prefix == "sum_" and not is_numeric_type(member_type) {
         return "return a numeric type"
@@ -7694,7 +7725,7 @@ func member_requirement(
         return "return something ordered: a number or a String"
     }
     if template_prefix == "find_by_" and not joins_as_text(member_type) {
-        return "return something comparable: a number, Bool, String, Symbol or enum value"
+        return "return something comparable: a number, Boolean, String, Symbol or enum value"
     }
     return ""
 }
@@ -7920,7 +7951,7 @@ func generate_parallel_each(
     closings.reverse()
     var piece_name = "{fused_name}_piece"
     var piece_lines = List<String>()
-    piece_lines.append("func {piece_name}(first: Int, end: Int) \{")
+    piece_lines.append("func {piece_name}(first: Integer, end: Integer) \{")
     piece_lines.append("    var index = first")
     piece_lines.append("    while index < end \{")
     piece_lines.append("        var item = values.read_value(items, index)")
@@ -7945,7 +7976,7 @@ func parallel_filter_read(element_class: Analysis.ClassInfo, member_name: String
         var field_type = field.get_type()
         if not is_boolean_type(field_type) {
             report(
-                "'{template_name}': the member '{member_name}' of '{element_class.simple_name}' {described_member(field_type)}, but 'filter_' needs it to return Bool",
+                "'{template_name}': the member '{member_name}' of '{element_class.simple_name}' {described_member(field_type)}, but 'filter_' needs it to return Boolean",
             )
             return ""
         }
@@ -7962,7 +7993,7 @@ func parallel_filter_read(element_class: Analysis.ClassInfo, member_name: String
     var returned = function.get_return_type()
     if not is_boolean_type(returned) {
         report(
-            "'{template_name}': the member '{member_name}' of '{element_class.simple_name}' {described_member(returned)}, but 'filter_' needs it to return Bool",
+            "'{template_name}': the member '{member_name}' of '{element_class.simple_name}' {described_member(returned)}, but 'filter_' needs it to return Boolean",
         )
         return ""
     }
@@ -8018,7 +8049,7 @@ func check_parallel_name(
     check_parallel_reach(owner, own, template_name, visited)
 }
 
-func reaches_shared(spite_type: Analysis.SpiteType): Bool {
+func reaches_shared(spite_type: Analysis.SpiteType): Boolean {
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
         var inner = nullable.get_inner()
@@ -8096,7 +8127,7 @@ func chain_base(
     return expression
 }
 
-func streams(name: String, arguments: List<Syntax.Expressions.Expression>): Bool {
+func streams(name: String, arguments: List<Syntax.Expressions.Expression>): Boolean {
     if arguments.is_empty() {
         return name.starts_with("map_") or name.starts_with("filter_")
     }
@@ -8161,7 +8192,11 @@ func fused_step(
     return FusedStep(template.prefix, member_type, read)
 }
 
-func fused_step_name(call: Syntax.Expressions.CallExpression, owners: List<PassedFunction>, owner_index: Int): String {
+func fused_step_name(
+    call: Syntax.Expressions.CallExpression,
+    owners: List<PassedFunction>,
+    owner_index: Integer,
+): String {
     crash call.callee
     var callee = shape.as_member(call.callee)
     crash callee
@@ -8172,7 +8207,7 @@ func fused_step_name(call: Syntax.Expressions.CallExpression, owners: List<Passe
     return "{callee.name}_{owners[owner_index].label}"
 }
 
-func fused_owner_name(owner_count: Int): String {
+func fused_owner_name(owner_count: Integer): String {
     var names = ["owner", "second_owner", "third_owner", "fourth_owner", "fifth_owner", "sixth_owner"]
     if owner_count < names.count() {
         return names[owner_count]
@@ -8214,7 +8249,7 @@ func fused_signature_spelling(signature: Analysis.Types.ClassRefType): String {
     return "Spite.Function<{spellings.join(", ")}>"
 }
 
-func fused_value_name(mapped_count: Int): String {
+func fused_value_name(mapped_count: Integer): String {
     var names = ["mapped", "second_mapped", "third_mapped", "fourth_mapped", "fifth_mapped", "sixth_mapped"]
     if mapped_count < names.count() {
         return names[mapped_count]
@@ -8282,16 +8317,16 @@ func fused_chain_source(
         loop_lines.append("{indent}total = total + {read}")
         after.append("    return total")
     } else if last.prefix == "count_" {
-        returns = ": Int"
+        returns = ": Integer"
         before.append("    var counted = 0")
         loop_lines.append("{indent}if {read} \{\n{indent}    counted = counted + 1\n{indent}}")
         after.append("    return counted")
     } else if last.prefix == "any_" {
-        returns = ": Bool"
+        returns = ": Boolean"
         loop_lines.append("{indent}if {read} \{\n{indent}    return true\n{indent}}")
         after.append("    return false")
     } else if last.prefix == "all_" {
-        returns = ": Bool"
+        returns = ": Boolean"
         loop_lines.append("{indent}assert {read}")
         after.append("    return true")
     } else if last.prefix == "find_by_" {
@@ -8345,7 +8380,7 @@ func fused_chain_source(
     return lines.join("\n")
 }
 
-func is_function_form(name: String, arguments: List<Syntax.Expressions.Expression>): Bool {
+func is_function_form(name: String, arguments: List<Syntax.Expressions.Expression>): Boolean {
     var forms = ["each", "map", "filter", "any", "all", "count", "find", "sort_by", "sum"]
     return arguments.count() == 1 and forms.contains(name)
 }
@@ -8485,9 +8520,9 @@ func form_requirement(name: String, label: String, returned: Analysis.SpiteType)
     var tests = ["filter", "any", "all", "count", "find"]
     if tests.contains(name) and not is_boolean_type(returned) {
         if name == "count" and is_numeric_type(returned) {
-            return "return Bool (to add up what it returns use 'sum({label})')"
+            return "return Boolean (to add up what it returns use 'sum({label})')"
         }
-        return "return Bool"
+        return "return Boolean"
     }
     if name == "sum" and not is_numeric_type(returned) {
         return "return a numeric type"
@@ -8642,7 +8677,7 @@ func register_fused_function(
     return function
 }
 
-func is_listed_class(information: Analysis.ClassInfo): Bool {
+func is_listed_class(information: Analysis.ClassInfo): Boolean {
     assert not information.is_generic_template
     assert not information.c_name.starts_with("Object_") and not information.c_name.starts_with("Spite_")
     var prelude_path = Prelude().path()
@@ -8651,7 +8686,7 @@ func is_listed_class(information: Analysis.ClassInfo): Bool {
     return information.c_name != "Nothing"
 }
 
-func describes_members(information: Analysis.ClassInfo): Bool {
+func describes_members(information: Analysis.ClassInfo): Boolean {
     assert not information.is_generic_template and not information.is_value_class
     assert not information.c_name.starts_with("Object_")
     return information.c_name != "Nothing"
@@ -8960,7 +8995,7 @@ func type_display_names(first: Analysis.SpiteType, second: Analysis.SpiteType): 
     return names
 }
 
-func type_name_written(spite_type: Analysis.SpiteType, qualified: Bool): String {
+func type_name_written(spite_type: Analysis.SpiteType, qualified: Boolean): String {
     var class_ref = type_shape.as_class_ref(spite_type)
     if class_ref {
         if class_ref.has_signature {
@@ -9147,7 +9182,7 @@ func attribute_object_code(spite_type: Analysis.SpiteType, code: String, shape_t
     return cast(retained, spite_type, shape_type)
 }
 
-func has_attribute_object(spite_type: Analysis.SpiteType): Bool {
+func has_attribute_object(spite_type: Analysis.SpiteType): Boolean {
     if type_shape.as_class_ref(spite_type) or type_shape.as_string(spite_type) or type_shape.as_union(spite_type) {
         return true
     }
@@ -9170,7 +9205,7 @@ func ensure_union_attributes(information: Analysis.UnionInfo): String {
     return function_c_name
 }
 
-func attributes_described(member: Analysis.ClassInfo): Bool {
+func attributes_described(member: Analysis.ClassInfo): Boolean {
     return not boxed_value_types.has(member.c_name) and not member.is_value_class and not member.is_container
 }
 
@@ -9193,7 +9228,7 @@ func ensure_union_attribute_members() {
     }
 }
 
-func shape_member_total(): Int {
+func shape_member_total(): Integer {
     var total = 0
     var index = 0
     while index < unions.count() {
@@ -9687,7 +9722,7 @@ func generate_memory_read(
         scalar_memory.owning_override = true
         return scalar_memory
     } else if not type_needs_drop(object_type) or type_shape.as_nullable(object_type) or type_shape.as_union(object_type) {
-        report("a {type_display_name(object_type)} has no memory of its own to describe")
+        report("{type_with_article(object_type)} has no memory of its own to describe")
         return null
     }
     var release_object = ""
@@ -10060,7 +10095,7 @@ func poisoned_key(name: String): String {
     return "{current_path}:{current_owner}.{current_function}:{name}"
 }
 
-func mentions_poisoned(statement: Syntax.Statements.Statement, names: List<String>): Bool {
+func mentions_poisoned(statement: Syntax.Statements.Statement, names: List<String>): Boolean {
     if not poisoned_names.is_empty() {
         collect_statement_head_names(statement, names)
     }
@@ -10202,7 +10237,7 @@ func generate_index_read(
         )
     } else {
         report(
-            "a {type_display_name(object_result_type)} is not indexed with [ ]: only a List<T> and a Dictionary<T> are",
+            "{type_with_article(object_result_type)} is not indexed with [ ]: only a List<T> and a Dictionary<T> are",
         )
     }
     return ExpressionResult("0", Analysis.Types.VoidType())
@@ -10545,7 +10580,7 @@ func release_statement(spite_type: Analysis.SpiteType, code: String): String {
     return ""
 }
 
-func joins_as_text(element: Analysis.SpiteType): Bool {
+func joins_as_text(element: Analysis.SpiteType): Boolean {
     return type_shape.as_string(element) or type_shape.is_symbol(element) or type_shape.as_scalar(element) or is_enum_type(element)
 }
 
@@ -10570,7 +10605,7 @@ func crash_operand_statement(
     return "\{ SpiteString* {temporary} = {converted}; {written} SpiteString___release({temporary}); }"
 }
 
-func collect_static_segments(expression: Syntax.Expressions.Expression, out: List<String>): Bool {
+func collect_static_segments(expression: Syntax.Expressions.Expression, out: List<String>): Boolean {
     var identifier = shape.as_identifier(expression)
     if identifier {
         out.append(identifier.name)
@@ -10743,7 +10778,7 @@ func generate_library_constructor(arguments_ast: List<Syntax.Expressions.Express
     return library_value(library)
 }
 
-func library_value(library: Int): ExpressionResult {
+func library_value(library: Integer): ExpressionResult {
     var library_type = Analysis.Types.ClassRefType("DynamicLibrary")
     library_type.foreign_library = library
     var value = ExpressionResult("spite_foreign_library_{library}()", library_type)
@@ -10751,7 +10786,7 @@ func library_value(library: Int): ExpressionResult {
     return value
 }
 
-func declared_by_dynamic_library(name: String): Bool {
+func declared_by_dynamic_library(name: String): Boolean {
     var library_class = find_class_by_c_name("DynamicLibrary")
     assert library_class
     var declared = library_class.find_function(name)
@@ -10875,7 +10910,7 @@ func generate_foreign_call(
             passed.append("(void*)&{struct_value}")
         } else {
             report(
-                "a {type_display_name(argument_type)} cannot cross into C: a foreign function takes numbers, Bool, enum values, text and a type whose attributes are all numbers",
+                "{type_with_article(argument_type)} cannot cross into C: a foreign function takes numbers, Boolean, enum values, text and a type whose attributes are all numbers",
             )
         }
         index = index + 1
@@ -10928,11 +10963,11 @@ func declared_foreign_call(symbol_name: String, pointer: String, passed: List<St
     return "({returned_c})__builtin_choose_expr(__builtin_types_compatible_p(__typeof__({call}), void), ({call}, ({returned_c})0), {call})"
 }
 
-func is_reflection_member(name: String): Bool {
+func is_reflection_member(name: String): Boolean {
     return name == "class" or name == "attributes" or name == "functions" or name == "memory"
 }
 
-func is_own_library_member(name: String): Bool {
+func is_own_library_member(name: String): Boolean {
     var library_class = find_class_by_c_name("DynamicLibrary")
     crash library_class
     if library_class.find_field(name) or library_class.find_function(name) {
@@ -10969,7 +11004,7 @@ func ensure_foreign_header(header: String) {
     }
 }
 
-func passes_as_array(spite_type: Analysis.SpiteType): Bool {
+func passes_as_array(spite_type: Analysis.SpiteType): Boolean {
     var listed = type_shape.as_list(spite_type)
     if listed {
         var listed_element = listed.get_element()
@@ -10980,7 +11015,7 @@ func passes_as_array(spite_type: Analysis.SpiteType): Bool {
     return false
 }
 
-func passes_as_struct(spite_type: Analysis.SpiteType): Bool {
+func passes_as_struct(spite_type: Analysis.SpiteType): Boolean {
     var passed_union = type_shape.as_union(spite_type)
     assert passed_union
     var shaped = find_union_by_c_name(passed_union.c_name)
@@ -10998,7 +11033,7 @@ func passes_as_struct(spite_type: Analysis.SpiteType): Bool {
     return true
 }
 
-func ensure_foreign_symbol(library: Int, c_name: String): String {
+func ensure_foreign_symbol(library: Integer, c_name: String): String {
     var index = 0
     while index < foreign_symbol_names.count() {
         crash index < foreign_symbol_libraries.count()
@@ -11375,13 +11410,13 @@ func generate_member_read_raw(
         switch object_result_type {
             Analysis.Types.NullableType: {
                 report(
-                    "this value may be null (it is a {type_display_name(object_result_type)}), so '{member.name}' cannot be read from it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+                    "this value may be null (it is {type_with_article(object_result_type)}), so '{member.name}' cannot be read from it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
                 )
             }
             Analysis.Types.VoidType: report("'{member.name}' cannot be read from this value")
             _: {
                 report(
-                    "'{member.name}' cannot be read from a {type_display_name(object_result_type)}: if it is a function, call it with '{member.name}()'",
+                    "'{member.name}' cannot be read from {type_with_article(object_result_type)}: if it is a function, call it with '{member.name}()'",
                 )
             }
         }
@@ -11549,7 +11584,7 @@ func undo_proofs_after_calls(scope: Scope, class_information: Analysis.ClassInfo
     var calls = pending_calls
     var lines = pending_call_lines
     pending_calls = List<Syntax.Expressions.Expression>()
-    pending_call_lines = List<Int>()
+    pending_call_lines = List<Integer>()
     var saved_line = current_line
     var index = 0
     while index < calls.count() {
@@ -11693,7 +11728,7 @@ func effect_changes(
     dependencies: List<String>,
     path: String,
     arguments: List<Syntax.Expressions.Expression>,
-): Bool {
+): Boolean {
     if effect.starts_with("parameter:") {
         var passed = passed_list_path(effect, arguments)
         return not passed.is_empty() and path.starts_with("{passed}[")
@@ -11709,7 +11744,7 @@ func effect_changes(
     return false
 }
 
-func dependency_changes(effect: String, dependency: String): Bool {
+func dependency_changes(effect: String, dependency: String): Boolean {
     var is_list = dependency.starts_with("list:")
     if effect == "field:*" {
         return not is_list
@@ -11730,7 +11765,7 @@ func dependency_changes(effect: String, dependency: String): Bool {
     return links_meet(written_link, dependency)
 }
 
-func links_meet(changed_link: String, link: String): Bool {
+func links_meet(changed_link: String, link: String): Boolean {
     var changed_parts = changed_link.split("#")
     var parts = link.split("#")
     assert changed_parts.count() == 2 and parts.count() == 2
@@ -11741,7 +11776,7 @@ func links_meet(changed_link: String, link: String): Bool {
 func passed_list_path(effect: String, arguments: List<Syntax.Expressions.Expression>): String {
     var effect_length = effect.length()
     var position_text = effect.slice(10, effect_length)
-    var position = position_text.to_int()
+    var position = position_text.to_integer()
     assert position < arguments.count()
     return operand_text(arguments[position])
 }
@@ -11848,7 +11883,7 @@ func collect_key_dependencies(
 
 func add_key_dependency(
     word: String,
-    after_dot: Bool,
+    after_dot: Boolean,
     scope: Scope,
     class_information: Analysis.ClassInfo,
     dependencies: List<String>,
@@ -12011,7 +12046,7 @@ func link_test(
     return "(({link_result.code}) != 0)"
 }
 
-func emit_scope_drops(scope: Scope, all_the_way_up: Bool) {
+func emit_scope_drops(scope: Scope, all_the_way_up: Boolean) {
     var index = scope.owned.count() - 1
     while index >= 0 {
         crash scope.owned[index]
@@ -12057,7 +12092,7 @@ func generate_variable_declaration(
     }
 }
 
-func choose_allocator_after(statements: List<Syntax.Statements.Statement>, index: Int) {
+func choose_allocator_after(statements: List<Syntax.Statements.Statement>, index: Integer) {
     pending_allocator = null
     assert index + 1 < statements.count()
     var declaration = shape.as_variable_declaration(statements[index])
@@ -12086,7 +12121,7 @@ func allocator_object_name(target: Syntax.Expressions.Expression): String {
     return object_text
 }
 
-func is_name_path(expression: Syntax.Expressions.Expression): Bool {
+func is_name_path(expression: Syntax.Expressions.Expression): Boolean {
     if shape.as_identifier(expression) {
         return true
     }
@@ -12116,7 +12151,7 @@ func allocated_declaration(
     setting: Syntax.Statements.AssignmentStatement,
     scope: Scope,
     class_information: Analysis.ClassInfo,
-): Bool {
+): Boolean {
     crash declaration.value
     crash setting.value
     var saved_counter = temporary_counter
@@ -12339,7 +12374,7 @@ func placed_in_frame(
     declaration: Syntax.Statements.VariableDeclaration,
     scope: Scope,
     class_information: Analysis.ClassInfo,
-): Bool {
+): Boolean {
     crash declaration.value
     var allocation = shape.as_call(declaration.value)
     crash allocation
@@ -12381,7 +12416,7 @@ func placed_in_frame(
     return true
 }
 
-func freed_from_frame(expression_statement: Syntax.Statements.ExpressionStatement, scope: Scope): Bool {
+func freed_from_frame(expression_statement: Syntax.Statements.ExpressionStatement, scope: Scope): Boolean {
     crash expression_statement.value
     var index = placed_names.count() - 1
     while index >= 0 {
@@ -12546,7 +12581,7 @@ func value_is_never_null(
     value_ast: Syntax.Expressions.Expression,
     scope: Scope,
     class_information: Analysis.ClassInfo,
-): Bool {
+): Boolean {
     if shape.as_generic_call(value_ast) or shape.as_string_literal(value_ast) or shape.as_integer_literal(value_ast) {
         return true
     }
@@ -12606,7 +12641,7 @@ func appends_to_itself(
     value: Syntax.Expressions.Expression,
     target: String,
     pieces: List<Syntax.Expressions.Expression>,
-): Bool {
+): Boolean {
     assert text_base_is(value, target, pieces) and not pieces.is_empty()
     var mentioned = List<String>()
     collect_each_mentioned_name(pieces, mentioned)
@@ -12617,7 +12652,7 @@ func text_base_is(
     value: Syntax.Expressions.Expression,
     target: String,
     pieces: List<Syntax.Expressions.Expression>,
-): Bool {
+): Boolean {
     if is_identifier_named(value, target) {
         return true
     }
@@ -12639,7 +12674,7 @@ func text_base_is(
     return false
 }
 
-func is_identifier_named(value: Syntax.Expressions.Expression, name: String): Bool {
+func is_identifier_named(value: Syntax.Expressions.Expression, name: String): Boolean {
     var identifier = shape.as_identifier(value)
     if identifier {
         return identifier.name == name
@@ -12856,10 +12891,10 @@ func generate_store(
         if not object_class_ref {
             if type_shape.as_nullable(object_result_type) {
                 report(
-                    "this value may be null (it is a {type_display_name(object_result_type)}), so '{member.name}' cannot be assigned through it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
+                    "this value may be null (it is {type_with_article(object_result_type)}), so '{member.name}' cannot be assigned through it yet: narrow it first with 'if value \{ }', 'assert value' or 'crash value'",
                 )
             } else if not has_error {
-                report("cannot assign to '{member.name}' through a {type_display_name(object_result_type)}")
+                report("cannot assign to '{member.name}' through {type_with_article(object_result_type)}")
             }
             return
         }
@@ -12927,7 +12962,7 @@ func generate_statement_list(
     scope: Scope,
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
-): Bool {
+): Boolean {
     var candidates = placement.frame_candidates(statements)
     var candidate_index = 0
     while candidate_index < candidates.count() {
@@ -12971,12 +13006,12 @@ func generate_statement_list(
 
 func overlaps_next_read(
     statements: List<Syntax.Statements.Statement>,
-    index: Int,
+    index: Integer,
     read_name: String,
     overlapped_reads: List<String>,
     scope: Scope,
     class_information: Analysis.ClassInfo,
-): Bool {
+): Boolean {
     assert not read_name.is_empty() and index + 1 < statements.count()
     var pending = overlapped_reads.copy()
     pending.append(read_name)
@@ -13060,7 +13095,7 @@ func join_overlapped_reads(pending: List<String>, scope: Scope) {
     pending.clear()
 }
 
-func mark_rest_used(statements: List<Syntax.Statements.Statement>, start: Int, scope: Scope) {
+func mark_rest_used(statements: List<Syntax.Statements.Statement>, start: Integer, scope: Scope) {
     var folded_away = List<Syntax.Statements.Statement>()
     var index = start
     while index < statements.count() {
@@ -13072,7 +13107,7 @@ func mark_rest_used(statements: List<Syntax.Statements.Statement>, start: Int, s
 
 func report_template_walk(
     statements: List<Syntax.Statements.Statement>,
-    position: Int,
+    position: Integer,
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ) {
@@ -13158,9 +13193,9 @@ func walked_element(core: List<Syntax.Statements.Statement>, list_text: String, 
 func walk_fits_around(
     walk: TemplateWalk,
     statements: List<Syntax.Statements.Statement>,
-    position: Int,
+    position: Integer,
     counter: String,
-): Bool {
+): Boolean {
     var after = List<Syntax.Statements.Statement>()
     var after_index = position + 1
     while after_index < statements.count() {
@@ -13195,7 +13230,7 @@ func walk_fits_around(
 
 func start_before(
     statements: List<Syntax.Statements.Statement>,
-    position: Int,
+    position: Integer,
     name: String,
 ): Syntax.Expressions.Expression? {
     var index = position - 2
@@ -13213,7 +13248,7 @@ func start_before(
     return null
 }
 
-func is_new_list(expression: Syntax.Expressions.Expression): Bool {
+func is_new_list(expression: Syntax.Expressions.Expression): Boolean {
     var construction = shape.as_generic_call(expression)
     assert construction
     assert construction.arguments.is_empty()
@@ -13222,7 +13257,7 @@ func is_new_list(expression: Syntax.Expressions.Expression): Bool {
     return callee_text == "List"
 }
 
-func members_exist(element_class: Analysis.ClassInfo, members: List<String>): Bool {
+func members_exist(element_class: Analysis.ClassInfo, members: List<String>): Boolean {
     var index = 0
     while index < members.count() {
         var member_type = member_type_of(element_class, members[index])
@@ -13505,7 +13540,7 @@ func walk_by_find(
     return found
 }
 
-func starts_at_zero(before: Syntax.Statements.Statement, counter: String): Bool {
+func starts_at_zero(before: Syntax.Statements.Statement, counter: String): Boolean {
     var declared = shape.as_variable_declaration(before)
     if declared {
         crash declared.value
@@ -13519,13 +13554,13 @@ func starts_at_zero(before: Syntax.Statements.Statement, counter: String): Bool 
     return target_text == counter and is_zero_literal(assigned.value)
 }
 
-func is_zero_literal(expression: Syntax.Expressions.Expression): Bool {
+func is_zero_literal(expression: Syntax.Expressions.Expression): Boolean {
     var integer = shape.as_integer_literal(expression)
     assert integer
     return integer.value == 0
 }
 
-func is_counter_step(statement: Syntax.Statements.Statement, counter: String): Bool {
+func is_counter_step(statement: Syntax.Statements.Statement, counter: String): Boolean {
     var assignment = shape.as_assignment_statement(statement)
     assert assignment
     crash assignment.target
@@ -13543,7 +13578,7 @@ func is_counter_step(statement: Syntax.Statements.Statement, counter: String): B
     return left_text == counter and right.value == 1
 }
 
-func signature_is_dictated(function: Analysis.FunctionInfo): Bool {
+func signature_is_dictated(function: Analysis.FunctionInfo): Boolean {
     if not function.symbol_name.is_empty() {
         return true
     }
@@ -13569,7 +13604,7 @@ func signature_is_dictated(function: Analysis.FunctionInfo): Bool {
     return dictated.contains(function.name)
 }
 
-func is_lowercase_name(name: String): Bool {
+func is_lowercase_name(name: String): Boolean {
     var index = 0
     while index < name.length() {
         var code = name.code_at(index)
@@ -13581,7 +13616,7 @@ func is_lowercase_name(name: String): Bool {
     return true
 }
 
-func is_pascal_name(name: String): Bool {
+func is_pascal_name(name: String): Boolean {
     assert not name.is_empty()
     var first = name.code_at(0)
     assert first >= 65 and first <= 90
@@ -13877,7 +13912,7 @@ func check_type_name(name: String, what: String) {
     check_abbreviations(name)
 }
 
-func report_unread_name(name: String, is_parameter: Bool) {
+func report_unread_name(name: String, is_parameter: Boolean) {
     if not is_parameter {
         report("'{name}' is never read: remove it")
         return
@@ -13922,7 +13957,7 @@ func mark_folded_words_read(statements: List<Syntax.Statements.Statement>) {
     mark_words_read(text, false, List<String>())
 }
 
-func mark_words_read(text: String, members_only: Bool, metadata_receivers: List<String>) {
+func mark_words_read(text: String, members_only: Boolean, metadata_receivers: List<String>) {
     var text_length = text.length()
     var start = 0
     var position = 0
@@ -13942,7 +13977,13 @@ func mark_words_read(text: String, members_only: Bool, metadata_receivers: List<
     }
 }
 
-func is_member_read_at(text: String, start: Int, end: Int, receiver: String, metadata_receivers: List<String>): Bool {
+func is_member_read_at(
+    text: String,
+    start: Integer,
+    end: Integer,
+    receiver: String,
+    metadata_receivers: List<String>,
+): Boolean {
     assert start > 0 and text.code_at(start - 1) == 46
     assert end == text.length() or text.code_at(end) != 40
     return not metadata_receivers.contains(receiver)
@@ -13996,7 +14037,7 @@ func symbol_parameter_names(declaration: Syntax.Statements.FunctionDeclaration):
     return names
 }
 
-func is_emitted_in_an_instance(template: Analysis.ClassInfo, name: String): Bool {
+func is_emitted_in_an_instance(template: Analysis.ClassInfo, name: String): Boolean {
     var index = 0
     while index < classes.count() {
         var instance = classes[index]
@@ -14013,7 +14054,7 @@ func is_emitted_in_an_instance(template: Analysis.ClassInfo, name: String): Bool
     return false
 }
 
-func is_attribute_name_code(text: String, position: Int): Bool {
+func is_attribute_name_code(text: String, position: Integer): Boolean {
     var code = text.code_at(position)
     return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
 }
@@ -14074,7 +14115,7 @@ func report_unused_attributes() {
     }
 }
 
-func is_in_loaded_folder(path: String): Bool {
+func is_in_loaded_folder(path: String): Boolean {
     var index = 0
     while index < loaded_folders.count() {
         if path.starts_with(loaded_folders[index]) {
@@ -14090,7 +14131,7 @@ func class_statements(information: Analysis.ClassInfo): List<Syntax.Statements.S
     return discovered_classes[information.entry_index].get_file().statements
 }
 
-func attributes_are_checked(information: Analysis.ClassInfo): Bool {
+func attributes_are_checked(information: Analysis.ClassInfo): Boolean {
     assert not information.is_value_class
     assert information.qualified_dotted != "Build" and information.qualified_dotted != "Environment"
     return true
@@ -14120,7 +14161,7 @@ func report_unread_attributes(information: Analysis.ClassInfo, statements: List<
     }
 }
 
-func binds_singleton(declaration: Syntax.Statements.VariableDeclaration, information: Analysis.ClassInfo): Bool {
+func binds_singleton(declaration: Syntax.Statements.VariableDeclaration, information: Analysis.ClassInfo): Boolean {
     crash declaration.value
     var bound = constructed_singleton(declaration.value, information)
     assert bound
@@ -14287,7 +14328,7 @@ func generate_if_statement(
     scope: Scope,
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
-): Bool {
+): Boolean {
     assert if_statement.condition
     report_repeated_branch_call(if_statement)
     report_nested_if_else(if_statement)
@@ -14370,7 +14411,7 @@ func generate_class_narrowing_if(
     scope: Scope,
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
-): Bool {
+): Boolean {
     crash if_statement.condition
     var binary = shape.as_binary(if_statement.condition)
     assert binary
@@ -14456,7 +14497,7 @@ func generate_nullable_switch(
                     var guard_inner = guard.get_inner()
                     if not types_equal(case_type, guard_inner) {
                         report(
-                            "this value is a {type_display_name(guard_inner)} or null, so its switch cases are '{type_display_name(guard_inner)}' and 'Null'",
+                            "this value is {type_with_article(guard_inner)} or null, so its switch cases are '{type_display_name(guard_inner)}' and 'Null'",
                         )
                     }
                 }
@@ -14481,7 +14522,7 @@ func generate_nullable_switch(
 
 func generate_union_case(
     switch_case: Syntax.Statements.SwitchCase,
-    case_index: Int,
+    case_index: Integer,
     information: Analysis.UnionInfo,
     subject_temporary: String,
     subject_identifier: Syntax.Expressions.IdentifierExpression?,
@@ -14519,7 +14560,7 @@ func generate_union_case(
 
 func generate_rest_case(
     switch_case: Syntax.Statements.SwitchCase,
-    case_index: Int,
+    case_index: Integer,
     information: Analysis.UnionInfo,
     subject_temporary: String,
     subject_identifier: Syntax.Expressions.IdentifierExpression?,
@@ -14551,7 +14592,7 @@ func generate_rest_case(
 
 func emit_narrowed_case(
     case_class: Analysis.ClassInfo,
-    chained: Bool,
+    chained: Boolean,
     body: List<Syntax.Statements.Statement>,
     subject_temporary: String,
     subject_identifier: Syntax.Expressions.IdentifierExpression?,
@@ -14576,7 +14617,7 @@ func emit_narrowed_case(
 
 func report_misplaced_rest_case(
     switch_statement: Syntax.Statements.SwitchStatement,
-    case_index: Int,
+    case_index: Integer,
     covered_names: List<String>,
     information: Analysis.UnionInfo,
 ) {
@@ -14587,7 +14628,7 @@ func report_misplaced_rest_case(
     }
 }
 
-func is_rest_case(switch_case: Syntax.Statements.SwitchCase): Bool {
+func is_rest_case(switch_case: Syntax.Statements.SwitchCase): Boolean {
     if switch_case.type_reference {
         var named = shape.as_named_type(switch_case.type_reference)
         if named {
@@ -14624,7 +14665,7 @@ func report_single_case(switch_statement: Syntax.Statements.SwitchStatement) {
     )
 }
 
-func only_returns(body: List<Syntax.Statements.Statement>): Bool {
+func only_returns(body: List<Syntax.Statements.Statement>): Boolean {
     assert body.count() == 1
     return body[0] == Syntax.Statements.ReturnStatement
 }
@@ -14728,7 +14769,7 @@ func report_if_else_in_branch(branch: List<Syntax.Statements.Statement>) {
     }
 }
 
-func collect_chain_narrowed_names(if_statement: Syntax.Statements.IfStatement, names: List<String>): Bool {
+func collect_chain_narrowed_names(if_statement: Syntax.Statements.IfStatement, names: List<String>): Boolean {
     crash if_statement.condition
     collect_narrowed_names(if_statement.condition, names)
     assert if_statement.has_else_branch
@@ -14812,7 +14853,7 @@ func collect_narrowed_names(condition: Syntax.Expressions.Expression, names: Lis
     }
 }
 
-func names_a_class_or_null(expression: Syntax.Expressions.Expression): Bool {
+func names_a_class_or_null(expression: Syntax.Expressions.Expression): Boolean {
     switch expression {
         Syntax.Expressions.MemberExpression: return starts_upper_case(expression.name)
         Syntax.Expressions.IdentifierExpression: return starts_upper_case(expression.name)
@@ -14973,7 +15014,7 @@ func add_repeatable_call(
     calls.append(source_expression)
 }
 
-func starts_upper_case(name: String): Bool {
+func starts_upper_case(name: String): Boolean {
     var first_letter = name.slice(0, 1)
     return first_letter.upper_case() == first_letter and first_letter.lower_case() != first_letter
 }
@@ -15164,7 +15205,7 @@ func report_long_construction(statement: Syntax.Statements.Statement) {
     )
 }
 
-func statement_depth(statement: Syntax.Statements.Statement): Int {
+func statement_depth(statement: Syntax.Statements.Statement): Integer {
     switch statement {
         Syntax.Statements.VariableDeclaration: return statement.depth
         Syntax.Statements.AssignmentStatement: return statement.depth
@@ -15776,7 +15817,7 @@ func generate_switch_statement(
 func generate_union_dispatch(
     information: Analysis.UnionInfo,
     member_name: String,
-    is_call: Bool,
+    is_call: Boolean,
     object_result: ExpressionResult,
     object_ast: Syntax.Expressions.Expression,
     arguments_ast: List<Syntax.Expressions.Expression>,
@@ -15945,13 +15986,13 @@ func check_condition(condition: ExpressionResult, keyword: String) {
     assert not type_shape.as_nullable(condition_type)
     if type_shape.as_class_ref(condition_type) {
         report(
-            "this value cannot be null here (it is a {type_display_name(condition_type)}), so '{keyword}' on it proves nothing: remove the check",
+            "this value cannot be null here (it is {type_with_article(condition_type)}), so '{keyword}' on it proves nothing: remove the check",
         )
         return
     }
     if not is_boolean_type(condition_type) {
         report(
-            "the condition of '{keyword}' is a {type_display_name(condition_type)}, but it must be a Bool: compare it with something, like 'count > 0' or 'name != \"\"'",
+            "the condition of '{keyword}' is {type_with_article(condition_type)}, but it must be a Boolean: compare it with something, like 'count > 0' or 'name != \"\"'",
         )
     }
 }
@@ -16098,7 +16139,7 @@ func index_key_text(key: Syntax.Expressions.Expression): String {
     return printer.source_expression(key)
 }
 
-func is_structural_key(key: Syntax.Expressions.Expression): Bool {
+func is_structural_key(key: Syntax.Expressions.Expression): Boolean {
     switch key {
         Syntax.Expressions.IdentifierExpression: return true
         Syntax.Expressions.IntegerLiteral: return true
@@ -16116,7 +16157,7 @@ func is_structural_key(key: Syntax.Expressions.Expression): Bool {
     }
 }
 
-func is_structural_part(part: Syntax.Expressions.Expression?): Bool {
+func is_structural_part(part: Syntax.Expressions.Expression?): Boolean {
     assert part
     return is_structural_key(part)
 }
@@ -16203,7 +16244,7 @@ func content_hash(content: String): String {
     var remaining = hash
     var count = 0
     while count < 8 {
-        var digit: Int = remaining % 16
+        var digit: Integer = remaining % 16
         text = digits.character_at(digit) + text
         remaining = remaining / 16
         count = count + 1
@@ -16262,7 +16303,7 @@ func record_site(
     )
 }
 
-func sorted_position(sorted: List<String>, line: String): Int {
+func sorted_position(sorted: List<String>, line: String): Integer {
     var position = sorted.count()
     while position > 0 {
         var before = position - 1
@@ -16320,7 +16361,7 @@ func generate_and_narrowing_if(
     scope: Scope,
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
-): Bool {
+): Boolean {
     crash if_statement.condition
     var sides = List<Syntax.Expressions.Expression>()
     collect_and_sides(if_statement.condition, sides)
@@ -16457,12 +16498,12 @@ func generate_return_statement(
     if type_shape.is_void(return_type) {
         if return_statement.value and not has_error {
             report(
-                "'{function_information.name}' returns nothing, so 'return' cannot carry a value here: declare what it returns, like 'func {function_information.name}(): Int', or return without a value",
+                "'{function_information.name}' returns nothing, so 'return' cannot carry a value here: declare what it returns, like 'func {function_information.name}(): Integer', or return without a value",
             )
             return
         }
     } else if not return_statement.value {
-        report("'{function_information.name}' returns a {type_display_name(return_type)}, so 'return' needs a value")
+        report("'{function_information.name}' returns {type_with_article(return_type)}, so 'return' needs a value")
         return
     }
     if return_statement.value {
@@ -16531,7 +16572,7 @@ func generate_statement(
     scope: Scope,
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
-): Bool {
+): Boolean {
     undo_proofs_after_calls(scope, class_information)
     current_line = statement.line
     var saved_poisoned = statement_poisoned
@@ -16572,7 +16613,7 @@ func generate_statement_kind(
     scope: Scope,
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
-): Bool {
+): Boolean {
     report_nested_calls(statement, class_information)
     var variable_declaration = shape.as_variable_declaration(statement)
     if variable_declaration {
@@ -17096,7 +17137,10 @@ func emit_string_support(information: Analysis.ClassInfo) {
     )
 }
 
-func declared_memory_bytes(declaration: Syntax.Statements.VariableDeclaration, information: Analysis.ClassInfo): Int {
+func declared_memory_bytes(
+    declaration: Syntax.Statements.VariableDeclaration,
+    information: Analysis.ClassInfo,
+): Integer {
     crash declaration.value
     var allocation = shape.as_call(declaration.value)
     if allocation {
@@ -17123,7 +17167,7 @@ func declared_memory_bytes(declaration: Syntax.Statements.VariableDeclaration, i
     return 0
 }
 
-func scalar_c_bytes(c_type: String): Int {
+func scalar_c_bytes(c_type: String): Integer {
     if c_type == "int8_t" or c_type == "uint8_t" or c_type == "bool" {
         return 1
     }
@@ -17229,7 +17273,7 @@ func debug_memory_class_name_table(): String {
     return "\{ {names.join(", ")} }"
 }
 
-func is_library_class(information: Analysis.ClassInfo): Bool {
+func is_library_class(information: Analysis.ClassInfo): Boolean {
     return information.source_path.starts_with("library/") or information.source_path.starts_with("launcher/")
 }
 
@@ -17254,7 +17298,7 @@ func waiting_kind(information: Analysis.ClassInfo, function: Analysis.FunctionIn
     return ""
 }
 
-func guards_singleton(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Bool {
+func guards_singleton(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
     assert information.is_singleton and not information.is_stateless_singleton and not is_library_class(information)
     assert not function.is_constructor and function.name != "drop" and not function.body.is_empty()
     assert not is_hot_class(information)
@@ -17263,7 +17307,7 @@ func guards_singleton(information: Analysis.ClassInfo, function: Analysis.Functi
     return changes_after_construction(information)
 }
 
-func atomic_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Bool {
+func atomic_function(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Boolean {
     assert information.is_singleton and not information.is_stateless_singleton and not is_library_class(information)
     assert not function.is_constructor and function.name != "drop" and not function.body.is_empty()
     assert not is_hot_class(information)
@@ -17271,7 +17315,7 @@ func atomic_function(information: Analysis.ClassInfo, function: Analysis.Functio
     return not atomic.is_empty()
 }
 
-func changes_after_construction(information: Analysis.ClassInfo): Bool {
+func changes_after_construction(information: Analysis.ClassInfo): Boolean {
     if written_from_outside(information) {
         return true
     }
@@ -17352,7 +17396,7 @@ func finish_singleton_guards() {
         "static SPITE_THREAD_LOCAL char spite_guard_thread;\nstatic void spite_guard_enter(SpiteGuard* guard) \{\nint64_t spite_me = (int64_t)(intptr_t)&spite_guard_thread;\nif (__atomic_load_n(&guard->owner, __ATOMIC_ACQUIRE) == spite_me) \{ guard->depth = guard->depth + 1; return; }\nint64_t spite_free = 0;\nwhile (!__atomic_compare_exchange_n(&guard->owner, &spite_free, spite_me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) \{ spite_free = 0; }\nguard->depth = 1;\n}\nstatic void spite_guard_leave(SpiteGuard* guard) \{\nguard->depth = guard->depth - 1;\nif (guard->depth == 0) __atomic_store_n(&guard->owner, 0, __ATOMIC_RELEASE);\n}",
     )
     var guarded_names = List<String>()
-    var wrapped = List<Int>()
+    var wrapped = List<Integer>()
     var reached = call_effects.thread_reached_classes()
     var index = 0
     while index < guarded_functions.count() {
@@ -17377,7 +17421,7 @@ func finish_singleton_guards() {
     call_unguarded_inside(wrapped)
 }
 
-func call_unguarded_inside(wrapped: List<Int>) {
+func call_unguarded_inside(wrapped: List<Integer>) {
     var index = 0
     while index < wrapped.count() {
         var position = wrapped[index]
@@ -17396,7 +17440,7 @@ func call_unguarded_inside(wrapped: List<Int>) {
     }
 }
 
-func unguarded_calls(line: String, information: Analysis.ClassInfo, wrapped: List<Int>): String {
+func unguarded_calls(line: String, information: Analysis.ClassInfo, wrapped: List<Integer>): String {
     var result = line
     var index = 0
     while index < wrapped.count() {
@@ -17462,7 +17506,7 @@ func atomic_singleton_fields(information: Analysis.ClassInfo): List<String> {
     return mutable
 }
 
-func is_atomic_capable(spite_type: Analysis.SpiteType): Bool {
+func is_atomic_capable(spite_type: Analysis.SpiteType): Boolean {
     var scalar = type_shape.as_scalar(spite_type)
     assert scalar
     var kind = scalar.kind
@@ -17476,7 +17520,7 @@ func function_state_uses(
     function: Analysis.FunctionInfo,
     mutable: List<String>,
     visiting: List<String>,
-): Int {
+): Integer {
     if visiting.contains(function.name) {
         return 2
     }
@@ -17504,7 +17548,7 @@ func block_state_uses(
     information: Analysis.ClassInfo,
     mutable: List<String>,
     visiting: List<String>,
-): Int {
+): Integer {
     var total = 0
     var index = 0
     while index < statements.count() {
@@ -17520,7 +17564,7 @@ func statement_state_uses(
     information: Analysis.ClassInfo,
     mutable: List<String>,
     visiting: List<String>,
-): Int {
+): Integer {
     switch statement {
         Syntax.Statements.VariableDeclaration: return optional_state_uses(statement.value, information, mutable, visiting)
         Syntax.Statements.AssignmentStatement: {
@@ -17587,7 +17631,7 @@ func optional_state_uses(
     information: Analysis.ClassInfo,
     mutable: List<String>,
     visiting: List<String>,
-): Int {
+): Integer {
     if expression {
         return expression_state_uses(expression, information, mutable, visiting)
     }
@@ -17599,7 +17643,7 @@ func each_state_uses(
     information: Analysis.ClassInfo,
     mutable: List<String>,
     visiting: List<String>,
-): Int {
+): Integer {
     var total = 0
     var index = 0
     while index < expressions.count() {
@@ -17615,7 +17659,7 @@ func expression_state_uses(
     information: Analysis.ClassInfo,
     mutable: List<String>,
     visiting: List<String>,
-): Int {
+): Integer {
     switch expression {
         Syntax.Expressions.IdentifierExpression: {
             if expression.name == "this" {
@@ -17774,7 +17818,7 @@ func finish_atomic_singletons() {
     }
 }
 
-func written_from_outside(information: Analysis.ClassInfo): Bool {
+func written_from_outside(information: Analysis.ClassInfo): Boolean {
     if outside_written.has(information.c_name) {
         return outside_written[information.c_name] == true
     }
@@ -17791,12 +17835,12 @@ func written_from_outside(information: Analysis.ClassInfo): Bool {
     return written
 }
 
-func shares_state(field_type: Analysis.SpiteType): Bool {
+func shares_state(field_type: Analysis.SpiteType): Boolean {
     var visiting = List<String>()
     return not holds_read_only(field_type, visiting)
 }
 
-func holds_read_only(field_type: Analysis.SpiteType, visiting: List<String>): Bool {
+func holds_read_only(field_type: Analysis.SpiteType, visiting: List<String>): Boolean {
     if not reaches_shared(field_type) {
         return true
     }
@@ -17812,7 +17856,7 @@ func holds_read_only(field_type: Analysis.SpiteType, visiting: List<String>): Bo
     return is_read_only_class(held, visiting)
 }
 
-func is_read_only_class(information: Analysis.ClassInfo, visiting: List<String>): Bool {
+func is_read_only_class(information: Analysis.ClassInfo, visiting: List<String>): Boolean {
     if read_only_classes.has(information.c_name) {
         return read_only_classes[information.c_name] == true
     }
@@ -17849,7 +17893,7 @@ func is_read_only_class(information: Analysis.ClassInfo, visiting: List<String>)
     return read_only
 }
 
-func guards_outside_write(target_class: Analysis.ClassInfo): Bool {
+func guards_outside_write(target_class: Analysis.ClassInfo): Boolean {
     var singleton = target_class.is_singleton and not target_class.is_stateless_singleton
     return singleton and not is_library_class(target_class) and not is_hot_class(target_class)
 }
@@ -17876,7 +17920,7 @@ func finish_outside_writes() {
     }
 }
 
-func called_implicitly(information: Analysis.ClassInfo): Bool {
+func called_implicitly(information: Analysis.ClassInfo): Boolean {
     var index = 0
     while index < information.functions.count() {
         var name = information.functions[index].name
@@ -18172,7 +18216,7 @@ func emit_main(launcher_mangled_name: String) {
     builder.add_main("#endif")
 }
 
-func is_hot_class(information: Analysis.ClassInfo): Bool {
+func is_hot_class(information: Analysis.ClassInfo): Boolean {
     var program_class = not information.source_path.is_empty() and not is_library_class(information)
     return hot_reload and program_class and not information.is_value_class
 }
@@ -18388,7 +18432,7 @@ func record_call(callee: String) {
 func hoisted_wait(
     callee: String,
     receiver: ExpressionResult,
-    receiver_owned: Bool,
+    receiver_owned: Boolean,
     argument_codes: List<String>,
     return_type: Analysis.SpiteType,
 ): ExpressionResult? {
@@ -18435,7 +18479,7 @@ func hoisted_wait(
     return ExpressionResult(code, return_type)
 }
 
-func rewind_temporaries(saved: Int) {
+func rewind_temporaries(saved: Integer) {
     temporary_counter = saved
     while not wait_mark_counters.is_empty() and wait_mark_counters.last() >= saved {
         var position = wait_mark_positions.last()
@@ -18452,7 +18496,7 @@ func drop_last_wait_mark() {
     wait_mark_results.remove_last()
 }
 
-func drop_unread_waits(first: Int) {
+func drop_unread_waits(first: Integer) {
     while wait_mark_counters.count() > first {
         var result = wait_mark_results.last()
         var start = wait_mark_positions.last()
@@ -18464,7 +18508,7 @@ func drop_unread_waits(first: Int) {
     }
 }
 
-func shift_wait_marks(position: Int) {
+func shift_wait_marks(position: Integer) {
     var index = 0
     while index < wait_mark_positions.count() {
         if wait_mark_positions.get_at(index) >= position {
@@ -18477,7 +18521,7 @@ func shift_wait_marks(position: Int) {
     }
 }
 
-func user_lines_mention(start: Int, name: String): Bool {
+func user_lines_mention(start: Integer, name: String): Boolean {
     var index = start
     while index < builder.user_count() {
         var line = builder.user_at(index)
@@ -18489,7 +18533,7 @@ func user_lines_mention(start: Int, name: String): Bool {
     return false
 }
 
-func mentions_name(text: String, name: String): Bool {
+func mentions_name(text: String, name: String): Boolean {
     var from = 0
     var name_length = name.length()
     var text_length = text.length()
@@ -18508,7 +18552,7 @@ func mentions_name(text: String, name: String): Bool {
     return false
 }
 
-func ensure_machine(callee: String): Bool {
+func ensure_machine(callee: String): Boolean {
     if machine_names.has(callee) {
         return machine_names.get(callee) == true
     }
@@ -18517,7 +18561,7 @@ func ensure_machine(callee: String): Bool {
     return queued
 }
 
-func queue_machine(callee: String): Bool {
+func queue_machine(callee: String): Boolean {
     var index = 0
     while index < waiting_functions.count() {
         var waiting = waiting_functions.get_at(index)

@@ -34,13 +34,13 @@ func StringMethods() {
     crash letters.count() == 3
     var letters_count = letters.count()
     console.print(letters_count, letters[1])
-    var forty_two = "42".to_int()
+    var forty_two = "42".to_integer()
     var seven = "7".to_long()
     var two_and_a_half = "2.5".to_float()
     var one_and_a_quarter = "1.25".to_double()
-    var oops_number = "oops".to_int()
+    var oops_number = "oops".to_integer()
     console.print(forty_two + 1, seven, two_and_a_half, one_and_a_quarter, oops_number)
-    var number: Int = "12"
+    var number: Integer = "12"
     console.print(number * 2)
     var joined_length = ("x{1}").length()
     var built_upper_case = build("q").upper_case()

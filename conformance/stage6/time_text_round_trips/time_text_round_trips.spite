@@ -38,7 +38,7 @@ func instant_round_trip(text: String) {
 }
 
 func date_round_trip(text: String) {
-    var read = time_text.read_local_date(text)
+    var read = time_text.read_date(text)
     crash read
     var written = read.to_string()
     crash written == text
@@ -46,7 +46,7 @@ func date_round_trip(text: String) {
 }
 
 func time_round_trip(text: String) {
-    var read = time_text.read_local_time(text)
+    var read = time_text.read_time(text)
     crash read
     var written = read.to_string()
     crash written == text
@@ -54,7 +54,7 @@ func time_round_trip(text: String) {
 }
 
 func date_time_round_trip(text: String) {
-    var read = time_text.read_local_date_time(text)
+    var read = time_text.read_date_time(text)
     crash read
     var written = read.to_string()
     crash written == text
@@ -84,7 +84,7 @@ func other_spellings() {
     show_instant("2024-03-10t07:00:00z")
     show_instant("2024-03-10 07:00:00,5Z")
     show_instant("2024-03-10T06:59:60Z")
-    var local = time_text.read_local_date_time("2024-03-10 02:30")
+    var local = time_text.read_date_time("2024-03-10 02:30")
     var ninety = time_text.read_duration("PT90M")
     var fortnight = time_text.read_period("P2W")
     var later = time_text.read_period("-P1Y-2M")

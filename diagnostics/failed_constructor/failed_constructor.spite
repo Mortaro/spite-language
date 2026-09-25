@@ -6,9 +6,9 @@ func FailedConstructor() {
     var count = textures.keep(grass)
     var doubled = count * 2
     console.print(doubled)
-    var sounds = Asset.Pack<Asset.Texture, Int>()
+    var sounds = Asset.Pack<Asset.Texture, Integer>()
     console.print(sounds.items)
-    var notes = Asset.Texture<Int>()
+    var notes = Asset.Texture<Integer>()
     console.print(notes.path)
     var forgotten = 3
 }

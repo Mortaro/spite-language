@@ -3,9 +3,9 @@ var field_types = List<String>()
 var field_suffixes = List<String>()
 var bound_names = List<String>()
 var bound_fields = List<String>()
-var bound_depths = List<Int>()
+var bound_depths = List<Integer>()
 var depth = 0
-var resume_points = List<Int>()
+var resume_points = List<Integer>()
 
 func bind_parameter(c_type: String, name: String) {
     var field = allocate_field(name, c_type, "")
@@ -92,11 +92,11 @@ func note_resume_point(line: String) {
     assert line.starts_with("spite_resume_")
     var colon = line.index_of(":")
     var digits = line.slice(13, colon)
-    var point = digits.to_int()
+    var point = digits.to_integer()
     resume_points.append(point)
 }
 
-func declared_name_end(line: String): Int {
+func declared_name_end(line: String): Integer {
     var type_end = name_end_at(line, 0)
     assert type_end > 0
     var first_word = line.slice(0, type_end)
@@ -113,7 +113,7 @@ func declared_name_end(line: String): Int {
     return name_end
 }
 
-func declared_name_start(line: String, name_end: Int): Int {
+func declared_name_start(line: String, name_end: Integer): Integer {
     var start = name_end
     while start > 0 and name_continues_at(line, start - 1) {
         start = start - 1
@@ -121,7 +121,7 @@ func declared_name_start(line: String, name_end: Int): Int {
     return start
 }
 
-func name_end_at(text: String, start: Int): Int {
+func name_end_at(text: String, start: Integer): Integer {
     assert start < text.length() and name_starts_at(text, start)
     var index = start
     while index < text.length() and name_continues_at(text, index) {
@@ -130,7 +130,7 @@ func name_end_at(text: String, start: Int): Int {
     return index
 }
 
-func is_keyword(word: String): Bool {
+func is_keyword(word: String): Boolean {
     var keywords = [
         "return"
         "goto"
@@ -154,26 +154,26 @@ func is_keyword(word: String): Bool {
     return keywords.contains(word)
 }
 
-func name_starts_at(text: String, index: Int): Bool {
+func name_starts_at(text: String, index: Integer): Boolean {
     var code = text.code_at(index)
     return is_name_start(code)
 }
 
-func name_continues_at(text: String, index: Int): Bool {
+func name_continues_at(text: String, index: Integer): Boolean {
     var code = text.code_at(index)
     return is_name_code(code)
 }
 
-func number_continues_at(text: String, index: Int): Bool {
+func number_continues_at(text: String, index: Integer): Boolean {
     var code = text.code_at(index)
     return is_name_code(code) or code == 46
 }
 
-func is_name_start(code: Int): Bool {
+func is_name_start(code: Integer): Boolean {
     return code == 95 or code >= 65 and code <= 90 or code >= 97 and code <= 122
 }
 
-func is_name_code(code: Int): Bool {
+func is_name_code(code: Integer): Boolean {
     return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
 }
 
@@ -215,7 +215,7 @@ func rewritten_names(text: String): String {
     return pieces.join("")
 }
 
-func number_end(text: String, start: Int): Int {
+func number_end(text: String, start: Integer): Integer {
     var index = start + 1
     while index < text.length() and number_continues_at(text, index) {
         index = index + 1
@@ -223,7 +223,7 @@ func number_end(text: String, start: Int): Int {
     return index
 }
 
-func literal_end(text: String, start: Int): Int {
+func literal_end(text: String, start: Integer): Integer {
     var quote = text.code_at(start)
     var index = start + 1
     while index < text.length() and text.code_at(index) != quote {
@@ -235,7 +235,7 @@ func literal_end(text: String, start: Int): Int {
     return index + 1
 }
 
-func follows_member_access(text: String, index: Int): Bool {
+func follows_member_access(text: String, index: Integer): Boolean {
     assert index > 0
     if text.code_at(index - 1) == 46 {
         return true
@@ -283,7 +283,7 @@ func finishing(value: String): String {
     return "\{ spite_frame->spite_result = {trimmed_value}; return true; }"
 }
 
-func statement_end(text: String, start: Int): Int {
+func statement_end(text: String, start: Integer): Integer {
     var nesting = 0
     var index = start
     while index < text.length() {
@@ -300,7 +300,7 @@ func statement_end(text: String, start: Int): Int {
     return index
 }
 
-func nesting_change(code: Int): Int {
+func nesting_change(code: Integer): Integer {
     if code == 40 or code == 123 or code == 91 {
         return 1
     }
@@ -350,7 +350,7 @@ func allocate_field(name: String, c_type: String, suffix: String): String {
     return candidate
 }
 
-func field_conflicts(candidate: String, c_type: String, suffix: String): Bool {
+func field_conflicts(candidate: String, c_type: String, suffix: String): Boolean {
     if bound_fields.contains(candidate) {
         return true
     }

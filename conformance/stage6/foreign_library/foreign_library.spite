@@ -1,6 +1,6 @@
 type PointPair {
-    across: Int
-    down: Int
+    across: Integer
+    down: Integer
 }
 
 var console = Console()

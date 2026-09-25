@@ -1,14 +1,14 @@
 var pieces = List<String>()
 var piece_names = List<String>()
-var kept = List<Bool>()
+var kept = List<Boolean>()
 var slot_names = List<String>()
-var slot_positions = List<Int>()
-var waiting = List<Int>()
+var slot_positions = List<Integer>()
+var waiting = List<Integer>()
 var in_comment = false
 var watched_names = List<String>()
 var first_watched = -1
 var names_types = false
-var next_same = List<Int>()
+var next_same = List<Integer>()
 var type_piece_count = 0
 var guard_names = List<String>()
 var guard_lines = List<String>()
@@ -79,7 +79,7 @@ func keep_waiting() {
 }
 
 func keep_guarded() {
-    var applied = List<Bool>()
+    var applied = List<Boolean>()
     while applied.count() < guard_names.count() {
         applied.append(false)
     }
@@ -105,7 +105,7 @@ func kept_types(): String {
     return kept_text(0, type_piece_count)
 }
 
-func kept_text(start: Int, end: Int): String {
+func kept_text(start: Integer, end: Integer): String {
     var result = List<String>()
     var index = start
     while index < end {
@@ -185,7 +185,7 @@ func kept_prototypes(prototypes: String): String {
     return result.join("\n")
 }
 
-func is_kept_name(name: String): Bool {
+func is_kept_name(name: String): Boolean {
     var name_length = name.length()
     var position = find_function(name, 0, name_length)
     if position < 0 {
@@ -332,7 +332,7 @@ func declared_name(line: String): String {
     return name_before(trimmed, open)
 }
 
-func name_before(text: String, end: Int): String {
+func name_before(text: String, end: Integer): String {
     var start = end
     var code = text.code_at(start - 1)
     while start > 0 and is_name_code(code) {
@@ -342,11 +342,11 @@ func name_before(text: String, end: Int): String {
     return text.slice(start, end)
 }
 
-func is_name_code(code: Int): Bool {
+func is_name_code(code: Integer): Boolean {
     return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
 }
 
-func depth_change(line: String): Int {
+func depth_change(line: String): Integer {
     var change = 0
     var quote = 0
     var index = 0
@@ -414,7 +414,7 @@ func keep_named_in(text: String) {
     }
 }
 
-func comment_end(text: String, start: Int): Int {
+func comment_end(text: String, start: Integer): Integer {
     var index = start
     while index < text.length() {
         if text.code_at(index) == 42 and text.code_at(index + 1) == 47 {
@@ -425,7 +425,7 @@ func comment_end(text: String, start: Int): Int {
     return index
 }
 
-func line_end(text: String, start: Int): Int {
+func line_end(text: String, start: Integer): Integer {
     var index = start
     while index < text.length() and text.code_at(index) != 10 {
         index = index + 1
@@ -433,7 +433,7 @@ func line_end(text: String, start: Int): Int {
     return index
 }
 
-func keep_function(position: Int) {
+func keep_function(position: Integer) {
     assert position >= 0
     if kept[position] == false {
         kept[position] = true
@@ -447,7 +447,7 @@ func keep_function(position: Int) {
     }
 }
 
-func slot_of(text: String, start: Int, end: Int): Int {
+func slot_of(text: String, start: Integer, end: Integer): Integer {
     var hash: Long = 0
     var index = start
     while index < end {
@@ -457,7 +457,7 @@ func slot_of(text: String, start: Int, end: Int): Int {
     return hash % slot_names.count()
 }
 
-func add_function(name: String, position: Int) {
+func add_function(name: String, position: Integer) {
     var name_length = name.length()
     var slot = slot_of(name, 0, name_length)
     while slot_positions[slot] != -1 {
@@ -467,7 +467,7 @@ func add_function(name: String, position: Int) {
     slot_positions[slot] = position
 }
 
-func find_function(text: String, start: Int, end: Int): Int {
+func find_function(text: String, start: Integer, end: Integer): Integer {
     var slot = slot_of(text, start, end)
     while slot_positions[slot] != -1 {
         if same_name(slot_names[slot], text, start, end) {
@@ -479,7 +479,7 @@ func find_function(text: String, start: Int, end: Int): Int {
     return -1
 }
 
-func same_name(name: String?, text: String, start: Int, end: Int): Bool {
+func same_name(name: String?, text: String, start: Integer, end: Integer): Boolean {
     crash name
     assert name.length() == end - start
     var index = 0

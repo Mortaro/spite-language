@@ -4,7 +4,7 @@ spite> console: Console = Console {...}
 player: Player = Player {...}
 monsters: List<Monster> = List<Monster>(2)
 target: Monster? = null
-turn: Int = 1
+turn: Integer = 1
 spite> Player { name: hero, health: 10, speed: 1.5, alive: true, job: squire, weapon: Weapon {...}, log: List<String>(0) }
 spite> Weapon { label: stick, damage: 2 }
 spite> 2
@@ -17,7 +17,7 @@ spite> 2
 spite> null
 spite> 7
 spite> 7
-spite> type mismatch: turn is an Int, and "seven" is not one
+spite> type mismatch: turn is an Integer, and "seven" is not one
 spite> sir hero
 spite> false
 spite> 2.25
@@ -31,19 +31,19 @@ spite> List<String>(1)
 spite> refused -4
 spite> player.weapon is a Weapon, which the loop cannot assign
 spite> no attribute 'missing' in player: name, health, speed, alive, job, weapon, log
-spite> turn is an Int, which has no attributes
+spite> turn is an Integer, which has no attributes
 spite> weakest(): Monster
-add(left: Int, right: Int): Int
+add(left: Integer, right: Integer): Integer
 greet(name: String): String
 spite> 5
 spite> hello you, too
 spite> 17
 spite> spite> squire
-spite> 'promote' cannot take ('king'): the loop writes numbers, Bool, text and an enum's own values
+spite> 'promote' cannot take ('king'): the loop writes numbers, Boolean, text and an enum's own values
 spite> rat roars
 spite> Monster { name: mouse, health: 1 }
 spite> 'add' takes 2 argument(s), and this call passes 1
-spite> type mismatch: left is an Int, and "one" is not one
+spite> type mismatch: left is an Integer, and "one" is not one
 spite> no function 'nothing' in player: 'functions' lists them
 spite> turn is not callable
 spite> 

@@ -10,21 +10,21 @@ func read_instant(text: String): Instant? {
     return zone.to_instant(local, 'compatible')
 }
 
-func read_local_date_time(text: String): LocalDateTime? {
+func read_date_time(text: String): DateTime? {
     var reader = TimeTextReader(text)
     var local = reader.read_date_time()
     assert reader.finish()
     return local
 }
 
-func read_local_date(text: String): LocalDate? {
+func read_date(text: String): Date? {
     var reader = TimeTextReader(text)
     var date = reader.read_date()
     assert reader.finish()
     return date
 }
 
-func read_local_time(text: String): LocalTime? {
+func read_time(text: String): Time? {
     var reader = TimeTextReader(text)
     var time = reader.read_time()
     assert reader.finish()
@@ -45,7 +45,7 @@ func read_period(text: String): Period? {
     return period
 }
 
-func write_digits(value: Long, width: Int): String {
+func write_digits(value: Long, width: Integer): String {
     var digits = "{value}"
     var sign = ""
     if value < 0 {
@@ -59,7 +59,7 @@ func write_digits(value: Long, width: Int): String {
     return "{sign}{digits}"
 }
 
-func write_year(year: Int): String {
+func write_year(year: Integer): String {
     if year >= 0 and year <= 9999 {
         return write_digits(year, 4)
     }
@@ -73,7 +73,7 @@ func write_year(year: Int): String {
     return "{sign}{digits}"
 }
 
-func write_fraction(nanoseconds: Int): String {
+func write_fraction(nanoseconds: Integer): String {
     assert nanoseconds != 0
     var digits = write_digits(nanoseconds, 9)
     var length = digits.length()

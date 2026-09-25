@@ -15,6 +15,6 @@ func EnumInfo(
     values = starting_values
 }
 
-func has_value(name: String): Bool {
+func has_value(name: String): Boolean {
     return values.contains(name)
 }

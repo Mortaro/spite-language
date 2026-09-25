@@ -4,7 +4,7 @@ var root = ".spite-cache/docs"
 var folder_names = List<String>()
 var folder_entries = List<String>()
 var folder_flags = List<String>()
-var folder_must_fail = List<Bool>()
+var folder_must_fail = List<Boolean>()
 
 func DocsCorpus() {
     make_directory(root)
@@ -54,7 +54,7 @@ func read_page(path: String) {
     }
 }
 
-func read_block(lines: List<String>, opening_index: Int, opening: String): Int {
+func read_block(lines: List<String>, opening_index: Integer, opening: String): Integer {
     var marker_length = "```gdscript title=".length()
     var opening_length = opening.length()
     var header = opening.slice(marker_length, opening_length)
@@ -91,7 +91,7 @@ func read_block(lines: List<String>, opening_index: Int, opening: String): Int {
     return index
 }
 
-func read_expectation(lines: List<String>, first_index: Int, folder: String, is_output: Bool): Int {
+func read_expectation(lines: List<String>, first_index: Integer, folder: String, is_output: Boolean): Integer {
     var index = first_index
     var expected = List<String>()
     while index < lines.count() and lines[index].trim() != "```" {
@@ -106,7 +106,7 @@ func read_expectation(lines: List<String>, first_index: Int, folder: String, is_
     return index + 1
 }
 
-func read_wire(lines: List<String>, opening_index: Int, opening: String): Int {
+func read_wire(lines: List<String>, opening_index: Integer, opening: String): Integer {
     var marker_length = "```wire ".length()
     var opening_length = opening.length()
     var folder = opening.slice(marker_length, opening_length).trim()
@@ -153,7 +153,7 @@ func remember_folder(folder: String, file_name: String, words: List<String>) {
     }
 }
 
-func position_of(folder: String): Int {
+func position_of(folder: String): Integer {
     var index = 0
     while index < folder_names.count() {
         if folder_names[index] == folder {

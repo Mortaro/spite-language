@@ -4,10 +4,10 @@ func EveryAttribute() {
     var lamp = Lamp()
     var counted = count_attributes(lamp)
     console.print(counted)
-    var holder = Holder<List<Int>>()
+    var holder = Holder<List<Integer>>()
     holder.describe()
 }
 
-func count_attribute(attribute: Symbol<Lamp>, lamp: Lamp): Int {
+func count_attribute(attribute: Symbol<Lamp>, lamp: Lamp): Integer {
     return 1
 }

@@ -15,7 +15,7 @@ func refresh() {
     }
 }
 
-func take(entity: Int) {
+func take(entity: Integer) {
     matched = true
     match_attributes(entity)
     assert matched
@@ -24,13 +24,13 @@ func take(entity: Int) {
     rows.append(row)
 }
 
-func match_attribute(attribute: Symbol<$row_type>, entity: Int) {
+func match_attribute(attribute: Symbol<$row_type>, entity: Integer) {
     var store = Store<attribute.class>()
     var stored = store.has(entity)
     matched = matched and stored
 }
 
-func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, entity: Int) {
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, entity: Integer) {
     var store = Store<attribute.class>()
     row.attributes[attribute] = store.of(entity)
 }

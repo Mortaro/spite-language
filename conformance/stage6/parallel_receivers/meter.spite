@@ -8,7 +8,7 @@ func stop() {
     guard.unlock()
 }
 
-func is_stopping(): Bool {
+func is_stopping(): Boolean {
     guard.lock()
     var seen = stopping
     guard.unlock()

@@ -1,8 +1,8 @@
 var console = Console()
 
 func CodegenValues() {
-    var first = Box<Int>(1)
-    var second = Box<Int, String>(2)
+    var first = Box<Integer>(1)
+    var second = Box<Integer, String>(2)
     var third = Box()
     console.print($environment, first.held)
 }

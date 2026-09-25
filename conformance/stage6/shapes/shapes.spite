@@ -1,6 +1,6 @@
 type Named {
     name: String
-    size: Int
+    size: Integer
 }
 
 var console = Console()

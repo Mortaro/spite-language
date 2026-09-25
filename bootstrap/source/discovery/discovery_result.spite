@@ -10,7 +10,7 @@ var program_paths = List<String>()
 func DiscoveryResult(
     result_class_files: List<DiscoveredClass>,
     result_entry_mangled_name: String,
-    result_has_error: Bool,
+    result_has_error: Boolean,
     result_error_message: String,
 ) {
     class_files = result_class_files

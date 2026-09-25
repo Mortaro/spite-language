@@ -6,12 +6,12 @@ func NumericTypes() {
     var wrapped: Tiny = 200
     var small: Short = 40000
     var octet: Byte = 300
-    var wide: UnsignedInt = 0 - 1
+    var wide: UnsignedInteger = 0 - 1
     var huge: UnsignedLong = 0 - 1
     var long_value: Long = 3000000000
     console.print(level, wrapped, small, octet, port)
     console.print(wide, huge, long_value)
-    var total: Int = level + octet
+    var total: Integer = level + octet
     var ratio: Double = 1.5
     var rounded: Short = ratio * 3
     var added_bytes = add_bytes(250, 10)

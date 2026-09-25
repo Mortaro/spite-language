@@ -34,7 +34,7 @@ itself, an `Anything?` ([below](#an-attributes-value)), whose text is `.value.to
 var name = ""
 var power = 0
 
-func Gadget(new_name: String, new_power: Int) {
+func Gadget(new_name: String, new_power: Integer) {
     name = new_name
     power = new_power
 }
@@ -72,7 +72,7 @@ class name Gadget
 own class ReflectionBasics
 declared name Gadget
 name String wrench
-power Int 3
+power Integer 3
 ```
 
 - **`class` is not a keyword.** Inside any function of a class it is the class of the instance that function
@@ -91,7 +91,7 @@ power Int 3
 
 `.value` is the instance the attribute refers to, as an object of any class: `Anything?`. `Anything` is the
 library's empty `type`, the counterpart of `Nothing`: every class fits it, so a function that takes any object
-says `component: Anything`, and a program never declares its own. A number, `Bool`, enum or `Symbol` attribute
+says `component: Anything`, and a program never declares its own. A number, `Boolean`, enum or `Symbol` attribute
 is boxed, as it is whenever a plain value goes into a `type`; the value is `null` only when the attribute holds
 `null`. Its text is `.value.to_string()`: a class's own `to_string()` when it has one, a number's or a `String`'s
 usual text, and `to_debug()` for anything else (a list, or a class that does not say how to print). Only a
@@ -139,7 +139,7 @@ func add_every_attribute(bundle: Anything) {
 ```
 ```output
 Health 10
-Int
+Integer
 ```
 
 ### Passing a class
@@ -151,12 +151,12 @@ since that is almost always what was meant. `==` between a `Spite.Class` and a c
 objects, so a function can ask which class it was handed:
 
 ```gdscript title=passing_a_class/ui/pressed.spite
-func count(): Int {
+func count(): Integer {
     return 1
 }
 ```
 ```gdscript title=passing_a_class/health.spite
-func amount(): Int {
+func amount(): Integer {
     return 10
 }
 ```
@@ -200,7 +200,7 @@ Comparing needs no narrowing: a namespace compares with text through its `name_w
 with no namespace simply compares unequal.
 
 ```gdscript title=namespace_walk/shop/tools/hammer.spite
-func weight(): Int {
+func weight(): Integer {
     return 2
 }
 ```
@@ -240,7 +240,7 @@ reflection are the same object.
 ```gdscript title=function_reflection/gadget.spite
 var power = 0
 
-func boost(amount: Int, times: Int): Int {
+func boost(amount: Integer, times: Integer): Integer {
     power = power + amount * times
     return power
 }
@@ -268,7 +268,7 @@ func describe(function: Spite.Function) {
 }
 ```
 ```output
-boost (amount, times) Int
+boost (amount, times) Integer
 reset () Nothing
 Memory.Heap has allocate true
 ```
@@ -285,7 +285,7 @@ one hole, `"<phase>_each"`, which is true when some function's name fits it with
 ```gdscript title=function_questions/sprinkler.spite
 var water = 0
 
-func update_each(amount: Int) {
+func update_each(amount: Integer) {
     water = water + amount
 }
 
@@ -554,9 +554,9 @@ below.]**
 - **`attribute.value` is the actual instance the attribute refers to** (D164, decided by Mortaro, replacing the
   text `.value` and the `.object` D123 added; the readings below proposed by Claude, unconfirmed).
   **[implemented]** Its type is `Anything?`, the library's built-in empty `type` (D163), so
-  `entity.add_component(attribute.value)` compiles once it is narrowed. **A number, `Bool`, enum or `Symbol`
-  attribute is boxed**, as D109 boxes a plain value passed where a shape is wanted, so its `.class` is `Int` and
-  `if value == Int` narrows it back; it is `null` only when the attribute holds `null`. **Its text is
+  `entity.add_component(attribute.value)` compiles once it is narrowed. **A number, `Boolean`, enum or `Symbol`
+  attribute is boxed**, as D109 boxes a plain value passed where a shape is wanted, so its `.class` is `Integer` and
+  `if value == Integer` narrows it back; it is `null` only when the attribute holds `null`. **Its text is
   `attribute.value.to_string()`**: through `Anything`, `to_string()` answers each class's own `to_string()` (a
   `String` itself, a number's usual text), and `to_debug()` for a class that has none, a `List` or a
   `Dictionary`; the REPL's display calls it for a number, text or enum. **It costs nothing unless read**: the
@@ -622,13 +622,13 @@ A class file may **override** one of those functions for its own class object, t
 another ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)):
 
 ```gdscript/class.spite
-func is_singleton(): Bool {
+func is_singleton(): Boolean {
     return false
 }
 ```
 
 ```console.spite
-func is_singleton(): Bool {
+func is_singleton(): Boolean {
     return true
 }
 ```
@@ -651,7 +651,7 @@ Since D104 a singleton is no longer said this way: `singleton` is a header line 
 - **`Spite.Class` is reopenable, like any other standard library class** (D7, decided by Mortaro, 2026-09-19:
   "by all means shoot the foot"). Reopening it changes a class-level default for the **whole program**: a root
   whose `spite/class.spite` returns `true` from `is_singleton()` makes every class in the program a singleton,
-  `List<Int>()` included. Adding a *new* function to `Spite.Class` is louder still -- it creates a new
+  `List<Integer>()` included. Adding a *new* function to `Spite.Class` is louder still -- it creates a new
   class-level hook name program-wide, so any class that already had an ordinary instance function by that name
   becomes an override of it.
   Nothing about this is silent, which is the reason it is allowed: a name that collides is a compile error

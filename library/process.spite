@@ -8,7 +8,7 @@ func Process(starting_command: String, starting_arguments: List<String>) {
     arguments = starting_arguments
 }
 
-func run(): Int {
+func run(): Integer {
     var command_text = command_line()
     var handle = open_process(command_text)
     if handle == 0 {

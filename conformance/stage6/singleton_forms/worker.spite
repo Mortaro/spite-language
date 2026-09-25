@@ -2,11 +2,11 @@ var counter = HitCounter()
 var settings = Settings()
 var rounds = 0
 
-func Worker(starting_rounds: Int) {
+func Worker(starting_rounds: Integer) {
     rounds = starting_rounds
 }
 
-func run(): Int {
+func run(): Integer {
     var index = 0
     while index < rounds {
         var step = settings.step_size()

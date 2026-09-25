@@ -6,6 +6,6 @@ func note(line: String) {
     lines.append(line)
 }
 
-func written(): Int {
+func written(): Integer {
     return lines.count()
 }

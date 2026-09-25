@@ -1,6 +1,6 @@
 type Runnable {
     name: String
-    active: Bool
+    active: Boolean
     run_once()
     label(): String
 }

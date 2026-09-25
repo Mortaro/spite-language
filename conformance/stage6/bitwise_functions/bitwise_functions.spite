@@ -13,7 +13,7 @@ func BitwiseFunctions() {
     console.print("int by 0 {eleven.shifted_left(0)} {eleven.shifted_right(0)}")
     console.print("int by 32 {eleven.shifted_left(32)} {eleven.shifted_right(32)} {all_ones.shifted_right(32)}")
     console.print("int by 100 {negative.shifted_right(100)} {negative.shifted_left(100)}")
-    var unsigned_ones: UnsignedInt = 0 - 1
+    var unsigned_ones: UnsignedInteger = 0 - 1
     console.print(
         "unsigned int {unsigned_ones.shifted_right(31)} {unsigned_ones.shifted_left(31)} {unsigned_ones.shifted_right(32)}",
     )

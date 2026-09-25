@@ -1,6 +1,6 @@
 var console = Console()
 var heap = Memory.Heap()
-var ints = TypedMemory<Int>()
+var ints = TypedMemory<Integer>()
 var longs = TypedMemory<Long>()
 var clock = Clock()
 

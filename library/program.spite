@@ -3,7 +3,7 @@ singleton
 var heap = Memory.Heap()
 var console = Console()
 
-func exit(code: Int) {
+func exit(code: Integer) {
     console.flush()
     exit_process(code)
 }
@@ -14,6 +14,6 @@ func environment(name: String): String? {
     return address.terminated_text()
 }
 
-func live_allocations(): Int {
+func live_allocations(): Integer {
     return heap.live_allocations()
 }

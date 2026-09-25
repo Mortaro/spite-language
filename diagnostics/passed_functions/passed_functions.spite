@@ -25,18 +25,18 @@ func greet(person: Person) {
     console.print(person.age)
 }
 
-func greet_twice(name: String, times: Int) {
+func greet_twice(name: String, times: Integer) {
     console.print(name, times)
 }
 
-func count_to(value: Int) {
+func count_to(value: Integer) {
     console.print(value)
 }
 
-func measure(name: String): Int {
+func measure(name: String): Integer {
     return name.length()
 }
 
-func is_short(name: String): Bool {
+func is_short(name: String): Boolean {
     return name.length() < 6
 }

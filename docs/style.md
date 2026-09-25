@@ -340,7 +340,7 @@ page:
 | a `while` over `items` whose body only adds up `items[index].price` | `var total = items.sum_price()` | [collections.md](collections.md#member-templates-loops-you-do-not-write) |
 | an `if`/`else` directly inside a branch of another `if`/`else` | a function named for what the inner one decides, or one `switch` | [control_flow.md](control_flow.md#if) |
 | `"hello " + name` | `"hello {name}"` | [values_and_types.md](values_and_types.md#string) |
-| `count * total` with an `Int` `count` and a `Long` `total` | `total * count` | [values_and_types.md](values_and_types.md#wider-arithmetic-goes-wider-operand-first) |
+| `count * total` with an `Integer` `count` and a `Long` `total` | `total * count` | [values_and_types.md](values_and_types.md#wider-arithmetic-goes-wider-operand-first) |
 | `(65536 - 120) * 65536` | `4287102976` | [values_and_types.md](values_and_types.md#wider-arithmetic-goes-wider-operand-first) |
 | `func Holder() { }` | deleting it: a class without a constructor is made from its defaults | [classes_and_files.md](classes_and_files.md#constructors) |
 | `Report(text)` as a statement of its own | a function, `report(text)`, on the class that needs it | [classes_and_files.md](classes_and_files.md#constructors) |
@@ -485,7 +485,7 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   **(proposed by Claude, unconfirmed)**: the statements measured are the one-line ones (`var`, assignment, a call on
   its own, `return`, `assert`, `crash`, and an attribute's default), since an `if` or `while` is never one line;
   the width is measured on the printed form, so breaking the call over several lines by hand changes nothing;
-  a construction counts as D77's does (a call whose last name starts with an upper-case letter, `List<Int>()`
+  a construction counts as D77's does (a call whose last name starts with an upper-case letter, `List<Integer>()`
   included), anywhere inside an argument but in a text's holes; the suggested name is the class's name in
   snake_case. **Implemented (2026-09-25)**; the compiler's own sources had 16 such lines, each rewritten.
   - Open for Mortaro: D18's markup nests tag calls (`html.div({ class: "card" }, html.h1(title), ...)` in
