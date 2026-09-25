@@ -61,5 +61,22 @@ Everything a program can name is Spite in `library/`.
 ## What the compiler does not do yet
 
 The language is larger than what the compiler implements. Each page here says in a line what is decided but not
-built, and links the [manual](../manual.md) section; `bootstrap/COMPILER_PLAN.md` is the compiler's own progress
+built, and states it in full in its "Rules in full" section; `bootstrap/COMPILER_PLAN.md` is the compiler's own progress
 log.
+
+## Rules in full
+
+The normative rules for this part of the language, in full: what the sections above teach, with the edge
+cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
+manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
+fix. A `D` number is a row of the [decision log](decisions.md).
+
+### Self hosting  **[partial]**
+
+The compiler is written in Spite and compiles itself. `bootstrap/seed/spite_compiler.c` is the C it emits for
+its own sources, so a C compiler is all that is needed to build it, and `bash check.sh` requires generation 2
+and generation 3 to be byte identical before anything else is believed. See `docs/self_hosting.md`.
+
+The language is larger than the subset the compiler implements today; `bootstrap/COMPILER_PLAN.md` is the
+progress log, and `conformance/` is the part that demonstrably works.

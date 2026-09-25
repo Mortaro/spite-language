@@ -93,8 +93,8 @@ static int64_t spite_live_allocation_count(void) { return spite_live_allocations
  * an object literal) is a heap object whose first field is a `SpiteHeader`;
  * variables/attributes/elements/parameters hold pointers to these objects.
  * Passing, assigning, storing and returning share the same object -- a copy
- * is only ever made by an explicit `copy()`/`deep_copy()` call (manual.md
- * section 10).
+ * is only ever made by an explicit `copy()`/`deep_copy()` call
+ * (docs/memory.md).
  *
  * Each concrete type gets its own small, readable, generated
  * `{Type}___retain`/`{Type}___release` pair; this
@@ -9622,8 +9622,8 @@ static SpiteString spite_lit_8136 = SPITE_STATIC_STRING(" * Every non-scalar val
 static SpiteString spite_lit_8137 = SPITE_STATIC_STRING(" * an object literal) is a heap object whose first field is a `SpiteHeader`;", 76);
 static SpiteString spite_lit_8138 = SPITE_STATIC_STRING(" * variables/attributes/elements/parameters hold pointers to these objects.", 75);
 static SpiteString spite_lit_8139 = SPITE_STATIC_STRING(" * Passing, assigning, storing and returning share the same object -- a copy", 76);
-static SpiteString spite_lit_8140 = SPITE_STATIC_STRING(" * is only ever made by an explicit `copy()`/`deep_copy()` call (manual.md", 74);
-static SpiteString spite_lit_8141 = SPITE_STATIC_STRING(" * section 10).", 15);
+static SpiteString spite_lit_8140 = SPITE_STATIC_STRING(" * is only ever made by an explicit `copy()`/`deep_copy()` call", 63);
+static SpiteString spite_lit_8141 = SPITE_STATIC_STRING(" * (docs/memory.md).", 20);
 static SpiteString spite_lit_8142 = SPITE_STATIC_STRING(" *", 2);
 static SpiteString spite_lit_8143 = SPITE_STATIC_STRING(" * Each concrete type gets its own small, readable, generated", 61);
 static SpiteString spite_lit_8144 = SPITE_STATIC_STRING(" * `{Type}___retain`/`{Type}___release` pair; this", 50);
@@ -9731,8 +9731,8 @@ static SpiteString spite_lit_8245 = SPITE_STATIC_STRING(" * Every non-scalar val
 static SpiteString spite_lit_8246 = SPITE_STATIC_STRING(" * an object literal) is a heap object whose first field is a `SpiteHeader`;", 76);
 static SpiteString spite_lit_8247 = SPITE_STATIC_STRING(" * variables/attributes/elements/parameters hold pointers to these objects.", 75);
 static SpiteString spite_lit_8248 = SPITE_STATIC_STRING(" * Passing, assigning, storing and returning share the same object -- a copy", 76);
-static SpiteString spite_lit_8249 = SPITE_STATIC_STRING(" * is only ever made by an explicit `copy()`/`deep_copy()` call (manual.md", 74);
-static SpiteString spite_lit_8250 = SPITE_STATIC_STRING(" * section 10).", 15);
+static SpiteString spite_lit_8249 = SPITE_STATIC_STRING(" * is only ever made by an explicit `copy()`/`deep_copy()` call", 63);
+static SpiteString spite_lit_8250 = SPITE_STATIC_STRING(" * (docs/memory.md).", 20);
 static SpiteString spite_lit_8251 = SPITE_STATIC_STRING(" *", 2);
 static SpiteString spite_lit_8252 = SPITE_STATIC_STRING(" * Each concrete type gets its own small, readable, generated", 61);
 static SpiteString spite_lit_8253 = SPITE_STATIC_STRING(" * `{Type}___retain`/`{Type}___release` pair; this", 50);

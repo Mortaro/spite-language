@@ -2,7 +2,8 @@
 
 Everything here is enforced by the compiler. When it rejects something it says what to write instead, reports
 every error in one run as `path:line: error: message (in Class.function)`, and never warns: it errors or it is fine.
-`manual.md` is the reference; this page is the working set.
+The other pages are the reference, each ending in its rules in full ([README.md](README.md)); this page is the
+working set.
 
 Code blocks are fenced as `gdscript` only so GitHub colours them: GitHub has no Spite highlighter yet. Every
 one of them is Spite, not GDScript -- write `.spite` files.

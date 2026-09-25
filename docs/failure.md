@@ -188,7 +188,7 @@ or an `assert` on a plain `Tracker`.
 ### A call may undo a proof
 
 A call between a proof and a read undoes the proof only when the call may change what the proof depends on
-([D169](../manual.md#decision-log)). The compiler follows the called function, and everything it calls, to see
+([D169](decisions.md)). The compiler follows the called function, and everything it calls, to see
 which attributes it can assign and which lists it can shrink (`clear`, `remove_at`, `remove_first`,
 `remove_last`, a dictionary's `remove`). If it may change an attribute the proven path reads through -- or the
 list a proven `[]` reads, or anything its index reads -- the proof is gone and the read must be proven again; if
@@ -596,4 +596,312 @@ It holds the asserts of the program and of every package it `load`s, never those
 `assert` in `library/` is how the library answers routine questions (a key that is not there, text that does not
 match, a read past the end), and those would push the program's own entries out of the ring. The compiler leaves
 the record out of a library `assert` altogether, so it costs what an `if` costs. A crash inside the library still
-reports its own site ([D189](../manual.md#decision-log)).
+reports its own site ([D189](decisions.md)).
+
+## Rules in full
+
+The normative rules for this part of the language, in full: what the sections above teach, with the edge
+cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
+manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
+fix. A `D` number is a row of the [decision log](decisions.md).
+
+### Null safety and `assert` narrowing  **[implemented]**
+
+`assert` doubles as the way to prove a `T?` is not null without nesting: after `assert value` on a
+`T?` local, parameter, or field, `value` is a plain `T` for the rest of that block and any block
+nested inside it -- reads, writes, and method calls all go straight to the value the `T?` holds, and ownership
+and dropping still belong to that `T?` (assigning a new `T` through the narrowed name drops the old one first,
+exactly like overwriting any other owning slot). `assert value and
+other_condition` narrows `value` too, and `other_condition` itself already sees the narrowed type. Reassigning
+the narrowed name to `null` afterward is a diagnostic (there is no way back to `T?` in the same
+scope).
+
+```gdscript
+var content = program_file.read()
+assert content
+var length = content.length()          # content is a String here, not String?
+console.print(length)
+```
+
+`if` on a `T?` narrows the same way, in place, for the whole block: `if value { } else { }` runs the
+block with `value` already a plain `T`, and the `else` exactly when it is null/absent. One rule for narrowing
+everywhere -- `assert`, `if`, and `switch` all read/write/call straight through to the value the `T?`
+still owns. (Second batch item 2, decided 2026-09-19: `if value do name { ... }` is gone -- `do` is removed, so
+this is the only form.)
+
+**Lint:** a function whose body's *last* statement is `if value { ... }` **with no `else`** -- wrapping
+the rest of the function only to check existence -- is a compile error, because it should be written with
+`assert` instead (a narrowing `if` with an `else`, D3, already handles the missing case explicitly, so the no-
+else lint never applies to it):
+
+```
+# error: rewrite this with assert
+func read_first_line(file: File): String {
+    var content = file.read()
+    if content {
+        return content.lines().first()
+    }
+}
+
+# the fix:
+func read_first_line(file: File): String {
+    var content = file.read()
+    assert content
+    return content.lines().first()
+}
+```
+
+A narrowing `if` that is not the function's last statement (more statements follow it), or one nested inside
+another statement (an outer `if`/`while`/switch case) rather than being the function body's own tail, is not
+a lint error.
+
+**An `if` that only returns the default is an `assert`** (D106, decided by Mortaro, 2026-09-24). An `if` with no
+`else` whose whole body is one `return` of the function's default -- `false`, `0`, `0.0`, `""`, `null`, or a bare
+`return` in a function returning nothing -- is a compile error wherever it stands in the function, inside a
+`while` or a nested `if` included, and the message names the `assert` of the opposite condition:
+
+```gdscript
+func is_open(): Bool {
+    if handle == -1 {        # error: this 'if' only returns the default 'false':
+        return false         #        write 'assert handle != -1' and let the rest run unindented
+    }
+    return true
+}
+```
+
+It is the same rule as narrowing, so `if not value { return null }` becomes `assert value` and narrows `value`
+for the rest of the block. Returning anything else -- `return true` from a `Bool` function, `return -1` -- is an
+answer, not a guard, and is left alone. How the condition is turned around (proposed by Claude, unconfirmed):
+`==` and `!=` swap, `<` becomes `>=` and `>` becomes `<=` (and back), `not x` becomes `x`, anything else becomes
+`not x`, and `and`/`or` are turned around by De Morgan, side by side -- `if count < 0 or count > limit` becomes
+`assert count >= 0 and count <= limit`. An `else if` is covered too. In a constructor, where `assert` is not
+allowed (D28), the message names `crash` instead. `diagnostics/default_guard`, `diagnostics/returning_guard`.
+**[implemented]**
+
+**`assert` narrows every link of a chain, not only the last** (D43, decided by Mortaro, 2026-09-20). Walking a
+nullable structure would otherwise need one `assert` per hop, and a thousand asserts is not a language, it is a
+tax:
+
+```
+assert class.namespace.namespace
+console.print(class.namespace.namespace.name)
+```
+
+One `assert` proves the whole path, so `class.namespace` and `class.namespace.namespace` are both plain values
+for the rest of that block and any block nested inside it. It is the same rule [Null safety and `assert` narrowing](#null-safety-and-assert-narrowing--implemented) already has for
+`assert value and other_condition`, applied along a member chain instead of across an `and`.  **[implemented]**
+Across an `and`, every side narrows, for `assert`, `crash` and `if` alike, since each side is known true when the
+whole is: `crash names[position] and ages[position]` proves both elements, as two `crash` lines would (proposed by
+Claude, unconfirmed, 2026-09-24; `conformance/stage6/and_narrowing`).
+
+- It narrows the path asserted **and its prefixes**, nothing else. A sibling path stays `T?`: asserting
+  `class.namespace.namespace` says nothing about `other_class.namespace`.
+- A local holding a copy is its own path: `var ns = Hello.namespace; assert ns` narrows `ns`, and a later read
+  of `Hello.namespace` is a fresh `Spite.Namespace?` that must be narrowed in its own right --
+  `diagnostics/namespace_nullable` is exactly that shape. Since D63 the copy itself is an error: narrow the
+  path, not a local holding it.  **[implemented]**
+- A check on something that cannot be null proves nothing and is an error naming the fix: `assert tracker`
+  written twice, or `crash` on a path an earlier `crash` already narrowed (`diagnostics/check_proves_nothing`).
+  **[implemented; proposed by Claude, unconfirmed]** For a `[]` read the message names what proved it, so the
+  line can simply go: `crash codes[index]` inside `while index < codes.count()` is "'codes[index]' is already
+  proven by the loop condition 'index < codes.count()', so this 'crash' proves nothing: remove it"; a count or
+  bound check is named the same way, and anything else as "an earlier check" (proposed by Claude, unconfirmed,
+  2026-09-24; the D64 rules below already reported it, without naming the proof; `diagnostics/proven_element`).
+- `crash` (below) narrows a chain the same way, since it narrows exactly as `assert` does but never returns.
+- Reading through a link that may be null and has not been narrowed is still an error. This removes the verbosity of
+  proving a path, not the requirement to prove it.
+- Assigning to a narrowed path, or to anything it reads through, undoes the narrowing from that point on: after
+  `outer = Box()` or `outer.inner = null`, `outer.inner` is a `Box?` again. Assigning a value that cannot be null
+  (a constructor, a literal, a name that is not `T?`) to the narrowed path itself keeps it narrowed, and still
+  undoes everything narrowed beneath it. A narrowed *name* follows the same rule: `current = current.next` after
+  `assert current` stores into the `Node?` it really is and un-narrows it (until 2026-09-23 it was rejected, and
+  `maybe = null` silently stored a default object instead).  **[implemented; proposed by Claude, unconfirmed]**
+- **`while value` narrows its body like `if value`** (proposed by Claude, unconfirmed; implemented 2026-09-23): the
+  condition is tested again before every pass, and a store that may be null undoes it for the rest of the pass, so
+  `while current { ... current = current.next }` walks a chain with no `assert` inside (`examples/linked_walk`).
+- Inside a `while`, undoing a narrowing that was made before the loop *and read inside it* is an error, because
+  the next pass would read it unproven: narrow it inside the loop instead (`diagnostics/path_narrow_loop`).
+  **[implemented; proposed by Claude, unconfirmed]**
+
+
+**Reading with `[]` answers `T?`** (D64, decided by Mortaro, 2026-09-23). `names[index]` and `table["key"]` may
+not be there, so they are values that may be null, and an index or key that is a name, a path, a number or
+quoted text makes the read a path that narrows like any other: `crash names[index]`, then `names[index].upper_case()`.
+How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked for them):
+
+- **A proven count proves the indices below it.** After `crash names.count() == 3` (or `>= 3`, or `> 2`),
+  `names[0]` to `names[2]` are plain values; so are they inside `if names.count() > 2 { }`.
+- **A bound proves its index.** `index < names.count()` (or `names.count() > index`) in an `assert`, a
+  `crash`, an `if`, or a `while` proves `names[index]` in what follows -- the loop body, for a `while` -- and
+  `index < names.count() - 1` does too. On the left of an `and`, it proves the right side, so
+  `while index < lines.count() and lines[index] != "end"` needs nothing more. Every side of an `and` holds in
+  what the condition guards, so `while not found and index < names.count()` proves `names[index]` in the body.
+  A list in a local, a parameter and an attribute are proven alike, and `assert`/`crash` on a read already
+  proven is an error that says so (proposed by Claude, unconfirmed, 2026-09-24; it read "the condition of
+  'crash' is a String" before; `diagnostics/proven_index_check`).
+- **Assigning the list or the index undoes it**, as for any path ([Null safety and `assert` narrowing](#null-safety-and-assert-narrowing--implemented), D43): `index = index + 1`
+  un-proves `names[index]`, and so do `names.clear()`, `remove_at`, `remove_first` and `remove_last`. Inside a
+  loop, undoing a proof made before the loop that the loop has read is an error.
+- **Any index without a call is a path** (proposed by Claude, unconfirmed, 2026-09-24): `crash glyphs[code - 32]`
+  proves `glyphs[code - 32]` for what follows, not only `glyphs[index]`. The index may be names, member reads,
+  numbers, `true`/`false`, enum values, operators and other `[]` reads; two indices are the same when D78's
+  printer prints them the same, so spacing and redundant parentheses do not matter. Assigning any name the index
+  reads undoes it, as assigning the index itself does. A call anywhere in the index keeps the read a plain `T?`,
+  since the call could answer something else the second time. A call *between* the check and the read undoes it
+  only when the call may change the list or what the index reads (D169, below). `conformance/stage6/structural_index`,
+  `diagnostics/structural_index_undone`.
+- **A call undoes a proof only if it may change what the proof depends on** (D169, decided by Mortaro,
+  2026-09-25): "we need to be smart enough at compiler to figure out if going down into that function has any
+  chances of altering that value (without needing to have a const keyword)." This covers every proof -- a
+  narrowed path or attribute and a proven `[]` read alike. The compiler follows the called function and what it
+  calls, and collects which attributes it may assign and which lists it may shrink (`clear`, `remove_at`,
+  `remove_first`, `remove_last`, `remove`); a proof that reads through one of them is undone, and reading it again
+  unproven is the usual error. How it is followed (proposed by Claude, unconfirmed): an attribute is known by its
+  class and name, so assigning `Scope.owned` does not undo a proof about `Monster.owned`; a receiver's class is
+  read from declared types (a parameter's type, a `var` built by a constructor or annotated), and a call whose
+  receiver's class cannot be told is followed into every function of that name; a list passed to a function that
+  shrinks its parameter undoes proofs about the list passed; calling a function value may do anything, so it
+  undoes every proof that reads an attribute or a list; operator functions and getters are not followed; a
+  constructor's own assignments are to the new object and change nothing proven. A local that aliases an
+  attribute's list is not tracked (a proven read still checks its bounds). Inside a `while`, a call that undoes a
+  proof made before the loop and read inside it is an error naming the call (`diagnostics/call_undoes_proof`).
+  All of it happens while compiling; nothing is emitted. **[implemented]**
+- **A proven read still checks its bounds at runtime** and answers the default out of range, so a counter that
+  went negative gives a wrong value rather than reading memory it does not own.
+- **A `Bool?` cannot be a condition** -- not in `if`, `while`, `assert` or `crash`, and not under `not`, `and`
+  or `or`: `if flags[index]` would test that the element is there, not that it is true, and the two mean
+  opposite things for `false`. Prove the element is there first, or `switch` over it; `== true` also works,
+  since comparing needs no narrowing.
+- Writing through `[]` is unchanged, and **assigning through a `T?` is an error** naming the fix
+  (`diagnostics/store_through_nullable`): until D64 `outer.inner.label = "x"` on a `Box?` was silently
+  dropped, emitting nothing at all.
+
+`first()` and `last()` still answer the default on an empty list; whether they should answer `T?` too is
+open (Claude would say yes, by the same argument). `tests/list_tests`, `diagnostics/index_reads`.
+**[implemented]**
+
+**Comparing needs no narrowing** (D69, decided by Mortaro, 2026-09-23). `==` and `!=` accept a `T?` on the left:
+null is not equal to anything, so `crash Spite.Class.namespace == "Spite"` is a whole test. Either side may be the `T?`. Only the comparison
+is exempt -- reading a member through a `T?` still needs it narrowed first. A `Spite.Namespace` compares with
+text through `equals(String)` in `library/spite/namespace.spite`, against its `name_with_namespaces`; two
+namespaces still compare by identity, because a class's `equals` is used for a right side of that same class
+only when `equals` takes that class.  **[implemented]**
+
+### Failure: three outcomes and no others  **[partial]**
+
+D24 (decided by Mortaro, 2026-09-19): Spite has **a compile error, an `assert`, or a crash**. There are no
+exceptions, no error unions, no bubbling, and no error value carrying a message, because "errors and exceptions
+tend to be useless: they tell us a message we have no action to take about them".
+
+1. **A compile error**, for anything the compiler can know. This is already where the language keeps landing:
+   an unserialisable type ([Foreign libraries](foreign_libraries.md#foreign-libraries--partial)), the wrong `$target` (D20), an unfilled codegen hole ([Codegen values (`$`)](metaprogramming.md#codegen-values---implemented)), a
+   missing foreign symbol ([Foreign libraries](foreign_libraries.md#foreign-libraries--partial)), a member that does not fit a template ([Standard library metaprogramming](collections.md#standard-library-metaprogramming--partial)), a symbol outside its
+   enum ([Types](values_and_types.md#types)).
+2. **`assert`**, for when the program should keep running.
+3. **`crash`**, for when everything should stop so the code gets rewritten.
+
+`T?` is the only runtime failure value, and it carries no reason. A caller narrows it with `assert`,
+halts on it with `crash`, or handles the absent case with `if ... do`.
+
+**If a distinction is actionable, it is data, not an error** (proposed by Claude, unconfirmed). A caller that
+must tell a timeout from a rejection takes back a `type`, `union` or enum modelling exactly that -- ordinary
+data with ordinary handling. Something you can act on was never an error; it was a value that was not modelled.
+
+#### `assert` is control flow
+
+D26 (decided by Mortaro, 2026-09-19): `assert` is a guard clause, not validation -- "this value is absent, so
+there is no more logic to do here, but the program is fine and keeps serving everything else". It is why a web
+server or a game written in Spite should rarely crash.
+
+D27 limited `assert` to a function that returns nothing or `T?`, the two cases where the substituted default is
+honest. **D106 (decided by Mortaro, 2026-09-24) lifts that limit: `assert` is legal in a function returning any
+type, and a failed one returns that type's default** -- `false`, `0`, `""`, `null`, an empty value, or nothing.
+The reason is the code the limit produced: `if handle == -1 { return false }` returns the very same default, only
+spelled as an indented `if`, so the limit never removed the ambiguity, it only hid the guard. D106 makes that
+`if` an error naming its `assert` ([Null safety and `assert` narrowing](#null-safety-and-assert-narrowing--implemented), "An `if` that only returns the default is an `assert`").
+
+```gdscript
+func is_open(): Bool {
+    assert handle != -1              # a failed assert returns false
+    return true
+}
+```
+
+When the caller must tell absence from a real `0` or `false`, the choice is still deliberate: return `Int?`, or,
+if absence is a bug rather than a case, `crash`.
+
+D28: **`assert` is banned in a constructor**, including the entry class's own (D29). A constructor is setup, not
+logic: if something can be invalid inside one, function logic has been put where only setup belongs. The caller
+receives an object with every field at its default and cannot tell it from a properly built one, which is
+exactly the surprise the rule exists to prevent. A program constructor that grows complex splits into smaller
+functions it calls -- and reads as a table of contents for the program, with the logic one level down.
+
+#### `crash`
+
+D30 (decided by Mortaro): `crash` is a keyword, so the compiler takes its context from the program rather than
+from a message string. **It mirrors `assert` exactly** -- same polarity, same shape, different severity:
+
+```
+assert database.connect()        # falsey: return the default, keep going
+crash  database.connect()        # falsey: halt
+```
+
+The compiler captures the condition's source text and every operand value, so nothing has to be written and
+nothing can drift out of sync. Bare `crash` is legal for an unreachable branch and reports its enclosing
+context. `crash user` narrows a `T?` exactly as `assert user` does, but never returns -- which filled the gap
+D27 opened, since a function returning `Int` could then guard without widening its signature (D106 has since
+let `assert` guard there too, returning the default).
+
+Absence is fine -> `assert`. Absence is a bug -> `crash`. Absence is meaningful -> `if ... do`.
+
+#### What a crash reports
+
+D25: a crash always reports backend information **and the trace of every `assert` that failed before it**. Those
+asserts are the causal trail explaining how the program reached the state that crashed, which is usually several
+frames earlier than the crash itself. The cost is only on the failure path -- a passing `assert` already
+branches -- and the trace is a fixed-size ring buffer with a total count, so it never allocates and cannot grow
+without bound. Compile-time evaluation ([Class-level functions, and why there are no static functions](reflection.md#class-level-functions-and-why-there-are-no-static-functions--implemented)'s function of `Spite.Class`s, [JSON is reflection, not a library](json.md#json-is-reflection-not-a-library--implemented)'s generated JSON) reports
+the same way.
+
+D26 refinement (proposed by Claude, unconfirmed): the trace records **predicate asserts only**. A narrowing
+assert firing is routine control flow -- thousands an hour on a server -- and on concurrent work the last few
+would come from unrelated requests, reading as a causal chain that does not exist. A per-site count covers them
+instead, which is one increment and never consumes the buffer.
+
+D189: **an `assert` in `library/` never enters the trace.** The trace explains how *the program* reached a crash,
+and the standard library's asserts are routine answers (a missing key, text that does not match, a read past the
+end) that fire constantly and would push the program's own entries out of the ring. The compiler leaves the ring
+write out of every `assert` site whose file is in `library/`, so a library guard costs what an `if` costs; the
+program's own files and every `load`ed package keep recording, and a crash inside the library still reports its
+own site (`conformance/stage5/library_guards_untraced`).
+
+D32: **a crash site is identified by a compile-time id, and the compiler emits an id-to-source map as a build
+artifact** rather than embedding the information in the program. The binary carries none of it, which matters
+most in a wasm module where size is startup time, and **the same logical site keeps the same id across every
+`$target`**, so a crash from the server bundle and one from the browser bundle compare directly. The id is
+content-derived -- a hash of namespace, class, function, the site's ordinal and the condition source -- never a
+counter, because a counter renumbers everything below an inserted line and destroys both old reports and
+cross-target identity. `--development` embeds the text directly, so a local run needs no lookup.
+
+D33: the map is a greppable tab-separated table at `<output-name>.crashes`, one line per site, sorted by id so
+archived maps diff cleanly: id, file, line, column, class, function, kind (`crash`, `assert-predicate`,
+`assert-narrowing`), the condition source, and the operand names with their types. It opens with a `#` comment
+line carrying the format version and the build hash. At runtime a crash emits one tab-separated line prefixed
+`spite.crash`, and an assert `spite.assert`. **Values are rendered as text at crash time but stored raw in the
+ring buffer**: a crash happens once and then the program is dead, so it should be informative rather than fast,
+while a narrowing assert may fire thousands of times an hour and must stay cheap until something dumps it.
+
+**Implemented.** `crash` is built -- the keyword, narrowing, bare `crash` for an unreachable branch, the compiler
+enforcing D28/D29 and D106 -- and so is the reporting above: crash and assert sites carry content-derived ids, every
+build writes `<output-name>.crashes`, and a crash prints the asserts that failed before it from a ring of 32
+(`conformance/stage5/crash_report`, [failure.md](failure.md)). A firing `crash` flushes stdout, writes its
+line to stderr, and exits with status 1:
+
+```
+spite.crash<TAB>path:line<TAB>Class<TAB>function<TAB>condition
+```
+
+The condition is rebuilt from its own tokens and the line ends with the named operands of the failed
+comparison and their values -- `value > limit<TAB>value=-9<TAB>limit=0` -- with calls never evaluated a second
+time.

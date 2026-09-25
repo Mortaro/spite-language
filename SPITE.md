@@ -120,16 +120,16 @@ convention.
 **`main` as the default branch.** "I do not like main." The default branch here is `master` and stays that way;
 do not rename it, and do not suggest renaming it.
 
-**Clobbering shared files.** Two agents whole-file-writing `manual.md` and `PLAN.md` lost a day's decisions once
+**Clobbering shared files.** Two agents whole-file-writing the old `manual.md` and `PLAN.md` lost a day's decisions once
 already (a `robocopy /MIR` restore rolled them back an hour).
 *Instead:* targeted edits matching on surrounding text, never line numbers; re-read immediately before writing;
-the decision log is append-only and rows are never renumbered or reordered.
+the decision log, `docs/decisions.md`, is append-only and rows are never renumbered or reordered.
 
 **Treating `mortaros_notes.md` as anything but an inbox.** It is where Mortaro drops notes; an agent moves them
-into the manual and clears it. Agent-owned state belongs in an agent-owned file.
+into the docs and clears it. Agent-owned state belongs in an agent-owned file.
 
-**Losing decisions.** `manual.md` is normative, and every language decision goes in it and in its decision log
-when it is made. A decision that exists only in a conversation is a decision that will be re-litigated.
+**Losing decisions.** The docs are normative (D193), and every language decision goes into the page that teaches
+that part of the language and into the decision log, `docs/decisions.md`, when it is made. A decision that exists only in a conversation is a decision that will be re-litigated.
 
 **Delegating work to budget subagents when it is slower.** If the round-trips and cold contexts cost more quota
 than doing the work inline, do it inline.

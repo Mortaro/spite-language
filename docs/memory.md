@@ -177,14 +177,14 @@ these pages is run this way, and must balance.
 ## `Memory` is the floor, and you can build on it
 
 Memory is its own namespace, because it is the most basic thing a program has and the most dangerous
-([D151](../manual.md#decision-log)). It holds two kinds of class:
+([D151](decisions.md)). It holds two kinds of class:
 
 - **`Memory.Address` is a place in memory** (`library/memory/address.spite`). It is a number, eight bytes, kept
   in a register like a `Long` and cast to and from one by the ordinary casting rule, so `address + 16` is the
   address sixteen bytes on. What makes it an address is what it answers: `read_long(offset)`,
   `write_float(offset, value)` and the rest read and write the value at `address + offset`.
 - **An allocator is who owns memory**: `Memory.Heap()` is the one every object uses unless told otherwise
-  ([D152](../manual.md#decision-log)). `allocate(bytes)` hands out an address, `resize(address, bytes)` grows it
+  ([D152](decisions.md)). `allocate(bytes)` hands out an address, `resize(address, bytes)` grows it
   and `free(address)` gives it back. Nothing frees it for you: a class that allocates frees in its `drop()`.
 
 Every type in the standard library is Spite over these two: `String`, `List<T>` and `Dictionary<T>` keep their
@@ -192,7 +192,7 @@ bytes in memory the heap hands out, and each number says in its own file how muc
 your own is written over the heap and `TypedMemory<T>` (below), with nothing the compiler does for `List<T>`
 that it would not do for yours -- read `library/list.spite` for a complete one.
 
-**Not built yet** ([D178](../manual.md#decision-log)): the heap asking the operating system for pages itself,
+**Not built yet** ([D178](decisions.md)): the heap asking the operating system for pages itself,
 and `copy_to` and `compare_bytes` as plain Spite through `DynamicLibrary`. Today the heap is the C library's
 `malloc`, and copying and comparing are its `memmove` and `memcmp`, written in place like the reads.
 
@@ -246,7 +246,7 @@ saying so.
   frame: up to 256 bytes cost no allocation at all, and a larger request there still goes to the heap at run
   time. Anything else is on the heap. The program writes the same `allocate` and `free` either way; there is no
   second way to ask for the stack.
-- **Reading and writing an address** ([D178](../manual.md#decision-log)): `read_byte`, `read_short`,
+- **Reading and writing an address** ([D178](decisions.md)): `read_byte`, `read_short`,
   `read_unsigned_short`, `read_int`, `read_unsigned_int`, `read_long`, `read_float` and `read_double`, each
   `(offset)`, and the matching `write_*(offset, value)` -- every width a C struct's fields use -- plus
   `exchange_long`, `read_long_atomically` and `write_long_atomically` for memory threads share. They are
@@ -381,7 +381,7 @@ constant 5 true
 ### Choosing an allocator: `.memory.allocator`
 
 Every object is made on `Memory.Heap` unless its program says otherwise, and it says so on the line right after
-the object is made ([D152](../manual.md#decision-log)):
+the object is made ([D152](decisions.md)):
 
 ```gdscript
 var spark = Particle("spark", 1.5)
@@ -399,15 +399,15 @@ the arena cannot go while anything made in it is alive.
 - **Only right after it is made.** A constructor, `List<T>()` or `.copy()` on one line, and the allocator on the
   next. Once the object was used, its memory stays where it is, and setting the allocator is an error that says
   to copy it: `var moved = spark.copy()`, then `moved.memory.allocator = arena`
-  ([D153](../manual.md#decision-log)).
+  ([D153](decisions.md)).
 - **The allocator is a name**, bound on a line of its own (`var arena = Memory.Arena(65536)`); setting
   `Memory.Heap()` is the default and changes nothing.
 - **Only an object.** A number, a `String` and the reflection objects are placed by the compiler (D108), so
   giving one an allocator is an error.
-- **A list holds references** ([D154](../manual.md#decision-log)): giving a `List` an allocator places the list
+- **A list holds references** ([D154](decisions.md)): giving a `List` an allocator places the list
   itself there, and each element lives wherever it was made. **Not built yet:** the list's buffer of references
   still comes from the heap, and `Vector<T>`, which holds its items inline, does not exist yet.
-- **It costs nothing where it is not used** ([D177](../manual.md#decision-log)): only a class some program line
+- **It costs nothing where it is not used** ([D177](decisions.md)): only a class some program line
   gives an allocator carries the two hidden pointers that remember it (sixteen bytes more per object of that
   class), and no other class changes at all.
 
@@ -446,3 +446,116 @@ spark ember heap allocations: 1
 ```
 
 The one heap allocation is the arena's first block; both particles are inside it.
+
+## Rules in full
+
+The normative rules for this part of the language, in full: what the sections above teach, with the edge
+cases, the exact error texts and the notes on how it is built. They were moved here whole from the language
+manual when [D193](decisions.md) dissolved it into these pages (its section numbers became links), so each
+rule has one home. Where the teaching above and these rules disagree, the rules win and the page has a bug to
+fix. A `D` number is a row of the [decision log](decisions.md).
+
+### Memory  **[implemented]**
+
+D1 (decided by Mortaro, 2026-09-19): **reference counting is the default memory model**, JavaScript-like. Every
+non-scalar value (a class instance, `List<T>`, `Dictionary<T>`, `String`, a union of classes, an object literal) is
+a reference: passing it, assigning it, storing it in a field/list/dictionary, and returning it all share the exact
+same object. Scalars (every numeric type, `Bool`, an enum value) are still plain values, copied as always. `&` is
+removed from the language entirely -- references are the default, so a parameter that used to need `&Type` just
+writes `Type`. A copy is always explicit: `copy()`/`deep_copy()` (below).
+
+- **Retain and release.** Every reference is counted. Binding one to a `var`/parameter, or storing it into a
+  field/list element/dictionary value, retains it (bumps the count); a scope ending, a value being overwritten, or
+  an element being removed from a container releases it (drops the count). When a release brings the count to
+  zero: the class's own `drop()` function runs first, if it declared one (new -- see below), then every attribute
+  that itself needs releasing is released, then the object is freed.
+- **`drop()`.** A class may define `func drop() { ... }` to run cleanup the moment its last reference goes (closing
+  a file handle, logging, clearing a back-reference to help break a cycle by hand -- see below). It takes no
+  parameters and returns nothing; the compiler calls it automatically, never by name.
+- **Identity vs equality.** `==` on two class instances calls `equals` if the class defines one ([Operators](functions_and_operators.md#operators--implemented)'s
+  Operators table, unchanged); otherwise it compares **identity** -- are these two references the same object.
+  `String` always compares by content, never by identity (sharing a `String`'s buffer is unobservable, since it is
+  immutable).
+- **`copy()`/`deep_copy()`** (names **proposed by Claude, unconfirmed**). Every non-scalar value has both:
+  `copy()` is shallow -- a fresh object, its own attributes/elements the exact same references the source had
+  (retained, not duplicated; a `String` field needs no special handling either way, since it is immutable).
+  `deep_copy()` recurses: every reference-kind attribute/element gets its own `deep_copy()`/independent buffer
+  instead of being shared. **Cycles are not supported** by `deep_copy()` -- a self-referential (or mutually
+  referential) structure recurses forever; break the cycle by hand first if you need to deep-copy one.
+- **Cycles leak.** Reference counting cannot free a cycle (two objects holding a reference to each other, directly
+  or through several hops): neither one's count ever reaches zero. This is a known, accepted tradeoff, not a bug --
+  break a cycle by hand when you are done with it (set the back-reference to `null` inside `drop()`-time logic, or
+  clear a `T?` field that closes the loop) if it matters for a long-running program. **[planned]** A future
+  opt-in type (e.g. a weak reference) is the intended real fix; not implemented yet.
+- Parameters follow the same rule as everything else in [Functions](functions_and_operators.md#functions--implemented): a scalar is passed by value (copied); anything
+  else is passed by reference (the same object, retained for the callee's own binding and released when the
+  callee's scope ends) -- there is no separate reference syntax to write at the call site any more.
+
+`--debug-memory` reports total allocations/frees (balanced for every example, `tests/references`, and the
+bootstrap compiler's own runs, exactly -- not just bounded), plus a **leaked-object summary by class name** when
+they do not balance -- naming which classes' instances are still live, which is what makes a leaked cycle visible
+instead of just an unexplained non-zero count.
+
+Every function/method return retains its result, so a getter's returned value is always a fresh, independent
+reference -- including through attribute read interception ([Operators](functions_and_operators.md#operators--implemented)): a `person.age`-shaped read answered by a
+getter, used directly as a call/print argument rather than stored, is released like any other temporary
+(`ExpressionResult.is_owning` in the generator is how a read that compiles to a call, but still
+parses as a `.member`/`.index` expression -- an intercepted attribute read, `arguments.some_key`, the
+`attributes[attribute]` template form -- tells every caller whether it is independently owned regardless of what
+the plain AST shape alone would suggest).
+
+#### Placement: the compiler decides where memory lives  **[implemented; the rule proposed by Claude, unconfirmed]**
+
+D108 (decided by Mortaro): "Memory should be a abstraction that lets us allocate heap/stack/register but our
+compiler decides best use placement." A program has one way to ask for raw memory, `Memory.Heap`'s `allocate`
+(D151; it was `Memory.allocate_bytes` until D178 was built), and one way to give it back, `free`; where the bytes
+live is the compiler's choice, and the program's text is the same whichever it makes:
+
+- **Register:** a number's own memory, declared in its file as `var heap = Memory.Heap()` and then
+  `var _memory = heap.allocate(4)` (for `Int`; the `heap` binding is never a field, D110). The wrapper is flattened: a number is its C scalar, and `this` is the value.
+- **Frame:** `var name = heap.allocate(bytes)` in a function, when a later statement of the same block
+  is `heap.free(name)` and every other use of `name` reads or writes through it (`name.read_long(offset)`, also
+  as `(name + offset)`), copies or compares with it (`copy_to`, `compare_bytes`), turns it into `text`, or hands
+  it to a `TypedMemory`'s `read_value`, `write_value` or `release_value` -- it is never stored, returned,
+  assigned, resized or passed to anything else, and neither `name` nor `heap` is declared or assigned again
+  after it. The compiler gives it a slot of 256 bytes
+  in the function's frame (exactly the size, for a literal size up to 256), uses the heap when a run-time size
+  is larger, and makes the `free` a no-op for the slot. A loop body is a block like any other, so the slot is
+  reused on every pass. `Double.bits()` allocates nothing now, and `Long.to_string()` and `upper_case()` of a
+  short text allocate only the `String` they return.
+- **Constant:** a `String` literal's characters are part of the program (`_section` is `'constant'`).
+- **Heap:** everything else.
+
+`allocate_stack_bytes` (D98's stack section) is removed: asking for the stack by name was a second way to
+allocate, and one the program could get wrong (an address kept past the return). **For data-structure authors**
+(the ECS D98 names) nothing is lost: what makes a layout efficient is the author's -- one allocation holding many
+values at offsets they choose, `TypedMemory<$value_type>` for values of any type, `resize` to grow -- and that
+stays exactly as it was. A temporary buffer a function uses and frees lands in its frame without asking.
+
+#### Allocators: `.memory.allocator`  **[implemented for objects; a list's buffer and `Vector<T>` planned]**
+
+D150-D154 (decided by Mortaro): types never name an allocator; an **object** does, through its tree-shakeable
+`.memory`, on the line right after it is made -- `var scratch = List<Int>()` then `scratch.memory.allocator =
+arena` -- and the compiler reads the two lines as where the object was always meant to live (D152), so it is made
+there from the start. Setting it after the object was used is a compile error naming `copy()` (D153). What is
+built (2026-09-25; the readings marked are proposed by Claude, unconfirmed):
+
+- **An allocator is a class that answers `allocate(bytes: Long): Memory.Address` and `free(address:
+  Memory.Address)`** (the D150 shape; no `type` is declared for it, per D151). `Memory.Heap` is the default, and
+  setting it changes nothing. `Memory.Arena(block_bytes)` (`library/memory/arena.spite`, Spite over the heap)
+  hands out 16-byte-aligned memory from blocks of that size, chaining a new block when one is full, never frees
+  one piece at a time, and frees every block when the arena itself is dropped (proposed by Claude, unconfirmed:
+  no `reset()` yet, because resetting under live objects is the undecided safety rule of
+  `mortaros_allocators_proposal.md` question 3). `Memory.Frame` is not built (`mortaros_missing_decisions.md`).
+- **Where it may be set** (proposed by Claude, unconfirmed): only as the statement directly after `var name =
+  ...` whose value is a constructor call, `List<T>()`/`Dictionary<T>()` or `.copy()` of a class whose copy the
+  compiler writes, and only to a name or a path of names (so evaluating it earlier than written changes nothing).
+  Anything else -- a later line, an attribute, a number, a `String` -- is an error (`diagnostics/allocator_after_use`).
+- **How it is compiled**: the construction becomes `C___make_in(allocator, give_back, address, arguments...)` with
+  the address from the allocator's `allocate`, so nothing is allocated twice or moved. An object made this way
+  holds a reference to its allocator and the allocator's `free`, and gives its memory back through them when its
+  count reaches zero; the allocator therefore outlives everything made in it. **Tree-shaken (D177)**: only a class
+  some line gives an allocator carries the two hidden pointers (16 bytes per object of that class), and nothing
+  else in the program changes; there is no run-time registry and no current-allocator state.
+- **Not built:** D154's list buffer following its list's allocator (a list placed in an arena keeps its buffer of
+  references on the heap), `Vector<T>` with its items inline, and reading `.memory.allocator` back.
