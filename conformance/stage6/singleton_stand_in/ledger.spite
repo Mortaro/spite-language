@@ -1,0 +1,17 @@
+singleton
+
+var console = Console()
+var shelf = Shelf()
+var entries = List<Int>()
+var notes = List<String>()
+
+func record(value: Int) {
+    entries.append(value)
+    notes.append("entry {value}")
+    shelf.label("entry {value}")
+}
+
+func drop() {
+    var joined_notes = notes.join(", ")
+    console.print("ledger dropped with", joined_notes)
+}
