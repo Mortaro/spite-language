@@ -99,6 +99,98 @@ total items 7
 `inventory["shield"]` is `null`, and `null` equals nothing, so `inventory["shield"] == 0` is `false`: absent is
 not zero. `has(key)` asks the question directly.
 
+## `Vector<T>`: items inline
+
+A `List` holds references: each element is an object somewhere on the heap, and walking the list follows one
+pointer per element. A `Vector<T>` (`library/vector.spite`) holds its items themselves, one after another in one
+block of memory, the way the processor's cache likes to read them ([D154](decisions.md), [D203](decisions.md)).
+An item has no header and no reference count of its own; appending one copies its attributes into the block.
+
+```gdscript title=vector_basics/velocity.spite
+var across = 0.0
+var down = 0.0
+var moving = false
+
+func Velocity(new_across: Float, new_down: Float) {
+    across = new_across
+    down = new_down
+}
+
+func integrate() {
+    across = across + down
+    moving = true
+}
+```
+```gdscript title=vector_basics/vector_basics.spite entry
+var console = Console()
+
+func VectorBasics() {
+    var velocities = Vector<Velocity>()
+    var slow = Velocity(1.0, 0.5)
+    velocities.append(slow)
+    var fast = Velocity(2.0, 3.0)
+    velocities.append(fast)
+    var first = velocities[0]
+    first.down = 2.0
+    velocities.each_integrate()
+    var total = velocities.sum_across()
+    var moving_count = velocities.count_moving()
+    console.print(total, moving_count, slow.down)
+}
+```
+```output
+8 2 0.5
+```
+
+`velocities[0]` is not a copy: it is the item inside the vector, **borrowed** ([D204](decisions.md)), so
+`first.down = 2.0` writes the vector's own item. `slow` is still `0.5`, because `append` copied it in. The member
+templates run on the items in place the same way, and a chain of them is one loop, as on a list.
+
+| Member | Result | Notes |
+|---|---|---|
+| `append(value)` | | copies `value`'s attributes in as a new last item |
+| `vector[index]` / `get_at(index)` | `T` | the item itself, borrowed; an index out of range halts |
+| `vector[index] = value` / `set_at(index, value)` | | copies `value` over the item; out of range halts |
+| `remove_at(index)` | | moves every later item down; nothing happens out of range |
+| `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
+| `copy()` / `deep_copy()` | `Vector<T>` | a new vector with its own copy of every item |
+| `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()` | | as on a list; `filter_` gives a `Vector<T>` of copies |
+| `parallel_each_<member>()` | | as on a list ([concurrency.md](concurrency.md#parallel_each_-a-member-on-every-element)) |
+
+An item is of known size: a number, a `Boolean`, an enum, a `String`, or a class whose attributes are only those.
+A class with a `List`, a `Dictionary` or another object in an attribute is an error naming the attribute, and it
+belongs in a `List` ([the rules](#vectort--implemented)).
+
+A borrowed item is read and written through its members. It is never kept: not in an attribute, a list, a
+returned value or a function value, and not past anything that may change the vector's size, since growing the
+vector may move its items. Each of those is an error that names `copy()`, which makes an independent object:
+
+```gdscript title=vector_borrow_mistake/velocity.spite
+var across = 0.0
+
+func Velocity(new_across: Float) {
+    across = new_across
+}
+```
+```gdscript title=vector_borrow_mistake/vector_borrow_mistake.spite entry error
+var console = Console()
+
+func VectorBorrowMistake() {
+    var velocities = Vector<Velocity>()
+    var slow = Velocity(1.0)
+    velocities.append(slow)
+    var first = velocities[0]
+    velocities.append(slow)
+    console.print(first.across)
+}
+```
+```diagnostic
+may move the items of 'velocities', so 'first' is not read after it
+```
+
+The rules for what a borrowed item may do, and what they cost, are in
+[memory.md](memory.md#borrowed-items-of-a-vectort--implemented).
+
 ## Member templates: loops you do not write
 
 A list of a class answers a family of functions named after the element's members (a function of your own is
@@ -648,6 +740,52 @@ as it does on a `List<T>`; to walk keys and values together, use `while` over `d
 `deep_copy()` is implemented for classes, lists and dictionaries. A `String` is shared rather than duplicated
 because it is immutable; a union or a `type` shape is shared for now; a self-referring structure is still
 unsupported ([Memory](memory.md#memory--implemented)).
+
+### Vector\<T\>  **[implemented]**
+
+D154 (decided by Mortaro): a `Vector<T>` holds its items inline, where a `List<T>` holds references; D204
+(decided by Mortaro): reading an item gives a borrowed reference into the vector. Its members are [the table
+under `Vector<T>`](#vectort-items-inline), which is normative. The readings below are proposed by Claude,
+unconfirmed:
+
+- **The name** is `Vector<T>` (`mortaros_missing_decisions.md` item 175); the classes that were called `Vector` in
+  `examples/vectors`, `conformance/stage6/operators` and `benchmarks/small_allocations` are now `Displacement`.
+- **What an item may be.** A number, a `Boolean`, an enum, a `String`, or a class whose attributes are only those
+  (a `T?` of one of them, or a singleton such as `Console`, included). Anything else is an error when the vector
+  type is written: `'Holder' cannot be an item of a Vector: its attribute 'scores' is a List<Integer>, and a
+  Vector holds each item inline, so every attribute is a number, a Boolean, an enum or a String (keep 'Holder' in
+  a 'List<Holder>', or keep 'scores' somewhere else)`; `Vector<List<Integer>>` is `a Vector holds each item
+  inline, so an item is a number, a Boolean, an enum, a String or a class made only of those, and a List<Integer>
+  is not: keep it in a 'List<List<Integer>>'`. A class with a `drop()` is `'Handle' cannot be an item of a Vector:
+  it has a 'drop()', and an item inline in a Vector is never an object of its own to drop (keep 'Handle' in a
+  'List<Handle>')`, and a class whose functions use `this` as a value (return it, pass it, keep it, or name one of
+  its own functions as a value) is `'Selfish.itself' uses 'this' as a value, and an item of a Vector is borrowed
+  from the Vector, never an object to keep or to pass on: read and write its attributes instead`.
+- **Reading.** `vector[index]` and `get_at(index)` answer the item itself, a `T` and never a `T?`: an index out of
+  range halts with the crash report of `library/vector.spite`'s `crash index >= 0 and index < item_count`. A vector
+  of numbers, `Boolean`s, enums or `String`s answers the value, as a list does. What a borrowed item may do is
+  [memory.md's rule](memory.md#borrowed-items-of-a-vectort--implemented).
+- **Writing.** `append(value)` and `set_at(index, value)` (`vector[index] = value`) copy the value's attributes
+  into the block, counting each `String` attribute once more; the value itself stays an ordinary object. D202
+  keeps a constructor out of the argument, so an appended item is made on its own line first: `var slow =
+  Velocity(1.0, 0.5)`, then `velocities.append(slow)`.
+- **Removing.** `remove_at(index)` releases the item's `String` attributes and moves every later item down;
+  `clear()` releases every item's and keeps the capacity; dropping the vector releases them and frees the block.
+- **Templates.** `each_`, `map_`, `filter_`, `count_`, `any_`, `all_` and `sum_<member>()` are in
+  `library/vector.spite`, written over the borrowed items; `filter_` answers a `Vector<T>` of copies and `map_` a
+  `List` of the members' values. A chain of them is one loop over the block (D105), with `filter_` steps in the
+  middle, and `parallel_each_<member>()` splits the walk across the thread pool as it does a list's.
+  `sort_by_`, `find_by_`, the passed-function forms and a program's own templates are not built for a vector; a
+  passed function would take the item as an argument, which a borrowed item never is, so `velocities.each(f)` is
+  `'each' passes each item to a function, and an item of a Vector is borrowed from it, never passed on: give the
+  item's class a function and call it with a member template, such as 'each_<function>()'`. The D171 rule for a
+  `while` a template already says does not look at a vector's loops yet.
+- **Its allocator.** `velocities.memory.allocator = arena` on the next line places the `Vector` object in the
+  arena, as for any object (D152). **Not built:** its block of items following it there; the block is on the heap,
+  because a class cannot read its own `.memory` yet (item 175's proposal, `memory.allocator` read inside a class,
+  is still open).
+
+`diagnostics/vector_borrows`, `diagnostics/vector_items`, `conformance/stage6/vector_items`.
 
 ### Heap\<T\> -- removed (D1, decided by Mortaro, 2026-09-19)
 

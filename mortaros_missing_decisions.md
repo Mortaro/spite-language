@@ -521,7 +521,10 @@ All of it is proposed by Claude, unconfirmed.
      (Claude): inside a class, `memory.allocator` reads the object's own allocator, the way a number's `this`
      is its value. Also `examples/vectors` has a user class `Vector`, which a library `Vector<T>` would turn into
      a reopening of the library's class. Name it `Vector<T>` anyway (the example renames its class), or another
-     name?
+     name? Built as `Vector<T>` (`library/vector.spite`, D204's borrowed items): the user classes called `Vector`
+     in `examples/vectors`, `conformance/stage6/operators` and `benchmarks/small_allocations` are now
+     `Displacement`. The allocator half is not built: a vector's block of items is on the heap wherever the vector
+     object is placed, as a list's buffer is, until a class can read its own allocator.
 176. **How much of a singleton may be atomics instead of a lock (D184).** Built as: a singleton whose changing
      attributes are whole numbers or `Bool`s, where each function touches that state once (one read, one
      `x = x + step`, or one `flag = value`), is compiled to atomics and takes no lock; that keeps every function one

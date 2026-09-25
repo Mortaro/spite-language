@@ -961,8 +961,13 @@ construction, the one part of this already built, is [above](#an-allocator-set-a
 ### Other planned optimisations
 
 - **A list's buffer in its list's allocator** ([D154](decisions.md)): a `List` given an allocator is made there,
-  but its buffer of references still comes from the heap; and `Vector<T>`, which holds its items inline, does not
-  exist yet ([memory.md](memory.md#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-vectort-planned)).
+  but its buffer of references still comes from the heap, and so does a `Vector<T>`'s block of items
+  ([memory.md](memory.md#allocators-memoryallocator--implemented-for-objects-a-lists-buffer-and-a-vectors-block-planned)).
+- **An appended item made in place**: `var slow = Velocity(1.0, 0.5)` and then `velocities.append(slow)` makes an
+  ordinary object, copies its attributes into the vector's block and lets the object go, so filling a vector
+  allocates once per item for a moment ([collections.md](collections.md#vectort--implemented)). Writing the
+  constructor's attributes straight into the block, when the object is used for nothing else, would make filling
+  it allocate only when the block grows.
 - **Short symbols inline** ([D70](decisions.md)): a short symbol held as a small inline string rather
   than a pointer into the symbol table.
 - **Crash text out of the binary** ([D32](decisions.md)): a `crash` or `assert` site's source text
