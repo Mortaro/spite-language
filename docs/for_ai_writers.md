@@ -68,6 +68,9 @@ func is_alive(): Bool {
   constructor may be an argument, one level deep (`Token("number", Text(token_text))` inside `append` is an
   error). The holes of a text are not arguments: `"{names.count()} names"` is fine.
 - The two branches of an `if`/`else` never compute the same call: compute it once before the `if`.
+- An `if`/`else` never sits directly inside a branch of another `if`/`else`: move the inner decision into a
+  function named for what it decides, or use one `switch` when both test which member of a union a value is. A
+  flat `else if` chain, and an `if` with no `else`, are fine.
 
 ## Names, comments, unused things
 

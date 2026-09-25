@@ -940,25 +940,25 @@ func run_connect(arguments: Arguments) {
         console.write("spite> ")
         var line = console.read_line()
         if line {
-            talking = connection.write_line(line)
-            var response = connection.read_line()
-            if response {
-                var pretty_response = pretty_response(response)
-                if not pretty_response.is_empty() {
-                    console.print(pretty_response)
-                }
-            } else {
-                talking = false
-            }
-            if line.trim() == "exit" {
-                talking = false
-            }
+            talking = talk(connection, line)
         } else {
             console.print("")
             talking = false
         }
     }
     connection.close()
+}
+
+func talk(connection: Socket, line: String): Bool {
+    var sent = connection.write_line(line)
+    var response = connection.read_line()
+    assert response
+    var pretty = pretty_response(response)
+    if not pretty.is_empty() {
+        console.print(pretty)
+    }
+    var command = line.trim()
+    return sent and command != "exit"
 }
 
 func send_one_command(connection: Socket, command: String) {

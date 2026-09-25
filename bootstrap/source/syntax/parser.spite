@@ -820,20 +820,21 @@ func parse_type_without_suffix(): Syntax.Types.Type {
     return parse_type_path(path)
 }
 
+func parse_dotted_segment(path: List<String>): Bool {
+    assert check('dot')
+    advance()
+    if check('identifier') {
+        path.append("{advance().text}")
+        return true
+    }
+    fail("expected a name after '.' but found {found_text()}")
+    return false
+}
+
 func parse_type_path(path: List<String>): Syntax.Types.Type {
     var continue_dots = true
     while continue_dots and not check('end_of_file') {
-        if check('dot') {
-            advance()
-            if check('identifier') {
-                path.append("{advance().text}")
-            } else {
-                fail("expected a name after '.' but found {found_text()}")
-                continue_dots = false
-            }
-        } else {
-            continue_dots = false
-        }
+        continue_dots = parse_dotted_segment(path)
     }
     var arguments = List<Syntax.Types.GenericArgument>()
     if check('less') {
@@ -984,10 +985,9 @@ func try_parse_type_quiet(): Syntax.Types.Type? {
     while continue_dots and ok and not check('end_of_file') {
         if check('dot') {
             advance()
-            if check('identifier') {
+            ok = check('identifier')
+            if ok {
                 path.append("{advance().text}")
-            } else {
-                ok = false
             }
         } else {
             continue_dots = false

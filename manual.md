@@ -832,6 +832,17 @@ genuinely needed. Writing `for` is a parse error naming `while` and the metaprog
 of silently doing something else. Loops and ifs are otherwise discouraged in application code; reach for
 standard library metaprogramming first.
 
+**An `if` with an `else`, directly inside a branch of another `if` with an `else`, is a compile error** (D170,
+decided by Mortaro, 2026-09-25). The message names the fix: "this 'if'/'else' is inside a branch of another
+'if'/'else': move it into a function named for what it decides, or, when both test which member of a union a
+value is, use one 'switch'". An `else if` link counts as a branch of its chain, so an `if`/`else` inside the body
+of an `else if` is caught too. Not counted: a flat `else if` chain; an `if` without an `else` inside a branch; and
+an `if`/`else` inside a `while` or `switch` inside the branch, since the loop or the switch is the unit. The
+message says "union" and not "union or enum" because `switch` does not accept an enum yet (section 7). The
+compiler's nine nested decisions became six named functions (`talk`, `text_comparison`, `union_member_call`,
+`report_misplaced_rest_case`, `check_asserted_condition`, `parse_dotted_segment`) and three flattened chains in
+the tree shaker and the quiet type parser (`diagnostics/nested_if_else`). **[implemented]**
+
 ## 7. Types
 
 ### Enums  **[implemented]**
@@ -3627,7 +3638,7 @@ payloads to JSON on demand, since the compiler knows the schema.
     `get_name()` is an attribute read, and a write to it with no `set_name()` is an error saying the attribute
     is read-only. The storage behind it is a private `_attributes`, which the compiler fills as it fills
     `attributes` today. **The mechanism is built (2026-09-23):** a read that finds no attribute but finds `get_name()` reads through it, and a write with no `set_name()` is an error calling the attribute read-only (`tests/interception_tests`, `diagnostics/read_only_attribute`). Moving `Spite.Class`'s own members onto it is left for Mortaro to confirm.
-20. **Whether a nested `if`/`else` is an error** (Mortaro, 2026-09-23: "we should discuss"). Claude's view: nesting
+20. **(Answered by D170: it is. Built 2026-09-25, section 6.)** **Whether a nested `if`/`else` is an error** (Mortaro, 2026-09-23: "we should discuss"). Claude's view: nesting
     is where generated code becomes unreadable, and the language already removes the common cases -- a
     precondition is `assert` (D54), a choice between kinds is a `switch` over a union or enum. What remains is a
     genuine decision tree, and forbidding it pushes it into a helper function, which is usually the right call.
@@ -4025,3 +4036,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | **D188** (decided by Mortaro, revising the flag spelling of D85/D120): **command-line flags are kebab-case, and the `Build` field behind each stays snake_case**: "all languages use --repl-port instead of --repl_port, the _ feels weird for flags, we should use - for flags only but the variable name becomes snake case." `--repl-port=4000` sets `Build.repl_port`, `--hot-reload` sets `hot_reload`, `--final-classes`, `--c-source`, `--executable-path` and so on; an underscore in a flag is an error naming the hyphen form. |
 | 2026-09-25 | **D189** (delegated by Mortaro: "you will be the one debugging, do whatever you think is best for AI at this one"; the design is Claude's): **an `assert` in `library/` never enters the D25 crash trace.** The trace exists to explain how *the program* reached a crash: which of its own assumptions failed first. The standard library's asserts are routine control flow (probing a `Dictionary`, matching text, reading past an end), fire thousands of times in a long-running program, and crowd out the program's own entries in the 32-entry ring, so an AI reading a crash sees library noise instead of the cause. The compiler therefore writes no ring entry for an `assert` site whose file is in `library/`: it is filtered at compile time, so it costs nothing at run time (D177) and a library guard is exactly as cheap as an `if`. The program's own folder and every `load`ed package keep full recording. A crash *inside* the library still reports its own site and the call chain, so nothing about the crash itself is lost; only the library's passing-through guards are left out. This settles D106-as-built's open question (skip the library, rather than rewriting each library guard as an expression). |
 | 2026-09-25 | **D190** (decided by Mortaro, revising D128's `format` output): **formatting a file never needs it to compile, and compiling always formats first -- there is no way to turn it off.** "we should be able to use --format (or --lint whichever makes more sense) to format files without having to fix all the code to compile, but we should never be able to compile without it formating the code first". `spite format <file-or-folder>` (already built: it needs a file to parse, not to compile) stays the name, since formatting is what it does. `--format=false` and `var format = false` in `build.spite` are removed: every compile formats the program's own files (the entry folder and every `load`ed root, not `library/`) before anything else, and a file the formatter refuses (D55's empty line, a failed safety check) is still left alone with its reason, which is an error in the compile it belongs to rather than a skipped step. Test inputs that must stay unformatted (`diagnostics/`) are compiled from a copy by `check.sh`, never by a flag. |
+| 2026-09-25 | (implements D170; the readings proposed by Claude, unconfirmed) **An `if`/`else` directly inside a branch of another `if`/`else` is an error** naming a function or a `switch`. An `else if` link counts as a branch of its chain; an `if` without an `else`, and an `if`/`else` inside a `while` or `switch` inside the branch, are not counted. The message names a `switch` only for unions, since `switch` does not take an enum yet. Checked on every `if` the compiler generates; the compiler's nine cases became six named functions and three flat chains. Section 6, `diagnostics/nested_if_else`, `docs/control_flow.md`. |

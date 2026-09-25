@@ -1,0 +1,62 @@
+var console = Console()
+
+func NestedIfElse() {
+    var description = describe(3, true)
+    var letter = grade(70)
+    var flat = allowed(2, false)
+    console.print("{description} {letter} {flat}")
+}
+
+func describe(count: Int, loud: Bool): String {
+    if count == 0 {
+        return "none"
+    } else {
+        var noun = "some"
+        if loud {
+            return "{noun}!"
+        } else {
+            return noun
+        }
+    }
+}
+
+func grade(score: Int): String {
+    var text = ""
+    if score > 90 {
+        text = "top"
+    } else if score > 50 {
+        if score > 75 {
+            text = "good"
+        } else if score > 60 {
+            text = "fair"
+        } else {
+            text = "passing"
+        }
+    } else {
+        text = "low"
+    }
+    return text
+}
+
+func allowed(count: Int, loud: Bool): String {
+    var text = "quiet"
+    if count == 0 {
+        text = "none"
+    } else if count == 1 {
+        text = "one"
+    } else {
+        if loud {
+            text = "LOUD"
+        }
+        var index = 0
+        while index < count {
+            if index == 0 {
+                text = "{text} first"
+            } else {
+                text = "{text} next"
+            }
+            index = index + 1
+        }
+    }
+    return text
+}

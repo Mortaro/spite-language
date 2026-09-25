@@ -287,6 +287,9 @@ and balanced allocations.
     and checks both paths keep its state. **Not done:** Linux and macOS are only compiled; instance migration,
     reflection that follows reloads, and compiling off the program's thread wait on
     `mortaros_missing_decisions.md` 64-69.
+26. **D169-D172, four compile-time rules** (manual.md sections 5, 6 and 12). **D170 done (2026-09-25):** an
+    `if`/`else` directly inside a branch of another `if`/`else` is an error naming a function or a `switch`
+    (`diagnostics/nested_if_else`).
 
 ## Later, deliberately deferred
 

@@ -4794,19 +4794,7 @@ func generate_string_binary(
         combine = "SpiteString_sum({left_temporary}, SpiteString___retain({right_temporary}))"
     } else {
         result_type = Analysis.Types.ScalarType('boolean_kind')
-        if operator == 'equal' {
-            combine = "SpiteString_equals({left_temporary}, SpiteString___retain({right_temporary}))"
-        } else if operator == 'not_equal' {
-            combine = "(!(SpiteString_equals({left_temporary}, SpiteString___retain({right_temporary}))))"
-        } else if operator == 'less' {
-            combine = "SpiteString_less_than({left_temporary}, SpiteString___retain({right_temporary}))"
-        } else if operator == 'greater' {
-            combine = "SpiteString_greater_than({left_temporary}, SpiteString___retain({right_temporary}))"
-        } else if operator == 'less_equal' {
-            combine = "(!(SpiteString_greater_than({left_temporary}, SpiteString___retain({right_temporary}))))"
-        } else {
-            combine = "(!(SpiteString_less_than({left_temporary}, SpiteString___retain({right_temporary}))))"
-        }
+        combine = text_comparison(operator, left_temporary, right_temporary)
     }
     var result_temporary = next_temporary()
     lines.append("{c_type_name(result_type)} {result_temporary} = {combine};")
@@ -4819,6 +4807,25 @@ func generate_string_binary(
     }
     lines.append("{result_temporary};")
     return ExpressionResult("(\{ {lines.join(" ")} })", result_type)
+}
+
+func text_comparison(
+    operator: Syntax.Expressions.BinaryOperator,
+    left_temporary: String,
+    right_temporary: String,
+): String {
+    if operator == 'equal' {
+        return "SpiteString_equals({left_temporary}, SpiteString___retain({right_temporary}))"
+    } else if operator == 'not_equal' {
+        return "(!(SpiteString_equals({left_temporary}, SpiteString___retain({right_temporary}))))"
+    } else if operator == 'less' {
+        return "SpiteString_less_than({left_temporary}, SpiteString___retain({right_temporary}))"
+    } else if operator == 'greater' {
+        return "SpiteString_greater_than({left_temporary}, SpiteString___retain({right_temporary}))"
+    } else if operator == 'less_equal' {
+        return "(!(SpiteString_greater_than({left_temporary}, SpiteString___retain({right_temporary}))))"
+    }
+    return "(!(SpiteString_less_than({left_temporary}, SpiteString___retain({right_temporary}))))"
 }
 
 func maybe_null_only_on_the_right(
@@ -11666,6 +11673,7 @@ func generate_if_statement(
 ): Bool {
     assert if_statement.condition
     report_repeated_branch_call(if_statement)
+    report_nested_if_else(if_statement)
     var constant = constant_condition(if_statement.condition, scope, class_information)
     if constant == true or constant == false {
         builder.add_user("\{")
@@ -11949,6 +11957,19 @@ func emit_narrowed_case(
     builder.add_user("}")
 }
 
+func report_misplaced_rest_case(
+    switch_statement: Syntax.Statements.SwitchStatement,
+    case_index: Int,
+    covered_names: List<String>,
+    information: Analysis.UnionInfo,
+) {
+    if case_index != switch_statement.cases.count() - 1 {
+        report("'_:' answers for every member without a case of its own, so it is the last case")
+    } else if covered_names.count() == information.members.count() {
+        report("every member of '{information.simple_name}' already has a case, so '_:' answers for nothing: remove it")
+    }
+}
+
 func is_rest_case(switch_case: Syntax.Statements.SwitchCase): Bool {
     if switch_case.type_reference {
         var named = shape.as_named_type(switch_case.type_reference)
@@ -12062,6 +12083,31 @@ func report_repeated_branch_call(if_statement: Syntax.Statements.IfStatement) {
         branch_words = "every branch"
     }
     report("'{shared[0]}' is computed in {branch_words}: compute it once before the 'if'")
+}
+
+func report_nested_if_else(if_statement: Syntax.Statements.IfStatement) {
+    assert if_statement.has_else_branch or if_statement.follows_else
+    report_if_else_in_branch(if_statement.then_branch)
+    var chained = chained_if(if_statement)
+    if not chained {
+        report_if_else_in_branch(if_statement.else_branch)
+    }
+}
+
+func report_if_else_in_branch(branch: List<Syntax.Statements.Statement>) {
+    var index = 0
+    while index < branch.count() {
+        var nested = shape.as_if_statement(branch[index])
+        if nested and nested.has_else_branch {
+            var saved_line = current_line
+            current_line = nested.line
+            report(
+                "this 'if'/'else' is inside a branch of another 'if'/'else': move it into a function named for what it decides, or, when both test which member of a union a value is, use one 'switch'",
+            )
+            current_line = saved_line
+        }
+        index = index + 1
+    }
 }
 
 func collect_chain_narrowed_names(if_statement: Syntax.Statements.IfStatement, names: List<String>): Bool {
@@ -12853,13 +12899,7 @@ func generate_switch_statement(
     while case_index < switch_statement.cases.count() {
         var switch_case = switch_statement.cases[case_index]
         if is_rest_case(switch_case) {
-            if case_index != switch_statement.cases.count() - 1 {
-                report("'_:' answers for every member without a case of its own, so it is the last case")
-            } else if covered_names.count() == information.members.count() {
-                report(
-                    "every member of '{information.simple_name}' already has a case, so '_:' answers for nothing: remove it",
-                )
-            }
+            report_misplaced_rest_case(switch_statement, case_index, covered_names, information)
             answers_the_rest = true
             generate_rest_case(
                 switch_case,
@@ -12986,16 +13026,7 @@ func generate_union_dispatch(
         var casted_object = "(({member.c_name}*){object_temporary})"
         var branch_code = ""
         if is_call {
-            var member_function = find_or_instantiate_function(member, member_name)
-            if member_function {
-                var call_arguments = argument_temporaries.copy()
-                call_arguments.prepend(casted_object)
-                branch_code = "{member_function.c_name}({call_arguments.join(", ")})"
-            } else {
-                report(
-                    "'{member.simple_name}' does not define '{member_name}', so it cannot be called on union '{information.simple_name}'",
-                )
-            }
+            branch_code = union_member_call(member, member_name, casted_object, argument_temporaries, information)
         } else {
             branch_code = "{casted_object}->{member_name}"
             if owning_object and type_needs_drop(result_type) {
@@ -13023,11 +13054,48 @@ func generate_union_dispatch(
     return ExpressionResult("(\{ {lines.join(" ")} })", result_type)
 }
 
+func union_member_call(
+    member: Analysis.ClassInfo,
+    member_name: String,
+    casted_object: String,
+    argument_temporaries: List<String>,
+    information: Analysis.UnionInfo,
+): String {
+    var member_function = find_or_instantiate_function(member, member_name)
+    if member_function {
+        var call_arguments = argument_temporaries.copy()
+        call_arguments.prepend(casted_object)
+        return "{member_function.c_name}({call_arguments.join(", ")})"
+    }
+    report(
+        "'{member.simple_name}' does not define '{member_name}', so it cannot be called on union '{information.simple_name}'",
+    )
+    return ""
+}
+
 func default_value_for_scalar_or_null(spite_type: Analysis.SpiteType): String {
     if type_is_reference(spite_type) {
         return "0"
     }
     return default_value_for_type(spite_type)
+}
+
+func check_asserted_condition(
+    assert_statement: Syntax.Statements.AssertStatement,
+    condition_result: ExpressionResult,
+    scope: Scope,
+) {
+    var keyword = "assert"
+    if assert_statement.is_crash {
+        keyword = "crash"
+    }
+    var proof = earlier_proof(assert_statement.value, condition_result, scope)
+    if proof.is_empty() {
+        check_condition(condition_result, keyword)
+    } else {
+        var proven_path = operand_text(assert_statement.value)
+        report("'{proven_path}' is already proven by {proof}, so this '{keyword}' proves nothing: remove it")
+    }
 }
 
 func earlier_proof(value: Syntax.Expressions.Expression, condition: ExpressionResult, scope: Scope): String {
@@ -13476,17 +13544,7 @@ func generate_assert_statement(
         var condition_result = generate_expression(assert_statement.value, scope, class_information)
         guard_code = owned_truth(condition_result, assert_statement.value)
         narrow_proven_indices(assert_statement.value, scope)
-        var keyword = "assert"
-        if assert_statement.is_crash {
-            keyword = "crash"
-        }
-        var proof = earlier_proof(assert_statement.value, condition_result, scope)
-        if proof.is_empty() {
-            check_condition(condition_result, keyword)
-        } else {
-            var proven_path = operand_text(assert_statement.value)
-            report("'{proven_path}' is already proven by {proof}, so this '{keyword}' proves nothing: remove it")
-        }
+        check_asserted_condition(assert_statement, condition_result, scope)
     }
     if not assert_statement.is_crash and function_information.is_constructor {
         report(

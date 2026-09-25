@@ -54,6 +54,67 @@ func letter_for(grade: Int): String {
 An `if` that only returns the function's default is an `assert` spelled the long way, and is an error naming
 it ([failure.md](failure.md#an-if-that-only-returns-the-default-is-an-assert)).
 
+**An `if`/`else` directly inside a branch of another `if`/`else` is an error** ([D170](../manual.md#decision-log)).
+Two stacked decisions are two things to hold in your head at once, so the inner one gets a name: move it into a
+function named for what it decides, or, when both test which member of a union a value is, use one `switch`. A flat
+`else if` chain is fine, and so is an `if` with no `else` inside a branch, or an `if`/`else` inside a `while` or a
+`switch` inside the branch -- the loop or the switch is the unit.
+
+```gdscript title=nested_decision_error/nested_decision_error.spite entry error
+var console = Console()
+
+func NestedDecisionError() {
+    var label = label_for(3, true)
+    console.print(label)
+}
+
+func label_for(count: Int, loud: Bool): String {
+    if count == 0 {
+        return "none"
+    } else {
+        var noun = "{count} apples"
+        if loud {
+            return "{noun}!"
+        } else {
+            return noun
+        }
+    }
+}
+```
+```diagnostic
+this 'if'/'else' is inside a branch of another 'if'/'else': move it into a function named for what it decides
+```
+
+The inner decision is how loudly to say it, so that is the function:
+
+```gdscript title=nested_decision/nested_decision.spite entry
+var console = Console()
+
+func NestedDecision() {
+    var label = label_for(3, true)
+    console.print(label)
+}
+
+func label_for(count: Int, loud: Bool): String {
+    if count == 0 {
+        return "none"
+    } else {
+        var noun = "{count} apples"
+        return said(noun, loud)
+    }
+}
+
+func said(text: String, loud: Bool): String {
+    if loud {
+        return "{text}!"
+    }
+    return text
+}
+```
+```output
+3 apples!
+```
+
 ## `while` is the only loop
 
 There is no `for`: "only the while loop, no for; that makes people favor the metaprogramming." Writing `for` is a

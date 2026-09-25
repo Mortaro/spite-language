@@ -303,6 +303,7 @@ page:
 | `assert tracker` on a value that cannot be null | removing it | [failure.md](failure.md#narrowing-a-path) |
 | a switch that is one class case and `_:`, each a `return` | `if value == Class` or `return value == Class` | [control_flow.md](control_flow.md#value--class) |
 | two switch cases with the same body | `_:` | [control_flow.md](control_flow.md#switch-over-a-union) |
+| an `if`/`else` directly inside a branch of another `if`/`else` | a function named for what the inner one decides, or one `switch` | [control_flow.md](control_flow.md#if) |
 | `"hello " + name` | `"hello {name}"` | [values_and_types.md](values_and_types.md#string) |
 | `func Holder() { }` | deleting it: a class without a constructor is made from its defaults | [classes_and_files.md](classes_and_files.md#constructors) |
 | `this.name` | `name` | [classes_and_files.md](classes_and_files.md#this) |
