@@ -152,6 +152,27 @@ constructor is setup, not logic: `assert` is not allowed in one, and `crash` is 
 There is one function per name. A file declaring a name twice is an error, and there is no overloading: an
 argument is cast to the parameter's type instead ([functions_and_operators.md](functions_and_operators.md)).
 
+A constructed object is kept and used. A constructor call written as a statement of its own, `Report(text)`,
+makes an object and throws it away -- the construction was the whole point, so it is an error saying to write a
+function instead; storing it in a variable nothing reads is the unused-name error. A singleton is not affected: it
+is bound as an attribute (`var console = Console()`), never constructed as a statement.
+
+```gdscript title=dropped_report/report.spite
+var console = Console()
+
+func Report(text: String) {
+    console.print("report: {text}")
+}
+```
+```gdscript title=dropped_report/dropped_report.spite entry error
+func DroppedReport() {
+    Report("the door opens")
+}
+```
+```diagnostic
+'Report("the door opens")' makes a 'Report' and drops it: a constructed object must be kept and used, so a class whose construction is the whole point should be a function instead
+```
+
 ## Singletons
 
 A file whose first line is `singleton` has one instance: calling its constructor anywhere answers that same

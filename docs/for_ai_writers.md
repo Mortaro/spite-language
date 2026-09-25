@@ -51,6 +51,8 @@ func is_alive(): Bool {
   functions. Every `var` has a default value. A name starting with `_` is private to its class.
 - The function named like the class is the constructor. Do not write an empty one: a class without a constructor
   is made from its defaults, and `func Monster() { }` is an error.
+- A constructed object is kept and used: `Report(text)` written as a statement of its own is an error. A class
+  whose construction is the whole point is a function instead (`report(text)` on the class that needs it).
 - A program is a folder, and it starts by constructing the class of the file named after the folder
   (`game/game.spite` is `Game`). That constructor takes no arguments: settings come from `Environment()` and
   `Build()` below, and `Arguments()` is the raw command line anywhere (`.count()`, `.get(0)`, and `.player` for

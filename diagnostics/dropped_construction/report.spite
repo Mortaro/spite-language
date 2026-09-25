@@ -1,0 +1,7 @@
+var console = Console()
+var text = ""
+
+func Report(starting_text: String) {
+    text = starting_text
+    console.print(text)
+}

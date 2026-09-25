@@ -13898,6 +13898,7 @@ func generate_expression_statement(
 ) {
     assert expression_statement.value
     assert not freed_from_frame(expression_statement, scope)
+    report_dropped_construction(expression_statement.value, class_information)
     var result = generate_expression(expression_statement.value, scope, class_information)
     var result_type = result.get_type()
     if type_shape.is_void(result_type) {
@@ -13913,6 +13914,30 @@ func generate_expression_statement(
         }
     }
     builder.add_user("(void)({result.code});")
+}
+
+func report_dropped_construction(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo) {
+    var callee = constructor_callee(expression)
+    assert callee
+    var constructed = try_resolve_static_path(callee, class_information.qualified_dotted)
+    assert constructed
+    assert not constructed.is_singleton
+    var printer = Syntax.SourcePrinter()
+    var written = printer.source_expression(expression)
+    var name = constructed.simple_name
+    report(
+        "'{written}' makes a '{name}' and drops it: a constructed object must be kept and used, so a class whose construction is the whole point should be a function instead -- turn '{name}' into a function of the class that needs it, or keep the object in a variable that is read",
+    )
+}
+
+func constructor_callee(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
+    var call = shape.as_call(expression)
+    if call {
+        return call.callee
+    }
+    var generic_call = shape.as_generic_call(expression)
+    assert generic_call
+    return generic_call.callee
 }
 
 func generate_statement(
