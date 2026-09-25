@@ -21,11 +21,6 @@ manual argues it.
     D86, and spelled `operating_system` now), the containers row, and the D91/D105 rows (a `List` template's symbol names the element's member;
     how a chain fuses).
 
-## Variadic arguments
-
-14. **Whether a generic line can name a constraint**, `generic $sub_type: Openable` (open question 12's own
-    proposal). D87 decided the lines and not this half.
-
 ## From hidden async/await (D99, D103)
 
 16. **The mechanism: stackful fibers plus a helper thread per blocking call**, chosen over a state-machine
