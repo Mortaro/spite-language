@@ -404,3 +404,12 @@ All of it is proposed by Claude, unconfirmed.
      shape as `Parallel` (`finished`, the value joins on first use, dropping waits) -- for loops that block on the
      operating system, with `Parallel` staying for work that computes. Alternative: a marker on `Parallel`
      (`Parallel(window.run, 'dedicated')`). Which, and what name?
+156. **A D183 lock is held for the whole call, so a singleton function that never returns locks the singleton
+     forever.** The lock is taken around each of the singleton's functions and is reentrant (a call it makes to
+     itself on the same thread does not wait). SlopEngine's window loop was `Windows.Owner.run()`, a function that
+     never returns, so every other call on `Owner` from the frame thread (`owner.take_events()`) waited for good;
+     SlopEngine moved its loops into plain objects. Options (Claude, unconfirmed): (a) keep it, and make a loop
+     that cannot end inside a locked singleton's function a compile error naming the problem; (b) lock around the
+     reads and writes of the singleton's attributes rather than around whole calls -- finer, never held across a
+     wait, but two reads in one function no longer see one consistent state; (c) D184's cheaper forms first, which
+     make most singletons need no lock at all. Which?
