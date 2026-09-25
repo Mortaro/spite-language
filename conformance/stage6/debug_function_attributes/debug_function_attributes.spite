@@ -1,0 +1,20 @@
+var console = Console()
+
+func DebugFunctionAttributes() {
+    var chore = Chore()
+    console.debug(chore)
+    var job = Job()
+    console.debug(job)
+    job.work = step
+    console.debug(job)
+    var names = ["Ada", "Grace"]
+    names.each(say_hello)
+}
+
+func step(first: Int, end: Int) {
+    console.print(first, end)
+}
+
+func say_hello(name: String) {
+    console.print("hello, {name}")
+}
