@@ -1,0 +1,24 @@
+var callee_class = ""
+var callee = ""
+var arguments = List<String>()
+var passes_parameters = false
+var caller = ""
+
+func EffectCall(called_class: String, called: String, argument_keys: List<String>) {
+    callee_class = called_class
+    callee = called
+    arguments = argument_keys
+}
+
+func translated(key: String): String {
+    if passes_parameters or not key.starts_with("parameter:") {
+        return key
+    }
+    var key_length = key.length()
+    var position_text = key.slice(10, key_length)
+    var position = position_text.to_int()
+    assert position < arguments.count()
+    var passed = arguments[position]
+    assert passed != "fresh"
+    return passed
+}

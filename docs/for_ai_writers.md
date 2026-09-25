@@ -69,9 +69,14 @@ func is_alive(): Bool {
   constructor may be an argument, one level deep (`Token("number", Text(token_text))` inside `append` is an
   error). The holes of a text are not arguments: `"{names.count()} names"` is fine.
 - The two branches of an `if`/`else` never compute the same call: compute it once before the `if`.
+- An `if`/`else` never sits directly inside a branch of another `if`/`else`: move the inner decision into a
+  function named for what it decides, or use one `switch` when both test which member of a union a value is. A
+  flat `else if` chain, and an `if` with no `else`, are fine.
 
 ## Names, comments, unused things
 
+- A variable, parameter or attribute never has the name of a function of its class: `var stem = file_stem(path)`,
+  never `var file_stem = file_stem(path)`.
 - `snake_case` for variables, attributes, parameters, functions and enum values; `PascalCase` for classes,
   enums, unions and types; never a single letter; never an abbreviation (`message` not `msg`, `index` not `idx`,
   `value` not `val`). The error names the word to write.
@@ -128,6 +133,9 @@ func is_alive(): Bool {
 - On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Bool` member),
   `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<member>()`,
   `each_<member>()` (a function). A member is an attribute or a function that takes nothing.
+- A `while` that only walks a list doing what one of these does -- `var index = 0`, `while index <
+  items.count()`, `total = total + items[index].price`, `index = index + 1` -- is an error naming
+  `items.sum_price()`. Keep `while` for loops that need the index, pass more than the element, or walk state.
 - The member can also be a function of the class you are writing in that takes the element and nothing else:
   with `func say_hello(name: String)`, `names.each_say_hello()` calls it once per name, and `filter_`, `map_`,
   `sum_` and the rest take such a function the same way, on a list of anything, chained or not. When the element
@@ -165,6 +173,10 @@ func is_alive(): Bool {
   Narrow the name or the path itself -- `assert target`, `assert target.weapon` -- never a local copied from it,
   which is an error. Comparing needs no narrowing: `target.name == "rat"` needs `target` narrowed, but
   `maybe_name == "rat"` is simply false when it is null.
+- A call between a proof and a read undoes the proof when the called code (followed all the way down) may assign
+  an attribute the proof reads or shrink a list it reads; prove it again after such a call, or read what you need
+  before it. A call that cannot change it keeps the proof. Calling a function value keeps no proof about
+  attributes or lists.
 - A `switch` is over a union or a `T?` and covers every member; `_:` as the last case answers for the rest, and
   two cases doing the same thing are an error: write it once as `_:`. An enum is compared with `==`, not switched.
 - `value == Monster` is a class test (false for `null`), and `if value == Monster { }` narrows `value` inside. A

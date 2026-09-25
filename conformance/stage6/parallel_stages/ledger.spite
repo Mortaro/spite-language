@@ -8,10 +8,10 @@ var wrong_buffers = 0
 
 func claim(): Int {
     id_lock.lock()
-    var claimed = next_id
+    var id = next_id
     next_id = next_id + 1
     id_lock.unlock()
-    return claimed
+    return id
 }
 
 func use_buffer(runner: Int) {

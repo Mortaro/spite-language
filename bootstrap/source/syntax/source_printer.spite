@@ -54,8 +54,10 @@ func declarations_stand_apart(statements: List<Syntax.Statements.Statement>, ind
     if not stands_apart(statements[previous], statements[index]) {
         crash index < statement_lines.count()
         crash previous < statement_lines.count()
+        var line = statement_lines[index]
+        var previous_line = statement_lines[previous]
         var printed_lines = source_statement(statements[previous], 0).split("\n").count()
-        return statement_lines[index] > statement_lines[previous] + printed_lines
+        return line > previous_line + printed_lines
     }
     return true
 }
@@ -389,11 +391,11 @@ func source_switch(statement: Syntax.Statements.SwitchStatement, depth: Int): St
         var switch_case = statement.cases[index]
         crash switch_case.type_reference
         var label = "{source_indent(depth + 1)}{source_type(switch_case.type_reference)}:"
-        var one_line_case = one_line_case(switch_case.body, depth)
-        if one_line_case.is_empty() {
+        var one_line = one_line_case(switch_case.body, depth)
+        if one_line.is_empty() {
             text = "{text}\n{label} {source_block(switch_case.body, depth + 1)}"
         } else {
-            text = "{text}\n{label} {one_line_case}"
+            text = "{text}\n{label} {one_line}"
         }
         index = index + 1
     }
@@ -571,8 +573,8 @@ func collect_text_join_pieces(expression: Syntax.Expressions.Expression, pieces:
     }
     var string = shape.as_string_literal(expression)
     if string {
-        var source_string_piece = source_string_piece(string.value)
-        pieces.append(source_string_piece)
+        var piece_source = source_string_piece(string.value)
+        pieces.append(piece_source)
         return
     }
     pieces.append("\{{source_expression(expression)}}")

@@ -1,0 +1,112 @@
+var console = Console()
+var items = List<Item>()
+
+func TemplateWalk() {
+    items.append(Item("apple", 3, true))
+    items.append(Item("pear", 5, false))
+    restock_all()
+    show()
+}
+
+func show() {
+    var names = item_names()
+    var stocked = stocked_items()
+    var total = total_price()
+    var stocked_count = count_in_stock()
+    var any_stocked = any_in_stock()
+    var positions = positions_of_stocked()
+    var joined = names.join(" ")
+    console.print(joined, total, stocked_count, any_stocked)
+    console.print("{stocked.count()} {positions.count()}")
+    var found = named("pear")
+    assert found
+    console.print(found.name)
+}
+
+func restock_all() {
+    var index = 0
+    while index < items.count() {
+        items[index].restock()
+        index = index + 1
+    }
+}
+
+func item_names(): List<String> {
+    var names = List<String>()
+    var index = 0
+    while index < items.count() {
+        var item = items[index]
+        names.append(item.name)
+        index = index + 1
+    }
+    return names
+}
+
+func stocked_items(): List<Item> {
+    var stocked = List<Item>()
+    var index = 0
+    while index < items.count() {
+        if items[index].in_stock {
+            stocked.append(items[index])
+        }
+        index = index + 1
+    }
+    return stocked
+}
+
+func total_price(): Int {
+    var total = 0
+    var index = 0
+    while index < items.count() {
+        total = total + items[index].price
+        index = index + 1
+    }
+    return total
+}
+
+func named(wanted: String): Item? {
+    var index = 0
+    while index < items.count() {
+        var item = items[index]
+        if item.name == wanted {
+            return item
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func count_in_stock(): Int {
+    var stocked_count = 0
+    var index = 0
+    while index < items.count() {
+        if items[index].in_stock {
+            stocked_count = stocked_count + 1
+        }
+        index = index + 1
+    }
+    return stocked_count
+}
+
+func any_in_stock(): Bool {
+    var index = 0
+    while index < items.count() {
+        if items[index].in_stock {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func positions_of_stocked(): List<Int> {
+    var positions = List<Int>()
+    var index = 0
+    while index < items.count() {
+        if items[index].in_stock {
+            positions.append(index)
+        }
+        index = index + 1
+    }
+    return positions
+}

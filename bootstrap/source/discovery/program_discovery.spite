@@ -260,10 +260,10 @@ func discover_program(entry_path: String, entry_source: String) {
         error_message = "{entry_path}:{parser.error_line}:{parser.error_column}: {parser.error_message}"
         return
     }
-    var file_stem = file_stem(entry_path)
-    var pascal_case = pascal_case(file_stem)
-    check_order(entry_path, entry_file, pascal_case)
-    check_entry_constructor(entry_path, entry_file, pascal_case)
+    var stem = file_stem(entry_path)
+    var pascal_name = pascal_case(stem)
+    check_order(entry_path, entry_file, pascal_name)
+    check_entry_constructor(entry_path, entry_file, pascal_name)
     assert not has_error
     var entry_directory = directory_of(entry_path)
     var entry_stem = file_stem(entry_path)
@@ -658,12 +658,12 @@ func read_and_add_file(path: String, segments: List<String>) {
             return
         }
         parsed_file.path = path
-        var file_stem = file_stem(path)
-        var pascal_case = pascal_case(file_stem)
-        check_order(path, parsed_file, pascal_case)
+        var stem = file_stem(path)
+        var pascal_name = pascal_case(stem)
+        check_order(path, parsed_file, pascal_name)
         assert not has_error
-        file_stem = file_stem(path)
-        add_parsed_file(parsed_file, segments, file_stem)
+        stem = file_stem(path)
+        add_parsed_file(parsed_file, segments, stem)
         if following_loads and not walking_library {
             pending_files.append(parsed_file)
         }
@@ -916,6 +916,7 @@ func hardcode_setting(variable: Syntax.Statements.VariableDeclaration, reader: S
     crash supplied_settings[variable.name]
     var literal = setting_literal(reader, supplied_settings[variable.name])
     var flag = flag_of(variable.name)
+    crash supplied_settings[variable.name]
     var given = "{flag}={supplied_settings[variable.name]}"
     if bare_settings.contains(variable.name) {
         given = flag
@@ -1343,8 +1344,8 @@ func compute_namespace(segments: List<String>, stem: String): String {
     assert not segments.is_empty()
     var last_segment = segments[segments.count() - 1]
     if last_segment == stem {
-        var all_but_last = all_but_last(segments)
-        return pascal_join(all_but_last)
+        var leading_segments = all_but_last(segments)
+        return pascal_join(leading_segments)
     }
     return pascal_join(segments)
 }
@@ -1381,8 +1382,8 @@ func directory_of(path: String): String {
     if segments.count() <= 1 {
         return "."
     }
-    var all_but_last = all_but_last(segments)
-    return join_with_slash(all_but_last)
+    var leading_segments = all_but_last(segments)
+    return join_with_slash(leading_segments)
 }
 
 func join_with_slash(segments: List<String>): String {

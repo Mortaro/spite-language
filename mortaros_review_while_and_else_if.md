@@ -7,6 +7,13 @@ esoteric shit". Open questions 15 and 20 in `manual.md`, items 2 and 3 in `morta
 Everything below is analysis. No code was changed. The rules at the end are **(proposed by Claude,
 unconfirmed)**.
 
+## Built (D170, D171)
+
+Both proposed rules are decided and built (2026-09-25): the nested `if`/`else` rule of section 5 as written
+(`diagnostics/nested_if_else`; the compiler's nine remaining cases were rewritten), and the `while` rule with
+the table of section 5 (`diagnostics/template_walk`), which found one loop left in the tree
+(`hardcoded_setting`, now `find_by_name`). Manual section 6.
+
 ## Built (D105)
 
 Mortaro confirmed the findings (D105), so the rewrites below are done. The two proposed rules, the enum switches

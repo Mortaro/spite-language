@@ -18,8 +18,8 @@ func Reflection() {
     var kind_of_friends = monster.kind_of_friends()
     console.print(kind_of_health, kind_of_name, kind_of_friends)
     var count = 3
-    var console_class_name = console_class_name()
-    console.print(count.class, "text".class, console_class_name)
+    var class_name_text = console_class_name()
+    console.print(count.class, "text".class, class_name_text)
 }
 
 func console_class_name(): String {

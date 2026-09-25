@@ -1,0 +1,2 @@
+diagnostics/nested_if_else/nested_if_else.spite:15: error: this 'if'/'else' is inside a branch of another 'if'/'else': move it into a function named for what it decides, or, when both test which member of a union a value is, use one 'switch' (in NestedIfElse.describe)
+diagnostics/nested_if_else/nested_if_else.spite:28: error: this 'if'/'else' is inside a branch of another 'if'/'else': move it into a function named for what it decides, or, when both test which member of a union a value is, use one 'switch' (in NestedIfElse.grade)

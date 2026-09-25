@@ -1,0 +1,13 @@
+var name = "apple"
+var price = 3
+var in_stock = true
+
+func Item(item_name: String, item_price: Int, stocked: Bool) {
+    name = item_name
+    price = item_price
+    in_stock = stocked
+}
+
+func restock() {
+    in_stock = true
+}

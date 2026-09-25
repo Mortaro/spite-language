@@ -9,10 +9,10 @@ func read(): String? {
     var handle = open_file("rb")
     assert handle != 0
     seek(handle, 0, 2)
-    var size = tell(handle)
+    var length = tell(handle)
     seek(handle, 0, 0)
-    var buffer = memory.allocate_bytes(size + 1)
-    var got = read_into(buffer, size, handle)
+    var buffer = memory.allocate_bytes(length + 1)
+    var got = read_into(buffer, length, handle)
     close_file(handle)
     var content = memory.text(buffer, got)
     memory.free(buffer)

@@ -314,6 +314,13 @@ and balanced allocations.
     `DynamicLibrary` looks up only the symbols of functions that survive tree shaking. Tested by
     `conformance/stage6/file_watching` and `check.sh`'s live reload step. **Not done:** Linux and macOS are only
     compiled; the name waits on `mortaros_missing_decisions.md` 166.
+29. **D169-D172, four compile-time rules** (manual.md sections 5, 6 and 12). **D170 done (2026-09-25):** an
+    `if`/`else` directly inside a branch of another `if`/`else` is an error naming a function or a `switch`
+    (`diagnostics/nested_if_else`). **D171 done (2026-09-25):** a `while` that only does what a member template
+    does is an error naming the template (`diagnostics/template_walk`). **D172 done (2026-09-25):** a variable
+    named like a function of its class is an error (`diagnostics/shadowed_function`). **D169 done (2026-09-25):** a
+    call undoes a proof only if, followed through what it calls, it may assign an attribute or shrink a list the
+    proof reads (`diagnostics/call_undoes_proof`; `bootstrap/source/generation/call_effects.spite`).
 
 ## Later, deliberately deferred
 

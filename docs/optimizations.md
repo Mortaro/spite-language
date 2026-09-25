@@ -556,6 +556,16 @@ All **built**, and none of them needs anything from you:
   what an `if` costs ([D189](../manual.md#decision-log)). What you notice: a crash report lists only the failed
   asserts of the program and its `load`-ed packages ([failure.md](failure.md#what-a-crash-reports)).
 
+### Proofs that survive a call
+
+**Built.** A proof -- `assert target`, `crash list[index]`, a bound in a `while` -- lets the reads after it skip
+the null test and the narrowing ([D169](../manual.md#decision-log)). A call between the proof and the read keeps
+it unless the compiler, following the called function and what it calls, finds that the call may assign an
+attribute the proof reads through or shrink a list it reads; so no check is repeated after a call that provably
+cannot, and no `const` keyword is needed. It runs entirely while compiling and emits nothing. What you can
+observe: a proof after a call that may change it must be written again, and a call through a function value
+keeps no proof about attributes or lists ([failure.md](failure.md#a-call-may-undo-a-proof)).
+
 ## Planned
 
 Decided by Mortaro, not built yet. When one is built, it moves up to **Built** in the same change.
@@ -592,13 +602,6 @@ bloats a WebAssembly build. The source does not change and no function is colour
 [D134](../manual.md#decision-log): `File`, `Directory`, `Socket` and the other IO classes start their work
 concurrently themselves and hand back values that wait where they are first used, so independent reads overlap
 without the program asking.
-
-### Proofs that survive a call
-
-A proof such as `crash list[index]` or a bound in a `while` lets the next read of `list[index]` skip its check.
-[D169](../manual.md#decision-log): a call between the proof and the read undoes it only if the compiler, following
-the called function and what it calls, finds that it may change the list or anything the index reads. A call that
-provably cannot keeps the proof, so no check is repeated and no `const` keyword is needed.
 
 ### Other planned optimisations
 

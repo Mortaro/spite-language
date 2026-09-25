@@ -59,6 +59,9 @@ searching for the old name. These are errors, each with the fix:
   and `strike_` are errors. That is what keeps the C the compiler makes for a class -- how it allocates, counts
   and releases one, under names with `___` in them -- out of the way of yours, so `allocate`, `make`, `release`
   or `class_of` are ordinary function names.
+- **Never a function's name.** A local, parameter or attribute named like a function of its class is an error,
+  since the function's name is already a value ([functions_and_operators.md](functions_and_operators.md#functions-are-values)):
+  `var stem = file_stem(path)`, not `var file_stem = file_stem(path)`.
 - **Names say what they do.** The standard library follows the same rule: `append` and `prepend` rather than
   `add`, `upper_case()` rather than `upper()`, `remove_last()` rather than `pop()`.
 
@@ -332,6 +335,8 @@ page:
 | `assert tracker` on a value that cannot be null | removing it | [failure.md](failure.md#narrowing-a-path) |
 | a switch that is one class case and `_:`, each a `return` | `if value == Class` or `return value == Class` | [control_flow.md](control_flow.md#value--class) |
 | two switch cases with the same body | `_:` | [control_flow.md](control_flow.md#switch-over-a-union) |
+| a `while` over `items` whose body only adds up `items[index].price` | `var total = items.sum_price()` | [collections.md](collections.md#member-templates-loops-you-do-not-write) |
+| an `if`/`else` directly inside a branch of another `if`/`else` | a function named for what the inner one decides, or one `switch` | [control_flow.md](control_flow.md#if) |
 | `"hello " + name` | `"hello {name}"` | [values_and_types.md](values_and_types.md#string) |
 | `func Holder() { }` | deleting it: a class without a constructor is made from its defaults | [classes_and_files.md](classes_and_files.md#constructors) |
 | `this.name` | `name` | [classes_and_files.md](classes_and_files.md#this) |

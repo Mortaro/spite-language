@@ -426,9 +426,25 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   numbers, `true`/`false`, enum values, operators and other `[]` reads; two indices are the same when D78's
   printer prints them the same, so spacing and redundant parentheses do not matter. Assigning any name the index
   reads undoes it, as assigning the index itself does. A call anywhere in the index keeps the read a plain `T?`,
-  since the call could answer something else the second time. A call *between* the check and the read does not
-  undo it, exactly as for `glyphs[index]` (the read still checks its bounds). `conformance/stage6/structural_index`,
+  since the call could answer something else the second time. A call *between* the check and the read undoes it
+  only when the call may change the list or what the index reads (D169, below). `conformance/stage6/structural_index`,
   `diagnostics/structural_index_undone`.
+- **A call undoes a proof only if it may change what the proof depends on** (D169, decided by Mortaro,
+  2026-09-25): "we need to be smart enough at compiler to figure out if going down into that function has any
+  chances of altering that value (without needing to have a const keyword)." This covers every proof -- a
+  narrowed path or attribute and a proven `[]` read alike. The compiler follows the called function and what it
+  calls, and collects which attributes it may assign and which lists it may shrink (`clear`, `remove_at`,
+  `remove_first`, `remove_last`, `remove`); a proof that reads through one of them is undone, and reading it again
+  unproven is the usual error. How it is followed (proposed by Claude, unconfirmed): an attribute is known by its
+  class and name, so assigning `Scope.owned` does not undo a proof about `Monster.owned`; a receiver's class is
+  read from declared types (a parameter's type, a `var` built by a constructor or annotated), and a call whose
+  receiver's class cannot be told is followed into every function of that name; a list passed to a function that
+  shrinks its parameter undoes proofs about the list passed; calling a function value may do anything, so it
+  undoes every proof that reads an attribute or a list; operator functions and getters are not followed; a
+  constructor's own assignments are to the new object and change nothing proven. A local that aliases an
+  attribute's list is not tracked (a proven read still checks its bounds). Inside a `while`, a call that undoes a
+  proof made before the loop and read inside it is an error naming the call (`diagnostics/call_undoes_proof`).
+  All of it happens while compiling; nothing is emitted. **[implemented]**
 - **A proven read still checks its bounds at runtime** and answers the default out of range, so a counter that
   went negative gives a wrong value rather than reading memory it does not own.
 - **A `Bool?` cannot be a condition** -- not in `if`, `while`, `assert` or `crash`, and not under `not`, `and`
@@ -529,6 +545,15 @@ together with the instance doing the passing, so it runs exactly as that instanc
 console.log(pretty_print)        # passes this instance's pretty_print
 ```
 
+- **A variable never shadows a function name it can see** (D172, decided by Mortaro, 2026-09-25): "as functions
+  can be passed around by reference it would become super confusing." A local, parameter or attribute named like
+  a function of its class -- declared in its file or a reopening -- is an error: "the variable 'file_stem' has
+  the name of a function of this class, and a function is a value passed by its name: give the variable a name
+  of its own" (`attribute` and `parameter` for the others). What is visible is read as the class's own functions,
+  since those are the ones a bare name reaches (proposed by Claude, unconfirmed); it is checked over every class
+  file, generic ones and unused functions included (`diagnostics/shadowed_function`). About 170 names in the
+  compiler, `library/`, the corpus and `docs/` were renamed, most of them D77's `var string_type = string_type()`,
+  now `var string_spite_type = string_type()`. **[implemented]**
 - **There are no free functions and no closures.** A function value is `{instance, function}` -- one retain in a
   reference-counted language (section 10), capturing the receiver and nothing else, so no local ever escapes its
   scope. That is the whole of the feature; there is no environment to capture, no lifetime to reason about, and
@@ -839,6 +864,48 @@ metaprogramming (section 15) first, and index with `while index < list.count() {
 genuinely needed. Writing `for` is a parse error naming `while` and the metaprogramming helpers instead
 of silently doing something else. Loops and ifs are otherwise discouraged in application code; reach for
 standard library metaprogramming first.
+
+**An `if` with an `else`, directly inside a branch of another `if` with an `else`, is a compile error** (D170,
+decided by Mortaro, 2026-09-25). The message names the fix: "this 'if'/'else' is inside a branch of another
+'if'/'else': move it into a function named for what it decides, or, when both test which member of a union a
+value is, use one 'switch'". An `else if` link counts as a branch of its chain, so an `if`/`else` inside the body
+of an `else if` is caught too. Not counted: a flat `else if` chain; an `if` without an `else` inside a branch; and
+an `if`/`else` inside a `while` or `switch` inside the branch, since the loop or the switch is the unit. The
+message says "union" and not "union or enum" because `switch` does not accept an enum yet (section 7). The
+compiler's nine nested decisions became six named functions (`talk`, `text_comparison`, `union_member_call`,
+`report_misplaced_rest_case`, `check_asserted_condition`, `parse_dotted_segment`) and three flattened chains in
+the tree shaker and the quiet type parser (`diagnostics/nested_if_else`). **[implemented]**
+
+**A `while` that only walks every element of a list, doing what a member template does, is a compile error naming
+the template** (D171, decided by Mortaro, 2026-09-25); `while` stays for loops over state. The shape is exact
+(proposed by Claude, unconfirmed): the statement before the loop is `var counter = 0`; the condition is
+`counter < list.count()` with `list` a name or a path of type `List<T>` and `T` a class; the last statement is
+`counter = counter + 1`; the counter is read nowhere else in the body and not at all after the loop; and the
+rest of the body reads `list[counter]` -- directly, or through one `var item = list[counter]` first -- and is
+exactly one of these, with `m` and `n` members of `T` that are not private (an attribute or a function taking
+nothing):
+
+| Body | The error names |
+|---|---|
+| `item.m()` | `list.each_m()` |
+| `result.append(item.m)`, or `var value = item.m` then `result.append(value)` | `var result = list.map_m()` |
+| `result.append(item)` | `var result = list.copy()` |
+| `if item.m { result.append(item) }` | `var result = list.filter_m()` |
+| `if item.m { result.append(item.n) }` | `var result = list.filter_m().map_n()` |
+| `if item.m { total = total + 1 }` | `var total = list.count_m()` |
+| `total = total + item.m` | `var total = list.sum_m()` |
+| `if item.m == value { return item }`, the loop followed by `return null` | `return list.find_by_m(value)` |
+| `if item.m { return true }`, the loop followed by `return false` | `return list.any_m()` |
+| `if not item.m { return false }`, the loop followed by `return true` | `return list.all_m()` |
+
+`result` must be a local declared `List<...>()` earlier in the same block and `total` one declared `0`, neither
+mentioned between its declaration and the loop, and `value` may not mention the counter or the element. The
+message reads `this 'while' walks every element of 'items' only to add up 'price': write 'var total =
+items.sum_price()'` (`diagnostics/template_walk`). Loops that pass extra arguments, need the index, walk two
+lists, scan text, stop early any other way or walk state are not touched. A function value passed to
+`each`/`map`/`filter` (D148) is not built yet, so the rule names member templates only; D113's rule for a
+function of the caller (section 8) still names `list.each_f()`. Only the compiler's `hardcoded_setting` had the
+shape; it is `find_by_name` now. **[implemented]**
 
 ## 7. Types
 
@@ -3889,7 +3956,8 @@ payloads to JSON on demand, since the compiler knows the schema.
     already says everything: the `...` means "the caller writes these one by one", the list is the type the
     function receives. For `Console.print`, which takes anything, the element type is a `type` every printable
     value satisfies -- `...values: List<Printable>` -- so the language needs no new class, only `...`.
-15. **Whether `while` can go** (Mortaro, 2026-09-23: investigate every use; if it can be rewritten with
+15. **(Answered by D171: it stays, and a `while` doing only what a member template does is an error. Built
+    2026-09-25, section 6.)** **Whether `while` can go** (Mortaro, 2026-09-23: investigate every use; if it can be rewritten with
     metaprogramming, make it an error). Measured on 2026-09-23 over the compiler, `library/`, `scripts/`, the
     tests, the examples and the corpus: 259 `while` loops, and 199 of them are the same shape -- an index from 0
     to `list.count()`, reading `list[index]`. Every one of those is a member template (`each_`, `map_`,
@@ -3925,7 +3993,7 @@ payloads to JSON on demand, since the compiler knows the schema.
     `get_name()` is an attribute read, and a write to it with no `set_name()` is an error saying the attribute
     is read-only. The storage behind it is a private `_attributes`, which the compiler fills as it fills
     `attributes` today. **The mechanism is built (2026-09-23):** a read that finds no attribute but finds `get_name()` reads through it, and a write with no `set_name()` is an error calling the attribute read-only (`tests/interception_tests`, `diagnostics/read_only_attribute`). Moving `Spite.Class`'s own members onto it is left for Mortaro to confirm.
-20. **Whether a nested `if`/`else` is an error** (Mortaro, 2026-09-23: "we should discuss"). Claude's view: nesting
+20. **(Answered by D170: it is. Built 2026-09-25, section 6.)** **Whether a nested `if`/`else` is an error** (Mortaro, 2026-09-23: "we should discuss"). Claude's view: nesting
     is where generated code becomes unreadable, and the language already removes the common cases -- a
     precondition is `assert` (D54), a choice between kinds is a `switch` over a union or enum. What remains is a
     genuine decision tree, and forbidding it pushes it into a helper function, which is usually the right call.
@@ -4351,3 +4419,7 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | (proposed by Claude, unconfirmed; SlopEngine reads a `ThreadLocal` on every `add_component`) **`ThreadLocal.get()` takes no lock.** The values live in an array whose address sits in a cell read with one atomic load; `set` still takes the `Lock`, and a thread's first `set` into a full array copies it into one twice the size, publishes it with an atomic store and keeps the old array, which holds no references, until the `ThreadLocal` is dropped (together no larger than the array in use). A thread reading the old array reads its own slot there, which only it writes and which the copy carried over unchanged. Library only, no compiler change; a program with no `ThreadLocal` carries none of it. `conformance/stage6/thread_local_growth` (64 runs a round on every worker, 20 rounds, each reading its own value 2000 times while new threads grow the array). |
 | 2026-09-25 | (implements D192; the readings below proposed by Claude, unconfirmed) **The README opens with `arena`**: a `Monster` with `name`, `health` and `alive()`, `monsters.filter_alive().sum_health()` fused into one loop, and `show_attributes(troll)` walking `Monster` through a `Symbol<Monster>` template, with its output. It replaces the greeter, and the note that each program is a folder now names it. `scripts/docs_corpus` reads `README.md` after `docs/`, so the README's titled blocks are compiled, run and balance-checked by `check.sh` like every documentation program. |
 | 2026-09-25 | (proposed by Claude, unconfirmed; reported by SlopEngine) **An error that prints two types that read the same names both through their owners.** With a `type Buildable` in `Recipes.Cookbook` and another in `Recipes.CookTask`, passing one list for the other said "a List<Buildable> cannot be used where a List<Buildable> is needed". Every message that prints a found and a wanted type (`report_mismatch`, a class not fitting a `type`: an argument, a return or an attribute, and a caller template's parameter) now prints both plainly, and qualified -- a class by its dotted path, a `type`, `union` or `enum` by its owner's -- only when the plain forms are equal, so every other message is unchanged (`diagnostics/same_named_types`). SlopEngine also reported that naming another class's nested type from outside (`var recipes = List<Recipes.Cookbook.Buildable>()` and a parameter of that type) segfaulted the compiler; it compiles and runs with this compiler and with the seed SlopEngine was built with (69dda4c), in the small program, from a `load`ed root, through `Parallel`, and in a copy of SlopEngine's click test with its `CookTask` so rewritten, so no crash was found to fix: `conformance/stage6/nested_type_from_outside` keeps the shape working. |
+| 2026-09-25 | (implements D170; the readings proposed by Claude, unconfirmed) **An `if`/`else` directly inside a branch of another `if`/`else` is an error** naming a function or a `switch`. An `else if` link counts as a branch of its chain; an `if` without an `else`, and an `if`/`else` inside a `while` or `switch` inside the branch, are not counted. The message names a `switch` only for unions, since `switch` does not take an enum yet. Checked on every `if` the compiler generates; the compiler's nine cases became six named functions and three flat chains. Section 6, `diagnostics/nested_if_else`, `docs/control_flow.md`. |
+| 2026-09-25 | (implements D171; the exact shape proposed by Claude, unconfirmed) **A `while` that only walks every element of a list doing what a member template does is an error naming the template.** Counter declared `0` right before the loop, condition `counter < list.count()` over a `List` of a class, `counter = counter + 1` last and the counter read nowhere else nor after the loop; the body calls, collects (`map_`, `copy()`), keeps (`filter_`, `filter_().map_()`), counts, adds up, finds by a member (`find_by_`) or answers `any_`/`all_`, the result list or total declared empty or `0` earlier in the block. Checked on every statement list the compiler generates. Function values for `each`/`map`/`filter` (D148) are not built, so only member templates are named. Section 6, `diagnostics/template_walk`, `docs/collections.md`. |
+| 2026-09-25 | (implements D172; the readings proposed by Claude, unconfirmed) **A local, parameter or attribute named like a function of its class is an error**, the functions being those declared in the class's file and its reopenings (the names a bare call reaches). Checked once over every discovered class file, generic templates and functions nothing calls included, so `library/` is held to it whether or not a program uses the code. About 170 names were renamed across `bootstrap/`, `library/` (with the OS folders), `conformance/`, `examples/` and `docs/`; no output changed. Section 5, `diagnostics/shadowed_function`, `docs/functions_and_operators.md`. |
+| 2026-09-25 | (implements D169; how calls are followed proposed by Claude, unconfirmed) **A call undoes a proof only if it may change what the proof reads.** Before generating, the compiler studies every function of the program once (`CallEffects`): which attributes it assigns (by class and name), which lists it shrinks (an attribute's, a parameter's, or unknown), and what it calls, resolving a receiver's class from declared types and falling back to every function of that name; the effects are closed over the call graph. After each statement, the calls it made undo the narrowed paths, narrowed attributes and proven `[]` reads that read through what they may change; a function value undoes every such proof. Applies to narrowed attributes too, which a call could set to null unnoticed before (a segfault, now a compile error). Operators and getters are not followed, and a local aliasing an attribute's list is not tracked. Compiling the compiler costs about 0.4 s more. The compiler needed two rewrites (`emit_string_support` asks for the constructor's parameters before proving it, `instantiated_with` binds the proven entry once), `conformance/stage6/shape_members` one. Section 5, `diagnostics/call_undoes_proof`, `docs/failure.md`, `docs/optimizations.md`. |

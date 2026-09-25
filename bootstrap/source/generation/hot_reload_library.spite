@@ -71,9 +71,10 @@ func host_manifest(
     }
     index = 0
     while index < typedefs.count() {
-        var name = layout_name(typedefs[index])
+        var written_typedef = typedefs[index]
+        var name = layout_name(written_typedef)
         if not name.is_empty() {
-            lines.append("layout {name} {typedefs[index].replace("\n", " ")}")
+            lines.append("layout {name} {written_typedef.replace("\n", " ")}")
         }
         index = index + 1
     }
@@ -178,9 +179,10 @@ func layout_problem(typedefs: List<String>): String {
     var changed = List<String>()
     var index = 0
     while index < typedefs.count() {
-        var name = layout_name(typedefs[index])
+        var written_typedef = typedefs[index]
+        var name = layout_name(written_typedef)
         if host_layouts[name] {
-            var layout = typedefs[index].replace("\n", " ")
+            var layout = written_typedef.replace("\n", " ")
             var class_name = name.replace("_", ".")
             if host_layouts[name] != layout {
                 changed.append(class_name)
@@ -375,8 +377,8 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
         }
         index = index + 1
     }
-    var bind_function = bind_function(redirected)
-    parts.append(bind_function)
+    var bind_code = bind_function(redirected)
+    parts.append(bind_code)
     return "{parts.join("\n")}\n"
 }
 

@@ -6,9 +6,9 @@ func TypedFunctions() {
     var loud = shouter.shout
     var arguments_count = loud.arguments.count()
     console.print(loud.name, arguments_count, loud.returns.name)
-    var apply = apply(loud, "hi")
+    var applied = apply(loud, "hi")
     var whispered = apply(shouter.whisper, "HI")
-    console.print(apply, whispered)
+    console.print(applied, whispered)
     var remember = remember_greeting
     remember("ada")
     remember.call_function("grace")
@@ -22,8 +22,8 @@ func TypedFunctions() {
     every.append(shouter.shout)
     every.append(shouter.whisper)
     var every_count = every.count()
-    var run_all = run_all(every, "Yo")
-    console.print(every_count, run_all)
+    var run_every = run_all(every, "Yo")
+    console.print(every_count, run_every)
 }
 
 func apply(change: Spite.Function<String, String>, text: String): String {

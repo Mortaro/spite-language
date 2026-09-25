@@ -165,18 +165,22 @@ func bound(text: String, kept_names: List<String>): String {
         if index == 0 {
             result.append(part)
         } else {
-            var end = part.index_of("*/")
-            var name = part.slice(0, end)
-            var part_length = part.length()
-            var rest = part.slice(end + 2, part_length)
-            var line = binding_lines[name]
-            if line and kept_names.contains(name) {
-                result.append("{line}{rest}")
-            } else {
-                result.append(rest)
-            }
+            var kept = kept_binding(part, kept_names)
+            result.append(kept)
         }
         index = index + 1
     }
     return result.join("")
+}
+
+func kept_binding(part: String, kept_names: List<String>): String {
+    var end = part.index_of("*/")
+    var name = part.slice(0, end)
+    var part_length = part.length()
+    var rest = part.slice(end + 2, part_length)
+    var line = binding_lines[name]
+    if line and kept_names.contains(name) {
+        return "{line}{rest}"
+    }
+    return rest
 }

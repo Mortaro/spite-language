@@ -28,8 +28,8 @@ func spawn_patient(text: String, amount: Int) {
 }
 
 func label(entity: Int, text: String) {
-    var label = Component.Label()
-    label.text = text
+    var label_component = Component.Label()
+    label_component.text = text
     var labels = Store<Component.Label>()
-    labels.insert(entity, label)
+    labels.insert(entity, label_component)
 }

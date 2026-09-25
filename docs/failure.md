@@ -185,6 +185,76 @@ func record() {
 A check on something that cannot be null proves nothing, and is an error too: `assert tracker` written twice,
 or an `assert` on a plain `Tracker`.
 
+### A call may undo a proof
+
+A call between a proof and a read undoes the proof only when the call may change what the proof depends on
+([D169](../manual.md#decision-log)). The compiler follows the called function, and everything it calls, to see
+which attributes it can assign and which lists it can shrink (`clear`, `remove_at`, `remove_first`,
+`remove_last`, a dictionary's `remove`). If it may change an attribute the proven path reads through -- or the
+list a proven `[]` reads, or anything its index reads -- the proof is gone and the read must be proven again; if
+it provably cannot, the proof stands and nothing more is written. There is no `const` to declare: the compiler
+reads the code.
+
+```gdscript title=call_undoes_proof_error/monster.spite
+var name = "goblin"
+```
+```gdscript title=call_undoes_proof_error/call_undoes_proof_error.spite entry error
+var console = Console()
+var target: Monster? = null
+
+func CallUndoesProofError() {
+    target = Monster()
+    show()
+}
+
+func show() {
+    assert target
+    forget()
+    console.print(target.name)
+}
+
+func forget() {
+    target = null
+}
+```
+```diagnostic
+this value may be null (it is a Monster?), so 'name' cannot be read from it yet
+```
+
+A call that cannot change the target keeps the proof:
+
+```gdscript title=call_keeps_proof/monster.spite
+var name = "goblin"
+```
+```gdscript title=call_keeps_proof/call_keeps_proof.spite entry
+var console = Console()
+var target: Monster? = null
+var shown = 0
+
+func CallKeepsProof() {
+    target = Monster()
+    show()
+}
+
+func show() {
+    assert target
+    count_shown()
+    console.print(target.name, shown)
+}
+
+func count_shown() {
+    shown = shown + 1
+}
+```
+```output
+goblin 1
+```
+
+What the compiler follows: calls by name, method calls through the receiver's class, constructors, and what a
+class's attribute defaults call. Calling a function value (`change(text)`) may do anything, so it undoes every
+proof that reads an attribute or a list. Inside a `while`, a call that undoes a proof made before the loop and
+read inside it is an error naming the call, the same as an assignment would be.
+
 ### A new name for a new type
 
 A `var` may shadow a name in the same scope, and the new binding may hold a different type. That is how a
@@ -232,6 +302,8 @@ path. The compiler also understands the usual proofs, so most reads need nothing
 - **Changing the list or the index undoes it**: `index = index + 1`, `names.clear()`, `remove_at`,
   `remove_first` and `remove_last` un-prove it, as assigning any path does. Assigning any name the index reads
   counts: after `code = 34`, `glyphs[code - 32]` must be proven again (`diagnostics/structural_index_undone`).
+  So does a call that may shrink the list or assign what the index reads
+  ([above](#a-call-may-undo-a-proof), `diagnostics/call_undoes_proof`).
 - **Checking a proven read again is an error**: inside `while index < codes.count()`, `crash codes[index]` proves
   nothing, and the message says what already proved it -- "'codes[index]' is already proven by the loop
   condition 'index < codes.count()', so this 'crash' proves nothing: remove it" -- so delete the line

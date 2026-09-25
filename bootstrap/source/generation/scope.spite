@@ -215,6 +215,88 @@ func forget_path(path: String, include_itself: Bool, read_by_crossed_loops: List
     return crossed_a_loop
 }
 
+func holds_proofs(): Bool {
+    if not narrowed_paths.is_empty() or not override_names.is_empty() {
+        return true
+    }
+    assert parent
+    return parent.holds_proofs()
+}
+
+func visible_narrowed_paths(): List<String> {
+    var paths = narrowed_paths.copy()
+    if parent {
+        var above = parent.visible_narrowed_paths()
+        var index = 0
+        while index < above.count() {
+            if not paths.contains(above[index]) {
+                paths.append(above[index])
+            }
+            index = index + 1
+        }
+    }
+    return paths
+}
+
+func narrowed_attributes(): List<String> {
+    var attributes = List<String>()
+    var index = 0
+    while index < override_names.count() {
+        var name = override_names[index]
+        var underlying = unnarrowed_type(name)
+        if not underlying and not attributes.contains(name) {
+            attributes.append(name)
+        }
+        index = index + 1
+    }
+    if parent {
+        var above = parent.narrowed_attributes()
+        var above_index = 0
+        while above_index < above.count() {
+            if not attributes.contains(above[above_index]) {
+                attributes.append(above[above_index])
+            }
+            above_index = above_index + 1
+        }
+    }
+    return attributes
+}
+
+func path_root(path: String): String {
+    var root_end = name_end(path, 0)
+    return path.slice(0, root_end)
+}
+
+func name_end(text: String, start: Int): Int {
+    var position = start
+    var text_length = text.length()
+    var code = text.code_at(position)
+    while position < text_length and is_name_code(code) {
+        position = position + 1
+        code = text.code_at(position)
+    }
+    return position
+}
+
+func key_end(path: String, open_position: Int): Int {
+    var depth = 0
+    var position = open_position
+    var path_length = path.length()
+    var closed = false
+    while position < path_length and not closed {
+        var code = path.code_at(position)
+        if code == 91 {
+            depth = depth + 1
+        }
+        if code == 93 {
+            depth = depth - 1
+            closed = depth == 0
+        }
+        position = position + 1
+    }
+    return position - 1
+}
+
 func key_mentions(narrowed: String, path: String): Bool {
     var first_key = narrowed.index_of("[")
     assert first_key >= 0

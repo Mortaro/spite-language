@@ -131,9 +131,9 @@ func idle() {
     }
     wake_finished()
     if runnable.is_empty() {
-        var timeout = timeout()
-        crash timeout >= 0 or not offloads.is_empty() or serving
-        wait_event(timeout)
+        var wait_limit = timeout()
+        crash wait_limit >= 0 or not offloads.is_empty() or serving
+        wait_event(wait_limit)
         wake_finished()
     }
 }

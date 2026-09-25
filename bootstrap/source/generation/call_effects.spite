@@ -1,0 +1,212 @@
+var shape = Analysis.AstShape()
+var by_function = Dictionary<FunctionEffects>()
+var function_keys = List<String>()
+var field_classes = Dictionary<String>()
+
+func study(class_files: List<Discovery.DiscoveredClass>) {
+    var index = 0
+    while index < class_files.count() {
+        var discovered = class_files[index]
+        var file = discovered.get_file()
+        record_fields(file.statements, discovered.simple_name)
+        index = index + 1
+    }
+    var class_index = 0
+    while class_index < class_files.count() {
+        var discovered = class_files[class_index]
+        var file = discovered.get_file()
+        study_class(file.statements, discovered.simple_name)
+        class_index = class_index + 1
+    }
+    settle()
+}
+
+func effects_of(class_name: String, name: String): List<String> {
+    var own = by_function.get("{class_name}#{name}")
+    if own {
+        return own.keys
+    }
+    var any = by_function.get("*#{name}")
+    if any {
+        return any.keys
+    }
+    return List<String>()
+}
+
+func record_fields(statements: List<Syntax.Statements.Statement>, class_name: String) {
+    var index = 0
+    while index < statements.count() {
+        var declared = shape.as_variable_declaration(statements[index])
+        if declared {
+            var declared_class = declared_class_name(declared)
+            if not declared_class.is_empty() {
+                field_classes.set("{class_name}#{declared.name}", declared_class)
+            }
+        }
+        index = index + 1
+    }
+}
+
+func declared_class_name(declaration: Syntax.Statements.VariableDeclaration): String {
+    if declaration.type_reference {
+        return type_class_name(declaration.type_reference)
+    }
+    crash declaration.value
+    return value_class_name(declaration.value)
+}
+
+func type_class_name(type_reference: Syntax.Types.Type): String {
+    var named = shape.as_named_type(type_reference)
+    assert named
+    assert not named.path.is_empty()
+    var last = named.path.last()
+    if last != "Nullable" {
+        return last
+    }
+    assert named.arguments.count() == 1
+    var wrapped = shape.as_type_argument(named.arguments[0])
+    assert wrapped
+    crash wrapped.value
+    return type_class_name(wrapped.value)
+}
+
+func value_class_name(value: Syntax.Expressions.Expression): String {
+    var constructed = shape.as_generic_call(value)
+    if constructed {
+        crash constructed.callee
+        return last_name(constructed.callee)
+    }
+    var listed = shape.as_list_literal(value)
+    if listed {
+        return "List"
+    }
+    var called = shape.as_call(value)
+    assert called
+    crash called.callee
+    var callee_name = last_name(called.callee)
+    assert names_a_class(callee_name)
+    return callee_name
+}
+
+func names_a_class(name: String): Bool {
+    var first_code = name.code_at(0)
+    return first_code >= 65 and first_code <= 90
+}
+
+func last_name(expression: Syntax.Expressions.Expression): String {
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        return identifier.name
+    }
+    var member = shape.as_member(expression)
+    assert member
+    return member.name
+}
+
+func effects_named(class_name: String, name: String): FunctionEffects {
+    var key = "{class_name}#{name}"
+    var known = by_function.get(key)
+    if known {
+        return known
+    }
+    var created = FunctionEffects(key)
+    by_function.set(key, created)
+    function_keys.append(key)
+    var any_key = "*#{name}"
+    var any = by_function.get(any_key)
+    if not any {
+        var gathered = FunctionEffects(any_key)
+        by_function.set(any_key, gathered)
+        function_keys.append(any_key)
+    }
+    var gathering = by_function.get(any_key)
+    crash gathering
+    var passed_through = EffectCall(class_name, name, List<String>())
+    passed_through.passes_parameters = true
+    gathering.calls.append(passed_through)
+    return created
+}
+
+func study_class(statements: List<Syntax.Statements.Statement>, class_name: String) {
+    var initializers = List<Syntax.Expressions.Expression>()
+    var index = 0
+    while index < statements.count() {
+        var declared = shape.as_variable_declaration(statements[index])
+        if declared {
+            crash declared.value
+            initializers.append(declared.value)
+        }
+        index = index + 1
+    }
+    var constructor_effects = effects_named(class_name, class_name)
+    var construction = EffectStudy(constructor_effects, class_name, this)
+    construction.in_constructor = true
+    construction.study_expressions(initializers)
+    var function_index = 0
+    while function_index < statements.count() {
+        var function = shape.as_function_declaration(statements[function_index])
+        if function {
+            var function_effects = effects_named(class_name, function.name)
+            var reader = EffectStudy(function_effects, class_name, this)
+            reader.in_constructor = function.name == class_name
+            reader.take_parameters(function.parameters)
+            reader.study_block(function.body)
+        }
+        function_index = function_index + 1
+    }
+}
+
+func settle() {
+    var index = 0
+    while index < function_keys.count() {
+        var effects = by_function.get(function_keys[index])
+        crash effects
+        link_calls(effects)
+        index = index + 1
+    }
+    var waiting = function_keys.copy()
+    while not waiting.is_empty() {
+        var key = waiting.remove_last()
+        var changed = by_function.get(key)
+        crash changed
+        changed.waiting = false
+        var fresh = changed.fresh_keys
+        changed.fresh_keys = List<String>()
+        pass_to_callers(changed, fresh, waiting)
+    }
+}
+
+func link_calls(effects: FunctionEffects) {
+    var call_index = 0
+    while call_index < effects.calls.count() {
+        var call = effects.calls[call_index]
+        call.caller = effects.key
+        var callee = by_function.get("{call.callee_class}#{call.callee}")
+        if not callee {
+            callee = by_function.get("*#{call.callee}")
+        }
+        if callee {
+            callee.incoming.append(call)
+        }
+        call_index = call_index + 1
+    }
+}
+
+func pass_to_callers(changed: FunctionEffects, fresh: List<String>, waiting: List<String>) {
+    var call_index = 0
+    while call_index < changed.incoming.count() {
+        var call = changed.incoming[call_index]
+        var caller = by_function.get(call.caller)
+        crash caller
+        var key_index = 0
+        while key_index < fresh.count() {
+            var translated = call.translated(fresh[key_index])
+            if not translated.is_empty() and caller.add(translated) and not caller.waiting {
+                caller.waiting = true
+                waiting.append(caller.key)
+            }
+            key_index = key_index + 1
+        }
+        call_index = call_index + 1
+    }
+}

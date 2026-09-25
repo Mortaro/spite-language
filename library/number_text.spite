@@ -105,8 +105,8 @@ func rounded_digits(digits: String, count: Long): String {
     memory.write_byte(address, 0, 48)
     var index: Long = 0
     while index < count {
-        var digit_code = digits.code_at(index)
-        memory.write_byte(address, index + 1, digit_code)
+        var code_of_digit = digits.code_at(index)
+        memory.write_byte(address, index + 1, code_of_digit)
         index = index + 1
     }
     if rounds_up(digits, count) {

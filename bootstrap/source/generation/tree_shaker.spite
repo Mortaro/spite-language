@@ -183,10 +183,10 @@ func depth_change(line: String): Int {
                 in_comment = false
                 index = index + 1
             }
+        } else if quote != 0 and code == 92 {
+            index = index + 1
         } else if quote != 0 {
-            if code == 92 {
-                index = index + 1
-            } else if code == quote {
+            if code == quote {
                 quote = 0
             }
         } else if code == 34 or code == 39 {
@@ -211,10 +211,10 @@ func keep_named_in(text: String) {
     var index = 0
     while index < text.length() {
         var code = text.code_at(index)
-        if quote != 0 {
-            if code == 92 {
-                index = index + 1
-            } else if code == quote {
+        if quote != 0 and code == 92 {
+            index = index + 2
+        } else if quote != 0 {
+            if code == quote {
                 quote = 0
             }
             index = index + 1

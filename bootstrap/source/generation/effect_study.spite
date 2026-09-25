@@ -1,0 +1,298 @@
+var shape = Analysis.AstShape()
+var recorded: FunctionEffects? = null
+var calls = List<EffectCall>()
+var parameters = List<String>()
+var local_sources = Dictionary<String>()
+var local_classes = Dictionary<String>()
+var in_constructor = false
+var class_name = ""
+var table: CallEffects? = null
+
+func EffectStudy(effects: FunctionEffects, studied_class: String, effects_table: CallEffects) {
+    recorded = effects
+    calls = effects.calls
+    class_name = studied_class
+    table = effects_table
+}
+
+func take_parameters(declared: List<Syntax.Statements.Parameter>) {
+    var index = 0
+    while index < declared.count() {
+        var parameter = declared[index]
+        parameters.append(parameter.name)
+        crash table
+        crash parameter.type_reference
+        var parameter_class = table.type_class_name(parameter.type_reference)
+        local_classes.set(parameter.name, parameter_class)
+        index = index + 1
+    }
+}
+
+func study_block(statements: List<Syntax.Statements.Statement>) {
+    statements.each_study_statement()
+}
+
+func study_statement(statement: Syntax.Statements.Statement) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: study_declaration(statement)
+        Syntax.Statements.AssignmentStatement: study_assignment(statement)
+        Syntax.Statements.IfStatement: {
+            study_optional(statement.condition)
+            study_block(statement.then_branch)
+            study_block(statement.else_branch)
+        }
+        Syntax.Statements.WhileStatement: {
+            study_optional(statement.condition)
+            study_block(statement.body)
+        }
+        Syntax.Statements.SwitchStatement: {
+            study_optional(statement.subject)
+            statement.cases.each_study_case()
+        }
+        Syntax.Statements.AssertStatement: study_optional(statement.value)
+        Syntax.Statements.ReturnStatement: study_optional(statement.value)
+        Syntax.Statements.ExpressionStatement: study_optional(statement.value)
+        _: return
+    }
+}
+
+func study_case(switch_case: Syntax.Statements.SwitchCase) {
+    study_block(switch_case.body)
+}
+
+func study_optional(expression: Syntax.Expressions.Expression?) {
+    assert expression
+    study_expression(expression)
+}
+
+func study_declaration(declaration: Syntax.Statements.VariableDeclaration) {
+    crash declaration.value
+    study_expression(declaration.value)
+    var source = classify(declaration.value)
+    local_sources.set(declaration.name, source)
+    crash table
+    var declared_class = table.declared_class_name(declaration)
+    local_classes.set(declaration.name, declared_class)
+}
+
+func study_assignment(assignment: Syntax.Statements.AssignmentStatement) {
+    crash assignment.target
+    crash assignment.value
+    study_expression(assignment.target)
+    study_expression(assignment.value)
+    var target_name = shape.as_identifier(assignment.target)
+    if target_name {
+        if parameters.contains(target_name.name) or local_sources.has(target_name.name) {
+            var source = classify(assignment.value)
+            local_sources.set(target_name.name, source)
+            return
+        }
+        assert not in_constructor
+        add_key("field:{class_name}#{target_name.name}")
+        return
+    }
+    var target_member = shape.as_member(assignment.target)
+    assert target_member
+    crash target_member.object
+    var owner = owner_class(target_member.object)
+    add_key("field:{owner}#{target_member.name}")
+}
+
+func study_expressions(expressions: List<Syntax.Expressions.Expression>) {
+    expressions.each_study_expression()
+}
+
+func study_expression(expression: Syntax.Expressions.Expression) {
+    switch expression {
+        Syntax.Expressions.CallExpression: study_call(expression)
+        Syntax.Expressions.GenericCallExpression: study_construction(expression)
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            study_expression(expression.left)
+            study_expression(expression.right)
+        }
+        Syntax.Expressions.UnaryExpression: study_optional(expression.operand)
+        Syntax.Expressions.MemberExpression: study_optional(expression.object)
+        Syntax.Expressions.IndexExpression: {
+            study_optional(expression.object)
+            study_optional(expression.index)
+        }
+        Syntax.Expressions.ListLiteralExpression: expression.elements.each_study_element()
+        Syntax.Expressions.ObjectLiteralExpression: expression.fields.each_study_field()
+        _: return
+    }
+}
+
+func study_element(element: Syntax.Expressions.ListElement) {
+    study_optional(element.value)
+}
+
+func study_field(field: Syntax.Expressions.ObjectField) {
+    study_optional(field.value)
+}
+
+func study_construction(construction: Syntax.Expressions.GenericCallExpression) {
+    crash construction.callee
+    study_expressions(construction.arguments)
+    var argument_keys = classified(construction.arguments)
+    var constructed = called_name(construction.callee)
+    calls.append(EffectCall(constructed, constructed, argument_keys))
+}
+
+func study_call(call: Syntax.Expressions.CallExpression) {
+    crash call.callee
+    study_expressions(call.arguments)
+    var argument_keys = classified(call.arguments)
+    var callee_identifier = shape.as_identifier(call.callee)
+    if callee_identifier {
+        if parameters.contains(callee_identifier.name) or local_sources.has(callee_identifier.name) {
+            add_key("field:*")
+            add_key("shrink:*")
+            return
+        }
+        var callee_class = class_name
+        crash table
+        if table.names_a_class(callee_identifier.name) {
+            callee_class = callee_identifier.name
+        }
+        calls.append(EffectCall(callee_class, callee_identifier.name, argument_keys))
+        return
+    }
+    var member = shape.as_member(call.callee)
+    if member {
+        study_method_call(member, argument_keys)
+        return
+    }
+    study_expression(call.callee)
+    add_key("field:*")
+    add_key("shrink:*")
+}
+
+func study_method_call(member: Syntax.Expressions.MemberExpression, argument_keys: List<String>) {
+    crash member.object
+    study_expression(member.object)
+    if member.name == "call_function" {
+        add_key("field:*")
+        add_key("shrink:*")
+        return
+    }
+    if is_shrinking(member.name) {
+        var shrunk = classify(member.object)
+        add_key(shrunk)
+    }
+    var receiver_class = owner_class(member.object)
+    crash table
+    if table.names_a_class(member.name) {
+        receiver_class = member.name
+    }
+    calls.append(EffectCall(receiver_class, member.name, argument_keys))
+}
+
+func owner_class(expression: Syntax.Expressions.Expression): String {
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        var local_class = local_classes.get(identifier.name)
+        if local_class {
+            return known_or_any(local_class)
+        }
+        if local_sources.has(identifier.name) {
+            return "*"
+        }
+        return field_class(class_name, identifier.name)
+    }
+    var member = shape.as_member(expression)
+    if member {
+        crash member.object
+        var object_class = owner_class(member.object)
+        if object_class == "*" {
+            return "*"
+        }
+        return field_class(object_class, member.name)
+    }
+    return "*"
+}
+
+func field_class(owner: String, field: String): String {
+    crash table
+    var found = table.field_classes.get("{owner}#{field}")
+    if found {
+        return known_or_any(found)
+    }
+    return "*"
+}
+
+func known_or_any(found_class: String): String {
+    if found_class.is_empty() {
+        return "*"
+    }
+    return found_class
+}
+
+func classified(expressions: List<Syntax.Expressions.Expression>): List<String> {
+    var expression_keys = List<String>()
+    var index = 0
+    while index < expressions.count() {
+        var expression_key = classify(expressions[index])
+        expression_keys.append(expression_key)
+        index = index + 1
+    }
+    return expression_keys
+}
+
+func classify(expression: Syntax.Expressions.Expression): String {
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        var position = parameter_position(identifier.name)
+        if position >= 0 {
+            return "parameter:{position}"
+        }
+        var source = local_sources.get(identifier.name)
+        if source {
+            return source
+        }
+        return "shrink:{class_name}#{identifier.name}"
+    }
+    var member = shape.as_member(expression)
+    if member {
+        crash member.object
+        var owner = owner_class(member.object)
+        return "shrink:{owner}#{member.name}"
+    }
+    var indexed = shape.as_index(expression)
+    if indexed {
+        return "shrink:*"
+    }
+    return "fresh"
+}
+
+func parameter_position(name: String): Int {
+    var position = 0
+    while position < parameters.count() {
+        if parameters[position] == name {
+            return position
+        }
+        position = position + 1
+    }
+    return -1
+}
+
+func called_name(callee: Syntax.Expressions.Expression): String {
+    var identifier = shape.as_identifier(callee)
+    if identifier {
+        return identifier.name
+    }
+    var member = shape.as_member(callee)
+    assert member
+    return member.name
+}
+
+func is_shrinking(name: String): Bool {
+    return name == "clear" or name == "remove_at" or name == "remove_first" or name == "remove_last" or name == "remove"
+}
+
+func add_key(key: String) {
+    assert key != "fresh"
+    crash recorded
+    recorded.add(key)
+}

@@ -21,9 +21,9 @@ func step(program: Spite.Attribute): Bool {
     if line {
         var trimmed_line = line.trim()
         if trimmed_line != "exit" {
-            var answer = answer(trimmed_line, program)
-            if not answer.text.is_empty() or answer.class_name != "" and answer.class_name != "Nothing" {
-                console.print(answer.text)
+            var answered = answer(trimmed_line, program)
+            if not answered.text.is_empty() or answered.class_name != "" and answered.class_name != "Nothing" {
+                console.print(answered.text)
             }
             return true
         }
@@ -89,7 +89,7 @@ func serve_client(client: Socket) {
         var line = client.read_line()
         if line {
             var trimmed_line = line.trim()
-            var answer = handed_over(trimmed_line)
+            var answered = handed_over(trimmed_line)
             if trimmed_line == "exit" {
                 client.write_line("\{\"ok\":true,\"value\":\"\",\"type\":\"\"}")
                 client.close()
@@ -97,8 +97,8 @@ func serve_client(client: Socket) {
                 program.exit(0)
                 return
             }
-            var json_line = json_line(answer)
-            connected = client.write_line(json_line)
+            var json_answer = json_line(answered)
+            connected = client.write_line(json_answer)
         } else {
             connected = false
         }
@@ -132,10 +132,10 @@ func answer_pending() {
     }
 }
 
-func json_line(answer: Answer): String {
-    var text = json_text(answer.text)
-    if answer.succeeded {
-        var class_name = json_text(answer.class_name)
+func json_line(answered: Answer): String {
+    var text = json_text(answered.text)
+    if answered.succeeded {
+        var class_name = json_text(answered.class_name)
         return "\{\"ok\":true,\"value\":\"{text}\",\"type\":\"{class_name}\"}"
     }
     return "\{\"ok\":false,\"error\":\"{text}\"}"
@@ -203,13 +203,13 @@ func answer(command: String, program: Spite.Attribute): Answer {
     }
     if command == "attributes" {
         var value_attributes = program.value_attributes()
-        var listed_attributes = listed_attributes(value_attributes)
-        return success(listed_attributes, "")
+        var attribute_listing = listed_attributes(value_attributes)
+        return success(attribute_listing, "")
     }
     if command == "functions" {
         var value_functions = program.value_functions()
-        var listed_functions = listed_functions(value_functions)
-        return success(listed_functions, "")
+        var function_listing = listed_functions(value_functions)
+        return success(function_listing, "")
     }
     if is_assignment(command) {
         return assign(command, program)
@@ -220,11 +220,11 @@ func answer(command: String, program: Spite.Attribute): Answer {
     if command.is_empty() {
         return success("", "")
     }
-    var path_of = path_of(command)
-    var found = resolve(program, path_of, 0)
+    var member_path = path_of(command)
+    var found = resolve(program, member_path, 0)
     if found {
-        var shown = shown(found, false)
-        return success(shown, found.class.name)
+        var shown_text = shown(found, false)
+        return success(shown_text, found.class.name)
     }
     return failure(unresolved)
 }
@@ -461,8 +461,8 @@ func assign(command: String, program: Spite.Attribute): Answer {
     }
     var updated = resolve(program, path, 0)
     if updated {
-        var shown = shown(updated, false)
-        return success(shown, updated.class.name)
+        var shown_text = shown(updated, false)
+        return success(shown_text, updated.class.name)
     }
     return failure(unresolved)
 }
@@ -537,8 +537,8 @@ func call_found(function: Spite.Function, literals: List<String>): Answer {
     if result.class.name == "Nothing" {
         return success("", "Nothing")
     }
-    var shown = shown(result, false)
-    return success(shown, result.class.name)
+    var shown_text = shown(result, false)
+    return success(shown_text, result.class.name)
 }
 
 func split_arguments(inside: String): List<String> {
