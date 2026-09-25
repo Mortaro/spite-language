@@ -1,0 +1,1 @@
+error: '--optimized=maybe' was given to the compiler, but 'Build.optimized' is a Boolean: --optimized, --optimized=true or --optimized=false

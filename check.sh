@@ -179,6 +179,13 @@ for folder in diagnostics/*/; do
 done
 echo "diagnostics: $checked checked, $wrong wrong"
 [ "$wrong" == "0" ] || exit 1
+# Every compile formats first (D190) and the formatter deletes an empty line inside a function (D196), so compiling
+# diagnostics/blank_line above fixed its copy: the copy changed, and is now in the one style.
+if cmp -s "$work/unformatted/diagnostics/blank_line/blank_line.spite" diagnostics/blank_line/blank_line.spite \
+   || [ -n "$("$work/generation_two.exe" format --check "$work/unformatted/diagnostics/blank_line" 2>&1)" ]; then
+  echo "FAILED: compiling diagnostics/blank_line should have deleted the empty line inside its function"; exit 1
+fi
+echo "format: compiling deletes an empty line inside a function"
 
 # Every program written in docs/ and README.md is a program: scripts/docs_corpus (itself Spite) writes each titled
 # code block out, and each one has to compile, run, print its ```output block and free everything it took.

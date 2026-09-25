@@ -6,6 +6,7 @@ type PointPair {
 var console = Console()
 var plain = DynamicLibrary("conformance/stage6/foreign_library/fixture.dll", 'identity', "")
 var camel = DynamicLibrary("conformance/stage6/foreign_library/fixture.dll", 'camel_case', "")
+var headerless = DynamicLibrary("conformance/stage6/foreign_library/fixture.dll", 'windows', "")
 var windows = DynamicLibrary(
     "conformance/stage6/foreign_library/fixture.dll",
     'windows',
@@ -15,7 +16,7 @@ var windows = DynamicLibrary(
 func ForeignLibrary() {
     var add_numbers = plain.add_numbers(2, 3)
     var multiply_numbers = camel.multiply_numbers(4, 5)
-    var windows_answer_position = windows.get_answer_position()
+    var windows_answer_position = headerless.get_answer_position()
     console.print(add_numbers, multiply_numbers, windows_answer_position)
     var half_of_as_double = plain.half_of_as_double(7)
     var big_number_as_long = plain.big_number_as_long()

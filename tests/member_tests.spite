@@ -1,10 +1,4 @@
-var creatures = List<Creature>()
-
-func MemberTests() {
-    creatures.append(Creature("rat", 3, true))
-    creatures.append(Creature("dragon", 90, false))
-    creatures.append(Creature("bat", 1, true))
-}
+var creatures = [Creature("rat", 3, true), Creature("dragon", 90, false), Creature("bat", 1, true)]
 
 func test_filter_keeps_the_true_ones() {
     crash creatures.filter_small().count() == 2

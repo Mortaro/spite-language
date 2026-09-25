@@ -10,38 +10,27 @@ so what a program can do with it, the library already does.
 
 ```gdscript title=foreign_call/foreign_call.spite entry
 var console = Console()
-var build = Build()
+var c_runtime = DynamicLibrary("ucrtbase.dll", 'identity', "")
 
 func ForeignCall() {
-    var text_length = measure("spite")
+    var text_length = c_runtime.strlen("spite")
     console.print(text_length)
-}
-
-func measure(text: String): Integer {
-    if build.target_operating_system == "windows" {
-        var c_runtime = DynamicLibrary("ucrtbase.dll", 'identity', "")
-        return c_runtime.strlen(text)
-    } else if build.target_operating_system == "linux" {
-        var c_runtime = DynamicLibrary("libc.so.6", 'identity', "")
-        return c_runtime.strlen(text)
-    }
-    var c_runtime = DynamicLibrary("libSystem.dylib", 'identity', "")
-    return c_runtime.strlen(text)
 }
 ```
 ```output
 5
 ```
 
-`build.target_operating_system` is a constant, so only the branch for the system the program is compiled for
-is in it ([programs.md](programs.md#the-operating-system-operating_system-and-target_operating_system)); the
-standard library itself does this more neatly, by reopening classes per system ([below](#each-operating-system-reopens-what-it-changes)).
+`ucrtbase.dll` is Windows' C runtime. A library is a singleton, so it is bound once beside the attributes like any
+other ([classes_and_files.md](classes_and_files.md#singletons)); a program for several systems names each
+system's file in a class that each system's folder reopens, as the standard library does
+([below](#each-operating-system-reopens-what-it-changes)).
 
 - **The arguments are literals**, because the compiler reads them while compiling. The file is named exactly as
   it is on disk, extension included -- a name without one is an error.
-- **One instance per file and naming rule.** `DynamicLibrary` is a singleton keyed by its first two arguments:
-  every class asking for `DynamicLibrary("ucrtbase.dll", 'identity', "")` shares one library and one table of
-  symbols.
+- **One instance per file, naming rule and header.** `DynamicLibrary` is a singleton keyed by all three of its
+  arguments: every class asking for `DynamicLibrary("ucrtbase.dll", 'identity', "")` shares one library and one
+  table of symbols, and the same file asked for with a header is a second instance that knows that header.
 - **Only what is called is bound.** The symbols a program calls are looked up once, when the library opens, so
   every later call is one indirect call. A symbol named only by code the program never reaches is not looked up
   at all ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)), except in an inspectable build
@@ -188,11 +177,10 @@ Spite function that wanted it, when either is missing (`conformance/stage6/forei
 
 Choices Claude made while building it (proposed, unconfirmed):
 
-- One library per distinct file and naming rule, following D8's "one instance per literal argument list", opened
-  on first use and closed at exit. The header is not part of the key: a second `DynamicLibrary` with the same file
-  and naming rule but another header shares the first one, header included (a known issue: a constant read
-  through the second is then `'mouseeventf_leftdown' is a constant, and a constant comes from the library's
-  header: name it as DynamicLibrary's third argument` when the first named no header).
+- One library per distinct file, naming rule and header, following D8's "one instance per literal argument
+  list", opened on first use and closed at exit. The same file with another header is a second instance, with its
+  own import table, so a constant read through the one that names the header always finds it, whichever
+  construction the program reaches first (`conformance/stage6/foreign_library`).
 - The arguments are literals: otherwise `DynamicLibrary(...) takes three literals the compiler reads while it
   compiles: the file, the naming rule ('identity', 'windows' or 'camel_case') and the header`. The naming rule is a
   symbol literal (D70): otherwise `'shouting' is not a naming rule: a library's functions are named 'identity',
@@ -411,7 +399,7 @@ or a pointer, `_as_double` for a `double`, `_as_text` for a `const char*` copied
 #### Lifetime, and what gets linked
 
 - The library handle is a plain `Long`. **There is no `Pointer` type in Spite**, and this design does not add one.
-- `DynamicLibrary` is a **singleton** (its file's `singleton` line), keyed by its file and naming rule: every class
+- `DynamicLibrary` is a **singleton** (its file's `singleton` line), keyed by its file, naming rule and header: every class
   asking for `DynamicLibrary("user32.dll", 'windows', ...)` shares one object and one import table;
   `"gdi32.dll"` is a second one.
 - The import table is the set of call sites that survived tree shaking: two symbols are resolved because two were

@@ -255,7 +255,6 @@ func discover_program(entry_path: String, entry_source: String) {
     }
     comment_root = directory_of(entry_path)
     check_comments(entry_path, lexer.tokens)
-    check_blank_lines(entry_path, lexer.tokens)
     assert not has_error
     var parser = Syntax.Parser(lexer.tokens)
     var entry_file = parser.parse_file()
@@ -515,42 +514,6 @@ func check_comments(path: String, tokens: List<Syntax.Token>) {
     }
 }
 
-func check_blank_lines(path: String, tokens: List<Syntax.Token>) {
-    var depth = 0
-    var in_function = false
-    var previous_line = 0
-    var previous_kind: Syntax.TokenKind = 'end_of_file'
-    var last_declaration: Syntax.TokenKind = 'end_of_file'
-    var index = 0
-    while index < tokens.count() {
-        var token = tokens[index]
-        if depth == 0 and (token.kind == 'function_keyword' or token.kind == 'keyword_type' or token.kind == 'keyword_enum' or token.kind == 'keyword_union') {
-            last_declaration = token.kind
-        }
-        if token.kind == 'left_brace' {
-            if depth == 0 {
-                in_function = last_declaration == 'function_keyword'
-            }
-            depth = depth + 1
-        }
-        if token.kind == 'right_brace' {
-            depth = depth - 1
-            if depth == 0 {
-                in_function = false
-            }
-        }
-        if in_function and depth > 0 and previous_kind == 'newline' and token.line - previous_line > 1 and not has_error {
-            has_error = true
-            error_message = "{path}:{previous_line + 1}: error: a function body holds no empty lines: the blank line is where a second function wants to be, so give the part below it a name and call it"
-        }
-        if token.kind != 'end_of_file' {
-            previous_line = token.line
-            previous_kind = token.kind
-        }
-        index = index + 1
-    }
-}
-
 func comment_problem(text: String, depth: Integer): String {
     if depth > 0 {
         return "a comment may not appear inside a function or a declaration body: a line that needs explaining becomes a named function instead. {comment_lesson()}"
@@ -729,7 +692,6 @@ func read_and_add_file(path: String, segments: List<String>) {
             return
         }
         check_comments(path, lexer.tokens)
-        check_blank_lines(path, lexer.tokens)
         assert not has_error
         var parser = Syntax.Parser(lexer.tokens)
         var parsed_file = parser.parse_file()
@@ -917,7 +879,7 @@ func hardcode_build(build: Syntax.SourceFile): List<String> {
                 return declared
             }
             declared.append(variable.name)
-            var reader = setting_reader(variable, "Build")
+            var reader = setting_reader(variable, "Build", build.path)
             variable.hardcoded_value = variable.value
             if supplied_settings.has(variable.name) and not has_error {
                 hardcode_setting(variable, reader)
@@ -940,7 +902,7 @@ func read_environment(environment: Syntax.SourceFile): List<String> {
         var variable = shape.as_variable_declaration(environment.statements[index])
         if variable and not variable.name.starts_with("_") {
             declared.append(variable.name)
-            var reader = setting_reader(variable, "Environment")
+            var reader = setting_reader(variable, "Environment", environment.path)
             var reading = setting_reading(variable, reader)
             readings.append(reading)
         }
@@ -983,12 +945,16 @@ func environment_constructor(environment: Syntax.SourceFile): Syntax.Statements.
     return made
 }
 
-func setting_reader(variable: Syntax.Statements.VariableDeclaration, class_name: String): String {
+func setting_reader(variable: Syntax.Statements.VariableDeclaration, class_name: String, file_path: String): String {
     crash variable.value
     var reader = literal_reader(variable.value)
     if variable.type_reference or reader.is_empty() {
+        var declared_path = variable.source_path
+        if declared_path.is_empty() {
+            declared_path = file_path
+        }
         has_error = true
-        error_message = "{variable.source_path}:{variable.line}: error: '{class_name}.{variable.name}' is {setting_source(variable.name, class_name)}, so it is declared with only a literal default, and the literal is its type: 'var {variable.name} = false' (Boolean), 'var {variable.name} = 0' (Integer) or 'var {variable.name} = \"\"' (String)"
+        error_message = "{declared_path}:{variable.line}: error: '{class_name}.{variable.name}' is {setting_source(variable.name, class_name)}, so it is declared with only a literal default, and the literal is its type: 'var {variable.name} = false' (Boolean), 'var {variable.name} = 0' (Integer) or 'var {variable.name} = \"\"' (String)"
     }
     return reader
 }
@@ -1016,7 +982,7 @@ func hardcode_setting(variable: Syntax.Statements.VariableDeclaration, reader: S
         variable.hardcoded_value = literal
     } else {
         has_error = true
-        error_message = "{variable.source_path}:{variable.line}: error: '{given}' was given to the compiler, but 'Build.{variable.name}' is {setting_expectation(reader, variable.name)}"
+        error_message = "error: '{given}' was given to the compiler, but 'Build.{variable.name}' is {setting_expectation(reader, variable.name)}"
     }
 }
 

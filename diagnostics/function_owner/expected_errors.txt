@@ -1,0 +1,1 @@
+diagnostics/function_owner/function_owner.spite:5: error: 'Spite.Function<String, String>' has no attribute 'owner' (in FunctionOwner.FunctionOwner)

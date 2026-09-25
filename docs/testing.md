@@ -117,7 +117,7 @@ fix. A `D` number is a row of the [decision log](decisions.md).
 - **Every test is a leak test** in the repository's runner: each test runs twice, and the second run must leave
   `program.live_allocations()` where it was; `check.sh` runs `tests/` with `--debug-memory` and requires no output
   and balanced allocations.
-- **Known issue** (reflection, not testing): walking `.functions` over `Spite.Class.instances` builds a stand-in
-  of every class with a constructor that takes no arguments, and the stand-in runs that constructor. A test
-  program that `load`s another program therefore runs that program's entry constructor, and any such constructor
-  with an effect (printing, opening a file) has it once more.
+- **A test runs on a stand-in at its defaults**: walking `.functions` over `Spite.Class.instances` runs no
+  constructor, so a test class's constructor is not a set-up step, and loading another program to test it does
+  not run that program ([reflection.md](reflection.md)). A test that needs state gets it from an attribute's default (`var creatures = [Creature("rat", 3, true), ...]`
+in `tests/member_tests.spite`) or makes it in its own body.

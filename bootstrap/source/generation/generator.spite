@@ -7113,7 +7113,8 @@ func generate_method_call(
         var missed = range_miss(target_class, member.name)
         if missed.is_empty() {
             if not reported_old_spelling(member.name) {
-                report("'{object_class_ref.c_name}' does not define '{member.name}'")
+                var receiver_type = object_result.get_type()
+                report("'{type_display_name(receiver_type)}' does not define '{member.name}'")
             }
         } else {
             report(missed)
@@ -8760,11 +8761,6 @@ func emit_class_object_bodies() {
             if class_level_functions_used and describes_members(described) and described.c_name != entry_class_c_name {
                 var functions_function = ensure_functions_function(described)
                 var maker = "{described.c_name}___default()"
-                if described.constructor {
-                    if described.constructor.parameters.count() == 0 {
-                        maker = "{described.c_name}___make()"
-                    }
-                }
                 var thunk = "spite_class_functions_{described.c_name}"
                 var listed_class = find_class_by_c_name("Spite_Function")
                 crash listed_class
@@ -10788,7 +10784,9 @@ func generate_library_constructor(arguments_ast: List<Syntax.Expressions.Express
     var library = 0
     while library < foreign_library_files.count() {
         crash library < foreign_library_namings.count()
-        if foreign_library_files[library] == file.value and foreign_library_namings[library] == naming.value {
+        crash library < foreign_library_headers.count()
+        var same_file = foreign_library_files[library] == file.value
+        if same_file and foreign_library_namings[library] == naming.value and foreign_library_headers[library] == header.value {
             return library_value(library)
         }
         library = library + 1
@@ -11478,7 +11476,7 @@ func generate_member_read_raw(
                 return function_value(target_class, found_function, object_result, member.object)
             }
         }
-        report("'{object_class_ref.c_name}' has no attribute '{member.name}'")
+        report("'{type_display_name(object_result_type)}' has no attribute '{member.name}'")
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     crash field
