@@ -136,9 +136,6 @@ manual argues it.
     after `Launcher` returns, releasing singletons and class objects and printing the `--debug_memory` report.
     Moving them into Spite needs a way for Spite to receive `argv` and to run code after the program ends (a
     `Launcher` that releases what the program left?) -- which is a language question.
-40. **Every compiler option is a `Build` field, and the flags follow the field names**: `--final_classes=folder`
-    (no bare form), `--repl_port=4000` (no space form), `--format=false` (no `--no-format`), no `--file=`. A `Bool`
-    field may be given bare (`--optimized`), which is a second spelling of `--optimized=true` -- keep it?
 41. **`mode` and `format` come from the flag alone**, because the compiler needs them before it reads the program;
     a program's `build.spite` can still declare them, but only its own code sees the value.
 42. **A path to a `.spite` file still names an entry** (`spite bootstrap/spite_compiler.spite`), because the
@@ -440,4 +437,3 @@ Behaviour that does not match the manual. The language was not changed; each is 
      Resource.World()`: the marker is noise, and the engine should learn "this system changes the world" from the
      compiler -- which functions it calls (`Spawn`, `Insert`, `Remove`), which singletons it touches -- as a
      compile-time reflection like D114's (`function.calls(Spawn)`, or the singletons a function reaches). Wanted?
-
