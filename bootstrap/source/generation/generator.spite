@@ -4454,6 +4454,11 @@ func coerce_for_store(
             return cast(enum_value_code, expected_type_without_nullable, expected_type)
         }
     }
+    var passed_class = class_passed_as_object(expression_ast, expected_type, scope, class_information)
+    if passed_class {
+        var passed_type = instance_type_of(passed_class)
+        return class_object_call(passed_type)
+    }
     var result = generate_expression(expression_ast, scope, class_information)
     var result_type = result.get_type()
     var casted = cast(result.code, result_type, expected_type)
@@ -4627,7 +4632,7 @@ func generate_identifier(
     var named_class = find_class(identifier.name, class_information.qualified_dotted)
     if named_class {
         report(
-            "'{identifier.name}' is a class, not a value: write '{identifier.name}()' to make one, and give it a name with 'var ... = '",
+            "'{identifier.name}' is a class, not a value: write '{identifier.name}()' to make one, and give it a name with 'var ... = ' -- or, for the class itself, pass it where a 'Spite.Class' is wanted",
         )
     } else {
         report("unknown identifier '{identifier.name}'")
@@ -4885,6 +4890,7 @@ func known_membership(subject_type: Analysis.SpiteType, tested_class: Analysis.C
     }
     var subject_class = class_of_type(subject_type)
     assert subject_class
+    assert subject_class.c_name != "Spite_Class" or tested_class.c_name == "Spite_Class"
     return subject_class.c_name == tested_class.c_name
 }
 
@@ -4895,6 +4901,60 @@ func check_tested_member(information: Analysis.UnionInfo, tested_class: Analysis
         return
     }
     report("'{tested_class.simple_name}' is not a member of union '{information.simple_name}', so this is never true")
+}
+
+func is_class_object_type(spite_type: Analysis.SpiteType): Bool {
+    var class_ref = type_shape.as_class_ref(spite_type)
+    assert class_ref
+    return class_ref.c_name == "Spite_Class" and not class_ref.has_signature
+}
+
+func generate_class_object_comparison(
+    binary: Syntax.Expressions.BinaryExpression,
+    tested: ExpressionResult,
+    tested_class: Analysis.ClassInfo,
+    is_nullable: Bool,
+): ExpressionResult {
+    crash binary.left
+    var temporary = next_temporary()
+    var object_temporary = next_temporary()
+    var result_temporary = next_temporary()
+    var tested_type = tested.get_type()
+    var named_type = instance_type_of(tested_class)
+    var lines = List<String>()
+    lines.append("{c_type_name(tested_type)} {temporary} = {tested.code};")
+    lines.append("Spite_Class* {object_temporary} = {class_object_call(named_type)};")
+    var test = "({temporary} == {object_temporary})"
+    if is_nullable {
+        test = "({temporary} != 0 && {test})"
+    }
+    if binary.operator == 'not_equal' {
+        test = "(!{test})"
+    }
+    lines.append("bool {result_temporary} = {test};")
+    lines.append("Spite_Class___release({object_temporary});")
+    if owns(tested, binary.left) {
+        lines.append("{release_call(tested_type, temporary)};")
+    }
+    lines.append("{result_temporary};")
+    var boolean_type = boolean_type()
+    return ExpressionResult("(\{ {lines.join(" ")} })", boolean_type)
+}
+
+func class_passed_as_object(
+    expression: Syntax.Expressions.Expression,
+    expected_type: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.ClassInfo? {
+    var expected = expected_type_without_nullable(expected_type)
+    assert is_class_object_type(expected)
+    assert not shape.as_call(expression)
+    var identifier = shape.as_identifier(expression)
+    if identifier {
+        assert not scope.lookup_type(identifier.name) and not class_information.find_field(identifier.name)
+    }
+    return tested_class_of(expression, class_information)
 }
 
 func generate_class_test(
@@ -4919,6 +4979,9 @@ func generate_class_test(
     if nullable {
         value_type = nullable.get_inner()
         is_nullable = true
+    }
+    if is_class_object_type(value_type) and tested_class.c_name != "Spite_Class" {
+        return generate_class_object_comparison(binary, tested, tested_class, is_nullable)
     }
     var tested_union = type_shape.as_union(value_type)
     if tested_union {

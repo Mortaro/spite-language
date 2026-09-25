@@ -1,0 +1,27 @@
+var console = Console()
+
+func ClassArgument() {
+    var entity = Entity()
+    entity.add_component(Health())
+    entity.add_component(Ui.Component.Pressed())
+    var before = entity.components.count()
+    entity.remove_component(Ui.Component.Pressed)
+    var after = entity.components.count()
+    console.print("components", before, after)
+    var kind: Spite.Class = Ui.Component.Pressed
+    var has_pressed = entity.has_component(kind)
+    kind = Health
+    var has_health = entity.has_component(kind)
+    console.print("has", has_pressed, has_health, kind)
+    var is_health = kind == Health
+    var is_pressed = kind != Ui.Component.Pressed
+    var first = first_kind()
+    console.print("same", is_health, is_pressed, first == kind)
+    var keeper = Keeper<Health>()
+    var kept_kind = keeper.kind()
+    console.print("generic", kept_kind, kept_kind == kind)
+}
+
+func first_kind(): Spite.Class {
+    return Health
+}

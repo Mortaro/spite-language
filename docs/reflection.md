@@ -81,6 +81,54 @@ power Int 3
 - `value.attributes` holds the values; `Gadget.attributes` describes the declarations. The same word is right at
   both levels, and the case of the receiver says which one you mean.
 
+### Passing a class
+
+A class name given where a `Spite.Class` is wanted -- an argument, a `var` declared `Spite.Class`, an assignment
+to one, a `return` -- is its class object: you are not passing the class, you are passing the instance of
+`Spite.Class` that describes it. Anywhere else a bare class name is still the error that says to write `Gadget()`,
+since that is almost always what was meant. `==` between a `Spite.Class` and a class name compares the class
+objects, so a function can ask which class it was handed:
+
+```gdscript title=passing_a_class/ui/pressed.spite
+var count = 1
+```
+```gdscript title=passing_a_class/health.spite
+var amount = 10
+```
+```gdscript title=passing_a_class/passing_a_class.spite entry
+type Anything {
+}
+
+var console = Console()
+var components = List<Anything>()
+
+func PassingAClass() {
+    components.append(Health())
+    components.append(Ui.Pressed())
+    remove_component(Ui.Pressed)
+    var kind: Spite.Class = Health
+    var kept = components.count()
+    crash components[0]
+    console.print(kept, components[0].class == kind, kind == Health)
+}
+
+func remove_component(component_class: Spite.Class) {
+    var kept = List<Anything>()
+    var index = 0
+    while index < components.count() {
+        var component = components[index]
+        if component.class != component_class {
+            kept.append(component)
+        }
+        index = index + 1
+    }
+    components = kept
+}
+```
+```output
+1 true true
+```
+
 ## Namespaces
 
 A class in a folder has a namespace ([packages.md](packages.md)); a class at the root of its program has none.

@@ -1,0 +1,14 @@
+type Anything {
+}
+
+var console = Console()
+
+func ClassAsValue() {
+    var kind = Health
+    console.print(kind)
+    keep(Health)
+}
+
+func keep(component: Anything) {
+    console.print(component.class)
+}
