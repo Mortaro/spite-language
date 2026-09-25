@@ -361,27 +361,10 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 All of it is proposed by Claude, unconfirmed.
 
-115. **The names.** `Instant`, `Duration`, `Period`, `LocalDate`, `LocalTime`, `LocalDateTime`, `TimeZone`,
-     `TimeZones()` (the database, a singleton) and `TimeText()` (ISO 8601, a singleton). `Local` is the word
-     D127 used and the one `java.time` and NodaTime use; the alternatives are Temporal's `PlainDate`/
-     `PlainDateTime` (chosen there because "local" reads as "the machine's zone" to some) and jiff's `civil`.
-     `TimeText` could also be `Iso8601` (digits in a class name) or live on each type if Spite ever had a way to
-     read text into a class without a static function.
-116. **No stored zoned type.** Every design compared has one (`ZonedDateTime`, `Zoned`, `OffsetDateTime`); Spite
-     has none, because D127 makes a zone presentation: store the `Instant`, apply the zone when showing it.
-     "The same time tomorrow" is then three lines (`to_local`, `+ Period(1, 'days')`, `to_instant`). Keep it out?
-117. **Every `to_instant` names its ambiguity rule**: `'compatible'`, `'earlier'` or `'later'`, with no default.
-     A `'reject'` (Temporal's fourth value) would make every call answer `Instant?`, so it is left out; a caller
-     who must refuse an ambiguous reading compares `'earlier'` with `'later'`. Is the required argument right,
-     or should `'compatible'` be the one behaviour with no argument?
 118. **The constructors.** `Instant(since_1970: Duration)`, `Duration(amount, unit)` and `Period(amount, unit)`
      with a unit enum, since Spite has no static functions for `Duration.of_hours(2)`. With no overloading,
      `instant - instant` is the `Duration` between them and going back is `instant + -duration`. A date that
      does not exist (`LocalDate(2023, 2, 29)`) halts, while `TimeText` answers `null` for such text.
-119. **Where zones come from.** The operating system's database: Windows through `icu.dll` (Windows 10 1903 and
-     later; its registry zones have Windows names and less history), Linux and macOS through
-     `/usr/share/zoneinfo`, read in Spite. Nothing is embedded; `zones.read_tzif(name, data)` takes a TZif file
-     a program ships. The Linux and macOS path compiles in `check.sh` but has never run.
 120. **`Clock.unix_milliseconds()` is gone**, replaced by `now(): Instant`; the monotonic `elapsed_*` readings stay.
 121. **Reading text is lenient where RFC 3339 is**: `t` or a space for `T`, `z` for `Z`, `,` before a fraction, a
      leap second read as the second before it, and an RFC 9557 `[zone]` after an offset read and ignored. Writing
@@ -390,29 +373,37 @@ All of it is proposed by Claude, unconfirmed.
      `far` compiled to broken C (found writing `calendar_math`). Add them, and whatever else `windows.h` defines
      in lower case, to the list item 107 is about?
 
+## From SlopEngine's system phases (D116)
+
+123. **Limiting a name pattern to a known set.** SlopEngine's private helpers `interact_all(...)` and `drag_all(...)`
+     were matched by `Symbol<$system_type.phase_all>` as phases called "interact" and "drag", with errors far from the
+     cause. Options: let a pattern's hole be constrained to a list the engine owns (`phase` must be one of
+     `App.phases`), so a non-phase `_all` function stays ordinary; or make a function that fits a walked pattern but
+     is not meant as one an error at its declaration; or leave naming discipline to the program.
+
 ## SlopEngine's entity API (D123, D124)
 
-123. **Is "any" a built-in type, or does each program declare its own?** `attribute.object` needed a type, so
+124. **Is "any" a built-in type, or does each program declare its own?** `attribute.object` needed a type, so
      `library/spite/attribute.spite` declares `type Object { }` and `.object` is `Spite.Attribute.Object?`
      (proposed by Claude, unconfirmed). SlopEngine keeps declaring `type Anything { }`, and a value of one empty
      `type` passes to another. The alternative is one built-in name every program shares, such as `Spite.Object`
      (or `Anything` itself), declared once in `library/spite/` -- which would also give `.object` a shorter
      type name. Keep "declare your own empty `type`", or add the built-in?
-124. **A number, `Bool` or enum attribute's `.object`: boxed or `null`?** It is boxed (proposed by Claude,
+125. **A number, `Bool` or enum attribute's `.object`: boxed or `null`?** It is boxed (proposed by Claude,
      unconfirmed), as D109 boxes a plain value passed where a `type` is wanted, so `speed: Int` hands
      `add_component` an object whose `.class` is `Int` and `if component == Int` narrows it back. The other
      reading was `null` for anything that is not already an object, which would make a bundle's numbers vanish
      silently. `null` is kept only for an attribute that holds `null`, so `.object` is still a `T?` to narrow.
-125. **Where does D124 apply?** Read as "wherever a `Spite.Class` is wanted" (proposed by Claude, unconfirmed):
+126. **Where does D124 apply?** Read as "wherever a `Spite.Class` is wanted" (proposed by Claude, unconfirmed):
      an argument, `var kind: Spite.Class = Health`, an assignment to one and a `return`; an untyped `var kind =
      Health` is still the "is a class, not a value" error, since a missing `()` is the likelier mistake. And
      `kind == Health` with `kind` a `Spite.Class` now compares class objects instead of being D75's class test,
      which could only be false. Should a bare class name be its class object everywhere instead?
-126. **`load` as a function name.** A class that declares `func load` now calls it with `load(x)` (proposed by
+127. **`load` as a function name.** A class that declares `func load` now calls it with `load(x)` (proposed by
      Claude, unconfirmed; SlopEngine's asset cache hit it); before, every `load(...)` was the package load and
      compiled to nothing. The alternative was reserving the word and making `func load` an error naming the
      launcher's `load`. Keep it an ordinary name?
-127. **A codegen value in a class test** (proposed by Claude, unconfirmed): `item == $wanted_type` folds to
+128. **A codegen value in a class test** (proposed by Claude, unconfirmed): `item == $wanted_type` folds to
      `false` rather than D75's "never true" error when the value's union cannot hold the bound class, since a
      generic class cannot avoid that for every binding. Item 44's question (should a class object's `.functions` be
      bound to an instance at all) remains; its visible symptom, the extra member of `.instances`, is gone.
