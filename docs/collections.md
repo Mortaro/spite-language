@@ -2,8 +2,13 @@
 
 `List<T>` and `Dictionary<T>` are not built into the compiler. They are ordinary generic classes written in Spite
 -- `library/list.spite` and `library/dictionary.spite` -- over `Memory.Heap` and `Memory.Address`, the floor
-everything else is built on. The compiler keeps only the syntax: `[1, 2, 3]`, `list[index]`, and `List<T>()`. Read those two files to see
-exactly what a list does; write your own container the same way ([memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it)).
+everything else is built on. The compiler keeps only the syntax: `[1, 2, 3]`, `list[index]`, and `List<T>()`. Read
+those two files to see exactly what a list does; write your own container the same way
+([memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it)).
+
+Being ordinary classes, they cost what their code costs and nothing more ([D177](decisions.md)): a list is one heap
+buffer of its elements, a program compiles only the members it calls, and one that never makes a `Dictionary`
+carries none of it. Nothing runs behind them -- no collector, no iterator objects, no registry of templates.
 
 ## `List<T>`
 
@@ -20,34 +25,40 @@ var empty = List<String>()
 
 | Member | Result | Notes |
 |---|---|---|
-| `append(value)` / `prepend(value)` | | adds to the end / to the front |
+| `append(value)` / `prepend(value)` | | adds to the end / to the front (index 0) |
 | `insert(index, value)` | | an index out of range is clamped to the nearest end |
 | `list[index]` | `T?` | may not be there, so it is narrowed ([failure.md](failure.md#reading-with--answers-t)) |
-| `list[index] = value` | | the explicit form is `set_at(index, value)` |
+| `list[index] = value` | | the explicit form is `set_at(index, value)`; nothing happens out of range |
 | `get_at(index)` | `T` | the default when out of range |
 | `remove_at(index)` | | nothing happens out of range |
 | `remove_first()` / `remove_last()` | `T` | removes and returns it; the default when empty |
 | `first()` / `last()` | `T` | the default when empty |
 | `count()` / `is_empty()` | `Integer` / `Boolean` | `count()` is only ever the list's size |
-| `contains(value)` | `Boolean` | |
-| `clear()` / `reverse()` | | in place |
+| `contains(value)` | `Boolean` | elements that are numbers, `Boolean`, `String` or an enum only |
+| `clear()` / `reverse()` | | in place; `clear()` keeps the buffer's capacity |
 | `join(separator)` | `String` | every element becomes text: a `String`, a number, a `Boolean`, an enum value |
 | `copy()` / `deep_copy()` | `List<T>` | one level, or all the way down ([memory.md](memory.md)) |
 
-Names say where: `append` and `prepend`, never `add`; `remove_last`, never `pop`. The old names are errors that
-name the new ones.
+`append`, `remove_last`, `list[index]` and their kin take the same time however long the list is; `prepend`,
+`insert`, `remove_first` and `remove_at` move every later element, and `contains` looks at each in turn. An empty
+list has no buffer; the first element gets one of four slots, and a full buffer is resized to twice its size.
+
+Names say where: `append` and `prepend`, never `add`; `remove_last`, never `pop`
+([the rule](#listt-additions--implemented)).
 
 ## `Dictionary<T>`
 
 Keys are `String`, entries keep the order they were inserted in, and `get`, `has`, `set` and `[]` take the same
-time however many keys there are -- it is a hash table over two lists.
+time however many keys there are -- it is a hash table over two lists. `remove` is the exception: it moves every
+later entry down, as `remove_at` does on a list.
 
 | Member | Result | Notes |
 |---|---|---|
+| `Dictionary<T>()` | | an empty one, with no table until the first key |
 | `set(key, value)` / `dictionary[key] = value` | | replaces the value of a key already there |
 | `get(key)` / `dictionary[key]` | `T?` | `null` when the key is absent |
 | `has(key)` | `Boolean` | |
-| `remove(key)` | | |
+| `remove(key)` | | nothing happens when the key is absent |
 | `count()` | `Integer` | |
 | `keys()` / `values()` | `List<String>` / `List<T>` | a fresh list, in insertion order |
 | `copy()` / `deep_copy()` | `Dictionary<T>` | |
@@ -106,10 +117,16 @@ names a program calls.
 | `find_by_<member>(value)` | `T?`, the first element whose member equals `value` | return something comparable to `value` |
 | `sort_by_<member>()` | `List<T>`, sorted ascending | return a number or a `String` |
 | `map_<member>()` | `List<U>`, one value per element | return a value |
-| `each_<member>()` | nothing: calls it on every element | be a function |
+| `each_<member>()` | nothing: calls it on every element | be a function that takes nothing; what it returns is discarded |
 
 A member that does not fit is a compile error naming the member, what it is, and what the template needs.
 `count_` on a number is one of them, and names `sum_` instead: `count()` is only ever a collection's size.
+`each_` on an attribute is another: reading a value only to discard it does nothing.
+
+A template costs what the loop you would have written costs: each one is a `while` over the list's buffer,
+compiled into the program only when something calls it, with no function value or closure in between.
+`list.parallel_each_<member>()` is the same walk split across the thread pool
+([concurrency.md](concurrency.md#parallel_each_-a-member-on-every-element)).
 
 ```gdscript title=list_helpers/chore.spite
 var title = ""
@@ -218,14 +235,11 @@ func TemplateMistake() {
 but 'count_' needs it to return Boolean (to add up a numeric member use 'sum_stars')
 ```
 
-**A `while` that only does what a template does is an error naming the template**
-([D171](decisions.md)). The shape is exact: a counter declared `0` just before the loop, the
-condition `counter < list.count()`, the last statement `counter = counter + 1` and the counter read nowhere
-else, and a body that reads `list[counter]` -- directly or through one `var` -- and does only one of these with a
-member of the element: calls it, appends it (or the element) to a list declared empty before the loop, keeps the
-elements where it is true, counts them, adds it up into a number that starts at `0`, or returns the first element
-whose member equals a value (then `null`), or `true` when any is true (then `false`). Loops that need the index,
-pass more than the element, stop early any other way, or walk state keep their `while`.
+**A `while` that only does what a template does is an error naming the template** ([D171](decisions.md)): a
+counter walking a list of a class from `0` to its `count()`, doing nothing with each element but what one
+template does with one of its members. Loops that need the index, pass more than the element, stop early for
+another reason, or walk state keep their `while`. The exact shape the compiler looks for, and what is not built
+yet, are in [control_flow.md's rules](control_flow.md#a-while-that-a-member-template-already-says).
 
 ```gdscript title=template_loop_error/item.spite
 var price = 0
@@ -395,8 +409,8 @@ one, because `active` is a list the program named and kept. The steps in the mid
 is a class) and `filter_`; the last call can be any template, and a chain the compiler cannot write as one loop
 is run step by step, which means the same. The one visible difference is order: a member function in a fused
 chain runs element by element, where the steps written out would run it on every element before the next step
-starts. `conformance/stage6/fused_chain_allocations` runs four chains a thousand times each and pins its
-allocation count at 11; written step by step, the same program allocates 16 010 times.
+starts. Written as three steps, the chain above would make two lists every time it ran; fused, it makes none
+([the rules](#standard-library-metaprogramming--partial) name the test that pins the count).
 
 ## How the member templates are written
 
@@ -431,7 +445,8 @@ one loop.
 `index` of the list's buffer, retained, the same way a container of your own would
 ([memory.md](memory.md#memory-is-the-floor-and-you-can-build-on-it)); everything else is written in the file. A
 build with `--repl` or `--repl-port` compiles every template that fits every element class of a list the loop
-can reach, so `monsters.sum_health()` can be typed at the prompt.
+can reach, so `monsters.sum_health()` can be typed at the prompt; that is the one build where templates nobody
+calls are in the program ([D143](decisions.md)).
 
 ## Write your own member template
 
@@ -519,44 +534,27 @@ reading an attribute already goes through `get_<attribute>()` ([Operators](funct
 case with a direct read, but that is an optimisation, not something the writer thinks about. What a template
 requires of a member is its **arity and its return type**, never whether it is stored or computed.
 
-`List<T>` of a class: `filter_<member>()`, `count_<member>()`, `sum_<member>()`, `find_by_<member>(value)`,
-`sort_by_<member>()`, `each_<member>()`, `map_<member>()`, `any_<member>()`, `all_<member>()` ([List<T> additions](#listt-additions--implemented) has
-the full table). `Dictionary<T>` of a class has the same. These, together with `while`, are meant to cover the
-cases that used to reach for `for`.
+The templates, what each answers and what it requires of the member are [the table above](#member-templates-loops-you-do-not-write),
+which is normative; a `List<T>` of a class and a `Dictionary<T>` of a class answer all of them. These, together
+with `while` and the passed functions below, cover the cases that used to reach for `for`. This is why a list of
+components renders with nothing new in the language: `todos.map_render()` calls `render()` on every element and
+collects the results, exactly as `todos.map_title()` collects a field.
 
-| Template | The member must |
-|---|---|
-| `filter_`, `any_`, `all_`, `count_` | take no arguments and return `Boolean` |
-| `sum_` | take no arguments and return a numeric type |
-| `sort_by_` | take no arguments and return something ordered (`Integer`/`Float`/`String`) |
-| `find_by_(value)` | take no arguments and return something comparable to `value` |
-| `map_` | take no arguments and return anything; the result is a `List<U>` of that |
-| `each_` | take no arguments; its result, if any, is discarded |
-
-This is why a list of components renders with nothing new in the language: `todos.map_render()` calls `render()`
-on every element and collects the results, exactly as `todos.map_title()` collects a field. A member that does
-not fit the template's requirement is a compile error naming the member, what it returns, and what the template
-needs -- and `each_<member>()` on a plain field is one of those, since reading a field and discarding it does
-nothing.
-
-`count_<member>()` counts how many elements have a Boolean member true; `sum_<member>()` adds up a numeric member
-across every element (second batch item 8, decided 2026-09-19: `count()` is only ever a collection's own size,
-and `count_<member>()` on a numeric member is a compile error naming the `sum_<member>()` fix).
-
-```gdscript
-var repositories = List<Repository>()
-repositories.filter_active().sum_stars()
-repositories.each_bump_stars()
-```
+A member that does not fit is a compile error naming the member, what it is, and what the template needs. Two
+of them name a fix: `count()` is only ever a collection's own size, so `count_<member>()` on a numeric member says
+`but 'count_' needs it to return Boolean (to add up a numeric member use 'sum_stars')`; and `each_<member>()` on an
+attribute says `'each_size': the member 'size' of 'Thing' is an Integer, but 'each_' needs it to be a function:
+reading an attribute and discarding it does nothing`. `sort_by_` is stable (equal keys keep their order) and
+sorts by insertion, so it suits short lists: its time grows with the square of the length.
 
 **How the templates are written** (D91, decided by Mortaro; the binding rule is proposed by Claude,
-unconfirmed). They are Symbol codegen templates (above) in `library/list.spite`, each a `while` over the list's
+unconfirmed). They are Symbol codegen templates in `library/list.spite`, each a `while` over the list's
 `Memory` buffer: `func filter_member(member: Symbol<$element_type>): List<$element_type>` answers every
 `filter_<member>` call. The symbol names a member of the *element*, not of the list (whose own attributes are
 its buffer), because it says so -- `Symbol<$element_type>` is [Symbol codegen](metaprogramming.md#symbol-codegen--implemented)'s `Symbol<Label>`, one mechanism for both
 -- and `item.attributes[member]` reads it: the field, or a call to the zero-argument function -- the
 D11 reading, "the value held in that field", applied to D15's members. The generator binds the template to the
-element's member and checks the table above before it compiles the body, so a member that does not fit is still
+element's member and checks [the table](#member-templates-loops-you-do-not-write) before it compiles the body, so a member that does not fit is still
 the error naming the member, its type and what the template needs; it writes none of the templates' C. Only the
 names a program calls are compiled. A `--repl`/`--repl-port` build compiles every template that fits every
 element class of a list the loop can reach, and lists them as that list's functions, so `monsters.sum_health()`
@@ -574,9 +572,9 @@ generator writes one Spite function on the first list's class -- a `while` over 
 `filter_`, a `var` per `map_`, and the last template's step -- and calls that instead. A `map_` in the middle
 must reach a class; anything the rule cannot write (a nullable member, a union) is compiled step by step, which
 means the same. The difference a program can see is only order: a member function in a fused chain runs element
-by element. `conformance/stage6/fused_chain_allocations` pins it: four chains run a thousand times allocate
-nothing (15 allocations in all, the `Launcher` and printing the total included -- the `TypedMemory` its lists
-share is a static singleton -- against more than 16 000 step by step).
+by element. `conformance/stage6/fused_chain_allocations` pins what it saves: four chains run a thousand times
+allocate nothing, so the whole program makes 15 allocations (its objects, the list and printing the total)
+against more than 16 000 step by step.
 
 **Passing a function for each element** (D148, decided by Mortaro, superseding D113's caller-function templates;
 the forms' details below are proposed by Claude, unconfirmed).  **[implemented]** An iterator sees only the
@@ -611,72 +609,41 @@ The caller's function is passed as a bound function value (D17/D39), owned by wh
   (to only call it for each element, write 'each(say_hello)')`, `'each' calls 'greet_twice' with each 'String' as
   its only argument, but 'greet_twice' takes 2`, `'each' calls 'count_to' with each 'String', but 'count_to' takes
   'Integer'`, and an argument that is no function at all.
-- **No loop rule.** D113's error for a `while` that only passes each element to a caller function is removed with
-  it. A function that needs more than the element (`print_statement(statement, depth)`) keeps its `while`.
+- **The loop rule.** D113's error for a `while` that only passes each element to a caller function went with
+  it; D171 ([control_flow.md](control_flow.md#a-while-that-a-member-template-already-says)) puts a `while` that only does what `each(f)` does under the same rule as the member
+  templates. A function that needs more than the element (`print_statement(statement, depth)`) keeps its `while`.
 
-`conformance/stage6/passed_functions`, `diagnostics/passed_functions`, `docs/collections.md`.
+`conformance/stage6/passed_functions`, `diagnostics/passed_functions`.
 
 ### List<T> additions  **[implemented]**
 
-On top of `append`/`prepend`/`count`/index-read/index-write (iterate with `while index < list.count() { }`, since there is no
-`for`):
+A list's members, their results and their edge cases are [the table under `List<T>`](#listt), which is normative:
+out of range, `get_at`, `first`, `last`, `remove_first` and `remove_last` answer the element type's default,
+`insert` clamps to the nearest end, and `set_at` and `remove_at` do nothing; `list[index]` answers `T?`. There is
+no `for`: a list is walked with a template, a passed function ([above](#standard-library-metaprogramming--partial)),
+or a `while` that does more than they do.
 
-| Method | Result | Notes |
-|---|---|---|
-| `append(value)` | | adds `value` to the end |
-| `prepend(value)` | | adds `value` to the front (index 0) |
-| `get_at(index)` / `set_at(index, value)` | `T` | the explicit call form of `list[index]`/`list[index] = value` |
-| `insert(index, value)` | | clamps an out-of-range index to the nearest end |
-| `remove_at(index)` | | a no-op out of range |
-| `remove_last()` | `T` | removes and returns the last element; the default when empty |
-| `remove_first()` | `T` | removes and returns the first element; the default when empty |
-| `first()` / `last()` | `T` | the default when empty |
-| `contains(value)` | `Boolean` | `Integer`/`Float`/`Boolean`/`String`/enum elements only |
-| `is_empty()` | `Boolean` | |
-| `clear()` | | drops every element, keeps the buffer's capacity |
-| `reverse()` | | in place |
-| `join(separator)` | `String` | every element that becomes text: `String`, a number, `Boolean`, an enum value |
-| `filter_<member>()` | `List<T>` | a new list of the elements whose Boolean attribute is true ([Standard library metaprogramming](#standard-library-metaprogramming--partial)) |
-| `count_<member>()` | `Integer` | a Boolean attribute: how many elements have it true ([Standard library metaprogramming](#standard-library-metaprogramming--partial)) |
-| `sum_<member>()` | `Integer`/`Float` | adds that attribute up across every element ([Standard library metaprogramming](#standard-library-metaprogramming--partial)) |
-| `find_by_<member>(value)` | `T?` | the first element whose attribute equals `value` |
-| `sort_by_<member>()` | `List<T>` | a new list sorted ascending by an `Integer`/`Float`/`String` attribute |
-| `each_<member>()` | | `T` a class: calls that zero-argument function on every element, mutating it in place |
-| `map_<member>()` | `List<U>` | an `Integer`/`Float`/`Boolean`/`String`/enum attribute's values, one per element |
-| `any_<member>()` / `all_<member>()` | `Boolean` | a `Boolean` attribute, true for at least one / every element |
+`contains(value)` compares with `==`, so it is there only for elements that are numbers, `Boolean`, `String` or an
+enum; on a list of a class the call is `List has no method 'contains'` -- ask with `any(f)` or `find_by_<member>`.
 
-A `<member>` is always the element's, never the calling class's (D148, [Standard library metaprogramming](#standard-library-metaprogramming--partial)). A function of the caller is
-passed as a value instead, for any `T`: `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`,
-`find(f)` (the first element `f` is true for, a `T?`), `sort_by(f)` and `sum(f)`, where `f` takes one `T` --
-`names.each(say_hello)` calls `say_hello(name)` for each element.
-
-Naming (second batch item 3, decided 2026-09-19): `add` does not say where, so it is `append` (and `prepend`);
-`pop()` became `remove_last()`, plus `remove_first()` -- writing the old names is a compile error naming the
-replacement.
+Names say where: `add` does not, so it is `append` (and `prepend`); `pop()` is `remove_last()`, beside
+`remove_first()`. Writing an old name is meant to be a compile error naming the replacement. **Not built:** today
+it is `List has no method 'add'` (and `'pop'`), which names no fix.
 
 ### Dictionary\<T\>  **[implemented]**
 
-String-keyed, insertion-ordered, and a hash table under the hood: `get`, `has`, `set` and `[]` take the same time
-however many keys there are (see the decision log's hash-table row, proposed by Claude, unconfirmed).
-`Dictionary<T>()` constructs one.
+String-keyed and insertion-ordered; its members are [the table under `Dictionary<T>`](#dictionaryt), which is
+normative. `dictionary[key]` is `get(key)`, a `T?` that is `null` for an absent key, and `dictionary[key] = value`
+is `set(key, value)`; there is no `get_at`/`set_at` on a dictionary. `keys()` and `values()` answer fresh copies,
+in insertion order.
 
-| Member | Result | Notes |
-|---|---|---|
-| `set(key, value)` | | replaces an existing key's value |
-| `get(key)` | `T?` | |
-| `has(key)` | `Boolean` | |
-| `remove(key)` | | |
-| `count()` | `Integer` | |
-| `keys()` | `List<String>` | a view: a fresh list of the same keys |
-| `values()` | `List<T>` | a view: a fresh list of the same values |
-| `dictionary["key"]` (read) | `T` | the default when the key is absent |
-| `dictionary["key"] = value` (write) | | same as `set` |
-| `get_at(key)` / `set_at(key, value)` | `T` | the explicit call form of `dictionary[key]`/`dictionary[key] = value` |
-| `each_<member>()` | | `T` a class: calls that zero-argument function on every value, mutating it in place |
+It is a hash table over two ordered lists (the decision log's hash-table row, proposed by Claude, unconfirmed):
+`get`, `has`, `set` and `[]` take the same time however many keys there are, and `remove` takes time in
+proportion to the dictionary's size. An empty dictionary allocates no table.
 
-Iterate values with `while` (`dictionary.values()`, or `dictionary.keys()` plus `dictionary[key]`), or use
-`each_<member>()` when a class value just needs one of its own methods called on every entry. The whole member
-template family works on a `Dictionary<T>` through its values, as it does on a `List<T>`.
+The whole member template family, and every passed-function form, works on a `Dictionary<T>` through its values,
+as it does on a `List<T>`; to walk keys and values together, use `while` over `dictionary.keys()` and read
+`dictionary[key]`.
 
 `deep_copy()` is implemented for classes, lists and dictionaries. A `String` is shared rather than duplicated
 because it is immutable; a union or a `type` shape is shared for now; a self-referring structure is still
@@ -684,25 +651,12 @@ unsupported ([Memory](memory.md#memory--implemented)).
 
 ### Heap\<T\> -- removed (D1, decided by Mortaro, 2026-09-19)
 
-`Heap<T>` is gone. References are the default now ([Memory](memory.md#memory--implemented)), so a class/union containing itself recursively
-just declares an ordinary attribute of type `T` -- no indirection needed, and no struct-layout cycle to guard
-against (a class is always a heap object referred to by pointer, so a self-referential field is just a pointer
-like any other):
+`Heap<T>`, a box for a value, is gone (it is not `Memory.Heap`, the allocator). References are the default
+([Memory](memory.md#memory--implemented)), so a class or union containing itself recursively just declares an
+ordinary attribute of type `T` -- no indirection needed, and no struct-layout cycle to guard against, since a
+class is always a heap object referred to by pointer. A `union Expression` of `NumberExpression` and
+`BinaryExpression`, with `var left: Expression? = null` in `binary_expression.spite`, is the whole of it;
+[memory.md](memory.md#self-referential-classes-and-unions-just-work) has a tree that runs.
 
-```gdscript
-union Expression {
-    NumberExpression
-    BinaryExpression
-}
-```
-```binary_expression.spite
-var left: Expression? = null
-var right: Expression? = null
-
-func BinaryExpression(left_expression: Expression, right_expression: Expression) {
-    left = left_expression
-    right = right_expression
-}
-```
-
-Writing `Heap<T>`/`Heap<T>(value)` is a compile error naming this fix.
+Writing `Heap<T>`/`Heap<T>(value)` is meant to be a compile error naming this fix. **Not built:** today it is
+`unknown type 'Heap'`.

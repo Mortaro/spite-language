@@ -6,10 +6,8 @@ func function_name(first: Reference, second: Value): Tiny {
 }
 ```
 
-- The return type is written `(): Type` -- always with the colon. `() Type` is a parse error.
-- `return` is always explicit. There is no implicit return of the last expression. A function that falls off
-  the end without a `return` gets its return type's defensive default, with no diagnostic.
-- A function with no return type returns nothing.
+The return type follows a colon, `return` is always written out, and a function with no return type returns
+nothing ([the rules](#functions--implemented)). Forgetting the colon is a parse error that shows the form:
 
 ```gdscript title=missing_colon_error/missing_colon_error.spite entry error
 func add_one(value: Integer) Integer {
@@ -60,14 +58,15 @@ HI! hi
 shout AGAIN!
 ```
 
-A value that holds a function bound to the instance holding it is a cycle, and leaks like any other: clear one
-side (see [memory.md](memory.md)). An ordinary call -- `shouter.shout("hi")` -- is a direct call and builds no
-function value; only a function used *as a value* goes through `call_function()`. A function that returns
-nothing returns `Nothing`, which is what its type and its `.returns` say.
+An ordinary call -- `shouter.shout("hi")` -- is a direct call and builds no function value; only a function
+used *as a value* costs anything, and little
+([what it costs](#functions-are-values-always-bound-to-an-instance--implemented-except-owner)). A value that holds
+a function bound to the instance holding it is a cycle, and leaks like any other: clear one side (see
+[memory.md](memory.md)). A function that returns nothing returns `Nothing`, which is what its type and its
+`.returns` say.
 
 **Not built yet:** reading a function value's `.owner`, calling a function found through reflection with
-arguments, and an attribute whose default is a function value
-([Calling one](#calling-one)).
+arguments, and reopening `call_function` to trace every call ([Calling one](#calling-one)).
 
 **A variable never has the name of a function it can see** ([D172](decisions.md)). Since a function's
 name is already a value, a local, parameter or attribute named like a function of its class would make that name
@@ -119,11 +118,11 @@ func joined(separator: String, ...words: List<String>): String {
 }
 
 func greet(...visitors: List<Named>) {
-    var index = 0
-    while index < visitors.count() {
-        console.print("hello {visitors[index].name}")
-        index = index + 1
-    }
+    visitors.each(say_hello)
+}
+
+func say_hello(visitor: Named) {
+    console.print("hello {visitor.name}")
 }
 ```
 ```gdscript title=variadic_doc/guest.spite
@@ -141,7 +140,8 @@ hello Bram
 ```
 
 Only the last parameter can take `...`, and it always receives a `List`. The values are passed one by one, so
-passing a whole list to it is an error; a parameter written without `...` takes a list as it is.
+passing a whole list to it is an error; a parameter written without `...` takes a list as it is. Each call
+builds the `List` its function receives, exactly as if the caller had built it, and nothing more.
 
 ```gdscript title=variadic_not_a_list/variadic_not_a_list.spite entry error
 var console = Console()
@@ -170,10 +170,12 @@ Every operator is a shortcut for a function a class can define to support it:
 | `a / b` | `divide(b)` | | unary `-a` | `negate()` |
 | `a % b` | `remainder(b)` | | `a[x]` / `a[x] = v` | `get_at(x)` / `set_at(x, v)` |
 
-`not`/`and`/`or` stay built-in keywords, never functions. For `Integer`/`Float`/`Boolean`/enum/`String`/`List<T>`/
-`Dictionary<T>` these compile to the same C as always; for a user class or union, the operator compiles to a
-call of the matching function, and the right side still casts toward the parameter type like any other
-argument:
+`not`/`and`/`or` stay built-in keywords, never functions. On numbers, `Boolean`, enums, `String`, `List<T>` and
+`Dictionary<T>` the operators are built in (on numbers, the machine's own arithmetic); number arithmetic is done in the left side's
+type, so a wider right side is an error that says to write the wider operand first
+([Wider arithmetic goes wider operand first](values_and_types.md#wider-arithmetic-goes-wider-operand-first)).
+For a class of your own, the operator is a direct call of the matching function -- nothing more at run time --
+and the right side casts toward the parameter's type like any other argument:
 
 ```gdscript title=operators_as_functions/money.spite
 var cents = 0
@@ -287,12 +289,12 @@ owner BOB
 ```
 
 Inside a class's own functions, a bare `age = 1` (no receiver) always stays a plain field write --
-interception only applies to `receiver.field` written from outside. A getter's result is an ordinary retained
-value, so a getter may compute and hand back a fresh `String` or `List` as safely as it returns a field.
+interception only applies to `receiver.field` written from outside. A getter may compute and hand back a fresh
+`String` or `List` as safely as it returns a field. It costs nothing hidden: an intercepted access is a direct
+call, and every other access a plain field read or write.
 
-**A getter with no setter makes a read-only attribute.** A read of `.name` that finds no attribute but finds
-`get_name()` reads through it, and a write finds no `set_name()` and is an error calling the attribute
-read-only. That is how reflection keeps `Spite.Class.name` from being overwritten
+**A getter with no setter makes a read-only attribute** ([the rule](#operators--implemented)). That is how
+reflection keeps `Spite.Class.name` from being overwritten
 ([reflection.md](reflection.md#reflection-is-read-only)):
 
 ```gdscript title=read_only_doc/temperature.spite
@@ -359,9 +361,9 @@ func half_of(value: Float): Float {
 ```
 
 A class that wants to accept several kinds of value takes a `type` or a union and says so in one signature.
-Parameters that are never read are an error, as every unused name is ([style.md](style.md#nothing-unused)), except
-where the signature is dictated from outside: an operator function's, a template's, a setter's, and a function
-that replaces one in a reopened class.
+A parameter that is never read is an error, as every unused name is: remove it, or name it `_name` when the
+signature needs it. An operator function's, a template's or a setter's parameter needs neither, since its
+signature is dictated from outside ([style.md](style.md#nothing-unused)).
 
 ## Rules in full
 
@@ -379,19 +381,26 @@ func function_name(first: Reference, second: Value): Tiny {
 }
 ```
 
-- The return type is written `(): Type`. No other form is valid.
+- The return type is written `(): Type`. No other form is valid: `() Type` is the parse error "a return type is
+  written '(): Type'".
 - `return` is always explicit. There is no implicit return of the last expression. A function with a
   return type whose body falls off the end without a `return` gets the defensive default return of its
   return type, with no diagnostic.
 - A function with no return type returns nothing.
-- **Parameters** (D1, decided by Mortaro 2026-09-19): a scalar (every numeric type, `Boolean`, an enum value) is
-  passed by value, copied. Everything else -- a class instance, `List<T>`, `Dictionary<T>`, `String`, a union, an
-  object literal -- is passed by reference: the caller writes nothing special, and the callee shares the exact
-  same object (mutating it through the parameter is visible to the caller). `&Type` no longer exists as syntax --
-  writing it is a parse error saying references are the default now. A copy is always explicit: `copy()`/
-  `deep_copy()` ([Memory](memory.md#memory--implemented)).
+- **Parameters** (D1): a scalar (every numeric type, `Boolean`, an enum value) is passed by value, copied.
+  Everything else -- a class instance, `List<T>`, `Dictionary<T>`, `String`, a union, an object literal -- is
+  passed by reference: the caller writes nothing special, and the callee shares the exact same object (mutating
+  it through the parameter is visible to the caller). There are no value classes (D149): a copy is always
+  explicit, `copy()`/`deep_copy()` ([Memory](memory.md#memory--implemented)), and passing a copy by value where
+  that is cheaper is the compiler's business. `&Type` is not syntax; writing it is a parse error. (Known issue:
+  the error is the one for `&&`, "Spite writes 'and' and 'or' as words: there is no '&&' or '||'", rather than
+  one saying references are the default.)
+- An argument casts toward its parameter's type by the ordinary right-to-left rule
+  ([Casting](values_and_types.md#casting)). There is no overloading: one name is one function, and a file that
+  declares a name twice is an error, "'Shop' declares 'twice' twice: a later file may reopen a class and replace
+  a function, but one file declares each name once".
 - `assert condition` is a production feature, not a debug one: when the condition is falsey the function returns
-  the default value of its return type immediately.
+  the default value of its return type immediately ([`assert` is control flow](failure.md#assert-is-control-flow)).
 
 ```gdscript
 func sum_positives(a: Float, b: Float): Float {
@@ -406,22 +415,25 @@ D17 (decided by Mortaro, 2026-09-19): a function is a first-class value. Naming 
 together with the instance doing the passing, so it runs exactly as that instance would have run it:
 
 ```
-console.log(pretty_print)        # passes this instance's pretty_print
+logger.log(pretty_print)         # passes this instance's pretty_print
 ```
 
-- **A variable never shadows a function name it can see** (D172, decided by Mortaro, 2026-09-25): "as functions
-  can be passed around by reference it would become super confusing." A local, parameter or attribute named like
-  a function of its class -- declared in its file or a reopening -- is an error: "the variable 'file_stem' has
-  the name of a function of this class, and a function is a value passed by its name: give the variable a name
-  of its own" (`attribute` and `parameter` for the others). What is visible is read as the class's own functions,
+- **A variable never shadows a function name it can see** (D172): "as functions can be passed around by
+  reference it would become super confusing." A local, parameter or attribute named like a function of its
+  class -- declared in its file or a reopening -- is an error: "the variable 'file_stem' has the name of a
+  function of this class, and a function is a value passed by its name: give the variable a name of its own"
+  (`the attribute` and `the parameter` for the others). What is visible is read as the class's own functions,
   since those are the ones a bare name reaches (proposed by Claude, unconfirmed); it is checked over every class
-  file, generic ones and unused functions included (`diagnostics/shadowed_function`). About 170 names in the
-  compiler, `library/`, the corpus and `docs/` were renamed, most of them D77's `var string_type = string_type()`,
-  now `var string_spite_type = string_type()`. **[implemented]**
+  file, generic ones, `library/` and functions nothing calls included (`diagnostics/shadowed_function`).
+  Compile time only. **[implemented]**
 - **There are no free functions and no closures.** A function value is `{instance, function}` -- one retain in a
   reference-counted language ([Memory](memory.md#memory--implemented)), capturing the receiver and nothing else, so no local ever escapes its
-  scope. That is the whole of the feature; there is no environment to capture, no lifetime to reason about, and
-  no allocation beyond the retain.
+  scope. That is the whole of the feature; there is no environment to capture and no lifetime to reason about.
+  At run time a function value is one small object (the owner, retained, and a call pointer) and a call through
+  it is one indirect call; a function passed by name to `each`, `map`, `filter` and the other list functions of
+  D148 builds no value at all, because the element loop is instantiated for that function and calls it
+  directly ([Passing a function for each element](collections.md#passing-a-function-for-each-element)). A
+  program that uses no function value carries none of this.
 - **It makes foreign callbacks expressible.** `{instance, function}` is precisely what a C callback plus its
   `void*` user data wants, which is what [Not designed yet](foreign_libraries.md#not-designed-yet) lists as not designed yet.
 - **An event handler can be the function itself** -- `onclick: increment` -- checked by signature, rather than
@@ -455,34 +467,42 @@ D40 (decided by Mortaro, 2026-09-20): **a `Spite.Function` knows its owner, and 
 `call_function()`.**
 
 - `.owner` is the instance the function is bound to. D17's `{instance, function}` pair stops being a hidden
-  representation and becomes an ordinary field you can read: `pretty_print.owner` is the `Console` that will
-  run it. Bound-ness is reflectable, like everything else about a function.
+  representation and becomes an ordinary field you can read: `pretty_print.owner` is the instance that will
+  run it. Bound-ness is reflectable, like everything else about a function. **Not built** (below).
 - **`call_function()` is the one path.** Writing `printer(value)` is `printer.call_function(value)`, which is
   [Operators](#operators--implemented)'s operator rule applied once more -- the call operator maps to a named function exactly as `+` maps
   to `sum` and `a[x]` maps to `get_at`. So there is one chokepoint every invocation of a function value passes
   through: an event handler firing, a foreign callback arriving from C ([Not designed yet](foreign_libraries.md#not-designed-yet)), a framework dispatching.
   One place to instrument, and one place where the owner is applied.
 - Because `Spite.Function` is an ordinary standard library class, `call_function` can be reopened ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial),
-  D7) to trace or count every callback in a program. That is the foot, and it is yours to shoot.
+  D7) to trace or count every callback in a program. That is the foot, and it is yours to shoot. **Not built:**
+  `call_function` is supplied by the compiler, not declared in `library/spite/function.spite`, so a program's
+  `spite/function.spite` declaring one compiles and is never called.
 
 The indirection is paid only where it was already accepted. An ordinary call -- `person.set_age(2)` -- is a
 direct call and never builds a `Spite.Function`; only a function used *as a value* goes through
-`call_function()`.
+`call_function()`. As built for D148 (proposed by Claude, unconfirmed), a function passed *by name* to a list's
+`each`, `map`, `filter` and the rest is not a value either: the element loop is instantiated for it and calls it
+directly, so it does not pass through `call_function()`; one held in a variable does.
 
 **`Nothing` is the class a function returns when it returns nothing** (D48, decided by Mortaro, 2026-09-20).
 It is required rather than optional: with the return in the last position, `Spite.Function<String>` already
 reads as "takes nothing, returns a `String`", so a function taking a `String` and returning nothing could not
 otherwise be written. `Spite.Function<Nothing>` takes nothing and returns nothing.
 
-**As implemented** (2026-09-23): naming a function without calling it -- `greet` inside the class, `person.greet`
+**As implemented**: naming a function without calling it -- `greet` inside the class, `person.greet`
 on a value -- builds a `Spite.Function` bound to that instance, whose type carries the signature; `change(text)`
 and `change.call_function(text)` call it with their arguments checked; a typed value can go where a plain
 `Spite.Function` (a reflected one) is expected, but not the other way round, since a reflected function's
 signature is not known to the type checker (`diagnostics/function_value_mistakes`). In C it is still one
 `Spite_Function` with a typed call pointer beside the owner, so a function value *is* its reflection object, as
 D39 says (`conformance/stage6/typed_functions`). **Not built:** `.owner` as a readable attribute -- nothing in
-`Spite.Function<...>` says what class the owner is, so there is no type to give it; calling a *reflected*
-function with arguments; and a class attribute initialised with a function value.
+`Spite.Function<...>` says what class the owner is, so there is no type to give it (reading it today is
+"'Spite_Function' has no attribute 'owner'"); calling a *reflected* function with arguments; and reopening
+`call_function` (above). An attribute
+may hold a function value (`var on_press: Spite.Function<Nothing>? = null`, set later); one whose default names
+its own class's function binds it to the object itself, which is a cycle and leaks unless one side is cleared
+([Memory](memory.md#memory--implemented)).
 
 `Nothing` is also what `.returns` reports for every function declared without a return type, so it is not a
 notation invented for the type syntax -- it fills a hole the reflection already had. A function whose body falls
@@ -494,11 +514,14 @@ The library declares `type Anything { }` once (`library/nothing.spite`, beside `
 list that accepts any object is written `component: Anything` or `List<Anything>()`, and a program no longer
 declares an empty `type` of its own for that. An empty `type` requires nothing, so every class fits it, and a
 number, `Boolean` or enum passed to it is boxed like any plain value passed to a `type` (D109); `if component ==
-Health` narrows it back. `Spite.Attribute`'s object is typed `Anything?` ([Reflection objects](reflection.md#reflection-objects--partial)).
+Health` narrows it back. `Spite.Attribute.value`, the instance an attribute holds, is typed `Anything?` (D164,
+[Reflection objects](reflection.md#reflection-objects--partial)). An empty `type` costs nothing until a value is
+passed to it: it holds no functions, and a box is made only where a plain value is actually passed as
+`Anything`.
 
 ### Variadic arguments  **[implemented]**
 
-D90 (decided by Mortaro, 2026-09-24, answering open question 14): "variadic arguments are going to be mapped to a
+D90: "variadic arguments are going to be mapped to a
 generic list so something like: `...args: List<Type or Class>`." The last parameter may be written with `...`, and
 the caller then writes its values one by one; the function receives them as an ordinary `List`:
 
@@ -523,8 +546,13 @@ log()                     # lines is empty
   way (`conformance/stage6/variadic_arguments`).
 
 As implemented (proposed by Claude, unconfirmed): **passing a whole list to a `...` parameter is an error** that
-says to pass the elements, because the caller writes them one by one and there is no spread operator to ask for
-the other reading -- unless the element type is itself a list. Zero values is a legal call, giving an empty list.
+says to pass the elements -- "this call passes a whole List<String>, but the last parameter is written with
+'...', so it takes the values one by one: pass the elements themselves, separated by commas" -- because the
+caller writes them one by one and there is no spread operator to ask for the other reading, unless the element
+type is itself a list. Zero values is a legal call, giving an empty list. A `...` not on the last parameter is
+"'...lines' takes every argument from here on, so it is the last parameter: move it to the end", and one not
+typed `List<Type>` is "'...words' receives the arguments as a list: write '...words: List<Type>'". At run time
+each call builds the `List` its function receives, as the caller would have; nothing else is added.
 `Console.print`, `write` and `error` are ordinary variadic functions taking `...values: List<Printable>` (D109,
 [System classes](standard_library.md#system-classes--implemented)).
 
@@ -567,20 +595,33 @@ call form alongside the operator (`list.get_at(0)` next to `list[0]`, `"a".sum("
 
 For a user class or union, `a + b` compiles to `a.sum(b)` when the class defines (an exact function, or Symbol
 codegen answers) `sum`; a union duck-types the same way a method call already does (every member must define
-the function with the same signature). Missing the function is the existing "unsupported"-style diagnostic,
-now naming the function to define instead. The right side of a binary operator still casts toward the
-parameter type, exactly like an ordinary function call argument.
+the function with the same signature). Missing the function is an error naming it: "this operator on a 'Money'
+needs it to define 'sum(other)'", "'-' on a 'Money' needs it to define 'negate()'", "indexing a 'Money' needs it
+to define 'get_at(index)'", "assigning through an index on a 'Money' needs it to define 'set_at(index,
+value)'". The right side of a binary operator still casts toward the parameter type, exactly like an ordinary
+function call argument. On numbers, arithmetic is done in the left operand's type, and a right operand wider
+than the left is an error (D162,
+[Wider arithmetic goes wider operand first](values_and_types.md#wider-arithmetic-goes-wider-operand-first)); a
+comparison is not arithmetic and still casts its right side toward the left.
+
+At run time an operator on a built-in type is the operation itself, and one on a user class is a direct call
+of its function, resolved while compiling; nothing is looked up when the program runs.
 
 Attribute access from *outside* a class also goes through operator functions: `person.age = 1` calls
 `person.set_age(1)` when the class defines or Symbol-codegens `set_age` (an exact function always wins over
 Symbol codegen), otherwise it assigns the field directly. `person.age` (a read) calls `person.get_age()` the
 same way when defined -- **(proposed by Claude, unconfirmed: the decision covered only the setter half; this
-read half mirrors it)**. D1 removes the earlier restriction that skipped interception for a getter returning
-an owning type: every function/method return is now a properly retained, independent reference ([Memory](memory.md#memory--implemented)),
-so a getter that computes and hands back a fresh value is exactly as safe to intercept through as one that
-just returns the field itself (this also fixes the `get_<attribute>()` double-free that used to be listed in
-`docs/KNOWN_ISSUES.md`). A getter written and called explicitly (`person.get_full_name()`) was always just an
+read half mirrors it)**. Every function return is a properly retained, independent reference (D1,
+[Memory](memory.md#memory--implemented)), so a getter that computes and hands back a fresh value is exactly as
+safe to intercept through as one that just returns the field itself. A getter written and called explicitly (`person.get_full_name()`) was always just an
 ordinary method call. Compound assignment through interception works both ways: `person.age = person.age + 1`
 reads through `get_age()` and writes through `set_age(...)`. Inside a class's own functions, a bare `age = 1`
 (no receiver) and `attributes[attribute]` stay raw -- interception only applies to `receiver.field` written
-from outside.
+from outside. Which reads and writes are intercepted is decided while compiling: an intercepted one is a direct
+call of the getter or setter, and every other one a plain field access.
+
+**A getter with no setter makes a read-only attribute**: a read of `.name` that finds no attribute but finds
+`get_name()` reads through it, and a write finds no `set_name()` and is an error, "'number' is read-only: 'Badge'
+answers it through get_number() and has no set_number(value)" (`diagnostics/read_only_attribute`,
+`tests/interception_tests`). Reflection's own members are kept read-only
+this way ([Reflection is read-only](reflection.md#reflection-is-read-only)).

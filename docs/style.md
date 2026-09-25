@@ -17,10 +17,15 @@ on files, without compiling them -- [compiler.md](compiler.md#formatting):
 - A list, object or call that fits in 120 columns goes on one line with `, `; a longer one is broken one entry
   per line -- with no commas for a list or object literal, and with trailing commas for a call.
 - One blank line between declarations at file level; consecutive `var`s may stay grouped.
-- A switch case with one short statement stays on its line; a bare `crash` becomes `crash false`.
+- A switch case with one short statement stays on its line; `crash false` becomes a bare `crash`, the one form
+  for a branch that cannot happen ([failure.md](failure.md#crash), D119).
 
 It never reorders code or drops a comment: it re-reads its own output and checks that the program and every
-comment survived, and if it cannot prove that, it leaves the file alone and says why.
+comment survived, and if it cannot prove that, it leaves the file alone and says why -- an error that stops the
+compile, so a program is never compiled from text that is not in the one style.
+
+Everything on this page happens while compiling. None of it reaches the built program, which carries no trace
+of the formatter or of any of these checks.
 
 ## A file is ordered
 
@@ -46,8 +51,9 @@ but a file is ordered: the singleton line, generic lines, enums, unions, types, 
 A name is never rewritten for you, because renaming a symbol can change what a program means to someone
 searching for the old name. These are errors, each with the fix:
 
-- `snake_case` for variables, attributes, parameters, functions, enum values, files and folders; `PascalCase`
-  for classes, enums, unions and types.
+- `snake_case` for variables, attributes, parameters, functions, enum values, files and folders (a package's
+  root folder too: `slop_window_plugin`, never `slop-window-plugin`); `PascalCase` for classes, enums, unions and
+  types.
 - **Never a single letter.** No exceptions.
 - **Never an abbreviation.** Every word of a name is checked against a list (`msg`, `idx`, `val`, `cfg`, `tmp`,
   `str`, `len`, `max`, `min`, `init`, `env`, `dir`, `doc`, ... -- the full table is in
@@ -95,9 +101,9 @@ A local variable that is never read is an error: remove it. Only reading counts 
 assigned and never read is unused too, and there is no spelling that silences it (D137): a variable nobody reads
 is work the program did for nothing. A parameter is the one exception, because a signature can need a parameter
 its body ignores: name it `_name` to say so. A `_name` that *is* read is an error, since the prefix says it is
-not. Parameters whose shape is dictated from outside -- an operator function's, a Symbol codegen template's, a
-setter answering `person.age = 1`, a function replacing one in a reopened class -- are exempt. Everywhere else a
-leading `_` means private to its class ([reflection.md](reflection.md#reflection-is-read-only)).
+not, and a parameter whose signature is dictated from outside (an operator function's, for one) needs no `_` at
+all ([the exemptions](#unused-is-an-error--implemented)). Everywhere else a leading `_` means private to its
+class ([reflection.md](reflection.md#reflection-is-read-only)).
 
 ```gdscript title=unused_error/unused_error.spite entry error
 var console = Console()
@@ -126,11 +132,11 @@ func WrittenNotRead() {
 
 An attribute nothing reads is an error the same way (D118): remove it. A private `_name` attribute is no
 exception, since only its own class can read it. Writing an attribute is not reading it, so one that is only
-assigned is still unused. A read is anything that takes the attribute's value: its name in one of the class's own functions,
-`thing.world` from another class, a getter answering that read, `x.attributes[attribute]` in a Symbol template
-(which is how `Json` and `to_debug()` read), `thing.attributes`, and the REPL in a build that has one. A template
-that only looks at `attribute.name` or `attribute.class` reads the attribute's description, not the attribute, so
-an attribute kept only as a marker for such a walk is an error:
+assigned is still unused. A read is anything that takes the attribute's value -- its name in the class's own
+functions, `thing.world` from another class, `x.attributes[attribute]` in a Symbol template (which is how `Json`
+and `to_debug()` read), and the rest [in the rules](#unused-is-an-error--implemented). A template that only looks
+at `attribute.name` or `attribute.class` reads the attribute's description, not the attribute, so an attribute
+kept only as a marker for such a walk is an error:
 
 ```gdscript title=unused_marker/world.spite
 singleton
@@ -166,10 +172,11 @@ same in every program), and every private attribute wherever it lives, since its
 packages included (D157): `var world = World()` offers nothing another class could not bind itself, so an unread
 one is the error above wherever it is.
 
-Unused means unread anywhere in the source, not unreachable: a function nothing calls still reads what it names,
-and the compiler removes it later ([compiler.md](compiler.md#development-builds-and-tree-shaking)). A few
-attributes are never checked, because the compiler reads them itself: a number class's or `String`'s storage,
-and `Build` and `Environment` settings.
+Unused means unread anywhere in the source, not unreachable. A function nobody calls is not an error, private or
+public (D140): its callers may be code this compile cannot see, and the production build drops it anyway
+([compiler.md](compiler.md#development-builds-and-tree-shaking)). It still reads what it names, so what it
+reads counts as used. A few attributes are never checked, because the compiler reads them itself: a number
+class's or `String`'s storage, and `Build` and `Environment` settings.
 
 ## Comments are links
 
@@ -261,17 +268,11 @@ spite
 3 words, first token spite
 ```
 
-What counts, precisely:
-
-- A constructor is a call whose last name starts with an upper-case letter (`Token(...)`, `List<String>()`).
-  `tokens.append(Token(first_word))` is legal; a constructor inside that constructor is not.
-- Anything *inside* an argument counts: `counts.append(count_words(text) + 1)` puts a call inside an argument.
-- A method called on a call's result is not an argument: `source.split(" ").count()` is fine on its own line.
-- The holes of a text are not arguments, and each is read like a line of its own:
-  `"{word_count} words"` is fine, and so is `"{names.count()} names"`.
-- A call in an `if` or `while` condition, a `return`, an assignment or an index is not an argument.
-- A singleton's constructor is the exception: `greet(Console())` is an error, because a singleton is always bound
-  to a `var` first ([classes_and_files.md](classes_and_files.md#singletons)).
+A constructor is a call whose last name starts with an upper-case letter, so `tokens.append(Token(first_word))`
+is legal and a constructor inside that constructor is not. A method called on a call's result
+(`source.split(" ").count()`) and the holes of a text (`"{names.count()} names"`) are not arguments; a
+singleton's constructor never is one (`greet(Console())` is an error). Every case is
+[in the rules](#one-call-per-line-and-nothing-said-twice--implemented).
 
 **A long line makes no object inside a call** (D187). There is no limit on how long a line may be. But if a line
 would be wider than the formatter's 120 columns when written on one line, it may not construct an object inside a
@@ -361,35 +362,40 @@ fix. A `D` number is a row of the [decision log](decisions.md).
 
 ### Unused is an error  **[implemented]**
 
-Second batch item 5 (decided 2026-09-19): a local variable or parameter that is never read is a compile error.
-**Only a read counts** (D136, decided by Mortaro, 2026-09-25): a local or parameter that is only ever assigned
-is unused, `'total' is never read: remove it`; a read in the new value, `label = "{label} of things"`, is a read
-(`diagnostics/written_not_read`). **Only a parameter may be `_name`** (D137, decided by Mortaro, 2026-09-25): a
-signature can need a parameter its body ignores, and `_name` says so; a local has no such reason, so an unread
-local is an error whatever its name, and the message only says to remove it. A `_name` that *is* read is also
-an error, naming the fix (remove the `_` or the read). A declaration whose own statement already failed is not
-reported as unread as well **(proposed by Claude, unconfirmed)**. Parameters whose signature is dictated from
-outside are **exempt** from the read requirement, because the author never chose them:
+A local variable or parameter that is never read is a compile error (decided by Mortaro, 2026-09-19).
+**Only a read counts** (D136): a local or parameter that is only ever assigned is unused,
+`'total' is never read: remove it`; a read in the new value, `label = "{label} of things"`, is a read
+(`diagnostics/written_not_read`). **Only a parameter may be `_name`** (D137): a signature can need a parameter
+its body ignores, and `_name` says so -- `the parameter 'amount' is never read: remove it, or name it '_amount'
+if the signature needs it`; a local has no such reason, so an unread local is an error whatever its name, and
+the message only says to remove it. A `_name` that *is* read is also an error: `'_counted' is read, so it must
+not start with an underscore: only a parameter the body ignores is named that way` (`diagnostics/unused_names`).
+A declaration whose own statement already failed is not reported as unread as well **(proposed by Claude,
+unconfirmed)**. **A function nobody calls is not reported**, private or public (D140): its callers may be code
+the compiler cannot see, tree shaking removes it from a production build, and the reads inside it still count.
+Parameters whose signature is dictated from outside are **exempt** from the read requirement, because the author
+never chose them:
 
-- operator functions (`sum`, `subtract`, `equals`, `get_at`, ... -- the Operators table above): `a + b` calls
+- operator functions (`sum`, `subtract`, `equals`, `get_at`, ... --
+  [Operators](functions_and_operators.md#operators--implemented)): `a + b` calls
   `sum(b)`, so the parameter is the operator's, not the author's
 - Symbol codegen templates (`set_attribute`, `get_attribute`, ...): the whole signature is the template
   mechanism's -- one instantiation per attribute, never emitted as the author wrote it
 - setters that answer attribute access: a one-parameter `set_age` naming a real `age` attribute answers
-  `person.age = 1` (above), so its parameter is the write's, not the author's
+  `person.age = 1` ([Setter/getter interception](functions_and_operators.md#settergetter-interception)), so its
+  parameter is the write's, not the author's
 - functions that replace another through class reopening ([Packages, namespaces and loading](packages.md#packages-namespaces-and-loading--partial)): the signature is dictated by the
   earlier root's call sites
 
 A `set_age` with two parameters never answers attribute access (the dispatch passes exactly one value), so its
 parameters are the author's free choice and the ordinary rule applies.
 
-**An attribute nothing reads is an error too** (D118, decided by Mortaro, 2026-09-24): "world is never used,
-unused variable declarations should cause a compiler error." The message names the attribute and the fix,
-`the attribute 'world' is never read: remove it` -- since D137 no spelling keeps an unread attribute
-(`diagnostics/unused_attributes`, `conformance/stage6/attribute_uses`, `docs/style.md`). **A compile-time walk
-counts only when it reads the attribute's value** (decided by Mortaro, 2026-09-25, relayed by the coordinating
-session): `x.attributes[attribute]` read in a Symbol template, and so `Json` and `to_debug()`, and the REPL's
-display. `attribute.name` and `attribute.class` are the attribute's description, not its value, so SlopEngine's
+**An attribute nothing reads is an error too** (D118): "world is never used, unused variable declarations should
+cause a compiler error." The message names the attribute and the fix, `the attribute 'world' is never read:
+remove it` -- since D137 no spelling keeps an unread attribute (`diagnostics/unused_attributes`,
+`conformance/stage6/attribute_uses`). **A compile-time walk counts only when it reads the attribute's value**
+(D118, the ruling on walks): `x.attributes[attribute]` read in a Symbol template, and so `Json` and
+`to_debug()`, and the REPL's display. `attribute.name` and `attribute.class` are the attribute's description, not its value, so SlopEngine's
 scheduling markers -- `var world = Resource.World()` that only a classify walk inspects -- are errors.
 
 What counts as a read, and the exceptions **(proposed by Claude, unconfirmed)**:
@@ -398,7 +404,7 @@ What counts as a read, and the exceptions **(proposed by Claude, unconfirmed)**:
   `thing.world` from another class (including through a union's members or a `type` a class is admitted to), a
   getter answering that read, `x.attributes[attribute]` or `attributes[attribute]` in a template, `thing.attributes`
   (the values), a `load` line's folder the compiler reads, and the REPL's `attributes` in a `--repl`/`--repl-port`
-  build. The class-level `Class.attributes` (names and types) does not count.
+  build. A class object's `.attributes` (`Mover.attributes`: names and types) does not count.
 - **Writing is not reading.** An attribute that is only assigned, from inside or outside, is unused -- the same
   rule as locals since D136.
 - **Source-level, not reachability.** A function nothing calls still reads what it names; tree shaking removes it
@@ -456,7 +462,7 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   arguments of a call, any other functions need to be done outside, even in constructor case a 1 depth limit is
   needed." `tokens.append(Token('number', token_slice))` is legal; `source.slice(...)` inside it is not, and neither is
   a constructor inside a constructor inside the call. Anything else is computed first and named.
-  **Implemented (2026-09-24).** The error names the call and the call it is passed to: "'source.slice(0, 2)' is
+  The error names the call and the call it is passed to: "'source.slice(0, 2)' is
   called inside an argument of 'console.print': compute it first into a named 'var' and pass the name. Only a
   constructor may be an argument, and only one level deep", or, one level down, "'Text(source)' is passed to
   'Token', which is itself passed to 'tokens.append': ...". A constructor is a call whose callee's last name
@@ -478,26 +484,24 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   limit on width of a line, just a limit on how things need to behave at different sizes"). A statement whose
   one-line printed form, indentation included, is wider than the formatter's width (120 columns, the width at
   which it breaks a call one argument per line) may not construct an object anywhere inside a call's arguments:
-  "this line is 130 columns, wider than the formatter's 120, and it constructs 'CounterButton(...)' inside the
-  arguments of 'world.create_entity_from_bundle': a long line makes no object inside a call, so make it first on a
-  line of its own, 'var counter_button = CounterButton(...)', and pass 'counter_button'"
-  (`diagnostics/long_line_construction`). A short line keeps D77's one constructor level. The readings below are
+  "this line is 130 columns, wider than the formatter's 120, and it constructs 'CounterButton("a label ...")'
+  inside the arguments of 'world.create_entity_from_bundle': a long line makes no object inside a call, so make
+  it first on a line of its own, 'var counter_button = CounterButton("a label ...")', and pass 'counter_button'"
+  -- the message quotes the whole construction, arguments included (`diagnostics/long_line_construction`). A short line keeps D77's one constructor level. The readings below are
   **(proposed by Claude, unconfirmed)**: the statements measured are the one-line ones (`var`, assignment, a call on
   its own, `return`, `assert`, `crash`, and an attribute's default), since an `if` or `while` is never one line;
   the width is measured on the printed form, so breaking the call over several lines by hand changes nothing;
   a construction counts as D77's does (a call whose last name starts with an upper-case letter, `List<Integer>()`
   included), anywhere inside an argument but in a text's holes; the suggested name is the class's name in
-  snake_case. **Implemented (2026-09-25)**; the compiler's own sources had 16 such lines, each rewritten.
+  snake_case. **[implemented]**
   - Open for Mortaro: D18's markup nests tag calls (`html.div({ class: "card" }, html.h1(title), ...)` in
     [Markup](targets.md#markup--planned)), which this rule forbids as written unless a tag counts as a constructor.
-  - Where the call sat on the right of `and`/`or` or in a `while` condition, the compiler's own sources compute it
-    before the condition only when that is harmless (a getter, `length()`, or `code_at`, which answers 0 past the
-    end), and update it at the end of the loop body; nothing in the repository needed an `if` to keep a call from
-    running.
 - **An `if` and its `else` do not repeat the same work** (D78): when both branches compute the same thing,
-  it is computed once before the `if`. In the example, both branches sliced the same range.
-  **Implemented (2026-09-24) in a narrow form, (proposed by Claude, unconfirmed) beyond the example:** the error
-  is "'source.slice(token_start, end_index)' is computed in both branches: compute it once before the 'if'".
+  it is computed once before the `if`. In the example, both branches sliced the same range. **It stays narrow**
+  (D173): only a call with arguments that appears in every branch, at the start of the branches, is reported, so
+  everything it reports can be computed once before the `if` without changing behaviour. The error is
+  "'source.slice(token_start, end_index)' is computed in both branches: compute it once before the 'if'"
+  (`diagnostics/repeated_branch_call`). The exact reading below is **(proposed by Claude, unconfirmed)**.
   It counts a call with at least one argument to a function or method (not a constructor, whose name starts
   with an upper-case letter) that prints identically in every branch -- both branches of an `if`/`else`, or
   every branch of an `else if` chain that ends in `else` ("computed in every branch"). A chain where only some
@@ -507,7 +511,7 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   statement (it has no value to compute once), not the right side of `and`/`or`, and not a call that mentions
   a name the branch declared, assigned, asserted or called a method on before it, or a name the `if`'s
   conditions may narrow (tested for truth, or compared with `null` or a class). Names, literals, attribute
-  reads and wider repetitions are not reported yet.
+  reads and wider repetitions are not reported (D173). **[implemented]**
 
 #### Formatting
 
@@ -515,9 +519,9 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   end of the file.
 - A `<...>` list holding a single named codegen value is rewritten to the positional form ([Codegen values (`$`)](metaprogramming.md#codegen-values---implemented)), so
   there is one way to write each call.
-- **Implemented by the Spite compiler (2026-09-23)**, as `bin/spite format [--check] <file-or-folder>` (the
-  compiler's own `format` command since D128), and `check.sh` requires every file outside
-  `diagnostics/` to be formatted already. What it does today: 4-space indentation, one space around binary
+- **Implemented** as `spite format [--check] <file-or-folder> ...`, a command of the compiler that needs a file
+  to parse, not to compile (D190), and `check.sh` requires every file outside `diagnostics/` to be formatted
+  already. What it does today: 4-space indentation, one space around binary
   operators, the minimum parentheses (a receiver that is an operation always keeps them), `else if` on one line,
   a switch case with one short statement on its own line, a call or a signature wider than 120 columns broken
   one argument per line with trailing commas, floats as written, `: Nothing` dropped from a shape function,
@@ -526,7 +530,8 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   fully-parenthesised program as the original, and keep every comment, or the file is left alone and the reason
   printed. **Every compile formats** the entry folder's files and every `load`-ed root once the whole program is
   read (not `library/`), printing `formatted <path>` for each file it rewrote and reading the program again when one
-  was; nothing turns it off (D190). A file
+  was; nothing turns it off (D190; the errors for trying are in
+  [compiler.md](compiler.md#formatting-before-compiling-and-spite-format)). `crash false` prints as a bare `crash` (D119). A file
   whose function body has an empty line is left alone, so D55's error still fires instead of the formatter
   quietly removing the line; a file the formatter refuses is left alone with its reason, as an error that stops
   the compile, so a program is never compiled from text that is not in the one style.
@@ -607,19 +612,21 @@ means to a reader who searches for its old name), so these are compile **errors*
 a suggested fix, from a linter that runs on the parsed AST of every class file, before codegen.
 There is no `--no-lint`: the compiler already **is** the linter.
 
-The compiler has no warnings at all (second batch item 6, decided 2026-09-19): it either reformats your code or
-gives an error, nothing is left to the user's taste. The only printout that used to be labeled a warning -- the
-`--development`-only "skipped class" notice ([Command line](compiler.md#command-line)) -- is plain informational `note:` text, not a warning.
+The compiler has no warnings at all (decided by Mortaro, 2026-09-19): it either reformats your code or gives an
+error, nothing is left to the user's taste. The `--development`-only "skipped class" notice
+([Command line](compiler.md#command-line)) is plain informational `note:` text, not a warning.
 
 - Variables, attributes, functions, and parameters: lowercase `snake_case`. Classes, `type`s, `enum`s, and
   `union`s: `PascalCase` (a class's own name is computed from its file name and therefore always correct; a
   function that happens to share its own class's name -- the constructor -- is exempt from the function-naming
   check for the same reason). Enum values: lowercase `snake_case`. File and folder names: lowercase
-  `snake_case` (folder names were already checked this way since milestone 5; file names are new).
+  `snake_case`, every folder including a package's root (D181: `slop_window_plugin`, never
+  `slop-window-plugin`).
 - **One underscore between words** (proposed by Claude, unconfirmed; implemented 2026-09-24): a snake_case name
   joins its words with one `_` each and may start with one `_` to be private, so `hit__count`, `__strike` and
   `strike_` are errors (`diagnostics/doubled_underscore`). The C the compiler writes for a class or function of
-  its own -- `Pool___allocate`, `Pool___make`, `Pool___retain`, `Pool___release`, a singleton's `___destroy`, `Pool___init`,
+  its own -- `Pool___allocate`, `Pool___make`, `Pool___retain`, `Pool___release`, a singleton's `___destroy` and
+  `___discard`, `Pool___init`,
   `Pool___default`, `Pool___class_of`, `Pool___attributes`, `Pool___functions`, `Pool___instances`,
   `Pool___deep_copy`, `Pool___read_<attribute>`, an enum's `___name`, a function's `___hot`, `___slot`,
   `___waiting`, `___perform` -- joins with `___`, which no Spite name can produce, so none of those words is
@@ -645,6 +652,7 @@ gives an error, nothing is left to the user's taste. The only printout that used
   | `expr` | `expression` | | `pos` | `position` |
   | `stmt` | `statement` | | `prev` | `previous` |
   | `param` | `parameter` | | `cur`/`curr` | `current` |
+  | `params` | `parameters` | | `attrs` | `attributes` |
   | `arg` | `argument` | | `max` | `maximum` |
   | `args` | `arguments` | | `min` | `minimum` |
   | `idx` | `index` | | `init` | `initialize` |
@@ -669,9 +677,10 @@ gives an error, nothing is left to the user's taste. The only printout that used
   | `dir` | `directory` | | | |
 
   `id` is explicitly **allowed** even though it is short, since it has no ambiguity and no natural longer form.
-- The terminal-`if` lint ([Null safety and `assert` narrowing](failure.md#null-safety-and-assert-narrowing--implemented): a function whose body's last statement is `if value { ... }` --
-  no `else` -- wrapping the rest of the function only to check existence, which must be written with `assert`)
-  now lives here too, moved unchanged from the generator -- checking a function's last statement
-  needs nothing that only codegen's resolved types would provide, so this milestone's "if that is easy"
-  condition held.
+  The language's own type names get no exemption (D122): `Int`, `Bool` and `UnsignedInt` are spelled `Integer`,
+  `Boolean` and `UnsignedInteger`, and the old spellings are errors naming the new ones, `'Int' is spelled
+  'Integer'` ([Numeric types](values_and_types.md#numeric-types--implemented-provisional)).
+- The terminal-`if` lint ([The last `if` of a function](failure.md#the-last-if-of-a-function): a function whose
+  body's last statement is `if value { ... }` -- no `else` -- wrapping the rest of the function only to check
+  existence, which must be written with `assert`) runs in this same linter, on the parsed tree.
 - A diagnostic names the file the problem is in (`registry.spite:3`), not the entry file.
