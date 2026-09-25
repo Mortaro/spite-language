@@ -392,9 +392,10 @@ func function_name(first: Reference, second: Value): Tiny {
   passed by reference: the caller writes nothing special, and the callee shares the exact same object (mutating
   it through the parameter is visible to the caller). There are no value classes (D149): a copy is always
   explicit, `copy()`/`deep_copy()` ([Memory](memory.md#memory--implemented)), and passing a copy by value where
-  that is cheaper is the compiler's business. `&Type` is not syntax; writing it is a parse error. (Known issue:
-  the error is the one for `&&`, "Spite writes 'and' and 'or' as words: there is no '&&' or '||'", rather than
-  one saying references are the default.)
+  that is cheaper is the compiler's business. `&Type` is not syntax; writing it is a parse error saying so,
+  "Spite has no '&Type': every class, list and text is passed by reference already, so write the type alone"
+  (`diagnostics/old_reference_type`; a `&` right after `:`, `<`, `(` or `,` and right before a capital letter is
+  read as a type, any other lone `&` as a bit operator, [which Spite writes as a function](values_and_types.md#bitwise-functions)).
 - An argument casts toward its parameter's type by the ordinary right-to-left rule
   ([Casting](values_and_types.md#casting)). There is no overloading: one name is one function, and a file that
   declares a name twice is an error, "'Shop' declares 'twice' twice: a later file may reopen a class and replace
@@ -498,7 +499,7 @@ signature is not known to the type checker (`diagnostics/function_value_mistakes
 `Spite_Function` with a typed call pointer beside the owner, so a function value *is* its reflection object, as
 D39 says (`conformance/stage6/typed_functions`). **Not built:** `.owner` as a readable attribute -- nothing in
 `Spite.Function<...>` says what class the owner is, so there is no type to give it (reading it today is
-"'Spite_Function' has no attribute 'owner'"); calling a *reflected* function with arguments; and reopening
+"'Spite.Function<...>' has no attribute 'owner'", naming the value's Spite type); calling a *reflected* function with arguments; and reopening
 `call_function` (above). An attribute
 may hold a function value (`var on_press: Spite.Function<Nothing>? = null`, set later); one whose default names
 its own class's function binds it to the object itself, which is a cycle and leaks unless one side is cleared

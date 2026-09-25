@@ -1,0 +1,12 @@
+var console = Console()
+
+func OldBreak() {
+    var index = 0
+    while index < 10 {
+        if index == 3 {
+            break
+        }
+        index = index + 1
+    }
+    console.print(index)
+}

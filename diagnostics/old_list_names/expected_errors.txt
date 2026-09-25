@@ -1,0 +1,3 @@
+diagnostics/old_list_names/old_list_names.spite:5: error: List has no method 'add', which does not say where: write 'append' to add at the end, or 'prepend' at the start (in OldListNames.OldListNames)
+diagnostics/old_list_names/old_list_names.spite:6: error: List has no method 'pop': write 'remove_last()', or 'remove_first()' to take from the start (in OldListNames.OldListNames)
+diagnostics/old_list_names/old_list_names.spite:8: error: there is no 'Heap<T>': a class, a list and a text are references already, so a class that holds one of its own kind declares an ordinary attribute, like 'var left: Expression? = null' ('Memory.Heap' is the allocator, for containers of your own) (in OldListNames.OldListNames)

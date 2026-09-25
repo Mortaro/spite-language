@@ -399,6 +399,32 @@ func scan_quoted(quote_code: Integer, kind: TokenKind): Boolean {
     return false
 }
 
+func lone_operator_lesson(code: Integer, doubled: Boolean): String {
+    if doubled {
+        return "Spite writes 'and' and 'or' as words: there is no '&&' or '||'"
+    }
+    if code == 38 and names_a_type_next() {
+        return "Spite has no '&Type': every class, list and text is passed by reference already, so write the type alone"
+    }
+    if code == 38 {
+        return "Spite has no '&' operator: bits are functions on the whole numbers, write 'value.bits_and(mask)' (and 'and' for a condition)"
+    }
+    if code == 124 {
+        return "Spite has no '|' operator: bits are functions on the whole numbers, write 'value.bits_or(mask)' (and 'or' for a condition)"
+    }
+    if code == 94 {
+        return "Spite has no '^' operator: bits are functions on the whole numbers, write 'value.bits_exclusive_or(mask)'"
+    }
+    return "Spite has no '~' operator: bits are functions on the whole numbers, write 'value.bits_inverted()'"
+}
+
+func names_a_type_next(): Boolean {
+    assert current_code() >= 65 and current_code() <= 90
+    assert not tokens.is_empty()
+    var before = tokens.last().kind
+    return before == 'colon' or before == 'less' or before == 'left_paren' or before == 'comma'
+}
+
 func skip_quoted_run(quote_code: Integer) {
     advance_character()
     while not at_end() and current_code() != quote_code {
@@ -438,11 +464,13 @@ func scan_operator(): Boolean {
         push_token('greater_equal', lexeme, lexeme, token_line, token_column)
         return false
     }
-    if code == 38 or code == 124 {
-        if current_code() == code {
+    if code == 38 or code == 124 or code == 94 or code == 126 {
+        var doubled = current_code() == code and (code == 38 or code == 124)
+        if doubled {
             advance_character()
         }
-        fail_lex("Spite writes 'and' and 'or' as words: there is no '&&' or '||'", token_line)
+        var lesson = lone_operator_lesson(code, doubled)
+        fail_lex(lesson, token_line)
         var lexeme = source.slice(start_index, index)
         push_token('invalid', lexeme, "", token_line, token_column)
         return false

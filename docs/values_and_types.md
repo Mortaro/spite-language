@@ -706,7 +706,10 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   `UnsignedInteger` and `UnsignedLong` each answer the functions in [the table above](#bitwise-functions):
   `shifted_left(count: Integer)`, `shifted_right(count: Integer)` and the three `bits_` functions of `other` and
   `bits_inverted()` return the receiver's type, and the three counts return an `Integer` (the width for 0). There
-  are no operator symbols for them. They are bodiless declarations the compiler
+  are no operator symbols for them, and writing one is an error naming its function: `<<` and `>>` (`Spite has no
+  '<<': bits are functions on the whole numbers, write 'value.shifted_left(count)'`), and a lone `&`, `|`, `^` or
+  `~` (`value.bits_and(mask)`, `bits_or`, `bits_exclusive_or`, `bits_inverted()`); `&&` and `||` keep their own
+  message (`diagnostics/old_shift`, `diagnostics/old_ampersand`). They are bodiless declarations the compiler
   supplies (D82), so `--final-classes` prints them in each class, and each body is the single C operation,
   inlined in an optimised build. The rules, so no undefined C behaviour reaches a program:
   - `shifted_right` is **arithmetic on a signed type** (the sign bit is copied in: an `Integer` -20 shifted right by 2

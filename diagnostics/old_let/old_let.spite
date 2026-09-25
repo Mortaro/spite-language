@@ -1,0 +1,6 @@
+var console = Console()
+
+func OldLet() {
+    let total = 1
+    console.print(total)
+}

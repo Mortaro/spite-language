@@ -7407,7 +7407,27 @@ func generate_string_method(
     return ExpressionResult("0", Analysis.Types.VoidType())
 }
 
+func report_list_method_missing(name: String) {
+    if name == "add" {
+        report(
+            "List has no method 'add', which does not say where: write 'append' to add at the end, or 'prepend' at the start",
+        )
+        return
+    }
+    if name == "pop" {
+        report("List has no method 'pop': write 'remove_last()', or 'remove_first()' to take from the start")
+        return
+    }
+    report("List has no method '{name}'")
+}
+
 func reported_old_spelling(name: String): Boolean {
+    if name == "Heap" {
+        report(
+            "there is no 'Heap<T>': a class, a list and a text are references already, so a class that holds one of its own kind declares an ordinary attribute, like 'var left: Expression? = null' ('Memory.Heap' is the allocator, for containers of your own)",
+        )
+        return true
+    }
     var spelled = old_spellings.new_spelling(name)
     assert not spelled.is_empty()
     report("'{name}' is spelled '{spelled}'")
@@ -7519,7 +7539,7 @@ func generate_list_method(
     }
     var template = element_template_of(list_class, name)
     if not template {
-        report("List has no method '{name}'")
+        report_list_method_missing(name)
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     crash template
@@ -10081,6 +10101,10 @@ func generate_generic_constructor(
     }
     var printer = Syntax.SourcePrinter()
     var callee_text = printer.source_expression(generic_call.callee)
+    if reported_old_spelling(callee_text) {
+        poison_statement()
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
     report(
         "there is no generic class '{callee_text}' here: a name is looked up in this class's own namespace, its folder, each parent folder, then the whole program",
     )

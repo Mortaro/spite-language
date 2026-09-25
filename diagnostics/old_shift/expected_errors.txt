@@ -1,0 +1,1 @@
+diagnostics/old_shift/old_shift.spite:5:26: Spite has no '<<': bits are functions on the whole numbers, write 'value.shifted_left(count)'

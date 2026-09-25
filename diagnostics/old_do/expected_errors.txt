@@ -1,0 +1,1 @@
+diagnostics/old_do/old_do.spite:5:15: Spite has no 'do': an 'if' on a value that may be null narrows it in place, 'if value { ... } else { ... }', and inside the block 'value' is the value itself

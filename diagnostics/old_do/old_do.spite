@@ -1,0 +1,8 @@
+var console = Console()
+var target: String? = null
+
+func OldDo() {
+    if target do name {
+        console.print(name)
+    }
+}

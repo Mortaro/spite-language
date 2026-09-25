@@ -1,0 +1,10 @@
+var console = Console()
+
+func OldListNames() {
+    var names = ["ada"]
+    names.add("grace")
+    var last_name = names.pop()
+    console.print(last_name)
+    var boxed = Heap<Integer>(3)
+    console.print(boxed)
+}
