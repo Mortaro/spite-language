@@ -1,0 +1,6 @@
+var world = Resource.World()
+var speed = 2
+
+func step(): Int {
+    return speed
+}

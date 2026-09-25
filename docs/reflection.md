@@ -90,7 +90,9 @@ Comparing needs no narrowing: a namespace compares with text through its `name_w
 with no namespace simply compares unequal.
 
 ```gdscript title=namespace_walk/shop/tools/hammer.spite
-var weight = 2
+func weight(): Int {
+    return 2
+}
 ```
 ```gdscript title=namespace_walk/namespace_walk.spite entry
 var console = Console()
@@ -126,12 +128,7 @@ instance, it makes one. A function named without calling it is a `Spite.Function
 reflection are the same object.
 
 ```gdscript title=function_reflection/gadget.spite
-var name = ""
 var power = 0
-
-func Gadget(new_name: String) {
-    name = new_name
-}
 
 func boost(amount: Int, times: Int): Int {
     power = power + amount * times

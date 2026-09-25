@@ -784,7 +784,6 @@ func reopen_class(original: Syntax.SourceFile, reopening: Syntax.SourceFile) {
             while original_index < original.statements.count() {
                 if declared_name(original.statements[original_index]) == name {
                     original.statements[original_index] = statement
-                    mark_reopened(statement)
                     replaced = true
                 }
                 original_index = original_index + 1
@@ -795,17 +794,6 @@ func reopen_class(original: Syntax.SourceFile, reopening: Syntax.SourceFile) {
         }
         index = index + 1
     }
-}
-
-func mark_reopened(statement: Syntax.Statements.Statement) {
-    var function = shape.as_function_declaration(statement)
-    if function {
-        function.overrides_declaration = true
-        return
-    }
-    var variable = shape.as_variable_declaration(statement)
-    assert variable
-    variable.overrides_declaration = true
 }
 
 func read_settings() {

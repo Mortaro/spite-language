@@ -62,12 +62,6 @@ earlier one (in load order), and a name not seen before is simply added. A `unio
 replaces the earlier declaration the same way. This is how game mods work.
 
 ```gdscript title=package_demo/package/monster.spite
-var health = 10
-
-func Monster(starting_health: Int) {
-    health = starting_health
-}
-
 func describe(): String {
     return "a wild monster"
 }
@@ -99,7 +93,7 @@ func PackageDemo() {
     var renderer = Engine.Renderer()
     var rendered = renderer.render()
     console.print(rendered)
-    var monster = Monster(10)
+    var monster = Monster()
     var description = monster.describe()
     console.print(description)
     var taunt = monster.taunt()

@@ -469,6 +469,44 @@ the read requirement, because the author never chose them:
 A `set_age` with two parameters never answers attribute access (the dispatch passes exactly one value), so its
 parameters are the author's free choice and the ordinary rule applies.
 
+**An attribute nothing reads is an error too** (D118, decided by Mortaro, 2026-09-24): "world is never used,
+unused variable declarations should cause a compiler error." The message names the attribute and the fix,
+`the attribute 'world' is never read: remove it, or name it '_world' to say that is intended`
+(`diagnostics/unused_attributes`, `conformance/stage6/attribute_uses`, `docs/style.md`). **A compile-time walk
+counts only when it reads the attribute's value** (decided by Mortaro, 2026-09-25, relayed by the coordinating
+session): `x.attributes[attribute]` read in a Symbol template, and so `Json` and `to_debug()`, and the REPL's
+display. `attribute.name` and `attribute.class` are the attribute's description, not its value, so SlopEngine's
+scheduling markers -- `var world = Resource.World()` that only a classify walk inspects -- are errors.
+
+What counts as a read, and the exceptions **(proposed by Claude, unconfirmed)**:
+
+- **A read takes the value**: the attribute's name in its own class's functions or attribute defaults,
+  `thing.world` from another class (including through a union's members or a `type` a class is admitted to), a
+  getter answering that read, `x.attributes[attribute]` or `attributes[attribute]` in a template, `thing.attributes`
+  (the values), a `load(...)` argument the compiler reads, and the REPL's `attributes` in a `--repl`/`--repl_port`
+  build. The class-level `Class.attributes` (names and types) does not count.
+- **Writing is not reading.** An attribute that is only assigned, from inside or outside, is unused. This is
+  stricter than locals today, where an assignment marks the local used (`mortaros_missing_decisions.md` item 110).
+- **Source-level, not reachability.** A function nothing calls still reads what it names; tree shaking removes it
+  later. Where the compiler does not compile a body -- a branch a codegen or `Build` test folds away, a function of
+  a generic class no instance emits, a Symbol template no range reaches -- its reads still count: bare names as
+  the class's own attributes, and `x.name` by name for any class (so a fold can hide an unused attribute of the
+  same name elsewhere, never report a used one).
+- **`_name` says it is intended**, and for an attribute `_` also means private. So a private attribute is never
+  reported, and an attribute kept only for its constructor's side effect (a singleton binding such as
+  `var server = Server()` whose construction starts something) is written `_server`. A public binding nothing reads,
+  singleton or not, is an error.
+- **Never checked**: a number class's or `String`'s storage (`_memory`, `_bytes`, ... -- private anyway, and the
+  compiler reads them), and every attribute of `Build` and `Environment`, which the compiler and the program's
+  flags read.
+- **A library is judged on its own code.** Every non-generic library class is compiled whole in every program,
+  and a generic one's uncompiled functions count as above, so the library's own reads are the same in every
+  program: an attribute the library itself reads is never an error for a program that ignores it, and `check.sh`
+  holds the library to that (every library attribute is read by library code). A program's read of a library
+  attribute counts too, which can only hide an error, never cause one.
+- The check runs only when the program has no other error, so a failed statement does not report the attributes
+  it would have read.
+
 ### Functions are values, always bound to an instance  **[implemented, except `.owner`]**
 
 D17 (decided by Mortaro, 2026-09-19): a function is a first-class value. Naming one inside a class passes it
@@ -3325,6 +3363,9 @@ payloads to JSON on demand, since the compiler knows the schema.
 6. `_` now means two things: private (section 2) and intentionally unused (section 5). They mostly agree (an unused
    private function is fine either way), but an unused PUBLIC function cannot be an error (libraries are full of them; tree
    shaking removes them), so "unused" is only enforced for locals, parameters and private functions. Confirm.
+   D118 adds attributes, where `_` already meant private: an unread `_name` attribute is never reported, since the
+   prefix says both things at once, so a dead private attribute passes (section 5, `mortaros_missing_decisions.md`
+   item 111).
 8. **An unrelated `get_<attribute>()` silently intercepts a read.** Found by the 2026-09-20 reflection port, in
    this compiler's own `NullableType`: a class with an attribute `inner` and a zero-argument function `get_inner()`
    written for an unrelated purpose has every outside read of `.inner` routed through that function, because that
@@ -3766,3 +3807,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | **D133** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 15): **the concurrency classes keep their names**: `Concurrent(function)` runs on a fiber of the program's thread, for work that waits; `Parallel(function)` runs on a thread of its own, for work that computes; both answer `wait()` and join when dropped. |
 | 2026-09-25 | **D134** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 19): **a concurrent result joins on first use, and every IO class uses it.** "implicit, and all our IO classes should use it to force things to be efficient." SPITE.md's rule wins over the built `wait()`: reading a `Concurrent`'s (or `Parallel`'s) value is what waits for it, so ordinary code never writes `.wait()`; and `File`, `Directory`, `Socket` and the other IO classes start their work concurrently themselves and hand back values that join where first used, so independent reads overlap without the program asking (D99's hidden async). |
 | 2026-09-25 | **D135** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 20): **`Parallel` runs on a thread pool, and the `parallel_each_` list templates are built now.** A fixed set of worker threads is reused by every `Parallel` instead of one new OS thread per call, and D35's data-parallel templates (`list.parallel_each_update()`, splitting a list's elements across the pool, joined when the call returns) come with it, ahead of the engine needing them. |
+| 2026-09-25 | **D118, the ruling on walks** (decided by Mortaro, relayed by the coordinating session, 2026-09-25: "keep the unused as error"): **a compile-time walk makes an attribute used only when it reads the attribute's value** -- `x.attributes[attribute]`, and so `Json`, `to_debug()` and the REPL's display. `attribute.name` and `attribute.class` are metadata and do not count, so SlopEngine's scheduling markers (`var world = Resource.World()`, `var main_thread = Resource.MainThread()`, read only by a classify walk over `attribute.class`) are errors. Built with the rest of the interpretation below, which is **(proposed by Claude, unconfirmed)**: a read is anything that takes the value (own functions and defaults, `thing.world`, union and `type` reads, a getter answering the read, `thing.attributes`, a `load(...)` argument, the REPL in a REPL build); writing is not reading, unlike locals today (item 110); the rule is source-level, so an uncalled function's reads count and bodies the compiler never compiles (folded branches, unemitted generic functions, unreached Symbol templates) count their names, own bare names precisely and `x.name` by name; `_name` exempts an attribute (it is private too, item 111), including a binding kept for its constructor's effect; number and `String` storage and `Build`/`Environment` settings are never checked; the check runs only on an otherwise clean compile. Fixing the repo removed 44 attributes and renamed none (the compiler's write-only `overrides_declaration` on both declarations and the formatter's unread `shape`; example and fixture fields; `var console = Console()` bindings nothing used) and kept 6 more by giving four fixtures a function that reads what only a metadata walk or the REPL looked at (`class_text`, `codegen_class_name`, `docs/repl.md`'s two programs). `diagnostics/unused_attributes`, `conformance/stage6/attribute_uses`, `docs/style.md`. |

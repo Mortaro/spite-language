@@ -1,4 +1,3 @@
-var shape = Analysis.AstShape()
 var refusal = ""
 
 func format(source: String): String? {

@@ -1,0 +1,7 @@
+singleton
+
+var spawned = 0
+
+func spawn() {
+    spawned = spawned + 1
+}

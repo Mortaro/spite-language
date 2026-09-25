@@ -105,6 +105,44 @@ func UnusedError() {
 'forgotten' is never used: remove it, or name it '_forgotten' to say that is intended
 ```
 
+An attribute nothing reads is an error the same way (D118): remove it, or name it `_name` to say it is kept on
+purpose -- which also makes it private. Writing an attribute is not reading it, so one that is only assigned is
+still unused. A read is anything that takes the attribute's value: its name in one of the class's own functions,
+`thing.world` from another class, a getter answering that read, `x.attributes[attribute]` in a Symbol template
+(which is how `Json` and `to_debug()` read), `thing.attributes`, and the REPL in a build that has one. A template
+that only looks at `attribute.name` or `attribute.class` reads the attribute's description, not the attribute, so
+an attribute kept only as a marker for such a walk is an error:
+
+```gdscript title=unused_marker/world.spite
+singleton
+```
+```gdscript title=unused_marker/mover.spite
+var world = World()
+```
+```gdscript title=unused_marker/unused_marker.spite entry error
+var console = Console()
+var mover = Mover()
+
+func UnusedMarker() {
+    var lines = List<String>()
+    classify_attributes(mover, lines)
+    var joined = lines.join(", ")
+    console.print(joined)
+}
+
+func classify_attribute(attribute: Symbol<Mover>, classified: Mover, lines: List<String>) {
+    lines.append("{attribute.name} is a {attribute.class}")
+}
+```
+```diagnostic
+the attribute 'world' is never read: remove it, or name it '_world' to say that is intended
+```
+
+Unused means unread anywhere in the source, not unreachable: a function nothing calls still reads what it names,
+and the compiler removes it later ([compiler.md](compiler.md#development-builds-and-tree-shaking)). A few
+attributes are never checked, because the compiler reads them itself: a number class's or `String`'s storage,
+and `Build` and `Environment` settings.
+
 ## Comments are links
 
 A comment is one line, outside functions and declaration bodies, and it holds nothing but a link to a heading in
@@ -170,11 +208,9 @@ is called inside an argument of 'console.print': compute it first into a named '
 ```
 
 ```gdscript title=call_argument_fixed/token.spite
-var kind = ""
 var text = ""
 
-func Token(new_kind: String, new_text: String) {
-    kind = new_kind
+func Token(new_text: String) {
     text = new_text
 }
 ```
@@ -186,7 +222,7 @@ func CallArgumentFixed() {
     var first_word = source.slice(0, 5)
     console.print(first_word)
     var tokens = List<Token>()
-    tokens.append(Token("word", first_word))
+    tokens.append(Token(first_word))
     var word_count = source.split(" ").count()
     var first_token = tokens.first()
     console.print("{word_count} words, first token {first_token.text}")
@@ -200,7 +236,7 @@ spite
 What counts, precisely:
 
 - A constructor is a call whose last name starts with an upper-case letter (`Token(...)`, `List<String>()`).
-  `tokens.append(Token("word", first_word))` is legal; a constructor inside that constructor is not.
+  `tokens.append(Token(first_word))` is legal; a constructor inside that constructor is not.
 - Anything *inside* an argument counts: `counts.append(count_words(text) + 1)` puts a call inside an argument.
 - A method called on a call's result is not an argument: `source.split(" ").count()` is fine on its own line.
 - The holes of a text are not arguments, and each is read like a line of its own:

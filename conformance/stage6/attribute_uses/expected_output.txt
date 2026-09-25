@@ -1,0 +1,2 @@
+watts = 40, lit = true
+books 3

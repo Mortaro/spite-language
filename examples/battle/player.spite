@@ -1,11 +1,9 @@
 var health = 0
-var job = "knight"
 var weapon = "sword"
 var power = 0
 
-func Player(starting_health: Int, starting_job: String) {
+func Player(starting_health: Int) {
     health = starting_health
-    job = starting_job
     weapon = "sword"
     power = 5
 }
