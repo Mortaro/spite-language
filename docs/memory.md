@@ -169,8 +169,10 @@ reference type is the intended real fix; not implemented yet.
 `spite program --debug_memory` builds with an allocation table and prints `allocations: N frees: N` right before
 the program exits. A mismatch means something leaked; when the two do not balance, it also prints a
 **leaked-object summary by class name**, naming which classes' instances are still alive -- which is what makes a
-leaked cycle visible instead of an unexplained count. Every program on these pages is run this way, and must
-balance.
+leaked cycle visible instead of an unexplained count. The table keeps each live allocation's class beside it and
+forgets it on free, so the summary names exactly the objects still alive, the same ones on every run, and
+memory that is not an object (a list's elements, a string's bytes) is counted but not named. Every program on
+these pages is run this way, and must balance.
 
 ## `Memory` is the floor, and you can build on it
 
