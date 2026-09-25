@@ -309,11 +309,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     the entry class an error; this is the same trap one level down. Proposal: a loaded folder that has an entry
     file (a file named after the folder) keeps its root classes to itself, or merging with it must be asked for.
     Related to item 82.
-91. **Where a program runs, and where its build goes.** The compiler now finds `launcher/` and `library/` from its
-    own executable (the first folder above it holding `launcher/launcher.spite`, else the working directory),
-    the program runs in the caller's folder, and the build still goes to the language repository's
-    `.spite-cache/`, so a run leaves nothing in the caller's folder. Should the cache instead live beside the
-    program (`game/.spite-cache/`), which is where a user would look for the built executable?
 92. **The compiler's own C names use `___`, and a name has one `_` between words.** `allocate`, `make`,
     `retain`, `release` and the rest are ordinary method names now, and `hit__count`, `__strike` and `strike_`
     are naming errors. `init` stays an abbreviation error and `default` a C keyword error, so neither became a
