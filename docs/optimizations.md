@@ -513,7 +513,9 @@ points. **Built.**
 **What it does.** `ThreadPool` is a singleton made the first time a `Parallel` (or a `parallel_each_` pass) needs
 it, and it starts its worker threads then, once ([D135](../manual.md#decision-log), [D191](../manual.md#decision-log)).
 A program that never makes one starts no thread and allocates nothing for it; its functions are tree-shaken with
-the rest. `ThreadLocal` asks the system for its per-thread slot only when one is made, and `Lock` likewise.
+the rest. `ThreadLocal` asks the system for its per-thread slot only when one is made, and `Lock` likewise;
+its `get()` never locks, and only a thread's `set` does
+([concurrency.md](concurrency.md#a-value-per-thread-and-a-lock)).
 
 **When.** Always. **What you notice.** Nothing until the first `Parallel`, which pays for starting the workers.
 **Built.** [concurrency.md](concurrency.md#the-thread-pool).

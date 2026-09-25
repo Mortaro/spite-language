@@ -1,0 +1,47 @@
+var console = Console()
+var pool = ThreadPool()
+var markers = ThreadLocal<String>()
+
+func ThreadLocalGrowth() {
+    var every_round = true
+    var round = 0
+    while round < 20 {
+        markers = ThreadLocal<String>()
+        markers.set("main")
+        var runs = List<Parallel<Bool>>()
+        var index = 0
+        while index < 64 {
+            runs.append(Parallel(joins_and_reads))
+            index = index + 1
+        }
+        index = 0
+        while index < runs.count() {
+            var kept: Bool = runs.get_at(index)
+            every_round = every_round and kept
+            index = index + 1
+        }
+        var own = markers.get()
+        crash own
+        every_round = every_round and own == "main"
+        round = round + 1
+    }
+    console.print("every read saw its own thread's value while others grew it:", every_round)
+}
+
+func joins_and_reads(): Bool {
+    var worker = pool.worker_index()
+    var mine = "worker {worker}"
+    var existing = markers.get()
+    if not existing {
+        markers.set(mine)
+    }
+    var kept = true
+    var reads = 0
+    while reads < 2000 {
+        var seen = markers.get()
+        crash seen
+        kept = kept and seen == mine
+        reads = reads + 1
+    }
+    return kept
+}
