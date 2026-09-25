@@ -199,7 +199,8 @@ func SpiteNamespaceError() {
 `load` marks where a dynamic library or lazy-loaded bundle could split, the way an async `import()` does in
 webpack. Today every root is linked into the one executable, and a `load(...)` call compiles to nothing at run
 time -- except the launcher's `load(build.program)`, which runs the program by constructing its entry class.
-Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are decided but not built
+`load` is not a reserved word: a class that declares its own `func load(...)` calls that function with `load(x)`,
+and its file loads no folder. Splitting bundles, and loading one lazily when a `load` inside an `if` runs, are decided but not built
 ([manual section 11](../manual.md#11-packages-namespaces-and-loading--partial)).
 
 A dependency will be a git URL pinned to a commit in the `load` call itself --

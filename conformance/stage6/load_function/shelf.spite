@@ -1,0 +1,11 @@
+var loads = 0
+
+func load(id: String): Int {
+    loads = loads + 1
+    return id.length() * 10 + loads
+}
+
+func load_twice(id: String): Int {
+    var first = load(id)
+    return first + load("literal")
+}
