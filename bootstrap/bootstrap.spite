@@ -1,43 +1,72 @@
+enum Formatting {
+    'unchanged'
+    'rewrote'
+    'refused'
+}
+
 var console = Console()
 var program = Program()
 var last_crash_map = ""
 var supplied_settings = Dictionary<String>()
 var bare_settings = List<String>()
 var build_values = Dictionary<String>()
-var building_output = ""
+var generated_code = ""
 var last_hot_manifest = ""
 var last_hot_state = ""
 var language_folder = "."
+var reloading = false
 
-func SpiteCompiler() {
+func Bootstrap() {
     load("source")
     var arguments = Arguments()
-    if arguments.count() > 0 and arguments.get(0) == "connect" {
+    var command = first_argument(arguments)
+    if command == "connect" {
         run_connect(arguments)
         return
     }
+    if command == "format" {
+        run_format_command(arguments)
+        return
+    }
     language_folder = folder_holding_launcher()
+    reloading = command == "reload"
     read_supplied_settings(arguments)
-    var file_argument = file_to_compile(arguments)
-    if file_argument.is_empty() {
-        console.error("usage: spite program_folder [--optimized] [--debug_memory] [-- program arguments ...]")
-        console.error("       spite program_folder --mode=c                  print the C instead of running")
-        console.error("       spite program_folder --mode=build --output=path  build without running")
+    var named = named_program(arguments)
+    if named.is_empty() {
+        print_usage()
         program.exit(1)
         return
     }
-    var content = File(file_argument).read()
-    if content {
-        run_mode(file_argument, content)
-    } else {
-        console.error("error: could not read '{file_argument}'")
+    var entry_path = entry_file_of(named)
+    if entry_path.is_empty() {
         program.exit(1)
+        return
     }
+    compile_program(entry_path, true)
+}
+
+func first_argument(arguments: Arguments): String {
+    assert arguments.count() > 0
+    return arguments.get(0)
+}
+
+func print_usage() {
+    console.error("usage: spite program_folder [--optimized] [--debug_memory] [-- program arguments ...]")
+    console.error(
+        "       spite program_folder --c_source                also write the C, beside the program or at --c_path=path",
+    )
+    console.error(
+        "       spite program_folder --executable --run=false  build without running, beside the program or at --executable_path=path",
+    )
+    console.error("       spite format [--check] file_or_folder ...       format files without compiling them")
+    console.error(
+        "       spite connect port [--command=\"...\"]            talk to a program running with --repl_port=port",
+    )
 }
 
 func folder_holding_launcher(): String {
-    var executable_path = program.executable_path()
-    var folders = executable_path.replace("\\", "/").split("/")
+    var compiler_path = program.executable_path()
+    var folders = compiler_path.replace("\\", "/").split("/")
     folders.remove_last()
     while not folders.is_empty() {
         var folder = folders.join("/")
@@ -49,102 +78,194 @@ func folder_holding_launcher(): String {
     return "."
 }
 
-func cache_folder(): String {
-    return "{language_folder}/.spite-cache"
+func named_program(arguments: Arguments): String {
+    var index = 0
+    if reloading {
+        index = 1
+    }
+    while index < compiler_arguments_end(arguments) {
+        var argument = arguments.get(index)
+        if not argument.starts_with("-") {
+            return argument
+        }
+        index = index + 1
+    }
+    return ""
 }
 
-func run_mode(file_argument: String, content: String) {
-    var requested_mode = supplied_or("mode", "run")
-    if requested_mode == "canonical" {
-        run_canonical_mode(content)
-        return
+func entry_file_of(named: String): String {
+    if named.ends_with(".spite") {
+        var holding_folder = directory_of(named)
+        console.error("error: '{named}' is a file, and a program is named by its folder: spite {holding_folder}")
+        return ""
     }
-    if requested_mode == "format" or requested_mode == "check_format" {
-        run_format_mode(file_argument, content, requested_mode == "check_format")
-        return
+    var folder = without_trailing_slashes(named)
+    var name = last_segment(folder)
+    var entry_path = "{folder}/{name}.spite"
+    if File(entry_path).exists() {
+        return entry_path
     }
-    if requested_mode == "tokens" {
-        run_tokens_mode(content)
-        return
+    console.error(
+        "error: '{folder}' holds no program: a program is a folder holding an entry file named after it, '{entry_path}'",
+    )
+    return ""
+}
+
+func without_trailing_slashes(path: String): String {
+    var trimmed = path
+    while trimmed.ends_with("/") or trimmed.ends_with("\\") {
+        var trimmed_length = trimmed.length()
+        trimmed = trimmed.slice(0, trimmed_length - 1)
     }
-    if requested_mode == "tree" {
-        run_tree_mode(file_argument, content)
-        return
+    return trimmed
+}
+
+func last_segment(path: String): String {
+    return path.replace("\\", "/").split("/").last()
+}
+
+func directory_of(path: String): String {
+    var segments = path.replace("\\", "/").split("/")
+    segments.remove_last()
+    if segments.is_empty() {
+        return "."
     }
-    var discovery = discovered_program(file_argument, content)
-    if discovery {
-        run_discovered(file_argument, discovery)
-    } else {
+    return segments.join("/")
+}
+
+func compile_program(entry_path: String, may_format: Bool) {
+    var discovery = discovered_program(entry_path)
+    if not discovery {
         program.exit(1)
+        return
     }
+    crash discovery
+    if may_format {
+        var formatting = formatted_program_files(discovery)
+        if formatting == 'refused' {
+            program.exit(1)
+            return
+        }
+        if formatting == 'rewrote' {
+            compile_program(entry_path, false)
+            return
+        }
+    }
+    produce(discovery)
 }
 
-func run_discovered(file_argument: String, discovery: Discovery.DiscoveryResult) {
+func discovered_program(entry_path: String): Discovery.DiscoveryResult? {
+    var content = File(entry_path).read()
+    if not content {
+        console.error("error: could not read '{entry_path}'")
+        return null
+    }
+    crash content
+    var discoverer = Discovery.ProgramDiscovery()
+    discoverer.language_folder = language_folder
+    discoverer.supplied_settings = supplied_settings.copy()
+    discoverer.bare_settings = bare_settings
+    var discovery = discoverer.discover(entry_path, content)
+    if discovery.has_error {
+        report_error(discovery.error_message)
+        return null
+    }
+    build_values = discovery.build_values
+    return discovery
+}
+
+func formatted_program_files(discovery: Discovery.DiscoveryResult): Formatting {
+    var outcome = 'unchanged'
+    var index = 0
+    while index < discovery.program_paths.count() {
+        var file_outcome = formatted_program_file(discovery.program_paths[index])
+        if file_outcome == 'refused' or outcome == 'unchanged' {
+            outcome = file_outcome
+        }
+        index = index + 1
+    }
+    return outcome
+}
+
+func formatted_program_file(path: String): Formatting {
+    var content = File(path).read()
+    if not content {
+        console.error("error: could not read '{path}'")
+        return 'refused'
+    }
+    crash content
+    var formatter = Syntax.Formatter()
+    var formatted = formatter.format(content)
+    if not formatted {
+        console.error(
+            "{path}: error: the formatter refuses it, and a program compiles only once formatted: {formatter.refusal}",
+        )
+        return 'refused'
+    }
+    crash formatted
+    if formatted == content {
+        return 'unchanged'
+    }
+    if not File(path).write(formatted) {
+        console.error("error: could not write the formatted '{path}'")
+        return 'refused'
+    }
+    console.error("formatted {path}")
+    return 'rewrote'
+}
+
+func produce(discovery: Discovery.DiscoveryResult) {
     if remote_loop_port() < 0 {
         console.error("error: --repl_port takes a port number from 1 to 65535: spite program --repl_port=4000")
         program.exit(1)
         return
     }
-    var final_classes_directory = option("final_classes")
-    if not final_classes_directory.is_empty() {
-        run_final_classes_mode(discovery, final_classes_directory)
+    if reloading {
+        run_reload(discovery)
         return
     }
-    var mode = option("mode")
-    if mode == "c" {
-        run_c_mode(discovery)
+    var misplaced = path_without_its_output()
+    if not misplaced.is_empty() {
+        console.error(misplaced)
+        program.exit(1)
         return
     }
-    if mode == "build" {
-        run_build_mode(file_argument, discovery)
-        return
+    var generator = generated(discovery)
+    if generator {
+        write_outputs(discovery, generator)
+    } else {
+        program.exit(1)
     }
-    if mode == "run" {
-        var program_arguments = program_arguments()
-        run_run_mode(file_argument, discovery, program_arguments)
-        return
-    }
-    if mode == "reload" {
-        run_reload_mode(discovery)
-        return
-    }
-    console.error(
-        "unknown --mode '{mode}' (expected 'tokens', 'tree', 'c', 'build', 'run', 'reload', 'format' or 'check_format')",
-    )
-    program.exit(1)
 }
 
-func run_canonical_mode(content: String) {
-    var lexer = Syntax.Lexer(content)
-    var parser = Syntax.Parser(lexer.tokens)
-    var file = parser.parse_file()
-    var printer = Syntax.SourcePrinter()
-    printer.explicit_grouping = true
-    var source_file = printer.source_file(file)
-    console.print(source_file)
+func path_without_its_output(): String {
+    if supplied_settings.has("c_path") and not is_on("c_source") {
+        return "error: '--c_path' says where the C goes, and this build writes no C: give --c_source too"
+    }
+    if supplied_settings.has("executable_path") and not is_on("executable") and not is_on("run") {
+        return "error: '--executable_path' says where the executable goes, and this build makes none: give --executable too"
+    }
+    return ""
 }
 
-func run_format_mode(file_argument: String, content: String, only_check: Bool) {
-    var formatter = Syntax.Formatter()
-    var formatted = formatter.format(content)
-    if not formatted {
-        console.error("{file_argument}: not formatted: {formatter.refusal}")
+func write_outputs(discovery: Discovery.DiscoveryResult, generator: Generation.Generator) {
+    if is_on("c_source") and not wrote_c_source() {
         program.exit(1)
         return
     }
-    crash formatted
-    assert formatted != content
-    if only_check {
-        console.print(file_argument)
+    var final_classes_folder = option("final_classes")
+    if not final_classes_folder.is_empty() and not wrote_final_classes(discovery, generator, final_classes_folder) {
         program.exit(1)
         return
     }
-    if not File(file_argument).write(formatted) {
-        console.error("error: could not write '{file_argument}'")
+    var runs = is_on("run")
+    if (runs or is_on("executable")) and not built_executable() {
         program.exit(1)
         return
     }
-    console.error("formatted {file_argument}")
+    if runs {
+        run_executable()
+    }
 }
 
 func option(name: String): String {
@@ -156,29 +277,7 @@ func is_on(name: String): Bool {
     return option(name) == "true"
 }
 
-func supplied_or(name: String, fallback: String): String {
-    if supplied_settings[name] {
-        return supplied_settings[name]
-    }
-    return fallback
-}
-
-func discovered_program(file_argument: String, content: String): Discovery.DiscoveryResult? {
-    var discoverer = Discovery.ProgramDiscovery()
-    discoverer.language_folder = language_folder
-    discoverer.formats = supplied_or("format", "true") == "true"
-    discoverer.supplied_settings = supplied_settings
-    discoverer.bare_settings = bare_settings
-    var discovery = discoverer.discover(file_argument, content)
-    if discovery.has_error {
-        report_error(discovery.error_message)
-        return null
-    }
-    build_values = discovery.build_values
-    return discovery
-}
-
-func generate_c_or_report(discovery: Discovery.DiscoveryResult): String? {
+func generated(discovery: Discovery.DiscoveryResult): Generation.Generator? {
     var prelude = Generation.Prelude()
     var generator = Generation.Generator()
     configure(generator)
@@ -186,7 +285,7 @@ func generate_c_or_report(discovery: Discovery.DiscoveryResult): String? {
     var structs = prelude.structs()
     var prototypes = prelude.prototypes()
     var bodies = prelude.bodies()
-    var code = generator.generate(discovery, header, structs, prototypes, bodies)
+    generated_code = generator.generate(discovery, header, structs, prototypes, bodies)
     if generator.has_error {
         report_error(generator.error_message)
         return null
@@ -197,11 +296,11 @@ func generate_c_or_report(discovery: Discovery.DiscoveryResult): String? {
         var reload = Generation.HotReloadLibrary()
         last_hot_state = hot_state(generator, reload, 0)
     }
-    return code
+    return generator
 }
 
 func report_error(message: String) {
-    if supplied_or("mode", "run") == "reload" {
+    if reloading {
         console.print(message)
         return
     }
@@ -231,11 +330,12 @@ func configure(generator: Generation.Generator) {
     generator.remote_loop_port = port
     generator.development = is_on("development") or is_on("hot_reload")
     generator.hot_reload = is_on("hot_reload")
+    generator.keeps_internals = generator.development or generator.read_evaluate_print_loop
     if generator.hot_reload {
         var program = Program()
         generator.hot_reload_compiler = program.executable_path()
         generator.hot_reload_arguments = reload_arguments()
-        generator.hot_reload_program_file = building_output
+        generator.hot_reload_program_file = executable_path()
     }
 }
 
@@ -243,9 +343,12 @@ func reload_arguments(): String {
     var arguments = Arguments()
     var kept = List<String>()
     var index = 0
+    if reloading {
+        index = 1
+    }
     while index < compiler_arguments_end(arguments) {
         var argument = arguments.get(index)
-        if not argument.starts_with("--mode=") and not argument.starts_with("--output=") {
+        if not is_output_flag(argument) {
             kept.append(argument)
         }
         index = index + 1
@@ -253,35 +356,26 @@ func reload_arguments(): String {
     return kept.join("\n")
 }
 
+func is_output_flag(argument: String): Bool {
+    assert argument.starts_with("--")
+    var outputs = ["run", "executable", "executable_path", "c_source", "c_path", "final_classes"]
+    var name = flag_name(argument)
+    return outputs.contains(name)
+}
+
+func flag_name(argument: String): String {
+    var equals_position = argument.index_of("=")
+    var argument_length = argument.length()
+    if equals_position > 2 {
+        return argument.slice(2, equals_position)
+    }
+    return argument.slice(2, argument_length)
+}
+
 func remote_loop_port(): Int {
     var port_text = option("repl_port")
     assert port_text != "0"
     return port_number(port_text)
-}
-
-func file_to_compile(arguments: Arguments): String {
-    var index = 0
-    while index < compiler_arguments_end(arguments) {
-        var argument = arguments.get(index)
-        if not argument.starts_with("-") {
-            return entry_file_of(argument)
-        }
-        index = index + 1
-    }
-    return ""
-}
-
-func entry_file_of(path: String): String {
-    if not Directory(path).exists() {
-        return path
-    }
-    var folder = path
-    while folder.ends_with("/") or folder.ends_with("\\") {
-        var folder_length = folder.length()
-        folder = folder.slice(0, folder_length - 1)
-    }
-    var name = folder.replace("\\", "/").split("/").last()
-    return "{folder}/{name}.spite"
 }
 
 func compiler_arguments_end(arguments: Arguments): Int {
@@ -325,50 +419,82 @@ func read_supplied_settings(arguments: Arguments) {
     }
 }
 
-func run_final_classes_mode(discovery: Discovery.DiscoveryResult, output_directory: String) {
-    var generator = final_classes_generator(discovery)
-    assert generator
+func executable_path(): String {
+    var chosen = option("executable_path")
+    if not chosen.is_empty() {
+        return chosen
+    }
+    var base = beside_program()
+    if option("target_operating_system") == "windows" {
+        return "{base}.exe"
+    }
+    return base
+}
+
+func c_path(): String {
+    var chosen = option("c_path")
+    if not chosen.is_empty() {
+        return chosen
+    }
+    var base = beside_program()
+    return "{base}.c"
+}
+
+func beside_program(): String {
+    var folder = option("program")
+    var name = last_segment(folder)
+    return "{folder}/{name}"
+}
+
+func wrote_c_source(): Bool {
+    var path = c_path()
+    var folder = directory_of(path)
+    create_folder(folder)
+    if File(path).write(generated_code) {
+        return true
+    }
+    console.error("error: could not write '{path}'")
+    return false
+}
+
+func wrote_final_classes(
+    discovery: Discovery.DiscoveryResult,
+    generator: Generation.Generator,
+    output_directory: String,
+): Bool {
     var kept = generator.emitted_qualified_names()
+    var written = true
     var index = 0
-    while index < discovery.class_files.count() {
+    while index < discovery.class_files.count() and written {
         var class_file = discovery.class_files[index]
         if kept.contains(class_file.qualified_dotted) {
-            var path = final_class_path(output_directory, class_file.qualified_dotted)
-            var final_class_directory = final_class_directory(path)
-            create_final_class_directory(final_class_directory)
-            var class_file_file = class_file.get_file()
-            var ordered = in_file_order(class_file_file, class_file.simple_name)
-            var source = "{Syntax.SourcePrinter().source_file(ordered)}{generator.generated_functions_source(class_file.qualified_dotted)}"
-            var output = File(path)
-            var formatted_or_as_printed = formatted_or_as_printed(source)
-            if not output.write(formatted_or_as_printed) {
-                console.error("error: could not write '{path}'")
-                program.exit(1)
-                return
-            }
+            written = wrote_final_class(generator, class_file, output_directory)
         }
         index = index + 1
     }
+    assert written
     var instantiated_class_names = generator.instantiated_class_names()
     var instantiated_class_sources = generator.instantiated_class_sources()
-    write_class_views(output_directory, "instantiated", instantiated_class_names, instantiated_class_sources)
+    return wrote_class_views(output_directory, "instantiated", instantiated_class_names, instantiated_class_sources)
 }
 
-func final_classes_generator(discovery: Discovery.DiscoveryResult): Generation.Generator? {
-    var prelude = Generation.Prelude()
-    var generator = Generation.Generator()
-    configure(generator)
-    var header = prelude.header()
-    var structs = prelude.structs()
-    var prototypes = prelude.prototypes()
-    var bodies = prelude.bodies()
-    generator.generate(discovery, header, structs, prototypes, bodies)
-    if generator.has_error {
-        console.error(generator.error_message)
-        program.exit(1)
-        return null
+func wrote_final_class(
+    generator: Generation.Generator,
+    class_file: Discovery.DiscoveredClass,
+    output_directory: String,
+): Bool {
+    var path = final_class_path(output_directory, class_file.qualified_dotted)
+    var final_class_directory = directory_of(path)
+    create_folder(final_class_directory)
+    var class_file_file = class_file.get_file()
+    var ordered = in_file_order(class_file_file, class_file.simple_name)
+    var source = "{Syntax.SourcePrinter().source_file(ordered)}{generator.generated_functions_source(class_file.qualified_dotted)}"
+    var formatted_or_as_printed = formatted_or_as_printed(source)
+    if File(path).write(formatted_or_as_printed) {
+        return true
     }
-    return generator
+    console.error("error: could not write '{path}'")
+    return false
 }
 
 func in_file_order(file: Syntax.SourceFile, class_name: String): Syntax.SourceFile {
@@ -396,23 +522,24 @@ func formatted_or_as_printed(source: String): String {
     return "{source}\n"
 }
 
-func write_class_views(output_directory: String, folder: String, names: List<String>, sources: List<String>) {
-    assert not names.is_empty()
+func wrote_class_views(output_directory: String, folder: String, names: List<String>, sources: List<String>): Bool {
+    if names.is_empty() {
+        return true
+    }
     var directory = "{output_directory}/{folder}"
-    create_final_class_directory(directory)
+    create_folder(directory)
     var index = 0
     while index < names.count() {
         var path = "{directory}/{final_class_file_name(names[index])}.spite"
-        var output = File(path)
         crash sources[index]
         var formatted_or_as_printed = formatted_or_as_printed(sources[index])
-        if not output.write(formatted_or_as_printed) {
+        if not File(path).write(formatted_or_as_printed) {
             console.error("error: could not write '{path}'")
-            program.exit(1)
-            return
+            return false
         }
         index = index + 1
     }
+    return true
 }
 
 func final_class_path(output_directory: String, qualified_name: String): String {
@@ -445,13 +572,7 @@ func final_class_file_name(class_name: String): String {
     return result
 }
 
-func final_class_directory(path: String): String {
-    var segments = path.split("/")
-    segments.remove_last()
-    return segments.join("/")
-}
-
-func create_final_class_directory(path: String) {
+func create_folder(path: String) {
     var segments = path.split("/")
     var current = ""
     var index = 0
@@ -465,57 +586,11 @@ func create_final_class_directory(path: String) {
     }
 }
 
-func run_c_mode(discovery: Discovery.DiscoveryResult) {
-    var code = generate_c_or_report(discovery)
-    if code {
-        console.write(code)
-        return
-    }
-    program.exit(1)
-}
-
-func computed_class_name(file_argument: String): String {
-    var segments = file_argument.split("/")
-    var basename = segments.last()
-    var stem = basename
-    if basename.ends_with(".spite") {
-        var basename_length = basename.length()
-        stem = basename.slice(0, basename_length - 6)
-    }
-    return pascal_case_class_name(stem)
-}
-
-func pascal_case_class_name(snake: String): String {
-    var result = ""
-    var capitalize_next = true
-    var index = 0
-    while index < snake.length() {
-        var character = snake.character_at(index)
-        if character == "_" {
-            capitalize_next = true
-        } else if capitalize_next {
-            result = result + character.upper_case()
-            capitalize_next = false
-        } else {
-            result = result + character
-        }
-        index = index + 1
-    }
-    return result
-}
-
-func build_to_path(file_argument: String, discovery: Discovery.DiscoveryResult, output_path: String): Bool {
-    building_output = output_path
-    var code = generate_c_or_report(discovery)
-    assert code
-    var cache_folder = cache_folder()
-    var directory = Directory(cache_folder)
-    directory.create()
-    var class_name = computed_class_name(file_argument)
-    var c_path = "{cache_folder}/{class_name}_gen1.c"
-    var c_file = File(c_path)
-    var wrote = c_file.write(code)
-    crash wrote
+func built_executable(): Bool {
+    var output_path = executable_path()
+    var output_folder = directory_of(output_path)
+    create_folder(output_folder)
+    var c_file_path = c_to_compile(output_path)
     var c_compiler = find_c_compiler()
     if c_compiler.is_empty() {
         console.error(
@@ -537,7 +612,7 @@ func build_to_path(file_argument: String, discovery: Discovery.DiscoveryResult, 
     if is_on("hot_reload") {
         append_shared_runtime(process_arguments, c_compiler)
     }
-    process_arguments.append(c_path)
+    process_arguments.append(c_file_path)
     process_arguments.append("-o")
     process_arguments.append(output_path)
     var process = Process(c_compiler, process_arguments)
@@ -547,17 +622,31 @@ func build_to_path(file_argument: String, discovery: Discovery.DiscoveryResult, 
         console.error(output)
         return false
     }
-    var map_path = output_path
-    if map_path.ends_with(".exe") {
-        var map_path_length = map_path.length()
-        map_path = map_path.slice(0, map_path_length - 4)
-    }
-    File("{map_path}.crashes").write(last_crash_map)
-    if is_on("hot_reload") {
-        File("{map_path}.reload_host").write(last_hot_manifest)
-        File("{map_path}.reload_files").write(last_hot_state)
-    }
+    write_companions(output_path)
     return true
+}
+
+func c_to_compile(output_path: String): String {
+    if is_on("c_source") {
+        return c_path()
+    }
+    var cache_folder = "{language_folder}/.spite-cache"
+    Directory(cache_folder).create()
+    var base = without_executable_extension(output_path)
+    var name = last_segment(base)
+    var path = "{cache_folder}/{name}.c"
+    var wrote = File(path).write(generated_code)
+    crash wrote
+    return path
+}
+
+func write_companions(output_path: String) {
+    var base = without_executable_extension(output_path)
+    File("{base}.crashes").write(last_crash_map)
+    if is_on("hot_reload") {
+        File("{base}.reload_host").write(last_hot_manifest)
+        File("{base}.reload_files").write(last_hot_state)
+    }
 }
 
 func append_shared_runtime(process_arguments: List<String>, c_compiler: String) {
@@ -590,28 +679,15 @@ func find_c_compiler(): String {
     return ""
 }
 
-func run_build_mode(file_argument: String, discovery: Discovery.DiscoveryResult) {
-    var output_path = option("output")
-    if output_path.is_empty() {
-        console.error("error: --mode=build writes the program to --output=path, and no path was given")
-        program.exit(1)
-        return
-    }
-    var built = build_to_path(file_argument, discovery, output_path)
-    if not built {
-        program.exit(1)
-    }
-}
-
-func run_reload_mode(discovery: Discovery.DiscoveryResult) {
+func run_reload(discovery: Discovery.DiscoveryResult) {
     var program = Program()
-    var program_file = option("output")
+    var program_file = executable_path()
     var base = without_executable_extension(program_file)
     var host_text = File("{base}.reload_host").read()
     var state_text = File("{base}.reload_files").read()
     if not host_text or not state_text or not is_on("hot_reload") {
         console.print(
-            "error: --mode=reload rebuilds what changed in a program built with --hot_reload, and '{program_file}' was not: build it with --hot_reload --output={program_file}",
+            "error: 'spite reload' rebuilds what changed in a program built with --hot_reload, and '{program_file}' was not: build it with --hot_reload --executable --executable_path={program_file}",
         )
         program.exit(1)
         return
@@ -701,8 +777,8 @@ func library_extension(): String {
     return "so"
 }
 
-func build_library(code: String, c_path: String, library_path: String): Bool {
-    File(c_path).write(code)
+func build_library(code: String, library_c_path: String, library_path: String): Bool {
+    File(library_c_path).write(code)
     var c_compiler = find_c_compiler()
     var process_arguments = List<String>()
     process_arguments.append("-shared")
@@ -717,7 +793,7 @@ func build_library(code: String, c_path: String, library_path: String): Bool {
     } else {
         process_arguments.append("-fPIC")
     }
-    process_arguments.append(c_path)
+    process_arguments.append(library_c_path)
     process_arguments.append("-o")
     process_arguments.append(library_path)
     var process = Process(c_compiler, process_arguments)
@@ -729,15 +805,14 @@ func build_library(code: String, c_path: String, library_path: String): Bool {
     return true
 }
 
-func run_run_mode(file_argument: String, discovery: Discovery.DiscoveryResult, passed: List<String>) {
-    var output_path = "{cache_folder()}/{computed_class_name(file_argument)}_gen1.exe"
-    var built = build_to_path(file_argument, discovery, output_path)
-    if not built {
-        program.exit(1)
-        return
+func run_executable() {
+    var output_path = executable_path()
+    var passed = program_arguments()
+    var runner_path = output_path
+    if option("operating_system") == "windows" {
+        runner_path = output_path.replace("/", "\\")
     }
-    var replaced_output_path = output_path.replace("/", "\\")
-    var runner = Process(replaced_output_path, passed)
+    var runner = Process(runner_path, passed)
     var port = remote_loop_port()
     if is_on("repl") or port > 0 or is_on("hot_reload") {
         console.flush()
@@ -751,34 +826,93 @@ func run_run_mode(file_argument: String, discovery: Discovery.DiscoveryResult, p
     program.exit(exit_code)
 }
 
-func run_tokens_mode(content: String) {
-    var lexer = Syntax.Lexer(content)
-    print_tokens(lexer.tokens)
-    if lexer.has_error {
-        program.exit(1)
+func run_format_command(arguments: Arguments) {
+    var only_check = false
+    var named = false
+    var files = List<String>()
+    var index = 1
+    while index < arguments.count() {
+        var argument = arguments.get(index)
+        if argument == "--check" {
+            only_check = true
+        } else {
+            named = true
+            collect_spite_files(argument, files)
+        }
+        index = index + 1
     }
-}
-
-func run_tree_mode(file_argument: String, content: String) {
-    var tokens = Syntax.Lexer(content).tokens
-    var parser = Syntax.Parser(tokens)
-    var file = parser.parse_file()
-    if parser.has_error {
-        console.error("{file_argument}:{parser.error_line}:{parser.error_column}: error: {parser.error_message}")
+    if not named {
+        console.error(
+            "usage: spite format [--check] file_or_folder ...   a folder is formatted with every folder inside it",
+        )
         program.exit(1)
         return
     }
-    var printer = Syntax.Printer()
-    printer.print_file(file)
+    var failed = false
+    var file_index = 0
+    while file_index < files.count() {
+        if not formatted_file(files[file_index], only_check) {
+            failed = true
+        }
+        file_index = file_index + 1
+    }
+    if failed {
+        program.exit(1)
+    }
 }
 
-func print_tokens(tokens: List<Syntax.Token>) {
+func collect_spite_files(named: String, files: List<String>) {
+    var path = without_trailing_slashes(named)
+    var folder = Directory(path)
+    if not folder.exists() {
+        files.append(path)
+        return
+    }
+    var names = folder.files()
     var index = 0
-    while index < tokens.count() {
-        var token = tokens[index]
-        console.print("{token.line}:{token.column} {token.kind_text()} '{token.lexeme}'")
+    while index < names.count() {
+        if names[index].ends_with(".spite") {
+            files.append("{path}/{names[index]}")
+        }
         index = index + 1
     }
+    var folders = folder.folders()
+    var folder_index = 0
+    while folder_index < folders.count() {
+        if folders[folder_index] != ".spite-cache" {
+            collect_spite_files("{path}/{folders[folder_index]}", files)
+        }
+        folder_index = folder_index + 1
+    }
+}
+
+func formatted_file(path: String, only_check: Bool): Bool {
+    var content = File(path).read()
+    if not content {
+        console.error("error: could not read '{path}'")
+        return false
+    }
+    crash content
+    var formatter = Syntax.Formatter()
+    var formatted = formatter.format(content)
+    if not formatted {
+        console.error("{path}: not formatted: {formatter.refusal}")
+        return false
+    }
+    crash formatted
+    if formatted == content {
+        return true
+    }
+    if only_check {
+        console.print(path)
+        return false
+    }
+    if not File(path).write(formatted) {
+        console.error("error: could not write '{path}'")
+        return false
+    }
+    console.error("formatted {path}")
+    return true
 }
 
 func port_number(text: String): Int {

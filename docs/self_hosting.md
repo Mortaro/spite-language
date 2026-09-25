@@ -10,12 +10,14 @@ C -- a fixpoint.
 
 ```
 cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite
-./spite bootstrap/spite_compiler.spite --mode=c > next.c    # equal to the committed seed
+./spite bootstrap --c_source --run=false    # writes bootstrap/bootstrap.c, equal to the committed seed
 ```
 
 So the only thing needed to build Spite from nothing is a C compiler. The seed is committed, and `check.sh` says
 when it has drifted from the sources (`bash check.sh --update-seed` refreshes it after an intended change). The
-compiler's entry is named by its file, `bootstrap/spite_compiler.spite`, since its folder is not named after it.
+compiler is a program like any other, named by its folder: `bootstrap/`, whose entry is `bootstrap/bootstrap.spite`
+(class `Bootstrap`). Its C goes to the default place beside it because every `Build` field is a constant in what
+is built: a `--c_path` naming some other file would be written into the C, and the next generation would differ.
 
 ## What proves it
 
@@ -44,7 +46,7 @@ launcher/launcher.spite          loads the standard library, the target system's
 library/                         the standard library, in Spite: String, List, the numbers, File, Json, ...
 library/spite/                   reflection: Spite.Class, Spite.Function and the rest
 library/windows|linux|mac/       what each operating system does differently, as reopened classes
-bootstrap/spite_compiler.spite   the compiler's entry class
+bootstrap/bootstrap.spite        the compiler's entry class, Bootstrap
 bootstrap/source/syntax/         lexer, parser, syntax tree, formatter
 bootstrap/source/discovery/      finding classes, following loads, merging reopened classes
 bootstrap/source/analysis/       types, classes, functions, templates

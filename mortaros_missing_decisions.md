@@ -6,15 +6,6 @@ manual argues it.
 
 ## Open questions still open in manual.md
 
-2. **Open question 15: whether `while` goes.** Proposal: the index loop over a list (199 of 259 loops) becomes an
-   error naming the member template; `while` stays for loops over state.
-   D94 review: [mortaros_review_while_and_else_if.md](mortaros_review_while_and_else_if.md). Of 472 loops, 31 are
-   replaceable today and the exact-shape rule there catches about 10; most index loops pass the element to a
-   function of the caller, which no template expresses.
-3. **Open question 20: whether a nested `if`/`else` is an error.** Proposal: an `if` with an `else` inside a
-   branch of another `if` with an `else` is an error naming "extract a function".
-   D94 review: [mortaros_review_while_and_else_if.md](mortaros_review_while_and_else_if.md), section 3 (16 cases,
-   with the `else if` chains and a proposed `switch` over an enum).
 5. **Open question 16: two versions of one dependency.** Needs D38 (git dependencies) first.
 6. **Open questions 1, 3, 6, 8, 9, 10, 11**, the older ones: `= null` on a generic field, right-to-left casting
    in comparisons, `_` meaning private and unused, an unrelated `get_x()` intercepting `.x`, `${` in text,
@@ -22,11 +13,6 @@ manual argues it.
 
 ## Proposals built and waiting for a yes or no
 
-7. **D77, the five interpretations** (manual section 12): the rule covers constructor calls too; any call
-   anywhere inside an argument counts; text holes are not arguments; calls moved out of `while` conditions and
-   the right of `and`/`or` only where harmless; a hoisted variable may reuse the function's name
-   (`var file_stem = file_stem(path)`).
-8. **D78's narrow form**: only a call with arguments, in every branch, at the start of the branches, counts.
 9. **The floor** (section 15, "The floor, named"): what stays C, and D82's form for showing it in
    `--final_classes`.
 10. **Rows marked "(proposed by Claude, unconfirmed)"** in the decision log from 2026-09-23 and 2026-09-24:
@@ -35,26 +21,8 @@ manual argues it.
     D86, and spelled `operating_system` now), the containers row, and the D91/D105 rows (a `List` template's symbol names the element's member;
     how a chain fuses).
 
-## From the remote REPL
-
-11. **D37 drain points, as built.** The remote REPL's commands are answered on the program's thread at its waits
-    (manual section 14, "Answered where the program waits"). Confirm the compile error's rule: a `--repl_port`
-    build is rejected when none of the program's own code waits and it has a `while` loop -- which also rejects
-    a loop that does end.
-## Variadic arguments
-
-14. **Whether a generic line can name a constraint**, `generic $sub_type: Openable` (open question 12's own
-    proposal). D87 decided the lines and not this half.
-
 ## From hidden async/await (D99, D103)
 
-16. **The mechanism: stackful fibers plus a helper thread per blocking call**, chosen over a state-machine
-    transform and over threads for everything (the decision-log row argues it). Built on Windows; the Linux and
-    macOS folders (`makecontext`/`swapcontext`) are only compiled.
-17. **What a `Parallel` function may touch.** Nothing is checked yet, and with reference-counted fields a race can
-    free a value another thread is reading. Options: D35's syntactic rule (it reaches only its own instance and its
-    locals, which rejects `Parallel(file.read)` because `File` reaches `Memory` and its library through fields);
-    that rule with singletons allowed; or running a `Parallel` on a deep copy of its instance.
 18. **Inferring codegen values from constructor arguments** (`Concurrent(file.read)` without `<String?>`), which
     D35's own example needs and D9 did not foresee.
 ## What the standard library offers
@@ -294,19 +262,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     syntax but only covers the self-reference case, and a name then means different things in different files.
     Nothing is built; which, if either?
 
-## From the binary format ports (PSD, zstd, .blend)
-
-106. **Does a call between a check and a read undo a proven `list[...]`?** `crash glyphs[code - 32]` now proves
-    `glyphs[code - 32]` like `glyphs[index]`, and assigning `code` or `glyphs` undoes it. A call in between does
-    not, for either form, although a call could change a field the index reads or clear a list held in a field;
-    the read still checks its bounds, so the cost is a default value, not memory. Keep it, or should a call
-    undo every proven read whose list or index is a field?
-107. **Does a function still need the C-reserved list?** Every function's C name is joined to its class's with
-    `___`, so `func short()` would compile as `Class___short`, yet it is still rejected with `int`, `static` and
-    the rest, because variables and parameters keep their names in C. The error now lists all 31 names. Should a
-    function (and an attribute, which is a struct member) be allowed any of them, leaving the list to locals and
-    parameters only?
-
 ## From SlopEngine adopting D114-D116
 
 108. **Passing a template's symbol to a helper** (proposed by Claude, unconfirmed; manual section 8). A function
@@ -329,28 +284,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
      compiler -- which functions it calls (`Spawn`, `Insert`, `Remove`), which singletons it touches -- as a
      compile-time reflection like D114's (`function.calls(Spawn)`, or the singletons a function reaches). Wanted?
 
-## Zero hidden code (D147)
-
-113. **How Spite names the operations the machine does directly** (reading and writing the value at an address,
-     atomics), so `Memory`'s functions get real Spite bodies and a later backend can replace C. Every language
-     bottoms out here (Zig's `@builtins`, Rust's intrinsics); the choice is only how they are spelled and where
-     they live. Options to react to: (a) a reserved namespace of operations, `Spite.Machine.read_byte(address)`,
-     declared in one library file the backend implements; (b) operators on a pointer-like value type,
-     `address.byte_at(offset)`, where `Address` is a number class whose members the backend lowers; (c) something
-     you have in mind. The rest of the floor (allocation, copying, comparing, loading libraries) becomes plain Spite
-     calling the platform's library through `DynamicLibrary`.
-     *Mortaro (2026-09-25):* likes `Address` only if "the code you see is what you get"; otherwise prefers what the OS
-     offers through `DynamicLibrary`, and needs convincing with limitations and downsides. *Claude's case:* the OS
-     offers memory pages (`VirtualAlloc`/`mmap`), so allocation, freeing, copying and loading libraries can all be
-     visible Spite calling the OS -- at the cost of writing our own small-object allocator in Spite on top of pages.
-     No OS offers "the byte at this address": that is one CPU load instruction. Doing it through a DLL call
-     (`RtlMoveMemory`/`memcpy` per read) works but costs a call per access with no inlining, roughly 5-20x slower
-     on memory-heavy code (zstd, ECS loops, text). `address.byte_at(offset)` is a language primitive in the same
-     sense as `+` on two integers -- one instruction, nothing below it -- that each backend lowers; downsides: it can
-     read a wrong address (so `library/` only), and every backend must implement ~10-15 such operations.
-     Recommendation: OS for pages, libraries and files (with a Spite allocator); `Address` only for loads, stores and
-     atomics.
-
 ## From D127 (dates, times and time zones; manual section 15, `docs/time.md`)
 
 All of it is proposed by Claude, unconfirmed.
@@ -363,21 +296,88 @@ All of it is proposed by Claude, unconfirmed.
 121. **Reading text is lenient where RFC 3339 is**: `t` or a space for `T`, `z` for `Z`, `,` before a fraction, a
      leap second read as the second before it, and an RFC 9557 `[zone]` after an offset read and ignored. Writing
      is always the one form. Stricter instead?
-122. **`far` and `near` are not in the C-reserved list**, but `windows.h` defines them as macros, so a local named
-     `far` compiled to broken C (found writing `calendar_math`). Add them, and whatever else `windows.h` defines
-     in lower case, to the list item 107 is about?
+## Outputs and paths (D128, D129, D130)
 
-## From SlopEngine's system phases (D116)
+134. **How outputs are chosen.** Built as `Bool` fields of `Build` -- `run` (default `true`), `executable`,
+     `c_source`, `format` (default `true`) -- plus `final_classes` as a folder (proposed by Claude, unconfirmed).
+     Because `run` defaults to `true`, asking for another output also runs the program unless `--run=false` is
+     given: `spite game --c_source --run=false` for the C alone. The alternatives: a program that names any output
+     on the command line gets only the outputs it named (shorter, but a flag then changes another flag's default),
+     or one list field, `--outputs=executable,c_source`. Keep the `Bool`s?
+135. **`target_operating_system` in a program's `build.spite`.** It is still read from the flag alone, because the
+     launcher needs it to pick `library/<system>/` before the rest of the program is read; a program that reopens it
+     is silently overridden today. Make that reopening an error, or read the program twice (once to find `Build`,
+     once with the right library folder)?
+136. **Where a run's executable goes.** With no flag it is built beside the program (`game/game.exe`, and
+     `game.crashes`), which D129's "build to the same folder" reads as, so every run leaves those two files in the
+     program's folder (`.gitignore` now ignores `*.crashes`). The one intermediate, the C compiled when `--c_source`
+     is off, goes to the language repository's `.spite-cache/<name>.c`. Should a plain run (no `--executable`)
+     build into the cache instead and leave the program's folder untouched? A `--hot_reload` build beside its program
+     also puts its reload libraries in the folder the watcher watches, so each reload wakes it once more.
+137. **`--mode=tokens` and `--mode=tree` are gone** rather than made outputs: nothing used them, and a `.spite` file
+     can no longer be named. Bring them back as outputs (`--tokens`, `--tree`, printing every program file)?
+138. **Two ways to format?** A compile formats the program's files (`format`, an output), and `spite format <path>`
+     formats files that need not be a program -- `library/`, which no program's compile formats. Keep both, or
+     make formatting the library the job of compiling `bootstrap` (which loads it)?
 
-123. **Limiting a name pattern to a known set.** SlopEngine's private helpers `interact_all(...)` and `drag_all(...)`
-     were matched by `Symbol<$system_type.phase_all>` as phases called "interact" and "drag", with errors far from the
-     cause. Options: let a pattern's hole be constrained to a list the engine owns (`phase` must be one of
-     `App.phases`), so a non-phase `_all` function stays ordinary; or make a function that fits a walked pattern but
-     is not meant as one an error at its declaration; or leave naming discipline to the program.
+## File watching in the standard library (Mortaro's request via SlopEngine)
 
-## SlopEngine's entity API (D123, D124)
+141. **A file watcher for everyone** -- "the cook needs to constantly get informed of changes on the psd to rerun the
+     recipe if the psd change and update any textures that use it ingame. but spite hotreload also needs to watch
+     over files, so a way to watch files makes sense to be part of standard library." Proposal (spelling open):
+     `var watcher = FileWatcher()` (or `Directory.Watcher`), `watcher.watch("assets/ui")` or `watch_file(path)`, and
+     `watcher.changes()`, which never blocks and returns the paths changed since the last call, settled (bursts
+     coalesced). The operating system does the waiting (`ReadDirectoryChangesW`, `inotify`, `kqueue`), with no
+     polling; `HotReload` becomes its first user and SlopEngine's cooker the second. Tree-shaken when unused (D177).
+     Name: `FileWatcher` or `Directory.Watcher`?
 
-128. **A codegen value in a class test** (proposed by Claude, unconfirmed): `item == $wanted_type` folds to
-     `false` rather than D75's "never true" error when the value's union cannot hold the bound class, since a
-     generic class cannot avoid that for every binding. Item 44's question (should a class object's `.functions` be
-     bound to an instance at all) remains; its visible symptom, the extra member of `.instances`, is gone.
+## From building D143 (inspectable and production builds; manual sections 8 and 13)
+
+142. **Which builds are "production"?** D143 says internals are hidden "at optimized production builds" and
+     ordinary in `--repl`, `--repl_port`, `--hot_reload` and `--development` builds. Built (proposed by Claude,
+     unconfirmed): every build that is not one of those four is production, the plain `spite program` included, so
+     an ordinary build keeps the static singletons and the tree shaker it had; `--optimized --repl` is inspectable.
+     Only tree shaking and static singletons count as hiding an internal; fused chains, placement and text appended
+     in place stay on in every build, since they change speed rather than what reflection sees. Keep that, or should
+     a plain build be inspectable too, leaving hiding to `--optimized` alone (every ordinary build then allocates
+     `Memory` and `Build` and carries unshaken C)?
+
+## From D134 and D135 (the thread pool and join on first use; manual section 15, `docs/concurrency.md`)
+
+All of it is proposed by Claude, unconfirmed.
+
+143. **Where a handle becomes its value.** Everywhere a `T` is expected (typed `var`, argument, `return`,
+     operand, text, a member the handle lacks, a condition) the compiler reads the value; an untyped `var` keeps
+     the handle, and `finished` is the handle's own. `wait()` and `join()` are removed rather than kept as an
+     explicit form. Two consequences to confirm: `a == b` on two handles compares their values, and there is no
+     way to compare the handles themselves; a `Concurrent<Nothing>`/`Parallel<Nothing>` is only waited for by
+     dropping it (SlopEngine's `running[index].join()` becomes `running.clear()`, or leaving the function).
+144. **`ThreadPool` as a visible singleton**, with `size()` and `worker_index()`. The name says what it is; it
+     could instead stay hidden behind `Parallel`. Workers are one per core but one (the program's thread keeps
+     one), started by the first `Parallel`, first in first out. Waiting for a job no worker has started runs it on
+     the waiting thread. Is cores-minus-one right for the engine, or should it be every core?
+145. **A `Parallel` costs about two dozen allocations**, almost all of them the two `Spite.Function` values (each
+     is its own reflection object, D39, with a list of `Spite.Argument`s). Making a function value's reflection
+     lazy would cut that to a handful; worth doing for every callback, not only here?
+146. **`finished` on a `Concurrent` does not run anything.** It reads the flag; the fiber only progresses when the
+     program waits somewhere (`program.sleep(1)` in a polling loop). It could instead let ready fibers run once,
+     which would make it a wait point in the D37 sense. Keep it a plain read?
+147. **`ThreadLocal<T>`, `Lock` and `ThreadSlot`**: the names, `while_locked(function)` as the main way to hold a
+     lock (with `lock()`/`unlock()` kept), and a `ThreadLocal` keeping every thread's value until it is itself
+     dropped (no per-thread destructor). A lock that is not reentrant crashes nothing: taking it twice on one
+     thread deadlocks. Should a second `lock()` on the same thread be a crash instead?
+148. **`parallel_each_`'s rule** (D35 as built): plain-value attributes, library singletons and locals only;
+     `filter_` steps allowed, `map_` refused; a list of a `type` refused. Is refusing `List<Particle>` members that
+     own a list of their own (`trail.append(...)`) too strict for the engine? The honest alternative is an
+     ownership marker on the attribute, which is new syntax.
+149. **Reads in a row overlap only among themselves**, and only `File.read`/`Socket.read_line` into a fresh
+     untyped name. Should a read also overlap the statements after it until its name is used, which is faster but
+     needs the compiler to prove those statements do not touch the file?
+150. **`File`'s byte functions**: the names, positions instead of an open handle with a cursor, and each call
+     opening the file. A `File.Reader` with its own position and `drop()` closing it would suit record-by-record
+     scanning; wanted?
+151. **D174's check point** is a call per pass (thread check, two atomic loads). A C-level flag that the REPL's
+     thread sets would make it one load; worth the extra hidden code (D147)?
+152. **D183 as built locks every call** to a program singleton that can change, from any thread, in a program that
+     uses `Parallel`, not only the calls a `Parallel` makes: telling them apart needs a walk of everything a
+     `Parallel` can reach. Acceptable as the fallback until D184, or should that walk come first?

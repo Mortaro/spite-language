@@ -1,0 +1,16 @@
+var console = Console()
+var memory = Memory()
+var build = Build()
+
+func DevelopmentInternals() {
+    var address = memory.allocate_bytes(8)
+    memory.write_long(address, 0, 42)
+    var stored = memory.read_long(address, 0)
+    memory.free(address)
+    console.print("stored:", stored)
+    var memories = Memory.instances.count()
+    console.print("Memory objects:", memories)
+    var builds = Build.instances.count()
+    console.print("Build objects:", builds)
+    console.print("development build:", build.development)
+}

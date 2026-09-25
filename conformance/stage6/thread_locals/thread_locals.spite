@@ -1,0 +1,56 @@
+var console = Console()
+var pool = ThreadPool()
+var names = ThreadLocal<String>()
+var counter_lock = Lock()
+var counted = 0
+
+func ThreadLocals() {
+    var main_name = own_name()
+    names.set(main_name)
+    var runs = List<Parallel<Bool>>()
+    var index = 0
+    while index < 200 {
+        runs.append(Parallel(keeps_own_name))
+        index = index + 1
+    }
+    var every_one = true
+    index = 0
+    while index < runs.count() {
+        var kept: Bool = runs.get_at(index)
+        every_one = every_one and kept
+        index = index + 1
+    }
+    console.print("every run saw only its own thread's value:", every_one)
+    var still = names.get()
+    crash still
+    console.print("the main thread still reads", still)
+    console.print("counted under the lock:", counted)
+    var fresh = ThreadLocal<Int>()
+    var unset = fresh.get()
+    if unset {
+        console.print("a new ThreadLocal already has", unset)
+    } else {
+        console.print("a new ThreadLocal is empty on every thread")
+    }
+}
+
+func own_name(): String {
+    var worker = pool.worker_index()
+    return "thread {worker}"
+}
+
+func keeps_own_name(): Bool {
+    var mine = own_name()
+    var existing = names.get()
+    if not existing {
+        names.set(mine)
+    }
+    counter_lock.while_locked(count_one)
+    var seen = names.get()
+    crash seen
+    return seen == mine
+}
+
+func count_one() {
+    counted = counted + 1
+}

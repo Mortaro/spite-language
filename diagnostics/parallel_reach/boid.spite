@@ -1,0 +1,17 @@
+var speed = 1
+var leader: Boid? = null
+var trail = List<Int>()
+
+func follow() {
+    assert leader
+    speed = leader.speed
+}
+
+func flock() {
+    speed = speed + 1
+    remember()
+}
+
+func remember() {
+    trail.append(speed)
+}

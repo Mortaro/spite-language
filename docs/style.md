@@ -6,8 +6,9 @@ a rule off. What cannot be rewritten safely -- a name, a structure -- is an erro
 
 ## What the formatter rewrites
 
-Every compile formats the program's own files first, printing `formatted <path>` for each one it changed
-(`--format=false` skips it, and `spite format` runs it alone -- [compiler.md](compiler.md#formatting)):
+Every compile formats the program's own files, printing `formatted <path>` for each one it changed, and then reads
+the program again, so what it compiles is the formatted file. Nothing turns this off; `spite format` runs it alone
+on files, without compiling them -- [compiler.md](compiler.md#formatting):
 
 - 4 spaces per level, never a tab; no trailing whitespace; one line break at the end of the file.
 - K&R braces: `func name() {`, `} else {`, `} else if other {`. An empty body is `{ }`.

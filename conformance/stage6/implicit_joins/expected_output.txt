@@ -1,0 +1,9 @@
+hello
+HELLO 5
+4 and interpolated: 3
+6 6
+hello 3
+nobody was found
+found Ada with 3 letters
+crash proved Ada
+ready is a Bool

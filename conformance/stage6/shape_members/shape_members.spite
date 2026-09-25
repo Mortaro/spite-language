@@ -25,9 +25,13 @@ func ShapeMembers() {
 
 func run_first(stages: List<Runnable>) {
     assert stages[0]
-    var work = Parallel(stages[0].run_once)
-    work.wait()
+    run_in_parallel(stages[0])
     var labelled = stages[0].label
     var text = labelled()
     console.print(text, stages[0].name)
+}
+
+func run_in_parallel(stage: Runnable) {
+    var running = List<Parallel<Nothing>>()
+    running.append(Parallel(stage.run_once))
 }

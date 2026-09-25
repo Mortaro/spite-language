@@ -751,6 +751,13 @@ assert firing is routine control flow -- thousands an hour on a server -- and on
 would come from unrelated requests, reading as a causal chain that does not exist. A per-site count covers them
 instead, which is one increment and never consumes the buffer.
 
+D189: **an `assert` in `library/` never enters the trace.** The trace explains how *the program* reached a crash,
+and the standard library's asserts are routine answers (a missing key, text that does not match, a read past the
+end) that fire constantly and would push the program's own entries out of the ring. The compiler leaves the ring
+write out of every `assert` site whose file is in `library/`, so a library guard costs what an `if` costs; the
+program's own files and every `load`ed package keep recording, and a crash inside the library still reports its
+own site (`conformance/stage5/library_guards_untraced`).
+
 D32: **a crash site is identified by a compile-time id, and the compiler emits an id-to-source map as a build
 artifact** rather than embedding the information in the program. The binary carries none of it, which matters
 most in a wasm module where size is startup time, and **the same logical site keeps the same id across every
@@ -1333,6 +1340,10 @@ the default `Spite.Class` declares; what follows still holds for the line.
   starts threads, the first fetch of a singleton takes a lock of its own, checks again and makes it; every later
   fetch is still one load. Two `Parallel` threads first touching `Shelf<Int>()` made it twice before, and one
   copy leaked (`conformance/stage6/singleton_race`). A program with no threads keeps the plain check.
+- **A singleton that holds nothing** -- no attributes but settings the compiler folds, and no `drop()`, such as
+  `Memory`, `Build` and `TypedMemory<T>` -- is one static object in a production build and an ordinary singleton
+  in an inspectable one (D143, section 13). There it may be made again if something destroyed after it at exit
+  asks for it, since it has nothing to lose (proposed by Claude, unconfirmed).
 - **Standard library:** `Console`, `Program` and `DynamicLibrary` are singletons. `File`, `Directory` and
   `Process` are not -- they are values (a path, a spawned command), and several may exist at once.
 - A later root reopening the class (section 11) may not disagree about it; that is a diagnostic. Reopening
@@ -1677,8 +1688,10 @@ var sword = Weapon<Magic, true>(10)
   `func Weapon<$damage_type, $is_magic>(...)`: the message lists the `generic` lines to write
   (`diagnostics/constructor_codegen_list`). A `generic` line inside a function is an error too.
 
-Conditions on codegen values are decided at compile time and the untaken branch is removed (tree shaking).
-In development mode they are kept as runtime values so live reload can change them.
+Conditions on codegen values are decided at compile time and the untaken branch is removed (tree shaking), in
+every build, `--development` and `--hot_reload` included (settled 2026-09-25 by keeping what was built): a
+codegen value is part of which class this is -- `Weapon<Magic, true>` and `Weapon<Magic, false>` are two classes --
+so there is no run-time value for live reload to change. To change one, change the call site.
 
 **Asking what type a generic was given** (proposed by Claude, unconfirmed; built for D95's `Json`, 2026-09-24).
 **[implemented]** When a codegen value is a type, `$value_type == String` is decided at compile time like any
@@ -1817,12 +1830,16 @@ is how it is built (proposed by Claude, unconfirmed, except where a decision is 
   Either way the value is written into the program: `build.serve` compiles to `true`, a condition on it is decided
   while compiling, the branch not taken is never generated, and nothing is read when the program runs. The field
   still exists on the `Build` singleton with that value, for reflection.
-- **The compiler's options are fields.** `mode`, `output`, `optimized`, `development`, `repl`, `repl_port`,
-  `format`, `debug_memory` and `final_classes` (the flag names follow the fields: `--final_classes=folder`,
-  `--repl_port=4000`, `--format=false`). The compiler reads them from the program's resolved `Build`, so a program
-  whose `build.spite` says `var optimized = true` is built optimized unless `--optimized=false` is given. `mode`
-  and `format` are the exceptions: the compiler needs them before it has read the program (to format its files,
-  or to run `format`, `tokens` or `tree` on one file), so only the flag changes them.
+- **The compiler's options are fields.** The outputs `run`, `executable`, `c_source` and
+  `final_classes`, the paths `executable_path` and `c_path`, and `optimized`, `development`, `repl`, `repl_port`,
+  `hot_reload` and `debug_memory` (the flag names follow the fields: `--final_classes=folder`,
+  `--repl_port=4000`). Formatting is not one of them: every compile formats first and nothing turns it off
+  (D190), so `--format` and a `format` field in a program's `build.spite` are compile errors. The compiler reads
+  them from the program's resolved `Build`, so a program
+  whose `build.spite` says `var optimized = true` is built optimized unless `--optimized=false` is given. Since
+  D128 no option is read before the program is, so there is no exception for `mode` any more (`mode`
+  is gone: section 13); only `target_operating_system`, which says which library folder is part of the program,
+  comes from the flag alone.
 - **A `Bool` may be given bare**: `--optimized` is `--optimized=true`. Any other bare flag is an error naming the
   value it needs.
 - **Nothing passes silently.** A value that is not of the field's type is a compile error
@@ -2023,8 +2040,8 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
 Decided by Mortaro: "the compiler is the linter and the formatter. Style is
 arbitrary, it is Mortaro's taste, and it is the only way. The compiler rewrites source files to the one true
 style automatically instead of complaining." He left the specifics open, so every concrete rule below
-is **(proposed by Claude, unconfirmed)** except where noted -- revisit any of them on request. `--format=false`
-and `spite format` are documented in [Command line](#13-command-line); the naming/abbreviation lints that
+is **(proposed by Claude, unconfirmed)** except where noted -- revisit any of them on request. Formatting on
+every compile and `spite format` are documented in [Command line](#13-command-line); the naming/abbreviation lints that
 cannot be auto-fixed are their own subsection below.
 
 <a id="one-call-per-line-and-nothing-said-twice--planned"></a>
@@ -2087,7 +2104,7 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
 - A `<...>` list holding a single named codegen value is rewritten to the positional form (section 9), so
   there is one way to write each call.
 - **Implemented by the Spite compiler (2026-09-23)**, as `bin/spite format [--check] <file-or-folder>` (the
-  compiler's `--mode=format` and `--mode=check_format`), and `check.sh` requires every file outside
+  compiler's own `format` command since D128), and `check.sh` requires every file outside
   `diagnostics/` to be formatted already. What it does today: 4-space indentation, one space around binary
   operators, the minimum parentheses (a receiver that is an operation always keeps them), `else if` on one line,
   a switch case with one short statement on its own line, a call or a signature wider than 120 columns broken
@@ -2095,10 +2112,12 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   top-level link comments (the only comments D34 allows) kept before the declaration they preceded, and the
   blank-line rule for grouped `var`s. **Safety check:** the formatted text must lex, parse, print to the same
   fully-parenthesised program as the original, and keep every comment, or the file is left alone and the reason
-  printed. **Every compile formats** the entry folder's files and every `load()`ed root as discovery reads
-  them (not `library/`), printing `formatted <path>` for each file it rewrote; `--format=false` skips it. A file
+  printed. **Every compile formats** the entry folder's files and every `load()`ed root once the whole program is
+  read (not `library/`), printing `formatted <path>` for each file it rewrote and reading the program again when one
+  was; nothing turns it off (D190). A file
   whose function body has an empty line is left alone, so D55's error still fires instead of the formatter
-  quietly removing the line; a file the formatter refuses is left alone with its reason printed.
+  quietly removing the line; a file the formatter refuses is left alone with its reason, as an error that stops
+  the compile, so a program is never compiled from text that is not in the one style.
   `--final_classes` writes its classes already formatted. A list or object literal over 120 columns is written
   one entry per line with no commas. Every documentation program not marked `error` is formatted too, and `check.sh`
   keeps it so.
@@ -2246,9 +2265,12 @@ gives an error, nothing is left to the user's taste. The only printout that used
 ## 13. Command line
 
 ```
-spite program                         build and run the program in the folder program/ (section 3)
+spite program                         build program/program.exe beside the program and run it (section 3)
+spite program --c_source              also write program/program.c (--c_path=path puts it elsewhere)
+spite program --executable --run=false   build without running (--executable_path=path puts it elsewhere)
+spite program --run=false             compile the whole program and write nothing
 spite program --optimized             optimized build
-spite program --development           keep everything (no tree shaking), for live reload
+spite program --development           an inspectable build: no tree shaking, internals as ordinary objects (D143)
 spite program --hot_reload            swap changed classes into the running program (implies --development)
 spite program --repl                  run with an in-place REPL
 spite program --repl_port=4000        run with a remote REPL an AI can connect to, to explore memory and debug
@@ -2258,17 +2280,52 @@ spite program --final_classes=folder  write the final class folder
 spite connect 4000                    talk to a running --repl_port program (see section 14)
 spite connect 4000 --command="..."    send one REPL command, print its raw JSON response line, and exit
 spite program -- ada --player=x       run it, passing everything after -- to the program's Arguments
-spite program --format=false          skip the automatic formatting pass below
-spite program --mode=c --target_operating_system=linux   write the C for another system (sections 9 and 11)
-spite format <file-or-folder>         format without compiling (recursive on a folder)
-spite format --check <path>           rewrite nothing; exit 1 listing (to stdout) every file that would change
+spite program --c_source --run=false --target_operating_system=linux   write the C for another system (sections 9 and 11)
+spite format <file-or-folder> ...     format files without compiling (recursive on a folder)
+spite format --check <path> ...       rewrite nothing; exit 1 listing (to stdout) every file that would change
+spite reload program ... --executable_path=<running>   what a --hot_reload program runs to rebuild itself
 ```
 
-Flags mix freely (a production build may keep the REPL). Building and running are the same command. Every flag
-is a field of `Build` (section 9), and a program is named by its folder (D89); a path to a `.spite` file still
-names its file as the entry (proposed by Claude, unconfirmed), which the compiler needs for itself --
-`bootstrap/spite_compiler.spite` is not named after its folder -- and which `--mode=format` uses to name one
-file.
+**Inspectable and production builds** (D143, decided by Mortaro; the readings below proposed by Claude,
+unconfirmed; implemented 2026-09-25). A build with `--development`, `--hot_reload`, `--repl` or `--repl_port` is
+*inspectable*: nothing is tree-shaken, and the singletons that hold nothing (`Memory`, `Build`, `TypedMemory<T>`,
+section 8) are ordinary objects -- allocated at first use, listed by `.instances`, destroyed at exit -- so the REPL
+and reflection see the internals as normal classes. Every other build, the ordinary one included and not only
+`--optimized`, is a *production* build, where those singletons are static objects and everything unused is
+tree-shaken. The optimisations that change only speed (chains as one loop, placement, text appended in place)
+apply in both; `docs/optimizations.md` says which build each optimisation applies in
+(`conformance/stage6/development_internals`).
+
+Flags mix freely (an `--optimized` build may keep the REPL, and is then inspectable). Building and running are
+the same command. Every flag is a field of `Build` (section 9), and a program is named only by its folder (D89,
+D130): a path to a `.spite` file is an error naming the folder form, and the compiler compiles itself as `spite bootstrap`, whose entry is
+`bootstrap/bootstrap.spite`, class `Bootstrap`.
+
+**The whole program first, then the outputs** (D128, D129; the spelling below proposed by Claude, unconfirmed;
+implemented 2026-09-25). The compiler reads the launcher, the library, the program's folder, its `build.spite` and
+every `load` before it reads any option, and then decides what to produce from the program's resolved `Build`,
+so a program's own `build.spite` can set every option. The one exception is `target_operating_system`, which the
+launcher needs to know which folder of `library/` belongs to the program, so it is read from the flag alone. The
+outputs are `Bool` fields, and every one that is on comes from the same compile: `run` (default `true`: build the
+executable and run it), `executable` (build it without running), `c_source` (write the C), and `final_classes`, which stays the folder to write to
+(`""` is off), since any folder inside the program would be read back as part of it. With every output off the
+compiler still compiles the whole program and reports its errors. Tree shaking and every other whole-program
+step run before any output is written.
+
+- **Where outputs go** (D129): `executable_path` and `c_path`, each `""` by default, which means beside the
+  program: `game/game.exe` (`game/game` for Linux and macOS) and `game/game.c`. A path option given on the
+  command line for an output that is off is an error naming the missing flag. What describes an executable stays
+  beside it wherever it goes: the `.crashes` map (section 6) and a `--hot_reload` build's `.reload_host`,
+  `.reload_files` and `_reload_<n>` libraries. The one intermediate is the C the C compiler reads when `c_source`
+  is off, written to the language repository's `.spite-cache/<name>.c`.
+- **Formatting is an output** (D128): after the whole program is read, a file of the program whose formatted text
+  differs is rewritten, and if any was, the program is read again from disk before anything else is produced, so
+  what is compiled -- and every line an error names -- is the formatted file.
+- **The compiler's own C goes to its default path**, `bootstrap/bootstrap.c`: every `Build` field is a constant in
+  what is built, so a `--c_path` naming a different file each run would be written into the C and the fixpoint
+  would never hold.
+- `--mode`, `--output`, `--mode=tokens`, `--mode=tree` and the `.spite`-file forms of `--mode=format` are gone;
+  `spite format` formats files itself, and `spite reload` is a command the running program uses, not an output.
 
 **Where the compiler's flags end** (proposed by Claude, unconfirmed; implemented 2026-09-23): at the first bare
 `--`. Everything after it reaches the program's `Arguments` verbatim -- `arguments.get(0)` is the first,
@@ -2280,25 +2337,28 @@ Before this, a program run by the compiler received no arguments at all (`confor
 from. The compiler finds `launcher/` and `library/` from its own executable -- the first folder above it that
 holds `launcher/launcher.spite` -- and never from the working directory, so `bin/spite` no longer changes
 directory, and a relative path a program opens (`File`, `Directory`, a cache folder) is the caller's. The
-launcher's `load` paths are relative to that folder; the build cache is its `.spite-cache/`, so running a program
-leaves nothing in the caller's folder. Before this, every program ran with the repository as its working
+launcher's `load` paths are relative to that folder, and the executable is built beside the program (D129), so
+running a program leaves nothing in the caller's folder. Before this, every program ran with the repository as its working
 directory (`check.sh` runs `conformance/stage6/working_directory` from another folder).
 
 - Before the `--`, a `--name=value` sets the `Build` field of that name, and one that names no field is an error
   that shows both places a setting can belong -- `build.spite` to decide it while compiling, `environment.spite`
   and `spite program -- --name=value` to read it when the program runs -- so typos never pass silently
   (`diagnostics/unknown_compiler_flag`).
-- **Automatic formatting (milestone 7a).** Every `spite program ...` compile first formats every `.spite`
+- **Automatic formatting (milestone 7a; since D128 an output decided after the whole program is read).** Every
+  `spite program ...` compile formats every `.spite`
   file that belongs to the program -- the entry file's own folder (flat, matching section 11's discovery
   rule), plus every `load(...)`-ed root, recursively -- rewriting a file only when its formatted text differs
-  from what is on disk, atomically (a temporary file plus one rename), and printing `formatted <path>` to
-  stderr for each one. A file with a parse error is left untouched (the ordinary diagnostics still report it);
-  a file the formatter's own safety check refuses to touch (see [Style](#12-style-implemented)) prints an
-  "internal formatter error" instead of being rewritten, without failing the build. `--format=false` skips all of
-  this -- needed by anything that asserts diagnostic positions against a fixture kept deliberately unformatted.
-- `spite format <file-or-folder>` runs the same formatter standalone, without compiling: a file formats just
-  itself, a folder recurses into every `.spite` file under it (no bundle/`load()` awareness -- every file
-  found is formatted, unconditionally). `--check` rewrites nothing and instead lists (to stdout) every file
+  from what is on disk, and printing `formatted <path>` to
+  stderr for each one, then reads the program again when one changed. A file with a parse error is left untouched (the ordinary diagnostics still report it);
+  a file the formatter's own safety check refuses to touch (see [Style](#12-style-implemented)) is left as it is
+  and its reason is printed as an error, which stops the compile. Nothing turns this off (D190, which removed
+  `--format=false` and the `format` field): a test input kept deliberately unformatted, like `diagnostics/`, is
+  compiled from a copy by `check.sh`, so the formatting lands on the copy.
+- `spite format <file-or-folder> ...` runs the same formatter standalone, without compiling, and is a command of
+  the compiler itself (like `spite connect`), not an option: a file formats just
+  itself, a folder recurses into every `.spite` file under it except `.spite-cache/` folders (no bundle/`load()`
+  awareness -- every file found is formatted, unconditionally). `--check` rewrites nothing and instead lists (to stdout) every file
   that would change, exiting 1 if that list is non-empty (0 if the whole tree is already clean).
 
 ## 14. REPL and live reload  **[partial]**
@@ -2311,7 +2371,7 @@ attributes, `functions` its functions with their arguments, `help`, `exit`, and 
 for paths, assignment and calls (`conformance/stage6/interactive_loop`, `conformance/stage6/interactive_paths`):
 `player.weapon.damage`, `program.monsters[1].name`, `player.health = 12` (through `set_health` when the class has
 one), `player.job = 'knight'`, `add(2, 3)`, `monsters[0].roar()`, `monsters.count()`. The emitted `main` hands the
-loop the entry instance as a `Spite.Attribute` named `program` before every command, and `--mode=run` runs the
+loop the entry instance as a `Spite.Attribute` named `program` before every command, and a `run` build runs the
 program attached to the terminal instead of capturing its output. In a `--repl` build a `Spite.Attribute` stays
 linked to the live value it describes, through four functions the compiler supplies (proposed by Claude,
 unconfirmed): `value_attributes()` and `value_functions()` read the value's own attributes and functions (a
@@ -2426,9 +2486,18 @@ will ever unwind back to a clean `main` return, so this does not attempt one).
   The scheduler answers it on the program's thread the next time the program waits -- `program.sleep`,
   `Console.read_line()`, a `File` or `Socket` read or write, a `Concurrent` wait, a `Parallel` join -- so a command
   sees the program between two steps, never in the middle of one, and "data races are accepted" above no longer
-  applies. After the constructor returns, the program waits for nothing but commands. A `--repl_port` build of a
-  program that never waits and has a `while` loop is a compile error naming the loop
-  (`diagnostics/remote_loop_never_waits`); `docs/concurrency.md` replays a frame loop served between frames.
+  applies. After the constructor returns, the program waits for nothing but commands. A program that never waits
+  is answered at its loops' check points (D174, below); `docs/concurrency.md` replays a frame loop served between
+  frames and a busy loop served between passes.
+- **Every loop is a check point in a REPL build** (D174, decided by Mortaro; the mechanism proposed by Claude,
+  unconfirmed).  **[implemented]** In a `--repl_port` or `--hot_reload` build, the generator ends every pass of every
+  `while` in the program's own code (not `library/` or `launcher/`) with a call to `Scheduler.check_point()`, which
+  on the scheduler's thread answers a pending command (the handover flag `answer_pending` already reads) and runs a
+  pending reload. On any other thread -- a `Parallel`, a helper -- it does nothing. A loop that never waits is
+  answered between two passes, so the old compile error for such a loop, and `diagnostics/remote_loop_never_waits`,
+  are gone. A build without those flags has no check point: its C is byte for byte what it was (checked on a busy
+  loop and `examples/dungeon`). `--repl` alone answers after the constructor returns, from the console, so it needs
+  none. The cost where it exists is a call and two atomic loads per pass.
 - **The port is part of the build**, like any flag the compiler folds (D84): `main` listens on it, on the main
   thread, before the constructor runs, so a client that connects any time after the program starts is served. A
   port another program holds stops the program before its constructor with `error: the REPL could not listen on
@@ -2469,8 +2538,8 @@ and `Class.instances`.
   what it rebuilt, and whose `last_reload` answers what the last swap (the watcher's included) did. A build without
   it has no slots, no watcher and no reload code: `reload` answers `'reload' answers in a program built with
   --hot_reload, which swaps its code while it runs, and this one was not`, from a branch folded on the `Build`
-  constant. As with `--repl_port`, a `--hot_reload` build whose code never waits and has a `while` loop is a compile
-  error naming the loop, since the swap happens where the program waits. `spite program --hot_reload` runs the
+  constant. As with `--repl_port`, a `--hot_reload` build swaps where the program waits and at each loop's check
+  point (D174). `spite program --hot_reload` runs the
   program attached to the terminal, like a REPL build.
 - **The swap mechanism: one slot per function.** In a `--hot_reload` build every function of the program's own
   classes (not `library/` or `launcher/`), and each such class's `_init` (its attribute defaults), is written as
@@ -2484,7 +2553,9 @@ and `Class.instances`.
   `<program>.reload_files` holds a generation number and a hash of each of the program's files. The executable
   holds a table of its functions' addresses by name, the path of the compiler that built it and that compiler's
   options, so it must run from the directory it was built from.
-- **Rebuilding: `--mode=reload --output=<program>`.** A reload runs that compiler with those options and this mode.
+- **Rebuilding: `spite reload <folder> <options> --executable_path=<program>`** (a command since D128, when
+  `--mode` went; proposed by Claude, unconfirmed). A reload runs that compiler with those options, less the
+  outputs, and prints its errors to standard output, where the running program reads them.
   It reads the whole program again (milliseconds), with the class ids seeded from the manifest so every class keeps
   the id its instances carry, and compares file hashes: nothing changed answers `unchanged`. The rebuilt set is the
   classes the changed files declare, plus every class whose code calls a function of the set that the running
@@ -2676,14 +2747,16 @@ directory listing and process spawning).
 
 | Class | Members |
 |---|---|
-| `File(path)` | `read(): String?`, `write(text): Bool`, `append(text): Bool`, `exists(): Bool`, `remove(): Bool` |
+| `File(path)` | `read(): String?`, `write(text): Bool`, `append(text): Bool`, `exists(): Bool`, `remove(): Bool`; bytes (names proposed by Claude, unconfirmed): `size(): Long?`, `modified(): Instant?` (the last write, from `GetFileAttributesExA` or `stat`), `read_bytes(position, count, address): Long?` (how many were read, from any position), `write_bytes(address, count): Bool`, `append_bytes(address, count): Long?` (where they start) -- `null` when the file cannot be opened; each call opens and closes the file; `_fseeki64`/`_ftelli64` on Windows so a position past 2 GB works; `write_from` joins `read_into` among the waiting calls |
 | `Directory(path)` | `path: String`, `entries(): List<Directory.Entry>` (D93: every folder and file inside it, as `Directory` and `File` values whose `path` is joined to this one -- see below), `files(): List<String>` (names, sorted), `folders(): List<String>` (sorted), `exists(): Bool`, `create(): Bool` |
 | `Process(command, arguments)` | `run(): Int` (exit code; `arguments` is a `List<String>`, each shell-quoted), `output(): String` (stdout+stderr merged, valid after `run()`) |
 | `Program()` | `exit(code)`: exits the process immediately with `code` |
 | `Clock()` | a singleton (names proposed by Claude, unconfirmed, 2026-09-24): `elapsed_nanoseconds(): Long` and `elapsed_milliseconds(): Long` from a monotonic clock with an arbitrary start, for measuring; `now(): Instant`, the wall clock as an exact instant (D127, [Time](#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed); it replaced `unix_milliseconds(): Long`). `library/clock.spite` with each system's reading in `library/windows|linux|mac/clock.spite` (`QueryPerformanceCounter`/`GetSystemTimeAsFileTime`, `clock_gettime`) |
 | `Console()` | `print(...values)`, `write(...values)`, `error(...values)`, `flush()`, `read_line(): String?` -- see below |
 | `Socket()` (proposed by Claude, unconfirmed) | `listen_locally(port): Bool`, `accept_client(): Socket?`, `connect_locally(port): Bool`, `read_line(): String?`, `write_line(text): Bool`, `close()` -- TCP on `127.0.0.1` only, which `--repl_port` and `spite connect` use (section 14) |
-| `Concurrent(function)`, `Parallel(function)` (proposed by Claude, unconfirmed) | `wait()`: what the function returned; dropping the handle waits for it -- see "Concurrency" below |
+| `Concurrent(function)`, `Parallel(function)` (names decided, D133) | the handle stands in for what the function returned, and reading it is the wait (D134); `finished: Bool` never waits; dropping the handle waits for it -- see "Concurrency" below |
+| `ThreadPool()` (proposed by Claude, unconfirmed) | the singleton the `Parallel`s run on (D135): `size(): Int` worker threads, `worker_index(): Int` (`-1` off the pool) -- see "Concurrency" below |
+| `ThreadLocal<T>()`, `Lock()`, `ThreadSlot()` (proposed by Claude, unconfirmed) | one value per thread: `get(): T?`, `set(value)`; a lock: `while_locked(function)`, `lock()`, `unlock()`; the raw per-thread `Long` both are built on: `read()`, `write(value)` -- see "Concurrency" below |
 | `DynamicLibrary(file_name, naming, header)` | every foreign function, constant and type of a native library -- see [Foreign libraries](#17-foreign-libraries-planned). `library/dynamic_library.spite` holds its `file_name` and `handle`, its constructor and `drop()`; opening, closing and finding a symbol are the compiler's reopening (D82) |
 | `Memory()` | the floor every other type is built on (D98, D101, D108): `allocate_bytes`, `resize`, `free`, the typed reads and writes, `copy_bytes`, `text`, ... -- see "The floor, named" below. `library/memory.spite` is the `singleton` line and `text`, in Spite; every other function is the compiler's reopening, and where an allocation lives is the compiler's choice |
 | `TypedMemory<$value_type>()` | `read_value(address, index)`, `write_value(address, index, value)`, `release_value(address, index)`, `value_bytes()`: values of any type in raw memory, reference counts kept right; what `List<T>` keeps its elements with, and what a container of your own uses (D98) |
@@ -2803,14 +2876,96 @@ two things, and `Task` is too generic a name) are built as two classes and one s
 the user's page for all of it.
 
 - **`Concurrent(function)`** (`library/concurrent.spite`) runs a function value (D17, D39) on a **fiber** of the
-  program's own thread, starting straight away; `.wait()` answers what it returned and `drop()` waits for it, so
-  scope exit is a join point. It is for work that waits: IO, sleeps, database calls later.
-- **`Parallel(function)`** (`library/parallel.spite`) runs one on a thread of its own, with the same `wait()` and
-  join on drop. It is for work that computes. Today it starts one operating-system thread per call; the engine's
-  thread pool and D35's `parallel_each_` templates are not built.
+  program's own thread, starting straight away; reading the handle is what waits for its value (D134, below) and
+  `drop()` waits for it, so scope exit is a join point. It is for work that waits: IO, sleeps, database calls
+  later.
+- **`Parallel(function)`** (`library/parallel.spite`) runs one on the program's **thread pool** (D135, below), with
+  the same reading and join on drop. It is for work that computes.
 - The type is never written: `Concurrent(file.read)` is a `Concurrent<String?>`, worked out from the function's
   return (see the inference row in the decision log). A function that returns nothing gives a `Concurrent<Nothing>`,
-  whose `wait()` answers a `Nothing`.
+  which has no value to read and is waited for by dropping it: keep such handles in a list, and clearing the list
+  or leaving its function waits for all of them.
+- **Every attribute of both classes is private** (`_work`, `_results`, `_state`, ...), and the one public member is
+  `finished: Bool` (below). Nothing outside the class reaches the thread, the fiber or the work.
+
+**A concurrent result joins on first use** (D134, decided by Mortaro; the reading below is proposed by Claude,
+unconfirmed).  **[implemented]** There is no `wait()` and no `join()` any more: **the handle stands in for its
+result wherever the result's type is expected, and the compiler inserts the join at each such use** (the first
+one waits; the value is kept, so later ones do not). Exactly, a `Concurrent<T>` or `Parallel<T>` becomes its `T`:
+
+- where it is stored or passed as a `T` -- a `var` whose type is written, an assignment, an argument (a variadic
+  `Printable` one included, so `console.print(sum)` prints the value), a `return`, an element of a list literal;
+- as an operand -- `+`, `==`, `and`, `not`, any operator -- and inside text, `"{sum}"`;
+- as the receiver of a member the handle does not have: `greeting.upper_case()`, `greeting.length()`;
+- as a condition: `if ready`, `while`, `assert`, `crash`; and when `T` is nullable, narrowing the handle narrows its
+  value -- `if reading { use(reading) }`, `crash reading` -- because D63 narrows a name itself rather than a copy.
+  The value is read once, into a hidden local, and the narrowed name reads that.
+
+It stays a handle where a handle is expected (`List<Parallel<T>>.append(handle)`), in a `var` without a written
+type (`var loading = Parallel(asset.load)` is the running work), and for the handle's own member, `finished`. A
+`T` of `Nothing` is never read, so such a handle only joins on drop. Comparing two handles with `==` compares their
+values; there is no way to compare the handles themselves (proposed: nothing has needed it). The compiler writes
+each join as a call to the class's private `_result()`, which `library/concurrent.spite` and
+`library/parallel.spite` declare in Spite; only a join the compiler inserted may call it.
+
+**`finished` never waits** (proposed by Claude, unconfirmed; SlopEngine's loaders polled
+`WaitForSingleObject(parallel.thread, 0)` themselves, which was Windows only and reached into a field).
+`handle.finished` is `true` once the function has returned. On a `Parallel` it reads the job's state with one
+atomic load; on a `Concurrent` it reads the flag the fiber sets as it finishes, so a fiber only makes progress when
+the program waits somewhere (`while not reading.finished { program.sleep(1) }` is the polling loop). The same on
+every system (`conformance/stage6/finished_polling`).
+
+**The thread pool** (D135, decided by Mortaro; the shape below is proposed by Claude, unconfirmed).
+**[implemented on Windows]** `library/thread_pool.spite` is a singleton, `ThreadPool()`, that the `Parallel`s share:
+
+- **Size and start.** The first `Parallel` starts one worker thread for every core but one
+  (`GetActiveProcessorCount`, `sysconf`), at least one; the program's own thread keeps the last core. It never
+  starts another, and a program that makes no `Parallel` starts none. `size()` says how many; `worker_index()`
+  answers `0` to `size() - 1` on a worker (read from the thread's identity, under the queue's lock) and `-1`
+  elsewhere, for scratch memory kept per worker.
+- **The queue.** One lock and two condition variables (`SRWLOCK` and `CONDITION_VARIABLE` on Windows,
+  `pthread_mutex_t` and `pthread_cond_t` elsewhere, each system's folder reopening the class). A job is a
+  `Spite.Function<Int, Int, Nothing>` with the two numbers it is given and the address of an 8-byte state its
+  owner holds (queued, running, done). Workers take jobs in order; `finished` reads the state with an atomic load.
+- **Joining claims.** Waiting for a job that no worker has taken yet takes it out of the queue and runs it on the
+  waiting thread, so a job that starts and waits for another job -- a `Parallel` inside a `Parallel`, or a
+  `parallel_each_` inside one -- cannot wait on workers that are all waiting for it. A job already running is waited
+  for on the done condition. This is also the only waiting `ThreadPool.join` does, and it is the wait the scheduler
+  wraps (below) instead of `Parallel.join_thread`.
+- **Join on drop is kept.** The queue holds the job's function bound to a small `ParallelCall<T>` that owns the
+  work and the result, never the `Parallel` itself, so dropping the last handle runs its `drop()` straight away,
+  and that waits.
+- **At exit** the pool is a singleton destroyed in reverse creation order (D142): it lets the workers finish what
+  is queued, joins them and frees its lock. A `Parallel` whose `drop()` runs later finds its job done and does not
+  touch the pool.
+- **Hidden code (D147).** Starting a worker needs the address of a C function that calls the pool's private
+  `_serve()`; that is the same pair of bodiless functions `Concurrent` uses, `entry_address()` and `address()`,
+  moved from `Parallel` to `ThreadPool`, so the pool adds no new kind of compiler-supplied code. Everything else --
+  the queue, the claim, the split -- is Spite.
+- **Cost.** A `Parallel` makes about two dozen allocations, most of them the two function values (a `Spite.Function`
+  is its own reflection object, D39), and no thread; the one-thread-per-call version it replaced made fewer
+  allocations and one operating-system thread each. `conformance/stage6/thread_pool_reuse` runs a thousand
+  `Parallel`s and checks every one ran on one of the pool's workers or on the thread that read it.
+- **Not tested:** the Linux and macOS folders compile but have never run; a `Parallel` made on two non-worker
+  threads at once before the pool has started (each could start it; the program's thread and a `Concurrent`'s
+  helper are the only candidates).
+
+**A value per thread, and a lock** (proposed by Claude, unconfirmed; SlopEngine keeps a command buffer per runner
+through `TlsAlloc`/`TlsGetValue` and guards its entity ids with an `SRWLOCK` of its own).  **[implemented on
+Windows]** Three small classes, each system's folder supplying the calls:
+
+- **`Lock()`** (`library/lock.spite`): `while_locked(work: Spite.Function<Nothing>)` runs the function holding the
+  lock, so the unlock cannot be forgotten; `lock()` and `unlock()` stay for a section that is not one function.
+  `SRWLOCK` on Windows, `pthread_mutex_t` elsewhere; `drop()` frees it. Not reentrant.
+- **`ThreadSlot()`** (`library/thread_slot.spite`): one `Long` per thread, `0` until written -- `TlsAlloc` or
+  `pthread_key_create`. `read()`, `write(value)`; `drop()` gives the key back.
+- **`ThreadLocal<T>()`** (`library/thread_local.spite`): a value of any type per thread. Its `ThreadSlot` holds
+  each thread's position in a `List<T>` the `ThreadLocal` owns under its `Lock`, so values stay reference counted
+  and are all released when the `ThreadLocal` is dropped, whichever threads set them and whether or not those
+  threads still run. `get(): T?` is `null` on a thread that has not called `set(value)`.
+
+The alternative considered was a value per pool worker (`worker_index()` into a list): no system call, but it
+covers only the pool's workers, not the program's thread or a `Concurrent`'s helpers. `conformance/stage6/thread_locals`.
 
 **The mechanism: stackful fibers, and a helper thread per blocking call.** A C target has no coroutines, so hidden
 async/await has three honest implementations. A *state-machine transform* (what C# and Rust do) rewrites every
@@ -2829,7 +2984,8 @@ handed to a short-lived helper thread (what libuv does for files), and the fiber
 **What the compiler writes.** Each operating system's folder names the calls that block, and the compiler knows
 them by class and function: `Program.sleep`; `Console.read_line_into`, `File.read_into`, `File.write_text`,
 `Socket.accept_handle` and `Socket.receive_into` (the one system call under `Console.read_line()`, `File.read()`,
-`File.write()`/`append()`, `Socket.accept_client()` and `Socket.read_line()`); and `Parallel.join_thread`. In a
+`File.write()`/`append()`, `Socket.accept_client()` and `Socket.read_line()`); and `ThreadPool.join`, the wait
+under reading or dropping a `Parallel`. In a
 program that uses the scheduler -- one that makes a `Concurrent`, or is built with `--repl_port` -- each of them is
 emitted under a `_waiting` name with a small wrapper in front: a sleep parks the fiber until its time, a blocking
 call runs on a helper thread while the fiber is parked, and a `Parallel` join joins and then lets whatever is ready
@@ -2848,15 +3004,69 @@ on nothing is a deadlock, and a crash.
 **Soundness.** A program that starts a thread (a `Concurrent`'s helpers, a `Parallel`, or `--repl_port`) is compiled
 with `SPITE_THREADS`: every retain and release is an atomic operation, and the `--debug-memory` table takes a lock.
 Every other program keeps the plain counts. Spite code on the program's thread only ever changes hands at a wait,
-so fibers need nothing more. What a `Parallel` function may touch is not checked: D35's rule (a parallel member
-reaches only its own instance and its locals) is not built, so two threads writing one field, or one writing a
-field another reads, is still the program's mistake -- and with reference-counted fields it can free a value
-another thread is reading. That rule, or another, waits on Mortaro (`mortaros_missing_decisions.md`).
+so fibers need nothing more. D35's rule is checked for `parallel_each_` (below); what a `Parallel(function)`
+touches is not, so two threads writing one field, or one writing a field another reads, is still the program's
+mistake there -- and with reference-counted fields it can free a value another thread is reading.
 Two smaller gaps, untested: a singleton's first use from two threads at once is not guarded (each could make
 one), and a REPL client's `exit` while a helper thread is blocked reading the console may wait on the C runtime's
 lock on that stream when the process exits.
 
-**Not built:** a thread pool, `parallel_each_` templates, HTTP, cancelling a `Concurrent`, a `Concurrent` made on
+**`parallel_each_`** (D135, decided by Mortaro; D35's race rule, which Claude proposed, is built as below and is
+still unconfirmed).  **[implemented on Windows]** `list.parallel_each_update()` calls `update()` on every element,
+split across the pool, and returns when all are done. The generator writes two functions on the list's class, as
+it writes a fused chain (D105): `parallel_each_update_piece(first: Int, end: Int)`, a `while` over that range of
+the buffer, and `parallel_each_update()`, which hands the piece function to `ThreadPool.run_pieces(piece, count)`.
+That cuts the list into up to four pieces per thread (the workers and the caller), queues all but the first, runs
+the first on the calling thread and joins the rest, claiming any no worker has taken. One allocation per call for
+the pieces' states, one function value, and none per element. A list of fewer than two elements runs on the
+calling thread. `filter_` steps before it fuse into the piece loop (`entities.filter_alive().parallel_each_update()`
+is one pass with no list in between); a `map_` step is an error, since it reaches another object that several
+elements may share.
+
+- **The race rule, D35 as a compile check.** The member, every function of the element's class it calls
+  (transitively, by name), and every `filter_` member in the chain may read and write only the element's
+  attributes that hold a plain value -- a number, `Bool`, `String`, enum or `Symbol`, or a `T?` of one -- any
+  singleton (the library's, and the program's own, which D183 makes safe below), and their own parameters and
+  locals. An attribute holding an object, a list, a dictionary, a function value or a program's own singleton is an
+  error naming the attribute, its type and the one-thread form (`diagnostics/parallel_reach`):
+  `'parallel_each_follow' runs 'follow' on many elements at once, so it may reach only its own 'Boid' attributes
+  that hold values, and its locals (D35): 'leader' holds a 'Boid?', which another element may share. ...`. A list
+  of numbers or text has no members, so `parallel_each_` on one is an error naming `each_`.
+- **What it cannot see:** one object listed twice runs on two threads at once; a local made from something the
+  member was handed (it is handed nothing, so only through a library singleton such as `Memory`); a list of a
+  `type` or union (the element's class is not known, so it is an error for now). D35's open questions -- shared
+  state across threads and cross-element reads -- stay open.
+- `conformance/stage6/parallel_each` runs ten thousand elements twice, filtered once, and a list of one and of none.
+
+**A singleton a `Parallel` reaches takes a lock** (D183, decided by Mortaro; the fallback of D184's plan, the
+details proposed by Claude, unconfirmed).  **[implemented]** In a program that makes a `Parallel` or runs a
+`parallel_each_` pass, each function of a program singleton (not `library/`'s) that can change after it is made --
+one of its functions assigns one of its attributes outside the constructor, or it holds an object, a list, a
+dictionary or a function value -- is emitted as `<name>___unguarded`, and `<name>` becomes a wrapper that takes the
+singleton's own lock around the call. The lock is reentrant by owner thread (a `_Thread_local` marker's address),
+so a singleton calling itself does not take it twice. A singleton that never changes gets nothing, and a program
+without `Parallel` gets no lock at all; a `--hot_reload` build is not guarded yet. Every call from anywhere locks,
+not only the ones from a `Parallel`: telling them apart needs a whole-program walk that is not built. Not built:
+D184's cheaper forms, and D183's check that such a singleton hands out only numbers, text, copies or other safe
+singletons. `conformance/stage6/singleton_guard` (four `Parallel`s filling a program singleton's `Dictionary` while
+the program's thread keeps writing to it). D179's rule for `Parallel(function)` itself -- only its own instance and
+its locals -- is not checked; only `parallel_each_` is.
+
+**Reads in a row overlap** (D134's IO half, decided by Mortaro: "all our IO classes should use it"; this reading is
+proposed by Claude, unconfirmed).  **[implemented]** A `File` or `Socket` is not changed: the compiler does it at
+the call site. When two or more statements in a row are each `var name = receiver.read()` on a `File` (or
+`receiver.read_line()` on a `Socket`), with no written type, the receiver a name or an attribute path, no statement
+naming a variable an earlier one declared, and the name never assigned again in the function, every one but the
+last is compiled as `var name = Concurrent(receiver.read)`, and after the last each is joined (its private `_join()`)
+before the next statement runs. Every later use of the name is an implicit join of a finished handle (D134 above),
+so narrowing, printing and passing it are unchanged. Only reads, only side by side, and all finished before
+anything else runs, so nothing the program does next -- writing one of those files, say -- can see a difference;
+reads followed by other work, or a read into a name that is assigned later, stay where they are. Such a program
+uses the scheduler, so it is compiled with `SPITE_THREADS`; a program without two reads in a row compiles as
+before. `Directory` listing is not a waiting call yet (no helper thread), so starting it early would not overlap
+anything, and it is left alone. `conformance/stage6/overlapped_reads`.
+
+**Not built:** HTTP, cancelling a `Concurrent`, a `Concurrent` made on
 a thread that is not the scheduler's (it runs on the spot instead), and running any of this on Linux or macOS,
 whose folders are held to compiling.
 
@@ -3995,6 +4205,46 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | **D164** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 125): **`attribute.value` is the actual instance the attribute refers to, and `attribute.object` goes.** "value should return the actual instance that the attribute refers to. we should try to optimize this as much as we can on compile time to, mostly tree shake it off, but in case of small numbers we could possibly just copy its value around during compile." `Spite.Attribute.value` is typed `Anything` (`Anything?` when the attribute can be null), so `entity.add_component(attribute.value)` works; text is `attribute.value.to_string()` (the REPL and `to_debug()` call it). The compiler resolves as much as it can at compile time and tree-shakes the rest; a number is passed as its plain value where the compiler can see its type, and boxed only where it must travel as `Anything`. |
 | 2026-09-25 | **D165** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 126): **a bare class name is its class object only where a `Spite.Class` is expected**; `var kind = Health` with no type written stays an error pointing at the typed form, so a forgotten `()` is caught rather than silently becoming a class object. |
 | 2026-09-25 | **D166** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 127): **`load` is a reserved word**: it always means loading a package, so a function named `load` is an error suggesting a descriptive name (`load_texture`); the built behaviour that let a class's own `load` shadow it is removed. |
+| 2026-09-25 | **D167** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 128): **inside a generic, a class test that can never be true for one instantiation folds to `false` and its branch is removed for that copy; it is not an error.** "generics being possibly unused code is used for tree shake, its on purpose not an error." Outside generics a never-true class test stays D75's error, because there it is always a mistake. |
+| 2026-09-25 | **D168** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 107): **Spite carries no limitation from C**: "we should never carry limitations from C as C might be eventually removed its just one of our possible compilers." The C-reserved name list goes: `register`, `short`, `default`, `int` and the rest are ordinary Spite names wherever Spite's own rules allow them (the abbreviation rule still rejects `int`), and the C backend renames every local, parameter and member it emits so no Spite name can collide with a C word or macro (`far`, `near`). Follows D147: nothing ties Spite to C. |
+| 2026-09-25 | **D169** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 106): **a call between a proof and a read undoes the proof only if the compiler finds the call may change what the proof depends on.** "we need to be smart enough at compiler to figure out if going down into that function has any chances of altering that value (without needing to have a const keyword). if theres a chance it will alter the value we need to prove it again with a compiler error in case we do not. if it does not change the value then no proof is needed." So the compiler follows the called function (and what it calls) to see whether it can write the list or any field the index reads; if it can, the read needs proving again and not doing so is a compile error; if it provably cannot, the proof stands. No `const` keyword is involved. |
+| 2026-09-25 | **D170** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 3 and open question 20): **an `if` with an `else` directly inside a branch of another `if` with an `else` is a compile error**, naming the fix: move it into a function named for what it decides, or, when both test which member of a union or enum a value is, use one `switch`. A flat `else if` chain and an `if` without an `else` stay legal (`mortaros_review_while_and_else_if.md`: 16 cases in the compiler, 7 flatten, 9 become named functions). |
+| 2026-09-25 | **D171** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 2 and open question 15): **`while` stays for loops over state; a `while` that only walks every element of a list and does what an iterator chain does is a compile error naming the chain.** The detectable shape is the review's: a counter from 0 to `list.count()`, the body reading `list[counter]` and doing only what a member template or a function value passed to `each`/`map`/`filter` (D148) expresses, the counter's only write being `counter = counter + 1`. Loops that pass extra arguments, walk state, scan text or stop early stay `while`. |
+| 2026-09-25 | **D172** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 7): **D77's readings (1)-(4) stand, and a variable may never shadow a function name visible in its scope**: "we should never be able to shadow a function name from that scope, as functions can be passed around by reference it would become super confusing." So `var file_stem = file_stem(path)` is a compile error -- a local, parameter or attribute named like a function of its class (which names a function value, D17/D39) must be renamed (`var stem = file_stem(path)`). The rule covers constructor calls; any call anywhere inside an argument counts; text holes are not arguments; calls were moved out of `while` conditions and the right of `and`/`or` only where harmless. |
+| 2026-09-25 | **D173** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 8): **D78 stays narrow**: only a call with arguments that appears in every branch of an `if`, at the start of the branches, is reported, so everything it reports can be computed once before the `if` without changing behaviour. |
+| 2026-09-25 | **D174** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 11): **in REPL builds, every loop of the program's own code gets an automatic check point**, so a program that never waits still answers the remote REPL. The compiler adds a one-flag check at the end of each loop iteration in `--repl`, `--repl_port` and `--hot_reload` builds only (production builds are unchanged), and the compile error for a `--repl_port` build with a loop that never waits goes away. Commands are still answered where the program's state is consistent: at a wait or at the end of an iteration. |
+| 2026-09-25 | **D175** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 14): **a `generic` line may name a constraint**: `generic $item_type: Printable` accepts only classes that satisfy the `type` `Printable`, and a use that does not (`List<Pet>` for a constrained list) is an error at the use site naming the constraint, instead of an error deep inside the generic's body. The constraint is optional and uses an existing `type`. |
+| 2026-09-25 | **D176** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 16): **hidden async/await is a compile-time transform into state machines, not fibers**, because "our goal is to have no runtime only compile time -- look at how go is useless for wasm because of the size of the wasm by default." Fibers need a scheduler, a stack per fiber and stack switching, which WebAssembly cannot do without a whole-program transform that bloats the binary. Instead the compiler rewrites each function that can reach a wait into a resumable state machine; what remains at run time is a minimal event loop continuing work when IO completes, which in a browser is the browser's own. No function colouring (D35): the transform is invisible in the source. Supersedes the fiber mechanism built for D99/D103. |
+| 2026-09-25 | **D177** (decided by Mortaro): **everything must be tree-shakeable and keep Spite at zero runtime**: "always ask yourself if anything we do can be treeshaken, and if it will keep us at zero runtime." A program that does not use a feature carries none of it, and no feature may require a shipped scheduler, interpreter or registry -- the work is done at compile time (D147, D176); debug and REPL features may cost something at run time only in those builds (D143). Every proposal states how it tree-shakes and what it costs when it runs. |
+| 2026-09-25 | **D178** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 113): **reading and writing the value at an address are language primitives on `Memory.Address`**, like `+` on numbers: `address.read_long(16)`, `address.write_float(8, value)` and the atomics are lowered by whichever backend compiles the program (about 10-15 operations each backend implements), usable only from `library/`; everything else -- allocation from OS pages, copying, comparing, loading libraries -- is plain Spite calling the operating system through `DynamicLibrary`. No C in any Spite source (D147). |
+| 2026-09-25 | **D179** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 17): **a `Parallel` function may reach only its own instance and its locals**, checked at compile time -- but "threads will want to do things like log things to console or get input from hardware, how can we make sure our singletons are thread safe without all the annoying rust-ness?" Proposal (Claude, unconfirmed; item 130): the library singletons threads need (`Console`, input, `Clock`) are thread-safe inside -- each call serialised by a lock or a per-thread queue flushed in order -- and a `Parallel` may call them; a program's own singleton may be reached from a `Parallel` only if its file declares itself thread-safe with a header line (`shared`), making its author responsible; nothing is annotated at call sites, and a program that never uses `Parallel` pays nothing (D177). |
+| 2026-09-25 | **D180** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 123): **an engine's phases are an enum a program can reopen, and a name pattern's hole matches only that enum's values**: "phases should be a enum, just like later which environments we will have. which can be reopened by the user. we should check against the phases values of enum, so our language needs good enum reflection." So `Symbol<$system_type.phase_all>` is constrained by the engine's `Phase` enum, and `interact_all` is an ordinary function unless `interact` is a `Phase` value; enums gain reflection (their values, names and order, walkable at compile time) and reopening (a program adds values). The same will hold for environments. |
+| 2026-09-25 | **D181** (decided by Mortaro, for SlopEngine's plugins): **every folder name is lowercase snake_case, package roots included** (`slop_window_plugin`, never `slop-window-plugin`); one naming rule for every folder. |
+| 2026-09-25 | **D182** (decided by Mortaro, for SlopEngine's plugins): **every subfolder of a program still loads automatically, so swappable plugins live beside the program, not inside it**: a project's themes and platform plugins are sibling folders it `load`s, so only the one it loads is compiled. |
+| 2026-09-25 | **D183** (decided by Mortaro, answering `mortaros_missing_decisions.md` item 130): **a singleton reached from a `Parallel` is made thread-safe by the compiler, with no keyword.** One whose functions never write its attributes after construction needs nothing; one that changes its own state gets a lock of its own around every call from outside it (a call it makes to itself does not lock again), emitted only in programs that use `Parallel` (D177); and its functions may hand out only numbers, text, copies (`copy()`) or other singletons made safe the same way, so nothing it owns escapes the lock -- a compile-time check at `return`. Library singletons threads use (`Console`, input, `Clock`) may do better by hand (a buffer per thread written in order, input snapshots). No `shared` header line. |
+| 2026-09-25 | **D184** (decided by Mortaro, extending D183): **the compiler picks the cheapest safe form for each singleton, not only a lock**: "the compiler should also try to do better for each singleton, so its as optimized as possible under the hood." The lock is the fallback, chosen only when nothing cheaper is proven safe. Examples of what the compiler looks for, per singleton, from what its functions actually do: read-only state needs nothing; a single counter or flag uses an atomic instead of a lock; state only appended to (a log, a command queue) gets a buffer per thread merged in order; state each thread only touches its own part of gets split per thread; reads that vastly outnumber writes use a reader-writer lock. All of it is invisible in the source, tree-shaken when unused, and absent from programs that never use `Parallel` (D177). |
+| 2026-09-25 | **D185** (decided by Mortaro): **every optimisation the compiler does on its own is documented for users**: "we need all our out of the box optimizations to be documented well in our docs so users understand what may happen and dont worry about it." `docs/optimizations.md` lists each one -- what it does, when it applies, whether it is built or planned, and anything a user could ever observe (allocation counts under `--debug_memory`, reflection in production builds) -- and every new optimisation adds its entry in the same change (D102). |
+| 2026-09-25 | (implements D128; the spelling and the readings below proposed by Claude, unconfirmed) **The outputs are `Bool` fields of `Build`, read only after the whole program is.** `mode` and `output` are gone. `run` (default `true`) builds the executable and runs it; `executable` builds it without running; `c_source` writes the C; `format` (default `true`) rewrites the program's own files; `final_classes` stays a folder (`""` is off), since no folder has a safe default -- one inside the program would be read back as part of it. Every output that is on comes from the same compile (`spite game --executable --c_source --run=false` builds and writes the C), and a run builds its executable where `executable` would, so asking for one never implies another. With every output off the compiler still compiles the whole program and reports its errors (what `check.sh`'s diagnostics use). **Formatting before compiling** becomes: read everything unformatted, then, if `format` is on and a program file's formatted text differs, rewrite it and read the program again, so the compiled program and every error line are the file on disk; discovery no longer formats as it reads. **`target_operating_system` is still read from the flag alone**: the launcher needs it to know which library folder is part of the program before reading the rest, so a program's `build.spite` cannot set it (it is silently overridden today; `mortaros_missing_decisions.md` asks). `--mode=tokens`, `--mode=tree` and `--mode=canonical` are dropped rather than made outputs, since nothing used them and `--final_classes` shows the tree as source. `spite format [--check] <file-or-folder> ...` and `spite reload` are commands of the compiler, like `spite connect`, not options: `format` works on files that need not be a program (`library/`), and `reload` is what a `--hot_reload` program runs, printing its errors to standard output where the program reads them. **D177: a built program carries none of this** -- choosing and writing outputs is the compiler's driver; in the program `Build` stays a folded singleton whose static struct gains three unread, zero-initialised fields (16 instead of 13), and no code. |
+| 2026-09-25 | (implements D129; proposed by Claude, unconfirmed) **`executable_path` and `c_path` place the two outputs, and `""` means beside the program**: `game/game.exe` (no extension when the target is not Windows) and `game/game.c`. A path option given on the command line for an output that is off is an error naming the missing flag. What describes an executable goes beside it wherever it is: `.crashes`, and a `--hot_reload` build's `.reload_host`, `.reload_files` and `_reload_<n>` libraries with their C. The only intermediate, the C the C compiler reads when `c_source` is off, goes to the language repository's `.spite-cache/<executable name>.c`. Paths are folded into the build like every `Build` field, so the compiler's own C is written to its default `bootstrap/bootstrap.c` by `check.sh` and moved from there: a `--c_path` naming a per-run folder would differ in every generation and the fixpoint would never hold. A `--hot_reload` program built with its default path keeps its reload libraries inside its own watched folder, so each reload wakes the watcher once more and costs one compile that answers "unchanged". |
+| 2026-09-25 | (implements D130; proposed by Claude, unconfirmed) **The compiler's entry is `bootstrap/bootstrap.spite`, class `Bootstrap`, and a `.spite` path is an error**: `error: 'game/game.spite' is a file, and a program is named by its folder: spite game`; a folder with no entry named after it is an error naming the file looked for. `check.sh`, `bin/spite`, the docs, the README, the seed's README and `COMPILER_PLAN.md` name `spite bootstrap`. The seed keeps its file name, `bootstrap/seed/spite_compiler.c`: it is the compiler, not the entry, and renaming a file every concurrent branch regenerates would turn each merge into a conflict. |
+| 2026-09-25 | **D186** (decided by Mortaro, superseding D166's reading of `load`): **`load` is a keyword written without parentheses**: `load "../../plugins/render_vulkan"`. "load(...) makes me think load is a function of the class, we should make load a proper keyword." `load(...)` with parentheses becomes a parse error naming the keyword form. |
+| 2026-09-25 | **D187** (decided by Mortaro): **no line-width limit, but a line that would be too long may not construct an object inside a call**: "i dont want to just simply have a limit on width of a line, just a limit on how things need to behave at different sizes. if a line is going to be to big and has a instantiation happening, it should require it to be instantiated into a variable first." So `var button = world.create_entity_from_bundle(Bundle.CounterButton(screen.id))`, over the formatter's width, is an error asking for `var counter_button = Bundle.CounterButton(screen.id)` on its own line first; a short line may keep D77's one level of constructor inside a call. |
+| 2026-09-25 | **D188** (decided by Mortaro, revising the flag spelling of D85/D120): **command-line flags are kebab-case, and the `Build` field behind each stays snake_case**: "all languages use --repl-port instead of --repl_port, the _ feels weird for flags, we should use - for flags only but the variable name becomes snake case." `--repl-port=4000` sets `Build.repl_port`, `--hot-reload` sets `hot_reload`, `--final-classes`, `--c-source`, `--executable-path` and so on; an underscore in a flag is an error naming the hyphen form. |
+| 2026-09-25 | **D189** (delegated by Mortaro: "you will be the one debugging, do whatever you think is best for AI at this one"; the design is Claude's): **an `assert` in `library/` never enters the D25 crash trace.** The trace exists to explain how *the program* reached a crash: which of its own assumptions failed first. The standard library's asserts are routine control flow (probing a `Dictionary`, matching text, reading past an end), fire thousands of times in a long-running program, and crowd out the program's own entries in the 32-entry ring, so an AI reading a crash sees library noise instead of the cause. The compiler therefore writes no ring entry for an `assert` site whose file is in `library/`: it is filtered at compile time, so it costs nothing at run time (D177) and a library guard is exactly as cheap as an `if`. The program's own folder and every `load`ed package keep full recording. A crash *inside* the library still reports its own site and the call chain, so nothing about the crash itself is lost; only the library's passing-through guards are left out. This settles D106-as-built's open question (skip the library, rather than rewriting each library guard as an expression). |
+| 2026-09-25 | **D190** (decided by Mortaro, revising D128's `format` output): **formatting a file never needs it to compile, and compiling always formats first -- there is no way to turn it off.** "we should be able to use --format (or --lint whichever makes more sense) to format files without having to fix all the code to compile, but we should never be able to compile without it formating the code first". `spite format <file-or-folder>` (already built: it needs a file to parse, not to compile) stays the name, since formatting is what it does. `--format=false` and `var format = false` in `build.spite` are removed: every compile formats the program's own files (the entry folder and every `load`ed root, not `library/`) before anything else, and a file the formatter refuses (D55's empty line, a failed safety check) is still left alone with its reason, which is an error in the compile it belongs to rather than a skipped step. Test inputs that must stay unformatted (`diagnostics/`) are compiled from a copy by `check.sh`, never by a flag. |
+| 2026-09-25 | **D191** (decided by Mortaro, relayed by the SlopEngine session, extending D135): **any code may hand work to the program's one thread pool.** "language should allow new things to ask for participation in the threadpool" -- an engine system, an asset cooker, a texture loader or a library class all submit work the same way, by `Parallel(function)`, and get back a handle whose `finished` never blocks and whose value joins on first use (D134); no submission starts an OS thread of its own, and there is no second pool to create or pass around. Mortaro also rejected a child process for SlopEngine's re-cooking: "you shouldnt need another process" -- long work runs in-process on the pool while frames continue. A singleton such work reaches is made safe by the compiler (D183), in the cheapest proven form (D184). A program that never uses `Parallel` carries no pool (D177). |
+| 2026-09-25 | (implements D189 and D190; the readings below proposed by Claude, unconfirmed) **A library `assert` is compiled without its ring write**: a site whose file path starts `library/` (the operating-system folders included, a program file reopening a library class not) keeps its branch, its drops and its default return, and loses only the store into the 32-entry ring, so it is exactly an `if`; its `.crashes` line stays, and `crash` sites are unchanged. `conformance/stage5/library_guards_untraced` fails three library guards (`String.slice` past the end, `matches_at` under `starts_with` and `ends_with`) around one program `assert`, then crashes: the report lists the program's assert alone. **`format` is gone from `library/build.spite`**, and naming it is a compile error rather than the generic unknown-flag one, whose advice (declare `var format = ...` in `build.spite`) would otherwise quietly add a program setting that formats nothing: `--format=...` is "not a compiler option: every compile formats ... first" (`diagnostics/format_flag`), and a `var format` in a program's `build.spite` is an error at its line (`diagnostics/format_setting`). **A file the formatter refuses stops the compile** with `path: error: the formatter refuses it, ...` and exit status 1; a file that does not lex or parse never reaches the formatter, because reading the program reports it first. `check.sh` compiles `diagnostics/` from a copy in its work folder, run from there so the paths in the expected errors are unchanged; three of those programs were unformatted (`empty_constructor`, `shape_mismatch`, `unused_names`), so their expected errors now open with the `formatted <path>` line the compile prints, and their line numbers did not move. The docs programs, the remote-REPL sessions and the live-reload copy are already copies in `.spite-cache`, so they just lost the flag. |
+| 2026-09-25 | (implements D143, and settles `mortaros_missing_decisions.md` items 139 and 140; the readings proposed by Claude, unconfirmed) **Inspectable builds keep the internals as ordinary objects; production builds hide them.** A `--development`, `--hot_reload`, `--repl` or `--repl_port` build is inspectable: the C is not tree-shaken (before, only `--development` and `--hot_reload` turned the shaker off), and a singleton that holds nothing (`Memory`, `Build`, `TypedMemory<T>`) is an ordinary singleton -- allocated at first use, one of `.instances`, destroyed at exit -- where every other build makes it one static object. Readings: every build that is not inspectable is a production build, the ordinary one included, not only `--optimized`; `--optimized` with a REPL flag is inspectable; only tree shaking and static singletons count as hiding an internal, so every speed-only optimisation applies in both kinds of build; a holds-nothing singleton may be made again when something destroyed after it at exit asks for it, since it has no state and no `drop()` (`Memory`'s own `.instances` list is untracked through a `TypedMemory` destroyed before it); and the list behind `.instances` is the compiler's bookkeeping, allocated outside `--debug_memory`'s counts like the list of singletons to destroy (a `Memory` first made inside the allocation table had its list allocated outside it and then freed through it). Item 140: section 9's sentence that `--development` keeps conditions on codegen values as run-time values is replaced by what is built, folding in every build. `conformance/stage6/development_internals`, `docs/optimizations.md` (a Builds column), `docs/compiler.md`, `docs/metaprogramming.md`. |
+| 2026-09-25 | (proposed by Claude, unconfirmed; implements D135's pool) **`Parallel` runs on `ThreadPool()`, a singleton of one worker thread per core but one, started by the first `Parallel` and never grown.** Jobs are `Spite.Function<Int, Int, Nothing>` values with their two numbers and an 8-byte state (queued, running, done) owned by whoever waits; workers take them in order under one lock and two condition variables (`SRWLOCK`/`CONDITION_VARIABLE`, `pthread_mutex_t`/`pthread_cond_t`). Waiting for a job no worker has taken runs it on the waiting thread, so nested parallel work cannot deadlock the pool. The queue holds a `ParallelCall<T>` that owns the work and the result, never the `Parallel`, so join on drop is unchanged. `size()` and `worker_index()` (`-1` off the pool) are public; `ThreadPool.join` replaces `Parallel.join_thread` as the wait the scheduler wraps; `entry_address()`/`address()` moved from `Parallel` to `ThreadPool`, so no new compiler-supplied code (D147). Linux and macOS compile, untested. Section 15, "Concurrency"; `conformance/stage6/thread_pool_reuse`. |
+| 2026-09-25 | (proposed by Claude, unconfirmed; implements D134 for `Concurrent` and `Parallel`) **The handle stands in for its result wherever the result's type is expected, and `wait()` and `join()` are gone.** The compiler inserts a call to the class's private `_result()` wherever a `Concurrent<T>`/`Parallel<T>` is stored or passed as a `T` (typed `var`, assignment, argument, `return`), used as an operand or inside text, given a member it does not have (`greeting.length()`), or used as a condition; narrowing the handle of a nullable `T` (`if reading`, `crash reading`) narrows its value, read once into a hidden local. An untyped `var` keeps the handle; `finished` is the handle's; a `Nothing` handle joins only on drop. `==` on two handles compares values. SPITE.md's rule, "no `.wait()` to remember", wins over keeping `wait()` as an explicit form. Section 15, "Concurrency"; `conformance/stage6/implicit_joins`. |
+| 2026-09-25 | (proposed by Claude, unconfirmed; SlopEngine polled `WaitForSingleObject(parallel.thread, 0)`) **`finished` on `Concurrent` and `Parallel` answers whether the function has returned and never waits, on every system; every other attribute of both is private.** A `Parallel`'s is one atomic load of its job's state; a `Concurrent`'s is the flag its fiber sets, so a polling loop still has to wait somewhere for the fiber to run. `conformance/stage6/finished_polling`. |
+| 2026-09-25 | (proposed by Claude, unconfirmed; SlopEngine's per-runner command buffers and entity-id lock used `TlsAlloc` and an `SRWLOCK` directly) **`ThreadLocal<T>()`, `Lock()` and `ThreadSlot()` are library classes.** `Lock` has `while_locked(function)` (the unlock cannot be forgotten) beside `lock()`/`unlock()`; `ThreadSlot` is the raw per-thread `Long` (`TlsAlloc`, `pthread_key_create`); `ThreadLocal<T>` keeps each thread's value in a list it owns, found through its `ThreadSlot` under its `Lock`, so every value is released when the `ThreadLocal` is dropped. Chosen over a value per pool worker, which would not cover the program's own thread. Linux and macOS compile, untested. Section 15, "Concurrency"; `conformance/stage6/thread_locals`. |
+| 2026-09-25 | (proposed by Claude, unconfirmed; builds D135's templates and D35's race rule) **`list.parallel_each_<member>()` runs the member on every element across the pool and returns when all are done, and the compiler checks D35's rule.** The generator writes a piece function over a range of the buffer and an entry that hands it to `ThreadPool.run_pieces` (up to four pieces per thread, the first on the calling thread); `filter_` steps fuse into the piece loop and `map_` steps are an error. The member, the functions of its class it calls, and the filters may reach only the element's plain-value attributes (numbers, `Bool`, `String`, enums, `Symbol`s, and `T?` of them), library singletons and their own locals; anything else is an error naming the attribute. Not seen: an element listed twice, a list of a `type` (an error for now). Section 15, "Concurrency"; `conformance/stage6/parallel_each`, `diagnostics/parallel_reach`. |
+| 2026-09-25 | (proposed by Claude, unconfirmed; D134's IO half) **Reads in a row overlap.** Two or more untyped `var name = receiver.read()` (`File`) or `receiver.read_line()` (`Socket`) in a row, on a name or attribute path, none naming an earlier one and none reassigned later, become `Concurrent`s except the last, and all are joined before the next statement. Chosen over making `File.read()` itself answer a `Concurrent` (every read, the compiler's own included, would pay for a fiber, and a field or path narrowed through a handle is not supported) and over overlapping a read with the statements after it (the next statement may write the file). Expressed with `Concurrent` in the syntax tree, so it follows `Concurrent` when D176 replaces fibers. `conformance/stage6/overlapped_reads`. |
+| 2026-09-25 | (proposed by Claude, unconfirmed; SlopEngine's cache used `fopen`/`fread` from `ucrtbase` directly) **`File` reads and writes bytes**: `size(): Long?`, `read_bytes(position, count, address): Long?`, `write_bytes(address, count): Bool`, `append_bytes(address, count): Long?` (the position the bytes start at). Positions replace seeking, so a `File` stays a path with no open handle; each call opens and closes the file, which suits reading a whole file and walking it in memory. Windows seeks with `_fseeki64`. `conformance/stage6/binary_files`. |
+| 2026-09-25 | (proposed by Claude, unconfirmed; builds D174) **The check point is a call to `Scheduler.check_point()` at the end of each pass of each `while` in the program's own code, in `--repl_port` and `--hot_reload` builds only**; on the scheduler's thread it answers a pending command and runs a pending reload, elsewhere it does nothing. The compile error for a REPL build whose loop never waits, and `diagnostics/remote_loop_never_waits`, are removed; `docs/concurrency.md` replays a busy loop answered between passes. Production C is unchanged. |
+| 2026-09-25 | (proposed by Claude, unconfirmed; SlopEngine's asset cache checks whether a source changed) **`File.modified(): Instant?`** answers the file's last write as a D127 `Instant`, `null` when it does not exist: `GetFileAttributesExA`'s `ftLastWriteTime` on Windows, `stat`'s modification time on Linux (offset 88) and macOS (offset 48, untested). `conformance/stage6/binary_files`. |
+| 2026-09-25 | (proposed by Claude, unconfirmed; builds D183's lock, the fallback of D184) **A program singleton that can change after it is made takes its own reentrant lock around every function, in programs that use `Parallel` only.** Its functions become `<name>___unguarded` behind a locking wrapper (the owner is a `_Thread_local` marker's address, so calls to itself do not lock twice); a singleton that never changes, a library singleton and every program without `Parallel` are untouched. `parallel_each_`'s check now allows every singleton. Not built: D184's cheaper forms, the `return` check, telling calls from a `Parallel` apart, guarding in `--hot_reload` builds, and D179's check on `Parallel(function)`. `conformance/stage6/singleton_guard`, `docs/optimizations.md`. |
 | 2026-09-25 | (implements D148; the readings below proposed by Claude, unconfirmed) **The caller's function is passed: `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`, `find(f)`, `sort_by(f)` and `sum(f)` take a function of one argument, the element's exact type, bound to its owner.** `find(f)` answers the first element `f` is true for (`find_by_` with `true`); `count()` with no argument stays the size. A function written by name (`say_hello`, `greeter.greet`) instantiates the element template once per function and owner class with the owner as a hidden last parameter, so it allocates nothing and calls directly -- tree-shaken like every template, and free at run time; a function held in a variable is called through its `Spite.Function`. `map(f)`/`filter(f)` fuse in chains with the member templates (D105), the fused function taking each owner. D113's resolution through the caller, its ambiguity error and its `while` rule are removed; an element-template call whose member is missing while the caller has a function of that name says to pass it (`'each(say_hello)'`). Rewritten: 7 uses (`collect_body_facts` and two `map_class_member_name` calls in the compiler, `conformance/stage6/system_phases`, and `docs/`'s `name_phases`, `function_reflection` and `function_questions` -- 3 doc blocks), besides `conformance/stage6/caller_templates` and `diagnostics/caller_templates`, which became `passed_functions`. Section 8, `docs/collections.md`. |
 | 2026-09-25 | (implements D162; the readings below proposed by Claude, unconfirmed) **An arithmetic operator whose right operand is wider than its left is a compile error, and so is a constant expression that overflows `Int`.** Wider is more bits (8: `Tiny`, `Byte`; 16: `Short`, `UnsignedShort`; 32: `Int`, `UnsignedInt`, `Float`; 64: `Long`, `UnsignedLong`, `Double`), or a `Float`/`Double` right side under a whole-number left; signedness alone is not wider. An integer literal (or a negated one) on the right that fits the left type does not count, so `small + 1` on a `Byte` stays legal. **A comparison does not count**: it is not arithmetic, and it keeps casting the right side toward the left exactly as before (so `age > -0.5` on an `Int` is still `age > 0`, open question 3); the C for comparisons is unchanged. The message names the rule and the fix -- `'count * total' is a multiplication in Int, since arithmetic takes the left side's type, and the right side is a Long, which would be cut to fit: write the Long first ('total * count'), or store the right side in an Int first if it fits one`; for `-`, `/` and `%` the fix is `store the left side in a Long first ('var wide: Long = count')`. A constant is a tree of `Int` literals under `+ - * / %`; the first operation whose value leaves `Int` is reported once, with its value: `'(65536 - 120) * 65536' is 4287102976, which does not fit in an Int, the type its arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long`. Both checks happen at compile time and emit nothing. Rewritten: 17 sites, all in `library/` (`daylight_change`, `duration` three times through a new `_nanoseconds_per_unit`, `local_date` three, `long` two, `unsigned_long` two, `number_text`, `tzif_reader` four) plus `examples/hello`; outputs and allocations are unchanged. `diagnostics/wider_right_operand`, `docs/values_and_types.md`. |
 | 2026-09-25 | (implements D139; the message and scope proposed by Claude, unconfirmed) **An expression statement that is a constructor call -- plain or generic, `Report(text)` or `Box<Int>(3)` -- is an error**: `'Report(text)' makes a 'Report' and drops it: a constructed object must be kept and used, so a class whose construction is the whole point should be a function instead -- turn 'Report' into a function of the class that needs it, or keep the object in a variable that is read`. A singleton's constructor is left to D110's error, and `load(...)` is not a constructor. The check is syntactic plus a class lookup at compile time and emits nothing. No program in the repository did this, so no site was rewritten (the constructors-as-actions D139 names are SlopEngine's, which migrates itself). `diagnostics/dropped_construction`, section 3, `docs/classes_and_files.md`. |

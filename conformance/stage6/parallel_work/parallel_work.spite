@@ -6,23 +6,18 @@ func ParallelWork() {
     var large = Summer(3000000)
     var small_sum = Parallel(small.total)
     var large_sum = Parallel(large.total)
-    var small_total = small_sum.wait()
-    var large_total = large_sum.wait()
-    console.print(small_total, large_total)
+    console.print(small_sum, large_sum)
     var greeting = Parallel(greet)
     var nobody = Parallel(nobody_found)
-    var greeted = greeting.wait()
-    var found = nobody.wait()
-    if found {
-        console.print(found)
+    if nobody {
+        console.print(nobody)
     } else {
-        console.print(greeted, "and nobody")
+        console.print(greeting, "and nobody")
     }
     var index = 0
     while index < 20 {
         var naming = Parallel(next_name)
-        var named = naming.wait()
-        names.append(named)
+        names.append(naming)
         index = index + 1
     }
     var last_name = names.last()
@@ -43,8 +38,8 @@ func next_name(): String {
 }
 
 func count_and_forget() {
-    var counting = Parallel(say_done)
-    crash counting.work
+    var running = List<Parallel<Nothing>>()
+    running.append(Parallel(say_done))
 }
 
 func say_done() {

@@ -20,9 +20,23 @@ func read_into(buffer: Long, bytes: Long, handle: Long): Long {
     return library.fread_as_long(buffer, 1, bytes, handle)
 }
 
+func write_from(address: Long, bytes: Long, handle: Long): Long {
+    return library.fwrite_as_long(address, 1, bytes, handle)
+}
+
 func write_text(text: String, handle: Long): Long {
     var text_length = text.length()
     return library.fwrite_as_long(text, 1, text_length, handle)
+}
+
+func modified_nanoseconds(): Long? {
+    var status = memory.allocate_bytes(256)
+    var found = library.stat(path, status)
+    var seconds = memory.read_long(status, 88)
+    var nanoseconds = memory.read_long(status, 96)
+    memory.free(status)
+    assert found == 0
+    return seconds * 1000000000 + nanoseconds
 }
 
 func remove(): Bool {

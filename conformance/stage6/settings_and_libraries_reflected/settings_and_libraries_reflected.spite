@@ -5,7 +5,7 @@ func SettingsAndLibrariesReflected() {
     var attributes = build.class.attributes
     var index = 0
     while index < attributes.count() {
-        if attributes[index].name == "mode" or attributes[index].name == "optimized" {
+        if attributes[index].name == "run" or attributes[index].name == "optimized" {
             console.print(attributes[index].name, attributes[index].value)
         }
         index = index + 1

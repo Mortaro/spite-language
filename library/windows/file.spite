@@ -1,4 +1,5 @@
 var library = DynamicLibrary("ucrtbase.dll", 'identity', "")
+var kernel = DynamicLibrary("kernel32.dll", 'identity', "")
 
 func open_file(mode: String): Long {
     return library.fopen_as_long(path, mode)
@@ -9,20 +10,34 @@ func close_file(handle: Long) {
 }
 
 func seek(handle: Long, offset: Long, origin: Int) {
-    library.fseek(handle, offset, origin)
+    library._fseeki64(handle, offset, origin)
 }
 
 func tell(handle: Long): Long {
-    return library.ftell(handle)
+    return library._ftelli64_as_long(handle)
 }
 
 func read_into(buffer: Long, bytes: Long, handle: Long): Long {
     return library.fread_as_long(buffer, 1, bytes, handle)
 }
 
+func write_from(address: Long, bytes: Long, handle: Long): Long {
+    return library.fwrite_as_long(address, 1, bytes, handle)
+}
+
 func write_text(text: String, handle: Long): Long {
     var text_length = text.length()
     return library.fwrite_as_long(text, 1, text_length, handle)
+}
+
+func modified_nanoseconds(): Long? {
+    var data = memory.allocate_bytes(40)
+    var standard_information = 0
+    var found = kernel.GetFileAttributesExA(path, standard_information, data)
+    var written = memory.read_long(data, 20)
+    memory.free(data)
+    assert found != 0
+    return (written - 116444736000000000) * 100
 }
 
 func remove(): Bool {

@@ -1,0 +1,6 @@
+finished while the gate is shut: false
+finished once the gate opened: true
+it counted 42
+a napping Concurrent has finished: false
+after polling it has finished: true
+it napped 20 milliseconds

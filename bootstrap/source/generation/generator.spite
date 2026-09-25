@@ -25,17 +25,18 @@ var function_value_makers = List<String>()
 var read_evaluate_print_loop = false
 var console_loop = false
 var remote_loop_port = 0
-var program_waits = false
 var scheduler_used = false
+var implicit_joins = List<Syntax.Expressions.MemberExpression>()
+var parallel_used = false
+var guarded_classes = List<Analysis.ClassInfo>()
+var guarded_functions = List<Analysis.FunctionInfo>()
+var guarded_positions = List<Int>()
 var waiting_classes = List<Analysis.ClassInfo>()
 var waiting_functions = List<Analysis.FunctionInfo>()
 var waiting_kinds = List<String>()
 var waiting_positions = List<Int>()
-var unwaiting_loop_path = ""
-var unwaiting_loop_line = 0
-var unwaiting_loop_owner = ""
-var unwaiting_loop_function = ""
 var development = false
+var keeps_internals = false
 var hot_reload = false
 var hot_reload_compiler = ""
 var hot_reload_arguments = ""
@@ -445,11 +446,13 @@ func generate(
     emit_pending_functions()
     emit_attribute_object_bodies()
     emit_hot_reload_support()
-    check_remote_loop_waits()
+    if parallel_used {
+        finish_singleton_guards()
+    }
     if not has_error {
         report_unused_attributes()
     }
-    builder.shakes = not development
+    builder.shakes = not keeps_internals
     builder.hot_reload = hot_reload
     return builder.render()
 }
@@ -475,7 +478,8 @@ func register_classes(discovered: List<Discovery.DiscoveredClass>) {
         classes.last().entry_index = index
         classes.last().codegen_names = declared_codegen_names(entry)
         classes.last().is_singleton = has_singleton_line(entry)
-        classes.last().is_stateless_singleton = classes.last().is_singleton and holds_nothing(entry)
+        classes.last().holds_nothing = classes.last().is_singleton and holds_nothing(entry)
+        classes.last().is_stateless_singleton = classes.last().holds_nothing and not keeps_internals
         classes.last().is_generic_template = not classes.last().codegen_names.is_empty()
         discovered_classes.append(entry)
         register_enums(entry)
@@ -999,6 +1003,7 @@ func instantiated_with(
     instance.codegen_texts = texts
     instance.is_singleton = template.is_singleton
     instance.is_stateless_singleton = template.is_stateless_singleton
+    instance.holds_nothing = template.holds_nothing
     instance.is_container = template.qualified_dotted == "TypedMemory"
     instance.is_instantiated = true
     classes.append(instance)
@@ -3351,7 +3356,7 @@ func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInf
         if class_path == "typed_memory" {
             function.supplied_body = typed_memory_body(information, function.name)
         }
-        if class_path == "concurrent" or class_path == "parallel" {
+        if class_path == "concurrent" or class_path == "thread_pool" {
             function.supplied_body = task_body(information, function.name)
         }
         if class_path == "hot_reload" and function.name != "open" {
@@ -3371,6 +3376,11 @@ func task_body(information: Analysis.ClassInfo, name: String): String {
     var entry = "{information.c_name}___thread_entry"
     if information.qualified_dotted == "Concurrent" {
         entry = "{information.c_name}___fiber_entry"
+    } else {
+        builder.add_prototype("static void* {entry}(void* pool);")
+        builder.add_support(
+            "static void* {entry}(void* pool) \{\n{information.c_name}__serve(({information.c_name}*)pool);\nreturn 0;\n}",
+        )
     }
     return "return (int64_t)(intptr_t)&{entry};"
 }
@@ -4512,8 +4522,14 @@ func coerce_for_store(
         var passed_type = instance_type_of(passed_class)
         return class_object_call(passed_type)
     }
+    var saved_counter = temporary_counter
     var result = generate_expression(expression_ast, scope, class_information)
     var result_type = result.get_type()
+    if joins_into(result_type, expected_type) {
+        temporary_counter = saved_counter
+        var joined_ast = implicit_join_ast(expression_ast)
+        return coerce_for_store(joined_ast, expected_type, scope, class_information)
+    }
     var casted = cast(result.code, result_type, expected_type)
     if type_needs_drop(expected_type) {
         if owns(result, expression_ast) or is_boxed_into_shape(result_type, expected_type) {
@@ -4522,6 +4538,70 @@ func coerce_for_store(
         return retain_call(expected_type, casted)
     }
     return casted
+}
+
+func joinable_handle(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var class_ref = type_shape.as_class_ref(spite_type)
+    assert class_ref
+    var handle = find_class_by_c_name(class_ref.c_name)
+    assert handle
+    var is_handle = handle.qualified_dotted == "Concurrent" or handle.qualified_dotted == "Parallel"
+    assert is_handle and not handle.is_generic_template and not handle.codegen_types.is_empty()
+    var result_class = type_shape.as_class_ref(handle.codegen_types[0])
+    if result_class {
+        assert result_class.c_name != "Nothing"
+    }
+    return handle
+}
+
+func joins_into(result_type: Analysis.SpiteType, expected_type: Analysis.SpiteType): Bool {
+    assert joinable_handle(result_type)
+    var expected_type_without_nullable = expected_type_without_nullable(expected_type)
+    return not types_equal(result_type, expected_type_without_nullable)
+}
+
+func implicit_join_ast(handle_ast: Syntax.Expressions.Expression): Syntax.Expressions.Expression {
+    var joining = Syntax.Expressions.MemberExpression(handle_ast, "_result")
+    implicit_joins.append(joining)
+    var no_arguments = List<Syntax.Expressions.Expression>()
+    var joined: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(joining, no_arguments)
+    return joined
+}
+
+func is_implicit_join(member: Syntax.Expressions.MemberExpression): Bool {
+    assert member.name == "_result"
+    var index = 0
+    while index < implicit_joins.count() {
+        if implicit_joins.get_at(index) == member {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func forwards_to_result(handle: Analysis.ClassInfo, name: String): Bool {
+    assert name != "finished" and name != "class" and not name.starts_with("_")
+    assert not handle.find_function(name)
+    return true
+}
+
+func generate_joined(
+    expression_ast: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    var saved_counter = temporary_counter
+    var result = generate_expression(expression_ast, scope, class_information)
+    var result_type = result.get_type()
+    if not joinable_handle(result_type) {
+        return result
+    }
+    temporary_counter = saved_counter
+    var joined_ast = implicit_join_ast(expression_ast)
+    var joined = generate_expression(joined_ast, scope, class_information)
+    joined.owning_override = true
+    return joined
 }
 
 func expected_type_without_nullable(expected_type: Analysis.SpiteType): Analysis.SpiteType {
@@ -4782,7 +4862,7 @@ func generate_string_binary(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
-    var right_result = generate_expression(right_ast, scope, class_information)
+    var right_result = generate_joined(right_ast, scope, class_information)
     var right_became_text = false
     if operator == 'add' {
         var right_value_type = right_result.get_type()
@@ -5115,7 +5195,7 @@ func generate_binary(
         var swapped_code = "({swapped_left_code} {binary_operator_symbol(binary.operator)} {swapped_right.code})"
         return ExpressionResult(swapped_code, Analysis.Types.ScalarType('boolean_kind'))
     }
-    var left = generate_expression(binary.left, scope, class_information)
+    var left = generate_joined(binary.left, scope, class_information)
     var left_type = left.get_type()
     var left_nullable = type_shape.as_nullable(left_type)
     if left_nullable {
@@ -5163,7 +5243,7 @@ func generate_binary(
         if binary.operator == 'logical_and' {
             narrow_proven_indices(binary.left, right_scope)
         }
-        var other = generate_expression(binary.right, right_scope, class_information)
+        var other = generate_joined(binary.right, right_scope, class_information)
         report_maybe_boolean(left, "'{binary_operator_symbol(binary.operator)}'")
         report_maybe_boolean(other, "'{binary_operator_symbol(binary.operator)}'")
         var joined = "({owned_truth(left, binary.left)} {binary_operator_symbol(binary.operator)} {owned_truth(other, binary.right)})"
@@ -5173,7 +5253,7 @@ func generate_binary(
     if is_enum_literal(binary.right) and is_enum_type(left_type) {
         right_code = coerce_for_store(binary.right, left_type, scope, class_information)
     } else {
-        var right = generate_expression(binary.right, scope, class_information)
+        var right = generate_joined(binary.right, scope, class_information)
         var right_type = right.get_type()
         right_code = cast(right.code, right_type, left_type)
         if not is_boolean_result_operator(binary.operator) and is_wider_right(binary, left_type, right_type) {
@@ -5562,7 +5642,7 @@ func generate_unary(
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
     crash unary.operand
-    var operand = generate_expression(unary.operand, scope, class_information)
+    var operand = generate_joined(unary.operand, scope, class_information)
     var operand_type = operand.get_type()
     var operand_class_ref = type_shape.as_class_ref(operand_type)
     if operand_class_ref {
@@ -5717,7 +5797,9 @@ func singleton_call(target_class: Analysis.ClassInfo): String {
         lines.append("static void {function_c_name}_teardown(void) \{")
         lines.append("{target_class.c_name}* object = {function_c_name}_cache;")
         lines.append("{function_c_name}_cache = 0;")
-        lines.append("{function_c_name}_destroyed = true;")
+        if not target_class.holds_nothing {
+            lines.append("{function_c_name}_destroyed = true;")
+        }
         lines.append("{target_class.c_name}___destroy(object);")
         lines.append("}")
         lines.append("static int32_t {function_c_name}_lock = 0;")
@@ -5761,7 +5843,6 @@ func generate_constructor_call(
         )
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
-    note_waiting_call(target_class, target_class.simple_name, class_information)
     var expected_types = List<Analysis.SpiteType>()
     if target_class.constructor {
         expected_types = parameter_types_of(target_class.constructor.parameters)
@@ -6329,9 +6410,19 @@ func generate_method_call(
             }
         }
     }
+    var object_counter = temporary_counter
     var generated_member_object = generate_member_object(object_ast, scope, class_information)
     var object_result = as_text(generated_member_object)
     var object_result_type = object_result.get_type()
+    var handle = joinable_handle(object_result_type)
+    if handle {
+        if forwards_to_result(handle, member.name) {
+            temporary_counter = object_counter
+            var joined_ast = implicit_join_ast(object_ast)
+            var forwarded = Syntax.Expressions.MemberExpression(joined_ast, member.name)
+            return generate_method_call(forwarded, joined_ast, arguments_ast, scope, class_information)
+        }
+    }
     var foreign = type_shape.as_class_ref(object_result_type)
     if foreign {
         if foreign.c_name == "DynamicLibrary" and not declared_by_dynamic_library(member.name) {
@@ -6434,7 +6525,9 @@ func generate_method_call(
     crash object_class_ref
     var target_class = find_class_by_c_name(object_class_ref.c_name)
     crash target_class
-    report_private_member(target_class, member.name, class_information)
+    if not is_implicit_join(member) {
+        report_private_member(target_class, member.name, class_information)
+    }
     var function = find_or_instantiate_function(target_class, member.name)
     if not function {
         if member.name == "deep_copy" {
@@ -6475,7 +6568,6 @@ func generate_method_call(
         return ExpressionResult("0", Analysis.Types.VoidType())
     }
     crash function
-    note_waiting_call(target_class, member.name, class_information)
     if member.name == "has_function" and target_class.c_name == "Spite_Class" {
         class_level_functions_used = true
     }
@@ -6823,6 +6915,28 @@ func generate_list_method(
         }
     }
     var list_class = list_class_of(element)
+    if name.starts_with("parallel_each_") {
+        var single = List<String>()
+        single.append(name)
+        var parallel = generate_parallel_each(list_class, element, single)
+        if not parallel {
+            var void_type = void_type()
+            return ExpressionResult("0", void_type)
+        }
+        crash parallel
+        var no_types = no_types()
+        var nothing_returned = parallel.get_return_type()
+        return generate_generic_call(
+            parallel.c_name,
+            object_result,
+            object_ast,
+            arguments_ast,
+            no_types,
+            nothing_returned,
+            scope,
+            class_information,
+        )
+    }
     var template = element_template_of(list_class, name)
     if not template {
         report("List has no method '{name}'")
@@ -7118,15 +7232,16 @@ func generate_fused_chain(
     var element = chained_element_of(probe_type)
     assert element
     var base_list = list_class_of(element)
-    var owners = List<PassedFunction>()
-    var source = fused_chain_source(base_list, element, steps, owners, scope, class_information)
-    assert not source.is_empty()
-    var name_end = source.index_of("(")
-    var fused_name = source.slice(5, name_end)
-    var function = base_list.find_function(fused_name)
-    if not function {
-        function = register_fused_function(base_list, source, fused_name)
+    if member.name.starts_with("parallel_each_") {
+        var names = step_names_of(steps)
+        var parallel = generate_parallel_each(base_list, element, names)
+        if not parallel {
+            var void_type = void_type()
+            return ExpressionResult("0", void_type)
+        }
     }
+    var owners = List<PassedFunction>()
+    var function = fused_function(base_list, element, steps, owners, scope, class_information)
     assert function
     var passed = arguments_ast.copy()
     if is_function_form(member.name, arguments_ast) {
@@ -7169,6 +7284,254 @@ func generate_fused_chain(
         scope,
         class_information,
     )
+}
+
+func fused_function(
+    base_list: Analysis.ClassInfo,
+    element: Analysis.SpiteType,
+    steps: List<Syntax.Expressions.CallExpression>,
+    owners: List<PassedFunction>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.FunctionInfo? {
+    var names = step_names_of(steps)
+    var last_name = names.last()
+    if last_name.starts_with("parallel_each_") {
+        var joined_names = names.join("_then_")
+        return base_list.find_function(joined_names)
+    }
+    var source = fused_chain_source(base_list, element, steps, owners, scope, class_information)
+    assert not source.is_empty()
+    var name_end = source.index_of("(")
+    var fused_name = source.slice(5, name_end)
+    var function = base_list.find_function(fused_name)
+    if function {
+        return function
+    }
+    return register_fused_function(base_list, source, fused_name)
+}
+
+func generate_parallel_each(
+    base_list: Analysis.ClassInfo,
+    element: Analysis.SpiteType,
+    names: List<String>,
+): Analysis.FunctionInfo? {
+    var fused_name = names.join("_then_")
+    var existing = base_list.find_function(fused_name)
+    if existing {
+        return existing
+    }
+    var last_name = names.last()
+    var name_length = last_name.length()
+    var member_name = last_name.slice(14, name_length)
+    var element_label = type_display_name(element)
+    var element_class = element_class_of(element)
+    if not element_class {
+        report(
+            "'{last_name}' runs a member of each element on many threads, and '{element_label}' is not a class: only a list of a class has members to run there (write 'each_{member_name}' to run it on one thread)",
+        )
+        return null
+    }
+    crash element_class
+    var loop_lines = List<String>()
+    var closings = List<String>()
+    var indent = "        "
+    var index = 0
+    while index < names.count() - 1 {
+        var stage_name = names[index]
+        if not stage_name.starts_with("filter_") {
+            report(
+                "'{last_name}' can follow only 'filter_' steps: '{stage_name}' reaches another object, which several elements may share, and a parallel pass may touch only each element's own attributes (D35)",
+            )
+            return null
+        }
+        var stage_length = stage_name.length()
+        var stage_member = stage_name.slice(7, stage_length)
+        var stage_read = parallel_filter_read(element_class, stage_member, last_name)
+        assert not stage_read.is_empty()
+        loop_lines.append("{indent}if item.{stage_read} \{")
+        closings.append("{indent}}")
+        indent = "{indent}    "
+        index = index + 1
+    }
+    var member = member_function(element_class, member_name)
+    if not member {
+        if element_class.find_field(member_name) {
+            report(
+                "'{last_name}': the member '{member_name}' of '{element_label}' is an attribute, but 'parallel_each_' needs a function: reading an attribute and discarding it does nothing",
+            )
+            return null
+        }
+        report("'{element_label}' has no zero argument function '{member_name}' for '{last_name}'")
+        return null
+    }
+    crash member
+    var visited = List<String>()
+    check_parallel_reach(element_class, member, last_name, visited)
+    loop_lines.append("{indent}item.{member_name}()")
+    closings.reverse()
+    var piece_name = "{fused_name}_piece"
+    var piece_lines = List<String>()
+    piece_lines.append("func {piece_name}(first: Int, end: Int) \{")
+    piece_lines.append("    var index = first")
+    piece_lines.append("    while index < end \{")
+    piece_lines.append("        var item = values.read_value(items, index)")
+    piece_lines.append("        index = index + 1")
+    append_lines(piece_lines, loop_lines)
+    append_lines(piece_lines, closings)
+    piece_lines.append("    }")
+    piece_lines.append("}")
+    piece_lines.append("")
+    var piece_source = piece_lines.join("\n")
+    var piece = register_fused_function(base_list, piece_source, piece_name)
+    assert piece
+    var entry_source = "func {fused_name}() \{\n    var pool = ThreadPool()\n    pool.run_pieces({piece_name}, item_count)\n}\n"
+    builder.threads = true
+    parallel_used = true
+    return register_fused_function(base_list, entry_source, fused_name)
+}
+
+func parallel_filter_read(element_class: Analysis.ClassInfo, member_name: String, template_name: String): String {
+    var field = element_class.find_field(member_name)
+    if field {
+        var field_type = field.get_type()
+        if not is_boolean_type(field_type) {
+            report(
+                "'{template_name}': the member '{member_name}' of '{element_class.simple_name}' {described_member(field_type)}, but 'filter_' needs it to return Bool",
+            )
+            return ""
+        }
+        return member_name
+    }
+    var function = member_function(element_class, member_name)
+    if not function {
+        report(
+            "'{element_class.simple_name}' has no attribute or zero argument function '{member_name}' for '{template_name}'",
+        )
+        return ""
+    }
+    crash function
+    var returned = function.get_return_type()
+    if not is_boolean_type(returned) {
+        report(
+            "'{template_name}': the member '{member_name}' of '{element_class.simple_name}' {described_member(returned)}, but 'filter_' needs it to return Bool",
+        )
+        return ""
+    }
+    var visited = List<String>()
+    check_parallel_reach(element_class, function, template_name, visited)
+    return "{member_name}()"
+}
+
+func check_parallel_reach(
+    owner: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    template_name: String,
+    visited: List<String>,
+) {
+    assert not visited.contains(function.name)
+    visited.append(function.name)
+    var locals = List<String>()
+    var parameter_index = 0
+    while parameter_index < function.parameters.count() {
+        locals.append(function.parameters[parameter_index].name)
+        parameter_index = parameter_index + 1
+    }
+    collect_declared_names(function.body, locals)
+    var mentioned = List<String>()
+    collect_block_names(function.body, mentioned)
+    var index = 0
+    while index < mentioned.count() {
+        var name = mentioned[index]
+        if not locals.contains(name) {
+            check_parallel_name(owner, function, name, template_name, visited)
+        }
+        index = index + 1
+    }
+}
+
+func check_parallel_name(
+    owner: Analysis.ClassInfo,
+    function: Analysis.FunctionInfo,
+    name: String,
+    template_name: String,
+    visited: List<String>,
+) {
+    var field = owner.find_field(name)
+    if field {
+        var field_type = field.get_type()
+        if reaches_shared(field_type) {
+            var template_length = template_name.length()
+            var one_thread = template_name.slice(9, template_length)
+            report(
+                "'{template_name}' runs '{function.name}' on many elements at once, so it may reach only its own '{owner.simple_name}' attributes that hold values, and its locals (D35): '{name}' holds a '{type_display_name(field_type)}', which another element may share. Copy what the pass needs into a number or text attribute first, or write '{one_thread}' to run it on one thread",
+            )
+        }
+        return
+    }
+    var own = owner.find_function(name)
+    assert own
+    assert not own.is_constructor
+    check_parallel_reach(owner, own, template_name, visited)
+}
+
+func reaches_shared(spite_type: Analysis.SpiteType): Bool {
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.get_inner()
+        return reaches_shared(inner)
+    }
+    var plain_value = type_shape.as_scalar(spite_type) or type_shape.as_string(spite_type) or is_enum_type(spite_type)
+    assert not plain_value and not type_shape.is_symbol(spite_type)
+    var class_ref = type_shape.as_class_ref(spite_type)
+    if class_ref {
+        var held = find_class_by_c_name(class_ref.c_name)
+        if held {
+            return not held.is_singleton
+        }
+    }
+    return true
+}
+
+func collect_declared_names(statements: List<Syntax.Statements.Statement>, names: List<String>) {
+    var index = 0
+    while index < statements.count() {
+        collect_statement_declared_names(statements[index], names)
+        index = index + 1
+    }
+}
+
+func collect_statement_declared_names(statement: Syntax.Statements.Statement, names: List<String>) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: names.append(statement.name)
+        Syntax.Statements.IfStatement: {
+            collect_declared_names(statement.then_branch, names)
+            collect_declared_names(statement.else_branch, names)
+        }
+        Syntax.Statements.WhileStatement: collect_declared_names(statement.body, names)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                collect_declared_names(statement.cases[case_index].body, names)
+                case_index = case_index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func step_names_of(steps: List<Syntax.Expressions.CallExpression>): List<String> {
+    var names = List<String>()
+    var index = 0
+    while index < steps.count() {
+        var callee = steps[index].callee
+        crash callee
+        var member = shape.as_member(callee)
+        crash member
+        names.append(member.name)
+        index = index + 1
+    }
+    return names
 }
 
 func chain_base(
@@ -7901,7 +8264,7 @@ func ensure_live_instances(information: Analysis.ClassInfo): String {
     builder.add_prototype("void spite_untrack_{name}({name}* self);")
     builder.add_prototype("{list_name}* {function_c_name}(void);")
     builder.add_support(
-        "void spite_track_{name}({name}* self) \{\nif ({registry}_count == {registry}_capacity) \{\n{registry}_capacity = {registry}_capacity == 0 ? 8 : {registry}_capacity * 2;\n{registry} = ({name}**)SPITE_REALLOC({registry}, (size_t){registry}_capacity * sizeof({name}*));\n}\n{registry}[{registry}_count] = self;\n{registry}_count = {registry}_count + 1;\n}",
+        "void spite_track_{name}({name}* self) \{\nif ({registry}_count == {registry}_capacity) \{\n{registry}_capacity = {registry}_capacity == 0 ? 8 : {registry}_capacity * 2;\n{registry} = ({name}**)realloc({registry}, (size_t){registry}_capacity * sizeof({name}*));\n}\n{registry}[{registry}_count] = self;\n{registry}_count = {registry}_count + 1;\n}",
     )
     builder.add_support(
         "void spite_untrack_{name}({name}* self) \{\nfor (int64_t spite_index = 0; spite_index < {registry}_count; spite_index = spite_index + 1) \{\nif ({registry}[spite_index] == self) \{\nfor (int64_t spite_shift = spite_index; spite_shift < {registry}_count - 1; spite_shift = spite_shift + 1) \{ {registry}[spite_shift] = {registry}[spite_shift + 1]; }\n{registry}_count = {registry}_count - 1;\nreturn;\n}\n}\n}",
@@ -7909,7 +8272,7 @@ func ensure_live_instances(information: Analysis.ClassInfo): String {
     builder.add_support(
         "{list_name}* {function_c_name}(void) \{\n{list_name}* result = {list_name}___make();\nfor (int64_t spite_index = 0; spite_index < {registry}_count; spite_index = spite_index + 1) \{ {list_name}_append(result, {name}___retain({registry}[spite_index])); }\nreturn result;\n}",
     )
-    singleton_releases.append("if ({registry} != 0) SPITE_FREE({registry});")
+    singleton_releases.append("if ({registry} != 0) free({registry});")
     return function_c_name
 }
 
@@ -9333,17 +9696,17 @@ func supply_list_functions(list_class: Analysis.ClassInfo, element: Analysis.Spi
 
 func supply_concurrency_functions(instance: Analysis.ClassInfo) {
     builder.threads = true
+    if instance.qualified_dotted == "Parallel" {
+        parallel_used = true
+    }
     var task = instance.c_name
     if instance.qualified_dotted == "Concurrent" {
         scheduler_used = true
         builder.add_prototype("static void {task}___fiber_entry(void* task);")
         builder.add_support(
-            "static void {task}___fiber_entry(void* task) \{\n{task}_run(({task}*)task);\n{task}_finish(({task}*)task);\n}",
+            "static void {task}___fiber_entry(void* task) \{\n{task}__run(({task}*)task);\n{task}__finish(({task}*)task);\n}",
         )
-        return
     }
-    builder.add_prototype("static void* {task}___thread_entry(void* task);")
-    builder.add_support("static void* {task}___thread_entry(void* task) \{\n{task}_run(({task}*)task);\nreturn 0;\n}")
 }
 
 func ensure_dictionary(element: Analysis.SpiteType): String {
@@ -10329,8 +10692,18 @@ func generate_member_read_raw(
             return ExpressionResult(class_object_call, spite_class_type)
         }
     }
+    var object_counter = temporary_counter
     var object_result = generate_member_object(member.object, scope, class_information)
     var object_result_type = object_result.get_type()
+    var handle = joinable_handle(object_result_type)
+    if handle {
+        if forwards_to_result(handle, member.name) {
+            temporary_counter = object_counter
+            var joined_ast = implicit_join_ast(member.object)
+            var forwarded = Syntax.Expressions.MemberExpression(joined_ast, member.name)
+            return generate_member_read(forwarded, scope, class_information)
+        }
+    }
     var foreign = type_shape.as_class_ref(object_result_type)
     if foreign {
         if foreign.c_name == "DynamicLibrary" and not is_reflection_member(member.name) and not is_own_library_member(member.name) {
@@ -10591,6 +10964,10 @@ func try_nullable_guard(
     assert identifier
     var static_type = lookup_static_type(condition_ast, scope, class_information)
     assert static_type
+    var handle = joinable_handle(static_type)
+    if handle {
+        return joined_guard(identifier.name, condition_ast, handle, scope, class_information)
+    }
     var nullable = type_shape.as_nullable(static_type)
     assert nullable
     var base_result = generate_expression(condition_ast, scope, class_information)
@@ -10606,6 +10983,29 @@ func try_nullable_guard(
         override_code = "({base_result.code}).value"
     }
     return NullableGuard(identifier.name, inner, guard_code, override_code)
+}
+
+func joined_guard(
+    name: String,
+    condition_ast: Syntax.Expressions.Expression,
+    handle: Analysis.ClassInfo,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): NullableGuard? {
+    crash handle.codegen_types[0]
+    var result_type = handle.codegen_types[0]
+    var nullable = type_shape.as_nullable(result_type)
+    assert nullable
+    var joined_ast = implicit_join_ast(condition_ast)
+    var joined = generate_expression(joined_ast, scope, class_information)
+    var held = next_temporary()
+    builder.add_user("{c_type_name(result_type)} {held} = {joined.code};")
+    scope.declare_owned(held, result_type)
+    var inner = nullable.get_inner()
+    if type_is_reference(inner) {
+        return NullableGuard(name, inner, "({held}) != 0", held)
+    }
+    return NullableGuard(name, inner, "({held}).has_value", "({held}).value")
 }
 
 func try_path_guard(
@@ -10707,7 +11107,7 @@ func generate_variable_declaration(
     assert not frame_placed
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
-    report_copy_for_narrowing(declaration.name, declaration.value, declared_type)
+    report_copy_for_narrowing(declaration.name, declaration.value, declared_type, scope, class_information)
     if scope.entry_names.contains(declaration.name) {
         value_code = rebind(declaration.name, value_code, declared_type, scope)
     }
@@ -10815,6 +11215,8 @@ func report_copy_for_narrowing(
     name: String,
     initializer: Syntax.Expressions.Expression,
     declared_type: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
 ) {
     var source = operand_text(initializer)
     assert not source.is_empty() and type_shape.as_nullable(declared_type)
@@ -10825,6 +11227,11 @@ func report_copy_for_narrowing(
         assert assigned != source and not source.starts_with("{assigned}.") and not source.starts_with("{assigned}[") and not source.contains("[{assigned}]")
         index = index + 1
     }
+    var saved_counter = temporary_counter
+    var copied = generate_expression(initializer, scope, class_information)
+    temporary_counter = saved_counter
+    var copied_type = copied.get_type()
+    assert not joinable_handle(copied_type)
     report(
         "'{name}' only copies '{source}' so it can be narrowed: narrow '{source}' itself ('assert {source}') and use it directly",
     )
@@ -11286,8 +11693,21 @@ func generate_statement_list(
     }
     var index = 0
     var ended_in_return = false
+    var overlapped_reads = List<String>()
     while index < statements.count() {
-        ended_in_return = generate_statement(statements[index], scope, class_information, function_information)
+        var statement = statements[index]
+        var read_name = overlapped_read_name(statement, overlapped_reads, scope, class_information)
+        if read_name.is_empty() {
+            join_overlapped_reads(overlapped_reads, scope)
+        }
+        var overlaps = overlaps_next_read(statements, index, read_name, overlapped_reads, scope, class_information)
+        if overlaps {
+            statement = overlapped_declaration(statement)
+        }
+        ended_in_return = generate_statement(statement, scope, class_information, function_information)
+        if overlaps {
+            overlapped_reads.append(read_name)
+        }
         var folded_return = ended_in_return and statements[index] == Syntax.Statements.IfStatement
         index = index + 1
         if folded_return and index < statements.count() {
@@ -11295,7 +11715,98 @@ func generate_statement_list(
             return true
         }
     }
+    join_overlapped_reads(overlapped_reads, scope)
     return ended_in_return
+}
+
+func overlaps_next_read(
+    statements: List<Syntax.Statements.Statement>,
+    index: Int,
+    read_name: String,
+    overlapped_reads: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Bool {
+    assert not read_name.is_empty() and index + 1 < statements.count()
+    var pending = overlapped_reads.copy()
+    pending.append(read_name)
+    var next_index = index + 1
+    crash statements[next_index]
+    var next_name = overlapped_read_name(statements[next_index], pending, scope, class_information)
+    return not next_name.is_empty()
+}
+
+func overlapped_read_name(
+    statement: Syntax.Statements.Statement,
+    pending: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var declaration = shape.as_variable_declaration(statement)
+    assert declaration
+    assert not declaration.type_reference and declaration.value
+    assert not body_assigned_paths.contains(declaration.name)
+    var call = shape.as_call(declaration.value)
+    assert call
+    assert call.arguments.is_empty() and call.callee
+    var callee = shape.as_member(call.callee)
+    assert callee
+    assert callee.name == "read" or callee.name == "read_line"
+    crash callee.object
+    var receiver_text = operand_text(callee.object)
+    assert not receiver_text.is_empty() and not receiver_text.contains("(")
+    var mentioned = List<String>()
+    collect_statement_names(statement, mentioned)
+    var index = 0
+    while index < pending.count() {
+        assert not mentioned.contains(pending[index])
+        index = index + 1
+    }
+    var saved_counter = temporary_counter
+    var receiver = generate_expression(callee.object, scope, class_information)
+    temporary_counter = saved_counter
+    var receiver_type = receiver.get_type()
+    var receiver_class = type_shape.as_class_ref(receiver_type)
+    assert receiver_class
+    var reads_file = receiver_class.c_name == "File" and callee.name == "read"
+    var reads_socket = receiver_class.c_name == "Socket" and callee.name == "read_line"
+    assert reads_file or reads_socket
+    return declaration.name
+}
+
+func overlapped_declaration(statement: Syntax.Statements.Statement): Syntax.Statements.Statement {
+    var declaration = shape.as_variable_declaration(statement)
+    crash declaration
+    crash declaration.value
+    var call = shape.as_call(declaration.value)
+    crash call
+    crash call.callee
+    var started_function = call.callee
+    var concurrent: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression("Concurrent")
+    var started_arguments = List<Syntax.Expressions.Expression>()
+    started_arguments.append(started_function)
+    var started: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(concurrent, started_arguments)
+    var overlapped = Syntax.Statements.VariableDeclaration(declaration.name, null, started)
+    overlapped.line = declaration.line
+    overlapped.source_path = declaration.source_path
+    var overlapped_statement: Syntax.Statements.Statement = overlapped
+    return overlapped_statement
+}
+
+func join_overlapped_reads(pending: List<String>, scope: Scope) {
+    var index = 0
+    while index < pending.count() {
+        var name = pending[index]
+        var handle_type = scope.lookup_type(name)
+        crash handle_type
+        var handle = joinable_handle(handle_type)
+        crash handle
+        var joining = find_or_instantiate_function(handle, "_join")
+        crash joining
+        builder.add_user("{joining.c_name}({name});")
+        index = index + 1
+    }
+    pending.clear()
 }
 
 func mark_rest_used(statements: List<Syntax.Statements.Statement>, start: Int, scope: Scope) {
@@ -12072,7 +12583,7 @@ func generate_plain_if(
     function_information: Analysis.FunctionInfo,
 ) {
     crash if_statement.condition
-    var condition_result = generate_expression(if_statement.condition, scope, class_information)
+    var condition_result = generate_joined(if_statement.condition, scope, class_information)
     check_condition(condition_result, "if")
     builder.add_user("if ({owned_truth(condition_result, if_statement.condition)}) \{")
     var proven_scope = Scope(scope)
@@ -13490,7 +14001,6 @@ func generate_while_statement(
     function_information: Analysis.FunctionInfo,
 ) {
     assert while_statement.condition
-    note_user_loop(class_information, while_statement.line)
     var guard = try_nullable_guard(while_statement.condition, scope, class_information)
     if guard {
         builder.add_user("while ({guard.guard_code}) \{")
@@ -13498,17 +14008,31 @@ func generate_while_statement(
         narrowed_body.is_loop = true
         narrow_by_guard(narrowed_body, guard)
         generate_block_in_scope(while_statement.body, narrowed_body, class_information, function_information)
+        add_loop_check_point(class_information)
         builder.add_user("}")
         return
     }
-    var condition_result = generate_expression(while_statement.condition, scope, class_information)
+    var condition_result = generate_joined(while_statement.condition, scope, class_information)
     check_condition(condition_result, "while")
     builder.add_user("while ({owned_truth(condition_result, while_statement.condition)}) \{")
     var body_scope = Scope(scope)
     body_scope.is_loop = true
     narrow_proven_indices(while_statement.condition, body_scope)
     generate_block_in_scope(while_statement.body, body_scope, class_information, function_information)
+    add_loop_check_point(class_information)
     builder.add_user("}")
+}
+
+func add_loop_check_point(class_information: Analysis.ClassInfo) {
+    assert (remote_loop_port > 0 or hot_reload) and not is_library_class(class_information)
+    var scheduler_class = find_class_by_qualified("Scheduler")
+    crash scheduler_class
+    var check_point = find_or_instantiate_function(scheduler_class, "check_point")
+    crash check_point
+    var scheduler = singleton_call(scheduler_class)
+    builder.add_user(
+        "\{ Scheduler* spite_check_point = {scheduler}; {check_point.c_name}(spite_check_point); Scheduler___release(spite_check_point); }",
+    )
 }
 
 func index_key_text(key: Syntax.Expressions.Expression): String {
@@ -13785,7 +14309,7 @@ func and_side_test(
         narrow_by_guard(then_scope, guard)
         return "({guard.guard_code})"
     }
-    var side_result = generate_expression(side, then_scope, class_information)
+    var side_result = generate_joined(side, then_scope, class_information)
     check_condition(side_result, "if")
     narrow_proven_indices(side, then_scope)
     return "({owned_truth(side_result, side)})"
@@ -13819,7 +14343,7 @@ func generate_assert_statement(
         guard_code = guard.guard_code
         narrow_by_guard(scope, guard)
     } else {
-        var condition_result = generate_expression(assert_statement.value, scope, class_information)
+        var condition_result = generate_joined(assert_statement.value, scope, class_information)
         guard_code = owned_truth(condition_result, assert_statement.value)
         narrow_proven_indices(assert_statement.value, scope)
         var keyword = "assert"
@@ -13860,9 +14384,9 @@ func generate_assert_statement(
         builder.add_user("}")
         return
     }
-    builder.add_user(
-        "spite_assert_trace[spite_assert_total % 32] = {backslash_quote()}spite.assert{tab_text()}{current_site_id}{tab_text()}{escape_c_string(current_path)}:{current_line}{tab_text()}{current_owner}{tab_text()}{function_information.name}{tab_text()}{escape_c_string(assert_statement.condition_text)}{newline_text()}{backslash_quote()}; spite_assert_total = spite_assert_total + 1;",
-    )
+    if not current_path.starts_with("library/") {
+        record_in_assert_trace(assert_statement, function_information)
+    }
     emit_scope_drops(scope, true)
     var function_information_return_type = function_information.get_return_type()
     if type_shape.is_void(function_information_return_type) {
@@ -13871,6 +14395,15 @@ func generate_assert_statement(
         builder.add_user("return {default_value_for_type(function_information_return_type)};")
     }
     builder.add_user("}")
+}
+
+func record_in_assert_trace(
+    assert_statement: Syntax.Statements.AssertStatement,
+    function_information: Analysis.FunctionInfo,
+) {
+    builder.add_user(
+        "spite_assert_trace[spite_assert_total % 32] = {backslash_quote()}spite.assert{tab_text()}{current_site_id}{tab_text()}{escape_c_string(current_path)}:{current_line}{tab_text()}{current_owner}{tab_text()}{function_information.name}{tab_text()}{escape_c_string(assert_statement.condition_text)}{newline_text()}{backslash_quote()}; spite_assert_total = spite_assert_total + 1;",
+    )
 }
 
 func generate_return_statement(
@@ -14306,6 +14839,12 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         var user_count = builder.user_count()
         waiting_positions.append(user_count)
     }
+    if guards_singleton(information, function) {
+        guarded_classes.append(information)
+        guarded_functions.append(function)
+        var guarded_at = builder.user_count()
+        guarded_positions.append(guarded_at)
+    }
     var defined_name = function.c_name
     if is_hot_class(information) {
         defined_name = "{function.c_name}___hot"
@@ -14620,60 +15159,152 @@ func is_library_class(information: Analysis.ClassInfo): Bool {
     return information.source_path.starts_with("library/") or information.source_path.starts_with("launcher/")
 }
 
-func note_user_loop(class_information: Analysis.ClassInfo, line: Int) {
-    assert unwaiting_loop_path.is_empty() and not is_library_class(class_information)
-    unwaiting_loop_path = current_path
-    unwaiting_loop_line = line
-    unwaiting_loop_owner = current_owner
-    unwaiting_loop_function = current_function
-}
-
-func note_waiting_call(target_class: Analysis.ClassInfo, name: String, caller: Analysis.ClassInfo) {
-    assert not is_library_class(caller)
-    var owner = target_class.qualified_dotted
-    var sleeps = owner == "Program" and name == "sleep"
-    var reads = (owner == "Console" or owner == "Socket") and name == "read_line"
-    var accepts = owner == "Socket" and name == "accept_client"
-    var files = owner == "File" and (name == "read" or name == "write" or name == "append")
-    var tasks = owner == "Concurrent" or owner == "Parallel"
-    if sleeps or reads or accepts or files or tasks {
-        program_waits = true
-    }
-}
-
-func check_remote_loop_waits() {
-    assert (remote_loop_port > 0 or hot_reload) and not program_waits and not unwaiting_loop_path.is_empty()
-    current_path = unwaiting_loop_path
-    current_line = unwaiting_loop_line
-    current_owner = unwaiting_loop_owner
-    current_function = unwaiting_loop_function
-    if remote_loop_port == 0 {
-        report(
-            "a --hot_reload build swaps its code where the program waits (Program().sleep, Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel), and this program never waits: if this loop does not end, no change ever reaches it. Wait somewhere in the loop, such as 'Program().sleep(1)' at the end of a frame",
-        )
-        return
-    }
-    report(
-        "a --repl_port build answers its REPL where the program waits (Program.sleep, Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel) and after the entry constructor returns, and this program never waits: if this loop does not end, the REPL never answers. Wait somewhere in the loop, such as 'program.sleep(1)' at the end of a frame",
-    )
-}
-
 func waiting_kind(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
     var owner = information.qualified_dotted
     var name = function.name
     if owner == "Program" and name == "sleep" {
         return "sleep"
     }
-    if owner == "Parallel" and name == "join_thread" {
+    if owner == "ThreadPool" and name == "join" {
         return "yield"
     }
     var reads = owner == "Console" and name == "read_line_into"
     var receives = owner == "Socket" and (name == "accept_handle" or name == "receive_into")
-    var files = owner == "File" and (name == "read_into" or name == "write_text")
+    var files = owner == "File" and (name == "read_into" or name == "write_text" or name == "write_from")
     if reads or receives or files {
         return "offload"
     }
     return ""
+}
+
+func guards_singleton(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Bool {
+    assert information.is_singleton and not information.is_stateless_singleton and not is_library_class(information)
+    assert not function.is_constructor and function.name != "drop" and not function.body.is_empty()
+    assert not is_hot_class(information)
+    return changes_after_construction(information)
+}
+
+func changes_after_construction(information: Analysis.ClassInfo): Bool {
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var field_type = field.get_type()
+        if reaches_shared(field_type) {
+            return true
+        }
+        index = index + 1
+    }
+    var targets = List<String>()
+    index = 0
+    while index < information.functions.count() {
+        var function = information.functions[index]
+        if not function.is_constructor {
+            collect_assigned_roots(function.body, targets)
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < targets.count() {
+        if information.find_field(targets[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func collect_assigned_roots(statements: List<Syntax.Statements.Statement>, roots: List<String>) {
+    var index = 0
+    while index < statements.count() {
+        collect_statement_assigned_roots(statements[index], roots)
+        index = index + 1
+    }
+}
+
+func collect_statement_assigned_roots(statement: Syntax.Statements.Statement, roots: List<String>) {
+    switch statement {
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            var target_text = operand_text(statement.target)
+            var dot = target_text.index_of(".")
+            var bracket = target_text.index_of("[")
+            var end = target_text.length()
+            if dot >= 0 {
+                end = dot
+            }
+            if bracket >= 0 and bracket < end {
+                end = bracket
+            }
+            var root = target_text.slice(0, end)
+            roots.append(root)
+        }
+        Syntax.Statements.IfStatement: {
+            collect_assigned_roots(statement.then_branch, roots)
+            collect_assigned_roots(statement.else_branch, roots)
+        }
+        Syntax.Statements.WhileStatement: collect_assigned_roots(statement.body, roots)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                collect_assigned_roots(statement.cases[case_index].body, roots)
+                case_index = case_index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func finish_singleton_guards() {
+    builder.add_typedef("typedef struct SpiteGuard \{ int64_t owner; int64_t depth; } SpiteGuard;")
+    builder.add_prototype("static void spite_guard_enter(SpiteGuard* guard);")
+    builder.add_prototype("static void spite_guard_leave(SpiteGuard* guard);")
+    builder.add_support(
+        "static SPITE_THREAD_LOCAL char spite_guard_thread;\nstatic void spite_guard_enter(SpiteGuard* guard) \{\nint64_t spite_me = (int64_t)(intptr_t)&spite_guard_thread;\nif (__atomic_load_n(&guard->owner, __ATOMIC_ACQUIRE) == spite_me) \{ guard->depth = guard->depth + 1; return; }\nint64_t spite_free = 0;\nwhile (!__atomic_compare_exchange_n(&guard->owner, &spite_free, spite_me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) \{ spite_free = 0; }\nguard->depth = 1;\n}\nstatic void spite_guard_leave(SpiteGuard* guard) \{\nguard->depth = guard->depth - 1;\nif (guard->depth == 0) __atomic_store_n(&guard->owner, 0, __ATOMIC_RELEASE);\n}",
+    )
+    var guarded_names = List<String>()
+    var index = 0
+    while index < guarded_functions.count() {
+        var information = guarded_classes.get_at(index)
+        var function = guarded_functions[index]
+        var position = guarded_positions.get_at(index)
+        if not guarded_names.contains(information.c_name) {
+            guarded_names.append(information.c_name)
+            builder.add_support("static SpiteGuard {information.c_name}___guard = \{ 0, 0 };")
+        }
+        var unguarded_name = "{function.c_name}___unguarded"
+        var unguarded_signature = named_signature(information, function, unguarded_name)
+        builder.replace_user(position, "{unguarded_signature} \{")
+        builder.add_prototype("{unguarded_signature};")
+        emit_guard_wrapper(information, function, unguarded_name)
+        index = index + 1
+    }
+}
+
+func emit_guard_wrapper(information: Analysis.ClassInfo, function: Analysis.FunctionInfo, unguarded_name: String) {
+    var arguments = List<String>()
+    arguments.append("self")
+    var index = 0
+    while index < function.parameters.count() {
+        arguments.append(function.parameters[index].name)
+        index = index + 1
+    }
+    var called = "{unguarded_name}({arguments.join(", ")})"
+    var guard = "&{information.c_name}___guard"
+    var return_type = function.get_return_type()
+    var lines = List<String>()
+    lines.append("{function_signature(information, function)} \{")
+    lines.append("spite_guard_enter({guard});")
+    if type_shape.is_void(return_type) {
+        lines.append("{called};")
+        lines.append("spite_guard_leave({guard});")
+    } else {
+        lines.append("{c_type_name(return_type)} spite_guarded = {called};")
+        lines.append("spite_guard_leave({guard});")
+        lines.append("return spite_guarded;")
+    }
+    lines.append("}")
+    var joined_lines = lines.join("\n")
+    builder.add_user(joined_lines)
 }
 
 func finish_waiting_points() {

@@ -1,0 +1,19 @@
+var _kernel = DynamicLibrary("kernel32.dll", 'identity', "")
+
+func create_lock(): Long {
+    var created = _memory.allocate_bytes(8)
+    _kernel.InitializeSRWLock(created)
+    return created
+}
+
+func acquire(held: Long) {
+    _kernel.AcquireSRWLockExclusive(held)
+}
+
+func release_lock(held: Long) {
+    _kernel.ReleaseSRWLockExclusive(held)
+}
+
+func destroy_lock(held: Long) {
+    _memory.free(held)
+}

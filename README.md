@@ -51,7 +51,7 @@ bash check.sh
 
 ## Write your own
 
-Build the compiler once, then point it at a file:
+Build the compiler once, then point it at a program's folder:
 
 ```
 cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite
@@ -59,7 +59,10 @@ export CC=cc                     # the compiler shells out to this to build the 
 ./spite path/to/folder
 ```
 
-`--mode=c` prints the generated C instead of running it.
+That builds the executable beside the program, `path/to/folder/folder.exe`, and runs it. The compiler reads the
+whole program first and then produces every output asked for: `--c_source` also writes `folder.c` beside it,
+`--run=false` runs nothing, and `--executable_path=` and `--c_path=` put either somewhere else
+([docs/compiler.md](docs/compiler.md)).
 
 On Windows the C compiler usually lives inside Visual Studio rather than on `PATH`, and its path
 contains spaces, so use the short form:
