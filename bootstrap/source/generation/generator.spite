@@ -13514,9 +13514,9 @@ func generate_assert_statement(
         builder.add_user("}")
         return
     }
-    builder.add_user(
-        "spite_assert_trace[spite_assert_total % 32] = {backslash_quote()}spite.assert{tab_text()}{current_site_id}{tab_text()}{escape_c_string(current_path)}:{current_line}{tab_text()}{current_owner}{tab_text()}{function_information.name}{tab_text()}{escape_c_string(assert_statement.condition_text)}{newline_text()}{backslash_quote()}; spite_assert_total = spite_assert_total + 1;",
-    )
+    if not current_path.starts_with("library/") {
+        record_in_assert_trace(assert_statement, function_information)
+    }
     emit_scope_drops(scope, true)
     var function_information_return_type = function_information.get_return_type()
     if type_shape.is_void(function_information_return_type) {
@@ -13525,6 +13525,15 @@ func generate_assert_statement(
         builder.add_user("return {default_value_for_type(function_information_return_type)};")
     }
     builder.add_user("}")
+}
+
+func record_in_assert_trace(
+    assert_statement: Syntax.Statements.AssertStatement,
+    function_information: Analysis.FunctionInfo,
+) {
+    builder.add_user(
+        "spite_assert_trace[spite_assert_total % 32] = {backslash_quote()}spite.assert{tab_text()}{current_site_id}{tab_text()}{escape_c_string(current_path)}:{current_line}{tab_text()}{current_owner}{tab_text()}{function_information.name}{tab_text()}{escape_c_string(assert_statement.condition_text)}{newline_text()}{backslash_quote()}; spite_assert_total = spite_assert_total + 1;",
+    )
 }
 
 func generate_return_statement(

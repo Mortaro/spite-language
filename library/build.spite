@@ -5,7 +5,6 @@ var executable = false
 var executable_path = ""
 var c_source = false
 var c_path = ""
-var format = true
 var final_classes = ""
 var optimized = false
 var development = false

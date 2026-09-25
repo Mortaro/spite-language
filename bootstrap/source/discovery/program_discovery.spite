@@ -787,6 +787,11 @@ func hardcode_build(build: Syntax.SourceFile): List<String> {
     while index < build.statements.count() and not has_error {
         var variable = shape.as_variable_declaration(build.statements[index])
         if variable {
+            if variable.name == "format" {
+                has_error = true
+                error_message = "{variable.source_path}:{variable.line}: error: 'Build.format' cannot be declared: every compile formats the program's own files first, and nothing turns that off. To format files without compiling them: spite format file_or_folder"
+                return declared
+            }
             declared.append(variable.name)
             var reader = setting_reader(variable, "Build")
             variable.hardcoded_value = variable.value
@@ -961,7 +966,10 @@ func check_supplied_settings(build_names: List<String>, environment_names: List<
     var index = 0
     while index < supplied_names.count() and not has_error {
         var name = supplied_names[index]
-        if environment_names.contains(name) and not build_names.contains(name) {
+        if name == "format" {
+            has_error = true
+            error_message = "error: '--format' is not a compiler option: every compile formats the program's own files first, and nothing turns that off. To format files without compiling them: spite format file_or_folder"
+        } else if environment_names.contains(name) and not build_names.contains(name) {
             has_error = true
             error_message = "error: '--{name}' was given to the compiler, but 'Environment.{name}' is read when the program runs: give it to the program after '--' (spite program -- --{name}=value), or, to decide it when compiling, declare it in the program's build.spite instead"
         } else if not build_names.contains(name) {
