@@ -158,7 +158,9 @@ to code it cannot see, so a folder the program `load`s is not held to what this 
 `ui` package's `color` that only a `render` package reads is fine in a program that loads `ui` without `render`.
 The check covers the program's own folder, the standard library (always compiled whole, so its reads are the
 same in every program), and every private attribute wherever it lives, since its own class is its only reader
-(D136; which folders count is proposed by Claude, unconfirmed).
+(D136; which folders count is proposed by Claude, unconfirmed). A singleton binding is checked everywhere, loaded
+packages included (D157): `var world = World()` offers nothing another class could not bind itself, so an unread
+one is the error above wherever it is.
 
 Unused means unread anywhere in the source, not unreachable: a function nothing calls still reads what it names,
 and the compiler removes it later ([compiler.md](compiler.md#development-builds-and-tree-shaking)). A few

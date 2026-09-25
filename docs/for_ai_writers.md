@@ -80,7 +80,8 @@ func is_alive(): Bool {
   a parameter only that branch reads is not unused in the other instantiations.
 - An attribute nothing reads is an error too (D118): remove it. A private `_name` attribute is checked too.
   Assigning it is not reading it. A public attribute of a folder the program `load`s is not checked, since
-  code the program does not load may read it. A Symbol template counts only when it reads the value,
+  code the program does not load may read it -- except a singleton binding (`var world = World()`), which is an
+  error unread anywhere: a class that needs the singleton binds it itself. A Symbol template counts only when it reads the value,
   `x.attributes[attribute]`: an attribute kept as a marker that a walk inspects through `attribute.name` or
   `attribute.class` is unused, so say what the marker means some other way. A function nobody calls still
   reads what it names.

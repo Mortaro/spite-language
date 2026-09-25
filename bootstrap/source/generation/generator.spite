@@ -11824,7 +11824,7 @@ func report_unread_attributes(information: Analysis.ClassInfo, statements: List<
                 declared_path = declaration.source_path
             }
             var read = read_attributes.has("{information.qualified_dotted}.{name}") or folded_words.has(name)
-            var seen_whole = name.starts_with("_") or not is_in_loaded_folder(declared_path)
+            var seen_whole = name.starts_with("_") or not is_in_loaded_folder(declared_path) or binds_singleton(declaration, information)
             if not read and seen_whole {
                 current_path = declared_path
                 current_line = declaration.line
@@ -11835,6 +11835,13 @@ func report_unread_attributes(information: Analysis.ClassInfo, statements: List<
         }
         index = index + 1
     }
+}
+
+func binds_singleton(declaration: Syntax.Statements.VariableDeclaration, information: Analysis.ClassInfo): Bool {
+    crash declaration.value
+    var bound = constructed_singleton(declaration.value, information)
+    assert bound
+    return true
 }
 
 func generate_block_in_scope(
