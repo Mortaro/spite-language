@@ -29,10 +29,10 @@ export CC   # the Spite compiler reads it to compile the C it emits
 compile_c() { "$CC_BIN" -O1 -Wno-parentheses-equality -Wno-deprecated-declarations "$1" -o "$2" 2> "$work/c_errors.txt" || { head -20 "$work/c_errors.txt"; exit 1; }; }
 
 # Each generation writes its C to the default place beside the program, bootstrap/bootstrap.c, and it is moved into
-# the work folder at once: every Build field is a constant in the built compiler, so a --c_path naming this run's
+# the work folder at once: every Build field is a constant in the built compiler, so a --c-path naming this run's
 # folder would be written into the C and no two generations (or seeds) would ever be equal.
 compile_compiler() {
-  "$1" bootstrap --run=false --c_source || return 1
+  "$1" bootstrap --run=false --c-source || return 1
   cp bootstrap/bootstrap.c "$2" || return 1   # a copy: Windows may still hold the file, refusing a rename
   for attempt in 1 2 3 4 5 6 7 8 9 10; do   # and a virus scanner may hold it a moment longer, refusing the delete
     rm -f bootstrap/bootstrap.c 2>/dev/null && return 0
@@ -74,10 +74,10 @@ for folder in conformance/*/*/ examples/*/; do   # the examples are held to the 
   flags=""; [ -f "$folder/flags.txt" ] && flags=$(tr -d '\r\n' < "$folder/flags.txt")   # compiler flags such as --environment=server
   input=/dev/null; [ -f "$folder/input.txt" ] && input="$folder/input.txt"   # what the program reads from the console
   # the executable goes into the work folder rather than beside the program, so the repository stays clean
-  actual=$("$work/generation_two.exe" "$folder" --debug_memory --executable_path="$work/$name.exe" $flags < "$input" 2>&1 | tr -d '\r')
+  actual=$("$work/generation_two.exe" "$folder" --debug-memory --executable-path="$work/$name.exe" $flags < "$input" 2>&1 | tr -d '\r')
   # some toolchains intermittently fail to open their own cache files on Windows; that is not a
   if echo "$actual" | grep -q "failed to check cache"; then
-    actual=$("$work/generation_two.exe" "$folder" --debug_memory --executable_path="$work/$name.exe" $flags < "$input" 2>&1 | tr -d '\r')
+    actual=$("$work/generation_two.exe" "$folder" --debug-memory --executable-path="$work/$name.exe" $flags < "$input" 2>&1 | tr -d '\r')
   fi
   expected=$(tr -d '\r' < "$folder/expected_output.txt")
   body=$(echo "$actual" | grep -v '^allocations: ')
@@ -99,7 +99,7 @@ echo "conformance and examples: $passed passed, $failed failed"
 [ "$failed" == "0" ] || exit 1
 
 # A program runs in the folder spite was run from, not the language's: the compiler finds library/ and launcher/
-# from its own executable, so a relative path the program opens is the caller's. With no --executable_path its
+# from its own executable, so a relative path the program opens is the caller's. With no --executable-path its
 # executable is built beside the program (D129), so nothing is written into the caller's folder either.
 repository=$(pwd)
 mkdir -p "$work/elsewhere"
@@ -115,9 +115,9 @@ rm -f "$beside.crashes" "$beside.exe"
 echo "working directory: a program opens relative paths in the folder spite was run from, and is built beside itself"
 
 # The tests: a package that crashes (D46). No framework: a test is a function, and `crash` is the assertion.
-test_output=$("$work/generation_two.exe" tests --debug_memory --executable_path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
+test_output=$("$work/generation_two.exe" tests --debug-memory --executable-path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
 if echo "$test_output" | grep -q "failed to check cache"; then
-  test_output=$("$work/generation_two.exe" tests --debug_memory --executable_path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
+  test_output=$("$work/generation_two.exe" tests --debug-memory --executable-path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
 fi
 test_balance=$(echo "$test_output" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
 if [ "$(echo "$test_output" | grep -vc '^allocations: ')" != "0" ] || [ -z "$test_balance" ] || [ "${test_balance% *}" != "${test_balance#* }" ]; then
@@ -148,7 +148,7 @@ echo "diagnostics: $checked checked, $wrong wrong"
 # code block out, and each one has to compile, run, print its ```output block and free everything it took.
 # A block marked `error` must fail to compile with its ```diagnostic text somewhere in the message.
 rm -rf .spite-cache/docs   # so a program deleted from docs/ stops being checked
-"$work/generation_two.exe" scripts/docs_corpus --executable_path="$work/docs_corpus.exe" > /dev/null || {
+"$work/generation_two.exe" scripts/docs_corpus --executable-path="$work/docs_corpus.exe" > /dev/null || {
   echo "FAILED: could not extract the documentation's programs"; exit 1; }
 documented=0; undocumented=0
 for folder in .spite-cache/docs/*/; do
@@ -161,7 +161,7 @@ for folder in .spite-cache/docs/*/; do
     else undocumented=$((undocumented+1)); echo "FAILED docs: $name wanted an error saying '$expected'"; echo "$actual" | head -4; fi
     continue
   fi
-  actual=$("$work/generation_two.exe" "$folder" --debug_memory --format=false --executable_path="$work/docs_$name.exe" $flags < /dev/null 2>&1 | tr -d '\r')
+  actual=$("$work/generation_two.exe" "$folder" --debug-memory --format=false --executable-path="$work/docs_$name.exe" $flags < /dev/null 2>&1 | tr -d '\r')
   expected=$(tr -d '\r' < "$folder/expected_output.txt")
   body=$(echo "$actual" | grep -v '^allocations: ')
   balance=$(echo "$actual" | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1 \2/')
@@ -171,7 +171,7 @@ done
 echo "documentation: $documented passed, $undocumented failed"
 [ "$undocumented" == "0" ] || exit 1
 
-# A ```wire block in docs/ is a remote REPL session: its program runs with --repl_port, every
+# A ```wire block in docs/ is a remote REPL session: its program runs with --repl-port, every
 # `$ spite connect <port> --command="..."` line is sent with the compiler's own client, and each answer must be
 # the JSON line written under it. The port comes from this run's process id, so two runs do not share one.
 sessions=0
@@ -179,8 +179,8 @@ for wire in .spite-cache/docs/*/wire.txt; do
   [ -f "$wire" ] || continue
   folder=$(dirname "$wire"); name=$(basename "$folder")
   port=$((20000 + $$ % 20000))
-  "$work/generation_two.exe" "$folder" --executable --run=false --format=false --repl_port=$port --executable_path="$work/wire_$name.exe" > "$work/c_errors.txt" 2>&1 || {
-    echo "FAILED wire: $name does not build with --repl_port"; head -5 "$work/c_errors.txt"; exit 1; }
+  "$work/generation_two.exe" "$folder" --executable --run=false --format=false --repl-port=$port --executable-path="$work/wire_$name.exe" > "$work/c_errors.txt" 2>&1 || {
+    echo "FAILED wire: $name does not build with --repl-port"; head -5 "$work/c_errors.txt"; exit 1; }
   "$work/wire_$name.exe" > "$work/wire_$name.txt" 2>&1 < /dev/null &
   served=$!
   listening=false
@@ -210,7 +210,7 @@ done
 [ "$sessions" -gt 0 ] || { echo "FAILED wire: docs/ has no remote REPL session to replay"; exit 1; }
 echo "remote REPL: $sessions documented sessions answered exactly"
 
-# Live reload (docs/repl.md): docs/'s hot_counter program runs with --hot_reload and --repl_port from a copy in the
+# Live reload (docs/repl.md): docs/'s hot_counter program runs with --hot-reload and --repl-port from a copy in the
 # work folder, which this step edits. An edit followed by `reload` must run the new code with the state set before
 # it, and an edit nobody reports must be picked up by the file watcher, rebuilding only its class. Every wait has a
 # timeout, and the program is killed if it outlives the session.
@@ -218,8 +218,8 @@ hot_folder="$work/hot_reload/hot_counter"
 [ -d .spite-cache/docs/hot_counter ] || { echo "FAILED live reload: docs/repl.md has no hot_counter program"; exit 1; }
 mkdir -p "$work/hot_reload"; cp -r .spite-cache/docs/hot_counter "$hot_folder"
 port=$((20000 + $$ % 20000))
-"$work/generation_two.exe" "$hot_folder" --executable --run=false --format=false --hot_reload --repl_port=$port --executable_path="$work/hot_reload/hot_counter.exe" > "$work/c_errors.txt" 2>&1 || {
-  echo "FAILED live reload: hot_counter does not build with --hot_reload"; head -5 "$work/c_errors.txt"; exit 1; }
+"$work/generation_two.exe" "$hot_folder" --executable --run=false --format=false --hot-reload --repl-port=$port --executable-path="$work/hot_reload/hot_counter.exe" > "$work/c_errors.txt" 2>&1 || {
+  echo "FAILED live reload: hot_counter does not build with --hot-reload"; head -5 "$work/c_errors.txt"; exit 1; }
 "$work/hot_reload/hot_counter.exe" > "$work/hot_reload/output.txt" 2>&1 < /dev/null &
 served=$!
 hot_fail() { kill $served 2>/dev/null; echo "FAILED live reload: $1"; head -5 "$work/hot_reload/output.txt"; exit 1; }
@@ -257,15 +257,15 @@ kill -0 $served 2>/dev/null && hot_fail "the program kept running after exit"
 wait $served || hot_fail "the program ended with exit code $?"
 echo "live reload: an edited class was swapped in by reload and another by the watcher, keeping the program's state"
 
-# --final_classes writes the program back out as Spite source. What it writes has to be a program:
+# --final-classes writes the program back out as Spite source. What it writes has to be a program:
 # printing a corpus program and running what came out must print the same thing. symbol_codegen proves the
 # functions Spite made from a template are printed as real functions (D61).
 for printed_program in conformance/stage3/interpolation conformance/stage6/symbol_codegen; do
   printed_name=$(basename "$printed_program")
   printed="$work/final/$printed_name"   # a program is a folder named like its entry file (D89)
-  "$work/generation_two.exe" "$printed_program" --run=false --final_classes="$printed" > /dev/null 2>&1 || {
-    echo "FAILED: --final_classes could not write $printed_program out"; exit 1; }
-  printed_output=$("$work/generation_two.exe" "$printed" --debug_memory --executable_path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '' | grep -v '^allocations: ')
+  "$work/generation_two.exe" "$printed_program" --run=false --final-classes="$printed" > /dev/null 2>&1 || {
+    echo "FAILED: --final-classes could not write $printed_program out"; exit 1; }
+  printed_output=$("$work/generation_two.exe" "$printed" --debug-memory --executable-path="$work/final_$printed_name.exe" < /dev/null 2>&1 | tr -d '' | grep -v '^allocations: ')
   if [ "$printed_output" != "$(tr -d '' < "$printed_program/expected_output.txt")" ]; then
     echo "FAILED: the printed $printed_name does not run like the one it was printed from"; echo "$printed_output" | head -6; exit 1
   fi
@@ -275,12 +275,12 @@ echo "final classes: the printed program runs the same"
 # Each operating system's folder in library/ reopens the classes it changes (D80). Only this machine's can run
 # here, so the others are held to compiling: the compiler writes itself out once for each.
 for operating_system in windows linux mac; do
-  "$work/generation_two.exe" bootstrap --run=false --c_source --c_path="$work/compiler_$operating_system.c" --target_operating_system=$operating_system || {
+  "$work/generation_two.exe" bootstrap --run=false --c-source --c-path="$work/compiler_$operating_system.c" --target-operating-system=$operating_system || {
     echo "FAILED: the compiler does not compile with library/$operating_system"; exit 1; }
   "$CC_BIN" -fsyntax-only -w "$work/compiler_$operating_system.c" 2> "$work/c_errors.txt" || {
     echo "FAILED: the C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }
   # The compiler names no time zone, so a program that does is written out too: each system reads zones its own way.
-  "$work/generation_two.exe" conformance/stage6/daylight_saving --run=false --c_source --c_path="$work/zones_$operating_system.c" --target_operating_system=$operating_system || {
+  "$work/generation_two.exe" conformance/stage6/daylight_saving --run=false --c-source --c-path="$work/zones_$operating_system.c" --target-operating-system=$operating_system || {
     echo "FAILED: time zones do not compile with library/$operating_system"; exit 1; }
   "$CC_BIN" -fsyntax-only -w "$work/zones_$operating_system.c" 2> "$work/c_errors.txt" || {
     echo "FAILED: the time zone C written for library/$operating_system does not compile"; head -5 "$work/c_errors.txt"; exit 1; }

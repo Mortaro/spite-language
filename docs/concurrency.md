@@ -5,7 +5,7 @@
 > one on a thread of its own; `.wait()` gives back what it returned, and dropping the handle waits for it.
 > Where a program already waits -- `Program.sleep`, `Console.read_line`, reading or writing a `File`, a
 > `Socket`'s `accept_client` and `read_line`, waiting on a `Concurrent` or a `Parallel` -- the compiler turns the
-> wait into a suspension, so another fiber runs meanwhile, and a `--repl_port` build answers its commands there.
+> wait into a suspension, so another fiber runs meanwhile, and a `--repl-port` build answers its commands there.
 > Windows runs all of it; the Linux and macOS folders are held to compiling. **Not built:** a thread pool,
 > `parallel_each_` templates, HTTP, cancelling a `Concurrent`, and a rule for what a parallel function may touch
 > ([manual section 15](../manual.md#15-standard-library--partial)).
@@ -172,14 +172,14 @@ func ParallelTour() {
 499999500000 4499998500000
 ```
 
-A program that makes a `Parallel` (or a `Concurrent`, or is built with `--repl_port`) counts references with
+A program that makes a `Parallel` (or a `Concurrent`, or is built with `--repl-port`) counts references with
 atomic operations, because an object can now be shared between threads; every other program keeps the plain,
 cheaper counts. What a `Parallel` function may touch is not checked yet: give it an instance of its own, as each
 `Summer` above has, and do not change that instance until the result is back.
 
 ## The REPL answers at the waits
 
-A `--repl_port` build (see [repl.md](repl.md)) serves its commands **on the program's own thread, at the same
+A `--repl-port` build (see [repl.md](repl.md)) serves its commands **on the program's own thread, at the same
 waits**. The socket thread only reads a command and hands it over; the scheduler answers it the next time the
 program waits, and hands the answer back. Every command therefore sees the program between two steps, never in
 the middle of one: a frame loop that ends in `program.sleep` is answered between frames, a tool waiting on
@@ -218,12 +218,12 @@ $ spite connect 4000 --command="exit"
 {"ok":true,"value":"","type":""}
 ```
 
-A program that never waits would never be answered, so a `--repl_port` build of one is a compile error. The
+A program that never waits would never be answered, so a `--repl-port` build of one is a compile error. The
 rule the compiler applies: when none of the program's own code waits anywhere (none of the calls in the table
 above), a `while` loop in it may never let the REPL in, and the error points at that loop:
 
 ```
-frames.spite:6: error: a --repl_port build answers its REPL where the program waits (Program.sleep,
+frames.spite:6: error: a --repl-port build answers its REPL where the program waits (Program.sleep,
 Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel) and after the
 entry constructor returns, and this program never waits: if this loop does not end, the REPL never answers.
 Wait somewhere in the loop, such as 'program.sleep(1)' at the end of a frame

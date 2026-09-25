@@ -319,3 +319,13 @@ All of it is proposed by Claude, unconfirmed.
 138. **Two ways to format?** A compile formats the program's files (`format`, an output), and `spite format <path>`
      formats files that need not be a program -- `library/`, which no program's compile formats. Keep both, or
      make formatting the library the job of compiling `bootstrap` (which loads it)?
+139. **Kebab-case for a program's run-time settings too?** D188 makes the compiler's flags kebab-case
+     (`--repl-port` sets `Build.repl_port`). A program's `Environment` settings are read after the `--` when the
+     program runs, and still match their field's spelling (`spite game -- --player_name=ada`). The compiler could
+     write the kebab form into the program as the text it matches (`"player-name"`), which costs nothing at run time
+     (D177). Make run-time settings kebab-case as well, so both sides of `--` read alike?
+140. **A folder a package `load`s from inside its own tree.** A package `kitchen/` that loads `garnish/pepper` from
+     inside itself gets that folder twice: as the namespace `Garnish.Pepper` (every folder of a root is one) and as a
+     root of its own. Both compile, and tree shaking drops the unused one, but a folder named by a `load` could
+     instead never be a namespace, as the entry folder already does for the folders its own file loads. Also: `Build`
+     is read before any package is loaded, so a package's `build.spite` cannot add a field that decides a `load`.

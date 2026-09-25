@@ -3,7 +3,7 @@
 There are no macros. Spite's answer to "write this for every attribute" is **Symbol codegen**: a function whose
 name has a hole in it, which the compiler fills once for every name a program calls. Its answer to "one class for
 many types" is **generics**, codegen values declared with `generic` lines. Both are ordinary functions and
-classes, so what they generate is typed, visible in `--final_classes`, and removed when nothing calls it.
+classes, so what they generate is typed, visible in `--final-classes`, and removed when nothing calls it.
 
 Reading a program's structure at run time -- `.class`, `.attributes`, `.functions` -- is
 [reflection.md](reflection.md). The standard library's member templates (`filter_<member>()`,
@@ -599,7 +599,7 @@ move
 draw
 ```
 
-`--final_classes` shows what was made: `RunnerMove` has `place_update_all()` and `run_update_all()`, and
+`--final-classes` shows what was made: `RunnerMove` has `place_update_all()` and `run_update_all()`, and
 `add_systems()` calls `add_system_system_draw()` and `add_system_system_move()`. As a condition,
 `$system_type.has_function("<phase>_all")` asks whether any function fits the pattern. A fuller engine, with
 rows queried per argument and `run_each` called once per combination, is
@@ -679,7 +679,7 @@ at compile time:
   [`Json`](json.md) exists only for the types a program uses it with.
 - A **class** nothing reaches is not emitted.
 - The **concurrency scheduler**, fibers and atomic reference counts exist only in a program that makes a
-  `Concurrent` or a `Parallel`, or is built with `--repl_port` ([concurrency.md](concurrency.md)).
+  `Concurrent` or a `Parallel`, or is built with `--repl-port` ([concurrency.md](concurrency.md)).
 
 This is tree shaking over the program's own model, not dead-code elimination left to the C compiler.
 

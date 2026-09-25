@@ -2,7 +2,7 @@
 
 The standard library is ordinary Spite in `library/`, and a program reads it the way it reads its own code:
 every class a program can name -- `String`, `List`, `Int`, `File`, `Memory` -- is a file there, and
-`--final_classes` prints each one as the program uses it. Its values are reference counted like every other
+`--final-classes` prints each one as the program uses it. Its values are reference counted like every other
 object ([memory.md](memory.md)). When an operation cannot succeed it says so in its type rather than crashing:
 an index or a key that is not there reads as `T?`, a file that cannot be read answers `null`, and text that does
 not parse as a number reads as `0`.
@@ -300,7 +300,7 @@ name? no input
 | `exit(code)` | flushes what was printed and ends the process with `code` |
 | `sleep(milliseconds)` | waits; other `Concurrent` work runs meanwhile ([concurrency.md](concurrency.md)) |
 | `environment(name)` | the process environment variable, as a `String?` |
-| `live_allocations()` | how many allocations are alive, under `--debug_memory` |
+| `live_allocations()` | how many allocations are alive, under `--debug-memory` |
 
 The entry constructor returning normally is exit code `0`.
 
@@ -356,7 +356,7 @@ waited at least 4 ms: true
 
 ## `Socket`
 
-`Socket()` is a TCP connection on `127.0.0.1` and nowhere else, which is what `--repl_port` and `spite connect`
+`Socket()` is a TCP connection on `127.0.0.1` and nowhere else, which is what `--repl-port` and `spite connect`
 are written with: `listen_locally(port)`, `accept_client(): Socket?`, `connect_locally(port)`,
 `read_line(): String?`, `write_line(text)` and `close()`. A program that uses it waits in `accept_client` and
 `read_line` the way it waits anywhere, so other `Concurrent` work runs meanwhile. HTTP is not built.

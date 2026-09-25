@@ -167,7 +167,7 @@ func write_attribute(attribute: Symbol<$value_type>, value: $value_type, members
 ```
 
 `write_attributes(value, members)` calls it once per attribute; `read_attributes` does the same with the key it
-just read, and the attribute whose name matches takes the value. `--final_classes` does not print these
+just read, and the attribute whose name matches takes the value. `--final-classes` does not print these
 instances into `json.spite` (a generic class's file is shared by all of its instances), but they are ordinary
 typed functions in the C the program compiles to.
 

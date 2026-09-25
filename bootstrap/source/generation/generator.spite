@@ -14504,12 +14504,12 @@ func check_remote_loop_waits() {
     current_function = unwaiting_loop_function
     if remote_loop_port == 0 {
         report(
-            "a --hot_reload build swaps its code where the program waits (Program().sleep, Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel), and this program never waits: if this loop does not end, no change ever reaches it. Wait somewhere in the loop, such as 'Program().sleep(1)' at the end of a frame",
+            "a --hot-reload build swaps its code where the program waits (Program().sleep, Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel), and this program never waits: if this loop does not end, no change ever reaches it. Wait somewhere in the loop, such as 'Program().sleep(1)' at the end of a frame",
         )
         return
     }
     report(
-        "a --repl_port build answers its REPL where the program waits (Program.sleep, Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel) and after the entry constructor returns, and this program never waits: if this loop does not end, the REPL never answers. Wait somewhere in the loop, such as 'program.sleep(1)' at the end of a frame",
+        "a --repl-port build answers its REPL where the program waits (Program.sleep, Console.read_line, reading or writing a File or a Socket, waiting on a Concurrent or a Parallel) and after the entry constructor returns, and this program never waits: if this loop does not end, the REPL never answers. Wait somewhere in the loop, such as 'program.sleep(1)' at the end of a frame",
     )
 }
 
@@ -14835,7 +14835,7 @@ func hot_reload_body(name: String): String {
         return "return 0;"
     }
     if not hot_reload {
-        return "(void)library;\nreturn spite_string_from_cstring_owned(\"this program was not built with --hot_reload\");"
+        return "(void)library;\nreturn spite_string_from_cstring_owned(\"this program was not built with --hot-reload\");"
     }
     return "typedef const char* (*SpiteHotBind)(void* (*)(const char*), int32_t (*)(const char*, void*));\n#ifdef _WIN32\nSpiteHotBind bind = (SpiteHotBind)(void*)GetProcAddress((HMODULE)(intptr_t)library, \"spite_reload_bind\");\n#else\nSpiteHotBind bind = (SpiteHotBind)dlsym((void*)(intptr_t)library, \"spite_reload_bind\");\n#endif\nif (bind == 0) return spite_string_from_cstring_owned(\"spite_reload_bind\");\nconst char* missing = bind(spite_hot_find, spite_hot_install);\nreturn spite_string_from_cstring_owned(missing == 0 ? \"\" : missing);"
 }

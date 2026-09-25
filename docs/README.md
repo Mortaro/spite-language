@@ -55,7 +55,7 @@ reads it best (`func`, `var`, `name: Type`, `#` comments). The code is Spite thr
 
 **Tooling**
 
-18. [compiler.md](compiler.md) -- every command and flag, the outputs and where they go, `--final_classes`, `--development`.
+18. [compiler.md](compiler.md) -- every command and flag, the outputs and where they go, `--final-classes`, `--development`.
 19. [repl.md](repl.md) -- the local and remote REPL, `spite connect`, and a replayed debugging session.
 20. [testing.md](testing.md) -- a test is a function that crashes; the test package finds them itself.
 21. [self_hosting.md](self_hosting.md) -- how the compiler builds itself, and what proves it.

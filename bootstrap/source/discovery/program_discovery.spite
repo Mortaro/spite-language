@@ -554,13 +554,13 @@ func is_platform_folder(name: String): Bool {
 func choose_target_operating_system() {
     if supplied_settings.has("operating_system") {
         has_error = true
-        error_message = "error: '--operating_system' cannot be given: Build.operating_system is the system doing the compiling ({host_operating_system}). To write the program for another system, give --target_operating_system=linux (or windows, or mac)"
+        error_message = "error: '--operating-system' cannot be given: Build.operating_system is the system doing the compiling ({host_operating_system}). To write the program for another system, give --target-operating-system=linux (or windows, or mac)"
     }
     supplied_settings["operating_system"] = host_operating_system
     if supplied_settings["target_operating_system"] {
         if not is_platform_folder(supplied_settings["target_operating_system"]) and not has_error {
             has_error = true
-            error_message = "error: '--target_operating_system={supplied_settings["target_operating_system"]}' names no operating system the library has a folder for: windows, linux or mac"
+            error_message = "error: '--target-operating-system={supplied_settings["target_operating_system"]}' names no operating system the library has a folder for: windows, linux or mac"
         }
     } else {
         supplied_settings["target_operating_system"] = host_operating_system
@@ -871,7 +871,7 @@ func setting_reader(variable: Syntax.Statements.VariableDeclaration, class_name:
 
 func setting_source(name: String, class_name: String): String {
     if class_name == "Build" {
-        return "decided when compiling, by the compiler's --{name}=value"
+        return "decided when compiling, by the compiler's {flag_of(name)}=value"
     }
     return "a setting, read from the program's command line (--{name}=value) or its environment ({name.upper_case()})"
 }
@@ -879,9 +879,10 @@ func setting_source(name: String, class_name: String): String {
 func hardcode_setting(variable: Syntax.Statements.VariableDeclaration, reader: String) {
     crash supplied_settings[variable.name]
     var literal = setting_literal(reader, supplied_settings[variable.name])
-    var given = "--{variable.name}={supplied_settings[variable.name]}"
+    var flag = flag_of(variable.name)
+    var given = "{flag}={supplied_settings[variable.name]}"
     if bare_settings.contains(variable.name) {
-        given = "--{variable.name}"
+        given = flag
         if reader != "boolean_setting" {
             literal = null
         }
@@ -895,13 +896,19 @@ func hardcode_setting(variable: Syntax.Statements.VariableDeclaration, reader: S
 }
 
 func setting_expectation(reader: String, name: String): String {
+    var flag = flag_of(name)
     if reader == "boolean_setting" {
-        return "a Bool: --{name}, --{name}=true or --{name}=false"
+        return "a Bool: {flag}, {flag}=true or {flag}=false"
     }
     if reader == "text_setting" {
-        return "a String: --{name}=text"
+        return "a String: {flag}=text"
     }
-    return "an Int: a whole number, like --{name}=3"
+    return "an Int: a whole number, like {flag}=3"
+}
+
+func flag_of(name: String): String {
+    var hyphenated = name.replace("_", "-")
+    return "--{hyphenated}"
 }
 
 func setting_literal(reader: String, text: String): Syntax.Expressions.Expression? {
@@ -968,10 +975,10 @@ func check_supplied_settings(build_names: List<String>, environment_names: List<
         var name = supplied_names[index]
         if environment_names.contains(name) and not build_names.contains(name) {
             has_error = true
-            error_message = "error: '--{name}' was given to the compiler, but 'Environment.{name}' is read when the program runs: give it to the program after '--' (spite program -- --{name}=value), or, to decide it when compiling, declare it in the program's build.spite instead"
+            error_message = "error: '{flag_of(name)}' was given to the compiler, but 'Environment.{name}' is read when the program runs: give it to the program after '--' (spite program -- --{name}=value), or, to decide it when compiling, declare it in the program's build.spite instead"
         } else if not build_names.contains(name) {
             has_error = true
-            error_message = "error: '--{name}' is not a compiler option, and this program's Build declares no setting '{name}' (it declares {build_names.join(", ")}). To decide it when compiling, reopen Build in the program's build.spite with 'var {name} = ...'; to read it when the program runs, declare it in environment.spite and give it after '--': spite program -- --{name}=value"
+            error_message = "error: '{flag_of(name)}' is not a compiler option, and this program's Build declares no setting '{name}' (it declares {build_names.join(", ")}). To decide it when compiling, reopen Build in the program's build.spite with 'var {name} = ...'; to read it when the program runs, declare it in environment.spite and give it after '--': spite program -- --{name}=value"
         }
         index = index + 1
     }

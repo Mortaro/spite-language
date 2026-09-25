@@ -77,7 +77,7 @@ methods; `while`, `if`/`else`, `return`; reference counting with `copy()` and `d
 `Directory`, `Process`, `Program`; `crash` (interim report line); the `assert` rules (D27 to D29); Symbol codegen;
 the `List<T>` member templates (D15); reflection (`value.class`, `value.attributes`, `symbol.class`); attribute
 access through `set_`/`get_`; operators as functions; `type` shapes and object literals; constructor-declared
-codegen values, compiler flag values and compile-time folding (D5, D9); `--debug_memory`; errors with file and
+codegen values, compiler flag values and compile-time folding (D5, D9); `--debug-memory`; errors with file and
 line.
 
 ## What comes next

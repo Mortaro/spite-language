@@ -141,7 +141,7 @@ and balanced allocations.
       the runtime and the system-class special case in the generator goes with them. **D80 done (2026-09-24):**
       no `CRuntime` wrapper; `library/windows/`, `library/linux/` and `library/mac/` each reopen `File`,
       `Directory`, `Process`, `Program`, `Console`, `String` and `Build` with only what differs, loaded by the
-      launcher from `Build().target_operating_system` (`--target_operating_system=linux` writes C for Linux).
+      launcher from `Build().target_operating_system` (`--target-operating-system=linux` writes C for Linux).
       Only Windows runs here; `check.sh` holds the linux and mac folders to compiling.
     - **15c.** `String`, `List<T>`, `Dictionary<T>` and the retain/release helpers move to `.spite` sources under
       a `spite/` standard library root: ~400 lines, pure algorithms over memory, expressible in the language as
@@ -231,7 +231,7 @@ and balanced allocations.
     constructor takes no arguments. `launcher/launcher.spite` loads `library/`, the target system's folder and the
     program with visible `load` calls, and `main` only constructs it. **Waiting on Mortaro:** the names `Build`
     and `Launcher`, `mode`/`format` read from the flag alone, the bare-`Bool` flag form, the renamed flags
-    (`--final_classes`, `--repl_port`, `--format=false`), a `.spite` path still naming an entry, and the C that
+    (`--final-classes`, `--repl-port`, `--format=false`), a `.spite` path still naming an entry, and the C that
     stays in `main` (`mortaros_missing_decisions.md`). **Not done:** `main`'s floor (arguments, `_setmode`,
     releasing singletons and class objects, the memory report) is still written in C by the compiler.
 20. **Done (2026-09-24): D87, D90 and D104, the header lines and variadic arguments** (manual.md sections 5, 8
@@ -280,7 +280,7 @@ and balanced allocations.
     Mortaro:** `mortaros_missing_decisions.md` 50-56. **Not done:** `Arguments` is still C in the prelude; a
     `List` or `Dictionary` does not declare a layout the compiler reads (they are ordinary classes already).
 25. **Done on Windows (2026-09-24): milestone 6b, live reload -- D111 and D112** (manual.md section 14, "Live
-    reload and 6b"; `docs/repl.md`). `--hot_reload` calls the program's functions through re-pointable slots,
+    reload and 6b"; `docs/repl.md`). `--hot-reload` calls the program's functions through re-pointable slots,
     rebuilds the classes whose files changed (and the callers of their changed signatures) into a library with
     `--mode=reload`, and swaps it in at a drain point, from the REPL's `reload` or the operating system's file
     watcher. A change to attributes or enums is refused until a restart. `check.sh` edits a copy of docs' program

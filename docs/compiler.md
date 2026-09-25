@@ -5,31 +5,34 @@
 first reads the **whole** program -- the launcher, the standard library, the program's folder, its `build.spite`
 and every folder it `load`s -- and only then decides what to produce, from the program's
 [`Build`](programs.md#compile-time-settings-build). Every option is a field of `Build`, given as `--name=value`
-(a `Bool` option may be given bare, `--optimized`). By default the compiler builds the executable beside the
-program and runs it.
+(a `Bool` option may be given bare, `--optimized`). A flag is written in kebab-case and sets the `snake_case` field
+of the same name: `--repl-port=4000` sets `Build.repl_port`, and a field a program declares in its own
+`build.spite`, `worker_stack_size`, is given as `--worker-stack-size=256` (D188). A flag written with an underscore
+is an error naming the hyphen form: `error: '--repl_port' is written '--repl-port': a flag is kebab-case, and it
+sets the Build field 'repl_port'`. By default the compiler builds the executable beside the program and runs it.
 
 ```
 spite program                         build program/program.exe beside the program, and run it
 spite program --optimized             an optimized build
 spite program --development           keep everything (no tree shaking), for live reload
-spite program --debug_memory          count allocations and frees, and print the balance at the end
+spite program --debug-memory          count allocations and frees, and print the balance at the end
 spite program --repl                  run it, then open a REPL on the running program
-spite program --repl_port=4000        serve a REPL on 127.0.0.1:4000 while it runs
-spite program --hot_reload            swap edited classes into the running program, keeping its state
+spite program --repl-port=4000        serve a REPL on 127.0.0.1:4000 while it runs
+spite program --hot-reload            swap edited classes into the running program, keeping its state
 spite program --serve=true            decide a Build field the program declares, while compiling
 spite program -- --serve=true         run it with a setting its Environment declares
-spite program --c_source              write program/program.c too, then build and run
-spite program --c_source --run=false  write the C and nothing else
+spite program --c-source              write program/program.c too, then build and run
+spite program --c-source --run=false  write the C and nothing else
 spite program --executable --run=false            build the executable without running it
-spite program --executable --c_source --run=false build it and write its C, in one compile
-spite program --executable_path=build/game.exe    put the executable somewhere else (--c_path= for the C)
+spite program --executable --c-source --run=false build it and write its C, in one compile
+spite program --executable-path=build/game.exe    put the executable somewhere else (--c-path= for the C)
 spite program --run=false             compile the program and write nothing: its errors, if any
-spite program --final_classes=folder  also write the program back out as Spite, every class as it ended up
+spite program --final-classes=folder  also write the program back out as Spite, every class as it ended up
 spite program --format=false          leave the program's files as they are written
-spite program --target_operating_system=linux --c_source --run=false   write the C for another system
+spite program --target-operating-system=linux --c-source --run=false   write the C for another system
 spite format <file-or-folder> ...     format files without compiling them
 spite format --check <path> ...       rewrite nothing; fail listing every file that would change
-spite connect 4000                    talk to a running --repl_port program
+spite connect 4000                    talk to a running --repl-port program
 spite connect 4000 --command="..."    send one REPL command and print its JSON answer
 ```
 
@@ -86,8 +89,8 @@ writes nothing:
 
 ```bash
 spite game                                      # build game/game.exe and run it
-spite game --c_source                           # the same, and write game/game.c to read
-spite game --executable --c_source --run=false  # build game/game.exe and write game/game.c, run nothing
+spite game --c-source                           # the same, and write game/game.c to read
+spite game --executable --c-source --run=false  # build game/game.exe and write game/game.c, run nothing
 spite game --run=false                          # only check that it compiles
 ```
 
@@ -105,23 +108,23 @@ Each output has its own path option, and without one it is written **beside the 
 | the C | `c_path` | `game/game.c` |
 
 ```bash
-spite game --executable --run=false --executable_path=build/game.exe
-spite game --c_source --run=false --c_path=build/game.c
+spite game --executable --run=false --executable-path=build/game.exe
+spite game --c-source --run=false --c-path=build/game.c
 ```
 
 A folder the path names is created. A path option given for an output that is off is an error saying which flag
-is missing (`--c_path` without `--c_source`), so a path never passes silently. Every `Build` field is a constant
+is missing (`--c-path` without `--c-source`), so a path never passes silently. Every `Build` field is a constant
 in the built program, the paths included.
 
 What a build writes **beside its executable**, wherever that is: `game.crashes`, the map from a crash report's
-site ids to their lines ([failure.md](failure.md)), and, for a `--hot_reload` build, `game.reload_host`,
-`game.reload_files` and each reload's `game_reload_1.dll` with its C ([repl.md](repl.md#live-reload---hot_reload)).
-The one intermediate that is not an output is the C the C compiler reads when `--c_source` is off: it goes to the
+site ids to their lines ([failure.md](failure.md)), and, for a `--hot-reload` build, `game.reload_host`,
+`game.reload_files` and each reload's `game_reload_1.dll` with its C ([repl.md](repl.md#live-reload---hot-reload)).
+The one intermediate that is not an output is the C the C compiler reads when `--c-source` is off: it goes to the
 language repository's `.spite-cache/game.c`, and is overwritten by the next build of a program of that name.
 
-`spite reload <folder> ... --executable_path=<running executable>` is what a `--hot_reload` program runs to
+`spite reload <folder> ... --executable-path=<running executable>` is what a `--hot-reload` program runs to
 rebuild itself: given the options it was built with, it compiles only the classes whose files changed into a
-library beside the executable and prints what it rebuilt ([repl.md](repl.md#live-reload---hot_reload)).
+library beside the executable and prints what it rebuilt ([repl.md](repl.md#live-reload---hot-reload)).
 
 ## Build options
 
@@ -140,7 +143,7 @@ Every option is a `Build` field with a literal default, declared in `library/bui
 | `development` | `false` | keeps everything, no tree shaking, for live reload |
 | `repl` | `false` | runs the program with an in-place REPL |
 | `repl_port` | `0` | serves the remote REPL on this port (see [repl.md](repl.md)) |
-| `hot_reload` | `false` | swaps changed classes into the running program and implies `development` (see [repl.md](repl.md#live-reload---hot_reload)) |
+| `hot_reload` | `false` | swaps changed classes into the running program and implies `development` (see [repl.md](repl.md#live-reload---hot-reload)) |
 | `debug_memory` | `false` | counts allocations and frees and prints them when the program ends |
 | `operating_system` | the compiling machine | cannot be given: it is the system doing the compiling |
 | `target_operating_system` | `operating_system` | the system the program is compiled for |
@@ -148,8 +151,8 @@ Every option is a `Build` field with a literal default, declared in `library/bui
 
 ```bash
 spite game --optimized
-spite game --debug_memory
-spite game --executable --run=false --executable_path=build/game.exe --debug_memory
+spite game --debug-memory
+spite game --executable --run=false --executable-path=build/game.exe --debug-memory
 ```
 
 A program may give an option a different default by reopening `Build` in its own `build.spite`
@@ -167,12 +170,12 @@ CC=clang spite game --optimized
 
 ## Compile for another system
 
-`--target_operating_system=linux` (or `windows`, or `mac`) compiles for that system from any machine: it loads
+`--target-operating-system=linux` (or `windows`, or `mac`) compiles for that system from any machine: it loads
 `library/linux/` instead of this machine's folder, and `build.target_operating_system` is `"linux"` in the
 program. `check.sh` uses it to hold the folders it cannot run to compiling:
 
 ```bash
-spite bootstrap --c_source --run=false --c_path=compiler_linux.c --target_operating_system=linux
+spite bootstrap --c-source --run=false --c-path=compiler_linux.c --target-operating-system=linux
 ```
 
 ## Pass settings to the program
@@ -217,16 +220,16 @@ branch, a template exists only for the names called, and reflection only where i
 condition on a codegen value becomes a run-time `if` that live reload could flip, and every class in the folder is
 emitted.
 
-## Counting memory: `--debug_memory`
+## Counting memory: `--debug-memory`
 
-`--debug_memory` builds the program with an allocation table and prints `allocations: N frees: N` when it ends.
+`--debug-memory` builds the program with an allocation table and prints `allocations: N frees: N` when it ends.
 The two numbers differ only when something leaked, and then the report names the classes whose instances are
 still alive, which is how a leaked cycle shows up ([memory.md](memory.md#cycles-leak)). Every program in
 `conformance/`, `examples/` and these pages is run this way by `check.sh`, and must balance.
 
 ## Inspect merged classes
 
-`--final_classes=folder` writes the discovered, merged classes as readable `.spite` files -- one per class, under
+`--final-classes=folder` writes the discovered, merged classes as readable `.spite` files -- one per class, under
 the namespace folders it belongs to. It is useful after a `load` or a reopening: the file holds the declarations
 that won, so reopening stops being invisible. What it writes is a program, not a report: running the printed
 entry file runs the same program, which `check.sh` proves on every run. `Build` is printed with the defaults it
@@ -280,7 +283,7 @@ The folder has no default: anything inside the program's own folder would be rea
 so the folder is always named. Like every output, it combines with the others; `--run=false` writes only it:
 
 ```bash
-spite game --final_classes=.spite-cache/final --run=false
+spite game --final-classes=.spite-cache/final --run=false
 ```
 
 ## Errors and usage

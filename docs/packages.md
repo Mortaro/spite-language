@@ -232,7 +232,7 @@ or lockfile. That is decided and not built ([manual, decision D38](../manual.md#
 
 ## Final classes
 
-Because patching is dangerous to read silently, `--final_classes=folder` writes every class as it ended up, after
+Because patching is dangerous to read silently, `--final-classes=folder` writes every class as it ended up, after
 every root is merged and every reopening resolved, as a program that runs the same as the one it was printed from
 ([compiler.md](compiler.md#inspect-merged-classes)). This is the file to read when you are not sure which mod won.
 Which root supplied each declaration is not printed yet.

@@ -246,7 +246,7 @@ func reloaded(command: String): Answer {
         return failure(hot_reload.last)
     }
     return failure(
-        "'{command}' answers in a program built with --hot_reload, which swaps its code while it runs, and this one was not",
+        "'{command}' answers in a program built with --hot-reload, which swaps its code while it runs, and this one was not",
     )
 }
 

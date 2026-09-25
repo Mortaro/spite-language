@@ -392,7 +392,7 @@ to every class object at once ([packages.md](packages.md#the-spite-namespace-is-
 
 The few members only the compiler can write -- `value_attributes()`, `value_functions()` and `assign(text)` on
 `Spite.Attribute`, `call_function()` and `call_with_text(arguments)` on `Spite.Function`, which reach the live
-value behind them for the REPL -- are the compiler's own reopening of those classes, and `--final_classes`
+value behind them for the REPL -- are the compiler's own reopening of those classes, and `--final-classes`
 prints them like any other member ([compiler.md](compiler.md#inspect-merged-classes)).
 
 ## Class-level functions, and no static functions
@@ -401,4 +401,4 @@ There are no static functions and there will not be any: a class is an instance 
 that belongs to the class rather than to its instances is a function of `Spite.Class`, declared there with its
 default. `is_singleton()` is one: every class answers it, from its `singleton` line
 ([classes_and_files.md](classes_and_files.md#singletons)). Reopening `Spite.Class` changes a class-level
-default for the whole program -- a foot you are allowed to shoot, and one that shows in `--final_classes`.
+default for the whole program -- a foot you are allowed to shoot, and one that shows in `--final-classes`.

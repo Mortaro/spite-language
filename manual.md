@@ -106,8 +106,8 @@ fields the compiler knows before reading anything, read through a `var` of the l
 the ones given as flags); anywhere else `load` still takes a literal. Loading the program's folder is what runs
 it: that one `load` constructs the program's entry class, runs a `--repl` loop on it, and releases it. `main`
 keeps only the floor -- it hands `argv` to `Arguments()`, puts standard output in binary mode on Windows, and after
-`Launcher` returns releases the singletons and class objects and prints the `--debug_memory` balance. `Launcher`
-is library code for reflection (`Spite.Class.instances` does not list it) and `--final_classes` prints it.
+`Launcher` returns releases the singletons and class objects and prints the `--debug-memory` balance. `Launcher`
+is library code for reflection (`Spite.Class.instances` does not list it) and `--final-classes` prints it.
 
 Configuration files are ordinary classes whose constructor sets the state.
 
@@ -224,7 +224,7 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Int { ret
 - **Casting is a function of the class cast to** (D100, decided by Mortaro): each number class has
   `func from_type(type: Symbol, value: type.class)`, a Symbol codegen function whose symbol ranges over the
   program's types, so the right-to-left cast of an `Int` into a `Float` is `Float.from_int(value)`. Its body is
-  the compiler's (a C cast, emitted inline, so a cast costs what it did), and `--final_classes` prints the
+  the compiler's (a C cast, emitted inline, so a cast costs what it did), and `--final-classes` prints the
   declaration in every number class. `type` may name a parameter and begin a type path for this, although it is
   a keyword elsewhere (proposed by Claude, unconfirmed).
 - **Bitwise operations are functions of the whole-number classes** (D117, decided by Mortaro; the names and the
@@ -233,7 +233,7 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Int { ret
   `bits_and(other)`, `bits_or(other)`, `bits_exclusive_or(other)` and `bits_inverted()`, all returning the
   receiver's type, and `set_bit_count()`, `leading_zero_count()` and `trailing_zero_count()`, returning an `Int`
   (the width for 0). There are no operator symbols for them. They are bodiless declarations the compiler
-  supplies (D82), so `--final_classes` prints them in each class, and each body is the single C operation,
+  supplies (D82), so `--final-classes` prints them in each class, and each body is the single C operation,
   inlined in an optimised build. The rules, so no undefined C behaviour reaches a program:
   - `shifted_right` is **arithmetic on a signed type** (the sign bit is copied in: an `Int` -20 shifted right by 2
     is -5) and **logical on an unsigned one** (zeros come in). `shifted_left` always brings zeros in, and a bit
@@ -488,7 +488,7 @@ What counts as a read, and the exceptions **(proposed by Claude, unconfirmed)**:
 - **A read takes the value**: the attribute's name in its own class's functions or attribute defaults,
   `thing.world` from another class (including through a union's members or a `type` a class is admitted to), a
   getter answering that read, `x.attributes[attribute]` or `attributes[attribute]` in a template, `thing.attributes`
-  (the values), a `load` line's folder the compiler reads, and the REPL's `attributes` in a `--repl`/`--repl_port`
+  (the values), a `load` line's folder the compiler reads, and the REPL's `attributes` in a `--repl`/`--repl-port`
   build. The class-level `Class.attributes` (names and types) does not count.
 - **Writing is not reading.** An attribute that is only assigned, from inside or outside, is unused -- the same
   rule as locals since D136.
@@ -1040,7 +1040,7 @@ ordinary getter interception and `klass.name = ...` is "'name' is read-only" (`d
 Everything reflection offers is ordinary code in `library/spite/`, reachable by name at run time and from the
 REPL (D92). The members only the compiler can write -- `value_attributes()`, `value_functions()` and
 `assign(text)` on `Spite.Attribute`, `call_function()` and `call_with_text(arguments)` on `Spite.Function` -- are
-the compiler's reopening of those classes (D82, section 11), printed by `--final_classes` like any member. A class
+the compiler's reopening of those classes (D82, section 11), printed by `--final-classes` like any member. A class
 of the standard library describes its members too: `Memory.functions` lists every function `Memory` has,
 supplied ones included.
 
@@ -1059,7 +1059,7 @@ an attribute named `class` shadows `.class`.
 
 **What `.functions` contains** (proposed by Claude, unconfirmed): the functions a class declares, plus the
 Symbol-codegen instances that were actually generated for it -- because those are functions of the class in the
-program as built, and `--final_classes` already prints them (section 16 item 9). Reflection describes the
+program as built, and `--final-classes` already prints them (section 16 item 9). Reflection describes the
 program that exists, not the source as written, which is the same rule D42 applies everywhere else.
 
 **A constructor is not one of them.** It does not answer on an instance, it makes one, so putting it in
@@ -1237,7 +1237,7 @@ Since D104 a singleton is no longer said this way: `singleton` is a header line 
   without any new syntax. Anything the compile-time evaluator cannot fold is a diagnostic. **[planned: until
   milestone 10's evaluator exists, only a literal `return` folds -- which covers every case the standard library
   needs.]**
-- `--final_classes` prints each class's function of `Spite.Class`s with the value they folded to.
+- `--final-classes` prints each class's function of `Spite.Class`s with the value they folded to.
 - **`Spite.Class` is reopenable, like any other standard library class** (D7, decided by Mortaro, 2026-09-19:
   "by all means shoot the foot"). Reopening it changes a class-level default for the **whole program**: a root
   whose `spite/class.spite` returns `true` from `is_singleton()` makes every class in the program a singleton,
@@ -1245,7 +1245,7 @@ Since D104 a singleton is no longer said this way: `singleton` is a header line 
   class-level hook name program-wide, so any class that already had an ordinary instance function by that name
   becomes an override of it.
   Nothing about this is silent, which is the reason it is allowed: a name that collides is a compile error
-  naming `Spite.Class` (above), and a changed default shows up per class in `--final_classes`, with the root it
+  naming `Spite.Class` (above), and a changed default shows up per class in `--final-classes`, with the root it
   came from, exactly as any other reopened function does. The compiler has no warnings (section 12), so
   visible generated output is the whole mitigation. **[planned: blocked on section 16 item 1, reopening standard
   library classes at all.]**
@@ -1480,7 +1480,7 @@ func row_argument(argument: Symbol<$system_type.phase_each>): argument.class {
 }
 ```
 
-`--final_classes` shows the result as ordinary functions: `add_system_drink_potion()` holding
+`--final-classes` shows the result as ordinary functions: `add_system_drink_potion()` holding
 `Runner<System.DrinkPotion>()`, and `RunnerDrinkPotion` with `run_update_each()`, `row_potion_in_update_each():
 Potion` and the rest. `conformance/stage6/system_functions` (a `run_each` of two rows and a `run_all` of a list,
 chosen by `has_function`), `conformance/stage6/system_folder` (`system/` and `ui/system/` found with no list),
@@ -1534,7 +1534,7 @@ its buffer), because it says so -- `Symbol<$element_type>` is section 8's `Symbo
 D11 reading, "the value held in that field", applied to D15's members. The generator binds the template to the
 element's member and checks the table above before it compiles the body, so a member that does not fit is still
 the error naming the member, its type and what the template needs; it writes none of the templates' C. Only the
-names a program calls are compiled. A `--repl`/`--repl_port` build compiles every template that fits every
+names a program calls are compiled. A `--repl`/`--repl-port` build compiles every template that fits every
 element class of a list the loop can reach, and lists them as that list's functions, so `monsters.sum_health()`
 works at the prompt. `Dictionary<T>` answers the same names through its values (`inventory.sum_price()` is
 `inventory.values().sum_price()`), and a program's own `list.spite` reopens `List` to add a template of its own.
@@ -1640,7 +1640,7 @@ var sword = Weapon<Magic, true>(10)
   have different kinds (a class versus a `Bool`) the compiler catches it immediately; where they are the same
   kind (`Pair<Int, String>` swapped) it compiles and means something else, and the tests are what catch it. This
   is a deliberate, accepted trade (Mortaro, 2026-09-19).
-- `--final_classes` prints each class with its codegen values already bound, which is where `true` reads as
+- `--final-classes` prints each class with its codegen values already bound, which is where `true` reads as
   `is_magic` again.
 - Writing `generics` is a parse error naming this form (as `for`, `&` and `Heap<T>` already are), and so is D9's
   `func Weapon<$damage_type, $is_magic>(...)`: the message lists the `generic` lines to write
@@ -1788,8 +1788,8 @@ is how it is built (proposed by Claude, unconfirmed, except where a decision is 
   still exists on the `Build` singleton with that value, for reflection.
 - **The compiler's options are fields.** The outputs `run`, `executable`, `c_source`, `format` and
   `final_classes`, the paths `executable_path` and `c_path`, and `optimized`, `development`, `repl`, `repl_port`,
-  `hot_reload` and `debug_memory` (the flag names follow the fields: `--final_classes=folder`,
-  `--repl_port=4000`, `--format=false`). The compiler reads them from the program's resolved `Build`, so a program
+  `hot_reload` and `debug_memory` (the flag names follow the fields: `--final-classes=folder`,
+  `--repl-port=4000`, `--format=false`). The compiler reads them from the program's resolved `Build`, so a program
   whose `build.spite` says `var optimized = true` is built optimized unless `--optimized=false` is given. Since
   D128 no option is read before the program is, so there is no exception for `mode` or `format` any more (`mode`
   is gone: section 13); only `target_operating_system`, which says which library folder is part of the program,
@@ -1801,14 +1801,14 @@ is how it is built (proposed by Claude, unconfirmed, except where a decision is 
   `--`; a flag naming no field is an error listing the fields `Build` has (`diagnostics/unknown_compiler_flag`).
 - **Two operating systems** (D86): `operating_system` is the system doing the compiling -- the compiler supplies
   it, and giving it is an error -- and `target_operating_system` is the one the program is compiled for, which
-  defaults to it. `--target_operating_system=linux` loads `library/linux/` (section 3, the launcher) and folds,
+  defaults to it. `--target-operating-system=linux` loads `library/linux/` (section 3, the launcher) and folds,
   so `if build.target_operating_system == "windows" { }` keeps one branch. Each system's folder reopens `Build`
   with `var target_operating_system = "linux"`, which is only the default a compiler that does not fold `Build`
   sees -- the seed while bootstrapping. The compiler learns which system it runs on from its own
   `build.target_operating_system`, folded when it was built.
 - **`program`** is the folder named on the command line, which the launcher loads; the compiler supplies it and
   giving it is an error.
-- **`--final_classes` prints `Build` with its declared defaults**, not the values one build folded, so running the
+- **`--final-classes` prints `Build` with its declared defaults**, not the values one build folded, so running the
   printed program takes its flags again instead of, say, printing its classes forever.
 
 This settles the compile-time home D76 left open (D13's isomorphic split and section 17's `$target` read a
@@ -1953,7 +1953,7 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   `DynamicLibrary("libc.so.6", 'identity', "")`, which is one shared instance per literal argument list (D8), and
   a one-line foreign call two classes both need is written in both. The launcher (section 3) loads `library/`
   first and then the one folder named by `build.target_operating_system`; that folder adds no namespace segment,
-  and its files are read after `library/`'s own, so they replace or add members by the reopening rule above. `--final_classes`
+  and its files are read after `library/`'s own, so they replace or add members by the reopening rule above. `--final-classes`
   prints each class as it came out, platform functions included. Because exactly one folder is loaded,
   `library/file.spite` calls `open_file` without declaring it: every system's folder defines it, with the same
   signature.  **[implemented; only `library/windows/` runs here -- `check.sh` holds the linux and mac
@@ -1985,7 +1985,7 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   bundle is linked statically into the one executable for now, and the `load` line itself compiles to nothing]**
 - Because patching is dangerous to read, the toolchain writes a **final class** folder: every class after all codegen, with the
   winning function of every replacement, each preceded by a `#` comment naming the root it came from (and which roots it
-  replaced) -- see `--final_classes` in [Command line](#13-command-line). The language server reads it too.
+  replaced) -- see `--final-classes` in [Command line](#13-command-line). The language server reads it too.
   **[planned: an instantiated Symbol codegen function and a used `List<T>`/`Dictionary<T>` helper signature do not appear here
   yet -- only the source classes are declared with]**
 - **What the compiler supplies is a reopening too** (D82, decided by Mortaro: "spite writes that function as if it
@@ -1995,7 +1995,7 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   `Concurrent` and `Parallel` -- are declarations the compiler merges into their classes right after `library/` (and
   its operating system's folder), exactly as a later root merges a file, so a program can still reopen them.
   Nothing is registered by hand any more (D81). **The form** (proposed by Claude, unconfirmed): **a `func` with a
-  signature and no block** is a member whose body the compiler supplies, which is how `--final_classes` prints it
+  signature and no block** is a member whose body the compiler supplies, which is how `--final-classes` prints it
   (`func allocate_bytes(bytes: Long): Long`), and reading that back is what lets the printed program compile. It
   borrows the shape a `type` already uses for a member without a body. Anywhere the compiler supplies nothing by
   that name, a bodiless `func` is an error ("give it a body"), so it is not a way to declare anything else. The
@@ -2099,7 +2099,7 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   was; `--format=false` skips it. A file
   whose function body has an empty line is left alone, so D55's error still fires instead of the formatter
   quietly removing the line; a file the formatter refuses is left alone with its reason printed.
-  `--final_classes` writes its classes already formatted. A list or object literal over 120 columns is written
+  `--final-classes` writes its classes already formatted. A list or object literal over 120 columns is written
   one entry per line with no commas. Every documentation program not marked `error` is formatted too, and `check.sh`
   keeps it so.
 - **A file is ordered** (D67, decided by Mortaro, 2026-09-23): the `singleton` line (D104), `generic` lines
@@ -2159,7 +2159,7 @@ func Game() {
 - The compiler checks that the file exists and has a heading with that anchor. A link that does not resolve fails
   the build, which is the point: prose in source rots into a lie, a link either resolves or stops you.
 - A comment may only appear outside functions and declaration bodies. A line that seems to need explaining
-  becomes a named function instead, and unlike a comment a name is visible to `functions`, to `--final_classes`
+  becomes a named function instead, and unlike a comment a name is visible to `functions`, to `--final-classes`
   and to every tool.
 - `//` and `/* */` are recognised by the lexer only to be rejected with the explanation.
 - Every one of these errors teaches: it states the one legal form, then asks whether the note is needed at all.
@@ -2247,25 +2247,25 @@ gives an error, nothing is left to the user's taste. The only printout that used
 
 ```
 spite program                         build program/program.exe beside the program and run it (section 3)
-spite program --c_source              also write program/program.c (--c_path=path puts it elsewhere)
-spite program --executable --run=false   build without running (--executable_path=path puts it elsewhere)
+spite program --c-source              also write program/program.c (--c-path=path puts it elsewhere)
+spite program --executable --run=false   build without running (--executable-path=path puts it elsewhere)
 spite program --run=false             compile the whole program and write nothing
 spite program --optimized             optimized build
 spite program --development           keep everything (no tree shaking), for live reload
-spite program --hot_reload            swap changed classes into the running program (implies --development)
+spite program --hot-reload            swap changed classes into the running program (implies --development)
 spite program --repl                  run with an in-place REPL
-spite program --repl_port=4000        run with a remote REPL an AI can connect to, to explore memory and debug
+spite program --repl-port=4000        run with a remote REPL an AI can connect to, to explore memory and debug
 spite program --serve=true            decide a Build field the program declares while compiling (section 9)
 spite program -- --serve=true         run it with a setting its Environment declares (section 9)
-spite program --final_classes=folder  write the final class folder
-spite connect 4000                    talk to a running --repl_port program (see section 14)
+spite program --final-classes=folder  write the final class folder
+spite connect 4000                    talk to a running --repl-port program (see section 14)
 spite connect 4000 --command="..."    send one REPL command, print its raw JSON response line, and exit
 spite program -- ada --player=x       run it, passing everything after -- to the program's Arguments
 spite program --format=false          skip the automatic formatting pass below
-spite program --c_source --run=false --target_operating_system=linux   write the C for another system (sections 9 and 11)
+spite program --c-source --run=false --target-operating-system=linux   write the C for another system (sections 9 and 11)
 spite format <file-or-folder> ...     format files without compiling (recursive on a folder)
 spite format --check <path> ...       rewrite nothing; exit 1 listing (to stdout) every file that would change
-spite reload program ... --executable_path=<running>   what a --hot_reload program runs to rebuild itself
+spite reload program ... --executable-path=<running>   what a --hot-reload program runs to rebuild itself
 ```
 
 Flags mix freely (a production build may keep the REPL). Building and running are the same command. Every flag
@@ -2288,14 +2288,14 @@ step run before any output is written.
 - **Where outputs go** (D129): `executable_path` and `c_path`, each `""` by default, which means beside the
   program: `game/game.exe` (`game/game` for Linux and macOS) and `game/game.c`. A path option given on the
   command line for an output that is off is an error naming the missing flag. What describes an executable stays
-  beside it wherever it goes: the `.crashes` map (section 6) and a `--hot_reload` build's `.reload_host`,
+  beside it wherever it goes: the `.crashes` map (section 6) and a `--hot-reload` build's `.reload_host`,
   `.reload_files` and `_reload_<n>` libraries. The one intermediate is the C the C compiler reads when `c_source`
   is off, written to the language repository's `.spite-cache/<name>.c`.
 - **Formatting is an output** (D128): after the whole program is read, a file of the program whose formatted text
   differs is rewritten, and if any was, the program is read again from disk before anything else is produced, so
   what is compiled -- and every line an error names -- is the formatted file.
 - **The compiler's own C goes to its default path**, `bootstrap/bootstrap.c`: every `Build` field is a constant in
-  what is built, so a `--c_path` naming a different file each run would be written into the C and the fixpoint
+  what is built, so a `--c-path` naming a different file each run would be written into the C and the fixpoint
   would never hold.
 - `--mode`, `--output`, `--mode=tokens`, `--mode=tree` and the `.spite`-file forms of `--mode=format` are gone;
   `spite format` formats files itself, and `spite reload` is a command the running program uses, not an output.
@@ -2314,6 +2314,15 @@ launcher's `load` paths are relative to that folder, and the executable is built
 running a program leaves nothing in the caller's folder. Before this, every program ran with the repository as its working
 directory (`check.sh` runs `conformance/stage6/working_directory` from another folder).
 
+- **Flags are kebab-case, fields stay snake_case** (D188, decided by Mortaro): `--repl-port=4000` sets
+  `Build.repl_port`, `--hot-reload` sets `hot_reload`, and a program's own field `worker_stack_size` is
+  `--worker-stack-size=256` (`conformance/stage6/build_settings`). An underscore in a flag's name is an error
+  naming the hyphen form, "'--repl_port' is written '--repl-port': a flag is kebab-case, and it sets the Build
+  field 'repl_port'" (`diagnostics/underscore_flag`); the value after `=` is never touched. The readings below are
+  **(proposed by Claude, unconfirmed)**: the rule covers the compiler's flags before the `--`, and every message
+  that names a flag names the kebab form; a program's run-time settings after the `--`, read by `Environment` when
+  the program runs, keep their field's own spelling for now (`-- --player_name=x`), since translating them is a
+  question of its own (`mortaros_missing_decisions.md`). Compile time only (D177).
 - Before the `--`, a `--name=value` sets the `Build` field of that name, and one that names no field is an error
   that shows both places a setting can belong -- `build.spite` to decide it while compiling, `environment.spite`
   and `spite program -- --name=value` to read it when the program runs -- so typos never pass silently
@@ -2336,7 +2345,7 @@ directory (`check.sh` runs `conformance/stage6/working_directory` from another f
 ## 14. REPL and live reload  **[partial]**
 
 Milestone 6a: a REPL that inspects and drives the *running* program, local (`--repl`) and remote
-(`--repl_port`). **Status (2026-09-23), D72:** the REPL is written in Spite -- `library/read_evaluate_print_loop.spite` -- and
+(`--repl-port`). **Status (2026-09-23), D72:** the REPL is written in Spite -- `library/read_evaluate_print_loop.spite` -- and
 `runtime/spite_repl.h`, the C interpreter the subsections below were first designed around, is deleted. `spite
 program.spite --repl` runs the entry constructor, then loops on `spite> `: `attributes` lists the entry instance's
 attributes, `functions` its functions with their arguments, `help`, `exit`, and the command language below is built
@@ -2350,19 +2359,19 @@ unconfirmed): `value_attributes()` and `value_functions()` read the value's own 
 list's attributes are its elements, named `0`, `1`, ...), `assign(text)` writes a number, Bool, text or enum
 value into it and answers whether it could, and a `Spite.Function`'s `call_with_text(arguments)` calls it with
 literal arguments and answers its result as a `Spite.Attribute?` -- `null` when an argument is not one the loop
-can write. Outside `--repl` they answer an empty list, `false` and `null`. **Status (2026-09-24):** `--repl_port`
+can write. Outside `--repl` they answer an empty list, `false` and `null`. **Status (2026-09-24):** `--repl-port`
 and `spite connect` are built, in Spite, over `Socket` (section 15) through `DynamicLibrary` -- see their
 subsections below; `docs/repl.md`'s worked session is replayed by `check.sh` against a real program. **Not built
 yet:** walking a `Dictionary<T>` or a union, assigning a `T?`, a list element or a whole instance, the meta
 commands `classes`, `describe`, `enums` and `memory`. D37's drain points are built (2026-09-24): the remote loop's
 commands are answered on the program's thread where it waits -- see "Answered where the program waits" below and
-section 15's "Concurrency". **Status (2026-09-24), milestone 6b:** live reload is built behind `--hot_reload`
+section 15's "Concurrency". **Status (2026-09-24), milestone 6b:** live reload is built behind `--hot-reload`
 (D111, D112) on Windows, with the Linux and macOS folders held to compiling -- see "Live reload and 6b" below.
 Compiling and executing new Spite code typed at the prompt, and `Class.instances`, are not started.
 
 ### Reflection tables  **[planned]**
 
-Emitted only when `--repl` or `--repl_port` is given (never for a normal build): for every class the
+Emitted only when `--repl` or `--repl-port` is given (never for a normal build): for every class the
 compiler actually emits, its qualified name, attributes (name, type name, C offset, kind), and every
 callable function whose parameters are all scalar/String/enum -- an ordinary method, or an already-
 *instantiated* Symbol-codegen function (`set_age`, ...; a template nothing calls is still never
@@ -2424,7 +2433,7 @@ exiting, reads commands from stdin with a `spite> ` prompt until `exit` or end o
 exits normally (memory balanced -- checked by its own end-to-end test the same way `--debug-memory`'s
 own tests are).
 
-### `--repl_port=<port>`  **[implemented]**
+### `--repl-port=<port>`  **[implemented]**
 
 `repl_port` is a `Build` field (section 9), so the port is part of the build. Before the entry constructor runs, starts a background thread with a
 TCP server bound to `127.0.0.1:<port>` **only** -- it never listens on any other interface, and there is
@@ -2448,7 +2457,7 @@ will ever unwind back to a clean `main` return, so this does not attempt one).
   (`ws2_32.dll`), `library/linux/socket.spite` (`libc.so.6`) and `library/mac/socket.spite` (`libSystem.dylib`),
   reopened per D80. `Socket` has no way to bind anything but `127.0.0.1`, so "loopback only" holds by
   construction. `ws2_32.dll` is opened when the first `Socket` is made, so a program without a REPL never loads it.
-- **The thread.** The one piece of C this adds is written by the compiler, only in a `--repl_port` build: a
+- **The thread.** The one piece of C this adds is written by the compiler, only in a `--repl-port` build: a
   two-line thread entry, `spite_remote_loop_thread`, that calls `ReadEvaluatePrintLoop.serve` with the entry
   instance. Spite starts it and waits for it through the operating system's folder (`CreateThread` and
   `WaitForSingleObject` from `kernel32.dll`; `pthread_create` and `pthread_join` elsewhere). No `Thread` class is
@@ -2458,7 +2467,7 @@ will ever unwind back to a clean `main` return, so this does not attempt one).
   The scheduler answers it on the program's thread the next time the program waits -- `program.sleep`,
   `Console.read_line()`, a `File` or `Socket` read or write, a `Concurrent` wait, a `Parallel` join -- so a command
   sees the program between two steps, never in the middle of one, and "data races are accepted" above no longer
-  applies. After the constructor returns, the program waits for nothing but commands. A `--repl_port` build of a
+  applies. After the constructor returns, the program waits for nothing but commands. A `--repl-port` build of a
   program that never waits and has a `while` loop is a compile error naming the loop
   (`diagnostics/remote_loop_never_waits`); `docs/concurrency.md` replays a frame loop served between frames.
 - **The port is part of the build**, like any flag the compiler folds (D84): `main` listens on it, on the main
@@ -2473,7 +2482,7 @@ will ever unwind back to a clean `main` return, so this does not attempt one).
 - **`exit`** answers `{"ok":true,"value":"","type":""}`, closes the connection and calls `program.exit(0)`,
   which flushes what the program printed. It is handed over like any command, so the program stops at a wait
   first. When the constructor returns first, `main` serves commands until then. With `--repl` too, the console loop runs first, and after its `exit` the process keeps serving.
-- `spite program --repl_port=4000` is the form, as for every `Build` field; a port outside 1 to 65535 is an
+- `spite program --repl-port=4000` is the form, as for every `Build` field; a port outside 1 to 65535 is an
   error naming it.
 
 ### `spite connect <port>`  **[implemented]**
@@ -2484,12 +2493,12 @@ when the type is empty or `Nothing`, or `error: message`); with `--command="..."
 the raw JSON response line, and exits -- this is the form tests and AI clients use. Nothing listening on the port
 is `error: nothing is listening on 127.0.0.1:<port>` and exit code 1. `check.sh` replays every ` ```wire ` block
 in `docs/` this way (`scripts/docs_corpus.spite` writes it out beside its program): the program is built with
-`--repl_port`, each `$ spite connect ... --command="..."` line is sent, and each answer must be the line written
+`--repl-port`, each `$ spite connect ... --command="..."` line is sent, and each answer must be the line written
 under it, the program must end with exit code 0 after `exit`, and what it printed must be its ` ```output `.
 
 ### Live reload and 6b  **[implemented on Windows; the mechanism and the rules below proposed by Claude, unconfirmed]**
 
-D111 (a change is seen through the operating system and only what changed is rebuilt) and D112 (`--hot_reload`, a
+D111 (a change is seen through the operating system and only what changed is rebuilt) and D112 (`--hot-reload`, a
 flag of its own) as built on 2026-09-24. `docs/repl.md` ("Live reload") is the user's page, and `check.sh` runs its
 session against a copy of the program it edits. Still not started: compiling new Spite code typed at the prompt,
 and `Class.instances`.
@@ -2497,14 +2506,14 @@ and `Class.instances`.
 - **The flag.** `hot_reload` is a `Build` field (default `false`). It **implies** `--development` rather than
   requiring it, since a new version of a class may call a function nothing called before. It works without a REPL:
   the watcher still swaps, and each swap or refusal is one line on the program's error output (`spite: rebuilt
-  Monster`); an explicit rebuild needs `--repl` or `--repl_port`, whose `reload` swaps in what changed and answers
+  Monster`); an explicit rebuild needs `--repl` or `--repl-port`, whose `reload` swaps in what changed and answers
   what it rebuilt, and whose `last_reload` answers what the last swap (the watcher's included) did. A build without
   it has no slots, no watcher and no reload code: `reload` answers `'reload' answers in a program built with
-  --hot_reload, which swaps its code while it runs, and this one was not`, from a branch folded on the `Build`
-  constant. As with `--repl_port`, a `--hot_reload` build whose code never waits and has a `while` loop is a compile
-  error naming the loop, since the swap happens where the program waits. `spite program --hot_reload` runs the
+  --hot-reload, which swaps its code while it runs, and this one was not`, from a branch folded on the `Build`
+  constant. As with `--repl-port`, a `--hot-reload` build whose code never waits and has a `while` loop is a compile
+  error naming the loop, since the swap happens where the program waits. `spite program --hot-reload` runs the
   program attached to the terminal, like a REPL build.
-- **The swap mechanism: one slot per function.** In a `--hot_reload` build every function of the program's own
+- **The swap mechanism: one slot per function.** In a `--hot-reload` build every function of the program's own
   classes (not `library/` or `launcher/`), and each such class's `_init` (its attribute defaults), is written as
   `<name>_hot`, with a function pointer `<name>_slot` holding it, and `<name>` becomes a one-line forwarder through
   the slot. Every call site, function value and REPL thunk still names `<name>`, so all of them follow a swap;
@@ -2516,7 +2525,7 @@ and `Class.instances`.
   `<program>.reload_files` holds a generation number and a hash of each of the program's files. The executable
   holds a table of its functions' addresses by name, the path of the compiler that built it and that compiler's
   options, so it must run from the directory it was built from.
-- **Rebuilding: `spite reload <folder> <options> --executable_path=<program>`** (a command since D128, when
+- **Rebuilding: `spite reload <folder> <options> --executable-path=<program>`** (a command since D128, when
   `--mode` went; proposed by Claude, unconfirmed). A reload runs that compiler with those options, less the
   outputs, and prints its errors to standard output, where the running program reads them.
   It reads the whole program again (milliseconds), with the class ids seeded from the manifest so every class keeps
@@ -2714,7 +2723,7 @@ directory listing and process spawning).
 | `Program()` | `exit(code)`: exits the process immediately with `code` |
 | `Clock()` | a singleton (names proposed by Claude, unconfirmed, 2026-09-24): `elapsed_nanoseconds(): Long` and `elapsed_milliseconds(): Long` from a monotonic clock with an arbitrary start, for measuring; `now(): Instant`, the wall clock as an exact instant (D127, [Time](#time-one-stored-instant-zones-for-presentation--implemented-on-windows-the-shape-proposed-by-claude-unconfirmed); it replaced `unix_milliseconds(): Long`). `library/clock.spite` with each system's reading in `library/windows|linux|mac/clock.spite` (`QueryPerformanceCounter`/`GetSystemTimeAsFileTime`, `clock_gettime`) |
 | `Console()` | `print(...values)`, `write(...values)`, `error(...values)`, `flush()`, `read_line(): String?` -- see below |
-| `Socket()` (proposed by Claude, unconfirmed) | `listen_locally(port): Bool`, `accept_client(): Socket?`, `connect_locally(port): Bool`, `read_line(): String?`, `write_line(text): Bool`, `close()` -- TCP on `127.0.0.1` only, which `--repl_port` and `spite connect` use (section 14) |
+| `Socket()` (proposed by Claude, unconfirmed) | `listen_locally(port): Bool`, `accept_client(): Socket?`, `connect_locally(port): Bool`, `read_line(): String?`, `write_line(text): Bool`, `close()` -- TCP on `127.0.0.1` only, which `--repl-port` and `spite connect` use (section 14) |
 | `Concurrent(function)`, `Parallel(function)` (proposed by Claude, unconfirmed) | `wait()`: what the function returned; dropping the handle waits for it -- see "Concurrency" below |
 | `DynamicLibrary(file_name, naming, header)` | every foreign function, constant and type of a native library -- see [Foreign libraries](#17-foreign-libraries-planned). `library/dynamic_library.spite` holds its `file_name` and `handle`, its constructor and `drop()`; opening, closing and finding a symbol are the compiler's reopening (D82) |
 | `Memory()` | the floor every other type is built on (D98, D101, D108): `allocate_bytes`, `resize`, `free`, the typed reads and writes, `copy_bytes`, `text`, ... -- see "The floor, named" below. `library/memory.spite` is the `singleton` line and `text`, in Spite; every other function is the compiler's reopening, and where an allocation lives is the compiler's choice |
@@ -2824,7 +2833,7 @@ What follows is Claude's reading (proposed by Claude, unconfirmed):
   proposal is to remove them once nothing in the repository reads names alone.
 - Each operating system's folder still lists a directory its own way (D80); what it supplies is renamed
   `entry_names(want_folders)`, since `entries()` is now the public listing and Spite has no overloading.
-- Found on the way: a reopened class that declares a `union` again, as `--final_classes` prints `Directory` back
+- Found on the way: a reopened class that declares a `union` again, as `--final-classes` prints `Directory` back
   out, registered the union twice. A union declared again now replaces the earlier one, as a `type` already did
   (section 11's rule: the later declaration of a name wins).
 ### Concurrency: `Concurrent`, `Parallel` and hidden waiting  **[implemented on Windows; names and mechanism proposed by Claude, unconfirmed]**
@@ -2862,7 +2871,7 @@ handed to a short-lived helper thread (what libuv does for files), and the fiber
 them by class and function: `Program.sleep`; `Console.read_line_into`, `File.read_into`, `File.write_text`,
 `Socket.accept_handle` and `Socket.receive_into` (the one system call under `Console.read_line()`, `File.read()`,
 `File.write()`/`append()`, `Socket.accept_client()` and `Socket.read_line()`); and `Parallel.join_thread`. In a
-program that uses the scheduler -- one that makes a `Concurrent`, or is built with `--repl_port` -- each of them is
+program that uses the scheduler -- one that makes a `Concurrent`, or is built with `--repl-port` -- each of them is
 emitted under a `_waiting` name with a small wrapper in front: a sleep parks the fiber until its time, a blocking
 call runs on a helper thread while the fiber is parked, and a `Parallel` join joins and then lets whatever is ready
 run once. Every other program gets none of it: no wrapper, no scheduler, no fiber, the same C as before.
@@ -2877,7 +2886,7 @@ calls in flight. When nothing is ready it answers the REPL's pending command, if
 the helper threads and the REPL's socket thread signal, with the nearest wake time as its timeout. Waiting forever
 on nothing is a deadlock, and a crash.
 
-**Soundness.** A program that starts a thread (a `Concurrent`'s helpers, a `Parallel`, or `--repl_port`) is compiled
+**Soundness.** A program that starts a thread (a `Concurrent`'s helpers, a `Parallel`, or `--repl-port`) is compiled
 with `SPITE_THREADS`: every retain and release is an atomic operation, and the `--debug-memory` table takes a lock.
 Every other program keeps the plain counts. Spite code on the program's thread only ever changes hands at a wait,
 so fibers need nothing more. What a `Parallel` function may touch is not checked: D35's rule (a parallel member
@@ -3066,7 +3075,7 @@ What follows is Claude's reading where D22 and D95 are not specific (proposed by
   `3.7` read into an `Int` is `3`; JSON has one number type and the class already says which one it wants.
 - **Not handled yet:** a `Float` or `Double` holding infinity or not-a-number is written as `inf`/`nan`, which is
   not JSON; a `Symbol` attribute (as opposed to an enum) does not read, since text becomes a `Symbol` only through
-  `Symbol(text)` (D70); and `--final_classes` does not print the functions `Json<Order>` generated, because a
+  `Symbol(text)` (D70); and `--final-classes` does not print the functions `Json<Order>` generated, because a
   generic class's file is shared by all its instances.
 
 `tests/json_tests.spite`, `conformance/stage6/json_crash`, `docs/json.md`.
@@ -3181,7 +3190,7 @@ extension is a compile error (D71 -- a wrapper for another platform names that p
 meets by building each fixture's C into `fixture.dll` beside its program on every platform; `_as_long` beside
 `_as_double` and `_as_text`, since a plain call returns a 32-bit `Int` and a handle or pointer needs 64; the
 naming rule is a symbol literal (D70); a foreign function is called only through the attribute or variable that
-holds its `DynamicLibrary(...)`, so the compiler knows which table binds it; and `--final_classes` writes no
+holds its `DynamicLibrary(...)`, so the compiler knows which table binds it; and `--final-classes` writes no
 resolved-name comments, which D34 would reject (how to show them is open question 10). A constant reads from the header (`user32.mouseeventf_leftdown` is `MOUSEEVENTF_LEFTDOWN`, an `Int`); a header path
 that exists relative to the working directory is included as a file, anything else as a system header. A `List<T>` of numbers crosses as its element array (C may write into it), and a value of a `type` whose attributes are all numbers crosses by address as a C struct
 in its declared order, and C's writes come back into the value afterwards; under the `'windows'` rule with a header,
@@ -3276,7 +3285,7 @@ func drop() {
 ```
 
 `_open`/`_call`/`_resolve`/`_close` are compiler intrinsics; everything above them is ordinary Spite, and
-`--final_classes` prints the whole class with every generated binding, exactly as section 16 item 2 requires of
+`--final-classes` prints the whole class with every generated binding, exactly as section 16 item 2 requires of
 all reflection.
 
 **What is built** (2026-09-24, D81/D82): `library/dynamic_library.spite` is the `singleton` line, `file_name` and
@@ -3390,7 +3399,7 @@ section 8's ordinary segment template, not a new mechanism.
 - A missing library or a missing symbol aborts at construction, naming the file, the symbol and the Spite function
   that wanted it. This is a program-stopping error and is not reported any other way.
 - `drop()` closes the library when its last reference goes, like any other class.
-- `--final_classes` prints each binding with its resolved name and library as a `#` comment, the same way it
+- `--final-classes` prints each binding with its resolved name and library as a `#` comment, the same way it
   already annotates which root won a reopened function -- so the mapping is reviewable generated output rather
   than something maintained by hand.
 
@@ -3566,8 +3575,8 @@ payloads to JSON on demand, since the compiler knows the schema.
    - **Make `${` inside text a compile error** naming `+` (proposed by Claude). A dollar before a brace has no
      other use, and text that genuinely needs it can be built with `+` or written `$` `{` apart.
    - **Leave it.** Text is text, and a rule about what may appear inside it is a rule to remember.
-10. **How `--final_classes` shows which root supplied a declaration.** D7 and milestone 10a both say a
-    reopening must not be silent, and `--final_classes` is where it stops being silent -- but what it writes is
+10. **How `--final-classes` shows which root supplied a declaration.** D7 and milestone 10a both say a
+    reopening must not be silent, and `--final-classes` is where it stops being silent -- but what it writes is
     a *program*: running the printed entry file runs the same program, which is what makes it proof rather than
     a report. Provenance cannot be a comment, because a comment is only ever a link to a markdown heading
     (section 12), and it cannot be a declaration without changing the program.
@@ -4055,3 +4064,4 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-25 | (implements D186 and keeps D166; the readings below proposed by Claude, unconfirmed) **`load` is a statement, one value after the keyword, on a line of its own.** `load("x")` is a parse error pointing at the `(`: "'load' is a keyword, not a function: write it without parentheses, 'load "x"'" (`diagnostics/load_parentheses`). `load` anywhere a value goes is an error too, since it has none (`diagnostics/load_as_value`), and D166's reservation covers a variable and a parameter as well as a function: "'load' is a keyword and cannot name a function: give it a name that says what it loads, like 'load_texture'" (`diagnostics/load_function`); `conformance/stage6/load_function`, which proved a class's own `load` shadowing the keyword, is removed. The value is any expression the launcher can fold, so its lines read `load "library/{build.target_operating_system}"` and `load build.program`. A `load` inside an `if` parses like any statement. The formatter prints the keyword form, which is how the repository was migrated, through a compiler that read both forms. Compile time only: the line still compiles to nothing (D177). |
 | 2026-09-25 | (fixes a bug reported from SlopEngine; proposed by Claude, unconfirmed) **A `load` under an `if` on a `Build` field is folded when compiling**, in the entry file and in every file of a loaded root. Before, discovery followed only the `load` lines at the top of the entry file's functions, so `if build.target_operating_system == "windows" { load "../../plugins/slop_windows_plugin" }` loaded nothing and said nothing. Now every `load` in every function of those files is followed, relative to its file's folder; an `if` holding one has its condition folded from `Build` fields, literals, `==`, `!=`, `and`, `or` and `not`, and only the taken branch loads. An unfoldable condition, a `load` in a `while` or `switch`, and a program `load` whose folder is not text are errors (`diagnostics/load_unknown_condition`, `conformance/stage6/load_on_build`). `Build` is read after the program's own folder and before any package, so a package's `build.spite` cannot add a field that decides a load. Compile time only (D177). |
 | 2026-09-25 | (implements D187; the readings below proposed by Claude, unconfirmed) **Which lines are long, and what counts as a construction.** The width is the formatter's (120 columns, now one attribute of the printer that both the formatter and the check read), measured on the statement printed on one line at its depth, indentation included, so a call broken by hand over several lines is measured the same. Measured: `var`, assignment, a call standing alone, `return`, `assert`/`crash`, and an attribute's default. A construction is D77's (a call whose last name starts with an upper-case letter, generic ones included) anywhere inside a call's arguments except a text's holes; the error names the first one, the call it sits in, and the fix with the class's name in snake_case (`var counter_button = CounterButton(...)`). The parser records each statement's block depth for this. 16 lines of the compiler were rewritten, none elsewhere in the repository (`diagnostics/long_line_construction`, `docs/style.md`). Compile time only (D177). |
+| 2026-09-25 | (implements D188; the readings below proposed by Claude, unconfirmed) **The compiler reads a flag's name in kebab-case and turns each `-` into `_` to find its `Build` field; a name holding `_` is an error before anything is read**: "'--repl_port' is written '--repl-port': a flag is kebab-case, and it sets the Build field 'repl_port'" (`diagnostics/underscore_flag`). Only the name before `=` is checked, never the value. Every message, usage line and document that names a flag names the kebab form, and so do `check.sh`, `bin/spite`, the test `flags.txt` files and `library/hot_reload.spite`'s own `--executable-path`; a program's own multi-word field is covered by `conformance/stage6/build_settings` (`--worker-stack-size=256`). Settings after `--`, read by `Environment` when the program runs, keep their field's spelling for now (`mortaros_missing_decisions.md` item 139). Migrated through a compiler that read both spellings. Compile time only (D177). |

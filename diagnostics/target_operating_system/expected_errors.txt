@@ -1,1 +1,1 @@
-error: '--target_operating_system=beos' names no operating system the library has a folder for: windows, linux or mac
+error: '--target-operating-system=beos' names no operating system the library has a folder for: windows, linux or mac

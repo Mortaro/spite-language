@@ -24,7 +24,7 @@ in it is compiled and run by `bash check.sh`.
 | Standard library in Spite: `String`, `List`, `Dictionary`, `Json<T>`, `File`, `Directory`, `Process`, `Program`, `Console`, `Socket` | implemented |
 | Concurrency: `Concurrent` (fibers, hidden async IO) and `Parallel` (threads) | implemented on Windows; `Parallel` safety rules open |
 | Foreign libraries (`DynamicLibrary`), one folder per operating system | implemented; Linux and macOS folders compile but have never run |
-| REPL: `--repl`, `--repl_port`, `spite connect` | implemented; live reload planned |
+| REPL: `--repl`, `--repl-port`, `spite connect` | implemented; live reload planned |
 | Self hosting | done: the compiler is Spite, and the only hand-written C is `bootstrap/source/generation/prelude.spite` |
 | Web target, isomorphic classes, live reload | planned -- see manual.md sections 14 and 17 |
 
@@ -60,8 +60,8 @@ export CC=cc                     # the compiler shells out to this to build the 
 ```
 
 That builds the executable beside the program, `path/to/folder/folder.exe`, and runs it. The compiler reads the
-whole program first and then produces every output asked for: `--c_source` also writes `folder.c` beside it,
-`--run=false` runs nothing, and `--executable_path=` and `--c_path=` put either somewhere else
+whole program first and then produces every output asked for: `--c-source` also writes `folder.c` beside it,
+`--run=false` runs nothing, and `--executable-path=` and `--c-path=` put either somewhere else
 ([docs/compiler.md](docs/compiler.md)).
 
 On Windows the C compiler usually lives inside Visual Studio rather than on `PATH`, and its path

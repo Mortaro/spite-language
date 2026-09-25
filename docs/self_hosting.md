@@ -10,14 +10,14 @@ C -- a fixpoint.
 
 ```
 cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite
-./spite bootstrap --c_source --run=false    # writes bootstrap/bootstrap.c, equal to the committed seed
+./spite bootstrap --c-source --run=false    # writes bootstrap/bootstrap.c, equal to the committed seed
 ```
 
 So the only thing needed to build Spite from nothing is a C compiler. The seed is committed, and `check.sh` says
 when it has drifted from the sources (`bash check.sh --update-seed` refreshes it after an intended change). The
 compiler is a program like any other, named by its folder: `bootstrap/`, whose entry is `bootstrap/bootstrap.spite`
 (class `Bootstrap`). Its C goes to the default place beside it because every `Build` field is a constant in what
-is built: a `--c_path` naming some other file would be written into the C, and the next generation would differ.
+is built: a `--c-path` naming some other file would be written into the C, and the next generation would differ.
 
 ## What proves it
 
@@ -31,7 +31,7 @@ is built: a `--c_path` naming some other file would be written into the C, and t
 5. requires the compiler to free everything it takes while compiling itself;
 6. compiles every program in `diagnostics/`, which must fail with exactly the errors written beside it;
 7. runs every titled program on these pages, and replays every remote REPL session on them;
-8. prints two programs back out with `--final_classes` and requires the printed programs to run the same;
+8. prints two programs back out with `--final-classes` and requires the printed programs to run the same;
 9. writes the compiler out for Windows, Linux and macOS, holding each operating system's library folder to
    compiling;
 10. requires every `.spite` file outside `diagnostics/` to be formatted already.

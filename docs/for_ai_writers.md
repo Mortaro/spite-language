@@ -12,9 +12,9 @@ one of them is Spite, not GDScript -- write `.spite` files.
 ```
 spite program                           build program/program.exe beside it and run it
 spite program --optimized               optimized build (a Build field)
-spite program --debug_memory            print the allocation balance at the end
-spite program --repl_port=4000          serve the REPL; spite connect 4000 --command="..." asks it
-spite program --c_source --run=false    write program/program.c instead (--c_path= puts it elsewhere)
+spite program --debug-memory            print the allocation balance at the end
+spite program --repl-port=4000          serve the REPL; spite connect 4000 --command="..." asks it
+spite program --c-source --run=false    write program/program.c instead (--c-path= puts it elsewhere)
 spite program --run=false               only compile: the errors, if any
 spite program -- --serve=true           the program's own arguments, read by Environment
 bash check.sh                           the compiler still compiles itself, and every corpus passes

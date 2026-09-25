@@ -181,7 +181,7 @@ heading, so a link cannot rot silently. Prose in a comment, `//` and `/* */` are
 whether the note is needed at all: if a reader could work it out from the code, delete it; if it is lasting
 knowledge, write the section and link to it; if it warns against a change, a test or a compile error pushes
 harder than prose. A line inside a function that seems to need explaining becomes a named function instead --
-a name, unlike a comment, is visible to reflection, `--final_classes` and every tool.
+a name, unlike a comment, is visible to reflection, `--final-classes` and every tool.
 
 ```gdscript title=prose_comment_error/prose_comment_error.spite entry error
 var console = Console()

@@ -80,7 +80,7 @@ func rebuild() {
     var arguments = build_arguments().split("\n")
     var running = program_file()
     arguments.prepend("reload")
-    arguments.append("--executable_path={running}")
+    arguments.append("--executable-path={running}")
     var compiler_path = compiler()
     var rebuilding = Process(compiler_path, arguments)
     var exit_code = rebuilding.run()
