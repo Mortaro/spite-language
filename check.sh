@@ -114,6 +114,16 @@ rm -f "$beside.crashes" "$beside.exe"
 [ -f "$beside" ] && rm -f "$beside"
 echo "working directory: a program opens relative paths in the folder spite was run from, and is built beside itself"
 
+# Every program above is built with --debug-memory, whose allocations go through a locked table. The thread pool is
+# also run the way a user runs it -- `spite <program>`, compile and run, no flags -- with runners started from a
+# stage, a singleton reached from the pool, a ThreadLocal and a Lock.
+stages=conformance/stage6/parallel_stages
+plain=$("$work/generation_two.exe" "$stages" --executable-path="$work/parallel_stages_plain.exe" < /dev/null 2>&1 | tr -d '\r')
+if [ "$plain" != "$(tr -d '\r' < "$stages/expected_output.txt")" ]; then
+  echo "FAILED: run mode without --debug-memory: parallel_stages"; echo "$plain" | head -5; exit 1
+fi
+echo "run mode: the thread pool runs without --debug-memory"
+
 # The tests: a package that crashes (D46). No framework: a test is a function, and `crash` is the assertion.
 test_output=$("$work/generation_two.exe" tests --debug-memory --executable-path="$work/tests.exe" < /dev/null 2>&1 | tr -d '\r')
 if echo "$test_output" | grep -q "failed to check cache"; then

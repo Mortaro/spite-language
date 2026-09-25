@@ -1,0 +1,19 @@
+var ledger = Ledger()
+var number = 0
+var names = List<String>()
+
+func Runner(starting_number: Int) {
+    number = starting_number
+}
+
+func run_once() {
+    ledger.use_buffer(number)
+    var index = 0
+    while index < 100 {
+        var id = ledger.claim()
+        names.append("id {id}")
+        ledger.check_buffer(number)
+        index = index + 1
+    }
+    names.clear()
+}

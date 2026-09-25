@@ -404,3 +404,13 @@ All of it is proposed by Claude, unconfirmed.
      shape as `Parallel` (`finished`, the value joins on first use, dropping waits) -- for loops that block on the
      operating system, with `Parallel` staying for work that computes. Alternative: a marker on `Parallel`
      (`Parallel(window.run, 'dedicated')`). Which, and what name?
+156. **Bytes nobody wrote, and output lost to a crash.** SlopEngine's "run mode segfaults, the built executable
+     works" was neither run mode nor the pool: `Added.fill_from` reads a marker column's value slot, which `append`
+     never writes, and `Memory.resize` hands back whatever the heap held. What it held depended on the process's
+     environment block (Git Bash's crashes every time; a minimal one, or PowerShell's, passes), so the launcher
+     decided which run crashed. And in run mode the program's stdout is a pipe, fully buffered, so the crash also
+     threw away everything printed before it. Proposals (Claude, unconfirmed), both costing nothing outside the
+     builds named: (a) under `--debug-memory` fill every byte `allocate_bytes` and `resize` hand out with a poison
+     pattern, so reading unwritten memory fails the same way on every run and every launcher (D143); (b) should a
+     program flush its output when it dies from a hardware fault (an exception filter in `main`: a few lines of C
+     in every program), or is losing buffered output on a segfault acceptable?

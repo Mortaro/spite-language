@@ -1,0 +1,2 @@
+claimed 4800 ids in 12 stages of 4 runners
+next id 4800 and 0 runners read another thread's buffer
