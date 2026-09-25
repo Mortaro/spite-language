@@ -214,12 +214,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
     to `type Target { health: Health }` now holds `{health: Health()}`, whose `.class` answers `Object`. A `type`
     that requires a function has no default object and stays a null pointer that reads defaults. Should that
     case be a compile error naming the field instead?
-## From porting PSD, zstd and .blend to Spite (SlopEngine)
-
-88. **Arithmetic takes the left operand's type** (open question 3, "right-to-left casting"): an `Int` times a
-    `Long` is an `Int` multiply, so `253 * 2^24` silently overflowed in a little-endian reader even though the result
-    was stored in a `Long`. Widen to the wider operand, or make a wider right-hand side a compile error?
-
 ## From the Vulkan renderer bugs (manual sections 11, 12, 13, 15 and 17)
 
 89. **A loaded package cannot find its own folder at run time.** SlopEngine locates its shader sources by
