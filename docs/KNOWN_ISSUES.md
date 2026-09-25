@@ -5,42 +5,7 @@ expect. Each runnable repro below pins the current behaviour, so when an issue i
 this page gets updated in the same change. Features that are decided but simply not built yet are named on the
 page that describes them, not here.
 
-## 1. Reading `.functions` makes an instance of the class
-
-Reading `.functions` of a class that has functions builds its `Spite.Function` values bound to a default instance
-of that class, and that instance is alive -- so `.instances` counts one more than the program made:
-
-```gdscript title=functions_make_an_instance/gadget.spite
-var name = ""
-
-func Gadget(new_name: String) {
-    name = new_name
-}
-
-func shout(): String {
-    return name.upper_case()
-}
-```
-```gdscript title=functions_make_an_instance/functions_make_an_instance.spite entry
-var console = Console()
-
-func FunctionsMakeAnInstance() {
-    var gadget = Gadget("wrench")
-    var before = Gadget.instances.count()
-    var functions = Gadget.functions
-    var functions_count = functions.count()
-    var after = Gadget.instances.count()
-    console.print(gadget.name, functions_count, before, after)
-}
-```
-```output
-wrench 1 1 2
-```
-
-The manual says `.instances` is every live instance; a test runner that counts instances after walking
-`.functions` sees the extra one.
-
-## 2. Everything else that is known
+## Everything that is known
 
 - **Cycles leak.** Reference counting cannot free two objects that hold each other; clear one side by hand
   ([memory.md](memory.md#cycles-leak)). Weak references are the planned fix.

@@ -221,6 +221,11 @@ is in [metaprogramming.md](metaprogramming.md#a-classs-functions-a-folders-class
 `Spite.Class.instances` is every class in the program, because a class is an instance of `Spite.Class`. That
 is how the test package finds its tests without being told about them ([testing.md](testing.md)).
 
+A class object's `.attributes` and `.functions` are read from a stand-in the program makes for the purpose, with
+every attribute at its default, and the stand-in is not one of `.instances`: walking `Gadget.functions` leaves
+`Gadget.instances` as it was. A singleton's stand-in is not the singleton, so describing `Console` neither makes
+the program's console nor keeps a second one alive.
+
 ```gdscript title=live_registry/monster.spite
 var name = ""
 
