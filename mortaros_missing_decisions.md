@@ -565,19 +565,6 @@ All of it is proposed by Claude, unconfirmed.
 
 ## Data-oriented components (D203, from SlopEngine)
 
-182. **What `vector[index]` gives back when a `Vector<T>` holds its items inline (D154), given every class is passed
-     by reference (D149).** SlopEngine's columns want `Vector<Velocity>`: 200 000 velocities packed in one block,
-     read and written in place with no reference count. Options (Claude, unconfirmed):
-     (a) **a borrowed reference into the vector** -- `var velocity = velocities[index]` then `velocity.x = 3.0`
-     writes into the vector; the compiler forbids keeping it past a change to the vector's size (append, remove)
-     or storing it anywhere that outlives the block, a compile-time proof like D35/D169. Reads like a `List`
-     today and is the fastest, but it is a new compile-time rule.
-     (b) **a copy** -- reading gives an independent object, and writing back is `velocities[index] = velocity`.
-     Simple and safe, but every system writes each component back.
-     (c) **only member templates touch it** -- `velocities.each_integrate(delta)` runs the member on each item in
-     place, and `[]` is not offered on a `Vector` at all; the engine's systems already work this way.
-     Also: a class stored in a `Vector` must be of known size (numbers, `Boolean`, enums, short text), so is a
-     `Vector` of a class holding a `List` an error? Which?
 183. **A fixed-size text for inline components.** With D203, text up to 22 bytes is inline, so `Vector<Name>` has a
      fixed stride and only a longer name points out to the heap. Is that enough, or do you want a capped
      `ShortText<32>` that refuses longer text?
