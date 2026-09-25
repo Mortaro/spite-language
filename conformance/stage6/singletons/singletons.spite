@@ -1,11 +1,11 @@
 var console = Console()
+var first = Journal()
+var again = Journal()
 
 func Singletons() {
-    var first = Journal()
     first.record("from the entry")
     var worker = Worker()
     worker.work()
-    var again = Journal()
     var joined_entries = again.entries.join(", ")
     console.print(joined_entries, first == again, again.opened)
     var plain_one = Worker()

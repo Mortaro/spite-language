@@ -1,4 +1,7 @@
 var world = World()
+var healings = Store<Component.Healing>()
+var healths = Store<Component.Health>()
+var labels = Store<Component.Label>()
 
 func SystemFunctions() {
     spawn_potion("tonic", 5)
@@ -15,7 +18,6 @@ func spawn_potion(text: String, amount: Integer) {
     var entity = world.spawn()
     var healing = Component.Healing()
     healing.amount = amount
-    var healings = Store<Component.Healing>()
     healings.insert(entity, healing)
     label(entity, text)
 }
@@ -24,7 +26,6 @@ func spawn_patient(text: String, amount: Integer) {
     var entity = world.spawn()
     var health = Component.Health()
     health.amount = amount
-    var healths = Store<Component.Health>()
     healths.insert(entity, health)
     label(entity, text)
 }
@@ -32,6 +33,5 @@ func spawn_patient(text: String, amount: Integer) {
 func label(entity: Integer, text: String) {
     var label_component = Component.Label()
     label_component.text = text
-    var labels = Store<Component.Label>()
     labels.insert(entity, label_component)
 }

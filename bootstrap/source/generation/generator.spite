@@ -2573,6 +2573,7 @@ func resolve_field(declaration: Syntax.Statements.VariableDeclaration, informati
     report_nested_calls_in(declaration.value)
     report_long_construction(declaration)
     report_singletons_in_declared(declaration.value, information)
+    report_written_handle_type(declaration)
     if information.is_value_class and information.c_name != "SpiteString" {
         var bound_singleton = constructed_singleton(declaration.value, information)
         if bound_singleton {
@@ -15144,6 +15145,8 @@ func report_nested_calls(statement: Syntax.Statements.Statement, class_informati
             crash statement.value
             report_nested_calls_in(statement.value)
             report_singletons_in_declared(statement.value, class_information)
+            report_local_singleton(statement, class_information)
+            report_written_handle_type(statement)
         }
         Syntax.Statements.AssignmentStatement: {
             crash statement.target
@@ -15402,6 +15405,42 @@ func report_singletons_in_declared(value: Syntax.Expressions.Expression, class_i
         return
     }
     report_inline_singletons(value, class_information)
+}
+
+func report_written_handle_type(declaration: Syntax.Statements.VariableDeclaration) {
+    assert declaration.type_reference and declaration.value
+    var written = shape.as_named_type(declaration.type_reference)
+    assert written
+    var written_kind = written.path.last()
+    assert written.path.count() == 1 and (written_kind == "Parallel" or written_kind == "Concurrent")
+    var started = shape.as_call(declaration.value)
+    assert started
+    crash started.callee
+    var starter = shape.as_identifier(started.callee)
+    assert starter
+    assert starter.name == "Parallel" or starter.name == "Concurrent"
+    var printer = Syntax.SourcePrinter()
+    var construction_text = printer.source_expression(declaration.value)
+    report(
+        "the type of a '{starter.name}' handle is never written: it is worked out from the function it runs, so write 'var {declaration.name} = {construction_text}'",
+    )
+}
+
+func has_no_attribute_to_spare(information: Analysis.ClassInfo): Boolean {
+    return information.is_value_class or information.qualified_dotted == "List" or information.qualified_dotted == "Dictionary"
+}
+
+func report_local_singleton(declaration: Syntax.Statements.VariableDeclaration, class_information: Analysis.ClassInfo) {
+    assert not has_no_attribute_to_spare(class_information)
+    crash declaration.value
+    var singleton = constructed_singleton(declaration.value, class_information)
+    assert singleton
+    var printer = Syntax.SourcePrinter()
+    var construction_text = printer.source_expression(declaration.value)
+    assert not construction_text.contains(".class") and not construction_text.contains("$")
+    report(
+        "'{singleton.qualified_dotted}' is a singleton, bound here as a local: bind it once beside the attributes, 'var {declaration.name} = {construction_text}', so every singleton the class uses is at the top of its file",
+    )
 }
 
 func report_inline_singletons(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo) {

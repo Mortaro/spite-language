@@ -1,9 +1,9 @@
 var console = Console()
+var ledger = Ledger()
+var auditor = Auditor()
 
 func SingletonTeardown() {
-    var ledger = Ledger()
     ledger.note("opened")
-    var auditor = Auditor()
     var sum = auditor.check()
     console.print("checked", sum)
 }

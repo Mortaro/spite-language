@@ -1,13 +1,13 @@
 union Held {
-    Console
-    Program
+    File
+    Directory
 }
 
 var console = Console()
 
 func MissingSwitchCase() {
-    var thing: Held = Program()
+    var thing: Held = Directory(".")
     switch thing {
-        Program: console.print("a program")
+        Directory: console.print("a folder")
     }
 }

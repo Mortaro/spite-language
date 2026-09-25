@@ -4,6 +4,10 @@ var heap = Memory.Heap()
 var bytes = TypedMemory<Byte>()
 var longs = TypedMemory<Long>()
 var ints = TypedMemory<Integer>()
+var floats = TypedMemory<Float>()
+var shorts = TypedMemory<Short>()
+var unsigned_shorts = TypedMemory<UnsignedShort>()
+var unsigned_ints = TypedMemory<UnsignedInteger>()
 
 func MemoryFloor() {
     run()
@@ -37,10 +41,6 @@ func run() {
 }
 
 func widths() {
-    var floats = TypedMemory<Float>()
-    var shorts = TypedMemory<Short>()
-    var unsigned_shorts = TypedMemory<UnsignedShort>()
-    var unsigned_ints = TypedMemory<UnsignedInteger>()
     var address = heap.allocate(12)
     floats.write_value(address, 0, 1.5)
     shorts.write_value(address, 2, -2)

@@ -295,6 +295,8 @@ func drop() {
 ```
 ```gdscript title=ring_buffer_program/ring_buffer_program.spite entry
 var console = Console()
+var heap = Memory.Heap()
+var numbers = TypedMemory<Long>()
 
 func RingBufferProgram() {
     var names = RingBuffer<String>(3)
@@ -310,8 +312,6 @@ func RingBufferProgram() {
 }
 
 func sum_in_the_frame(count: Integer): Long {
-    var heap = Memory.Heap()
-    var numbers = TypedMemory<Long>()
     var before = heap.live_allocations()
     var slots = heap.allocate(count * 8)
     var index = 0

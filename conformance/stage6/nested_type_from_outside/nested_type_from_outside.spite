@@ -1,7 +1,7 @@
 var console = Console()
+var cookbook = Recipes.Cookbook()
 
 func NestedTypeFromOutside() {
-    var cookbook = Recipes.Cookbook()
     cookbook.add(Recipes.Soup())
     cookbook.add(Recipes.Bread())
     var task = Recipes.CookTask(cookbook.recipes)

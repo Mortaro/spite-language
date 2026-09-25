@@ -17,6 +17,7 @@ var program_paths = List<String>()
 var pending_files = List<Syntax.SourceFile>()
 var following_loads = false
 var printer = Syntax.SourcePrinter()
+var program_environment = Environment()
 
 func discover(entry_path: String, entry_source: String): DiscoveryResult {
     choose_target_operating_system()
@@ -850,7 +851,7 @@ func read_environment(environment: Syntax.SourceFile): List<String> {
     var index = 0
     while index < environment.statements.count() and not has_error {
         var variable = shape.as_variable_declaration(environment.statements[index])
-        if variable {
+        if variable and not variable.name.starts_with("_") {
             declared.append(variable.name)
             var reader = setting_reader(variable, "Environment")
             var reading = setting_reading(variable, reader)
@@ -969,8 +970,7 @@ func boolean_literal(text: String): Syntax.Expressions.Expression? {
 }
 
 func integer_literal(text: String): Syntax.Expressions.Expression? {
-    var environment = Environment()
-    assert environment.is_whole_number(text)
+    assert program_environment.is_whole_number(text)
     if text.starts_with("-") {
         var text_length = text.length()
         var magnitude_text = text.slice(1, text_length)

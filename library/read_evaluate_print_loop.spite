@@ -9,6 +9,9 @@ var heap = Memory.Heap()
 var unresolved = ""
 var server = Socket()
 var scheduler = Scheduler()
+var running_program = Program()
+var build = Build()
+var hot_reload = HotReload()
 var thread: Long = 0
 var handover: Memory.Address = 0
 var pending_command = ""
@@ -35,8 +38,7 @@ func step(program: Spite.Attribute): Boolean {
 func listen_in_background(port: Integer, entry: Long) {
     if not server.listen_locally(port) {
         console.error("error: the REPL could not listen on 127.0.0.1:{port}")
-        var program = Program()
-        program.exit(1)
+        running_program.exit(1)
         return
     }
     handover = heap.allocate(16)
@@ -48,8 +50,7 @@ func listen_in_background(port: Integer, entry: Long) {
     thread = start_thread(entry)
     if thread == 0 {
         console.error("error: the REPL could not start its thread")
-        var program = Program()
-        program.exit(1)
+        running_program.exit(1)
     }
 }
 
@@ -93,8 +94,7 @@ func serve_client(client: Socket) {
             if trimmed_line == "exit" {
                 client.write_line("\{\"ok\":true,\"value\":\"\",\"type\":\"\"}")
                 client.close()
-                var program = Program()
-                program.exit(0)
+                running_program.exit(0)
                 return
             }
             var json_answer = json_line(answered)
@@ -230,9 +230,7 @@ func answer(command: String, program: Spite.Attribute): Answer {
 }
 
 func reloaded(command: String): Answer {
-    var build = Build()
     if build.hot_reload {
-        var hot_reload = HotReload()
         if command == "reload" {
             hot_reload.reload()
             if hot_reload.answered {

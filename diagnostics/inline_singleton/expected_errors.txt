@@ -1,4 +1,4 @@
 diagnostics/inline_singleton/inline_singleton.spite:4: error: 'Build' is a singleton: bind it once beside the attributes, 'var build = Build()', and use 'build.target_operating_system' (in InlineSingleton.InlineSingleton)
 diagnostics/inline_singleton/inline_singleton.spite:5: error: 'Console' is a singleton: bind it once beside the attributes, 'var console = Console()', and use 'console.print' (in InlineSingleton.InlineSingleton)
-diagnostics/inline_singleton/inline_singleton.spite:8: error: 'Console' is a singleton: bind it once beside the attributes, 'var console = Console()', and use 'console' (in InlineSingleton.InlineSingleton)
-diagnostics/inline_singleton/inline_singleton.spite:18: error: 'Console' is a singleton: bind it once beside the attributes, 'var console = Console()', and use 'console' (in InlineSingleton.shared)
+diagnostics/inline_singleton/inline_singleton.spite:6: error: 'Console' is a singleton: bind it once beside the attributes, 'var console = Console()', and use 'console' (in InlineSingleton.InlineSingleton)
+diagnostics/inline_singleton/inline_singleton.spite:16: error: 'Console' is a singleton: bind it once beside the attributes, 'var console = Console()', and use 'console' (in InlineSingleton.shared)

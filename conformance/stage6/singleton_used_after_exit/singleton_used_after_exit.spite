@@ -1,7 +1,7 @@
 var console = Console()
+var reporter = Reporter()
 
 func SingletonUsedAfterExit() {
-    var reporter = Reporter()
     reporter.start()
     console.print("started")
 }

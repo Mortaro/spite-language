@@ -1,3 +1,6 @@
+var console = Console()
+var registry = Registry("main")
+
 func SingletonArguments() {
-    var registry = Registry("main")
+    console.print(registry.name)
 }

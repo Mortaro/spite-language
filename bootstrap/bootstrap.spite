@@ -338,7 +338,6 @@ func configure(generator: Generation.Generator) {
     generator.hot_reload = is_on("hot_reload")
     generator.keeps_internals = generator.development or generator.read_evaluate_print_loop
     if generator.hot_reload {
-        var program = Program()
         generator.hot_reload_compiler = program.executable_path()
         generator.hot_reload_arguments = reload_arguments()
         generator.hot_reload_program_file = executable_path()
@@ -701,7 +700,6 @@ func find_c_compiler(): String {
 }
 
 func run_reload(discovery: Discovery.DiscoveryResult) {
-    var program = Program()
     var program_file = executable_path()
     var base = without_executable_extension(program_file)
     var host_text = File("{base}.reload_host").read()

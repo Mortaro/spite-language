@@ -1,7 +1,7 @@
 var console = Console()
+var census = Census()
 
 func SingletonRace() {
-    var census = Census()
     var first_toucher = Toucher()
     var second_toucher = Toucher()
     var first = Parallel(first_toucher.touch_many)
