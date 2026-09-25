@@ -1,0 +1,20 @@
+var lines = List<String>()
+
+func encode_component(component: Symbol<Component>) {
+    var codec = Codec<component.class>()
+    if component.class.has_function("mirrored_from") {
+        codec.mirror(lines)
+    }
+    if component.class.has_function("sent_from") {
+        codec.send(lines)
+    }
+    if not component.class.has_function("mirrored_from") and not component.class.has_function("sent_from") {
+        lines.append("{component.name} stays local")
+    }
+}
+
+func encode(): String {
+    lines.clear()
+    encode_components()
+    return lines.join("\n")
+}

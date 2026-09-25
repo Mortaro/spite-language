@@ -1,0 +1,5 @@
+var level = 1
+
+func level_now(): Integer {
+    return level
+}

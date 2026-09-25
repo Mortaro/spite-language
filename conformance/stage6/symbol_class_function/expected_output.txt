@@ -1,0 +1,3 @@
+ClickCount mirrored true
+Component.Frame stays local
+Request sent true

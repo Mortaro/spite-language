@@ -1,0 +1,13 @@
+var console = Console()
+
+func FoldedFunctionValue() {
+    var loud = Probe<Loud>()
+    var quiet = Probe<Quiet>()
+    var loud_speaks = loud.speaks()
+    var loud_both = loud.both()
+    var loud_silent = loud.silent()
+    var quiet_speaks = quiet.speaks()
+    var quiet_silent = quiet.silent()
+    console.print(loud_speaks, loud_both, loud_silent)
+    console.print(quiet_speaks, quiet_silent)
+}

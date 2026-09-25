@@ -1,0 +1,17 @@
+generic $value_type
+
+func write(value: $value_type, lines: List<String>) {
+    write_attributes(value, lines)
+}
+
+func write_attribute(attribute: Symbol<$value_type>, value: $value_type, lines: List<String>) {
+    lines.append("{attribute.name}={value.attributes[attribute]}")
+}
+
+func read_into(value: $value_type, lines: List<String>) {
+    read_attributes(value, lines)
+}
+
+func read_attribute(attribute: Symbol<$value_type>, value: $value_type, lines: List<String>) {
+    value.attributes[attribute] = lines.count()
+}

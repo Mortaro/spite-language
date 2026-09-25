@@ -1,0 +1,13 @@
+generic $component_type
+
+var sample: $component_type = null
+
+func mirror(lines: List<String>) {
+    var mirrored = sample.mirrored_from("server")
+    lines.append("{sample.class.name} mirrored {mirrored}")
+}
+
+func send(lines: List<String>) {
+    var sent = sample.sent_from("client")
+    lines.append("{sample.class.name} sent {sent}")
+}

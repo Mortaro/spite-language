@@ -1,0 +1,5 @@
+var clicks = 1
+
+func sent_from(environment: String): Boolean {
+    return environment != "server" and clicks > 0
+}

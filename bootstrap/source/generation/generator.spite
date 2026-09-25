@@ -516,6 +516,8 @@ func generate(
         emit_functions_function_bodies()
         emit_attribute_object_bodies()
         emit_pending_functions()
+        emit_late_shape_callers()
+        emit_pending_functions()
         final_settle = final_settle + 1
     }
     emit_foreign_libraries()
@@ -534,6 +536,9 @@ func generate(
     }
     emit_main(discovery.launcher_mangled_name)
     emit_pending_functions()
+    while emit_late_shape_callers() > 0 {
+        emit_pending_functions()
+    }
     emit_attribute_object_bodies()
     emit_hot_reload_support()
     if parallel_used {
@@ -788,11 +793,22 @@ func constant_condition(
 func function_question(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Boolean? {
     var call = shape.as_call(expression)
     assert call
+    return folded_function_question(call, class_information)
+}
+
+func folded_function_question(
+    call: Syntax.Expressions.CallExpression,
+    class_information: Analysis.ClassInfo,
+): Boolean? {
     crash call.callee
     var member = shape.as_member(call.callee)
     assert member
     assert member.name == "has_function"
     crash member.object
+    var symbol_class = shape.as_member(member.object)
+    if symbol_class {
+        return symbol_function_question(symbol_class, call.arguments, class_information)
+    }
     var generic_identifier = shape.as_generic_identifier(member.object)
     assert generic_identifier
     var bare_name = without_dollar(generic_identifier.name)
@@ -815,6 +831,27 @@ func function_question(expression: Syntax.Expressions.Expression, class_informat
         "'${bare_name}.has_function(...)' is decided while compiling, so the name it asks for is written as a literal: '${bare_name}.has_function('run_each')', or a pattern such as \"<phase>_each\"",
     )
     return false
+}
+
+func symbol_function_question(
+    symbol_class: Syntax.Expressions.MemberExpression,
+    arguments: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+): Boolean? {
+    assert symbol_class.name == "class" and not bound_symbol_name.is_empty()
+    crash symbol_class.object
+    var symbol_identifier = shape.as_identifier(symbol_class.object)
+    assert symbol_identifier
+    assert symbol_identifier.name == bound_symbol_name
+    assert bound_field_type
+    var pattern = written_name(arguments)
+    assert pattern
+    var bound_class_ref = type_shape.as_class_ref(bound_field_type)
+    assert bound_class_ref
+    assert not bound_class_ref.has_signature
+    var owner = find_class_by_c_name(bound_class_ref.c_name)
+    assert owner
+    return class_has_function(owner, pattern, class_information)
 }
 
 func written_name(arguments: List<Syntax.Expressions.Expression>): String? {
@@ -1723,8 +1760,22 @@ func shape_member_function(member: Analysis.ClassInfo, name: String): Analysis.F
     return find_or_instantiate_function(member, "to_debug")
 }
 
+func emit_late_shape_callers(): Integer {
+    var emitted = 0
+    var index = 0
+    while index < unions.count() {
+        var information = unions[index]
+        if information.is_shape and information.emitted_callers < information.caller_names.count() {
+            emitted = emitted + information.caller_names.count() - information.emitted_callers
+            emit_shape_callers(information)
+        }
+        index = index + 1
+    }
+    return emitted
+}
+
 func emit_shape_callers(information: Analysis.UnionInfo) {
-    var caller_index = 0
+    var caller_index = information.emitted_callers
     while caller_index < information.caller_names.count() {
         var name = information.caller_names[caller_index]
         var parameter_types = shape_call_parameter_types(information, name)
@@ -1771,6 +1822,7 @@ func emit_shape_callers(information: Analysis.UnionInfo) {
         builder.add_support(joined_lines)
         caller_index = caller_index + 1
     }
+    information.emitted_callers = caller_index
 }
 
 func admit_to_union(information: Analysis.UnionInfo, candidate: Analysis.ClassInfo) {
@@ -2890,6 +2942,18 @@ func template_range_class(information: Analysis.ClassInfo, template: Analysis.Te
     return range_class
 }
 
+func walks_no_class(information: Analysis.ClassInfo, template: Analysis.TemplateInfo, member_name: String): Boolean {
+    assert member_name == "{template.symbol_parameter}s" and not information.is_container and template.range
+    var saved_class = current_class
+    current_class = information
+    var range_type = resolve_type(template.range, information.qualified_dotted)
+    current_class = saved_class
+    if range_type {
+        return true
+    }
+    return false
+}
+
 func template_range_shape(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): Analysis.UnionInfo? {
     assert template.range
     var saved_class = current_class
@@ -3354,6 +3418,9 @@ func find_or_instantiate_function(information: Analysis.ClassInfo, name: String)
             } else if member_name == "{template.symbol_parameter}s" {
                 every = template
             }
+        }
+        if range_owner.is_empty() and walks_no_class(information, template, member_name) {
+            every = template
         }
         index = index + 1
     }
@@ -11881,6 +11948,16 @@ func generate_call(
     var member = shape.as_member(call.callee)
     if member {
         crash member.object
+        if member.name == "has_function" {
+            var answered = folded_function_question(call, class_information)
+            if answered == true or answered == false {
+                var answer_type: Analysis.SpiteType = Analysis.Types.ScalarType('boolean_kind')
+                if answered == true {
+                    return ExpressionResult("true", answer_type)
+                }
+                return ExpressionResult("false", answer_type)
+            }
+        }
         return generate_method_call(member, member.object, call.arguments, scope, class_information)
     }
     var identifier = shape.as_identifier(call.callee)

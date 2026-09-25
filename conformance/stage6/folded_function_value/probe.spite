@@ -1,0 +1,14 @@
+generic $voice_type
+
+func speaks(): Boolean {
+    return $voice_type.has_function("shout") or $voice_type.has_function("whisper")
+}
+
+func both(): Boolean {
+    var shouts = $voice_type.has_function("shout")
+    return shouts and $voice_type.has_function("whisper")
+}
+
+func silent(): Boolean {
+    return not $voice_type.has_function("shout") and not $voice_type.has_function("whisper")
+}
