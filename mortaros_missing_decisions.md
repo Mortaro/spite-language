@@ -377,11 +377,6 @@ All of it is proposed by Claude, unconfirmed.
 
 ## SlopEngine's entity API (D123, D124)
 
-125. **A number, `Bool` or enum attribute's `.object`: boxed or `null`?** It is boxed (proposed by Claude,
-     unconfirmed), as D109 boxes a plain value passed where a `type` is wanted, so `speed: Int` hands
-     `add_component` an object whose `.class` is `Int` and `if component == Int` narrows it back. The other
-     reading was `null` for anything that is not already an object, which would make a bundle's numbers vanish
-     silently. `null` is kept only for an attribute that holds `null`, so `.object` is still a `T?` to narrow.
 126. **Where does D124 apply?** Read as "wherever a `Spite.Class` is wanted" (proposed by Claude, unconfirmed):
      an argument, `var kind: Spite.Class = Health`, an assignment to one and a `return`; an untyped `var kind =
      Health` is still the "is a class, not a value" error, since a missing `()` is the likelier mistake. And
