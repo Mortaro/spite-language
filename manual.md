@@ -380,7 +380,11 @@ Claude, unconfirmed, 2026-09-24; `conformance/stage6/and_narrowing`).
   path, not a local holding it.  **[implemented]**
 - A check on something that cannot be null proves nothing and is an error naming the fix: `assert tracker`
   written twice, or `crash` on a path an earlier `crash` already narrowed (`diagnostics/check_proves_nothing`).
-  **[implemented; proposed by Claude, unconfirmed]**
+  **[implemented; proposed by Claude, unconfirmed]** For a `[]` read the message names what proved it, so the
+  line can simply go: `crash codes[index]` inside `while index < codes.count()` is "'codes[index]' is already
+  proven by the loop condition 'index < codes.count()', so this 'crash' proves nothing: remove it"; a count or
+  bound check is named the same way, and anything else as "an earlier check" (proposed by Claude, unconfirmed,
+  2026-09-24; the D64 rules below already reported it, without naming the proof; `diagnostics/proven_element`).
 - `crash` (below) narrows a chain the same way, since it narrows exactly as `assert` does but never returns.
 - Reading through a link that may be null and has not been narrowed is still an error. This removes the verbosity of
   proving a path, not the requirement to prove it.
@@ -416,6 +420,14 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
 - **Assigning the list or the index undoes it**, as for any path (section 5, D43): `index = index + 1`
   un-proves `names[index]`, and so do `names.clear()`, `remove_at`, `remove_first` and `remove_last`. Inside a
   loop, undoing a proof made before the loop that the loop has read is an error.
+- **Any index without a call is a path** (proposed by Claude, unconfirmed, 2026-09-24): `crash glyphs[code - 32]`
+  proves `glyphs[code - 32]` for what follows, not only `glyphs[index]`. The index may be names, member reads,
+  numbers, `true`/`false`, enum values, operators and other `[]` reads; two indices are the same when D78's
+  printer prints them the same, so spacing and redundant parentheses do not matter. Assigning any name the index
+  reads undoes it, as assigning the index itself does. A call anywhere in the index keeps the read a plain `T?`,
+  since the call could answer something else the second time. A call *between* the check and the read does not
+  undo it, exactly as for `glyphs[index]` (the read still checks its bounds). `conformance/stage6/structural_index`,
+  `diagnostics/structural_index_undone`.
 - **A proven read still checks its bounds at runtime** and answers the default out of range, so a counter that
   went negative gives a wrong value rather than reading memory it does not own.
 - **A `Bool?` cannot be a condition** -- not in `if`, `while`, `assert` or `crash`, and not under `not`, `and`
@@ -1560,6 +1572,16 @@ names ask for a kind, since the type has arguments the test does not want to spe
 A union name is true for any of its members. Such a test always folds, `--development` included, because the
 branch it rules out would not compile.
 
+**Only what survives folding is compiled** (proposed by Claude, unconfirmed, 2026-09-24). A function of a generic
+class is compiled, and so type-checked, for one instantiation only when code already compiled for the program
+names it -- a call that survived folding, a function value, a reflection table, or a call through a `type` the
+class is a member of -- so a helper reached only from a
+branch the instantiation rules out is never checked against that type. When a folded `if` (or `else if` chain)
+takes a branch that ends in `return`, the statements after it in the same block are not compiled either, and
+the names they read count as used, as for the untaken branch. Before, `Field<Int>.write_list` was checked for
+`.count()` on an `Int`, and the only way out was one generic class per kind. A class that is not generic still
+compiles every function. `conformance/stage6/folded_helpers`.
+
 **The types a type was built from are read by their codegen names**: `$value_type.element_type` for a
 `List<$element_type>`, `$value_type.value_type` for a `Dictionary<$value_type>` or a `$value_type?`, and a generic
 class's own names for one of its instances -- the names this section already gives the containers. Reading a name
@@ -1815,6 +1837,11 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   out (proposed by Claude, unconfirmed, 2026-09-24; before, a type written in a type position was looked up only
   after every class, so SlopEngine's `type Healing` in `system/regenerate.spite` meant the program's entry class
   `Healing`; `conformance/stage6/nearest_type`).
+  A generic class's constructor takes the walk too, class and arguments alike: `Asset.Pack<Asset.Texture>()`, or
+  `Pack<Rule>()` from inside `game/` for `game/pack.spite` (proposed by Claude, unconfirmed, 2026-09-24; until
+  then a generic class had to live at a package root, `conformance/stage6/namespaced_generics`). A generic
+  constructor that cannot be made reports once, and every later line that reads the value it would have made is
+  not reported again, so one mistake is one error (`diagnostics/failed_constructor`).
 - Every loaded root merges into the same namespaces. A second root with the same folder structure and file name **reopens** the
   class: this is how monkey patching and game mods work -- later `func`/`var` with the same name replaces the earlier one (in
   load order: the entry folder first, then loads in the order they were discovered), a `var`'s replacement type must match, and
@@ -2039,6 +2066,12 @@ gives an error, nothing is left to the user's taste. The only printout that used
   reserved: a class may declare `allocate`, `make` or `release` (`conformance/stage6/generated_names`). A class's
   `copy()`, `to_string()` and `to_debug()` are Spite functions every class answers and a class may declare, and
   keep their plain names.
+- **Names C reserves** cannot name a variable, attribute, parameter or function: `auto`, `bool`, `break`, `case`,
+  `char`, `const`, `continue`, `default`, `do`, `double`, `extern`, `float`, `goto`, `inline`, `int`, `long`,
+  `main`, `register`, `restrict`, `short`, `signed`, `sizeof`, `static`, `stderr`, `stdin`, `stdout`, `struct`,
+  `typedef`, `unsigned`, `void`, `volatile`. The error lists all of them, so the next name tried is not another
+  one (proposed by Claude, unconfirmed, 2026-09-24; `diagnostics/reserved_name`). Whether a function, whose C
+  name is always joined to its class's, needs the list at all is open (`mortaros_missing_decisions.md` item 107).
 - Single-letter names are always errors -- no exceptions -- because they read either as a stray leftover or as
   a puzzle for whoever reads the code next.
 - **Abbreviations.** An identifier is split into `_`-separated words and each word is checked against a
@@ -3709,6 +3742,11 @@ payloads to JSON on demand, since the compiler knows the schema.
 | 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's `Slot<T>` and `Column<T>` are generic singletons first touched by `Parallel` systems) **A singleton is made once even when two threads ask first.** The accessor was `if (cache == 0) cache = make()` with no lock, so two threads could both make it, and both append to the teardown list at once. In a program that starts threads, a fetch now loads the slot with acquire ordering and returns it when set (a plain load on x86); only when it is empty does it take the singleton's own spin lock, check again, make it, record it under the list's lock and publish it. `DynamicLibrary` slots do the same. A program with no threads keeps the plain check. Two threads first touching `Shelf<Int>()`, whose constructor is slow, made it twice before and leaked one copy. `conformance/stage6/singleton_race`, `docs/classes_and_files.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's click test, `click_test/click_test.spite`) **A name is looked up from the class's own namespace first, and a folder's entry class owns its folder.** The walk started at a class's folder, which for `ClickTest` (the entry of `click_test/`) is the program root, so `System.DriveClicks()` there was "unknown identifier 'System'" while every sibling file reached it; the walk now starts at the class's own qualified name, as the manual already said, and so do `type` and `union` members. The same report said the compiler segfaulted on this layout (the class referenced as `var click_test = ClickTest()` from `ClickTest.Composition`, its attributes spelled `ClickTest.System.X()`); a copy of SlopEngine laid out that way compiles and passes its click test with master and with the compiler before the recent SlopEngine fixes, so the crash was not reproduced and is not claimed fixed. `conformance/stage6/folder_class_namespace`, `docs/packages.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; D64, SlopEngine's `Psd.Layers.skipped_by_prefix`) **A check on an index read already proven says so.** `crash skipped[index]` inside `while not found and index < skipped.count()` failed with "the condition of 'crash' is a String", which read as if the attribute's read were typed wrongly. It was proven, correctly: the loop body runs only when both sides of the `and` hold, and a list in an attribute, a parameter or a local is proven the same way (checked side by side). The error now names the read and says a count or bound already proves it, so the check goes. `diagnostics/proven_index_check`, `docs/failure.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's PSD, zstd and .blend ports) **A generic class in a namespace can be constructed, and a failed constructor is one error.** `Asset.Pack<Asset.Texture>()` was "this generic constructor is not supported in this stage", because only a bare name was looked up, and the value it failed to make then cascaded into "a Value has no function", "'path' is never used" and the rest. The class name now takes section 11's walk (own namespace, folder, parents, program) like every other name, dotted or not, as its arguments already did. When a generic constructor cannot be made -- no such class, the wrong number of values, or `<...>` on a class that takes none -- the statement reports once, the variable it declares is poisoned, and later statements that read a poisoned name report nothing and mark what they read as used. `conformance/stage6/namespaced_generics`, `diagnostics/failed_constructor`, `docs/packages.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's PSD, zstd and .blend ports) **Any index without a call is a path that narrows.** `crash list[code - 32]` did not prove `list[code - 32]` on the next line; only a name, a path, a number or quoted text did, so every port wrote `var index = code - 32` first. An index made of names, member reads, literals, enum values, operators and `[]` reads is now a path, compared by D78's printed form, and assigning any whole name it reads undoes it, as assigning the list or a plain index does. A call inside the index keeps it a plain `T?`. As for a plain index, a call *between* the check and the read does not undo it; whether it should is open (mortaros_missing_decisions.md item 106). `conformance/stage6/structural_index`, `diagnostics/structural_index_undone`, `docs/failure.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's PSD, zstd and .blend ports) **A generic class compiles only what survives folding.** `Field<Int>.write_list`, reached only from `if $value_type == List { }`, was still type-checked for `Int` ("a Int has no function 'count'"), and so was the code after a folded `if`/`else if` chain, so the ports wrote one generic class per kind. A function of an instantiated generic class is now emitted only once the C already emitted names it (a surviving call, a function value, a reflection or shape table), repeated until nothing new is named; a folded branch that ends in `return` ends its block, and the rest of the block is not compiled but its names count as used. Classes that are not generic still compile every function, so a mistake in an uncalled function is still reported there. `conformance/stage6/folded_helpers`, `docs/metaprogramming.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's PSD, zstd and .blend ports) **A check on an element already proven says what proved it.** `crash list[index]` inside `while index < list.count()` stays an error, but the message was "the condition of 'crash' is a Int, but it must be a Bool", which sent the ports looking for a comparison to add; the row **A check on an index read already proven says so** above fixed that in parallel with a message naming no proof. A proof by a bound or a count now remembers its condition, so the error reads "'list[index]' is already proven by the loop condition 'index < list.count()', so this 'crash' proves nothing: remove it" (or names the `crash`/`assert`/`if` check, or "an earlier check"). `diagnostics/proven_element`, `docs/failure.md`, `docs/for_ai_writers.md`. |
+| 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's PSD, zstd and .blend ports, where `func short()` was rejected) **The reserved-name error lists every name C reserves.** It said only that the name was reserved, so a port renamed `short` to `int` and was told again. The message now ends with the whole list, which `docs/for_ai_writers.md` and section 12 repeat. The list is master's at merge time (the `___` join of D-row "The compiler's own C names" made `allocate`, `make` and `release` legal, and `default` stays reserved). Whether functions and attributes need the list at all is item 107. `diagnostics/reserved_name`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; D115, SlopEngine's `Cook` walking `Symbol<Recipe>` in a program with no recipes; supersedes the "matches no folder is an error" reading in `mortaros_missing_decisions.md` item 99) **A folder range that matches nothing walks nothing.** The error fired while generating every class's functions, so it failed a program that loaded `Cook` and never called it. An empty walk is what `Symbol<Label>` over a class with no attributes already does, and what `Symbol<$system_type.run_each>` does for a type without `run_each`. The typo check moves to where a single class is named: `cook_recipe_bread()` for a class no folder holds says which classes the folders do hold, or that there is no such folder. `conformance/stage6/empty_folder_range`, `diagnostics/empty_folder_range`, `docs/metaprogramming.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; SlopEngine's `type Healing` in `examples/healing/system/regenerate.spite`) **The nearest `type`, `union` or `enum` wins over a class further out.** A bare name in a type position looked for a class along the whole walk first and for a declared type only after it, so the program's entry class `Healing` shadowed the `type Healing` the system file declared ("'Healing' has no attribute 'health'"). A declaration now sits in the walk at the level of the class that declares it: the using class first, then its folder's entry class, then each parent. This also closes `docs/KNOWN_ISSUES.md`'s "a class of your own can hide a class the library nests": a program's class `Entry` no longer hides `Directory`'s union `Entry`. `conformance/stage6/nearest_type`, `docs/packages.md`. |
 | 2026-09-24 | (proposed by Claude, unconfirmed; D114-D116, SlopEngine's runner could not move its combination loop out of `run_phase_each`) **A template's symbol can be passed to a helper, which is compiled once per symbol.** `run_combination(phase)` treated `run_combination` as an ordinary function taking a run-time `Symbol`, so inside it `system.phase_each(...)` had no matched function ("does not define 'phase_each'"). A function whose ranged `Symbol<...>` parameter is not a word of its name is now a template reached only by passing it the calling template's own symbol, by name, over the same range; the instance (`run_combination_for_update`) keeps the binding, pattern and argument templates included. Passing anything else, or calling it from outside such a template, is an error. A plain `Symbol` parameter is unchanged. `conformance/stage6/passed_symbol`, `diagnostics/passed_symbol`, `docs/metaprogramming.md`. |

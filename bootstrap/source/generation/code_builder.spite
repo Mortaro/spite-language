@@ -9,6 +9,53 @@ var shakes = true
 var threads = false
 var hot_reload = false
 var host = HotReloadLibrary()
+var mentioned_names = Dictionary<Bool>()
+var scanned_typedefs = 0
+var scanned_support = 0
+var scanned_user = 0
+var scanned_main = 0
+var scanned_slots = 0
+
+func mentions(name: String): Bool {
+    scanned_typedefs = scan_from(typedefs, scanned_typedefs)
+    scanned_support = scan_from(support_bodies, scanned_support)
+    scanned_user = scan_from(user_bodies, scanned_user)
+    scanned_main = scan_from(main_lines, scanned_main)
+    scanned_slots = scan_from(slot_lines, scanned_slots)
+    return mentioned_names.has(name)
+}
+
+func scan_from(lines: List<String>, start: Int): Int {
+    var index = start
+    while index < lines.count() {
+        scan_names(lines[index])
+        index = index + 1
+    }
+    return index
+}
+
+func scan_names(line: String) {
+    var line_length = line.length()
+    var start = -1
+    var position = 0
+    while position <= line_length {
+        var code = line.code_at(position)
+        var inside = position < line_length and is_name_code(code)
+        if inside and start < 0 {
+            start = position
+        }
+        if not inside and start >= 0 {
+            var name = line.slice(start, position)
+            mentioned_names.set(name, true)
+            start = -1
+        }
+        position = position + 1
+    }
+}
+
+func is_name_code(code: Int): Bool {
+    return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
+}
 
 func add_typedef(line: String) {
     typedefs.append(line)

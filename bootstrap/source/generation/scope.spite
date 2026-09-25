@@ -8,6 +8,8 @@ var override_names = List<String>()
 var override_codes = List<String>()
 var owned = List<OwnedLocal>()
 var narrowed_paths = List<String>()
+var bound_paths = List<String>()
+var bound_reasons = List<String>()
 var is_loop = false
 var rebindings = 0
 var paths_read_from_outside = List<String>()
@@ -103,6 +105,40 @@ func narrow_path(path: String) {
     }
 }
 
+func narrow_bound_path(path: String, condition_text: String) {
+    narrow_path(path)
+    bound_paths.append(path)
+    if is_loop {
+        bound_reasons.append("the loop condition '{condition_text}'")
+    } else {
+        bound_reasons.append("'{condition_text}'")
+    }
+}
+
+func proof_of(path: String): String {
+    var index = bound_paths.count() - 1
+    while index >= 0 {
+        if bound_paths[index] == path {
+            crash bound_reasons[index]
+            return bound_reasons[index]
+        }
+        index = index - 1
+    }
+    assert parent
+    return parent.proof_of(path)
+}
+
+func forget_bound(path: String) {
+    var index = bound_paths.count() - 1
+    while index >= 0 {
+        if bound_paths[index] == path {
+            bound_paths.remove_at(index)
+            bound_reasons.remove_at(index)
+        }
+        index = index - 1
+    }
+}
+
 func is_path_narrowed(candidate: String): Bool {
     return not narrowing_of(candidate).is_empty()
 }
@@ -133,8 +169,9 @@ func forget_path(path: String, include_itself: Bool, read_by_crossed_loops: List
     while index >= 0 {
         crash narrowed_paths[index]
         var narrowed = narrowed_paths[index]
-        if narrowed.starts_with("{path}.") or narrowed.starts_with("{path}[") or narrowed.contains("[{path}]") or include_itself and narrowed == path {
+        if narrowed.starts_with("{path}.") or narrowed.starts_with("{path}[") or key_mentions(narrowed, path) or include_itself and narrowed == path {
             narrowed_paths.remove_at(index)
+            forget_bound(narrowed)
             if read_by_crossed_loops.contains(narrowed) {
                 crossed_a_loop = true
             }
@@ -155,6 +192,34 @@ func forget_path(path: String, include_itself: Bool, read_by_crossed_loops: List
         }
     }
     return crossed_a_loop
+}
+
+func key_mentions(narrowed: String, path: String): Bool {
+    var first_key = narrowed.index_of("[")
+    assert first_key >= 0
+    var path_length = path.length()
+    var narrowed_length = narrowed.length()
+    var position = first_key + 1
+    while position + path_length <= narrowed_length {
+        if narrowed.matches_at(path, position) and is_word_start(narrowed, position) {
+            var after = position + path_length
+            var next_code = narrowed.code_at(after)
+            if after == narrowed_length or not is_name_code(next_code) {
+                return true
+            }
+        }
+        position = position + 1
+    }
+    return false
+}
+
+func is_word_start(text: String, position: Int): Bool {
+    var before = text.code_at(position - 1)
+    return before != 46 and before != 34 and not is_name_code(before)
+}
+
+func is_name_code(code: Int): Bool {
+    return code == 95 or code >= 48 and code <= 57 or code >= 65 and code <= 90 or code >= 97 and code <= 122
 }
 
 func unnarrowed_type(name: String): Analysis.SpiteType? {

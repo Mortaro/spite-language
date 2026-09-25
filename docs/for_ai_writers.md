@@ -80,6 +80,12 @@ func is_alive(): Bool {
   `new`, `import`, `require`, `elif` -- are errors wherever they appear, naming the Spite form, so none of them
   can name a variable or a parameter either: `var none: Long = 0` says to write `null`. Pick another name
   (`no_handle`, `empty`).
+- A few names are taken by the C that Spite compiles to, and cannot name a variable, attribute, parameter or
+  function: `auto`, `bool`, `break`, `case`, `char`, `const`, `continue`, `default`, `do`, `double`, `extern`,
+  `float`, `goto`, `inline`, `int`, `long`, `main`, `register`, `restrict`, `short`, `signed`, `sizeof`,
+  `static`, `stderr`, `stdin`, `stdout`, `struct`, `typedef`, `unsigned`, `void`, `volatile`. The error lists
+  them. Say what the value is instead: `read_short` for a function, `flags` rather than `unsigned`
+  (`diagnostics/reserved_name`). `allocate`, `make`, `retain` and `release` are ordinary names.
 - A function body holds no empty lines: the blank line is where a second function wants to be, so name the part
   below it and call it. An `if` whose only statement is a bare `return` is an error too -- that is a
   precondition, and a precondition is written `assert condition`.
@@ -104,9 +110,11 @@ func is_alive(): Bool {
 - `List<T>`: `[1, 2, 3]`, `append`, `prepend`, `insert`, `remove_at`, `remove_last`, `remove_first`, `first`,
   `last`, `count`, `contains`, `is_empty`, `clear`, `reverse`, `join` (text, numbers, `Bool` and enum values
   all join), `list[index]` (a `T?`: out of range gives nothing -- `crash names[index]` narrows it like a path,
+  and so does `crash glyphs[code - 32]`, or any index with no call in it, with no copy into a local first;
   `crash names.count() == 3` proves `names[0]` to `names[2]`, and `while index < names.count()` proves
-  `names[index]` in the loop body). `Dictionary<T>` (String keys, insertion order): `set`, `get` (a `T?`), `has`,
-  `remove`, `count`, `keys`, `values`, `dictionary["key"]` (a `T?`, like `list[index]`).
+  `names[index]` in the loop body, so a `crash names[index]` inside that loop is an error saying so: delete it).
+  `Dictionary<T>` (String keys, insertion order): `set`, `get` (a `T?`), `has`, `remove`, `count`, `keys`,
+  `values`, `dictionary["key"]` (a `T?`, like `list[index]`).
 - A chain of templates, `teams.filter_active().map_lead().sum_age()`, runs as one loop with no list in between.
 - On a list or dictionary of a class: `filter_<member>()`, `count_<member>()`, `any_`, `all_` (a `Bool` member),
   `sum_<member>()` (a number), `sort_by_<member>()`, `find_by_<member>(value)` (a `T?`), `map_<member>()`,
@@ -166,7 +174,9 @@ func is_alive(): Bool {
 - `attribute: Symbol<Label>` ranges over another class's members, read as `label.attributes[attribute]`, and the
   plural (`show_attributes(label)` for `show_attribute`) calls the template once per attribute, in order.
 - In a generic class, `if $value_type == List { }` (also `Dictionary`, `Null` for any `T?`, `Symbol` for any enum,
-  or an exact type) is decided while compiling, and `$value_type.element_type` names what the type holds.
+  or an exact type) is decided while compiling, and `$value_type.element_type` names what the type holds. Only
+  what the taken branch reaches is compiled -- helper functions, and the code after a chain whose branch returns
+  -- so keep one generic class with a helper per kind, not one class per kind.
 - A getter with no setter makes a read-only attribute: `get_fahrenheit()` answers `.fahrenheit`, and assigning
   it is an error.
 - `person.age = 1` calls `set_age(1)` and `person.age` calls `get_age()` when the class has them.

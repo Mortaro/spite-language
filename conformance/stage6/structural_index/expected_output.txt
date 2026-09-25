@@ -1,0 +1,3 @@
+BANG bang
+hash 5
+hash

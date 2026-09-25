@@ -74,6 +74,8 @@ var nullable_scalar_labels = List<String>()
 var has_error = false
 var error_message = ""
 var error_lines = List<String>()
+var statement_poisoned = false
+var poisoned_names = List<String>()
 var current_function = ""
 var current_class: Analysis.ClassInfo? = null
 var discovered_classes = List<Discovery.DiscoveredClass>()
@@ -105,6 +107,7 @@ var synthetic_value_types = Dictionary<Analysis.SpiteType>()
 
 func report(message: String) {
     has_error = true
+    assert not statement_poisoned
     var line = "{current_path}:{current_line}: error: {message} (in {current_owner}.{current_function})"
     assert not error_lines.contains(line)
     if error_lines.count() == 25 {
@@ -976,6 +979,7 @@ func instantiated_with(
     instance.is_singleton = template.is_singleton
     instance.is_stateless_singleton = template.is_stateless_singleton
     instance.is_container = template.qualified_dotted == "TypedMemory"
+    instance.is_instantiated = true
     classes.append(instance)
     builder.add_typedef("typedef struct {label} {label};")
     var saved_owner = current_owner
@@ -3145,7 +3149,7 @@ func emit_pending_functions() {
                 }
                 var function_index = 0
                 while function_index < information.functions.count() {
-                    if not information.functions[function_index].is_emitted {
+                    if is_pending(information, information.functions[function_index]) {
                         current_owner = information.qualified_dotted
                         emit_user_function(information, information.functions[function_index])
                         emitted_any = true
@@ -3156,6 +3160,27 @@ func emit_pending_functions() {
             class_index = class_index + 1
         }
     }
+}
+
+func is_pending(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): Bool {
+    assert not function.is_emitted
+    if not information.is_instantiated {
+        return true
+    }
+    return builder.mentions(function.c_name) or is_called_through_shape(information, function.name)
+}
+
+func is_called_through_shape(information: Analysis.ClassInfo, name: String): Bool {
+    var index = 0
+    while index < unions.count() {
+        if unions[index].is_shape and unions[index].caller_names.contains(name) {
+            if unions[index].has_member(information.c_name) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func received_type(parameter: Syntax.Statements.Parameter, resolved: Analysis.SpiteType): Analysis.SpiteType {
@@ -8173,23 +8198,66 @@ func generate_generic_constructor(
                 return ExpressionResult("{ensure_list(element)}___make()", list_type)
             }
         }
-        var generic_template = find_class(callee.name, class_information.qualified_dotted)
-        if generic_template {
-            if generic_template.is_generic_template {
-                var generic_class = instantiate_generic(
-                    generic_template,
-                    generic_call.type_arguments,
-                    class_information.qualified_dotted,
-                )
-                if generic_class {
-                    return generate_constructor_call(generic_class, generic_call.arguments, scope, class_information)
-                }
-                return ExpressionResult("0", Analysis.Types.VoidType())
-            }
-        }
     }
-    report("this generic constructor is not supported in this stage")
+    var generic_template = try_resolve_static_path(generic_call.callee, class_information.qualified_dotted)
+    if generic_template {
+        if generic_template.is_generic_template {
+            var generic_class = instantiate_generic(
+                generic_template,
+                generic_call.type_arguments,
+                class_information.qualified_dotted,
+            )
+            if generic_class {
+                return generate_constructor_call(generic_class, generic_call.arguments, scope, class_information)
+            }
+            poison_statement()
+            return ExpressionResult("0", Analysis.Types.VoidType())
+        }
+        report(
+            "'{generic_template.simple_name}' takes no codegen values: write '{generic_template.simple_name}(...)' without '<...>'",
+        )
+        poison_statement()
+        return ExpressionResult("0", Analysis.Types.VoidType())
+    }
+    var printer = Syntax.SourcePrinter()
+    var callee_text = printer.source_expression(generic_call.callee)
+    report(
+        "there is no generic class '{callee_text}' here: a name is looked up in this class's own namespace, its folder, each parent folder, then the whole program",
+    )
+    poison_statement()
     return ExpressionResult("0", Analysis.Types.VoidType())
+}
+
+func poison_statement() {
+    statement_poisoned = true
+}
+
+func poisoned_key(name: String): String {
+    return "{current_path}:{current_owner}.{current_function}:{name}"
+}
+
+func mentions_poisoned(statement: Syntax.Statements.Statement, names: List<String>): Bool {
+    if not poisoned_names.is_empty() {
+        collect_statement_head_names(statement, names)
+    }
+    var index = 0
+    while index < names.count() {
+        var key = poisoned_key(names[index])
+        if poisoned_names.contains(key) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func collect_statement_head_names(statement: Syntax.Statements.Statement, names: List<String>) {
+    switch statement {
+        Syntax.Statements.IfStatement: collect_optional_names(statement.condition, names)
+        Syntax.Statements.WhileStatement: collect_optional_names(statement.condition, names)
+        Syntax.Statements.SwitchStatement: collect_optional_names(statement.subject, names)
+        _: collect_statement_names(statement, names)
+    }
 }
 
 func generate_index_read(
@@ -10296,9 +10364,24 @@ func generate_statement_list(
             report_caller_walk(statements[index - 1], statements[index], scope, class_information)
         }
         ended_in_return = generate_statement(statements[index], scope, class_information, function_information)
+        var folded_return = ended_in_return and statements[index] == Syntax.Statements.IfStatement
         index = index + 1
+        if folded_return and index < statements.count() {
+            mark_rest_used(statements, index, scope)
+            return true
+        }
     }
     return ended_in_return
+}
+
+func mark_rest_used(statements: List<Syntax.Statements.Statement>, start: Int, scope: Scope) {
+    var folded_away = List<Syntax.Statements.Statement>()
+    var index = start
+    while index < statements.count() {
+        folded_away.append(statements[index])
+        index = index + 1
+    }
+    mark_folded_names_used(folded_away, scope)
 }
 
 func report_caller_walk(
@@ -10667,17 +10750,18 @@ func check_value_name(name: String, what: String) {
         report("the {what} '{name}' is a single letter: give it a name that says what it holds")
         return
     }
-    if is_reserved_name(bare) {
+    var reserved = reserved_names()
+    if reserved.contains(bare) {
         report(
-            "the {what} '{name}' has a reserved name: it means something else in the C this compiles to, so give it a name of your own",
+            "the {what} '{name}' has a reserved name: it means something else in the C this compiles to, so give it a name of your own. The reserved names are {reserved.join(", ")}",
         )
         return
     }
     check_abbreviations(bare)
 }
 
-func is_reserved_name(name: String): Bool {
-    var reserved = [
+func reserved_names(): List<String> {
+    return [
         "auto"
         "bool"
         "break"
@@ -10710,7 +10794,6 @@ func is_reserved_name(name: String): Bool {
         "void"
         "volatile"
     ]
-    return reserved.contains(name)
 }
 
 func check_type_name(name: String, what: String) {
@@ -10903,22 +10986,40 @@ func generate_if_statement(
     scope: Scope,
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
-) {
+): Bool {
     assert if_statement.condition
     report_repeated_branch_call(if_statement)
     var constant = constant_condition(if_statement.condition, scope, class_information)
     if constant == true or constant == false {
         builder.add_user("\{")
+        var taken = if_statement.then_branch
         if constant == true {
             mark_folded_names_used(if_statement.else_branch, scope)
-            generate_block(if_statement.then_branch, scope, class_information, function_information)
         } else {
             mark_folded_names_used(if_statement.then_branch, scope)
-            generate_block(if_statement.else_branch, scope, class_information, function_information)
+            taken = if_statement.else_branch
         }
+        var taken_scope = Scope(scope)
+        var taken_returns = generate_statement_list(taken, taken_scope, class_information, function_information)
+        if not taken_returns {
+            emit_scope_drops(taken_scope, false)
+        }
+        close_rebindings(taken_scope)
+        report_unused(taken_scope)
         builder.add_user("}")
-        return
+        return taken_returns
     }
+    generate_unfolded_if(if_statement, scope, class_information, function_information)
+    return false
+}
+
+func generate_unfolded_if(
+    if_statement: Syntax.Statements.IfStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    crash if_statement.condition
     report_default_guard(if_statement, function_information)
     var guard = try_nullable_guard(if_statement.condition, scope, class_information)
     if guard {
@@ -12242,6 +12343,21 @@ func default_value_for_scalar_or_null(spite_type: Analysis.SpiteType): String {
     return default_value_for_type(spite_type)
 }
 
+func earlier_proof(value: Syntax.Expressions.Expression, condition: ExpressionResult, scope: Scope): String {
+    var condition_type = condition.get_type()
+    assert not type_shape.is_void(condition_type)
+    assert not type_shape.as_nullable(condition_type)
+    assert not is_boolean_type(condition_type)
+    assert shape.as_index(value)
+    var path = operand_text(value)
+    assert not path.is_empty()
+    var proof = scope.proof_of(path)
+    if proof.is_empty() {
+        return "an earlier check"
+    }
+    return proof
+}
+
 func check_condition(condition: ExpressionResult, keyword: String) {
     var condition_type = condition.get_type()
     assert not type_shape.is_void(condition_type)
@@ -12275,9 +12391,10 @@ func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scop
     }
     var counted = counted_list_text(binary.left)
     assert not counted.is_empty()
+    var condition_text = Syntax.SourcePrinter().source_expression(condition)
     var named_bound = operand_text(binary.right)
     if binary.operator == 'greater' and not named_bound.is_empty() {
-        scope.narrow_path("{counted}[{named_bound}]")
+        scope.narrow_bound_path("{counted}[{named_bound}]", condition_text)
         return
     }
     var bound = shape.as_integer_literal(binary.right)
@@ -12290,7 +12407,7 @@ func narrow_proven_indices(condition: Syntax.Expressions.Expression, scope: Scop
     }
     var index = 0
     while index < proven and index < 64 {
-        scope.narrow_path("{counted}[{index}]")
+        scope.narrow_bound_path("{counted}[{index}]", condition_text)
         index = index + 1
     }
 }
@@ -12305,7 +12422,8 @@ func narrow_counted_element(condition: Syntax.Expressions.Expression, scope: Sco
     var counted = counted_list_text(binary.right)
     assert not counter.is_empty()
     assert not counted.is_empty()
-    scope.narrow_path("{counted}[{counter}]")
+    var condition_text = Syntax.SourcePrinter().source_expression(condition)
+    scope.narrow_bound_path("{counted}[{counter}]", condition_text)
 }
 
 func counted_list_text(expression: Syntax.Expressions.Expression): String {
@@ -12373,7 +12491,32 @@ func index_key_text(key: Syntax.Expressions.Expression): String {
     if text {
         return "\"{text.value}\""
     }
-    return ""
+    assert is_structural_key(key)
+    var printer = Syntax.SourcePrinter()
+    return printer.source_expression(key)
+}
+
+func is_structural_key(key: Syntax.Expressions.Expression): Bool {
+    switch key {
+        Syntax.Expressions.IdentifierExpression: return true
+        Syntax.Expressions.IntegerLiteral: return true
+        Syntax.Expressions.TrueLiteral: return true
+        Syntax.Expressions.FalseLiteral: return true
+        Syntax.Expressions.EnumLiteralExpression: return true
+        Syntax.Expressions.UnaryExpression: return is_structural_part(key.operand)
+        Syntax.Expressions.BinaryExpression: {
+            assert not key.is_text_join
+            return is_structural_part(key.left) and is_structural_part(key.right)
+        }
+        Syntax.Expressions.MemberExpression: return is_structural_part(key.object)
+        Syntax.Expressions.IndexExpression: return is_structural_part(key.object) and is_structural_part(key.index)
+        _: return false
+    }
+}
+
+func is_structural_part(part: Syntax.Expressions.Expression?): Bool {
+    assert part
+    return is_structural_key(part)
 }
 
 func operand_text(expression: Syntax.Expressions.Expression): String {
@@ -12650,13 +12793,12 @@ func generate_assert_statement(
         if assert_statement.is_crash {
             keyword = "crash"
         }
-        var condition_type = condition_result.get_type()
-        if shape.as_index(assert_statement.value) and not is_boolean_type(condition_type) {
-            report(
-                "'{operand_text(assert_statement.value)}' cannot be null here: a count or a bound such as 'index < list.count()' around it already proves it, so '{keyword}' on it proves nothing: remove the check",
-            )
-        } else {
+        var proof = earlier_proof(assert_statement.value, condition_result, scope)
+        if proof.is_empty() {
             check_condition(condition_result, keyword)
+        } else {
+            var proven_path = operand_text(assert_statement.value)
+            report("'{proven_path}' is already proven by {proof}, so this '{keyword}' proves nothing: remove it")
         }
     }
     if not assert_statement.is_crash and function_information.is_constructor {
@@ -12759,6 +12901,37 @@ func generate_statement(
     function_information: Analysis.FunctionInfo,
 ): Bool {
     current_line = statement.line
+    var saved_poisoned = statement_poisoned
+    var mentioned = List<String>()
+    if mentions_poisoned(statement, mentioned) {
+        statement_poisoned = true
+        mark_each_used(mentioned, scope)
+    }
+    var ended_in_return = generate_statement_kind(statement, scope, class_information, function_information)
+    var declared = shape.as_variable_declaration(statement)
+    if declared and statement_poisoned {
+        var key = poisoned_key(declared.name)
+        poisoned_names.append(key)
+        scope.mark_used(declared.name)
+    }
+    statement_poisoned = saved_poisoned
+    return ended_in_return
+}
+
+func mark_each_used(names: List<String>, scope: Scope) {
+    var index = 0
+    while index < names.count() {
+        scope.mark_used(names[index])
+        index = index + 1
+    }
+}
+
+func generate_statement_kind(
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+): Bool {
     report_nested_calls(statement, class_information)
     var variable_declaration = shape.as_variable_declaration(statement)
     if variable_declaration {
@@ -12772,8 +12945,7 @@ func generate_statement(
     }
     var if_statement = shape.as_if_statement(statement)
     if if_statement {
-        generate_if_statement(if_statement, scope, class_information, function_information)
-        return false
+        return generate_if_statement(if_statement, scope, class_information, function_information)
     }
     var while_statement = shape.as_while_statement(statement)
     if while_statement {
@@ -13152,6 +13324,7 @@ func emit_class(information: Analysis.ClassInfo) {
     builder.add_typedef(joined_struct_lines)
     emit_class_prototypes(information)
     emit_class_support(information)
+    assert not information.is_instantiated
     var function_index = 0
     while function_index < information.functions.count() {
         emit_user_function(information, information.functions[function_index])

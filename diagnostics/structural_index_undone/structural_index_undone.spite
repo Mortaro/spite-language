@@ -1,0 +1,14 @@
+var console = Console()
+
+func StructuralIndexUndone() {
+    var glyphs = ["space", "bang", "quote"]
+    var code = 33
+    crash glyphs[code - 32]
+    code = 34
+    var again = glyphs[code - 32].upper_case()
+    var offset = 32
+    crash glyphs[code - offset]
+    offset = 33
+    var shifted = glyphs[code - offset].upper_case()
+    console.print(again, shifted)
+}

@@ -224,10 +224,18 @@ path. The compiler also understands the usual proofs, so most reads need nothing
   `names[index]` in what follows -- the loop body, for a `while`. On the left of an `and` it proves the right
   side, so `while index < lines.count() and lines[index] != "end"` needs nothing more. Inside the body both
   sides of the loop's `and` hold, so `while not found and index < names.count()` proves `names[index]` there too.
-  This is the same for a local, a parameter and an attribute, and `crash names[index]` on a read already
-  proven is an error saying so.
+  This is the same for a local, a parameter and an attribute.
+- **The index may be any expression without a call**: `crash glyphs[code - 32]` proves `glyphs[code - 32]`
+  on the next line, however it is spaced, as `crash glyphs[index]` would; two indices are the same when they
+  print the same (`conformance/stage6/structural_index`). An index with a call in it, `glyphs[offset()]`, is
+  not a path: name it first.
 - **Changing the list or the index undoes it**: `index = index + 1`, `names.clear()`, `remove_at`,
-  `remove_first` and `remove_last` un-prove it, as assigning any path does.
+  `remove_first` and `remove_last` un-prove it, as assigning any path does. Assigning any name the index reads
+  counts: after `code = 34`, `glyphs[code - 32]` must be proven again (`diagnostics/structural_index_undone`).
+- **Checking a proven read again is an error**: inside `while index < codes.count()`, `crash codes[index]` proves
+  nothing, and the message says what already proved it -- "'codes[index]' is already proven by the loop
+  condition 'index < codes.count()', so this 'crash' proves nothing: remove it" -- so delete the line
+  (`diagnostics/proven_element`).
 - A proven read still checks its bounds at run time and answers the default when out of range.
 - A `Bool?` cannot be a condition: `if flags[index]` would test that the element is there, not that it is true.
   Prove it is there first, or compare it: `flags[index] == true`.

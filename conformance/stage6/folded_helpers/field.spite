@@ -1,0 +1,33 @@
+generic $value_type
+
+var name = ""
+
+func Field(new_name: String) {
+    name = new_name
+}
+
+func write(value: $value_type): String {
+    if $value_type == List {
+        return write_list(value)
+    } else if $value_type == String {
+        return write_text(value)
+    }
+    var doubled = value * 2
+    return write_number(doubled)
+}
+
+func write_list(value: $value_type): String {
+    var count = value.count()
+    var last = value.last()
+    return "{name}: {count} numbers, the last {last}"
+}
+
+func write_text(value: $value_type): String {
+    var shouted = value.upper_case()
+    return "{name}: {shouted}"
+}
+
+func write_number(value: $value_type): String {
+    var negated = 0 - value
+    return "{name}: {value}, negated {negated}"
+}

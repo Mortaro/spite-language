@@ -1,0 +1,17 @@
+var console = Console()
+var glyphs = ["space", "bang", "quote", "hash"]
+var cursor = 1
+
+func StructuralIndex() {
+    var code = 33
+    crash glyphs[code - 32]
+    var glyph = glyphs[code - 32].upper_case()
+    console.print(glyph, glyphs[code - 32])
+    code = 35
+    crash glyphs[code - 32] and glyphs[cursor + 1]
+    var next_length = glyphs[cursor + 1].length()
+    console.print(glyphs[code - 32], next_length)
+    var width = 2
+    crash glyphs[code - width * 16]
+    console.print(glyphs[code - width * 16])
+}

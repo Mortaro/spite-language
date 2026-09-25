@@ -1,0 +1,16 @@
+var console = Console()
+
+func run() {
+    var textures = Asset.Pack<Asset.Texture>("level textures")
+    var stone = Asset.Texture("stone")
+    var texture_line = textures.keep(stone)
+    var sounds = Asset.Pack<Asset.Sound>("level sounds")
+    var step = Asset.Sound("step")
+    var sound_line = sounds.keep(step)
+    var rules = Pack<Rule>("rules")
+    var gravity = Rule("gravity")
+    var rule_line = rules.keep(gravity)
+    console.print(texture_line)
+    console.print(sound_line)
+    console.print(rule_line)
+}

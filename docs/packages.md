@@ -29,7 +29,11 @@ func Game() {
   `window/component/requested.spite` without writing `Window.` (`conformance/stage6/relative_namespaces`).
   A folder's entry file owns the folder as its namespace, so `click_test/click_test.spite` reaches
   `click_test/system/verify.spite` as `System.Verify()` (`conformance/stage6/folder_class_namespace`).
-  A `type`, `union` or `enum` is part of the walk at the level of the class that declares it: one declared in
+- A generic class is found the same way, so it may live in any folder: `Asset.Pack<Asset.Texture>("textures")`
+  and, from inside `game/`, `Pack<Rule>("rules")` for `game/pack.spite` both work
+  (`conformance/stage6/namespaced_generics`). A generic name that finds nothing is one error, and the lines that
+  use what it would have made are not reported again (`diagnostics/failed_constructor`).
+- A `type`, `union` or `enum` is part of the walk at the level of the class that declares it: one declared in
   the using class wins over every class, and one declared in a folder's entry file wins over a class further
   out. So `type Healing` in `system/regenerate.spite` is what `Healing` means there, even when the program's
   entry class is also `Healing` (`conformance/stage6/nearest_type`). The library is held to the same walk, so a
