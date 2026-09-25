@@ -1,5 +1,3 @@
-var console = Console()
-
 func ConstructorParams() {
     var first = Person("Ada", 30)
     var second = Person("Grace", 40)

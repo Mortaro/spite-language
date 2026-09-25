@@ -1,1 +1,3 @@
-var amount = 10
+func amount(): Int {
+    return 10
+}

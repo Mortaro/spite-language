@@ -1,1 +1,3 @@
-var count = 1
+func count(): Int {
+    return 1
+}

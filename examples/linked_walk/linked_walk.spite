@@ -18,7 +18,7 @@ func run() {
     console.print(walked, joined_steps)
     var idle_description = describe(Idle())
     var busy_description = describe(Busy(3))
-    var broken_description = describe(Broken("fuse"))
+    var broken_description = describe(Broken())
     console.print(idle_description, busy_description, broken_description)
 }
 

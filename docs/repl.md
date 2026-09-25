@@ -43,6 +43,10 @@ func Monster(new_name: String, new_health: Int) {
 func roar(): String {
     return "{name} roars!"
 }
+
+func is_alive(): Bool {
+    return health > 0
+}
 ```
 ```gdscript title=repl_program/repl_program.spite entry
 var console = Console()
@@ -66,7 +70,9 @@ monster count 2
 What the loop needs to reach a live value -- the attributes and functions of every class the loop can reach,
 and the member templates that fit each list's elements, so `monsters.sum_health()` works at the prompt -- is
 compiled only into a `--repl`/`--repl_port` build, never into a normal one, so it costs nothing when you are not
-debugging.
+debugging. For the same reason the REPL's reads count only in that build: an attribute the program's own code
+never reads is still an error in a normal one ([style.md](style.md#nothing-unused)), which is why `Monster` above
+has an `is_alive()`.
 
 ## Local: `--repl`
 
@@ -214,6 +220,10 @@ func HotCounter() {
 
 func greeting(): String {
     return "hello, visit {visits}"
+}
+
+func monster_roar(): String {
+    return monster.roar()
 }
 ```
 ```output

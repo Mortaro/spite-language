@@ -1,2 +1,6 @@
 var amount = 0
 var maximum = 10
+
+func is_full(): Bool {
+    return amount >= maximum
+}

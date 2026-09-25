@@ -1,10 +1,8 @@
-var name = ""
 var size = 0
 var active = false
 var lead = Person("", 0, false)
 
-func Team(starting_name: String, starting_size: Int, starting_active: Bool, starting_lead: Person) {
-    name = starting_name
+func Team(starting_size: Int, starting_active: Bool, starting_lead: Person) {
     size = starting_size
     active = starting_active
     lead = starting_lead

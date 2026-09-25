@@ -90,10 +90,14 @@ since that is almost always what was meant. `==` between a `Spite.Class` and a c
 objects, so a function can ask which class it was handed:
 
 ```gdscript title=passing_a_class/ui/pressed.spite
-var count = 1
+func count(): Int {
+    return 1
+}
 ```
 ```gdscript title=passing_a_class/health.spite
-var amount = 10
+func amount(): Int {
+    return 10
+}
 ```
 ```gdscript title=passing_a_class/passing_a_class.spite entry
 type Anything {
@@ -138,7 +142,9 @@ Comparing needs no narrowing: a namespace compares with text through its `name_w
 with no namespace simply compares unequal.
 
 ```gdscript title=namespace_walk/shop/tools/hammer.spite
-var weight = 2
+func weight(): Int {
+    return 2
+}
 ```
 ```gdscript title=namespace_walk/namespace_walk.spite entry
 var console = Console()
@@ -174,12 +180,7 @@ instance, it makes one. A function named without calling it is a `Spite.Function
 reflection are the same object.
 
 ```gdscript title=function_reflection/gadget.spite
-var name = ""
 var power = 0
-
-func Gadget(new_name: String) {
-    name = new_name
-}
 
 func boost(amount: Int, times: Int): Int {
     power = power + amount * times

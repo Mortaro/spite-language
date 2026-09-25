@@ -1,5 +1,0 @@
-var name = ""
-
-func Monster(starting_name: String) {
-    name = starting_name
-}

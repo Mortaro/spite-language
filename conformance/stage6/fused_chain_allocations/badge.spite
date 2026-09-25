@@ -1,5 +1,0 @@
-var level = 0
-
-func Badge(starting_level: Int) {
-    level = starting_level
-}

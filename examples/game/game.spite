@@ -8,7 +8,7 @@ func Game() {
     var debug = Engine.Renderer.Debug()
     var rendered_and_log = debug.render_and_log()
     console.print(rendered_and_log)
-    var monster = Monster(10)
+    var monster = Monster()
     var description = monster.describe()
     console.print(description)
     var roar = monster.roar()

@@ -1,14 +1,5 @@
-enum Job {
-    'knight'
-    'mage'
-    'archer'
-}
-
 var name = "Hero"
 var age = 0
-var health = 100
-var job: Job = 'knight'
-var equipment: Item = Sword("Iron Sword", 12)
 
 func Player() {
     set_age(20)

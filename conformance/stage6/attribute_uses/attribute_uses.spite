@@ -1,0 +1,17 @@
+var console = Console()
+var lamp = Lamp()
+var shelf = Shelf()
+
+func AttributeUses() {
+    var lines = List<String>()
+    show_attributes(lamp, lines)
+    var joined = lines.join(", ")
+    console.print(joined)
+    var reflected = shelf.attributes
+    var first = reflected.first()
+    console.print(first.name, first.value)
+}
+
+func show_attribute(attribute: Symbol<Lamp>, shown: Lamp, lines: List<String>) {
+    lines.append("{attribute.name} = {shown.attributes[attribute]}")
+}

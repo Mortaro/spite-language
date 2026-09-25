@@ -1,0 +1,18 @@
+var console = Console()
+var visits = 0
+var forgotten = 0
+var written = ""
+var _kept_for_later = 0
+var mover = Mover()
+
+func UnusedAttributes() {
+    visits = visits + 1
+    written = "assigned, and never read"
+    var lines = List<String>()
+    classify_attributes(mover, lines)
+    console.print("{visits}: {lines.join(", ")}")
+}
+
+func classify_attribute(attribute: Symbol<Mover>, classified: Mover, lines: List<String>) {
+    lines.append("{attribute.name} is a {attribute.class}")
+}

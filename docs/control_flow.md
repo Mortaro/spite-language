@@ -192,7 +192,9 @@ value's union is an error, since the answer could only be `false`. `if value == 
 inside the block, the way a switch case does:
 
 ```gdscript title=class_test_doc/cat.spite
-var lives = 9
+func sound(): String {
+    return "meow"
+}
 ```
 ```gdscript title=class_test_doc/fish.spite
 var fins = 2
