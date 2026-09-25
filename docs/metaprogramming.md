@@ -683,7 +683,7 @@ at compile time:
 
 This is tree shaking over the program's own model, not dead-code elimination left to the C compiler.
 
-`--development` keeps everything instead: a condition on a codegen value becomes a real run-time `if`, with
-both branches compiled in, so live reload can flip it without recompiling, and every class in the folder is
-emitted rather than only the ones reachable from the entry class. A test on a *type* (`$value_type == List`)
-still folds under `--development`, because the branch it rules out would not compile.
+`--development` keeps every generated function instead of only the ones reachable from `main`, so live reload has
+all of them to swap. Conditions on codegen values and `Build` fields still fold under `--development`; manual
+section 9 says they should stay run-time values there, which is not built. Every optimisation the compiler makes
+on its own is listed in [optimizations.md](optimizations.md).

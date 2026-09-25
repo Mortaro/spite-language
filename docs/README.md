@@ -41,27 +41,29 @@ reads it best (`func`, `var`, `name: Type`, `#` comments). The code is Spite thr
 11. [reflection.md](reflection.md) -- `Spite.Class`, `Spite.Function`, namespaces, instances; read-only by design.
 12. [packages.md](packages.md) -- `load`, namespaces, reopening classes (mods), the reserved `Spite` namespace.
 13. [concurrency.md](concurrency.md) -- `Concurrent` and `Parallel`, and waiting without `async`/`await`.
+14. [optimizations.md](optimizations.md) -- everything the compiler optimises without being asked, built or
+    planned, and what (if anything) you could notice.
 
 **The standard library**
 
-14. [standard_library.md](standard_library.md) -- every class at a glance; `String`, files, folders, processes,
+15. [standard_library.md](standard_library.md) -- every class at a glance; `String`, files, folders, processes,
     the console, the program, sockets.
-15. [collections.md](collections.md) -- `List` and `Dictionary` as library code, member templates, chains that
+16. [collections.md](collections.md) -- `List` and `Dictionary` as library code, member templates, chains that
     run as one loop, templates of your own.
-16. [json.md](json.md) -- `Json<T>`: any value to JSON text and back.
+17. [json.md](json.md) -- `Json<T>`: any value to JSON text and back.
     [time.md](time.md) -- instants, durations, the calendar, time zones as presentation, and ISO 8601 text.
-17. [foreign_libraries.md](foreign_libraries.md) -- `DynamicLibrary`, and how each operating system's folder
+18. [foreign_libraries.md](foreign_libraries.md) -- `DynamicLibrary`, and how each operating system's folder
     reopens the classes it changes.
 
 **Tooling**
 
-18. [compiler.md](compiler.md) -- every command and flag, output modes, `--final_classes`, `--development`.
-19. [repl.md](repl.md) -- the local and remote REPL, `spite connect`, and a replayed debugging session.
-20. [testing.md](testing.md) -- a test is a function that crashes; the test package finds them itself.
-21. [self_hosting.md](self_hosting.md) -- how the compiler builds itself, and what proves it.
-22. [KNOWN_ISSUES.md](KNOWN_ISSUES.md) -- where the compiler falls short of the manual today.
+19. [compiler.md](compiler.md) -- every command and flag, output modes, `--final_classes`, `--development`.
+20. [repl.md](repl.md) -- the local and remote REPL, `spite connect`, and a replayed debugging session.
+21. [testing.md](testing.md) -- a test is a function that crashes; the test package finds them itself.
+22. [self_hosting.md](self_hosting.md) -- how the compiler builds itself, and what proves it.
+23. [KNOWN_ISSUES.md](KNOWN_ISSUES.md) -- where the compiler falls short of the manual today.
 
 **For AI writers**
 
-23. [for_ai_writers.md](for_ai_writers.md) -- the whole language on one dense page. Paste it into an AI's context
+24. [for_ai_writers.md](for_ai_writers.md) -- the whole language on one dense page. Paste it into an AI's context
     before it writes Spite.

@@ -299,3 +299,22 @@ All of it is proposed by Claude, unconfirmed.
 122. **`far` and `near` are not in the C-reserved list**, but `windows.h` defines them as macros, so a local named
      `far` compiled to broken C (found writing `calendar_math`). Add them, and whatever else `windows.h` defines
      in lower case, to the list item 107 is about?
+
+## Found writing `docs/optimizations.md` (D185)
+
+Numbered after item 130, the highest the manual references; 123 to 130 were answered and removed.
+
+131. **D143 is not built: singletons that hold nothing are static objects in every build.** The compiler makes
+     `Memory`, `Build` and `TypedMemory<T>` one static object (`is_stateless_singleton` in `generator.spite`) with
+     no look at the build kind, so a `--repl`, `--repl_port`, `--hot_reload` or `--development` build has them static
+     too (checked: `static Memory spite_object` is in the C of a `--repl=true` and a `--development=true` build).
+     D143 says those builds keep them as ordinary objects reflection sees. Build D143 as written (they become
+     allocated, counted objects in those builds, so `--debug_memory` counts differ between a development and an
+     optimised build), or keep them static everywhere and narrow D143?
+132. **Manual section 9 says `--development` keeps conditions on codegen values as run-time values, "so live reload
+     can change them"; the compiler folds them in every build.** `constant_condition` never looks at
+     `development`, and `--development` only turns off the C tree shaker. `docs/compiler.md` and
+     `docs/metaprogramming.md` said what the manual says and now say what is built. A generic class is one C
+     class per set of values, so a run-time `$is_magic` would need one class to serve every value; and every
+     `Build` field is a constant by D85. Drop the sentence from section 9, or is a run-time form wanted for live
+     reload?

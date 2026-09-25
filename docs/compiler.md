@@ -169,9 +169,9 @@ it rewrites, and what it refuses to (naming), is [style.md](style.md).
 
 A normal build keeps only what the program uses: a condition on a codegen value or a `Build` field keeps one
 branch, a template exists only for the names called, and reflection only where it is read
-([metaprogramming.md](metaprogramming.md#tree-shaking)). `--development` keeps everything instead, so a
-condition on a codegen value becomes a run-time `if` that live reload could flip, and every class in the folder is
-emitted.
+([metaprogramming.md](metaprogramming.md#tree-shaking)). `--development` keeps every generated function instead,
+so live reload has all of them to swap; conditions on codegen values and `Build` fields still fold. Everything
+the compiler optimises without being asked is in [optimizations.md](optimizations.md).
 
 ## Counting memory: `--debug_memory`
 
