@@ -319,3 +319,33 @@ All of it is proposed by Claude, unconfirmed.
 138. **Two ways to format?** A compile formats the program's files (`format`, an output), and `spite format <path>`
      formats files that need not be a program -- `library/`, which no program's compile formats. Keep both, or
      make formatting the library the job of compiling `bootstrap` (which loads it)?
+
+## Found writing `docs/optimizations.md` (D185)
+
+
+139. **D143 is not built: singletons that hold nothing are static objects in every build.** The compiler makes
+     `Memory`, `Build` and `TypedMemory<T>` one static object (`is_stateless_singleton` in `generator.spite`) with
+     no look at the build kind, so a `--repl`, `--repl_port`, `--hot_reload` or `--development` build has them static
+     too (checked: `static Memory spite_object` is in the C of a `--repl=true` and a `--development=true` build).
+     D143 says those builds keep them as ordinary objects reflection sees. Build D143 as written (they become
+     allocated, counted objects in those builds, so `--debug_memory` counts differ between a development and an
+     optimised build), or keep them static everywhere and narrow D143?
+140. **Manual section 9 says `--development` keeps conditions on codegen values as run-time values, "so live reload
+     can change them"; the compiler folds them in every build.** `constant_condition` never looks at
+     `development`, and `--development` only turns off the C tree shaker. `docs/compiler.md` and
+     `docs/metaprogramming.md` said what the manual says and now say what is built. A generic class is one C
+     class per set of values, so a run-time `$is_magic` would need one class to serve every value; and every
+     `Build` field is a constant by D85. Drop the sentence from section 9, or is a run-time form wanted for live
+     reload?
+
+## File watching in the standard library (Mortaro's request via SlopEngine)
+
+141. **A file watcher for everyone** -- "the cook needs to constantly get informed of changes on the psd to rerun the
+     recipe if the psd change and update any textures that use it ingame. but spite hotreload also needs to watch
+     over files, so a way to watch files makes sense to be part of standard library." Proposal (spelling open):
+     `var watcher = FileWatcher()` (or `Directory.Watcher`), `watcher.watch("assets/ui")` or `watch_file(path)`, and
+     `watcher.changes()`, which never blocks and returns the paths changed since the last call, settled (bursts
+     coalesced). The operating system does the waiting (`ReadDirectoryChangesW`, `inotify`, `kqueue`), with no
+     polling; `HotReload` becomes its first user and SlopEngine's cooker the second. Tree-shaken when unused (D177).
+     Name: `FileWatcher` or `Directory.Watcher`?
+
