@@ -18926,9 +18926,30 @@ func unguarded_calls(line: String, information: Analysis.ClassInfo, wrapped: Lis
         var owner = guarded_classes.get_at(position)
         if owner.c_name == information.c_name {
             var called = guarded_functions.get_at(position)
-            result = result.replace("{called.c_name}(self,", "{called.c_name}___unguarded(self,")
-            result = result.replace("{called.c_name}(self)", "{called.c_name}___unguarded(self)")
+            result = replace_call(result, "{called.c_name}(self,", "{called.c_name}___unguarded(self,")
+            result = replace_call(result, "{called.c_name}(self)", "{called.c_name}___unguarded(self)")
         }
+        index = index + 1
+    }
+    return result
+}
+
+func replace_call(line: String, from: String, to: String): String {
+    var pieces = line.split(from)
+    var result = pieces.get_at(0)
+    var index = 1
+    while index < pieces.count() {
+        var before = pieces.get_at(index - 1)
+        var last_position = before.length() - 1
+        var last = before.code_at(last_position)
+        var joins_a_name = last >= 97 and last <= 122 or last >= 65 and last <= 90 or last >= 48 and last <= 57 or last == 95
+        if not before.is_empty() and joins_a_name {
+            result = result + from
+        } else {
+            result = result + to
+        }
+        var piece = pieces.get_at(index)
+        result = result + piece
         index = index + 1
     }
     return result

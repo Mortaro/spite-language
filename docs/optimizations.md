@@ -697,7 +697,10 @@ How the lock is kept cheap:
   with no locks at all.
 - **A call to itself skips the lock.** Inside a locked function, a call to another function of the same singleton
   goes straight to that function's unlocked body (`Registry_count_one___unguarded(self)`), since the lock is
-  already held: no atomic load and no depth count per call.
+  already held: no atomic load and no depth count per call. A function value of it is not such a call:
+  `found.filter(matches)` inside the singleton makes a value that calls the locked function, because a value can be
+  kept and called from anywhere; called while the lock is held, that costs one atomic load and a depth count
+  (`conformance/stage6/singleton_function_values`).
 - **A write from another class takes the lock too.** `registry.last = name` written anywhere but `Registry` stores
   the value under `Registry`'s lock; the value is computed before the lock is taken, and an object it replaces is
   released after the lock is let go, so no other code runs while it is held.
