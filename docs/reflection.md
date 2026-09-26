@@ -606,6 +606,11 @@ way. `Spite.Attribute.class` and `Spite.Argument.class` are real `Spite.Class` o
   `has_function` or `function_waits` of some class and uses the entry class's class object, and never callable (proposed by
   Claude, unconfirmed, 2026-09-26; `conformance/stage6/entry_function_waits`). A stand-in of `Concurrent<T>` or
   `Parallel<T>` is finished and joins nothing ([concurrency.md](concurrency.md)).
+  A class object and a namespace object are each made once, whichever thread asks first: in a program that starts
+  threads, making them takes one lock shared by every class and namespace object (a thread may take it again
+  while it makes the objects one refers to), and once made, asking again is one atomic load of a flag. A program
+  without threads carries no lock (proposed by Claude, unconfirmed, 2026-09-26;
+  `conformance/stage6/threaded_class_objects`).
   A singleton that holds nothing (`Build`, `TypedMemory<T>`) is an ordinary object, one of its `.instances`, only
   in an inspectable build (`--development`, `--hot-reload`, `--repl`, `--repl-port`); every other build makes it one
   static object that `.instances` does not list (D143, [optimizations.md](optimizations.md#singletons-that-hold-nothing-are-static-objects)).

@@ -126,6 +126,18 @@ if [ "$plain" != "$(tr -d '\r' < "$stages/expected_output.txt")" ]; then
   echo "FAILED: run mode without --debug-memory: parallel_stages"; echo "$plain" | head -5; exit 1
 fi
 echo "run mode: the thread pool runs without --debug-memory"
+# A class or namespace object is made once, on whichever thread asks first: threaded_class_objects has eight pool
+# threads ask for the same class objects at once, and a race shows up as a leak or a double free, so the build the
+# corpus made is run a few more times.
+threaded="$work/threaded_class_objects.exe"
+for attempt in 1 2 3 4 5; do
+  raced=$("$threaded" < /dev/null 2>&1 | tr -d '\r')
+  if [ "$(echo "$raced" | grep -v '^allocations: ')" != "$(tr -d '\r' < conformance/stage6/threaded_class_objects/expected_output.txt)" ] \
+     || ! echo "$raced" | grep -qE '^allocations: ([0-9]+) frees: \1$'; then
+    echo "FAILED: threaded_class_objects, run $attempt"; echo "$raced" | head -5; exit 1
+  fi
+done
+echo "threads: eight threads asking for the same class objects make each once, five runs balanced"
 
 # What a production build leaves out is only visible in its C (docs/optimizations.md): hello carries no struct,
 # allocate or singleton slot of a library class it never makes, and each singleton singleton_forms reaches from a
