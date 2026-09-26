@@ -1,0 +1,25 @@
+var first = 0
+var recipe_ids = List<Integer>()
+var names = List<String>()
+var tally = Tally()
+
+func Crafter(starting_first: Integer) {
+    first = starting_first
+}
+
+func want(recipe_id: Integer) {
+    recipe_ids.append(recipe_id)
+}
+
+func craft(): Integer {
+    var index = 0
+    while index < recipe_ids.count() {
+        var recipe_id = recipe_ids[index] + first
+        names.append("recipe {recipe_id}")
+        tally.add(recipe_id)
+        index = index + 1
+    }
+    var crafted = names.count()
+    var total = tally.total()
+    return crafted * 1000 + total
+}

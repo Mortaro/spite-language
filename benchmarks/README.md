@@ -23,6 +23,7 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 | `small_allocations` | three small objects made and dropped per pass, three million passes, and `copy()` |
 | `parallel_calls` | 20 000 rounds of two `Parallel`s |
 | `vector_items` | 200 000 `Velocity` items in a `List<Velocity>` and in a `Vector<Velocity>`, 100 ticks of `each_integrate()` and a fused `filter_moving().sum_across()` on each; prints the microseconds per tick of both |
+| `vector_rows` | 200 000 entities with position and velocity, half with health and regeneration, `Move` and `Regenerate` systems taking a `type` row per entity for 20 ticks: once from four `Vector` columns as rows of borrowed items (D206), once from four `List` columns through a reused row object; prints the microseconds per tick of both |
 | `stress` | SlopEngine's `examples/stress` shape: component columns as generic singletons, `system/` classes with `update_each` over `type` rows filled by a Symbol walk, 50 000 entities, 20 ticks |
 | `console_lines` | 200 000 `console.print` lines, each written out as it is printed; `run.sh` times it into a pipe, and redirected to a file is where the write per line costs (about 700 ms against 140 ms buffered until exit, [standard_library.md](../docs/standard_library.md#system-classes--implemented)) |
 
@@ -171,6 +172,30 @@ four `Vector` columns against 5.9 ms with four `List` columns (whose objects wer
 column code could not be moved to `Vector` as it is: its `Row` keeps each component in an attribute of a `type` row
 for the whole system call, which is exactly the keeping a borrowed item may not do (D204); its stress example runs at
 51 ms per tick on the same machine.
+
+### Rows of borrowed items (D206)
+
+`vector_rows`, the program's own two timers (best of five runs, `clang -O2`, the compiler of the commit that adds
+rows). Each entity's columns are found through a `Vector<Integer>` per component, the same for both layouts, so the
+difference is only where the components live and how the system is handed them:
+
+| layout | microseconds per tick |
+|---|---|
+| four `Vector` columns, a row of borrowed items per entity (in the frame, nothing counted) | 2 381 |
+| four `List` columns, one row object reused across the tick (two counted assignments per entity) | 5 823 |
+
+The 600 171 allocations are filling: 200 000 positions and velocities, 100 000 healths and regenerations, each
+kept in its list and copied into its vector, and the two row objects per list tick; the rows make none. The same
+walk written by hand in one loop, each item named with `var position = positions[row]` and no system call, ran at
+about 2.0 ms a tick in a copy of the program: the row and the call through the `type` cost a fifth more than
+indexing the columns directly, in exchange for systems that are ordinary functions over a `type`. (The 1.0 ms
+quoted in D206 is the earlier, different program described at the end of the `Vector<T>` section above.)
+
+`stress` itself keeps its generic `Row` singleton, which fills a row by a Symbol walk and holds it in an
+attribute, so it cannot hold borrowed items (D212 makes a local filled by a Symbol walk a row; `stress` still keeps
+its row in an attribute). A copy with `Vector` columns and a hand-written runner that builds a row literal per
+entity for each system ran the whole program (50 000 entities, 20 ticks) in 89 ms against `stress`'s 129 ms, best
+of seven interleaved.
 
 ### Short text inside the `String` (D203)
 

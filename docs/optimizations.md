@@ -961,6 +961,23 @@ and only when the value holding the component is itself held for the whole state
 `update_each` functions no longer count anything. Allocations and results are the same. **Built** (2026-09-25;
 proposed by Claude, unconfirmed).
 
+### A row of borrowed items lives in the frame
+
+**What it does.** An object literal of borrowed `Vector` items (a row, [memory.md](memory.md#a-row-of-borrowed-items-for-one-call),
+D206) is not allocated: it is a struct in the frame of the function that makes it, its header's count set once
+and never touched, and its attributes the items' addresses, uncounted. The function it is passed to is compiled a
+second time for that call, as `<name>___lent_<positions>`, in which reading an attribute of the row is the
+`type`'s uncounted read (as in [Reading through a `type` without counting](#reading-through-a-type-without-counting))
+and the parameter is neither retained by the caller nor released by the callee.
+
+**When.** Every build, for every row; the rules that make it safe are compile errors, not conditions of the
+optimisation.
+
+**What you notice.** No allocation per row (`conformance/stage6/vector_rows` pins its count), and
+`benchmarks/vector_rows`: 2.4 ms a tick over 200 000 entities with `Vector` columns and rows, against 6.0 ms with
+`List` columns and a row object reused across the tick. A `__lent_` function appears in the C beside the ordinary
+one, which is shaken out when no ordinary call reaches it. **Built** (2026-09-26; proposed by Claude, unconfirmed).
+
 ### A proven divisor is not checked
 
 **Built.** A whole-number `/` or `%` checks its divisor for zero (D201, [values_and_types.md](values_and_types.md)),

@@ -1,0 +1,8 @@
+var entity = 0
+var left = 0.0
+var top = 0.0
+
+func Position(new_entity: Integer, new_left: Float) {
+    entity = new_entity
+    left = new_left
+}

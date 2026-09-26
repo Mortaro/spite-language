@@ -1,0 +1,9 @@
+var recipe_ids = List<Integer>()
+
+func want(recipe_id: Integer) {
+    recipe_ids.append(recipe_id)
+}
+
+func craft(): Integer {
+    return recipe_ids.count()
+}

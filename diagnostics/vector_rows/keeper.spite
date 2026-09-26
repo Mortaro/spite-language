@@ -1,0 +1,28 @@
+type Moving {
+    position: Position
+    velocity: Velocity
+}
+
+var world = World()
+var kept: Moving? = null
+var rows = List<Moving>()
+var slowing: Spite.Function<Nothing>? = null
+
+func store(moving: Moving) {
+    kept = moving
+    rows.append(moving)
+}
+
+func pass_back(moving: Moving): Moving {
+    return moving
+}
+
+func capture(moving: Moving) {
+    slowing = moving.velocity.slow_down
+    moving.position = moving.position
+}
+
+func spawn_while_moving(moving: Moving) {
+    moving.position.left = moving.position.left + moving.velocity.across
+    world.spawn()
+}

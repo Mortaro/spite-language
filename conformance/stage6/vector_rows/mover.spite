@@ -1,0 +1,23 @@
+type Moving {
+    position: Position
+    velocity: Velocity
+}
+
+var moved = 0
+
+func update_each(moving: Moving) {
+    moving.position.left = moving.position.left + moving.velocity.across
+    var position = moving.position
+    position.top = position.top + moving.velocity.down
+    if moving.position.left > 20.0 {
+        moving.velocity.slow_down()
+    }
+    report_speed(moving)
+    moved = moved + 1
+}
+
+func report_speed(moving: Moving) {
+    if moving.velocity.across > 100.0 {
+        moved = moved + 1000
+    }
+}

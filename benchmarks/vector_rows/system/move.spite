@@ -1,0 +1,9 @@
+type Moving {
+    position: Component.Position
+    velocity: Component.Velocity
+}
+
+func update_each(moving: Moving) {
+    moving.position.left = moving.position.left + moving.velocity.across
+    moving.position.top = moving.position.top + moving.velocity.down
+}

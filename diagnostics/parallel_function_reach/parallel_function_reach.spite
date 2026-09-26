@@ -3,9 +3,11 @@ var seen = List<String>()
 
 func ParallelFunctionReach() {
     var tally = Tally()
+    var marks = tally.marks
     var counted = Parallel(tally.count_up)
     var named = Parallel(remember)
-    console.print(counted, named)
+    var mark_count = marks.count()
+    console.print(counted, named, mark_count)
 }
 
 func remember(): Integer {

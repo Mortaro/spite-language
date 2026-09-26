@@ -1,0 +1,4 @@
+crafter 0 made 3 recipes adding up to 6
+crafter 1 made 3 recipes adding up to 306
+crafter 2 made 3 recipes adding up to 606
+crafter 3 made 3 recipes adding up to 906

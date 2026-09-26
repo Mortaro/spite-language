@@ -16,9 +16,52 @@ var rebindings = 0
 var paths_read_from_outside = List<String>()
 var borrow_names = List<String>()
 var borrow_sources = List<String>()
+var row_names = List<String>()
+var row_sources = List<String>()
+var row_paths = List<String>()
 
 func Scope(starting_parent: Scope?) {
     parent = starting_parent
+}
+
+func declare_row(name: String, spite_type: Analysis.SpiteType, sources: String, paths: List<String>) {
+    declare_borrowed(name, spite_type, sources)
+    row_names.append(name)
+    row_sources.append(sources)
+    var joined_paths = paths.join("\n")
+    row_paths.append(joined_paths)
+}
+
+func paths_of_row(name: String): List<String> {
+    var index = row_names.count() - 1
+    while index >= 0 {
+        if row_names[index] == name {
+            crash row_paths[index]
+            var joined_paths = row_paths[index]
+            if joined_paths.is_empty() {
+                return List<String>()
+            }
+            return joined_paths.split("\n")
+        }
+        index = index - 1
+    }
+    assert not entry_names.contains(name)
+    assert parent
+    return parent.paths_of_row(name)
+}
+
+func row_source(name: String): String {
+    var index = row_names.count() - 1
+    while index >= 0 {
+        if row_names[index] == name {
+            crash row_sources[index]
+            return row_sources[index]
+        }
+        index = index - 1
+    }
+    assert not entry_names.contains(name)
+    assert parent
+    return parent.row_source(name)
 }
 
 func declare(name: String, spite_type: Analysis.SpiteType) {

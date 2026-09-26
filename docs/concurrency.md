@@ -473,9 +473,56 @@ its own instance that hold values -- numbers, `Boolean`, enums, text -- its loca
 list, a dictionary or another object is an error naming it, since another thread may hold the same object:
 `'Parallel(tally.count_up)' runs 'record' on another thread, so it may reach only the attributes of its own
 'Tally' that hold values, its locals and singletons (D179): 'marks' holds a List<Integer>, which another thread may
-share` (`diagnostics/parallel_function_reach`). Make what the work needs a local, or give the work an object of
-its own whose attributes are values, as each `Summer` above is. The check is the one `parallel_each_` uses, and
-costs nothing at run time.
+share` (`diagnostics/parallel_function_reach`, where the maker kept `tally.marks` for itself). Make what the work
+needs a local, or give the work an object of its own whose attributes are values, as each `Summer` above is. The
+check is the one `parallel_each_` uses, and costs nothing at run time.
+
+An object made for the work and **handed over** may keep more ([D207](decisions.md)): when it is made on its own
+line in the same block as the `Parallel(...)`, nothing else is given it before, and the code that made it never
+touches it again, its task may keep lists of values and objects it made itself. A `Crafter` can collect its recipe
+ids as a `List<Integer>` and its names as a `List<String>`, with no text joined to smuggle them across:
+
+```gdscript title=handed_over_doc/crafter.spite
+var first = 0
+var recipe_ids = List<Integer>()
+var names = List<String>()
+
+func Crafter(starting_first: Integer) {
+    first = starting_first
+}
+
+func want(recipe_id: Integer) {
+    recipe_ids.append(recipe_id)
+}
+
+func craft(): Integer {
+    var index = 0
+    while index < recipe_ids.count() {
+        var recipe_id = recipe_ids[index] + first
+        names.append("recipe {recipe_id}")
+        index = index + 1
+    }
+    return names.count()
+}
+```
+```gdscript title=handed_over_doc/handed_over_doc.spite entry
+var console = Console()
+
+func HandedOverDoc() {
+    var crafter = Crafter(100)
+    crafter.want(1)
+    crafter.want(2)
+    var crafted = Parallel(crafter.craft)
+    console.print("crafted", crafted)
+}
+```
+```output
+crafted 2
+```
+
+Reading `crafter` after the `Parallel` line would be `'crafter' was handed to 'Parallel(crafter.craft)', which
+keeps its 'recipe_ids', 'names' on another thread, so it is not used after that line: make another 'Crafter' for
+what follows, or read the task's result` (`diagnostics/parallel_handover`; [the rules](#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows)).
 
 ## `parallel_each_`: a member on every element
 
@@ -927,6 +974,37 @@ singleton hands out only numbers, text, copies or other safe singletons; guardin
 library singletons (`Console`, input, `Clock`) doing better by hand, which D183 allows.
 `conformance/stage6/singleton_guard`, `singleton_forms`, `singleton_lock_calls`. D179's rule for
 `Parallel(function)` is checked like `parallel_each_`'s (`diagnostics/parallel_function_reach`).
+
+**A task may keep what was handed to it** (D207, decided by Claude under D205; the conditions below and the error
+text are proposed by Claude, unconfirmed).  **[implemented]** `Parallel(maker.work)` may reach an attribute of
+`maker` that holds a list or an object -- which D179 refuses -- when the compiler proves the task is its only
+holder. Everything else D179 refused stays refused, with its error, which now names this way out. The proof, all
+of it at compile time over the source:
+
+- **The instance is handed over.** `maker` is a local made by `var maker = Maker(...)` earlier in the same block as
+  the `Parallel(...)`; between the two lines it is used only to call its functions and to read or write its
+  attributes that hold values (not passed, stored, given another name, or read for an attribute that holds an
+  object); and no function of `Maker` uses `this` as a value -- naming one of its own functions as the argument
+  of `each`, `map`, `filter`, `any`, `all`, `count`, `find`, `sort_by` or `sum` does not count, since those call it
+  and let it go (`stale.each(rebuild)`). `this` itself (`Parallel(own_function)`), a
+  parameter, an attribute, or an object made in an enclosing block is never handed over.
+- **The attribute is its own.** Its default is `null` or something made there (a constructor, `List<T>()`, a list
+  literal); every assignment to it in `Maker` makes a new one; no other class writes it; and no function of
+  `Maker` hands it out -- returns it, passes it, stores it, names it again, or reads a member of it that is not a
+  call or an attribute holding a value.
+- **What it holds.** A `List` or `Dictionary` of plain values (numbers, `Boolean`, enums, text) needs nothing more:
+  "may always keep a `List` of plain values". An object needs its class to be the program's own, never to use
+  `this` as a value (with the same allowance), and every attribute of its own that is not a value to pass the same
+  two checks. A list of
+  objects, a function value, a union or a `type` stays refused: its elements could be held elsewhere.
+- **The maker lets go.** Any later statement of that block that names `maker` is `'crafter' was handed to
+  'Parallel(crafter.craft)', which keeps its 'recipe_ids' on another thread, so it is not used after that line:
+  make another 'Crafter' for what follows, or read the task's result`, on that statement. Each pass of a loop makes
+  its own, so `var crafter = Crafter(first)` then `Parallel(crafter.craft)` inside a `while` hands over a new one
+  every pass.
+
+The task runs exactly as it did; nothing is added at run time. `conformance/stage6/parallel_handover`,
+`diagnostics/parallel_handover`.
 
 **Reads in a row overlap** (D134's IO half, decided by Mortaro: "all our IO classes should use it"; this reading is
 proposed by Claude, unconfirmed).  **[implemented]** A `File` or `Socket` is not changed: the compiler does it at

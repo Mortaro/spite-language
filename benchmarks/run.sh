@@ -19,7 +19,7 @@ if [ -z "$CC" ]; then
     fi
 fi
 names=("$@")
-[ ${#names[@]} -eq 0 ] && names=(fused_chain dictionary_keys text_building reflection_walks function_values small_allocations parallel_calls stress console_lines vector_items serialisation)
+[ ${#names[@]} -eq 0 ] && names=(fused_chain dictionary_keys text_building reflection_walks function_values small_allocations parallel_calls stress console_lines vector_items serialisation vector_rows)
 printf "| %-18s | %8s | %12s | %s\n" "benchmark" "best ms" "allocations" "output"
 for name in "${names[@]}"; do
     "$compiler" "benchmarks/$name" --run=false --c-source --c-path="$work/$name.c" > "$work/$name.log" 2>&1 || {

@@ -1,0 +1,17 @@
+var count = 0
+var marks = List<Integer>()
+
+func add(mark: Integer) {
+    marks.append(mark)
+    count = count + 1
+}
+
+func total(): Integer {
+    var sum = 0
+    var index = 0
+    while index < marks.count() {
+        sum = sum + marks[index]
+        index = index + 1
+    }
+    return sum
+}

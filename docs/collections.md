@@ -190,7 +190,9 @@ may move the items of 'velocities', so 'first' is not read after it
 ```
 
 The rules for what a borrowed item may do, and what they cost, are in
-[memory.md](memory.md#borrowed-items-of-a-vectort--implemented).
+[memory.md](memory.md#borrowed-items-of-a-vectort--implemented). Items of several vectors can travel together as
+a **row**, an object literal a system takes as a `type` for one call, which is how an engine joins its component
+columns ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call), [D206](decisions.md)).
 
 ## Member templates: loops you do not write
 
@@ -776,7 +778,8 @@ unconfirmed:
   from the Vector, never an object to keep or to pass on: read and write its attributes instead`.
 - **Reading.** `vector[index]` and `get_at(index)` answer the item itself, a `T` and never a `T?`: an index out of
   range halts with the crash report of `library/vector.spite`'s `crash index >= 0 and index < item_count`. A vector
-  of numbers, `Boolean`s, enums or `String`s answers the value, as a list does. What a borrowed item may do is
+  of numbers, `Boolean`s, enums or `String`s answers the value, as a list does. What a borrowed item may do, and
+  what a row of them passed to a system may do (D206), is
   [memory.md's rule](memory.md#borrowed-items-of-a-vectort--implemented).
 - **Writing.** `append(value)` and `set_at(index, value)` (`vector[index] = value`) copy the value's attributes
   into the block, counting each `String` attribute once more; the value itself stays an ordinary object. D202

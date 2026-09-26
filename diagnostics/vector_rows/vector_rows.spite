@@ -1,0 +1,15 @@
+var world = World()
+var keeper = Keeper()
+var last: Moving? = null
+
+func VectorRows() {
+    world.spawn()
+    var row: Moving = {position: world.positions[0], velocity: world.velocities[0]}
+    keeper.store(row)
+    last = keeper.pass_back(row)
+    keeper.capture(row)
+    last = row
+    var alias = row
+    keeper.spawn_while_moving(row)
+    var mixed = {position: world.positions[0], name: "mixed"}
+}

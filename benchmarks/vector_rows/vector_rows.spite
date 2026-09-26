@@ -1,0 +1,117 @@
+var console = Console()
+var clock = Clock()
+var move = System.Move()
+var regenerate = System.Regenerate()
+var position_rows = Vector<Integer>()
+var velocity_rows = Vector<Integer>()
+var health_rows = Vector<Integer>()
+var regeneration_rows = Vector<Integer>()
+var packed_positions = Vector<Component.Position>()
+var packed_velocities = Vector<Component.Velocity>()
+var packed_healths = Vector<Component.Health>()
+var packed_regenerations = Vector<Component.Regeneration>()
+var listed_positions = List<Component.Position>()
+var listed_velocities = List<Component.Velocity>()
+var listed_healths = List<Component.Health>()
+var listed_regenerations = List<Component.Regeneration>()
+
+func VectorRows() {
+    var entity = 0
+    while entity < 200000 {
+        spawn(entity)
+        entity = entity + 1
+    }
+    var start = clock.elapsed_nanoseconds()
+    var tick = 0
+    while tick < 20 {
+        packed_tick()
+        tick = tick + 1
+    }
+    var middle = clock.elapsed_nanoseconds()
+    tick = 0
+    while tick < 20 {
+        listed_tick()
+        tick = tick + 1
+    }
+    var end = clock.elapsed_nanoseconds()
+    var packed_microseconds = (middle - start) / 20000
+    var listed_microseconds = (end - middle) / 20000
+    console.print("Vector columns and borrowed rows, microseconds per tick", packed_microseconds)
+    console.print("List columns and a reused row object, microseconds per tick", listed_microseconds)
+    var last = packed_positions.count() - 2
+    var packed_left: Integer = packed_positions[last].left
+    var packed_amount = packed_healths[packed_healths.count() - 1].amount
+    crash listed_positions[last]
+    var listed_left: Integer = listed_positions[last].left
+    console.print("left", packed_left, listed_left, "health", packed_amount)
+}
+
+func spawn(entity: Integer) {
+    var position = Component.Position()
+    packed_positions.append(position)
+    listed_positions.append(position)
+    position_rows.append(entity)
+    var velocity = Component.Velocity()
+    packed_velocities.append(velocity)
+    listed_velocities.append(velocity)
+    velocity_rows.append(entity)
+    if entity % 2 == 0 {
+        var health = Component.Health()
+        packed_healths.append(health)
+        listed_healths.append(health)
+        var health_row = packed_healths.count() - 1
+        health_rows.append(health_row)
+        var regeneration = Component.Regeneration()
+        packed_regenerations.append(regeneration)
+        listed_regenerations.append(regeneration)
+        var regeneration_row = packed_regenerations.count() - 1
+        regeneration_rows.append(regeneration_row)
+    } else {
+        health_rows.append(-1)
+        regeneration_rows.append(-1)
+    }
+}
+
+func packed_tick() {
+    var entity = 0
+    while entity < position_rows.count() {
+        var position_row = position_rows[entity]
+        var velocity_row = velocity_rows[entity]
+        if position_row >= 0 and velocity_row >= 0 {
+            var moving = {position: packed_positions[position_row], velocity: packed_velocities[velocity_row]}
+            move.update_each(moving)
+        }
+        var health_row = health_rows[entity]
+        var regeneration_row = regeneration_rows[entity]
+        if health_row >= 0 and regeneration_row >= 0 {
+            var mending = {health: packed_healths[health_row], regeneration: packed_regenerations[regeneration_row]}
+            regenerate.update_each(mending)
+        }
+        entity = entity + 1
+    }
+}
+
+func listed_tick() {
+    var moving = MovingRow()
+    var mending = MendingRow()
+    var entity = 0
+    while entity < position_rows.count() {
+        var position_row = position_rows[entity]
+        var velocity_row = velocity_rows[entity]
+        if position_row >= 0 and velocity_row >= 0 {
+            crash listed_positions[position_row] and listed_velocities[velocity_row]
+            moving.position = listed_positions[position_row]
+            moving.velocity = listed_velocities[velocity_row]
+            move.update_each(moving)
+        }
+        var health_row = health_rows[entity]
+        var regeneration_row = regeneration_rows[entity]
+        if health_row >= 0 and regeneration_row >= 0 {
+            crash listed_healths[health_row] and listed_regenerations[regeneration_row]
+            mending.health = listed_healths[health_row]
+            mending.regeneration = listed_regenerations[regeneration_row]
+            regenerate.update_each(mending)
+        }
+        entity = entity + 1
+    }
+}
