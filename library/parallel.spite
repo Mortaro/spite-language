@@ -14,6 +14,11 @@ func get_finished(): Boolean {
     return _state.read_long_atomically(0) == 2
 }
 
+func finished_value(): $result_type? {
+    assert get_finished()
+    return _call.results.get_at(0)
+}
+
 func _result(): $result_type {
     _join()
     return _call.results.get_at(0)

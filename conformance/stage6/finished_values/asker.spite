@@ -1,0 +1,7 @@
+generic $reader_type
+
+func answer(): String {
+    var collect_waits = $reader_type.function_waits("collect")
+    var join_waits = $reader_type.function_waits("join")
+    return "collect {collect_waits}, join {join_waits}"
+}

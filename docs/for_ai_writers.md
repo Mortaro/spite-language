@@ -356,7 +356,9 @@ Integer` (how many the system took). A peer that hung up is not an error: `socke
 answer `0` or `null` and writes send nothing -- check `closed`, never a count of `-1`.
 `Concurrent(function)` runs a function as a compile-time state machine and `Parallel(function)` on the thread pool: the handle stands
 in for what the function returns and reading it is the wait (there is no `.wait()`: `an Integer has no function
-'wait'`), `finished` answers without waiting, and dropping the handle waits for it. A `parallel_each_<member>()`
+'wait'`), `finished` answers without waiting, `finished_value(): T?` is the value once finished and `null` before
+(never a wait, so a system that only collects finished work keeps `function_waits` false: `var found =
+handle.finished_value()`, then `if found { }`), and dropping the handle waits for it. A `parallel_each_<member>()`
 member may read only its own element's plain values, and a `Parallel(f)` only its own instance's plain values, its locals, singletons, a `Lock` or a `ThreadLocal`; anything else is an error naming the attribute. One exception: `var crafter = Crafter(first)` then `var run = Parallel(crafter.craft)` hands the object over, so its task may keep lists of values (`List<Integer>`, `List<String>`) and objects of its own that it made itself; touching `crafter` after that line is `'crafter' was handed to 'Parallel(crafter.craft)', which keeps its 'recipe_ids' on another thread, so it is not used after that line`. Keep a list of ids as a `List<Integer>`, never as comma-joined text. There is no `async`/`await`: a function
 that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can
 run ([concurrency.md](concurrency.md)).

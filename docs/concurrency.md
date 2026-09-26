@@ -749,7 +749,8 @@ one waits; the value is kept, so later ones do not). Exactly, a `Concurrent<T>` 
   The value is read once, into a hidden local, and the narrowed name reads that.
 
 It stays a handle where a handle is expected (`List<Parallel<T>>.append(handle)`), in a `var` without a written
-type (`var loading = Parallel(asset.load)` is the running work), and for the handle's own member, `finished`. A
+type (`var loading = Parallel(asset.load)` is the running work), and for the handle's own members, `finished` and
+`finished_value()`. A
 `T` of `Nothing` is never read, so such a handle only joins on drop. Comparing two handles with `==` compares their
 values; there is no way to compare the handles themselves (proposed: nothing has needed it). The compiler writes
 each join as a call to the class's private `_result()`, which `library/concurrent.spite` and
@@ -760,6 +761,15 @@ returned. On a `Parallel` it reads the job's state with one atomic load; on a `C
 state machine's frame carries once it finishes, so a state machine only makes progress when the program waits
 somewhere (`while not reading.finished { program.sleep(1) }` is the polling loop). The same on every system
 (`conformance/stage6/finished_polling`).
+
+**`finished_value()` takes a finished result without waiting** (D216, decided by Claude under D205; name
+provisional). `handle.finished_value(): T?` answers the value when the work has finished and `null` otherwise, on a
+`Concurrent` and on a `Parallel`: `finished`, then the value, in one call (`library/concurrent.spite`,
+`library/parallel.spite`). It is never a wait point, so `function_waits` (D209) answers `false` for a function
+whose only handle read is `finished_value()`, while reading the handle as its value still waits and still counts:
+an engine system that only collects finished work is not taken for one that does IO. It costs what `finished`
+followed by a read costs, and a program that never calls it carries none of it
+(`conformance/stage6/finished_values`).
 
 **The thread pool** (D135 and D191, decided by Mortaro; the shape below is proposed by Claude, unconfirmed).
 **[implemented on Windows]** `library/thread_pool.spite` is a singleton, `ThreadPool()`, that the `Parallel`s share.

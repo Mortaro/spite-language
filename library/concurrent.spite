@@ -24,6 +24,11 @@ func get_finished(): Boolean {
     return _finished
 }
 
+func finished_value(): $result_type? {
+    assert get_finished()
+    return _results.get_at(0)
+}
+
 func _run() {
     assert _work
     var value: $result_type = _work()

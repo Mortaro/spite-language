@@ -1,0 +1,55 @@
+var console = Console()
+var program = Program()
+var scheduler = Scheduler()
+
+func FinishedValues() {
+    scheduler.resume_only_when_asked()
+    var loading = Concurrent(load_level)
+    var early = loading.finished_value()
+    if early {
+        console.print("the level was ready at once:", early)
+    } else {
+        console.print("no level before any frame")
+    }
+    var counting = Parallel(count_up)
+    var frame = 0
+    var level = ""
+    var counted = 0
+    while (level == "" or counted == 0) and frame < 500 {
+        frame = frame + 1
+        scheduler.run_ready()
+        var found = loading.finished_value()
+        if found {
+            level = found
+        }
+        var total = counting.finished_value()
+        if total {
+            counted = total
+        }
+        program.sleep(2)
+    }
+    console.print("the level after the frames:", level, "over frames:", frame > 1)
+    console.print("the Parallel counted", counted)
+    var reader = LevelReader()
+    var collected = reader.collect(loading)
+    var joined = reader.join(loading)
+    console.print("collected", collected, "and joined", joined)
+    var asker = Asker<LevelReader>()
+    var answered = asker.answer()
+    console.print("function_waits:", answered)
+}
+
+func load_level(): String {
+    program.sleep(30)
+    return "forest"
+}
+
+func count_up(): Integer {
+    var total = 0
+    var index = 0
+    while index < 1000 {
+        total = total + 1
+        index = index + 1
+    }
+    return total
+}
