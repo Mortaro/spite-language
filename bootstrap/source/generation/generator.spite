@@ -4656,6 +4656,9 @@ func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInf
         if number_classes.contains(class_path) and maths.is_member(function.name) {
             function.supplied_body = maths_body(information, function)
         }
+        if number_classes.contains(class_path) and maths.is_bit_view(function.name) {
+            function.supplied_body = bit_view_body(information, function)
+        }
         return
     }
     report(
@@ -4722,6 +4725,15 @@ func maths_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo
     var value_type = value_class_type(information)
     var c_type = c_type_name(value_type)
     return maths.whole_body(function.c_name, function.name, c_type)
+}
+
+func bit_view_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    maths_macros[function.c_name] = false
+    var from_type = value_class_type(information)
+    var to_type = function.get_return_type()
+    var from_c_type = c_type_name(from_type)
+    var to_c_type = c_type_name(to_type)
+    return maths.bit_view_body(function.c_name, from_c_type, to_c_type)
 }
 
 func note_maths_macro(function: Analysis.FunctionInfo) {

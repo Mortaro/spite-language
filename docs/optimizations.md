@@ -1088,6 +1088,20 @@ on another whose C library rounds a last bit differently gets the compiling syst
 its own for the rest; `sqrt`, `floor`, `ceil`, `round`, `trunc`, `fabs`, `fmin` and `fmax` are exact everywhere, so
 only the transcendental functions can differ, by at most that last bit. **Built.**
 
+### A number's bits are read in place
+
+**What it does.** `Float.bits()`, `Double.bits()`, `UnsignedInteger.bits_as_float()`, `Long.bits_as_double()` and
+`UnsignedLong.bits_as_double()` are C macros over a union of the two types
+([D215](decisions.md), [values_and_types.md](values_and_types.md#rules-in-full)): the call is written where it is made
+and the value's bits are read as the other type, with no memory written and read back and nothing allocated. Before,
+each went through a 4- or 8-byte block that the frame slot kept off the heap, so they allocated nothing then either,
+but the C held a block, a write and a read for the C compiler to see through.
+
+**When.** Every build, for every call; a program that calls none carries none of them. **What you notice.** Nothing
+but speed in an unoptimised build: `benchmarks/half_precision` (ten million `to_half_precision` and back) takes
+416 ms against 482 ms with `clang -O0`, and 13 ms either way from `-O1`, where clang already saw through the block;
+it allocates nothing per conversion before and after. **Built.**
+
 ## Planned
 
 Decided by Mortaro, not built yet. When one is built, it moves up to **Built** in the same change.

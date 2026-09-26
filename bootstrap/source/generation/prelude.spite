@@ -272,6 +272,13 @@ func number_members(stem: String): List<String> {
         members.append(maths_members[maths_index])
         maths_index = maths_index + 1
     }
+    var maths = MathsPrimitives()
+    var bit_views = maths.bit_view_members(stem)
+    var view_index = 0
+    while view_index < bit_views.count() {
+        members.append(bit_views[view_index])
+        view_index = view_index + 1
+    }
     return members
 }
 

@@ -791,6 +791,13 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
     (`diagnostics/wider_bitwise_operand`). The count is an `Integer`.
   - Called on `Float`, `Double` or `Boolean`, they are an error naming the whole numbers
     (`diagnostics/bitwise_on_float`). `conformance/stage6/bitwise_functions` and `negative_shift` pin them.
+- **A number's bits are read as another type in place** ([D215](decisions.md), decided by Claude under D205 and
+  D214; the names proposed by Claude, unconfirmed): `Float.bits(): UnsignedInteger`, `Double.bits(): Long`,
+  `UnsignedInteger.bits_as_float(): Float`, `Long.bits_as_double(): Double` and
+  `UnsignedLong.bits_as_double(): Double` give the same bits as the other type, with nothing converted. They are
+  bodiless declarations the compiler supplies (D82), each a C macro over a union of the two types, so a call is
+  written where it is made, touches no memory and allocates nothing, and a program that never calls one carries
+  none of it. `conformance/stage6/half_precision` pins them.
 - **The maths functions and the constants are members of the number classes** (proposed by Claude, unconfirmed:
   the names, the constants answered by the class itself, and the lowering; [the teaching above](#maths-functions)).
   Which there are, what each answers at its edges and how each is lowered is

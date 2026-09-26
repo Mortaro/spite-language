@@ -794,7 +794,7 @@ is the same whichever it makes:
   after it. The compiler gives it a slot of 256 bytes
   in the function's frame (exactly the size, for a literal size up to 256), uses the heap when a run-time size
   is larger, and makes the `free` a no-op for the slot. A loop body is a block like any other, so the slot is
-  reused on every pass. So `Double.bits()` allocates nothing, and `Long.to_string()` and `upper_case()` of a
+  reused on every pass. So `Long.to_string()` and `upper_case()` of a
   short text allocate only the `String` they return -- which is nothing when it is 15 bytes or fewer.
 - **In the value:** text of up to 15 bytes is kept in the sixteen bytes of the `String` itself ([D203](decisions.md),
   [optimizations.md](optimizations.md#short-text-lives-inside-the-string)).

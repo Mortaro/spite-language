@@ -14,3 +14,5 @@
 inf is 31744, back inf
 nan is 32256, back nan
 bits of 1.0 1065353216
+1078530011 as a Float 3.1415927
+bits of -1.5 -4613937818241073152, back -1.5, 1.5
