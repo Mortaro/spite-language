@@ -1,0 +1,77 @@
+var bytes: Vector<Byte>? = null
+var walked = 0
+var found = 0
+
+func BinaryOutput(target: Vector<Byte>) {
+    bytes = target
+}
+
+func room(extra: Integer): Memory.Address {
+    crash bytes
+    var used = bytes.item_count
+    var wanted = used + extra
+    bytes.reserve(wanted)
+    bytes.item_count = wanted
+    return bytes.items + used
+}
+
+func write_byte(value: Integer) {
+    var at = room(1)
+    at.write_byte(0, value)
+}
+
+func write_short(value: Integer) {
+    var at = room(2)
+    at.write_short(0, value)
+}
+
+func write_integer(value: Integer) {
+    var at = room(4)
+    at.write_integer(0, value)
+}
+
+func write_long(value: Long) {
+    var at = room(8)
+    at.write_long(0, value)
+}
+
+func write_float(value: Float) {
+    var at = room(4)
+    at.write_float(0, value)
+}
+
+func write_double(value: Double) {
+    var at = room(8)
+    at.write_double(0, value)
+}
+
+func write_count(count: Integer) {
+    var rest = count
+    while rest >= 128 {
+        write_byte(rest % 128 + 128)
+        rest = rest / 128
+    }
+    write_byte(rest)
+}
+
+func write_text(text: String) {
+    var length = text.length()
+    write_count(length)
+    var at = room(length)
+    var index = 0
+    while index < length {
+        var code = text.code_at(index)
+        at.write_byte(index, code)
+        index = index + 1
+    }
+}
+
+func write_index() {
+    if walked <= 256 {
+        write_byte(found)
+    } else if walked <= 65536 {
+        write_short(found)
+    } else {
+        write_integer(found)
+    }
+}

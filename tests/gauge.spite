@@ -1,0 +1,9 @@
+var tiny: Tiny = 0
+var byte: Byte = 0
+var short: Short = 0
+var unsigned_short: UnsignedShort = 0
+var unsigned_integer: UnsignedInteger = 0
+var long: Long = 0
+var unsigned_long: UnsignedLong = 0
+var ratio: Float = 0.0
+var marker: Symbol? = null

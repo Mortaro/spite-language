@@ -17,7 +17,8 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 | `fused_chain` | 100 000 objects walked 300 times by fused `filter_`/`map_`/`sum_`/`count_` chains |
 | `dictionary_keys` | a `Dictionary` keyed by numbers turned into text (`"{index}"`) and by 2 000 names, set and read |
 | `text_building` | appending to text in a loop, `"word{index}"` pieces and `join` |
-| `reflection_walks` | a Symbol walk (`show_attributes`), a `.attributes` walk reading `.value`, and `Json` |
+| `reflection_walks` | a Symbol walk (`show_attributes`), a `.attributes` walk reading `.value`, and `JsonWriter` |
+| `serialisation` | 100 000 small objects written and read back as JSON (`JsonWriter`/`JsonReader`, one text each) and as bytes (`BinaryWriter.append_to` into one `Vector<Byte>`, `BinaryReader`); prints the sizes and the milliseconds of each step |
 | `function_values` | `each(f)`, `filter(f)`, `sum(f)`, `count(f)` and a function value passed 200 000 times |
 | `small_allocations` | three small objects made and dropped per pass, three million passes, and `copy()` |
 | `parallel_calls` | 20 000 rounds of two `Parallel`s |
@@ -208,3 +209,18 @@ ms for sixty ticks. A dictionary lookup by a key longer than 15 bytes is about 1
 loop over four such keys: 190 → 210 ms), because the key is passed as sixteen bytes rather than a pointer and
 compared through the form it takes. Before `code_at` became the compiler's (the third D203 commit) the same loop
 took 315 ms: the hash re-copied the key for every character.
+
+### JSON and binary (D208)
+
+`serialisation`, the compiler of the commit that adds `BinaryWriter` and `BinaryReader`, `clang -O2`: 100 000
+objects of seven attributes (an `Integer`, a short `String`, two `Float`s, a `Short`, a `Boolean`, an enum). The
+allocations are those of the writes and reads alone, counted with `--debug-memory` by a copy of the program that
+does one half at a time.
+
+| format | size | write ms | read ms | allocations |
+|---|---|---|---|---|
+| JSON, one text per object | 9 380 963 bytes | 212 | 241 | 9 347 676 |
+| binary, all appended to one `Vector<Byte>` | 2 389 000 bytes | 16 | 8 | 300 010 |
+
+The binary side allocates three times per object: the `BinaryWriter`, its cursor, and the object read back; its
+walk is a singleton that holds nothing, so it allocates nothing itself.

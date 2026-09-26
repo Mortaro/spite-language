@@ -153,6 +153,7 @@ templates run on the items in place the same way, and a chain of them is one loo
 | `vector[index] = value` / `set_at(index, value)` | | copies `value` over the item; out of range halts |
 | `remove_at(index)` | | moves every later item down; nothing happens out of range |
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
+| `reserve(count)` | | makes room for `count` items in all without making any, so appending up to there never grows the block (proposed by Claude, unconfirmed; D208) |
 | `copy()` / `deep_copy()` | `Vector<T>` | a new vector with its own copy of every item |
 | `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()` | | as on a list; `filter_` gives a `Vector<T>` of copies |
 | `parallel_each_<member>()` | | as on a list ([concurrency.md](concurrency.md#parallel_each_-a-member-on-every-element)) |

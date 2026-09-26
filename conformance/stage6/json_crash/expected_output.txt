@@ -1,2 +1,2 @@
-spite.crash	0239ffd8	library/json.spite:123	Json	read_or_crash	failure == ""	failure=expected a number at character 10
+spite.crash	63f96938	library/json_reader.spite:22	JsonReader	read_or_crash	failure == ""	failure=expected a number at character 10
 count 3

@@ -768,7 +768,8 @@ func changed_paths(generator: Generation.Generator, reload: Generation.HotReload
     var changed = List<String>()
     var index = 0
     while index < paths.count() {
-        var content = File(paths[index]).read()
+        var source_file = File(paths[index])
+        var content = source_file.read()
         if content {
             var hash = reload.hash_of(content)
             if reload.is_changed(paths[index], hash) {

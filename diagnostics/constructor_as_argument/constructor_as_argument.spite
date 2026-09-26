@@ -28,7 +28,7 @@ func relabel(label: Label): Label {
 func allowed() {
     var font = Font()
     var label = Label(font)
-    var written = Json(label).write()
+    var written = JsonWriter(label).write()
     var sizes = Parallel(font_size)
     var size: Integer = sizes
     console.print(written, size)

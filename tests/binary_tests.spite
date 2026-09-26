@@ -1,0 +1,226 @@
+func test_writes_a_class_as_its_attributes_in_order() {
+    var ada = Sailor("Ada")
+    ada.knots.append("hitch")
+    var writer = BinaryWriter(ada)
+    var bytes = writer.write()
+    var shown = shown_bytes(bytes)
+    crash shown == "3 65 100 97 1 5 104 105 116 99 104"
+}
+
+func test_writes_numbers_little_endian_at_their_width() {
+    var ship = Ship()
+    ship.length = 258
+    var writer = BinaryWriter(ship)
+    var bytes = writer.write()
+    var shown = shown_bytes(bytes)
+    crash shown == "0 2 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+}
+
+func test_reads_back_what_it_wrote() {
+    var ship = full_ship()
+    var writer = BinaryWriter(ship)
+    var bytes = writer.write()
+    var reader = BinaryReader<Ship>(bytes)
+    var read = reader.read()
+    crash read
+    crash reader.remaining() == 0
+    crash read.name == "Wren"
+    crash read.length == 12
+    crash read.speed == 7.5
+    crash read.rig == 'schooner'
+    crash read.afloat
+    crash read.crew.count() == 2
+    crash read.crew[0].knots.count() == 2
+    crash read.cargo["tea"] == 40
+    crash read.captain
+    crash read.captain.name == "Cy"
+    crash read.launched == 1902
+    crash read.logbook.count() == 2
+    var again_writer = BinaryWriter(read)
+    var again = again_writer.write()
+    var first_bytes = shown_bytes(bytes)
+    var second_bytes = shown_bytes(again)
+    crash first_bytes == second_bytes
+}
+
+func test_every_number_width_round_trips() {
+    var gauge = Gauge()
+    gauge.tiny = -2
+    gauge.byte = 250
+    gauge.short = -300
+    gauge.unsigned_short = 65000
+    gauge.unsigned_integer = 4000000000
+    gauge.long = -5000000000
+    gauge.unsigned_long = 9000000000
+    gauge.ratio = 0.25
+    gauge.marker = Symbol("schooner")
+    var writer = BinaryWriter(gauge)
+    var bytes = writer.write()
+    crash bytes.count() == 1 + 1 + 2 + 2 + 4 + 8 + 8 + 4 + 1 + 1 + 8
+    var reader = BinaryReader<Gauge>(bytes)
+    var read = reader.read()
+    crash read
+    crash read.tiny == -2
+    crash read.byte == 250
+    crash read.short == -300
+    crash read.unsigned_short == 65000
+    crash read.unsigned_integer == 4000000000
+    crash read.long == -5000000000
+    crash read.unsigned_long == 9000000000
+    crash read.ratio == 0.25
+    crash read.marker
+    crash "{read.marker}" == "schooner"
+}
+
+func test_values_follow_each_other_in_one_buffer() {
+    var bytes = Vector<Byte>()
+    var ada = Sailor("Ada")
+    var bo = Sailor("Bo")
+    var ada_writer = BinaryWriter(ada)
+    ada_writer.append_to(bytes)
+    var bo_writer = BinaryWriter(bo)
+    bo_writer.append_to(bytes)
+    var reader = BinaryReader<Sailor>(bytes)
+    var first = reader.read()
+    var second = reader.read()
+    var third = reader.read()
+    crash first
+    crash second
+    crash first.name == "Ada"
+    crash second.name == "Bo"
+    crash not third
+}
+
+func test_reads_from_memory() {
+    var bo = Sailor("Bo")
+    var writer = BinaryWriter(bo)
+    var bytes = writer.write()
+    var reader = BinaryReader<Sailor>(null)
+    var count = bytes.count()
+    var read = reader.read_memory(bytes.items, count)
+    crash read
+    crash read.name == "Bo"
+    crash reader.position == count
+}
+
+func test_values_that_are_not_classes() {
+    var numbers = [1, -2, 3]
+    var list_writer = BinaryWriter(numbers)
+    var list_bytes = list_writer.write()
+    crash list_bytes.count() == 13
+    var list_reader = BinaryReader<List<Integer>>(list_bytes)
+    var list_read = list_reader.read()
+    crash list_read
+    crash list_read.join(" ") == "1 -2 3"
+    var captains = List<Sailor?>()
+    var cy = Sailor("Cy")
+    captains.append(cy)
+    captains.append(null)
+    var captains_writer = BinaryWriter(captains)
+    var captains_bytes = captains_writer.write()
+    var shown = shown_bytes(captains_bytes)
+    crash shown == "2 1 2 67 121 0 0"
+    var captains_reader = BinaryReader<List<Sailor?>>(captains_bytes)
+    var captains_read = captains_reader.read()
+    crash captains_read
+    var first_name = captain_name(captains_read[0])
+    var second_name = captain_name(captains_read[1])
+    crash first_name == "Cy"
+    crash second_name == "nobody"
+}
+
+func captain_name(captain: Sailor?): String {
+    if captain {
+        return captain.name
+    }
+    return "nobody"
+}
+
+func test_bad_bytes_read_nothing() {
+    var ship = full_ship()
+    var writer = BinaryWriter(ship)
+    var bytes = writer.write()
+    bytes.remove_at(10)
+    var reader = BinaryReader<Ship>(bytes)
+    var cut = reader.read()
+    crash not cut
+    var flag = Vector<Byte>()
+    flag.append(0)
+    flag.append(0)
+    flag.append(0)
+    flag.append(0)
+    flag.append(0)
+    flag.append(0)
+    flag.append(0)
+    flag.append(0)
+    flag.append(0)
+    flag.append(0)
+    flag.append(0)
+    flag.append(0)
+    flag.append(0)
+    flag.append(0)
+    flag.append(2)
+    var flag_reader = BinaryReader<Ship>(flag)
+    var bad_flag = flag_reader.read()
+    crash not bad_flag
+    var empty = Vector<Byte>()
+    var empty_reader = BinaryReader<Ship>(empty)
+    var nothing = empty_reader.read()
+    crash not nothing
+}
+
+func test_a_bad_enum_index_reads_nothing() {
+    var ship = Ship()
+    var writer = BinaryWriter(ship)
+    var bytes = writer.write()
+    bytes.set_at(13, 7)
+    var reader = BinaryReader<Ship>(bytes)
+    var read = reader.read()
+    crash not read
+}
+
+func test_a_count_larger_than_the_bytes_left_reads_nothing() {
+    var huge = Vector<Byte>()
+    huge.append(255)
+    huge.append(255)
+    huge.append(255)
+    huge.append(255)
+    huge.append(7)
+    var reader = BinaryReader<List<Integer>>(huge)
+    var read = reader.read()
+    crash not read
+}
+
+func shown_bytes(bytes: Vector<Byte>): String {
+    var pieces = List<String>()
+    var index = 0
+    while index < bytes.count() {
+        var byte = bytes.get_at(index)
+        pieces.append("{byte}")
+        index = index + 1
+    }
+    return pieces.join(" ")
+}
+
+func full_ship(): Ship {
+    var ship = Ship()
+    ship.name = "Wren"
+    ship.length = 12
+    ship.speed = 7.5
+    ship.rig = 'schooner'
+    ship.afloat = true
+    var ada = Sailor("Ada")
+    ada.knots.append("bowline")
+    ada.knots.append("hitch")
+    ship.crew.append(ada)
+    var bo = Sailor("Bo")
+    ship.crew.append(bo)
+    ship.cargo.set("rope", 3)
+    ship.cargo.set("tea", 40)
+    ship.captain = Sailor("Cy")
+    ship.launched = 1902
+    ship.logbook.append(["calm"])
+    var blank_page = List<String>()
+    ship.logbook.append(blank_page)
+    return ship
+}

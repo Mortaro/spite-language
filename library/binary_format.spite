@@ -1,0 +1,214 @@
+singleton
+
+generic $value_type
+
+func write(value: $value_type, output: BinaryOutput) {
+    if $value_type == Null {
+        write_present(value, output)
+    } else if $value_type == Boolean {
+        var flag = 0
+        if value {
+            flag = 1
+        }
+        output.write_byte(flag)
+    } else if $value_type == Byte or $value_type == Tiny {
+        output.write_byte(value)
+    } else if $value_type == Short or $value_type == UnsignedShort {
+        output.write_short(value)
+    } else if $value_type == Integer or $value_type == UnsignedInteger {
+        output.write_integer(value)
+    } else if $value_type == Long or $value_type == UnsignedLong {
+        output.write_long(value)
+    } else if $value_type == Float {
+        output.write_float(value)
+    } else if $value_type == Double {
+        output.write_double(value)
+    } else if $value_type == String {
+        output.write_text(value)
+    } else if $value_type == Symbol {
+        write_symbol(value, output)
+    } else if $value_type == List {
+        write_list(value, output)
+    } else if $value_type == Dictionary {
+        write_dictionary(value, output)
+    } else {
+        write_attributes(value, output)
+    }
+}
+
+func write_present(value: $value_type, output: BinaryOutput) {
+    if value {
+        output.write_byte(1)
+        var inner = BinaryFormat<$value_type.value_type>()
+        inner.write(value, output)
+        return
+    }
+    output.write_byte(0)
+}
+
+func write_symbol(shown: $value_type, output: BinaryOutput) {
+    if $value_type == Enum {
+        output.walked = 0
+        find_values(shown, output)
+        output.write_index()
+        return
+    }
+    var name = "{shown}"
+    output.write_text(name)
+}
+
+func find_value(value: Symbol<$value_type>, shown: $value_type, output: BinaryOutput) {
+    if value.value == shown {
+        output.found = output.walked
+    }
+    output.walked = output.walked + 1
+}
+
+func write_list(value: $value_type, output: BinaryOutput) {
+    var count = value.count()
+    output.write_count(count)
+    var element = BinaryFormat<$value_type.element_type>()
+    var index = 0
+    while index < count {
+        var item = value.get_at(index)
+        element.write(item, output)
+        index = index + 1
+    }
+}
+
+func write_dictionary(value: $value_type, output: BinaryOutput) {
+    var keys = value.keys()
+    var entries = value.values()
+    var count = keys.count()
+    output.write_count(count)
+    var entry = BinaryFormat<$value_type.value_type>()
+    var index = 0
+    while index < count {
+        var key = keys.get_at(index)
+        output.write_text(key)
+        var item = entries.get_at(index)
+        entry.write(item, output)
+        index = index + 1
+    }
+}
+
+func write_attribute(attribute: Symbol<$value_type>, value: $value_type, output: BinaryOutput) {
+    var format = BinaryFormat<attribute.class>()
+    format.write(value.attributes[attribute], output)
+}
+
+func read(input: BinaryInput): $value_type {
+    if $value_type == Null {
+        return read_present(input)
+    } else if $value_type == Boolean {
+        var flag = input.read_byte()
+        if flag > 1 {
+            input.fail()
+        }
+        return flag == 1
+    } else if $value_type == Byte or $value_type == Tiny {
+        var small: $value_type = input.read_byte()
+        return small
+    } else if $value_type == Short {
+        var short: $value_type = input.read_short()
+        return short
+    } else if $value_type == UnsignedShort {
+        var unsigned_short: $value_type = input.read_unsigned_short()
+        return unsigned_short
+    } else if $value_type == Integer or $value_type == UnsignedInteger {
+        var whole: $value_type = input.read_integer()
+        return whole
+    } else if $value_type == Long or $value_type == UnsignedLong {
+        var long: $value_type = input.read_long()
+        return long
+    } else if $value_type == Float {
+        return input.read_float()
+    } else if $value_type == Double {
+        return input.read_double()
+    } else if $value_type == String {
+        return input.read_text()
+    } else if $value_type == Symbol {
+        return read_symbol(input)
+    } else if $value_type == List {
+        return read_list(input)
+    } else if $value_type == Dictionary {
+        return read_dictionary(input)
+    } else {
+        var created: $value_type = null
+        read_attributes(created, input)
+        return created
+    }
+}
+
+func read_present(input: BinaryInput): $value_type {
+    var flag = input.read_byte()
+    if flag != 1 {
+        if flag != 0 {
+            input.fail()
+        }
+        return null
+    }
+    var inner = BinaryFormat<$value_type.value_type>()
+    return inner.read(input)
+}
+
+func read_symbol(input: BinaryInput): $value_type {
+    if $value_type == Enum {
+        input.walked = 0
+        count_values(input)
+        input.read_index()
+        input.walked = 0
+        name_values(input)
+        var chosen: $value_type = input.found_name
+        return chosen
+    }
+    var name = input.read_text()
+    var found = Symbol(name)
+    if found {
+        return found
+    }
+    input.fail()
+}
+
+func count_value(value: Symbol<$value_type>, input: BinaryInput) {
+    input.walked = input.walked + 1
+}
+
+func name_value(value: Symbol<$value_type>, input: BinaryInput) {
+    if input.walked == input.found {
+        input.found_name = value.name
+    }
+    input.walked = input.walked + 1
+}
+
+func read_list(input: BinaryInput): $value_type {
+    var list: $value_type = null
+    var count = input.read_count()
+    var element = BinaryFormat<$value_type.element_type>()
+    var index = 0
+    while index < count and not input.failed {
+        var item = element.read(input)
+        list.append(item)
+        index = index + 1
+    }
+    return list
+}
+
+func read_dictionary(input: BinaryInput): $value_type {
+    var dictionary: $value_type = null
+    var count = input.read_count()
+    var entry = BinaryFormat<$value_type.value_type>()
+    var index = 0
+    while index < count and not input.failed {
+        var key = input.read_text()
+        var item = entry.read(input)
+        dictionary.set(key, item)
+        index = index + 1
+    }
+    return dictionary
+}
+
+func read_attribute(attribute: Symbol<$value_type>, created: $value_type, input: BinaryInput) {
+    var format = BinaryFormat<attribute.class>()
+    created.attributes[attribute] = format.read(input)
+}

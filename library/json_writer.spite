@@ -3,13 +3,13 @@ generic $value_type
 var value: $value_type? = null
 var path = ""
 
-func Json(new_value: $value_type?) {
+func JsonWriter(new_value: $value_type?) {
     value = new_value
 }
 
 func write(): String {
     if $value_type == Null {
-        var inner = Json<$value_type.value_type>(value)
+        var inner = JsonWriter<$value_type.value_type>(value)
         inner.path = path
         return inner.write()
     } else if $value_type == Boolean {
@@ -38,7 +38,7 @@ func _written(shown: $value_type): String {
         var name = "{shown}"
         return quoted(name)
     } else if $value_type == List {
-        var element_json = Json<$value_type.element_type>(null)
+        var element_json = JsonWriter<$value_type.element_type>(null)
         var elements = List<String>()
         var index = 0
         while index < shown.count() {
@@ -51,7 +51,7 @@ func _written(shown: $value_type): String {
         var joined_elements = elements.join(",")
         return "[{joined_elements}]"
     } else if $value_type == Dictionary {
-        var entry_json = Json<$value_type.value_type>(null)
+        var entry_json = JsonWriter<$value_type.value_type>(null)
         var keys = shown.keys()
         var values = shown.values()
         var entries = List<String>()
@@ -76,7 +76,7 @@ func _written(shown: $value_type): String {
 }
 
 func write_attribute(attribute: Symbol<$value_type>, shown: $value_type, members: List<String>) {
-    var attribute_json = Json(shown.attributes[attribute])
+    var attribute_json = JsonWriter(shown.attributes[attribute])
     attribute_json.path = "{shown.class.name}.{attribute.name}"
     var attribute_text = attribute_json.write()
     members.append("\"{attribute.name}\":{attribute_text}")
@@ -105,113 +105,6 @@ func described_path(): String {
         return "the value"
     }
     return "'{path}'"
-}
-
-func read(text: String): $value_type? {
-    var reader = JsonReader(text)
-    var parsed = parse(reader)
-    reader.finish()
-    assert not reader.failed()
-    return parsed
-}
-
-func read_or_crash(text: String): $value_type {
-    var reader = JsonReader(text)
-    var parsed = parse(reader)
-    reader.finish()
-    var failure = reader.failure
-    crash failure == ""
-    return parsed
-}
-
-func parse(reader: JsonReader): $value_type {
-    if $value_type == String {
-        return reader.read_text()
-    } else if $value_type == Boolean {
-        return reader.read_boolean()
-    } else if $value_type == Integer or $value_type == Long or $value_type == Float or $value_type == Double or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInteger or $value_type == UnsignedLong {
-        var number_text = reader.read_number()
-        var number: $value_type = number_text
-        return number
-    } else if $value_type == Symbol {
-        return read_symbol(reader)
-    } else if $value_type == Null {
-        assert not reader.read_null()
-        var inner = Json<$value_type.value_type>(null)
-        return inner.parse(reader)
-    } else if $value_type == List {
-        var list: $value_type = null
-        var element_json = Json<$value_type.element_type>(null)
-        reader.expect("[")
-        var more = not reader.consume("]")
-        while more and not reader.failed() {
-            var element = element_json.parse(reader)
-            list.append(element)
-            more = reader.consume(",")
-            if not more {
-                reader.expect("]")
-            }
-        }
-        return list
-    } else if $value_type == Dictionary {
-        var dictionary: $value_type = null
-        var entry_json = Json<$value_type.value_type>(null)
-        reader.expect("\{")
-        var more = not reader.consume("}")
-        while more and not reader.failed() {
-            var key = reader.read_text()
-            reader.expect(":")
-            var entry = entry_json.parse(reader)
-            dictionary.set(key, entry)
-            more = reader.consume(",")
-            if not more {
-                reader.expect("}")
-            }
-        }
-        return dictionary
-    } else {
-        var created: $value_type = null
-        reader.expect("\{")
-        var more = not reader.consume("}")
-        while more and not reader.failed() {
-            var key = reader.read_text()
-            reader.expect(":")
-            reader.matched = false
-            read_attributes(created, key, reader)
-            if not reader.matched {
-                reader.skip_value()
-            }
-            more = reader.consume(",")
-            if not more {
-                reader.expect("}")
-            }
-        }
-        return created
-    }
-}
-
-func read_symbol(reader: JsonReader): $value_type {
-    var name = reader.read_text()
-    if $value_type == Enum {
-        var symbol: $value_type = name
-        if "{symbol}" != name {
-            reader.fail("one of the names of {symbol.class.name}")
-        }
-        return symbol
-    }
-    var found = Symbol(name)
-    if found {
-        return found
-    }
-    reader.fail("a name the program already uses as a Symbol")
-}
-
-func read_attribute(attribute: Symbol<$value_type>, created: $value_type, key: String, reader: JsonReader) {
-    if key == attribute.name {
-        var attribute_json = Json<attribute.class>(null)
-        created.attributes[attribute] = attribute_json.parse(reader)
-        reader.matched = true
-    }
 }
 
 func quoted(text: String): String {

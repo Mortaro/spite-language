@@ -118,7 +118,7 @@ In a generic class the class inside the `Symbol` is usually a codegen value. `Li
 member templates over `member: Symbol<$element_type>`, so `item.attributes[member]` reads a member of the element
 -- that is how `filter_<member>()`, `sum_<member>()` and the rest are written, in Spite, in `library/list.spite`
 ([collections.md](collections.md#how-the-member-templates-are-written)) -- and the standard library's
-[`Json`](json.md) writes and reads any class over `attribute: Symbol<$value_type>`. When there is nothing to walk
+[`JsonWriter`, `JsonReader` and the binary pair](json.md) write and read any class over `attribute: Symbol<$value_type>`. When there is nothing to walk
 -- a class with no attributes, a marker, or a codegen value that is no class at all, an `Integer` or a `T?` -- the
 plural is still there and calls nothing, so `Pack<Marker>` and `Pack<Integer?>` compile like any other
 (`conformance/stage6/empty_plural`).
@@ -206,8 +206,8 @@ One line declares one value, and the lines sit at the top of the file, so skimmi
 accepts. Every hole is filled at every call: there are no defaults, and the wrong number of values is an error
 that lists the class's values in order (the second program below). A generic class needs no constructor --
 `library/list.spite` is `generic $element_type` and its functions -- and when the constructor's arguments say
-every value, the `<...>` may be left out: `Pair("Hero", 7)` is a `Pair<String, Integer>`, `Json(order)` a
-`Json<Order>` ([json.md](json.md)) and `Concurrent(file.read)` a `Concurrent<String?>`
+every value, the `<...>` may be left out: `Pair("Hero", 7)` is a `Pair<String, Integer>`, `JsonWriter(order)` a
+`JsonWriter<Order>` ([json.md](json.md)) and `Concurrent(file.read)` a `Concurrent<String?>`
 ([concurrency.md](concurrency.md)). `null` as the default of a field typed `$left_type` means that type's own
 default, not a `T?` (provisional: [open question 1](open_questions.md#open-questions)).
 
@@ -885,7 +885,7 @@ at compile time:
   one set of values only when surviving code calls it; a [constraint](#constraining-what-a-generic-accepts)
   is checked by the compiler and emits nothing.
 - **Reflection** is built only where it is read ([reflection.md](reflection.md)), and a generic class such as
-  [`Json`](json.md) exists only for the types a program uses it with.
+  [`JsonWriter` and the rest of json.md](json.md) exist only for the types a program uses them with.
 - In a production build, a **function or class** nothing reachable uses is not emitted
   ([optimizations.md](optimizations.md#tree-shaking-the-generated-c)).
 - The **concurrency machinery** -- the state machines of a `Concurrent` and the loop that runs them, the thread
@@ -1165,7 +1165,7 @@ var sword = Weapon<Integer, true>(10)
   `Dictionary<$name>`, and the arguments and return of a `Spite.Function<...>`. A `null` argument says nothing.
   Only when every `$name` is found; otherwise the error asks for them between `<` and `>`: "'Box' takes 1 codegen
   value(s), in this order: $held_type -- write them between < and > before the arguments". `Pair("Hero", 7)`,
-  `Concurrent(file.read)`, `Json(order)`.
+  `Concurrent(file.read)`, `JsonWriter(order)`.
 - `null` as the default of an attribute typed by a codegen value means that type's own default, not a `T?`
   (provisional, [open question 1](open_questions.md#open-questions)).
 
@@ -1223,7 +1223,7 @@ to spell:
 | `$value_type == Dictionary` | any `Dictionary<T>` |
 | `$value_type == Null` | any `T?` -- `Null` is a member of the union a `T?` is (D45) |
 | `$value_type == Symbol` | an enum, or `Symbol` -- an enum is a closed list of symbols (D10) |
-| `$value_type == Enum` | an enum only, not a plain `Symbol` (proposed by Claude, unconfirmed: `Json` needs it to read a plain `Symbol` through `Symbol(text)` and an enum through the text cast) |
+| `$value_type == Enum` | an enum only, not a plain `Symbol` (proposed by Claude, unconfirmed: `JsonReader` and `BinaryFormat` need it to read a plain `Symbol` through `Symbol(text)` and an enum through the text cast) |
 
 A union name is true for any of its members. Such a test always folds, `--development` included, because the
 branch it rules out would not compile.

@@ -335,6 +335,11 @@ and balanced allocations.
     error naming `copy()`. `Memory.Arena` is built; only a class some line places carries the allocator's two
     pointers. **Waiting on Mortaro:** `mortaros_missing_decisions.md` 173-175. **Not done:** D154's list buffer
     following its list, `Vector<T>`, `Memory.Frame`, an arena's `reset()`, reading `.memory.allocator`.
+32. **Done (2026-09-26): D208 -- `JsonWriter`/`JsonReader` and `BinaryWriter`/`BinaryReader`** (`docs/json.md`;
+    the "implements D208" row). `Json` is gone and its name is an error naming the pair; the binary format is
+    documented and stable; `benchmarks/serialisation` measures both. **Waiting on Mortaro:** the names and readings
+    marked proposed in `docs/json.md`, and the schema hash proposal there. **Not done:** the schema hash,
+    `Vector<T>` attributes in what the writers see, and SlopEngine moving from `Pack<T>` to `BinaryWriter`.
 
 ## Later, deliberately deferred
 
