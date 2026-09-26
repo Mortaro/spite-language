@@ -1,0 +1,7 @@
+Point 850866074058599475
+Place -5694120103179874392
+same class, same schema: true
+writer and reader agree: true
+same layout, other name, other schema: true
+Route 124125812576056860, reader 124125812576056860
+read back 0  0

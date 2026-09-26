@@ -194,6 +194,8 @@ func reopened_classes(): List<String> {
         "typed_memory"
         "weak"
         "inline_memory"
+        "binary_writer"
+        "binary_reader"
         "dynamic_library"
         "hot_reload"
         "concurrent"
@@ -374,6 +376,9 @@ func supplied_members(stem: String): List<String> {
     }
     if stem == "inline_memory" {
         return inline_memory_members()
+    }
+    if stem == "binary_writer" or stem == "binary_reader" {
+        return ["func schema(): Long", "written per value type by the generator: a constant hash of the attribute walk"]
     }
     if stem == "concurrent" {
         return concurrent_members()

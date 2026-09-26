@@ -1,0 +1,3 @@
+var name = ""
+var stops = List<Point>()
+var next: Route? = null

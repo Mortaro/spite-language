@@ -376,7 +376,9 @@ if `null` is wanted. **Between Spite programs, and for files a Spite program rea
 `BinaryWriter(value).write(): Vector<Byte>` (or `append_to(bytes)` to add to a buffer you have) and
 `BinaryReader<T>(bytes).read(): T?`, which reads the next value each call and is `null` on bytes that are not a `T`;
 a quarter of JSON's size and more than ten times faster, with no keys, so both ends must be built from the same
-classes. `read_memory(address, count)` reads straight from a socket's buffer. Attributes named `_...` are left out
+classes. `read_memory(address, count)` reads straight from a socket's buffer. To catch two ends built from
+different classes, write `writer.schema()` (a `Long` the compiler works out from the classes, free to ask) once at
+the start of a file or connection and compare it with `reader.schema()` before reading. Attributes named `_...` are left out
 of both. A union, a `type` (`Anything` included) or a function value anywhere in what they see is a compile error at
 the line that makes the writer or reader (`JsonWriter cannot write 'Owner': 'Owner.pet' is the union Pet, ...`):
 keep what they see to the kinds above ([json.md](json.md)). `Json` no longer exists: it is the two classes above.

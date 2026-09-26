@@ -206,6 +206,7 @@ var failed_constraints = List<String>()
 var call_effects = CallEffects()
 var pending_calls = List<Syntax.Expressions.Expression>()
 var pending_call_lines = List<Integer>()
+var schema_pending = "0 /* the schema hash, written when the function is emitted */"
 
 func report(message: String) {
     has_error = true
@@ -4649,6 +4650,10 @@ func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInf
         if class_path == "memory/address" {
             function.supplied_body = address_body(function)
         }
+        if class_path == "binary_writer" or class_path == "binary_reader" {
+            maths_macros[function.c_name] = false
+            function.supplied_body = "#define {function.c_name}(self) {schema_pending}"
+        }
         if class_path == "scheduler" and function.name.ends_with("_check_point") {
             function.supplied_body = check_point_flag_body(function.name)
         }
@@ -4725,6 +4730,82 @@ func maths_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo
     var value_type = value_class_type(information)
     var c_type = c_type_name(value_type)
     return maths.whole_body(function.c_name, function.name, c_type)
+}
+
+func schema_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    crash information.codegen_types[0]
+    var value_type = information.codegen_types[0]
+    var visiting = List<String>()
+    var text = schema_text(value_type, visiting)
+    var hashing = SchemaHash()
+    var hash = hashing.hash_of(text)
+    var literal = long_literal(hash)
+    return "#define {function.c_name}(self) ((void)(self), (int64_t){literal}) /* {text} */"
+}
+
+func long_literal(value: Long): String {
+    if value == -9223372036854775807 - 1 {
+        return "(-9223372036854775807LL - 1)"
+    }
+    return "({value}LL)"
+}
+
+func schema_text(spite_type: Analysis.SpiteType, visiting: List<String>): String {
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.get_inner()
+        var inner_text = schema_text(inner, visiting)
+        return "{inner_text}?"
+    }
+    var listed = type_shape.as_list(spite_type)
+    if listed {
+        var element = listed.get_element()
+        var element_text = schema_text(element, visiting)
+        return "List<{element_text}>"
+    }
+    var mapped = type_shape.as_dictionary(spite_type)
+    if mapped {
+        var entry = mapped.get_element()
+        var entry_text = schema_text(entry, visiting)
+        return "Dictionary<{entry_text}>"
+    }
+    var shown = type_display_name(spite_type)
+    var enumerated = type_shape.as_enum(spite_type)
+    if enumerated {
+        var values_text = enumerated.values.join(",")
+        return "{shown}({values_text})"
+    }
+    var information = schema_class(spite_type)
+    if not information {
+        return shown
+    }
+    crash information
+    if visiting.contains(information.c_name) {
+        return information.qualified_dotted
+    }
+    visiting.append(information.c_name)
+    var parts = List<String>()
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        if not field.name.starts_with("_") {
+            var field_type = field.get_type()
+            var field_text = schema_text(field_type, visiting)
+            parts.append("{field.name}:{field_text}")
+        }
+        index = index + 1
+    }
+    visiting.remove_last()
+    var parts_text = parts.join(";")
+    return "{information.qualified_dotted}\{{parts_text}}"
+}
+
+func schema_class(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var class_ref = type_shape.as_class_ref(spite_type)
+    assert class_ref and not class_ref.has_signature
+    var information = find_class_by_c_name(class_ref.c_name)
+    assert information and not information.is_value_class
+    return information
 }
 
 func bit_view_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
@@ -21285,6 +21366,9 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
     assert not function.is_emitted
     function.is_emitted = true
     if is_inline_supplied(function) {
+        if function.supplied_body.ends_with(schema_pending) {
+            function.supplied_body = schema_body(information, function)
+        }
         note_maths_macro(function)
         builder.add_typedef(function.supplied_body)
         return

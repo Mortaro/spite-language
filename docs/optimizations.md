@@ -1088,6 +1088,14 @@ on another whose C library rounds a last bit differently gets the compiling syst
 its own for the rest; `sqrt`, `floor`, `ceil`, `round`, `trunc`, `fabs`, `fmin` and `fmax` are exact everywhere, so
 only the transcendental functions can differ, by at most that last bit. **Built.**
 
+### A binary schema is a constant
+
+**What it does.** `BinaryWriter<T>.schema()` and `BinaryReader<T>.schema()` ([json.md](json.md#the-schema-hash),
+[D215](decisions.md)) are worked out while compiling: the compiler writes the attribute walk of `T` as text, hashes
+it with FNV-1a, and the C gets a macro that is the number, with the text beside it in a comment. **When.** Every
+build, for each `T` a writer or reader is made for and whose `schema()` is called; nothing is emitted otherwise.
+**What you notice.** Nothing: no walk runs and nothing is allocated when a program asks. **Built.**
+
 ### A number's bits are read in place
 
 **What it does.** `Float.bits()`, `Double.bits()`, `UnsignedInteger.bits_as_float()`, `Long.bits_as_double()` and
