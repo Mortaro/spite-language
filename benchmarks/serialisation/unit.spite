@@ -1,0 +1,25 @@
+enum Kind {
+    'worker'
+    'soldier'
+    'scout'
+}
+
+var id = 0
+var name = ""
+var across: Float = 0.0
+var down: Float = 0.0
+var health: Short = 100
+var alive = true
+var kind: Kind = 'worker'
+
+func Unit(new_id: Integer, new_name: String) {
+    id = new_id
+    name = new_name
+    across = new_id % 640
+    down = new_id % 480
+    health = new_id % 100
+    alive = new_id % 5 != 0
+    if new_id % 3 == 1 {
+        kind = 'soldier'
+    }
+}

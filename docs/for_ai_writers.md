@@ -84,7 +84,7 @@ func is_alive(): Boolean {
   `'Bundle.CounterButton(screen.id)' is constructed inside an argument of 'world.create_entity_from_bundle': a
   constructor call is never an argument, so make it first on a line of its own, 'var counter_button =
   Bundle.CounterButton(screen.id)', and pass 'counter_button'`. That goes for `Label(Font())` and
-  `buffers.set(List<String>())` too. A constructor read at once is fine (`Json(order).write()`), and
+  `buffers.set(List<String>())` too. A constructor read at once is fine (`JsonWriter(order).write()`), and
   `Parallel(worker.run)` passes a function, not an object.
 - The two branches of an `if`/`else` never compute the same call (`'measure(2)' is computed in both branches`):
   compute it once before the `if`.
@@ -338,13 +338,19 @@ in for what the function returns and reading it is the wait (there is no `.wait(
 member may read only its own element's plain values, and a `Parallel(f)` only its own instance's plain values, its locals, singletons, a `Lock` or a `ThreadLocal`; anything else is an error naming the attribute. There is no `async`/`await`: a function
 that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can
 run ([concurrency.md](concurrency.md)).
-`Json(value).write(): String` writes JSON and `Json<T>(null)` reads it (`read(text): T?`,
-`read_or_crash(text): T`), for any class, list, dictionary, enum, number, `Boolean`, `String` or `T?`; `read` skips unknown keys, keeps defaults for
-missing ones, and is `null` on a value of the wrong kind; a `Symbol` reads back only as a name the program already
-uses. Writing a `Float` or `Double` that is infinity or not-a-number crashes naming the attribute (`'Order.price'
-is infinity, which JSON cannot hold`): check the number first if `null` is wanted. A union, a `type` (`Anything` included) or a function value anywhere in what `Json` sees is a compile error
-at the line that makes the `Json` (`Json cannot write or read 'Owner': 'Owner.pet' is the union Pet, ...`):
-keep what `Json` sees to the kinds above ([json.md](json.md)).
+`JsonWriter(value).write(): String` writes JSON and `JsonReader<T>(text).read(): T?` reads it
+(`read_or_crash(): T` halts instead), for any class, list, dictionary, enum, number, `Boolean`, `String` or `T?`;
+`read` skips unknown keys, keeps defaults for missing ones, and is `null` on a value of the wrong kind; a `Symbol`
+reads back only as a name the program already uses. Writing a `Float` or `Double` that is infinity or not-a-number
+to JSON crashes naming the attribute (`'Order.price' is infinity, which JSON cannot hold`): check the number first
+if `null` is wanted. **Between Spite programs, and for files a Spite program reads back, use bytes instead**:
+`BinaryWriter(value).write(): Vector<Byte>` (or `append_to(bytes)` to add to a buffer you have) and
+`BinaryReader<T>(bytes).read(): T?`, which reads the next value each call and is `null` on bytes that are not a `T`;
+a quarter of JSON's size and more than ten times faster, with no keys, so both ends must be built from the same
+classes. `read_memory(address, count)` reads straight from a socket's buffer. Attributes named `_...` are left out
+of both. A union, a `type` (`Anything` included) or a function value anywhere in what they see is a compile error at
+the line that makes the writer or reader (`JsonWriter cannot write 'Owner': 'Owner.pet' is the union Pet, ...`):
+keep what they see to the kinds above ([json.md](json.md)). `Json` no longer exists: it is the two classes above.
 Time is stored as an `Instant` and nothing else: `clock.now()`, or `Instant(since_1970)` with
 `var since_1970 = Duration(1710054000, 'seconds')`.
 `Duration(90, 'minutes')` is exact time (no days: `Duration(1, 'days')` is an error); `Period(1, 'months')` is

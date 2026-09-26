@@ -7,13 +7,19 @@ var console = Console()
 
 func JsonUnwritable() {
     var owner = Owner()
-    var owner_json = Json(owner)
+    var owner_json = JsonWriter(owner)
     var owner_text = owner_json.write()
     var widget = Widget()
-    var widget_json = Json(widget)
+    var widget_json = JsonWriter(widget)
     var widget_text = widget_json.write()
-    var button_reader = Json<Button>(null)
-    var button = button_reader.read("\{}")
+    var button_reader = JsonReader<Button>("\{}")
+    var button = button_reader.read()
     crash button
-    console.print(owner_text, widget_text, button.label)
+    var owner_bytes = BinaryReader<Owner>(null)
+    var read_owner = owner_bytes.read()
+    crash read_owner
+    var button_writer = BinaryWriter(button)
+    var button_bytes = button_writer.write()
+    var byte_count = button_bytes.count()
+    console.print(owner_text, widget_text, button.label, read_owner.name, byte_count)
 }

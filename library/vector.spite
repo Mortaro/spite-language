@@ -155,6 +155,18 @@ func drop() {
     heap.free(items)
 }
 
+func reserve(wanted: Integer) {
+    if wanted > capacity {
+        var grown = capacity * 2
+        if grown < wanted {
+            grown = wanted
+        }
+        var bytes = values.block_bytes(grown)
+        items = heap.resize(items, bytes)
+        capacity = grown
+    }
+}
+
 func make_room() {
     if item_count == capacity {
         var grown = capacity * 2

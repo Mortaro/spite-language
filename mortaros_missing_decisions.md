@@ -298,3 +298,16 @@ Behaviour that does not match the manual. The language was not changed; each is 
      whose default is a real answer be exempt, and if so, how would the compiler recognise one (a name such as
      `size`/`count`/`length`, a function returning a number that never returns `null`-like absence elsewhere, a
      mark written on the function)?
+
+## `JsonWriter`/`JsonReader` and `BinaryWriter`/`BinaryReader` (D208)
+
+201. **A schema hash for binary files and handshakes (D31).** The bytes carry no header, so values can share one
+     buffer; a file or a connection that wants to refuse bytes from a different build of its classes would write a
+     hash of the attribute walk once, ahead of them. Proposed (Claude, unconfirmed; `docs/json.md`, "The binary
+     format"): `BinaryWriter<T>.schema(): Long`, computed while compiling from each attribute's name and type,
+     recursively, and each enum's values in order. Not built: nothing in the language computes a constant from a
+     type walk at compile time yet. Want it, and should the reader check it itself (`BinaryReader<T>` given the
+     hash) or leave the comparison to the program?
+202. **The names.** Built (Claude, unconfirmed): `append_to(bytes)` for writing onto a buffer the program has,
+     `read_memory(address, count)` for reading a socket's buffer without a copy, `position` and `remaining()` on the
+     reader, and no `read_or_crash()` for bytes (JSON keeps it). Keep them?

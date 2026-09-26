@@ -35,7 +35,8 @@ REPL can look at any of it ([D143](decisions.md)).
 | `Clock` | elapsed time for measuring, and the wall clock | [below](#clock) |
 | `Instant`, `Duration`, `Date`, `Time`, `DateTime`, `Period`, `TimeZone`, `TimeZones`, `TimeText` | exact time, the calendar, time zones as presentation, ISO 8601 text | [time.md](time.md) |
 | `Environment`, `Build`, `Arguments` | settings and the command line | [programs.md](programs.md) |
-| `Json<T>` | any value to JSON text and back | [json.md](json.md) |
+| `JsonWriter<T>`, `JsonReader<T>` | any value to JSON text and back | [json.md](json.md) |
+| `BinaryWriter<T>`, `BinaryReader<T>` | any value to compact bytes (a `Vector<Byte>`) and back, for Spite programs talking to each other and for files | [json.md](json.md#write-and-read-bytes) |
 | `Concurrent`, `Parallel`, `ThreadPool` | run a function while waiting, or on the thread pool; the handle is the value | [concurrency.md](concurrency.md) |
 | `ThreadLocal<T>`, `Lock`, `ThreadSlot` | a value per thread, and a lock | [concurrency.md](concurrency.md#a-value-per-thread-and-a-lock) |
 | `Socket` | TCP over IPv4: listen, connect, lines and bytes, waiting or not | [below](#socket) |
@@ -46,7 +47,7 @@ REPL can look at any of it ([D143](decisions.md)).
 
 The other files of `library/` are the machinery these are built from -- `Scheduler` (the event loop under
 `Concurrent`), `HotReload`, `ReadEvaluatePrintLoop`, `AllocationTable` (`--debug-memory`'s table), `NumberText`,
-`JsonReader`, the time-zone readers -- ordinary classes a program can read and the REPL can inspect, which a
+`JsonCursor`, `BinaryFormat`, the time-zone readers -- ordinary classes a program can read and the REPL can inspect, which a
 program has no reason to call.
 
 ## `String`
@@ -718,7 +719,7 @@ What follows is Claude's reading (proposed by Claude, unconfirmed):
 - **Private attributes are left out.** The walk is the plural attribute template ([Symbol codegen](metaprogramming.md#symbol-codegen--implemented)) run from
   `Spite.DebugInstance`, and a plural over another class's attributes now ranges over the ones that class lets
   others read: a `_` attribute is its own business, and reading it from outside would be the ordinary private
-  error. `Json` follows the same rule.
+  error. The JSON and binary writers and readers follow the same rule.
 - **A cycle ends at an object already being shown**: it is written `Name {...}`, so `first.next.next` pointing
   back at `first` shows `Node { value: 1, next: Node { value: 2, next: Node {...} } }`. Each class keeps the
   objects it is in the middle of showing, compared with `==` (identity, unless the class defines `equals`), and
@@ -816,7 +817,7 @@ the reads, writes and atomics at an address, as language primitives each backend
 | `File`, `Directory`, `Process`, `Program`, `Console.read_line`, `Clock`, `Socket`, `Watcher`, `ThreadPool`, `Lock`, `ThreadSlot`, the time-zone database | written once in `library/`; each operating system's folder reopens the class with the few functions that call its own library (`ucrtbase.dll`/`kernel32.dll`, `libc.so.6`, `libSystem.dylib`) through `DynamicLibrary` (D71, D80). Only `library/windows/` runs today; the Linux and macOS folders are held to compiling |
 | `--debug-memory`'s live table | `AllocationTable` (`library/allocation_table.spite`), an open-addressing set of live addresses with each object's class id beside it, which prints the leak report; the compiler emits only the small functions `SPITE_MALLOC`, `SPITE_REALLOC` and `SPITE_FREE` call under `--debug-memory` (the allocation-table row of the decision log, proposed by Claude, unconfirmed) |
 | the REPL, live reload, the event loop | `ReadEvaluatePrintLoop`, `HotReload` and `Scheduler`, over reflection tables the compiler generates |
-| printing, `to_debug()`, `Json<T>` | `Console`, `Spite.Debug<T>`, `Spite.DebugInstance<T>` and `Json<T>` ([json.md](json.md)) |
+| printing, `to_debug()`, JSON and bytes | `Console`, `Spite.Debug<T>`, `Spite.DebugInstance<T>`, `JsonWriter<T>`, `JsonReader<T>`, `BinaryWriter<T>` and `BinaryReader<T>` ([json.md](json.md)) |
 
 **What is still the compiler's** -- the floor, and what is left of D147's work:
 

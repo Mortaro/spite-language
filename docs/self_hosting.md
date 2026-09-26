@@ -53,7 +53,7 @@ rest is what keeps the language honest about what it says it does.
 ```
 bin/spite                        the command: builds the compiler from the seed, then runs it
 launcher/launcher.spite          loads the standard library, the target system's folder, then the program
-library/                         the standard library, in Spite: String, List, the numbers, File, Json, ...
+library/                         the standard library, in Spite: String, List, the numbers, File, JsonWriter, BinaryWriter, ...
 library/spite/                   reflection: Spite.Class, Spite.Function and the rest
 library/windows|linux|mac/       what each operating system does differently, as reopened classes
 bootstrap/bootstrap.spite        the compiler's entry class, Bootstrap

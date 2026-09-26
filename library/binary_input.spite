@@ -1,0 +1,98 @@
+var address: Memory.Address = 0
+var count = 0
+var position = 0
+var failed = false
+var walked = 0
+var found = 0
+var found_name = ""
+
+func fail() {
+    failed = true
+    position = count
+}
+
+func take(wanted: Integer): Boolean {
+    if failed or wanted > count - position {
+        fail()
+        return false
+    }
+    position = position + wanted
+    return true
+}
+
+func read_byte(): Integer {
+    assert take(1)
+    var value: Integer = address.read_byte(position - 1)
+    return value
+}
+
+func read_short(): Integer {
+    assert take(2)
+    var value: Integer = address.read_short(position - 2)
+    return value
+}
+
+func read_unsigned_short(): Integer {
+    assert take(2)
+    var value: Integer = address.read_unsigned_short(position - 2)
+    return value
+}
+
+func read_integer(): Integer {
+    assert take(4)
+    return address.read_integer(position - 4)
+}
+
+func read_long(): Long {
+    assert take(8)
+    return address.read_long(position - 8)
+}
+
+func read_float(): Float {
+    assert take(4)
+    return address.read_float(position - 4)
+}
+
+func read_double(): Double {
+    assert take(8)
+    return address.read_double(position - 8)
+}
+
+func read_count(): Integer {
+    var result: Long = 0
+    var scale: Long = 1
+    var more = true
+    while more and not failed {
+        var byte = read_byte()
+        result = result + scale * (byte % 128)
+        scale = scale * 128
+        more = byte >= 128
+        if result > count - position or scale > 34359738368 {
+            fail()
+        }
+    }
+    var counted: Integer = result
+    return counted
+}
+
+func read_text(): String {
+    var length = read_count()
+    assert take(length)
+    var start = address + (position - length)
+    return start.text(length)
+}
+
+func read_index() {
+    var index = 0
+    if walked <= 256 {
+        index = read_byte()
+    } else if walked <= 65536 {
+        index = read_unsigned_short()
+    } else {
+        index = read_integer()
+    }
+    if index < 0 or index >= walked {
+        fail()
+    }
+    found = index
+}

@@ -133,7 +133,7 @@ func WrittenNotRead() {
 An attribute nothing reads is an error the same way (D118): remove it. A private `_name` attribute is no
 exception, since only its own class can read it. Writing an attribute is not reading it, so one that is only
 assigned is still unused. A read is anything that takes the attribute's value -- its name in the class's own
-functions, `thing.world` from another class, `x.attributes[attribute]` in a Symbol template (which is how `Json`
+functions, `thing.world` from another class, `x.attributes[attribute]` in a Symbol template (which is how the JSON and binary writers
 and `to_debug()` read), and the rest [in the rules](#unused-is-an-error--implemented). A template that only looks
 at `attribute.name` or `attribute.class` reads the attribute's description, not the attribute, so an attribute
 kept only as a marker for such a walk is an error:
@@ -290,7 +290,7 @@ func ConstructorArgumentError() {
 
 A constructor is a call whose last name starts with an upper-case letter, so this covers a constructor inside
 another constructor's arguments (`Label(Font())`) and a collection made for a call
-(`buffers.set(List<String>())`). An object made to be read at once is not an argument: `Json(order).write()` is
+(`buffers.set(List<String>())`). An object made to be read at once is not an argument: `JsonWriter(order).write()` is
 fine, and so is `var label = Label("new")` itself. `Parallel(worker.run)` passes a function value, not an object.
 
 **An `if` and its `else` do not repeat the same work.** When both branches compute the same call, it is
@@ -384,7 +384,7 @@ parameters are the author's free choice and the ordinary rule applies.
 cause a compiler error." The message names the attribute and the fix, `the attribute 'world' is never read:
 remove it` -- since D137 no spelling keeps an unread attribute (`diagnostics/unused_attributes`,
 `conformance/stage6/attribute_uses`). **A compile-time walk counts only when it reads the attribute's value**
-(D118, the ruling on walks): `x.attributes[attribute]` read in a Symbol template, and so `Json` and
+(D118, the ruling on walks): `x.attributes[attribute]` read in a Symbol template, and so the JSON and binary writers and
 `to_debug()`, and the REPL's display. `attribute.name` and `attribute.class` are the attribute's description, not its value, so SlopEngine's
 scheduling markers -- `var world = Resource.World()` that only a classify walk inspects -- are errors.
 
@@ -479,7 +479,7 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   (`buffers.set(List<String>())`), and every argument list: of a `var`, an assignment, a call standing alone, a
   `return`, an `assert` or `crash`, an `if`, `while` or `switch` condition, an attribute's default, and a call
   inside a text's hole. The readings below are **(proposed by Claude, unconfirmed)**: a constructor used as a
-  receiver (`Json(order).write()`) and the whole value of a `var` are not arguments; `Parallel(worker.run)` and
+  receiver (`JsonWriter(order).write()`) and the whole value of a `var` are not arguments; `Parallel(worker.run)` and
   `Concurrent(worker.run)` take a function value, so they are fine; a singleton's constructor passed as an
   argument keeps its own error (D110) instead of this one. **[implemented]**
   - Open for Mortaro: D18's markup nests tag calls (`html.div({ class: "card" }, html.h1(title), ...)` in

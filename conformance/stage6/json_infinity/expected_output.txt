@@ -1,2 +1,2 @@
-spite.crash	15a05c98	library/json.spite:92	Json	written_decimal	unwritable == ""	unwritable='Order.price' is infinity, which JSON cannot hold
+spite.crash	3f50dc9f	library/json_writer.spite:92	JsonWriter	written_decimal	unwritable == ""	unwritable='Order.price' is infinity, which JSON cannot hold
 {"item":"tea","price":2.5}

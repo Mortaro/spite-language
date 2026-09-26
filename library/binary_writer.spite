@@ -1,0 +1,20 @@
+generic $value_type
+
+var value: $value_type? = null
+var format = BinaryFormat<$value_type>()
+
+func BinaryWriter(new_value: $value_type?) {
+    value = new_value
+}
+
+func write(): Vector<Byte> {
+    var bytes = Vector<Byte>()
+    append_to(bytes)
+    return bytes
+}
+
+func append_to(bytes: Vector<Byte>) {
+    assert value
+    var output = BinaryOutput(bytes)
+    format.write(value, output)
+}

@@ -68,7 +68,7 @@ Read them in this order the first time; each page assumes the ones before it.
     the console, the program, sockets, and the floor the library is built on.
 15. [collections.md](collections.md) -- `List` and `Dictionary` as library code, member templates, chains that
     run as one loop, templates of your own.
-16. [json.md](json.md) -- `Json<T>`: any value to JSON text and back.
+16. [json.md](json.md) -- `JsonWriter`/`JsonReader` and `BinaryWriter`/`BinaryReader`: any value to JSON text or compact bytes and back.
 17. [time.md](time.md) -- instants, durations, the calendar, time zones as presentation, and ISO 8601 text.
 18. [foreign_libraries.md](foreign_libraries.md) -- `DynamicLibrary`, and how each operating system's folder
     reopens the classes it changes.

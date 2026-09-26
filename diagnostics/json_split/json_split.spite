@@ -1,0 +1,11 @@
+var console = Console()
+
+func JsonSplit() {
+    var scores = [1, 2]
+    var writer = Json(scores)
+    var text = writer.write()
+    var reader = Json<List<Integer>>(null)
+    var read = reader.read(text)
+    var held: Json<List<Integer>>? = null
+    console.print(text, read, held)
+}

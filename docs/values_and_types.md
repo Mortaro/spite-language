@@ -691,7 +691,7 @@ by `-1` wraps to itself and its remainder is `0`, where C would trap (proposed b
 answer). Float division stays IEEE 754 (D200): `x / 0.0` is infinity or not-a-number.
 - **Floats keep infinity and not-a-number** (D200, decided by Mortaro): `Float` and `Double` are IEEE 754 as the
   hardware gives them, with no check after an operation that can overflow; they are dealt with where they cannot
-  be represented, as `Json` does (D198, [json.md](json.md)).
+  be represented, as `JsonWriter` does (D198, [json.md](json.md)).
 
 Printing a `Float`/`Double` uses shortest-round-trip formatting (try the fewest significant digits that parse
 back to the exact same value) rather than a fixed number of digits, so an ordinary value like `0.1` prints `0.1`
@@ -814,6 +814,10 @@ readings below proposed by Claude, unconfirmed]**
   ([Symbol codegen](metaprogramming.md#symbol-codegen--implemented)): `course.name` is the value's name as text, `course.value` the value itself typed as `Course`, and
   the plural (`list_courses()` for `list_course`) calls the template once per value in the enum's order;
   `list_soup()` calls it for one, and a name the enum does not have is an error listing the ones it does.
+- **A generic walks the enum it is given the same way** (proposed by Claude, unconfirmed; built for D208's
+  `BinaryWriter`, 2026-09-26): in a generic class, `value: Symbol<$value_type>` ranges over the enum's values when
+  `$value_type` is an enum and over the attributes when it is a class, decided for each instance while compiling.
+  `library/binary_format.spite` finds an enum value's index and the number of values this way.
 - **All of it is compile time and tree-shaken (D177).** A walk expands into one ordinary call per value, and
   `course.value` into the constant, as `--final-classes` shows; no table of an enum's values, names or order
   exists at run time, and a program that never walks an enum carries nothing for it.

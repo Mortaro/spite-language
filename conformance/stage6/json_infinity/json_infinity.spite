@@ -2,13 +2,13 @@ var console = Console()
 
 func JsonInfinity() {
     var order = Order()
-    var fine = Json(order)
+    var fine = JsonWriter(order)
     var fine_text = fine.write()
     console.print(fine_text)
     var zero: Double = 0.0
     var one: Double = 1.0
     order.price = one / zero
-    var broken = Json(order)
+    var broken = JsonWriter(order)
     var broken_text = broken.write()
     console.print("never printed", broken_text)
 }

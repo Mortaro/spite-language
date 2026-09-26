@@ -28,7 +28,7 @@ var function_value_makers = List<String>()
 var read_evaluate_print_loop = false
 var console_loop = false
 var remote_loop_port = 0
-var refused_json_path = ""
+var refused_serialiser = false
 var division_check_written = false
 var weak_runtime_written = false
 var weak_classes = List<String>()
@@ -189,7 +189,7 @@ var pending_call_lines = List<Integer>()
 func report(message: String) {
     has_error = true
     assert not statement_poisoned
-    assert refused_json_path.is_empty() or current_path != refused_json_path
+    assert not refused_serialiser or not is_serialiser_path(current_path)
     var line = "{current_path}:{current_line}: error: {message} (in {current_owner}.{current_function})"
     assert not error_lines.contains(line)
     if error_lines.count() == 25 {
@@ -1188,9 +1188,9 @@ func instantiated_with(
     instance.holds_nothing = template.holds_nothing
     instance.is_container = template.qualified_dotted == "TypedMemory" or template.qualified_dotted == "InlineMemory"
     instance.is_instantiated = true
-    if template.qualified_dotted == "Json" and not current_path.starts_with("library/") {
+    if is_serialiser(template) and not current_path.starts_with("library/") {
         var written_type = types.first()
-        refuse_unwritable_json(template, written_type)
+        refuse_unwritable(template, written_type)
     }
     classes.append(instance)
     builder.add_typedef("typedef struct {label} {label};")
@@ -1236,32 +1236,50 @@ func instantiated_with(
     return instance
 }
 
-func refuse_unwritable_json(template: Analysis.ClassInfo, written: Analysis.SpiteType) {
-    var visited = List<String>()
-    var problem = unwritable_json(written, "", visited)
-    assert not problem.is_empty()
-    var json_type_name = type_display_name(written)
-    report(
-        "Json cannot write or read '{json_type_name}': {problem}. Json handles classes, lists, dictionaries, enums, Symbols, numbers, Boolean, String and 'T?', so keep what it sees to those, or give Json a class of its own that holds only them",
-    )
-    refused_json_path = template.source_path
+func is_serialiser(template: Analysis.ClassInfo): Boolean {
+    var name = template.qualified_dotted
+    return name == "JsonWriter" or name == "JsonReader" or name == "BinaryWriter" or name == "BinaryReader"
 }
 
-func unwritable_json(spite_type: Analysis.SpiteType, path: String, visited: List<String>): String {
+func is_serialiser_path(path: String): Boolean {
+    return path.starts_with("library/json_") or path.starts_with("library/binary_")
+}
+
+func refuse_unwritable(template: Analysis.ClassInfo, written: Analysis.SpiteType) {
+    var format = "binary"
+    if template.qualified_dotted.starts_with("Json") {
+        format = "JSON"
+    }
+    var verb = "write"
+    if template.qualified_dotted.ends_with("Reader") {
+        verb = "read"
+    }
+    var visited = List<String>()
+    var problem = unwritable_json(written, "", visited, format)
+    assert not problem.is_empty()
+    var serialised_type = type_display_name(written)
+    var serialiser = template.qualified_dotted
+    report(
+        "{serialiser} cannot {verb} '{serialised_type}': {problem}. {serialiser} handles classes, lists, dictionaries, enums, Symbols, numbers, Boolean, String and 'T?', so keep what it sees to those, or give it a class of its own that holds only them",
+    )
+    refused_serialiser = true
+}
+
+func unwritable_json(spite_type: Analysis.SpiteType, path: String, visited: List<String>, format: String): String {
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
         var inner = nullable.get_inner()
-        return unwritable_json(inner, path, visited)
+        return unwritable_json(inner, path, visited, format)
     }
     var listed = type_shape.as_list(spite_type)
     if listed {
         var element = listed.get_element()
-        return unwritable_json(element, path, visited)
+        return unwritable_json(element, path, visited, format)
     }
     var mapped = type_shape.as_dictionary(spite_type)
     if mapped {
         var entry = mapped.get_element()
-        return unwritable_json(entry, path, visited)
+        return unwritable_json(entry, path, visited, format)
     }
     var shown = type_display_name(spite_type)
     var named = "it"
@@ -1269,34 +1287,37 @@ func unwritable_json(spite_type: Analysis.SpiteType, path: String, visited: List
         named = "'{path}'"
     }
     if type_shape.as_union(spite_type) {
-        return unwritable_union(spite_type, named, shown)
+        return unwritable_union(spite_type, named, shown, format)
     }
     var class_ref = type_shape.as_class_ref(spite_type)
     assert class_ref
     if class_ref.has_signature or class_ref.c_name == "Spite_Function" {
-        return "{named} is a function value, {shown}, which has no JSON form"
+        return "{named} is a function value, {shown}, which has no {format} form"
     }
     assert not visited.contains(class_ref.c_name)
     visited.append(class_ref.c_name)
     var information = find_class_by_c_name(class_ref.c_name)
     assert information
     assert not information.is_value_class and not information.is_generic_template
-    return unwritable_attribute(information, visited)
+    return unwritable_attribute(information, visited, format)
 }
 
-func unwritable_union(spite_type: Analysis.SpiteType, named: String, shown: String): String {
+func unwritable_union(spite_type: Analysis.SpiteType, named: String, shown: String, format: String): String {
     if is_shape_type(spite_type) {
         return "{named} is typed as the 'type' {shown}, which says what it has, not what it is, so there is no class to read it back into"
     }
-    return "{named} is the union {shown}, and JSON does not say which member a value is"
+    if format == "JSON" {
+        return "{named} is the union {shown}, and JSON does not say which member a value is"
+    }
+    return "{named} is the union {shown}, and the bytes do not say which member a value is"
 }
 
-func unwritable_attribute(information: Analysis.ClassInfo, visited: List<String>): String {
+func unwritable_attribute(information: Analysis.ClassInfo, visited: List<String>, format: String): String {
     var index = 0
     while index < information.fields.count() {
         var field = information.fields[index]
         var field_type = field.get_type()
-        var problem = unwritable_json(field_type, "{information.simple_name}.{field.name}", visited)
+        var problem = unwritable_json(field_type, "{information.simple_name}.{field.name}", visited, format)
         if not problem.is_empty() {
             return problem
         }
@@ -3225,12 +3246,12 @@ func template_range_kind(information: Analysis.ClassInfo, template: Analysis.Tem
     }
     var path = range_path(template)
     if path.is_empty() {
-        return "class"
+        return codegen_range_kind(information, template)
     }
     var first_segment = path.first()
     crash first_segment
     if first_segment.starts_with("$") {
-        return "class"
+        return codegen_range_kind(information, template)
     }
     var joined = path.join(".")
     if find_class(joined, information.namespace_dotted) or find_union(joined) {
@@ -3251,6 +3272,21 @@ func template_range_kind(information: Analysis.ClassInfo, template: Analysis.Tem
         return "enum"
     }
     return "namespace"
+}
+
+func codegen_range_kind(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): String {
+    crash template.range
+    var saved_class = current_class
+    current_class = information
+    var range_type = resolve_type(template.range, information.qualified_dotted)
+    current_class = saved_class
+    if not range_type {
+        return "class"
+    }
+    if type_shape.as_enum(range_type) {
+        return "enum"
+    }
+    return "class"
 }
 
 func template_range_enum(information: Analysis.ClassInfo, template: Analysis.TemplateInfo): Analysis.EnumInfo? {
@@ -8488,6 +8524,12 @@ func reported_old_spelling(name: String): Boolean {
     if name == "Heap" {
         report(
             "there is no 'Heap<T>': a class, a list and a text are references already, so a class that holds one of its own kind declares an ordinary attribute, like 'var left: Expression? = null' ('Memory.Heap' is the allocator, for containers of your own)",
+        )
+        return true
+    }
+    if name == "Json" {
+        report(
+            "there is no 'Json': it is two classes (D208), 'JsonWriter(value)' whose 'write()' makes the text, and 'JsonReader<T>(text)' whose 'read()' answers a 'T?'",
         )
         return true
     }

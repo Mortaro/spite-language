@@ -76,7 +76,7 @@ this order, from a first program to the compiler's internals:
 13. [Concurrency](docs/concurrency.md) -- `Concurrent` and `Parallel`, without `async`/`await`.
 14. [Standard library](docs/standard_library.md) -- `String`, files, folders, processes, the console, sockets.
 15. [Collections](docs/collections.md) -- `List`, `Dictionary` and member templates.
-16. [JSON](docs/json.md) and [Time](docs/time.md).
+16. [JSON and binary](docs/json.md) and [Time](docs/time.md).
 17. [Foreign libraries](docs/foreign_libraries.md) -- `DynamicLibrary` and one folder per operating system.
 18. [Targets](docs/targets.md) -- planned: the web and isomorphic classes.
 19. [The compiler](docs/compiler.md), [the REPL and live reload](docs/repl.md), [testing](docs/testing.md),
@@ -101,7 +101,7 @@ The docs say, heading by heading, what is implemented, partial or planned; in sh
 | Reflection (`Spite.Class`, `Spite.Attribute`, `Spite.Function`, `Spite.Namespace`), read-only | implemented |
 | Memory: reference counting, the `Memory` namespace (`Memory.Address`, `Memory.Heap`, `Memory.Arena`), an allocator per object, `TypedMemory`, tree-shaken output | implemented; `Vector<T>` and `Memory.Frame` planned |
 | `Build` (compile time) and `Environment` (run time), the visible launcher | implemented |
-| Standard library in Spite: `String`, `List`, `Dictionary`, `Json<T>`, `File`, `Directory`, `Watcher`, `Process`, `Program`, `Console`, `Socket`, time (`Instant`, `Date`, `TimeZones`) | implemented |
+| Standard library in Spite: `String`, `List`, `Dictionary`, `JsonWriter`/`JsonReader`, `BinaryWriter`/`BinaryReader`, `File`, `Directory`, `Watcher`, `Process`, `Program`, `Console`, `Socket`, time (`Instant`, `Date`, `TimeZones`) | implemented |
 | Concurrency: `Concurrent` (compile-time state machines, hidden async IO) and `Parallel` (the thread pool), singletons made safe by the compiler | implemented on Windows; checking what a `Parallel` function reaches is not built |
 | Foreign libraries (`DynamicLibrary`), one folder per operating system | implemented; Linux and macOS folders compile but have never run |
 | REPL: `--repl`, `--repl-port`, `spite connect`; live reload (`--hot-reload`) | implemented; live reload runs on Windows ([docs/repl.md](docs/repl.md)) |

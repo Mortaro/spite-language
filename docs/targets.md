@@ -143,3 +143,8 @@ nothing has to be turned into strings to cross into JavaScript: the DOM command 
 are both opaque byte buffers. Proposed by Claude, unconfirmed: a schema hash in the handshake so an old client
 meeting a new server crashes with a clear report instead of misreading bytes, and `--development` decoding
 payloads to JSON on demand, since the compiler knows the schema.
+
+The packing itself is built (D208): `BinaryWriter` and `BinaryReader` write and read any value in exactly this form,
+and a program can already send their bytes over a `Socket` ([json.md](json.md#the-binary-format)). What is still
+planned is the rest -- isomorphic classes sending them on their own, the handshake's schema hash, and the
+`--development` decoding.
