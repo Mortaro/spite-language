@@ -1,0 +1,26 @@
+singleton
+
+var entity_count = 0
+var positions = Components<Position>()
+var velocities = Components<Velocity>()
+var journals = Components<Journal>()
+
+func spawn(): Integer {
+    entity_count = entity_count + 1
+    return entity_count - 1
+}
+
+func place(entity: Integer, left: Float) {
+    var position = Position(left)
+    positions.add(entity, position)
+}
+
+func push(entity: Integer, across: Float) {
+    var velocity = Velocity(across)
+    velocities.add(entity, velocity)
+}
+
+func open_journal(entity: Integer) {
+    var journal = Journal()
+    journals.add(entity, journal)
+}

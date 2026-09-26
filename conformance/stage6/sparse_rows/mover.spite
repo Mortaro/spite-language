@@ -1,0 +1,15 @@
+type Moving {
+    entity: Entity
+    position: Position
+    velocity: Velocity
+    journal: Journal
+}
+
+var moved = 0
+
+func update_each(moving: Moving) {
+    moving.position.left = moving.position.left + moving.velocity.across
+    moving.velocity.slow_down()
+    moving.journal.note("entity {moving.entity.id} left {moving.position.left}")
+    moved = moved + 1
+}

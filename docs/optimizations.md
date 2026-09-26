@@ -1010,6 +1010,19 @@ amounts to, in the caller, so the walk's template is not called and is not compi
 `--final-classes` shows no `fill_<attribute>` function for it. **Built** (2026-09-26; proposed by Claude,
 unconfirmed).
 
+A walked row over sparse columns (D217) is the same struct again. Its line is chosen for each attribute while
+compiling (`attribute.class == Entity`, `attribute.class.fits_vector()`), `attribute.index` is written in as a
+constant, and `Column<attribute.class>()` is the one singleton for that class, so nothing is looked up by name or
+place at run time. An attribute made by a construction of a class that could be a `Vector` item and holds nothing
+counted (`Entity(entity)`) is **made in the frame**: a struct beside the row, its defaults set and its
+constructor run on it, never allocated and never counted, living exactly as long as the row. Any other counted
+attribute, such as a reference read from a reference column, is counted once when the row is made and let go at
+the end of the row's block. **What you notice.** No allocation per row for a frame-made attribute
+(`conformance/stage6/sparse_rows` pins its count), and `benchmarks/sparse_rows`: 200 000 entities, two systems,
+7.4 ms a tick against 24.0 ms with reference columns and a reused row object. A frame-made object is not
+registered with `--debug-memory`'s table, like the row itself, and is not in `.instances`. **Built** (2026-09-26;
+proposed by Claude, unconfirmed).
+
 ### A proven divisor is not checked
 
 **Built.** A whole-number `/` or `%` checks its divisor for zero (D201, [values_and_types.md](values_and_types.md)),

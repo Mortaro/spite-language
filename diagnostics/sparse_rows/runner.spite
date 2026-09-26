@@ -1,0 +1,33 @@
+generic $row_type
+
+var found = Vector<Integer>()
+var keeper = Keeper()
+var last: $row_type? = null
+
+func run(entity: Integer) {
+    var row: $row_type = null
+    fill_attributes(row, found, entity)
+    last = row
+    keeper.spawn_while_moving(row)
+}
+
+func shift(entity: Integer) {
+    var row: $row_type = null
+    shift_attributes(row, found, entity)
+}
+
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: Vector<Integer>, entity: Integer) {
+    if attribute.class == Entity {
+        row.attributes[attribute] = Entity(entity)
+    } else {
+        row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
+    }
+}
+
+func shift_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: Vector<Integer>, entity: Integer) {
+    if attribute.class == Entity {
+        row.attributes[attribute] = Entity(entity)
+    } else {
+        row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index + 1]]
+    }
+}

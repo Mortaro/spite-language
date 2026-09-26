@@ -1,0 +1,51 @@
+var console = Console()
+var world = World()
+var runner = Runner<Moving>()
+var mover = Mover()
+var positions = Column<Position>()
+var journals = ReferenceColumn<Journal>()
+
+func SparseRows() {
+    var first = world.spawn()
+    var second = world.spawn()
+    var third = world.spawn()
+    var fourth = world.spawn()
+    world.place(first, 0.0)
+    world.place(second, 10.0)
+    world.place(third, 20.0)
+    world.place(fourth, 30.0)
+    world.push(fourth, 8.0)
+    world.push(second, 2.0)
+    world.push(first, 4.0)
+    world.open_journal(second)
+    world.open_journal(first)
+    world.open_journal(fourth)
+    world.open_journal(third)
+    runner.run(mover)
+    runner.run(mover)
+    var positions_inline = world.positions.inline()
+    var journals_inline = world.journals.inline()
+    console.print("positions inline", positions_inline, "journals inline", journals_inline)
+    var index = 0
+    while index < positions.values.count() {
+        var entity = positions.set.entities[index]
+        crash entity
+        console.print("entity", entity, "left", positions.values[index].left)
+        index = index + 1
+    }
+    var journal_index = 0
+    while journal_index < journals.values.count() {
+        var journal = journals.values[journal_index]
+        var lines = journal.lines.join(", ")
+        console.print(lines)
+        journal_index = journal_index + 1
+    }
+    console.print("moved", mover.moved, "rows")
+    var sample = Entity(9)
+    var sample_kind = sample.class
+    var sample_fits = sample_kind.fits_vector()
+    var first_journal = journals.at(0)
+    var journal_kind = first_journal.class
+    var journal_fits = journal_kind.fits_vector()
+    console.print("at run time: entity", sample_fits, "journal", journal_fits)
+}

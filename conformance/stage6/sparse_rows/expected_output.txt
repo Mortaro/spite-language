@@ -1,0 +1,11 @@
+positions inline true journals inline false
+entity 0 left 6
+entity 1 left 13
+entity 2 left 20
+entity 3 left 42
+entity 1 left 12, entity 1 left 13
+entity 0 left 4, entity 0 left 6
+entity 3 left 38, entity 3 left 42
+
+moved 6 rows
+at run time: entity true journal false

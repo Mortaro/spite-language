@@ -1,6 +1,7 @@
 var _name: Symbol = 'Nothing'
 var _namespace: Spite.Namespace? = null
 var _singleton = false
+var _fits_vector = false
 var _attributes = List<Spite.Attribute>()
 var _functions = List<Spite.Function>()
 
@@ -36,6 +37,10 @@ func has_function(name: String): Boolean {
         index = index + 1
     }
     return found
+}
+
+func fits_vector(): Boolean {
+    return _fits_vector
 }
 
 func function_waits(name: String): Boolean {
