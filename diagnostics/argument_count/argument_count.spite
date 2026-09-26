@@ -1,0 +1,4 @@
+func ArgumentCount() {
+    var painting = Runner<Painter>()
+    painting.run()
+}

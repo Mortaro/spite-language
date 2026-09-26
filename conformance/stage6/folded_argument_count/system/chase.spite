@@ -1,0 +1,15 @@
+type Chaser {
+    position: Position
+}
+
+type Chased {
+    position: Position
+    velocity: Velocity
+}
+
+var console = Console()
+
+func update_each(chaser: Chaser, chased: Chased) {
+    chaser.position.left = chased.position.left
+    console.print("caught up at", chaser.position.left)
+}

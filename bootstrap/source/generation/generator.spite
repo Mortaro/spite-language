@@ -801,6 +801,10 @@ func constant_condition(
                     }
                     return null
                 }
+                var counted = folded_count_comparison(binary, class_information)
+                if counted == true or counted == false {
+                    return counted
+                }
                 if binary.operator == 'equal' or binary.operator == 'not_equal' {
                     var walked_same = walked_class_is(binary.left, binary.right, class_information)
                     if walked_same == true {
@@ -959,6 +963,213 @@ func asked_item_type(
     var named = try_resolve_static_path(subject, class_information.qualified_dotted)
     assert named
     return class_type_of(named)
+}
+
+func argument_count_call(expression: Syntax.Expressions.Expression): Syntax.Expressions.CallExpression? {
+    var call = shape.as_call(expression)
+    assert call
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    assert member.name == "argument_count"
+    return call
+}
+
+func folded_integer(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): Long? {
+    var literal = shape.as_integer_literal(expression)
+    if literal {
+        return literal.value
+    }
+    var call = argument_count_call(expression)
+    assert call
+    var counted = folded_argument_count(call, class_information)
+    assert counted
+    var answer: Long = counted
+    return answer
+}
+
+func folded_count_comparison(
+    binary: Syntax.Expressions.BinaryExpression,
+    class_information: Analysis.ClassInfo,
+): Boolean? {
+    crash binary.left
+    crash binary.right
+    var left_call = argument_count_call(binary.left)
+    var right_call = argument_count_call(binary.right)
+    assert left_call or right_call
+    var left = folded_integer(binary.left, class_information)
+    assert left
+    var right = folded_integer(binary.right, class_information)
+    assert right
+    if binary.operator == 'equal' {
+        return left == right
+    } else if binary.operator == 'not_equal' {
+        return left != right
+    } else if binary.operator == 'less' {
+        return left < right
+    } else if binary.operator == 'less_equal' {
+        return left <= right
+    } else if binary.operator == 'greater' {
+        return left > right
+    } else if binary.operator == 'greater_equal' {
+        return left >= right
+    }
+    return null
+}
+
+func folded_argument_count(call: Syntax.Expressions.CallExpression, class_information: Analysis.ClassInfo): Integer? {
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    var generic_identifier = shape.as_generic_identifier(member.object)
+    if generic_identifier {
+        var bare_name = without_dollar(generic_identifier.name)
+        var bound = codegen_index(class_information, bare_name)
+        assert bound >= 0
+        crash class_information.codegen_codes[bound]
+        assert class_information.codegen_codes[bound].is_empty()
+        var pattern = counted_name(call.arguments, "${bare_name}")
+        crash class_information.codegen_types[bound]
+        var bound_class_ref = type_shape.as_class_ref(class_information.codegen_types[bound])
+        if bound_class_ref {
+            var owner = find_class_by_c_name(bound_class_ref.c_name)
+            crash owner
+            return class_argument_count(owner, pattern, class_information, "${bare_name}")
+        }
+        return 0
+    }
+    var walked = shape.as_identifier(member.object)
+    if walked {
+        assert walked.name == bound_symbol_name and not bound_symbol_name.is_empty()
+        return walked_function_argument_count(call.arguments)
+    }
+    var symbol_class = shape.as_member(member.object)
+    assert symbol_class
+    assert symbol_class.name == "class" and not bound_symbol_name.is_empty()
+    crash symbol_class.object
+    var symbol_identifier = shape.as_identifier(symbol_class.object)
+    assert symbol_identifier
+    assert symbol_identifier.name == bound_symbol_name
+    assert bound_field_type
+    var bound_class_ref = type_shape.as_class_ref(bound_field_type)
+    assert bound_class_ref
+    assert not bound_class_ref.has_signature
+    var owner = find_class_by_c_name(bound_class_ref.c_name)
+    assert owner
+    assert call.arguments.count() == 1
+    var literal = shape.as_string_literal(call.arguments[0])
+    assert literal
+    return class_argument_count(owner, literal.value, class_information, "{bound_symbol_name}.class")
+}
+
+func counted_name(arguments: List<Syntax.Expressions.Expression>, asked: String): String {
+    if arguments.count() == 1 {
+        var literal = shape.as_string_literal(arguments[0])
+        if literal {
+            return literal.value
+        }
+    }
+    report(
+        "'{asked}.argument_count(...)' is decided while compiling, so the name it asks for is written as a literal: '{asked}.argument_count(\"update_each\")', or a pattern such as \"<phase>_each\"",
+    )
+    return ""
+}
+
+func walked_function_argument_count(arguments: List<Syntax.Expressions.Expression>): Integer {
+    var range = bound_range.split(".")
+    var last = range.last()
+    var is_pattern = false
+    if last {
+        is_pattern = ("_{last}_").contains("_{bound_symbol_name}_") and not bound_function_name.is_empty()
+    }
+    if not is_pattern or not arguments.is_empty() {
+        report(
+            "'{bound_symbol_name}.argument_count()' is how many arguments the function a walk over functions stands for takes, so it is asked with no name in a template over a pattern, such as 'phase: Symbol<$system_type.phase_each>'",
+        )
+        return 0
+    }
+    range.remove_last()
+    var owner = range_owner_class(range)
+    crash owner
+    var function = owner.find_function(bound_function_name)
+    crash function
+    return function.parameters.count()
+}
+
+func range_owner_class(path: List<String>): Analysis.ClassInfo? {
+    var first = path.first()
+    assert first
+    crash current_class
+    if first.starts_with("$") and path.count() == 1 {
+        var bare_name = without_dollar(first)
+        var bound_type = codegen_bound_type(bare_name, current_class)
+        assert bound_type
+        var bound_class_ref = type_shape.as_class_ref(bound_type)
+        assert bound_class_ref
+        return find_class_by_c_name(bound_class_ref.c_name)
+    }
+    var joined = path.join(".")
+    return find_class(joined, current_class.namespace_dotted)
+}
+
+func class_argument_count(
+    owner: Analysis.ClassInfo,
+    pattern: String,
+    asking: Analysis.ClassInfo,
+    asked: String,
+): Integer {
+    assert not pattern.is_empty()
+    var wanted = List<String>()
+    var opening = pattern.index_of("<")
+    var closing = pattern.index_of(">")
+    if opening < 0 or closing < opening {
+        wanted.append(pattern)
+    } else {
+        var pattern_length = pattern.length()
+        var prefix = pattern.slice(0, opening)
+        var suffix = pattern.slice(closing + 1, pattern_length)
+        var hole = pattern.slice(opening + 1, closing)
+        var hole_values = hole_enum(asking, hole)
+        if not hole_values {
+            var missing = missing_hole_enum(asking, hole, pattern)
+            report(missing)
+            return 0
+        }
+        crash hole_values
+        var value_index = 0
+        while value_index < hole_values.values.count() {
+            var value = hole_values.values[value_index]
+            wanted.append("{prefix}{value}{suffix}")
+            value_index = value_index + 1
+        }
+    }
+    var functions = declared_functions_of(owner)
+    var first = -1
+    var same = true
+    var fitting = List<String>()
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        var taken = function.parameters.count()
+        if wanted.contains(function.name) {
+            if first >= 0 and first != taken {
+                same = false
+            }
+            if first < 0 {
+                first = taken
+            }
+            fitting.append("'{function.name}' {taken}")
+        }
+        index = index + 1
+    }
+    assert first >= 0
+    if not same {
+        report(
+            "'{asked}.argument_count(\"{pattern}\")' has no one answer: the functions of '{owner.qualified_dotted}' that fit it take different numbers of arguments ({fitting.join(", ")}), so ask 'phase.argument_count()' in a template over them, where each is walked on its own",
+        )
+    }
+    return first
 }
 
 func class_function_answer(
@@ -9228,7 +9439,8 @@ func generate_method_call(
         return void_result()
     }
     crash function
-    if (member.name == "has_function" or member.name == "function_waits") and target_class.c_name == "Spite_Class" {
+    var asks_functions = member.name == "has_function" or member.name == "function_waits" or member.name == "argument_count"
+    if asks_functions and target_class.c_name == "Spite_Class" {
         class_level_functions_used = true
     }
     var parameter_types = parameter_types_of(function.parameters)
@@ -14088,6 +14300,15 @@ func generate_call(
                     return ExpressionResult("true", answer_type)
                 }
                 return ExpressionResult("false", answer_type)
+            }
+        }
+        if member.name == "argument_count" {
+            var counted = folded_argument_count(call, class_information)
+            if counted {
+                var count_type = integer_type()
+                var count_result = ExpressionResult("{counted}", count_type)
+                count_result.constant_text = "i:{counted}"
+                return count_result
             }
         }
         return generate_method_call(member, member.object, call.arguments, scope, class_information)

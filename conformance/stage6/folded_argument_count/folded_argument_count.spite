@@ -1,0 +1,20 @@
+var console = Console()
+
+func FoldedArgumentCount() {
+    var moving = Runner<System.Move>()
+    moving.run()
+    var chasing = Runner<System.Chase>()
+    chasing.run()
+    var moving_combined = moving.combined()
+    var chasing_combined = chasing.combined()
+    console.print("shapes", moving.shape, chasing.shape, "combined", moving_combined, chasing_combined)
+    var chase = System.Chase()
+    var chase_arguments = chase.class.argument_count("update_each")
+    var missing_arguments = chase.class.argument_count("render_each")
+    console.print("asked at run time", chase_arguments, missing_arguments)
+    var chase_functions = chase.class.functions
+    crash chase_functions[0]
+    var described = chase_functions[0]
+    var described_arguments = described.argument_count()
+    console.print(described.name, "takes", described_arguments)
+}

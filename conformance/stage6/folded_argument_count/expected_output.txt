@@ -1,0 +1,5 @@
+moved to 2.5
+update takes 2 rows, so it is not streamed
+shapes 1 2 combined false true
+asked at run time 2 0
+update_each takes 2

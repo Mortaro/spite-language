@@ -51,6 +51,25 @@ func function_waits(name: String): Boolean {
     return _any_function_waits(_functions, name)
 }
 
+func argument_count(name: String): Integer {
+    if _unbound_functions {
+        return _first_argument_count(_unbound_functions, name)
+    }
+    return _first_argument_count(_functions, name)
+}
+
+func _first_argument_count(functions: List<Spite.Function>, name: String): Integer {
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if function.name_fits(name) {
+            return function.argument_count()
+        }
+        index = index + 1
+    }
+    return 0
+}
+
 func _any_function_waits(functions: List<Spite.Function>, name: String): Boolean {
     var found = false
     var index = 0

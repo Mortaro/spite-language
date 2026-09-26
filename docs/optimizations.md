@@ -132,6 +132,9 @@ even use things that would not compile for this build. That covers:
 - `$system_type.has_function("run_each")` ([D114](decisions.md));
 - `$system_type.function_waits("update_each")` ([D209](decisions.md)), answered from the functions the compiler
   turns into state machines;
+- `phase.argument_count()` and `$system_type.argument_count("update_each")` ([D219](decisions.md)), a whole
+  number compared with `==`, `!=`, `<`, `<=`, `>` or `>=`, so a runner compiles only the branch that fits a
+  system's arity;
 - `$component_type.fits_vector()` and `attribute.class.fits_vector()` ([D217](decisions.md)), which is how
   `Items<T>` picks inline or reference storage ([below](#an-items-storage-is-chosen-while-compiling));
 - `not`, `and`, `or`, `==` and `!=` over any of these.

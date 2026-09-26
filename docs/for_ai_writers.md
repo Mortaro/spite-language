@@ -206,6 +206,11 @@ func is_alive(): Boolean {
   `Column<attribute.class>().values[found[attribute.index]]` for all of them, with no `fits_vector()` branch. The
   borrow rules above apply only to a type that fits; the error then starts `'Velocity' fits a Vector, so the
   items of 'velocities' are borrowed: ...`.
+- A runner that treats systems of one row and of several differently asks `if phase.argument_count() == 1 { }`
+  inside its walk over `phase: Symbol<$system_type.phase_each>` (or `$system_type.argument_count("update_each")`
+  of one function; D219, name provisional). It is decided while compiling, so the branch for the other arity is
+  never compiled: a `Stream<$system_type, argument.class>` that calls `system.phase_each(row)` is made only for
+  one-row systems. With a pattern whose functions take different counts, ask inside the walk instead.
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
   built or planned, and what it could ever change that you see, is in [optimizations.md](optimizations.md).

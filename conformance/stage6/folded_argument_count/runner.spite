@@ -1,0 +1,31 @@
+generic $system_type
+
+enum Phase {
+    'update'
+}
+
+var system: $system_type = null
+var console = Console()
+var shape = $system_type.argument_count("<phase>_each")
+
+func run() {
+    run_phases_each()
+}
+
+func run_phase_each(phase: Symbol<$system_type.phase_each>) {
+    var count = phase.argument_count()
+    if phase.argument_count() == 1 {
+        stream_arguments()
+    } else {
+        console.print(phase.name, "takes", count, "rows, so it is not streamed")
+    }
+}
+
+func stream_argument(argument: Symbol<$system_type.phase_each>) {
+    var stream = Stream<$system_type, argument.class>()
+    stream.run(system)
+}
+
+func combined(): Boolean {
+    return $system_type.argument_count("update_each") > 1
+}

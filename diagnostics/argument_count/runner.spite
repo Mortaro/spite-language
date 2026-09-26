@@ -1,0 +1,22 @@
+generic $system_type
+
+enum Phase {
+    'update'
+    'render'
+}
+
+var system: $system_type = null
+var wanted = "update_each"
+var console = Console()
+
+func run() {
+    var counted = $system_type.argument_count(wanted)
+    var either = $system_type.argument_count("<phase>_each")
+    console.print(counted, either)
+    count_arguments()
+}
+
+func count_argument(argument: Symbol<$system_type.update_each>) {
+    var taken = argument.argument_count()
+    console.print(argument.name, taken)
+}

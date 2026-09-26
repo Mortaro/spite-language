@@ -20,6 +20,11 @@ func get_returns(): Spite.Class {
     return _returns
 }
 
+func argument_count(): Integer {
+    var described = get_arguments()
+    return described.count()
+}
+
 func waits(): Boolean {
     return _waits
 }

@@ -712,6 +712,77 @@ answers the same at run time. A function that asks cannot be asked about itself:
 whether it waits, and that is an error ([the rules](#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)).
 [concurrency.md](concurrency.md#choosing-where-concurrents-resume) shows the frame loop that polls what it starts.
 
+### Asking how many arguments a function takes
+
+A runner that treats a one-row system differently from a system of several rows asks how many arguments the
+function takes. `phase.argument_count()`, inside a walk over the functions a pattern matches, is the number the
+function walked takes, and `$target_type.argument_count("update_each")` asks it of a named function. Both are
+constants, like `has_function`, so a comparison with them decides an `if` while compiling and only the branch taken
+is compiled ([D219](decisions.md); the name is provisional). Below, `Caller<Fetch>` never compiles
+`target.phase_each(hero)`, which would pass one argument to a function of two:
+
+```gdscript title=argument_count_doc/hero.spite
+var name = "Ann"
+```
+```gdscript title=argument_count_doc/pet.spite
+var name = "Rex"
+```
+```gdscript title=argument_count_doc/walk.spite
+var console = Console()
+
+func update_each(hero: Hero) {
+    console.print(hero.name, "walks alone")
+}
+```
+```gdscript title=argument_count_doc/fetch.spite
+var console = Console()
+
+func update_each(hero: Hero, pet: Pet) {
+    console.print(hero.name, "throws a stick for", pet.name)
+}
+```
+```gdscript title=argument_count_doc/caller.spite
+generic $target_type
+
+enum Phase {
+    'update'
+}
+
+var target: $target_type = null
+var console = Console()
+
+func call() {
+    call_phases_each()
+}
+
+func call_phase_each(phase: Symbol<$target_type.phase_each>) {
+    if phase.argument_count() == 1 {
+        var hero = Hero()
+        target.phase_each(hero)
+    } else {
+        var taken = phase.argument_count()
+        console.print(phase.name, "takes", taken, "arguments")
+    }
+}
+```
+```gdscript title=argument_count_doc/argument_count_doc.spite entry
+func ArgumentCountDoc() {
+    var walking = Caller<Walk>()
+    walking.call()
+    var fetching = Caller<Fetch>()
+    fetching.call()
+}
+```
+```output
+Ann walks alone
+update takes 2 arguments
+```
+
+A class that has no function of that name answers 0, so ask `has_function` to tell the two apart. With a pattern,
+`$target_type.argument_count("<phase>_each")` answers only when every function the pattern matches takes the same
+number, and is an error otherwise, naming the walk to ask from instead. `klass.argument_count(name)` answers at run
+time, from `.functions`, and so does `function.argument_count()` on a `Spite.Function` ([reflection.md](reflection.md)).
+
 ### Every class in a folder
 
 `system: Symbol<System>` ranges over the classes of every folder named `system`, however deep:
@@ -1169,6 +1240,28 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
     comparing a function's address against those of the functions it makes into values or lists in a
     `.functions` that can wait, and keeps those functions (`conformance/stage6/waiting_systems`,
     `conformance/stage6/default_handles`).
+- **`phase.argument_count()` and `$system_type.argument_count("update_each")` are the number of arguments a
+  function takes, as a constant** (D219, decided by Claude under D205; the name provisional under D214, the readings
+  below proposed by Claude, unconfirmed).  **[implemented]** Inside a template over the functions a pattern matches
+  (`phase: Symbol<$system_type.phase_each>`, and a helper its symbol is passed to), `phase.argument_count()` is the
+  number of arguments of the function walked. Asked of a codegen type with a literal name, or of a class a
+  `Symbol<...>` walk visits (`system.class.argument_count("update_each")`), it is the number the declared function
+  of that name takes, 0 when the class declares none; a pattern (`"<phase>_each"`, its hole read as `has_function`
+  reads it) answers when every function it matches takes the same number, and otherwise is the error
+  "'$system_type.argument_count(\"<phase>_each\")' has no one answer: the functions of 'Painter' that fit it take
+  different numbers of arguments ('update_each' 1, 'render_each' 2), so ask 'phase.argument_count()' in a template
+  over them, where each is walked on its own". A name that is not a literal is the error `has_function` gives,
+  naming `argument_count`, and `argument.argument_count()` over a function's arguments, where the symbol is no
+  function, is "'argument.argument_count()' is how many arguments the function a walk over functions stands for
+  takes, so it is asked with no name in a template over a pattern, such as 'phase: Symbol<$system_type.phase_each>'"
+  (`diagnostics/argument_count`). It folds wherever it is written: as a value (`var count =
+  phase.argument_count()` is `var count = 1`), and compared with a whole number or another such count by `==`,
+  `!=`, `<`, `<=`, `>` or `>=` in a condition, which is then decided while compiling like `has_function`, only the
+  branch taken being compiled -- so a runner's `if phase.argument_count() == 1 { stream_arguments() }` never makes a
+  one-row `Stream<$system_type, argument.class>` for a system of two rows (`conformance/stage6/folded_argument_count`).
+  It is a function of `Spite.Class` and `Spite.Function` too: `klass.argument_count(name)` answers at run time from
+  `.functions` (the first function whose name fits, 0 for none), and `function.argument_count()` counts
+  `.arguments`. **Cost**: folded, nothing; at run time, the `.functions` a program already reads and one count.
 - **`$component_type.fits_vector()` asks whether the class can be a `Vector` item** (D217, decided by Claude
   under D205; the name provisional under D214).  **[implemented]** It is `true` when a `Vector` of that type
   compiles by D204's rule ([collections.md](collections.md#vectort--implemented)): a number, `Boolean`, enum or

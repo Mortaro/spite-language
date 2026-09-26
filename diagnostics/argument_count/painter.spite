@@ -1,0 +1,9 @@
+var console = Console()
+
+func update_each(brush: Brush) {
+    console.print(brush.width)
+}
+
+func render_each(brush: Brush, canvas: Canvas) {
+    console.print(brush.width, canvas.height)
+}

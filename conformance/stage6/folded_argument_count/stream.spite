@@ -1,0 +1,15 @@
+generic $system_type
+generic $row_type
+
+enum Phase {
+    'update'
+}
+
+func run(system: $system_type) {
+    run_phases_each(system)
+}
+
+func run_phase_each(phase: Symbol<$system_type.phase_each>, system: $system_type) {
+    var row: $row_type = null
+    system.phase_each(row)
+}
