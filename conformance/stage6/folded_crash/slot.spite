@@ -1,0 +1,5 @@
+generic $slot_type
+
+func fits() {
+    crash $slot_type.fits_vector()
+}

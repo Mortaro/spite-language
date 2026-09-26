@@ -1,0 +1,5 @@
+var moved = 0
+
+func update_each(entity: Entity) {
+    moved = moved + entity.id
+}

@@ -1,0 +1,28 @@
+generic $slot_type
+
+var console = Console()
+
+func entity_only(): String {
+    assert $slot_type == Entity
+    return "an entity"
+}
+
+func fits(): Boolean {
+    crash $slot_type.fits_vector() and not $slot_type.has_function("drop_all")
+    return true
+}
+
+func one_row(): Integer {
+    assert $slot_type.has_function("update_each") and $slot_type.argument_count("update_each") == 1
+    return 1
+}
+
+func report() {
+    assert not $slot_type.function_waits("update_each")
+    console.print("does not wait")
+}
+
+func identity(value: $slot_type): Integer {
+    assert $slot_type == Entity
+    return value.id
+}

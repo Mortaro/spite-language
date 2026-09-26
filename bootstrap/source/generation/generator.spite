@@ -18454,7 +18454,7 @@ func generate_statement_list(
         if overlaps {
             overlapped_reads.append(read_name)
         }
-        var folded_return = ended_in_return and statements[index] == Syntax.Statements.IfStatement
+        var folded_return = ended_in_return and (statements[index] == Syntax.Statements.IfStatement or statements[index] == Syntax.Statements.AssertStatement)
         index = index + 1
         if folded_return and index < statements.count() {
             undo_proofs_after_calls(scope, class_information)
@@ -21951,7 +21951,7 @@ func generate_assert_statement(
     scope: Scope,
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
-) {
+): Boolean {
     assert assert_statement.value
     var sides = List<Syntax.Expressions.Expression>()
     collect_and_sides(assert_statement.value, sides)
@@ -21963,10 +21963,17 @@ func generate_assert_statement(
             side_statement.is_crash = assert_statement.is_crash
             side_statement.condition_text = side_text
             side_statement.line = assert_statement.line
-            generate_assert_statement(side_statement, scope, class_information, function_information)
+            if generate_assert_statement(side_statement, scope, class_information, function_information) {
+                return true
+            }
             side_index = side_index + 1
         }
-        return
+        return false
+    }
+    var decided = folded_check(assert_statement.value, scope, class_information)
+    if decided == true or decided == false {
+        emit_folded_check(assert_statement, decided == true, scope, class_information, function_information)
+        return decided == false
     }
     var guard = try_nullable_guard(assert_statement.value, scope, class_information)
     var guard_code = ""
@@ -21993,12 +22000,53 @@ func generate_assert_statement(
     }
     record_site(assert_statement, site_kind, function_information.name, scope, class_information)
     builder.add_user("if (!({guard_code})) \{")
+    emit_check_failure(assert_statement, true, scope, class_information, function_information)
+    return false
+}
+
+func emit_folded_check(
+    assert_statement: Syntax.Statements.AssertStatement,
+    holds: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    if not assert_statement.is_crash and function_information.is_constructor {
+        report(
+            "'assert' is not allowed in a constructor: a constructor is setup, not logic. Take already resolved values, or use 'crash' when absence is a bug",
+        )
+    }
+    assert not holds
+    var site_kind = "assert-predicate"
+    if assert_statement.is_crash {
+        site_kind = "crash"
+    }
+    site_ordinal = site_ordinal + 1
+    current_site_id = content_hash(
+        "{current_owner}/{function_information.name}/{site_ordinal}/{assert_statement.condition_text}",
+    )
+    crash_map_lines.append(
+        "{current_site_id}\t{current_path}\t{current_line}\t0\t{current_owner}\t{function_information.name}\t{site_kind}\t{assert_statement.condition_text}\t",
+    )
+    builder.add_user("\{")
+    emit_check_failure(assert_statement, false, scope, class_information, function_information)
+}
+
+func emit_check_failure(
+    assert_statement: Syntax.Statements.AssertStatement,
+    with_operands: Boolean,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
     if assert_statement.is_crash {
         builder.add_user("fflush(stdout);")
         builder.add_user(
             "fputs(\"spite.crash\\t{current_site_id}\\t{escape_c_string(current_path)}:{current_line}\\t{current_owner}\\t{function_information.name}\\t{escape_c_string(assert_statement.condition_text)}\", stderr);",
         )
-        emit_crash_operands(assert_statement.value, scope, class_information)
+        if with_operands {
+            emit_crash_operands(assert_statement.value, scope, class_information)
+        }
         builder.add_user("fputs(\"\\n\", stderr);")
         builder.add_user("spite_report_assert_trace();")
         builder.add_user("exit(1);")
@@ -22016,6 +22064,54 @@ func generate_assert_statement(
         builder.add_user("return {default_value_for_type(function_information_return_type)};")
     }
     builder.add_user("}")
+}
+
+func folded_check(
+    assertion: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean? {
+    assert asks_while_compiling(assertion)
+    return constant_condition(assertion, scope, class_information)
+}
+
+func asks_while_compiling(expression: Syntax.Expressions.Expression): Boolean {
+    switch expression {
+        Syntax.Expressions.GenericIdentifierExpression: return true
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return asks_while_compiling(expression.operand)
+        }
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            if expression.operator == 'logical_and' or expression.operator == 'logical_or' {
+                return asks_while_compiling(expression.left) and asks_while_compiling(expression.right)
+            }
+            if argument_count_call(expression.left) or argument_count_call(expression.right) {
+                return true
+            }
+            if shape.as_generic_identifier(expression.left) {
+                return true
+            }
+            return is_symbol_class_read(expression.left)
+        }
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            var member = shape.as_member(expression.callee)
+            assert member
+            var named = member.name
+            return named == "has_function" or named == "function_waits" or named == "fits_vector" or named == "argument_count"
+        }
+        _: return false
+    }
+}
+
+func is_symbol_class_read(expression: Syntax.Expressions.Expression): Boolean {
+    var read = shape.as_member(expression)
+    assert read and not bound_symbol_name.is_empty()
+    crash read.object
+    return read.name == "class" and is_identifier_named(read.object, bound_symbol_name)
 }
 
 func record_in_assert_trace(
@@ -22185,8 +22281,7 @@ func generate_statement_kind(
     }
     var assert_statement = shape.as_assert_statement(statement)
     if assert_statement {
-        generate_assert_statement(assert_statement, scope, class_information, function_information)
-        return false
+        return generate_assert_statement(assert_statement, scope, class_information, function_information)
     }
     var return_statement = shape.as_return_statement(statement)
     if return_statement {

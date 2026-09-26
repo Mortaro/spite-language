@@ -1487,6 +1487,19 @@ what `--development` does): a codegen value is part of which class this is -- `W
 `Weapon<Integer, false>` are two classes -- so there is no run-time value for live reload to change. To change
 one, change the call site.
 
+**An `assert` or `crash` on such a condition folds the same way** (proposed by Claude, unconfirmed).
+**[implemented]** When the condition of an `assert` or `crash` asks only what is decided while compiling -- a
+`$flag`, `$slot_type == Entity` or any other test of a codegen type, `has_function`, `function_waits`,
+`fits_vector` or `argument_count` of a codegen type or of a walked symbol's class, `argument.class == $row_type`,
+and `not`, `and` and `or` over them -- it is decided for each instance, with no test at run time: when it holds,
+nothing is written for it; when it does not, the `assert` returns the function's default (recording its trace
+line) and the `crash` halts with its report, unconditionally, and the statements after it in the same block are
+not compiled for that instance, exactly as after an `if` whose taken branch returns. So `assert $slot_type ==
+Entity` followed by `return value.id` compiles for a `Slot<Mover>` whose `Mover` has no `id`, and answers 0 there
+(`conformance/stage6/folded_checks`, `conformance/stage6/folded_crash`). Before, such a condition was compiled as
+a value and was the error "'$slot_type' is a type here, so it cannot be used as a value". A condition that also
+reads a run-time value is compiled as before.
+
 **A class test that can never be true for one instantiation folds to `false`** (D167, decided by Mortaro): inside
 a generic class, `if item == Health { }` where `item`'s type comes from a codegen value that is not `Health` in
 this copy is `false`, and its branch is removed from that copy only -- "generics being possibly unused code is

@@ -1,0 +1,4 @@
+entity slot: an entity mover slot: 
+true 0 1
+does not wait
+identities 7 0

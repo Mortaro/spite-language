@@ -219,6 +219,9 @@ func is_alive(): Boolean {
   of one function; D219, name provisional). It is decided while compiling, so the branch for the other arity is
   never compiled: a `Stream<$system_type, argument.class>` that calls `system.phase_each(row)` is made only for
   one-row systems. With a pattern whose functions take different counts, ask inside the walk instead.
+- `assert` and `crash` on a compile-time question fold like `if`: `assert $slot_type == Entity` then `return
+  value.id` compiles for every `Slot<T>`, returning the default where `T` is not `Entity`, with no run-time test;
+  `crash $component_type.fits_vector()` halts every call in an instance whose type does not fit.
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
   built or planned, and what it could ever change that you see, is in [optimizations.md](optimizations.md).

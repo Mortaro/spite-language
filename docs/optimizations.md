@@ -139,6 +139,10 @@ even use things that would not compile for this build. That covers:
   `Items<T>` picks inline or reference storage ([below](#an-items-storage-is-chosen-while-compiling));
 - `not`, `and`, `or`, `==` and `!=` over any of these.
 
+An `assert` or `crash` whose condition is one of these folds the same way: a check that holds writes nothing,
+and one that fails writes its failure (the default returned, or the crash report) with no test, the rest of its
+block not compiled ([metaprogramming.md](metaprogramming.md#codegen-values---implemented)).
+
 A function of a generic class is then compiled for one instantiation only when code that survived folding names
 it, so a helper reached only from a removed branch is never checked against a type it cannot work with.
 

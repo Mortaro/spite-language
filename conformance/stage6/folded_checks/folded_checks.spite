@@ -1,0 +1,20 @@
+var console = Console()
+
+func FoldedChecks() {
+    var entities = Slot<Entity>()
+    var movers = Slot<Mover>()
+    var entity_answer = entities.entity_only()
+    var mover_answer = movers.entity_only()
+    console.print("entity slot:", entity_answer, "mover slot:", mover_answer)
+    var entity_fits = entities.fits()
+    var entity_rows = entities.one_row()
+    var mover_rows = movers.one_row()
+    console.print(entity_fits, entity_rows, mover_rows)
+    movers.report()
+    var entity = Entity()
+    entity.id = 7
+    var mover = Mover()
+    var entity_identity = entities.identity(entity)
+    var mover_identity = movers.identity(mover)
+    console.print("identities", entity_identity, mover_identity)
+}
