@@ -96,11 +96,13 @@ func support_count(): Integer {
 }
 
 func typedef_at(position: Integer): String {
-    return typedefs.get_at(position)
+    crash typedefs[position]
+    return typedefs[position]
 }
 
 func support_at(position: Integer): String {
-    return support_bodies.get_at(position)
+    crash support_bodies[position]
+    return support_bodies[position]
 }
 
 func replace_support(position: Integer, line: String) {
@@ -116,7 +118,8 @@ func user_count(): Integer {
 }
 
 func user_at(position: Integer): String {
-    return user_bodies.get_at(position)
+    crash user_bodies[position]
+    return user_bodies[position]
 }
 
 func replace_user(position: Integer, line: String) {
@@ -139,7 +142,7 @@ func take_user_from(start: Integer): List<String> {
     var taken = List<String>()
     var index = start
     while index < user_bodies.count() {
-        var line = user_bodies.get_at(index)
+        var line = user_bodies[index]
         taken.append(line)
         index = index + 1
     }
@@ -173,7 +176,7 @@ func guarded(text: String, shaker: TreeShaker, keeps_all: Boolean): String {
     var result = List<String>()
     var index = 0
     while index < parts.count() {
-        var part = parts.get_at(index)
+        var part = parts[index]
         if index == 0 {
             result.append(part)
         } else {
@@ -210,11 +213,14 @@ func guarded_types(text: String, shaker: TreeShaker, keeps_all: Boolean): String
 }
 
 func guard_choice(position: Integer, shaker: TreeShaker, keeps_all: Boolean): String {
-    var guard = guard_names.get_at(position)
+    crash guard_names[position]
+    crash guard_lines[position]
+    crash guard_otherwise[position]
+    var guard = guard_names[position]
     if keeps_all or any_kept(guard, shaker) {
-        return guard_lines.get_at(position)
+        return guard_lines[position]
     }
-    return guard_otherwise.get_at(position)
+    return guard_otherwise[position]
 }
 
 func any_kept(guard: String, shaker: TreeShaker): Boolean {
@@ -228,7 +234,8 @@ func add_shaken_macro(name: String) {
 
 func include_maths_library(macro_name: String) {
     if maths_guard >= 0 {
-        var names = guard_names.get_at(maths_guard)
+        crash guard_names[maths_guard]
+        var names = guard_names[maths_guard]
         guard_names.set_at(maths_guard, "{names} {macro_name}")
         return
     }
@@ -310,7 +317,7 @@ func bound(text: String, kept_names: List<String>): String {
     var result = List<String>()
     var index = 0
     while index < parts.count() {
-        var part = parts.get_at(index)
+        var part = parts[index]
         if index == 0 {
             result.append(part)
         } else {

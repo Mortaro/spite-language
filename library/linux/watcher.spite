@@ -37,7 +37,7 @@ func add_folder(path: String, report_files: Boolean): Boolean {
         var names = directory.files()
         var file_index = 0
         while file_index < names.count() {
-            var name = names.get_at(file_index)
+            var name = names[file_index]
             var file_path = joined(path, name)
             note(file_path)
             file_index = file_index + 1
@@ -46,7 +46,7 @@ func add_folder(path: String, report_files: Boolean): Boolean {
     var inner = directory.folders()
     var index = 0
     while index < inner.count() {
-        var name = inner.get_at(index)
+        var name = inner[index]
         var inner_path = joined(path, name)
         add_folder(inner_path, report_files)
         index = index + 1
@@ -92,7 +92,7 @@ func collect() {
 func note_event(number: Integer, mask: Integer, name: String) {
     var index = 0
     while index < watch_numbers.count() {
-        if watch_numbers.get_at(index) == number {
+        if watch_numbers[index] == number {
             note_in(index, mask, name)
         }
         index = index + 1
@@ -100,8 +100,10 @@ func note_event(number: Integer, mask: Integer, name: String) {
 }
 
 func note_in(index: Integer, mask: Integer, name: String) {
-    var folder = folders.get_at(index)
-    var file_name = file_names.get_at(index)
+    crash folders[index]
+    crash file_names[index]
+    var folder = folders[index]
+    var file_name = file_names[index]
     if not file_name.is_empty() {
         if name == file_name {
             var file_path = joined(folder, name)

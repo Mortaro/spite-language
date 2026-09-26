@@ -156,7 +156,7 @@ func join(separator: String): String {
         if index > 0 {
             position = write_text(separator, address, position)
         }
-        var next_piece = pieces.get_at(index)
+        var next_piece = pieces[index]
         position = write_text(next_piece, address, position)
         index = index + 1
     }
@@ -285,12 +285,12 @@ func sort_by_member(member: Symbol<$element_type>): List<$element_type> {
     while index < item_count {
         var item = values.read_value(items, index)
         var key = item.attributes[member]
-        var position = keys.count()
-        while position > 0 and keys.get_at(position - 1) > key {
-            position = position - 1
+        var previous = keys.count() - 1
+        while previous >= 0 and previous < keys.count() and keys[previous] > key {
+            previous = previous - 1
         }
-        keys.insert(position, key)
-        sorted.insert(position, item)
+        keys.insert(previous + 1, key)
+        sorted.insert(previous + 1, item)
         index = index + 1
     }
     return sorted

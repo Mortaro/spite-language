@@ -176,7 +176,8 @@ func library_name(name: String): String {
     var index = 0
     while index < names.count() {
         if names[index] == name {
-            return library_names.get_at(index)
+            crash library_names[index]
+            return library_names[index]
         }
         index = index + 1
     }
@@ -241,7 +242,8 @@ func spelled(name: String): String {
     var index = 0
     while index < others.count() {
         if others[index] == name {
-            return spellings.get_at(index)
+            crash spellings[index]
+            return spellings[index]
         }
         index = index + 1
     }

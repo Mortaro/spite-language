@@ -22,7 +22,8 @@ func finished_value(): $result_type? {
 
 func _result(): $result_type {
     _join()
-    return _call.results.get_at(0)
+    crash _call.results.count() > 0
+    return _call.results[0]
 }
 
 func _join() {

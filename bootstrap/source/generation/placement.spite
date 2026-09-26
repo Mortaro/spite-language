@@ -234,9 +234,11 @@ func study_lent_parameters(
         changed = false
         var index = 0
         while index < names.count() {
-            var function_name = names.get_at(index)
-            var parameters = parameter_lists.get_at(index)
-            var body = bodies.get_at(index)
+            crash parameter_lists[index]
+            crash bodies[index]
+            var function_name = names[index]
+            var parameters = parameter_lists[index]
+            var body = bodies[index]
             if study_function_parameters(function_name, parameters, body) {
                 changed = true
             }
@@ -254,7 +256,7 @@ func study_function_parameters(
     var index = 0
     while index < parameters.count() {
         var key = "{function_name}#{index}"
-        var parameter = parameters.get_at(index)
+        var parameter = parameters[index]
         if not parameter.is_empty() and not lent_parameters.contains(key) and stays_in_frame(parameter, "", body, 0) {
             lent_parameters.append(key)
             added = true
@@ -316,9 +318,11 @@ func study_read_lists(
         changed = false
         var index = 0
         while index < names.count() {
-            var function_name = names.get_at(index)
-            var parameters = parameter_lists.get_at(index)
-            var body = bodies.get_at(index)
+            crash parameter_lists[index]
+            crash bodies[index]
+            var function_name = names[index]
+            var parameters = parameter_lists[index]
+            var body = bodies[index]
             if study_read_list_parameters(function_name, parameters, body) {
                 changed = true
             }
@@ -337,7 +341,7 @@ func study_read_list_parameters(
     var index = 0
     while index < parameters.count() {
         var key = "{function_name}#{index}"
-        var parameter = parameters.get_at(index)
+        var parameter = parameters[index]
         if not parameter.is_empty() and not read_lists.contains(key) and block_only_reads(parameter, body) {
             read_lists.append(key)
             added = true

@@ -120,8 +120,8 @@ func scan_one(): Boolean {
 }
 
 func last_kind(): TokenKind {
-    var token_count = tokens.count()
-    var last_token = tokens.get_at(token_count - 1)
+    var last_token = tokens.last()
+    crash last_token
     return last_token.kind
 }
 

@@ -493,7 +493,8 @@ func named_hex(name: String): String {
     var index = 0
     while index < names.count() {
         if names[index] == name {
-            return values.get_at(index)
+            crash values[index]
+            return values[index]
         }
         index = index + 1
     }

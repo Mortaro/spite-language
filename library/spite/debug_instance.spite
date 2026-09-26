@@ -8,7 +8,7 @@ func text(value: $value_type): String {
     var name = value.class.name
     var index = 0
     while index < _trail.count() {
-        if _trail.get_at(index) == value {
+        if _trail[index] == value {
             return "{name} \{...}"
         }
         index = index + 1

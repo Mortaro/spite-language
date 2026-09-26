@@ -89,8 +89,8 @@ func layout_name(text: String): String {
     }
     assert text.starts_with("typedef enum")
     var text_lines = text.split("\n")
-    var line_count = text_lines.count()
-    var last_line = text_lines.get_at(line_count - 1)
+    var last_line = text_lines.last()
+    crash last_line
     return last_line.replace("}", "").replace(";", "").trim()
 }
 

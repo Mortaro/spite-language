@@ -213,7 +213,7 @@ func text_of(code_point: Integer): String {
     var address = heap.allocate(4)
     var index = 0
     while index < bytes.count() {
-        var byte = bytes.get_at(index)
+        var byte = bytes[index]
         address.write_byte(index, byte)
         index = index + 1
     }

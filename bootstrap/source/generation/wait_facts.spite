@@ -34,7 +34,7 @@ func settle(call_callers: List<String>, call_callees: List<String>, seeds: List<
     waits = Dictionary<Boolean>()
     var index = 0
     while index < seeds.count() {
-        var seed = seeds.get_at(index)
+        var seed = seeds[index]
         waits.set(seed, true)
         index = index + 1
     }
@@ -51,8 +51,9 @@ func spread(callers: List<String>, callees: List<String>): Boolean {
     var changed = false
     var index = 0
     while index < callers.count() {
-        var caller = callers.get_at(index)
-        var callee = callees.get_at(index)
+        crash callees[index]
+        var caller = callers[index]
+        var callee = callees[index]
         if not waits.has(caller) and waits.has(callee) {
             waits.set(caller, true)
             changed = true
@@ -84,7 +85,7 @@ func answer(name: String, text: String, path: String, line: Integer, owner: Stri
 func first_changed_answer(): Integer {
     var index = 0
     while index < asked_names.count() {
-        var name = asked_names.get_at(index)
+        var name = asked_names[index]
         if answers.get(name) == true != waits.has(name) {
             return index
         }

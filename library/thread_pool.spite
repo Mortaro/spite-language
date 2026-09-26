@@ -51,7 +51,7 @@ func is_done(state: Memory.Address): Boolean {
 func join(state: Memory.Address) {
     lock_queue()
     var position = jobs.count() - 1
-    while position >= 0 and jobs.get_at(position).state != state {
+    while position >= 0 and position < jobs.count() and jobs[position].state != state {
         position = position - 1
     }
     if position >= 0 {
@@ -139,7 +139,8 @@ func _serve() {
 }
 
 func run_queued(position: Integer) {
-    var job = jobs.get_at(position)
+    crash jobs[position]
+    var job = jobs[position]
     jobs.remove_at(position)
     job.state.write_long_atomically(0, 1)
     unlock_queue()
