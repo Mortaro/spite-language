@@ -1,0 +1,1 @@
+diagnostics/items_nullable_unproven/items_nullable_unproven.spite:8: error: this value may be null (it is a String?), so 'upper_case' cannot be called on it yet: narrow it first with 'if value { }', 'assert value' or 'crash value' (in ItemsNullableUnproven.ItemsNullableUnproven)

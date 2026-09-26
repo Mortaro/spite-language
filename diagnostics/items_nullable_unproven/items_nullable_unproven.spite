@@ -1,0 +1,12 @@
+var console = Console()
+
+func ItemsNullableUnproven() {
+    var names = Items<String?>()
+    names.append("ada")
+    var index = 0
+    while index < names.count() {
+        var shouted = names[index].upper_case()
+        console.print(shouted)
+        index = index + 1
+    }
+}

@@ -926,6 +926,12 @@ below, and the names `Items` and `remove_swapping`, are proposed by Claude, unco
   passed, returned and read after the collection changes size. `List`'s `[]` answers `T?` instead; `Items` does
   not, so that code reading an item compiles the same whichever kind a class falls into, and so D217's walked row
   can take the item as it is.
+- **Items of a `T?`** (proposed by Claude, unconfirmed). `Items<String?>`'s `[]` answers the `String?` that was
+  stored, and `crash names[0]`, `assert names[0]` or `if names[index] { }` narrows that item in place until the
+  collection or the index changes, as a path is narrowed (`conformance/stage6/items_narrowed`). A loop's
+  `index < names.count()` proves only that the index is in range, not that the item is there: reading
+  `names[index].upper_case()` under it alone is still `this value may be null (it is a String?)`
+  (`diagnostics/items_nullable_unproven`).
 - **The borrow checks apply only where the storage is inline.** A class that changes kind can meet new errors
   where it is read, and each names the choice first: `'Velocity' fits a Vector, so the items of 'velocities' are
   borrowed: 'stored' is borrowed from 'velocities' and cannot be kept in the attribute 'kept': keep

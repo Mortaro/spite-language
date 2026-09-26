@@ -11,6 +11,7 @@ var owned = List<OwnedLocal>()
 var narrowed_paths = List<String>()
 var bound_paths = List<String>()
 var bound_reasons = List<String>()
+var range_only_paths = List<String>()
 var is_loop = false
 var rebindings = 0
 var paths_read_from_outside = List<String>()
@@ -187,13 +188,24 @@ func lookup_override(name: String): String? {
 }
 
 func narrow_path(path: String) {
+    var index = range_only_paths.count() - 1
+    while index >= 0 {
+        if range_only_paths[index] == path {
+            range_only_paths.remove_at(index)
+        }
+        index = index - 1
+    }
     if not narrowed_paths.contains(path) {
         narrowed_paths.append(path)
     }
 }
 
 func narrow_bound_path(path: String, condition_text: String) {
+    var only_in_range = not is_present_narrowed(path)
     narrow_path(path)
+    if only_in_range {
+        range_only_paths.append(path)
+    }
     bound_paths.append(path)
     if is_loop {
         bound_reasons.append("the loop condition '{condition_text}'")
@@ -228,6 +240,23 @@ func forget_bound(path: String) {
 
 func is_path_narrowed(candidate: String): Boolean {
     return not narrowing_of(candidate).is_empty()
+}
+
+func is_present_narrowed(candidate: String): Boolean {
+    var index = narrowed_paths.count() - 1
+    while index >= 0 {
+        crash narrowed_paths[index]
+        var narrowed = narrowed_paths[index]
+        var reaches = narrowed == candidate or narrowed.starts_with("{candidate}.") or narrowed.starts_with("{candidate}[")
+        if reaches and not range_only_paths.contains(narrowed) {
+            return true
+        }
+        index = index - 1
+    }
+    if parent {
+        return parent.is_present_narrowed(candidate)
+    }
+    return false
 }
 
 func narrowing_of(candidate: String): String {

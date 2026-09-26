@@ -13013,7 +13013,8 @@ func generate_index_read(
                 )
                 got.owning_override = true
                 lend_item(got, indexed_class, "get_at", index_expression.object)
-                return got
+                var present = not read_path.is_empty() and scope.is_present_narrowed(read_path)
+                return proven_item(got, present)
             }
             report("indexing a '{indexed_class.simple_name}' needs it to define 'get_at(index)'")
             return void_result()
@@ -13062,6 +13063,26 @@ func generate_index_read(
         )
     }
     return void_result()
+}
+
+func proven_item(got: ExpressionResult, proven: Boolean): ExpressionResult {
+    var got_type = got.get_type()
+    var nullable = type_shape.as_nullable(got_type)
+    if not proven {
+        return got
+    }
+    if nullable {
+        var inner = nullable.get_inner()
+        if type_is_reference(inner) {
+            got.spite_type = inner
+            return got
+        }
+        var unwrapped = ExpressionResult("({got.code}).value", inner)
+        unwrapped.owning_override = got.owning_override
+        unwrapped.borrowed_from = got.borrowed_from
+        return unwrapped
+    }
+    return got
 }
 
 func ensure_list(element: Analysis.SpiteType): String {
