@@ -1,0 +1,39 @@
+var console = Console()
+var program = Program()
+var scheduler = Scheduler()
+
+func FinishedWorkers() {
+    scheduler.resume_only_when_asked()
+    var note = File(".spite-cache/finished_workers.txt")
+    note.write("frame")
+    var pool = WorkerPool()
+    pool.start(3)
+    var frame = 0
+    var read_total = 0
+    var summed = 0
+    while pool.done < 3 and frame < 500 {
+        frame = frame + 1
+        var counted = Parallel(count_up)
+        var read = note.read()
+        crash read
+        read_total = read_total + read.length()
+        scheduler.run_ready()
+        var value: Integer = counted
+        summed = summed + value
+        program.sleep(2)
+    }
+    var every_frame_read = read_total == frame * 5
+    var every_frame_summed = summed == frame * 100
+    console.print("the workers drained", pool.done, "items over frames:", frame > 1)
+    console.print("every frame read the file and joined its Parallel:", every_frame_read and every_frame_summed)
+}
+
+func count_up(): Integer {
+    var total = 0
+    var index = 0
+    while index < 100 {
+        total = total + 1
+        index = index + 1
+    }
+    return total
+}

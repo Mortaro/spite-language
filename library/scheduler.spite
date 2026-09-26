@@ -41,6 +41,7 @@ func run_frame(frame: Memory.Address): Boolean {
     var done = step_frame(frame)
     if done {
         frame.write_integer(12, 2)
+        release_work(frame)
     } else {
         frame.write_integer(12, 0)
     }

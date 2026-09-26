@@ -472,6 +472,8 @@ func scheduler_members(): List<String> {
     return [
         "func step_frame(frame: Long): Boolean"
         "return (*(bool (**)(void*))(intptr_t)frame_)((void*)(intptr_t)frame_);"
+        "func release_work(frame: Long)"
+        "void** spite_slot = (void**)((char*)(intptr_t)frame_ + 16); Spite_Function* spite_work = (Spite_Function*)*spite_slot; *spite_slot = 0; Spite_Function___release(spite_work);"
         "func _want_check_point()"
         "written by the generator: raises the flag every loop's check point loads, in a build that has check points"
         "func _take_check_point(): Boolean"

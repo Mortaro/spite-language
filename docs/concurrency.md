@@ -790,7 +790,7 @@ there is no second pool to create or pass around (D191).
 - **What the compiler supplies (D147).** Starting a worker needs the address of a C function that calls the pool's
   private `_serve()`: `ThreadPool` declares two members without a body that the generator writes,
   `entry_address()` and `address()`. `Concurrent` has two more, `_start_frame()` and `_frame_result()`, and
-  `Scheduler` has `step_frame(frame)`, whose body is a line of C in the compiler. `--final-classes` prints each
+  `Scheduler` has `step_frame(frame)` and `release_work(frame)`, whose bodies are a line of C in the compiler. `--final-classes` prints each
   declaration. D147 decides that no compiler-supplied function stays bodiless and no Spite body holds C; turning
   these into Spite over the backend's primitives is **not built**. Everything else -- the queue, the claim, the
   split -- is Spite.
@@ -835,8 +835,14 @@ a resumable version (`bootstrap/source/generation/state_machine.spite`):
   D183's lock, and every function of a program class in a `--hot-reload` build (called through a slot a reload
   swaps) get none.
 - **The frame** is a C struct on the heap: a header (the step function, the wait it stopped at, whether it runs or
-  has finished), the result, `self`, the parameters, every local and temporary of the body (a name declared twice in
+  has finished, and, for a `Concurrent`'s own frame, the function value it runs), the result, `self`, the parameters, every local and temporary of the body (a name declared twice in
   nested blocks gets two fields), and one slot per wait for the frame it waits on.
+- **A `Concurrent` holds its function only while it runs** (proposed by Claude, unconfirmed). The handle lets go of
+  the function value as soon as the work has started: its frame holds it instead, and the scheduler releases it
+  when the frame finishes (work with no state machine has already finished by then). A class that keeps
+  `Concurrent(drain)` of its own function in a list is therefore a cycle only while that work runs, not after, even
+  when nobody reads `finished` again (`conformance/stage6/finished_workers`). It costs one pointer in each frame's
+  header and a retain and a release per `Concurrent`.
 - **The step function** runs the body with every local read from the frame, starts with a jump to the wait it
   stopped at, and answers `true` when the body returns and `false` at a wait that is not over. Jumping into a
   `while` or an `if` needs nothing, since no local lives on the C stack.

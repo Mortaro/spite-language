@@ -5296,7 +5296,7 @@ static SpiteString spite_lit_9982 = SPITE_STATIC_STRING("contains", 8);
 static SpiteString spite_lit_9984 = SPITE_STATIC_STRING("join", 4);
 static SpiteString spite_lit_9986 = SPITE_STATIC_STRING("Parallel", 8);
 static SpiteString spite_lit_9988 = SPITE_STATIC_STRING("Concurrent", 10);
-static SpiteString spite_lit_9989 = SPITE_STATIC_STRING("typedef struct SpiteFrame { bool (*step)(void*); int32_t state; int32_t flags; } SpiteFrame;", 92);
+static SpiteString spite_lit_9989 = SPITE_STATIC_STRING("typedef struct SpiteFrame { bool (*step)(void*); int32_t state; int32_t flags; void* work; } SpiteFrame;", 104);
 static SpiteString spite_lit_9990 = SPITE_STATIC_STRING("#define SPITE_SUSPEND(point) do { spite_frame->spite_head.state = (point); return false; } while (0)", 100);
 static SpiteString spite_lit_9994 = SPITE_STATIC_STRING("Dictionary_", 11);
 static SpiteString spite_lit_9996 = SPITE_STATIC_STRING("Dictionary", 10);
@@ -7660,8 +7660,8 @@ static SpiteString spite_lit_15004 = SPITE_STATIC_STRING("yield", 5);
 static SpiteString spite_lit_15005 = SPITE_STATIC_STRING("static void* spite_frame_start(Spite_Function* spite_work) {", 60);
 static SpiteString spite_lit_15006 = SPITE_STATIC_STRING("if (spite_work == 0) return 0;", 30);
 static SpiteString spite_lit_15008 = SPITE_STATIC_STRING("if (spite_work->spite_typed_call == (void*)", 43);
-static SpiteString spite_lit_15010 = SPITE_STATIC_STRING(") return ", 9);
-static SpiteString spite_lit_15012 = SPITE_STATIC_STRING("___begin(spite_work->spite_owner);", 34);
+static SpiteString spite_lit_15010 = SPITE_STATIC_STRING(") { SpiteFrame* spite_started = (SpiteFrame*)", 45);
+static SpiteString spite_lit_15012 = SPITE_STATIC_STRING("___begin(spite_work->spite_owner); spite_started->work = spite_work; Spite_Function___retain(spite_work); return spite_started; }", 129);
 static SpiteString spite_lit_15013 = SPITE_STATIC_STRING("return 0;", 9);
 static SpiteString spite_lit_15014 = SPITE_STATIC_STRING("}", 1);
 static SpiteString spite_lit_15016 = SPITE_STATIC_STRING("\n", 1);
@@ -8671,68 +8671,70 @@ static SpiteString spite_lit_16888 = SPITE_STATIC_STRING("func _frame_result(): 
 static SpiteString spite_lit_16889 = SPITE_STATIC_STRING("written per result type by the generator: takes the result out of a finished state machine", 90);
 static SpiteString spite_lit_16890 = SPITE_STATIC_STRING("func step_frame(frame: Long): Boolean", 37);
 static SpiteString spite_lit_16891 = SPITE_STATIC_STRING("return (*(bool (**)(void*))(intptr_t)frame_)((void*)(intptr_t)frame_);", 70);
-static SpiteString spite_lit_16892 = SPITE_STATIC_STRING("func _want_check_point()", 24);
-static SpiteString spite_lit_16893 = SPITE_STATIC_STRING("written by the generator: raises the flag every loop's check point loads, in a build that has check points", 106);
-static SpiteString spite_lit_16894 = SPITE_STATIC_STRING("func _take_check_point(): Boolean", 33);
-static SpiteString spite_lit_16895 = SPITE_STATIC_STRING("written by the generator: lowers that flag and answers whether it was raised", 76);
-static SpiteString spite_lit_16896 = SPITE_STATIC_STRING("func _box_of(target: $value_type): Memory.Address", 49);
-static SpiteString spite_lit_16897 = SPITE_STATIC_STRING("written per value type by the generator", 39);
-static SpiteString spite_lit_16898 = SPITE_STATIC_STRING("func get(): $value_type?", 24);
+static SpiteString spite_lit_16892 = SPITE_STATIC_STRING("func release_work(frame: Long)", 30);
+static SpiteString spite_lit_16893 = SPITE_STATIC_STRING("void** spite_slot = (void**)((char*)(intptr_t)frame_ + 16); Spite_Function* spite_work = (Spite_Function*)*spite_slot; *spite_slot = 0; Spite_Function___release(spite_work);", 173);
+static SpiteString spite_lit_16894 = SPITE_STATIC_STRING("func _want_check_point()", 24);
+static SpiteString spite_lit_16895 = SPITE_STATIC_STRING("written by the generator: raises the flag every loop's check point loads, in a build that has check points", 106);
+static SpiteString spite_lit_16896 = SPITE_STATIC_STRING("func _take_check_point(): Boolean", 33);
+static SpiteString spite_lit_16897 = SPITE_STATIC_STRING("written by the generator: lowers that flag and answers whether it was raised", 76);
+static SpiteString spite_lit_16898 = SPITE_STATIC_STRING("func _box_of(target: $value_type): Memory.Address", 49);
 static SpiteString spite_lit_16899 = SPITE_STATIC_STRING("written per value type by the generator", 39);
-static SpiteString spite_lit_16900 = SPITE_STATIC_STRING("func _release_box()", 19);
+static SpiteString spite_lit_16900 = SPITE_STATIC_STRING("func get(): $value_type?", 24);
 static SpiteString spite_lit_16901 = SPITE_STATIC_STRING("written per value type by the generator", 39);
-static SpiteString spite_lit_16902 = SPITE_STATIC_STRING("func read_value(address: Memory.Address, index: Integer): $value_type", 69);
+static SpiteString spite_lit_16902 = SPITE_STATIC_STRING("func _release_box()", 19);
 static SpiteString spite_lit_16903 = SPITE_STATIC_STRING("written per value type by the generator", 39);
-static SpiteString spite_lit_16904 = SPITE_STATIC_STRING("func write_value(address: Memory.Address, index: Integer, value: $value_type)", 77);
+static SpiteString spite_lit_16904 = SPITE_STATIC_STRING("func read_value(address: Memory.Address, index: Integer): $value_type", 69);
 static SpiteString spite_lit_16905 = SPITE_STATIC_STRING("written per value type by the generator", 39);
-static SpiteString spite_lit_16906 = SPITE_STATIC_STRING("func release_value(address: Memory.Address, index: Integer)", 59);
+static SpiteString spite_lit_16906 = SPITE_STATIC_STRING("func write_value(address: Memory.Address, index: Integer, value: $value_type)", 77);
 static SpiteString spite_lit_16907 = SPITE_STATIC_STRING("written per value type by the generator", 39);
-static SpiteString spite_lit_16908 = SPITE_STATIC_STRING("func value_bytes(): Long", 24);
+static SpiteString spite_lit_16908 = SPITE_STATIC_STRING("func release_value(address: Memory.Address, index: Integer)", 59);
 static SpiteString spite_lit_16909 = SPITE_STATIC_STRING("written per value type by the generator", 39);
-static SpiteString spite_lit_16910 = SPITE_STATIC_STRING("func item_at(address: Memory.Address, index: Integer): $value_type", 66);
+static SpiteString spite_lit_16910 = SPITE_STATIC_STRING("func value_bytes(): Long", 24);
 static SpiteString spite_lit_16911 = SPITE_STATIC_STRING("written per value type by the generator", 39);
-static SpiteString spite_lit_16912 = SPITE_STATIC_STRING("func write_item(address: Memory.Address, index: Integer, value: $value_type)", 76);
+static SpiteString spite_lit_16912 = SPITE_STATIC_STRING("func item_at(address: Memory.Address, index: Integer): $value_type", 66);
 static SpiteString spite_lit_16913 = SPITE_STATIC_STRING("written per value type by the generator", 39);
-static SpiteString spite_lit_16914 = SPITE_STATIC_STRING("func copy_item(source: Memory.Address, source_index: Integer, address: Memory.Address, index: Integer)", 102);
+static SpiteString spite_lit_16914 = SPITE_STATIC_STRING("func write_item(address: Memory.Address, index: Integer, value: $value_type)", 76);
 static SpiteString spite_lit_16915 = SPITE_STATIC_STRING("written per value type by the generator", 39);
-static SpiteString spite_lit_16916 = SPITE_STATIC_STRING("func release_item(address: Memory.Address, index: Integer)", 58);
+static SpiteString spite_lit_16916 = SPITE_STATIC_STRING("func copy_item(source: Memory.Address, source_index: Integer, address: Memory.Address, index: Integer)", 102);
 static SpiteString spite_lit_16917 = SPITE_STATIC_STRING("written per value type by the generator", 39);
-static SpiteString spite_lit_16918 = SPITE_STATIC_STRING("func item_bytes(): Long", 23);
+static SpiteString spite_lit_16918 = SPITE_STATIC_STRING("func release_item(address: Memory.Address, index: Integer)", 58);
 static SpiteString spite_lit_16919 = SPITE_STATIC_STRING("written per value type by the generator", 39);
-static SpiteString spite_lit_16920 = SPITE_STATIC_STRING("func item_start(): Long", 23);
+static SpiteString spite_lit_16920 = SPITE_STATIC_STRING("func item_bytes(): Long", 23);
 static SpiteString spite_lit_16921 = SPITE_STATIC_STRING("written per value type by the generator", 39);
-static SpiteString spite_lit_16922 = SPITE_STATIC_STRING("func block_bytes(item_count: Integer): Long", 43);
+static SpiteString spite_lit_16922 = SPITE_STATIC_STRING("func item_start(): Long", 23);
 static SpiteString spite_lit_16923 = SPITE_STATIC_STRING("written per value type by the generator", 39);
-static SpiteString spite_lit_16924 = SPITE_STATIC_STRING("func open_library(file: String): Long", 37);
-static SpiteString spite_lit_16925 = SPITE_STATIC_STRING("#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA(spite_string_bytes(&file_));\n#else\nvoid* opened = dlopen(spite_string_bytes(&file_), RTLD_NOW);\n#endif\nif (opened == 0) {\nfflush(stdout);\nfprintf(stderr, \"spite: could not open the library '%s'\\n\", spite_string_bytes(&file_));\nexit(1);\n}\nSpiteString___release(file_);\nreturn (int64_t)(intptr_t)opened;", 350);
-static SpiteString spite_lit_16926 = SPITE_STATIC_STRING("func find_symbol(name: String, wanted_by: String): Long", 55);
-static SpiteString spite_lit_16927 = SPITE_STATIC_STRING("#ifdef _WIN32\nvoid* found = (void*)GetProcAddress((HMODULE)(intptr_t)self->handle_, spite_string_bytes(&name_));\n#else\nvoid* found = dlsym((void*)(intptr_t)self->handle_, spite_string_bytes(&name_));\n#endif\nif (found == 0) {\nfflush(stdout);\nfprintf(stderr, \"spite: the library '%s' has no '%s', which %s calls\\n\", spite_string_bytes(&self->file_name_), spite_string_bytes(&name_), spite_string_bytes(&wanted_by_));\nexit(1);\n}\nSpiteString___release(name_);\nSpiteString___release(wanted_by_);\nreturn (int64_t)(intptr_t)found;", 523);
-static SpiteString spite_lit_16928 = SPITE_STATIC_STRING("func close_library(opened: Long)", 32);
-static SpiteString spite_lit_16929 = SPITE_STATIC_STRING("if (opened_ == 0) return;\n#ifdef _WIN32\nFreeLibrary((HMODULE)(intptr_t)opened_);\n#else\ndlclose((void*)(intptr_t)opened_);\n#endif", 128);
-static SpiteString spite_lit_16930 = SPITE_STATIC_STRING("func compiler(): String", 23);
-static SpiteString spite_lit_16931 = SPITE_STATIC_STRING("written per build by the generator: the compiler that built the program", 71);
-static SpiteString spite_lit_16932 = SPITE_STATIC_STRING("func build_arguments(): String", 30);
-static SpiteString spite_lit_16933 = SPITE_STATIC_STRING("written per build by the generator: what that compiler was given, one per line", 78);
-static SpiteString spite_lit_16934 = SPITE_STATIC_STRING("func program_file(): String", 27);
-static SpiteString spite_lit_16935 = SPITE_STATIC_STRING("written per build by the generator: the executable it wrote", 59);
-static SpiteString spite_lit_16936 = SPITE_STATIC_STRING("func loaded_folders(): String", 29);
-static SpiteString spite_lit_16937 = SPITE_STATIC_STRING("written per build by the generator: every folder the program loads, one per line", 80);
-static SpiteString spite_lit_16938 = SPITE_STATIC_STRING("func watcher_entry(): Long", 26);
-static SpiteString spite_lit_16939 = SPITE_STATIC_STRING("written per build by the generator: the address of the watcher thread's entry", 77);
-static SpiteString spite_lit_16940 = SPITE_STATIC_STRING("func open(file: String): Long", 29);
-static SpiteString spite_lit_16941 = SPITE_STATIC_STRING("#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA(spite_string_bytes(&file_));\n#else\nvoid* opened = dlopen(spite_string_bytes(&file_), RTLD_NOW);\n#endif\nSpiteString___release(file_);\nreturn (int64_t)(intptr_t)opened;", 215);
-static SpiteString spite_lit_16942 = SPITE_STATIC_STRING("func install(library: Long): String", 35);
-static SpiteString spite_lit_16943 = SPITE_STATIC_STRING("written per build by the generator: binds the library to the program and swaps its functions in", 95);
-static SpiteString spite_lit_16944 = SPITE_STATIC_STRING("func value_attributes(): List<Spite.Attribute>", 46);
-static SpiteString spite_lit_16945 = SPITE_STATIC_STRING("if (self->spite_held != 0 && self->spite_held_attributes != 0) return self->spite_held_attributes(self->spite_held);\nreturn List_Spite_Attribute___make();", 154);
-static SpiteString spite_lit_16946 = SPITE_STATIC_STRING("func value_functions(): List<Spite.Function>", 44);
-static SpiteString spite_lit_16947 = SPITE_STATIC_STRING("if (self->spite_held != 0 && self->spite_held_functions != 0) return self->spite_held_functions(self->spite_held);\nreturn List_Spite_Function___make();", 151);
-static SpiteString spite_lit_16948 = SPITE_STATIC_STRING("func assign(text: String): Boolean", 34);
-static SpiteString spite_lit_16949 = SPITE_STATIC_STRING("bool assigned = false;\nif (self->spite_owner != 0 && self->spite_assign != 0) assigned = self->spite_assign(self->spite_owner, text_);\nSpiteString___release(text_);\nreturn assigned;", 181);
-static SpiteString spite_lit_16950 = SPITE_STATIC_STRING("func call_function()", 20);
-static SpiteString spite_lit_16951 = SPITE_STATIC_STRING("if (self->spite_call != 0) self->spite_call(self->spite_owner);", 63);
-static SpiteString spite_lit_16952 = SPITE_STATIC_STRING("func call_with_text(arguments: List<String>): Spite.Attribute?", 62);
-static SpiteString spite_lit_16953 = SPITE_STATIC_STRING("Spite_Attribute* result = 0;\nif (self->spite_text_call != 0) result = ((Spite_Attribute* (*)(void*, List_String*))self->spite_text_call)(self->spite_owner, arguments_);\nList_String___release(arguments_);\nreturn result;", 218);
+static SpiteString spite_lit_16924 = SPITE_STATIC_STRING("func block_bytes(item_count: Integer): Long", 43);
+static SpiteString spite_lit_16925 = SPITE_STATIC_STRING("written per value type by the generator", 39);
+static SpiteString spite_lit_16926 = SPITE_STATIC_STRING("func open_library(file: String): Long", 37);
+static SpiteString spite_lit_16927 = SPITE_STATIC_STRING("#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA(spite_string_bytes(&file_));\n#else\nvoid* opened = dlopen(spite_string_bytes(&file_), RTLD_NOW);\n#endif\nif (opened == 0) {\nfflush(stdout);\nfprintf(stderr, \"spite: could not open the library '%s'\\n\", spite_string_bytes(&file_));\nexit(1);\n}\nSpiteString___release(file_);\nreturn (int64_t)(intptr_t)opened;", 350);
+static SpiteString spite_lit_16928 = SPITE_STATIC_STRING("func find_symbol(name: String, wanted_by: String): Long", 55);
+static SpiteString spite_lit_16929 = SPITE_STATIC_STRING("#ifdef _WIN32\nvoid* found = (void*)GetProcAddress((HMODULE)(intptr_t)self->handle_, spite_string_bytes(&name_));\n#else\nvoid* found = dlsym((void*)(intptr_t)self->handle_, spite_string_bytes(&name_));\n#endif\nif (found == 0) {\nfflush(stdout);\nfprintf(stderr, \"spite: the library '%s' has no '%s', which %s calls\\n\", spite_string_bytes(&self->file_name_), spite_string_bytes(&name_), spite_string_bytes(&wanted_by_));\nexit(1);\n}\nSpiteString___release(name_);\nSpiteString___release(wanted_by_);\nreturn (int64_t)(intptr_t)found;", 523);
+static SpiteString spite_lit_16930 = SPITE_STATIC_STRING("func close_library(opened: Long)", 32);
+static SpiteString spite_lit_16931 = SPITE_STATIC_STRING("if (opened_ == 0) return;\n#ifdef _WIN32\nFreeLibrary((HMODULE)(intptr_t)opened_);\n#else\ndlclose((void*)(intptr_t)opened_);\n#endif", 128);
+static SpiteString spite_lit_16932 = SPITE_STATIC_STRING("func compiler(): String", 23);
+static SpiteString spite_lit_16933 = SPITE_STATIC_STRING("written per build by the generator: the compiler that built the program", 71);
+static SpiteString spite_lit_16934 = SPITE_STATIC_STRING("func build_arguments(): String", 30);
+static SpiteString spite_lit_16935 = SPITE_STATIC_STRING("written per build by the generator: what that compiler was given, one per line", 78);
+static SpiteString spite_lit_16936 = SPITE_STATIC_STRING("func program_file(): String", 27);
+static SpiteString spite_lit_16937 = SPITE_STATIC_STRING("written per build by the generator: the executable it wrote", 59);
+static SpiteString spite_lit_16938 = SPITE_STATIC_STRING("func loaded_folders(): String", 29);
+static SpiteString spite_lit_16939 = SPITE_STATIC_STRING("written per build by the generator: every folder the program loads, one per line", 80);
+static SpiteString spite_lit_16940 = SPITE_STATIC_STRING("func watcher_entry(): Long", 26);
+static SpiteString spite_lit_16941 = SPITE_STATIC_STRING("written per build by the generator: the address of the watcher thread's entry", 77);
+static SpiteString spite_lit_16942 = SPITE_STATIC_STRING("func open(file: String): Long", 29);
+static SpiteString spite_lit_16943 = SPITE_STATIC_STRING("#ifdef _WIN32\nvoid* opened = (void*)LoadLibraryA(spite_string_bytes(&file_));\n#else\nvoid* opened = dlopen(spite_string_bytes(&file_), RTLD_NOW);\n#endif\nSpiteString___release(file_);\nreturn (int64_t)(intptr_t)opened;", 215);
+static SpiteString spite_lit_16944 = SPITE_STATIC_STRING("func install(library: Long): String", 35);
+static SpiteString spite_lit_16945 = SPITE_STATIC_STRING("written per build by the generator: binds the library to the program and swaps its functions in", 95);
+static SpiteString spite_lit_16946 = SPITE_STATIC_STRING("func value_attributes(): List<Spite.Attribute>", 46);
+static SpiteString spite_lit_16947 = SPITE_STATIC_STRING("if (self->spite_held != 0 && self->spite_held_attributes != 0) return self->spite_held_attributes(self->spite_held);\nreturn List_Spite_Attribute___make();", 154);
+static SpiteString spite_lit_16948 = SPITE_STATIC_STRING("func value_functions(): List<Spite.Function>", 44);
+static SpiteString spite_lit_16949 = SPITE_STATIC_STRING("if (self->spite_held != 0 && self->spite_held_functions != 0) return self->spite_held_functions(self->spite_held);\nreturn List_Spite_Function___make();", 151);
+static SpiteString spite_lit_16950 = SPITE_STATIC_STRING("func assign(text: String): Boolean", 34);
+static SpiteString spite_lit_16951 = SPITE_STATIC_STRING("bool assigned = false;\nif (self->spite_owner != 0 && self->spite_assign != 0) assigned = self->spite_assign(self->spite_owner, text_);\nSpiteString___release(text_);\nreturn assigned;", 181);
+static SpiteString spite_lit_16952 = SPITE_STATIC_STRING("func call_function()", 20);
+static SpiteString spite_lit_16953 = SPITE_STATIC_STRING("if (self->spite_call != 0) self->spite_call(self->spite_owner);", 63);
+static SpiteString spite_lit_16954 = SPITE_STATIC_STRING("func call_with_text(arguments: List<String>): Spite.Attribute?", 62);
+static SpiteString spite_lit_16955 = SPITE_STATIC_STRING("Spite_Attribute* result = 0;\nif (self->spite_text_call != 0) result = ((Spite_Attribute* (*)(void*, List_String*))self->spite_text_call)(self->spite_owner, arguments_);\nList_String___release(arguments_);\nreturn result;", 218);
 struct Generation_ReleaseWatch {
 SpiteHeader header;
 SpiteString name_;
@@ -8769,18 +8771,18 @@ List_String* row_names_;
 List_String* row_sources_;
 List_String* row_paths_;
 };
-static SpiteString spite_lit_16955 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_16956 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_16958 = SPITE_STATIC_STRING("the loop condition '", 20);
-static SpiteString spite_lit_16960 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_16957 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_16958 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_16960 = SPITE_STATIC_STRING("the loop condition '", 20);
 static SpiteString spite_lit_16962 = SPITE_STATIC_STRING("'", 1);
 static SpiteString spite_lit_16964 = SPITE_STATIC_STRING("'", 1);
-static SpiteString spite_lit_16967 = SPITE_STATIC_STRING(".", 1);
-static SpiteString spite_lit_16970 = SPITE_STATIC_STRING("[", 1);
-static SpiteString spite_lit_16971 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_16974 = SPITE_STATIC_STRING(".", 1);
-static SpiteString spite_lit_16977 = SPITE_STATIC_STRING("[", 1);
+static SpiteString spite_lit_16966 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_16969 = SPITE_STATIC_STRING(".", 1);
+static SpiteString spite_lit_16972 = SPITE_STATIC_STRING("[", 1);
+static SpiteString spite_lit_16973 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_16976 = SPITE_STATIC_STRING(".", 1);
 static SpiteString spite_lit_16979 = SPITE_STATIC_STRING("[", 1);
+static SpiteString spite_lit_16981 = SPITE_STATIC_STRING("[", 1);
 struct Generation_StateMachine {
 SpiteHeader header;
 List_String* field_names_;
@@ -8792,58 +8794,58 @@ List_Integer* bound_depths_;
 int32_t depth_;
 List_Integer* resume_points_;
 };
-static SpiteString spite_lit_16981 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_16983 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_16986 = SPITE_STATIC_STRING(" ", 1);
-static SpiteString spite_lit_16988 = SPITE_STATIC_STRING(";", 1);
-static SpiteString spite_lit_16989 = SPITE_STATIC_STRING(" ", 1);
-static SpiteString spite_lit_16991 = SPITE_STATIC_STRING("case ", 5);
-static SpiteString spite_lit_16993 = SPITE_STATIC_STRING(": goto spite_resume_", 20);
-static SpiteString spite_lit_16995 = SPITE_STATIC_STRING(";", 1);
-static SpiteString spite_lit_16997 = SPITE_STATIC_STRING(" ", 1);
-static SpiteString spite_lit_16998 = SPITE_STATIC_STRING("switch (spite_frame->spite_head.state) { ", 41);
-static SpiteString spite_lit_17000 = SPITE_STATIC_STRING(" default: break; }", 18);
-static SpiteString spite_lit_17001 = SPITE_STATIC_STRING("[", 1);
-static SpiteString spite_lit_17003 = SPITE_STATIC_STRING("]", 1);
-static SpiteString spite_lit_17004 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17006 = SPITE_STATIC_STRING(";", 1);
-static SpiteString spite_lit_17008 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17009 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_16983 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_16985 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_16988 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_16990 = SPITE_STATIC_STRING(";", 1);
+static SpiteString spite_lit_16991 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_16993 = SPITE_STATIC_STRING("case ", 5);
+static SpiteString spite_lit_16995 = SPITE_STATIC_STRING(": goto spite_resume_", 20);
+static SpiteString spite_lit_16997 = SPITE_STATIC_STRING(";", 1);
+static SpiteString spite_lit_16999 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_17000 = SPITE_STATIC_STRING("switch (spite_frame->spite_head.state) { ", 41);
+static SpiteString spite_lit_17002 = SPITE_STATIC_STRING(" default: break; }", 18);
+static SpiteString spite_lit_17003 = SPITE_STATIC_STRING("[", 1);
+static SpiteString spite_lit_17005 = SPITE_STATIC_STRING("]", 1);
+static SpiteString spite_lit_17006 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17008 = SPITE_STATIC_STRING(";", 1);
+static SpiteString spite_lit_17010 = SPITE_STATIC_STRING("", 0);
 static SpiteString spite_lit_17011 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17013 = SPITE_STATIC_STRING("spite_frame->", 13);
-static SpiteString spite_lit_17015 = SPITE_STATIC_STRING(" = ", 3);
-static SpiteString spite_lit_17016 = SPITE_STATIC_STRING("spite_resume_", 13);
-static SpiteString spite_lit_17018 = SPITE_STATIC_STRING(":", 1);
-static SpiteString spite_lit_17019 = SPITE_STATIC_STRING(" = ", 3);
-static SpiteString spite_lit_17021 = SPITE_STATIC_STRING(";", 1);
-static SpiteString spite_lit_17022 = SPITE_STATIC_STRING("[", 1);
-static SpiteString spite_lit_17042 = SPITE_STATIC_STRING("return", 6);
-static SpiteString spite_lit_17043 = SPITE_STATIC_STRING("goto", 4);
-static SpiteString spite_lit_17044 = SPITE_STATIC_STRING("else", 4);
-static SpiteString spite_lit_17045 = SPITE_STATIC_STRING("if", 2);
-static SpiteString spite_lit_17046 = SPITE_STATIC_STRING("while", 5);
-static SpiteString spite_lit_17047 = SPITE_STATIC_STRING("for", 3);
-static SpiteString spite_lit_17048 = SPITE_STATIC_STRING("switch", 6);
-static SpiteString spite_lit_17049 = SPITE_STATIC_STRING("case", 4);
-static SpiteString spite_lit_17050 = SPITE_STATIC_STRING("break", 5);
-static SpiteString spite_lit_17051 = SPITE_STATIC_STRING("continue", 8);
-static SpiteString spite_lit_17052 = SPITE_STATIC_STRING("do", 2);
-static SpiteString spite_lit_17053 = SPITE_STATIC_STRING("sizeof", 6);
-static SpiteString spite_lit_17054 = SPITE_STATIC_STRING("typedef", 7);
-static SpiteString spite_lit_17055 = SPITE_STATIC_STRING("struct", 6);
-static SpiteString spite_lit_17056 = SPITE_STATIC_STRING("union", 5);
-static SpiteString spite_lit_17057 = SPITE_STATIC_STRING("enum", 4);
-static SpiteString spite_lit_17058 = SPITE_STATIC_STRING("static", 6);
-static SpiteString spite_lit_17059 = SPITE_STATIC_STRING("default", 7);
-static SpiteString spite_lit_17061 = SPITE_STATIC_STRING("spite_frame->", 13);
-static SpiteString spite_lit_17062 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17064 = SPITE_STATIC_STRING("return", 6);
-static SpiteString spite_lit_17065 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17066 = SPITE_STATIC_STRING("return true;", 12);
-static SpiteString spite_lit_17068 = SPITE_STATIC_STRING("{ spite_frame->spite_result = ", 30);
-static SpiteString spite_lit_17070 = SPITE_STATIC_STRING("; return true; }", 16);
-static SpiteString spite_lit_17071 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17074 = SPITE_STATIC_STRING("_", 1);
+static SpiteString spite_lit_17013 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17015 = SPITE_STATIC_STRING("spite_frame->", 13);
+static SpiteString spite_lit_17017 = SPITE_STATIC_STRING(" = ", 3);
+static SpiteString spite_lit_17018 = SPITE_STATIC_STRING("spite_resume_", 13);
+static SpiteString spite_lit_17020 = SPITE_STATIC_STRING(":", 1);
+static SpiteString spite_lit_17021 = SPITE_STATIC_STRING(" = ", 3);
+static SpiteString spite_lit_17023 = SPITE_STATIC_STRING(";", 1);
+static SpiteString spite_lit_17024 = SPITE_STATIC_STRING("[", 1);
+static SpiteString spite_lit_17044 = SPITE_STATIC_STRING("return", 6);
+static SpiteString spite_lit_17045 = SPITE_STATIC_STRING("goto", 4);
+static SpiteString spite_lit_17046 = SPITE_STATIC_STRING("else", 4);
+static SpiteString spite_lit_17047 = SPITE_STATIC_STRING("if", 2);
+static SpiteString spite_lit_17048 = SPITE_STATIC_STRING("while", 5);
+static SpiteString spite_lit_17049 = SPITE_STATIC_STRING("for", 3);
+static SpiteString spite_lit_17050 = SPITE_STATIC_STRING("switch", 6);
+static SpiteString spite_lit_17051 = SPITE_STATIC_STRING("case", 4);
+static SpiteString spite_lit_17052 = SPITE_STATIC_STRING("break", 5);
+static SpiteString spite_lit_17053 = SPITE_STATIC_STRING("continue", 8);
+static SpiteString spite_lit_17054 = SPITE_STATIC_STRING("do", 2);
+static SpiteString spite_lit_17055 = SPITE_STATIC_STRING("sizeof", 6);
+static SpiteString spite_lit_17056 = SPITE_STATIC_STRING("typedef", 7);
+static SpiteString spite_lit_17057 = SPITE_STATIC_STRING("struct", 6);
+static SpiteString spite_lit_17058 = SPITE_STATIC_STRING("union", 5);
+static SpiteString spite_lit_17059 = SPITE_STATIC_STRING("enum", 4);
+static SpiteString spite_lit_17060 = SPITE_STATIC_STRING("static", 6);
+static SpiteString spite_lit_17061 = SPITE_STATIC_STRING("default", 7);
+static SpiteString spite_lit_17063 = SPITE_STATIC_STRING("spite_frame->", 13);
+static SpiteString spite_lit_17064 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17066 = SPITE_STATIC_STRING("return", 6);
+static SpiteString spite_lit_17067 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17068 = SPITE_STATIC_STRING("return true;", 12);
+static SpiteString spite_lit_17070 = SPITE_STATIC_STRING("{ spite_frame->spite_result = ", 30);
+static SpiteString spite_lit_17072 = SPITE_STATIC_STRING("; return true; }", 16);
+static SpiteString spite_lit_17073 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17076 = SPITE_STATIC_STRING("_", 1);
 struct Generation_TemplateWalk {
 SpiteHeader header;
 SpiteString purpose_;
@@ -8883,46 +8885,46 @@ List_String* guard_names_;
 List_String* guard_lines_;
 Dictionary_Boolean* shaken_macros_;
 };
-static SpiteString spite_lit_17078 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17079 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17080 = SPITE_STATIC_STRING("\n", 1);
 static SpiteString spite_lit_17081 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17082 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17084 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17085 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17083 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17084 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17086 = SPITE_STATIC_STRING("\n", 1);
 static SpiteString spite_lit_17087 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17088 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17090 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17091 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17093 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17094 = SPITE_STATIC_STRING("typedef struct ", 15);
-static SpiteString spite_lit_17095 = SPITE_STATIC_STRING(";", 1);
-static SpiteString spite_lit_17096 = SPITE_STATIC_STRING("{", 1);
-static SpiteString spite_lit_17097 = SPITE_STATIC_STRING("struct ", 7);
+static SpiteString spite_lit_17089 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17090 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17092 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17093 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17095 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17096 = SPITE_STATIC_STRING("typedef struct ", 15);
+static SpiteString spite_lit_17097 = SPITE_STATIC_STRING(";", 1);
 static SpiteString spite_lit_17098 = SPITE_STATIC_STRING("{", 1);
-static SpiteString spite_lit_17099 = SPITE_STATIC_STRING(" ", 1);
-static SpiteString spite_lit_17100 = SPITE_STATIC_STRING("static ", 7);
-static SpiteString spite_lit_17101 = SPITE_STATIC_STRING(";", 1);
-static SpiteString spite_lit_17102 = SPITE_STATIC_STRING("{", 1);
-static SpiteString spite_lit_17103 = SPITE_STATIC_STRING("}", 1);
-static SpiteString spite_lit_17104 = SPITE_STATIC_STRING("#define ", 8);
-static SpiteString spite_lit_17106 = SPITE_STATIC_STRING("(", 1);
-static SpiteString spite_lit_17108 = SPITE_STATIC_STRING("=", 1);
-static SpiteString spite_lit_17109 = SPITE_STATIC_STRING("(", 1);
-static SpiteString spite_lit_17111 = SPITE_STATIC_STRING("[", 1);
-static SpiteString spite_lit_17112 = SPITE_STATIC_STRING("#", 1);
-static SpiteString spite_lit_17113 = SPITE_STATIC_STRING("typedef", 7);
-static SpiteString spite_lit_17114 = SPITE_STATIC_STRING("static", 6);
-static SpiteString spite_lit_17116 = SPITE_STATIC_STRING("{", 1);
-static SpiteString spite_lit_17117 = SPITE_STATIC_STRING(")", 1);
+static SpiteString spite_lit_17099 = SPITE_STATIC_STRING("struct ", 7);
+static SpiteString spite_lit_17100 = SPITE_STATIC_STRING("{", 1);
+static SpiteString spite_lit_17101 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_17102 = SPITE_STATIC_STRING("static ", 7);
+static SpiteString spite_lit_17103 = SPITE_STATIC_STRING(";", 1);
+static SpiteString spite_lit_17104 = SPITE_STATIC_STRING("{", 1);
+static SpiteString spite_lit_17105 = SPITE_STATIC_STRING("}", 1);
+static SpiteString spite_lit_17106 = SPITE_STATIC_STRING("#define ", 8);
+static SpiteString spite_lit_17108 = SPITE_STATIC_STRING("(", 1);
+static SpiteString spite_lit_17110 = SPITE_STATIC_STRING("=", 1);
+static SpiteString spite_lit_17111 = SPITE_STATIC_STRING("(", 1);
+static SpiteString spite_lit_17113 = SPITE_STATIC_STRING("[", 1);
+static SpiteString spite_lit_17114 = SPITE_STATIC_STRING("#", 1);
+static SpiteString spite_lit_17115 = SPITE_STATIC_STRING("typedef", 7);
+static SpiteString spite_lit_17116 = SPITE_STATIC_STRING("static", 6);
 static SpiteString spite_lit_17118 = SPITE_STATIC_STRING("{", 1);
-static SpiteString spite_lit_17119 = SPITE_STATIC_STRING("#", 1);
-static SpiteString spite_lit_17120 = SPITE_STATIC_STRING("typedef", 7);
-static SpiteString spite_lit_17122 = SPITE_STATIC_STRING("(", 1);
-static SpiteString spite_lit_17124 = SPITE_STATIC_STRING("=", 1);
-static SpiteString spite_lit_17125 = SPITE_STATIC_STRING(");", 2);
-static SpiteString spite_lit_17126 = SPITE_STATIC_STRING("#", 1);
-static SpiteString spite_lit_17127 = SPITE_STATIC_STRING("typedef", 7);
-static SpiteString spite_lit_17129 = SPITE_STATIC_STRING("(", 1);
+static SpiteString spite_lit_17119 = SPITE_STATIC_STRING(")", 1);
+static SpiteString spite_lit_17120 = SPITE_STATIC_STRING("{", 1);
+static SpiteString spite_lit_17121 = SPITE_STATIC_STRING("#", 1);
+static SpiteString spite_lit_17122 = SPITE_STATIC_STRING("typedef", 7);
+static SpiteString spite_lit_17124 = SPITE_STATIC_STRING("(", 1);
+static SpiteString spite_lit_17126 = SPITE_STATIC_STRING("=", 1);
+static SpiteString spite_lit_17127 = SPITE_STATIC_STRING(");", 2);
+static SpiteString spite_lit_17128 = SPITE_STATIC_STRING("#", 1);
+static SpiteString spite_lit_17129 = SPITE_STATIC_STRING("typedef", 7);
+static SpiteString spite_lit_17131 = SPITE_STATIC_STRING("(", 1);
 struct Generation_WaitFacts {
 SpiteHeader header;
 List_String* edge_callers_;
@@ -8940,21 +8942,21 @@ List_Integer* asked_lines_;
 List_String* asked_owners_;
 List_String* asked_functions_;
 };
-static SpiteString spite_lit_17135 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_17137 = SPITE_STATIC_STRING(" ", 1);
 struct Syntax_Formatter {
 SpiteHeader header;
 SpiteString refusal_;
 };
-static SpiteString spite_lit_17136 = SPITE_STATIC_STRING("it does not lex", 15);
-static SpiteString spite_lit_17138 = SPITE_STATIC_STRING("line ", 5);
-static SpiteString spite_lit_17140 = SPITE_STATIC_STRING(" has a comment inside a declaration, which the formatter cannot place", 69);
-static SpiteString spite_lit_17142 = SPITE_STATIC_STRING("# ", 2);
-static SpiteString spite_lit_17143 = SPITE_STATIC_STRING("it does not parse", 17);
-static SpiteString spite_lit_17144 = SPITE_STATIC_STRING("its formatted text does not lex", 31);
-static SpiteString spite_lit_17146 = SPITE_STATIC_STRING("its formatted text does not parse: line ", 40);
-static SpiteString spite_lit_17148 = SPITE_STATIC_STRING(": ", 2);
-static SpiteString spite_lit_17149 = SPITE_STATIC_STRING("its formatted text is a different program", 41);
-static SpiteString spite_lit_17150 = SPITE_STATIC_STRING("a comment would be lost", 23);
+static SpiteString spite_lit_17138 = SPITE_STATIC_STRING("it does not lex", 15);
+static SpiteString spite_lit_17140 = SPITE_STATIC_STRING("line ", 5);
+static SpiteString spite_lit_17142 = SPITE_STATIC_STRING(" has a comment inside a declaration, which the formatter cannot place", 69);
+static SpiteString spite_lit_17144 = SPITE_STATIC_STRING("# ", 2);
+static SpiteString spite_lit_17145 = SPITE_STATIC_STRING("it does not parse", 17);
+static SpiteString spite_lit_17146 = SPITE_STATIC_STRING("its formatted text does not lex", 31);
+static SpiteString spite_lit_17148 = SPITE_STATIC_STRING("its formatted text does not parse: line ", 40);
+static SpiteString spite_lit_17150 = SPITE_STATIC_STRING(": ", 2);
+static SpiteString spite_lit_17151 = SPITE_STATIC_STRING("its formatted text is a different program", 41);
+static SpiteString spite_lit_17152 = SPITE_STATIC_STRING("a comment would be lost", 23);
 struct Syntax_Lexer {
 SpiteHeader header;
 SpiteString source_;
@@ -8967,73 +8969,73 @@ bool has_error_;
 SpiteString error_message_;
 int32_t error_line_;
 };
-static SpiteString spite_lit_17151 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17152 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17153 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17154 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17156 = SPITE_STATIC_STRING("var", 3);
-static SpiteString spite_lit_17158 = SPITE_STATIC_STRING("func", 4);
-static SpiteString spite_lit_17160 = SPITE_STATIC_STRING("return", 6);
-static SpiteString spite_lit_17162 = SPITE_STATIC_STRING("if", 2);
-static SpiteString spite_lit_17164 = SPITE_STATIC_STRING("else", 4);
-static SpiteString spite_lit_17166 = SPITE_STATIC_STRING("while", 5);
-static SpiteString spite_lit_17168 = SPITE_STATIC_STRING("switch", 6);
-static SpiteString spite_lit_17170 = SPITE_STATIC_STRING("type", 4);
-static SpiteString spite_lit_17172 = SPITE_STATIC_STRING("enum", 4);
-static SpiteString spite_lit_17174 = SPITE_STATIC_STRING("union", 5);
-static SpiteString spite_lit_17176 = SPITE_STATIC_STRING("generics", 8);
-static SpiteString spite_lit_17178 = SPITE_STATIC_STRING("generic", 7);
-static SpiteString spite_lit_17180 = SPITE_STATIC_STRING("assert", 6);
-static SpiteString spite_lit_17182 = SPITE_STATIC_STRING("crash", 5);
-static SpiteString spite_lit_17184 = SPITE_STATIC_STRING("and", 3);
-static SpiteString spite_lit_17186 = SPITE_STATIC_STRING("or", 2);
-static SpiteString spite_lit_17188 = SPITE_STATIC_STRING("not", 3);
-static SpiteString spite_lit_17190 = SPITE_STATIC_STRING("null", 4);
-static SpiteString spite_lit_17192 = SPITE_STATIC_STRING("true", 4);
-static SpiteString spite_lit_17194 = SPITE_STATIC_STRING("false", 5);
-static SpiteString spite_lit_17196 = SPITE_STATIC_STRING("this", 4);
-static SpiteString spite_lit_17197 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17198 = SPITE_STATIC_STRING("a codegen value is written '$name': there is nothing after the '$'", 66);
-static SpiteString spite_lit_17200 = SPITE_STATIC_STRING("n", 1);
-static SpiteString spite_lit_17201 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17203 = SPITE_STATIC_STRING("t", 1);
-static SpiteString spite_lit_17204 = SPITE_STATIC_STRING("\t", 1);
-static SpiteString spite_lit_17206 = SPITE_STATIC_STRING("r", 1);
-static SpiteString spite_lit_17207 = SPITE_STATIC_STRING("\r", 1);
-static SpiteString spite_lit_17209 = SPITE_STATIC_STRING("\\", 1);
-static SpiteString spite_lit_17210 = SPITE_STATIC_STRING("\\", 1);
-static SpiteString spite_lit_17212 = SPITE_STATIC_STRING("\"", 1);
-static SpiteString spite_lit_17213 = SPITE_STATIC_STRING("\"", 1);
-static SpiteString spite_lit_17215 = SPITE_STATIC_STRING("'", 1);
-static SpiteString spite_lit_17216 = SPITE_STATIC_STRING("'", 1);
-static SpiteString spite_lit_17218 = SPITE_STATIC_STRING("{", 1);
-static SpiteString spite_lit_17219 = SPITE_STATIC_STRING("{", 1);
-static SpiteString spite_lit_17221 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17222 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17223 = SPITE_STATIC_STRING("this '{' inside text never closes: write the value between '{' and '}', like \"hello {name}\", or write a '{' of its own as backslash {", 133);
+static SpiteString spite_lit_17153 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17154 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17155 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17156 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17158 = SPITE_STATIC_STRING("var", 3);
+static SpiteString spite_lit_17160 = SPITE_STATIC_STRING("func", 4);
+static SpiteString spite_lit_17162 = SPITE_STATIC_STRING("return", 6);
+static SpiteString spite_lit_17164 = SPITE_STATIC_STRING("if", 2);
+static SpiteString spite_lit_17166 = SPITE_STATIC_STRING("else", 4);
+static SpiteString spite_lit_17168 = SPITE_STATIC_STRING("while", 5);
+static SpiteString spite_lit_17170 = SPITE_STATIC_STRING("switch", 6);
+static SpiteString spite_lit_17172 = SPITE_STATIC_STRING("type", 4);
+static SpiteString spite_lit_17174 = SPITE_STATIC_STRING("enum", 4);
+static SpiteString spite_lit_17176 = SPITE_STATIC_STRING("union", 5);
+static SpiteString spite_lit_17178 = SPITE_STATIC_STRING("generics", 8);
+static SpiteString spite_lit_17180 = SPITE_STATIC_STRING("generic", 7);
+static SpiteString spite_lit_17182 = SPITE_STATIC_STRING("assert", 6);
+static SpiteString spite_lit_17184 = SPITE_STATIC_STRING("crash", 5);
+static SpiteString spite_lit_17186 = SPITE_STATIC_STRING("and", 3);
+static SpiteString spite_lit_17188 = SPITE_STATIC_STRING("or", 2);
+static SpiteString spite_lit_17190 = SPITE_STATIC_STRING("not", 3);
+static SpiteString spite_lit_17192 = SPITE_STATIC_STRING("null", 4);
+static SpiteString spite_lit_17194 = SPITE_STATIC_STRING("true", 4);
+static SpiteString spite_lit_17196 = SPITE_STATIC_STRING("false", 5);
+static SpiteString spite_lit_17198 = SPITE_STATIC_STRING("this", 4);
+static SpiteString spite_lit_17199 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17200 = SPITE_STATIC_STRING("a codegen value is written '$name': there is nothing after the '$'", 66);
+static SpiteString spite_lit_17202 = SPITE_STATIC_STRING("n", 1);
+static SpiteString spite_lit_17203 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17205 = SPITE_STATIC_STRING("t", 1);
+static SpiteString spite_lit_17206 = SPITE_STATIC_STRING("\t", 1);
+static SpiteString spite_lit_17208 = SPITE_STATIC_STRING("r", 1);
+static SpiteString spite_lit_17209 = SPITE_STATIC_STRING("\r", 1);
+static SpiteString spite_lit_17211 = SPITE_STATIC_STRING("\\", 1);
+static SpiteString spite_lit_17212 = SPITE_STATIC_STRING("\\", 1);
+static SpiteString spite_lit_17214 = SPITE_STATIC_STRING("\"", 1);
+static SpiteString spite_lit_17215 = SPITE_STATIC_STRING("\"", 1);
+static SpiteString spite_lit_17217 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17218 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17220 = SPITE_STATIC_STRING("{", 1);
+static SpiteString spite_lit_17221 = SPITE_STATIC_STRING("{", 1);
+static SpiteString spite_lit_17223 = SPITE_STATIC_STRING("", 0);
 static SpiteString spite_lit_17224 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17225 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17226 = SPITE_STATIC_STRING("this text never closes: a piece of text is written on one line, and a line break inside it is written as the two characters backslash and n", 139);
-static SpiteString spite_lit_17227 = SPITE_STATIC_STRING("Spite writes 'and' and 'or' as words: there is no '&&' or '||'", 62);
-static SpiteString spite_lit_17228 = SPITE_STATIC_STRING("Spite has no '&Type': every class, list and text is passed by reference already, so write the type alone", 104);
-static SpiteString spite_lit_17229 = SPITE_STATIC_STRING("Spite has no '&' operator: bits are functions on the whole numbers, write 'value.bits_and(mask)' (and 'and' for a condition)", 124);
-static SpiteString spite_lit_17230 = SPITE_STATIC_STRING("Spite has no '|' operator: bits are functions on the whole numbers, write 'value.bits_or(mask)' (and 'or' for a condition)", 122);
-static SpiteString spite_lit_17231 = SPITE_STATIC_STRING("Spite has no '^' operator: bits are functions on the whole numbers, write 'value.bits_exclusive_or(mask)'", 105);
-static SpiteString spite_lit_17232 = SPITE_STATIC_STRING("Spite has no '~' operator: bits are functions on the whole numbers, write 'value.bits_inverted()'", 97);
-static SpiteString spite_lit_17233 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17234 = SPITE_STATIC_STRING("Spite writes 'not' as a word: there is no '!'", 45);
+static SpiteString spite_lit_17225 = SPITE_STATIC_STRING("this '{' inside text never closes: write the value between '{' and '}', like \"hello {name}\", or write a '{' of its own as backslash {", 133);
+static SpiteString spite_lit_17226 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17227 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17228 = SPITE_STATIC_STRING("this text never closes: a piece of text is written on one line, and a line break inside it is written as the two characters backslash and n", 139);
+static SpiteString spite_lit_17229 = SPITE_STATIC_STRING("Spite writes 'and' and 'or' as words: there is no '&&' or '||'", 62);
+static SpiteString spite_lit_17230 = SPITE_STATIC_STRING("Spite has no '&Type': every class, list and text is passed by reference already, so write the type alone", 104);
+static SpiteString spite_lit_17231 = SPITE_STATIC_STRING("Spite has no '&' operator: bits are functions on the whole numbers, write 'value.bits_and(mask)' (and 'and' for a condition)", 124);
+static SpiteString spite_lit_17232 = SPITE_STATIC_STRING("Spite has no '|' operator: bits are functions on the whole numbers, write 'value.bits_or(mask)' (and 'or' for a condition)", 122);
+static SpiteString spite_lit_17233 = SPITE_STATIC_STRING("Spite has no '^' operator: bits are functions on the whole numbers, write 'value.bits_exclusive_or(mask)'", 105);
+static SpiteString spite_lit_17234 = SPITE_STATIC_STRING("Spite has no '~' operator: bits are functions on the whole numbers, write 'value.bits_inverted()'", 97);
 static SpiteString spite_lit_17235 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17236 = SPITE_STATIC_STRING("Spite has no '++': write 'count = count + 1'", 44);
+static SpiteString spite_lit_17236 = SPITE_STATIC_STRING("Spite writes 'not' as a word: there is no '!'", 45);
 static SpiteString spite_lit_17237 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17238 = SPITE_STATIC_STRING("Spite has no '--': write 'count = count - 1'", 44);
+static SpiteString spite_lit_17238 = SPITE_STATIC_STRING("Spite has no '++': write 'count = count + 1'", 44);
 static SpiteString spite_lit_17239 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17241 = SPITE_STATIC_STRING("Spite has no '", 14);
-static SpiteString spite_lit_17243 = SPITE_STATIC_STRING("=': write 'count = count ", 25);
-static SpiteString spite_lit_17245 = SPITE_STATIC_STRING(" value'", 7);
-static SpiteString spite_lit_17246 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17247 = SPITE_STATIC_STRING("Spite has no '//' or '/* */' comments: a comment is one line holding only a link to a markdown section, like '# docs/memory.md#cycles', and only outside functions. Ask whether the note is needed: if a reader could work it out from the code, delete it; if it is lasting knowledge, write the section first and link to it; if it warns against a change, a test or a compile error pushes harder than prose", 400);
-static SpiteString spite_lit_17249 = SPITE_STATIC_STRING("'", 1);
-static SpiteString spite_lit_17251 = SPITE_STATIC_STRING("' is not something Spite reads", 30);
+static SpiteString spite_lit_17240 = SPITE_STATIC_STRING("Spite has no '--': write 'count = count - 1'", 44);
+static SpiteString spite_lit_17241 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17243 = SPITE_STATIC_STRING("Spite has no '", 14);
+static SpiteString spite_lit_17245 = SPITE_STATIC_STRING("=': write 'count = count ", 25);
+static SpiteString spite_lit_17247 = SPITE_STATIC_STRING(" value'", 7);
+static SpiteString spite_lit_17248 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17249 = SPITE_STATIC_STRING("Spite has no '//' or '/* */' comments: a comment is one line holding only a link to a markdown section, like '# docs/memory.md#cycles', and only outside functions. Ask whether the note is needed: if a reader could work it out from the code, delete it; if it is lasting knowledge, write the section first and link to it; if it warns against a change, a test or a compile error pushes harder than prose", 400);
+static SpiteString spite_lit_17251 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17253 = SPITE_STATIC_STRING("' is not something Spite reads", 30);
 struct Syntax_Parser {
 SpiteHeader header;
 Analysis_AstShape* shape_;
@@ -9047,191 +9049,191 @@ bool quiet_generic_arguments_matched_;
 bool quiet_generic_instantiation_matched_;
 bool names_generic_class_;
 };
-static SpiteString spite_lit_17252 = SPITE_STATIC_STRING("the end of the line", 19);
-static SpiteString spite_lit_17253 = SPITE_STATIC_STRING("the end of the file", 19);
-static SpiteString spite_lit_17255 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17254 = SPITE_STATIC_STRING("the end of the line", 19);
+static SpiteString spite_lit_17255 = SPITE_STATIC_STRING("the end of the file", 19);
 static SpiteString spite_lit_17257 = SPITE_STATIC_STRING("'", 1);
-static SpiteString spite_lit_17259 = SPITE_STATIC_STRING("expected ", 9);
-static SpiteString spite_lit_17261 = SPITE_STATIC_STRING(" but found ", 11);
-static SpiteString spite_lit_17263 = SPITE_STATIC_STRING("expected end of statement but found ", 36);
-static SpiteString spite_lit_17265 = SPITE_STATIC_STRING("expected ',' or a newline but found '", 37);
-static SpiteString spite_lit_17267 = SPITE_STATIC_STRING("'", 1);
-static SpiteString spite_lit_17268 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17269 = SPITE_STATIC_STRING("a file holds declarations and nothing else: move this statement into a function, or into the class's constructor", 112);
-static SpiteString spite_lit_17271 = SPITE_STATIC_STRING("singleton", 9);
-static SpiteString spite_lit_17272 = SPITE_STATIC_STRING("a 'generic' line declares a codegen value of the whole class: move it to the top of the file", 92);
-static SpiteString spite_lit_17274 = SPITE_STATIC_STRING("do", 2);
-static SpiteString spite_lit_17275 = SPITE_STATIC_STRING("Spite has no 'do': an 'if' on a value that may be null narrows it in place, 'if value { ... } else { ... }', and inside the block 'value' is the value itself", 157);
-static SpiteString spite_lit_17276 = SPITE_STATIC_STRING("'{'", 3);
-static SpiteString spite_lit_17277 = SPITE_STATIC_STRING("'}'", 3);
-static SpiteString spite_lit_17278 = SPITE_STATIC_STRING("there is nothing between '{' and '}': write the value to place there, like \"hello {name}\"", 89);
-static SpiteString spite_lit_17280 = SPITE_STATIC_STRING("'", 1);
-static SpiteString spite_lit_17282 = SPITE_STATIC_STRING("' is more than one value: what goes between '{' and '}' is a single value", 73);
-static SpiteString spite_lit_17284 = SPITE_STATIC_STRING("new", 3);
-static SpiteString spite_lit_17285 = SPITE_STATIC_STRING("there is no 'new' in Spite: a class is made by calling its own name, like 'Creature(\"rat\")'", 91);
-static SpiteString spite_lit_17287 = SPITE_STATIC_STRING("self", 4);
-static SpiteString spite_lit_17288 = SPITE_STATIC_STRING("there is no 'self': a class reads its own attributes by name ('name', not 'self.name'), and 'this' is the value itself", 118);
-static SpiteString spite_lit_17290 = SPITE_STATIC_STRING("import", 6);
-static SpiteString spite_lit_17292 = SPITE_STATIC_STRING("require", 7);
-static SpiteString spite_lit_17293 = SPITE_STATIC_STRING("there are no imports: 'load \"folder\"' inside a function brings a folder into the program, and everything shares one namespace", 125);
-static SpiteString spite_lit_17295 = SPITE_STATIC_STRING("elif", 4);
-static SpiteString spite_lit_17296 = SPITE_STATIC_STRING("Spite writes 'else if'", 22);
-static SpiteString spite_lit_17298 = SPITE_STATIC_STRING("null", 4);
-static SpiteString spite_lit_17300 = SPITE_STATIC_STRING("nil", 3);
-static SpiteString spite_lit_17302 = SPITE_STATIC_STRING("none", 4);
-static SpiteString spite_lit_17304 = SPITE_STATIC_STRING("undefined", 9);
-static SpiteString spite_lit_17305 = SPITE_STATIC_STRING("the empty value is written 'null'", 33);
-static SpiteString spite_lit_17306 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17308 = SPITE_STATIC_STRING("class", 5);
-static SpiteString spite_lit_17310 = SPITE_STATIC_STRING("struct", 6);
-static SpiteString spite_lit_17312 = SPITE_STATIC_STRING("interface", 9);
-static SpiteString spite_lit_17314 = SPITE_STATIC_STRING("trait", 5);
-static SpiteString spite_lit_17316 = SPITE_STATIC_STRING("there is no '", 13);
-static SpiteString spite_lit_17318 = SPITE_STATIC_STRING("' keyword: a file is a class, named after the file, and its attributes and functions are written at the top level of that file", 126);
-static SpiteString spite_lit_17320 = SPITE_STATIC_STRING("for", 3);
-static SpiteString spite_lit_17321 = SPITE_STATIC_STRING("Spite only has 'while' loops; there is no 'for'. Use List<T>'s metaprogramming helpers or 'while index < list.count() { ... }' instead.", 135);
-static SpiteString spite_lit_17323 = SPITE_STATIC_STRING("let", 3);
-static SpiteString spite_lit_17325 = SPITE_STATIC_STRING("const", 5);
-static SpiteString spite_lit_17327 = SPITE_STATIC_STRING("Spite has no '", 14);
-static SpiteString spite_lit_17329 = SPITE_STATIC_STRING("': a variable is declared 'var name = value', always with a default, and there is no 'const'", 92);
-static SpiteString spite_lit_17331 = SPITE_STATIC_STRING("break", 5);
-static SpiteString spite_lit_17333 = SPITE_STATIC_STRING("continue", 8);
-static SpiteString spite_lit_17335 = SPITE_STATIC_STRING("Spite has no '", 14);
-static SpiteString spite_lit_17337 = SPITE_STATIC_STRING("': a loop stops in its own condition, like 'while index < count and not found', and a step it skips sits under an 'if'", 118);
-static SpiteString spite_lit_17339 = SPITE_STATIC_STRING("load", 4);
-static SpiteString spite_lit_17341 = SPITE_STATIC_STRING("'load' is a keyword, not a function: write it without parentheses, 'load ", 73);
-static SpiteString spite_lit_17343 = SPITE_STATIC_STRING("'", 1);
-static SpiteString spite_lit_17345 = SPITE_STATIC_STRING("load", 4);
+static SpiteString spite_lit_17259 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17261 = SPITE_STATIC_STRING("expected ", 9);
+static SpiteString spite_lit_17263 = SPITE_STATIC_STRING(" but found ", 11);
+static SpiteString spite_lit_17265 = SPITE_STATIC_STRING("expected end of statement but found ", 36);
+static SpiteString spite_lit_17267 = SPITE_STATIC_STRING("expected ',' or a newline but found '", 37);
+static SpiteString spite_lit_17269 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17270 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17271 = SPITE_STATIC_STRING("a file holds declarations and nothing else: move this statement into a function, or into the class's constructor", 112);
+static SpiteString spite_lit_17273 = SPITE_STATIC_STRING("singleton", 9);
+static SpiteString spite_lit_17274 = SPITE_STATIC_STRING("a 'generic' line declares a codegen value of the whole class: move it to the top of the file", 92);
+static SpiteString spite_lit_17276 = SPITE_STATIC_STRING("do", 2);
+static SpiteString spite_lit_17277 = SPITE_STATIC_STRING("Spite has no 'do': an 'if' on a value that may be null narrows it in place, 'if value { ... } else { ... }', and inside the block 'value' is the value itself", 157);
+static SpiteString spite_lit_17278 = SPITE_STATIC_STRING("'{'", 3);
+static SpiteString spite_lit_17279 = SPITE_STATIC_STRING("'}'", 3);
+static SpiteString spite_lit_17280 = SPITE_STATIC_STRING("there is nothing between '{' and '}': write the value to place there, like \"hello {name}\"", 89);
+static SpiteString spite_lit_17282 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17284 = SPITE_STATIC_STRING("' is more than one value: what goes between '{' and '}' is a single value", 73);
+static SpiteString spite_lit_17286 = SPITE_STATIC_STRING("new", 3);
+static SpiteString spite_lit_17287 = SPITE_STATIC_STRING("there is no 'new' in Spite: a class is made by calling its own name, like 'Creature(\"rat\")'", 91);
+static SpiteString spite_lit_17289 = SPITE_STATIC_STRING("self", 4);
+static SpiteString spite_lit_17290 = SPITE_STATIC_STRING("there is no 'self': a class reads its own attributes by name ('name', not 'self.name'), and 'this' is the value itself", 118);
+static SpiteString spite_lit_17292 = SPITE_STATIC_STRING("import", 6);
+static SpiteString spite_lit_17294 = SPITE_STATIC_STRING("require", 7);
+static SpiteString spite_lit_17295 = SPITE_STATIC_STRING("there are no imports: 'load \"folder\"' inside a function brings a folder into the program, and everything shares one namespace", 125);
+static SpiteString spite_lit_17297 = SPITE_STATIC_STRING("elif", 4);
+static SpiteString spite_lit_17298 = SPITE_STATIC_STRING("Spite writes 'else if'", 22);
+static SpiteString spite_lit_17300 = SPITE_STATIC_STRING("null", 4);
+static SpiteString spite_lit_17302 = SPITE_STATIC_STRING("nil", 3);
+static SpiteString spite_lit_17304 = SPITE_STATIC_STRING("none", 4);
+static SpiteString spite_lit_17306 = SPITE_STATIC_STRING("undefined", 9);
+static SpiteString spite_lit_17307 = SPITE_STATIC_STRING("the empty value is written 'null'", 33);
+static SpiteString spite_lit_17308 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17310 = SPITE_STATIC_STRING("class", 5);
+static SpiteString spite_lit_17312 = SPITE_STATIC_STRING("struct", 6);
+static SpiteString spite_lit_17314 = SPITE_STATIC_STRING("interface", 9);
+static SpiteString spite_lit_17316 = SPITE_STATIC_STRING("trait", 5);
+static SpiteString spite_lit_17318 = SPITE_STATIC_STRING("there is no '", 13);
+static SpiteString spite_lit_17320 = SPITE_STATIC_STRING("' keyword: a file is a class, named after the file, and its attributes and functions are written at the top level of that file", 126);
+static SpiteString spite_lit_17322 = SPITE_STATIC_STRING("for", 3);
+static SpiteString spite_lit_17323 = SPITE_STATIC_STRING("Spite only has 'while' loops; there is no 'for'. Use List<T>'s metaprogramming helpers or 'while index < list.count() { ... }' instead.", 135);
+static SpiteString spite_lit_17325 = SPITE_STATIC_STRING("let", 3);
+static SpiteString spite_lit_17327 = SPITE_STATIC_STRING("const", 5);
+static SpiteString spite_lit_17329 = SPITE_STATIC_STRING("Spite has no '", 14);
+static SpiteString spite_lit_17331 = SPITE_STATIC_STRING("': a variable is declared 'var name = value', always with a default, and there is no 'const'", 92);
+static SpiteString spite_lit_17333 = SPITE_STATIC_STRING("break", 5);
+static SpiteString spite_lit_17335 = SPITE_STATIC_STRING("continue", 8);
+static SpiteString spite_lit_17337 = SPITE_STATIC_STRING("Spite has no '", 14);
+static SpiteString spite_lit_17339 = SPITE_STATIC_STRING("': a loop stops in its own condition, like 'while index < count and not found', and a step it skips sits under an 'if'", 118);
+static SpiteString spite_lit_17341 = SPITE_STATIC_STRING("load", 4);
+static SpiteString spite_lit_17343 = SPITE_STATIC_STRING("'load' is a keyword, not a function: write it without parentheses, 'load ", 73);
+static SpiteString spite_lit_17345 = SPITE_STATIC_STRING("'", 1);
 static SpiteString spite_lit_17347 = SPITE_STATIC_STRING("load", 4);
-static SpiteString spite_lit_17349 = SPITE_STATIC_STRING("'load' is a keyword and cannot name a ", 38);
-static SpiteString spite_lit_17351 = SPITE_STATIC_STRING(": give it a name that says what it loads, like 'load_texture'", 61);
-static SpiteString spite_lit_17352 = SPITE_STATIC_STRING("there is no 'generics' list: a class declares each codegen value on its own line at the top of the file, like 'generic $damage_type'", 132);
-static SpiteString spite_lit_17354 = SPITE_STATIC_STRING("a codegen value name after 'generic', like 'generic $element_type'", 66);
-static SpiteString spite_lit_17356 = SPITE_STATIC_STRING("a 'generic' line declares one codegen value: write 'generic $", 61);
-static SpiteString spite_lit_17358 = SPITE_STATIC_STRING("' and put the next one on its own line", 38);
-static SpiteString spite_lit_17360 = SPITE_STATIC_STRING("variable", 8);
-static SpiteString spite_lit_17361 = SPITE_STATIC_STRING("variable", 8);
-static SpiteString spite_lit_17363 = SPITE_STATIC_STRING("a variable name", 15);
-static SpiteString spite_lit_17364 = SPITE_STATIC_STRING("'=' (every variable needs a default value)", 42);
-static SpiteString spite_lit_17365 = SPITE_STATIC_STRING("function", 8);
-static SpiteString spite_lit_17367 = SPITE_STATIC_STRING("a function name", 15);
-static SpiteString spite_lit_17368 = SPITE_STATIC_STRING("'(' to start the parameter list", 31);
-static SpiteString spite_lit_17369 = SPITE_STATIC_STRING("':' followed by the parameter's type", 36);
-static SpiteString spite_lit_17370 = SPITE_STATIC_STRING("a parameter has no default value in Spite: every argument is written at the call site, or the class holds the value as an attribute", 131);
-static SpiteString spite_lit_17372 = SPITE_STATIC_STRING("'...", 4);
-static SpiteString spite_lit_17374 = SPITE_STATIC_STRING("' receives the arguments as a list: write '...", 46);
-static SpiteString spite_lit_17376 = SPITE_STATIC_STRING(": List<Type>', where Type is a class or a type every argument fits", 66);
-static SpiteString spite_lit_17378 = SPITE_STATIC_STRING("'...", 4);
-static SpiteString spite_lit_17380 = SPITE_STATIC_STRING("' takes every argument from here on, so it is the last parameter: move it to the end", 84);
-static SpiteString spite_lit_17381 = SPITE_STATIC_STRING("')' to close the parameter list", 31);
-static SpiteString spite_lit_17383 = SPITE_STATIC_STRING("a return type is written '(): ", 30);
-static SpiteString spite_lit_17385 = SPITE_STATIC_STRING("': add the ':' after the parameter list", 39);
-static SpiteString spite_lit_17388 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17389 = SPITE_STATIC_STRING("List", 4);
-static SpiteString spite_lit_17391 = SPITE_STATIC_STRING("generic $", 9);
-static SpiteString spite_lit_17393 = SPITE_STATIC_STRING("', '", 4);
-static SpiteString spite_lit_17394 = SPITE_STATIC_STRING("a function no longer lists codegen values between '<' and '>': declare each at the top of the file on its own line ('", 117);
-static SpiteString spite_lit_17396 = SPITE_STATIC_STRING("'), and write 'func ", 20);
-static SpiteString spite_lit_17398 = SPITE_STATIC_STRING("(' here", 7);
-static SpiteString spite_lit_17399 = SPITE_STATIC_STRING("type", 4);
-static SpiteString spite_lit_17400 = SPITE_STATIC_STRING("parameter", 9);
-static SpiteString spite_lit_17401 = SPITE_STATIC_STRING("parameter", 9);
-static SpiteString spite_lit_17403 = SPITE_STATIC_STRING("a parameter name", 16);
-static SpiteString spite_lit_17405 = SPITE_STATIC_STRING("'", 1);
-static SpiteString spite_lit_17407 = SPITE_STATIC_STRING("' cannot name a ", 16);
-static SpiteString spite_lit_17409 = SPITE_STATIC_STRING(", because Spite reads the word as a mistake anywhere it is used: ", 65);
-static SpiteString spite_lit_17410 = SPITE_STATIC_STRING("Type", 4);
-static SpiteString spite_lit_17412 = SPITE_STATIC_STRING("a shape names the types it needs, not the names they are given: write '", 71);
-static SpiteString spite_lit_17414 = SPITE_STATIC_STRING("' where '", 9);
-static SpiteString spite_lit_17416 = SPITE_STATIC_STRING(": ...' is, since a class satisfies it whatever it calls its parameters", 70);
-static SpiteString spite_lit_17417 = SPITE_STATIC_STRING("')' to close the parameter list", 31);
-static SpiteString spite_lit_17418 = SPITE_STATIC_STRING("Nothing", 7);
-static SpiteString spite_lit_17420 = SPITE_STATIC_STRING("a declaration takes no '=': write '", 35);
-static SpiteString spite_lit_17422 = SPITE_STATIC_STRING(" ", 1);
-static SpiteString spite_lit_17424 = SPITE_STATIC_STRING(" {' with one entry on each line", 31);
-static SpiteString spite_lit_17427 = SPITE_STATIC_STRING(" declarations put each entry on its own line: start a new line after '{'", 72);
-static SpiteString spite_lit_17430 = SPITE_STATIC_STRING(" declarations separate their entries by lines, not commas: delete the ','", 73);
-static SpiteString spite_lit_17433 = SPITE_STATIC_STRING(" declarations put each entry on its own line: move '", 52);
-static SpiteString spite_lit_17435 = SPITE_STATIC_STRING("' to the next line", 18);
-static SpiteString spite_lit_17437 = SPITE_STATIC_STRING("a type name", 11);
-static SpiteString spite_lit_17438 = SPITE_STATIC_STRING("type", 4);
-static SpiteString spite_lit_17439 = SPITE_STATIC_STRING("'{' to start the type body", 26);
+static SpiteString spite_lit_17349 = SPITE_STATIC_STRING("load", 4);
+static SpiteString spite_lit_17351 = SPITE_STATIC_STRING("'load' is a keyword and cannot name a ", 38);
+static SpiteString spite_lit_17353 = SPITE_STATIC_STRING(": give it a name that says what it loads, like 'load_texture'", 61);
+static SpiteString spite_lit_17354 = SPITE_STATIC_STRING("there is no 'generics' list: a class declares each codegen value on its own line at the top of the file, like 'generic $damage_type'", 132);
+static SpiteString spite_lit_17356 = SPITE_STATIC_STRING("a codegen value name after 'generic', like 'generic $element_type'", 66);
+static SpiteString spite_lit_17358 = SPITE_STATIC_STRING("a 'generic' line declares one codegen value: write 'generic $", 61);
+static SpiteString spite_lit_17360 = SPITE_STATIC_STRING("' and put the next one on its own line", 38);
+static SpiteString spite_lit_17362 = SPITE_STATIC_STRING("variable", 8);
+static SpiteString spite_lit_17363 = SPITE_STATIC_STRING("variable", 8);
+static SpiteString spite_lit_17365 = SPITE_STATIC_STRING("a variable name", 15);
+static SpiteString spite_lit_17366 = SPITE_STATIC_STRING("'=' (every variable needs a default value)", 42);
+static SpiteString spite_lit_17367 = SPITE_STATIC_STRING("function", 8);
+static SpiteString spite_lit_17369 = SPITE_STATIC_STRING("a function name", 15);
+static SpiteString spite_lit_17370 = SPITE_STATIC_STRING("'(' to start the parameter list", 31);
+static SpiteString spite_lit_17371 = SPITE_STATIC_STRING("':' followed by the parameter's type", 36);
+static SpiteString spite_lit_17372 = SPITE_STATIC_STRING("a parameter has no default value in Spite: every argument is written at the call site, or the class holds the value as an attribute", 131);
+static SpiteString spite_lit_17374 = SPITE_STATIC_STRING("'...", 4);
+static SpiteString spite_lit_17376 = SPITE_STATIC_STRING("' receives the arguments as a list: write '...", 46);
+static SpiteString spite_lit_17378 = SPITE_STATIC_STRING(": List<Type>', where Type is a class or a type every argument fits", 66);
+static SpiteString spite_lit_17380 = SPITE_STATIC_STRING("'...", 4);
+static SpiteString spite_lit_17382 = SPITE_STATIC_STRING("' takes every argument from here on, so it is the last parameter: move it to the end", 84);
+static SpiteString spite_lit_17383 = SPITE_STATIC_STRING("')' to close the parameter list", 31);
+static SpiteString spite_lit_17385 = SPITE_STATIC_STRING("a return type is written '(): ", 30);
+static SpiteString spite_lit_17387 = SPITE_STATIC_STRING("': add the ':' after the parameter list", 39);
+static SpiteString spite_lit_17390 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17391 = SPITE_STATIC_STRING("List", 4);
+static SpiteString spite_lit_17393 = SPITE_STATIC_STRING("generic $", 9);
+static SpiteString spite_lit_17395 = SPITE_STATIC_STRING("', '", 4);
+static SpiteString spite_lit_17396 = SPITE_STATIC_STRING("a function no longer lists codegen values between '<' and '>': declare each at the top of the file on its own line ('", 117);
+static SpiteString spite_lit_17398 = SPITE_STATIC_STRING("'), and write 'func ", 20);
+static SpiteString spite_lit_17400 = SPITE_STATIC_STRING("(' here", 7);
+static SpiteString spite_lit_17401 = SPITE_STATIC_STRING("type", 4);
+static SpiteString spite_lit_17402 = SPITE_STATIC_STRING("parameter", 9);
+static SpiteString spite_lit_17403 = SPITE_STATIC_STRING("parameter", 9);
+static SpiteString spite_lit_17405 = SPITE_STATIC_STRING("a parameter name", 16);
+static SpiteString spite_lit_17407 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17409 = SPITE_STATIC_STRING("' cannot name a ", 16);
+static SpiteString spite_lit_17411 = SPITE_STATIC_STRING(", because Spite reads the word as a mistake anywhere it is used: ", 65);
+static SpiteString spite_lit_17412 = SPITE_STATIC_STRING("Type", 4);
+static SpiteString spite_lit_17414 = SPITE_STATIC_STRING("a shape names the types it needs, not the names they are given: write '", 71);
+static SpiteString spite_lit_17416 = SPITE_STATIC_STRING("' where '", 9);
+static SpiteString spite_lit_17418 = SPITE_STATIC_STRING(": ...' is, since a class satisfies it whatever it calls its parameters", 70);
+static SpiteString spite_lit_17419 = SPITE_STATIC_STRING("')' to close the parameter list", 31);
+static SpiteString spite_lit_17420 = SPITE_STATIC_STRING("Nothing", 7);
+static SpiteString spite_lit_17422 = SPITE_STATIC_STRING("a declaration takes no '=': write '", 35);
+static SpiteString spite_lit_17424 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_17426 = SPITE_STATIC_STRING(" {' with one entry on each line", 31);
+static SpiteString spite_lit_17429 = SPITE_STATIC_STRING(" declarations put each entry on its own line: start a new line after '{'", 72);
+static SpiteString spite_lit_17432 = SPITE_STATIC_STRING(" declarations separate their entries by lines, not commas: delete the ','", 73);
+static SpiteString spite_lit_17435 = SPITE_STATIC_STRING(" declarations put each entry on its own line: move '", 52);
+static SpiteString spite_lit_17437 = SPITE_STATIC_STRING("' to the next line", 18);
+static SpiteString spite_lit_17439 = SPITE_STATIC_STRING("a type name", 11);
 static SpiteString spite_lit_17440 = SPITE_STATIC_STRING("type", 4);
-static SpiteString spite_lit_17442 = SPITE_STATIC_STRING("a field name", 12);
-static SpiteString spite_lit_17443 = SPITE_STATIC_STRING("':' followed by the field's type", 32);
-static SpiteString spite_lit_17444 = SPITE_STATIC_STRING("type", 4);
-static SpiteString spite_lit_17445 = SPITE_STATIC_STRING("'}' to close the type body", 26);
-static SpiteString spite_lit_17447 = SPITE_STATIC_STRING("an enum name", 12);
-static SpiteString spite_lit_17448 = SPITE_STATIC_STRING("enum", 4);
-static SpiteString spite_lit_17449 = SPITE_STATIC_STRING("'{' to start the enum body", 26);
+static SpiteString spite_lit_17441 = SPITE_STATIC_STRING("'{' to start the type body", 26);
+static SpiteString spite_lit_17442 = SPITE_STATIC_STRING("type", 4);
+static SpiteString spite_lit_17444 = SPITE_STATIC_STRING("a field name", 12);
+static SpiteString spite_lit_17445 = SPITE_STATIC_STRING("':' followed by the field's type", 32);
+static SpiteString spite_lit_17446 = SPITE_STATIC_STRING("type", 4);
+static SpiteString spite_lit_17447 = SPITE_STATIC_STRING("'}' to close the type body", 26);
+static SpiteString spite_lit_17449 = SPITE_STATIC_STRING("an enum name", 12);
 static SpiteString spite_lit_17450 = SPITE_STATIC_STRING("enum", 4);
-static SpiteString spite_lit_17452 = SPITE_STATIC_STRING("an enum value (e.g. 'value')", 28);
-static SpiteString spite_lit_17454 = SPITE_STATIC_STRING("enum", 4);
-static SpiteString spite_lit_17455 = SPITE_STATIC_STRING("'}' to close the enum body", 26);
-static SpiteString spite_lit_17457 = SPITE_STATIC_STRING("a union name", 12);
-static SpiteString spite_lit_17458 = SPITE_STATIC_STRING("union", 5);
-static SpiteString spite_lit_17459 = SPITE_STATIC_STRING("'{' to start the union body", 27);
+static SpiteString spite_lit_17451 = SPITE_STATIC_STRING("'{' to start the enum body", 26);
+static SpiteString spite_lit_17452 = SPITE_STATIC_STRING("enum", 4);
+static SpiteString spite_lit_17454 = SPITE_STATIC_STRING("an enum value (e.g. 'value')", 28);
+static SpiteString spite_lit_17456 = SPITE_STATIC_STRING("enum", 4);
+static SpiteString spite_lit_17457 = SPITE_STATIC_STRING("'}' to close the enum body", 26);
+static SpiteString spite_lit_17459 = SPITE_STATIC_STRING("a union name", 12);
 static SpiteString spite_lit_17460 = SPITE_STATIC_STRING("union", 5);
-static SpiteString spite_lit_17461 = SPITE_STATIC_STRING("union", 5);
-static SpiteString spite_lit_17462 = SPITE_STATIC_STRING("'}' to close the union body", 27);
-static SpiteString spite_lit_17463 = SPITE_STATIC_STRING("'{' to start the switch body", 28);
-static SpiteString spite_lit_17464 = SPITE_STATIC_STRING("':' followed by the case body", 29);
-static SpiteString spite_lit_17465 = SPITE_STATIC_STRING("'}' to close the switch body", 28);
-static SpiteString spite_lit_17467 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17479 = SPITE_STATIC_STRING(")", 1);
-static SpiteString spite_lit_17481 = SPITE_STATIC_STRING("]", 1);
-static SpiteString spite_lit_17483 = SPITE_STATIC_STRING(",", 1);
-static SpiteString spite_lit_17485 = SPITE_STATIC_STRING(".", 1);
-static SpiteString spite_lit_17487 = SPITE_STATIC_STRING("(", 1);
-static SpiteString spite_lit_17488 = SPITE_STATIC_STRING("(", 1);
-static SpiteString spite_lit_17489 = SPITE_STATIC_STRING("[", 1);
-static SpiteString spite_lit_17490 = SPITE_STATIC_STRING(".", 1);
-static SpiteString spite_lit_17492 = SPITE_STATIC_STRING("(", 1);
-static SpiteString spite_lit_17493 = SPITE_STATIC_STRING(" and", 4);
-static SpiteString spite_lit_17494 = SPITE_STATIC_STRING(" or", 3);
-static SpiteString spite_lit_17495 = SPITE_STATIC_STRING(" not", 4);
-static SpiteString spite_lit_17496 = SPITE_STATIC_STRING("=", 1);
-static SpiteString spite_lit_17497 = SPITE_STATIC_STRING("<", 1);
-static SpiteString spite_lit_17498 = SPITE_STATIC_STRING(">", 1);
-static SpiteString spite_lit_17501 = SPITE_STATIC_STRING(" ", 1);
-static SpiteString spite_lit_17502 = SPITE_STATIC_STRING("Nullable", 8);
-static SpiteString spite_lit_17505 = SPITE_STATIC_STRING("type", 4);
-static SpiteString spite_lit_17507 = SPITE_STATIC_STRING("expected a type name but found ", 31);
-static SpiteString spite_lit_17511 = SPITE_STATIC_STRING("expected a name after '.' but found ", 36);
-static SpiteString spite_lit_17512 = SPITE_STATIC_STRING("'>' to close the generic argument list", 38);
-static SpiteString spite_lit_17514 = SPITE_STATIC_STRING("Nullable", 8);
-static SpiteString spite_lit_17515 = SPITE_STATIC_STRING("'Nullable<T>' was replaced by a '?' suffix: write 'Monster?' for a value that may be null", 89);
-static SpiteString spite_lit_17517 = SPITE_STATIC_STRING("$", 1);
-static SpiteString spite_lit_17520 = SPITE_STATIC_STRING("expected the name of a codegen value after '.' but found ", 57);
-static SpiteString spite_lit_17522 = SPITE_STATIC_STRING("expected a generic argument but found ", 38);
-static SpiteString spite_lit_17525 = SPITE_STATIC_STRING("Spite has no 'condition ? a : b': write an 'if' with an 'else', or a function that returns one or the other", 107);
-static SpiteString spite_lit_17526 = SPITE_STATIC_STRING("Spite has no '<<': bits are functions on the whole numbers, write 'value.shifted_left(count)'", 93);
-static SpiteString spite_lit_17527 = SPITE_STATIC_STRING("Spite has no '>>': bits are functions on the whole numbers, write 'value.shifted_right(count)'", 94);
-static SpiteString spite_lit_17528 = SPITE_STATIC_STRING("these are two pieces of written text: write them as one", 55);
-static SpiteString spite_lit_17529 = SPITE_STATIC_STRING("text written down is not joined with '+': put the value inside it, like \"hello {name}\". Two values are still joined with '+'", 124);
-static SpiteString spite_lit_17530 = SPITE_STATIC_STRING("text written down is not joined with '+': put the value inside it, like \"{name} arrived\". Two values are still joined with '+'", 126);
-static SpiteString spite_lit_17532 = SPITE_STATIC_STRING("a member name after '.'", 23);
-static SpiteString spite_lit_17533 = SPITE_STATIC_STRING("']' to close the index expression", 33);
-static SpiteString spite_lit_17534 = SPITE_STATIC_STRING("'(' to start the argument list", 30);
-static SpiteString spite_lit_17535 = SPITE_STATIC_STRING("')' to close the argument list", 30);
-static SpiteString spite_lit_17537 = SPITE_STATIC_STRING("the rest of the text after '}'", 30);
-static SpiteString spite_lit_17539 = SPITE_STATIC_STRING("load", 4);
-static SpiteString spite_lit_17540 = SPITE_STATIC_STRING("'load' is a keyword that starts a line of its own, like 'load \"folder\"': it is not a function, and it has no value", 114);
-static SpiteString spite_lit_17541 = SPITE_STATIC_STRING("')' to close the parenthesized expression", 41);
-static SpiteString spite_lit_17543 = SPITE_STATIC_STRING("expected an expression but found '", 34);
-static SpiteString spite_lit_17545 = SPITE_STATIC_STRING("'", 1);
-static SpiteString spite_lit_17546 = SPITE_STATIC_STRING("this", 4);
-static SpiteString spite_lit_17548 = SPITE_STATIC_STRING("name", 4);
-static SpiteString spite_lit_17550 = SPITE_STATIC_STRING("a class calls its own functions by name: write '", 48);
-static SpiteString spite_lit_17552 = SPITE_STATIC_STRING("()', not 'this.", 15);
-static SpiteString spite_lit_17554 = SPITE_STATIC_STRING("()'", 3);
-static SpiteString spite_lit_17556 = SPITE_STATIC_STRING("a class reads its own attributes by name: write '", 49);
-static SpiteString spite_lit_17558 = SPITE_STATIC_STRING("', not 'this.", 13);
-static SpiteString spite_lit_17560 = SPITE_STATIC_STRING("'", 1);
-static SpiteString spite_lit_17561 = SPITE_STATIC_STRING("']' to close the list literal", 29);
-static SpiteString spite_lit_17563 = SPITE_STATIC_STRING("a field name", 12);
-static SpiteString spite_lit_17564 = SPITE_STATIC_STRING("':' followed by the field's value", 33);
-static SpiteString spite_lit_17565 = SPITE_STATIC_STRING("'}' to close the object literal", 31);
+static SpiteString spite_lit_17461 = SPITE_STATIC_STRING("'{' to start the union body", 27);
+static SpiteString spite_lit_17462 = SPITE_STATIC_STRING("union", 5);
+static SpiteString spite_lit_17463 = SPITE_STATIC_STRING("union", 5);
+static SpiteString spite_lit_17464 = SPITE_STATIC_STRING("'}' to close the union body", 27);
+static SpiteString spite_lit_17465 = SPITE_STATIC_STRING("'{' to start the switch body", 28);
+static SpiteString spite_lit_17466 = SPITE_STATIC_STRING("':' followed by the case body", 29);
+static SpiteString spite_lit_17467 = SPITE_STATIC_STRING("'}' to close the switch body", 28);
+static SpiteString spite_lit_17469 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17481 = SPITE_STATIC_STRING(")", 1);
+static SpiteString spite_lit_17483 = SPITE_STATIC_STRING("]", 1);
+static SpiteString spite_lit_17485 = SPITE_STATIC_STRING(",", 1);
+static SpiteString spite_lit_17487 = SPITE_STATIC_STRING(".", 1);
+static SpiteString spite_lit_17489 = SPITE_STATIC_STRING("(", 1);
+static SpiteString spite_lit_17490 = SPITE_STATIC_STRING("(", 1);
+static SpiteString spite_lit_17491 = SPITE_STATIC_STRING("[", 1);
+static SpiteString spite_lit_17492 = SPITE_STATIC_STRING(".", 1);
+static SpiteString spite_lit_17494 = SPITE_STATIC_STRING("(", 1);
+static SpiteString spite_lit_17495 = SPITE_STATIC_STRING(" and", 4);
+static SpiteString spite_lit_17496 = SPITE_STATIC_STRING(" or", 3);
+static SpiteString spite_lit_17497 = SPITE_STATIC_STRING(" not", 4);
+static SpiteString spite_lit_17498 = SPITE_STATIC_STRING("=", 1);
+static SpiteString spite_lit_17499 = SPITE_STATIC_STRING("<", 1);
+static SpiteString spite_lit_17500 = SPITE_STATIC_STRING(">", 1);
+static SpiteString spite_lit_17503 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_17504 = SPITE_STATIC_STRING("Nullable", 8);
+static SpiteString spite_lit_17507 = SPITE_STATIC_STRING("type", 4);
+static SpiteString spite_lit_17509 = SPITE_STATIC_STRING("expected a type name but found ", 31);
+static SpiteString spite_lit_17513 = SPITE_STATIC_STRING("expected a name after '.' but found ", 36);
+static SpiteString spite_lit_17514 = SPITE_STATIC_STRING("'>' to close the generic argument list", 38);
+static SpiteString spite_lit_17516 = SPITE_STATIC_STRING("Nullable", 8);
+static SpiteString spite_lit_17517 = SPITE_STATIC_STRING("'Nullable<T>' was replaced by a '?' suffix: write 'Monster?' for a value that may be null", 89);
+static SpiteString spite_lit_17519 = SPITE_STATIC_STRING("$", 1);
+static SpiteString spite_lit_17522 = SPITE_STATIC_STRING("expected the name of a codegen value after '.' but found ", 57);
+static SpiteString spite_lit_17524 = SPITE_STATIC_STRING("expected a generic argument but found ", 38);
+static SpiteString spite_lit_17527 = SPITE_STATIC_STRING("Spite has no 'condition ? a : b': write an 'if' with an 'else', or a function that returns one or the other", 107);
+static SpiteString spite_lit_17528 = SPITE_STATIC_STRING("Spite has no '<<': bits are functions on the whole numbers, write 'value.shifted_left(count)'", 93);
+static SpiteString spite_lit_17529 = SPITE_STATIC_STRING("Spite has no '>>': bits are functions on the whole numbers, write 'value.shifted_right(count)'", 94);
+static SpiteString spite_lit_17530 = SPITE_STATIC_STRING("these are two pieces of written text: write them as one", 55);
+static SpiteString spite_lit_17531 = SPITE_STATIC_STRING("text written down is not joined with '+': put the value inside it, like \"hello {name}\". Two values are still joined with '+'", 124);
+static SpiteString spite_lit_17532 = SPITE_STATIC_STRING("text written down is not joined with '+': put the value inside it, like \"{name} arrived\". Two values are still joined with '+'", 126);
+static SpiteString spite_lit_17534 = SPITE_STATIC_STRING("a member name after '.'", 23);
+static SpiteString spite_lit_17535 = SPITE_STATIC_STRING("']' to close the index expression", 33);
+static SpiteString spite_lit_17536 = SPITE_STATIC_STRING("'(' to start the argument list", 30);
+static SpiteString spite_lit_17537 = SPITE_STATIC_STRING("')' to close the argument list", 30);
+static SpiteString spite_lit_17539 = SPITE_STATIC_STRING("the rest of the text after '}'", 30);
+static SpiteString spite_lit_17541 = SPITE_STATIC_STRING("load", 4);
+static SpiteString spite_lit_17542 = SPITE_STATIC_STRING("'load' is a keyword that starts a line of its own, like 'load \"folder\"': it is not a function, and it has no value", 114);
+static SpiteString spite_lit_17543 = SPITE_STATIC_STRING("')' to close the parenthesized expression", 41);
+static SpiteString spite_lit_17545 = SPITE_STATIC_STRING("expected an expression but found '", 34);
+static SpiteString spite_lit_17547 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17548 = SPITE_STATIC_STRING("this", 4);
+static SpiteString spite_lit_17550 = SPITE_STATIC_STRING("name", 4);
+static SpiteString spite_lit_17552 = SPITE_STATIC_STRING("a class calls its own functions by name: write '", 48);
+static SpiteString spite_lit_17554 = SPITE_STATIC_STRING("()', not 'this.", 15);
+static SpiteString spite_lit_17556 = SPITE_STATIC_STRING("()'", 3);
+static SpiteString spite_lit_17558 = SPITE_STATIC_STRING("a class reads its own attributes by name: write '", 49);
+static SpiteString spite_lit_17560 = SPITE_STATIC_STRING("', not 'this.", 13);
+static SpiteString spite_lit_17562 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17563 = SPITE_STATIC_STRING("']' to close the list literal", 29);
+static SpiteString spite_lit_17565 = SPITE_STATIC_STRING("a field name", 12);
+static SpiteString spite_lit_17566 = SPITE_STATIC_STRING("':' followed by the field's value", 33);
+static SpiteString spite_lit_17567 = SPITE_STATIC_STRING("'}' to close the object literal", 31);
 struct Syntax_SourceFile {
 SpiteHeader header;
 List_Syntax_Statements_Statement_Statement* statements_;
@@ -9246,217 +9248,217 @@ List_Integer* comment_lines_;
 List_String* comment_texts_;
 List_Integer* statement_lines_;
 };
-static SpiteString spite_lit_17681 = SPITE_STATIC_STRING("", 0);
 static SpiteString spite_lit_17683 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17684 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17685 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17685 = SPITE_STATIC_STRING("", 0);
 static SpiteString spite_lit_17686 = SPITE_STATIC_STRING("\n", 1);
 static SpiteString spite_lit_17687 = SPITE_STATIC_STRING("\n", 1);
 static SpiteString spite_lit_17688 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17691 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17689 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17690 = SPITE_STATIC_STRING("\n", 1);
 static SpiteString spite_lit_17693 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17695 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17696 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17697 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17699 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17700 = SPITE_STATIC_STRING("    ", 4);
-static SpiteString spite_lit_17701 = SPITE_STATIC_STRING("{}", 2);
-static SpiteString spite_lit_17703 = SPITE_STATIC_STRING("{\n", 2);
-static SpiteString spite_lit_17705 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17707 = SPITE_STATIC_STRING("}", 1);
-static SpiteString spite_lit_17708 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17710 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17712 = SPITE_STATIC_STRING(": ", 2);
-static SpiteString spite_lit_17715 = SPITE_STATIC_STRING("var ", 4);
-static SpiteString spite_lit_17717 = SPITE_STATIC_STRING(" = ", 3);
-static SpiteString spite_lit_17720 = SPITE_STATIC_STRING(" = ", 3);
-static SpiteString spite_lit_17723 = SPITE_STATIC_STRING("return ", 7);
-static SpiteString spite_lit_17725 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17727 = SPITE_STATIC_STRING("<", 1);
-static SpiteString spite_lit_17729 = SPITE_STATIC_STRING(">", 1);
-static SpiteString spite_lit_17731 = SPITE_STATIC_STRING("[", 1);
-static SpiteString spite_lit_17732 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17735 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17737 = SPITE_STATIC_STRING("]", 1);
-static SpiteString spite_lit_17739 = SPITE_STATIC_STRING("{", 1);
-static SpiteString spite_lit_17740 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17741 = SPITE_STATIC_STRING(": ", 2);
-static SpiteString spite_lit_17744 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17746 = SPITE_STATIC_STRING("}", 1);
-static SpiteString spite_lit_17747 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17753 = SPITE_STATIC_STRING("(", 1);
-static SpiteString spite_lit_17754 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17755 = SPITE_STATIC_STRING(",", 1);
-static SpiteString spite_lit_17758 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17760 = SPITE_STATIC_STRING(")", 1);
-static SpiteString spite_lit_17763 = SPITE_STATIC_STRING("singleton", 9);
-static SpiteString spite_lit_17766 = SPITE_STATIC_STRING("generic $", 9);
-static SpiteString spite_lit_17768 = SPITE_STATIC_STRING(": ", 2);
-static SpiteString spite_lit_17771 = SPITE_STATIC_STRING("generic $", 9);
-static SpiteString spite_lit_17773 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17775 = SPITE_STATIC_STRING(": ", 2);
-static SpiteString spite_lit_17778 = SPITE_STATIC_STRING("var ", 4);
-static SpiteString spite_lit_17780 = SPITE_STATIC_STRING(" = ", 3);
-static SpiteString spite_lit_17783 = SPITE_STATIC_STRING("enum ", 5);
-static SpiteString spite_lit_17785 = SPITE_STATIC_STRING(" ", 1);
-static SpiteString spite_lit_17788 = SPITE_STATIC_STRING("union ", 6);
-static SpiteString spite_lit_17790 = SPITE_STATIC_STRING(" ", 1);
-static SpiteString spite_lit_17793 = SPITE_STATIC_STRING(" = ", 3);
-static SpiteString spite_lit_17801 = SPITE_STATIC_STRING("if ", 3);
-static SpiteString spite_lit_17803 = SPITE_STATIC_STRING(" ", 1);
-static SpiteString spite_lit_17806 = SPITE_STATIC_STRING(" else ", 6);
-static SpiteString spite_lit_17807 = SPITE_STATIC_STRING(" else ", 6);
-static SpiteString spite_lit_17810 = SPITE_STATIC_STRING("while ", 6);
-static SpiteString spite_lit_17812 = SPITE_STATIC_STRING(" ", 1);
-static SpiteString spite_lit_17815 = SPITE_STATIC_STRING("crash", 5);
-static SpiteString spite_lit_17818 = SPITE_STATIC_STRING("crash ", 6);
-static SpiteString spite_lit_17821 = SPITE_STATIC_STRING("assert ", 7);
-static SpiteString spite_lit_17824 = SPITE_STATIC_STRING("return ", 7);
-static SpiteString spite_lit_17827 = SPITE_STATIC_STRING("return", 6);
-static SpiteString spite_lit_17830 = SPITE_STATIC_STRING("load ", 5);
-static SpiteString spite_lit_17833 = SPITE_STATIC_STRING("load", 4);
-static SpiteString spite_lit_17834 = SPITE_STATIC_STRING("...", 3);
-static SpiteString spite_lit_17835 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17695 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17697 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17698 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17699 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17701 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17702 = SPITE_STATIC_STRING("    ", 4);
+static SpiteString spite_lit_17703 = SPITE_STATIC_STRING("{}", 2);
+static SpiteString spite_lit_17705 = SPITE_STATIC_STRING("{\n", 2);
+static SpiteString spite_lit_17707 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17709 = SPITE_STATIC_STRING("}", 1);
+static SpiteString spite_lit_17710 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17712 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17714 = SPITE_STATIC_STRING(": ", 2);
+static SpiteString spite_lit_17717 = SPITE_STATIC_STRING("var ", 4);
+static SpiteString spite_lit_17719 = SPITE_STATIC_STRING(" = ", 3);
+static SpiteString spite_lit_17722 = SPITE_STATIC_STRING(" = ", 3);
+static SpiteString spite_lit_17725 = SPITE_STATIC_STRING("return ", 7);
+static SpiteString spite_lit_17727 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17729 = SPITE_STATIC_STRING("<", 1);
+static SpiteString spite_lit_17731 = SPITE_STATIC_STRING(">", 1);
+static SpiteString spite_lit_17733 = SPITE_STATIC_STRING("[", 1);
+static SpiteString spite_lit_17734 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17737 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17739 = SPITE_STATIC_STRING("]", 1);
+static SpiteString spite_lit_17741 = SPITE_STATIC_STRING("{", 1);
+static SpiteString spite_lit_17742 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17743 = SPITE_STATIC_STRING(": ", 2);
+static SpiteString spite_lit_17746 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17748 = SPITE_STATIC_STRING("}", 1);
+static SpiteString spite_lit_17749 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17755 = SPITE_STATIC_STRING("(", 1);
+static SpiteString spite_lit_17756 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17757 = SPITE_STATIC_STRING(",", 1);
+static SpiteString spite_lit_17760 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17762 = SPITE_STATIC_STRING(")", 1);
+static SpiteString spite_lit_17765 = SPITE_STATIC_STRING("singleton", 9);
+static SpiteString spite_lit_17768 = SPITE_STATIC_STRING("generic $", 9);
+static SpiteString spite_lit_17770 = SPITE_STATIC_STRING(": ", 2);
+static SpiteString spite_lit_17773 = SPITE_STATIC_STRING("generic $", 9);
+static SpiteString spite_lit_17775 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17777 = SPITE_STATIC_STRING(": ", 2);
+static SpiteString spite_lit_17780 = SPITE_STATIC_STRING("var ", 4);
+static SpiteString spite_lit_17782 = SPITE_STATIC_STRING(" = ", 3);
+static SpiteString spite_lit_17785 = SPITE_STATIC_STRING("enum ", 5);
+static SpiteString spite_lit_17787 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_17790 = SPITE_STATIC_STRING("union ", 6);
+static SpiteString spite_lit_17792 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_17795 = SPITE_STATIC_STRING(" = ", 3);
+static SpiteString spite_lit_17803 = SPITE_STATIC_STRING("if ", 3);
+static SpiteString spite_lit_17805 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_17808 = SPITE_STATIC_STRING(" else ", 6);
+static SpiteString spite_lit_17809 = SPITE_STATIC_STRING(" else ", 6);
+static SpiteString spite_lit_17812 = SPITE_STATIC_STRING("while ", 6);
+static SpiteString spite_lit_17814 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_17817 = SPITE_STATIC_STRING("crash", 5);
+static SpiteString spite_lit_17820 = SPITE_STATIC_STRING("crash ", 6);
+static SpiteString spite_lit_17823 = SPITE_STATIC_STRING("assert ", 7);
+static SpiteString spite_lit_17826 = SPITE_STATIC_STRING("return ", 7);
+static SpiteString spite_lit_17829 = SPITE_STATIC_STRING("return", 6);
+static SpiteString spite_lit_17832 = SPITE_STATIC_STRING("load ", 5);
+static SpiteString spite_lit_17835 = SPITE_STATIC_STRING("load", 4);
+static SpiteString spite_lit_17836 = SPITE_STATIC_STRING("...", 3);
 static SpiteString spite_lit_17837 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17838 = SPITE_STATIC_STRING(", ", 2);
-static SpiteString spite_lit_17839 = SPITE_STATIC_STRING(": ", 2);
-static SpiteString spite_lit_17841 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17843 = SPITE_STATIC_STRING(": ", 2);
-static SpiteString spite_lit_17855 = SPITE_STATIC_STRING("func ", 5);
-static SpiteString spite_lit_17857 = SPITE_STATIC_STRING("(", 1);
-static SpiteString spite_lit_17859 = SPITE_STATIC_STRING(")", 1);
-static SpiteString spite_lit_17861 = SPITE_STATIC_STRING(" {", 2);
-static SpiteString spite_lit_17864 = SPITE_STATIC_STRING("func ", 5);
-static SpiteString spite_lit_17866 = SPITE_STATIC_STRING("(", 1);
-static SpiteString spite_lit_17868 = SPITE_STATIC_STRING(")", 1);
-static SpiteString spite_lit_17870 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17871 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17872 = SPITE_STATIC_STRING(": ", 2);
-static SpiteString spite_lit_17873 = SPITE_STATIC_STRING(",", 1);
-static SpiteString spite_lit_17876 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17879 = SPITE_STATIC_STRING("func ", 5);
-static SpiteString spite_lit_17881 = SPITE_STATIC_STRING("(", 1);
-static SpiteString spite_lit_17883 = SPITE_STATIC_STRING(")", 1);
-static SpiteString spite_lit_17885 = SPITE_STATIC_STRING(" ", 1);
-static SpiteString spite_lit_17893 = SPITE_STATIC_STRING("type ", 5);
-static SpiteString spite_lit_17895 = SPITE_STATIC_STRING(" {", 2);
-static SpiteString spite_lit_17897 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17898 = SPITE_STATIC_STRING(", ", 2);
-static SpiteString spite_lit_17902 = SPITE_STATIC_STRING(": ", 2);
-static SpiteString spite_lit_17904 = SPITE_STATIC_STRING(": Nothing", 9);
-static SpiteString spite_lit_17905 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17906 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17907 = SPITE_STATIC_STRING("(", 1);
-static SpiteString spite_lit_17908 = SPITE_STATIC_STRING(")", 1);
-static SpiteString spite_lit_17909 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17910 = SPITE_STATIC_STRING(": ", 2);
-static SpiteString spite_lit_17913 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17915 = SPITE_STATIC_STRING("}", 1);
-static SpiteString spite_lit_17917 = SPITE_STATIC_STRING("{", 1);
-static SpiteString spite_lit_17918 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17919 = SPITE_STATIC_STRING("'", 1);
-static SpiteString spite_lit_17920 = SPITE_STATIC_STRING("'", 1);
-static SpiteString spite_lit_17923 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17925 = SPITE_STATIC_STRING("}", 1);
-static SpiteString spite_lit_17927 = SPITE_STATIC_STRING("{", 1);
-static SpiteString spite_lit_17928 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17931 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17933 = SPITE_STATIC_STRING("}", 1);
-static SpiteString spite_lit_17941 = SPITE_STATIC_STRING("switch ", 7);
-static SpiteString spite_lit_17943 = SPITE_STATIC_STRING(" {", 2);
-static SpiteString spite_lit_17949 = SPITE_STATIC_STRING(":", 1);
-static SpiteString spite_lit_17950 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17951 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_17839 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17840 = SPITE_STATIC_STRING(", ", 2);
+static SpiteString spite_lit_17841 = SPITE_STATIC_STRING(": ", 2);
+static SpiteString spite_lit_17843 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17845 = SPITE_STATIC_STRING(": ", 2);
+static SpiteString spite_lit_17857 = SPITE_STATIC_STRING("func ", 5);
+static SpiteString spite_lit_17859 = SPITE_STATIC_STRING("(", 1);
+static SpiteString spite_lit_17861 = SPITE_STATIC_STRING(")", 1);
+static SpiteString spite_lit_17863 = SPITE_STATIC_STRING(" {", 2);
+static SpiteString spite_lit_17866 = SPITE_STATIC_STRING("func ", 5);
+static SpiteString spite_lit_17868 = SPITE_STATIC_STRING("(", 1);
+static SpiteString spite_lit_17870 = SPITE_STATIC_STRING(")", 1);
+static SpiteString spite_lit_17872 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17873 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17874 = SPITE_STATIC_STRING(": ", 2);
+static SpiteString spite_lit_17875 = SPITE_STATIC_STRING(",", 1);
+static SpiteString spite_lit_17878 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17881 = SPITE_STATIC_STRING("func ", 5);
+static SpiteString spite_lit_17883 = SPITE_STATIC_STRING("(", 1);
+static SpiteString spite_lit_17885 = SPITE_STATIC_STRING(")", 1);
+static SpiteString spite_lit_17887 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_17895 = SPITE_STATIC_STRING("type ", 5);
+static SpiteString spite_lit_17897 = SPITE_STATIC_STRING(" {", 2);
+static SpiteString spite_lit_17899 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17900 = SPITE_STATIC_STRING(", ", 2);
+static SpiteString spite_lit_17904 = SPITE_STATIC_STRING(": ", 2);
+static SpiteString spite_lit_17906 = SPITE_STATIC_STRING(": Nothing", 9);
+static SpiteString spite_lit_17907 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17908 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17909 = SPITE_STATIC_STRING("(", 1);
+static SpiteString spite_lit_17910 = SPITE_STATIC_STRING(")", 1);
+static SpiteString spite_lit_17911 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17912 = SPITE_STATIC_STRING(": ", 2);
+static SpiteString spite_lit_17915 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17917 = SPITE_STATIC_STRING("}", 1);
+static SpiteString spite_lit_17919 = SPITE_STATIC_STRING("{", 1);
+static SpiteString spite_lit_17920 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17921 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17922 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17925 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17927 = SPITE_STATIC_STRING("}", 1);
+static SpiteString spite_lit_17929 = SPITE_STATIC_STRING("{", 1);
+static SpiteString spite_lit_17930 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17933 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17935 = SPITE_STATIC_STRING("}", 1);
+static SpiteString spite_lit_17943 = SPITE_STATIC_STRING("switch ", 7);
+static SpiteString spite_lit_17945 = SPITE_STATIC_STRING(" {", 2);
+static SpiteString spite_lit_17951 = SPITE_STATIC_STRING(":", 1);
 static SpiteString spite_lit_17952 = SPITE_STATIC_STRING("\n", 1);
 static SpiteString spite_lit_17953 = SPITE_STATIC_STRING(" ", 1);
-static SpiteString spite_lit_17956 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17958 = SPITE_STATIC_STRING("}", 1);
-static SpiteString spite_lit_17959 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_17960 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17962 = SPITE_STATIC_STRING("&", 1);
-static SpiteString spite_lit_17964 = SPITE_STATIC_STRING("$", 1);
-static SpiteString spite_lit_17966 = SPITE_STATIC_STRING("Nullable", 8);
-static SpiteString spite_lit_17969 = SPITE_STATIC_STRING("?", 1);
-static SpiteString spite_lit_17971 = SPITE_STATIC_STRING(".", 1);
-static SpiteString spite_lit_17973 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_17974 = SPITE_STATIC_STRING(", ", 2);
-static SpiteString spite_lit_17975 = SPITE_STATIC_STRING("<", 1);
-static SpiteString spite_lit_17976 = SPITE_STATIC_STRING(">", 1);
-static SpiteString spite_lit_17977 = SPITE_STATIC_STRING("true", 4);
-static SpiteString spite_lit_17978 = SPITE_STATIC_STRING("false", 5);
-static SpiteString spite_lit_17980 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17954 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17955 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_17958 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17960 = SPITE_STATIC_STRING("}", 1);
+static SpiteString spite_lit_17961 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_17962 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17964 = SPITE_STATIC_STRING("&", 1);
+static SpiteString spite_lit_17966 = SPITE_STATIC_STRING("$", 1);
+static SpiteString spite_lit_17968 = SPITE_STATIC_STRING("Nullable", 8);
+static SpiteString spite_lit_17971 = SPITE_STATIC_STRING("?", 1);
+static SpiteString spite_lit_17973 = SPITE_STATIC_STRING(".", 1);
+static SpiteString spite_lit_17975 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_17976 = SPITE_STATIC_STRING(", ", 2);
+static SpiteString spite_lit_17977 = SPITE_STATIC_STRING("<", 1);
+static SpiteString spite_lit_17978 = SPITE_STATIC_STRING(">", 1);
+static SpiteString spite_lit_17979 = SPITE_STATIC_STRING("true", 4);
+static SpiteString spite_lit_17980 = SPITE_STATIC_STRING("false", 5);
 static SpiteString spite_lit_17982 = SPITE_STATIC_STRING("'", 1);
-static SpiteString spite_lit_17985 = SPITE_STATIC_STRING("null", 4);
-static SpiteString spite_lit_17986 = SPITE_STATIC_STRING("true", 4);
-static SpiteString spite_lit_17987 = SPITE_STATIC_STRING("false", 5);
-static SpiteString spite_lit_17989 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17984 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17987 = SPITE_STATIC_STRING("null", 4);
+static SpiteString spite_lit_17988 = SPITE_STATIC_STRING("true", 4);
+static SpiteString spite_lit_17989 = SPITE_STATIC_STRING("false", 5);
 static SpiteString spite_lit_17991 = SPITE_STATIC_STRING("'", 1);
-static SpiteString spite_lit_17993 = SPITE_STATIC_STRING("$", 1);
-static SpiteString spite_lit_17997 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_17993 = SPITE_STATIC_STRING("'", 1);
+static SpiteString spite_lit_17995 = SPITE_STATIC_STRING("$", 1);
 static SpiteString spite_lit_17999 = SPITE_STATIC_STRING(" ", 1);
-static SpiteString spite_lit_18000 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_18003 = SPITE_STATIC_STRING(".", 1);
-static SpiteString spite_lit_18006 = SPITE_STATIC_STRING("[", 1);
-static SpiteString spite_lit_18008 = SPITE_STATIC_STRING("]", 1);
-static SpiteString spite_lit_18011 = SPITE_STATIC_STRING(".", 1);
-static SpiteString spite_lit_18012 = SPITE_STATIC_STRING("e", 1);
-static SpiteString spite_lit_18015 = SPITE_STATIC_STRING(".0", 2);
-static SpiteString spite_lit_18018 = SPITE_STATIC_STRING("(", 1);
-static SpiteString spite_lit_18020 = SPITE_STATIC_STRING(")", 1);
-static SpiteString spite_lit_18022 = SPITE_STATIC_STRING("(", 1);
-static SpiteString spite_lit_18024 = SPITE_STATIC_STRING(")", 1);
-static SpiteString spite_lit_18026 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_18027 = SPITE_STATIC_STRING("\"", 1);
+static SpiteString spite_lit_18001 = SPITE_STATIC_STRING(" ", 1);
+static SpiteString spite_lit_18002 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_18005 = SPITE_STATIC_STRING(".", 1);
+static SpiteString spite_lit_18008 = SPITE_STATIC_STRING("[", 1);
+static SpiteString spite_lit_18010 = SPITE_STATIC_STRING("]", 1);
+static SpiteString spite_lit_18013 = SPITE_STATIC_STRING(".", 1);
+static SpiteString spite_lit_18014 = SPITE_STATIC_STRING("e", 1);
+static SpiteString spite_lit_18017 = SPITE_STATIC_STRING(".0", 2);
+static SpiteString spite_lit_18020 = SPITE_STATIC_STRING("(", 1);
+static SpiteString spite_lit_18022 = SPITE_STATIC_STRING(")", 1);
+static SpiteString spite_lit_18024 = SPITE_STATIC_STRING("(", 1);
+static SpiteString spite_lit_18026 = SPITE_STATIC_STRING(")", 1);
+static SpiteString spite_lit_18028 = SPITE_STATIC_STRING("", 0);
 static SpiteString spite_lit_18029 = SPITE_STATIC_STRING("\"", 1);
-static SpiteString spite_lit_18031 = SPITE_STATIC_STRING("{", 1);
-static SpiteString spite_lit_18033 = SPITE_STATIC_STRING("}", 1);
-static SpiteString spite_lit_18039 = SPITE_STATIC_STRING("(", 1);
-static SpiteString spite_lit_18040 = SPITE_STATIC_STRING(", ", 2);
-static SpiteString spite_lit_18043 = SPITE_STATIC_STRING(")", 1);
-static SpiteString spite_lit_18046 = SPITE_STATIC_STRING("<", 1);
-static SpiteString spite_lit_18048 = SPITE_STATIC_STRING(">", 1);
-static SpiteString spite_lit_18050 = SPITE_STATIC_STRING("<", 1);
-static SpiteString spite_lit_18052 = SPITE_STATIC_STRING(">", 1);
-static SpiteString spite_lit_18054 = SPITE_STATIC_STRING("", 0);
-static SpiteString spite_lit_18055 = SPITE_STATIC_STRING(", ", 2);
-static SpiteString spite_lit_18056 = SPITE_STATIC_STRING("[]", 2);
-static SpiteString spite_lit_18058 = SPITE_STATIC_STRING("[", 1);
-static SpiteString spite_lit_18059 = SPITE_STATIC_STRING(", ", 2);
-static SpiteString spite_lit_18062 = SPITE_STATIC_STRING("]", 1);
-static SpiteString spite_lit_18063 = SPITE_STATIC_STRING("{}", 2);
-static SpiteString spite_lit_18065 = SPITE_STATIC_STRING("{", 1);
-static SpiteString spite_lit_18066 = SPITE_STATIC_STRING(", ", 2);
-static SpiteString spite_lit_18067 = SPITE_STATIC_STRING(": ", 2);
-static SpiteString spite_lit_18070 = SPITE_STATIC_STRING("}", 1);
-static SpiteString spite_lit_18071 = SPITE_STATIC_STRING("-", 1);
-static SpiteString spite_lit_18072 = SPITE_STATIC_STRING("not ", 4);
-static SpiteString spite_lit_18073 = SPITE_STATIC_STRING("+", 1);
-static SpiteString spite_lit_18074 = SPITE_STATIC_STRING("-", 1);
-static SpiteString spite_lit_18075 = SPITE_STATIC_STRING("*", 1);
-static SpiteString spite_lit_18076 = SPITE_STATIC_STRING("/", 1);
-static SpiteString spite_lit_18077 = SPITE_STATIC_STRING("%", 1);
-static SpiteString spite_lit_18078 = SPITE_STATIC_STRING("==", 2);
-static SpiteString spite_lit_18079 = SPITE_STATIC_STRING("!=", 2);
-static SpiteString spite_lit_18080 = SPITE_STATIC_STRING("<", 1);
-static SpiteString spite_lit_18081 = SPITE_STATIC_STRING("<=", 2);
-static SpiteString spite_lit_18082 = SPITE_STATIC_STRING(">", 1);
-static SpiteString spite_lit_18083 = SPITE_STATIC_STRING(">=", 2);
-static SpiteString spite_lit_18084 = SPITE_STATIC_STRING("and", 3);
-static SpiteString spite_lit_18085 = SPITE_STATIC_STRING("or", 2);
-static SpiteString spite_lit_18087 = SPITE_STATIC_STRING("\"", 1);
+static SpiteString spite_lit_18031 = SPITE_STATIC_STRING("\"", 1);
+static SpiteString spite_lit_18033 = SPITE_STATIC_STRING("{", 1);
+static SpiteString spite_lit_18035 = SPITE_STATIC_STRING("}", 1);
+static SpiteString spite_lit_18041 = SPITE_STATIC_STRING("(", 1);
+static SpiteString spite_lit_18042 = SPITE_STATIC_STRING(", ", 2);
+static SpiteString spite_lit_18045 = SPITE_STATIC_STRING(")", 1);
+static SpiteString spite_lit_18048 = SPITE_STATIC_STRING("<", 1);
+static SpiteString spite_lit_18050 = SPITE_STATIC_STRING(">", 1);
+static SpiteString spite_lit_18052 = SPITE_STATIC_STRING("<", 1);
+static SpiteString spite_lit_18054 = SPITE_STATIC_STRING(">", 1);
+static SpiteString spite_lit_18056 = SPITE_STATIC_STRING("", 0);
+static SpiteString spite_lit_18057 = SPITE_STATIC_STRING(", ", 2);
+static SpiteString spite_lit_18058 = SPITE_STATIC_STRING("[]", 2);
+static SpiteString spite_lit_18060 = SPITE_STATIC_STRING("[", 1);
+static SpiteString spite_lit_18061 = SPITE_STATIC_STRING(", ", 2);
+static SpiteString spite_lit_18064 = SPITE_STATIC_STRING("]", 1);
+static SpiteString spite_lit_18065 = SPITE_STATIC_STRING("{}", 2);
+static SpiteString spite_lit_18067 = SPITE_STATIC_STRING("{", 1);
+static SpiteString spite_lit_18068 = SPITE_STATIC_STRING(", ", 2);
+static SpiteString spite_lit_18069 = SPITE_STATIC_STRING(": ", 2);
+static SpiteString spite_lit_18072 = SPITE_STATIC_STRING("}", 1);
+static SpiteString spite_lit_18073 = SPITE_STATIC_STRING("-", 1);
+static SpiteString spite_lit_18074 = SPITE_STATIC_STRING("not ", 4);
+static SpiteString spite_lit_18075 = SPITE_STATIC_STRING("+", 1);
+static SpiteString spite_lit_18076 = SPITE_STATIC_STRING("-", 1);
+static SpiteString spite_lit_18077 = SPITE_STATIC_STRING("*", 1);
+static SpiteString spite_lit_18078 = SPITE_STATIC_STRING("/", 1);
+static SpiteString spite_lit_18079 = SPITE_STATIC_STRING("%", 1);
+static SpiteString spite_lit_18080 = SPITE_STATIC_STRING("==", 2);
+static SpiteString spite_lit_18081 = SPITE_STATIC_STRING("!=", 2);
+static SpiteString spite_lit_18082 = SPITE_STATIC_STRING("<", 1);
+static SpiteString spite_lit_18083 = SPITE_STATIC_STRING("<=", 2);
+static SpiteString spite_lit_18084 = SPITE_STATIC_STRING(">", 1);
+static SpiteString spite_lit_18085 = SPITE_STATIC_STRING(">=", 2);
+static SpiteString spite_lit_18086 = SPITE_STATIC_STRING("and", 3);
+static SpiteString spite_lit_18087 = SPITE_STATIC_STRING("or", 2);
 static SpiteString spite_lit_18089 = SPITE_STATIC_STRING("\"", 1);
-static SpiteString spite_lit_18090 = SPITE_STATIC_STRING("\\", 1);
-static SpiteString spite_lit_18091 = SPITE_STATIC_STRING("\\\\", 2);
-static SpiteString spite_lit_18092 = SPITE_STATIC_STRING("\"", 1);
-static SpiteString spite_lit_18093 = SPITE_STATIC_STRING("\\\"", 2);
-static SpiteString spite_lit_18094 = SPITE_STATIC_STRING("\n", 1);
-static SpiteString spite_lit_18095 = SPITE_STATIC_STRING("\\n", 2);
-static SpiteString spite_lit_18096 = SPITE_STATIC_STRING("\r", 1);
-static SpiteString spite_lit_18097 = SPITE_STATIC_STRING("\\r", 2);
-static SpiteString spite_lit_18098 = SPITE_STATIC_STRING("\t", 1);
-static SpiteString spite_lit_18099 = SPITE_STATIC_STRING("\\t", 2);
-static SpiteString spite_lit_18100 = SPITE_STATIC_STRING("{", 1);
-static SpiteString spite_lit_18101 = SPITE_STATIC_STRING("\\{", 2);
+static SpiteString spite_lit_18091 = SPITE_STATIC_STRING("\"", 1);
+static SpiteString spite_lit_18092 = SPITE_STATIC_STRING("\\", 1);
+static SpiteString spite_lit_18093 = SPITE_STATIC_STRING("\\\\", 2);
+static SpiteString spite_lit_18094 = SPITE_STATIC_STRING("\"", 1);
+static SpiteString spite_lit_18095 = SPITE_STATIC_STRING("\\\"", 2);
+static SpiteString spite_lit_18096 = SPITE_STATIC_STRING("\n", 1);
+static SpiteString spite_lit_18097 = SPITE_STATIC_STRING("\\n", 2);
+static SpiteString spite_lit_18098 = SPITE_STATIC_STRING("\r", 1);
+static SpiteString spite_lit_18099 = SPITE_STATIC_STRING("\\r", 2);
+static SpiteString spite_lit_18100 = SPITE_STATIC_STRING("\t", 1);
+static SpiteString spite_lit_18101 = SPITE_STATIC_STRING("\\t", 2);
+static SpiteString spite_lit_18102 = SPITE_STATIC_STRING("{", 1);
+static SpiteString spite_lit_18103 = SPITE_STATIC_STRING("\\{", 2);
 struct Syntax_Token {
 SpiteHeader header;
 Syntax_TokenKind_TokenKind kind_;
@@ -81639,35 +81641,35 @@ List_String* spite_temp_18217 = ({ List_String* spite_temp_18216 = List_String__
 return spite_temp_18217;
 }
 List_String* Generation_Prelude_scheduler_members(Generation_Prelude* self) {
-List_String* spite_temp_18219 = ({ List_String* spite_temp_18218 = List_String___make(); List_String_append(spite_temp_18218, spite_lit_16890); List_String_append(spite_temp_18218, spite_lit_16891); List_String_append(spite_temp_18218, spite_lit_16892); List_String_append(spite_temp_18218, spite_lit_16893); List_String_append(spite_temp_18218, spite_lit_16894); List_String_append(spite_temp_18218, spite_lit_16895); spite_temp_18218; });
+List_String* spite_temp_18219 = ({ List_String* spite_temp_18218 = List_String___make(); List_String_append(spite_temp_18218, spite_lit_16890); List_String_append(spite_temp_18218, spite_lit_16891); List_String_append(spite_temp_18218, spite_lit_16892); List_String_append(spite_temp_18218, spite_lit_16893); List_String_append(spite_temp_18218, spite_lit_16894); List_String_append(spite_temp_18218, spite_lit_16895); List_String_append(spite_temp_18218, spite_lit_16896); List_String_append(spite_temp_18218, spite_lit_16897); spite_temp_18218; });
 return spite_temp_18219;
 }
 List_String* Generation_Prelude_weak_members(Generation_Prelude* self) {
-List_String* spite_temp_18221 = ({ List_String* spite_temp_18220 = List_String___make(); List_String_append(spite_temp_18220, spite_lit_16896); List_String_append(spite_temp_18220, spite_lit_16897); List_String_append(spite_temp_18220, spite_lit_16898); List_String_append(spite_temp_18220, spite_lit_16899); List_String_append(spite_temp_18220, spite_lit_16900); List_String_append(spite_temp_18220, spite_lit_16901); spite_temp_18220; });
+List_String* spite_temp_18221 = ({ List_String* spite_temp_18220 = List_String___make(); List_String_append(spite_temp_18220, spite_lit_16898); List_String_append(spite_temp_18220, spite_lit_16899); List_String_append(spite_temp_18220, spite_lit_16900); List_String_append(spite_temp_18220, spite_lit_16901); List_String_append(spite_temp_18220, spite_lit_16902); List_String_append(spite_temp_18220, spite_lit_16903); spite_temp_18220; });
 return spite_temp_18221;
 }
 List_String* Generation_Prelude_typed_memory_members(Generation_Prelude* self) {
-List_String* spite_temp_18223 = ({ List_String* spite_temp_18222 = List_String___make(); List_String_append(spite_temp_18222, spite_lit_16902); List_String_append(spite_temp_18222, spite_lit_16903); List_String_append(spite_temp_18222, spite_lit_16904); List_String_append(spite_temp_18222, spite_lit_16905); List_String_append(spite_temp_18222, spite_lit_16906); List_String_append(spite_temp_18222, spite_lit_16907); List_String_append(spite_temp_18222, spite_lit_16908); List_String_append(spite_temp_18222, spite_lit_16909); spite_temp_18222; });
+List_String* spite_temp_18223 = ({ List_String* spite_temp_18222 = List_String___make(); List_String_append(spite_temp_18222, spite_lit_16904); List_String_append(spite_temp_18222, spite_lit_16905); List_String_append(spite_temp_18222, spite_lit_16906); List_String_append(spite_temp_18222, spite_lit_16907); List_String_append(spite_temp_18222, spite_lit_16908); List_String_append(spite_temp_18222, spite_lit_16909); List_String_append(spite_temp_18222, spite_lit_16910); List_String_append(spite_temp_18222, spite_lit_16911); spite_temp_18222; });
 return spite_temp_18223;
 }
 List_String* Generation_Prelude_inline_memory_members(Generation_Prelude* self) {
-List_String* spite_temp_18225 = ({ List_String* spite_temp_18224 = List_String___make(); List_String_append(spite_temp_18224, spite_lit_16910); List_String_append(spite_temp_18224, spite_lit_16911); List_String_append(spite_temp_18224, spite_lit_16912); List_String_append(spite_temp_18224, spite_lit_16913); List_String_append(spite_temp_18224, spite_lit_16914); List_String_append(spite_temp_18224, spite_lit_16915); List_String_append(spite_temp_18224, spite_lit_16916); List_String_append(spite_temp_18224, spite_lit_16917); List_String_append(spite_temp_18224, spite_lit_16918); List_String_append(spite_temp_18224, spite_lit_16919); List_String_append(spite_temp_18224, spite_lit_16920); List_String_append(spite_temp_18224, spite_lit_16921); List_String_append(spite_temp_18224, spite_lit_16922); List_String_append(spite_temp_18224, spite_lit_16923); spite_temp_18224; });
+List_String* spite_temp_18225 = ({ List_String* spite_temp_18224 = List_String___make(); List_String_append(spite_temp_18224, spite_lit_16912); List_String_append(spite_temp_18224, spite_lit_16913); List_String_append(spite_temp_18224, spite_lit_16914); List_String_append(spite_temp_18224, spite_lit_16915); List_String_append(spite_temp_18224, spite_lit_16916); List_String_append(spite_temp_18224, spite_lit_16917); List_String_append(spite_temp_18224, spite_lit_16918); List_String_append(spite_temp_18224, spite_lit_16919); List_String_append(spite_temp_18224, spite_lit_16920); List_String_append(spite_temp_18224, spite_lit_16921); List_String_append(spite_temp_18224, spite_lit_16922); List_String_append(spite_temp_18224, spite_lit_16923); List_String_append(spite_temp_18224, spite_lit_16924); List_String_append(spite_temp_18224, spite_lit_16925); spite_temp_18224; });
 return spite_temp_18225;
 }
 List_String* Generation_Prelude_dynamic_library_members(Generation_Prelude* self) {
-List_String* spite_temp_18227 = ({ List_String* spite_temp_18226 = List_String___make(); List_String_append(spite_temp_18226, spite_lit_16924); List_String_append(spite_temp_18226, spite_lit_16925); List_String_append(spite_temp_18226, spite_lit_16926); List_String_append(spite_temp_18226, spite_lit_16927); List_String_append(spite_temp_18226, spite_lit_16928); List_String_append(spite_temp_18226, spite_lit_16929); spite_temp_18226; });
+List_String* spite_temp_18227 = ({ List_String* spite_temp_18226 = List_String___make(); List_String_append(spite_temp_18226, spite_lit_16926); List_String_append(spite_temp_18226, spite_lit_16927); List_String_append(spite_temp_18226, spite_lit_16928); List_String_append(spite_temp_18226, spite_lit_16929); List_String_append(spite_temp_18226, spite_lit_16930); List_String_append(spite_temp_18226, spite_lit_16931); spite_temp_18226; });
 return spite_temp_18227;
 }
 List_String* Generation_Prelude_hot_reload_members(Generation_Prelude* self) {
-List_String* spite_temp_18229 = ({ List_String* spite_temp_18228 = List_String___make(); List_String_append(spite_temp_18228, spite_lit_16930); List_String_append(spite_temp_18228, spite_lit_16931); List_String_append(spite_temp_18228, spite_lit_16932); List_String_append(spite_temp_18228, spite_lit_16933); List_String_append(spite_temp_18228, spite_lit_16934); List_String_append(spite_temp_18228, spite_lit_16935); List_String_append(spite_temp_18228, spite_lit_16936); List_String_append(spite_temp_18228, spite_lit_16937); List_String_append(spite_temp_18228, spite_lit_16938); List_String_append(spite_temp_18228, spite_lit_16939); List_String_append(spite_temp_18228, spite_lit_16940); List_String_append(spite_temp_18228, spite_lit_16941); List_String_append(spite_temp_18228, spite_lit_16942); List_String_append(spite_temp_18228, spite_lit_16943); spite_temp_18228; });
+List_String* spite_temp_18229 = ({ List_String* spite_temp_18228 = List_String___make(); List_String_append(spite_temp_18228, spite_lit_16932); List_String_append(spite_temp_18228, spite_lit_16933); List_String_append(spite_temp_18228, spite_lit_16934); List_String_append(spite_temp_18228, spite_lit_16935); List_String_append(spite_temp_18228, spite_lit_16936); List_String_append(spite_temp_18228, spite_lit_16937); List_String_append(spite_temp_18228, spite_lit_16938); List_String_append(spite_temp_18228, spite_lit_16939); List_String_append(spite_temp_18228, spite_lit_16940); List_String_append(spite_temp_18228, spite_lit_16941); List_String_append(spite_temp_18228, spite_lit_16942); List_String_append(spite_temp_18228, spite_lit_16943); List_String_append(spite_temp_18228, spite_lit_16944); List_String_append(spite_temp_18228, spite_lit_16945); spite_temp_18228; });
 return spite_temp_18229;
 }
 List_String* Generation_Prelude_attribute_members(Generation_Prelude* self) {
-List_String* spite_temp_18231 = ({ List_String* spite_temp_18230 = List_String___make(); List_String_append(spite_temp_18230, spite_lit_16944); List_String_append(spite_temp_18230, spite_lit_16945); List_String_append(spite_temp_18230, spite_lit_16946); List_String_append(spite_temp_18230, spite_lit_16947); List_String_append(spite_temp_18230, spite_lit_16948); List_String_append(spite_temp_18230, spite_lit_16949); spite_temp_18230; });
+List_String* spite_temp_18231 = ({ List_String* spite_temp_18230 = List_String___make(); List_String_append(spite_temp_18230, spite_lit_16946); List_String_append(spite_temp_18230, spite_lit_16947); List_String_append(spite_temp_18230, spite_lit_16948); List_String_append(spite_temp_18230, spite_lit_16949); List_String_append(spite_temp_18230, spite_lit_16950); List_String_append(spite_temp_18230, spite_lit_16951); spite_temp_18230; });
 return spite_temp_18231;
 }
 List_String* Generation_Prelude_function_members(Generation_Prelude* self) {
-List_String* spite_temp_18233 = ({ List_String* spite_temp_18232 = List_String___make(); List_String_append(spite_temp_18232, spite_lit_16950); List_String_append(spite_temp_18232, spite_lit_16951); List_String_append(spite_temp_18232, spite_lit_16952); List_String_append(spite_temp_18232, spite_lit_16953); spite_temp_18232; });
+List_String* spite_temp_18233 = ({ List_String* spite_temp_18232 = List_String___make(); List_String_append(spite_temp_18232, spite_lit_16952); List_String_append(spite_temp_18232, spite_lit_16953); List_String_append(spite_temp_18232, spite_lit_16954); List_String_append(spite_temp_18232, spite_lit_16955); spite_temp_18232; });
 return spite_temp_18233;
 }
 void Generation_ReleaseWatch_ReleaseWatch(Generation_ReleaseWatch* self, SpiteString watched_name_) {
@@ -81730,7 +81732,7 @@ void Generation_Scope_declare_row(Generation_Scope* self, SpiteString name_, Ana
 Generation_Scope_declare_borrowed(self, SpiteString___retain(name_), Analysis_SpiteType_SpiteType___retain(spite_type_), SpiteString___retain(sources_));
 List_String_append(self->row_names_, SpiteString___retain(name_));
 List_String_append(self->row_sources_, SpiteString___retain(sources_));
-SpiteString joined_paths_ = List_String_join(paths_, spite_lit_16955);
+SpiteString joined_paths_ = List_String_join(paths_, spite_lit_16957);
 List_String_append(self->row_paths_, SpiteString___retain(joined_paths_));
 SpiteString___release(joined_paths_);
 List_String___release(paths_);
@@ -81758,7 +81760,7 @@ SpiteString___release(joined_paths_);
 SpiteString___release(name_);
 return spite_temp_18257;
 }
-List_String* spite_temp_18258 = SpiteString_split(joined_paths_, spite_lit_16956);
+List_String* spite_temp_18258 = SpiteString_split(joined_paths_, spite_lit_16958);
 SpiteString___release(joined_paths_);
 SpiteString___release(name_);
 return spite_temp_18258;
@@ -81986,10 +81988,10 @@ void Generation_Scope_narrow_bound_path(Generation_Scope* self, SpiteString path
 Generation_Scope_narrow_path(self, SpiteString___retain(path_));
 List_String_append(self->bound_paths_, SpiteString___retain(path_));
 if ((self->is_loop_)) {
-List_String_append(self->bound_reasons_, ({ SpiteString spite_temp_18307 = condition_text_; SpiteString spite_temp_18308[] = {spite_lit_16958, spite_temp_18307, spite_lit_16960}; SpiteString spite_temp_18309 = spite_string_join(3, spite_temp_18308); spite_temp_18309; }));
+List_String_append(self->bound_reasons_, ({ SpiteString spite_temp_18307 = condition_text_; SpiteString spite_temp_18308[] = {spite_lit_16960, spite_temp_18307, spite_lit_16962}; SpiteString spite_temp_18309 = spite_string_join(3, spite_temp_18308); spite_temp_18309; }));
 }
 else {
-List_String_append(self->bound_reasons_, ({ SpiteString spite_temp_18310 = condition_text_; SpiteString spite_temp_18311[] = {spite_lit_16962, spite_temp_18310, spite_lit_16964}; SpiteString spite_temp_18312 = spite_string_join(3, spite_temp_18311); spite_temp_18312; }));
+List_String_append(self->bound_reasons_, ({ SpiteString spite_temp_18310 = condition_text_; SpiteString spite_temp_18311[] = {spite_lit_16964, spite_temp_18310, spite_lit_16966}; SpiteString spite_temp_18312 = spite_string_join(3, spite_temp_18311); spite_temp_18312; }));
 }
 SpiteString___release(condition_text_);
 SpiteString___release(path_);
@@ -82051,7 +82053,7 @@ spite_report_assert_trace();
 exit(1);
 }
 SpiteString narrowed_ = List_String_get_at(self->narrowed_paths_, index_);
-if ((((((({ SpiteString spite_temp_18330 = narrowed_; SpiteString spite_temp_18331 = candidate_; bool spite_temp_18332 = SpiteString_equals(spite_temp_18330, SpiteString___retain(spite_temp_18331)); spite_temp_18332; })) || (SpiteString_starts_with(narrowed_, ({ SpiteString spite_temp_18333 = candidate_; SpiteString spite_temp_18334[] = {spite_temp_18333, spite_lit_16967}; SpiteString spite_temp_18335 = spite_string_join(2, spite_temp_18334); spite_temp_18335; }))))) || (SpiteString_starts_with(narrowed_, ({ SpiteString spite_temp_18336 = candidate_; SpiteString spite_temp_18337[] = {spite_temp_18336, spite_lit_16970}; SpiteString spite_temp_18338 = spite_string_join(2, spite_temp_18337); spite_temp_18338; })))))) {
+if ((((((({ SpiteString spite_temp_18330 = narrowed_; SpiteString spite_temp_18331 = candidate_; bool spite_temp_18332 = SpiteString_equals(spite_temp_18330, SpiteString___retain(spite_temp_18331)); spite_temp_18332; })) || (SpiteString_starts_with(narrowed_, ({ SpiteString spite_temp_18333 = candidate_; SpiteString spite_temp_18334[] = {spite_temp_18333, spite_lit_16969}; SpiteString spite_temp_18335 = spite_string_join(2, spite_temp_18334); spite_temp_18335; }))))) || (SpiteString_starts_with(narrowed_, ({ SpiteString spite_temp_18336 = candidate_; SpiteString spite_temp_18337[] = {spite_temp_18336, spite_lit_16972}; SpiteString spite_temp_18338 = spite_string_join(2, spite_temp_18337); spite_temp_18338; })))))) {
 SpiteString spite_temp_18339 = SpiteString___retain(narrowed_);
 SpiteString___release(narrowed_);
 SpiteString___release(candidate_);
@@ -82070,7 +82072,7 @@ SpiteString___release(answered_);
 SpiteString___release(candidate_);
 return spite_temp_18340;
 }
-SpiteString spite_temp_18341 = spite_lit_16971;
+SpiteString spite_temp_18341 = spite_lit_16973;
 SpiteString___release(candidate_);
 return spite_temp_18341;
 }
@@ -82088,7 +82090,7 @@ spite_report_assert_trace();
 exit(1);
 }
 SpiteString narrowed_ = List_String_get_at(self->narrowed_paths_, index_);
-if ((((((((SpiteString_starts_with(narrowed_, ({ SpiteString spite_temp_18344 = path_; SpiteString spite_temp_18345[] = {spite_temp_18344, spite_lit_16974}; SpiteString spite_temp_18346 = spite_string_join(2, spite_temp_18345); spite_temp_18346; }))) || (SpiteString_starts_with(narrowed_, ({ SpiteString spite_temp_18347 = path_; SpiteString spite_temp_18348[] = {spite_temp_18347, spite_lit_16977}; SpiteString spite_temp_18349 = spite_string_join(2, spite_temp_18348); spite_temp_18349; }))))) || (Generation_Scope_key_mentions(self, SpiteString___retain(narrowed_), SpiteString___retain(path_))))) || (((include_itself_) && (({ SpiteString spite_temp_18350 = narrowed_; SpiteString spite_temp_18351 = path_; bool spite_temp_18352 = SpiteString_equals(spite_temp_18350, SpiteString___retain(spite_temp_18351)); spite_temp_18352; }))))))) {
+if ((((((((SpiteString_starts_with(narrowed_, ({ SpiteString spite_temp_18344 = path_; SpiteString spite_temp_18345[] = {spite_temp_18344, spite_lit_16976}; SpiteString spite_temp_18346 = spite_string_join(2, spite_temp_18345); spite_temp_18346; }))) || (SpiteString_starts_with(narrowed_, ({ SpiteString spite_temp_18347 = path_; SpiteString spite_temp_18348[] = {spite_temp_18347, spite_lit_16979}; SpiteString spite_temp_18349 = spite_string_join(2, spite_temp_18348); spite_temp_18349; }))))) || (Generation_Scope_key_mentions(self, SpiteString___retain(narrowed_), SpiteString___retain(path_))))) || (((include_itself_) && (({ SpiteString spite_temp_18350 = narrowed_; SpiteString spite_temp_18351 = path_; bool spite_temp_18352 = SpiteString_equals(spite_temp_18350, SpiteString___retain(spite_temp_18351)); spite_temp_18352; }))))))) {
 List_String_remove_at(self->narrowed_paths_, index_);
 Generation_Scope_forget_bound(self, SpiteString___retain(narrowed_));
 if ((List_String_contains(read_by_crossed_loops_, SpiteString___retain(narrowed_)))) {
@@ -82213,7 +82215,7 @@ SpiteString___release(path_);
 return spite_temp_18360;
 }
 bool Generation_Scope_key_mentions(Generation_Scope* self, SpiteString narrowed_, SpiteString path_) {
-int32_t first_key_ = SpiteString_index_of(narrowed_, spite_lit_16979);
+int32_t first_key_ = SpiteString_index_of(narrowed_, spite_lit_16981);
 if (!(((first_key_ >= 0)))) {
 SPITE_TRACE_ASSERT("spite.assert\t4a674c34\tbootstrap/source/generation/scope.spite:368\tGeneration.Scope\tkey_mentions\tfirst_key >= 0\n");
 SpiteString___release(path_);
@@ -82335,7 +82337,7 @@ index_ = (index_ - 1);
 SpiteString___release(name_);
 }
 void Generation_StateMachine_bind_parameter(Generation_StateMachine* self, SpiteString c_type_, SpiteString name_) {
-SpiteString field_ = Generation_StateMachine_allocate_field(self, SpiteString___retain(name_), SpiteString___retain(c_type_), spite_lit_16981);
+SpiteString field_ = Generation_StateMachine_allocate_field(self, SpiteString___retain(name_), SpiteString___retain(c_type_), spite_lit_16983);
 Generation_StateMachine_bind(self, SpiteString___retain(name_), SpiteString___retain(field_));
 SpiteString___release(field_);
 SpiteString___release(name_);
@@ -82346,7 +82348,7 @@ List_String* result_ = List_String___make();
 int32_t index_ = 0;
 while (((index_ < List_String_count(lines_)))) {
 SpiteString line_ = List_String_get_at(lines_, index_);
-List_String* pieces_ = SpiteString_split(line_, spite_lit_16983);
+List_String* pieces_ = SpiteString_split(line_, spite_lit_16985);
 int32_t piece_index_ = 0;
 while (((piece_index_ < List_String_count(pieces_)))) {
 SpiteString piece_ = List_String_get_at(pieces_, piece_index_);
@@ -82374,13 +82376,13 @@ while (((index_ < List_String_count(self->field_names_)))) {
 SpiteString c_type_ = List_String_get_at(self->field_types_, index_);
 SpiteString name_ = List_String_get_at(self->field_names_, index_);
 SpiteString suffix_ = List_String_get_at(self->field_suffixes_, index_);
-List_String_append(declarations_, ({ SpiteString spite_temp_18384 = c_type_; SpiteString spite_temp_18385 = name_; SpiteString spite_temp_18386 = suffix_; SpiteString spite_temp_18387[] = {spite_temp_18384, spite_lit_16986, spite_temp_18385, spite_temp_18386, spite_lit_16988}; SpiteString spite_temp_18388 = spite_string_join(5, spite_temp_18387); spite_temp_18388; }));
+List_String_append(declarations_, ({ SpiteString spite_temp_18384 = c_type_; SpiteString spite_temp_18385 = name_; SpiteString spite_temp_18386 = suffix_; SpiteString spite_temp_18387[] = {spite_temp_18384, spite_lit_16988, spite_temp_18385, spite_temp_18386, spite_lit_16990}; SpiteString spite_temp_18388 = spite_string_join(5, spite_temp_18387); spite_temp_18388; }));
 index_ = (index_ + 1);
 SpiteString___release(suffix_);
 SpiteString___release(name_);
 SpiteString___release(c_type_);
 }
-SpiteString spite_temp_18389 = List_String_join(declarations_, spite_lit_16989);
+SpiteString spite_temp_18389 = List_String_join(declarations_, spite_lit_16991);
 List_String___release(declarations_);
 return spite_temp_18389;
 }
@@ -82389,10 +82391,10 @@ List_String* cases_ = List_String___make();
 int32_t index_ = 0;
 while (((index_ < List_Integer_count(self->resume_points_)))) {
 int32_t point_ = List_Integer_get_at(self->resume_points_, index_);
-List_String_append(cases_, ({ char spite_temp_18390_digits[24]; SpiteString spite_temp_18390 = SPITE_STATIC_STRING(spite_temp_18390_digits, spite_long_digits(spite_temp_18390_digits, (int64_t)(point_))); char spite_temp_18391_digits[24]; SpiteString spite_temp_18391 = SPITE_STATIC_STRING(spite_temp_18391_digits, spite_long_digits(spite_temp_18391_digits, (int64_t)(point_))); SpiteString spite_temp_18392[] = {spite_lit_16991, spite_temp_18390, spite_lit_16993, spite_temp_18391, spite_lit_16995}; SpiteString spite_temp_18393 = spite_string_join(5, spite_temp_18392); spite_temp_18393; }));
+List_String_append(cases_, ({ char spite_temp_18390_digits[24]; SpiteString spite_temp_18390 = SPITE_STATIC_STRING(spite_temp_18390_digits, spite_long_digits(spite_temp_18390_digits, (int64_t)(point_))); char spite_temp_18391_digits[24]; SpiteString spite_temp_18391 = SPITE_STATIC_STRING(spite_temp_18391_digits, spite_long_digits(spite_temp_18391_digits, (int64_t)(point_))); SpiteString spite_temp_18392[] = {spite_lit_16993, spite_temp_18390, spite_lit_16995, spite_temp_18391, spite_lit_16997}; SpiteString spite_temp_18393 = spite_string_join(5, spite_temp_18392); spite_temp_18393; }));
 index_ = (index_ + 1);
 }
-SpiteString spite_temp_18397 = ({ SpiteString spite_temp_18394 = List_String_join(cases_, spite_lit_16997); SpiteString spite_temp_18395[] = {spite_lit_16998, spite_temp_18394, spite_lit_17000}; SpiteString spite_temp_18396 = spite_string_join(3, spite_temp_18395); SpiteString___release(spite_temp_18394); spite_temp_18396; });
+SpiteString spite_temp_18397 = ({ SpiteString spite_temp_18394 = List_String_join(cases_, spite_lit_16999); SpiteString spite_temp_18395[] = {spite_lit_17000, spite_temp_18394, spite_lit_17002}; SpiteString spite_temp_18396 = spite_string_join(3, spite_temp_18395); SpiteString___release(spite_temp_18394); spite_temp_18396; });
 List_String___release(cases_);
 return spite_temp_18397;
 }
@@ -82411,12 +82413,12 @@ SpiteString c_type_ = SpiteString_slice(line_, 0, (name_start_ - 1));
 SpiteString name_ = SpiteString_slice(line_, name_start_, name_end_);
 int32_t line_length_ = SpiteString_length(line_);
 SpiteString rest_ = SpiteString_slice(line_, name_end_, line_length_);
-if ((SpiteString_starts_with(rest_, spite_lit_17001))) {
-int32_t closing_ = SpiteString_index_of(rest_, spite_lit_17003);
+if ((SpiteString_starts_with(rest_, spite_lit_17003))) {
+int32_t closing_ = SpiteString_index_of(rest_, spite_lit_17005);
 SpiteString suffix_ = SpiteString_slice(rest_, 0, (closing_ + 1));
 SpiteString array_field_ = Generation_StateMachine_allocate_field(self, SpiteString___retain(name_), SpiteString___retain(c_type_), SpiteString___retain(suffix_));
 Generation_StateMachine_bind(self, SpiteString___retain(name_), SpiteString___retain(array_field_));
-SpiteString spite_temp_18399 = spite_lit_17004;
+SpiteString spite_temp_18399 = spite_lit_17006;
 SpiteString___release(array_field_);
 SpiteString___release(suffix_);
 SpiteString___release(rest_);
@@ -82425,10 +82427,10 @@ SpiteString___release(c_type_);
 SpiteString___release(line_);
 return spite_temp_18399;
 }
-if ((({ SpiteString spite_temp_18400 = rest_; SpiteString spite_temp_18401 = spite_lit_17006; bool spite_temp_18402 = SpiteString_equals(spite_temp_18400, SpiteString___retain(spite_temp_18401)); SpiteString___release(spite_temp_18401); spite_temp_18402; }))) {
-SpiteString plain_field_ = Generation_StateMachine_allocate_field(self, SpiteString___retain(name_), SpiteString___retain(c_type_), spite_lit_17008);
+if ((({ SpiteString spite_temp_18400 = rest_; SpiteString spite_temp_18401 = spite_lit_17008; bool spite_temp_18402 = SpiteString_equals(spite_temp_18400, SpiteString___retain(spite_temp_18401)); SpiteString___release(spite_temp_18401); spite_temp_18402; }))) {
+SpiteString plain_field_ = Generation_StateMachine_allocate_field(self, SpiteString___retain(name_), SpiteString___retain(c_type_), spite_lit_17010);
 Generation_StateMachine_bind(self, SpiteString___retain(name_), SpiteString___retain(plain_field_));
-SpiteString spite_temp_18403 = spite_lit_17009;
+SpiteString spite_temp_18403 = spite_lit_17011;
 SpiteString___release(plain_field_);
 SpiteString___release(rest_);
 SpiteString___release(name_);
@@ -82439,9 +82441,9 @@ return spite_temp_18403;
 int32_t rest_length_ = SpiteString_length(rest_);
 SpiteString value_ = SpiteString_slice(rest_, 3, rest_length_);
 SpiteString renamed_value_ = Generation_StateMachine_rewritten_names(self, SpiteString___retain(value_));
-SpiteString field_ = Generation_StateMachine_allocate_field(self, SpiteString___retain(name_), SpiteString___retain(c_type_), spite_lit_17011);
+SpiteString field_ = Generation_StateMachine_allocate_field(self, SpiteString___retain(name_), SpiteString___retain(c_type_), spite_lit_17013);
 Generation_StateMachine_bind(self, SpiteString___retain(name_), SpiteString___retain(field_));
-SpiteString spite_temp_18408 = Generation_StateMachine_rewritten_returns(self, ({ SpiteString spite_temp_18404 = field_; SpiteString spite_temp_18405 = renamed_value_; SpiteString spite_temp_18406[] = {spite_lit_17013, spite_temp_18404, spite_lit_17015, spite_temp_18405}; SpiteString spite_temp_18407 = spite_string_join(4, spite_temp_18406); spite_temp_18407; }));
+SpiteString spite_temp_18408 = Generation_StateMachine_rewritten_returns(self, ({ SpiteString spite_temp_18404 = field_; SpiteString spite_temp_18405 = renamed_value_; SpiteString spite_temp_18406[] = {spite_lit_17015, spite_temp_18404, spite_lit_17017, spite_temp_18405}; SpiteString spite_temp_18407 = spite_string_join(4, spite_temp_18406); spite_temp_18407; }));
 SpiteString___release(field_);
 SpiteString___release(renamed_value_);
 SpiteString___release(value_);
@@ -82452,12 +82454,12 @@ SpiteString___release(line_);
 return spite_temp_18408;
 }
 void Generation_StateMachine_note_resume_point(Generation_StateMachine* self, SpiteString line_) {
-if (!((SpiteString_starts_with(line_, spite_lit_17016)))) {
+if (!((SpiteString_starts_with(line_, spite_lit_17018)))) {
 SPITE_TRACE_ASSERT("spite.assert\t20a34d04\tbootstrap/source/generation/state_machine.spite:92\tGeneration.StateMachine\tnote_resume_point\tline.starts_with(\"spite_resume_\")\n");
 SpiteString___release(line_);
 return;
 }
-int32_t colon_ = SpiteString_index_of(line_, spite_lit_17018);
+int32_t colon_ = SpiteString_index_of(line_, spite_lit_17020);
 SpiteString digits_ = SpiteString_slice(line_, 13, colon_);
 int32_t point_ = SpiteString_to_integer(digits_);
 List_Integer_append(self->resume_points_, point_);
@@ -82497,7 +82499,7 @@ return 0;
 int32_t name_end_ = Generation_StateMachine_name_end_at(self, SpiteString___retain(line_), (position_ + 1));
 int32_t line_length_ = SpiteString_length(line_);
 SpiteString rest_ = SpiteString_slice(line_, name_end_, line_length_);
-if (!((((((SpiteString_starts_with(rest_, spite_lit_17019)) || (({ SpiteString spite_temp_18409 = rest_; SpiteString spite_temp_18410 = spite_lit_17021; bool spite_temp_18411 = SpiteString_equals(spite_temp_18409, SpiteString___retain(spite_temp_18410)); SpiteString___release(spite_temp_18410); spite_temp_18411; })))) || (SpiteString_starts_with(rest_, spite_lit_17022)))))) {
+if (!((((((SpiteString_starts_with(rest_, spite_lit_17021)) || (({ SpiteString spite_temp_18409 = rest_; SpiteString spite_temp_18410 = spite_lit_17023; bool spite_temp_18411 = SpiteString_equals(spite_temp_18409, SpiteString___retain(spite_temp_18410)); SpiteString___release(spite_temp_18410); spite_temp_18411; })))) || (SpiteString_starts_with(rest_, spite_lit_17024)))))) {
 SPITE_TRACE_ASSERT("spite.assert\t5855e9b0\tbootstrap/source/generation/state_machine.spite:112\tGeneration.StateMachine\tdeclared_name_end\trest.starts_with(\" = \") or rest == \";\" or rest.starts_with(\"[\")\n");
 SpiteString___release(rest_);
 SpiteString___release(first_word_);
@@ -82539,7 +82541,7 @@ SpiteString___release(text_);
 return spite_temp_18414;
 }
 bool Generation_StateMachine_is_keyword(Generation_StateMachine* self, SpiteString word_) {
-List_String* keywords_ = ({ List_String* spite_temp_18416 = List_String___make(); List_String_append(spite_temp_18416, spite_lit_17042); List_String_append(spite_temp_18416, spite_lit_17043); List_String_append(spite_temp_18416, spite_lit_17044); List_String_append(spite_temp_18416, spite_lit_17045); List_String_append(spite_temp_18416, spite_lit_17046); List_String_append(spite_temp_18416, spite_lit_17047); List_String_append(spite_temp_18416, spite_lit_17048); List_String_append(spite_temp_18416, spite_lit_17049); List_String_append(spite_temp_18416, spite_lit_17050); List_String_append(spite_temp_18416, spite_lit_17051); List_String_append(spite_temp_18416, spite_lit_17052); List_String_append(spite_temp_18416, spite_lit_17053); List_String_append(spite_temp_18416, spite_lit_17054); List_String_append(spite_temp_18416, spite_lit_17055); List_String_append(spite_temp_18416, spite_lit_17056); List_String_append(spite_temp_18416, spite_lit_17057); List_String_append(spite_temp_18416, spite_lit_17058); List_String_append(spite_temp_18416, spite_lit_17059); spite_temp_18416; });
+List_String* keywords_ = ({ List_String* spite_temp_18416 = List_String___make(); List_String_append(spite_temp_18416, spite_lit_17044); List_String_append(spite_temp_18416, spite_lit_17045); List_String_append(spite_temp_18416, spite_lit_17046); List_String_append(spite_temp_18416, spite_lit_17047); List_String_append(spite_temp_18416, spite_lit_17048); List_String_append(spite_temp_18416, spite_lit_17049); List_String_append(spite_temp_18416, spite_lit_17050); List_String_append(spite_temp_18416, spite_lit_17051); List_String_append(spite_temp_18416, spite_lit_17052); List_String_append(spite_temp_18416, spite_lit_17053); List_String_append(spite_temp_18416, spite_lit_17054); List_String_append(spite_temp_18416, spite_lit_17055); List_String_append(spite_temp_18416, spite_lit_17056); List_String_append(spite_temp_18416, spite_lit_17057); List_String_append(spite_temp_18416, spite_lit_17058); List_String_append(spite_temp_18416, spite_lit_17059); List_String_append(spite_temp_18416, spite_lit_17060); List_String_append(spite_temp_18416, spite_lit_17061); spite_temp_18416; });
 bool spite_temp_18417 = List_String_contains(keywords_, SpiteString___retain(word_));
 List_String___release(keywords_);
 SpiteString___release(word_);
@@ -82589,7 +82591,7 @@ SpiteString field_ = Generation_StateMachine_bound_field(self, SpiteString___ret
 if ((((!(SpiteString_is_empty(field_))))) && (((!(Generation_StateMachine_follows_member_access(self, SpiteString___retain(text_), index_)))))) {
 SpiteString before_ = SpiteString_slice(text_, copied_from_, index_);
 List_String_append(pieces_, SpiteString___retain(before_));
-List_String_append(pieces_, ({ SpiteString spite_temp_18423 = field_; SpiteString spite_temp_18424[] = {spite_lit_17061, spite_temp_18423}; SpiteString spite_temp_18425 = spite_string_join(2, spite_temp_18424); spite_temp_18425; }));
+List_String_append(pieces_, ({ SpiteString spite_temp_18423 = field_; SpiteString spite_temp_18424[] = {spite_lit_17063, spite_temp_18423}; SpiteString spite_temp_18425 = spite_string_join(2, spite_temp_18424); spite_temp_18425; }));
 copied_from_ = end_;
 SpiteString___release(before_);
 }
@@ -82622,7 +82624,7 @@ index_ = (index_ + 1);
 }
 SpiteString rest_ = SpiteString_slice(text_, copied_from_, text_length_);
 List_String_append(pieces_, SpiteString___retain(rest_));
-SpiteString spite_temp_18426 = List_String_join(pieces_, spite_lit_17062);
+SpiteString spite_temp_18426 = List_String_join(pieces_, spite_lit_17064);
 SpiteString___release(rest_);
 List_String___release(pieces_);
 SpiteString___release(text_);
@@ -82680,7 +82682,7 @@ if ((Generation_StateMachine_is_name_start(self, code_))) {
 int32_t end_ = Generation_StateMachine_name_end_at(self, SpiteString___retain(text_), index_);
 SpiteString word_ = SpiteString_slice(text_, index_, end_);
 index_ = end_;
-if (((({ SpiteString spite_temp_18431 = word_; SpiteString spite_temp_18432 = spite_lit_17064; bool spite_temp_18433 = SpiteString_equals(spite_temp_18431, SpiteString___retain(spite_temp_18432)); SpiteString___release(spite_temp_18432); spite_temp_18433; }))) && (((!(Generation_StateMachine_follows_member_access(self, SpiteString___retain(text_), (end_ - 6))))))) {
+if (((({ SpiteString spite_temp_18431 = word_; SpiteString spite_temp_18432 = spite_lit_17066; bool spite_temp_18433 = SpiteString_equals(spite_temp_18431, SpiteString___retain(spite_temp_18432)); SpiteString___release(spite_temp_18432); spite_temp_18433; }))) && (((!(Generation_StateMachine_follows_member_access(self, SpiteString___retain(text_), (end_ - 6))))))) {
 int32_t value_end_ = Generation_StateMachine_statement_end(self, SpiteString___retain(text_), end_);
 SpiteString value_ = SpiteString_slice(text_, end_, value_end_);
 SpiteString before_ = SpiteString_slice(text_, copied_from_, (end_ - 6));
@@ -82702,7 +82704,7 @@ index_ = (index_ + 1);
 }
 SpiteString rest_ = SpiteString_slice(text_, copied_from_, text_length_);
 List_String_append(pieces_, SpiteString___retain(rest_));
-SpiteString spite_temp_18434 = List_String_join(pieces_, spite_lit_17065);
+SpiteString spite_temp_18434 = List_String_join(pieces_, spite_lit_17067);
 SpiteString___release(rest_);
 List_String___release(pieces_);
 SpiteString___release(text_);
@@ -82711,12 +82713,12 @@ return spite_temp_18434;
 SpiteString Generation_StateMachine_finishing(Generation_StateMachine* self, SpiteString value_) {
 SpiteString trimmed_value_ = SpiteString_trim(value_);
 if ((SpiteString_is_empty(trimmed_value_))) {
-SpiteString spite_temp_18435 = spite_lit_17066;
+SpiteString spite_temp_18435 = spite_lit_17068;
 SpiteString___release(trimmed_value_);
 SpiteString___release(value_);
 return spite_temp_18435;
 }
-SpiteString spite_temp_18439 = ({ SpiteString spite_temp_18436 = trimmed_value_; SpiteString spite_temp_18437[] = {spite_lit_17068, spite_temp_18436, spite_lit_17070}; SpiteString spite_temp_18438 = spite_string_join(3, spite_temp_18437); spite_temp_18438; });
+SpiteString spite_temp_18439 = ({ SpiteString spite_temp_18436 = trimmed_value_; SpiteString spite_temp_18437[] = {spite_lit_17070, spite_temp_18436, spite_lit_17072}; SpiteString spite_temp_18438 = spite_string_join(3, spite_temp_18437); spite_temp_18438; });
 SpiteString___release(trimmed_value_);
 SpiteString___release(value_);
 return spite_temp_18439;
@@ -82767,7 +82769,7 @@ return spite_temp_18448;
 }
 index_ = (index_ - 1);
 }
-SpiteString spite_temp_18449 = spite_lit_17071;
+SpiteString spite_temp_18449 = spite_lit_17073;
 SpiteString___release(name_);
 return spite_temp_18449;
 }
@@ -82797,7 +82799,7 @@ SpiteString candidate_ = SpiteString___retain(name_);
 int32_t number_ = 1;
 while ((Generation_StateMachine_field_conflicts(self, SpiteString___retain(candidate_), SpiteString___retain(c_type_), SpiteString___retain(suffix_)))) {
 number_ = (number_ + 1);
-SpiteString spite_temp_18457 = ({ SpiteString spite_temp_18453 = name_; char spite_temp_18454_digits[24]; SpiteString spite_temp_18454 = SPITE_STATIC_STRING(spite_temp_18454_digits, spite_long_digits(spite_temp_18454_digits, (int64_t)(number_))); SpiteString spite_temp_18455[] = {spite_temp_18453, spite_lit_17074, spite_temp_18454}; SpiteString spite_temp_18456 = spite_string_join(3, spite_temp_18455); spite_temp_18456; });
+SpiteString spite_temp_18457 = ({ SpiteString spite_temp_18453 = name_; char spite_temp_18454_digits[24]; SpiteString spite_temp_18454 = SPITE_STATIC_STRING(spite_temp_18454_digits, spite_long_digits(spite_temp_18454_digits, (int64_t)(number_))); SpiteString spite_temp_18455[] = {spite_temp_18453, spite_lit_17076, spite_temp_18454}; SpiteString spite_temp_18456 = spite_string_join(3, spite_temp_18455); spite_temp_18456; });
 SpiteString___release(candidate_);
 candidate_ = spite_temp_18457;
 }
@@ -82850,7 +82852,7 @@ SpiteString___release(walk_purpose_);
 }
 SpiteString Generation_TreeShaker_shake_program(Generation_TreeShaker* self, SpiteString types_, SpiteString prototypes_, SpiteString main_function_, SpiteString body_) {
 self->names_types_ = true;
-Generation_TreeShaker_reserve_slots(self, ({ SpiteString spite_temp_18479 = types_; SpiteString spite_temp_18480 = body_; SpiteString spite_temp_18481[] = {spite_temp_18479, spite_lit_17078, spite_temp_18480}; SpiteString spite_temp_18482 = spite_string_join(3, spite_temp_18481); spite_temp_18482; }));
+Generation_TreeShaker_reserve_slots(self, ({ SpiteString spite_temp_18479 = types_; SpiteString spite_temp_18480 = body_; SpiteString spite_temp_18481[] = {spite_temp_18479, spite_lit_17080, spite_temp_18480}; SpiteString spite_temp_18482 = spite_string_join(3, spite_temp_18481); spite_temp_18482; }));
 Generation_TreeShaker_split_pieces(self, SpiteString___retain(types_));
 self->type_piece_count_ = List_String_count(self->pieces_);
 Generation_TreeShaker_split_pieces(self, SpiteString___retain(body_));
@@ -82959,12 +82961,12 @@ SpiteString___release(piece_);
 }
 index_ = (index_ + 1);
 }
-SpiteString spite_temp_18491 = List_String_join(result_, spite_lit_17079);
+SpiteString spite_temp_18491 = List_String_join(result_, spite_lit_17081);
 List_String___release(result_);
 return spite_temp_18491;
 }
 void Generation_TreeShaker_add_undefined_prototypes(Generation_TreeShaker* self, SpiteString prototypes_) {
-List_String* lines_ = SpiteString_split(prototypes_, spite_lit_17081);
+List_String* lines_ = SpiteString_split(prototypes_, spite_lit_17083);
 int32_t index_ = 0;
 while (((index_ < List_String_count(lines_)))) {
 SpiteString line_ = List_String_get_at(lines_, index_);
@@ -82999,7 +83001,7 @@ int32_t name_length_ = SpiteString_length(name_);
 if (((Generation_TreeShaker_find_function(self, SpiteString___retain(name_), 0, name_length_) < 0))) {
 int32_t pieces_count_ = List_String_count(self->pieces_);
 Generation_TreeShaker_add_function(self, SpiteString___retain(name_), pieces_count_);
-List_String_append(self->pieces_, spite_lit_17082);
+List_String_append(self->pieces_, spite_lit_17084);
 List_String_append(self->piece_names_, SpiteString___retain(name_));
 List_Boolean_append(self->kept_, false);
 }
@@ -83024,7 +83026,7 @@ return spite_temp_18492;
 }
 SpiteString Generation_TreeShaker_kept_prototypes(Generation_TreeShaker* self, SpiteString prototypes_) {
 List_String* result_ = List_String___make();
-List_String* lines_ = SpiteString_split(prototypes_, spite_lit_17084);
+List_String* lines_ = SpiteString_split(prototypes_, spite_lit_17086);
 int32_t index_ = 0;
 while (((index_ < List_String_count(lines_)))) {
 SpiteString line_ = List_String_get_at(lines_, index_);
@@ -83036,7 +83038,7 @@ index_ = (index_ + 1);
 SpiteString___release(name_);
 SpiteString___release(line_);
 }
-SpiteString spite_temp_18493 = List_String_join(result_, spite_lit_17085);
+SpiteString spite_temp_18493 = List_String_join(result_, spite_lit_17087);
 List_String___release(lines_);
 List_String___release(result_);
 SpiteString___release(prototypes_);
@@ -83055,13 +83057,13 @@ SpiteString___release(name_);
 return spite_temp_18496;
 }
 void Generation_TreeShaker_reserve_slots(Generation_TreeShaker* self, SpiteString text_) {
-List_String* lines_ = SpiteString_split(text_, spite_lit_17087);
+List_String* lines_ = SpiteString_split(text_, spite_lit_17089);
 int32_t capacity_ = 1024;
 while (((capacity_ < (List_String_count(lines_) * 2)))) {
 capacity_ = (capacity_ * 2);
 }
 while (((List_String_count(self->slot_names_) < capacity_))) {
-List_String_append(self->slot_names_, spite_lit_17088);
+List_String_append(self->slot_names_, spite_lit_17090);
 List_Integer_append(self->slot_positions_, (-(1)));
 }
 List_String___release(lines_);
@@ -83071,7 +83073,7 @@ void Generation_TreeShaker_split_pieces(Generation_TreeShaker* self, SpiteString
 if ((List_String_is_empty(self->slot_names_))) {
 Generation_TreeShaker_reserve_slots(self, SpiteString___retain(body_));
 }
-List_String* lines_ = SpiteString_split(body_, spite_lit_17090);
+List_String* lines_ = SpiteString_split(body_, spite_lit_17092);
 int32_t depth_ = 0;
 List_String* current_ = List_String___make();
 int32_t index_ = 0;
@@ -83114,7 +83116,7 @@ if (((!(SpiteString_is_empty(name_))))) {
 same_ = Generation_TreeShaker_find_function(self, SpiteString___retain(name_), 0, name_length_);
 }
 if ((((same_ >= 0))) && (((!(self->names_types_))))) {
-SpiteString spite_temp_18500 = spite_lit_17091;
+SpiteString spite_temp_18500 = spite_lit_17093;
 SpiteString___release(name_);
 name_ = spite_temp_18500;
 }
@@ -83131,7 +83133,7 @@ Generation_TreeShaker_add_function(self, SpiteString___retain(name_), pieces_cou
 }
 }
 }
-SpiteString joined_lines_ = List_String_join(lines_, spite_lit_17093);
+SpiteString joined_lines_ = List_String_join(lines_, spite_lit_17095);
 List_String_append(self->pieces_, SpiteString___retain(joined_lines_));
 List_String_append(self->piece_names_, SpiteString___retain(name_));
 List_Integer_append(self->next_same_, (-(1)));
@@ -83149,16 +83151,16 @@ return spite_temp_18501;
 }
 SpiteString trimmed_ = SpiteString_trim(line_);
 int32_t trimmed_length_ = SpiteString_length(trimmed_);
-if (((SpiteString_starts_with(trimmed_, spite_lit_17094))) && ((SpiteString_ends_with(trimmed_, spite_lit_17095))) && (((SpiteString_index_of(trimmed_, spite_lit_17096) < 0)))) {
+if (((SpiteString_starts_with(trimmed_, spite_lit_17096))) && ((SpiteString_ends_with(trimmed_, spite_lit_17097))) && (((SpiteString_index_of(trimmed_, spite_lit_17098) < 0)))) {
 SpiteString spite_temp_18502 = Generation_TreeShaker_name_before(self, SpiteString___retain(trimmed_), (trimmed_length_ - 1));
 SpiteString___release(trimmed_);
 SpiteString___release(line_);
 return spite_temp_18502;
 }
-if (((SpiteString_starts_with(trimmed_, spite_lit_17097))) && ((SpiteString_ends_with(trimmed_, spite_lit_17098)))) {
+if (((SpiteString_starts_with(trimmed_, spite_lit_17099))) && ((SpiteString_ends_with(trimmed_, spite_lit_17100)))) {
 SpiteString words_ = SpiteString_slice(trimmed_, 7, (trimmed_length_ - 1));
 SpiteString name_ = SpiteString_trim(words_);
-if (!(((SpiteString_index_of(name_, spite_lit_17099) < 0)))) {
+if (!(((SpiteString_index_of(name_, spite_lit_17101) < 0)))) {
 SPITE_TRACE_ASSERT("spite.assert\t0f35c67e\tbootstrap/source/generation/tree_shaker.spite:275\tGeneration.TreeShaker\tpiece_name\tname.index_of(\" \") < 0\n");
 SpiteString___release(name_);
 SpiteString___release(words_);
@@ -83173,7 +83175,7 @@ SpiteString___release(trimmed_);
 SpiteString___release(line_);
 return spite_temp_18503;
 }
-if (((SpiteString_starts_with(trimmed_, spite_lit_17100))) && ((((SpiteString_ends_with(trimmed_, spite_lit_17101)) || (SpiteString_ends_with(trimmed_, spite_lit_17102)))))) {
+if (((SpiteString_starts_with(trimmed_, spite_lit_17102))) && ((((SpiteString_ends_with(trimmed_, spite_lit_17103)) || (SpiteString_ends_with(trimmed_, spite_lit_17104)))))) {
 SpiteString variable_ = Generation_TreeShaker_static_variable_name(self, SpiteString___retain(trimmed_));
 if (((!(SpiteString_is_empty(variable_))))) {
 SpiteString spite_temp_18504 = SpiteString___retain(variable_);
@@ -83184,13 +83186,13 @@ return spite_temp_18504;
 }
 SpiteString___release(variable_);
 }
-if ((SpiteString_ends_with(trimmed_, spite_lit_17103))) {
+if ((SpiteString_ends_with(trimmed_, spite_lit_17105))) {
 SpiteString spite_temp_18505 = Generation_TreeShaker_one_line_defined_name(self, SpiteString___retain(trimmed_));
 SpiteString___release(trimmed_);
 SpiteString___release(line_);
 return spite_temp_18505;
 }
-if ((SpiteString_starts_with(trimmed_, spite_lit_17104))) {
+if ((SpiteString_starts_with(trimmed_, spite_lit_17106))) {
 SpiteString spite_temp_18506 = Generation_TreeShaker_shaken_macro_name(self, SpiteString___retain(trimmed_));
 SpiteString___release(trimmed_);
 SpiteString___release(line_);
@@ -83202,7 +83204,7 @@ SpiteString___release(line_);
 return spite_temp_18507;
 }
 SpiteString Generation_TreeShaker_shaken_macro_name(Generation_TreeShaker* self, SpiteString trimmed_) {
-int32_t open_ = SpiteString_index_of(trimmed_, spite_lit_17106);
+int32_t open_ = SpiteString_index_of(trimmed_, spite_lit_17108);
 if (!(((open_ > 8)))) {
 SPITE_TRACE_ASSERT("spite.assert\t3ea6da7c\tbootstrap/source/generation/tree_shaker.spite:295\tGeneration.TreeShaker\tshaken_macro_name\topen > 8\n");
 SpiteString___release(trimmed_);
@@ -83222,18 +83224,18 @@ return spite_temp_18508;
 }
 SpiteString Generation_TreeShaker_static_variable_name(Generation_TreeShaker* self, SpiteString trimmed_) {
 int32_t end_ = (SpiteString_length(trimmed_) - 1);
-int32_t equals_ = SpiteString_index_of(trimmed_, spite_lit_17108);
+int32_t equals_ = SpiteString_index_of(trimmed_, spite_lit_17110);
 if (((equals_ > 0))) {
 end_ = equals_;
 }
 SpiteString head_ = SpiteString_slice(trimmed_, 0, end_);
-if (!(((SpiteString_index_of(head_, spite_lit_17109) < 0)))) {
+if (!(((SpiteString_index_of(head_, spite_lit_17111) < 0)))) {
 SPITE_TRACE_ASSERT("spite.assert\t47eb28d6\tbootstrap/source/generation/tree_shaker.spite:308\tGeneration.TreeShaker\tstatic_variable_name\thead.index_of(\"(\") < 0\n");
 SpiteString___release(head_);
 SpiteString___release(trimmed_);
 return SPITE_STRING_EMPTY;
 }
-int32_t bracket_ = SpiteString_index_of(head_, spite_lit_17111);
+int32_t bracket_ = SpiteString_index_of(head_, spite_lit_17113);
 if (((bracket_ > 0))) {
 SpiteString spite_temp_18509 = SpiteString_slice(head_, 0, bracket_);
 SpiteString___release(head_);
@@ -83248,22 +83250,22 @@ SpiteString___release(trimmed_);
 return spite_temp_18510;
 }
 SpiteString Generation_TreeShaker_one_line_defined_name(Generation_TreeShaker* self, SpiteString trimmed_) {
-if (!(((!(SpiteString_starts_with(trimmed_, spite_lit_17112)))))) {
+if (!(((!(SpiteString_starts_with(trimmed_, spite_lit_17114)))))) {
 SPITE_TRACE_ASSERT("spite.assert\t20d5d878\tbootstrap/source/generation/tree_shaker.spite:319\tGeneration.TreeShaker\tone_line_defined_name\tnot trimmed.starts_with(\"#\")\n");
 SpiteString___release(trimmed_);
 return SPITE_STRING_EMPTY;
 }
-if (!(((!(SpiteString_starts_with(trimmed_, spite_lit_17113)))))) {
+if (!(((!(SpiteString_starts_with(trimmed_, spite_lit_17115)))))) {
 SPITE_TRACE_ASSERT("spite.assert\t13e36676\tbootstrap/source/generation/tree_shaker.spite:319\tGeneration.TreeShaker\tone_line_defined_name\tnot trimmed.starts_with(\"typedef\")\n");
 SpiteString___release(trimmed_);
 return SPITE_STRING_EMPTY;
 }
-if (!(((!(SpiteString_starts_with(trimmed_, spite_lit_17114)))))) {
+if (!(((!(SpiteString_starts_with(trimmed_, spite_lit_17116)))))) {
 SPITE_TRACE_ASSERT("spite.assert\t0ecb9bd9\tbootstrap/source/generation/tree_shaker.spite:319\tGeneration.TreeShaker\tone_line_defined_name\tnot trimmed.starts_with(\"static\")\n");
 SpiteString___release(trimmed_);
 return SPITE_STRING_EMPTY;
 }
-int32_t brace_ = SpiteString_index_of(trimmed_, spite_lit_17116);
+int32_t brace_ = SpiteString_index_of(trimmed_, spite_lit_17118);
 if (!(((brace_ > 0)))) {
 SPITE_TRACE_ASSERT("spite.assert\t7e154d6d\tbootstrap/source/generation/tree_shaker.spite:321\tGeneration.TreeShaker\tone_line_defined_name\tbrace > 0\n");
 SpiteString___release(trimmed_);
@@ -83271,7 +83273,7 @@ return SPITE_STRING_EMPTY;
 }
 SpiteString signature_ = SpiteString_slice(trimmed_, 0, brace_);
 SpiteString head_ = SpiteString_trim(signature_);
-if (!((SpiteString_ends_with(head_, spite_lit_17117)))) {
+if (!((SpiteString_ends_with(head_, spite_lit_17119)))) {
 SPITE_TRACE_ASSERT("spite.assert\t7ceeb4f9\tbootstrap/source/generation/tree_shaker.spite:324\tGeneration.TreeShaker\tone_line_defined_name\thead.ends_with(\")\")\n");
 SpiteString___release(head_);
 SpiteString___release(signature_);
@@ -83286,19 +83288,19 @@ return spite_temp_18511;
 }
 SpiteString Generation_TreeShaker_defined_name(Generation_TreeShaker* self, SpiteString line_) {
 SpiteString trimmed_ = SpiteString_trim(line_);
-if (!((SpiteString_ends_with(trimmed_, spite_lit_17118)))) {
+if (!((SpiteString_ends_with(trimmed_, spite_lit_17120)))) {
 SPITE_TRACE_ASSERT("spite.assert\t04e5edca\tbootstrap/source/generation/tree_shaker.spite:330\tGeneration.TreeShaker\tdefined_name\ttrimmed.ends_with(\"\\{\")\n");
 SpiteString___release(trimmed_);
 SpiteString___release(line_);
 return SPITE_STRING_EMPTY;
 }
-if (!(((!(SpiteString_starts_with(trimmed_, spite_lit_17119)))))) {
+if (!(((!(SpiteString_starts_with(trimmed_, spite_lit_17121)))))) {
 SPITE_TRACE_ASSERT("spite.assert\t5221115b\tbootstrap/source/generation/tree_shaker.spite:330\tGeneration.TreeShaker\tdefined_name\tnot trimmed.starts_with(\"#\")\n");
 SpiteString___release(trimmed_);
 SpiteString___release(line_);
 return SPITE_STRING_EMPTY;
 }
-if (!(((!(SpiteString_starts_with(trimmed_, spite_lit_17120)))))) {
+if (!(((!(SpiteString_starts_with(trimmed_, spite_lit_17122)))))) {
 SPITE_TRACE_ASSERT("spite.assert\t03dc17ad\tbootstrap/source/generation/tree_shaker.spite:330\tGeneration.TreeShaker\tdefined_name\tnot trimmed.starts_with(\"typedef\")\n");
 SpiteString___release(trimmed_);
 SpiteString___release(line_);
@@ -83310,8 +83312,8 @@ SpiteString___release(line_);
 return spite_temp_18512;
 }
 SpiteString Generation_TreeShaker_name_of_signature(Generation_TreeShaker* self, SpiteString trimmed_) {
-int32_t open_ = SpiteString_index_of(trimmed_, spite_lit_17122);
-int32_t equals_ = SpiteString_index_of(trimmed_, spite_lit_17124);
+int32_t open_ = SpiteString_index_of(trimmed_, spite_lit_17124);
+int32_t equals_ = SpiteString_index_of(trimmed_, spite_lit_17126);
 if (!(((open_ > 0)))) {
 SPITE_TRACE_ASSERT("spite.assert\t2db2ef4e\tbootstrap/source/generation/tree_shaker.spite:337\tGeneration.TreeShaker\tname_of_signature\topen > 0\n");
 SpiteString___release(trimmed_);
@@ -83328,25 +83330,25 @@ return spite_temp_18513;
 }
 SpiteString Generation_TreeShaker_declared_name(Generation_TreeShaker* self, SpiteString line_) {
 SpiteString trimmed_ = SpiteString_trim(line_);
-if (!((SpiteString_ends_with(trimmed_, spite_lit_17125)))) {
+if (!((SpiteString_ends_with(trimmed_, spite_lit_17127)))) {
 SPITE_TRACE_ASSERT("spite.assert\t1243462b\tbootstrap/source/generation/tree_shaker.spite:343\tGeneration.TreeShaker\tdeclared_name\ttrimmed.ends_with(\");\")\n");
 SpiteString___release(trimmed_);
 SpiteString___release(line_);
 return SPITE_STRING_EMPTY;
 }
-if (!(((!(SpiteString_starts_with(trimmed_, spite_lit_17126)))))) {
+if (!(((!(SpiteString_starts_with(trimmed_, spite_lit_17128)))))) {
 SPITE_TRACE_ASSERT("spite.assert\t33c43da0\tbootstrap/source/generation/tree_shaker.spite:343\tGeneration.TreeShaker\tdeclared_name\tnot trimmed.starts_with(\"#\")\n");
 SpiteString___release(trimmed_);
 SpiteString___release(line_);
 return SPITE_STRING_EMPTY;
 }
-if (!(((!(SpiteString_starts_with(trimmed_, spite_lit_17127)))))) {
+if (!(((!(SpiteString_starts_with(trimmed_, spite_lit_17129)))))) {
 SPITE_TRACE_ASSERT("spite.assert\t3ab3a04f\tbootstrap/source/generation/tree_shaker.spite:343\tGeneration.TreeShaker\tdeclared_name\tnot trimmed.starts_with(\"typedef\")\n");
 SpiteString___release(trimmed_);
 SpiteString___release(line_);
 return SPITE_STRING_EMPTY;
 }
-int32_t open_ = SpiteString_index_of(trimmed_, spite_lit_17129);
+int32_t open_ = SpiteString_index_of(trimmed_, spite_lit_17131);
 if (!(((open_ > 0)))) {
 SPITE_TRACE_ASSERT("spite.assert\t3a046f60\tbootstrap/source/generation/tree_shaker.spite:345\tGeneration.TreeShaker\tdeclared_name\topen > 0\n");
 SpiteString___release(trimmed_);
@@ -83596,7 +83598,7 @@ SpiteString___release(name_);
 return spite_temp_18536;
 }
 void Generation_WaitFacts_add_edge(Generation_WaitFacts* self, SpiteString caller_, SpiteString callee_) {
-SpiteString key_ = ({ SpiteString spite_temp_18541 = caller_; SpiteString spite_temp_18542 = callee_; SpiteString spite_temp_18543[] = {spite_temp_18541, spite_lit_17135, spite_temp_18542}; SpiteString spite_temp_18544 = spite_string_join(3, spite_temp_18543); spite_temp_18544; });
+SpiteString key_ = ({ SpiteString spite_temp_18541 = caller_; SpiteString spite_temp_18542 = callee_; SpiteString spite_temp_18543[] = {spite_temp_18541, spite_lit_17137, spite_temp_18542}; SpiteString spite_temp_18544 = spite_string_join(3, spite_temp_18543); spite_temp_18544; });
 if (((!(Dictionary_Boolean_has(self->edge_keys_, SpiteString___retain(key_)))))) {
 Dictionary_Boolean_set(self->edge_keys_, SpiteString___retain(key_), true);
 List_String_append(self->edge_callers_, SpiteString___retain(caller_));
@@ -83711,7 +83713,7 @@ return spite_temp_18553;
 SpiteString Syntax_Formatter_format(Syntax_Formatter* self, SpiteString source_) {
 Syntax_Lexer* lexer_ = Syntax_Lexer___make(SpiteString___retain(source_));
 if (((lexer_)->has_error_)) {
-SpiteString spite_temp_18554 = spite_lit_17136;
+SpiteString spite_temp_18554 = spite_lit_17138;
 SpiteString___release(self->refusal_);
 self->refusal_ = spite_temp_18554;
 SpiteString spite_temp_18555 = SPITE_STRING_NULL;
@@ -83733,7 +83735,7 @@ depth_ = (depth_ - 1);
 }
 if ((((token_)->kind_ == Syntax_TokenKind_TokenKind_comment))) {
 if (((depth_ > 0))) {
-SpiteString spite_temp_18559 = ({ char spite_temp_18556_digits[24]; SpiteString spite_temp_18556 = SPITE_STATIC_STRING(spite_temp_18556_digits, spite_long_digits(spite_temp_18556_digits, (int64_t)((token_)->line_))); SpiteString spite_temp_18557[] = {spite_lit_17138, spite_temp_18556, spite_lit_17140}; SpiteString spite_temp_18558 = spite_string_join(3, spite_temp_18557); spite_temp_18558; });
+SpiteString spite_temp_18559 = ({ char spite_temp_18556_digits[24]; SpiteString spite_temp_18556 = SPITE_STATIC_STRING(spite_temp_18556_digits, spite_long_digits(spite_temp_18556_digits, (int64_t)((token_)->line_))); SpiteString spite_temp_18557[] = {spite_lit_17140, spite_temp_18556, spite_lit_17142}; SpiteString spite_temp_18558 = spite_string_join(3, spite_temp_18557); spite_temp_18558; });
 SpiteString___release(self->refusal_);
 self->refusal_ = spite_temp_18559;
 SpiteString spite_temp_18560 = SPITE_STRING_NULL;
@@ -83745,7 +83747,7 @@ SpiteString___release(source_);
 return spite_temp_18560;
 }
 List_Integer_append(comment_lines_, (token_)->line_);
-List_String_append(comment_texts_, ({ SpiteString spite_temp_18561 = SpiteString_trim((token_)->text_); SpiteString spite_temp_18562[] = {spite_lit_17142, spite_temp_18561}; SpiteString spite_temp_18563 = spite_string_join(2, spite_temp_18562); SpiteString___release(spite_temp_18561); spite_temp_18563; }));
+List_String_append(comment_texts_, ({ SpiteString spite_temp_18561 = SpiteString_trim((token_)->text_); SpiteString spite_temp_18562[] = {spite_lit_17144, spite_temp_18561}; SpiteString spite_temp_18563 = spite_string_join(2, spite_temp_18562); SpiteString___release(spite_temp_18561); spite_temp_18563; }));
 }
 index_ = (index_ + 1);
 Syntax_Token___release(token_);
@@ -83753,7 +83755,7 @@ Syntax_Token___release(token_);
 Syntax_Parser* parser_ = Syntax_Parser___make(List_Syntax_Token___retain((lexer_)->tokens_));
 Syntax_SourceFile* file_ = Syntax_Parser_parse_file(parser_);
 if (((parser_)->has_error_)) {
-SpiteString spite_temp_18564 = spite_lit_17143;
+SpiteString spite_temp_18564 = spite_lit_17145;
 SpiteString___release(self->refusal_);
 self->refusal_ = spite_temp_18564;
 SpiteString spite_temp_18565 = SPITE_STRING_NULL;
@@ -83775,7 +83777,7 @@ index_ = (index_ + 1);
 SpiteString formatted_ = ({ Syntax_SourcePrinter* spite_temp_18568 = Syntax_SourcePrinter___make(); SpiteString spite_temp_18569 = Syntax_SourcePrinter_formatted_file(spite_temp_18568, Syntax_SourceFile___retain(file_), List_Integer___retain(lines_), List_Integer___retain(comment_lines_), List_String___retain(comment_texts_)); Syntax_SourcePrinter___release(spite_temp_18568); spite_temp_18569; });
 Syntax_Lexer* again_ = Syntax_Lexer___make(SpiteString___retain(formatted_));
 if (((again_)->has_error_)) {
-SpiteString spite_temp_18570 = spite_lit_17144;
+SpiteString spite_temp_18570 = spite_lit_17146;
 SpiteString___release(self->refusal_);
 self->refusal_ = spite_temp_18570;
 SpiteString spite_temp_18571 = SPITE_STRING_NULL;
@@ -83793,7 +83795,7 @@ return spite_temp_18571;
 Syntax_Parser* reparser_ = Syntax_Parser___make(List_Syntax_Token___retain((again_)->tokens_));
 Syntax_SourceFile* reparsed_ = Syntax_Parser_parse_file(reparser_);
 if (((reparser_)->has_error_)) {
-SpiteString spite_temp_18576 = ({ char spite_temp_18572_digits[24]; SpiteString spite_temp_18572 = SPITE_STATIC_STRING(spite_temp_18572_digits, spite_long_digits(spite_temp_18572_digits, (int64_t)((reparser_)->error_line_))); SpiteString spite_temp_18573 = (reparser_)->error_message_; SpiteString spite_temp_18574[] = {spite_lit_17146, spite_temp_18572, spite_lit_17148, spite_temp_18573}; SpiteString spite_temp_18575 = spite_string_join(4, spite_temp_18574); spite_temp_18575; });
+SpiteString spite_temp_18576 = ({ char spite_temp_18572_digits[24]; SpiteString spite_temp_18572 = SPITE_STATIC_STRING(spite_temp_18572_digits, spite_long_digits(spite_temp_18572_digits, (int64_t)((reparser_)->error_line_))); SpiteString spite_temp_18573 = (reparser_)->error_message_; SpiteString spite_temp_18574[] = {spite_lit_17148, spite_temp_18572, spite_lit_17150, spite_temp_18573}; SpiteString spite_temp_18575 = spite_string_join(4, spite_temp_18574); spite_temp_18575; });
 SpiteString___release(self->refusal_);
 self->refusal_ = spite_temp_18576;
 SpiteString spite_temp_18577 = SPITE_STRING_NULL;
@@ -83817,7 +83819,7 @@ Syntax_SourcePrinter* after_ = Syntax_SourcePrinter___make();
 Syntax_SourcePrinter* spite_temp_18579 = after_;
 (spite_temp_18579)->explicit_grouping_ = true;
 if ((({ SpiteString spite_temp_18580 = Syntax_SourcePrinter_source_file(after_, Syntax_SourceFile___retain(reparsed_)); SpiteString spite_temp_18581 = Syntax_SourcePrinter_source_file(before_, Syntax_SourceFile___retain(file_)); bool spite_temp_18582 = (!(SpiteString_equals(spite_temp_18580, SpiteString___retain(spite_temp_18581)))); SpiteString___release(spite_temp_18580); SpiteString___release(spite_temp_18581); spite_temp_18582; }))) {
-SpiteString spite_temp_18583 = spite_lit_17149;
+SpiteString spite_temp_18583 = spite_lit_17151;
 SpiteString___release(self->refusal_);
 self->refusal_ = spite_temp_18583;
 SpiteString spite_temp_18584 = SPITE_STRING_NULL;
@@ -83845,7 +83847,7 @@ kept_ = (kept_ + 1);
 index_ = (index_ + 1);
 }
 if (((kept_ != List_String_count(comment_texts_)))) {
-SpiteString spite_temp_18585 = spite_lit_17150;
+SpiteString spite_temp_18585 = spite_lit_17152;
 SpiteString___release(self->refusal_);
 self->refusal_ = spite_temp_18585;
 SpiteString spite_temp_18586 = SPITE_STRING_NULL;
@@ -84044,7 +84046,7 @@ return spite_temp_18611;
 }
 bool Syntax_Lexer_scan_one(Syntax_Lexer* self) {
 if ((Syntax_Lexer_at_end(self))) {
-Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_end_of_file, spite_lit_17151, spite_lit_17152, self->line_, self->column_);
+Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_end_of_file, spite_lit_17153, spite_lit_17154, self->line_, self->column_);
 bool spite_temp_18612 = true;
 return spite_temp_18612;
 }
@@ -84109,7 +84111,7 @@ last_is_newline_ = true;
 }
 }
 if (((!(last_is_newline_)))) {
-Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_newline, spite_lit_17153, spite_lit_17154, token_line_, token_column_);
+Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_newline, spite_lit_17155, spite_lit_17156, token_line_, token_column_);
 }
 }
 bool spite_temp_18624 = false;
@@ -84186,107 +84188,107 @@ SpiteString___release(lexeme_);
 return spite_temp_18627;
 }
 Syntax_TokenKind_TokenKind Syntax_Lexer_keyword_kind(Syntax_Lexer* self, SpiteString text_) {
-if ((({ SpiteString spite_temp_18628 = text_; SpiteString spite_temp_18629 = spite_lit_17156; bool spite_temp_18630 = SpiteString_equals(spite_temp_18628, SpiteString___retain(spite_temp_18629)); SpiteString___release(spite_temp_18629); spite_temp_18630; }))) {
+if ((({ SpiteString spite_temp_18628 = text_; SpiteString spite_temp_18629 = spite_lit_17158; bool spite_temp_18630 = SpiteString_equals(spite_temp_18628, SpiteString___retain(spite_temp_18629)); SpiteString___release(spite_temp_18629); spite_temp_18630; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18631 = Syntax_TokenKind_TokenKind_variable_keyword;
 SpiteString___release(text_);
 return spite_temp_18631;
 }
-if ((({ SpiteString spite_temp_18632 = text_; SpiteString spite_temp_18633 = spite_lit_17158; bool spite_temp_18634 = SpiteString_equals(spite_temp_18632, SpiteString___retain(spite_temp_18633)); SpiteString___release(spite_temp_18633); spite_temp_18634; }))) {
+if ((({ SpiteString spite_temp_18632 = text_; SpiteString spite_temp_18633 = spite_lit_17160; bool spite_temp_18634 = SpiteString_equals(spite_temp_18632, SpiteString___retain(spite_temp_18633)); SpiteString___release(spite_temp_18633); spite_temp_18634; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18635 = Syntax_TokenKind_TokenKind_function_keyword;
 SpiteString___release(text_);
 return spite_temp_18635;
 }
-if ((({ SpiteString spite_temp_18636 = text_; SpiteString spite_temp_18637 = spite_lit_17160; bool spite_temp_18638 = SpiteString_equals(spite_temp_18636, SpiteString___retain(spite_temp_18637)); SpiteString___release(spite_temp_18637); spite_temp_18638; }))) {
+if ((({ SpiteString spite_temp_18636 = text_; SpiteString spite_temp_18637 = spite_lit_17162; bool spite_temp_18638 = SpiteString_equals(spite_temp_18636, SpiteString___retain(spite_temp_18637)); SpiteString___release(spite_temp_18637); spite_temp_18638; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18639 = Syntax_TokenKind_TokenKind_keyword_return;
 SpiteString___release(text_);
 return spite_temp_18639;
 }
-if ((({ SpiteString spite_temp_18640 = text_; SpiteString spite_temp_18641 = spite_lit_17162; bool spite_temp_18642 = SpiteString_equals(spite_temp_18640, SpiteString___retain(spite_temp_18641)); SpiteString___release(spite_temp_18641); spite_temp_18642; }))) {
+if ((({ SpiteString spite_temp_18640 = text_; SpiteString spite_temp_18641 = spite_lit_17164; bool spite_temp_18642 = SpiteString_equals(spite_temp_18640, SpiteString___retain(spite_temp_18641)); SpiteString___release(spite_temp_18641); spite_temp_18642; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18643 = Syntax_TokenKind_TokenKind_keyword_if;
 SpiteString___release(text_);
 return spite_temp_18643;
 }
-if ((({ SpiteString spite_temp_18644 = text_; SpiteString spite_temp_18645 = spite_lit_17164; bool spite_temp_18646 = SpiteString_equals(spite_temp_18644, SpiteString___retain(spite_temp_18645)); SpiteString___release(spite_temp_18645); spite_temp_18646; }))) {
+if ((({ SpiteString spite_temp_18644 = text_; SpiteString spite_temp_18645 = spite_lit_17166; bool spite_temp_18646 = SpiteString_equals(spite_temp_18644, SpiteString___retain(spite_temp_18645)); SpiteString___release(spite_temp_18645); spite_temp_18646; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18647 = Syntax_TokenKind_TokenKind_keyword_else;
 SpiteString___release(text_);
 return spite_temp_18647;
 }
-if ((({ SpiteString spite_temp_18648 = text_; SpiteString spite_temp_18649 = spite_lit_17166; bool spite_temp_18650 = SpiteString_equals(spite_temp_18648, SpiteString___retain(spite_temp_18649)); SpiteString___release(spite_temp_18649); spite_temp_18650; }))) {
+if ((({ SpiteString spite_temp_18648 = text_; SpiteString spite_temp_18649 = spite_lit_17168; bool spite_temp_18650 = SpiteString_equals(spite_temp_18648, SpiteString___retain(spite_temp_18649)); SpiteString___release(spite_temp_18649); spite_temp_18650; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18651 = Syntax_TokenKind_TokenKind_keyword_while;
 SpiteString___release(text_);
 return spite_temp_18651;
 }
-if ((({ SpiteString spite_temp_18652 = text_; SpiteString spite_temp_18653 = spite_lit_17168; bool spite_temp_18654 = SpiteString_equals(spite_temp_18652, SpiteString___retain(spite_temp_18653)); SpiteString___release(spite_temp_18653); spite_temp_18654; }))) {
+if ((({ SpiteString spite_temp_18652 = text_; SpiteString spite_temp_18653 = spite_lit_17170; bool spite_temp_18654 = SpiteString_equals(spite_temp_18652, SpiteString___retain(spite_temp_18653)); SpiteString___release(spite_temp_18653); spite_temp_18654; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18655 = Syntax_TokenKind_TokenKind_keyword_switch;
 SpiteString___release(text_);
 return spite_temp_18655;
 }
-if ((({ SpiteString spite_temp_18656 = text_; SpiteString spite_temp_18657 = spite_lit_17170; bool spite_temp_18658 = SpiteString_equals(spite_temp_18656, SpiteString___retain(spite_temp_18657)); SpiteString___release(spite_temp_18657); spite_temp_18658; }))) {
+if ((({ SpiteString spite_temp_18656 = text_; SpiteString spite_temp_18657 = spite_lit_17172; bool spite_temp_18658 = SpiteString_equals(spite_temp_18656, SpiteString___retain(spite_temp_18657)); SpiteString___release(spite_temp_18657); spite_temp_18658; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18659 = Syntax_TokenKind_TokenKind_keyword_type;
 SpiteString___release(text_);
 return spite_temp_18659;
 }
-if ((({ SpiteString spite_temp_18660 = text_; SpiteString spite_temp_18661 = spite_lit_17172; bool spite_temp_18662 = SpiteString_equals(spite_temp_18660, SpiteString___retain(spite_temp_18661)); SpiteString___release(spite_temp_18661); spite_temp_18662; }))) {
+if ((({ SpiteString spite_temp_18660 = text_; SpiteString spite_temp_18661 = spite_lit_17174; bool spite_temp_18662 = SpiteString_equals(spite_temp_18660, SpiteString___retain(spite_temp_18661)); SpiteString___release(spite_temp_18661); spite_temp_18662; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18663 = Syntax_TokenKind_TokenKind_keyword_enum;
 SpiteString___release(text_);
 return spite_temp_18663;
 }
-if ((({ SpiteString spite_temp_18664 = text_; SpiteString spite_temp_18665 = spite_lit_17174; bool spite_temp_18666 = SpiteString_equals(spite_temp_18664, SpiteString___retain(spite_temp_18665)); SpiteString___release(spite_temp_18665); spite_temp_18666; }))) {
+if ((({ SpiteString spite_temp_18664 = text_; SpiteString spite_temp_18665 = spite_lit_17176; bool spite_temp_18666 = SpiteString_equals(spite_temp_18664, SpiteString___retain(spite_temp_18665)); SpiteString___release(spite_temp_18665); spite_temp_18666; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18667 = Syntax_TokenKind_TokenKind_keyword_union;
 SpiteString___release(text_);
 return spite_temp_18667;
 }
-if ((({ SpiteString spite_temp_18668 = text_; SpiteString spite_temp_18669 = spite_lit_17176; bool spite_temp_18670 = SpiteString_equals(spite_temp_18668, SpiteString___retain(spite_temp_18669)); SpiteString___release(spite_temp_18669); spite_temp_18670; }))) {
+if ((({ SpiteString spite_temp_18668 = text_; SpiteString spite_temp_18669 = spite_lit_17178; bool spite_temp_18670 = SpiteString_equals(spite_temp_18668, SpiteString___retain(spite_temp_18669)); SpiteString___release(spite_temp_18669); spite_temp_18670; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18671 = Syntax_TokenKind_TokenKind_keyword_generics;
 SpiteString___release(text_);
 return spite_temp_18671;
 }
-if ((({ SpiteString spite_temp_18672 = text_; SpiteString spite_temp_18673 = spite_lit_17178; bool spite_temp_18674 = SpiteString_equals(spite_temp_18672, SpiteString___retain(spite_temp_18673)); SpiteString___release(spite_temp_18673); spite_temp_18674; }))) {
+if ((({ SpiteString spite_temp_18672 = text_; SpiteString spite_temp_18673 = spite_lit_17180; bool spite_temp_18674 = SpiteString_equals(spite_temp_18672, SpiteString___retain(spite_temp_18673)); SpiteString___release(spite_temp_18673); spite_temp_18674; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18675 = Syntax_TokenKind_TokenKind_keyword_generic;
 SpiteString___release(text_);
 return spite_temp_18675;
 }
-if ((({ SpiteString spite_temp_18676 = text_; SpiteString spite_temp_18677 = spite_lit_17180; bool spite_temp_18678 = SpiteString_equals(spite_temp_18676, SpiteString___retain(spite_temp_18677)); SpiteString___release(spite_temp_18677); spite_temp_18678; }))) {
+if ((({ SpiteString spite_temp_18676 = text_; SpiteString spite_temp_18677 = spite_lit_17182; bool spite_temp_18678 = SpiteString_equals(spite_temp_18676, SpiteString___retain(spite_temp_18677)); SpiteString___release(spite_temp_18677); spite_temp_18678; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18679 = Syntax_TokenKind_TokenKind_keyword_assert;
 SpiteString___release(text_);
 return spite_temp_18679;
 }
-if ((({ SpiteString spite_temp_18680 = text_; SpiteString spite_temp_18681 = spite_lit_17182; bool spite_temp_18682 = SpiteString_equals(spite_temp_18680, SpiteString___retain(spite_temp_18681)); SpiteString___release(spite_temp_18681); spite_temp_18682; }))) {
+if ((({ SpiteString spite_temp_18680 = text_; SpiteString spite_temp_18681 = spite_lit_17184; bool spite_temp_18682 = SpiteString_equals(spite_temp_18680, SpiteString___retain(spite_temp_18681)); SpiteString___release(spite_temp_18681); spite_temp_18682; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18683 = Syntax_TokenKind_TokenKind_keyword_crash;
 SpiteString___release(text_);
 return spite_temp_18683;
 }
-if ((({ SpiteString spite_temp_18684 = text_; SpiteString spite_temp_18685 = spite_lit_17184; bool spite_temp_18686 = SpiteString_equals(spite_temp_18684, SpiteString___retain(spite_temp_18685)); SpiteString___release(spite_temp_18685); spite_temp_18686; }))) {
+if ((({ SpiteString spite_temp_18684 = text_; SpiteString spite_temp_18685 = spite_lit_17186; bool spite_temp_18686 = SpiteString_equals(spite_temp_18684, SpiteString___retain(spite_temp_18685)); SpiteString___release(spite_temp_18685); spite_temp_18686; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18687 = Syntax_TokenKind_TokenKind_keyword_and;
 SpiteString___release(text_);
 return spite_temp_18687;
 }
-if ((({ SpiteString spite_temp_18688 = text_; SpiteString spite_temp_18689 = spite_lit_17186; bool spite_temp_18690 = SpiteString_equals(spite_temp_18688, SpiteString___retain(spite_temp_18689)); SpiteString___release(spite_temp_18689); spite_temp_18690; }))) {
+if ((({ SpiteString spite_temp_18688 = text_; SpiteString spite_temp_18689 = spite_lit_17188; bool spite_temp_18690 = SpiteString_equals(spite_temp_18688, SpiteString___retain(spite_temp_18689)); SpiteString___release(spite_temp_18689); spite_temp_18690; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18691 = Syntax_TokenKind_TokenKind_keyword_or;
 SpiteString___release(text_);
 return spite_temp_18691;
 }
-if ((({ SpiteString spite_temp_18692 = text_; SpiteString spite_temp_18693 = spite_lit_17188; bool spite_temp_18694 = SpiteString_equals(spite_temp_18692, SpiteString___retain(spite_temp_18693)); SpiteString___release(spite_temp_18693); spite_temp_18694; }))) {
+if ((({ SpiteString spite_temp_18692 = text_; SpiteString spite_temp_18693 = spite_lit_17190; bool spite_temp_18694 = SpiteString_equals(spite_temp_18692, SpiteString___retain(spite_temp_18693)); SpiteString___release(spite_temp_18693); spite_temp_18694; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18695 = Syntax_TokenKind_TokenKind_keyword_not;
 SpiteString___release(text_);
 return spite_temp_18695;
 }
-if ((({ SpiteString spite_temp_18696 = text_; SpiteString spite_temp_18697 = spite_lit_17190; bool spite_temp_18698 = SpiteString_equals(spite_temp_18696, SpiteString___retain(spite_temp_18697)); SpiteString___release(spite_temp_18697); spite_temp_18698; }))) {
+if ((({ SpiteString spite_temp_18696 = text_; SpiteString spite_temp_18697 = spite_lit_17192; bool spite_temp_18698 = SpiteString_equals(spite_temp_18696, SpiteString___retain(spite_temp_18697)); SpiteString___release(spite_temp_18697); spite_temp_18698; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18699 = Syntax_TokenKind_TokenKind_keyword_null;
 SpiteString___release(text_);
 return spite_temp_18699;
 }
-if ((({ SpiteString spite_temp_18700 = text_; SpiteString spite_temp_18701 = spite_lit_17192; bool spite_temp_18702 = SpiteString_equals(spite_temp_18700, SpiteString___retain(spite_temp_18701)); SpiteString___release(spite_temp_18701); spite_temp_18702; }))) {
+if ((({ SpiteString spite_temp_18700 = text_; SpiteString spite_temp_18701 = spite_lit_17194; bool spite_temp_18702 = SpiteString_equals(spite_temp_18700, SpiteString___retain(spite_temp_18701)); SpiteString___release(spite_temp_18701); spite_temp_18702; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18703 = Syntax_TokenKind_TokenKind_keyword_true;
 SpiteString___release(text_);
 return spite_temp_18703;
 }
-if ((({ SpiteString spite_temp_18704 = text_; SpiteString spite_temp_18705 = spite_lit_17194; bool spite_temp_18706 = SpiteString_equals(spite_temp_18704, SpiteString___retain(spite_temp_18705)); SpiteString___release(spite_temp_18705); spite_temp_18706; }))) {
+if ((({ SpiteString spite_temp_18704 = text_; SpiteString spite_temp_18705 = spite_lit_17196; bool spite_temp_18706 = SpiteString_equals(spite_temp_18704, SpiteString___retain(spite_temp_18705)); SpiteString___release(spite_temp_18705); spite_temp_18706; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18707 = Syntax_TokenKind_TokenKind_keyword_false;
 SpiteString___release(text_);
 return spite_temp_18707;
 }
-if ((({ SpiteString spite_temp_18708 = text_; SpiteString spite_temp_18709 = spite_lit_17196; bool spite_temp_18710 = SpiteString_equals(spite_temp_18708, SpiteString___retain(spite_temp_18709)); SpiteString___release(spite_temp_18709); spite_temp_18710; }))) {
+if ((({ SpiteString spite_temp_18708 = text_; SpiteString spite_temp_18709 = spite_lit_17198; bool spite_temp_18710 = SpiteString_equals(spite_temp_18708, SpiteString___retain(spite_temp_18709)); SpiteString___release(spite_temp_18709); spite_temp_18710; }))) {
 Syntax_TokenKind_TokenKind spite_temp_18711 = Syntax_TokenKind_TokenKind_keyword_this;
 SpiteString___release(text_);
 return spite_temp_18711;
@@ -84308,8 +84310,8 @@ code_ = Syntax_Lexer_current_code(self);
 }
 if (((self->index_ == name_start_))) {
 SpiteString lexeme_ = SpiteString_slice(self->source_, start_index_, self->index_);
-Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17197, token_line_, token_column_);
-Syntax_Lexer_fail_lex(self, spite_lit_17198, token_line_);
+Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17199, token_line_, token_column_);
+Syntax_Lexer_fail_lex(self, spite_lit_17200, token_line_);
 bool spite_temp_18713 = false;
 SpiteString___release(lexeme_);
 return spite_temp_18713;
@@ -84323,38 +84325,38 @@ SpiteString___release(lexeme_);
 return spite_temp_18714;
 }
 SpiteString Syntax_Lexer_decode_escape(Syntax_Lexer* self, SpiteString escaped_character_) {
-if ((({ SpiteString spite_temp_18715 = escaped_character_; SpiteString spite_temp_18716 = spite_lit_17200; bool spite_temp_18717 = SpiteString_equals(spite_temp_18715, SpiteString___retain(spite_temp_18716)); SpiteString___release(spite_temp_18716); spite_temp_18717; }))) {
-SpiteString spite_temp_18718 = spite_lit_17201;
+if ((({ SpiteString spite_temp_18715 = escaped_character_; SpiteString spite_temp_18716 = spite_lit_17202; bool spite_temp_18717 = SpiteString_equals(spite_temp_18715, SpiteString___retain(spite_temp_18716)); SpiteString___release(spite_temp_18716); spite_temp_18717; }))) {
+SpiteString spite_temp_18718 = spite_lit_17203;
 SpiteString___release(escaped_character_);
 return spite_temp_18718;
 }
-if ((({ SpiteString spite_temp_18719 = escaped_character_; SpiteString spite_temp_18720 = spite_lit_17203; bool spite_temp_18721 = SpiteString_equals(spite_temp_18719, SpiteString___retain(spite_temp_18720)); SpiteString___release(spite_temp_18720); spite_temp_18721; }))) {
-SpiteString spite_temp_18722 = spite_lit_17204;
+if ((({ SpiteString spite_temp_18719 = escaped_character_; SpiteString spite_temp_18720 = spite_lit_17205; bool spite_temp_18721 = SpiteString_equals(spite_temp_18719, SpiteString___retain(spite_temp_18720)); SpiteString___release(spite_temp_18720); spite_temp_18721; }))) {
+SpiteString spite_temp_18722 = spite_lit_17206;
 SpiteString___release(escaped_character_);
 return spite_temp_18722;
 }
-if ((({ SpiteString spite_temp_18723 = escaped_character_; SpiteString spite_temp_18724 = spite_lit_17206; bool spite_temp_18725 = SpiteString_equals(spite_temp_18723, SpiteString___retain(spite_temp_18724)); SpiteString___release(spite_temp_18724); spite_temp_18725; }))) {
-SpiteString spite_temp_18726 = spite_lit_17207;
+if ((({ SpiteString spite_temp_18723 = escaped_character_; SpiteString spite_temp_18724 = spite_lit_17208; bool spite_temp_18725 = SpiteString_equals(spite_temp_18723, SpiteString___retain(spite_temp_18724)); SpiteString___release(spite_temp_18724); spite_temp_18725; }))) {
+SpiteString spite_temp_18726 = spite_lit_17209;
 SpiteString___release(escaped_character_);
 return spite_temp_18726;
 }
-if ((({ SpiteString spite_temp_18727 = escaped_character_; SpiteString spite_temp_18728 = spite_lit_17209; bool spite_temp_18729 = SpiteString_equals(spite_temp_18727, SpiteString___retain(spite_temp_18728)); SpiteString___release(spite_temp_18728); spite_temp_18729; }))) {
-SpiteString spite_temp_18730 = spite_lit_17210;
+if ((({ SpiteString spite_temp_18727 = escaped_character_; SpiteString spite_temp_18728 = spite_lit_17211; bool spite_temp_18729 = SpiteString_equals(spite_temp_18727, SpiteString___retain(spite_temp_18728)); SpiteString___release(spite_temp_18728); spite_temp_18729; }))) {
+SpiteString spite_temp_18730 = spite_lit_17212;
 SpiteString___release(escaped_character_);
 return spite_temp_18730;
 }
-if ((({ SpiteString spite_temp_18731 = escaped_character_; SpiteString spite_temp_18732 = spite_lit_17212; bool spite_temp_18733 = SpiteString_equals(spite_temp_18731, SpiteString___retain(spite_temp_18732)); SpiteString___release(spite_temp_18732); spite_temp_18733; }))) {
-SpiteString spite_temp_18734 = spite_lit_17213;
+if ((({ SpiteString spite_temp_18731 = escaped_character_; SpiteString spite_temp_18732 = spite_lit_17214; bool spite_temp_18733 = SpiteString_equals(spite_temp_18731, SpiteString___retain(spite_temp_18732)); SpiteString___release(spite_temp_18732); spite_temp_18733; }))) {
+SpiteString spite_temp_18734 = spite_lit_17215;
 SpiteString___release(escaped_character_);
 return spite_temp_18734;
 }
-if ((({ SpiteString spite_temp_18735 = escaped_character_; SpiteString spite_temp_18736 = spite_lit_17215; bool spite_temp_18737 = SpiteString_equals(spite_temp_18735, SpiteString___retain(spite_temp_18736)); SpiteString___release(spite_temp_18736); spite_temp_18737; }))) {
-SpiteString spite_temp_18738 = spite_lit_17216;
+if ((({ SpiteString spite_temp_18735 = escaped_character_; SpiteString spite_temp_18736 = spite_lit_17217; bool spite_temp_18737 = SpiteString_equals(spite_temp_18735, SpiteString___retain(spite_temp_18736)); SpiteString___release(spite_temp_18736); spite_temp_18737; }))) {
+SpiteString spite_temp_18738 = spite_lit_17218;
 SpiteString___release(escaped_character_);
 return spite_temp_18738;
 }
-if ((({ SpiteString spite_temp_18739 = escaped_character_; SpiteString spite_temp_18740 = spite_lit_17218; bool spite_temp_18741 = SpiteString_equals(spite_temp_18739, SpiteString___retain(spite_temp_18740)); SpiteString___release(spite_temp_18740); spite_temp_18741; }))) {
-SpiteString spite_temp_18742 = spite_lit_17219;
+if ((({ SpiteString spite_temp_18739 = escaped_character_; SpiteString spite_temp_18740 = spite_lit_17220; bool spite_temp_18741 = SpiteString_equals(spite_temp_18739, SpiteString___retain(spite_temp_18740)); SpiteString___release(spite_temp_18740); spite_temp_18741; }))) {
+SpiteString spite_temp_18742 = spite_lit_17221;
 SpiteString___release(escaped_character_);
 return spite_temp_18742;
 }
@@ -84367,7 +84369,7 @@ int32_t start_index_ = self->index_;
 int32_t token_line_ = self->line_;
 int32_t token_column_ = self->column_;
 (void)(Syntax_Lexer_advance_character(self));
-SpiteString buffer_ = spite_lit_17221;
+SpiteString buffer_ = spite_lit_17223;
 bool terminated_ = false;
 bool stopped_ = false;
 List_String* pieces_ = List_String___make();
@@ -84419,8 +84421,8 @@ if (((depth_ > 0))) {
 }
 if (((depth_ > 0))) {
 SpiteString lexeme_ = SpiteString_slice(self->source_, start_index_, self->index_);
-Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17222, token_line_, token_column_);
-Syntax_Lexer_fail_lex(self, spite_lit_17223, token_line_);
+Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17224, token_line_, token_column_);
+Syntax_Lexer_fail_lex(self, spite_lit_17225, token_line_);
 bool spite_temp_18745 = false;
 SpiteString___release(lexeme_);
 List_String___release(holes_);
@@ -84431,7 +84433,7 @@ return spite_temp_18745;
 List_String_append(pieces_, SpiteString___retain(buffer_));
 SpiteString hole_ = SpiteString_slice(self->source_, hole_start_, self->index_);
 List_String_append(holes_, SpiteString___retain(hole_));
-SpiteString spite_temp_18746 = spite_lit_17224;
+SpiteString spite_temp_18746 = spite_lit_17226;
 SpiteString___release(buffer_);
 buffer_ = spite_temp_18746;
 (void)(Syntax_Lexer_advance_character(self));
@@ -84449,8 +84451,8 @@ SpiteString___release(spite_temp_18747);
 }
 if (((!(terminated_)))) {
 SpiteString lexeme_ = SpiteString_slice(self->source_, start_index_, self->index_);
-Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17225, token_line_, token_column_);
-Syntax_Lexer_fail_lex(self, spite_lit_17226, token_line_);
+Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17227, token_line_, token_column_);
+Syntax_Lexer_fail_lex(self, spite_lit_17228, token_line_);
 bool spite_temp_18748 = false;
 SpiteString___release(lexeme_);
 List_String___release(holes_);
@@ -84493,26 +84495,26 @@ return spite_temp_18752;
 }
 SpiteString Syntax_Lexer_lone_operator_lesson(Syntax_Lexer* self, int32_t code_, bool doubled_) {
 if ((doubled_)) {
-SpiteString spite_temp_18753 = spite_lit_17227;
+SpiteString spite_temp_18753 = spite_lit_17229;
 return spite_temp_18753;
 }
 if ((((code_ == 38))) && ((Syntax_Lexer_names_a_type_next(self)))) {
-SpiteString spite_temp_18754 = spite_lit_17228;
+SpiteString spite_temp_18754 = spite_lit_17230;
 return spite_temp_18754;
 }
 if (((code_ == 38))) {
-SpiteString spite_temp_18755 = spite_lit_17229;
+SpiteString spite_temp_18755 = spite_lit_17231;
 return spite_temp_18755;
 }
 if (((code_ == 124))) {
-SpiteString spite_temp_18756 = spite_lit_17230;
+SpiteString spite_temp_18756 = spite_lit_17232;
 return spite_temp_18756;
 }
 if (((code_ == 94))) {
-SpiteString spite_temp_18757 = spite_lit_17231;
+SpiteString spite_temp_18757 = spite_lit_17233;
 return spite_temp_18757;
 }
-SpiteString spite_temp_18758 = spite_lit_17232;
+SpiteString spite_temp_18758 = spite_lit_17234;
 return spite_temp_18758;
 }
 bool Syntax_Lexer_names_a_type_next(Syntax_Lexer* self) {
@@ -84586,34 +84588,34 @@ if ((doubled_)) {
 SpiteString lesson_ = Syntax_Lexer_lone_operator_lesson(self, code_, doubled_);
 Syntax_Lexer_fail_lex(self, SpiteString___retain(lesson_), token_line_);
 SpiteString lexeme_ = SpiteString_slice(self->source_, start_index_, self->index_);
-Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17233, token_line_, token_column_);
+Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17235, token_line_, token_column_);
 bool spite_temp_18764 = false;
 SpiteString___release(lexeme_);
 SpiteString___release(lesson_);
 return spite_temp_18764;
 }
 if (((code_ == 33))) {
-Syntax_Lexer_fail_lex(self, spite_lit_17234, token_line_);
+Syntax_Lexer_fail_lex(self, spite_lit_17236, token_line_);
 SpiteString lexeme_ = SpiteString_slice(self->source_, start_index_, self->index_);
-Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17235, token_line_, token_column_);
+Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17237, token_line_, token_column_);
 bool spite_temp_18765 = false;
 SpiteString___release(lexeme_);
 return spite_temp_18765;
 }
 if ((((code_ == 43))) && (((Syntax_Lexer_current_code(self) == 43)))) {
 (void)(Syntax_Lexer_advance_character(self));
-Syntax_Lexer_fail_lex(self, spite_lit_17236, token_line_);
+Syntax_Lexer_fail_lex(self, spite_lit_17238, token_line_);
 SpiteString lexeme_ = SpiteString_slice(self->source_, start_index_, self->index_);
-Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17237, token_line_, token_column_);
+Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17239, token_line_, token_column_);
 bool spite_temp_18766 = false;
 SpiteString___release(lexeme_);
 return spite_temp_18766;
 }
 if ((((code_ == 45))) && (((Syntax_Lexer_current_code(self) == 45)))) {
 (void)(Syntax_Lexer_advance_character(self));
-Syntax_Lexer_fail_lex(self, spite_lit_17238, token_line_);
+Syntax_Lexer_fail_lex(self, spite_lit_17240, token_line_);
 SpiteString lexeme_ = SpiteString_slice(self->source_, start_index_, self->index_);
-Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17239, token_line_, token_column_);
+Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17241, token_line_, token_column_);
 bool spite_temp_18767 = false;
 SpiteString___release(lexeme_);
 return spite_temp_18767;
@@ -84621,9 +84623,9 @@ return spite_temp_18767;
 if ((((Syntax_Lexer_current_code(self) == 61))) && (((((((((((code_ == 43)) || ((code_ == 45)))) || ((code_ == 42)))) || ((code_ == 47)))) || ((code_ == 37)))))) {
 (void)(Syntax_Lexer_advance_character(self));
 SpiteString operator_text_ = SpiteString_slice(self->source_, start_index_, (self->index_ - 1));
-Syntax_Lexer_fail_lex(self, ({ SpiteString spite_temp_18768 = operator_text_; SpiteString spite_temp_18769 = operator_text_; SpiteString spite_temp_18770[] = {spite_lit_17241, spite_temp_18768, spite_lit_17243, spite_temp_18769, spite_lit_17245}; SpiteString spite_temp_18771 = spite_string_join(5, spite_temp_18770); spite_temp_18771; }), token_line_);
+Syntax_Lexer_fail_lex(self, ({ SpiteString spite_temp_18768 = operator_text_; SpiteString spite_temp_18769 = operator_text_; SpiteString spite_temp_18770[] = {spite_lit_17243, spite_temp_18768, spite_lit_17245, spite_temp_18769, spite_lit_17247}; SpiteString spite_temp_18771 = spite_string_join(5, spite_temp_18770); spite_temp_18771; }), token_line_);
 SpiteString lexeme_ = SpiteString_slice(self->source_, start_index_, self->index_);
-Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17246, token_line_, token_column_);
+Syntax_Lexer_push_token(self, Syntax_TokenKind_TokenKind_invalid, SpiteString___retain(lexeme_), spite_lit_17248, token_line_, token_column_);
 bool spite_temp_18772 = false;
 SpiteString___release(lexeme_);
 SpiteString___release(operator_text_);
@@ -84648,7 +84650,7 @@ kind_ = Syntax_TokenKind_TokenKind_slash;
 if (((((Syntax_Lexer_peek_code(self, 0) == 47)) || ((Syntax_Lexer_peek_code(self, 0) == 42))))) {
 self->has_error_ = true;
 self->error_line_ = token_line_;
-SpiteString spite_temp_18773 = spite_lit_17247;
+SpiteString spite_temp_18773 = spite_lit_17249;
 SpiteString___release(self->error_message_);
 self->error_message_ = spite_temp_18773;
 }
@@ -84746,7 +84748,7 @@ recognized_ = false;
 }
 }
 if (((!(recognized_)))) {
-Syntax_Lexer_fail_lex(self, ({ SpiteString spite_temp_18774 = SpiteString_slice(self->source_, start_index_, self->index_); SpiteString spite_temp_18775[] = {spite_lit_17249, spite_temp_18774, spite_lit_17251}; SpiteString spite_temp_18776 = spite_string_join(3, spite_temp_18775); SpiteString___release(spite_temp_18774); spite_temp_18776; }), token_line_);
+Syntax_Lexer_fail_lex(self, ({ SpiteString spite_temp_18774 = SpiteString_slice(self->source_, start_index_, self->index_); SpiteString spite_temp_18775[] = {spite_lit_17251, spite_temp_18774, spite_lit_17253}; SpiteString spite_temp_18776 = spite_string_join(3, spite_temp_18775); SpiteString___release(spite_temp_18774); spite_temp_18776; }), token_line_);
 }
 SpiteString lexeme_ = SpiteString_slice(self->source_, start_index_, self->index_);
 Syntax_Lexer_push_token(self, kind_, SpiteString___retain(lexeme_), SpiteString___retain(lexeme_), token_line_, token_column_);
@@ -84808,14 +84810,14 @@ return spite_temp_18790;
 }
 SpiteString Syntax_Parser_found_text(Syntax_Parser* self) {
 if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_newline))) {
-SpiteString spite_temp_18791 = spite_lit_17252;
+SpiteString spite_temp_18791 = spite_lit_17254;
 return spite_temp_18791;
 }
 if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_end_of_file))) {
-SpiteString spite_temp_18792 = spite_lit_17253;
+SpiteString spite_temp_18792 = spite_lit_17255;
 return spite_temp_18792;
 }
-SpiteString spite_temp_18798 = ({ SpiteString spite_temp_18795 = ({ Syntax_Token* spite_temp_18793 = Syntax_Parser_current(self); SpiteString spite_temp_18794 = SpiteString___retain((spite_temp_18793)->lexeme_); Syntax_Token___release(spite_temp_18793); spite_temp_18794; }); SpiteString spite_temp_18796[] = {spite_lit_17255, spite_temp_18795, spite_lit_17257}; SpiteString spite_temp_18797 = spite_string_join(3, spite_temp_18796); SpiteString___release(spite_temp_18795); spite_temp_18797; });
+SpiteString spite_temp_18798 = ({ SpiteString spite_temp_18795 = ({ Syntax_Token* spite_temp_18793 = Syntax_Parser_current(self); SpiteString spite_temp_18794 = SpiteString___retain((spite_temp_18793)->lexeme_); Syntax_Token___release(spite_temp_18793); spite_temp_18794; }); SpiteString spite_temp_18796[] = {spite_lit_17257, spite_temp_18795, spite_lit_17259}; SpiteString spite_temp_18797 = spite_string_join(3, spite_temp_18796); SpiteString___release(spite_temp_18795); spite_temp_18797; });
 return spite_temp_18798;
 }
 void Syntax_Parser_fail(Syntax_Parser* self, SpiteString message_) {
@@ -84838,7 +84840,7 @@ Syntax_Token* spite_temp_18804 = Syntax_Parser_advance(self);
 SpiteString___release(description_);
 return spite_temp_18804;
 }
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_18805 = description_; SpiteString spite_temp_18806 = Syntax_Parser_found_text(self); SpiteString spite_temp_18807[] = {spite_lit_17259, spite_temp_18805, spite_lit_17261, spite_temp_18806}; SpiteString spite_temp_18808 = spite_string_join(4, spite_temp_18807); SpiteString___release(spite_temp_18806); spite_temp_18808; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_18805 = description_; SpiteString spite_temp_18806 = Syntax_Parser_found_text(self); SpiteString spite_temp_18807[] = {spite_lit_17261, spite_temp_18805, spite_lit_17263, spite_temp_18806}; SpiteString spite_temp_18808 = spite_string_join(4, spite_temp_18807); SpiteString___release(spite_temp_18806); spite_temp_18808; }));
 Syntax_Token* spite_temp_18809 = Syntax_Parser_current(self);
 SpiteString___release(description_);
 return spite_temp_18809;
@@ -84873,7 +84875,7 @@ if (!(((!(((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_right_brace)) |
 SPITE_TRACE_ASSERT("spite.assert\t77e06779\tbootstrap/source/syntax/parser.spite:96\tSyntax.Parser\tconsume_statement_terminator\tnot(check('right_brace') or check('end_of_file'))\n");
 return;
 }
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_18814 = Syntax_Parser_found_text(self); SpiteString spite_temp_18815[] = {spite_lit_17263, spite_temp_18814}; SpiteString spite_temp_18816 = spite_string_join(2, spite_temp_18815); SpiteString___release(spite_temp_18814); spite_temp_18816; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_18814 = Syntax_Parser_found_text(self); SpiteString spite_temp_18815[] = {spite_lit_17265, spite_temp_18814}; SpiteString spite_temp_18816 = spite_string_join(2, spite_temp_18815); SpiteString___release(spite_temp_18814); spite_temp_18816; }));
 }
 void Syntax_Parser_consume_field_separator(Syntax_Parser* self, Syntax_TokenKind_TokenKind closing_) {
 if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_comment))) {
@@ -84894,7 +84896,7 @@ if (!(((!(((Syntax_Parser_check(self, closing_)) || (Syntax_Parser_check(self, S
 SPITE_TRACE_ASSERT("spite.assert\t69b6f28e\tbootstrap/source/syntax/parser.spite:113\tSyntax.Parser\tconsume_field_separator\tnot(check(closing) or check('end_of_file'))\n");
 return;
 }
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_18821 = ({ Syntax_Token* spite_temp_18819 = Syntax_Parser_current(self); SpiteString spite_temp_18820 = SpiteString___retain((spite_temp_18819)->lexeme_); Syntax_Token___release(spite_temp_18819); spite_temp_18820; }); SpiteString spite_temp_18822[] = {spite_lit_17265, spite_temp_18821, spite_lit_17267}; SpiteString spite_temp_18823 = spite_string_join(3, spite_temp_18822); SpiteString___release(spite_temp_18821); spite_temp_18823; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_18821 = ({ Syntax_Token* spite_temp_18819 = Syntax_Parser_current(self); SpiteString spite_temp_18820 = SpiteString___retain((spite_temp_18819)->lexeme_); Syntax_Token___release(spite_temp_18819); spite_temp_18820; }); SpiteString spite_temp_18822[] = {spite_lit_17267, spite_temp_18821, spite_lit_17269}; SpiteString spite_temp_18823 = spite_string_join(3, spite_temp_18822); SpiteString___release(spite_temp_18821); spite_temp_18823; }));
 }
 Syntax_Expressions_Expression_Expression Syntax_Parser_dummy_expression(Syntax_Parser* self) {
 Syntax_Expressions_Expression_Expression spite_temp_18824 = ((Syntax_Expressions_Expression_Expression)(Syntax_Expressions_NullLiteral___make()));
@@ -84907,7 +84909,7 @@ Syntax_Expressions_Expression_Expression___release(placeholder_expression_);
 return spite_temp_18825;
 }
 Syntax_Types_Type_Type Syntax_Parser_dummy_type(Syntax_Parser* self) {
-Syntax_Types_Type_Type spite_temp_18826 = ((Syntax_Types_Type_Type)(Syntax_Types_GenericType___make(spite_lit_17268)));
+Syntax_Types_Type_Type spite_temp_18826 = ((Syntax_Types_Type_Type)(Syntax_Types_GenericType___make(spite_lit_17270)));
 return spite_temp_18826;
 }
 Syntax_SourceFile* Syntax_Parser_parse_file(Syntax_Parser* self) {
@@ -85006,7 +85008,7 @@ int32_t line_ = ({ Syntax_Token* spite_temp_18845 = Syntax_Parser_current(self);
 int32_t column_ = ({ Syntax_Token* spite_temp_18849 = Syntax_Parser_current(self); int32_t spite_temp_18850 = (spite_temp_18849)->column_; Syntax_Token___release(spite_temp_18849); spite_temp_18850; });
 Syntax_Statements_Statement_Statement statement_ = Syntax_Parser_parse_top_level_statement(self);
 if ((((!(Syntax_Parser_is_declaration(self, Syntax_Statements_Statement_Statement___retain(statement_)))))) && (((!(self->has_error_))))) {
-Syntax_Parser_fail(self, spite_lit_17269);
+Syntax_Parser_fail(self, spite_lit_17271);
 self->error_line_ = line_;
 self->error_column_ = column_;
 }
@@ -85039,7 +85041,7 @@ if (!((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier)))) {
 SPITE_TRACE_ASSERT("spite.assert\t5a379dee\tbootstrap/source/syntax/parser.spite:185\tSyntax.Parser\tat_singleton_line\tcheck('identifier')\n");
 return false;
 }
-if (!((({ SpiteString spite_temp_18862 = ({ Syntax_Token* spite_temp_18860 = Syntax_Parser_current(self); SpiteString spite_temp_18861 = SpiteString___retain((spite_temp_18860)->lexeme_); Syntax_Token___release(spite_temp_18860); spite_temp_18861; }); SpiteString spite_temp_18863 = spite_lit_17271; bool spite_temp_18864 = SpiteString_equals(spite_temp_18862, SpiteString___retain(spite_temp_18863)); SpiteString___release(spite_temp_18862); SpiteString___release(spite_temp_18863); spite_temp_18864; })))) {
+if (!((({ SpiteString spite_temp_18862 = ({ Syntax_Token* spite_temp_18860 = Syntax_Parser_current(self); SpiteString spite_temp_18861 = SpiteString___retain((spite_temp_18860)->lexeme_); Syntax_Token___release(spite_temp_18860); spite_temp_18861; }); SpiteString spite_temp_18863 = spite_lit_17273; bool spite_temp_18864 = SpiteString_equals(spite_temp_18862, SpiteString___retain(spite_temp_18863)); SpiteString___release(spite_temp_18862); SpiteString___release(spite_temp_18863); spite_temp_18864; })))) {
 SPITE_TRACE_ASSERT("spite.assert\t5ed824db\tbootstrap/source/syntax/parser.spite:185\tSyntax.Parser\tat_singleton_line\tcurrent().lexeme == \"singleton\"\n");
 return false;
 }
@@ -85057,7 +85059,7 @@ finished_ = true;
 }
 else {
 if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_keyword_generic))) {
-Syntax_Parser_fail(self, spite_lit_17272);
+Syntax_Parser_fail(self, spite_lit_17274);
 finished_ = true;
 }
 else {
@@ -85072,15 +85074,15 @@ List_Syntax_Statements_Statement_Statement___release(statements_);
 return spite_temp_18866;
 }
 List_Syntax_Statements_Statement_Statement* Syntax_Parser_parse_block(Syntax_Parser* self) {
-if (((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))) && ((({ SpiteString spite_temp_18869 = ({ Syntax_Token* spite_temp_18867 = Syntax_Parser_current(self); SpiteString spite_temp_18868 = SpiteString___retain((spite_temp_18867)->lexeme_); Syntax_Token___release(spite_temp_18867); spite_temp_18868; }); SpiteString spite_temp_18870 = spite_lit_17274; bool spite_temp_18871 = SpiteString_equals(spite_temp_18869, SpiteString___retain(spite_temp_18870)); SpiteString___release(spite_temp_18869); SpiteString___release(spite_temp_18870); spite_temp_18871; })))) {
-Syntax_Parser_fail(self, spite_lit_17275);
+if (((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))) && ((({ SpiteString spite_temp_18869 = ({ Syntax_Token* spite_temp_18867 = Syntax_Parser_current(self); SpiteString spite_temp_18868 = SpiteString___retain((spite_temp_18867)->lexeme_); Syntax_Token___release(spite_temp_18867); spite_temp_18868; }); SpiteString spite_temp_18870 = spite_lit_17276; bool spite_temp_18871 = SpiteString_equals(spite_temp_18869, SpiteString___retain(spite_temp_18870)); SpiteString___release(spite_temp_18869); SpiteString___release(spite_temp_18870); spite_temp_18871; })))) {
+Syntax_Parser_fail(self, spite_lit_17277);
 List_Syntax_Statements_Statement_Statement* spite_temp_18872 = List_Syntax_Statements_Statement_Statement___make();
 return spite_temp_18872;
 }
-Syntax_Token* spite_temp_18873 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_left_brace, spite_lit_17276);
+Syntax_Token* spite_temp_18873 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_left_brace, spite_lit_17278);
 Syntax_Token___release(spite_temp_18873);
 List_Syntax_Statements_Statement_Statement* statements_ = Syntax_Parser_parse_statement_list_until(self, Syntax_TokenKind_TokenKind_right_brace);
-Syntax_Token* spite_temp_18874 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_brace, spite_lit_17277);
+Syntax_Token* spite_temp_18874 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_brace, spite_lit_17279);
 Syntax_Token___release(spite_temp_18874);
 List_Syntax_Statements_Statement_Statement* spite_temp_18875 = List_Syntax_Statements_Statement_Statement___retain(statements_);
 List_Syntax_Statements_Statement_Statement___release(statements_);
@@ -85154,7 +85156,7 @@ return spite_temp_18895;
 }
 Syntax_Expressions_Expression_Expression Syntax_Parser_parse_interpolation(Syntax_Parser* self, Syntax_Token* hole_) {
 if ((({ SpiteString spite_temp_18896 = SpiteString_trim((hole_)->text_); bool spite_temp_18897 = SpiteString_is_empty(spite_temp_18896); SpiteString___release(spite_temp_18896); spite_temp_18897; }))) {
-Syntax_Parser_fail(self, spite_lit_17278);
+Syntax_Parser_fail(self, spite_lit_17280);
 Syntax_Expressions_Expression_Expression spite_temp_18898 = Syntax_Parser_dummy_expression(self);
 Syntax_Token___release(hole_);
 return spite_temp_18898;
@@ -85179,7 +85181,7 @@ Syntax_Token___release(hole_);
 return spite_temp_18900;
 }
 if (((!(Syntax_Parser_at_end_of_tokens(hole_parser_))))) {
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_18901 = (hole_)->text_; SpiteString spite_temp_18902[] = {spite_lit_17280, spite_temp_18901, spite_lit_17282}; SpiteString spite_temp_18903 = spite_string_join(3, spite_temp_18902); spite_temp_18903; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_18901 = (hole_)->text_; SpiteString spite_temp_18902[] = {spite_lit_17282, spite_temp_18901, spite_lit_17284}; SpiteString spite_temp_18903 = spite_string_join(3, spite_temp_18902); spite_temp_18903; }));
 Syntax_Expressions_Expression_Expression spite_temp_18904 = Syntax_Parser_dummy_expression(self);
 Syntax_Expressions_Expression_Expression___release(value_);
 Syntax_Parser___release(hole_parser_);
@@ -85200,53 +85202,53 @@ bool spite_temp_18906 = Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_end
 return spite_temp_18906;
 }
 SpiteString Syntax_Parser_borrowed_word_lesson(Syntax_Parser* self, SpiteString word_) {
-if ((({ SpiteString spite_temp_18907 = word_; SpiteString spite_temp_18908 = spite_lit_17284; bool spite_temp_18909 = SpiteString_equals(spite_temp_18907, SpiteString___retain(spite_temp_18908)); SpiteString___release(spite_temp_18908); spite_temp_18909; }))) {
-SpiteString spite_temp_18910 = spite_lit_17285;
+if ((({ SpiteString spite_temp_18907 = word_; SpiteString spite_temp_18908 = spite_lit_17286; bool spite_temp_18909 = SpiteString_equals(spite_temp_18907, SpiteString___retain(spite_temp_18908)); SpiteString___release(spite_temp_18908); spite_temp_18909; }))) {
+SpiteString spite_temp_18910 = spite_lit_17287;
 SpiteString___release(word_);
 return spite_temp_18910;
 }
-if ((({ SpiteString spite_temp_18911 = word_; SpiteString spite_temp_18912 = spite_lit_17287; bool spite_temp_18913 = SpiteString_equals(spite_temp_18911, SpiteString___retain(spite_temp_18912)); SpiteString___release(spite_temp_18912); spite_temp_18913; }))) {
-SpiteString spite_temp_18914 = spite_lit_17288;
+if ((({ SpiteString spite_temp_18911 = word_; SpiteString spite_temp_18912 = spite_lit_17289; bool spite_temp_18913 = SpiteString_equals(spite_temp_18911, SpiteString___retain(spite_temp_18912)); SpiteString___release(spite_temp_18912); spite_temp_18913; }))) {
+SpiteString spite_temp_18914 = spite_lit_17290;
 SpiteString___release(word_);
 return spite_temp_18914;
 }
-if ((((({ SpiteString spite_temp_18915 = word_; SpiteString spite_temp_18916 = spite_lit_17290; bool spite_temp_18917 = SpiteString_equals(spite_temp_18915, SpiteString___retain(spite_temp_18916)); SpiteString___release(spite_temp_18916); spite_temp_18917; })) || (({ SpiteString spite_temp_18918 = word_; SpiteString spite_temp_18919 = spite_lit_17292; bool spite_temp_18920 = SpiteString_equals(spite_temp_18918, SpiteString___retain(spite_temp_18919)); SpiteString___release(spite_temp_18919); spite_temp_18920; }))))) {
-SpiteString spite_temp_18921 = spite_lit_17293;
+if ((((({ SpiteString spite_temp_18915 = word_; SpiteString spite_temp_18916 = spite_lit_17292; bool spite_temp_18917 = SpiteString_equals(spite_temp_18915, SpiteString___retain(spite_temp_18916)); SpiteString___release(spite_temp_18916); spite_temp_18917; })) || (({ SpiteString spite_temp_18918 = word_; SpiteString spite_temp_18919 = spite_lit_17294; bool spite_temp_18920 = SpiteString_equals(spite_temp_18918, SpiteString___retain(spite_temp_18919)); SpiteString___release(spite_temp_18919); spite_temp_18920; }))))) {
+SpiteString spite_temp_18921 = spite_lit_17295;
 SpiteString___release(word_);
 return spite_temp_18921;
 }
-if ((({ SpiteString spite_temp_18922 = word_; SpiteString spite_temp_18923 = spite_lit_17295; bool spite_temp_18924 = SpiteString_equals(spite_temp_18922, SpiteString___retain(spite_temp_18923)); SpiteString___release(spite_temp_18923); spite_temp_18924; }))) {
-SpiteString spite_temp_18925 = spite_lit_17296;
+if ((({ SpiteString spite_temp_18922 = word_; SpiteString spite_temp_18923 = spite_lit_17297; bool spite_temp_18924 = SpiteString_equals(spite_temp_18922, SpiteString___retain(spite_temp_18923)); SpiteString___release(spite_temp_18923); spite_temp_18924; }))) {
+SpiteString spite_temp_18925 = spite_lit_17298;
 SpiteString___release(word_);
 return spite_temp_18925;
 }
-if ((((((((({ SpiteString spite_temp_18926 = word_; SpiteString spite_temp_18927 = spite_lit_17298; bool spite_temp_18928 = SpiteString_equals(spite_temp_18926, SpiteString___retain(spite_temp_18927)); SpiteString___release(spite_temp_18927); spite_temp_18928; })) || (({ SpiteString spite_temp_18929 = word_; SpiteString spite_temp_18930 = spite_lit_17300; bool spite_temp_18931 = SpiteString_equals(spite_temp_18929, SpiteString___retain(spite_temp_18930)); SpiteString___release(spite_temp_18930); spite_temp_18931; })))) || (({ SpiteString spite_temp_18932 = word_; SpiteString spite_temp_18933 = spite_lit_17302; bool spite_temp_18934 = SpiteString_equals(spite_temp_18932, SpiteString___retain(spite_temp_18933)); SpiteString___release(spite_temp_18933); spite_temp_18934; })))) || (({ SpiteString spite_temp_18935 = word_; SpiteString spite_temp_18936 = spite_lit_17304; bool spite_temp_18937 = SpiteString_equals(spite_temp_18935, SpiteString___retain(spite_temp_18936)); SpiteString___release(spite_temp_18936); spite_temp_18937; }))))) {
-SpiteString spite_temp_18938 = spite_lit_17305;
+if ((((((((({ SpiteString spite_temp_18926 = word_; SpiteString spite_temp_18927 = spite_lit_17300; bool spite_temp_18928 = SpiteString_equals(spite_temp_18926, SpiteString___retain(spite_temp_18927)); SpiteString___release(spite_temp_18927); spite_temp_18928; })) || (({ SpiteString spite_temp_18929 = word_; SpiteString spite_temp_18930 = spite_lit_17302; bool spite_temp_18931 = SpiteString_equals(spite_temp_18929, SpiteString___retain(spite_temp_18930)); SpiteString___release(spite_temp_18930); spite_temp_18931; })))) || (({ SpiteString spite_temp_18932 = word_; SpiteString spite_temp_18933 = spite_lit_17304; bool spite_temp_18934 = SpiteString_equals(spite_temp_18932, SpiteString___retain(spite_temp_18933)); SpiteString___release(spite_temp_18933); spite_temp_18934; })))) || (({ SpiteString spite_temp_18935 = word_; SpiteString spite_temp_18936 = spite_lit_17306; bool spite_temp_18937 = SpiteString_equals(spite_temp_18935, SpiteString___retain(spite_temp_18936)); SpiteString___release(spite_temp_18936); spite_temp_18937; }))))) {
+SpiteString spite_temp_18938 = spite_lit_17307;
 SpiteString___release(word_);
 return spite_temp_18938;
 }
-SpiteString spite_temp_18939 = spite_lit_17306;
+SpiteString spite_temp_18939 = spite_lit_17308;
 SpiteString___release(word_);
 return spite_temp_18939;
 }
 Syntax_Statements_Statement_Statement Syntax_Parser_parse_statement_without_line(Syntax_Parser* self) {
-if (((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))) && (((Syntax_Parser_next_kind(self) == Syntax_TokenKind_TokenKind_identifier))) && ((((((((({ SpiteString spite_temp_18942 = ({ Syntax_Token* spite_temp_18940 = Syntax_Parser_current(self); SpiteString spite_temp_18941 = SpiteString___retain((spite_temp_18940)->lexeme_); Syntax_Token___release(spite_temp_18940); spite_temp_18941; }); SpiteString spite_temp_18943 = spite_lit_17308; bool spite_temp_18944 = SpiteString_equals(spite_temp_18942, SpiteString___retain(spite_temp_18943)); SpiteString___release(spite_temp_18942); SpiteString___release(spite_temp_18943); spite_temp_18944; })) || (({ SpiteString spite_temp_18947 = ({ Syntax_Token* spite_temp_18945 = Syntax_Parser_current(self); SpiteString spite_temp_18946 = SpiteString___retain((spite_temp_18945)->lexeme_); Syntax_Token___release(spite_temp_18945); spite_temp_18946; }); SpiteString spite_temp_18948 = spite_lit_17310; bool spite_temp_18949 = SpiteString_equals(spite_temp_18947, SpiteString___retain(spite_temp_18948)); SpiteString___release(spite_temp_18947); SpiteString___release(spite_temp_18948); spite_temp_18949; })))) || (({ SpiteString spite_temp_18952 = ({ Syntax_Token* spite_temp_18950 = Syntax_Parser_current(self); SpiteString spite_temp_18951 = SpiteString___retain((spite_temp_18950)->lexeme_); Syntax_Token___release(spite_temp_18950); spite_temp_18951; }); SpiteString spite_temp_18953 = spite_lit_17312; bool spite_temp_18954 = SpiteString_equals(spite_temp_18952, SpiteString___retain(spite_temp_18953)); SpiteString___release(spite_temp_18952); SpiteString___release(spite_temp_18953); spite_temp_18954; })))) || (({ SpiteString spite_temp_18957 = ({ Syntax_Token* spite_temp_18955 = Syntax_Parser_current(self); SpiteString spite_temp_18956 = SpiteString___retain((spite_temp_18955)->lexeme_); Syntax_Token___release(spite_temp_18955); spite_temp_18956; }); SpiteString spite_temp_18958 = spite_lit_17314; bool spite_temp_18959 = SpiteString_equals(spite_temp_18957, SpiteString___retain(spite_temp_18958)); SpiteString___release(spite_temp_18957); SpiteString___release(spite_temp_18958); spite_temp_18959; })))))) {
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_18962 = ({ Syntax_Token* spite_temp_18960 = Syntax_Parser_current(self); SpiteString spite_temp_18961 = SpiteString___retain((spite_temp_18960)->lexeme_); Syntax_Token___release(spite_temp_18960); spite_temp_18961; }); SpiteString spite_temp_18963[] = {spite_lit_17316, spite_temp_18962, spite_lit_17318}; SpiteString spite_temp_18964 = spite_string_join(3, spite_temp_18963); SpiteString___release(spite_temp_18962); spite_temp_18964; }));
+if (((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))) && (((Syntax_Parser_next_kind(self) == Syntax_TokenKind_TokenKind_identifier))) && ((((((((({ SpiteString spite_temp_18942 = ({ Syntax_Token* spite_temp_18940 = Syntax_Parser_current(self); SpiteString spite_temp_18941 = SpiteString___retain((spite_temp_18940)->lexeme_); Syntax_Token___release(spite_temp_18940); spite_temp_18941; }); SpiteString spite_temp_18943 = spite_lit_17310; bool spite_temp_18944 = SpiteString_equals(spite_temp_18942, SpiteString___retain(spite_temp_18943)); SpiteString___release(spite_temp_18942); SpiteString___release(spite_temp_18943); spite_temp_18944; })) || (({ SpiteString spite_temp_18947 = ({ Syntax_Token* spite_temp_18945 = Syntax_Parser_current(self); SpiteString spite_temp_18946 = SpiteString___retain((spite_temp_18945)->lexeme_); Syntax_Token___release(spite_temp_18945); spite_temp_18946; }); SpiteString spite_temp_18948 = spite_lit_17312; bool spite_temp_18949 = SpiteString_equals(spite_temp_18947, SpiteString___retain(spite_temp_18948)); SpiteString___release(spite_temp_18947); SpiteString___release(spite_temp_18948); spite_temp_18949; })))) || (({ SpiteString spite_temp_18952 = ({ Syntax_Token* spite_temp_18950 = Syntax_Parser_current(self); SpiteString spite_temp_18951 = SpiteString___retain((spite_temp_18950)->lexeme_); Syntax_Token___release(spite_temp_18950); spite_temp_18951; }); SpiteString spite_temp_18953 = spite_lit_17314; bool spite_temp_18954 = SpiteString_equals(spite_temp_18952, SpiteString___retain(spite_temp_18953)); SpiteString___release(spite_temp_18952); SpiteString___release(spite_temp_18953); spite_temp_18954; })))) || (({ SpiteString spite_temp_18957 = ({ Syntax_Token* spite_temp_18955 = Syntax_Parser_current(self); SpiteString spite_temp_18956 = SpiteString___retain((spite_temp_18955)->lexeme_); Syntax_Token___release(spite_temp_18955); spite_temp_18956; }); SpiteString spite_temp_18958 = spite_lit_17316; bool spite_temp_18959 = SpiteString_equals(spite_temp_18957, SpiteString___retain(spite_temp_18958)); SpiteString___release(spite_temp_18957); SpiteString___release(spite_temp_18958); spite_temp_18959; })))))) {
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_18962 = ({ Syntax_Token* spite_temp_18960 = Syntax_Parser_current(self); SpiteString spite_temp_18961 = SpiteString___retain((spite_temp_18960)->lexeme_); Syntax_Token___release(spite_temp_18960); spite_temp_18961; }); SpiteString spite_temp_18963[] = {spite_lit_17318, spite_temp_18962, spite_lit_17320}; SpiteString spite_temp_18964 = spite_string_join(3, spite_temp_18963); SpiteString___release(spite_temp_18962); spite_temp_18964; }));
 Syntax_Statements_Statement_Statement spite_temp_18965 = Syntax_Parser_dummy_statement(self);
 return spite_temp_18965;
 }
-if (((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))) && ((({ SpiteString spite_temp_18968 = ({ Syntax_Token* spite_temp_18966 = Syntax_Parser_current(self); SpiteString spite_temp_18967 = SpiteString___retain((spite_temp_18966)->lexeme_); Syntax_Token___release(spite_temp_18966); spite_temp_18967; }); SpiteString spite_temp_18969 = spite_lit_17320; bool spite_temp_18970 = SpiteString_equals(spite_temp_18968, SpiteString___retain(spite_temp_18969)); SpiteString___release(spite_temp_18968); SpiteString___release(spite_temp_18969); spite_temp_18970; })))) {
-Syntax_Parser_fail(self, spite_lit_17321);
+if (((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))) && ((({ SpiteString spite_temp_18968 = ({ Syntax_Token* spite_temp_18966 = Syntax_Parser_current(self); SpiteString spite_temp_18967 = SpiteString___retain((spite_temp_18966)->lexeme_); Syntax_Token___release(spite_temp_18966); spite_temp_18967; }); SpiteString spite_temp_18969 = spite_lit_17322; bool spite_temp_18970 = SpiteString_equals(spite_temp_18968, SpiteString___retain(spite_temp_18969)); SpiteString___release(spite_temp_18968); SpiteString___release(spite_temp_18969); spite_temp_18970; })))) {
+Syntax_Parser_fail(self, spite_lit_17323);
 Syntax_Statements_Statement_Statement spite_temp_18971 = Syntax_Parser_dummy_statement(self);
 return spite_temp_18971;
 }
-if (((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))) && (((Syntax_Parser_next_kind(self) == Syntax_TokenKind_TokenKind_identifier))) && ((((({ SpiteString spite_temp_18974 = ({ Syntax_Token* spite_temp_18972 = Syntax_Parser_current(self); SpiteString spite_temp_18973 = SpiteString___retain((spite_temp_18972)->lexeme_); Syntax_Token___release(spite_temp_18972); spite_temp_18973; }); SpiteString spite_temp_18975 = spite_lit_17323; bool spite_temp_18976 = SpiteString_equals(spite_temp_18974, SpiteString___retain(spite_temp_18975)); SpiteString___release(spite_temp_18974); SpiteString___release(spite_temp_18975); spite_temp_18976; })) || (({ SpiteString spite_temp_18979 = ({ Syntax_Token* spite_temp_18977 = Syntax_Parser_current(self); SpiteString spite_temp_18978 = SpiteString___retain((spite_temp_18977)->lexeme_); Syntax_Token___release(spite_temp_18977); spite_temp_18978; }); SpiteString spite_temp_18980 = spite_lit_17325; bool spite_temp_18981 = SpiteString_equals(spite_temp_18979, SpiteString___retain(spite_temp_18980)); SpiteString___release(spite_temp_18979); SpiteString___release(spite_temp_18980); spite_temp_18981; })))))) {
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_18984 = ({ Syntax_Token* spite_temp_18982 = Syntax_Parser_current(self); SpiteString spite_temp_18983 = SpiteString___retain((spite_temp_18982)->lexeme_); Syntax_Token___release(spite_temp_18982); spite_temp_18983; }); SpiteString spite_temp_18985[] = {spite_lit_17327, spite_temp_18984, spite_lit_17329}; SpiteString spite_temp_18986 = spite_string_join(3, spite_temp_18985); SpiteString___release(spite_temp_18984); spite_temp_18986; }));
+if (((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))) && (((Syntax_Parser_next_kind(self) == Syntax_TokenKind_TokenKind_identifier))) && ((((({ SpiteString spite_temp_18974 = ({ Syntax_Token* spite_temp_18972 = Syntax_Parser_current(self); SpiteString spite_temp_18973 = SpiteString___retain((spite_temp_18972)->lexeme_); Syntax_Token___release(spite_temp_18972); spite_temp_18973; }); SpiteString spite_temp_18975 = spite_lit_17325; bool spite_temp_18976 = SpiteString_equals(spite_temp_18974, SpiteString___retain(spite_temp_18975)); SpiteString___release(spite_temp_18974); SpiteString___release(spite_temp_18975); spite_temp_18976; })) || (({ SpiteString spite_temp_18979 = ({ Syntax_Token* spite_temp_18977 = Syntax_Parser_current(self); SpiteString spite_temp_18978 = SpiteString___retain((spite_temp_18977)->lexeme_); Syntax_Token___release(spite_temp_18977); spite_temp_18978; }); SpiteString spite_temp_18980 = spite_lit_17327; bool spite_temp_18981 = SpiteString_equals(spite_temp_18979, SpiteString___retain(spite_temp_18980)); SpiteString___release(spite_temp_18979); SpiteString___release(spite_temp_18980); spite_temp_18981; })))))) {
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_18984 = ({ Syntax_Token* spite_temp_18982 = Syntax_Parser_current(self); SpiteString spite_temp_18983 = SpiteString___retain((spite_temp_18982)->lexeme_); Syntax_Token___release(spite_temp_18982); spite_temp_18983; }); SpiteString spite_temp_18985[] = {spite_lit_17329, spite_temp_18984, spite_lit_17331}; SpiteString spite_temp_18986 = spite_string_join(3, spite_temp_18985); SpiteString___release(spite_temp_18984); spite_temp_18986; }));
 Syntax_Statements_Statement_Statement spite_temp_18987 = Syntax_Parser_dummy_statement(self);
 return spite_temp_18987;
 }
-if (((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))) && ((((({ SpiteString spite_temp_18990 = ({ Syntax_Token* spite_temp_18988 = Syntax_Parser_current(self); SpiteString spite_temp_18989 = SpiteString___retain((spite_temp_18988)->lexeme_); Syntax_Token___release(spite_temp_18988); spite_temp_18989; }); SpiteString spite_temp_18991 = spite_lit_17331; bool spite_temp_18992 = SpiteString_equals(spite_temp_18990, SpiteString___retain(spite_temp_18991)); SpiteString___release(spite_temp_18990); SpiteString___release(spite_temp_18991); spite_temp_18992; })) || (({ SpiteString spite_temp_18995 = ({ Syntax_Token* spite_temp_18993 = Syntax_Parser_current(self); SpiteString spite_temp_18994 = SpiteString___retain((spite_temp_18993)->lexeme_); Syntax_Token___release(spite_temp_18993); spite_temp_18994; }); SpiteString spite_temp_18996 = spite_lit_17333; bool spite_temp_18997 = SpiteString_equals(spite_temp_18995, SpiteString___retain(spite_temp_18996)); SpiteString___release(spite_temp_18995); SpiteString___release(spite_temp_18996); spite_temp_18997; }))))) && (((((((Syntax_Parser_next_kind(self) == Syntax_TokenKind_TokenKind_newline)) || ((Syntax_Parser_next_kind(self) == Syntax_TokenKind_TokenKind_right_brace)))) || ((Syntax_Parser_next_kind(self) == Syntax_TokenKind_TokenKind_end_of_file)))))) {
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19000 = ({ Syntax_Token* spite_temp_18998 = Syntax_Parser_current(self); SpiteString spite_temp_18999 = SpiteString___retain((spite_temp_18998)->lexeme_); Syntax_Token___release(spite_temp_18998); spite_temp_18999; }); SpiteString spite_temp_19001[] = {spite_lit_17335, spite_temp_19000, spite_lit_17337}; SpiteString spite_temp_19002 = spite_string_join(3, spite_temp_19001); SpiteString___release(spite_temp_19000); spite_temp_19002; }));
+if (((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))) && ((((({ SpiteString spite_temp_18990 = ({ Syntax_Token* spite_temp_18988 = Syntax_Parser_current(self); SpiteString spite_temp_18989 = SpiteString___retain((spite_temp_18988)->lexeme_); Syntax_Token___release(spite_temp_18988); spite_temp_18989; }); SpiteString spite_temp_18991 = spite_lit_17333; bool spite_temp_18992 = SpiteString_equals(spite_temp_18990, SpiteString___retain(spite_temp_18991)); SpiteString___release(spite_temp_18990); SpiteString___release(spite_temp_18991); spite_temp_18992; })) || (({ SpiteString spite_temp_18995 = ({ Syntax_Token* spite_temp_18993 = Syntax_Parser_current(self); SpiteString spite_temp_18994 = SpiteString___retain((spite_temp_18993)->lexeme_); Syntax_Token___release(spite_temp_18993); spite_temp_18994; }); SpiteString spite_temp_18996 = spite_lit_17335; bool spite_temp_18997 = SpiteString_equals(spite_temp_18995, SpiteString___retain(spite_temp_18996)); SpiteString___release(spite_temp_18995); SpiteString___release(spite_temp_18996); spite_temp_18997; }))))) && (((((((Syntax_Parser_next_kind(self) == Syntax_TokenKind_TokenKind_newline)) || ((Syntax_Parser_next_kind(self) == Syntax_TokenKind_TokenKind_right_brace)))) || ((Syntax_Parser_next_kind(self) == Syntax_TokenKind_TokenKind_end_of_file)))))) {
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19000 = ({ Syntax_Token* spite_temp_18998 = Syntax_Parser_current(self); SpiteString spite_temp_18999 = SpiteString___retain((spite_temp_18998)->lexeme_); Syntax_Token___release(spite_temp_18998); spite_temp_18999; }); SpiteString spite_temp_19001[] = {spite_lit_17337, spite_temp_19000, spite_lit_17339}; SpiteString spite_temp_19002 = spite_string_join(3, spite_temp_19001); SpiteString___release(spite_temp_19000); spite_temp_19002; }));
 Syntax_Statements_Statement_Statement spite_temp_19003 = Syntax_Parser_dummy_statement(self);
 return spite_temp_19003;
 }
@@ -85302,7 +85304,7 @@ if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_keyword_return))) {
 Syntax_Statements_Statement_Statement spite_temp_19016 = Syntax_Parser_parse_return_statement(self);
 return spite_temp_19016;
 }
-if (((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))) && ((({ SpiteString spite_temp_19019 = ({ Syntax_Token* spite_temp_19017 = Syntax_Parser_current(self); SpiteString spite_temp_19018 = SpiteString___retain((spite_temp_19017)->lexeme_); Syntax_Token___release(spite_temp_19017); spite_temp_19018; }); SpiteString spite_temp_19020 = spite_lit_17339; bool spite_temp_19021 = SpiteString_equals(spite_temp_19019, SpiteString___retain(spite_temp_19020)); SpiteString___release(spite_temp_19019); SpiteString___release(spite_temp_19020); spite_temp_19021; })))) {
+if (((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))) && ((({ SpiteString spite_temp_19019 = ({ Syntax_Token* spite_temp_19017 = Syntax_Parser_current(self); SpiteString spite_temp_19018 = SpiteString___retain((spite_temp_19017)->lexeme_); Syntax_Token___release(spite_temp_19017); spite_temp_19018; }); SpiteString spite_temp_19020 = spite_lit_17341; bool spite_temp_19021 = SpiteString_equals(spite_temp_19019, SpiteString___retain(spite_temp_19020)); SpiteString___release(spite_temp_19019); SpiteString___release(spite_temp_19020); spite_temp_19021; })))) {
 Syntax_Statements_Statement_Statement spite_temp_19022 = Syntax_Parser_parse_load_statement(self);
 return spite_temp_19022;
 }
@@ -85317,7 +85319,7 @@ Syntax_Expressions_Expression_Expression folder_ = Syntax_Parser_parse_expressio
 if (((((opening_)->kind_ == Syntax_TokenKind_TokenKind_left_paren))) && (((!(self->has_error_))))) {
 Syntax_SourcePrinter* printer_ = Syntax_SourcePrinter___make();
 SpiteString written_ = Syntax_SourcePrinter_source_expression(printer_, Syntax_Expressions_Expression_Expression___retain(folder_));
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19025 = written_; SpiteString spite_temp_19026[] = {spite_lit_17341, spite_temp_19025, spite_lit_17343}; SpiteString spite_temp_19027 = spite_string_join(3, spite_temp_19026); spite_temp_19027; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19025 = written_; SpiteString spite_temp_19026[] = {spite_lit_17343, spite_temp_19025, spite_lit_17345}; SpiteString spite_temp_19027 = spite_string_join(3, spite_temp_19026); spite_temp_19027; }));
 self->error_line_ = (opening_)->line_;
 self->error_column_ = (opening_)->column_;
 Syntax_Statements_Statement_Statement spite_temp_19028 = Syntax_Parser_dummy_statement(self);
@@ -85328,7 +85330,7 @@ Syntax_Token___release(opening_);
 return spite_temp_19028;
 }
 Syntax_Parser_consume_statement_terminator(self);
-Syntax_Expressions_IdentifierExpression* callee_ = Syntax_Expressions_IdentifierExpression___make(spite_lit_17345);
+Syntax_Expressions_IdentifierExpression* callee_ = Syntax_Expressions_IdentifierExpression___make(spite_lit_17347);
 List_Syntax_Expressions_Expression_Expression* arguments_ = List_Syntax_Expressions_Expression_Expression___make();
 List_Syntax_Expressions_Expression_Expression_append(arguments_, Syntax_Expressions_Expression_Expression___retain(folder_));
 Syntax_Expressions_CallExpression* call_ = Syntax_Expressions_CallExpression___make(Syntax_Expressions_Expression_Expression___retain(((Syntax_Expressions_Expression_Expression)(callee_))), List_Syntax_Expressions_Expression_Expression___retain(arguments_));
@@ -85346,25 +85348,25 @@ SPITE_TRACE_ASSERT("spite.assert\t7de2a1ca\tbootstrap/source/syntax/parser.spite
 SpiteString___release(kind_);
 return;
 }
-if (!((({ SpiteString spite_temp_19032 = ({ Syntax_Token* spite_temp_19030 = Syntax_Parser_current(self); SpiteString spite_temp_19031 = SpiteString___retain((spite_temp_19030)->lexeme_); Syntax_Token___release(spite_temp_19030); spite_temp_19031; }); SpiteString spite_temp_19033 = spite_lit_17347; bool spite_temp_19034 = SpiteString_equals(spite_temp_19032, SpiteString___retain(spite_temp_19033)); SpiteString___release(spite_temp_19032); SpiteString___release(spite_temp_19033); spite_temp_19034; })))) {
+if (!((({ SpiteString spite_temp_19032 = ({ Syntax_Token* spite_temp_19030 = Syntax_Parser_current(self); SpiteString spite_temp_19031 = SpiteString___retain((spite_temp_19030)->lexeme_); Syntax_Token___release(spite_temp_19030); spite_temp_19031; }); SpiteString spite_temp_19033 = spite_lit_17349; bool spite_temp_19034 = SpiteString_equals(spite_temp_19032, SpiteString___retain(spite_temp_19033)); SpiteString___release(spite_temp_19032); SpiteString___release(spite_temp_19033); spite_temp_19034; })))) {
 SPITE_TRACE_ASSERT("spite.assert\t0313589f\tbootstrap/source/syntax/parser.spite:368\tSyntax.Parser\treject_load_name\tcurrent().lexeme == \"load\"\n");
 SpiteString___release(kind_);
 return;
 }
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19035 = kind_; SpiteString spite_temp_19036[] = {spite_lit_17349, spite_temp_19035, spite_lit_17351}; SpiteString spite_temp_19037 = spite_string_join(3, spite_temp_19036); spite_temp_19037; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19035 = kind_; SpiteString spite_temp_19036[] = {spite_lit_17351, spite_temp_19035, spite_lit_17353}; SpiteString spite_temp_19037 = spite_string_join(3, spite_temp_19036); spite_temp_19037; }));
 SpiteString___release(kind_);
 }
 Syntax_Statements_Statement_Statement Syntax_Parser_parse_generics_declaration(Syntax_Parser* self) {
-Syntax_Parser_fail(self, spite_lit_17352);
+Syntax_Parser_fail(self, spite_lit_17354);
 Syntax_Statements_Statement_Statement spite_temp_19038 = Syntax_Parser_dummy_statement(self);
 return spite_temp_19038;
 }
 Syntax_Statements_Statement_Statement Syntax_Parser_parse_generic_declaration(Syntax_Parser* self) {
 Syntax_Token* spite_temp_19039 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19039);
-Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_generic_identifier, spite_lit_17354);
+Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_generic_identifier, spite_lit_17356);
 if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_comma))) {
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19040 = (name_)->text_; SpiteString spite_temp_19041[] = {spite_lit_17356, spite_temp_19040, spite_lit_17358}; SpiteString spite_temp_19042 = spite_string_join(3, spite_temp_19041); spite_temp_19042; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19040 = (name_)->text_; SpiteString spite_temp_19041[] = {spite_lit_17358, spite_temp_19040, spite_lit_17360}; SpiteString spite_temp_19042 = spite_string_join(3, spite_temp_19041); spite_temp_19042; }));
 Syntax_Statements_Statement_Statement spite_temp_19043 = Syntax_Parser_dummy_statement(self);
 Syntax_Token___release(name_);
 return spite_temp_19043;
@@ -85386,9 +85388,9 @@ return spite_temp_19047;
 Syntax_Statements_Statement_Statement Syntax_Parser_parse_variable_declaration(Syntax_Parser* self) {
 Syntax_Token* spite_temp_19048 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19048);
-Syntax_Parser_reject_borrowed_name(self, spite_lit_17360);
-Syntax_Parser_reject_load_name(self, spite_lit_17361);
-Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17363);
+Syntax_Parser_reject_borrowed_name(self, spite_lit_17362);
+Syntax_Parser_reject_load_name(self, spite_lit_17363);
+Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17365);
 Syntax_Types_Type_Type type_reference_ = 0;
 if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_colon))) {
 Syntax_Token* spite_temp_19049 = Syntax_Parser_advance(self);
@@ -85397,7 +85399,7 @@ Syntax_Types_Type_Type spite_temp_19050 = Syntax_Parser_parse_type(self);
 Syntax_Types_Type_Type___release(type_reference_);
 type_reference_ = spite_temp_19050;
 }
-Syntax_Token* spite_temp_19051 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_equal, spite_lit_17364);
+Syntax_Token* spite_temp_19051 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_equal, spite_lit_17366);
 Syntax_Token___release(spite_temp_19051);
 Syntax_Expressions_Expression_Expression value_ = Syntax_Parser_parse_expression(self);
 Syntax_Parser_consume_statement_terminator(self);
@@ -85410,15 +85412,15 @@ return spite_temp_19052;
 Syntax_Statements_Statement_Statement Syntax_Parser_parse_function_declaration(Syntax_Parser* self) {
 Syntax_Token* spite_temp_19053 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19053);
-Syntax_Parser_reject_load_name(self, spite_lit_17365);
-Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17367);
+Syntax_Parser_reject_load_name(self, spite_lit_17367);
+Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17369);
 if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_less))) {
 Syntax_Parser_reject_constructor_codegen_list(self, SpiteString___retain((name_)->text_));
 Syntax_Statements_Statement_Statement spite_temp_19054 = Syntax_Parser_dummy_statement(self);
 Syntax_Token___release(name_);
 return spite_temp_19054;
 }
-Syntax_Token* spite_temp_19055 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_left_paren, spite_lit_17368);
+Syntax_Token* spite_temp_19055 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_left_paren, spite_lit_17370);
 Syntax_Token___release(spite_temp_19055);
 List_Syntax_Statements_Parameter* parameters_ = List_Syntax_Statements_Parameter___make();
 bool expect_more_ = (!(Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_right_paren)));
@@ -85429,14 +85431,14 @@ Syntax_Token* spite_temp_19056 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19056);
 }
 SpiteString parameter_text_ = Syntax_Parser_parameter_name(self);
-Syntax_Token* spite_temp_19057 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_colon, spite_lit_17369);
+Syntax_Token* spite_temp_19057 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_colon, spite_lit_17371);
 Syntax_Token___release(spite_temp_19057);
 Syntax_Types_Type_Type parameter_type_ = Syntax_Parser_parse_type(self);
 if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_equal))) {
-Syntax_Parser_fail(self, spite_lit_17370);
+Syntax_Parser_fail(self, spite_lit_17372);
 }
 if (((is_variadic_)) && (((!(Syntax_Parser_is_list_type(self, Syntax_Types_Type_Type___retain(parameter_type_))))))) {
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19058 = parameter_text_; SpiteString spite_temp_19059 = parameter_text_; SpiteString spite_temp_19060[] = {spite_lit_17372, spite_temp_19058, spite_lit_17374, spite_temp_19059, spite_lit_17376}; SpiteString spite_temp_19061 = spite_string_join(5, spite_temp_19060); spite_temp_19061; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19058 = parameter_text_; SpiteString spite_temp_19059 = parameter_text_; SpiteString spite_temp_19060[] = {spite_lit_17374, spite_temp_19058, spite_lit_17376, spite_temp_19059, spite_lit_17378}; SpiteString spite_temp_19061 = spite_string_join(5, spite_temp_19060); spite_temp_19061; }));
 }
 Syntax_Statements_Parameter* parameter_ = Syntax_Statements_Parameter___make(SpiteString___retain(parameter_text_), Syntax_Types_Type_Type___retain(parameter_type_));
 Syntax_Statements_Parameter* spite_temp_19062 = parameter_;
@@ -85451,13 +85453,13 @@ else {
 expect_more_ = false;
 }
 if (((is_variadic_)) && ((expect_more_))) {
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19064 = parameter_text_; SpiteString spite_temp_19065[] = {spite_lit_17378, spite_temp_19064, spite_lit_17380}; SpiteString spite_temp_19066 = spite_string_join(3, spite_temp_19065); spite_temp_19066; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19064 = parameter_text_; SpiteString spite_temp_19065[] = {spite_lit_17380, spite_temp_19064, spite_lit_17382}; SpiteString spite_temp_19066 = spite_string_join(3, spite_temp_19065); spite_temp_19066; }));
 }
 Syntax_Statements_Parameter___release(parameter_);
 Syntax_Types_Type_Type___release(parameter_type_);
 SpiteString___release(parameter_text_);
 }
-Syntax_Token* spite_temp_19067 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_paren, spite_lit_17381);
+Syntax_Token* spite_temp_19067 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_paren, spite_lit_17383);
 Syntax_Token___release(spite_temp_19067);
 Syntax_Types_Type_Type return_type_ = 0;
 if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_colon))) {
@@ -85469,7 +85471,7 @@ return_type_ = spite_temp_19069;
 }
 else {
 if ((((!(Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_left_brace))))) && (((!(Syntax_Parser_at_statement_end(self)))))) {
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19072 = ({ Syntax_Token* spite_temp_19070 = Syntax_Parser_current(self); SpiteString spite_temp_19071 = SpiteString___retain((spite_temp_19070)->lexeme_); Syntax_Token___release(spite_temp_19070); spite_temp_19071; }); SpiteString spite_temp_19073[] = {spite_lit_17383, spite_temp_19072, spite_lit_17385}; SpiteString spite_temp_19074 = spite_string_join(3, spite_temp_19073); SpiteString___release(spite_temp_19072); spite_temp_19074; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19072 = ({ Syntax_Token* spite_temp_19070 = Syntax_Parser_current(self); SpiteString spite_temp_19071 = SpiteString___retain((spite_temp_19070)->lexeme_); Syntax_Token___release(spite_temp_19070); spite_temp_19071; }); SpiteString spite_temp_19073[] = {spite_lit_17385, spite_temp_19072, spite_lit_17387}; SpiteString spite_temp_19074 = spite_string_join(3, spite_temp_19073); SpiteString___release(spite_temp_19072); spite_temp_19074; }));
 }
 }
 if ((Syntax_Parser_at_statement_end(self))) {
@@ -85496,7 +85498,7 @@ return spite_temp_19077;
 bool Syntax_Parser_is_list_type(Syntax_Parser* self, Syntax_Types_Type_Type type_reference_) {
 Syntax_Types_NamedType* named_ = Analysis_AstShape_as_named_type(self->shape_, Syntax_Types_Type_Type___retain(type_reference_));
 if (((named_) != 0)) {
-bool spite_temp_19081 = (((((List_String_count((named_)->path_) == 1)) && (({ SpiteString spite_temp_19078 = List_String_join((named_)->path_, spite_lit_17388); SpiteString spite_temp_19079 = spite_lit_17389; bool spite_temp_19080 = SpiteString_equals(spite_temp_19078, SpiteString___retain(spite_temp_19079)); SpiteString___release(spite_temp_19078); SpiteString___release(spite_temp_19079); spite_temp_19080; })))) && ((List_Syntax_Types_GenericArgument_GenericArgument_count((named_)->arguments_) == 1)));
+bool spite_temp_19081 = (((((List_String_count((named_)->path_) == 1)) && (({ SpiteString spite_temp_19078 = List_String_join((named_)->path_, spite_lit_17390); SpiteString spite_temp_19079 = spite_lit_17391; bool spite_temp_19080 = SpiteString_equals(spite_temp_19078, SpiteString___retain(spite_temp_19079)); SpiteString___release(spite_temp_19078); SpiteString___release(spite_temp_19079); spite_temp_19080; })))) && ((List_Syntax_Types_GenericArgument_GenericArgument_count((named_)->arguments_) == 1)));
 Syntax_Types_NamedType___release(named_);
 Syntax_Types_Type_Type___release(type_reference_);
 return spite_temp_19081;
@@ -85511,14 +85513,14 @@ Syntax_Token* opening_ = Syntax_Parser_advance(self);
 List_String* lines_ = List_String___make();
 while ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_generic_identifier))) {
 Syntax_Token* codegen_token_ = Syntax_Parser_advance(self);
-List_String_append(lines_, ({ SpiteString spite_temp_19083 = (codegen_token_)->text_; SpiteString spite_temp_19084[] = {spite_lit_17391, spite_temp_19083}; SpiteString spite_temp_19085 = spite_string_join(2, spite_temp_19084); spite_temp_19085; }));
+List_String_append(lines_, ({ SpiteString spite_temp_19083 = (codegen_token_)->text_; SpiteString spite_temp_19084[] = {spite_lit_17393, spite_temp_19083}; SpiteString spite_temp_19085 = spite_string_join(2, spite_temp_19084); spite_temp_19085; }));
 if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_comma))) {
 Syntax_Token* spite_temp_19086 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19086);
 }
 Syntax_Token___release(codegen_token_);
 }
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19087 = List_String_join(lines_, spite_lit_17393); SpiteString spite_temp_19088 = function_name_; SpiteString spite_temp_19089[] = {spite_lit_17394, spite_temp_19087, spite_lit_17396, spite_temp_19088, spite_lit_17398}; SpiteString spite_temp_19090 = spite_string_join(5, spite_temp_19089); SpiteString___release(spite_temp_19087); spite_temp_19090; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19087 = List_String_join(lines_, spite_lit_17395); SpiteString spite_temp_19088 = function_name_; SpiteString spite_temp_19089[] = {spite_lit_17396, spite_temp_19087, spite_lit_17398, spite_temp_19088, spite_lit_17400}; SpiteString spite_temp_19090 = spite_string_join(5, spite_temp_19089); SpiteString___release(spite_temp_19087); spite_temp_19090; }));
 self->error_line_ = (opening_)->line_;
 self->error_column_ = (opening_)->column_;
 List_String___release(lines_);
@@ -85529,12 +85531,12 @@ SpiteString Syntax_Parser_parameter_name(Syntax_Parser* self) {
 if (((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_keyword_type))) && (((Syntax_Parser_next_kind(self) == Syntax_TokenKind_TokenKind_colon)))) {
 Syntax_Token* spite_temp_19091 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19091);
-SpiteString spite_temp_19092 = spite_lit_17399;
+SpiteString spite_temp_19092 = spite_lit_17401;
 return spite_temp_19092;
 }
-Syntax_Parser_reject_borrowed_name(self, spite_lit_17400);
-Syntax_Parser_reject_load_name(self, spite_lit_17401);
-Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17403);
+Syntax_Parser_reject_borrowed_name(self, spite_lit_17402);
+Syntax_Parser_reject_load_name(self, spite_lit_17403);
+Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17405);
 SpiteString spite_temp_19093 = SpiteString___retain((name_)->text_);
 Syntax_Token___release(name_);
 return spite_temp_19093;
@@ -85554,7 +85556,7 @@ SpiteString___release(lexeme_);
 SpiteString___release(kind_);
 return;
 }
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19098 = lexeme_; SpiteString spite_temp_19099 = kind_; SpiteString spite_temp_19100 = lesson_; SpiteString spite_temp_19101[] = {spite_lit_17405, spite_temp_19098, spite_lit_17407, spite_temp_19099, spite_lit_17409, spite_temp_19100}; SpiteString spite_temp_19102 = spite_string_join(6, spite_temp_19101); spite_temp_19102; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19098 = lexeme_; SpiteString spite_temp_19099 = kind_; SpiteString spite_temp_19100 = lesson_; SpiteString spite_temp_19101[] = {spite_lit_17407, spite_temp_19098, spite_lit_17409, spite_temp_19099, spite_lit_17411, spite_temp_19100}; SpiteString spite_temp_19102 = spite_string_join(6, spite_temp_19101); spite_temp_19102; }));
 SpiteString___release(lesson_);
 SpiteString___release(lexeme_);
 SpiteString___release(kind_);
@@ -85564,7 +85566,7 @@ if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))) {
 SpiteString spite_temp_19105 = ({ Syntax_Token* spite_temp_19103 = Syntax_Parser_current(self); SpiteString spite_temp_19104 = SpiteString___retain((spite_temp_19103)->lexeme_); Syntax_Token___release(spite_temp_19103); spite_temp_19104; });
 return spite_temp_19105;
 }
-SpiteString spite_temp_19106 = spite_lit_17410;
+SpiteString spite_temp_19106 = spite_lit_17412;
 return spite_temp_19106;
 }
 Syntax_Statements_FieldDeclaration* Syntax_Parser_parse_required_function(Syntax_Parser* self, SpiteString name_) {
@@ -85577,7 +85579,7 @@ if (((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))) && (((S
 Syntax_Token* named_ = Syntax_Parser_advance(self);
 Syntax_Token* spite_temp_19108 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19108);
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19109 = Syntax_Parser_parse_type_name_hint(self); SpiteString spite_temp_19110 = (named_)->text_; SpiteString spite_temp_19111[] = {spite_lit_17412, spite_temp_19109, spite_lit_17414, spite_temp_19110, spite_lit_17416}; SpiteString spite_temp_19112 = spite_string_join(5, spite_temp_19111); SpiteString___release(spite_temp_19109); spite_temp_19112; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19109 = Syntax_Parser_parse_type_name_hint(self); SpiteString spite_temp_19110 = (named_)->text_; SpiteString spite_temp_19111[] = {spite_lit_17414, spite_temp_19109, spite_lit_17416, spite_temp_19110, spite_lit_17418}; SpiteString spite_temp_19112 = spite_string_join(5, spite_temp_19111); SpiteString___release(spite_temp_19109); spite_temp_19112; }));
 Syntax_Types_Type_Type placeholder_type_ = Syntax_Parser_dummy_type(self);
 Syntax_Statements_FieldDeclaration* spite_temp_19113 = Syntax_Statements_FieldDeclaration___make(SpiteString___retain(name_), Syntax_Types_Type_Type___retain(placeholder_type_));
 Syntax_Types_Type_Type___release(placeholder_type_);
@@ -85597,10 +85599,10 @@ expect_more_ = false;
 }
 Syntax_Types_Type_Type___release(parsed_type_);
 }
-Syntax_Token* spite_temp_19115 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_paren, spite_lit_17417);
+Syntax_Token* spite_temp_19115 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_paren, spite_lit_17419);
 Syntax_Token___release(spite_temp_19115);
 List_String* nothing_path_ = List_String___make();
-List_String_append(nothing_path_, spite_lit_17418);
+List_String_append(nothing_path_, spite_lit_17420);
 List_Syntax_Types_GenericArgument_GenericArgument* no_generic_arguments_ = List_Syntax_Types_GenericArgument_GenericArgument___make();
 Syntax_Types_Type_Type return_type_ = ((Syntax_Types_Type_Type)(Syntax_Types_NamedType___make(List_String___retain(nothing_path_), List_Syntax_Types_GenericArgument_GenericArgument___retain(no_generic_arguments_))));
 bool returns_nothing_ = true;
@@ -85632,7 +85634,7 @@ return spite_temp_19122;
 }
 void Syntax_Parser_reject_declaration_equal(Syntax_Parser* self, SpiteString keyword_, SpiteString name_) {
 if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_equal))) {
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19123 = keyword_; SpiteString spite_temp_19124 = name_; SpiteString spite_temp_19125[] = {spite_lit_17420, spite_temp_19123, spite_lit_17422, spite_temp_19124, spite_lit_17424}; SpiteString spite_temp_19126 = spite_string_join(5, spite_temp_19125); spite_temp_19126; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19123 = keyword_; SpiteString spite_temp_19124 = name_; SpiteString spite_temp_19125[] = {spite_lit_17422, spite_temp_19123, spite_lit_17424, spite_temp_19124, spite_lit_17426}; SpiteString spite_temp_19126 = spite_string_join(5, spite_temp_19125); spite_temp_19126; }));
 }
 SpiteString___release(name_);
 SpiteString___release(keyword_);
@@ -85648,7 +85650,7 @@ SpiteString___release(keyword_);
 return;
 }
 if (((!(Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_newline))))) {
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19128 = keyword_; SpiteString spite_temp_19129[] = {spite_temp_19128, spite_lit_17427}; SpiteString spite_temp_19130 = spite_string_join(2, spite_temp_19129); spite_temp_19130; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19128 = keyword_; SpiteString spite_temp_19129[] = {spite_temp_19128, spite_lit_17429}; SpiteString spite_temp_19130 = spite_string_join(2, spite_temp_19129); spite_temp_19130; }));
 Syntax_Token* spite_temp_19131 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19131);
 SpiteString___release(keyword_);
@@ -85663,7 +85665,7 @@ Syntax_Token* spite_temp_19132 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19132);
 }
 if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_comma))) {
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19133 = keyword_; SpiteString spite_temp_19134[] = {spite_temp_19133, spite_lit_17430}; SpiteString spite_temp_19135 = spite_string_join(2, spite_temp_19134); spite_temp_19135; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19133 = keyword_; SpiteString spite_temp_19134[] = {spite_temp_19133, spite_lit_17432}; SpiteString spite_temp_19135 = spite_string_join(2, spite_temp_19134); spite_temp_19135; }));
 Syntax_Token* spite_temp_19136 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19136);
 SpiteString___release(keyword_);
@@ -85679,7 +85681,7 @@ SPITE_TRACE_ASSERT("spite.assert\t3aa10e96\tbootstrap/source/syntax/parser.spite
 SpiteString___release(keyword_);
 return;
 }
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19137 = keyword_; SpiteString spite_temp_19140 = ({ Syntax_Token* spite_temp_19138 = Syntax_Parser_current(self); SpiteString spite_temp_19139 = SpiteString___retain((spite_temp_19138)->lexeme_); Syntax_Token___release(spite_temp_19138); spite_temp_19139; }); SpiteString spite_temp_19141[] = {spite_temp_19137, spite_lit_17433, spite_temp_19140, spite_lit_17435}; SpiteString spite_temp_19142 = spite_string_join(4, spite_temp_19141); SpiteString___release(spite_temp_19140); spite_temp_19142; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19137 = keyword_; SpiteString spite_temp_19140 = ({ Syntax_Token* spite_temp_19138 = Syntax_Parser_current(self); SpiteString spite_temp_19139 = SpiteString___retain((spite_temp_19138)->lexeme_); Syntax_Token___release(spite_temp_19138); spite_temp_19139; }); SpiteString spite_temp_19141[] = {spite_temp_19137, spite_lit_17435, spite_temp_19140, spite_lit_17437}; SpiteString spite_temp_19142 = spite_string_join(4, spite_temp_19141); SpiteString___release(spite_temp_19140); spite_temp_19142; }));
 Syntax_Token* spite_temp_19143 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19143);
 SpiteString___release(keyword_);
@@ -85687,22 +85689,22 @@ SpiteString___release(keyword_);
 Syntax_Statements_Statement_Statement Syntax_Parser_parse_type_declaration(Syntax_Parser* self) {
 Syntax_Token* spite_temp_19144 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19144);
-Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17437);
-Syntax_Parser_reject_declaration_equal(self, spite_lit_17438, SpiteString___retain((name_)->text_));
-Syntax_Token* spite_temp_19145 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_left_brace, spite_lit_17439);
+Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17439);
+Syntax_Parser_reject_declaration_equal(self, spite_lit_17440, SpiteString___retain((name_)->text_));
+Syntax_Token* spite_temp_19145 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_left_brace, spite_lit_17441);
 Syntax_Token___release(spite_temp_19145);
-Syntax_Parser_open_declaration_body(self, spite_lit_17440);
+Syntax_Parser_open_declaration_body(self, spite_lit_17442);
 List_Syntax_Statements_FieldDeclaration* fields_ = List_Syntax_Statements_FieldDeclaration___make();
 bool finished_ = ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_right_brace)) || (Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_end_of_file)));
 while (((!(finished_)))) {
-Syntax_Token* field_name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17442);
+Syntax_Token* field_name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17444);
 if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_left_paren))) {
 Syntax_Statements_FieldDeclaration* parsed_required_function_ = Syntax_Parser_parse_required_function(self, SpiteString___retain((field_name_)->text_));
 List_Syntax_Statements_FieldDeclaration_append(fields_, Syntax_Statements_FieldDeclaration___retain(parsed_required_function_));
 Syntax_Statements_FieldDeclaration___release(parsed_required_function_);
 }
 else {
-Syntax_Token* spite_temp_19146 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_colon, spite_lit_17443);
+Syntax_Token* spite_temp_19146 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_colon, spite_lit_17445);
 Syntax_Token___release(spite_temp_19146);
 Syntax_Types_Type_Type field_type_ = Syntax_Parser_parse_type(self);
 Syntax_Statements_FieldDeclaration* field_ = Syntax_Statements_FieldDeclaration___make(SpiteString___retain((field_name_)->text_), Syntax_Types_Type_Type___retain(field_type_));
@@ -85710,13 +85712,13 @@ List_Syntax_Statements_FieldDeclaration_append(fields_, Syntax_Statements_FieldD
 Syntax_Statements_FieldDeclaration___release(field_);
 Syntax_Types_Type_Type___release(field_type_);
 }
-Syntax_Parser_consume_declaration_entry(self, spite_lit_17444);
+Syntax_Parser_consume_declaration_entry(self, spite_lit_17446);
 if ((((((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_right_brace)) || (Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_end_of_file)))) || (self->has_error_)))) {
 finished_ = true;
 }
 Syntax_Token___release(field_name_);
 }
-Syntax_Token* spite_temp_19147 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_brace, spite_lit_17445);
+Syntax_Token* spite_temp_19147 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_brace, spite_lit_17447);
 Syntax_Token___release(spite_temp_19147);
 Syntax_Statements_Statement_Statement spite_temp_19148 = ((Syntax_Statements_Statement_Statement)(Syntax_Statements_TypeDeclaration___make(SpiteString___retain((name_)->text_), List_Syntax_Statements_FieldDeclaration___retain(fields_))));
 List_Syntax_Statements_FieldDeclaration___release(fields_);
@@ -85726,23 +85728,23 @@ return spite_temp_19148;
 Syntax_Statements_Statement_Statement Syntax_Parser_parse_enum_declaration(Syntax_Parser* self) {
 Syntax_Token* spite_temp_19149 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19149);
-Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17447);
-Syntax_Parser_reject_declaration_equal(self, spite_lit_17448, SpiteString___retain((name_)->text_));
-Syntax_Token* spite_temp_19150 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_left_brace, spite_lit_17449);
+Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17449);
+Syntax_Parser_reject_declaration_equal(self, spite_lit_17450, SpiteString___retain((name_)->text_));
+Syntax_Token* spite_temp_19150 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_left_brace, spite_lit_17451);
 Syntax_Token___release(spite_temp_19150);
-Syntax_Parser_open_declaration_body(self, spite_lit_17450);
+Syntax_Parser_open_declaration_body(self, spite_lit_17452);
 List_String* values_ = List_String___make();
 bool finished_ = ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_right_brace)) || (Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_end_of_file)));
 while (((!(finished_)))) {
-Syntax_Token* value_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_enum_literal, spite_lit_17452);
+Syntax_Token* value_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_enum_literal, spite_lit_17454);
 List_String_append(values_, ({ SpiteString spite_temp_19151 = (value_)->text_; SpiteString___retain(spite_temp_19151); }));
-Syntax_Parser_consume_declaration_entry(self, spite_lit_17454);
+Syntax_Parser_consume_declaration_entry(self, spite_lit_17456);
 if ((((((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_right_brace)) || (Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_end_of_file)))) || (self->has_error_)))) {
 finished_ = true;
 }
 Syntax_Token___release(value_);
 }
-Syntax_Token* spite_temp_19152 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_brace, spite_lit_17455);
+Syntax_Token* spite_temp_19152 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_brace, spite_lit_17457);
 Syntax_Token___release(spite_temp_19152);
 Syntax_Statements_Statement_Statement spite_temp_19153 = ((Syntax_Statements_Statement_Statement)(Syntax_Statements_EnumDeclaration___make(SpiteString___retain((name_)->text_), List_String___retain(values_))));
 List_String___release(values_);
@@ -85752,23 +85754,23 @@ return spite_temp_19153;
 Syntax_Statements_Statement_Statement Syntax_Parser_parse_union_declaration(Syntax_Parser* self) {
 Syntax_Token* spite_temp_19154 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19154);
-Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17457);
-Syntax_Parser_reject_declaration_equal(self, spite_lit_17458, SpiteString___retain((name_)->text_));
-Syntax_Token* spite_temp_19155 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_left_brace, spite_lit_17459);
+Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17459);
+Syntax_Parser_reject_declaration_equal(self, spite_lit_17460, SpiteString___retain((name_)->text_));
+Syntax_Token* spite_temp_19155 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_left_brace, spite_lit_17461);
 Syntax_Token___release(spite_temp_19155);
-Syntax_Parser_open_declaration_body(self, spite_lit_17460);
+Syntax_Parser_open_declaration_body(self, spite_lit_17462);
 List_Syntax_Types_Type_Type* members_ = List_Syntax_Types_Type_Type___make();
 bool finished_ = ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_right_brace)) || (Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_end_of_file)));
 while (((!(finished_)))) {
 Syntax_Types_Type_Type member_ = Syntax_Parser_parse_type(self);
 List_Syntax_Types_Type_Type_append(members_, Syntax_Types_Type_Type___retain(member_));
-Syntax_Parser_consume_declaration_entry(self, spite_lit_17461);
+Syntax_Parser_consume_declaration_entry(self, spite_lit_17463);
 if ((((((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_right_brace)) || (Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_end_of_file)))) || (self->has_error_)))) {
 finished_ = true;
 }
 Syntax_Types_Type_Type___release(member_);
 }
-Syntax_Token* spite_temp_19156 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_brace, spite_lit_17462);
+Syntax_Token* spite_temp_19156 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_brace, spite_lit_17464);
 Syntax_Token___release(spite_temp_19156);
 Syntax_Statements_Statement_Statement spite_temp_19157 = ((Syntax_Statements_Statement_Statement)(Syntax_Statements_UnionDeclaration___make(SpiteString___retain((name_)->text_), List_Syntax_Types_Type_Type___retain(members_))));
 List_Syntax_Types_Type_Type___release(members_);
@@ -85846,14 +85848,14 @@ Syntax_Statements_Statement_Statement Syntax_Parser_parse_switch_statement(Synta
 Syntax_Token* spite_temp_19173 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19173);
 Syntax_Expressions_Expression_Expression subject_ = Syntax_Parser_parse_expression(self);
-Syntax_Token* spite_temp_19174 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_left_brace, spite_lit_17463);
+Syntax_Token* spite_temp_19174 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_left_brace, spite_lit_17465);
 Syntax_Token___release(spite_temp_19174);
 Syntax_Parser_skip_trivia(self);
 List_Syntax_Statements_SwitchCase* cases_ = List_Syntax_Statements_SwitchCase___make();
 bool finished_ = ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_right_brace)) || (Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_end_of_file)));
 while (((!(finished_)))) {
 Syntax_Types_Type_Type case_type_ = Syntax_Parser_parse_type(self);
-Syntax_Token* spite_temp_19175 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_colon, spite_lit_17464);
+Syntax_Token* spite_temp_19175 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_colon, spite_lit_17466);
 Syntax_Token___release(spite_temp_19175);
 List_Syntax_Statements_Statement_Statement* body_ = Syntax_Parser_parse_switch_case_body(self);
 Syntax_Statements_SwitchCase* switch_case_ = Syntax_Statements_SwitchCase___make(Syntax_Types_Type_Type___retain(case_type_), List_Syntax_Statements_Statement_Statement___retain(body_));
@@ -85866,7 +85868,7 @@ Syntax_Statements_SwitchCase___release(switch_case_);
 List_Syntax_Statements_Statement_Statement___release(body_);
 Syntax_Types_Type_Type___release(case_type_);
 }
-Syntax_Token* spite_temp_19176 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_brace, spite_lit_17465);
+Syntax_Token* spite_temp_19176 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_brace, spite_lit_17467);
 Syntax_Token___release(spite_temp_19176);
 Syntax_Statements_Statement_Statement spite_temp_19177 = ((Syntax_Statements_Statement_Statement)(Syntax_Statements_SwitchStatement___make(Syntax_Expressions_Expression_Expression___retain(subject_), List_Syntax_Statements_SwitchCase___retain(cases_))));
 List_Syntax_Statements_SwitchCase___release(cases_);
@@ -85930,7 +85932,7 @@ Syntax_Expressions_Expression_Expression___release(value_);
 return spite_temp_19189;
 }
 SpiteString Syntax_Parser_source_text_between(Syntax_Parser* self, int32_t first_token_, int32_t after_last_token_) {
-SpiteString text_ = spite_lit_17467;
+SpiteString text_ = spite_lit_17469;
 int32_t index_ = first_token_;
 while (((index_ < after_last_token_))) {
 if (!(({ Syntax_Token* spite_temp_19190 = List_Syntax_Token_find_at(self->tokens_, index_); int path_narrowed = ((spite_temp_19190) != 0); Syntax_Token___release(spite_temp_19190); path_narrowed; }))) {
@@ -85973,11 +85975,11 @@ Syntax_Token___release(token_);
 return spite_temp_19199;
 }
 SpiteString Syntax_Parser_glue_lexeme(Syntax_Parser* self, SpiteString text_, SpiteString lexeme_) {
-bool glued_ = ((((((((((SpiteString_is_empty(text_)) || (({ SpiteString spite_temp_19215 = lexeme_; SpiteString spite_temp_19216 = spite_lit_17479; bool spite_temp_19217 = SpiteString_equals(spite_temp_19215, SpiteString___retain(spite_temp_19216)); SpiteString___release(spite_temp_19216); spite_temp_19217; })))) || (({ SpiteString spite_temp_19218 = lexeme_; SpiteString spite_temp_19219 = spite_lit_17481; bool spite_temp_19220 = SpiteString_equals(spite_temp_19218, SpiteString___retain(spite_temp_19219)); SpiteString___release(spite_temp_19219); spite_temp_19220; })))) || (({ SpiteString spite_temp_19221 = lexeme_; SpiteString spite_temp_19222 = spite_lit_17483; bool spite_temp_19223 = SpiteString_equals(spite_temp_19221, SpiteString___retain(spite_temp_19222)); SpiteString___release(spite_temp_19222); spite_temp_19223; })))) || (({ SpiteString spite_temp_19224 = lexeme_; SpiteString spite_temp_19225 = spite_lit_17485; bool spite_temp_19226 = SpiteString_equals(spite_temp_19224, SpiteString___retain(spite_temp_19225)); SpiteString___release(spite_temp_19225); spite_temp_19226; })))) || (({ SpiteString spite_temp_19227 = lexeme_; SpiteString spite_temp_19228 = spite_lit_17487; bool spite_temp_19229 = SpiteString_equals(spite_temp_19227, SpiteString___retain(spite_temp_19228)); SpiteString___release(spite_temp_19228); spite_temp_19229; })));
-if ((((((SpiteString_ends_with(text_, spite_lit_17488)) || (SpiteString_ends_with(text_, spite_lit_17489)))) || (SpiteString_ends_with(text_, spite_lit_17490))))) {
+bool glued_ = ((((((((((SpiteString_is_empty(text_)) || (({ SpiteString spite_temp_19215 = lexeme_; SpiteString spite_temp_19216 = spite_lit_17481; bool spite_temp_19217 = SpiteString_equals(spite_temp_19215, SpiteString___retain(spite_temp_19216)); SpiteString___release(spite_temp_19216); spite_temp_19217; })))) || (({ SpiteString spite_temp_19218 = lexeme_; SpiteString spite_temp_19219 = spite_lit_17483; bool spite_temp_19220 = SpiteString_equals(spite_temp_19218, SpiteString___retain(spite_temp_19219)); SpiteString___release(spite_temp_19219); spite_temp_19220; })))) || (({ SpiteString spite_temp_19221 = lexeme_; SpiteString spite_temp_19222 = spite_lit_17485; bool spite_temp_19223 = SpiteString_equals(spite_temp_19221, SpiteString___retain(spite_temp_19222)); SpiteString___release(spite_temp_19222); spite_temp_19223; })))) || (({ SpiteString spite_temp_19224 = lexeme_; SpiteString spite_temp_19225 = spite_lit_17487; bool spite_temp_19226 = SpiteString_equals(spite_temp_19224, SpiteString___retain(spite_temp_19225)); SpiteString___release(spite_temp_19225); spite_temp_19226; })))) || (({ SpiteString spite_temp_19227 = lexeme_; SpiteString spite_temp_19228 = spite_lit_17489; bool spite_temp_19229 = SpiteString_equals(spite_temp_19227, SpiteString___retain(spite_temp_19228)); SpiteString___release(spite_temp_19228); spite_temp_19229; })));
+if ((((((SpiteString_ends_with(text_, spite_lit_17490)) || (SpiteString_ends_with(text_, spite_lit_17491)))) || (SpiteString_ends_with(text_, spite_lit_17492))))) {
 glued_ = true;
 }
-if (((({ SpiteString spite_temp_19230 = lexeme_; SpiteString spite_temp_19231 = spite_lit_17492; bool spite_temp_19232 = SpiteString_equals(spite_temp_19230, SpiteString___retain(spite_temp_19231)); SpiteString___release(spite_temp_19231); spite_temp_19232; }))) && ((((((((((((SpiteString_ends_with(text_, spite_lit_17493)) || (SpiteString_ends_with(text_, spite_lit_17494)))) || (SpiteString_ends_with(text_, spite_lit_17495)))) || (SpiteString_ends_with(text_, spite_lit_17496)))) || (SpiteString_ends_with(text_, spite_lit_17497)))) || (SpiteString_ends_with(text_, spite_lit_17498)))))) {
+if (((({ SpiteString spite_temp_19230 = lexeme_; SpiteString spite_temp_19231 = spite_lit_17494; bool spite_temp_19232 = SpiteString_equals(spite_temp_19230, SpiteString___retain(spite_temp_19231)); SpiteString___release(spite_temp_19231); spite_temp_19232; }))) && ((((((((((((SpiteString_ends_with(text_, spite_lit_17495)) || (SpiteString_ends_with(text_, spite_lit_17496)))) || (SpiteString_ends_with(text_, spite_lit_17497)))) || (SpiteString_ends_with(text_, spite_lit_17498)))) || (SpiteString_ends_with(text_, spite_lit_17499)))) || (SpiteString_ends_with(text_, spite_lit_17500)))))) {
 glued_ = false;
 }
 if ((glued_)) {
@@ -85986,7 +85988,7 @@ SpiteString___release(lexeme_);
 SpiteString___release(text_);
 return spite_temp_19237;
 }
-SpiteString spite_temp_19242 = ({ SpiteString spite_temp_19238 = text_; SpiteString spite_temp_19239 = lexeme_; SpiteString spite_temp_19240[] = {spite_temp_19238, spite_lit_17501, spite_temp_19239}; SpiteString spite_temp_19241 = spite_string_join(3, spite_temp_19240); spite_temp_19241; });
+SpiteString spite_temp_19242 = ({ SpiteString spite_temp_19238 = text_; SpiteString spite_temp_19239 = lexeme_; SpiteString spite_temp_19240[] = {spite_temp_19238, spite_lit_17503, spite_temp_19239}; SpiteString spite_temp_19241 = spite_string_join(3, spite_temp_19240); spite_temp_19241; });
 SpiteString___release(lexeme_);
 SpiteString___release(text_);
 return spite_temp_19242;
@@ -86042,7 +86044,7 @@ List_Syntax_Types_GenericArgument_GenericArgument* wrapped_arguments_ = List_Syn
 Syntax_Types_TypeArgument* type_argument_ = Syntax_Types_TypeArgument___make(Syntax_Types_Type_Type___retain(result_));
 List_Syntax_Types_GenericArgument_GenericArgument_append(wrapped_arguments_, Syntax_Types_GenericArgument_GenericArgument___retain(((Syntax_Types_GenericArgument_GenericArgument)(type_argument_))));
 List_String* wrapper_path_ = List_String___make();
-List_String_append(wrapper_path_, spite_lit_17502);
+List_String_append(wrapper_path_, spite_lit_17504);
 Syntax_Types_Type_Type spite_temp_19252 = ((Syntax_Types_Type_Type)(Syntax_Types_NamedType___make(List_String___retain(wrapper_path_), List_Syntax_Types_GenericArgument_GenericArgument___retain(wrapped_arguments_))));
 Syntax_Types_Type_Type___release(result_);
 result_ = spite_temp_19252;
@@ -86078,13 +86080,13 @@ return spite_temp_19257;
 if (((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_keyword_type))) && (((Syntax_Parser_next_kind(self) == Syntax_TokenKind_TokenKind_dot)))) {
 Syntax_Token* spite_temp_19258 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19258);
-List_String* symbol_path_ = ({ List_String* spite_temp_19260 = List_String___make(); List_String_append(spite_temp_19260, spite_lit_17505); spite_temp_19260; });
+List_String* symbol_path_ = ({ List_String* spite_temp_19260 = List_String___make(); List_String_append(spite_temp_19260, spite_lit_17507); spite_temp_19260; });
 Syntax_Types_Type_Type spite_temp_19261 = Syntax_Parser_parse_type_path(self, List_String___retain(symbol_path_));
 List_String___release(symbol_path_);
 return spite_temp_19261;
 }
 if (((!(Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))))) {
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19262 = Syntax_Parser_found_text(self); SpiteString spite_temp_19263[] = {spite_lit_17507, spite_temp_19262}; SpiteString spite_temp_19264 = spite_string_join(2, spite_temp_19263); SpiteString___release(spite_temp_19262); spite_temp_19264; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19262 = Syntax_Parser_found_text(self); SpiteString spite_temp_19263[] = {spite_lit_17509, spite_temp_19262}; SpiteString spite_temp_19264 = spite_string_join(2, spite_temp_19263); SpiteString___release(spite_temp_19262); spite_temp_19264; }));
 Syntax_Types_Type_Type spite_temp_19265 = Syntax_Parser_dummy_type(self);
 return spite_temp_19265;
 }
@@ -86108,7 +86110,7 @@ bool spite_temp_19274 = true;
 List_String___release(path_);
 return spite_temp_19274;
 }
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19275 = Syntax_Parser_found_text(self); SpiteString spite_temp_19276[] = {spite_lit_17511, spite_temp_19275}; SpiteString spite_temp_19277 = spite_string_join(2, spite_temp_19276); SpiteString___release(spite_temp_19275); spite_temp_19277; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19275 = Syntax_Parser_found_text(self); SpiteString spite_temp_19276[] = {spite_lit_17513, spite_temp_19275}; SpiteString spite_temp_19277 = spite_string_join(2, spite_temp_19276); SpiteString___release(spite_temp_19275); spite_temp_19277; }));
 bool spite_temp_19278 = false;
 List_String___release(path_);
 return spite_temp_19278;
@@ -86135,11 +86137,11 @@ expect_more_ = false;
 }
 Syntax_Types_GenericArgument_GenericArgument___release(parsed_generic_argument_);
 }
-Syntax_Token* spite_temp_19281 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_greater, spite_lit_17512);
+Syntax_Token* spite_temp_19281 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_greater, spite_lit_17514);
 Syntax_Token___release(spite_temp_19281);
 }
-if ((((List_String_count(path_) == 1))) && ((({ SpiteString spite_temp_19282 = List_String_get_at(path_, 0); SpiteString spite_temp_19283 = spite_lit_17514; bool spite_temp_19284 = SpiteString_equals(spite_temp_19282, SpiteString___retain(spite_temp_19283)); SpiteString___release(spite_temp_19282); SpiteString___release(spite_temp_19283); spite_temp_19284; })))) {
-Syntax_Parser_fail(self, spite_lit_17515);
+if ((((List_String_count(path_) == 1))) && ((({ SpiteString spite_temp_19282 = List_String_get_at(path_, 0); SpiteString spite_temp_19283 = spite_lit_17516; bool spite_temp_19284 = SpiteString_equals(spite_temp_19282, SpiteString___retain(spite_temp_19283)); SpiteString___release(spite_temp_19282); SpiteString___release(spite_temp_19283); spite_temp_19284; })))) {
+Syntax_Parser_fail(self, spite_lit_17517);
 }
 Syntax_Types_Type_Type spite_temp_19285 = ((Syntax_Types_Type_Type)(Syntax_Types_NamedType___make(List_String___retain(path_), List_Syntax_Types_GenericArgument_GenericArgument___retain(arguments_))));
 List_Syntax_Types_GenericArgument_GenericArgument___release(arguments_);
@@ -86148,7 +86150,7 @@ return spite_temp_19285;
 }
 Syntax_Types_Type_Type Syntax_Parser_generic_member_type(Syntax_Parser* self, SpiteString generic_name_) {
 List_String* path_ = List_String___make();
-List_String_append(path_, ({ SpiteString spite_temp_19286 = generic_name_; SpiteString spite_temp_19287[] = {spite_lit_17517, spite_temp_19286}; SpiteString spite_temp_19288 = spite_string_join(2, spite_temp_19287); spite_temp_19288; }));
+List_String_append(path_, ({ SpiteString spite_temp_19286 = generic_name_; SpiteString spite_temp_19287[] = {spite_lit_17519, spite_temp_19286}; SpiteString spite_temp_19288 = spite_string_join(2, spite_temp_19287); spite_temp_19288; }));
 while ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_dot))) {
 Syntax_Token* spite_temp_19289 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19289);
@@ -86156,7 +86158,7 @@ if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_identifier))) {
 List_String_append(path_, ({ SpiteString spite_temp_19292 = ({ Syntax_Token* spite_temp_19290 = Syntax_Parser_advance(self); SpiteString spite_temp_19291 = SpiteString___retain((spite_temp_19290)->text_); Syntax_Token___release(spite_temp_19290); spite_temp_19291; }); spite_temp_19292; }));
 }
 else {
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19293 = Syntax_Parser_found_text(self); SpiteString spite_temp_19294[] = {spite_lit_17520, spite_temp_19293}; SpiteString spite_temp_19295 = spite_string_join(2, spite_temp_19294); SpiteString___release(spite_temp_19293); spite_temp_19295; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19293 = Syntax_Parser_found_text(self); SpiteString spite_temp_19294[] = {spite_lit_17522, spite_temp_19293}; SpiteString spite_temp_19295 = spite_string_join(2, spite_temp_19294); SpiteString___release(spite_temp_19293); spite_temp_19295; }));
 }
 }
 List_Syntax_Types_GenericArgument_GenericArgument* no_generic_arguments_ = List_Syntax_Types_GenericArgument_GenericArgument___make();
@@ -86173,7 +86175,7 @@ Syntax_Types_GenericArgument_GenericArgument spite_temp_19297 = Syntax_Types_Gen
 Syntax_Types_GenericArgument_GenericArgument___release(result_);
 return spite_temp_19297;
 }
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19298 = Syntax_Parser_found_text(self); SpiteString spite_temp_19299[] = {spite_lit_17522, spite_temp_19298}; SpiteString spite_temp_19300 = spite_string_join(2, spite_temp_19299); SpiteString___release(spite_temp_19298); spite_temp_19300; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19298 = Syntax_Parser_found_text(self); SpiteString spite_temp_19299[] = {spite_lit_17524, spite_temp_19298}; SpiteString spite_temp_19300 = spite_string_join(2, spite_temp_19299); SpiteString___release(spite_temp_19298); spite_temp_19300; }));
 Syntax_Types_GenericArgument_GenericArgument spite_temp_19301 = ((Syntax_Types_GenericArgument_GenericArgument)(Syntax_Types_IntegerArgument___make(SpiteLong_from_integer(0, 0))));
 Syntax_Types_GenericArgument_GenericArgument___release(result_);
 return spite_temp_19301;
@@ -86372,7 +86374,7 @@ return spite_temp_19332;
 Syntax_Expressions_Expression_Expression Syntax_Parser_parse_expression(Syntax_Parser* self) {
 Syntax_Expressions_Expression_Expression value_ = Syntax_Parser_parse_binary_expression(self, 0);
 if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_question))) {
-Syntax_Parser_fail(self, spite_lit_17525);
+Syntax_Parser_fail(self, spite_lit_17527);
 }
 Syntax_Expressions_Expression_Expression spite_temp_19333 = Syntax_Expressions_Expression_Expression___retain(value_);
 Syntax_Expressions_Expression_Expression___release(value_);
@@ -86518,12 +86520,12 @@ Syntax_Token___release(operator_token_);
 return;
 }
 if ((((operator_token_)->kind_ == Syntax_TokenKind_TokenKind_less))) {
-Syntax_Parser_fail(self, spite_lit_17526);
+Syntax_Parser_fail(self, spite_lit_17528);
 Syntax_Token___release(following_);
 Syntax_Token___release(operator_token_);
 return;
 }
-Syntax_Parser_fail(self, spite_lit_17527);
+Syntax_Parser_fail(self, spite_lit_17529);
 Syntax_Token___release(following_);
 Syntax_Token___release(operator_token_);
 }
@@ -86531,7 +86533,7 @@ void Syntax_Parser_reject_written_text_join(Syntax_Parser* self, Syntax_Expressi
 Syntax_Expressions_StringLiteralExpression* written_left_ = Analysis_AstShape_as_string_literal(self->shape_, Syntax_Expressions_Expression_Expression___retain(left_));
 Syntax_Expressions_StringLiteralExpression* written_right_ = Analysis_AstShape_as_string_literal(self->shape_, Syntax_Expressions_Expression_Expression___retain(right_));
 if ((((written_left_) != 0)) && (((written_right_) != 0))) {
-Syntax_Parser_fail(self, spite_lit_17528);
+Syntax_Parser_fail(self, spite_lit_17530);
 Syntax_Expressions_StringLiteralExpression___release(written_right_);
 Syntax_Expressions_StringLiteralExpression___release(written_left_);
 Syntax_Expressions_Expression_Expression___release(right_);
@@ -86539,7 +86541,7 @@ Syntax_Expressions_Expression_Expression___release(left_);
 return;
 }
 if (((written_left_) != 0)) {
-Syntax_Parser_fail(self, spite_lit_17529);
+Syntax_Parser_fail(self, spite_lit_17531);
 Syntax_Expressions_StringLiteralExpression___release(written_right_);
 Syntax_Expressions_StringLiteralExpression___release(written_left_);
 Syntax_Expressions_Expression_Expression___release(right_);
@@ -86554,7 +86556,7 @@ Syntax_Expressions_Expression_Expression___release(right_);
 Syntax_Expressions_Expression_Expression___release(left_);
 return;
 }
-Syntax_Parser_fail(self, spite_lit_17530);
+Syntax_Parser_fail(self, spite_lit_17532);
 Syntax_Expressions_StringLiteralExpression___release(written_right_);
 Syntax_Expressions_StringLiteralExpression___release(written_left_);
 Syntax_Expressions_Expression_Expression___release(right_);
@@ -86586,7 +86588,7 @@ Syntax_Expressions_Expression_Expression Syntax_Parser_parse_postfix_rest(Syntax
 if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_dot))) {
 Syntax_Token* spite_temp_19361 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19361);
-Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17532);
+Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17534);
 Syntax_Expressions_MemberExpression* member_ = Syntax_Expressions_MemberExpression___make(Syntax_Expressions_Expression_Expression___retain(expression_), SpiteString___retain((name_)->text_));
 Syntax_Expressions_Expression_Expression spite_temp_19362 = Syntax_Parser_parse_postfix_rest(self, Syntax_Expressions_Expression_Expression___retain(((Syntax_Expressions_Expression_Expression)(member_))));
 Syntax_Expressions_MemberExpression___release(member_);
@@ -86607,7 +86609,7 @@ if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_left_bracket))) {
 Syntax_Token* spite_temp_19364 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19364);
 Syntax_Expressions_Expression_Expression index_expression_ = Syntax_Parser_parse_expression(self);
-Syntax_Token* spite_temp_19365 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_bracket, spite_lit_17533);
+Syntax_Token* spite_temp_19365 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_bracket, spite_lit_17535);
 Syntax_Token___release(spite_temp_19365);
 Syntax_Expressions_IndexExpression* indexed_ = Syntax_Expressions_IndexExpression___make(Syntax_Expressions_Expression_Expression___retain(expression_), Syntax_Expressions_Expression_Expression___retain(index_expression_));
 Syntax_Expressions_Expression_Expression spite_temp_19366 = Syntax_Parser_parse_postfix_rest(self, Syntax_Expressions_Expression_Expression___retain(((Syntax_Expressions_Expression_Expression)(indexed_))));
@@ -86671,7 +86673,7 @@ List_Syntax_Expressions_Expression_Expression___release(arguments_);
 return spite_temp_19374;
 }
 List_Syntax_Expressions_Expression_Expression* Syntax_Parser_parse_arguments_between_parentheses(Syntax_Parser* self) {
-Syntax_Token* spite_temp_19375 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_left_paren, spite_lit_17534);
+Syntax_Token* spite_temp_19375 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_left_paren, spite_lit_17536);
 Syntax_Token___release(spite_temp_19375);
 List_Syntax_Expressions_Expression_Expression* arguments_ = List_Syntax_Expressions_Expression_Expression___make();
 bool expect_more_ = (!(Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_right_paren)));
@@ -86688,7 +86690,7 @@ expect_more_ = false;
 }
 Syntax_Expressions_Expression_Expression___release(parsed_expression_);
 }
-Syntax_Token* spite_temp_19377 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_paren, spite_lit_17535);
+Syntax_Token* spite_temp_19377 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_paren, spite_lit_17537);
 Syntax_Token___release(spite_temp_19377);
 List_Syntax_Expressions_Expression_Expression* spite_temp_19378 = List_Syntax_Expressions_Expression_Expression___retain(arguments_);
 List_Syntax_Expressions_Expression_Expression___release(arguments_);
@@ -86727,7 +86729,7 @@ Syntax_Expressions_BinaryExpression* spite_temp_19383 = joined_;
 Syntax_Expressions_Expression_Expression spite_temp_19384 = Syntax_Expressions_Expression_Expression___retain(((Syntax_Expressions_Expression_Expression)(joined_)));
 Syntax_Expressions_Expression_Expression___release(text_);
 text_ = spite_temp_19384;
-Syntax_Token* following_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_string_literal, spite_lit_17537);
+Syntax_Token* following_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_string_literal, spite_lit_17539);
 if (((!(SpiteString_is_empty((following_)->text_))))) {
 Syntax_Expressions_Expression_Expression piece_ = ((Syntax_Expressions_Expression_Expression)(Syntax_Expressions_StringLiteralExpression___make(SpiteString___retain((following_)->text_))));
 Syntax_Expressions_BinaryExpression* joined_ = Syntax_Expressions_BinaryExpression___make(Syntax_Expressions_BinaryOperator_BinaryOperator_add, Syntax_Expressions_Expression_Expression___retain(text_), Syntax_Expressions_Expression_Expression___retain(piece_));
@@ -86795,8 +86797,8 @@ SpiteString___release(borrowed_);
 SpiteString___release(lexeme_);
 return spite_temp_19402;
 }
-if ((({ SpiteString spite_temp_19403 = lexeme_; SpiteString spite_temp_19404 = spite_lit_17539; bool spite_temp_19405 = SpiteString_equals(spite_temp_19403, SpiteString___retain(spite_temp_19404)); SpiteString___release(spite_temp_19404); spite_temp_19405; }))) {
-Syntax_Parser_fail(self, spite_lit_17540);
+if ((({ SpiteString spite_temp_19403 = lexeme_; SpiteString spite_temp_19404 = spite_lit_17541; bool spite_temp_19405 = SpiteString_equals(spite_temp_19403, SpiteString___retain(spite_temp_19404)); SpiteString___release(spite_temp_19404); spite_temp_19405; }))) {
+Syntax_Parser_fail(self, spite_lit_17542);
 Syntax_Token* spite_temp_19406 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19406);
 Syntax_Expressions_Expression_Expression spite_temp_19407 = Syntax_Parser_dummy_expression(self);
@@ -86815,7 +86817,7 @@ if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_left_paren))) {
 Syntax_Token* spite_temp_19409 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19409);
 Syntax_Expressions_Expression_Expression inner_ = Syntax_Parser_parse_expression(self);
-Syntax_Token* spite_temp_19410 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_paren, spite_lit_17541);
+Syntax_Token* spite_temp_19410 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_paren, spite_lit_17543);
 Syntax_Token___release(spite_temp_19410);
 Syntax_Expressions_Expression_Expression spite_temp_19411 = Syntax_Expressions_Expression_Expression___retain(inner_);
 Syntax_Expressions_Expression_Expression___release(inner_);
@@ -86829,7 +86831,7 @@ if ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_left_brace))) {
 Syntax_Expressions_Expression_Expression spite_temp_19413 = Syntax_Parser_parse_object_literal(self);
 return spite_temp_19413;
 }
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19416 = ({ Syntax_Token* spite_temp_19414 = Syntax_Parser_current(self); SpiteString spite_temp_19415 = SpiteString___retain((spite_temp_19414)->lexeme_); Syntax_Token___release(spite_temp_19414); spite_temp_19415; }); SpiteString spite_temp_19417[] = {spite_lit_17543, spite_temp_19416, spite_lit_17545}; SpiteString spite_temp_19418 = spite_string_join(3, spite_temp_19417); SpiteString___release(spite_temp_19416); spite_temp_19418; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19416 = ({ Syntax_Token* spite_temp_19414 = Syntax_Parser_current(self); SpiteString spite_temp_19415 = SpiteString___retain((spite_temp_19414)->lexeme_); Syntax_Token___release(spite_temp_19414); spite_temp_19415; }); SpiteString spite_temp_19417[] = {spite_lit_17545, spite_temp_19416, spite_lit_17547}; SpiteString spite_temp_19418 = spite_string_join(3, spite_temp_19417); SpiteString___release(spite_temp_19416); spite_temp_19418; }));
 Syntax_Expressions_Expression_Expression spite_temp_19419 = Syntax_Parser_dummy_expression(self);
 return spite_temp_19419;
 }
@@ -86837,12 +86839,12 @@ Syntax_Expressions_Expression_Expression Syntax_Parser_parse_this(Syntax_Parser*
 if (((Syntax_Parser_next_kind(self) != Syntax_TokenKind_TokenKind_dot))) {
 Syntax_Token* spite_temp_19420 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19420);
-Syntax_Expressions_Expression_Expression spite_temp_19421 = ((Syntax_Expressions_Expression_Expression)(Syntax_Expressions_IdentifierExpression___make(spite_lit_17546)));
+Syntax_Expressions_Expression_Expression spite_temp_19421 = ((Syntax_Expressions_Expression_Expression)(Syntax_Expressions_IdentifierExpression___make(spite_lit_17548)));
 return spite_temp_19421;
 }
 int32_t following_ = (self->position_ + 2);
 int32_t after_ = (self->position_ + 3);
-SpiteString member_ = spite_lit_17548;
+SpiteString member_ = spite_lit_17550;
 bool called_ = false;
 if (((following_ < List_Syntax_Token_count(self->tokens_)))) {
 SpiteString spite_temp_19424 = ({ Syntax_Token* spite_temp_19422 = List_Syntax_Token_get_at(self->tokens_, following_); SpiteString spite_temp_19423 = SpiteString___retain((spite_temp_19422)->lexeme_); Syntax_Token___release(spite_temp_19422); spite_temp_19423; });
@@ -86853,10 +86855,10 @@ if (((after_ < List_Syntax_Token_count(self->tokens_)))) {
 called_ = (({ Syntax_Token* spite_temp_19425 = List_Syntax_Token_get_at(self->tokens_, after_); Syntax_TokenKind_TokenKind spite_temp_19426 = (spite_temp_19425)->kind_; Syntax_Token___release(spite_temp_19425); spite_temp_19426; }) == Syntax_TokenKind_TokenKind_left_paren);
 }
 if ((called_)) {
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19427 = member_; SpiteString spite_temp_19428 = member_; SpiteString spite_temp_19429[] = {spite_lit_17550, spite_temp_19427, spite_lit_17552, spite_temp_19428, spite_lit_17554}; SpiteString spite_temp_19430 = spite_string_join(5, spite_temp_19429); spite_temp_19430; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19427 = member_; SpiteString spite_temp_19428 = member_; SpiteString spite_temp_19429[] = {spite_lit_17552, spite_temp_19427, spite_lit_17554, spite_temp_19428, spite_lit_17556}; SpiteString spite_temp_19430 = spite_string_join(5, spite_temp_19429); spite_temp_19430; }));
 }
 else {
-Syntax_Parser_fail(self, ({ SpiteString spite_temp_19431 = member_; SpiteString spite_temp_19432 = member_; SpiteString spite_temp_19433[] = {spite_lit_17556, spite_temp_19431, spite_lit_17558, spite_temp_19432, spite_lit_17560}; SpiteString spite_temp_19434 = spite_string_join(5, spite_temp_19433); spite_temp_19434; }));
+Syntax_Parser_fail(self, ({ SpiteString spite_temp_19431 = member_; SpiteString spite_temp_19432 = member_; SpiteString spite_temp_19433[] = {spite_lit_17558, spite_temp_19431, spite_lit_17560, spite_temp_19432, spite_lit_17562}; SpiteString spite_temp_19434 = spite_string_join(5, spite_temp_19433); spite_temp_19434; }));
 }
 Syntax_Token* spite_temp_19435 = Syntax_Parser_advance(self);
 Syntax_Token___release(spite_temp_19435);
@@ -86882,7 +86884,7 @@ finished_ = true;
 Syntax_Expressions_ListElement___release(element_);
 Syntax_Expressions_Expression_Expression___release(value_);
 }
-Syntax_Token* spite_temp_19438 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_bracket, spite_lit_17561);
+Syntax_Token* spite_temp_19438 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_bracket, spite_lit_17563);
 Syntax_Token___release(spite_temp_19438);
 Syntax_Expressions_Expression_Expression spite_temp_19439 = ((Syntax_Expressions_Expression_Expression)(Syntax_Expressions_ListLiteralExpression___make(List_Syntax_Expressions_ListElement___retain(elements_))));
 List_Syntax_Expressions_ListElement___release(elements_);
@@ -86895,8 +86897,8 @@ Syntax_Parser_skip_trivia(self);
 List_Syntax_Expressions_ObjectField* fields_ = List_Syntax_Expressions_ObjectField___make();
 bool finished_ = ((Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_right_brace)) || (Syntax_Parser_check(self, Syntax_TokenKind_TokenKind_end_of_file)));
 while (((!(finished_)))) {
-Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17563);
-Syntax_Token* spite_temp_19441 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_colon, spite_lit_17564);
+Syntax_Token* name_ = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_identifier, spite_lit_17565);
+Syntax_Token* spite_temp_19441 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_colon, spite_lit_17566);
 Syntax_Token___release(spite_temp_19441);
 Syntax_Expressions_Expression_Expression value_ = Syntax_Parser_parse_expression(self);
 Syntax_Expressions_ObjectField* field_ = Syntax_Expressions_ObjectField___make(SpiteString___retain((name_)->text_), Syntax_Expressions_Expression_Expression___retain(value_));
@@ -86910,7 +86912,7 @@ Syntax_Expressions_ObjectField___release(field_);
 Syntax_Expressions_Expression_Expression___release(value_);
 Syntax_Token___release(name_);
 }
-Syntax_Token* spite_temp_19442 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_brace, spite_lit_17565);
+Syntax_Token* spite_temp_19442 = Syntax_Parser_expect(self, Syntax_TokenKind_TokenKind_right_brace, spite_lit_17567);
 Syntax_Token___release(spite_temp_19442);
 Syntax_Expressions_Expression_Expression spite_temp_19443 = ((Syntax_Expressions_Expression_Expression)(Syntax_Expressions_ObjectLiteralExpression___make(List_Syntax_Expressions_ObjectField___retain(fields_))));
 List_Syntax_Expressions_ObjectField___release(fields_);
@@ -86937,7 +86939,7 @@ self->comment_lines_ = spite_temp_19574;
 List_String* spite_temp_19575 = List_String___retain(comments_);
 List_String___release(self->comment_texts_);
 self->comment_texts_ = spite_temp_19575;
-SpiteString text_ = spite_lit_17681;
+SpiteString text_ = spite_lit_17683;
 int32_t comment_index_ = 0;
 int32_t index_ = 0;
 while (((index_ < List_Syntax_Statements_Statement_Statement_count((file_)->statements_)))) {
@@ -86951,7 +86953,7 @@ spite_report_assert_trace();
 exit(1);
 }
 int32_t starts_at_ = List_Integer_get_at(self->statement_lines_, index_);
-SpiteString comment_block_ = spite_lit_17683;
+SpiteString comment_block_ = spite_lit_17685;
 while (((((comment_index_ < List_Integer_count(self->comment_lines_))) && ((List_Integer_get_at(self->comment_lines_, comment_index_) < starts_at_))))) {
 if (!(((comment_index_ < List_String_count(self->comment_texts_))))) {
 fflush(stdout);
@@ -86965,17 +86967,17 @@ exit(1);
 SpiteString spite_temp_19578 = List_String_get_at(self->comment_texts_, comment_index_);
 comment_block_ = SpiteString_append(comment_block_, spite_temp_19578);
 SpiteString___release(spite_temp_19578);
-SpiteString spite_temp_19579 = spite_lit_17684;
+SpiteString spite_temp_19579 = spite_lit_17686;
 comment_block_ = SpiteString_append(comment_block_, spite_temp_19579);
 SpiteString___release(spite_temp_19579);
 comment_index_ = (comment_index_ + 1);
 }
 if (((index_ > 0))) {
-SpiteString spite_temp_19580 = spite_lit_17685;
+SpiteString spite_temp_19580 = spite_lit_17687;
 text_ = SpiteString_append(text_, spite_temp_19580);
 SpiteString___release(spite_temp_19580);
 if (((((!(SpiteString_is_empty(comment_block_)))) || (Syntax_SourcePrinter_declarations_stand_apart(self, List_Syntax_Statements_Statement_Statement___retain((file_)->statements_), index_))))) {
-SpiteString spite_temp_19581 = spite_lit_17686;
+SpiteString spite_temp_19581 = spite_lit_17688;
 text_ = SpiteString_append(text_, spite_temp_19581);
 SpiteString___release(spite_temp_19581);
 }
@@ -86990,11 +86992,11 @@ SpiteString___release(comment_block_);
 }
 while (((comment_index_ < List_String_count(self->comment_texts_)))) {
 if (((!(SpiteString_is_empty(text_))))) {
-SpiteString spite_temp_19584 = spite_lit_17687;
+SpiteString spite_temp_19584 = spite_lit_17689;
 text_ = SpiteString_append(text_, spite_temp_19584);
 SpiteString___release(spite_temp_19584);
 }
-SpiteString spite_temp_19585 = spite_lit_17688;
+SpiteString spite_temp_19585 = spite_lit_17690;
 text_ = SpiteString_append(text_, spite_temp_19585);
 SpiteString___release(spite_temp_19585);
 SpiteString spite_temp_19586 = List_String_get_at(self->comment_texts_, comment_index_);
@@ -87011,7 +87013,7 @@ List_Integer___release(lines_);
 Syntax_SourceFile___release(file_);
 return SPITE_STRING_EMPTY;
 }
-SpiteString spite_temp_19590 = ({ SpiteString spite_temp_19587 = text_; SpiteString spite_temp_19588[] = {spite_temp_19587, spite_lit_17691}; SpiteString spite_temp_19589 = spite_string_join(2, spite_temp_19588); spite_temp_19589; });
+SpiteString spite_temp_19590 = ({ SpiteString spite_temp_19587 = text_; SpiteString spite_temp_19588[] = {spite_temp_19587, spite_lit_17693}; SpiteString spite_temp_19589 = spite_string_join(2, spite_temp_19588); spite_temp_19589; });
 SpiteString___release(text_);
 List_String___release(comments_);
 List_Integer___release(comments_at_);
@@ -87065,7 +87067,7 @@ exit(1);
 }
 int32_t line_ = List_Integer_get_at(self->statement_lines_, index_);
 int32_t previous_line_ = List_Integer_get_at(self->statement_lines_, previous_);
-int32_t printed_lines_ = ({ List_String* spite_temp_19602 = ({ SpiteString spite_temp_19600 = Syntax_SourcePrinter_source_statement(self, List_Syntax_Statements_Statement_Statement_get_at(statements_, previous_), 0); List_String* spite_temp_19601 = SpiteString_split(spite_temp_19600, spite_lit_17693); SpiteString___release(spite_temp_19600); spite_temp_19601; }); int32_t spite_temp_19603 = List_String_count(spite_temp_19602); List_String___release(spite_temp_19602); spite_temp_19603; });
+int32_t printed_lines_ = ({ List_String* spite_temp_19602 = ({ SpiteString spite_temp_19600 = Syntax_SourcePrinter_source_statement(self, List_Syntax_Statements_Statement_Statement_get_at(statements_, previous_), 0); List_String* spite_temp_19601 = SpiteString_split(spite_temp_19600, spite_lit_17695); SpiteString___release(spite_temp_19600); spite_temp_19601; }); int32_t spite_temp_19603 = List_String_count(spite_temp_19602); List_String___release(spite_temp_19602); spite_temp_19603; });
 bool spite_temp_19604 = (line_ > (previous_line_ + printed_lines_));
 List_Syntax_Statements_Statement_Statement___release(statements_);
 return spite_temp_19604;
@@ -87075,15 +87077,15 @@ List_Syntax_Statements_Statement_Statement___release(statements_);
 return spite_temp_19605;
 }
 SpiteString Syntax_SourcePrinter_source_statement_list(Syntax_SourcePrinter* self, List_Syntax_Statements_Statement_Statement* statements_, int32_t depth_) {
-SpiteString text_ = spite_lit_17695;
+SpiteString text_ = spite_lit_17697;
 int32_t index_ = 0;
 while (((index_ < List_Syntax_Statements_Statement_Statement_count(statements_)))) {
 if (((index_ > 0))) {
-SpiteString spite_temp_19606 = spite_lit_17696;
+SpiteString spite_temp_19606 = spite_lit_17698;
 text_ = SpiteString_append(text_, spite_temp_19606);
 SpiteString___release(spite_temp_19606);
 if ((((depth_ == 0))) && ((Syntax_SourcePrinter_stands_apart(self, ((Syntax_Statements_Statement_Statement)(List_Syntax_Statements_Statement_Statement_find_at(statements_, (index_ - 1)))), List_Syntax_Statements_Statement_Statement_get_at(statements_, index_))))) {
-SpiteString spite_temp_19607 = spite_lit_17697;
+SpiteString spite_temp_19607 = spite_lit_17699;
 text_ = SpiteString_append(text_, spite_temp_19607);
 SpiteString___release(spite_temp_19607);
 }
@@ -87133,10 +87135,10 @@ Syntax_Statements_Statement_Statement___release(previous_);
 return spite_temp_19613;
 }
 SpiteString Syntax_SourcePrinter_source_indent(Syntax_SourcePrinter* self, int32_t depth_) {
-SpiteString text_ = spite_lit_17699;
+SpiteString text_ = spite_lit_17701;
 int32_t index_ = 0;
 while (((index_ < depth_))) {
-SpiteString spite_temp_19614 = spite_lit_17700;
+SpiteString spite_temp_19614 = spite_lit_17702;
 text_ = SpiteString_append(text_, spite_temp_19614);
 SpiteString___release(spite_temp_19614);
 index_ = (index_ + 1);
@@ -87147,17 +87149,17 @@ return spite_temp_19615;
 }
 SpiteString Syntax_SourcePrinter_source_block(Syntax_SourcePrinter* self, List_Syntax_Statements_Statement_Statement* statements_, int32_t depth_) {
 if ((List_Syntax_Statements_Statement_Statement_is_empty(statements_))) {
-SpiteString spite_temp_19616 = spite_lit_17701;
+SpiteString spite_temp_19616 = spite_lit_17703;
 List_Syntax_Statements_Statement_Statement___release(statements_);
 return spite_temp_19616;
 }
-SpiteString spite_temp_19621 = ({ SpiteString spite_temp_19617 = Syntax_SourcePrinter_source_statement_list(self, List_Syntax_Statements_Statement_Statement___retain(statements_), (depth_ + 1)); SpiteString spite_temp_19618 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19619[] = {spite_lit_17703, spite_temp_19617, spite_lit_17705, spite_temp_19618, spite_lit_17707}; SpiteString spite_temp_19620 = spite_string_join(5, spite_temp_19619); SpiteString___release(spite_temp_19617); SpiteString___release(spite_temp_19618); spite_temp_19620; });
+SpiteString spite_temp_19621 = ({ SpiteString spite_temp_19617 = Syntax_SourcePrinter_source_statement_list(self, List_Syntax_Statements_Statement_Statement___retain(statements_), (depth_ + 1)); SpiteString spite_temp_19618 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19619[] = {spite_lit_17705, spite_temp_19617, spite_lit_17707, spite_temp_19618, spite_lit_17709}; SpiteString spite_temp_19620 = spite_string_join(5, spite_temp_19619); SpiteString___release(spite_temp_19617); SpiteString___release(spite_temp_19618); spite_temp_19620; });
 List_Syntax_Statements_Statement_Statement___release(statements_);
 return spite_temp_19621;
 }
 SpiteString Syntax_SourcePrinter_source_statement(Syntax_SourcePrinter* self, Syntax_Statements_Statement_Statement statement_, int32_t depth_) {
 SpiteString printed_ = Syntax_SourcePrinter_source_statement_line(self, Syntax_Statements_Statement_Statement___retain(statement_), depth_);
-if ((((SpiteString_contains(printed_, spite_lit_17708)) || ((SpiteString_length(printed_) <= self->width_))))) {
+if ((((SpiteString_contains(printed_, spite_lit_17710)) || ((SpiteString_length(printed_) <= self->width_))))) {
 SpiteString spite_temp_19622 = SpiteString___retain(printed_);
 SpiteString___release(printed_);
 Syntax_Statements_Statement_Statement___release(statement_);
@@ -87174,13 +87176,13 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString type_text_ = spite_lit_17710;
+SpiteString type_text_ = spite_lit_17712;
 if ((((((Syntax_Statements_VariableDeclaration*)spite_temp_19623))->type_reference_) != 0)) {
-SpiteString spite_temp_19627 = ({ SpiteString spite_temp_19624 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((((Syntax_Statements_VariableDeclaration*)spite_temp_19623))->type_reference_)); SpiteString spite_temp_19625[] = {spite_lit_17712, spite_temp_19624}; SpiteString spite_temp_19626 = spite_string_join(2, spite_temp_19625); SpiteString___release(spite_temp_19624); spite_temp_19626; });
+SpiteString spite_temp_19627 = ({ SpiteString spite_temp_19624 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((((Syntax_Statements_VariableDeclaration*)spite_temp_19623))->type_reference_)); SpiteString spite_temp_19625[] = {spite_lit_17714, spite_temp_19624}; SpiteString spite_temp_19626 = spite_string_join(2, spite_temp_19625); SpiteString___release(spite_temp_19624); spite_temp_19626; });
 SpiteString___release(type_text_);
 type_text_ = spite_temp_19627;
 }
-SpiteString spite_temp_19633 = Syntax_SourcePrinter_broken_or(self, SpiteString___retain(printed_), ({ SpiteString spite_temp_19628 = indent_; SpiteString spite_temp_19629 = (((Syntax_Statements_VariableDeclaration*)spite_temp_19623))->name_; SpiteString spite_temp_19630 = type_text_; SpiteString spite_temp_19631[] = {spite_temp_19628, spite_lit_17715, spite_temp_19629, spite_temp_19630, spite_lit_17717}; SpiteString spite_temp_19632 = spite_string_join(5, spite_temp_19631); spite_temp_19632; }), Syntax_Expressions_Expression_Expression___retain(((Syntax_Expressions_Expression_Expression)((((Syntax_Statements_VariableDeclaration*)spite_temp_19623))->value_))), depth_);
+SpiteString spite_temp_19633 = Syntax_SourcePrinter_broken_or(self, SpiteString___retain(printed_), ({ SpiteString spite_temp_19628 = indent_; SpiteString spite_temp_19629 = (((Syntax_Statements_VariableDeclaration*)spite_temp_19623))->name_; SpiteString spite_temp_19630 = type_text_; SpiteString spite_temp_19631[] = {spite_temp_19628, spite_lit_17717, spite_temp_19629, spite_temp_19630, spite_lit_17719}; SpiteString spite_temp_19632 = spite_string_join(5, spite_temp_19631); spite_temp_19632; }), Syntax_Expressions_Expression_Expression___retain(((Syntax_Expressions_Expression_Expression)((((Syntax_Statements_VariableDeclaration*)spite_temp_19623))->value_))), depth_);
 SpiteString___release(type_text_);
 SpiteString___release(indent_);
 SpiteString___release(printed_);
@@ -87202,7 +87204,7 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString spite_temp_19638 = Syntax_SourcePrinter_broken_or(self, SpiteString___retain(printed_), ({ SpiteString spite_temp_19634 = indent_; SpiteString spite_temp_19635 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_AssignmentStatement*)spite_temp_19623))->target_)); SpiteString spite_temp_19636[] = {spite_temp_19634, spite_temp_19635, spite_lit_17720}; SpiteString spite_temp_19637 = spite_string_join(3, spite_temp_19636); SpiteString___release(spite_temp_19635); spite_temp_19637; }), Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_AssignmentStatement*)spite_temp_19623))->value_), depth_);
+SpiteString spite_temp_19638 = Syntax_SourcePrinter_broken_or(self, SpiteString___retain(printed_), ({ SpiteString spite_temp_19634 = indent_; SpiteString spite_temp_19635 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_AssignmentStatement*)spite_temp_19623))->target_)); SpiteString spite_temp_19636[] = {spite_temp_19634, spite_temp_19635, spite_lit_17722}; SpiteString spite_temp_19637 = spite_string_join(3, spite_temp_19636); SpiteString___release(spite_temp_19635); spite_temp_19637; }), Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_AssignmentStatement*)spite_temp_19623))->value_), depth_);
 SpiteString___release(indent_);
 SpiteString___release(printed_);
 Syntax_Statements_Statement_Statement___release(statement_);
@@ -87210,7 +87212,7 @@ return spite_temp_19638;
 }
 else if (((SpiteHeader*)(spite_temp_19623))->class_id == 171) {
 if ((((((Syntax_Statements_ReturnStatement*)spite_temp_19623))->value_) != 0)) {
-SpiteString spite_temp_19642 = Syntax_SourcePrinter_broken_or(self, SpiteString___retain(printed_), ({ SpiteString spite_temp_19639 = indent_; SpiteString spite_temp_19640[] = {spite_temp_19639, spite_lit_17723}; SpiteString spite_temp_19641 = spite_string_join(2, spite_temp_19640); spite_temp_19641; }), Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_ReturnStatement*)spite_temp_19623))->value_), depth_);
+SpiteString spite_temp_19642 = Syntax_SourcePrinter_broken_or(self, SpiteString___retain(printed_), ({ SpiteString spite_temp_19639 = indent_; SpiteString spite_temp_19640[] = {spite_temp_19639, spite_lit_17725}; SpiteString spite_temp_19641 = spite_string_join(2, spite_temp_19640); spite_temp_19641; }), Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_ReturnStatement*)spite_temp_19623))->value_), depth_);
 SpiteString___release(indent_);
 SpiteString___release(printed_);
 Syntax_Statements_Statement_Statement___release(statement_);
@@ -87339,7 +87341,7 @@ return spite_temp_19662;
 SpiteString Syntax_SourcePrinter_broken_expression(Syntax_SourcePrinter* self, Syntax_Expressions_Expression_Expression expression_, int32_t depth_) {
 Syntax_Expressions_CallExpression* call_ = Analysis_AstShape_as_call(self->shape_, Syntax_Expressions_Expression_Expression___retain(expression_));
 if (((call_) != 0)) {
-SpiteString spite_temp_19663 = Syntax_SourcePrinter_broken_call(self, Syntax_Expressions_Expression_Expression___retain((call_)->callee_), List_Syntax_Expressions_Expression_Expression___retain((call_)->arguments_), spite_lit_17725, depth_);
+SpiteString spite_temp_19663 = Syntax_SourcePrinter_broken_call(self, Syntax_Expressions_Expression_Expression___retain((call_)->callee_), List_Syntax_Expressions_Expression_Expression___retain((call_)->arguments_), spite_lit_17727, depth_);
 Syntax_Expressions_CallExpression___release(call_);
 Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_19663;
@@ -87353,7 +87355,7 @@ Syntax_Expressions_CallExpression___release(call_);
 Syntax_Expressions_Expression_Expression___release(expression_);
 return SPITE_STRING_EMPTY;
 }
-SpiteString spite_temp_19667 = Syntax_SourcePrinter_broken_call(self, Syntax_Expressions_Expression_Expression___retain((generic_call_)->callee_), List_Syntax_Expressions_Expression_Expression___retain((generic_call_)->arguments_), ({ SpiteString spite_temp_19664 = Syntax_SourcePrinter_generic_arguments_text(self, Syntax_Expressions_GenericCallExpression___retain(generic_call_)); SpiteString spite_temp_19665[] = {spite_lit_17727, spite_temp_19664, spite_lit_17729}; SpiteString spite_temp_19666 = spite_string_join(3, spite_temp_19665); SpiteString___release(spite_temp_19664); spite_temp_19666; }), depth_);
+SpiteString spite_temp_19667 = Syntax_SourcePrinter_broken_call(self, Syntax_Expressions_Expression_Expression___retain((generic_call_)->callee_), List_Syntax_Expressions_Expression_Expression___retain((generic_call_)->arguments_), ({ SpiteString spite_temp_19664 = Syntax_SourcePrinter_generic_arguments_text(self, Syntax_Expressions_GenericCallExpression___retain(generic_call_)); SpiteString spite_temp_19665[] = {spite_lit_17729, spite_temp_19664, spite_lit_17731}; SpiteString spite_temp_19666 = spite_string_join(3, spite_temp_19665); SpiteString___release(spite_temp_19664); spite_temp_19666; }), depth_);
 Syntax_Expressions_GenericCallExpression___release(generic_call_);
 Syntax_Expressions_CallExpression___release(call_);
 Syntax_Expressions_Expression_Expression___release(expression_);
@@ -87361,7 +87363,7 @@ return spite_temp_19667;
 }
 Syntax_Expressions_ListLiteralExpression* listed_ = Analysis_AstShape_as_list_literal(self->shape_, Syntax_Expressions_Expression_Expression___retain(expression_));
 if (((listed_) != 0)) {
-SpiteString text_ = spite_lit_17731;
+SpiteString text_ = spite_lit_17733;
 int32_t index_ = 0;
 while (((index_ < List_Syntax_Expressions_ListElement_count((listed_)->elements_)))) {
 if (!(({ Syntax_Expressions_Expression_Expression spite_temp_19670 = ({ Syntax_Expressions_ListElement* spite_temp_19668 = List_Syntax_Expressions_ListElement_get_at((listed_)->elements_, index_); Syntax_Expressions_Expression_Expression spite_temp_19669 = Syntax_Expressions_Expression_Expression___retain((spite_temp_19668)->value_); Syntax_Expressions_ListElement___release(spite_temp_19668); spite_temp_19669; }); int path_narrowed = ((spite_temp_19670) != 0); Syntax_Expressions_Expression_Expression___release(spite_temp_19670); path_narrowed; }))) {
@@ -87371,7 +87373,7 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString spite_temp_19671 = spite_lit_17732;
+SpiteString spite_temp_19671 = spite_lit_17734;
 text_ = SpiteString_append(text_, spite_temp_19671);
 SpiteString___release(spite_temp_19671);
 SpiteString spite_temp_19672 = Syntax_SourcePrinter_source_indent(self, (depth_ + 1));
@@ -87382,7 +87384,7 @@ text_ = SpiteString_append(text_, spite_temp_19675);
 SpiteString___release(spite_temp_19675);
 index_ = (index_ + 1);
 }
-SpiteString spite_temp_19680 = ({ SpiteString spite_temp_19676 = text_; SpiteString spite_temp_19677 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19678[] = {spite_temp_19676, spite_lit_17735, spite_temp_19677, spite_lit_17737}; SpiteString spite_temp_19679 = spite_string_join(4, spite_temp_19678); SpiteString___release(spite_temp_19677); spite_temp_19679; });
+SpiteString spite_temp_19680 = ({ SpiteString spite_temp_19676 = text_; SpiteString spite_temp_19677 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19678[] = {spite_temp_19676, spite_lit_17737, spite_temp_19677, spite_lit_17739}; SpiteString spite_temp_19679 = spite_string_join(4, spite_temp_19678); SpiteString___release(spite_temp_19677); spite_temp_19679; });
 SpiteString___release(text_);
 Syntax_Expressions_ListLiteralExpression___release(listed_);
 Syntax_Expressions_GenericCallExpression___release(generic_call_);
@@ -87392,7 +87394,7 @@ return spite_temp_19680;
 }
 Syntax_Expressions_ObjectLiteralExpression* described_ = Analysis_AstShape_as_object_literal(self->shape_, Syntax_Expressions_Expression_Expression___retain(expression_));
 if (((described_) != 0)) {
-SpiteString text_ = spite_lit_17739;
+SpiteString text_ = spite_lit_17741;
 int32_t index_ = 0;
 while (((index_ < List_Syntax_Expressions_ObjectField_count((described_)->fields_)))) {
 if (!(({ Syntax_Expressions_Expression_Expression spite_temp_19683 = ({ Syntax_Expressions_ObjectField* spite_temp_19681 = List_Syntax_Expressions_ObjectField_get_at((described_)->fields_, index_); Syntax_Expressions_Expression_Expression spite_temp_19682 = Syntax_Expressions_Expression_Expression___retain((spite_temp_19681)->value_); Syntax_Expressions_ObjectField___release(spite_temp_19681); spite_temp_19682; }); int path_narrowed = ((spite_temp_19683) != 0); Syntax_Expressions_Expression_Expression___release(spite_temp_19683); path_narrowed; }))) {
@@ -87402,7 +87404,7 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString spite_temp_19684 = spite_lit_17740;
+SpiteString spite_temp_19684 = spite_lit_17742;
 text_ = SpiteString_append(text_, spite_temp_19684);
 SpiteString___release(spite_temp_19684);
 SpiteString spite_temp_19685 = Syntax_SourcePrinter_source_indent(self, (depth_ + 1));
@@ -87411,7 +87413,7 @@ SpiteString___release(spite_temp_19685);
 SpiteString spite_temp_19688 = ({ Syntax_Expressions_ObjectField* spite_temp_19686 = List_Syntax_Expressions_ObjectField_get_at((described_)->fields_, index_); SpiteString spite_temp_19687 = SpiteString___retain((spite_temp_19686)->name_); Syntax_Expressions_ObjectField___release(spite_temp_19686); spite_temp_19687; });
 text_ = SpiteString_append(text_, spite_temp_19688);
 SpiteString___release(spite_temp_19688);
-SpiteString spite_temp_19689 = spite_lit_17741;
+SpiteString spite_temp_19689 = spite_lit_17743;
 text_ = SpiteString_append(text_, spite_temp_19689);
 SpiteString___release(spite_temp_19689);
 SpiteString spite_temp_19692 = Syntax_SourcePrinter_source_expression(self, ({ Syntax_Expressions_ObjectField* spite_temp_19690 = List_Syntax_Expressions_ObjectField_get_at((described_)->fields_, index_); Syntax_Expressions_Expression_Expression spite_temp_19691 = Syntax_Expressions_Expression_Expression___retain((spite_temp_19690)->value_); Syntax_Expressions_ObjectField___release(spite_temp_19690); spite_temp_19691; }));
@@ -87419,7 +87421,7 @@ text_ = SpiteString_append(text_, spite_temp_19692);
 SpiteString___release(spite_temp_19692);
 index_ = (index_ + 1);
 }
-SpiteString spite_temp_19697 = ({ SpiteString spite_temp_19693 = text_; SpiteString spite_temp_19694 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19695[] = {spite_temp_19693, spite_lit_17744, spite_temp_19694, spite_lit_17746}; SpiteString spite_temp_19696 = spite_string_join(4, spite_temp_19695); SpiteString___release(spite_temp_19694); spite_temp_19696; });
+SpiteString spite_temp_19697 = ({ SpiteString spite_temp_19693 = text_; SpiteString spite_temp_19694 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19695[] = {spite_temp_19693, spite_lit_17746, spite_temp_19694, spite_lit_17748}; SpiteString spite_temp_19696 = spite_string_join(4, spite_temp_19695); SpiteString___release(spite_temp_19694); spite_temp_19696; });
 SpiteString___release(text_);
 Syntax_Expressions_ObjectLiteralExpression___release(described_);
 Syntax_Expressions_ListLiteralExpression___release(listed_);
@@ -87428,7 +87430,7 @@ Syntax_Expressions_CallExpression___release(call_);
 Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_19697;
 }
-SpiteString spite_temp_19698 = spite_lit_17747;
+SpiteString spite_temp_19698 = spite_lit_17749;
 Syntax_Expressions_ObjectLiteralExpression___release(described_);
 Syntax_Expressions_ListLiteralExpression___release(listed_);
 Syntax_Expressions_GenericCallExpression___release(generic_call_);
@@ -87451,10 +87453,10 @@ List_Syntax_Expressions_Expression_Expression___release(arguments_);
 Syntax_Expressions_Expression_Expression___release(callee_);
 return SPITE_STRING_EMPTY;
 }
-SpiteString text_ = ({ SpiteString spite_temp_19703 = Syntax_SourcePrinter_source_receiver(self, Syntax_Expressions_Expression_Expression___retain(callee_)); SpiteString spite_temp_19704 = type_arguments_; SpiteString spite_temp_19705[] = {spite_temp_19703, spite_temp_19704, spite_lit_17753}; SpiteString spite_temp_19706 = spite_string_join(3, spite_temp_19705); SpiteString___release(spite_temp_19703); spite_temp_19706; });
+SpiteString text_ = ({ SpiteString spite_temp_19703 = Syntax_SourcePrinter_source_receiver(self, Syntax_Expressions_Expression_Expression___retain(callee_)); SpiteString spite_temp_19704 = type_arguments_; SpiteString spite_temp_19705[] = {spite_temp_19703, spite_temp_19704, spite_lit_17755}; SpiteString spite_temp_19706 = spite_string_join(3, spite_temp_19705); SpiteString___release(spite_temp_19703); spite_temp_19706; });
 int32_t index_ = 0;
 while (((index_ < List_Syntax_Expressions_Expression_Expression_count(arguments_)))) {
-SpiteString spite_temp_19707 = spite_lit_17754;
+SpiteString spite_temp_19707 = spite_lit_17756;
 text_ = SpiteString_append(text_, spite_temp_19707);
 SpiteString___release(spite_temp_19707);
 SpiteString spite_temp_19708 = Syntax_SourcePrinter_source_indent(self, (depth_ + 1));
@@ -87463,12 +87465,12 @@ SpiteString___release(spite_temp_19708);
 SpiteString spite_temp_19709 = Syntax_SourcePrinter_source_expression(self, List_Syntax_Expressions_Expression_Expression_get_at(arguments_, index_));
 text_ = SpiteString_append(text_, spite_temp_19709);
 SpiteString___release(spite_temp_19709);
-SpiteString spite_temp_19710 = spite_lit_17755;
+SpiteString spite_temp_19710 = spite_lit_17757;
 text_ = SpiteString_append(text_, spite_temp_19710);
 SpiteString___release(spite_temp_19710);
 index_ = (index_ + 1);
 }
-SpiteString spite_temp_19715 = ({ SpiteString spite_temp_19711 = text_; SpiteString spite_temp_19712 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19713[] = {spite_temp_19711, spite_lit_17758, spite_temp_19712, spite_lit_17760}; SpiteString spite_temp_19714 = spite_string_join(4, spite_temp_19713); SpiteString___release(spite_temp_19712); spite_temp_19714; });
+SpiteString spite_temp_19715 = ({ SpiteString spite_temp_19711 = text_; SpiteString spite_temp_19712 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19713[] = {spite_temp_19711, spite_lit_17760, spite_temp_19712, spite_lit_17762}; SpiteString spite_temp_19714 = spite_string_join(4, spite_temp_19713); SpiteString___release(spite_temp_19712); spite_temp_19714; });
 SpiteString___release(text_);
 SpiteString___release(type_arguments_);
 List_Syntax_Expressions_Expression_Expression___release(arguments_);
@@ -87480,27 +87482,27 @@ SpiteString indent_ = Syntax_SourcePrinter_source_indent(self, depth_);
 {
 Syntax_Statements_Statement_Statement spite_temp_19716 = statement_;
 if (((SpiteHeader*)(spite_temp_19716))->class_id == 172) {
-SpiteString spite_temp_19720 = ({ SpiteString spite_temp_19717 = indent_; SpiteString spite_temp_19718[] = {spite_temp_19717, spite_lit_17763}; SpiteString spite_temp_19719 = spite_string_join(2, spite_temp_19718); spite_temp_19719; });
+SpiteString spite_temp_19720 = ({ SpiteString spite_temp_19717 = indent_; SpiteString spite_temp_19718[] = {spite_temp_19717, spite_lit_17765}; SpiteString spite_temp_19719 = spite_string_join(2, spite_temp_19718); spite_temp_19719; });
 SpiteString___release(indent_);
 Syntax_Statements_Statement_Statement___release(statement_);
 return spite_temp_19720;
 }
 else if (((SpiteHeader*)(spite_temp_19716))->class_id == 168) {
 if ((((((Syntax_Statements_GenericDeclaration*)spite_temp_19716))->constraint_) != 0)) {
-SpiteString spite_temp_19726 = ({ SpiteString spite_temp_19721 = indent_; SpiteString spite_temp_19722 = (((Syntax_Statements_GenericDeclaration*)spite_temp_19716))->name_; SpiteString spite_temp_19723 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((((Syntax_Statements_GenericDeclaration*)spite_temp_19716))->constraint_)); SpiteString spite_temp_19724[] = {spite_temp_19721, spite_lit_17766, spite_temp_19722, spite_lit_17768, spite_temp_19723}; SpiteString spite_temp_19725 = spite_string_join(5, spite_temp_19724); SpiteString___release(spite_temp_19723); spite_temp_19725; });
+SpiteString spite_temp_19726 = ({ SpiteString spite_temp_19721 = indent_; SpiteString spite_temp_19722 = (((Syntax_Statements_GenericDeclaration*)spite_temp_19716))->name_; SpiteString spite_temp_19723 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((((Syntax_Statements_GenericDeclaration*)spite_temp_19716))->constraint_)); SpiteString spite_temp_19724[] = {spite_temp_19721, spite_lit_17768, spite_temp_19722, spite_lit_17770, spite_temp_19723}; SpiteString spite_temp_19725 = spite_string_join(5, spite_temp_19724); SpiteString___release(spite_temp_19723); spite_temp_19725; });
 SpiteString___release(indent_);
 Syntax_Statements_Statement_Statement___release(statement_);
 return spite_temp_19726;
 }
-SpiteString spite_temp_19731 = ({ SpiteString spite_temp_19727 = indent_; SpiteString spite_temp_19728 = (((Syntax_Statements_GenericDeclaration*)spite_temp_19716))->name_; SpiteString spite_temp_19729[] = {spite_temp_19727, spite_lit_17771, spite_temp_19728}; SpiteString spite_temp_19730 = spite_string_join(3, spite_temp_19729); spite_temp_19730; });
+SpiteString spite_temp_19731 = ({ SpiteString spite_temp_19727 = indent_; SpiteString spite_temp_19728 = (((Syntax_Statements_GenericDeclaration*)spite_temp_19716))->name_; SpiteString spite_temp_19729[] = {spite_temp_19727, spite_lit_17773, spite_temp_19728}; SpiteString spite_temp_19730 = spite_string_join(3, spite_temp_19729); spite_temp_19730; });
 SpiteString___release(indent_);
 Syntax_Statements_Statement_Statement___release(statement_);
 return spite_temp_19731;
 }
 else if (((SpiteHeader*)(spite_temp_19716))->class_id == 178) {
-SpiteString type_text_ = spite_lit_17773;
+SpiteString type_text_ = spite_lit_17775;
 if ((((((Syntax_Statements_VariableDeclaration*)spite_temp_19716))->type_reference_) != 0)) {
-SpiteString spite_temp_19735 = ({ SpiteString spite_temp_19732 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((((Syntax_Statements_VariableDeclaration*)spite_temp_19716))->type_reference_)); SpiteString spite_temp_19733[] = {spite_lit_17775, spite_temp_19732}; SpiteString spite_temp_19734 = spite_string_join(2, spite_temp_19733); SpiteString___release(spite_temp_19732); spite_temp_19734; });
+SpiteString spite_temp_19735 = ({ SpiteString spite_temp_19732 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((((Syntax_Statements_VariableDeclaration*)spite_temp_19716))->type_reference_)); SpiteString spite_temp_19733[] = {spite_lit_17777, spite_temp_19732}; SpiteString spite_temp_19734 = spite_string_join(2, spite_temp_19733); SpiteString___release(spite_temp_19732); spite_temp_19734; });
 SpiteString___release(type_text_);
 type_text_ = spite_temp_19735;
 }
@@ -87511,7 +87513,7 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString spite_temp_19742 = ({ SpiteString spite_temp_19736 = indent_; SpiteString spite_temp_19737 = (((Syntax_Statements_VariableDeclaration*)spite_temp_19716))->name_; SpiteString spite_temp_19738 = type_text_; SpiteString spite_temp_19739 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_VariableDeclaration*)spite_temp_19716))->value_)); SpiteString spite_temp_19740[] = {spite_temp_19736, spite_lit_17778, spite_temp_19737, spite_temp_19738, spite_lit_17780, spite_temp_19739}; SpiteString spite_temp_19741 = spite_string_join(6, spite_temp_19740); SpiteString___release(spite_temp_19739); spite_temp_19741; });
+SpiteString spite_temp_19742 = ({ SpiteString spite_temp_19736 = indent_; SpiteString spite_temp_19737 = (((Syntax_Statements_VariableDeclaration*)spite_temp_19716))->name_; SpiteString spite_temp_19738 = type_text_; SpiteString spite_temp_19739 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_VariableDeclaration*)spite_temp_19716))->value_)); SpiteString spite_temp_19740[] = {spite_temp_19736, spite_lit_17780, spite_temp_19737, spite_temp_19738, spite_lit_17782, spite_temp_19739}; SpiteString spite_temp_19741 = spite_string_join(6, spite_temp_19740); SpiteString___release(spite_temp_19739); spite_temp_19741; });
 SpiteString___release(type_text_);
 SpiteString___release(indent_);
 Syntax_Statements_Statement_Statement___release(statement_);
@@ -87530,13 +87532,13 @@ Syntax_Statements_Statement_Statement___release(statement_);
 return spite_temp_19744;
 }
 else if (((SpiteHeader*)(spite_temp_19716))->class_id == 164) {
-SpiteString spite_temp_19750 = ({ SpiteString spite_temp_19745 = indent_; SpiteString spite_temp_19746 = (((Syntax_Statements_EnumDeclaration*)spite_temp_19716))->name_; SpiteString spite_temp_19747 = Syntax_SourcePrinter_source_names(self, List_String___retain((((Syntax_Statements_EnumDeclaration*)spite_temp_19716))->values_), depth_); SpiteString spite_temp_19748[] = {spite_temp_19745, spite_lit_17783, spite_temp_19746, spite_lit_17785, spite_temp_19747}; SpiteString spite_temp_19749 = spite_string_join(5, spite_temp_19748); SpiteString___release(spite_temp_19747); spite_temp_19749; });
+SpiteString spite_temp_19750 = ({ SpiteString spite_temp_19745 = indent_; SpiteString spite_temp_19746 = (((Syntax_Statements_EnumDeclaration*)spite_temp_19716))->name_; SpiteString spite_temp_19747 = Syntax_SourcePrinter_source_names(self, List_String___retain((((Syntax_Statements_EnumDeclaration*)spite_temp_19716))->values_), depth_); SpiteString spite_temp_19748[] = {spite_temp_19745, spite_lit_17785, spite_temp_19746, spite_lit_17787, spite_temp_19747}; SpiteString spite_temp_19749 = spite_string_join(5, spite_temp_19748); SpiteString___release(spite_temp_19747); spite_temp_19749; });
 SpiteString___release(indent_);
 Syntax_Statements_Statement_Statement___release(statement_);
 return spite_temp_19750;
 }
 else if (((SpiteHeader*)(spite_temp_19716))->class_id == 177) {
-SpiteString spite_temp_19756 = ({ SpiteString spite_temp_19751 = indent_; SpiteString spite_temp_19752 = (((Syntax_Statements_UnionDeclaration*)spite_temp_19716))->name_; SpiteString spite_temp_19753 = Syntax_SourcePrinter_source_types(self, List_Syntax_Types_Type_Type___retain((((Syntax_Statements_UnionDeclaration*)spite_temp_19716))->members_), depth_); SpiteString spite_temp_19754[] = {spite_temp_19751, spite_lit_17788, spite_temp_19752, spite_lit_17790, spite_temp_19753}; SpiteString spite_temp_19755 = spite_string_join(5, spite_temp_19754); SpiteString___release(spite_temp_19753); spite_temp_19755; });
+SpiteString spite_temp_19756 = ({ SpiteString spite_temp_19751 = indent_; SpiteString spite_temp_19752 = (((Syntax_Statements_UnionDeclaration*)spite_temp_19716))->name_; SpiteString spite_temp_19753 = Syntax_SourcePrinter_source_types(self, List_Syntax_Types_Type_Type___retain((((Syntax_Statements_UnionDeclaration*)spite_temp_19716))->members_), depth_); SpiteString spite_temp_19754[] = {spite_temp_19751, spite_lit_17790, spite_temp_19752, spite_lit_17792, spite_temp_19753}; SpiteString spite_temp_19755 = spite_string_join(5, spite_temp_19754); SpiteString___release(spite_temp_19753); spite_temp_19755; });
 SpiteString___release(indent_);
 Syntax_Statements_Statement_Statement___release(statement_);
 return spite_temp_19756;
@@ -87556,7 +87558,7 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString spite_temp_19762 = ({ SpiteString spite_temp_19757 = indent_; SpiteString spite_temp_19758 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_AssignmentStatement*)spite_temp_19716))->target_)); SpiteString spite_temp_19759 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_AssignmentStatement*)spite_temp_19716))->value_)); SpiteString spite_temp_19760[] = {spite_temp_19757, spite_temp_19758, spite_lit_17793, spite_temp_19759}; SpiteString spite_temp_19761 = spite_string_join(4, spite_temp_19760); SpiteString___release(spite_temp_19758); SpiteString___release(spite_temp_19759); spite_temp_19761; });
+SpiteString spite_temp_19762 = ({ SpiteString spite_temp_19757 = indent_; SpiteString spite_temp_19758 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_AssignmentStatement*)spite_temp_19716))->target_)); SpiteString spite_temp_19759 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_AssignmentStatement*)spite_temp_19716))->value_)); SpiteString spite_temp_19760[] = {spite_temp_19757, spite_temp_19758, spite_lit_17795, spite_temp_19759}; SpiteString spite_temp_19761 = spite_string_join(4, spite_temp_19760); SpiteString___release(spite_temp_19758); SpiteString___release(spite_temp_19759); spite_temp_19761; });
 SpiteString___release(indent_);
 Syntax_Statements_Statement_Statement___release(statement_);
 return spite_temp_19762;
@@ -87569,18 +87571,18 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString text_ = ({ SpiteString spite_temp_19768 = indent_; SpiteString spite_temp_19769 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_IfStatement*)spite_temp_19716))->condition_)); SpiteString spite_temp_19770 = Syntax_SourcePrinter_source_block(self, List_Syntax_Statements_Statement_Statement___retain((((Syntax_Statements_IfStatement*)spite_temp_19716))->then_branch_), depth_); SpiteString spite_temp_19771[] = {spite_temp_19768, spite_lit_17801, spite_temp_19769, spite_lit_17803, spite_temp_19770}; SpiteString spite_temp_19772 = spite_string_join(5, spite_temp_19771); SpiteString___release(spite_temp_19769); SpiteString___release(spite_temp_19770); spite_temp_19772; });
+SpiteString text_ = ({ SpiteString spite_temp_19768 = indent_; SpiteString spite_temp_19769 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_IfStatement*)spite_temp_19716))->condition_)); SpiteString spite_temp_19770 = Syntax_SourcePrinter_source_block(self, List_Syntax_Statements_Statement_Statement___retain((((Syntax_Statements_IfStatement*)spite_temp_19716))->then_branch_), depth_); SpiteString spite_temp_19771[] = {spite_temp_19768, spite_lit_17803, spite_temp_19769, spite_lit_17805, spite_temp_19770}; SpiteString spite_temp_19772 = spite_string_join(5, spite_temp_19771); SpiteString___release(spite_temp_19769); SpiteString___release(spite_temp_19770); spite_temp_19772; });
 if (((((Syntax_Statements_IfStatement*)spite_temp_19716))->has_else_branch_)) {
 if (((List_Syntax_Statements_Statement_Statement_count((((Syntax_Statements_IfStatement*)spite_temp_19716))->else_branch_) == 1))) {
 if (({ Syntax_Statements_IfStatement* spite_temp_19773 = Analysis_AstShape_as_if_statement(self->shape_, List_Syntax_Statements_Statement_Statement_get_at((((Syntax_Statements_IfStatement*)spite_temp_19716))->else_branch_, 0)); bool spite_truth = ((spite_temp_19773) != 0); Syntax_Statements_IfStatement___release(spite_temp_19773); spite_truth; })) {
-SpiteString spite_temp_19780 = ({ SpiteString spite_temp_19774 = text_; SpiteString spite_temp_19777 = ({ SpiteString spite_temp_19775 = Syntax_SourcePrinter_source_statement(self, List_Syntax_Statements_Statement_Statement_get_at((((Syntax_Statements_IfStatement*)spite_temp_19716))->else_branch_, 0), depth_); SpiteString spite_temp_19776 = SpiteString_trim(spite_temp_19775); SpiteString___release(spite_temp_19775); spite_temp_19776; }); SpiteString spite_temp_19778[] = {spite_temp_19774, spite_lit_17806, spite_temp_19777}; SpiteString spite_temp_19779 = spite_string_join(3, spite_temp_19778); SpiteString___release(spite_temp_19777); spite_temp_19779; });
+SpiteString spite_temp_19780 = ({ SpiteString spite_temp_19774 = text_; SpiteString spite_temp_19777 = ({ SpiteString spite_temp_19775 = Syntax_SourcePrinter_source_statement(self, List_Syntax_Statements_Statement_Statement_get_at((((Syntax_Statements_IfStatement*)spite_temp_19716))->else_branch_, 0), depth_); SpiteString spite_temp_19776 = SpiteString_trim(spite_temp_19775); SpiteString___release(spite_temp_19775); spite_temp_19776; }); SpiteString spite_temp_19778[] = {spite_temp_19774, spite_lit_17808, spite_temp_19777}; SpiteString spite_temp_19779 = spite_string_join(3, spite_temp_19778); SpiteString___release(spite_temp_19777); spite_temp_19779; });
 SpiteString___release(text_);
 SpiteString___release(indent_);
 Syntax_Statements_Statement_Statement___release(statement_);
 return spite_temp_19780;
 }
 }
-SpiteString spite_temp_19781 = spite_lit_17807;
+SpiteString spite_temp_19781 = spite_lit_17809;
 text_ = SpiteString_append(text_, spite_temp_19781);
 SpiteString___release(spite_temp_19781);
 SpiteString spite_temp_19782 = Syntax_SourcePrinter_source_block(self, List_Syntax_Statements_Statement_Statement___retain((((Syntax_Statements_IfStatement*)spite_temp_19716))->else_branch_), depth_);
@@ -87601,7 +87603,7 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString spite_temp_19789 = ({ SpiteString spite_temp_19784 = indent_; SpiteString spite_temp_19785 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_WhileStatement*)spite_temp_19716))->condition_)); SpiteString spite_temp_19786 = Syntax_SourcePrinter_source_block(self, List_Syntax_Statements_Statement_Statement___retain((((Syntax_Statements_WhileStatement*)spite_temp_19716))->body_), depth_); SpiteString spite_temp_19787[] = {spite_temp_19784, spite_lit_17810, spite_temp_19785, spite_lit_17812, spite_temp_19786}; SpiteString spite_temp_19788 = spite_string_join(5, spite_temp_19787); SpiteString___release(spite_temp_19785); SpiteString___release(spite_temp_19786); spite_temp_19788; });
+SpiteString spite_temp_19789 = ({ SpiteString spite_temp_19784 = indent_; SpiteString spite_temp_19785 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_WhileStatement*)spite_temp_19716))->condition_)); SpiteString spite_temp_19786 = Syntax_SourcePrinter_source_block(self, List_Syntax_Statements_Statement_Statement___retain((((Syntax_Statements_WhileStatement*)spite_temp_19716))->body_), depth_); SpiteString spite_temp_19787[] = {spite_temp_19784, spite_lit_17812, spite_temp_19785, spite_lit_17814, spite_temp_19786}; SpiteString spite_temp_19788 = spite_string_join(5, spite_temp_19787); SpiteString___release(spite_temp_19785); SpiteString___release(spite_temp_19786); spite_temp_19788; });
 SpiteString___release(indent_);
 Syntax_Statements_Statement_Statement___release(statement_);
 return spite_temp_19789;
@@ -87622,29 +87624,29 @@ exit(1);
 }
 if (((((Syntax_Statements_AssertStatement*)spite_temp_19716))->is_crash_)) {
 if ((({ Syntax_Expressions_Expression_Expression spite_temp_19791 = (((Syntax_Statements_AssertStatement*)spite_temp_19716))->value_; bool spite_temp_19792 = (((SpiteHeader*)(spite_temp_19791))->class_id == 145); spite_temp_19792; }))) {
-SpiteString spite_temp_19796 = ({ SpiteString spite_temp_19793 = indent_; SpiteString spite_temp_19794[] = {spite_temp_19793, spite_lit_17815}; SpiteString spite_temp_19795 = spite_string_join(2, spite_temp_19794); spite_temp_19795; });
+SpiteString spite_temp_19796 = ({ SpiteString spite_temp_19793 = indent_; SpiteString spite_temp_19794[] = {spite_temp_19793, spite_lit_17817}; SpiteString spite_temp_19795 = spite_string_join(2, spite_temp_19794); spite_temp_19795; });
 SpiteString___release(indent_);
 Syntax_Statements_Statement_Statement___release(statement_);
 return spite_temp_19796;
 }
-SpiteString spite_temp_19801 = ({ SpiteString spite_temp_19797 = indent_; SpiteString spite_temp_19798 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_AssertStatement*)spite_temp_19716))->value_)); SpiteString spite_temp_19799[] = {spite_temp_19797, spite_lit_17818, spite_temp_19798}; SpiteString spite_temp_19800 = spite_string_join(3, spite_temp_19799); SpiteString___release(spite_temp_19798); spite_temp_19800; });
+SpiteString spite_temp_19801 = ({ SpiteString spite_temp_19797 = indent_; SpiteString spite_temp_19798 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_AssertStatement*)spite_temp_19716))->value_)); SpiteString spite_temp_19799[] = {spite_temp_19797, spite_lit_17820, spite_temp_19798}; SpiteString spite_temp_19800 = spite_string_join(3, spite_temp_19799); SpiteString___release(spite_temp_19798); spite_temp_19800; });
 SpiteString___release(indent_);
 Syntax_Statements_Statement_Statement___release(statement_);
 return spite_temp_19801;
 }
-SpiteString spite_temp_19806 = ({ SpiteString spite_temp_19802 = indent_; SpiteString spite_temp_19803 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_AssertStatement*)spite_temp_19716))->value_)); SpiteString spite_temp_19804[] = {spite_temp_19802, spite_lit_17821, spite_temp_19803}; SpiteString spite_temp_19805 = spite_string_join(3, spite_temp_19804); SpiteString___release(spite_temp_19803); spite_temp_19805; });
+SpiteString spite_temp_19806 = ({ SpiteString spite_temp_19802 = indent_; SpiteString spite_temp_19803 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_AssertStatement*)spite_temp_19716))->value_)); SpiteString spite_temp_19804[] = {spite_temp_19802, spite_lit_17823, spite_temp_19803}; SpiteString spite_temp_19805 = spite_string_join(3, spite_temp_19804); SpiteString___release(spite_temp_19803); spite_temp_19805; });
 SpiteString___release(indent_);
 Syntax_Statements_Statement_Statement___release(statement_);
 return spite_temp_19806;
 }
 else if (((SpiteHeader*)(spite_temp_19716))->class_id == 171) {
 if ((((((Syntax_Statements_ReturnStatement*)spite_temp_19716))->value_) != 0)) {
-SpiteString spite_temp_19811 = ({ SpiteString spite_temp_19807 = indent_; SpiteString spite_temp_19808 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_ReturnStatement*)spite_temp_19716))->value_)); SpiteString spite_temp_19809[] = {spite_temp_19807, spite_lit_17824, spite_temp_19808}; SpiteString spite_temp_19810 = spite_string_join(3, spite_temp_19809); SpiteString___release(spite_temp_19808); spite_temp_19810; });
+SpiteString spite_temp_19811 = ({ SpiteString spite_temp_19807 = indent_; SpiteString spite_temp_19808 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_ReturnStatement*)spite_temp_19716))->value_)); SpiteString spite_temp_19809[] = {spite_temp_19807, spite_lit_17826, spite_temp_19808}; SpiteString spite_temp_19810 = spite_string_join(3, spite_temp_19809); SpiteString___release(spite_temp_19808); spite_temp_19810; });
 SpiteString___release(indent_);
 Syntax_Statements_Statement_Statement___release(statement_);
 return spite_temp_19811;
 }
-SpiteString spite_temp_19815 = ({ SpiteString spite_temp_19812 = indent_; SpiteString spite_temp_19813[] = {spite_temp_19812, spite_lit_17827}; SpiteString spite_temp_19814 = spite_string_join(2, spite_temp_19813); spite_temp_19814; });
+SpiteString spite_temp_19815 = ({ SpiteString spite_temp_19812 = indent_; SpiteString spite_temp_19813[] = {spite_temp_19812, spite_lit_17829}; SpiteString spite_temp_19814 = spite_string_join(2, spite_temp_19813); spite_temp_19814; });
 SpiteString___release(indent_);
 Syntax_Statements_Statement_Statement___release(statement_);
 return spite_temp_19815;
@@ -87659,7 +87661,7 @@ exit(1);
 }
 Syntax_Expressions_Expression_Expression folder_ = Syntax_SourcePrinter_loaded_folder(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Statements_ExpressionStatement*)spite_temp_19716))->value_));
 if (((folder_) != 0)) {
-SpiteString spite_temp_19820 = ({ SpiteString spite_temp_19816 = indent_; SpiteString spite_temp_19817 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain(folder_)); SpiteString spite_temp_19818[] = {spite_temp_19816, spite_lit_17830, spite_temp_19817}; SpiteString spite_temp_19819 = spite_string_join(3, spite_temp_19818); SpiteString___release(spite_temp_19817); spite_temp_19819; });
+SpiteString spite_temp_19820 = ({ SpiteString spite_temp_19816 = indent_; SpiteString spite_temp_19817 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain(folder_)); SpiteString spite_temp_19818[] = {spite_temp_19816, spite_lit_17832, spite_temp_19817}; SpiteString spite_temp_19819 = spite_string_join(3, spite_temp_19818); SpiteString___release(spite_temp_19817); spite_temp_19819; });
 Syntax_Expressions_Expression_Expression___release(folder_);
 SpiteString___release(indent_);
 Syntax_Statements_Statement_Statement___release(statement_);
@@ -87699,7 +87701,7 @@ Syntax_Expressions_CallExpression___release(call_);
 Syntax_Expressions_Expression_Expression___release(expression_);
 return 0;
 }
-if (!((({ SpiteString spite_temp_19826 = (identifier_)->name_; SpiteString spite_temp_19827 = spite_lit_17833; bool spite_temp_19828 = SpiteString_equals(spite_temp_19826, SpiteString___retain(spite_temp_19827)); SpiteString___release(spite_temp_19827); spite_temp_19828; })))) {
+if (!((({ SpiteString spite_temp_19826 = (identifier_)->name_; SpiteString spite_temp_19827 = spite_lit_17835; bool spite_temp_19828 = SpiteString_equals(spite_temp_19826, SpiteString___retain(spite_temp_19827)); SpiteString___release(spite_temp_19827); spite_temp_19828; })))) {
 SPITE_TRACE_ASSERT("spite.assert\t643a769a\tbootstrap/source/syntax/source_printer.spite:297\tSyntax.SourcePrinter\tloaded_folder\tidentifier.name == \"load\"\n");
 Syntax_Expressions_IdentifierExpression___release(identifier_);
 Syntax_Expressions_CallExpression___release(call_);
@@ -87721,20 +87723,20 @@ return spite_temp_19829;
 }
 SpiteString Syntax_SourcePrinter_spread_mark(Syntax_SourcePrinter* self, Syntax_Statements_Parameter* parameter_) {
 if (((parameter_)->is_variadic_)) {
-SpiteString spite_temp_19830 = spite_lit_17834;
+SpiteString spite_temp_19830 = spite_lit_17836;
 Syntax_Statements_Parameter___release(parameter_);
 return spite_temp_19830;
 }
-SpiteString spite_temp_19831 = spite_lit_17835;
+SpiteString spite_temp_19831 = spite_lit_17837;
 Syntax_Statements_Parameter___release(parameter_);
 return spite_temp_19831;
 }
 SpiteString Syntax_SourcePrinter_source_function(Syntax_SourcePrinter* self, Syntax_Statements_FunctionDeclaration* function_, int32_t depth_) {
-SpiteString parameters_ = spite_lit_17837;
+SpiteString parameters_ = spite_lit_17839;
 int32_t index_ = 0;
 while (((index_ < List_Syntax_Statements_Parameter_count((function_)->parameters_)))) {
 if (((index_ > 0))) {
-SpiteString spite_temp_19832 = spite_lit_17838;
+SpiteString spite_temp_19832 = spite_lit_17840;
 parameters_ = SpiteString_append(parameters_, spite_temp_19832);
 SpiteString___release(spite_temp_19832);
 }
@@ -87751,7 +87753,7 @@ parameters_ = SpiteString_append(parameters_, spite_temp_19833);
 SpiteString___release(spite_temp_19833);
 SpiteString spite_temp_19834 = (parameter_)->name_;
 parameters_ = SpiteString_append(parameters_, spite_temp_19834);
-SpiteString spite_temp_19835 = spite_lit_17839;
+SpiteString spite_temp_19835 = spite_lit_17841;
 parameters_ = SpiteString_append(parameters_, spite_temp_19835);
 SpiteString___release(spite_temp_19835);
 SpiteString spite_temp_19836 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((parameter_)->type_reference_));
@@ -87760,15 +87762,15 @@ SpiteString___release(spite_temp_19836);
 index_ = (index_ + 1);
 Syntax_Statements_Parameter___release(parameter_);
 }
-SpiteString returns_ = spite_lit_17841;
+SpiteString returns_ = spite_lit_17843;
 if ((((function_)->return_type_) != 0)) {
-SpiteString spite_temp_19840 = ({ SpiteString spite_temp_19837 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((function_)->return_type_)); SpiteString spite_temp_19838[] = {spite_lit_17843, spite_temp_19837}; SpiteString spite_temp_19839 = spite_string_join(2, spite_temp_19838); SpiteString___release(spite_temp_19837); spite_temp_19839; });
+SpiteString spite_temp_19840 = ({ SpiteString spite_temp_19837 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((function_)->return_type_)); SpiteString spite_temp_19838[] = {spite_lit_17845, spite_temp_19837}; SpiteString spite_temp_19839 = spite_string_join(2, spite_temp_19838); SpiteString___release(spite_temp_19837); spite_temp_19839; });
 SpiteString___release(returns_);
 returns_ = spite_temp_19840;
 }
-SpiteString header_ = ({ SpiteString spite_temp_19847 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19848 = (function_)->name_; SpiteString spite_temp_19849 = parameters_; SpiteString spite_temp_19850 = returns_; SpiteString spite_temp_19851[] = {spite_temp_19847, spite_lit_17855, spite_temp_19848, spite_lit_17857, spite_temp_19849, spite_lit_17859, spite_temp_19850, spite_lit_17861}; SpiteString spite_temp_19852 = spite_string_join(8, spite_temp_19851); SpiteString___release(spite_temp_19847); spite_temp_19852; });
+SpiteString header_ = ({ SpiteString spite_temp_19847 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19848 = (function_)->name_; SpiteString spite_temp_19849 = parameters_; SpiteString spite_temp_19850 = returns_; SpiteString spite_temp_19851[] = {spite_temp_19847, spite_lit_17857, spite_temp_19848, spite_lit_17859, spite_temp_19849, spite_lit_17861, spite_temp_19850, spite_lit_17863}; SpiteString spite_temp_19852 = spite_string_join(8, spite_temp_19851); SpiteString___release(spite_temp_19847); spite_temp_19852; });
 if (((!((function_)->has_body_)))) {
-SpiteString spite_temp_19859 = ({ SpiteString spite_temp_19853 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19854 = (function_)->name_; SpiteString spite_temp_19855 = parameters_; SpiteString spite_temp_19856 = returns_; SpiteString spite_temp_19857[] = {spite_temp_19853, spite_lit_17864, spite_temp_19854, spite_lit_17866, spite_temp_19855, spite_lit_17868, spite_temp_19856}; SpiteString spite_temp_19858 = spite_string_join(7, spite_temp_19857); SpiteString___release(spite_temp_19853); spite_temp_19858; });
+SpiteString spite_temp_19859 = ({ SpiteString spite_temp_19853 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19854 = (function_)->name_; SpiteString spite_temp_19855 = parameters_; SpiteString spite_temp_19856 = returns_; SpiteString spite_temp_19857[] = {spite_temp_19853, spite_lit_17866, spite_temp_19854, spite_lit_17868, spite_temp_19855, spite_lit_17870, spite_temp_19856}; SpiteString spite_temp_19858 = spite_string_join(7, spite_temp_19857); SpiteString___release(spite_temp_19853); spite_temp_19858; });
 SpiteString___release(header_);
 SpiteString___release(returns_);
 SpiteString___release(parameters_);
@@ -87776,7 +87778,7 @@ Syntax_Statements_FunctionDeclaration___release(function_);
 return spite_temp_19859;
 }
 if (((SpiteString_length(header_) > self->width_))) {
-SpiteString listed_ = spite_lit_17870;
+SpiteString listed_ = spite_lit_17872;
 index_ = 0;
 while (((index_ < List_Syntax_Statements_Parameter_count((function_)->parameters_)))) {
 Syntax_Statements_Parameter* listed_parameter_ = List_Syntax_Statements_Parameter_get_at((function_)->parameters_, index_);
@@ -87787,7 +87789,7 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString spite_temp_19860 = spite_lit_17871;
+SpiteString spite_temp_19860 = spite_lit_17873;
 listed_ = SpiteString_append(listed_, spite_temp_19860);
 SpiteString___release(spite_temp_19860);
 SpiteString spite_temp_19861 = Syntax_SourcePrinter_source_indent(self, (depth_ + 1));
@@ -87798,24 +87800,24 @@ listed_ = SpiteString_append(listed_, spite_temp_19862);
 SpiteString___release(spite_temp_19862);
 SpiteString spite_temp_19863 = (listed_parameter_)->name_;
 listed_ = SpiteString_append(listed_, spite_temp_19863);
-SpiteString spite_temp_19864 = spite_lit_17872;
+SpiteString spite_temp_19864 = spite_lit_17874;
 listed_ = SpiteString_append(listed_, spite_temp_19864);
 SpiteString___release(spite_temp_19864);
 SpiteString spite_temp_19865 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((listed_parameter_)->type_reference_));
 listed_ = SpiteString_append(listed_, spite_temp_19865);
 SpiteString___release(spite_temp_19865);
-SpiteString spite_temp_19866 = spite_lit_17873;
+SpiteString spite_temp_19866 = spite_lit_17875;
 listed_ = SpiteString_append(listed_, spite_temp_19866);
 SpiteString___release(spite_temp_19866);
 index_ = (index_ + 1);
 Syntax_Statements_Parameter___release(listed_parameter_);
 }
-SpiteString spite_temp_19871 = ({ SpiteString spite_temp_19867 = listed_; SpiteString spite_temp_19868 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19869[] = {spite_temp_19867, spite_lit_17876, spite_temp_19868}; SpiteString spite_temp_19870 = spite_string_join(3, spite_temp_19869); SpiteString___release(spite_temp_19868); spite_temp_19870; });
+SpiteString spite_temp_19871 = ({ SpiteString spite_temp_19867 = listed_; SpiteString spite_temp_19868 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19869[] = {spite_temp_19867, spite_lit_17878, spite_temp_19868}; SpiteString spite_temp_19870 = spite_string_join(3, spite_temp_19869); SpiteString___release(spite_temp_19868); spite_temp_19870; });
 SpiteString___release(parameters_);
 parameters_ = spite_temp_19871;
 SpiteString___release(listed_);
 }
-SpiteString spite_temp_19879 = ({ SpiteString spite_temp_19872 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19873 = (function_)->name_; SpiteString spite_temp_19874 = parameters_; SpiteString spite_temp_19875 = returns_; SpiteString spite_temp_19876 = Syntax_SourcePrinter_source_block(self, List_Syntax_Statements_Statement_Statement___retain((function_)->body_), depth_); SpiteString spite_temp_19877[] = {spite_temp_19872, spite_lit_17879, spite_temp_19873, spite_lit_17881, spite_temp_19874, spite_lit_17883, spite_temp_19875, spite_lit_17885, spite_temp_19876}; SpiteString spite_temp_19878 = spite_string_join(9, spite_temp_19877); SpiteString___release(spite_temp_19872); SpiteString___release(spite_temp_19876); spite_temp_19878; });
+SpiteString spite_temp_19879 = ({ SpiteString spite_temp_19872 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19873 = (function_)->name_; SpiteString spite_temp_19874 = parameters_; SpiteString spite_temp_19875 = returns_; SpiteString spite_temp_19876 = Syntax_SourcePrinter_source_block(self, List_Syntax_Statements_Statement_Statement___retain((function_)->body_), depth_); SpiteString spite_temp_19877[] = {spite_temp_19872, spite_lit_17881, spite_temp_19873, spite_lit_17883, spite_temp_19874, spite_lit_17885, spite_temp_19875, spite_lit_17887, spite_temp_19876}; SpiteString spite_temp_19878 = spite_string_join(9, spite_temp_19877); SpiteString___release(spite_temp_19872); SpiteString___release(spite_temp_19876); spite_temp_19878; });
 SpiteString___release(header_);
 SpiteString___release(returns_);
 SpiteString___release(parameters_);
@@ -87823,7 +87825,7 @@ Syntax_Statements_FunctionDeclaration___release(function_);
 return spite_temp_19879;
 }
 SpiteString Syntax_SourcePrinter_source_type_declaration(Syntax_SourcePrinter* self, Syntax_Statements_TypeDeclaration* declaration_, int32_t depth_) {
-SpiteString text_ = ({ SpiteString spite_temp_19884 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19885 = (declaration_)->name_; SpiteString spite_temp_19886[] = {spite_temp_19884, spite_lit_17893, spite_temp_19885, spite_lit_17895}; SpiteString spite_temp_19887 = spite_string_join(4, spite_temp_19886); SpiteString___release(spite_temp_19884); spite_temp_19887; });
+SpiteString text_ = ({ SpiteString spite_temp_19884 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19885 = (declaration_)->name_; SpiteString spite_temp_19886[] = {spite_temp_19884, spite_lit_17895, spite_temp_19885, spite_lit_17897}; SpiteString spite_temp_19887 = spite_string_join(4, spite_temp_19886); SpiteString___release(spite_temp_19884); spite_temp_19887; });
 int32_t index_ = 0;
 while (((index_ < List_Syntax_Statements_FieldDeclaration_count((declaration_)->fields_)))) {
 Syntax_Statements_FieldDeclaration* field_ = List_Syntax_Statements_FieldDeclaration_get_at((declaration_)->fields_, index_);
@@ -87835,11 +87837,11 @@ spite_report_assert_trace();
 exit(1);
 }
 if (((field_)->is_function_)) {
-SpiteString parameters_ = spite_lit_17897;
+SpiteString parameters_ = spite_lit_17899;
 int32_t parameter_index_ = 0;
 while (((parameter_index_ < List_Syntax_Types_Type_Type_count((field_)->parameter_types_)))) {
 if (((parameter_index_ > 0))) {
-SpiteString spite_temp_19888 = spite_lit_17898;
+SpiteString spite_temp_19888 = spite_lit_17900;
 parameters_ = SpiteString_append(parameters_, spite_temp_19888);
 SpiteString___release(spite_temp_19888);
 }
@@ -87848,13 +87850,13 @@ parameters_ = SpiteString_append(parameters_, spite_temp_19889);
 SpiteString___release(spite_temp_19889);
 parameter_index_ = (parameter_index_ + 1);
 }
-SpiteString returned_ = ({ SpiteString spite_temp_19893 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain(((Syntax_Types_Type_Type)((field_)->type_reference_)))); SpiteString spite_temp_19894[] = {spite_lit_17902, spite_temp_19893}; SpiteString spite_temp_19895 = spite_string_join(2, spite_temp_19894); SpiteString___release(spite_temp_19893); spite_temp_19895; });
-if ((({ SpiteString spite_temp_19896 = returned_; SpiteString spite_temp_19897 = spite_lit_17904; bool spite_temp_19898 = SpiteString_equals(spite_temp_19896, SpiteString___retain(spite_temp_19897)); SpiteString___release(spite_temp_19897); spite_temp_19898; }))) {
-SpiteString spite_temp_19899 = spite_lit_17905;
+SpiteString returned_ = ({ SpiteString spite_temp_19893 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain(((Syntax_Types_Type_Type)((field_)->type_reference_)))); SpiteString spite_temp_19894[] = {spite_lit_17904, spite_temp_19893}; SpiteString spite_temp_19895 = spite_string_join(2, spite_temp_19894); SpiteString___release(spite_temp_19893); spite_temp_19895; });
+if ((({ SpiteString spite_temp_19896 = returned_; SpiteString spite_temp_19897 = spite_lit_17906; bool spite_temp_19898 = SpiteString_equals(spite_temp_19896, SpiteString___retain(spite_temp_19897)); SpiteString___release(spite_temp_19897); spite_temp_19898; }))) {
+SpiteString spite_temp_19899 = spite_lit_17907;
 SpiteString___release(returned_);
 returned_ = spite_temp_19899;
 }
-SpiteString spite_temp_19900 = spite_lit_17906;
+SpiteString spite_temp_19900 = spite_lit_17908;
 text_ = SpiteString_append(text_, spite_temp_19900);
 SpiteString___release(spite_temp_19900);
 SpiteString spite_temp_19901 = Syntax_SourcePrinter_source_indent(self, (depth_ + 1));
@@ -87862,12 +87864,12 @@ text_ = SpiteString_append(text_, spite_temp_19901);
 SpiteString___release(spite_temp_19901);
 SpiteString spite_temp_19902 = (field_)->name_;
 text_ = SpiteString_append(text_, spite_temp_19902);
-SpiteString spite_temp_19903 = spite_lit_17907;
+SpiteString spite_temp_19903 = spite_lit_17909;
 text_ = SpiteString_append(text_, spite_temp_19903);
 SpiteString___release(spite_temp_19903);
 SpiteString spite_temp_19904 = parameters_;
 text_ = SpiteString_append(text_, spite_temp_19904);
-SpiteString spite_temp_19905 = spite_lit_17908;
+SpiteString spite_temp_19905 = spite_lit_17910;
 text_ = SpiteString_append(text_, spite_temp_19905);
 SpiteString___release(spite_temp_19905);
 SpiteString spite_temp_19906 = returned_;
@@ -87876,7 +87878,7 @@ SpiteString___release(returned_);
 SpiteString___release(parameters_);
 }
 else {
-SpiteString spite_temp_19907 = spite_lit_17909;
+SpiteString spite_temp_19907 = spite_lit_17911;
 text_ = SpiteString_append(text_, spite_temp_19907);
 SpiteString___release(spite_temp_19907);
 SpiteString spite_temp_19908 = Syntax_SourcePrinter_source_indent(self, (depth_ + 1));
@@ -87884,7 +87886,7 @@ text_ = SpiteString_append(text_, spite_temp_19908);
 SpiteString___release(spite_temp_19908);
 SpiteString spite_temp_19909 = (field_)->name_;
 text_ = SpiteString_append(text_, spite_temp_19909);
-SpiteString spite_temp_19910 = spite_lit_17910;
+SpiteString spite_temp_19910 = spite_lit_17912;
 text_ = SpiteString_append(text_, spite_temp_19910);
 SpiteString___release(spite_temp_19910);
 SpiteString spite_temp_19911 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain(((Syntax_Types_Type_Type)((field_)->type_reference_))));
@@ -87894,42 +87896,42 @@ SpiteString___release(spite_temp_19911);
 index_ = (index_ + 1);
 Syntax_Statements_FieldDeclaration___release(field_);
 }
-SpiteString spite_temp_19916 = ({ SpiteString spite_temp_19912 = text_; SpiteString spite_temp_19913 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19914[] = {spite_temp_19912, spite_lit_17913, spite_temp_19913, spite_lit_17915}; SpiteString spite_temp_19915 = spite_string_join(4, spite_temp_19914); SpiteString___release(spite_temp_19913); spite_temp_19915; });
+SpiteString spite_temp_19916 = ({ SpiteString spite_temp_19912 = text_; SpiteString spite_temp_19913 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19914[] = {spite_temp_19912, spite_lit_17915, spite_temp_19913, spite_lit_17917}; SpiteString spite_temp_19915 = spite_string_join(4, spite_temp_19914); SpiteString___release(spite_temp_19913); spite_temp_19915; });
 SpiteString___release(text_);
 Syntax_Statements_TypeDeclaration___release(declaration_);
 return spite_temp_19916;
 }
 SpiteString Syntax_SourcePrinter_source_names(Syntax_SourcePrinter* self, List_String* names_, int32_t depth_) {
-SpiteString text_ = spite_lit_17917;
+SpiteString text_ = spite_lit_17919;
 int32_t index_ = 0;
 while (((index_ < List_String_count(names_)))) {
-SpiteString spite_temp_19917 = spite_lit_17918;
+SpiteString spite_temp_19917 = spite_lit_17920;
 text_ = SpiteString_append(text_, spite_temp_19917);
 SpiteString___release(spite_temp_19917);
 SpiteString spite_temp_19918 = Syntax_SourcePrinter_source_indent(self, (depth_ + 1));
 text_ = SpiteString_append(text_, spite_temp_19918);
 SpiteString___release(spite_temp_19918);
-SpiteString spite_temp_19919 = spite_lit_17919;
+SpiteString spite_temp_19919 = spite_lit_17921;
 text_ = SpiteString_append(text_, spite_temp_19919);
 SpiteString___release(spite_temp_19919);
 SpiteString spite_temp_19920 = List_String_get_at(names_, index_);
 text_ = SpiteString_append(text_, spite_temp_19920);
 SpiteString___release(spite_temp_19920);
-SpiteString spite_temp_19921 = spite_lit_17920;
+SpiteString spite_temp_19921 = spite_lit_17922;
 text_ = SpiteString_append(text_, spite_temp_19921);
 SpiteString___release(spite_temp_19921);
 index_ = (index_ + 1);
 }
-SpiteString spite_temp_19926 = ({ SpiteString spite_temp_19922 = text_; SpiteString spite_temp_19923 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19924[] = {spite_temp_19922, spite_lit_17923, spite_temp_19923, spite_lit_17925}; SpiteString spite_temp_19925 = spite_string_join(4, spite_temp_19924); SpiteString___release(spite_temp_19923); spite_temp_19925; });
+SpiteString spite_temp_19926 = ({ SpiteString spite_temp_19922 = text_; SpiteString spite_temp_19923 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19924[] = {spite_temp_19922, spite_lit_17925, spite_temp_19923, spite_lit_17927}; SpiteString spite_temp_19925 = spite_string_join(4, spite_temp_19924); SpiteString___release(spite_temp_19923); spite_temp_19925; });
 SpiteString___release(text_);
 List_String___release(names_);
 return spite_temp_19926;
 }
 SpiteString Syntax_SourcePrinter_source_types(Syntax_SourcePrinter* self, List_Syntax_Types_Type_Type* types_, int32_t depth_) {
-SpiteString text_ = spite_lit_17927;
+SpiteString text_ = spite_lit_17929;
 int32_t index_ = 0;
 while (((index_ < List_Syntax_Types_Type_Type_count(types_)))) {
-SpiteString spite_temp_19927 = spite_lit_17928;
+SpiteString spite_temp_19927 = spite_lit_17930;
 text_ = SpiteString_append(text_, spite_temp_19927);
 SpiteString___release(spite_temp_19927);
 SpiteString spite_temp_19928 = Syntax_SourcePrinter_source_indent(self, (depth_ + 1));
@@ -87940,7 +87942,7 @@ text_ = SpiteString_append(text_, spite_temp_19929);
 SpiteString___release(spite_temp_19929);
 index_ = (index_ + 1);
 }
-SpiteString spite_temp_19934 = ({ SpiteString spite_temp_19930 = text_; SpiteString spite_temp_19931 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19932[] = {spite_temp_19930, spite_lit_17931, spite_temp_19931, spite_lit_17933}; SpiteString spite_temp_19933 = spite_string_join(4, spite_temp_19932); SpiteString___release(spite_temp_19931); spite_temp_19933; });
+SpiteString spite_temp_19934 = ({ SpiteString spite_temp_19930 = text_; SpiteString spite_temp_19931 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19932[] = {spite_temp_19930, spite_lit_17933, spite_temp_19931, spite_lit_17935}; SpiteString spite_temp_19933 = spite_string_join(4, spite_temp_19932); SpiteString___release(spite_temp_19931); spite_temp_19933; });
 SpiteString___release(text_);
 List_Syntax_Types_Type_Type___release(types_);
 return spite_temp_19934;
@@ -87953,7 +87955,7 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString text_ = ({ SpiteString spite_temp_19939 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19940 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((statement_)->subject_)); SpiteString spite_temp_19941[] = {spite_temp_19939, spite_lit_17941, spite_temp_19940, spite_lit_17943}; SpiteString spite_temp_19942 = spite_string_join(4, spite_temp_19941); SpiteString___release(spite_temp_19939); SpiteString___release(spite_temp_19940); spite_temp_19942; });
+SpiteString text_ = ({ SpiteString spite_temp_19939 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19940 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((statement_)->subject_)); SpiteString spite_temp_19941[] = {spite_temp_19939, spite_lit_17943, spite_temp_19940, spite_lit_17945}; SpiteString spite_temp_19942 = spite_string_join(4, spite_temp_19941); SpiteString___release(spite_temp_19939); SpiteString___release(spite_temp_19940); spite_temp_19942; });
 int32_t index_ = 0;
 while (((index_ < List_Syntax_Statements_SwitchCase_count((statement_)->cases_)))) {
 Syntax_Statements_SwitchCase* switch_case_ = List_Syntax_Statements_SwitchCase_get_at((statement_)->cases_, index_);
@@ -87964,15 +87966,15 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString label_ = ({ SpiteString spite_temp_19947 = Syntax_SourcePrinter_source_indent(self, (depth_ + 1)); SpiteString spite_temp_19948 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((switch_case_)->type_reference_)); SpiteString spite_temp_19949[] = {spite_temp_19947, spite_temp_19948, spite_lit_17949}; SpiteString spite_temp_19950 = spite_string_join(3, spite_temp_19949); SpiteString___release(spite_temp_19947); SpiteString___release(spite_temp_19948); spite_temp_19950; });
+SpiteString label_ = ({ SpiteString spite_temp_19947 = Syntax_SourcePrinter_source_indent(self, (depth_ + 1)); SpiteString spite_temp_19948 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((switch_case_)->type_reference_)); SpiteString spite_temp_19949[] = {spite_temp_19947, spite_temp_19948, spite_lit_17951}; SpiteString spite_temp_19950 = spite_string_join(3, spite_temp_19949); SpiteString___release(spite_temp_19947); SpiteString___release(spite_temp_19948); spite_temp_19950; });
 SpiteString one_line_ = Syntax_SourcePrinter_one_line_case(self, List_Syntax_Statements_Statement_Statement___retain((switch_case_)->body_), depth_);
 if ((SpiteString_is_empty(one_line_))) {
-SpiteString spite_temp_19951 = spite_lit_17950;
+SpiteString spite_temp_19951 = spite_lit_17952;
 text_ = SpiteString_append(text_, spite_temp_19951);
 SpiteString___release(spite_temp_19951);
 SpiteString spite_temp_19952 = label_;
 text_ = SpiteString_append(text_, spite_temp_19952);
-SpiteString spite_temp_19953 = spite_lit_17951;
+SpiteString spite_temp_19953 = spite_lit_17953;
 text_ = SpiteString_append(text_, spite_temp_19953);
 SpiteString___release(spite_temp_19953);
 SpiteString spite_temp_19954 = Syntax_SourcePrinter_source_block(self, List_Syntax_Statements_Statement_Statement___retain((switch_case_)->body_), (depth_ + 1));
@@ -87980,12 +87982,12 @@ text_ = SpiteString_append(text_, spite_temp_19954);
 SpiteString___release(spite_temp_19954);
 }
 else {
-SpiteString spite_temp_19955 = spite_lit_17952;
+SpiteString spite_temp_19955 = spite_lit_17954;
 text_ = SpiteString_append(text_, spite_temp_19955);
 SpiteString___release(spite_temp_19955);
 SpiteString spite_temp_19956 = label_;
 text_ = SpiteString_append(text_, spite_temp_19956);
-SpiteString spite_temp_19957 = spite_lit_17953;
+SpiteString spite_temp_19957 = spite_lit_17955;
 text_ = SpiteString_append(text_, spite_temp_19957);
 SpiteString___release(spite_temp_19957);
 SpiteString spite_temp_19958 = one_line_;
@@ -87996,7 +87998,7 @@ SpiteString___release(one_line_);
 SpiteString___release(label_);
 Syntax_Statements_SwitchCase___release(switch_case_);
 }
-SpiteString spite_temp_19963 = ({ SpiteString spite_temp_19959 = text_; SpiteString spite_temp_19960 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19961[] = {spite_temp_19959, spite_lit_17956, spite_temp_19960, spite_lit_17958}; SpiteString spite_temp_19962 = spite_string_join(4, spite_temp_19961); SpiteString___release(spite_temp_19960); spite_temp_19962; });
+SpiteString spite_temp_19963 = ({ SpiteString spite_temp_19959 = text_; SpiteString spite_temp_19960 = Syntax_SourcePrinter_source_indent(self, depth_); SpiteString spite_temp_19961[] = {spite_temp_19959, spite_lit_17958, spite_temp_19960, spite_lit_17960}; SpiteString spite_temp_19962 = spite_string_join(4, spite_temp_19961); SpiteString___release(spite_temp_19960); spite_temp_19962; });
 SpiteString___release(text_);
 Syntax_Statements_SwitchStatement___release(statement_);
 return spite_temp_19963;
@@ -88004,7 +88006,7 @@ return spite_temp_19963;
 SpiteString Syntax_SourcePrinter_one_line_case(Syntax_SourcePrinter* self, List_Syntax_Statements_Statement_Statement* body_, int32_t depth_) {
 if (((List_Syntax_Statements_Statement_Statement_count(body_) == 1))) {
 SpiteString single_ = ({ SpiteString spite_temp_19966 = Syntax_SourcePrinter_source_statement(self, List_Syntax_Statements_Statement_Statement_get_at(body_, 0), (depth_ + 1)); SpiteString spite_temp_19967 = SpiteString_trim(spite_temp_19966); SpiteString___release(spite_temp_19966); spite_temp_19967; });
-if ((((!(SpiteString_contains(single_, spite_lit_17959))))) && (((!({ Syntax_Statements_IfStatement* spite_temp_19968 = Analysis_AstShape_as_if_statement(self->shape_, ((Syntax_Statements_Statement_Statement)(List_Syntax_Statements_Statement_Statement_find_at(body_, 0)))); bool spite_truth = ((spite_temp_19968) != 0); Syntax_Statements_IfStatement___release(spite_temp_19968); spite_truth; })))) && (((!({ Syntax_Statements_WhileStatement* spite_temp_19969 = Analysis_AstShape_as_while_statement(self->shape_, ((Syntax_Statements_Statement_Statement)(List_Syntax_Statements_Statement_Statement_find_at(body_, 0)))); bool spite_truth = ((spite_temp_19969) != 0); Syntax_Statements_WhileStatement___release(spite_temp_19969); spite_truth; })))) && (((!({ Syntax_Statements_SwitchStatement* spite_temp_19970 = Analysis_AstShape_as_switch_statement(self->shape_, ((Syntax_Statements_Statement_Statement)(List_Syntax_Statements_Statement_Statement_find_at(body_, 0)))); bool spite_truth = ((spite_temp_19970) != 0); Syntax_Statements_SwitchStatement___release(spite_temp_19970); spite_truth; }))))) {
+if ((((!(SpiteString_contains(single_, spite_lit_17961))))) && (((!({ Syntax_Statements_IfStatement* spite_temp_19968 = Analysis_AstShape_as_if_statement(self->shape_, ((Syntax_Statements_Statement_Statement)(List_Syntax_Statements_Statement_Statement_find_at(body_, 0)))); bool spite_truth = ((spite_temp_19968) != 0); Syntax_Statements_IfStatement___release(spite_temp_19968); spite_truth; })))) && (((!({ Syntax_Statements_WhileStatement* spite_temp_19969 = Analysis_AstShape_as_while_statement(self->shape_, ((Syntax_Statements_Statement_Statement)(List_Syntax_Statements_Statement_Statement_find_at(body_, 0)))); bool spite_truth = ((spite_temp_19969) != 0); Syntax_Statements_WhileStatement___release(spite_temp_19969); spite_truth; })))) && (((!({ Syntax_Statements_SwitchStatement* spite_temp_19970 = Analysis_AstShape_as_switch_statement(self->shape_, ((Syntax_Statements_Statement_Statement)(List_Syntax_Statements_Statement_Statement_find_at(body_, 0)))); bool spite_truth = ((spite_temp_19970) != 0); Syntax_Statements_SwitchStatement___release(spite_temp_19970); spite_truth; }))))) {
 SpiteString spite_temp_19971 = SpiteString___retain(single_);
 SpiteString___release(single_);
 List_Syntax_Statements_Statement_Statement___release(body_);
@@ -88012,7 +88014,7 @@ return spite_temp_19971;
 }
 SpiteString___release(single_);
 }
-SpiteString spite_temp_19972 = spite_lit_17960;
+SpiteString spite_temp_19972 = spite_lit_17962;
 List_Syntax_Statements_Statement_Statement___release(body_);
 return spite_temp_19972;
 }
@@ -88027,17 +88029,17 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString spite_temp_19977 = ({ SpiteString spite_temp_19974 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((((Syntax_Types_ReferenceType*)spite_temp_19973))->inner_)); SpiteString spite_temp_19975[] = {spite_lit_17962, spite_temp_19974}; SpiteString spite_temp_19976 = spite_string_join(2, spite_temp_19975); SpiteString___release(spite_temp_19974); spite_temp_19976; });
+SpiteString spite_temp_19977 = ({ SpiteString spite_temp_19974 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((((Syntax_Types_ReferenceType*)spite_temp_19973))->inner_)); SpiteString spite_temp_19975[] = {spite_lit_17964, spite_temp_19974}; SpiteString spite_temp_19976 = spite_string_join(2, spite_temp_19975); SpiteString___release(spite_temp_19974); spite_temp_19976; });
 Syntax_Types_Type_Type___release(type_reference_);
 return spite_temp_19977;
 }
 else if (((SpiteHeader*)(spite_temp_19973))->class_id == 184) {
-SpiteString spite_temp_19981 = ({ SpiteString spite_temp_19978 = (((Syntax_Types_GenericType*)spite_temp_19973))->name_; SpiteString spite_temp_19979[] = {spite_lit_17964, spite_temp_19978}; SpiteString spite_temp_19980 = spite_string_join(2, spite_temp_19979); spite_temp_19980; });
+SpiteString spite_temp_19981 = ({ SpiteString spite_temp_19978 = (((Syntax_Types_GenericType*)spite_temp_19973))->name_; SpiteString spite_temp_19979[] = {spite_lit_17966, spite_temp_19978}; SpiteString spite_temp_19980 = spite_string_join(2, spite_temp_19979); spite_temp_19980; });
 Syntax_Types_Type_Type___release(type_reference_);
 return spite_temp_19981;
 }
 else if (((SpiteHeader*)(spite_temp_19973))->class_id == 186) {
-if ((((List_String_count((((Syntax_Types_NamedType*)spite_temp_19973))->path_) == 1))) && ((({ SpiteString spite_temp_19982 = List_String_get_at((((Syntax_Types_NamedType*)spite_temp_19973))->path_, 0); SpiteString spite_temp_19983 = spite_lit_17966; bool spite_temp_19984 = SpiteString_equals(spite_temp_19982, SpiteString___retain(spite_temp_19983)); SpiteString___release(spite_temp_19982); SpiteString___release(spite_temp_19983); spite_temp_19984; }))) && (((List_Syntax_Types_GenericArgument_GenericArgument_count((((Syntax_Types_NamedType*)spite_temp_19973))->arguments_) == 1)))) {
+if ((((List_String_count((((Syntax_Types_NamedType*)spite_temp_19973))->path_) == 1))) && ((({ SpiteString spite_temp_19982 = List_String_get_at((((Syntax_Types_NamedType*)spite_temp_19973))->path_, 0); SpiteString spite_temp_19983 = spite_lit_17968; bool spite_temp_19984 = SpiteString_equals(spite_temp_19982, SpiteString___retain(spite_temp_19983)); SpiteString___release(spite_temp_19982); SpiteString___release(spite_temp_19983); spite_temp_19984; }))) && (((List_Syntax_Types_GenericArgument_GenericArgument_count((((Syntax_Types_NamedType*)spite_temp_19973))->arguments_) == 1)))) {
 Syntax_Types_GenericArgument_GenericArgument nullable_argument_ = List_Syntax_Types_GenericArgument_GenericArgument_get_at((((Syntax_Types_NamedType*)spite_temp_19973))->arguments_, 0);
 {
 Syntax_Types_GenericArgument_GenericArgument spite_temp_19985 = nullable_argument_;
@@ -88049,7 +88051,7 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString spite_temp_19989 = ({ SpiteString spite_temp_19986 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((((Syntax_Types_TypeArgument*)spite_temp_19985))->value_)); SpiteString spite_temp_19987[] = {spite_temp_19986, spite_lit_17969}; SpiteString spite_temp_19988 = spite_string_join(2, spite_temp_19987); SpiteString___release(spite_temp_19986); spite_temp_19988; });
+SpiteString spite_temp_19989 = ({ SpiteString spite_temp_19986 = Syntax_SourcePrinter_source_type(self, Syntax_Types_Type_Type___retain((((Syntax_Types_TypeArgument*)spite_temp_19985))->value_)); SpiteString spite_temp_19987[] = {spite_temp_19986, spite_lit_17971}; SpiteString spite_temp_19988 = spite_string_join(2, spite_temp_19987); SpiteString___release(spite_temp_19986); spite_temp_19988; });
 Syntax_Types_GenericArgument_GenericArgument___release(nullable_argument_);
 Syntax_Types_Type_Type___release(type_reference_);
 return spite_temp_19989;
@@ -88102,13 +88104,13 @@ exit(1);
 }
 Syntax_Types_GenericArgument_GenericArgument___release(nullable_argument_);
 }
-SpiteString text_ = List_String_join((((Syntax_Types_NamedType*)spite_temp_19973))->path_, spite_lit_17971);
+SpiteString text_ = List_String_join((((Syntax_Types_NamedType*)spite_temp_19973))->path_, spite_lit_17973);
 if (((!(List_Syntax_Types_GenericArgument_GenericArgument_is_empty((((Syntax_Types_NamedType*)spite_temp_19973))->arguments_))))) {
-SpiteString arguments_ = spite_lit_17973;
+SpiteString arguments_ = spite_lit_17975;
 int32_t index_ = 0;
 while (((index_ < List_Syntax_Types_GenericArgument_GenericArgument_count((((Syntax_Types_NamedType*)spite_temp_19973))->arguments_)))) {
 if (((index_ > 0))) {
-SpiteString spite_temp_19990 = spite_lit_17974;
+SpiteString spite_temp_19990 = spite_lit_17976;
 arguments_ = SpiteString_append(arguments_, spite_temp_19990);
 SpiteString___release(spite_temp_19990);
 }
@@ -88117,12 +88119,12 @@ arguments_ = SpiteString_append(arguments_, spite_temp_19991);
 SpiteString___release(spite_temp_19991);
 index_ = (index_ + 1);
 }
-SpiteString spite_temp_19992 = spite_lit_17975;
+SpiteString spite_temp_19992 = spite_lit_17977;
 text_ = SpiteString_append(text_, spite_temp_19992);
 SpiteString___release(spite_temp_19992);
 SpiteString spite_temp_19993 = arguments_;
 text_ = SpiteString_append(text_, spite_temp_19993);
-SpiteString spite_temp_19994 = spite_lit_17976;
+SpiteString spite_temp_19994 = spite_lit_17978;
 text_ = SpiteString_append(text_, spite_temp_19994);
 SpiteString___release(spite_temp_19994);
 SpiteString___release(arguments_);
@@ -88153,11 +88155,11 @@ return spite_temp_19997;
 }
 else if (((SpiteHeader*)(spite_temp_19996))->class_id == 180) {
 if (((((Syntax_Types_BooleanArgument*)spite_temp_19996))->value_)) {
-SpiteString spite_temp_19998 = spite_lit_17977;
+SpiteString spite_temp_19998 = spite_lit_17979;
 Syntax_Types_GenericArgument_GenericArgument___release(argument_);
 return spite_temp_19998;
 }
-SpiteString spite_temp_19999 = spite_lit_17978;
+SpiteString spite_temp_19999 = spite_lit_17980;
 Syntax_Types_GenericArgument_GenericArgument___release(argument_);
 return spite_temp_19999;
 }
@@ -88167,7 +88169,7 @@ Syntax_Types_GenericArgument_GenericArgument___release(argument_);
 return spite_temp_20000;
 }
 else if (((SpiteHeader*)(spite_temp_19996))->class_id == 181) {
-SpiteString spite_temp_20004 = ({ SpiteString spite_temp_20001 = (((Syntax_Types_EnumArgument*)spite_temp_19996))->value_; SpiteString spite_temp_20002[] = {spite_lit_17980, spite_temp_20001, spite_lit_17982}; SpiteString spite_temp_20003 = spite_string_join(3, spite_temp_20002); spite_temp_20003; });
+SpiteString spite_temp_20004 = ({ SpiteString spite_temp_20001 = (((Syntax_Types_EnumArgument*)spite_temp_19996))->value_; SpiteString spite_temp_20002[] = {spite_lit_17982, spite_temp_20001, spite_lit_17984}; SpiteString spite_temp_20003 = spite_string_join(3, spite_temp_20002); spite_temp_20003; });
 Syntax_Types_GenericArgument_GenericArgument___release(argument_);
 return spite_temp_20004;
 }
@@ -88189,17 +88191,17 @@ SpiteString Syntax_SourcePrinter_source_expression(Syntax_SourcePrinter* self, S
 {
 Syntax_Expressions_Expression_Expression spite_temp_20009 = expression_;
 if (((SpiteHeader*)(spite_temp_20009))->class_id == 155) {
-SpiteString spite_temp_20010 = spite_lit_17985;
+SpiteString spite_temp_20010 = spite_lit_17987;
 Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_20010;
 }
 else if (((SpiteHeader*)(spite_temp_20009))->class_id == 159) {
-SpiteString spite_temp_20011 = spite_lit_17986;
+SpiteString spite_temp_20011 = spite_lit_17988;
 Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_20011;
 }
 else if (((SpiteHeader*)(spite_temp_20009))->class_id == 145) {
-SpiteString spite_temp_20012 = spite_lit_17987;
+SpiteString spite_temp_20012 = spite_lit_17989;
 Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_20012;
 }
@@ -88209,12 +88211,12 @@ Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_20013;
 }
 else if (((SpiteHeader*)(spite_temp_20009))->class_id == 143) {
-SpiteString spite_temp_20017 = ({ SpiteString spite_temp_20014 = (((Syntax_Expressions_EnumLiteralExpression*)spite_temp_20009))->value_; SpiteString spite_temp_20015[] = {spite_lit_17989, spite_temp_20014, spite_lit_17991}; SpiteString spite_temp_20016 = spite_string_join(3, spite_temp_20015); spite_temp_20016; });
+SpiteString spite_temp_20017 = ({ SpiteString spite_temp_20014 = (((Syntax_Expressions_EnumLiteralExpression*)spite_temp_20009))->value_; SpiteString spite_temp_20015[] = {spite_lit_17991, spite_temp_20014, spite_lit_17993}; SpiteString spite_temp_20016 = spite_string_join(3, spite_temp_20015); spite_temp_20016; });
 Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_20017;
 }
 else if (((SpiteHeader*)(spite_temp_20009))->class_id == 148) {
-SpiteString spite_temp_20021 = ({ SpiteString spite_temp_20018 = (((Syntax_Expressions_GenericIdentifierExpression*)spite_temp_20009))->name_; SpiteString spite_temp_20019[] = {spite_lit_17993, spite_temp_20018}; SpiteString spite_temp_20020 = spite_string_join(2, spite_temp_20019); spite_temp_20020; });
+SpiteString spite_temp_20021 = ({ SpiteString spite_temp_20018 = (((Syntax_Expressions_GenericIdentifierExpression*)spite_temp_20009))->name_; SpiteString spite_temp_20019[] = {spite_lit_17995, spite_temp_20018}; SpiteString spite_temp_20020 = spite_string_join(2, spite_temp_20019); spite_temp_20020; });
 Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_20021;
 }
@@ -88266,12 +88268,12 @@ spite_report_assert_trace();
 exit(1);
 }
 int32_t precedence_ = Syntax_SourcePrinter_operator_precedence(self, (((Syntax_Expressions_BinaryExpression*)spite_temp_20009))->operator_);
-SpiteString spite_temp_20036 = ({ SpiteString spite_temp_20031 = Syntax_SourcePrinter_source_operand(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Expressions_BinaryExpression*)spite_temp_20009))->left_), precedence_, false); SpiteString spite_temp_20032 = Syntax_SourcePrinter_source_binary_operator(self, (((Syntax_Expressions_BinaryExpression*)spite_temp_20009))->operator_); SpiteString spite_temp_20033 = Syntax_SourcePrinter_source_operand(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Expressions_BinaryExpression*)spite_temp_20009))->right_), precedence_, true); SpiteString spite_temp_20034[] = {spite_temp_20031, spite_lit_17997, spite_temp_20032, spite_lit_17999, spite_temp_20033}; SpiteString spite_temp_20035 = spite_string_join(5, spite_temp_20034); SpiteString___release(spite_temp_20031); SpiteString___release(spite_temp_20032); SpiteString___release(spite_temp_20033); spite_temp_20035; });
+SpiteString spite_temp_20036 = ({ SpiteString spite_temp_20031 = Syntax_SourcePrinter_source_operand(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Expressions_BinaryExpression*)spite_temp_20009))->left_), precedence_, false); SpiteString spite_temp_20032 = Syntax_SourcePrinter_source_binary_operator(self, (((Syntax_Expressions_BinaryExpression*)spite_temp_20009))->operator_); SpiteString spite_temp_20033 = Syntax_SourcePrinter_source_operand(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Expressions_BinaryExpression*)spite_temp_20009))->right_), precedence_, true); SpiteString spite_temp_20034[] = {spite_temp_20031, spite_lit_17999, spite_temp_20032, spite_lit_18001, spite_temp_20033}; SpiteString spite_temp_20035 = spite_string_join(5, spite_temp_20034); SpiteString___release(spite_temp_20031); SpiteString___release(spite_temp_20032); SpiteString___release(spite_temp_20033); spite_temp_20035; });
 Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_20036;
 }
 else if (((SpiteHeader*)(spite_temp_20009))->class_id == 142) {
-SpiteString spite_temp_20037 = Syntax_SourcePrinter_source_call(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Expressions_CallExpression*)spite_temp_20009))->callee_), List_Syntax_Expressions_Expression_Expression___retain((((Syntax_Expressions_CallExpression*)spite_temp_20009))->arguments_), spite_lit_18000);
+SpiteString spite_temp_20037 = Syntax_SourcePrinter_source_call(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Expressions_CallExpression*)spite_temp_20009))->callee_), List_Syntax_Expressions_Expression_Expression___retain((((Syntax_Expressions_CallExpression*)spite_temp_20009))->arguments_), spite_lit_18002);
 Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_20037;
 }
@@ -88288,7 +88290,7 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString spite_temp_20043 = ({ SpiteString spite_temp_20039 = Syntax_SourcePrinter_source_receiver(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Expressions_MemberExpression*)spite_temp_20009))->object_)); SpiteString spite_temp_20040 = (((Syntax_Expressions_MemberExpression*)spite_temp_20009))->name_; SpiteString spite_temp_20041[] = {spite_temp_20039, spite_lit_18003, spite_temp_20040}; SpiteString spite_temp_20042 = spite_string_join(3, spite_temp_20041); SpiteString___release(spite_temp_20039); spite_temp_20042; });
+SpiteString spite_temp_20043 = ({ SpiteString spite_temp_20039 = Syntax_SourcePrinter_source_receiver(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Expressions_MemberExpression*)spite_temp_20009))->object_)); SpiteString spite_temp_20040 = (((Syntax_Expressions_MemberExpression*)spite_temp_20009))->name_; SpiteString spite_temp_20041[] = {spite_temp_20039, spite_lit_18005, spite_temp_20040}; SpiteString spite_temp_20042 = spite_string_join(3, spite_temp_20041); SpiteString___release(spite_temp_20039); spite_temp_20042; });
 Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_20043;
 }
@@ -88307,7 +88309,7 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString spite_temp_20048 = ({ SpiteString spite_temp_20044 = Syntax_SourcePrinter_source_receiver(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Expressions_IndexExpression*)spite_temp_20009))->object_)); SpiteString spite_temp_20045 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Expressions_IndexExpression*)spite_temp_20009))->index_)); SpiteString spite_temp_20046[] = {spite_temp_20044, spite_lit_18006, spite_temp_20045, spite_lit_18008}; SpiteString spite_temp_20047 = spite_string_join(4, spite_temp_20046); SpiteString___release(spite_temp_20044); SpiteString___release(spite_temp_20045); spite_temp_20047; });
+SpiteString spite_temp_20048 = ({ SpiteString spite_temp_20044 = Syntax_SourcePrinter_source_receiver(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Expressions_IndexExpression*)spite_temp_20009))->object_)); SpiteString spite_temp_20045 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((((Syntax_Expressions_IndexExpression*)spite_temp_20009))->index_)); SpiteString spite_temp_20046[] = {spite_temp_20044, spite_lit_18008, spite_temp_20045, spite_lit_18010}; SpiteString spite_temp_20047 = spite_string_join(4, spite_temp_20046); SpiteString___release(spite_temp_20044); SpiteString___release(spite_temp_20045); spite_temp_20047; });
 Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_20048;
 }
@@ -88318,8 +88320,8 @@ Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_20049;
 }
 SpiteString number_ = ({ SpiteString spite_temp_20051 = SpiteDouble_to_string((((Syntax_Expressions_FloatLiteral*)spite_temp_20009))->value_); spite_temp_20051; });
-if ((((!(SpiteString_contains(number_, spite_lit_18011))))) && (((!(SpiteString_contains(number_, spite_lit_18012)))))) {
-SpiteString spite_temp_20055 = ({ SpiteString spite_temp_20052 = number_; SpiteString spite_temp_20053[] = {spite_temp_20052, spite_lit_18015}; SpiteString spite_temp_20054 = spite_string_join(2, spite_temp_20053); spite_temp_20054; });
+if ((((!(SpiteString_contains(number_, spite_lit_18013))))) && (((!(SpiteString_contains(number_, spite_lit_18014)))))) {
+SpiteString spite_temp_20055 = ({ SpiteString spite_temp_20052 = number_; SpiteString spite_temp_20053[] = {spite_temp_20052, spite_lit_18017}; SpiteString spite_temp_20054 = spite_string_join(2, spite_temp_20053); spite_temp_20054; });
 SpiteString___release(number_);
 Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_20055;
@@ -88340,7 +88342,7 @@ return SPITE_STRING_EMPTY;
 }
 SpiteString Syntax_SourcePrinter_source_receiver(Syntax_SourcePrinter* self, Syntax_Expressions_Expression_Expression expression_) {
 if (((({ Syntax_Expressions_BinaryExpression* spite_temp_20059 = Analysis_AstShape_as_binary(self->shape_, Syntax_Expressions_Expression_Expression___retain(expression_)); bool spite_truth = ((spite_temp_20059) != 0); Syntax_Expressions_BinaryExpression___release(spite_temp_20059); spite_truth; }) || ({ Syntax_Expressions_UnaryExpression* spite_temp_20060 = Analysis_AstShape_as_unary(self->shape_, Syntax_Expressions_Expression_Expression___retain(expression_)); bool spite_truth = ((spite_temp_20060) != 0); Syntax_Expressions_UnaryExpression___release(spite_temp_20060); spite_truth; })))) {
-SpiteString spite_temp_20064 = ({ SpiteString spite_temp_20061 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain(expression_)); SpiteString spite_temp_20062[] = {spite_lit_18018, spite_temp_20061, spite_lit_18020}; SpiteString spite_temp_20063 = spite_string_join(3, spite_temp_20062); SpiteString___release(spite_temp_20061); spite_temp_20063; });
+SpiteString spite_temp_20064 = ({ SpiteString spite_temp_20061 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain(expression_)); SpiteString spite_temp_20062[] = {spite_lit_18020, spite_temp_20061, spite_lit_18022}; SpiteString spite_temp_20063 = spite_string_join(3, spite_temp_20062); SpiteString___release(spite_temp_20061); spite_temp_20063; });
 Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_20064;
 }
@@ -88354,7 +88356,7 @@ if (((binary_) != 0)) {
 if (((!((binary_)->is_text_join_)))) {
 int32_t own_ = Syntax_SourcePrinter_operator_precedence(self, (binary_)->operator_);
 if ((((((self->explicit_grouping_) || ((own_ < parent_precedence_)))) || (((on_the_right_) && ((own_ == parent_precedence_))))))) {
-SpiteString spite_temp_20069 = ({ SpiteString spite_temp_20066 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain(expression_)); SpiteString spite_temp_20067[] = {spite_lit_18022, spite_temp_20066, spite_lit_18024}; SpiteString spite_temp_20068 = spite_string_join(3, spite_temp_20067); SpiteString___release(spite_temp_20066); spite_temp_20068; });
+SpiteString spite_temp_20069 = ({ SpiteString spite_temp_20066 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain(expression_)); SpiteString spite_temp_20067[] = {spite_lit_18024, spite_temp_20066, spite_lit_18026}; SpiteString spite_temp_20068 = spite_string_join(3, spite_temp_20067); SpiteString___release(spite_temp_20066); spite_temp_20068; });
 Syntax_Expressions_BinaryExpression___release(binary_);
 Syntax_Expressions_Expression_Expression___release(expression_);
 return spite_temp_20069;
@@ -88393,7 +88395,7 @@ return spite_temp_20076;
 SpiteString Syntax_SourcePrinter_source_text_join(Syntax_SourcePrinter* self, Syntax_Expressions_BinaryExpression* expression_) {
 List_String* pieces_ = List_String___make();
 Syntax_SourcePrinter_collect_text_join_pieces(self, Syntax_Expressions_Expression_Expression___retain(((Syntax_Expressions_Expression_Expression)(expression_))), List_String___retain(pieces_));
-SpiteString spite_temp_20080 = ({ SpiteString spite_temp_20077 = List_String_join(pieces_, spite_lit_18026); SpiteString spite_temp_20078[] = {spite_lit_18027, spite_temp_20077, spite_lit_18029}; SpiteString spite_temp_20079 = spite_string_join(3, spite_temp_20078); SpiteString___release(spite_temp_20077); spite_temp_20079; });
+SpiteString spite_temp_20080 = ({ SpiteString spite_temp_20077 = List_String_join(pieces_, spite_lit_18028); SpiteString spite_temp_20078[] = {spite_lit_18029, spite_temp_20077, spite_lit_18031}; SpiteString spite_temp_20079 = spite_string_join(3, spite_temp_20078); SpiteString___release(spite_temp_20077); spite_temp_20079; });
 List_String___release(pieces_);
 Syntax_Expressions_BinaryExpression___release(expression_);
 return spite_temp_20080;
@@ -88435,7 +88437,7 @@ List_String___release(pieces_);
 Syntax_Expressions_Expression_Expression___release(expression_);
 return;
 }
-List_String_append(pieces_, ({ SpiteString spite_temp_20081 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain(expression_)); SpiteString spite_temp_20082[] = {spite_lit_18031, spite_temp_20081, spite_lit_18033}; SpiteString spite_temp_20083 = spite_string_join(3, spite_temp_20082); SpiteString___release(spite_temp_20081); spite_temp_20083; }));
+List_String_append(pieces_, ({ SpiteString spite_temp_20081 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain(expression_)); SpiteString spite_temp_20082[] = {spite_lit_18033, spite_temp_20081, spite_lit_18035}; SpiteString spite_temp_20083 = spite_string_join(3, spite_temp_20082); SpiteString___release(spite_temp_20081); spite_temp_20083; }));
 Syntax_Expressions_StringLiteralExpression___release(string_);
 Syntax_Expressions_BinaryExpression___release(binary_);
 List_String___release(pieces_);
@@ -88449,11 +88451,11 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString text_ = ({ SpiteString spite_temp_20088 = Syntax_SourcePrinter_source_receiver(self, Syntax_Expressions_Expression_Expression___retain(callee_)); SpiteString spite_temp_20089 = type_arguments_; SpiteString spite_temp_20090[] = {spite_temp_20088, spite_temp_20089, spite_lit_18039}; SpiteString spite_temp_20091 = spite_string_join(3, spite_temp_20090); SpiteString___release(spite_temp_20088); spite_temp_20091; });
+SpiteString text_ = ({ SpiteString spite_temp_20088 = Syntax_SourcePrinter_source_receiver(self, Syntax_Expressions_Expression_Expression___retain(callee_)); SpiteString spite_temp_20089 = type_arguments_; SpiteString spite_temp_20090[] = {spite_temp_20088, spite_temp_20089, spite_lit_18041}; SpiteString spite_temp_20091 = spite_string_join(3, spite_temp_20090); SpiteString___release(spite_temp_20088); spite_temp_20091; });
 int32_t index_ = 0;
 while (((index_ < List_Syntax_Expressions_Expression_Expression_count(arguments_)))) {
 if (((index_ > 0))) {
-SpiteString spite_temp_20092 = spite_lit_18040;
+SpiteString spite_temp_20092 = spite_lit_18042;
 text_ = SpiteString_append(text_, spite_temp_20092);
 SpiteString___release(spite_temp_20092);
 }
@@ -88462,7 +88464,7 @@ text_ = SpiteString_append(text_, spite_temp_20093);
 SpiteString___release(spite_temp_20093);
 index_ = (index_ + 1);
 }
-SpiteString spite_temp_20097 = ({ SpiteString spite_temp_20094 = text_; SpiteString spite_temp_20095[] = {spite_temp_20094, spite_lit_18043}; SpiteString spite_temp_20096 = spite_string_join(2, spite_temp_20095); spite_temp_20096; });
+SpiteString spite_temp_20097 = ({ SpiteString spite_temp_20094 = text_; SpiteString spite_temp_20095[] = {spite_temp_20094, spite_lit_18045}; SpiteString spite_temp_20096 = spite_string_join(2, spite_temp_20095); spite_temp_20096; });
 SpiteString___release(text_);
 SpiteString___release(type_arguments_);
 List_Syntax_Expressions_Expression_Expression___release(arguments_);
@@ -88478,20 +88480,20 @@ fputs("\n", stderr);
 spite_report_assert_trace();
 exit(1);
 }
-SpiteString spite_temp_20102 = ({ SpiteString spite_temp_20098 = Syntax_SourcePrinter_source_receiver(self, Syntax_Expressions_Expression_Expression___retain((expression_)->callee_)); SpiteString spite_temp_20099 = Syntax_SourcePrinter_generic_arguments_text(self, Syntax_Expressions_GenericCallExpression___retain(expression_)); SpiteString spite_temp_20100[] = {spite_temp_20098, spite_lit_18046, spite_temp_20099, spite_lit_18048}; SpiteString spite_temp_20101 = spite_string_join(4, spite_temp_20100); SpiteString___release(spite_temp_20098); SpiteString___release(spite_temp_20099); spite_temp_20101; });
+SpiteString spite_temp_20102 = ({ SpiteString spite_temp_20098 = Syntax_SourcePrinter_source_receiver(self, Syntax_Expressions_Expression_Expression___retain((expression_)->callee_)); SpiteString spite_temp_20099 = Syntax_SourcePrinter_generic_arguments_text(self, Syntax_Expressions_GenericCallExpression___retain(expression_)); SpiteString spite_temp_20100[] = {spite_temp_20098, spite_lit_18048, spite_temp_20099, spite_lit_18050}; SpiteString spite_temp_20101 = spite_string_join(4, spite_temp_20100); SpiteString___release(spite_temp_20098); SpiteString___release(spite_temp_20099); spite_temp_20101; });
 Syntax_Expressions_GenericCallExpression___release(expression_);
 return spite_temp_20102;
 }
-SpiteString spite_temp_20106 = Syntax_SourcePrinter_source_call(self, Syntax_Expressions_Expression_Expression___retain((expression_)->callee_), List_Syntax_Expressions_Expression_Expression___retain((expression_)->arguments_), ({ SpiteString spite_temp_20103 = Syntax_SourcePrinter_generic_arguments_text(self, Syntax_Expressions_GenericCallExpression___retain(expression_)); SpiteString spite_temp_20104[] = {spite_lit_18050, spite_temp_20103, spite_lit_18052}; SpiteString spite_temp_20105 = spite_string_join(3, spite_temp_20104); SpiteString___release(spite_temp_20103); spite_temp_20105; }));
+SpiteString spite_temp_20106 = Syntax_SourcePrinter_source_call(self, Syntax_Expressions_Expression_Expression___retain((expression_)->callee_), List_Syntax_Expressions_Expression_Expression___retain((expression_)->arguments_), ({ SpiteString spite_temp_20103 = Syntax_SourcePrinter_generic_arguments_text(self, Syntax_Expressions_GenericCallExpression___retain(expression_)); SpiteString spite_temp_20104[] = {spite_lit_18052, spite_temp_20103, spite_lit_18054}; SpiteString spite_temp_20105 = spite_string_join(3, spite_temp_20104); SpiteString___release(spite_temp_20103); spite_temp_20105; }));
 Syntax_Expressions_GenericCallExpression___release(expression_);
 return spite_temp_20106;
 }
 SpiteString Syntax_SourcePrinter_generic_arguments_text(Syntax_SourcePrinter* self, Syntax_Expressions_GenericCallExpression* expression_) {
-SpiteString arguments_ = spite_lit_18054;
+SpiteString arguments_ = spite_lit_18056;
 int32_t index_ = 0;
 while (((index_ < List_Syntax_Types_GenericArgument_GenericArgument_count((expression_)->type_arguments_)))) {
 if (((index_ > 0))) {
-SpiteString spite_temp_20107 = spite_lit_18055;
+SpiteString spite_temp_20107 = spite_lit_18057;
 arguments_ = SpiteString_append(arguments_, spite_temp_20107);
 SpiteString___release(spite_temp_20107);
 }
@@ -88507,15 +88509,15 @@ return spite_temp_20109;
 }
 SpiteString Syntax_SourcePrinter_source_list(Syntax_SourcePrinter* self, Syntax_Expressions_ListLiteralExpression* expression_) {
 if ((List_Syntax_Expressions_ListElement_is_empty((expression_)->elements_))) {
-SpiteString spite_temp_20110 = spite_lit_18056;
+SpiteString spite_temp_20110 = spite_lit_18058;
 Syntax_Expressions_ListLiteralExpression___release(expression_);
 return spite_temp_20110;
 }
-SpiteString text_ = spite_lit_18058;
+SpiteString text_ = spite_lit_18060;
 int32_t index_ = 0;
 while (((index_ < List_Syntax_Expressions_ListElement_count((expression_)->elements_)))) {
 if (((index_ > 0))) {
-SpiteString spite_temp_20111 = spite_lit_18059;
+SpiteString spite_temp_20111 = spite_lit_18061;
 text_ = SpiteString_append(text_, spite_temp_20111);
 SpiteString___release(spite_temp_20111);
 }
@@ -88533,22 +88535,22 @@ SpiteString___release(spite_temp_20116);
 index_ = (index_ + 1);
 Syntax_Expressions_Expression_Expression___release(value_);
 }
-SpiteString spite_temp_20120 = ({ SpiteString spite_temp_20117 = text_; SpiteString spite_temp_20118[] = {spite_temp_20117, spite_lit_18062}; SpiteString spite_temp_20119 = spite_string_join(2, spite_temp_20118); spite_temp_20119; });
+SpiteString spite_temp_20120 = ({ SpiteString spite_temp_20117 = text_; SpiteString spite_temp_20118[] = {spite_temp_20117, spite_lit_18064}; SpiteString spite_temp_20119 = spite_string_join(2, spite_temp_20118); spite_temp_20119; });
 SpiteString___release(text_);
 Syntax_Expressions_ListLiteralExpression___release(expression_);
 return spite_temp_20120;
 }
 SpiteString Syntax_SourcePrinter_source_object(Syntax_SourcePrinter* self, Syntax_Expressions_ObjectLiteralExpression* expression_) {
 if ((List_Syntax_Expressions_ObjectField_is_empty((expression_)->fields_))) {
-SpiteString spite_temp_20121 = spite_lit_18063;
+SpiteString spite_temp_20121 = spite_lit_18065;
 Syntax_Expressions_ObjectLiteralExpression___release(expression_);
 return spite_temp_20121;
 }
-SpiteString text_ = spite_lit_18065;
+SpiteString text_ = spite_lit_18067;
 int32_t index_ = 0;
 while (((index_ < List_Syntax_Expressions_ObjectField_count((expression_)->fields_)))) {
 if (((index_ > 0))) {
-SpiteString spite_temp_20122 = spite_lit_18066;
+SpiteString spite_temp_20122 = spite_lit_18068;
 text_ = SpiteString_append(text_, spite_temp_20122);
 SpiteString___release(spite_temp_20122);
 }
@@ -88562,7 +88564,7 @@ exit(1);
 }
 SpiteString spite_temp_20123 = (field_)->name_;
 text_ = SpiteString_append(text_, spite_temp_20123);
-SpiteString spite_temp_20124 = spite_lit_18067;
+SpiteString spite_temp_20124 = spite_lit_18069;
 text_ = SpiteString_append(text_, spite_temp_20124);
 SpiteString___release(spite_temp_20124);
 SpiteString spite_temp_20125 = Syntax_SourcePrinter_source_expression(self, Syntax_Expressions_Expression_Expression___retain((field_)->value_));
@@ -88571,78 +88573,78 @@ SpiteString___release(spite_temp_20125);
 index_ = (index_ + 1);
 Syntax_Expressions_ObjectField___release(field_);
 }
-SpiteString spite_temp_20129 = ({ SpiteString spite_temp_20126 = text_; SpiteString spite_temp_20127[] = {spite_temp_20126, spite_lit_18070}; SpiteString spite_temp_20128 = spite_string_join(2, spite_temp_20127); spite_temp_20128; });
+SpiteString spite_temp_20129 = ({ SpiteString spite_temp_20126 = text_; SpiteString spite_temp_20127[] = {spite_temp_20126, spite_lit_18072}; SpiteString spite_temp_20128 = spite_string_join(2, spite_temp_20127); spite_temp_20128; });
 SpiteString___release(text_);
 Syntax_Expressions_ObjectLiteralExpression___release(expression_);
 return spite_temp_20129;
 }
 SpiteString Syntax_SourcePrinter_source_unary_operator(Syntax_SourcePrinter* self, Syntax_Expressions_UnaryOperator_UnaryOperator operator_) {
 if (((operator_ == Syntax_Expressions_UnaryOperator_UnaryOperator_negate))) {
-SpiteString spite_temp_20130 = spite_lit_18071;
+SpiteString spite_temp_20130 = spite_lit_18073;
 return spite_temp_20130;
 }
-SpiteString spite_temp_20131 = spite_lit_18072;
+SpiteString spite_temp_20131 = spite_lit_18074;
 return spite_temp_20131;
 }
 SpiteString Syntax_SourcePrinter_source_binary_operator(Syntax_SourcePrinter* self, Syntax_Expressions_BinaryOperator_BinaryOperator operator_) {
 if (((operator_ == Syntax_Expressions_BinaryOperator_BinaryOperator_add))) {
-SpiteString spite_temp_20132 = spite_lit_18073;
+SpiteString spite_temp_20132 = spite_lit_18075;
 return spite_temp_20132;
 }
 if (((operator_ == Syntax_Expressions_BinaryOperator_BinaryOperator_subtract))) {
-SpiteString spite_temp_20133 = spite_lit_18074;
+SpiteString spite_temp_20133 = spite_lit_18076;
 return spite_temp_20133;
 }
 if (((operator_ == Syntax_Expressions_BinaryOperator_BinaryOperator_multiply))) {
-SpiteString spite_temp_20134 = spite_lit_18075;
+SpiteString spite_temp_20134 = spite_lit_18077;
 return spite_temp_20134;
 }
 if (((operator_ == Syntax_Expressions_BinaryOperator_BinaryOperator_divide))) {
-SpiteString spite_temp_20135 = spite_lit_18076;
+SpiteString spite_temp_20135 = spite_lit_18078;
 return spite_temp_20135;
 }
 if (((operator_ == Syntax_Expressions_BinaryOperator_BinaryOperator_modulo))) {
-SpiteString spite_temp_20136 = spite_lit_18077;
+SpiteString spite_temp_20136 = spite_lit_18079;
 return spite_temp_20136;
 }
 if (((operator_ == Syntax_Expressions_BinaryOperator_BinaryOperator_equal))) {
-SpiteString spite_temp_20137 = spite_lit_18078;
+SpiteString spite_temp_20137 = spite_lit_18080;
 return spite_temp_20137;
 }
 if (((operator_ == Syntax_Expressions_BinaryOperator_BinaryOperator_not_equal))) {
-SpiteString spite_temp_20138 = spite_lit_18079;
+SpiteString spite_temp_20138 = spite_lit_18081;
 return spite_temp_20138;
 }
 if (((operator_ == Syntax_Expressions_BinaryOperator_BinaryOperator_less))) {
-SpiteString spite_temp_20139 = spite_lit_18080;
+SpiteString spite_temp_20139 = spite_lit_18082;
 return spite_temp_20139;
 }
 if (((operator_ == Syntax_Expressions_BinaryOperator_BinaryOperator_less_equal))) {
-SpiteString spite_temp_20140 = spite_lit_18081;
+SpiteString spite_temp_20140 = spite_lit_18083;
 return spite_temp_20140;
 }
 if (((operator_ == Syntax_Expressions_BinaryOperator_BinaryOperator_greater))) {
-SpiteString spite_temp_20141 = spite_lit_18082;
+SpiteString spite_temp_20141 = spite_lit_18084;
 return spite_temp_20141;
 }
 if (((operator_ == Syntax_Expressions_BinaryOperator_BinaryOperator_greater_equal))) {
-SpiteString spite_temp_20142 = spite_lit_18083;
+SpiteString spite_temp_20142 = spite_lit_18085;
 return spite_temp_20142;
 }
 if (((operator_ == Syntax_Expressions_BinaryOperator_BinaryOperator_logical_and))) {
-SpiteString spite_temp_20143 = spite_lit_18084;
+SpiteString spite_temp_20143 = spite_lit_18086;
 return spite_temp_20143;
 }
-SpiteString spite_temp_20144 = spite_lit_18085;
+SpiteString spite_temp_20144 = spite_lit_18087;
 return spite_temp_20144;
 }
 SpiteString Syntax_SourcePrinter_source_string(Syntax_SourcePrinter* self, SpiteString value_) {
-SpiteString spite_temp_20148 = ({ SpiteString spite_temp_20145 = Syntax_SourcePrinter_source_string_piece(self, SpiteString___retain(value_)); SpiteString spite_temp_20146[] = {spite_lit_18087, spite_temp_20145, spite_lit_18089}; SpiteString spite_temp_20147 = spite_string_join(3, spite_temp_20146); SpiteString___release(spite_temp_20145); spite_temp_20147; });
+SpiteString spite_temp_20148 = ({ SpiteString spite_temp_20145 = Syntax_SourcePrinter_source_string_piece(self, SpiteString___retain(value_)); SpiteString spite_temp_20146[] = {spite_lit_18089, spite_temp_20145, spite_lit_18091}; SpiteString spite_temp_20147 = spite_string_join(3, spite_temp_20146); SpiteString___release(spite_temp_20145); spite_temp_20147; });
 SpiteString___release(value_);
 return spite_temp_20148;
 }
 SpiteString Syntax_SourcePrinter_source_string_piece(Syntax_SourcePrinter* self, SpiteString value_) {
-SpiteString spite_temp_20159 = ({ SpiteString spite_temp_20157 = ({ SpiteString spite_temp_20155 = ({ SpiteString spite_temp_20153 = ({ SpiteString spite_temp_20151 = ({ SpiteString spite_temp_20149 = SpiteString_replace(value_, spite_lit_18090, spite_lit_18091); SpiteString spite_temp_20150 = SpiteString_replace(spite_temp_20149, spite_lit_18092, spite_lit_18093); SpiteString___release(spite_temp_20149); spite_temp_20150; }); SpiteString spite_temp_20152 = SpiteString_replace(spite_temp_20151, spite_lit_18094, spite_lit_18095); SpiteString___release(spite_temp_20151); spite_temp_20152; }); SpiteString spite_temp_20154 = SpiteString_replace(spite_temp_20153, spite_lit_18096, spite_lit_18097); SpiteString___release(spite_temp_20153); spite_temp_20154; }); SpiteString spite_temp_20156 = SpiteString_replace(spite_temp_20155, spite_lit_18098, spite_lit_18099); SpiteString___release(spite_temp_20155); spite_temp_20156; }); SpiteString spite_temp_20158 = SpiteString_replace(spite_temp_20157, spite_lit_18100, spite_lit_18101); SpiteString___release(spite_temp_20157); spite_temp_20158; });
+SpiteString spite_temp_20159 = ({ SpiteString spite_temp_20157 = ({ SpiteString spite_temp_20155 = ({ SpiteString spite_temp_20153 = ({ SpiteString spite_temp_20151 = ({ SpiteString spite_temp_20149 = SpiteString_replace(value_, spite_lit_18092, spite_lit_18093); SpiteString spite_temp_20150 = SpiteString_replace(spite_temp_20149, spite_lit_18094, spite_lit_18095); SpiteString___release(spite_temp_20149); spite_temp_20150; }); SpiteString spite_temp_20152 = SpiteString_replace(spite_temp_20151, spite_lit_18096, spite_lit_18097); SpiteString___release(spite_temp_20151); spite_temp_20152; }); SpiteString spite_temp_20154 = SpiteString_replace(spite_temp_20153, spite_lit_18098, spite_lit_18099); SpiteString___release(spite_temp_20153); spite_temp_20154; }); SpiteString spite_temp_20156 = SpiteString_replace(spite_temp_20155, spite_lit_18100, spite_lit_18101); SpiteString___release(spite_temp_20155); spite_temp_20156; }); SpiteString spite_temp_20158 = SpiteString_replace(spite_temp_20157, spite_lit_18102, spite_lit_18103); SpiteString___release(spite_temp_20157); spite_temp_20158; });
 SpiteString___release(value_);
 return spite_temp_20159;
 }

@@ -1,0 +1,2 @@
+the workers drained 3 items over frames: true
+every frame read the file and joined its Parallel: true

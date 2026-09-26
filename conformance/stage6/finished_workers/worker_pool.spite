@@ -1,0 +1,22 @@
+var program = Program()
+var workers = List<Concurrent<Nothing>>()
+var pending = 0
+var done = 0
+
+func start(count: Integer) {
+    pending = count
+    var index = 0
+    while index < count {
+        var worker = Concurrent(drain)
+        workers.append(worker)
+        index = index + 1
+    }
+}
+
+func drain() {
+    while pending > 0 {
+        pending = pending - 1
+        program.sleep(5)
+        done = done + 1
+    }
+}

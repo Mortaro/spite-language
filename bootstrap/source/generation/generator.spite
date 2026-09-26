@@ -12861,7 +12861,7 @@ func supply_concurrency_functions(instance: Analysis.ClassInfo) {
     if instance.qualified_dotted == "Concurrent" {
         if not scheduler_used {
             builder.add_typedef(
-                "typedef struct SpiteFrame \{ bool (*step)(void*); int32_t state; int32_t flags; } SpiteFrame;",
+                "typedef struct SpiteFrame \{ bool (*step)(void*); int32_t state; int32_t flags; void* work; } SpiteFrame;",
             )
             builder.add_typedef(
                 "#define SPITE_SUSPEND(point) do \{ spite_frame->spite_head.state = (point); return false; } while (0)",
@@ -23146,7 +23146,7 @@ func emit_state_machines() {
     while index < roots.count() {
         var root = roots.get_at(index)
         lines.append(
-            "if (spite_work->spite_typed_call == (void*){root}) return {root}___begin(spite_work->spite_owner);",
+            "if (spite_work->spite_typed_call == (void*){root}) \{ SpiteFrame* spite_started = (SpiteFrame*){root}___begin(spite_work->spite_owner); spite_started->work = spite_work; Spite_Function___retain(spite_work); return spite_started; }",
         )
         index = index + 1
     }

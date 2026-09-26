@@ -16,6 +16,7 @@ func Concurrent(starting_work: Spite.Function<$result_type>) {
         _scheduler.begin(_frame)
         _collect()
     }
+    _work = null
 }
 
 func get_finished(): Boolean {
