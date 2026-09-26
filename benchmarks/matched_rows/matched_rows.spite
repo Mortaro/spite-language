@@ -1,0 +1,78 @@
+var console = Console()
+var clock = Clock()
+var move = System.Move()
+var regenerate = System.Regenerate()
+var moving_runner = Runner<System.Move.Moving, System.Move>()
+var mending_runner = Runner<System.Regenerate.Mending, System.Regenerate>()
+var copied_moving_runner = CopyingRunner<System.Move.Moving, System.Move>()
+var copied_mending_runner = CopyingRunner<System.Regenerate.Mending, System.Regenerate>()
+var positions = Column<Component.Position>()
+var velocities = Column<Component.Velocity>()
+var healths = Column<Component.Health>()
+var regenerations = Column<Component.Regeneration>()
+var entity_count = 200000
+
+func MatchedRows() {
+    var entity = 0
+    while entity < entity_count {
+        spawn(entity)
+        entity = entity + 1
+    }
+    var backwards = entity_count - 1
+    while backwards >= 0 {
+        push(backwards)
+        backwards = backwards - 1
+    }
+    var round = 0
+    while round < 3 {
+        measure()
+        round = round + 1
+    }
+    var last = positions.values.count() - 2
+    var left: Integer = positions.values[last].left
+    var amount = healths.values[0].amount
+    console.print("left", left, "health", amount)
+}
+
+func measure() {
+    var start = clock.elapsed_nanoseconds()
+    var tick = 0
+    while tick < 20 {
+        moving_runner.run(move, entity_count)
+        mending_runner.run(regenerate, entity_count)
+        tick = tick + 1
+    }
+    var middle = clock.elapsed_nanoseconds()
+    tick = 0
+    while tick < 20 {
+        copied_moving_runner.run(move, entity_count)
+        copied_mending_runner.run(regenerate, entity_count)
+        tick = tick + 1
+    }
+    var end = clock.elapsed_nanoseconds()
+    var passed_microseconds = (middle - start) / 20000
+    var copied_microseconds = (end - middle) / 20000
+    console.print(
+        "indices read from the matcher",
+        passed_microseconds,
+        "copied first",
+        copied_microseconds,
+        "microseconds per tick",
+    )
+}
+
+func spawn(entity: Integer) {
+    var position = Component.Position()
+    positions.insert(entity, position)
+    if entity % 2 == 0 {
+        var health = Component.Health()
+        healths.insert(entity, health)
+        var regeneration = Component.Regeneration()
+        regenerations.insert(entity, regeneration)
+    }
+}
+
+func push(entity: Integer) {
+    var velocity = Component.Velocity()
+    velocities.insert(entity, velocity)
+}

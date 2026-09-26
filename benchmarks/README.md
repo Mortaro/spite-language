@@ -26,6 +26,7 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 | `vector_rows` | 200 000 entities with position and velocity, half with health and regeneration, `Move` and `Regenerate` systems taking a `type` row per entity for 20 ticks: once from four `Vector` columns as rows of borrowed items (D206), once from four `List` columns through a reused row object; prints the microseconds per tick of both |
 | `sparse_rows` | 200 000 entities kept in sparse sets (a generic singleton `Column<T>` per component, each entity at a different place in each), position and velocity for all, health and regeneration for half, `Move` and `Regenerate` taking a walked row per entity for 20 ticks: once with `Vector` columns and rows filled by D217's walk (borrowed items, an `Entity` made in the frame), once with every column a `List` of references and a row object reused across the tick; prints the microseconds per tick of both |
 | `items_storage` | 200 000 `Velocity` items (they fit a `Vector`) in a `Vector` and an `Items`, and 200 000 `Trail` objects (they hold a `List`) in a `List` and an `Items` sharing the same objects: filling, 100 ticks of `each_integrate()` and a fused `filter_moving().sum_across()`, and 100 ticks of 200 000 `[]` reads and writes at scattered places; three rounds, each printing microseconds per tick of all four |
+| `matched_rows` | SlopEngine's walked-row shape: 200 000 entities in sparse sets over `Vector` columns, `Move` and `Regenerate` taking a walked row per entity for 20 ticks, each entity's places found by a `Matcher<$row_type>` object into its own `Vector<Integer>`: once passing `matcher.rows` straight to the walk (D221), once copying the places into the runner's vector first, as a runner had to before; three rounds, each printing microseconds per tick of both |
 | `lent_arguments` | 200 000 entities in sparse sets over `Items` columns, systems taking their components as arguments (`Move(position, velocity)`, `Regenerate(health, regeneration)`, `Drift(velocity)`), 20 ticks: once with `system.phase_each(made_arguments(found))` passing borrowed items (D220), once copying each argument out of its column, passing it and storing it back; three rounds, each printing microseconds per tick of both. Measured 6.9 ms against 34.3 ms a tick (best of five, `clang -O2`) |
 | `stress` | SlopEngine's `examples/stress` shape: component columns as generic singletons, `system/` classes with `update_each` over `type` rows filled by a Symbol walk, 50 000 entities, 20 ticks |
 | `console_lines` | 200 000 `console.print` lines, each written out as it is printed; `run.sh` times it into a pipe, and redirected to a file is where the write per line costs (about 700 ms against 140 ms buffered until exit, [standard_library.md](../docs/standard_library.md#system-classes--implemented)) |
@@ -218,6 +219,20 @@ The 800 115 allocations are filling: 200 000 entities, positions and velocities 
 regenerations, each kept in its reference column and copied into its vector, and the sparse sets; the walked rows
 make none. Most of the 7.4 ms is finding the places, a sparse lookup through a generic singleton per attribute,
 which both sides pay.
+
+### Places read from another object (D221)
+
+`matched_rows`, `clang -O2`, three runs of three rounds each on Mortaro's machine. The compiler before D221 could
+not write the walk that takes `matcher.rows` (the row fell back to an ordinary `type` value and keeping a borrowed
+item in it was an error), so its program has the copying runner in both places:
+
+| compiler | walk over `matcher.rows`, µs per tick | places copied first, µs per tick |
+|---|---|---|
+| before (`c1edb49`) | -- | 8 012-8 391 |
+| after | 6 701-6 943 | 8 038-8 352 |
+
+The copy was a loop of `append`s per entity through a vector the runner kept; reading the places where they are
+removes it, about 17% of the tick. `sparse_rows` and `lent_arguments` compile to the same C before and after.
 
 ### `Items<T>`: storage chosen while compiling (D218)
 
