@@ -1147,7 +1147,7 @@ func literal_text(literal: Syntax.Expressions.Expression): String {
     }
     var whole_number = shape.as_integer_literal(literal)
     if whole_number {
-        return "{whole_number.value}"
+        return whole_number.value
     }
     var negated = shape.as_unary(literal)
     crash negated
@@ -1384,7 +1384,7 @@ func folded_value(expression: Syntax.Expressions.Expression, file: Syntax.Source
     }
     var whole_number = shape.as_integer_literal(expression)
     if whole_number {
-        return "{whole_number.value}"
+        return whole_number.value
     }
     if shape.is_true_literal(expression) {
         return "true"

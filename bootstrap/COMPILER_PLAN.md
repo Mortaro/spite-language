@@ -286,7 +286,7 @@ migration. 11c, milestone 12's D13 and milestone 14 all wait on the second of th
   `join(separator)` was only generated for `List<String>`, so `counts.values().join(",")` emitted a call to
   `List_Int_join`, which never existed -- C that does not compile, the worst outcome available. It now generates
   for every element that becomes text (a number, `Bool`, an enum value), reusing `string_conversion`, the same
-  rule `+` and `"{value}"` use. The program is `examples/library_card`, so it stays covered.
+  rule `+` and a text hole use. The program is `examples/library_card`, so it stays covered.
 - 2026-09-21 (more ordinary programs): a shop program over two namespaces -- a union of `Stock.Item` and
   `Stock.Bundle`, a `type` both satisfy, duck-typed calls on the union, `.class.name` through it and a
   `sum_price()` member template -- ran correctly and balanced on the first try. A form program over reflection

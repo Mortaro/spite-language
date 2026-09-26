@@ -53,7 +53,7 @@ func write_symbol(shown: $value_type, output: BinaryOutput) {
         output.write_index()
         return
     }
-    var name = "{shown}"
+    var name: String = shown
     output.write_text(name)
 }
 

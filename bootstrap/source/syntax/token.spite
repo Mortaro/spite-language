@@ -25,5 +25,5 @@ func kind_text(): String {
     if kind == 'function_keyword' {
         return "keyword_func"
     }
-    return "{kind}"
+    return kind
 }

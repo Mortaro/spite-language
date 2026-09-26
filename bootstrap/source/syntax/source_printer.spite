@@ -467,7 +467,7 @@ func source_generic_argument(argument: Syntax.Types.GenericArgument): String {
         }
         Syntax.Types.StringArgument: return source_string(argument.value)
         Syntax.Types.EnumArgument: return "'{argument.value}'"
-        _: return "{argument.value}"
+        _: return argument.value
     }
 }
 
@@ -510,13 +510,13 @@ func source_expression(expression: Syntax.Expressions.Expression): String {
             if not expression.written.is_empty() {
                 return expression.written
             }
-            var number = "{expression.value}"
+            var number: String = expression.value
             if not number.contains(".") and not number.contains("e") {
                 return "{number}.0"
             }
             return number
         }
-        _: return "{expression.value}"
+        _: return expression.value
     }
 }
 

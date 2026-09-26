@@ -463,7 +463,7 @@ tokens.append(Token('number', source.slice(token_start, end_index)))    # error:
   - A method called on a call's result is not an argument: `source.slice(0, 2).upper_case()` is fine on its own,
     and an error only when it is itself passed to something.
   - A text with holes is not a call argument, and each hole is read like a line of its own:
-    `console.print("{count_words(text)} words")` is legal, `console.print("{shout(count_words(text))}")` is not.
+    `console.print("{count_words(text)} words")` is legal, `console.print("{shout(count_words(text))} words")` is not.
   - A call in an `if` or `while` condition, a `return`, an assignment or an index is not an argument.
   - A singleton's constructor is never an argument, nor anywhere but the whole value of a `var` (D110,
     [Singletons](classes_and_files.md#singletons--implemented)).

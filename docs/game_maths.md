@@ -72,7 +72,8 @@ func GameMatricesBasics() {
     var projection = Matrix4()
     projection.set_orthographic(-2.0, 2.0, -1.0, 1.0, 1.0, 3.0)
     var seen = Vector3(2.0, 1.0, -1.0)
-    console.print("{projection.project_point(seen)}")
+    var projected = projection.project_point(seen)
+    console.print(projected)
 }
 ```
 ```output

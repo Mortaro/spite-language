@@ -33,9 +33,9 @@ func _written(shown: $value_type): String {
     } else if $value_type == Float or $value_type == Double {
         return written_decimal(shown)
     } else if $value_type == Integer or $value_type == Long or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInteger or $value_type == UnsignedLong {
-        return "{shown}"
+        return shown
     } else if $value_type == Symbol {
-        var name = "{shown}"
+        var name: String = shown
         return quoted(name)
     } else if $value_type == List {
         var element_json = JsonWriter<$value_type.element_type>(null)
@@ -90,7 +90,7 @@ func written_decimal(shown: $value_type): String {
         unwritable = "{described_path()} is {infinity_of(shown)}, which JSON cannot hold"
     }
     crash unwritable == ""
-    return "{shown}"
+    return shown
 }
 
 func infinity_of(shown: $value_type): String {

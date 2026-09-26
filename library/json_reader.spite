@@ -93,7 +93,7 @@ func read_symbol(cursor: JsonCursor): $value_type {
     var name = cursor.read_text()
     if $value_type == Enum {
         var symbol: $value_type = name
-        if "{symbol}" != name {
+        if symbol.to_string() != name {
             cursor.fail("one of the names of {symbol.class.name}")
         }
         return symbol

@@ -25,7 +25,7 @@ func count_down(): String {
     var seen = ""
     while remaining > 0 {
         log.append("count {remaining}")
-        seen = seen + "{remaining}"
+        seen = seen + remaining
         program.sleep(100)
         remaining = remaining - 1
     }
@@ -41,7 +41,7 @@ func tag_in_expression(): String {
 
 func napped_text(milliseconds: Integer): String {
     program.sleep(milliseconds)
-    return "{milliseconds}"
+    return milliseconds
 }
 
 func deepest_total(): Integer {

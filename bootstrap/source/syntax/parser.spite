@@ -391,7 +391,7 @@ func parse_generic_declaration(): Syntax.Statements.Statement {
         constraint = parse_type()
     }
     consume_statement_terminator()
-    return Syntax.Statements.GenericDeclaration("{name.text}", constraint)
+    return Syntax.Statements.GenericDeclaration(name.text, constraint)
 }
 
 func parse_variable_declaration(): Syntax.Statements.Statement {
@@ -638,7 +638,7 @@ func parse_enum_declaration(): Syntax.Statements.Statement {
     var finished = check('right_brace') or check('end_of_file')
     while not finished {
         var value = expect('enum_literal', "an enum value (e.g. 'value')")
-        values.append("{value.text}")
+        values.append(value.text)
         consume_declaration_entry("enum")
         if check('right_brace') or check('end_of_file') or has_error {
             finished = true
@@ -874,7 +874,8 @@ func parse_type_without_suffix(): Syntax.Types.Type {
         return dummy_type()
     }
     var path = List<String>()
-    path.append("{advance().text}")
+    var segment_token = advance()
+    path.append(segment_token.text)
     return parse_type_path(path)
 }
 
@@ -882,7 +883,8 @@ func parse_dotted_segment(path: List<String>): Boolean {
     assert check('dot')
     advance()
     if check('identifier') {
-        path.append("{advance().text}")
+        var segment_token = advance()
+        path.append(segment_token.text)
         return true
     }
     fail("expected a name after '.' but found {found_text()}")
@@ -921,7 +923,8 @@ func generic_member_type(generic_name: String): Syntax.Types.Type {
     while check('dot') {
         advance()
         if check('identifier') {
-            path.append("{advance().text}")
+            var segment_token = advance()
+            path.append(segment_token.text)
         } else {
             fail("expected the name of a codegen value after '.' but found {found_text()}")
         }
@@ -1038,7 +1041,8 @@ func try_parse_type_quiet(): Syntax.Types.Type? {
     }
     assert check('identifier')
     var path = List<String>()
-    path.append("{advance().text}")
+    var segment_token = advance()
+    path.append(segment_token.text)
     var continue_dots = true
     var ok = true
     while continue_dots and ok and not check('end_of_file') {
@@ -1046,7 +1050,8 @@ func try_parse_type_quiet(): Syntax.Types.Type? {
             advance()
             ok = check('identifier')
             if ok {
-                path.append("{advance().text}")
+                var segment_token = advance()
+                path.append(segment_token.text)
             }
         } else {
             continue_dots = false

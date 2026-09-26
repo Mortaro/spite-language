@@ -5,15 +5,15 @@ generic $component_type
 var components = Dictionary<$component_type>()
 
 func insert(entity: Integer, component: $component_type) {
-    components["{entity}"] = component
+    components[entity] = component
 }
 
 func has(entity: Integer): Boolean {
-    return components.has("{entity}")
+    return components.has(entity)
 }
 
 func of(entity: Integer): $component_type {
-    var key = "{entity}"
+    var key: String = entity
     crash components[key]
     return components[key]
 }

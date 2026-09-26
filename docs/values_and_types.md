@@ -103,7 +103,7 @@ full list is in [the rules](#numeric-types--implemented-provisional)) -- and a n
 `Integer`, `Long`, `Float`, `Double`, `Boolean` and the rest are classes in `library/` (`library/integer.spite`,
 `library/double.spite`, ...), the way `String` is. Their functions are called on a value like any class's,
 and inside one of them `this` is the number itself. Turning a number into text is `to_string()` (D107), written in Spite in
-`library/long.spite` and `library/double.spite`, and it is what `"{count}"` calls. A program reopens a number
+`library/long.spite` and `library/double.spite`, and it is what a text hole (`"count {count}"`) calls. A program reopens a number
 class the way it reopens any class ([packages.md](packages.md#monkey-patching-mods)), with a file named after it:
 
 ```gdscript title=number_methods/integer.spite
@@ -121,7 +121,7 @@ func NumberMethods() {
     console.print(doubled, count_text)
     var third: Double = 1.0 / 3.0
     var bits = third.bits()
-    console.print("{third}", bits)
+    console.print(third, bits)
 }
 ```
 ```output
@@ -366,7 +366,7 @@ func EnumFromText() {
     while index < names.count() {
         var name = names[index]
         var course: Course = name
-        var known = "{course}" == name
+        var known = course.to_string() == name
         console.print(name, course, known)
         index = index + 1
     }
@@ -711,7 +711,7 @@ A class with no `to_string()` stays an error: `a Pet cannot be used where a Stri
 
 **Text casts to an enum by its name** (proposed by Claude, unconfirmed; built for D95's `Json`, 2026-09-24):
 `var course: Recipe.Course = name` is the value spelled `name`, or the enum's first value when none is, exactly as
-text that does not parse becomes `0` for an `Integer`. Compare `"{course}" == name` to tell the two apart. **[implemented]**
+text that does not parse becomes `0` for an `Integer`. Compare `course.to_string() == name` to tell the two apart. **[implemented]**
 
 #### Numeric types  **[implemented, PROVISIONAL]**
 
@@ -767,7 +767,7 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
   `to_integer()`), in Spite: `Long.to_string()` writes the digits, `Double.to_string()` is the
   shortest-round-trip formatting above (over the digit arithmetic in `library/number_text.spite`), and the
   smaller types widen and call `Long.to_string()`. `Boolean.to_string()` answers `"true"` or `"false"`.
-  Interpolation (`"{count}"`), `+` onto a `String` and `console.print` call it (D109,
+  Interpolation (`"count {count}"`), `+` onto a `String` and `console.print` call it (D109,
   [standard_library.md](standard_library.md)).
 - **Casting is a function of the class cast to** (D100, decided by Mortaro): each number class has
   `func from_type(type: Symbol, value: type.class)`, a Symbol codegen function whose symbol ranges over the

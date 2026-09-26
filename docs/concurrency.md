@@ -742,7 +742,7 @@ one waits; the value is kept, so later ones do not). Exactly, a `Concurrent<T>` 
 
 - where it is stored or passed as a `T` -- a `var` whose type is written, an assignment, an argument (a variadic
   `Printable` one included, so `console.print(sum)` prints the value), a `return`, an element of a list literal;
-- as an operand -- `+`, `==`, `and`, `not`, any operator -- and inside text, `"{sum}"`;
+- as an operand -- `+`, `==`, `and`, `not`, any operator -- and inside text, `"total {sum}"`;
 - as the receiver of a member the handle does not have: `greeting.upper_case()`, `greeting.length()`;
 - as a condition: `if ready`, `while`, `assert`, `crash`; and when `T` is nullable, narrowing the handle narrows its
   value -- `if reading { use(reading) }`, `crash reading` -- because D63 narrows a name itself rather than a copy.

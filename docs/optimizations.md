@@ -875,7 +875,7 @@ keeps no proof about attributes or lists ([failure.md](failure.md#a-call-may-und
 every piece is computed in order, left to right as written, and the text is made once, at its final length. Before,
 each `+` (and each `{...}` hole) made a whole new text, so a text of five pieces made four texts and threw three
 away. Pieces the compiler already knows -- written text, a symbol's name such as `attribute.name` in a Symbol
-walk -- are joined while compiling, and empty ones are dropped, so `"{index}"` is just the number's text and
+walk -- are joined while compiling, and empty ones are dropped, so `"{index} of"` is two pieces, not three, and
 `"{attribute.name}="` is one constant.
 
 **When.** Every `+` whose left side is text, and every text with `{...}` holes, in every build. `text = "{text}..."`
@@ -884,8 +884,7 @@ still grows `text` in place ([above](#appending-to-text-in-place)).
 **What you notice.** Fewer allocations under `--debug-memory` (two per piece that used to be joined:
 `conformance/stage6/text_building` went from 43 to 39, `benchmarks/reflection_walks` from 16 356 022 to
 11 756 022), and a text built only from pieces the compiler knows answers `'constant'` to `.memory.section`
-instead of `'heap'`, as a written text does. `"{name}"` where `name` is text is that same text, not a copy -- text
-cannot change, so nothing else can tell. **Built** (2026-09-25; proposed by Claude, unconfirmed).
+instead of `'heap'`, as a written text does. **Built** (2026-09-25; proposed by Claude, unconfirmed).
 
 ### Defaults the constructor replaces are never made
 
@@ -962,8 +961,8 @@ or of an append in place (`text = "{text}{count}"`), is now written as digits in
 frame and copied from there: the same digits the library's `to_string()` writes, and no allocation. A program that
 reopens `Integer` or `Long` with a `to_string()` of its own keeps calling it.
 
-**When.** Every build, for whole numbers of those two classes. A number alone in a text (`"{index}"`) still makes
-one text, since that text is the result.
+**When.** Every build, for whole numbers of those two classes. A number cast to text on its own (`var key: String =
+index`, [D223](decisions.md)) still makes one text, since that text is the result.
 
 **What you notice.** Fewer allocations: `conformance/stage6/text_building` went from 39 to 35, and
 `benchmarks/text_building` from 5 500 225 to 800 267. **Built** (2026-09-25; proposed by Claude, unconfirmed).

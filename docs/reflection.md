@@ -121,7 +121,7 @@ func AttributeObjects() {
 }
 
 func show_component(component: Anything) {
-    var described = "{component.class}"
+    var described: String = component.class
     if component == Health {
         described = "Health {component.amount}"
     }

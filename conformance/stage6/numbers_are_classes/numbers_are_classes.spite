@@ -7,7 +7,7 @@ func NumbersAreClasses() {
     console.print(doubled, count_text)
     var third: Double = 1.0 / 3.0
     var third_text = third.to_string()
-    console.print(third_text, "{third}")
+    console.print(third_text, third)
     var small: Byte = 255
     var wide: UnsignedLong = -1
     console.print("{small} {wide} {true}")

@@ -6,7 +6,7 @@ func test_a_value_resolves_without_naming_its_enum() {
 
 func test_an_enum_prints_as_its_own_name() {
     var holder = MoodHolder('asleep')
-    crash "{holder.mood}" == "asleep"
+    crash holder.mood.to_string() == "asleep"
 }
 
 func test_an_enum_compares_both_ways() {

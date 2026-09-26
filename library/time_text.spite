@@ -47,7 +47,7 @@ func read_period(text: String): Period? {
 }
 
 func write_digits(value: Long, width: Integer): String {
-    var digits = "{value}"
+    var digits: String = value
     var sign = ""
     if value < 0 {
         sign = "-"

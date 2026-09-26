@@ -40,7 +40,7 @@ func report_by_shelf() {
     var counts = Dictionary<Integer>()
     var index = 0
     while index < books.count() {
-        var shelf = "{books[index].shelf}"
+        var shelf: String = books[index].shelf
         var seen = counts.get(shelf)
         if seen {
             counts.set(shelf, seen + 1)

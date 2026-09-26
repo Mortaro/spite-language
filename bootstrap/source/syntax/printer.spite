@@ -216,7 +216,7 @@ func inline_generic_argument(argument: Syntax.Types.GenericArgument): String {
         }
         Syntax.Types.StringArgument: return "\"{argument.value}\""
         Syntax.Types.EnumArgument: return "'{argument.value}'"
-        _: return "{argument.value}"
+        _: return argument.value
     }
 }
 

@@ -1,13 +1,13 @@
 enum Mood {
     'awake'
-    'asleep'
+    'fast_asleep_all_night'
 }
 
 var console = Console()
 var label = Label()
 
 func DirectText() {
-    var clicks = 42
+    var clicks: Long = 1234567890123456789
     var clicks_text: String = clicks
     console.print(clicks_text)
     label.text = clicks
@@ -15,9 +15,10 @@ func DirectText() {
     show(clicks)
     var returned = number_text(clicks)
     console.print(returned)
-    var ratio = 0.5
+    var tenth: Double = 0.1
+    var ratio = tenth + 0.2
     show(ratio)
-    var mood: Mood = 'asleep'
+    var mood: Mood = 'fast_asleep_all_night'
     var mood_text: String = mood
     console.print(mood_text)
     var badge = Badge()
@@ -44,7 +45,7 @@ func DirectText() {
     console.print(joined_keys)
 }
 
-func number_text(value: Integer): String {
+func number_text(value: Long): String {
     return value
 }
 

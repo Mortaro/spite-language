@@ -6,7 +6,7 @@ func text(value: $value_type): String {
     if $value_type == String {
         return value.to_debug()
     } else if $value_type == Boolean or $value_type == Integer or $value_type == Long or $value_type == Float or $value_type == Double or $value_type == Tiny or $value_type == Short or $value_type == Byte or $value_type == UnsignedShort or $value_type == UnsignedInteger or $value_type == UnsignedLong {
-        return "{value}"
+        return value
     } else if $value_type == Symbol {
         return "'{value}'"
     } else if $value_type == Null {

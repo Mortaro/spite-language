@@ -69,7 +69,8 @@ func test_every_number_width_round_trips() {
     crash read.unsigned_long == 9000000000
     crash read.ratio == 0.25
     crash read.marker
-    crash "{read.marker}" == "schooner"
+    var marker_text: String = read.marker
+    crash marker_text == "schooner"
 }
 
 func test_values_follow_each_other_in_one_buffer() {
@@ -196,7 +197,7 @@ func shown_bytes(bytes: Vector<Byte>): String {
     var index = 0
     while index < bytes.count() {
         var byte = bytes.get_at(index)
-        pieces.append("{byte}")
+        pieces.append(byte)
         index = index + 1
     }
     return pieces.join(" ")

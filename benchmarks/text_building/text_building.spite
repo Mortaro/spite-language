@@ -27,7 +27,7 @@ func TextBuilding() {
 
 func describe(round: Integer, length: Integer): String {
     var text = "round "
-    text = text + "{round}"
+    text = text + round
     text = "{text} joined {length} characters"
     return text
 }

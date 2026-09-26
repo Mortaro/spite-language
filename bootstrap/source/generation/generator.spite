@@ -305,7 +305,7 @@ func instantiated_function_source(information: Analysis.ClassInfo, function: Ana
         body = body.replace("{symbol}.value", "'{function.symbol_field_name}'")
     }
     body = body.replace("{symbol}.class", field_type)
-    body = body.replace("{symbol}.index", "{function.symbol_field_index}")
+    body = body.replace("{symbol}.index", function.symbol_field_index)
     if not function.symbol_pattern.is_empty() {
         body = body.replace(".{function.symbol_pattern}(", ".{function.symbol_function_name}(")
     }
@@ -1676,7 +1676,7 @@ func instantiate_generic(
         if integer_argument {
             var integer_spite_type = integer_type()
             types.append(integer_spite_type)
-            var integer_code = "{integer_argument.value}"
+            var integer_code: String = integer_argument.value
             codes.append(integer_code)
             texts.append("i:{integer_code}")
             label = "{label}_{integer_code}"
@@ -1685,7 +1685,7 @@ func instantiate_generic(
         if float_argument {
             var float_spite_type = float_type()
             types.append(float_spite_type)
-            var last_code = "{float_argument.value}"
+            var last_code: String = float_argument.value
             codes.append(last_code)
             texts.append("f:{last_code}")
             label = "{label}_{generic_argument_label(last_code)}"
@@ -3324,7 +3324,7 @@ func boxed_text(code: String): String {
         boxed_value_types[string_class.c_name] = string_spite_type
         builder.add_prototype("void* spite_box_SpiteString(SpiteString value);")
         builder.add_prototype("void spite_string_box_release(void* self);")
-        var boxed_registration = debug_registration("self", "{string_class.class_id}")
+        var boxed_registration = debug_registration("self", string_class.class_id)
         builder.add_support(
             "void* spite_box_SpiteString(SpiteString value) \{\nSpiteBox_SpiteString* self = (SpiteBox_SpiteString*)SPITE_MALLOC(sizeof(SpiteBox_SpiteString));\nself->header.ref_count = 1;\nself->header.class_id = {string_class.class_id};\n{boxed_registration}self->value = value;\nreturn self;\n}",
         )
@@ -3364,7 +3364,7 @@ func ensure_box(member: Analysis.ClassInfo, value_type: Analysis.SpiteType): Str
     var value_c_type = c_type_name(value_type)
     builder.add_typedef("typedef struct {box} \{ SpiteHeader header; {value_c_type} value; } {box};")
     builder.add_prototype("void* {maker}({value_c_type} value);")
-    var registered = debug_registration("self", "{member.class_id}")
+    var registered = debug_registration("self", member.class_id)
     builder.add_support(
         "void* {maker}({value_c_type} value) \{\n{box}* self = ({box}*)SPITE_MALLOC(sizeof({box}));\nself->header.ref_count = 1;\nself->header.class_id = {member.class_id};\n{registered}self->value = value;\nreturn self;\n}",
     )
@@ -6648,6 +6648,9 @@ func coerce_for_store(
         if owns(result, expression_ast) or is_boxed_into_shape(result_type, expected_type) {
             return casted
         }
+        if made_into_text(result_type, expected_type) {
+            return casted
+        }
         if in_vector_library(class_information) and not borrowed_text_of(expression_ast, result, scope).is_empty() {
             return casted
         }
@@ -6827,10 +6830,10 @@ func generate_integer_literal(literal: Syntax.Expressions.IntegerLiteral): Expre
     var value = literal.value
     if value >= -2147483648 and value <= 2147483647 {
         var result_type = Analysis.Types.ScalarType('integer_kind')
-        return ExpressionResult("{value}", result_type)
+        return ExpressionResult(value, result_type)
     }
     var result_type = Analysis.Types.ScalarType('long_kind')
-    return ExpressionResult("{value}", result_type)
+    return ExpressionResult(value, result_type)
 }
 
 func generate_identifier(
@@ -6996,6 +6999,12 @@ func to_string_ast(value_ast: Syntax.Expressions.Expression): Syntax.Expressions
     var callee: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(value_ast, "to_string")
     var no_arguments = List<Syntax.Expressions.Expression>()
     return Syntax.Expressions.CallExpression(callee, no_arguments)
+}
+
+func made_into_text(value_type: Analysis.SpiteType, expected_type: Analysis.SpiteType): Boolean {
+    var wanted = expected_type_without_nullable(expected_type)
+    assert type_shape.as_string(wanted)
+    return type_shape.as_scalar(value_type) or is_enum_type(value_type)
 }
 
 func becomes_text(value_type: Analysis.SpiteType, expected_type: Analysis.SpiteType): Boolean {
@@ -7447,7 +7456,7 @@ func generate_class_test(
         var known = known_codegen_class_test(binary, scope, class_information)
         if known == true or known == false {
             var known_type = boolean_type()
-            return ExpressionResult("{known == true}", known_type)
+            return ExpressionResult(known == true, known_type)
         }
     }
     var tested = generate_expression(binary.left, scope, class_information)
@@ -9288,7 +9297,7 @@ func lent_variant_name(
             if not is_shape_type(expected_types[index]) {
                 return function_c_name
             }
-            positions.append("{index}")
+            positions.append(index)
             var row_identifier = shape.as_identifier(arguments_ast[index])
             crash row_identifier
             if sources.is_empty() {
@@ -9301,7 +9310,7 @@ func lent_variant_name(
             if type_shape.as_union(expected_types[index]) {
                 return function_c_name
             }
-            positions.append("{index}")
+            positions.append(index)
             var item_identifier = shape.as_identifier(arguments_ast[index])
             crash item_identifier
             if sources.is_empty() {
@@ -9357,7 +9366,7 @@ func lent_variant_name(
     variant.lent_sources = sources
     var parameter_index = 0
     while parameter_index < original.parameters.count() {
-        if positions.contains("{parameter_index}") {
+        if positions.contains(parameter_index) {
             variant.lent_parameters.append(original.parameters[parameter_index].name)
         }
         parameter_index = parameter_index + 1
@@ -12992,7 +13001,7 @@ func ensure_text_call(information: Analysis.ClassInfo, function: Analysis.Functi
     while index < function.parameters.count() {
         var parameter_type = function.parameters[index].get_type()
         string_spite_type = string_type()
-        var item = list_item_code(string_spite_type, "arguments", "{index}")
+        var item = list_item_code(string_spite_type, "arguments", index)
         switch parameter_type {
             Analysis.Types.StringType: call_arguments.append("SpiteString___retain({item})")
             Analysis.Types.ScalarType: {
@@ -14690,7 +14699,7 @@ func generate_call(
             var counted = folded_argument_count(call, class_information)
             if counted {
                 var count_type = integer_type()
-                var count_result = ExpressionResult("{counted}", count_type)
+                var count_result = ExpressionResult(counted, count_type)
                 count_result.constant_text = "i:{counted}"
                 return count_result
             }
@@ -14837,7 +14846,7 @@ func generate_member_read_raw(
                 )
                 return ExpressionResult("0", index_type)
             }
-            var place = ExpressionResult("{bound_field_index}", index_type)
+            var place = ExpressionResult(bound_field_index, index_type)
             place.constant_text = "i:{bound_field_index}"
             return place
         }
@@ -15046,7 +15055,7 @@ func generate_expression(
     }
     var float_literal = shape.as_float_literal(expression)
     if float_literal {
-        var literal_code = "{float_literal.value}"
+        var literal_code: String = float_literal.value
         if not literal_code.contains(".") and not literal_code.contains("e") {
             literal_code = "{literal_code}.0"
         }
@@ -22755,7 +22764,7 @@ func index_key_text(key: Syntax.Expressions.Expression): String {
     }
     var number = shape.as_integer_literal(key)
     if number {
-        return "{number.value}"
+        return number.value
     }
     var text = shape.as_string_literal(key)
     if text {
@@ -23636,7 +23645,7 @@ func emit_class_prototypes(information: Analysis.ClassInfo) {
 }
 
 func emit_class_support(information: Analysis.ClassInfo) {
-    var class_id_text = "{information.class_id}"
+    var class_id_text: String = information.class_id
     var initialize_lines = List<String>()
     var initialize_name = "{information.c_name}___init"
     if is_hot_class(information) {
@@ -24071,7 +24080,7 @@ func emit_string_support(information: Analysis.ClassInfo) {
     current_owner = "String"
     current_function = ""
     var class_id = information.class_id
-    var registered = debug_registration("block", "{class_id}")
+    var registered = debug_registration("block", class_id)
     var freed = "SPITE_FREE(block);"
     builder.add_prototype("SpiteString SpiteString___retain(SpiteString self);")
     builder.add_prototype("void SpiteString___release(SpiteString self);")
@@ -26281,7 +26290,7 @@ func folded_question_call(
     assert folds_on(receiver, name)
     var answer = maths.folded_question(name, receiver.value)
     var answer_type = Analysis.Types.ScalarType('boolean_kind')
-    return ExpressionResult("{answer}", answer_type)
+    return ExpressionResult(answer, answer_type)
 }
 
 func folds_on(receiver: FoldedDecimal, name: String): Boolean {

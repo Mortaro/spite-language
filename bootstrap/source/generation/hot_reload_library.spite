@@ -166,7 +166,7 @@ func hash_of(text: String): String {
         hash = (hash * 31 + code) % 4294967291
         index = index + 1
     }
-    return "{hash}"
+    return hash
 }
 
 func is_changed(path: String, hash: String): Boolean {

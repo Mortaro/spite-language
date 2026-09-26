@@ -7,7 +7,8 @@ func ClassText() {
     var joined = lines.join(", ")
     console.print(joined)
     var named = label.class
-    console.print("{named}")
+    var named_text: String = named
+    console.print(named_text)
     console.print(named)
 }
 

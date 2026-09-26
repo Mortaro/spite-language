@@ -1107,8 +1107,8 @@ function into codegen for every name that fits: below, `set_attribute` answers `
 for each attribute of the class. Inside, the symbol names that attribute: written as a type (`value:
 attribute.class`, `): attribute.class`), it is the attribute's actual type; written as an expression,
 `attribute.class` is a `Spite.Class` naming that type, printing just like the type name would --
-`"{attribute.class}"` included, since a text hole
-holding a value whose class declares `to_string()` calls it (D109's reading of printable, applied to text;
+`"type {attribute.class}"` and `var shown: String = attribute.class` included, since a text hole and a cast to text (D223)
+call the `to_string()` of a value whose class declares one (D109's reading of printable, applied to text;
 proposed by Claude, unconfirmed; `conformance/stage6/class_text`).
 
 ```person.spite

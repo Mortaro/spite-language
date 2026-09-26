@@ -517,7 +517,8 @@ func call(command: String, program: Spite.Attribute): Answer {
     }
     var kind = kind_of(owner)
     if name == "count" and literals.is_empty() and (kind == "list" or kind == "dictionary") {
-        return success("{held_count(owner)}", "Integer")
+        var held_total = held_count(owner)
+        return success(held_total, "Integer")
     }
     var attributes = owner.value_attributes()
     index = 0

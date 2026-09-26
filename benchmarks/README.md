@@ -15,7 +15,7 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 | Benchmark | What it leans on |
 |---|---|
 | `fused_chain` | 100 000 objects walked 300 times by fused `filter_`/`map_`/`sum_`/`count_` chains |
-| `dictionary_keys` | a `Dictionary` keyed by numbers turned into text (`"{index}"`) and by 2 000 names, set and read |
+| `dictionary_keys` | a `Dictionary` keyed by numbers cast to text (`by_number[index]`) and by 2 000 names, set and read |
 | `text_building` | appending to text in a loop, `"word{index}"` pieces and `join` |
 | `reflection_walks` | a Symbol walk (`show_attributes`), a `.attributes` walk reading `.value`, and `JsonWriter` |
 | `serialisation` | 100 000 small objects written and read back as JSON (`JsonWriter`/`JsonReader`, one text each) and as bytes (`BinaryWriter.append_to` into one `Vector<Byte>`, `BinaryReader`); prints the sizes and the milliseconds of each step |
