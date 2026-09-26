@@ -288,3 +288,17 @@ Behaviour that does not match the manual. The language was not changed; each is 
      Windows): about 700 ms to a file against about 140 ms buffered until exit; the same to a pipe or the null
      device. Nothing cheaper shows every line promptly without a thread. Keep it for every program, or should a
      program be able to say it prints to a file nobody watches (a build setting, say) and keep the buffer?
+
+## Which list is the default (Mortaro, relayed by SlopEngine)
+
+198. **Should the everyday list keep its items inline?** Mortaro: "are List in spite just a list of pointers? if yes
+     its a bad default for most assets since we need continuous memory cache". Today `List<Integer>` and other
+     number lists are contiguous, but `List<SomeClass>` holds references to objects spread through the heap, and
+     `Vector<SomeClass>` (D154, D204) is the inline form: one block, no header or count per item, items borrowed
+     rather than shared. Options (Claude, unconfirmed): (a) keep both, `List` for shared objects and `Vector` for
+     data, and teach `Vector` first for assets; (b) make the inline form the one called `List` and give the
+     reference list another name (`References<T>`?), since most game data is values; (c) let the compiler pick the
+     layout per list -- inline when every item is only ever reached through that list, references otherwise --
+     behind one name. (c) is the most "zero noise" but a borrowed item and a shared object behave differently
+     (D204's keep rules), so the difference would show up as errors rather than as a type name. Which default?
+
