@@ -216,6 +216,179 @@ The compiler writes the walk out where it is called: for `Runner<Moving>` the tw
 `var row: Moving = {position: columns.position[index], velocity: columns.velocity[index]}`, so the row costs what
 the literal costs and follows the same rules, and `fill_attribute` is never called.
 
+An engine that adds and removes components all the time keeps each one in a **sparse set**: a generic singleton
+`Column<Position>` whose `Vector` is packed, so each entity sits at a different place in each column. The runner
+works out those places first, one per attribute, and the walk's line reads each attribute from its own column at
+its own place: `Column<attribute.class>().values[found[attribute.index]]`, where `attribute.index` is the
+attribute's place in the `type` ([D217](decisions.md)). A class that cannot be a `Vector` item stays a reference
+in a `List`, `attribute.class.fits_vector()` choosing while compiling, and the row may hold it beside the borrowed
+items, as it may hold an `Entity` made from the id:
+
+```gdscript title=sparse_row_doc/position.spite
+var left = 0.0
+```
+```gdscript title=sparse_row_doc/velocity.spite
+var across = 0.0
+
+func Velocity(new_across: Float) {
+    across = new_across
+}
+```
+```gdscript title=sparse_row_doc/entity.spite
+var id = 0
+
+func Entity(new_id: Integer) {
+    id = new_id
+}
+```
+```gdscript title=sparse_row_doc/trail.spite
+var lefts = List<Float>()
+var last = 0.0
+var owner = -1
+```
+```gdscript title=sparse_row_doc/mover.spite
+type Moving {
+    entity: Entity
+    position: Position
+    velocity: Velocity
+    trail: Trail
+}
+
+func update_each(moving: Moving) {
+    moving.position.left = moving.position.left + moving.velocity.across
+    moving.trail.lefts.append(moving.position.left)
+    moving.trail.last = moving.position.left
+    moving.trail.owner = moving.entity.id
+}
+```
+```gdscript title=sparse_row_doc/column.spite
+singleton
+
+generic $component_type
+
+var dense_of = List<Integer>()
+var values = Vector<$component_type>()
+
+func insert(entity: Integer, value: $component_type) {
+    while dense_of.count() <= entity {
+        dense_of.append(-1)
+    }
+    dense_of[entity] = values.count()
+    values.append(value)
+}
+
+func dense_index(entity: Integer): Integer {
+    crash dense_of[entity]
+    return dense_of[entity]
+}
+```
+```gdscript title=sparse_row_doc/reference_column.spite
+singleton
+
+generic $component_type
+
+var dense_of = List<Integer>()
+var values = List<$component_type>()
+
+func insert(entity: Integer, value: $component_type) {
+    while dense_of.count() <= entity {
+        dense_of.append(-1)
+    }
+    dense_of[entity] = values.count()
+    values.append(value)
+}
+
+func dense_index(entity: Integer): Integer {
+    crash dense_of[entity]
+    return dense_of[entity]
+}
+
+func at(dense: Integer): $component_type {
+    crash values[dense]
+    return values[dense]
+}
+```
+```gdscript title=sparse_row_doc/runner.spite
+generic $row_type
+
+var found = Vector<Integer>()
+
+func run(mover: Mover, entity_count: Integer) {
+    var entity = 0
+    while entity < entity_count {
+        found.clear()
+        find_attributes(entity)
+        var row: $row_type = null
+        fill_attributes(row, found, entity)
+        mover.update_each(row)
+        entity = entity + 1
+    }
+}
+
+func find_attribute(attribute: Symbol<$row_type>, entity: Integer) {
+    if attribute.class == Entity {
+        found.append(entity)
+    } else if attribute.class.fits_vector() {
+        var column = Column<attribute.class>()
+        var dense = column.dense_index(entity)
+        found.append(dense)
+    } else {
+        var column = ReferenceColumn<attribute.class>()
+        var dense = column.dense_index(entity)
+        found.append(dense)
+    }
+}
+
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: Vector<Integer>, entity: Integer) {
+    if attribute.class == Entity {
+        row.attributes[attribute] = Entity(entity)
+    } else if attribute.class.fits_vector() {
+        row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
+    } else {
+        row.attributes[attribute] = ReferenceColumn<attribute.class>().at(rows[attribute.index])
+    }
+}
+```
+```gdscript title=sparse_row_doc/sparse_row_doc.spite entry
+var console = Console()
+var runner = Runner<Moving>()
+var mover = Mover()
+var positions = Column<Position>()
+var velocities = Column<Velocity>()
+var trails = ReferenceColumn<Trail>()
+
+func SparseRowDoc() {
+    var first = Position()
+    positions.insert(0, first)
+    var second = Position()
+    positions.insert(1, second)
+    var slow = Velocity(1.0)
+    velocities.insert(1, slow)
+    var fast = Velocity(4.0)
+    velocities.insert(0, fast)
+    var first_trail = Trail()
+    trails.insert(0, first_trail)
+    var second_trail = Trail()
+    trails.insert(1, second_trail)
+    runner.run(mover, 2)
+    runner.run(mover, 2)
+    var first_steps = first_trail.lefts.count()
+    var second_steps = second_trail.lefts.count()
+    console.print(first_trail.owner, first_trail.last, first_steps)
+    console.print(second_trail.owner, second_trail.last, second_steps)
+}
+```
+```output
+0 8 2
+1 2 2
+```
+
+For `Runner<Moving>` the walk is written out as `{entity: <an Entity in the frame>, position:
+Column<Position>().values[found[1]], velocity: Column<Velocity>().values[found[2]], trail:
+ReferenceColumn<Trail>().at(found[3])}`: the `Entity` is made in the frame, since `Entity` could be a `Vector`
+item, and the `Trail` is counted once for the row and let go after the call. Only `Position` and `Velocity` are
+borrowed, so only their vectors are checked for a resize during the call.
+
 ## `drop()` runs once, right before the object is freed
 
 A class may define a zero-argument `func drop() { ... }` for cleanup (closing a handle, clearing a
@@ -953,6 +1126,41 @@ kept past its use. What is built (the error texts and the readings marked are pr
   unchanged, the check for a resize starting on the line after the walk. The template is not called, so it is not
   compiled for that walk. A walk of any other shape leaves the local an ordinary `type` value, and storing a
   borrowed item in it is the error for keeping one. Nothing runs for it: the rewrite is done while compiling.
+- **A walked row over sparse columns** (D217, decided by Claude under D205; the names `attribute.index` and
+  `fits_vector()` provisional under D214, the readings below proposed by Claude, unconfirmed). A walk that fills a
+  row may also be written with:
+  - **A generic singleton per attribute.** `Column<attribute.class>()` in the line is the singleton made with the
+    walked attribute's class, written out as `Column<Position>()` for `position`; its `Vector` attribute is the
+    source the item is borrowed from (`'row' borrows items from 'Column<Position>().values' ...`), and the resize
+    check follows the singleton's attribute through the call effects as it follows a class's own attribute. A
+    singleton made from `attribute.class` is never an attribute, so it may be written where it is used, inline
+    included (the D144 and D110 errors leave it out).
+  - **The place of the attribute.** `attribute.index` is the attribute's place among those walked, from 0, a
+    constant written into the line (`found[attribute.index]` becomes `found[1]`), and it may be read in any
+    function a walk of attributes calls. Read elsewhere, it is `'attribute.index' is the attribute's place among
+    the attributes walked, so it is read in a function a walk of attributes calls, such as 'fill_attribute(attribute:
+    Symbol<Row>, ...)'`. The line's parts are `<value>.attributes[attribute]`, attribute reads, `[ ]`, calls
+    (constructions included), the walk's parameters, `attribute.index` and whole numbers; anything else in the line
+    of a walk that would borrow is `'row' is a row filled by the walk on the next line, and its line for
+    'position' reads 'attribute.index + 1', which a walked row cannot write out: ... so work out 'attribute.index
+    + 1' before the walk and pass it in`.
+  - **A choice per attribute.** The template's one statement may be an `if` whose conditions are decided while
+    compiling for each attribute -- `attribute.class == Entity`, `attribute.class.fits_vector()`,
+    `attribute.class.has_function(...)` -- each branch holding one such line; the branch taken for an attribute is
+    the line written out for it.
+  - **Mixed attributes.** Beside borrowed items, an attribute of a walked row may hold any other value. A
+    construction of a class that could be a `Vector` item and holds nothing counted (`Entity(entity)`) is made in
+    the frame, never allocated, and is borrowed like the items: it lives exactly as long as the row, and its
+    constructor may not use `this` as a value. Any other counted value (a reference read from a reference column,
+    a `String`) is counted once when the row is made and let go at the end of the row's block, so a call that
+    removes it from its column cannot free it under the row. The resize check covers the borrowed items' vectors
+    only. A row written as a literal keeps D206's rule, borrowed items and plain values only.
+  - **Cost.** Nothing runs for any of it: the singleton is the one a program would reach anyway, `attribute.index`
+    is a constant, the choice is made while compiling, and the frame-made object is a struct in the frame.
+    `benchmarks/sparse_rows`: 200 000 entities, two systems, sparse sets for every component, 7.4 ms a tick with
+    `Vector` columns and walked rows against 24.0 ms with reference columns and a reused row object (best of five,
+    `clang -O2`).
 
 `diagnostics/vector_borrows`, `diagnostics/vector_items`, `diagnostics/vector_rows`, `conformance/stage6/vector_items`,
-`conformance/stage6/vector_rows`, `conformance/stage6/walked_rows`, `diagnostics/walked_rows`.
+`conformance/stage6/vector_rows`, `conformance/stage6/walked_rows`, `diagnostics/walked_rows`,
+`conformance/stage6/sparse_rows`, `diagnostics/sparse_rows`.

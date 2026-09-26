@@ -190,6 +190,13 @@ func is_alive(): Boolean {
 - A generic runner builds the same row with a walk: `var row: $row_type = null`, then on the next line
   `fill_attributes(row, index)` whose template is the one line `row.attributes[attribute] =
   columns.attributes[attribute][index]`. The compiler writes the literal in its place (D212), with the same rules.
+- Over sparse sets (each entity at a different place in each column), the runner first walks the attributes to
+  fill `found: Vector<Integer>` with each one's place, then the fill template reads each attribute from its own
+  generic singleton: `row.attributes[attribute] = Column<attribute.class>().values[found[attribute.index]]`. Choose
+  per attribute with an `if` on `attribute.class == Entity` or `attribute.class.fits_vector()` (both decided while
+  compiling), each branch one such line: `Entity(entity)` is made in the frame, a reference column's value
+  (`ReferenceColumn<attribute.class>().at(found[attribute.index])`) is counted for the row (D217). Keep the index
+  expression to parameters, `attribute.index` and whole numbers; work anything else out before the walk.
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
   built or planned, and what it could ever change that you see, is in [optimizations.md](optimizations.md).

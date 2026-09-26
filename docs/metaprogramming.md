@@ -490,6 +490,51 @@ func CodegenClassName() {
 a column of String
 ```
 
+### Asking whether a class fits a Vector
+
+A `Vector` keeps its items inline, so only a class of known size can be one
+([collections.md](collections.md#vectort--implemented)). `$component_type.fits_vector()` asks that while
+compiling, like `has_function`, so a generic keeps a class that fits in a `Vector` and any other as references in
+a `List`, and never makes the `Vector` it could not ([D217](decisions.md)):
+
+```gdscript title=fits_vector_doc/store.spite
+generic $component_type
+
+var inline = $component_type.fits_vector()
+
+func describe(): String {
+    if $component_type.fits_vector() {
+        var packed = Vector<$component_type>()
+        var packed_count = packed.count()
+        return "inline, {packed_count} so far"
+    }
+    var listed = List<$component_type>()
+    var listed_count = listed.count()
+    return "as references, {listed_count} so far"
+}
+```
+```gdscript title=fits_vector_doc/fits_vector_doc.spite entry
+var console = Console()
+
+func FitsVectorDoc() {
+    var numbers = Store<Integer>()
+    var number_answer = numbers.describe()
+    var lists = Store<List<Integer>>()
+    var list_answer = lists.describe()
+    console.print(numbers.inline, number_answer)
+    console.print(lists.inline, list_answer)
+}
+```
+```output
+true inline, 0 so far
+false as references, 0 so far
+```
+
+Inside a walk of attributes, `attribute.class.fits_vector()` asks the same of each attribute, and
+`attribute.index` is the attribute's place in the walk, 0 for the first: together they let a runner keep a
+sparse set per component and fill a row of borrowed items from it
+([memory.md](memory.md#a-row-of-borrowed-items-for-one-call)).
+
 ## A class's functions, a folder's classes and a name's pattern
 
 The templates above range over a class's attributes. They range over four more things a program already has:
@@ -1016,6 +1061,18 @@ attribute it reaches, while `attribute.name` and `attribute.class` describe the 
 an attribute only they look at is the unread-attribute error (D118, [Unused is an
 error](style.md#unused-is-an-error--implemented)).
 
+**`attribute.index` is the attribute's place in the walk** (D217, decided by Claude under D205; the name
+provisional under D214).  **[implemented]** In a template a walk of attributes calls, `attribute.index` is a
+whole-number constant, 0 for the first attribute walked, in the order the plural walks them (a class's
+declaration order, a `type`'s order); a runner uses it to keep one value per attribute in a list it fills by
+walking, as a sparse-set engine keeps each component's dense place
+([memory.md](memory.md#borrowed-items-of-a-vectort--implemented)). Read in a template reached by name alone, where
+no walk gives it a place, it is the error "'attribute.index' is the attribute's place among the attributes walked,
+so it is read in a function a walk of attributes calls, such as 'fill_attribute(attribute: Symbol<Row>, ...)'".
+In the same templates **`attribute.class == Entity` is decided while compiling** for each attribute, like
+`$component_type == Entity` in a generic, and only the branch taken is compiled (proposed by Claude,
+unconfirmed; `conformance/stage6/sparse_rows`).
+
 **Another class's attributes, and every attribute at once** (proposed by Claude, unconfirmed; built for D95's
 `Json`).  **[implemented]**
 
@@ -1103,6 +1160,18 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
   - **Cost.** Folded, nothing: no table, no class object. Asked at run time, the program carries one function
     comparing a function's address against those of the functions it makes into values that can wait, and keeps
     those functions (`conformance/stage6/waiting_systems`).
+- **`$component_type.fits_vector()` asks whether the class can be a `Vector` item** (D217, decided by Claude
+  under D205; the name provisional under D214).  **[implemented]** It is `true` when a `Vector` of that type
+  compiles by D204's rule ([collections.md](collections.md#vectort--implemented)): a number, `Boolean`, enum or
+  `String`, or a class whose attributes are only those or singletons, with no `drop()` and no function using
+  `this` as a value; `false` for anything else, which is kept as a reference in a `List`. It folds like
+  `has_function` wherever it is written, asked of a codegen type (`$component_type.fits_vector()`), of a walked
+  attribute (`attribute.class.fits_vector()`, once per attribute) or of a class by name
+  (`Position.fits_vector()`), and only the branch taken is compiled, so a generic can make a `Column<T>` for one
+  type and a `ReferenceColumn<T>` for another without ever making a `Vector` of the second. It is a function of
+  `Spite.Class` too, so `klass.fits_vector()` on a class value answers at run time, from a flag the compiler sets
+  on each class object it makes. **Cost**: folded, nothing; asked at run time, one `Boolean` read, the flag
+  written once when the class object is made (`conformance/stage6/sparse_rows`).
 - **`argument: Symbol<$system_type.run_each>` ranges over the arguments of `run_each`** (D114). A `Symbol<X>`
   already ranged over X's members; a function's members are its arguments. Inside, `argument.name` is the
   argument's name and `argument.class` its type, written as a type (`Query<argument.class>()`,

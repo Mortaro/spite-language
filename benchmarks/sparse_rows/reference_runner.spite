@@ -1,0 +1,32 @@
+generic $row_type
+generic $system_type
+
+var found = Vector<Integer>()
+var missing = false
+
+func run(system: $system_type, row: $row_type, entity_count: Integer) {
+    var entity = 0
+    while entity < entity_count {
+        found.clear()
+        missing = false
+        find_attributes(entity)
+        if not missing {
+            fill_attributes(row, found)
+            system.update_each(row)
+        }
+        entity = entity + 1
+    }
+}
+
+func find_attribute(attribute: Symbol<$row_type>, entity: Integer) {
+    var column = ReferenceColumn<attribute.class>()
+    var dense = column.set.dense_index(entity)
+    if dense < 0 {
+        missing = true
+    }
+    found.append(dense)
+}
+
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: Vector<Integer>) {
+    row.attributes[attribute] = ReferenceColumn<attribute.class>().at(rows[attribute.index])
+}
