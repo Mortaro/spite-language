@@ -1,0 +1,30 @@
+square_root: true
+sine: true
+cosine: true
+tangent: true
+arc_sine: true
+arc_cosine: true
+arc_tangent: true
+arc_tangent_over: true
+power: true
+exponential: true
+logarithm: true
+logarithm_base_2: true
+logarithm_base_10: true
+floor, ceiling, round, truncate: true
+absolute: true
+minimum, maximum, clamp: true
+sine of Float.pi(): true
+square_root twice: true
+power with an Integer literal: true
+sine of Double.pi(): true
+cosine of Double.pi(): true
+logarithm of Double.euler_number(): true
+power with a Float literal, exact as a Double: true
+exponential of a square_root: true
+square_root of -1, not a number: true
+logarithm of 0, minus infinity: true
+exponential of 1000, infinity: true
+square_root of -0: true
+power past the largest: true
+questions true true true

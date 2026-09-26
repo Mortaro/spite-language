@@ -1,0 +1,16 @@
+1 is 15360, back 1
+-2 is 49152, back -2
+0.1 is 11878, back 0.099975586
+65504 is 31743, back 65504
+65519 is 31743, back 65504
+65520 is 31744, back inf
+100000 is 31744, back inf
+6.10351562e-05 is 1024, back 6.10351562e-05
+5.96046448e-08 is 1, back 5.96046448e-08
+1.99999999e-08 is 0, back 0
+0 is 0, back 0
+-0 is 32768, back -0
+0.33333334 is 13653, back 0.33325195
+inf is 31744, back inf
+nan is 32256, back nan
+bits of 1.0 1065353216

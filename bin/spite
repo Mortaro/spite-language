@@ -35,7 +35,9 @@ export CC
 if [ ! -x "$binary" ] || [ "$seed" -nt "$binary" ]; then
     echo "spite: building the compiler" >&2
     mkdir -p "$here/.spite-cache"
-    $CC -O2 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$binary" || exit 1
+    maths_library="-lm"   # the compiler folds maths with the C library's own, which Linux and macOS keep in libm
+    case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) maths_library="" ;; esac
+    $CC -O2 -Wno-parentheses-equality -Wno-deprecated-declarations "$seed" -o "$binary" $maths_library || exit 1
 fi
 
 # `spite connect <port> [--command="..."]` talks to a program running with --repl-port; nothing in it is a path.

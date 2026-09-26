@@ -24,7 +24,7 @@ REPL can look at any of it ([D143](decisions.md)).
 | Class | What it is | Page |
 |---|---|---|
 | `String` | immutable text | [below](#string) |
-| `Integer`, `Long`, `Float`, `Double`, `Boolean`, ... | numbers, as classes | [values_and_types.md](values_and_types.md#numbers-are-classes) |
+| `Integer`, `Long`, `Float`, `Double`, `Boolean`, ... | numbers, as classes, with their maths (`square_root()`, `sine()`, `Float.pi()`, ...) | [values_and_types.md](values_and_types.md#numbers-are-classes), [maths](values_and_types.md#maths-functions) |
 | `Nothing`, `Anything` | what a function returns when it returns nothing; the empty `type` every class fits | [functions_and_operators.md](functions_and_operators.md#calling-one) |
 | `List<T>`, `Dictionary<T>` | containers, and the member templates | [collections.md](collections.md) |
 | `Console` | the terminal: print, read a line | [below](#console) |
@@ -37,6 +37,7 @@ REPL can look at any of it ([D143](decisions.md)).
 | `Environment`, `Build`, `Arguments` | settings and the command line | [programs.md](programs.md) |
 | `JsonWriter<T>`, `JsonReader<T>` | any value to JSON text and back | [json.md](json.md) |
 | `BinaryWriter<T>`, `BinaryReader<T>` | any value to compact bytes (a `Vector<Byte>`) and back, for Spite programs talking to each other and for files | [json.md](json.md#write-and-read-bytes) |
+| `Vector2`, `Vector3`, `Vector4`, `Matrix3`, `Matrix4`, `Quaternion`, `AxisAlignedBox`, `Plane`, `Frustum`, `Ray`, `Color`, `ColorText`, `CubicBezier`, `Easing`, `Noise` | game maths: points, directions, transforms, rotations, culling and picking, colours in the web's formats, curves, easings and noise | [game_maths.md](game_maths.md) |
 | `Concurrent`, `Parallel`, `ThreadPool` | run a function while waiting, or on the thread pool; the handle is the value | [concurrency.md](concurrency.md) |
 | `ThreadLocal<T>`, `Lock`, `ThreadSlot` | a value per thread, and a lock | [concurrency.md](concurrency.md#a-value-per-thread-and-a-lock) |
 | `Socket` | TCP over IPv4: listen, connect, lines and bytes, waiting or not | [below](#socket) |
@@ -627,6 +628,78 @@ allocation counts.
 | `to_float()` / `to_double()` | `Float` / `Double` | `0.0` on a value that does not parse |
 | `sum(other)` / `equals(other)` / `less_than(other)` / `greater_than(other)` | `String` / `Boolean` | the explicit call form of `+`/`==`/`<`/`>` |
 | `to_string()` / `to_debug()` | `String` | the text itself / the text quoted, with `"`, `\` and a line feed escaped ([`Console.debug`](#console)) |
+
+#### Maths  **[implemented]**
+
+The maths of a 3D engine -- skinning, animation, lighting -- as members of the number classes, so it adds no
+syntax and binds no singleton (the names, the constants on the class and the lowering proposed by Claude,
+unconfirmed; [values_and_types.md](values_and_types.md#maths-functions) teaches them). On `Float` and `Double`,
+each answering the receiver's type unless it says otherwise, with every other operand cast to that type like any
+argument:
+
+| Member | `Float` / `Double` in C | Answers |
+|---|---|---|
+| `square_root()` | `sqrtf` / `sqrt` | not-a-number below zero; `-0` for `-0` |
+| `sine()`, `cosine()`, `tangent()` | `sinf`, `cosf`, `tanf` / `sin`, `cos`, `tan` | of an angle in radians |
+| `arc_sine()`, `arc_cosine()` | `asinf`, `acosf` / `asin`, `acos` | not-a-number outside -1 to 1 |
+| `arc_tangent()` | `atanf` / `atan` | between -pi/2 and pi/2 |
+| `rise.arc_tangent_over(run)` | `atan2f` / `atan2` | the angle of the point `(run, rise)`, between -pi and pi, in the right quadrant; `0` for `(0, 0)` |
+| `power(exponent)` | `powf` / `pow` | |
+| `exponential()` | `expf` / `exp` | infinity once it overflows |
+| `logarithm()`, `logarithm_base_2()`, `logarithm_base_10()` | `logf`, `log2f`, `log10f` / `log`, `log2`, `log10` | the natural logarithm and the other two; minus infinity at `0`, not-a-number below it |
+| `floor()`, `ceiling()`, `truncate()` | `floorf`, `ceilf`, `truncf` / `floor`, `ceil`, `trunc` | a whole value, still in the receiver's type: `-2.5` gives `-3`, `-2` and `-2` |
+| `round()` | `roundf` / `round` | half away from zero: `2.5` is `3`, `-2.5` is `-3` |
+| `absolute()` | `fabsf` / `fabs` | |
+| `minimum(other)`, `maximum(other)` | `fminf`, `fmaxf` / `fmin`, `fmax` | an operand that is not a number is ignored, as C's are: `nan.minimum(0.0)` is `0` |
+| `clamp(low, high)` | `fminf(fmaxf(value, low), high)` | `maximum(low)` then `minimum(high)`: not-a-number gives `low`, and `high` wins when `low` is above it |
+| `is_finite()`, `is_infinite()`, `is_not_a_number()` | `isfinite`, `isinf`, `isnan` | a `Boolean` |
+
+On every whole number, `Tiny` to `UnsignedLong`, answering the receiver's type:
+
+| Member | Answers |
+|---|---|
+| `absolute()` | the value without its sign; the smallest signed value wraps to itself, as its negation does (`Integer.smallest().absolute()` is -2147483648), and an unsigned value is itself |
+| `minimum(other)`, `maximum(other)` | the smaller or larger, `other` cast first: a `Byte`'s `minimum(300)` compares with 44 |
+| `clamp(low, high)` | `value` held between `low` and `high`, with `high` winning when `low` is above it, as on a float |
+
+**Constants are answered by the class itself** (D6: a class is an object): `Float.pi()`, `tau()`, `euler_number()`,
+`infinity()`, `not_a_number()`, `largest()` (the largest finite value) and `smallest()` (the most negative finite
+one) on `Float` and `Double`, and `largest()` and `smallest()` on each whole number (`UnsignedLong.largest()` is
+18446744073709551615, its `smallest()` 0). Each is the value itself in the C, written exactly (`0x1.921fb6p+1f`
+for `Float.pi()`, `INT32_MAX` for `Integer.largest()`). On a value, `angle.pi()` is "'pi()' is a constant of the
+class Float, not of a value: write 'Float.pi()'"; on the class, a function of a value is "'Float.square_root()'
+calls a function of a value on the class: the class Float answers only its constants, ..." and a name that is
+neither is "the class Integer answers only its constants, largest() and smallest(), and 'pi' is not one of them"
+(`diagnostics/maths_constant_on_value`).
+
+**Nothing here halts.** Floats keep infinity and not-a-number (D200), so every edge answers the IEEE 754 value the
+C library gives -- `(-1.0).square_root()` is not-a-number -- and `errno` is never read. D201's whole-number
+division checks are untouched: none of these divides.
+
+**Each is a primitive of the language, lowered by the backend** (D147, D178's form: named in Spite, lowered in one
+place, so no Spite changes with the backend). `--final-classes` prints them as bodiless declarations in each number
+class, and `bootstrap/source/generation/maths_primitives.spite` is the one place that says what C each becomes:
+a macro written where it is called, so `angle.sine()` is `sinf(angle)` in the C, with no function of Spite's own
+around it, and a whole number's `clamp` is two comparisons in one statement. None has hand-written C in a `.spite`
+file of `library/`. A call whose operands are all constants, `(0.5).sine()` or `Float.pi().cosine()`, is worked out
+while compiling with the same C library function, so its answer is bit for bit the one the program would have
+computed ([optimizations.md](optimizations.md#maths-on-constants-is-worked-out-while-compiling);
+`conformance/stage6/maths_folding`).
+
+**Tree-shaken, and nothing at run time** (D177). A member a program never calls is not in its C; `<math.h>` is
+included only when a member that calls the C library survives tree shaking, and only then does a build on Linux or
+macOS link it (`-lm`; Windows has it in the C runtime). A program that uses none of it, `examples/hello`, carries
+no `#include <math.h>`. **Not built:** `fused_multiply_add`: without a processor flag telling the C compiler the
+machine has the instruction, `fmaf` is a slow exact routine in the C library, a cost a reader would not expect
+from one multiply and add (SPITE.md); it waits for targets that name their processor.
+
+Other languages' short names are errors naming the Spite one, on the class that has it: `side.sqrt()` is "Float
+has no function 'sqrt': Spite spells it 'square_root', since no name is abbreviated", and likewise `sin`, `cos`,
+`tan`, `asin`, `acos`, `atan`, `atan2`, `pow`, `exp`, `log`, `ln`, `log2`, `log10`, `ceil`, `trunc`, `abs`,
+`fabs`, `min`, `max`, `isnan`, `isinf` and `isfinite` (`diagnostics/maths_other_spellings`).
+`conformance/stage6/maths_functions` pins the values and the edges, and `maths_precision` what `Float` loses
+against `Double`. `benchmarks/maths_stopgaps` times them against the pure-Spite versions SlopEngine wrote while
+they were missing ([benchmarks/README.md](../benchmarks/README.md)).
 
 #### System classes  **[implemented]**
 

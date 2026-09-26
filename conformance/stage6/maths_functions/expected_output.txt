@@ -1,0 +1,37 @@
+square_root 1.4142135623730951 3
+sine 0 cosine 1 tangent 0
+sine 0.479426 cosine 0.877583 tangent 0.546302
+arc_sine 0.523599 arc_cosine 1.047198 arc_tangent 0.785398
+arc_tangent_over 0.785398 2.356194 -2.356194 -0.785398
+arc_tangent_over of zeros 0 3.141592653589793
+power 1024 3 0.5
+exponential 1 2.718282
+logarithm 0 base 2 3 base 10 3
+floor 2 -3 ceiling 3 -2
+round 3 -3 truncate 2 -2
+absolute 2.5 2.5
+minimum -2.5 maximum 2.5
+clamp 2.5 0 1
+Float 2 3 0.5 1
+square_root of -1 nan, logarithm of 0 -inf, of -1 nan
+arc_sine of pi nan true
+exponential of 1000 inf finite false infinite true
+minimum ignores not a number: 0 0
+clamp of not a number 0
+clamp with low above high -1
+Float square_root of -4 nan true true
+negative zero 0 -0
+Float pi 3.1415927 tau 6.2831855 euler_number 2.7182817
+Double pi 3.141592653589793 tau 6.283185307179586 euler_number 2.718281828459045
+Float infinity inf not a number nan
+Float largest 3.40282347e+38 smallest -3.40282347e+38
+Double largest 1.7976931348623157e+308 smallest -1.7976931348623157e+308
+Double infinity inf -inf true false
+Integer absolute 7 minimum -7 maximum 3 clamp -3
+Integer largest 2147483647 smallest -2147483648
+absolute of the smallest wraps to itself: -2147483648
+Tiny 127 -128 -128
+Byte 255 0 200 100 44
+Long 9223372036854775807 -9223372036854775808 9000000000 4
+UnsignedLong 18446744073709551615 Short -32768 UnsignedShort 65535
+clamp with low above high 1

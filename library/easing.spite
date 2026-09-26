@@ -1,0 +1,116 @@
+singleton
+
+func smooth_step(amount: Float): Float {
+    var held = amount.clamp(0.0, 1.0)
+    return held * held * (3.0 - 2.0 * held)
+}
+
+func smoother_step(amount: Float): Float {
+    var held = amount.clamp(0.0, 1.0)
+    return held * held * held * (held * (held * 6.0 - 15.0) + 10.0)
+}
+
+func in_quadratic(amount: Float): Float {
+    return amount * amount
+}
+
+func out_quadratic(amount: Float): Float {
+    var rest = 1.0 - amount
+    return 1.0 - rest * rest
+}
+
+func in_out_quadratic(amount: Float): Float {
+    if amount < 0.5 {
+        return 2.0 * amount * amount
+    }
+    var rest = -2.0 * amount + 2.0
+    return 1.0 - rest * rest * 0.5
+}
+
+func in_cubic(amount: Float): Float {
+    return amount * amount * amount
+}
+
+func out_cubic(amount: Float): Float {
+    var rest = 1.0 - amount
+    return 1.0 - rest * rest * rest
+}
+
+func in_out_cubic(amount: Float): Float {
+    if amount < 0.5 {
+        return 4.0 * amount * amount * amount
+    }
+    var rest = -2.0 * amount + 2.0
+    return 1.0 - rest * rest * rest * 0.5
+}
+
+func in_sine(amount: Float): Float {
+    var angle = amount * Float.pi() * 0.5
+    return 1.0 - angle.cosine()
+}
+
+func out_sine(amount: Float): Float {
+    var angle = amount * Float.pi() * 0.5
+    return angle.sine()
+}
+
+func in_out_sine(amount: Float): Float {
+    var angle = amount * Float.pi()
+    return (1.0 - angle.cosine()) * 0.5
+}
+
+func in_exponential(amount: Float): Float {
+    assert amount > 0.0
+    var two: Float = 2.0
+    var exponent = 10.0 * amount - 10.0
+    return two.power(exponent)
+}
+
+func out_exponential(amount: Float): Float {
+    if amount >= 1.0 {
+        return 1.0
+    }
+    var two: Float = 2.0
+    var exponent = -10.0 * amount
+    return 1.0 - two.power(exponent)
+}
+
+func in_back(amount: Float): Float {
+    var overshoot = 1.70158
+    return (overshoot + 1.0) * amount * amount * amount - overshoot * amount * amount
+}
+
+func out_back(amount: Float): Float {
+    var overshoot = 1.70158
+    var rest = amount - 1.0
+    return 1.0 + (overshoot + 1.0) * rest * rest * rest + overshoot * rest * rest
+}
+
+func out_elastic(amount: Float): Float {
+    assert amount > 0.0
+    if amount >= 1.0 {
+        return 1.0
+    }
+    var two: Float = 2.0
+    var exponent = -10.0 * amount
+    var angle = (amount * 10.0 - 0.75) * Float.tau() / 3.0
+    return two.power(exponent) * angle.sine() + 1.0
+}
+
+func out_bounce(amount: Float): Float {
+    var strength = 7.5625
+    var width = 2.75
+    if amount < 1.0 / width {
+        return strength * amount * amount
+    }
+    if amount < 2.0 / width {
+        var shifted = amount - 1.5 / width
+        return strength * shifted * shifted + 0.75
+    }
+    if amount < 2.5 / width {
+        var shifted = amount - 2.25 / width
+        return strength * shifted * shifted + 0.9375
+    }
+    var shifted = amount - 2.625 / width
+    return strength * shifted * shifted + 0.984375
+}

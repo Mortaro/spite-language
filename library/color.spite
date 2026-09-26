@@ -1,0 +1,132 @@
+var red: Float = 0.0
+var green: Float = 0.0
+var blue: Float = 0.0
+var alpha: Float = 1.0
+
+func Color(starting_red: Float, starting_green: Float, starting_blue: Float, starting_alpha: Float) {
+    red = starting_red
+    green = starting_green
+    blue = starting_blue
+    alpha = starting_alpha
+}
+
+func equals(other: Color): Boolean {
+    return red == other.red and green == other.green and blue == other.blue and alpha == other.alpha
+}
+
+func linear_interpolate(target: Color, amount: Float): Color {
+    return Color(
+        red + (target.red - red) * amount,
+        green + (target.green - green) * amount,
+        blue + (target.blue - blue) * amount,
+        alpha + (target.alpha - alpha) * amount,
+    )
+}
+
+func to_linear(): Color {
+    var linear_red = _channel_to_linear(red)
+    var linear_green = _channel_to_linear(green)
+    var linear_blue = _channel_to_linear(blue)
+    return Color(linear_red, linear_green, linear_blue, alpha)
+}
+
+func to_standard_rgb(): Color {
+    var standard_red = _channel_to_standard(red)
+    var standard_green = _channel_to_standard(green)
+    var standard_blue = _channel_to_standard(blue)
+    return Color(standard_red, standard_green, standard_blue, alpha)
+}
+
+func _channel_to_linear(channel: Float): Float {
+    if channel <= 0.04045 {
+        return channel / 12.92
+    }
+    var shifted = (channel + 0.055) / 1.055
+    return shifted.power(2.4)
+}
+
+func _channel_to_standard(channel: Float): Float {
+    if channel <= 0.0031308 {
+        return channel * 12.92
+    }
+    var raised = channel.power(0.41666666)
+    return 1.055 * raised - 0.055
+}
+
+func to_hex(): String {
+    var text = "#{_byte_hex(red)}{_byte_hex(green)}{_byte_hex(blue)}"
+    if _byte_of(alpha) == 255 {
+        return text
+    }
+    return "{text}{_byte_hex(alpha)}"
+}
+
+func to_rgb_text(): String {
+    if _byte_of(alpha) == 255 {
+        return "rgb({_byte_of(red)}, {_byte_of(green)}, {_byte_of(blue)})"
+    }
+    return "rgba({_byte_of(red)}, {_byte_of(green)}, {_byte_of(blue)}, {_rounded(alpha, 1000.0)})"
+}
+
+func to_hsl_text(): String {
+    var highest = red.maximum(green)
+    highest = highest.maximum(blue)
+    var lowest = red.minimum(green)
+    lowest = lowest.minimum(blue)
+    var lightness = (highest + lowest) * 0.5
+    var spread = highest - lowest
+    var saturation = 0.0
+    var hue = 0.0
+    if spread > 0.0 {
+        var denominator = 1.0 - (2.0 * lightness - 1.0).absolute()
+        saturation = spread / denominator
+        hue = _hue_of(highest, spread)
+    }
+    var hue_text = _rounded(hue, 10.0)
+    var saturation_text = _rounded(saturation * 100.0, 10.0)
+    var lightness_text = _rounded(lightness * 100.0, 10.0)
+    if _byte_of(alpha) == 255 {
+        return "hsl({hue_text}, {saturation_text}%, {lightness_text}%)"
+    }
+    return "hsla({hue_text}, {saturation_text}%, {lightness_text}%, {_rounded(alpha, 1000.0)})"
+}
+
+func _hue_of(highest: Float, spread: Float): Float {
+    var sector = 0.0
+    if highest == red {
+        sector = (green - blue) / spread
+        if sector < 0.0 {
+            sector = sector + 6.0
+        }
+    } else if highest == green {
+        sector = (blue - red) / spread + 2.0
+    } else {
+        sector = (red - green) / spread + 4.0
+    }
+    return sector * 60.0
+}
+
+func _byte_of(channel: Float): Integer {
+    var held = channel.clamp(0.0, 1.0)
+    var scaled = held * 255.0
+    var whole: Integer = scaled.round()
+    return whole
+}
+
+func _byte_hex(channel: Float): String {
+    var digits = "0123456789abcdef"
+    var whole = _byte_of(channel)
+    var high = whole / 16
+    var low = whole % 16
+    return "{digits.character_at(high)}{digits.character_at(low)}"
+}
+
+func _rounded(value: Float, steps: Float): Float {
+    var scaled = value * steps
+    var whole = scaled.round()
+    return whole / steps + 0.0
+}
+
+func to_string(): String {
+    return to_hex()
+}

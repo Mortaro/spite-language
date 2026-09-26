@@ -323,3 +323,58 @@ Behaviour that does not match the manual. The language was not changed; each is 
      450 microseconds of work, 300 rounds took 136 ms against 137 ms. The overlap only wins when the read itself
      waits long (a cold or remote file), which the compiler cannot know. Keep reads where they are (only reads in a
      row overlap, as built), or overlap them anyway where the file is large or remote by some rule you choose?
+
+## Which list is the default (Mortaro, relayed by SlopEngine)
+
+198. **Should the everyday list keep its items inline?** Mortaro: "are List in spite just a list of pointers? if yes
+     its a bad default for most assets since we need continuous memory cache". Today `List<Integer>` and other
+     number lists are contiguous, but `List<SomeClass>` holds references to objects spread through the heap, and
+     `Vector<SomeClass>` (D154, D204) is the inline form: one block, no header or count per item, items borrowed
+     rather than shared. Options (Claude, unconfirmed): (a) keep both, `List` for shared objects and `Vector` for
+     data, and teach `Vector` first for assets; (b) make the inline form the one called `List` and give the
+     reference list another name (`References<T>`?), since most game data is values; (c) let the compiler pick the
+     layout per list -- inline when every item is only ever reached through that list, references otherwise --
+     behind one name. (c) is the most "zero noise" but a borrowed item and a shared object behave differently
+     (D204's keep rules), so the difference would show up as errors rather than as a type name. Which default?
+
+## The maths functions (for SlopEngine's skinning, animation and PBR)
+
+204. **The maths names, and constants answered by the class.** Built as proposed by Claude, unconfirmed
+     (`docs/standard_library.md#maths--implemented`): members of the number classes, `angle.sine()`, each the C
+     library's function written where it is called. To confirm or rename:
+     - `rise.arc_tangent_over(run)` for C's `atan2(rise, run)`. Other readings: `rise.arc_tangent_of(run)`, or
+       an `angle()` on a future vector type instead.
+     - `logarithm()` for the natural logarithm, beside `logarithm_base_2()` and `logarithm_base_10()`; or
+       `natural_logarithm()`.
+     - `euler_number()` for e, since a name is never one letter; `pi()` and `tau()` kept.
+     - `largest()` and `smallest()`: `Float.smallest()` is the most negative finite `Float`, like
+       `Integer.smallest()`, not C's `FLT_MIN` (the smallest positive normal one), which is not built.
+     - `exponential()`, `truncate()`, `ceiling()`, and `round()` rounding half away from zero (C's `round`).
+     - **Constants are functions the class object answers**, `Float.pi()`, the one thing a number class answers
+       on its name: `angle.pi()` is an error naming it. The other shapes were an attribute of the class object,
+       `Float.pi` (like `Spite.Class.instances`), or a singleton `Maths`, which the brief ruled out. Keep
+       `Float.pi()`?
+     - `minimum`, `maximum` and so `clamp` follow C's `fmin`/`fmax`: a not-a-number operand is ignored, so
+       `nan.clamp(0.0, 1.0)` is `0`. IEEE 754-2019's `minimum` passes not-a-number on instead, which D200's "wrong
+       maths should not look plausible" leans towards, at a compare or two more per call. Which?
+     - D147 wants a library function to become Spite that calls it; these are instead primitives each backend
+       lowers, D178's form, because a backend without a C library would bring its own maths anyway. Agreed?
+     - Folding them at compile time (`docs/optimizations.md`) makes the compiler itself call the C library's
+       maths, so building the seed on Linux now needs `-lm`.
+
+## Game maths (D213)
+
+205. **Vectors and matrices allocate on every answer.** Built (proposed by Claude, unconfirmed): `Vector3` and the
+     others are classes, so `position + velocity.scaled(delta)` makes two heap objects and frees one
+     (`benchmarks/game_maths`: 26 ms and two allocations per step for a million steps; clang removed them only
+     where nothing but a sum survived). Ways to remove them, none built: (a) extend D108's placement to a class
+     instance that never outlives its statement or loop pass, so the temporary lives in the frame; (b) let a class
+     of only numbers be a value kept inline like a number (D149 makes every class a reference today); (c) in-place
+     twins such as `position.add(moved)`, which cost nothing but double the names. Which, if any? And the parts:
+     `x_value`...`w_value` because a name is never one letter -- keep them, or allow `x`, `y`, `z`, `w` on these
+     classes as the field's own names (as D213 allows `Vector2`)?
+206. **Reading a number's bits allocates.** `Double.bits()`, and now `Float.bits()` and
+     `UnsignedInteger.bits_as_float()` under the half-precision conversion, write the value into a heap block and
+     read it back, because only a `Memory.Address` may read bytes (D178); a half conversion allocates up to four
+     times. A `bits()` and `bits_as_float()` the backend writes as one `memcpy` in place, like D178's reads, would
+     cost nothing (proposed by Claude, unconfirmed: a new primitive of the number classes, so it waits for you).

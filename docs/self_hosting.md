@@ -9,11 +9,13 @@ any C compiler gives you a working Spite compiler, which can then compile the so
 C -- a fixpoint.
 
 ```
-cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite
+cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite -lm
 ./spite bootstrap --c-source --run=false    # writes bootstrap/bootstrap.c, equal to the seed when it is current
 ```
 
-So the only thing needed to build Spite from nothing is a C compiler. The compiler it gives finds `launcher/` and
+So the only thing needed to build Spite from nothing is a C compiler. `-lm` links the C library's maths, which
+the compiler calls to fold maths on constants ([optimizations.md](optimizations.md#maths-on-constants-is-worked-out-while-compiling));
+Linux and macOS keep it apart, and Windows needs no flag. The compiler it gives finds `launcher/` and
 `library/` from its own executable, so the executable lives in the repository or a folder inside it. The seed is
 committed, and `check.sh` says when it has drifted from the sources (`bash check.sh --update-seed` refreshes it
 after an intended change). The compiler is a program like any other, named by its folder: `bootstrap/`, whose entry

@@ -1,0 +1,109 @@
+var column_0_row_0: Float = 1.0
+var column_0_row_1: Float = 0.0
+var column_0_row_2: Float = 0.0
+var column_1_row_0: Float = 0.0
+var column_1_row_1: Float = 1.0
+var column_1_row_2: Float = 0.0
+var column_2_row_0: Float = 0.0
+var column_2_row_1: Float = 0.0
+var column_2_row_2: Float = 1.0
+
+func set_identity() {
+    column_0_row_0 = 1.0
+    column_0_row_1 = 0.0
+    column_0_row_2 = 0.0
+    column_1_row_0 = 0.0
+    column_1_row_1 = 1.0
+    column_1_row_2 = 0.0
+    column_2_row_0 = 0.0
+    column_2_row_1 = 0.0
+    column_2_row_2 = 1.0
+}
+
+func multiply(other: Matrix3): Matrix3 {
+    var product = Matrix3()
+    product.column_0_row_0 = column_0_row_0 * other.column_0_row_0 + column_1_row_0 * other.column_0_row_1 + column_2_row_0 * other.column_0_row_2
+    product.column_0_row_1 = column_0_row_1 * other.column_0_row_0 + column_1_row_1 * other.column_0_row_1 + column_2_row_1 * other.column_0_row_2
+    product.column_0_row_2 = column_0_row_2 * other.column_0_row_0 + column_1_row_2 * other.column_0_row_1 + column_2_row_2 * other.column_0_row_2
+    product.column_1_row_0 = column_0_row_0 * other.column_1_row_0 + column_1_row_0 * other.column_1_row_1 + column_2_row_0 * other.column_1_row_2
+    product.column_1_row_1 = column_0_row_1 * other.column_1_row_0 + column_1_row_1 * other.column_1_row_1 + column_2_row_1 * other.column_1_row_2
+    product.column_1_row_2 = column_0_row_2 * other.column_1_row_0 + column_1_row_2 * other.column_1_row_1 + column_2_row_2 * other.column_1_row_2
+    product.column_2_row_0 = column_0_row_0 * other.column_2_row_0 + column_1_row_0 * other.column_2_row_1 + column_2_row_0 * other.column_2_row_2
+    product.column_2_row_1 = column_0_row_1 * other.column_2_row_0 + column_1_row_1 * other.column_2_row_1 + column_2_row_1 * other.column_2_row_2
+    product.column_2_row_2 = column_0_row_2 * other.column_2_row_0 + column_1_row_2 * other.column_2_row_1 + column_2_row_2 * other.column_2_row_2
+    return product
+}
+
+func transform(vector: Vector3): Vector3 {
+    var x_part = column_0_row_0 * vector.x_value + column_1_row_0 * vector.y_value + column_2_row_0 * vector.z_value
+    var y_part = column_0_row_1 * vector.x_value + column_1_row_1 * vector.y_value + column_2_row_1 * vector.z_value
+    var z_part = column_0_row_2 * vector.x_value + column_1_row_2 * vector.y_value + column_2_row_2 * vector.z_value
+    return Vector3(x_part, y_part, z_part)
+}
+
+func transposed(): Matrix3 {
+    var flipped = Matrix3()
+    flipped.column_0_row_0 = column_0_row_0
+    flipped.column_0_row_1 = column_1_row_0
+    flipped.column_0_row_2 = column_2_row_0
+    flipped.column_1_row_0 = column_0_row_1
+    flipped.column_1_row_1 = column_1_row_1
+    flipped.column_1_row_2 = column_2_row_1
+    flipped.column_2_row_0 = column_0_row_2
+    flipped.column_2_row_1 = column_1_row_2
+    flipped.column_2_row_2 = column_2_row_2
+    return flipped
+}
+
+func equals(other: Matrix3): Boolean {
+    return column_0_row_0 == other.column_0_row_0 and column_0_row_1 == other.column_0_row_1 and column_0_row_2 == other.column_0_row_2 and column_1_row_0 == other.column_1_row_0 and column_1_row_1 == other.column_1_row_1 and column_1_row_2 == other.column_1_row_2 and column_2_row_0 == other.column_2_row_0 and column_2_row_1 == other.column_2_row_1 and column_2_row_2 == other.column_2_row_2
+}
+
+func to_string(): String {
+    return "[{column_0_row_0} {column_1_row_0} {column_2_row_0}; {column_0_row_1} {column_1_row_1} {column_2_row_1}; {column_0_row_2} {column_1_row_2} {column_2_row_2}]"
+}
+
+func determinant(): Float {
+    var first_minor = column_1_row_1 * column_2_row_2 - column_2_row_1 * column_1_row_2
+    var second_minor = column_0_row_1 * column_2_row_2 - column_2_row_1 * column_0_row_2
+    var third_minor = column_0_row_1 * column_1_row_2 - column_1_row_1 * column_0_row_2
+    return column_0_row_0 * first_minor - column_1_row_0 * second_minor + column_2_row_0 * third_minor
+}
+
+func inverse(): Matrix3? {
+    var whole = determinant()
+    assert whole != 0.0
+    var scale = 1.0 / whole
+    var inverted = Matrix3()
+    inverted.column_0_row_0 = (column_1_row_1 * column_2_row_2 - column_2_row_1 * column_1_row_2) * scale
+    inverted.column_0_row_1 = (column_2_row_1 * column_0_row_2 - column_0_row_1 * column_2_row_2) * scale
+    inverted.column_0_row_2 = (column_0_row_1 * column_1_row_2 - column_1_row_1 * column_0_row_2) * scale
+    inverted.column_1_row_0 = (column_2_row_0 * column_1_row_2 - column_1_row_0 * column_2_row_2) * scale
+    inverted.column_1_row_1 = (column_0_row_0 * column_2_row_2 - column_2_row_0 * column_0_row_2) * scale
+    inverted.column_1_row_2 = (column_1_row_0 * column_0_row_2 - column_0_row_0 * column_1_row_2) * scale
+    inverted.column_2_row_0 = (column_1_row_0 * column_2_row_1 - column_2_row_0 * column_1_row_1) * scale
+    inverted.column_2_row_1 = (column_2_row_0 * column_0_row_1 - column_0_row_0 * column_2_row_1) * scale
+    inverted.column_2_row_2 = (column_0_row_0 * column_1_row_1 - column_1_row_0 * column_0_row_1) * scale
+    return inverted
+}
+
+func set_rotation(rotation: Quaternion) {
+    var x_x = rotation.x_value * rotation.x_value
+    var y_y = rotation.y_value * rotation.y_value
+    var z_z = rotation.z_value * rotation.z_value
+    var x_y = rotation.x_value * rotation.y_value
+    var x_z = rotation.x_value * rotation.z_value
+    var y_z = rotation.y_value * rotation.z_value
+    var w_x = rotation.w_value * rotation.x_value
+    var w_y = rotation.w_value * rotation.y_value
+    var w_z = rotation.w_value * rotation.z_value
+    column_0_row_0 = 1.0 - 2.0 * (y_y + z_z)
+    column_0_row_1 = 2.0 * (x_y + w_z)
+    column_0_row_2 = 2.0 * (x_z - w_y)
+    column_1_row_0 = 2.0 * (x_y - w_z)
+    column_1_row_1 = 1.0 - 2.0 * (x_x + z_z)
+    column_1_row_2 = 2.0 * (y_z + w_x)
+    column_2_row_0 = 2.0 * (x_z + w_y)
+    column_2_row_1 = 2.0 * (y_z - w_x)
+    column_2_row_2 = 1.0 - 2.0 * (x_x + y_y)
+}

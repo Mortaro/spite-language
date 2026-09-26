@@ -26,6 +26,8 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 | `vector_rows` | 200 000 entities with position and velocity, half with health and regeneration, `Move` and `Regenerate` systems taking a `type` row per entity for 20 ticks: once from four `Vector` columns as rows of borrowed items (D206), once from four `List` columns through a reused row object; prints the microseconds per tick of both |
 | `stress` | SlopEngine's `examples/stress` shape: component columns as generic singletons, `system/` classes with `update_each` over `type` rows filled by a Symbol walk, 50 000 entities, 20 ticks |
 | `console_lines` | 200 000 `console.print` lines, each written out as it is printed; `run.sh` times it into a pipe, and redirected to a file is where the write per line costs (about 700 ms against 140 ms buffered until exit, [standard_library.md](../docs/standard_library.md#system-classes--implemented)) |
+| `game_maths` | a million `position + velocity.scaled(delta)` steps on `Vector3`, 200 000 `Matrix4` products and a million `transform_point`s; each answer is a new object, so the allocation count is the point |
+| `maths_stopgaps` | two million passes of sine, cosine, arc tangent, square root, floor and a power of two on a `Float`, first through the pure-Spite stopgaps SlopEngine wrote while Spite had no maths (`slop/math/scalar.spite`, copied in as `stopgap_scalar.spite`), then through the number classes' own maths functions; prints the milliseconds of each and the largest error of the stopgap `sine` over one turn |
 
 ## Results
 
@@ -249,3 +251,29 @@ does one half at a time.
 
 The binary side allocates three times per object: the `BinaryWriter`, its cursor, and the object read back; its
 walk is a singleton that holds nothing, so it allocates nothing itself.
+
+### Maths functions against SlopEngine's stopgaps
+
+`maths_stopgaps`, built with `clang -O2` by the compiler that added the maths functions, best of seven runs on
+Mortaro's Windows machine (the C library is the Universal C Runtime's). Both passes add up the same six results
+per angle, so they do the same work.
+
+| pass | milliseconds |
+|---|---|
+| the stopgaps: a Taylor series for `sine` and `cosine`, a polynomial `arc_tangent`, 24 Newton steps for `square_root`, doubling and a series for `power_of_two` | 199 |
+| the maths functions: `sinf`, `cosf`, `atan2f`, `sqrtf`, `floorf` and `powf`, written where they are called | 97 |
+
+Without the power of two the two passes took 187 and 40 ms: `powf` is the one call here that costs more than a few
+nanoseconds. The stopgap `sine` is also off by up to 3.6e-6 over one turn, where `sinf` is within one unit in the
+last place.
+
+### Game maths (D213)
+
+`game_maths`, `clang -O2`, best of five on Mortaro's machine, with `--debug-memory` for the count: 3 200 067
+allocations, which is one per answer -- two per vector step, one per matrix product and one per `transform_point`.
+
+| pass | milliseconds |
+|---|---|
+| a million `position + velocity.scaled(delta)` on `Vector3` | 26 |
+| 200 000 `Matrix4` products | 6 |
+| a million `Matrix4.transform_point` | 0 (clang removes the allocation and the loop, since only a sum survives) |

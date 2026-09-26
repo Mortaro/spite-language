@@ -66,6 +66,7 @@ nothing at run time because they emit nothing.
 | [A dictionary hashes a key once, cheaply](#a-dictionary-hashes-a-key-once-cheaply) | built | every | nothing but speed |
 | [Reading through a `type` without counting](#reading-through-a-type-without-counting) | built | every but `--hot-reload` | nothing but speed |
 | [Short text lives inside the `String`](#short-text-lives-inside-the-string) | built | every | fewer allocations; `.memory.section` of built text; a box when text travels as a shape |
+| [Maths on constants is worked out while compiling](#maths-on-constants-is-worked-out-while-compiling) | built | every | nothing but speed; a folded call is the compiling machine's C library's answer |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
@@ -1047,6 +1048,35 @@ million texts the compiler makes compiling itself, 68% are 15 bytes or fewer and
 take a third machine word in every `String` -- a `List<String>` half as large again -- where 15 fits in the two a
 long text needs anyway (where its characters are, and how many). **Built** (2026-09-26; the size and the layout
 proposed by Claude, unconfirmed).
+
+### Maths on constants is worked out while compiling
+
+**What it does.** A maths function of a number class ([standard_library.md](standard_library.md#maths--implemented))
+whose operands are all constants is worked out by the compiler, and the C gets the answer: `(0.5).sine()` is
+`(0x1.eaee880000000p-2f)` in the C, not a call. A constant here is a decimal or whole literal, a negated one, a
+number class's constant (`Float.pi()`), or another folded call, so `Float.pi().sine()` and
+`(2.0).square_root().square_root()` fold too. The answer is written as a hexadecimal float, which the C compiler
+reads back to exactly those bits, and infinity and not-a-number as `__builtin_inf()` and `__builtin_nan("0x...")`
+with the same sign and payload.
+
+**How the answer is the C library's.** The compiler works it out by calling the very function it would have
+written: it runs the same member on its own `Float` or `Double` (`bootstrap/source/generation/maths_primitives.spite`),
+and that member is lowered, in the compiler as in any program, to the C library's `sinf`, `sqrt`, and so on. The
+operands are rounded as the C would round them first -- a literal to a `Float` for a `Float` receiver, a `Float`
+constant widened exactly for a `Double` one -- so the folded bits are the ones the program would have computed at
+run time, `nan` sign and all. `conformance/stage6/maths_folding` holds every function, folded against the same call
+on a value the compiler cannot see, to be the same bits.
+
+**When.** Every build, when the receiver and every argument are constants as above. A variable is not a constant
+here, even one never assigned again: `var angle = 0.5` then `angle.sine()` is a call (which the C compiler may
+still fold itself). The whole-number `absolute`, `minimum`, `maximum` and `clamp` are left to the C compiler,
+whose integer arithmetic has only one answer.
+
+**What you notice.** Nothing but speed, and no `#include <math.h>` in a program whose only maths is folded. One
+thing to know: the answer is the C library of the machine that compiles. A program compiled on one system and run
+on another whose C library rounds a last bit differently gets the compiling system's answer for a folded call and
+its own for the rest; `sqrt`, `floor`, `ceil`, `round`, `trunc`, `fabs`, `fmin` and `fmax` are exact everywhere, so
+only the transcendental functions can differ, by at most that last bit. **Built.**
 
 ## Planned
 

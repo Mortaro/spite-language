@@ -1,0 +1,7 @@
+square_root of 2: Float 1.4142135, Double 1.4142135623730951
+pi: Float 3.1415927, Double 3.141592653589793
+sine of pi is off by under 1e-6 in Float: true, under 1e-15 in Double: true
+2^24 + 1: Float 16777216, Double 16777217
+2^100: Float 1.2676506e+30, Double 1.2676506002282294e+30; 2^200 overflows a Float: inf
+Float pi widened to a Double: 3.1415927410125732
+0.1 + 0.2: Float 0.3, Double 0.30000000000000004

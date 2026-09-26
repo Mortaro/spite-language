@@ -11,6 +11,8 @@ var guard_names = List<String>()
 var guard_lines = List<String>()
 var guard_otherwise = List<String>()
 var type_guards = List<Integer>()
+var shaken_macros = Dictionary<Boolean>()
+var maths_guard = -1
 var shakes = true
 var threads = false
 var hot_reload = false
@@ -209,10 +211,30 @@ func guarded_types(text: String, shaker: TreeShaker, keeps_all: Boolean): String
 
 func guard_choice(position: Integer, shaker: TreeShaker, keeps_all: Boolean): String {
     var guard = guard_names.get_at(position)
-    if keeps_all or shaker.is_kept_name(guard) {
+    if keeps_all or any_kept(guard, shaker) {
         return guard_lines.get_at(position)
     }
     return guard_otherwise.get_at(position)
+}
+
+func any_kept(guard: String, shaker: TreeShaker): Boolean {
+    var names = guard.split(" ")
+    return names.any(shaker.is_kept_name)
+}
+
+func add_shaken_macro(name: String) {
+    shaken_macros.set(name, true)
+}
+
+func include_maths_library(macro_name: String) {
+    if maths_guard >= 0 {
+        var names = guard_names.get_at(maths_guard)
+        guard_names.set_at(maths_guard, "{names} {macro_name}")
+        return
+    }
+    maths_guard = guard_names.count()
+    var placeholder = type_placeholder_if_kept(macro_name, "#include <math.h>", "")
+    add_typedef(placeholder)
 }
 
 func render(): String {
@@ -234,6 +256,7 @@ func render(): String {
         shaker.watched_names = binding_names
         shaker.guard_names = guard_names
         shaker.guard_lines = guard_lines
+        shaker.shaken_macros = shaken_macros
         bodies = shaker.shake_program(typedef_text, prototype_lines, main_function, bodies)
         main_function = guarded(main_function, shaker, false)
         var kept_types = shaker.kept_types()

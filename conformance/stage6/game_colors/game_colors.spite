@@ -1,0 +1,48 @@
+var console = Console()
+var color_text = ColorText()
+
+func GameColors() {
+    var texts = [
+        "#ff8000"
+        "#F80"
+        "#ff800080"
+        "#f808"
+        "rgb(255, 128, 0)"
+        "rgba(255, 128, 0, 0.5)"
+        "rgb(255 128 0 / 50%)"
+        "rgb(100%, 50%, 0%)"
+        "hsl(30, 100%, 50%)"
+        "hsla(210deg, 50%, 40%, 0.25)"
+        "hsl(-90, 100%, 50%)"
+        "rebeccapurple"
+        "  Tomato "
+        "transparent"
+    ]
+    texts.each(show)
+    var bad = ["#12", "#ggg", "rgb(1, 2)", "rgb(a, b, c)", "hsl(1, 2%, 3%, 4, 5)", "notacolor", "rgb(1, 2, 3", ""]
+    bad.each(show)
+    var orange = Color(1.0, 0.5, 0.0, 1.0)
+    var linear = orange.to_linear()
+    var back = linear.to_standard_rgb()
+    console.print("linear {linear.to_hex()} {near(linear.green)} back {back.to_hex()}")
+    var clear = Color(0.0, 0.0, 1.0, 0.0)
+    var halfway = orange.linear_interpolate(clear, 0.5)
+    console.print("blend {halfway} {halfway.to_rgb_text()} {halfway == halfway}")
+    var gray = Color(0.5, 0.5, 0.5, 1.0)
+    console.print("gray {gray.to_hsl_text()} {gray.to_rgb_text()}")
+}
+
+func show(text: String) {
+    var color = color_text.read_color(text)
+    if color {
+        console.print("'{text}': {color} {color.to_rgb_text()} {color.to_hsl_text()}")
+    } else {
+        console.print("'{text}': not a colour")
+    }
+}
+
+func near(value: Float): Float {
+    var scaled = value * 10000.0
+    var whole = scaled.round()
+    return whole / 10000.0 + 0.0
+}

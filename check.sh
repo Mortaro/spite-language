@@ -26,7 +26,10 @@ CC_BIN="$CC"
 case "$CC" in *\ *) command -v cygpath >/dev/null 2>&1 && CC=$(cygpath -d "$CC" 2>/dev/null || echo "$CC") ;; esac
 CC="$CC -Wno-deprecated-declarations"   # CC may carry arguments; MSVC headers warn on fopen
 export CC   # the Spite compiler reads it to compile the C it emits
-compile_c() { "$CC_BIN" -O1 -Wno-parentheses-equality -Wno-deprecated-declarations "$1" -o "$2" 2> "$work/c_errors.txt" || { head -20 "$work/c_errors.txt"; exit 1; }; }
+# The compiler folds maths on constants with the C library's own functions, which Linux and macOS keep in libm.
+maths_library="-lm"
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) maths_library="" ;; esac
+compile_c() { "$CC_BIN" -O1 -Wno-parentheses-equality -Wno-deprecated-declarations "$1" -o "$2" $maths_library 2> "$work/c_errors.txt" || { head -20 "$work/c_errors.txt"; exit 1; }; }
 
 # Each generation writes its C to the default place beside the program, bootstrap/bootstrap.c, and it is moved into
 # the work folder at once: every Build field is a constant in the built compiler, so a --c-path naming this run's
@@ -138,6 +141,10 @@ fi
 if grep -qE "AllocationTable|spite_debug_|spite_live_allocation|SPITE_DEBUG_MEMORY" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C carries --debug-memory's table or an allocation counter"; exit 1
 fi
+# The maths functions are the C library's, and <math.h> is included only when one survives tree shaking (D177).
+if grep -qE "#include <math.h>|Spite(Float|Double|Integer)_(square_root|sine|absolute|pi)" "$work/hello_shaken.c"; then
+  echo "FAILED: examples/hello's C includes math.h or a maths function it never calls"; exit 1
+fi
 "$work/generation_two.exe" conformance/stage6/singleton_forms --run=false --c-source --c-path="$work/singleton_forms.c" > /dev/null 2>&1 || {
   echo "FAILED: singleton_forms does not write its C"; exit 1; }
 if ! grep -q "^#define HitCounter___atomic 1$" "$work/singleton_forms.c" || grep -q "SpiteGuard [A-Za-z_]*___guard" "$work/singleton_forms.c"; then
@@ -170,6 +177,15 @@ if ! grep -qF 'load_on_build/kitchen\nconformance/stage6/load_on_build/salty\nco
   echo "FAILED: a --hot-reload build should watch every loaded folder and check its loops with one load of a flag"; exit 1
 fi
 echo "live reload: every loaded folder is watched, and a loop's check point is one load of a flag"
+# Maths on constants is worked out while compiling (docs/optimizations.md): every folded_ value in maths_folding is
+# a literal in its C, and the program itself holds each one to the bits the C library computes at run time.
+"$work/generation_two.exe" conformance/stage6/maths_folding --run=false --c-source --c-path="$work/folding.c" > /dev/null 2>&1 || {
+  echo "FAILED: maths_folding does not write its C"; exit 1; }
+if grep -E "(float|double) folded_[a-z_]*_ = " "$work/folding.c" | grep -v "_wide_ = " | grep -qE "Spite(Float|Double)_[a-z_0-9]+\(" \
+   || ! grep -qE "float folded_sine_ = \(0x1\.[0-9a-f]+p-2f\);" "$work/folding.c"; then
+  echo "FAILED: maths_folding's constant maths should be literals in its C"; exit 1
+fi
+echo "maths: a maths function of constants is a literal in the C"
 
 # The benchmarks (benchmarks/README.md) are timed by hand with benchmarks/run.sh; here they only have to compile.
 benchmarked=0
@@ -197,7 +213,7 @@ echo "tests: passed"
 # The compiler is held to the corpus standard too: compiling itself, it frees everything it takes. The table that
 # counts is only in a --debug-memory build's C, so the compiler writes itself once more with it.
 "$work/generation_two.exe" bootstrap --run=false --c-source --debug-memory --c-path="$work/generation_two_debug.c" || { echo "FAILED: the compiler does not write itself with --debug-memory"; exit 1; }
-"$CC_BIN" -O1 -w "$work/generation_two_debug.c" -o "$work/generation_two_debug.exe" 2> "$work/c_errors.txt" || { head -20 "$work/c_errors.txt"; exit 1; }
+"$CC_BIN" -O1 -w "$work/generation_two_debug.c" -o "$work/generation_two_debug.exe" $maths_library 2> "$work/c_errors.txt" || { head -20 "$work/c_errors.txt"; exit 1; }
 self_leaks=$("$work/generation_two_debug.exe" bootstrap --run=false 2>&1 > /dev/null | head -5)   # no output: compile only
 if [ -n "$self_leaks" ]; then echo "FAILED: the compiler leaks while compiling itself"; echo "$self_leaks"; exit 1; fi
 echo "compiler memory: compiling itself frees everything it takes"

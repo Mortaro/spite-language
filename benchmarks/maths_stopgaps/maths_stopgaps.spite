@@ -1,0 +1,73 @@
+var console = Console()
+var clock = Clock()
+var scalar = StopgapScalar()
+
+func MathsStopgaps() {
+    var stopgap_start = clock.elapsed_nanoseconds()
+    var stopgap_total = stopgap_pass()
+    var stopgap_end = clock.elapsed_nanoseconds()
+    var primitive_total = primitive_pass()
+    var primitive_end = clock.elapsed_nanoseconds()
+    var stopgap_milliseconds = (stopgap_end - stopgap_start) / 1000000
+    var primitive_milliseconds = (primitive_end - stopgap_end) / 1000000
+    console.print("stopgaps milliseconds", stopgap_milliseconds, "total", stopgap_total)
+    console.print("primitives milliseconds", primitive_milliseconds, "total", primitive_total)
+    var worst = largest_sine_error()
+    console.print("largest stopgap sine error over one turn", worst)
+}
+
+func stopgap_pass(): Float {
+    var total = 0.0
+    var index = 0
+    while index < 2000000 {
+        var angle: Float = index
+        angle = angle * 0.001
+        var rise = scalar.sine(angle)
+        var run = scalar.cosine(angle)
+        var turned = scalar.arc_tangent2(rise, run)
+        var root = scalar.square_root(angle + 1.0)
+        var whole = scalar.floor(angle)
+        var exponent = angle * 0.01
+        var grown = scalar.power_of_two(exponent)
+        total = total + rise + run + turned + root + whole + grown
+        index = index + 1
+    }
+    return total
+}
+
+func primitive_pass(): Float {
+    var total = 0.0
+    var two: Float = 2.0
+    var index = 0
+    while index < 2000000 {
+        var angle: Float = index
+        angle = angle * 0.001
+        var rise = angle.sine()
+        var run = angle.cosine()
+        var turned = rise.arc_tangent_over(run)
+        var shifted = angle + 1.0
+        var root = shifted.square_root()
+        var whole = angle.floor()
+        var exponent = angle * 0.01
+        var grown = two.power(exponent)
+        total = total + rise + run + turned + root + whole + grown
+        index = index + 1
+    }
+    return total
+}
+
+func largest_sine_error(): Float {
+    var worst = 0.0
+    var index = 0
+    while index < 6283 {
+        var angle: Float = index
+        angle = angle * 0.001
+        var approximate = scalar.sine(angle)
+        var exact = angle.sine()
+        var difference = approximate - exact
+        var error = difference.absolute()
+        worst = worst.maximum(error)
+        index = index + 1
+    }
+    return worst
+}

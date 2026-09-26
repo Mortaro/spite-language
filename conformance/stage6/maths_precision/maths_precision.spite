@@ -1,0 +1,31 @@
+var console = Console()
+
+func MathsPrecision() {
+    var narrow: Float = 2.0
+    var wide: Double = 2.0
+    console.print("square_root of 2: Float {narrow.square_root()}, Double {wide.square_root()}")
+    console.print("pi: Float {Float.pi()}, Double {Double.pi()}")
+    var float_sine = Float.pi().sine()
+    var double_sine = Double.pi().sine()
+    var float_error = float_sine.absolute()
+    var double_error = double_sine.absolute()
+    console.print(
+        "sine of pi is off by under 1e-6 in Float: {float_error < 0.000001}, under 1e-15 in Double: {double_error < 0.000000000000001}",
+    )
+    var float_count: Float = 16777216.0
+    var double_count: Double = 16777216.0
+    var float_next = float_count + 1.0
+    var double_next = double_count + 1.0
+    console.print("2^24 + 1: Float {float_next}, Double {double_next}")
+    var float_power = narrow.power(100.0)
+    var double_power = wide.power(100.0)
+    var float_huge = narrow.power(200.0)
+    console.print("2^100: Float {float_power}, Double {double_power}; 2^200 overflows a Float: {float_huge}")
+    var widened: Double = Float.pi()
+    console.print("Float pi widened to a Double: {widened}")
+    var float_tenth: Float = 0.1
+    var double_tenth: Double = 0.1
+    var float_sum = float_tenth + 0.2
+    var double_sum = double_tenth + 0.2
+    console.print("0.1 + 0.2: Float {float_sum}, Double {double_sum}")
+}

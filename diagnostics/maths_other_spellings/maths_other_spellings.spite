@@ -1,0 +1,15 @@
+var console = Console()
+
+func MathsOtherSpellings() {
+    var side = 2.0
+    var root = side.sqrt()
+    var angle = side.atan2(side)
+    var count = -3
+    var magnitude = count.abs()
+    var larger = count.max(side)
+    var bits = count.sqrt()
+    var library = Math.PI
+    var loose = sqrt(side)
+    var named = square_root(side)
+    console.print(root, angle, magnitude, larger, bits, library, loose, named)
+}

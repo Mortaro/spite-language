@@ -70,28 +70,30 @@ Read them in this order the first time; each page assumes the ones before it.
     run as one loop, templates of your own.
 16. [json.md](json.md) -- `JsonWriter`/`JsonReader` and `BinaryWriter`/`BinaryReader`: any value to JSON text or compact bytes and back.
 17. [time.md](time.md) -- instants, durations, the calendar, time zones as presentation, and ISO 8601 text.
-18. [foreign_libraries.md](foreign_libraries.md) -- `DynamicLibrary`, and how each operating system's folder
+18. [game_maths.md](game_maths.md) -- vectors, matrices and quaternions for games: `Vector3`, `Matrix4`,
+    `Quaternion`, boxes, frustums and rays, column-major, Vulkan clip space, and what each operation costs.
+19. [foreign_libraries.md](foreign_libraries.md) -- `DynamicLibrary`, and how each operating system's folder
     reopens the classes it changes.
-19. [targets.md](targets.md) -- planned: other targets, the web, isomorphic classes and the wire format.
+20. [targets.md](targets.md) -- planned: other targets, the web, isomorphic classes and the wire format.
 
 **Tooling**
 
-20. [compiler.md](compiler.md) -- every command and flag, the outputs and where they go, `--final-classes`,
+21. [compiler.md](compiler.md) -- every command and flag, the outputs and where they go, `--final-classes`,
     `--development`.
-21. [repl.md](repl.md) -- the local and remote REPL, `spite connect`, live reload, and a replayed debugging
+22. [repl.md](repl.md) -- the local and remote REPL, `spite connect`, live reload, and a replayed debugging
     session.
-22. [testing.md](testing.md) -- a test is a function that crashes; the test package finds them itself.
-23. [optimizations.md](optimizations.md) -- everything the compiler optimises without being asked, built or
+23. [testing.md](testing.md) -- a test is a function that crashes; the test package finds them itself.
+24. [optimizations.md](optimizations.md) -- everything the compiler optimises without being asked, built or
     planned, and what (if anything) you could notice.
-24. [self_hosting.md](self_hosting.md) -- how the compiler builds itself, and what proves it.
+25. [self_hosting.md](self_hosting.md) -- how the compiler builds itself, and what proves it.
 
 **Reference**
 
-25. [decisions.md](decisions.md) -- the decision log: every decision, when and why, append-only.
-26. [open_questions.md](open_questions.md) -- decided work that has no page yet, and the questions still open.
-27. [KNOWN_ISSUES.md](KNOWN_ISSUES.md) -- where the compiler falls short of these pages today.
+26. [decisions.md](decisions.md) -- the decision log: every decision, when and why, append-only.
+27. [open_questions.md](open_questions.md) -- decided work that has no page yet, and the questions still open.
+28. [KNOWN_ISSUES.md](KNOWN_ISSUES.md) -- where the compiler falls short of these pages today.
 
 **For AI writers**
 
-28. [for_ai_writers.md](for_ai_writers.md) -- the whole language on one dense page. Paste it into an AI's context
+29. [for_ai_writers.md](for_ai_writers.md) -- the whole language on one dense page. Paste it into an AI's context
     before it writes Spite.

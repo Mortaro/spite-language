@@ -4,7 +4,7 @@
 fixpoint: compiling it gives a compiler that emits this exact file again. It exists so Spite can be built with nothing
 but a C compiler:
 
-    cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite_seed
+    cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite_seed -lm
     ./spite_seed.exe bootstrap --c-source --run=false      # writes bootstrap/bootstrap.c, which must equal the seed
     ./spite_seed.exe path/to/program
 

@@ -1,0 +1,501 @@
+func read_color(text: String): Color? {
+    var cleaned = text.trim().lower_case()
+    if cleaned.starts_with("#") {
+        return _read_hex(cleaned)
+    }
+    if cleaned.starts_with("rgb") or cleaned.starts_with("hsl") {
+        return _read_function(cleaned)
+    }
+    var named = named_hex(cleaned)
+    assert not named.is_empty()
+    return _read_hex(named)
+}
+
+func _read_hex(text: String): Color? {
+    var text_length = text.length()
+    var digits = text.slice(1, text_length)
+    var count = digits.length()
+    assert count == 3 or count == 4 or count == 6 or count == 8
+    assert _all_hex(digits)
+    if count <= 4 {
+        var short_red = _hex_value(digits, 0) * 17
+        var short_green = _hex_value(digits, 1) * 17
+        var short_blue = _hex_value(digits, 2) * 17
+        var short_alpha = 255
+        if count == 4 {
+            short_alpha = _hex_value(digits, 3) * 17
+        }
+        return _from_bytes(short_red, short_green, short_blue, short_alpha)
+    }
+    var long_red = _hex_value(digits, 0) * 16 + _hex_value(digits, 1)
+    var long_green = _hex_value(digits, 2) * 16 + _hex_value(digits, 3)
+    var long_blue = _hex_value(digits, 4) * 16 + _hex_value(digits, 5)
+    var long_alpha = 255
+    if count == 8 {
+        long_alpha = _hex_value(digits, 6) * 16 + _hex_value(digits, 7)
+    }
+    return _from_bytes(long_red, long_green, long_blue, long_alpha)
+}
+
+func _all_hex(digits: String): Boolean {
+    var index = 0
+    var valid = true
+    while valid and index < digits.length() {
+        valid = _hex_value(digits, index) >= 0
+        index = index + 1
+    }
+    return valid
+}
+
+func _hex_value(digits: String, position: Integer): Integer {
+    var code = digits.code_at(position)
+    if code >= 48 and code <= 57 {
+        return code - 48
+    }
+    if code >= 97 and code <= 102 {
+        return code - 87
+    }
+    return -1
+}
+
+func _from_bytes(red_byte: Integer, green_byte: Integer, blue_byte: Integer, alpha_byte: Integer): Color {
+    var red: Float = red_byte
+    var green: Float = green_byte
+    var blue: Float = blue_byte
+    var alpha: Float = alpha_byte
+    return Color(red / 255.0, green / 255.0, blue / 255.0, alpha / 255.0)
+}
+
+func _read_function(text: String): Color? {
+    var open = text.index_of("(")
+    assert open > 0 and text.ends_with(")")
+    var function_name = text.slice(0, open)
+    var is_hue = function_name == "hsl" or function_name == "hsla"
+    assert is_hue or function_name == "rgb" or function_name == "rgba"
+    var text_length = text.length()
+    var inside = text.slice(open + 1, text_length - 1)
+    var spaced = inside.replace(",", " ").replace("/", " ")
+    var pieces = spaced.split(" ")
+    var parts = pieces.filter(has_text)
+    var part_count = parts.count()
+    assert part_count == 3 or part_count == 4
+    assert parts[0]
+    assert parts[1]
+    assert parts[2]
+    assert _is_number(parts[0]) and _is_number(parts[1]) and _is_number(parts[2])
+    var alpha = 1.0
+    if part_count == 4 {
+        assert parts[3]
+        assert _is_number(parts[3])
+        alpha = _fraction(parts[3], 1.0)
+    }
+    if is_hue {
+        var hue = _number_of(parts[0])
+        var saturation = _fraction(parts[1], 100.0)
+        var lightness = _fraction(parts[2], 100.0)
+        return _from_hue(hue, saturation, lightness, alpha)
+    }
+    var red = _fraction(parts[0], 255.0)
+    var green = _fraction(parts[1], 255.0)
+    var blue = _fraction(parts[2], 255.0)
+    return Color(red, green, blue, alpha)
+}
+
+func has_text(piece: String): Boolean {
+    return not piece.is_empty()
+}
+
+func _is_number(part: String): Boolean {
+    var body = _without_unit(part)
+    var index = 0
+    var digits = 0
+    var points = 0
+    var valid = not body.is_empty()
+    while valid and index < body.length() {
+        var code = body.code_at(index)
+        if code >= 48 and code <= 57 {
+            digits = digits + 1
+        } else if code == 46 {
+            points = points + 1
+        } else {
+            valid = index == 0 and (code == 45 or code == 43)
+        }
+        index = index + 1
+    }
+    return valid and digits > 0 and points <= 1
+}
+
+func _without_unit(part: String): String {
+    var part_length = part.length()
+    if part.ends_with("%") {
+        return part.slice(0, part_length - 1)
+    }
+    if part.ends_with("deg") {
+        return part.slice(0, part_length - 3)
+    }
+    return part
+}
+
+func _number_of(part: String): Float {
+    var body = _without_unit(part)
+    var value: Float = body
+    return value
+}
+
+func _fraction(part: String, whole: Float): Float {
+    var value = _number_of(part)
+    var share = value / whole
+    if part.ends_with("%") {
+        share = value / 100.0
+    }
+    return share.clamp(0.0, 1.0)
+}
+
+func _from_hue(hue: Float, saturation: Float, lightness: Float, alpha: Float): Color {
+    var turns = hue / 360.0
+    var whole_turns = turns.floor()
+    var sector = (turns - whole_turns) * 6.0
+    var lightness_share = 1.0 - (2.0 * lightness - 1.0).absolute()
+    var chroma = lightness_share * saturation
+    var half_sector = sector * 0.5
+    var within_pair = (half_sector - half_sector.floor()) * 2.0
+    var sector_share = within_pair - 1.0
+    var middle = chroma * (1.0 - sector_share.absolute())
+    var red = 0.0
+    var green = 0.0
+    var blue = 0.0
+    if sector < 1.0 {
+        red = chroma
+        green = middle
+    } else if sector < 2.0 {
+        red = middle
+        green = chroma
+    } else if sector < 3.0 {
+        green = chroma
+        blue = middle
+    } else if sector < 4.0 {
+        green = middle
+        blue = chroma
+    } else if sector < 5.0 {
+        red = middle
+        blue = chroma
+    } else {
+        red = chroma
+        blue = middle
+    }
+    var lift = lightness - chroma * 0.5
+    return Color(red + lift, green + lift, blue + lift, alpha)
+}
+
+func named_hex(name: String): String {
+    var names = [
+        "aliceblue"
+        "antiquewhite"
+        "aqua"
+        "aquamarine"
+        "azure"
+        "beige"
+        "bisque"
+        "black"
+        "blanchedalmond"
+        "blue"
+        "blueviolet"
+        "brown"
+        "burlywood"
+        "cadetblue"
+        "chartreuse"
+        "chocolate"
+        "coral"
+        "cornflowerblue"
+        "cornsilk"
+        "crimson"
+        "cyan"
+        "darkblue"
+        "darkcyan"
+        "darkgoldenrod"
+        "darkgray"
+        "darkgreen"
+        "darkgrey"
+        "darkkhaki"
+        "darkmagenta"
+        "darkolivegreen"
+        "darkorange"
+        "darkorchid"
+        "darkred"
+        "darksalmon"
+        "darkseagreen"
+        "darkslateblue"
+        "darkslategray"
+        "darkslategrey"
+        "darkturquoise"
+        "darkviolet"
+        "deeppink"
+        "deepskyblue"
+        "dimgray"
+        "dimgrey"
+        "dodgerblue"
+        "firebrick"
+        "floralwhite"
+        "forestgreen"
+        "fuchsia"
+        "gainsboro"
+        "ghostwhite"
+        "gold"
+        "goldenrod"
+        "gray"
+        "green"
+        "greenyellow"
+        "grey"
+        "honeydew"
+        "hotpink"
+        "indianred"
+        "indigo"
+        "ivory"
+        "khaki"
+        "lavender"
+        "lavenderblush"
+        "lawngreen"
+        "lemonchiffon"
+        "lightblue"
+        "lightcoral"
+        "lightcyan"
+        "lightgoldenrodyellow"
+        "lightgray"
+        "lightgreen"
+        "lightgrey"
+        "lightpink"
+        "lightsalmon"
+        "lightseagreen"
+        "lightskyblue"
+        "lightslategray"
+        "lightslategrey"
+        "lightsteelblue"
+        "lightyellow"
+        "lime"
+        "limegreen"
+        "linen"
+        "magenta"
+        "maroon"
+        "mediumaquamarine"
+        "mediumblue"
+        "mediumorchid"
+        "mediumpurple"
+        "mediumseagreen"
+        "mediumslateblue"
+        "mediumspringgreen"
+        "mediumturquoise"
+        "mediumvioletred"
+        "midnightblue"
+        "mintcream"
+        "mistyrose"
+        "moccasin"
+        "navajowhite"
+        "navy"
+        "oldlace"
+        "olive"
+        "olivedrab"
+        "orange"
+        "orangered"
+        "orchid"
+        "palegoldenrod"
+        "palegreen"
+        "paleturquoise"
+        "palevioletred"
+        "papayawhip"
+        "peachpuff"
+        "peru"
+        "pink"
+        "plum"
+        "powderblue"
+        "purple"
+        "rebeccapurple"
+        "red"
+        "rosybrown"
+        "royalblue"
+        "saddlebrown"
+        "salmon"
+        "sandybrown"
+        "seagreen"
+        "seashell"
+        "sienna"
+        "silver"
+        "skyblue"
+        "slateblue"
+        "slategray"
+        "slategrey"
+        "snow"
+        "springgreen"
+        "steelblue"
+        "tan"
+        "teal"
+        "thistle"
+        "tomato"
+        "turquoise"
+        "violet"
+        "wheat"
+        "white"
+        "whitesmoke"
+        "yellow"
+        "yellowgreen"
+        "transparent"
+    ]
+    var values = [
+        "#f0f8ff"
+        "#faebd7"
+        "#00ffff"
+        "#7fffd4"
+        "#f0ffff"
+        "#f5f5dc"
+        "#ffe4c4"
+        "#000000"
+        "#ffebcd"
+        "#0000ff"
+        "#8a2be2"
+        "#a52a2a"
+        "#deb887"
+        "#5f9ea0"
+        "#7fff00"
+        "#d2691e"
+        "#ff7f50"
+        "#6495ed"
+        "#fff8dc"
+        "#dc143c"
+        "#00ffff"
+        "#00008b"
+        "#008b8b"
+        "#b8860b"
+        "#a9a9a9"
+        "#006400"
+        "#a9a9a9"
+        "#bdb76b"
+        "#8b008b"
+        "#556b2f"
+        "#ff8c00"
+        "#9932cc"
+        "#8b0000"
+        "#e9967a"
+        "#8fbc8f"
+        "#483d8b"
+        "#2f4f4f"
+        "#2f4f4f"
+        "#00ced1"
+        "#9400d3"
+        "#ff1493"
+        "#00bfff"
+        "#696969"
+        "#696969"
+        "#1e90ff"
+        "#b22222"
+        "#fffaf0"
+        "#228b22"
+        "#ff00ff"
+        "#dcdcdc"
+        "#f8f8ff"
+        "#ffd700"
+        "#daa520"
+        "#808080"
+        "#008000"
+        "#adff2f"
+        "#808080"
+        "#f0fff0"
+        "#ff69b4"
+        "#cd5c5c"
+        "#4b0082"
+        "#fffff0"
+        "#f0e68c"
+        "#e6e6fa"
+        "#fff0f5"
+        "#7cfc00"
+        "#fffacd"
+        "#add8e6"
+        "#f08080"
+        "#e0ffff"
+        "#fafad2"
+        "#d3d3d3"
+        "#90ee90"
+        "#d3d3d3"
+        "#ffb6c1"
+        "#ffa07a"
+        "#20b2aa"
+        "#87cefa"
+        "#778899"
+        "#778899"
+        "#b0c4de"
+        "#ffffe0"
+        "#00ff00"
+        "#32cd32"
+        "#faf0e6"
+        "#ff00ff"
+        "#800000"
+        "#66cdaa"
+        "#0000cd"
+        "#ba55d3"
+        "#9370db"
+        "#3cb371"
+        "#7b68ee"
+        "#00fa9a"
+        "#48d1cc"
+        "#c71585"
+        "#191970"
+        "#f5fffa"
+        "#ffe4e1"
+        "#ffe4b5"
+        "#ffdead"
+        "#000080"
+        "#fdf5e6"
+        "#808000"
+        "#6b8e23"
+        "#ffa500"
+        "#ff4500"
+        "#da70d6"
+        "#eee8aa"
+        "#98fb98"
+        "#afeeee"
+        "#db7093"
+        "#ffefd5"
+        "#ffdab9"
+        "#cd853f"
+        "#ffc0cb"
+        "#dda0dd"
+        "#b0e0e6"
+        "#800080"
+        "#663399"
+        "#ff0000"
+        "#bc8f8f"
+        "#4169e1"
+        "#8b4513"
+        "#fa8072"
+        "#f4a460"
+        "#2e8b57"
+        "#fff5ee"
+        "#a0522d"
+        "#c0c0c0"
+        "#87ceeb"
+        "#6a5acd"
+        "#708090"
+        "#708090"
+        "#fffafa"
+        "#00ff7f"
+        "#4682b4"
+        "#d2b48c"
+        "#008080"
+        "#d8bfd8"
+        "#ff6347"
+        "#40e0d0"
+        "#ee82ee"
+        "#f5deb3"
+        "#ffffff"
+        "#f5f5f5"
+        "#ffff00"
+        "#9acd32"
+        "#00000000"
+    ]
+    var index = 0
+    while index < names.count() {
+        if names[index] == name {
+            return values.get_at(index)
+        }
+        index = index + 1
+    }
+    return ""
+}

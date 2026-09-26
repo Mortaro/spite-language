@@ -1,0 +1,80 @@
+var start_x: Float = 0.0
+var start_y: Float = 0.0
+var first_handle_x: Float = 0.0
+var first_handle_y: Float = 0.0
+var second_handle_x: Float = 1.0
+var second_handle_y: Float = 1.0
+var end_x: Float = 1.0
+var end_y: Float = 1.0
+
+func CubicBezier(start: Vector2, first_handle: Vector2, second_handle: Vector2, end: Vector2) {
+    start_x = start.x_value
+    start_y = start.y_value
+    first_handle_x = first_handle.x_value
+    first_handle_y = first_handle.y_value
+    second_handle_x = second_handle.x_value
+    second_handle_y = second_handle.y_value
+    end_x = end.x_value
+    end_y = end.y_value
+}
+
+func point_at(amount: Float): Vector2 {
+    var x_part = _blend(start_x, first_handle_x, second_handle_x, end_x, amount)
+    var y_part = _blend(start_y, first_handle_y, second_handle_y, end_y, amount)
+    return Vector2(x_part, y_part)
+}
+
+func y_at_x(x_wanted: Float): Float {
+    var amount = _amount_at_x(x_wanted)
+    return _blend(start_y, first_handle_y, second_handle_y, end_y, amount)
+}
+
+func _amount_at_x(x_wanted: Float): Float {
+    var span = end_x - start_x
+    var amount = 0.5
+    if span != 0.0 {
+        amount = (x_wanted - start_x) / span
+    }
+    amount = amount.clamp(0.0, 1.0)
+    var step = 0
+    var settled = false
+    while step < 8 and not settled {
+        var error = _blend(start_x, first_handle_x, second_handle_x, end_x, amount) - x_wanted
+        var slope = _slope(start_x, first_handle_x, second_handle_x, end_x, amount)
+        settled = error.absolute() < 0.000001 or slope.absolute() < 0.000001
+        if not settled {
+            amount = amount - error / slope
+            amount = amount.clamp(0.0, 1.0)
+        }
+        step = step + 1
+    }
+    if settled {
+        return amount
+    }
+    var low = 0.0
+    var high = 1.0
+    var halving = 0
+    while halving < 30 {
+        amount = (low + high) * 0.5
+        var reached = _blend(start_x, first_handle_x, second_handle_x, end_x, amount)
+        if reached < x_wanted {
+            low = amount
+        } else {
+            high = amount
+        }
+        halving = halving + 1
+    }
+    return amount
+}
+
+func _blend(first: Float, second: Float, third: Float, fourth: Float, amount: Float): Float {
+    var rest = 1.0 - amount
+    var early = rest * rest * rest * first + 3.0 * rest * rest * amount * second
+    return early + 3.0 * rest * amount * amount * third + amount * amount * amount * fourth
+}
+
+func _slope(first: Float, second: Float, third: Float, fourth: Float, amount: Float): Float {
+    var rest = 1.0 - amount
+    var early = 3.0 * rest * rest * (second - first) + 6.0 * rest * amount * (third - second)
+    return early + 3.0 * amount * amount * (fourth - third)
+}

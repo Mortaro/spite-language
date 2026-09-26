@@ -160,6 +160,8 @@ var first_discovered_class = 0
 var hardcoded_settings = List<Syntax.Statements.VariableDeclaration>()
 var placement = Placement()
 var old_spellings = OldSpellings()
+var maths = MathsPrimitives()
+var maths_macros = Dictionary<Boolean>()
 var frame_candidates = List<String>()
 var lent_parameters_class = ""
 var frame_variadic_allowed = false
@@ -4649,6 +4651,10 @@ func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInf
         if class_path == "scheduler" and function.name.ends_with("_check_point") {
             function.supplied_body = check_point_flag_body(function.name)
         }
+        var number_classes = Prelude().number_classes()
+        if number_classes.contains(class_path) and maths.is_member(function.name) {
+            function.supplied_body = maths_body(information, function)
+        }
         return
     }
     report(
@@ -4704,6 +4710,25 @@ func address_body(function: Analysis.FunctionInfo): String {
     }
     var read = c_type_name(value_type)
     return "#define {function.c_name}(self, offset) (\{ {read} spite_read; memcpy(&spite_read, {at}, sizeof(spite_read)); spite_read; })"
+}
+
+func maths_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    var is_decimal = information.qualified_dotted == "Float" or information.qualified_dotted == "Double"
+    maths_macros[function.c_name] = is_decimal and maths.uses_library(function.name)
+    if is_decimal {
+        return maths.decimal_body(function.c_name, function.name, information.qualified_dotted == "Float")
+    }
+    var value_type = value_class_type(information)
+    var c_type = c_type_name(value_type)
+    return maths.whole_body(function.c_name, function.name, c_type)
+}
+
+func note_maths_macro(function: Analysis.FunctionInfo) {
+    assert maths_macros.has(function.c_name)
+    builder.add_shaken_macro(function.c_name)
+    if maths_macros[function.c_name] == true {
+        builder.include_maths_library(function.c_name)
+    }
 }
 
 func task_body(information: Analysis.ClassInfo, name: String): String {
@@ -6427,10 +6452,22 @@ func generate_identifier(
         report(
             "'{identifier.name}' is a class, not a value: write '{identifier.name}()' to make one, and give it a name with 'var ... = ' -- or, for the class itself, pass it where a 'Spite.Class' is wanted",
         )
+    } else if identifier.name == "Math" or identifier.name == "Maths" {
+        report(
+            "Spite has no '{identifier.name}': maths is a function of the number itself, like 'value.square_root()', and a constant is the number class's, like 'Float.pi()'",
+        )
     } else {
         report("unknown identifier '{identifier.name}'")
     }
     return void_result()
+}
+
+func maths_spelling(name: String): String {
+    var spelling = maths.spelled(name)
+    if spelling.is_empty() {
+        return name
+    }
+    return spelling
 }
 
 func is_boolean_result_operator(operator: Syntax.Expressions.BinaryOperator): Boolean {
@@ -8361,6 +8398,10 @@ func generate_own_function_call(
             )
         } else if not missed.is_empty() {
             report(missed)
+        } else if maths.is_member(name) or not maths.spelled(name).is_empty() {
+            report(
+                "this class has no function '{name}': maths is a function of the number itself, like 'value.{maths_spelling(name)}()'",
+            )
         } else if not reported_old_spelling(name) {
             report("this class has no function '{name}'")
         }
@@ -8663,6 +8704,47 @@ func finish_generic_call(
     return ExpressionResult("{function_c_name}({full_arguments.join(", ")})", return_type)
 }
 
+func generate_number_constant(
+    information: Analysis.ClassInfo,
+    name: String,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+): ExpressionResult? {
+    var largest = find_or_instantiate_function(information, "largest")
+    assert largest
+    assert is_inline_supplied(largest)
+    var function = find_or_instantiate_function(information, name)
+    var is_constant = false
+    if function {
+        is_constant = maths.is_constant(name) and is_inline_supplied(function)
+    }
+    if not is_constant {
+        report_not_a_number_constant(information, name, function)
+        return void_result()
+    }
+    crash function
+    if not arguments_ast.is_empty() {
+        report("'{information.qualified_dotted}.{name}()' is a constant, and takes no arguments")
+        return void_result()
+    }
+    var constant_type = function.get_return_type()
+    return ExpressionResult("{function.c_name}()", constant_type)
+}
+
+func report_not_a_number_constant(information: Analysis.ClassInfo, name: String, function: Analysis.FunctionInfo?) {
+    var constants = "largest() and smallest()"
+    if information.qualified_dotted == "Float" or information.qualified_dotted == "Double" {
+        constants = "pi(), tau(), euler_number(), infinity(), not_a_number(), largest() and smallest()"
+    }
+    var class_name = information.qualified_dotted
+    if function {
+        report(
+            "'{class_name}.{name}()' calls a function of a value on the class: the class {class_name} answers only its constants, {constants}, so call '{name}' on a {class_name}, like 'value.{name}()'",
+        )
+        return
+    }
+    report("the class {class_name} answers only its constants, {constants}, and '{name}' is not one of them")
+}
+
 func forget_indices_if_shrinking(name: String, object_ast: Syntax.Expressions.Expression, scope: Scope) {
     assert name == "clear" or name == "remove_at" or name == "remove_first" or name == "remove_last"
     var shrunk = operand_text(object_ast)
@@ -8687,6 +8769,12 @@ func generate_method_call(
         return generate_method_call(matched, object_ast, arguments_ast, scope, class_information)
     }
     forget_indices_if_shrinking(member.name, object_ast, scope)
+    if maths.is_member(member.name) and not maths.is_constant(member.name) {
+        var folded_maths = folded_maths_call(member.name, object_ast, arguments_ast, class_information)
+        if folded_maths {
+            return folded_maths
+        }
+    }
     var fused = generate_fused_chain(member, object_ast, arguments_ast, scope, class_information)
     if fused {
         return fused
@@ -8708,6 +8796,10 @@ func generate_method_call(
     }
     var static_receiver = try_resolve_static_path(object_ast, class_information.qualified_dotted)
     if static_receiver {
+        var number_constant = generate_number_constant(static_receiver, member.name, arguments_ast)
+        if number_constant {
+            return number_constant
+        }
         var class_value_class = find_class_by_c_name("Spite_Class")
         if class_value_class {
             var on_the_class_value = find_or_instantiate_function(class_value_class, member.name)
@@ -9080,6 +9172,12 @@ func generate_value_method(
     if value_class {
         var function = find_or_instantiate_function(value_class, name)
         if function {
+            if maths.is_constant(name) and is_inline_supplied(function) {
+                report(
+                    "'{name}()' is a constant of the class {value_class.qualified_dotted}, not of a value: write '{value_class.qualified_dotted}.{name}()'",
+                )
+                return void_result()
+            }
             if kind == 'address_kind' and is_memory_access(name) and not is_library_class(class_information) {
                 report(
                     "'{name}' reads or writes the memory at an address, which only library/ does: use a class of the standard library, or 'TypedMemory<T>' for values of any type",
@@ -9090,6 +9188,16 @@ func generate_value_method(
             argument_codes.prepend(object_result.code)
             var function_return_type = function.get_return_type()
             return ExpressionResult("{function.c_name}({argument_codes.join(", ")})", function_return_type)
+        }
+        var spelling = maths.spelled(name)
+        if not spelling.is_empty() {
+            var spelled_function = find_or_instantiate_function(value_class, spelling)
+            if spelled_function {
+                report(
+                    "{value_class.qualified_dotted} has no function '{name}': Spite spells it '{spelling}', since no name is abbreviated",
+                )
+                return void_result()
+            }
         }
     }
     var object_result_type = object_result.get_type()
@@ -20855,6 +20963,7 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
     assert not function.is_emitted
     function.is_emitted = true
     if is_inline_supplied(function) {
+        note_maths_macro(function)
         builder.add_typedef(function.supplied_body)
         return
     }
@@ -23057,4 +23166,117 @@ func offload_steps(scheduler_class: Analysis.ClassInfo, function: Analysis.Funct
         lines.append("if (spite_over) spite_frame->spite_result = spite_frame->spite_call.result;")
     }
     return lines.join("\n")
+}
+
+func folded_maths_call(
+    name: String,
+    object_ast: Syntax.Expressions.Expression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    if maths.is_predicate(name) {
+        return folded_question_call(name, object_ast, arguments_ast, class_information)
+    }
+    var folded = folded_maths_value(name, object_ast, arguments_ast, class_information)
+    assert folded
+    var is_float = folded.kind == "Float"
+    var literal = maths.decimal_literal(folded.value, is_float)
+    if is_float {
+        var folded_float_type = float_type()
+        return ExpressionResult(literal, folded_float_type)
+    }
+    var folded_double_type = double_type()
+    return ExpressionResult(literal, folded_double_type)
+}
+
+func folded_question_call(
+    name: String,
+    object_ast: Syntax.Expressions.Expression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    assert arguments_ast.is_empty()
+    var receiver = folded_decimal(object_ast, class_information)
+    assert receiver
+    assert folds_on(receiver, name)
+    var answer = maths.folded_question(name, receiver.value)
+    var answer_type = Analysis.Types.ScalarType('boolean_kind')
+    return ExpressionResult("{answer}", answer_type)
+}
+
+func folds_on(receiver: FoldedDecimal, name: String): Boolean {
+    assert receiver.is_decimal()
+    var value_class = find_class_by_qualified(receiver.kind)
+    assert value_class
+    var function = find_or_instantiate_function(value_class, name)
+    assert function
+    return is_inline_supplied(function)
+}
+
+func folded_maths_value(
+    name: String,
+    object_ast: Syntax.Expressions.Expression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+): FoldedDecimal? {
+    assert maths.is_member(name) and not maths.is_constant(name) and not maths.is_predicate(name)
+    assert arguments_ast.count() == maths.operand_count(name)
+    var receiver = folded_decimal(object_ast, class_information)
+    assert receiver
+    assert folds_on(receiver, name)
+    var is_float = receiver.kind == "Float"
+    var operands = List<Double>()
+    var index = 0
+    while index < arguments_ast.count() {
+        var argument = folded_decimal(arguments_ast[index], class_information)
+        assert argument
+        var operand_value = argument.operand(is_float)
+        operands.append(operand_value)
+        index = index + 1
+    }
+    while operands.count() < 2 {
+        operands.append(0.0)
+    }
+    var value = receiver.operand(is_float)
+    var first = operands.get_at(0)
+    var second = operands.get_at(1)
+    var result = maths.folded(name, is_float, value, first, second)
+    return FoldedDecimal(result, receiver.kind)
+}
+
+func folded_decimal(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): FoldedDecimal? {
+    var float_literal = shape.as_float_literal(expression)
+    if float_literal {
+        return FoldedDecimal(float_literal.value, "Float")
+    }
+    var integer_literal = shape.as_integer_literal(expression)
+    if integer_literal {
+        assert integer_literal.value > -9007199254740992 and integer_literal.value < 9007199254740992
+        var whole: Double = integer_literal.value
+        return FoldedDecimal(whole, "Integer")
+    }
+    var negated = shape.as_unary(expression)
+    if negated {
+        assert negated.operator == 'negate'
+        crash negated.operand
+        var negated_operand = folded_decimal(negated.operand, class_information)
+        assert negated_operand
+        return FoldedDecimal(-negated_operand.value, negated_operand.kind)
+    }
+    var call = shape.as_call(expression)
+    assert call
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    var static_receiver = try_resolve_static_path(member.object, class_information.qualified_dotted)
+    if static_receiver {
+        var kind = static_receiver.qualified_dotted
+        assert kind == "Float" or kind == "Double"
+        assert maths.is_constant(member.name) and call.arguments.is_empty()
+        var constant = maths.constant_value(member.name, kind == "Float")
+        return FoldedDecimal(constant, kind)
+    }
+    assert maths.is_member(member.name) and not maths.is_constant(member.name) and not maths.is_predicate(member.name)
+    return folded_maths_value(member.name, member.object, call.arguments, class_information)
 }

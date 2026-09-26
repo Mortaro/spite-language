@@ -144,6 +144,16 @@ func is_alive(): Boolean {
   `bits_exclusive_or(mask)`, `bits_inverted()`, `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()`.
   The mask is cast to the receiver's type; a count of the width or more shifts everything out, a negative one
   halts. Do not fake them with `/` and `%` by powers of two.
+- Maths is functions on the numbers too, every name in full, never a `Math` class: on a `Float` or `Double`
+  `square_root()`, `sine()`, `cosine()`, `tangent()`, `arc_sine()`, `arc_cosine()`, `arc_tangent()`,
+  `rise.arc_tangent_over(run)` (C's `atan2(rise, run)`), `power(exponent)`, `exponential()`, `logarithm()`
+  (natural), `logarithm_base_2()`, `logarithm_base_10()`, `floor()`, `ceiling()`, `round()`, `truncate()`,
+  `absolute()`, `minimum(other)`, `maximum(other)`, `clamp(low, high)`, `is_finite()`, `is_infinite()`,
+  `is_not_a_number()`; on a whole number `absolute()`, `minimum`, `maximum`, `clamp`. Constants are asked of the
+  class: `Float.pi()`, `tau()`, `euler_number()`, `infinity()`, `not_a_number()`, `largest()`, `smallest()` (the most
+  negative), and `Integer.largest()`, `Long.smallest()` and so on. Each is the C library's function, called
+  inline; do not write your own `sine` or square root from a series. Nothing halts: `(-1.0).square_root()` is
+  `nan`.
 - Everything that is not a number, a `Boolean` or an enum value is a reference: passing, assigning and storing share
   the same object. `copy()` copies one level, `deep_copy()` all the way down. `drop()` runs when the last reference
   goes. Two objects that refer to each other leak: hold the back reference as a `Weak<T>` (`get()` is a `T?`, `null` once the object is freed), or clear one side.
@@ -380,6 +390,24 @@ reads a local reading: `var zones = TimeZones()`, `zones.find("America/New_York"
 `DynamicLibrary("ucrtbase.dll", 'identity', "")` calls a native library's functions as members
 (`c_runtime.strlen(text)`, `_as_long`/`_as_double`/`_as_text` for wider results); the standard library's
 `library/windows/`, `linux/` and `mac/` folders reopen the classes each system changes (docs/foreign_libraries.md).
+Game maths (docs/game_maths.md): `Vector2`, `Vector3`, `Vector4` are made with their parts, `Vector3(1.0, 2.0, 3.0)`,
+read as `x_value`, `y_value`, `z_value`, `w_value` (never `.x`), with `+ - * /` part by part, `scaled(factor)`,
+`dot`, `cross`, `length()`, `normalized()`, `distance_to`, `linear_interpolate(target, amount)`. `Matrix4()` and
+`Quaternion()` are the identity and are set in place: `matrix.set_transform(translation, rotation, scale)`,
+`set_perspective(field_of_view, aspect, near, far)` (Vulkan: y down, depth 0 to 1), `set_look_at`,
+`rotation.set_axis_angle(axis, angle)`, `set_euler(angles, 'xyz')`; `a * b` applies `b` first;
+`matrix.transform_point(point)`, `rotation.rotate(vector)`, `inverse()` a `Matrix4?`. Matrices are column-major,
+parts `column_0_row_0` to `column_3_row_3`. Each answer is a new object, so one step per line:
+`var moved = velocity.scaled(delta)` then `position = position + moved`. Culling and picking: `AxisAlignedBox(lowest,
+highest)`, `Plane()` with `set_point_normal`, `Frustum()` with `set_from_view_projection(matrix)` then
+`intersects_box`/`intersects_sphere`, and `Ray(origin, direction)` whose `hit_plane`, `hit_box` and `hit_triangle`
+answer a `Float?` distance, `null` for a miss. Colours: `Color(red, green, blue, alpha)` from 0 to 1, read from
+text with `var color_text = ColorText()` then `color_text.read_color("#ff6347")` (also `rgb()`, `rgba()`, `hsl()`,
+`hsla()` and CSS names; a `Color?`), written with `to_hex()`, `to_rgb_text()`, `to_hsl_text()`, converted with
+`to_linear()` and `to_standard_rgb()`. Animation and shading: `CubicBezier(start, first_handle, second_handle, end)`
+with `y_at_x(x)`, `var easing = Easing()` then `easing.in_out_cubic(amount)` and the rest, `Noise(seed)` with
+`gradient_2d(x, y)` and `interleaved_gradient`, and `value.to_half_precision()` / `bits.half_precision_to_float()`
+for 16-bit floats.
 Every class here, the numbers and `List` included, is a Spite file in `library/`, and a program's own file of the
 same name reopens it: `list.spite` adds a member template, `integer.spite` a function on every `Integer`.
 
@@ -393,6 +421,12 @@ to rediscover. The rows marked *silent* compile, and do something you did not me
 |---|---|---|
 | `a && b`, `a \|\| b`, `!a` | `Spite writes 'and' and 'or' as words` / `Spite writes 'not' as a word` | `a and b`, `a or b`, `not a` |
 | `a << 3`, `a >> 3`, `a & mask`, `a \| mask`, `a ^ mask`, `~a` | `Spite has no '<<': bits are functions on the whole numbers` (each names its function) | `a.shifted_left(3)`, `a.shifted_right(3)`, `a.bits_and(mask)`, `a.bits_or(mask)`, `a.bits_exclusive_or(mask)`, `a.bits_inverted()` |
+| `x.sqrt()`, `x.sin()`, `x.atan2(y)`, `x.pow(y)`, `x.abs()`, `a.min(b)`, `x.ceil()`, `x.isnan()`, ... | `Float has no function 'sqrt': Spite spells it 'square_root', since no name is abbreviated` | every name in full: `square_root()`, `sine()`, `cosine()`, `tangent()`, `arc_sine()`, `arc_cosine()`, `arc_tangent()`, `power(y)`, `exponential()`, `logarithm()`, `logarithm_base_2()`, `logarithm_base_10()`, `absolute()`, `minimum(b)`, `maximum(b)`, `ceiling()`, `truncate()`, `is_not_a_number()`, `is_infinite()`, `is_finite()`; `floor()`, `round()` and `clamp(low, high)` keep their names |
+| `Math.atan2(y, x)`, `atan2f(y, x)` | `Spite has no 'Math'` | `y.arc_tangent_over(x)`: the angle of the point `(x, y)` |
+| `Math.sqrt(x)`, `Math.PI` | `Spite has no 'Math': maths is a function of the number itself, like 'value.square_root()'` | `x.square_root()`, `Float.pi()` |
+| `sqrt(x)`, `sqrtf(x)`, `pow(x, y)` | `this class has no function 'sqrt': maths is a function of the number itself` | `x.square_root()`, `x.power(y)` |
+| `M_PI`, `f32::consts::PI`, `FLT_MAX`, `INT_MAX`, `INFINITY`, `NAN` | `unknown identifier 'M_PI'` | `Float.pi()` (`Double.pi()` for the 64-bit one), `Float.largest()`, `Integer.largest()`, `Float.infinity()`, `Float.not_a_number()` |
+| `angle.pi()` | `'pi()' is a constant of the class Float, not of a value` | `Float.pi()` |
 | `count++`, `count += 1` | `Spite has no '++': write 'count = count + 1'` | `count = count + 1` |
 | `condition ? a : b` | `Spite has no 'condition ? a : b'` | an `if` with an `else`, or a function that returns one or the other |
 | `int`, `Int`, `bool`, `Bool`, `to_int()` | `'Int' is spelled 'Integer'`, `'int' abbreviates: write 'integer'` | `Integer`, `Boolean`, `to_integer()`: no name is abbreviated, the language's own included (D122) |

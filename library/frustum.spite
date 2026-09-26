@@ -1,0 +1,75 @@
+var left = Plane()
+var right = Plane()
+var bottom = Plane()
+var top = Plane()
+var near = Plane()
+var far = Plane()
+
+func set_from_view_projection(matrix: Matrix4) {
+    left.set_parts(
+        matrix.column_0_row_3 + matrix.column_0_row_0,
+        matrix.column_1_row_3 + matrix.column_1_row_0,
+        matrix.column_2_row_3 + matrix.column_2_row_0,
+        matrix.column_3_row_3 + matrix.column_3_row_0,
+    )
+    right.set_parts(
+        matrix.column_0_row_3 - matrix.column_0_row_0,
+        matrix.column_1_row_3 - matrix.column_1_row_0,
+        matrix.column_2_row_3 - matrix.column_2_row_0,
+        matrix.column_3_row_3 - matrix.column_3_row_0,
+    )
+    bottom.set_parts(
+        matrix.column_0_row_3 + matrix.column_0_row_1,
+        matrix.column_1_row_3 + matrix.column_1_row_1,
+        matrix.column_2_row_3 + matrix.column_2_row_1,
+        matrix.column_3_row_3 + matrix.column_3_row_1,
+    )
+    top.set_parts(
+        matrix.column_0_row_3 - matrix.column_0_row_1,
+        matrix.column_1_row_3 - matrix.column_1_row_1,
+        matrix.column_2_row_3 - matrix.column_2_row_1,
+        matrix.column_3_row_3 - matrix.column_3_row_1,
+    )
+    near.set_parts(matrix.column_0_row_2, matrix.column_1_row_2, matrix.column_2_row_2, matrix.column_3_row_2)
+    far.set_parts(
+        matrix.column_0_row_3 - matrix.column_0_row_2,
+        matrix.column_1_row_3 - matrix.column_1_row_2,
+        matrix.column_2_row_3 - matrix.column_2_row_2,
+        matrix.column_3_row_3 - matrix.column_3_row_2,
+    )
+    left.normalize()
+    right.normalize()
+    bottom.normalize()
+    top.normalize()
+    near.normalize()
+    far.normalize()
+}
+
+func contains_point(point: Vector3): Boolean {
+    return intersects_sphere(point, 0.0)
+}
+
+func intersects_sphere(center: Vector3, radius: Float): Boolean {
+    var reach = 0.0 - radius
+    return left.signed_distance_to(center) >= reach and right.signed_distance_to(center) >= reach and bottom.signed_distance_to(center) >= reach and top.signed_distance_to(center) >= reach and near.signed_distance_to(center) >= reach and far.signed_distance_to(center) >= reach
+}
+
+func intersects_box(box: AxisAlignedBox): Boolean {
+    return reaches(left, box) and reaches(right, box) and reaches(bottom, box) and reaches(top, box) and reaches(near, box) and reaches(far, box)
+}
+
+func reaches(plane: Plane, box: AxisAlignedBox): Boolean {
+    var farthest_x = box.lowest_x
+    if plane.normal_x >= 0.0 {
+        farthest_x = box.highest_x
+    }
+    var farthest_y = box.lowest_y
+    if plane.normal_y >= 0.0 {
+        farthest_y = box.highest_y
+    }
+    var farthest_z = box.lowest_z
+    if plane.normal_z >= 0.0 {
+        farthest_z = box.highest_z
+    }
+    return plane.normal_x * farthest_x + plane.normal_y * farthest_y + plane.normal_z * farthest_z + plane.distance >= 0.0
+}

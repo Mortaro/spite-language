@@ -636,6 +636,7 @@ func built_executable(): Boolean {
     process_arguments.append(c_file_path)
     process_arguments.append("-o")
     process_arguments.append(output_path)
+    append_maths_library(process_arguments, generated_code)
     var process = Process(c_compiler, process_arguments)
     var exit_code = process.run()
     if exit_code != 0 {
@@ -667,6 +668,12 @@ func write_companions(output_path: String) {
     if is_on("hot_reload") {
         File("{base}.reload_host").write(last_hot_manifest)
         File("{base}.reload_files").write(last_hot_state)
+    }
+}
+
+func append_maths_library(process_arguments: List<String>, written: String) {
+    if written.contains("#include <math.h>") and option("operating_system") != "windows" {
+        process_arguments.append("-lm")
     }
 }
 
@@ -819,6 +826,7 @@ func build_library(code: String, library_c_path: String, library_path: String): 
     process_arguments.append(library_c_path)
     process_arguments.append("-o")
     process_arguments.append(library_path)
+    append_maths_library(process_arguments, code)
     var process = Process(c_compiler, process_arguments)
     if process.run() != 0 {
         var output = process.output()

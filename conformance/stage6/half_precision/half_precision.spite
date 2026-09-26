@@ -1,0 +1,32 @@
+var console = Console()
+
+func HalfPrecision() {
+    var values = [
+        1.0
+        -2.0
+        0.1
+        65504.0
+        65519.0
+        65520.0
+        100000.0
+        0.00006103515625
+        0.000000059604645
+        0.00000002
+        0.0
+        -0.0
+        0.33333334
+    ]
+    values.each(show)
+    var infinite = Float.infinity()
+    show(infinite)
+    var nothing = Float.not_a_number()
+    show(nothing)
+    var one: Float = 1.0
+    console.print("bits of 1.0 {one.bits()}")
+}
+
+func show(value: Float) {
+    var half = value.to_half_precision()
+    var back = half.half_precision_to_float()
+    console.print("{value} is {half}, back {back}")
+}

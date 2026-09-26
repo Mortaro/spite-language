@@ -1,0 +1,43 @@
+var console = Console()
+
+func GameVectors() {
+    three()
+    two_and_four()
+}
+
+func three() {
+    var first = Vector3(1.0, 2.0, 2.0)
+    var second = Vector3(4.0, -1.0, 0.5)
+    console.print("sum {first + second} subtract {first - second}")
+    console.print("multiply {first * second} divide {first / second} negate {-first}")
+    console.print("scaled {first.scaled(2.0)} equals {first == first} {first == second}")
+    console.print("dot {first.dot(second)} cross {first.cross(second)}")
+    console.print("length {first.length()} squared {first.length_squared()} normalized {first.normalized()}")
+    var zero = Vector3(0.0, 0.0, 0.0)
+    console.print("normalized zero {zero.normalized()}")
+    console.print("distance {first.distance_to(second)} squared {first.distance_squared_to(second)}")
+    console.print("linear_interpolate {first.linear_interpolate(second, 0.5)}")
+    console.print("minimum {first.minimum(second)} maximum {first.maximum(second)} absolute {second.absolute()}")
+    var along = Vector3(1.0, 0.0, 0.0)
+    var up = Vector3(0.0, 1.0, 0.0)
+    var chained = along + up
+    chained = chained.scaled(3.0)
+    chained = chained - first
+    console.print("chained {chained}")
+    var positions = Vector<Vector3>()
+    positions.append(first)
+    positions.append(second)
+    var stored = positions[1]
+    console.print("in a Vector column {stored.x_value} {positions.count()}")
+}
+
+func two_and_four() {
+    var flat = Vector2(3.0, 4.0)
+    var other = Vector2(1.0, -1.0)
+    console.print("Vector2 {flat + other} {flat.length()} {flat.normalized()} {flat.dot(other)}")
+    console.print("Vector2 {flat.linear_interpolate(other, 0.25)} {flat.distance_to(other)} {flat.minimum(other)}")
+    var wide = Vector4(1.0, 2.0, 3.0, 4.0)
+    var wider = Vector4(0.5, 0.5, 0.5, 0.5)
+    console.print("Vector4 {wide * wider} {wide.dot(wider)} {wide.length_squared()} {wide.maximum(wider)}")
+    console.print("Vector4 {wide.scaled(0.5)} {-wide} {wide == wide}")
+}
