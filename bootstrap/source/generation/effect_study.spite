@@ -463,7 +463,8 @@ func is_shrinking(name: String): Boolean {
 }
 
 func is_growing(name: String): Boolean {
-    return name == "append" or name == "prepend" or name == "insert"
+    var growing = ["append", "prepend", "insert", "reserve", "make_room", "_make_room", "_reserve_exactly"]
+    return growing.contains(name)
 }
 
 func growing_key(key: String): String {

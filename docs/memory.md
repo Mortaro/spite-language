@@ -1075,10 +1075,14 @@ kept past its use. What is built (the error texts and the readings marked are pr
   - assigned again (`first = velocities[1]`): `'first' is borrowed from 'velocities' and is not assigned again:
     read another item with a new 'var', such as 'var next = velocities[index]'`.
 - **Not past a change of size.** Growing a vector may move its block, and removing an item moves the ones after
-  it, so a borrowed name is not read after a statement that may change its vector's size: `append`, `prepend`,
-  `insert`, `remove_at`, `remove_first`, `remove_last` or `clear` on it, assigning the vector or anything on its
-  path, or a call that may do one of those. A call is followed with D169's call effects
-  (`generation/call_effects.spite`): a function that appends to a vector records a `grow:` effect on it as a
+  it, so a borrowed name is not read after a statement that may change its vector's size or move its block:
+  `append`, `prepend`, `insert`, `reserve`, `remove_at`, `remove_first`, `remove_last`, `remove_swapping` or
+  `clear` on it, assigning the vector or anything on its path, or a call that may do one of those. `reserve` adds no
+  item but may move the block as surely as `append` does, so it counts as growing (proposed by Claude,
+  unconfirmed; `diagnostics/vector_reserve_borrows`), and so do the library's own `make_room`, `_make_room` and
+  `_reserve_exactly`, which a program reopening `Vector` or `Items` could call. A call is followed with D169's call
+  effects (`generation/call_effects.spite`): a function that appends to or reserves room in a vector records a
+  `grow:` effect on it as a
   removal records `shrink:`, through its callers and through the parameters it was passed, and a call through a
   function value may do anything. A statement in a loop that may change the size ends the borrow for the whole
   loop. The error is on the statement that changes it: `'again' is borrowed from 'velocities', and 'spawn()' on

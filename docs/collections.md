@@ -163,8 +163,8 @@ A class with a `List`, a `Dictionary` or another object in an attribute is an er
 belongs in a `List` ([the rules](#vectort--implemented)).
 
 A borrowed item is read and written through its members. It is never kept: not in an attribute, a list, a
-returned value or a function value, and not past anything that may change the vector's size, since growing the
-vector may move its items. Each of those is an error that names `copy()`, which makes an independent object:
+returned value or a function value, and not past anything that may change the vector's size or move its block,
+since growing the vector -- `reserve(count)` too, which adds no item -- may move its items. Each of those is an error that names `copy()`, which makes an independent object:
 
 ```gdscript title=vector_borrow_mistake/velocity.spite
 var across = 0.0

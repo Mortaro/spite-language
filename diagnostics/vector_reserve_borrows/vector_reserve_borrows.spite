@@ -1,0 +1,22 @@
+var console = Console()
+var velocities = Vector<Velocity>()
+var grower = Grower()
+
+func VectorReserveBorrows() {
+    var first = Velocity(1.0)
+    console.print(first.across)
+    velocities.append(first)
+    var velocity = velocities[0]
+    velocities.reserve(100)
+    velocity.across = 3.0
+    var again = velocities[0]
+    make_space()
+    again.across = 4.0
+    var grown = grower.speeds[0]
+    grower.reserve_more()
+    grown.across = 5.0
+}
+
+func make_space() {
+    velocities.reserve(200)
+}

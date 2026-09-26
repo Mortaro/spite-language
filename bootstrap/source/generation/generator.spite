@@ -14607,8 +14607,7 @@ func called_effects(
             return effects
         }
         var widened = effects.copy()
-        var growing = ["append", "prepend", "insert"]
-        if growing.contains(member.name) {
+        if grows_storage(member.name) {
             widened.append("grow:*")
         } else {
             widened.append("shrink:*")
@@ -14618,19 +14617,19 @@ func called_effects(
     return unknown
 }
 
+func grows_storage(name: String): Boolean {
+    var growing = ["append", "prepend", "insert", "reserve", "make_room", "_make_room", "_reserve_exactly"]
+    return growing.contains(name)
+}
+
+func resizes_storage(name: String): Boolean {
+    var shrinking = ["remove_at", "remove_first", "remove_last", "remove_swapping", "clear"]
+    return grows_storage(name) or shrinking.contains(name)
+}
+
 func resizes_unnamed_collection(member: Syntax.Expressions.MemberExpression, owner: String): Boolean {
-    var resizing = [
-        "append"
-        "prepend"
-        "insert"
-        "remove_at"
-        "remove_first"
-        "remove_last"
-        "remove_swapping"
-        "clear"
-    ]
     var collections = ["List", "Vector", "Items", "Dictionary", "*"]
-    assert resizing.contains(member.name) and collections.contains(owner)
+    assert resizes_storage(member.name) and collections.contains(owner)
     crash member.object
     return not is_name_path(member.object) and not shape.as_generic_call(member.object)
 }
@@ -16437,17 +16436,7 @@ func call_resizes(
     var member = shape.as_member(call.callee)
     if member {
         crash member.object
-        var resizing = [
-            "append"
-            "prepend"
-            "insert"
-            "remove_at"
-            "remove_first"
-            "remove_last"
-            "remove_swapping"
-            "clear"
-        ]
-        if operand_text(member.object) == source and resizing.contains(member.name) {
+        if operand_text(member.object) == source and resizes_storage(member.name) {
             return "'{callee_text}()'"
         }
     }
