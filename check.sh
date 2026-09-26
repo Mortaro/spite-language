@@ -187,6 +187,17 @@ if grep -q "whole / pieces" "$work/division.c" || ! grep -q "total / parts" "$wo
   echo "FAILED: division_by_zero should check 'total / parts' and not the proven 'whole / pieces'"; exit 1
 fi
 echo "division: a proven divisor carries no zero check"
+# A loop over a list of plain values that cannot change its size reads the count once and its items without a range
+# check (docs/optimizations.md): counted_loops' scale_in_place is a plain C loop the C compiler can vectorise, and
+# scale_into checks the list it writes once, before the loop; add_from, whose counter starts at a parameter, is not.
+"$work/generation_two.exe" conformance/stage6/counted_loops --run=false --c-source --c-path="$work/counted.c" > /dev/null 2>&1 || {
+  echo "FAILED: counted_loops does not write its C"; exit 1; }
+if ! grep -qE "^spite_temp_[0-9]+\[index_\] = \(spite_temp_[0-9]+\[index_\] \* 2\.0\);$" "$work/counted.c" \
+   || ! grep -qE "^if \(spite_temp_[0-9]+ <= spite_temp_[0-9]+\) \{$" "$work/counted.c" \
+   || [ "$(grep -c "^while (((index_ < List_Integer_count(values_)))) {$" "$work/counted.c")" != "2" ]; then
+  echo "FAILED: counted_loops should read its plain lists without range checks, except in add_from and double_up"; exit 1
+fi
+echo "counted loops: a plain list's loop reads the count once and its items unchecked"
 # D211: live reload watches every folder a program loads, and a loop's check point is one load of a flag.
 "$work/generation_two.exe" conformance/stage6/load_on_build --run=false --hot-reload --c-source --c-path="$work/watched.c" --flavor=salty > /dev/null 2>&1 || {
   echo "FAILED: load_on_build does not write its C with --hot-reload"; exit 1; }

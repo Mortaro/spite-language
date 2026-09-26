@@ -184,6 +184,7 @@ var framed_cleanups = List<String>()
 var framed_list_counter = 0
 var framed_list_helpers = List<String>()
 var read_list_answers = Dictionary<Boolean>()
+var class_read_lists = Dictionary<String>()
 var pending_allocator: Syntax.Statements.AssignmentStatement? = null
 var chosen_allocator_lines = List<String>()
 var allocated_classes = List<Analysis.ClassInfo>()
@@ -8292,6 +8293,214 @@ func framed_variadic(
     return "(\{ {lines.join(" ")} })"
 }
 
+func frames_local_list(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    assert not keeps_internals and not hot_reload and not resumable_mode and remote_loop_port == 0
+    assert not scope.entry_names.contains(declaration.name)
+    crash declaration.value
+    var literal = shape.as_list_literal(declaration.value)
+    var literal_count = 0
+    if literal {
+        literal_count = literal.elements.count()
+        assert literal_count > 0 or declaration.type_reference
+    } else {
+        assert makes_empty_list(declaration.value)
+    }
+    assert declares_here(declaration)
+    var start = borrow_index + 1
+    var appended = counted_appends(declaration.name, borrow_statements, start)
+    var capacity = literal_count + appended
+    assert capacity <= 256
+    assert rest_only_reads(declaration.name, borrow_statements, start, class_information)
+    var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
+    var listed = type_shape.as_list(declared_type)
+    assert listed
+    var element = listed.get_element()
+    var constant = false
+    if literal {
+        constant = appended == 0 and literal_is_constant(literal, element)
+    }
+    assert constant or capacity <= 16
+    var list_name = ensure_list(element)
+    if not framed_list_helpers.contains(list_name) {
+        ensure_framed_list_helper(list_name)
+    }
+    framed_list_counter = framed_list_counter + 1
+    var framed = "spite_framed_{framed_list_counter}"
+    var element_code = c_type_name(element)
+    var slots = capacity
+    if slots == 0 {
+        slots = 1
+    }
+    if constant {
+        crash literal
+        var initializers = constant_initializers(literal, element, scope, class_information)
+        builder.add_user("static const {element_code} {framed}_items[{slots}] = \{ {initializers} };")
+    } else {
+        builder.add_user("{element_code} {framed}_items[{slots}];")
+        fill_framed_items(framed, literal, element, scope, class_information)
+    }
+    var local_code = c_value_name(declaration.name)
+    builder.add_user("{list_name} {framed};")
+    builder.add_user(
+        "{list_name}* {local_code} = {list_name}___framed(&{framed}, (int64_t)(intptr_t){framed}_items, {literal_count});",
+    )
+    if capacity != literal_count {
+        builder.add_user("{framed}.capacity_ = {capacity};")
+    }
+    scope.declare_owned(declaration.name, declared_type)
+    var owned_local = scope.owned.last()
+    crash owned_local
+    owned_local.framed = true
+    if not constant and type_needs_drop(element) {
+        var cleared = list_function(element, "clear")
+        owned_local.framed_cleanup = "{cleared}({local_code})"
+    }
+    scope.check_last(current_line)
+    check_value_name(declaration.name, "variable")
+    return true
+}
+
+func declares_here(declaration: Syntax.Statements.VariableDeclaration): Boolean {
+    assert borrow_index < borrow_statements.count()
+    var here = shape.as_variable_declaration(borrow_statements[borrow_index])
+    assert here
+    return here.name == declaration.name and here.line == declaration.line
+}
+
+func makes_empty_list(value: Syntax.Expressions.Expression): Boolean {
+    var made = shape.as_generic_call(value)
+    assert made
+    crash made.callee
+    assert is_identifier_named(made.callee, "List")
+    return made.type_arguments.count() == 1 and made.arguments.is_empty()
+}
+
+func counted_appends(name: String, statements: List<Syntax.Statements.Statement>, start: Integer): Integer {
+    var appended = 0
+    var index = start
+    while index < statements.count() {
+        if appends_to(name, statements[index]) {
+            appended = appended + 1
+        }
+        index = index + 1
+    }
+    return appended
+}
+
+func appends_to(name: String, statement: Syntax.Statements.Statement): Boolean {
+    var expression_statement = shape.as_expression_statement(statement)
+    assert expression_statement
+    crash expression_statement.value
+    var call = shape.as_call(expression_statement.value)
+    assert call
+    assert call.arguments.count() == 1
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    assert member.name == "append"
+    crash member.object
+    assert is_identifier_named(member.object, name)
+    return placement.expression_only_reads(name, call.arguments[0])
+}
+
+func rest_only_reads(
+    name: String,
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    use_class_read_lists(class_information)
+    var index = start
+    while index < statements.count() {
+        assert appends_to(name, statements[index]) or placement.statement_only_reads(name, statements[index])
+        index = index + 1
+    }
+    return true
+}
+
+func use_class_read_lists(class_information: Analysis.ClassInfo) {
+    var known = class_read_lists.get(class_information.c_name)
+    if known {
+        placement.read_lists = known.split("\n")
+        return
+    }
+    var names = List<String>()
+    var parameter_lists = List<List<String>>()
+    var bodies = List<List<Syntax.Statements.Statement>>()
+    collect_list_parameters(class_information, names, parameter_lists, bodies)
+    var read_lists = placement.study_read_lists(names, parameter_lists, bodies)
+    var joined = read_lists.join("\n")
+    class_read_lists.set(class_information.c_name, joined)
+}
+
+func literal_is_constant(literal: Syntax.Expressions.ListLiteralExpression, element: Analysis.SpiteType): Boolean {
+    var index = 0
+    while index < literal.elements.count() {
+        var element_ast = literal.elements[index].value
+        crash element_ast
+        assert is_constant_element(element_ast, element)
+        index = index + 1
+    }
+    return true
+}
+
+func is_constant_element(element_ast: Syntax.Expressions.Expression, element: Analysis.SpiteType): Boolean {
+    if shape.as_string_literal(element_ast) {
+        assert type_shape.as_string(element)
+        return true
+    }
+    assert type_shape.as_scalar(element)
+    if shape.as_integer_literal(element_ast) or shape.as_float_literal(element_ast) {
+        return true
+    }
+    return shape.is_true_literal(element_ast) or shape.is_false_literal(element_ast)
+}
+
+func constant_initializers(
+    literal: Syntax.Expressions.ListLiteralExpression,
+    element: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var initializers = List<String>()
+    var index = 0
+    while index < literal.elements.count() {
+        var element_ast = literal.elements[index].value
+        crash element_ast
+        var text = shape.as_string_literal(element_ast)
+        if text {
+            initializers.append("SPITE_STATIC_STRING(\"{escape_c_string(text.value)}\", {text.value.length()})")
+        } else {
+            var element_code = coerce_for_store(element_ast, element, scope, class_information)
+            initializers.append(element_code)
+        }
+        index = index + 1
+    }
+    return initializers.join(", ")
+}
+
+func fill_framed_items(
+    framed: String,
+    literal: Syntax.Expressions.ListLiteralExpression?,
+    element: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    assert literal
+    var index = 0
+    while index < literal.elements.count() {
+        var element_ast = literal.elements[index].value
+        crash element_ast
+        var element_code = coerce_for_store(element_ast, element, scope, class_information)
+        builder.add_user("{framed}_items[{index}] = {element_code};")
+        index = index + 1
+    }
+}
+
 func ensure_framed_list_helper(list_name: String) {
     assert not framed_list_helpers.contains(list_name)
     framed_list_helpers.append(list_name)
@@ -9269,6 +9478,10 @@ func generate_method_call(
         return generate_method_call(matched, object_ast, arguments_ast, scope, class_information)
     }
     forget_indices_if_shrinking(member.name, object_ast, scope)
+    var counted_call = counted_method(member, object_ast, arguments_ast, scope, class_information)
+    if counted_call {
+        return counted_call
+    }
     if maths.is_member(member.name) and not maths.is_constant(member.name) {
         var folded_maths = folded_maths_call(member.name, object_ast, arguments_ast, class_information)
         if folded_maths {
@@ -13316,6 +13529,11 @@ func generate_index_read(
         mark_bound_attribute_read(class_information)
         return ExpressionResult("self->{c_value_name(bound_field_name)}", bound_field_type)
     }
+    var counted_read = counted_item(index_expression.object, index_expression.index, scope, class_information)
+    if not counted_read.is_empty() and reads_counted_item(index_expression, scope) {
+        var counted_type = counted_item_type(index_expression.object, scope)
+        return ExpressionResult(counted_read, counted_type)
+    }
     var read_path = operand_text(index_expression)
     var proven = not read_path.is_empty() and scope.is_path_narrowed(read_path)
     var object_result = generate_expression(index_expression.object, scope, class_information)
@@ -15527,7 +15745,12 @@ func emit_scope_drops(scope: Scope, all_the_way_up: Boolean) {
         var owned_local = scope.owned[index]
         var owned_local_type = owned_local.get_type()
         var owned_code = c_value_name(owned_local.name)
-        builder.add_user("{release_call(owned_local_type, owned_code)};")
+        if not owned_local.framed {
+            builder.add_user("{release_call(owned_local_type, owned_code)};")
+        }
+        if not owned_local.framed_cleanup.is_empty() {
+            builder.add_user("{owned_local.framed_cleanup};")
+        }
         index = index - 1
     }
     assert all_the_way_up
@@ -15561,6 +15784,7 @@ func generate_variable_declaration(
     assert not lends_to_local(declaration, scope, class_information)
     assert not lends_row(declaration, scope, class_information)
     assert not lends_walked_row(declaration, scope, class_information)
+    assert not frames_local_list(declaration, scope, class_information)
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
     borrow_site = "local:{declaration.name}"
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
@@ -17385,6 +17609,7 @@ func borrowed_element(
     var element_type = class_information.codegen_types[0]
     assert type_needs_drop(element_type) and not type_shape.as_nullable(element_type)
     var watch = ReleaseWatch(declaration.name)
+    watch.element_owner = watched_owner(element_type)
     assert watch_statements(watch, statements, start, scope, class_information)
     var integer_spite_type = integer_type()
     var index_code = coerce_for_store(call.arguments[1], integer_spite_type, scope, class_information)
@@ -17410,6 +17635,7 @@ func borrowed_field(
     var field_type = field.get_type()
     assert type_needs_drop(field_type) and not type_shape.as_nullable(field_type)
     var watch = ReleaseWatch(declaration.name)
+    watch.element_owner = watched_owner(field_type)
     assert watch_statements(watch, statements, start, scope, class_information)
     var generated = generate_expression(declaration.value, scope, class_information)
     return generated.code
@@ -17560,8 +17786,32 @@ func watch_call(
         var identifier = shape.as_identifier(callee)
         assert identifier and class_information.find_function(identifier.name) and not watch.locals.contains(identifier.name)
     }
-    var effects = called_effects(callee, scope, class_information)
+    var effects = watched_effects(watch, callee, scope, class_information)
     return not effects.contains("release") and not effects.contains("field:*")
+}
+
+func watched_owner(watched_type: Analysis.SpiteType): String {
+    var class_reference = type_shape.as_class_ref(watched_type)
+    assert class_reference and not class_reference.has_signature
+    var owner = find_class_by_c_name(class_reference.c_name)
+    assert owner
+    return owner.simple_name
+}
+
+func watched_effects(
+    watch: ReleaseWatch,
+    callee: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): List<String> {
+    var member = shape.as_member(callee)
+    if member and not watch.element_owner.is_empty() {
+        crash member.object
+        if is_identifier_named(member.object, watch.name) {
+            return call_effects.effects_of(watch.element_owner, member.name)
+        }
+    }
+    return called_effects(callee, scope, class_information)
 }
 
 func called_name_of(callee: Syntax.Expressions.Expression): String {
@@ -18287,6 +18537,13 @@ func generate_store(
         }
         assert index_target.object
         assert index_target.index
+        var counted_write = counted_item(index_target.object, index_target.index, scope, class_information)
+        if not counted_write.is_empty() {
+            var counted_type = counted_item_type(index_target.object, scope)
+            var stored = coerce_for_store(assignment.value, counted_type, scope, class_information)
+            builder.add_user("{counted_write} = {stored};")
+            return
+        }
         var indexed_result = generate_expression(index_target.object, scope, class_information)
         var indexed_result_type = indexed_result.get_type()
         var assigned_class_ref = type_shape.as_class_ref(indexed_result_type)
@@ -21739,10 +21996,15 @@ func generate_while_statement(
         builder.add_user("}")
         return
     }
+    var counted = counted_loop_list(while_statement, scope, class_information, function_information)
     var condition_start = builder.user_count()
     var condition_result = generate_joined(while_statement.condition, scope, class_information)
     check_condition(condition_result, "while")
     var truth = owned_truth(condition_result, while_statement.condition)
+    if not counted.is_empty() {
+        generate_counted_loop(counted, while_statement, scope, class_information, function_information)
+        return
+    }
     if resumable_mode and builder.user_count() > condition_start {
         builder.insert_user(condition_start, "while (1) \{")
         shift_wait_marks(condition_start)
@@ -21756,6 +22018,705 @@ func generate_while_statement(
     generate_block_in_scope(while_statement.body, body_scope, class_information, function_information)
     add_loop_check_point(class_information)
     builder.add_user("}")
+}
+
+func counted_loop_list(
+    while_statement: Syntax.Statements.WhileStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+): String {
+    assert not hot_reload and remote_loop_port == 0 and not read_evaluate_print_loop and not resumable_mode
+    crash while_statement.condition
+    var binary = shape.as_binary(while_statement.condition)
+    assert binary
+    crash binary.left
+    crash binary.right
+    assert binary.operator == 'less'
+    var counter = shape.as_identifier(binary.left)
+    assert counter
+    var listed = counted_receiver(binary.right)
+    assert not listed.is_empty() and listed != counter.name
+    assert holds_counted_values(listed, scope)
+    assert is_local_counter(counter.name, scope, function_information)
+    assert counter_counts_up(counter.name, function_information.body)
+    assert counted_body_keeps_count(listed, counter.name, while_statement.body, scope, class_information)
+    return listed
+}
+
+func counted_receiver(expression: Syntax.Expressions.Expression): String {
+    var call = shape.as_call(expression)
+    assert call
+    assert call.arguments.is_empty()
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    assert member.name == "count"
+    crash member.object
+    var listed = shape.as_identifier(member.object)
+    assert listed
+    return listed.name
+}
+
+func counted_element_type(list_type: Analysis.SpiteType): Analysis.SpiteType? {
+    var listed = type_shape.as_list(list_type)
+    if listed {
+        var element = listed.get_element()
+        assert type_shape.as_scalar(element)
+        return element
+    }
+    var class_reference = type_shape.as_class_ref(list_type)
+    assert class_reference
+    var owner = find_class_by_c_name(class_reference.c_name)
+    assert owner
+    assert owner.qualified_dotted == "Vector" and owner.codegen_types.count() == 1
+    var item = owner.codegen_types[0]
+    assert type_shape.as_scalar(item)
+    return item
+}
+
+func holds_counted_values(name: String, scope: Scope): Boolean {
+    var list_type = scope.written_type(name)
+    assert list_type
+    var element = counted_element_type(list_type)
+    assert element
+    return true
+}
+
+func is_local_counter(name: String, scope: Scope, function_information: Analysis.FunctionInfo): Boolean {
+    var counter_type = scope.written_type(name)
+    assert counter_type
+    var scalar = type_shape.as_scalar(counter_type)
+    assert scalar
+    assert scalar.kind == 'integer_kind'
+    var parameter_names = c_parameter_names(function_information.parameters)
+    var counter_code = c_value_name(name)
+    return not parameter_names.contains(counter_code)
+}
+
+func counter_counts_up(counter: String, statements: List<Syntax.Statements.Statement>): Boolean {
+    var index = 0
+    while index < statements.count() {
+        assert statement_counts_up(counter, statements[index])
+        index = index + 1
+    }
+    return true
+}
+
+func statement_counts_up(counter: String, statement: Syntax.Statements.Statement): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            crash statement.value
+            return statement.name != counter or is_counter_start(statement.value)
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            return not is_identifier_named(statement.target, counter) or is_counter_start(statement.value)
+        }
+        Syntax.Statements.IfStatement: return counter_counts_up(counter, statement.then_branch) and counter_counts_up(counter, statement.else_branch)
+        Syntax.Statements.WhileStatement: return loop_counts_up(counter, statement)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                assert counter_counts_up(counter, statement.cases[case_index].body)
+                case_index = case_index + 1
+            }
+            return true
+        }
+        _: return true
+    }
+}
+
+func is_counter_start(value: Syntax.Expressions.Expression): Boolean {
+    var start = shape.as_integer_literal(value)
+    assert start
+    return start.value >= 0
+}
+
+func loop_counts_up(counter: String, loop: Syntax.Statements.WhileStatement): Boolean {
+    if steps_counter_last(counter, loop.body) and bounds_counter(counter, loop) {
+        return not assigns_before_last(counter, loop.body)
+    }
+    return counter_counts_up(counter, loop.body)
+}
+
+func steps_counter_last(counter: String, body: List<Syntax.Statements.Statement>): Boolean {
+    var last = body.last()
+    assert last
+    var step = shape.as_assignment_statement(last)
+    assert step
+    crash step.target
+    crash step.value
+    assert is_identifier_named(step.target, counter)
+    var sum = shape.as_binary(step.value)
+    assert sum
+    crash sum.left
+    crash sum.right
+    assert sum.operator == 'add' and is_identifier_named(sum.left, counter)
+    var one = shape.as_integer_literal(sum.right)
+    assert one
+    return one.value == 1
+}
+
+func bounds_counter(counter: String, loop: Syntax.Statements.WhileStatement): Boolean {
+    crash loop.condition
+    var binary = shape.as_binary(loop.condition)
+    assert binary
+    crash binary.left
+    crash binary.right
+    assert binary.operator == 'less' and is_identifier_named(binary.left, counter)
+    if shape.as_integer_literal(binary.right) {
+        return true
+    }
+    return not counted_receiver(binary.right).is_empty()
+}
+
+func assigns_before_last(name: String, statements: List<Syntax.Statements.Statement>): Boolean {
+    var index = 0
+    while index < statements.count() - 1 {
+        if statement_assigns(name, statements[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func block_assigns(name: String, statements: List<Syntax.Statements.Statement>): Boolean {
+    var index = 0
+    while index < statements.count() {
+        if statement_assigns(name, statements[index]) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func statement_assigns(name: String, statement: Syntax.Statements.Statement): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: return statement.name == name
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            return is_identifier_named(statement.target, name)
+        }
+        Syntax.Statements.IfStatement: return block_assigns(name, statement.then_branch) or block_assigns(name, statement.else_branch)
+        Syntax.Statements.WhileStatement: return block_assigns(name, statement.body)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                if block_assigns(name, statement.cases[case_index].body) {
+                    return true
+                }
+                case_index = case_index + 1
+            }
+            return false
+        }
+        _: return false
+    }
+}
+
+func counted_body_keeps_count(
+    listed: String,
+    counter: String,
+    body: List<Syntax.Statements.Statement>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    assert steps_counter_last(counter, body)
+    var plain_names = List<String>()
+    var index = 0
+    while index < body.count() - 1 {
+        assert keeps_count_statement(listed, counter, body[index], plain_names, scope, class_information)
+        index = index + 1
+    }
+    return true
+}
+
+func keeps_count_block(
+    listed: String,
+    counter: String,
+    statements: List<Syntax.Statements.Statement>,
+    plain_names: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = 0
+    while index < statements.count() {
+        assert keeps_count_statement(listed, counter, statements[index], plain_names, scope, class_information)
+        index = index + 1
+    }
+    return true
+}
+
+func keeps_count_statement(
+    listed: String,
+    counter: String,
+    statement: Syntax.Statements.Statement,
+    plain_names: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            assert statement.name != listed and statement.name != counter
+            crash statement.value
+            assert is_counted_plain(statement.value, plain_names, scope, class_information)
+            if statement.type_reference {
+                assert names_plain_type(statement.type_reference)
+            }
+            plain_names.append(statement.name)
+            return true
+        }
+        Syntax.Statements.AssignmentStatement: return keeps_count_assignment(listed, counter, statement, plain_names, scope, class_information)
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            return is_counted_plain(statement.value, plain_names, scope, class_information)
+        }
+        Syntax.Statements.AssertStatement: {
+            crash statement.value
+            return is_counted_plain(statement.value, plain_names, scope, class_information)
+        }
+        Syntax.Statements.ReturnStatement: {
+            assert statement.value
+            return is_counted_plain(statement.value, plain_names, scope, class_information)
+        }
+        Syntax.Statements.IfStatement: {
+            crash statement.condition
+            assert is_counted_plain(statement.condition, plain_names, scope, class_information)
+            assert keeps_count_block(listed, counter, statement.then_branch, plain_names, scope, class_information)
+            return keeps_count_block(listed, counter, statement.else_branch, plain_names, scope, class_information)
+        }
+        Syntax.Statements.WhileStatement: {
+            crash statement.condition
+            assert is_counted_plain(statement.condition, plain_names, scope, class_information)
+            return keeps_count_block(listed, counter, statement.body, plain_names, scope, class_information)
+        }
+        _: return false
+    }
+}
+
+func keeps_count_assignment(
+    listed: String,
+    counter: String,
+    assignment: Syntax.Statements.AssignmentStatement,
+    plain_names: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash assignment.target
+    crash assignment.value
+    assert is_counted_plain(assignment.value, plain_names, scope, class_information)
+    var assigned = shape.as_identifier(assignment.target)
+    if assigned {
+        assert assigned.name != listed and assigned.name != counter
+        assert plain_names.contains(assigned.name) or scope.written_type(assigned.name)
+        return is_plain_name(assigned.name, plain_names, scope, class_information)
+    }
+    var indexed = shape.as_index(assignment.target)
+    assert indexed
+    crash indexed.object
+    crash indexed.index
+    var indexed_list = shape.as_identifier(indexed.object)
+    assert indexed_list
+    assert holds_counted_values(indexed_list.name, scope)
+    return is_counted_plain(indexed.index, plain_names, scope, class_information)
+}
+
+func names_plain_type(type_reference: Syntax.Types.Type): Boolean {
+    var named = shape.as_named_type(type_reference)
+    assert named
+    assert named.path.count() == 1 and named.arguments.is_empty()
+    var plain = [
+        "Integer"
+        "Long"
+        "Short"
+        "Tiny"
+        "Byte"
+        "UnsignedShort"
+        "UnsignedInteger"
+        "UnsignedLong"
+        "Float"
+        "Double"
+        "Boolean"
+    ]
+    return plain.contains(named.path[0])
+}
+
+func is_plain_name(
+    name: String,
+    plain_names: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    if plain_names.contains(name) {
+        return true
+    }
+    var local_type = scope.written_type(name)
+    if local_type {
+        return is_plain_value_type(local_type)
+    }
+    var field = class_information.find_field(name)
+    assert field
+    var field_type = field.get_type()
+    return is_plain_value_type(field_type)
+}
+
+func is_plain_value_type(spite_type: Analysis.SpiteType): Boolean {
+    if type_shape.as_scalar(spite_type) {
+        return true
+    }
+    var nullable = type_shape.as_nullable(spite_type)
+    assert nullable
+    var inner = nullable.get_inner()
+    assert type_shape.as_scalar(inner)
+    return true
+}
+
+func is_counted_plain(
+    expression: Syntax.Expressions.Expression,
+    plain_names: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return is_plain_name(expression.name, plain_names, scope, class_information)
+        Syntax.Expressions.IntegerLiteral: return true
+        Syntax.Expressions.FloatLiteral: return true
+        Syntax.Expressions.TrueLiteral: return true
+        Syntax.Expressions.FalseLiteral: return true
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            assert is_counted_plain(expression.left, plain_names, scope, class_information)
+            return is_counted_plain(expression.right, plain_names, scope, class_information)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return is_counted_plain(expression.operand, plain_names, scope, class_information)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            var indexed_list = shape.as_identifier(expression.object)
+            assert indexed_list
+            assert holds_counted_values(indexed_list.name, scope)
+            return is_counted_plain(expression.index, plain_names, scope, class_information)
+        }
+        Syntax.Expressions.CallExpression: return is_counted_call(expression, plain_names, scope, class_information)
+        _: return false
+    }
+}
+
+func is_counted_call(
+    call: Syntax.Expressions.CallExpression,
+    plain_names: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    var index = 0
+    while index < call.arguments.count() {
+        assert is_counted_plain(call.arguments[index], plain_names, scope, class_information)
+        index = index + 1
+    }
+    var receiver = shape.as_identifier(member.object)
+    if receiver and holds_counted_values(receiver.name, scope) {
+        var reads = ["count", "is_empty", "get_at", "find_at", "set_at", "first", "last", "contains"]
+        return reads.contains(member.name)
+    }
+    return maths.is_member(member.name) and is_counted_plain(member.object, plain_names, scope, class_information)
+}
+
+func generate_counted_loop(
+    listed: String,
+    while_statement: Syntax.Statements.WhileStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    crash while_statement.condition
+    var binary = shape.as_binary(while_statement.condition)
+    crash binary
+    crash binary.left
+    crash binary.right
+    var counter = shape.as_identifier(binary.left)
+    crash counter
+    var call = shape.as_call(binary.right)
+    crash call
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    crash member
+    crash member.object
+    var counter_result = generate_expression(binary.left, scope, class_information)
+    var count_result = generate_expression(binary.right, scope, class_information)
+    var bound = next_temporary()
+    builder.add_user("int32_t {bound} = {count_result.code};")
+    var key = "{listed}[{counter.name}]"
+    var items = hoist_items(member.object, scope, class_information)
+    var truth = "{counter_result.code} < {bound}"
+    var others = List<Syntax.Expressions.Expression>()
+    var other_names = List<String>()
+    collect_counted_others(listed, counter.name, while_statement.body, scope, others, other_names)
+    if others.is_empty() or asserts_in(while_statement.body) {
+        var body_scope = Scope(scope)
+        body_scope.is_loop = true
+        body_scope.count_items(key, items)
+        generate_counted_body(truth, while_statement, body_scope, class_information, function_information)
+        return
+    }
+    var fast_scope = Scope(scope)
+    fast_scope.is_loop = true
+    fast_scope.count_items(key, items)
+    var fits = List<String>()
+    var index = 0
+    while index < others.count() {
+        var other = others[index]
+        var other_result = generate_expression(other, scope, class_information)
+        var other_count = next_temporary()
+        builder.add_user("int32_t {other_count} = ({other_result.code})->item_count_;")
+        var other_items = hoist_items(other, scope, class_information)
+        fits.append("{bound} <= {other_count}")
+        crash other_names[index]
+        fast_scope.count_items("{other_names[index]}[{counter.name}]", other_items)
+        index = index + 1
+    }
+    builder.add_user("if ({fits.join(" && ")}) \{")
+    generate_counted_body(truth, while_statement, fast_scope, class_information, function_information)
+    builder.add_user("} else \{")
+    var slow_scope = Scope(scope)
+    slow_scope.is_loop = true
+    slow_scope.count_items(key, items)
+    generate_counted_body(truth, while_statement, slow_scope, class_information, function_information)
+    builder.add_user("}")
+}
+
+func hoist_items(list_ast: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): String {
+    var list_result = generate_expression(list_ast, scope, class_information)
+    var element = counted_item_type(list_ast, scope)
+    var items = next_temporary()
+    var element_code = c_type_name(element)
+    builder.add_user("{element_code}* {items} = ({element_code}*)(intptr_t)({list_result.code})->items_;")
+    return items
+}
+
+func generate_counted_body(
+    truth: String,
+    while_statement: Syntax.Statements.WhileStatement,
+    body_scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+) {
+    crash while_statement.condition
+    builder.add_user("while ({truth}) \{")
+    narrow_proven_indices(while_statement.condition, body_scope)
+    generate_block_in_scope(while_statement.body, body_scope, class_information, function_information)
+    add_loop_check_point(class_information)
+    builder.add_user("}")
+}
+
+func asserts_in(statements: List<Syntax.Statements.Statement>): Boolean {
+    return statements.any(statement_asserts)
+}
+
+func statement_asserts(statement: Syntax.Statements.Statement): Boolean {
+    switch statement {
+        Syntax.Statements.AssertStatement: return true
+        Syntax.Statements.IfStatement: return asserts_in(statement.then_branch) or asserts_in(statement.else_branch)
+        Syntax.Statements.WhileStatement: return asserts_in(statement.body)
+        _: return false
+    }
+}
+
+func collect_counted_others(
+    listed: String,
+    counter: String,
+    statements: List<Syntax.Statements.Statement>,
+    scope: Scope,
+    others: List<Syntax.Expressions.Expression>,
+    other_names: List<String>,
+) {
+    var index = 0
+    while index < statements.count() {
+        collect_counted_statement(listed, counter, statements[index], scope, others, other_names)
+        index = index + 1
+    }
+}
+
+func collect_counted_statement(
+    listed: String,
+    counter: String,
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    others: List<Syntax.Expressions.Expression>,
+    other_names: List<String>,
+) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: collect_counted_optional(listed, counter, statement.value, scope, others, other_names)
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            var written = shape.as_index(statement.target)
+            if written {
+                crash written.object
+                crash written.index
+                add_counted_other(listed, counter, written.object, written.index, scope, others, other_names)
+                collect_counted_optional(listed, counter, written.index, scope, others, other_names)
+            }
+            collect_counted_optional(listed, counter, statement.value, scope, others, other_names)
+        }
+        Syntax.Statements.ExpressionStatement: collect_counted_optional(listed, counter, statement.value, scope, others, other_names)
+        Syntax.Statements.ReturnStatement: collect_counted_optional(listed, counter, statement.value, scope, others, other_names)
+        Syntax.Statements.IfStatement: {
+            collect_counted_optional(listed, counter, statement.condition, scope, others, other_names)
+            collect_counted_others(listed, counter, statement.then_branch, scope, others, other_names)
+            collect_counted_others(listed, counter, statement.else_branch, scope, others, other_names)
+        }
+        Syntax.Statements.WhileStatement: {
+            collect_counted_optional(listed, counter, statement.condition, scope, others, other_names)
+            collect_counted_others(listed, counter, statement.body, scope, others, other_names)
+        }
+        _: return
+    }
+}
+
+func collect_counted_optional(
+    listed: String,
+    counter: String,
+    expression: Syntax.Expressions.Expression?,
+    scope: Scope,
+    others: List<Syntax.Expressions.Expression>,
+    other_names: List<String>,
+) {
+    assert expression
+    switch expression {
+        Syntax.Expressions.BinaryExpression: {
+            collect_counted_optional(listed, counter, expression.left, scope, others, other_names)
+            collect_counted_optional(listed, counter, expression.right, scope, others, other_names)
+        }
+        Syntax.Expressions.UnaryExpression: collect_counted_optional(listed, counter, expression.operand, scope, others, other_names)
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            if holds_vector_values(expression.object, scope) {
+                add_counted_other(listed, counter, expression.object, expression.index, scope, others, other_names)
+            }
+            collect_counted_optional(listed, counter, expression.index, scope, others, other_names)
+        }
+        Syntax.Expressions.CallExpression: collect_counted_call(listed, counter, expression, scope, others, other_names)
+        _: return
+    }
+}
+
+func collect_counted_call(
+    listed: String,
+    counter: String,
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    others: List<Syntax.Expressions.Expression>,
+    other_names: List<String>,
+) {
+    var index = 0
+    while index < call.arguments.count() {
+        collect_counted_optional(listed, counter, call.arguments[index], scope, others, other_names)
+        index = index + 1
+    }
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    collect_counted_optional(listed, counter, member.object, scope, others, other_names)
+    var first_argument = call.arguments.first()
+    assert first_argument
+    assert member.name == "get_at" or member.name == "set_at"
+    add_counted_other(listed, counter, member.object, first_argument, scope, others, other_names)
+}
+
+func holds_vector_values(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
+    var named = shape.as_identifier(expression)
+    assert named
+    var list_type = scope.written_type(named.name)
+    assert list_type
+    assert not type_shape.as_list(list_type)
+    return holds_counted_values(named.name, scope)
+}
+
+func add_counted_other(
+    listed: String,
+    counter: String,
+    object_ast: Syntax.Expressions.Expression,
+    index_ast: Syntax.Expressions.Expression,
+    scope: Scope,
+    others: List<Syntax.Expressions.Expression>,
+    other_names: List<String>,
+) {
+    var named = shape.as_identifier(object_ast)
+    assert named
+    assert named.name != listed and not other_names.contains(named.name)
+    assert is_identifier_named(index_ast, counter)
+    assert holds_counted_values(named.name, scope)
+    others.append(object_ast)
+    other_names.append(named.name)
+}
+
+func counted_item(
+    object_ast: Syntax.Expressions.Expression,
+    index_ast: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var listed = shape.as_identifier(object_ast)
+    assert listed
+    var counter = shape.as_identifier(index_ast)
+    assert counter
+    var items = scope.counted_items_of("{listed.name}[{counter.name}]")
+    assert not items.is_empty()
+    var counter_result = generate_expression(index_ast, scope, class_information)
+    return "{items}[{counter_result.code}]"
+}
+
+func reads_counted_item(index_expression: Syntax.Expressions.IndexExpression, scope: Scope): Boolean {
+    crash index_expression.object
+    if holds_vector_values(index_expression.object, scope) {
+        return true
+    }
+    var read_path = operand_text(index_expression)
+    return scope.is_path_narrowed(read_path)
+}
+
+func counted_item_type(object_ast: Syntax.Expressions.Expression, scope: Scope): Analysis.SpiteType {
+    var listed = shape.as_identifier(object_ast)
+    crash listed
+    var list_type = scope.written_type(listed.name)
+    crash list_type
+    var element = counted_element_type(list_type)
+    crash element
+    return element
+}
+
+func counted_method(
+    member: Syntax.Expressions.MemberExpression,
+    object_ast: Syntax.Expressions.Expression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    assert member.name == "get_at" or member.name == "set_at"
+    var first_argument = arguments_ast.first()
+    assert first_argument
+    var item = counted_item(object_ast, first_argument, scope, class_information)
+    assert not item.is_empty()
+    var element = counted_item_type(object_ast, scope)
+    if member.name == "get_at" {
+        return ExpressionResult(item, element)
+    }
+    assert arguments_ast.count() == 2
+    var stored = coerce_for_store(arguments_ast[1], element, scope, class_information)
+    var nothing = void_type()
+    return ExpressionResult("{item} = {stored}", nothing)
 }
 
 func add_loop_check_point(class_information: Analysis.ClassInfo) {

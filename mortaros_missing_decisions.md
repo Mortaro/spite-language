@@ -376,4 +376,15 @@ Behaviour that does not match the manual. The language was not changed; each is 
 209. **Should a `List` own its items, so a kept reference to one is weak (`T?`, null once removed)?** It measured
      +3% a tick in the stress program as a form of `Weak<T>`, but turning a kept `T` into a `T?` silently changes
      D149's meaning and whether code compiles. Keep it as an explicit `Weak<T>` over a list item, or make it the rule?
+210. **Is a `Float` expression worked out in `float`, one operation at a time?** A decimal literal is a `Float`
+     ([values_and_types.md](docs/values_and_types.md)), but the C writes `1.5` as a C `double`, so
+     `x * 1.5 + 0.25` is computed in double precision and rounded to `Float` once, while `x * scale + offset` with
+     `Float` variables is rounded after each operation: the same maths gives a different last bit depending on
+     whether a number is written or named, and a folded constant (`f` suffix) follows the second rule. Writing
+     the literal as a C `float` puts every `Float` expression under the second rule and makes plain loops 2-3x
+     faster once vectorised
+     (`benchmarks/plain_loops`: 192 against about 100 µs for two `List<Float>`, 190 against about 70 µs for a
+     `Vector<Float>`), but it changes the last bits of some printed results, which D36 does not let an
+     optimisation do. Not built. Is `Float` arithmetic rounded to `Float` after each operation (then the literal
+     is a bug fix), or is double precision inside one expression the rule?
 

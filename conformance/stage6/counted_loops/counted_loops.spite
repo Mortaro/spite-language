@@ -1,0 +1,137 @@
+var console = Console()
+
+func CountedLoops() {
+    var from = [1.0, 2.0, 3.0, 4.0]
+    var longer = [0.0, 0.0, 0.0, 0.0, 9.0]
+    var shorter = [0.0, 0.0]
+    scale_into(from, longer)
+    scale_into(from, shorter)
+    var longer_text = longer.join(" ")
+    var shorter_text = shorter.join(" ")
+    console.print("longer", longer_text, "shorter", shorter_text)
+    var numbers = Vector<Float>()
+    numbers.append(0.5)
+    numbers.append(1.5)
+    numbers.append(2.5)
+    scale_in_place(numbers)
+    var first = numbers[0]
+    var last = numbers[2]
+    console.print("in place", first, last)
+    var total = add_up(from)
+    var whole = [3, 4, 5]
+    var whole_total = add_up_whole(whole)
+    console.print("sums", total, whole_total)
+    var grid = [1, 2, 3]
+    var pairs = count_pairs(grid)
+    console.print("pairs below 5", pairs)
+    var found = first_above(whole, 3)
+    console.print("first above 3 at", found)
+    var started = add_from(whole, 1)
+    console.print("from 1", started)
+    var grown = [1, 2]
+    double_up(grown)
+    var grown_text = grown.join(" ")
+    console.print("grown", grown_text)
+    var signs = [-2, 0, 7]
+    var clamped = [0, 0, 0]
+    clamp_into(signs, clamped)
+    var clamped_text = clamped.join(" ")
+    console.print("clamped", clamped_text)
+}
+
+func scale_into(from: List<Float>, into: List<Float>) {
+    var index = 0
+    while index < from.count() {
+        into[index] = from.get_at(index) * 1.5 + 0.25
+        index = index + 1
+    }
+}
+
+func scale_in_place(numbers: Vector<Float>) {
+    var index = 0
+    while index < numbers.count() {
+        numbers[index] = numbers[index] * 2.0
+        index = index + 1
+    }
+}
+
+func add_up(values: List<Float>): Float {
+    var total = 0.0
+    var index = 0
+    while index < values.count() {
+        total = total + values.get_at(index)
+        index = index + 1
+    }
+    return total
+}
+
+func add_up_whole(values: List<Integer>): Long {
+    var total: Long = 0
+    var index = 0
+    while index < values.count() {
+        total = total + values.get_at(index)
+        index = index + 1
+    }
+    return total
+}
+
+func count_pairs(values: List<Integer>): Integer {
+    var pairs = 0
+    var outer = 0
+    while outer < values.count() {
+        var inner = 0
+        while inner < values.count() {
+            var sum = values.get_at(outer) + values.get_at(inner)
+            if sum < 5 {
+                pairs = pairs + 1
+            }
+            inner = inner + 1
+        }
+        outer = outer + 1
+    }
+    return pairs
+}
+
+func first_above(values: List<Integer>, limit: Integer): Integer {
+    var index = 0
+    while index < values.count() {
+        if values.get_at(index) > limit {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}
+
+func add_from(values: List<Integer>, start: Integer): Integer {
+    var total = 0
+    var index = start
+    while index < values.count() {
+        total = total + values.get_at(index)
+        index = index + 1
+    }
+    return total
+}
+
+func double_up(values: List<Integer>) {
+    var index = 0
+    while index < values.count() {
+        var doubled = values.get_at(index) * 2
+        if doubled < 10 {
+            values.append(doubled)
+        }
+        index = index + 1
+    }
+}
+
+func clamp_into(from: List<Integer>, into: List<Integer>) {
+    var index = 0
+    while index < from.count() {
+        var value = from.get_at(index)
+        if value < 0 {
+            value = 0
+        }
+        into.set_at(index, value)
+        index = index + 1
+    }
+}

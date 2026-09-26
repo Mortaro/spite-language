@@ -1,0 +1,102 @@
+var console = Console()
+var clock = Clock()
+
+func PlainLoops() {
+    var from = List<Float>()
+    var into = List<Float>()
+    var numbers = Vector<Float>()
+    var whole = List<Integer>()
+    var index = 0
+    while index < 1000000 {
+        var value: Float = index % 7
+        from.append(value)
+        into.append(0.0)
+        numbers.append(value)
+        whole.append(index % 13)
+        index = index + 1
+    }
+    var round = 0
+    while round < 3 {
+        var start = clock.elapsed_nanoseconds()
+        var pass = 0
+        while pass < 20 {
+            scale_list(from, into)
+            pass = pass + 1
+        }
+        var scaled = clock.elapsed_nanoseconds()
+        pass = 0
+        while pass < 20 {
+            scale_vector(numbers)
+            pass = pass + 1
+        }
+        var vector_scaled = clock.elapsed_nanoseconds()
+        var total = 0.0
+        pass = 0
+        while pass < 20 {
+            total = total + add_up_floats(from)
+            pass = pass + 1
+        }
+        var summed = clock.elapsed_nanoseconds()
+        var whole_total: Long = 0
+        pass = 0
+        while pass < 20 {
+            whole_total = whole_total + add_up_integers(whole)
+            pass = pass + 1
+        }
+        var whole_summed = clock.elapsed_nanoseconds()
+        var list_scale = (scaled - start) / 20000
+        var vector_scale = (vector_scaled - scaled) / 20000
+        var float_sum = (summed - vector_scaled) / 20000
+        var integer_sum = (whole_summed - summed) / 20000
+        console.print(
+            "microseconds per pass: List scale",
+            list_scale,
+            "Vector scale",
+            vector_scale,
+            "Float sum",
+            float_sum,
+            "Integer sum",
+            integer_sum,
+        )
+        var last_scaled = into.get_at(999999)
+        var third_scaled = numbers.get_at(3)
+        console.print("checks", last_scaled, third_scaled, total, whole_total)
+        round = round + 1
+    }
+}
+
+func scale_list(from: List<Float>, into: List<Float>) {
+    var index = 0
+    while index < from.count() {
+        into[index] = from.get_at(index) * 1.5 + 0.25
+        index = index + 1
+    }
+}
+
+func scale_vector(numbers: Vector<Float>) {
+    var index = 0
+    while index < numbers.count() {
+        numbers[index] = numbers[index] * 1.5 + 0.25
+        index = index + 1
+    }
+}
+
+func add_up_floats(values: List<Float>): Float {
+    var total = 0.0
+    var index = 0
+    while index < values.count() {
+        total = total + values.get_at(index)
+        index = index + 1
+    }
+    return total
+}
+
+func add_up_integers(values: List<Integer>): Long {
+    var total: Long = 0
+    var index = 0
+    while index < values.count() {
+        total = total + values.get_at(index)
+        index = index + 1
+    }
+    return total
+}

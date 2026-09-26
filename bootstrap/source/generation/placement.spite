@@ -430,14 +430,37 @@ func expression_only_reads(name: String, expression: Syntax.Expressions.Expressi
             assert names_list(name, expression.object) or expression_only_reads(name, expression.object)
             return expression_only_reads(name, expression.index)
         }
+        Syntax.Expressions.GenericCallExpression: return expressions_only_read(name, expression.arguments)
+        Syntax.Expressions.ListLiteralExpression: return elements_only_read(name, expression.elements)
         Syntax.Expressions.StringLiteralExpression: return true
         Syntax.Expressions.IntegerLiteral: return true
+        Syntax.Expressions.FloatLiteral: return true
         Syntax.Expressions.EnumLiteralExpression: return true
         Syntax.Expressions.TrueLiteral: return true
         Syntax.Expressions.FalseLiteral: return true
         Syntax.Expressions.NullLiteral: return true
         _: return false
     }
+}
+
+func expressions_only_read(name: String, expressions: List<Syntax.Expressions.Expression>): Boolean {
+    var index = 0
+    while index < expressions.count() {
+        assert expression_only_reads(name, expressions[index])
+        index = index + 1
+    }
+    return true
+}
+
+func elements_only_read(name: String, elements: List<Syntax.Expressions.ListElement>): Boolean {
+    var index = 0
+    while index < elements.count() {
+        var element_value = elements[index].value
+        crash element_value
+        assert expression_only_reads(name, element_value)
+        index = index + 1
+    }
+    return true
 }
 
 func names_list(name: String, expression: Syntax.Expressions.Expression): Boolean {

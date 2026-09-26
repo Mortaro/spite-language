@@ -1,5 +1,7 @@
 var name = ""
 var spite_type: Analysis.SpiteType? = null
+var framed = false
+var framed_cleanup = ""
 
 func OwnedLocal(starting_name: String, starting_spite_type: Analysis.SpiteType) {
     name = starting_name

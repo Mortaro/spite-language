@@ -20,6 +20,8 @@ var borrow_sources = List<String>()
 var row_names = List<String>()
 var row_sources = List<String>()
 var row_paths = List<String>()
+var counted_keys = List<String>()
+var counted_items = List<String>()
 
 func Scope(starting_parent: Scope?) {
     parent = starting_parent
@@ -63,6 +65,24 @@ func row_source(name: String): String {
     assert not entry_names.contains(name)
     assert parent
     return parent.row_source(name)
+}
+
+func count_items(key: String, items: String) {
+    counted_keys.append(key)
+    counted_items.append(items)
+}
+
+func counted_items_of(key: String): String {
+    var index = counted_keys.count() - 1
+    while index >= 0 {
+        if counted_keys[index] == key {
+            crash counted_items[index]
+            return counted_items[index]
+        }
+        index = index - 1
+    }
+    assert parent
+    return parent.counted_items_of(key)
 }
 
 func declare(name: String, spite_type: Analysis.SpiteType) {

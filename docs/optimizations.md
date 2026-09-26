@@ -67,6 +67,8 @@ nothing at run time because they emit nothing.
 | [Reading through a `type` without counting](#reading-through-a-type-without-counting) | built | every but `--hot-reload` | nothing but speed |
 | [Short text lives inside the `String`](#short-text-lives-inside-the-string) | built | every | fewer allocations; `.memory.section` of built text; a box when text travels as a shape |
 | [Maths on constants is worked out while compiling](#maths-on-constants-is-worked-out-while-compiling) | built | every | nothing but speed; a folded call is the compiling machine's C library's answer |
+| [A local list of known size lives in the frame](#a-local-list-of-known-size-lives-in-the-frame) | built | every but the inspectable ones | fewer allocations |
+| [A loop over plain values reads its count once and its items unchecked](#a-loop-over-plain-values-reads-its-count-once-and-its-items-unchecked) | built | every but `--repl`, `--repl-port` and `--hot-reload` | nothing but speed |
 | [Thread safety for singletons, the rest of the plan](#thread-safety-for-singletons-the-rest-of-the-plan) | planned | | |
 | [Copies that cost nothing](#copies-that-cost-nothing) | planned | | |
 | [Other planned optimisations](#other-planned-optimisations) | planned | | |
@@ -947,6 +949,11 @@ program with threads.
 332 ms to 185 ms. Allocations and everything a program prints are the same. **Built** (2026-09-25; proposed by
 Claude, unconfirmed).
 
+A function called on the element is looked up on the element's own class. Until 2026-09-26 it was looked up by
+its name among every class, so `List<Particle>.each_step()` counted its elements only because the library's
+`ReadEvaluatePrintLoop` also has a `step` that lets go of things; `benchmarks/one_list`'s `each_step` over 200 000
+particles, in a program whose counts are atomic, went from 833-896 µs to 211-252 µs a pass.
+
 ### A number joined into text is written in place
 
 **What it does.** `"line {index} of {round};"` used to turn `index` and `round` into texts of their own -- two
@@ -1184,6 +1191,95 @@ but the C held a block, a write and a read for the C compiler to see through.
 but speed in an unoptimised build: `benchmarks/half_precision` (ten million `to_half_precision` and back) takes
 416 ms against 482 ms with `clang -O0`, and 13 ms either way from `-O1`, where clang already saw through the block;
 it allocates nothing per conversion before and after. **Built.**
+
+### A local list of known size lives in the frame
+
+**What it does.** A local list made by a literal (`var sizes = [3, 5, 8]`) or by `List<T>()` whose size is known
+while compiling and which never leaves its function is not allocated: its header and its items are in the
+function's own frame, the way [a variadic list](#a-variadic-list-the-callee-only-reads-lives-in-the-callers-frame)
+already is. Known size means the literal's items plus the `append`s written as statements of their own in the
+same block after it -- not inside a loop, a branch or another statement -- since each of those runs at most once;
+the items get exactly that many slots. Never leaving means every later statement of the block only reads it:
+`count()`, `is_empty()`, `[index]`, `get_at`, `find_at`, `first`, `last`, `contains`, `join`, or passing it to a
+function of its own class that only reads it too. A list that is returned, stored, assigned, put into another list
+or object, changed with `set_at`, `insert`, a `remove_...` or `clear`, handed to a template, or whose `.memory` is
+read is made on the heap as before. At the end of the block its items are let go, and nothing else.
+
+A literal of constants -- numbers, `Boolean`, text in quotes -- that nothing appends to goes further: its items are
+part of the program, in read-only constant data, written once by the C compiler and never while the program runs,
+and only the header (a count and the item address) is in the frame.
+
+**Example.** No allocation is made while the two lists are used:
+
+```gdscript title=frame_lists/frame_lists.spite entry
+var console = Console()
+var heap = Memory.Heap()
+
+func FrameLists() {
+    var before = heap.live_allocations()
+    var sizes = [3, 5, 8]
+    var names = List<String>()
+    names.append("ann")
+    names.append("bob")
+    var biggest = sizes.get_at(2)
+    var joined = names.join(" and ")
+    var during = heap.live_allocations()
+    console.print(joined, biggest, "allocations while listing:", during - before)
+}
+```
+```output
+ann and bob 8 allocations while listing: 0
+```
+
+**When.** Every build but the inspectable ones (`--repl`, `--repl-port`, `--hot-reload`, `--development`), where a
+list stays an ordinary object, and not in a function that waits. At most 16 items in the frame (256 bytes of text)
+and 256 in constant data; a bigger list is made on the heap as before.
+
+**What you notice.** Two allocations fewer per such list under `--debug-memory` (more for a literal of more than
+four items, which grew its buffer while it was filled): `conformance/stage6/text_building` allocates 17 times
+(19 before), `plain_items` 100 (102). The compiler has 115 such lists, 52 of them constant.
+**Built** (2026-09-26, the first part of [D222](decisions.md); proposed by Claude, unconfirmed).
+
+### A loop over plain values reads its count once and its items unchecked
+
+**What it does.** A `while index < values.count()` over a `List` or `Vector` of numbers or `Boolean` is written as
+the plain C loop a C compiler can turn into vector instructions (SIMD), when the compiler can prove three things:
+
+- **The counter stays in range.** `index` is a local whose every assignment in the function is a whole-number
+  literal of 0 or more, or `index = index + 1` as the last statement of a loop bounded by `index < ....count()` or a
+  literal, with no other write to it in that loop. So it is never negative, never wraps, and inside the loop it is
+  below `values.count()`.
+- **Nothing in the loop changes a list's size.** The body only declares and assigns numbers and `Boolean`s (its own
+  locals, not attributes), reads and writes the items of lists of plain values (`[index]`, `get_at`, `set_at`,
+  `find_at`, `first`, `last`, `contains`, `count`, `is_empty`), and calls the maths functions of the number
+  classes. Any other call, even one to a function that looks harmless, keeps the loop as it was: a call is where a
+  list could be resized through another name.
+- **The loop cannot be interrupted.** A `--repl`, `--repl-port` or `--hot-reload` build may run code between two
+  passes, so there the loop stays as it was, as it does in a function that waits.
+
+Then `values.count()` is read once before the loop, the address of its items once, and `values[index]`,
+`values.get_at(index)`, `values[index] = x` and `values.set_at(index, x)` read and write the item directly, with no
+range check: the loop's own condition is the proof. A second list indexed by the same counter
+(`into[index] = from[index] * 1.5`) is checked once instead, before the loop: when it holds at least as many items
+as the loop runs, the loop runs without its checks; otherwise the loop as it was runs, with every check, so what an
+out-of-range write does (nothing on a `List`, a halt on a `Vector`) is unchanged. The loop is written twice for that,
+so a body with an `assert` or `crash` is not (its crash report would be written twice).
+
+**What the C compiler then does.** An element-by-element loop (a map in place, into another list, a filter's test)
+and a whole-number sum are vectorised, which clang's `-Rpass=loop-vectorize` confirms. A `Float` or `Double`
+**sum** is not, and must not be: adding in a different order changes the last bits of the answer, and an
+optimisation may not change what a program computes ([D36](decisions.md)). The compiler adds no `restrict`, since
+two names may hold the same list and the C compiler checks for overlap once, before the loop, itself; and no
+alignment claim, which nothing proves.
+
+**What you notice.** Speed only. `benchmarks/plain_loops` (a million items, `clang -O2`, µs a pass): `into[index] =
+from.get_at(index) * 1.5 + 0.25` over two `List<Float>` 668-697 before, 181-207 after; the same in place over a
+`Vector<Float>` 2 628-2 782 before, 178-195 after; a `Float` sum 640-673 either way (it stays in order); an
+`Integer` sum 112-137 either way (it was already vectorised). A `Float` expression with a decimal literal is
+still worked out in `double` precision in the C, as it always was, which halves the vector width: in `float` the
+two loops would take about 100 and 70 µs, but some results would change in their last bits, so that is a question
+for Mortaro and is not done (`mortaros_missing_decisions.md`, item 210). **Built** (2026-09-26, the second part of
+[D222](decisions.md); proposed by Claude, unconfirmed).
 
 ## Planned
 

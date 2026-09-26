@@ -1,5 +1,6 @@
 var name = ""
 var locals = List<String>()
+var element_owner = ""
 
 func ReleaseWatch(watched_name: String) {
     name = watched_name
