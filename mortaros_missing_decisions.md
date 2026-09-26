@@ -354,3 +354,13 @@ Behaviour that does not match the manual. The language was not changed; each is 
      twins such as `position.add(moved)`, which cost nothing but double the names. Which, if any? And the parts:
      `x_value`...`w_value` because a name is never one letter -- keep them, or allow `x`, `y`, `z`, `w` on these
      classes as the field's own names (as D213 allows `Vector2`)?
+
+## Borrowed rows for systems of several row types (low priority, from SlopEngine)
+
+206. **A walk nested inside a walk.** D220 lends borrowed items into a plural's one call, but a system taking two
+     different `type` rows (`update_each(potion: PotionRow, target: HeroRow)`, SlopEngine's relation systems) needs
+     each argument's row filled by walking that row type's attributes -- a template ranging over
+     `Symbol<argument.class>` inside the walk over the arguments. That is a template whose range depends on another
+     template's symbol, which Spite does not have. Such systems are rare (combinations, relations) and work today by
+     copying. Add nested walks (new metaprogramming surface), or leave relation systems on the copy path?
+
