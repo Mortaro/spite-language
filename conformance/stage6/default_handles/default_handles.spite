@@ -1,0 +1,10 @@
+var console = Console()
+
+func DefaultHandles() {
+    var join_waits = LevelReader.function_waits("join")
+    var collect_waits = LevelReader.function_waits("collect")
+    var total_waits = LevelReader.function_waits("total")
+    console.print("asked at run time: join", join_waits, "collect", collect_waits, "total", total_waits)
+    var described = LevelReader.functions.count()
+    console.print("LevelReader describes", described, "functions, and each handle's stand-in joins nothing")
+}

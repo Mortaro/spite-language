@@ -20,5 +20,6 @@ func while_locked(work: Spite.Function<Nothing>) {
 }
 
 func drop() {
+    assert _handle != 0
     destroy_lock(_handle)
 }

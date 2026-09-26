@@ -1,0 +1,1 @@
+eight threads described 96 part functions, each class object made once

@@ -4,15 +4,15 @@ var _scheduler = Scheduler()
 var _work: Spite.Function<$result_type>? = null
 var _results = List<$result_type>()
 var _frame: Long = 0
-var _finished = false
+var _finished = true
 
 func Concurrent(starting_work: Spite.Function<$result_type>) {
     _work = starting_work
     _frame = _start_frame()
     if _frame == 0 {
         _run()
-        _finished = true
     } else {
+        _finished = false
         _scheduler.begin(_frame)
         _collect()
     }
@@ -26,7 +26,7 @@ func get_finished(): Boolean {
 
 func finished_value(): $result_type? {
     assert get_finished()
-    return _results.get_at(0)
+    return _results.first()
 }
 
 func _run() {

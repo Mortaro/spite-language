@@ -86,6 +86,9 @@ var deferred_wait_classes = List<Analysis.ClassInfo>()
 var deferred_wait_functions = List<Analysis.FunctionInfo>()
 var task_value_arguments = 0
 var function_waits_table_used = false
+var listed_typed_calls = List<String>()
+var entry_functions_cache = ""
+var described_lock_emitted = false
 var development = false
 var keeps_internals = false
 var hot_reload = false
@@ -1214,6 +1217,15 @@ func emit_function_waits_table() {
             lines.append("if (typed_call == (void*){made}) return true;")
         }
         index = index + 1
+    }
+    var listed_index = 0
+    while listed_index < listed_typed_calls.count() {
+        var listed = listed_typed_calls.get_at(listed_index)
+        var made_too = function_value_makers.contains("spite_function_value_{listed}")
+        if not made_too and wait_facts.may_wait(listed) {
+            lines.append("if (typed_call == (void*){listed}) return true;")
+        }
+        listed_index = listed_index + 1
     }
     lines.append("return false;")
     lines.append("}")
@@ -11401,6 +11413,10 @@ func emit_class_object_bodies() {
         var function_c_name = class_object_names[position]
         var lines = List<String>()
         lines.append("Spite_Class* {function_c_name}(void) \{")
+        lines.append(
+            "if (SPITE_SINGLETON_FOUND({function_c_name}_ready)) return Spite_Class___retain({function_c_name}_cache);",
+        )
+        lines.append("spite_described_enter();")
         lines.append("if ({function_c_name}_cache == 0) \{")
         crash class_object_displays[position]
         lines.append("{function_c_name}_cache = Spite_Class___make({ensure_symbol(class_object_displays[position])});")
@@ -11459,8 +11475,14 @@ func emit_class_object_bodies() {
                 lines.append("{listed_name}___release({function_c_name}_cache->_functions_);")
                 lines.append("{function_c_name}_cache->_functions_ = {thunk}();")
             }
+            if class_level_functions_used and describes_members(described) and described.c_name == entry_class_c_name {
+                var unbound_function = ensure_functions_function(described)
+                entry_functions_cache = "{function_c_name}_cache"
+                lines.append("{entry_functions_cache}->_unbound_functions_ = {unbound_function}(0);")
+            }
         }
         lines.append("}")
+        lines.append("spite_described_leave(&{function_c_name}_ready);")
         lines.append("return Spite_Class___retain({function_c_name}_cache);")
         lines.append("}")
         var joined_lines = lines.join("\n")
@@ -11567,6 +11589,7 @@ func ensure_namespace_object(namespace_dotted: String): String {
     }
     namespace_object_keys.append(namespace_dotted)
     builder.add_typedef("static Spite_Namespace* {function_c_name}_cache = 0;")
+    add_described_lock(function_c_name)
     builder.add_prototype("Spite_Namespace* {function_c_name}(void);")
     return function_c_name
 }
@@ -11583,6 +11606,10 @@ func emit_namespace_object_bodies() {
         crash namespace_name
         var lines = List<String>()
         lines.append("Spite_Namespace* {function_c_name}(void) \{")
+        lines.append(
+            "if (SPITE_SINGLETON_FOUND({function_c_name}_ready)) return Spite_Namespace___retain({function_c_name}_cache);",
+        )
+        lines.append("spite_described_enter();")
         lines.append("if ({function_c_name}_cache == 0) \{")
         lines.append(
             "{function_c_name}_cache = Spite_Namespace___make({ensure_symbol(namespace_name)}, {ensure_symbol(namespace_dotted)});",
@@ -11638,6 +11665,7 @@ func emit_namespace_object_bodies() {
             }
         }
         lines.append("}")
+        lines.append("spite_described_leave(&{function_c_name}_ready);")
         lines.append("return Spite_Namespace___retain({function_c_name}_cache);")
         lines.append("}")
         var joined_lines = lines.join("\n")
@@ -11661,8 +11689,18 @@ func ensure_class_object(display_name: String, namespace: String, label: String)
     class_object_namespaces.append(namespace)
     class_object_labels.append(label)
     builder.add_typedef("static Spite_Class* {function_c_name}_cache = 0;")
+    add_described_lock(function_c_name)
     builder.add_prototype("Spite_Class* {function_c_name}(void);")
     return function_c_name
+}
+
+func add_described_lock(function_c_name: String) {
+    builder.add_typedef("static bool {function_c_name}_ready = false;")
+    assert not described_lock_emitted
+    described_lock_emitted = true
+    builder.add_typedef(
+        "static int64_t spite_described_owner = 0;\nstatic int32_t spite_described_depth = 0;\nstatic SPITE_THREAD_LOCAL char spite_described_thread;\nstatic void spite_described_enter(void) \{\n#ifdef SPITE_THREADS\nint64_t spite_me = (int64_t)(intptr_t)&spite_described_thread;\nif (__atomic_load_n(&spite_described_owner, __ATOMIC_ACQUIRE) != spite_me) \{\nint64_t spite_free = 0;\nwhile (!__atomic_compare_exchange_n(&spite_described_owner, &spite_free, spite_me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) \{ spite_free = 0; }\n}\n#endif\nspite_described_depth = spite_described_depth + 1;\n}\nstatic void spite_described_leave(bool* ready) \{\nspite_described_depth = spite_described_depth - 1;\nif (spite_described_depth > 0) return;\n#ifdef SPITE_THREADS\n__atomic_store_n(ready, true, __ATOMIC_RELEASE);\n__atomic_store_n(&spite_described_owner, 0, __ATOMIC_RELEASE);\n#else\n*ready = true;\n#endif\n}",
+    )
 }
 
 func class_object_call(spite_type: Analysis.SpiteType): String {
@@ -12061,7 +12099,7 @@ func emit_functions_function(information: Analysis.ClassInfo) {
             }
             var retained_self = "{information.c_name}___retain(self)"
             if is_hot_class(information) {
-                retained_self = "(\{ SPITE_COUNT_UP(self->header.ref_count); self; })"
+                retained_self = "(\{ if (self != 0) SPITE_COUNT_UP(self->header.ref_count); self; })"
             }
             lines.append("described->spite_owner = {retained_self};")
             lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
@@ -12072,6 +12110,9 @@ func emit_functions_function(information: Analysis.ClassInfo) {
             }
             if callable {
                 lines.append("described->spite_typed_call = (void*){function.c_name};")
+            }
+            if callable and not listed_typed_calls.contains(function.c_name) {
+                listed_typed_calls.append(function.c_name)
             }
             if callable and read_evaluate_print_loop {
                 var text_call = ensure_text_call(information, function)
@@ -23278,6 +23319,12 @@ func emit_main(launcher_mangled_name: String) {
             class_object,
             "if ({cache} != 0 && {cache}->_namespace_ != 0) \{ Spite_Namespace___release({cache}->_namespace_); {cache}->_namespace_ = 0; }",
         )
+        if cache == entry_functions_cache {
+            builder.add_main_if_kept(
+                class_object,
+                "if ({cache} != 0) \{ {listed_name}___release({cache}->_unbound_functions_); {cache}->_unbound_functions_ = 0; }",
+            )
+        }
         builder.add_main_if_kept(class_object, "Spite_Class___release({cache});")
         cache_index = cache_index + 1
     }

@@ -1,0 +1,12 @@
+var path = ""
+
+func BlobLoad(starting_path: String) {
+    path = starting_path
+}
+
+func run(): String {
+    var file = File(path)
+    var text = file.read()
+    crash text
+    return text
+}

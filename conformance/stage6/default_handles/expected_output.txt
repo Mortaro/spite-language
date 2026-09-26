@@ -1,0 +1,2 @@
+asked at run time: join true collect false total false
+LevelReader describes 3 functions, and each handle's stand-in joins nothing

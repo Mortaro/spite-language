@@ -1,0 +1,10 @@
+generic $loader_type
+
+func answer(): String {
+    var bytes_waits = $loader_type.function_waits("bytes_of")
+    var advance_waits = $loader_type.function_waits("advance")
+    var start_waits = $loader_type.function_waits("start")
+    var finish_waits = $loader_type.function_waits("finish_if_done")
+    var locate_waits = $loader_type.function_waits("locate_then_start")
+    return "bytes_of {bytes_waits} advance {advance_waits} start {start_waits} finish_if_done {finish_waits} locate_then_start {locate_waits}"
+}
