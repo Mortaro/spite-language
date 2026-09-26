@@ -364,3 +364,16 @@ Behaviour that does not match the manual. The language was not changed; each is 
      template's symbol, which Spite does not have. Such systems are rare (combinations, relations) and work today by
      copying. Add nested walks (new metaprogramming surface), or leave relation systems on the copy path?
 
+## From the one-List study (D222, docs/proposals/one_list.md)
+
+207. **Folding `Vector` and `Items` of plain values into `List`: what does `list[index]` answer?** `List`'s `[]`
+     answers `T?` today; `Items`/`Vector` answer `T` and halt out of range. One `List` needs one answer: `T?`
+     (safe, a narrowing at every read) or `T` with a halt (D199: a bad index is a developer mistake)?
+208. **How loudly a list that falls back to references is reported.** The study measured a hand-picked inline
+     column at 8.1 ms a tick and the same code falling back to references at 35-40 ms -- one kept item anywhere
+     causes it. Should the compiler report such a fallback (an error on a list marked as wanting inline? a line in a
+     build report? nothing?), given the language has no warnings?
+209. **Should a `List` own its items, so a kept reference to one is weak (`T?`, null once removed)?** It measured
+     +3% a tick in the stress program as a form of `Weak<T>`, but turning a kept `T` into a `T?` silently changes
+     D149's meaning and whether code compiles. Keep it as an explicit `Weak<T>` over a list item, or make it the rule?
+
