@@ -1,0 +1,12 @@
+var workshop = Workshop()
+
+func work(): Integer {
+    var total = 0
+    var index = 0
+    while index < 10 {
+        var piece = workshop.make_piece(index)
+        total = total + piece
+        index = index + 1
+    }
+    return total
+}

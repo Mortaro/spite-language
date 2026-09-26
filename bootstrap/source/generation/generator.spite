@@ -47,6 +47,8 @@ var atomic_owner = ""
 var atomic_classes = List<Analysis.ClassInfo>()
 var atomic_class_names = List<String>()
 var guarded_ends = List<Integer>()
+var touch_callers = List<String>()
+var touch_callees = List<String>()
 var outside_classes = List<Analysis.ClassInfo>()
 var outside_class_names = List<String>()
 var outside_written = Dictionary<Boolean>()
@@ -22419,12 +22421,14 @@ func finish_singleton_guards() {
     var guarded_names = List<String>()
     var wrapped = List<Integer>()
     var reached = call_effects.thread_reached_classes()
+    var touching = state_touching_functions()
     var index = 0
     while index < guarded_functions.count() {
         var information = guarded_classes.get_at(index)
         var function = guarded_functions[index]
         var position = guarded_positions.get_at(index)
-        if reached.has(information.simple_name) or called_implicitly(information) {
+        var threaded = reached.has(information.simple_name) or called_implicitly(information)
+        if threaded and touching.has(function.c_name) {
             if not guarded_names.contains(information.c_name) {
                 guarded_names.append(information.c_name)
                 builder.add_support("static SpiteGuard {information.c_name}___guard = \{ 0, 0 };")
@@ -22441,6 +22445,179 @@ func finish_singleton_guards() {
     }
     emitted_guards = guarded_names
     call_unguarded_inside(wrapped)
+}
+
+func state_touching_functions(): Dictionary<Boolean> {
+    var touching = Dictionary<Boolean>()
+    var own_names = Dictionary<Boolean>()
+    var index = 0
+    while index < guarded_functions.count() {
+        var function = guarded_functions[index]
+        own_names.set(function.c_name, true)
+        index = index + 1
+    }
+    touch_callers.clear()
+    touch_callees.clear()
+    index = 0
+    while index < guarded_functions.count() {
+        var information = guarded_classes.get_at(index)
+        var function = guarded_functions[index]
+        var changing = changing_field_codes(information)
+        var touches = call_effects.calls_back_into(information.simple_name, function.name)
+        var line_index = guarded_positions.get_at(index) + 1
+        var end = guarded_ends.get_at(index)
+        while line_index < end and not touches {
+            var line = builder.user_at(line_index)
+            touches = line_touches_state(line, information, changing, function.c_name, own_names)
+            line_index = line_index + 1
+        }
+        if touches {
+            touching.set(function.c_name, true)
+        }
+        index = index + 1
+    }
+    spread_touches(touching)
+    return touching
+}
+
+func spread_touches(touching: Dictionary<Boolean>) {
+    var spreading = true
+    while spreading {
+        spreading = false
+        var pair = 0
+        while pair < touch_callers.count() {
+            var caller = touch_callers.get_at(pair)
+            var callee = touch_callees.get_at(pair)
+            if touching.has(callee) and not touching.has(caller) {
+                touching.set(caller, true)
+                spreading = true
+            }
+            pair = pair + 1
+        }
+    }
+}
+
+func changing_field_codes(information: Analysis.ClassInfo): List<String> {
+    var assigned = List<String>()
+    var index = 0
+    while index < information.functions.count() {
+        var function = information.functions[index]
+        if not function.is_constructor {
+            collect_assigned_roots(function.body, assigned)
+        }
+        index = index + 1
+    }
+    var outside = call_effects.writes_from_outside(information.simple_name)
+    var codes = List<String>()
+    index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var field_type = field.get_type()
+        var written = assigned.contains(field.name) or outside.contains(field.name)
+        if written or shares_state(field_type) {
+            var field_code = c_value_name(field.name)
+            codes.append(field_code)
+        }
+        index = index + 1
+    }
+    return codes
+}
+
+func line_touches_state(
+    line: String,
+    information: Analysis.ClassInfo,
+    changing: List<String>,
+    caller: String,
+    own_names: Dictionary<Boolean>,
+): Boolean {
+    if line.contains("spite_singleton_{information.c_name}") {
+        return true
+    }
+    var pieces = line.split("self")
+    var index = 1
+    while index < pieces.count() {
+        var before = pieces.get_at(index - 1)
+        var after = pieces.get_at(index)
+        var whole = not ends_in_name(before) and not starts_with_name(after)
+        if whole and self_touches(before, after, changing, caller, own_names) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func self_touches(
+    before: String,
+    after: String,
+    changing: List<String>,
+    caller: String,
+    own_names: Dictionary<Boolean>,
+): Boolean {
+    if after.starts_with("->") {
+        var after_length = after.length()
+        var field_text = after.slice(2, after_length)
+        var field_code = leading_name(field_text)
+        return changing.contains(field_code)
+    }
+    assert not before.ends_with("(void)")
+    if not before.ends_with("(") {
+        return true
+    }
+    var before_length = before.length()
+    var called_text = before.slice(0, before_length - 1)
+    var called = trailing_name(called_text)
+    if not own_names.has(called) {
+        return true
+    }
+    touch_callers.append(caller)
+    touch_callees.append(called)
+    return false
+}
+
+func ends_in_name(text: String): Boolean {
+    var text_length = text.length()
+    assert text_length != 0
+    var last = text.code_at(text_length - 1)
+    return is_c_name_code(last)
+}
+
+func starts_with_name(text: String): Boolean {
+    assert not text.is_empty()
+    var first = text.code_at(0)
+    return is_c_name_code(first)
+}
+
+func leading_name(text: String): String {
+    var text_length = text.length()
+    var end = 0
+    var inside = true
+    while end < text_length and inside {
+        var code = text.code_at(end)
+        inside = is_c_name_code(code)
+        if inside {
+            end = end + 1
+        }
+    }
+    return text.slice(0, end)
+}
+
+func trailing_name(text: String): String {
+    var start = text.length()
+    var inside = true
+    while start > 0 and inside {
+        var code = text.code_at(start - 1)
+        inside = is_c_name_code(code)
+        if inside {
+            start = start - 1
+        }
+    }
+    var text_length = text.length()
+    return text.slice(start, text_length)
+}
+
+func is_c_name_code(code: Integer): Boolean {
+    return code >= 97 and code <= 122 or code >= 65 and code <= 90 or code >= 48 and code <= 57 or code == 95
 }
 
 func report_endless_locked_loop(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {

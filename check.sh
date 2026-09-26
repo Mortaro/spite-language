@@ -170,7 +170,15 @@ if ! grep -q "_Alignas(64) int64_t owner" "$locks" || ! grep -q "^Registry_count
    || [ "$(grep -c "Registry___outside_enter();" "$locks")" -lt 2 ]; then
   echo "FAILED: singleton_lock_calls should pad its lock, call itself unlocked, lock a write and a read from outside and not lock Rules"; exit 1
 fi
-echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry"
+# A locked singleton's function that touches none of its changing state takes no lock, so pool work calling it
+# never waits on a function of the same singleton that polls that work.
+stateless="$work/singleton_stateless_calls.c"
+"$work/generation_two.exe" conformance/stage6/singleton_stateless_calls --run=false --c-source --c-path="$stateless" > /dev/null 2>&1 || {
+  echo "FAILED: singleton_stateless_calls does not write its C"; exit 1; }
+if ! grep -q "^int32_t Workshop_build___unguarded(Workshop\* self) {" "$stateless" || grep -q "Workshop_make_piece___unguarded" "$stateless"; then
+  echo "FAILED: singleton_stateless_calls should lock Workshop.build and not Workshop.make_piece"; exit 1
+fi
+echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry, a stateless function of a locked singleton takes no lock"
 # D201: a whole-number division checks its divisor for zero, except where a proof already shows it is not zero:
 # division_by_zero's 'whole / pieces' follows 'assert pieces != 0', so its C carries no check for it.
 "$work/generation_two.exe" conformance/stage6/division_by_zero --run=false --c-source --c-path="$work/division.c" > /dev/null 2>&1 || {

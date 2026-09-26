@@ -993,9 +993,12 @@ proven safe for what its functions actually do; the exact conditions are on
    change.
 3. **Atomics**, when what changes is whole numbers or `Boolean`s and each function touches that state once: each
    read and write is one atomic instruction.
-4. **Its own lock**, the fallback: each function is emitted as `<name>___unguarded` behind a wrapper that takes
-   the singleton's lock (reentrant by owner thread, padded to 64 bytes); a call it makes to itself goes straight
-   to the unguarded body, and a write to its attribute from another class takes the lock too, and so does a read
+4. **Its own lock**, the fallback: each function that touches its changing state (reads or writes an attribute
+   that can change, calls a function of its own that does, or calls out to code that can call back into it) is
+   emitted as `<name>___unguarded` behind a wrapper that takes the singleton's lock (reentrant by owner thread,
+   padded to 64 bytes), and a function that touches none runs unlocked, so pool work calling it never waits on a
+   locked function polling that work (`conformance/stage6/singleton_stateless_calls`); a call it makes to itself
+   goes straight to the unguarded body, and a write to its attribute from another class takes the lock too, and so does a read
    of it (D211: `var last = registry.last` in another class loads it under the lock; an atomic singleton's
    attribute is read with one atomic load; `conformance/stage6/singleton_lock_calls`).
 
