@@ -187,6 +187,9 @@ func is_alive(): Boolean {
   remove from those vectors (`... may move the items of 'positions': a function that is handed a row may not
   append to or remove from the vectors it borrows from`) are errors. Build a row only of borrowed items and plain
   values.
+- A generic runner builds the same row with a walk: `var row: $row_type = null`, then on the next line
+  `fill_attributes(row, index)` whose template is the one line `row.attributes[attribute] =
+  columns.attributes[attribute][index]`. The compiler writes the literal in its place (D212), with the same rules.
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
   built or planned, and what it could ever change that you see, is in [optimizations.md](optimizations.md).

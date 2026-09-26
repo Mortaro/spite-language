@@ -1,0 +1,4 @@
+entity 0 left 6 across 1
+entity 1 left 13 across 0.5
+entity 2 left 21.5 across 0.25
+moved 6 rows

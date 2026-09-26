@@ -1,0 +1,9 @@
+var world = World()
+var runner = Runner<Moving>()
+
+func WalkedRows() {
+    world.spawn()
+    runner.run()
+    var row = runner.pass_back()
+    runner.last = row
+}

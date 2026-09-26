@@ -1,0 +1,11 @@
+type Moving {
+    position: Position
+    velocity: Velocity
+}
+
+var world = World()
+
+func spawn_while_moving(moving: Moving) {
+    moving.position.left = moving.position.left + moving.velocity.across
+    world.spawn()
+}

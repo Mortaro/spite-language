@@ -1,0 +1,22 @@
+generic $row_type
+
+var world = World()
+var keeper = Keeper()
+var last: $row_type? = null
+
+func run() {
+    var row: $row_type = null
+    fill_attributes(row, 0)
+    last = row
+    keeper.spawn_while_moving(row)
+}
+
+func pass_back(): $row_type {
+    var row: $row_type = null
+    fill_attributes(row, 0)
+    return row
+}
+
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, index: Integer) {
+    row.attributes[attribute] = world.attributes[attribute][index]
+}

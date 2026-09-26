@@ -1,0 +1,29 @@
+var symbol_parameter = ""
+var row_parameter = ""
+var parameters = List<String>()
+var arguments = List<Syntax.Expressions.Expression>()
+
+func RowWalk(
+    walked_symbol: String,
+    walked_row: String,
+    walked_parameters: List<String>,
+    walked_arguments: List<Syntax.Expressions.Expression>,
+) {
+    symbol_parameter = walked_symbol
+    row_parameter = walked_row
+    parameters = walked_parameters
+    arguments = walked_arguments
+}
+
+func argument_for(identifier: Syntax.Expressions.IdentifierExpression): Syntax.Expressions.Expression? {
+    assert identifier.name != symbol_parameter and identifier.name != row_parameter
+    var position = 0
+    while position < parameters.count() and parameters.get_at(position) != identifier.name {
+        position = position + 1
+    }
+    if position < arguments.count() {
+        return arguments.get_at(position)
+    }
+    var unchanged: Syntax.Expressions.Expression = identifier
+    return unchanged
+}

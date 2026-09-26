@@ -139,6 +139,83 @@ put in a list or given a second name, by the function that makes it or the one i
 not append to or remove from a vector the row borrows from, directly or through anything it calls
 ([the rules](#borrowed-items-of-a-vectort--implemented)).
 
+A generic runner does not know the attributes of the `type` it is given, so it cannot write the literal. It fills
+the row with a `Symbol` walk instead, and a local of the `type` declared `= null` and filled by the walk on the
+next line is a row exactly like the literal ([D212](decisions.md)):
+
+```gdscript title=walked_row_doc/position.spite
+var left = 0.0
+```
+```gdscript title=walked_row_doc/velocity.spite
+var across = 0.0
+
+func Velocity(new_across: Float) {
+    across = new_across
+}
+```
+```gdscript title=walked_row_doc/mover.spite
+type Moving {
+    position: Position
+    velocity: Velocity
+}
+
+func update_each(moving: Moving) {
+    moving.position.left = moving.position.left + moving.velocity.across
+}
+```
+```gdscript title=walked_row_doc/columns.spite
+singleton
+
+var position = Vector<Position>()
+var velocity = Vector<Velocity>()
+
+func size(): Integer {
+    return position.count()
+}
+```
+```gdscript title=walked_row_doc/runner.spite
+generic $row_type
+
+var columns = Columns()
+
+func run(mover: Mover) {
+    var index = 0
+    while index < columns.size() {
+        var row: $row_type = null
+        fill_attributes(row, index)
+        mover.update_each(row)
+        index = index + 1
+    }
+}
+
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, index: Integer) {
+    row.attributes[attribute] = columns.attributes[attribute][index]
+}
+```
+```gdscript title=walked_row_doc/walked_row_doc.spite entry
+var console = Console()
+var columns = Columns()
+var runner = Runner<Moving>()
+var mover = Mover()
+
+func WalkedRowDoc() {
+    var position = Position()
+    columns.position.append(position)
+    var velocity = Velocity(2.5)
+    columns.velocity.append(velocity)
+    runner.run(mover)
+    runner.run(mover)
+    console.print(columns.position[0].left)
+}
+```
+```output
+5
+```
+
+The compiler writes the walk out where it is called: for `Runner<Moving>` the two lines become
+`var row: Moving = {position: columns.position[index], velocity: columns.velocity[index]}`, so the row costs what
+the literal costs and follows the same rules, and `fill_attribute` is never called.
+
 ## `drop()` runs once, right before the object is freed
 
 A class may define a zero-argument `func drop() { ... }` for cleanup (closing a handle, clearing a
@@ -864,6 +941,18 @@ kept past its use. What is built (the error texts and the readings marked are pr
     ([optimizations.md](optimizations.md#a-row-of-borrowed-items-lives-in-the-frame)). A program that makes no
     row carries none of it. `benchmarks/vector_rows`: 200 000 entities, two systems, 2.4 ms a tick with `Vector`
     columns and rows against 6.0 ms with `List` columns and a reused row object (best of five, `clang -O2`).
+- **A row filled by a walk** (D212, decided by Claude under D205; the readings below proposed by Claude,
+  unconfirmed). A local declared as a `type` with `= null` (`var row: $row_type = null`) and filled on the very next
+  line by a plural walk of its own class (`fill_attributes(row, index)`, whose template ranges over that `type`
+  with `attribute: Symbol<$row_type>`) is a row when the walk writes out to one: the template's body is the one
+  statement `row.attributes[attribute] = <value>`, the value built from `<object>.attributes[attribute]` (read as
+  `<object>.<the attribute's name>`), member reads, `[ ]`, the template's other parameters and whole numbers, and
+  the call's arguments are the row and names or number or `Boolean` literals. The compiler then writes the literal
+  in place of the two lines, one attribute for each attribute of the `type` in its order
+  (`{position: columns.position[index], velocity: columns.velocity[index]}`), and every rule above applies to it
+  unchanged, the check for a resize starting on the line after the walk. The template is not called, so it is not
+  compiled for that walk. A walk of any other shape leaves the local an ordinary `type` value, and storing a
+  borrowed item in it is the error for keeping one. Nothing runs for it: the rewrite is done while compiling.
 
 `diagnostics/vector_borrows`, `diagnostics/vector_items`, `diagnostics/vector_rows`, `conformance/stage6/vector_items`,
-`conformance/stage6/vector_rows`.
+`conformance/stage6/vector_rows`, `conformance/stage6/walked_rows`, `diagnostics/walked_rows`.

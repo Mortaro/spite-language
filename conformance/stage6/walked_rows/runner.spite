@@ -1,0 +1,17 @@
+generic $row_type
+
+var world = World()
+
+func run(mover: Mover) {
+    var index = 0
+    while index < world.size() {
+        var row: $row_type = null
+        fill_attributes(row, index)
+        mover.update_each(row)
+        index = index + 1
+    }
+}
+
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, index: Integer) {
+    row.attributes[attribute] = world.attributes[attribute][index]
+}

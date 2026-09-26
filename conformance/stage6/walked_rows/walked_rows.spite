@@ -1,0 +1,20 @@
+var console = Console()
+var world = World()
+var runner = Runner<Moving>()
+var mover = Mover()
+
+func WalkedRows() {
+    world.spawn(0.0, 4.0)
+    world.spawn(10.0, 2.0)
+    world.spawn(20.0, 1.0)
+    runner.run(mover)
+    runner.run(mover)
+    var index = 0
+    while index < world.size() {
+        var position = world.position[index]
+        var velocity = world.velocity[index]
+        console.print("entity", index, "left", position.left, "across", velocity.across)
+        index = index + 1
+    }
+    console.print("moved", mover.moved, "rows")
+}

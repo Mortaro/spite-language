@@ -1,0 +1,12 @@
+type Moving {
+    position: Position
+    velocity: Velocity
+}
+
+var moved = 0
+
+func update_each(moving: Moving) {
+    moving.position.left = moving.position.left + moving.velocity.across
+    moving.velocity.slow_down()
+    moved = moved + 1
+}

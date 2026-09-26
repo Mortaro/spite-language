@@ -1005,6 +1005,11 @@ optimisation.
 `List` columns and a row object reused across the tick. A `__lent_` function appears in the C beside the ordinary
 one, which is shaken out when no ordinary call reaches it. **Built** (2026-09-26; proposed by Claude, unconfirmed).
 
+A row filled by a `Symbol` walk (D212) is the same struct: the compiler writes the walk out as the literal it
+amounts to, in the caller, so the walk's template is not called and is not compiled for that walk, and
+`--final-classes` shows no `fill_<attribute>` function for it. **Built** (2026-09-26; proposed by Claude,
+unconfirmed).
+
 ### A proven divisor is not checked
 
 **Built.** A whole-number `/` or `%` checks its divisor for zero (D201, [values_and_types.md](values_and_types.md)),

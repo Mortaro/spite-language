@@ -153,6 +153,7 @@ var borrow_index = 0
 var borrowed_names = List<String>()
 var borrow_site = ""
 var lending_rows = false
+var walked_row_filled = false
 var parallel_handover = ""
 var parallel_keeps = List<String>()
 var argument_callee = ""
@@ -14726,6 +14727,7 @@ func generate_variable_declaration(
     }
     assert not lends_to_local(declaration, scope, class_information)
     assert not lends_row(declaration, scope, class_information)
+    assert not lends_walked_row(declaration, scope, class_information)
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
     borrow_site = "local:{declaration.name}"
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
@@ -14916,6 +14918,192 @@ func lends_row(
         path_index = path_index + 1
     }
     return true
+}
+
+func lends_walked_row(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var literal = walked_row_literal(declaration, class_information)
+    assert literal
+    var value: Syntax.Expressions.Expression = literal
+    var row_declaration = Syntax.Statements.VariableDeclaration(declaration.name, declaration.type_reference, value)
+    row_declaration.line = declaration.line
+    row_declaration.source_path = declaration.source_path
+    var saved_index = borrow_index
+    borrow_index = borrow_index + 1
+    var lent = lends_row(row_declaration, scope, class_information)
+    borrow_index = saved_index
+    walked_row_filled = lent
+    return lent
+}
+
+func walked_row_literal(
+    declaration: Syntax.Statements.VariableDeclaration,
+    class_information: Analysis.ClassInfo,
+): Syntax.Expressions.ObjectLiteralExpression? {
+    crash declaration.value
+    assert declaration.type_reference and shape.is_null_literal(declaration.value)
+    assert not in_vector_library(class_information)
+    var statements = borrow_statements
+    var next_index = borrow_index + 1
+    assert next_index < statements.count()
+    var declared_statement = statements.get_at(borrow_index)
+    var here = shape.as_variable_declaration(declared_statement)
+    assert here
+    assert here.name == declaration.name and here.line == declaration.line
+    var next_statement = statements.get_at(next_index)
+    var filling = shape.as_expression_statement(next_statement)
+    assert filling
+    crash filling.value
+    var call = shape.as_call(filling.value)
+    assert call
+    crash call.callee
+    var callee = shape.as_identifier(call.callee)
+    assert callee
+    var template = walk_template(class_information, callee.name)
+    assert template
+    var range_shape = template_range_shape(class_information, template)
+    assert range_shape
+    var template_declaration = template.get_declaration()
+    assert template_declaration.body.count() == 1
+    var parameters = template_declaration.parameters.map_name()
+    var symbol_position = name_position(parameters, template.symbol_parameter)
+    assert symbol_position < parameters.count()
+    parameters.remove_at(symbol_position)
+    assert parameters.count() == call.arguments.count()
+    var row_position = row_argument_position(call.arguments, declaration.name)
+    assert row_position < parameters.count()
+    var plain = 0
+    var plain_argument = true
+    while plain_argument and plain < call.arguments.count() {
+        var argument = call.arguments.get_at(plain)
+        plain_argument = walk_argument_is_plain(argument, declaration.name, plain == row_position)
+        plain = plain + 1
+    }
+    assert plain_argument
+    var row_parameter = parameters.get_at(row_position)
+    var filling_statement = template_declaration.body.get_at(0)
+    var assigned = shape.as_assignment_statement(filling_statement)
+    assert assigned
+    crash assigned.target
+    crash assigned.value
+    var target_object = walked_object(assigned.target, template.symbol_parameter)
+    assert target_object
+    assert is_identifier_named(target_object, row_parameter)
+    var walk = RowWalk(template.symbol_parameter, row_parameter, parameters, call.arguments)
+    var names = range_shape.shape_fields.filter_is_attribute().map_name()
+    var fields = List<Syntax.Expressions.ObjectField>()
+    var index = 0
+    while index < names.count() {
+        var name = names.get_at(index)
+        var filled = walked_value(assigned.value, name, walk)
+        assert filled
+        var field = Syntax.Expressions.ObjectField(name, filled)
+        fields.append(field)
+        index = index + 1
+    }
+    return Syntax.Expressions.ObjectLiteralExpression(fields)
+}
+
+func walk_template(information: Analysis.ClassInfo, call_name: String): Analysis.TemplateInfo? {
+    var index = 0
+    while index < information.templates.count() {
+        var template = information.templates.get_at(index)
+        if template.range and not template.passed and template.member_name_for(call_name) == "{template.symbol_parameter}s" {
+            return template
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func row_argument_position(arguments: List<Syntax.Expressions.Expression>, row_name: String): Integer {
+    var position = 0
+    var found = false
+    while not found and position < arguments.count() {
+        var argument = arguments.get_at(position)
+        found = is_identifier_named(argument, row_name)
+        position = position + 1
+    }
+    if found {
+        return position - 1
+    }
+    return position
+}
+
+func name_position(names: List<String>, name: String): Integer {
+    var position = 0
+    while position < names.count() and names.get_at(position) != name {
+        position = position + 1
+    }
+    return position
+}
+
+func walk_argument_is_plain(argument: Syntax.Expressions.Expression, row_name: String, is_row: Boolean): Boolean {
+    switch argument {
+        Syntax.Expressions.IdentifierExpression: return is_row == (argument.name == row_name)
+        Syntax.Expressions.IntegerLiteral: return not is_row
+        Syntax.Expressions.FloatLiteral: return not is_row
+        Syntax.Expressions.TrueLiteral: return not is_row
+        Syntax.Expressions.FalseLiteral: return not is_row
+        _: return false
+    }
+}
+
+func walked_object(
+    expression: Syntax.Expressions.Expression,
+    symbol_parameter: String,
+): Syntax.Expressions.Expression? {
+    var indexed = shape.as_index(expression)
+    assert indexed
+    crash indexed.object
+    crash indexed.index
+    assert is_identifier_named(indexed.index, symbol_parameter)
+    var attributes = shape.as_member(indexed.object)
+    assert attributes
+    assert attributes.name == "attributes"
+    return attributes.object
+}
+
+func walked_value(
+    expression: Syntax.Expressions.Expression,
+    attribute_name: String,
+    walk: RowWalk,
+): Syntax.Expressions.Expression? {
+    var walked = walked_object(expression, walk.symbol_parameter)
+    if walked {
+        var walked_owner = walked_value(walked, attribute_name, walk)
+        assert walked_owner
+        var read: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(walked_owner, attribute_name)
+        return read
+    }
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return walk.argument_for(expression)
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            var member_owner = walked_value(expression.object, attribute_name, walk)
+            assert member_owner
+            var member: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(
+                member_owner,
+                expression.name,
+            )
+            return member
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            var indexed_owner = walked_value(expression.object, attribute_name, walk)
+            assert indexed_owner
+            var position = walked_value(expression.index, attribute_name, walk)
+            assert position
+            var indexed: Syntax.Expressions.Expression = Syntax.Expressions.IndexExpression(indexed_owner, position)
+            return indexed
+        }
+        Syntax.Expressions.IntegerLiteral: return expression
+        _: return null
+    }
 }
 
 func borrows_an_item(
@@ -16774,6 +16962,10 @@ func generate_statement_list(
         borrow_index = index
         ended_in_return = generate_statement(statement, scope, class_information, function_information)
         pending_allocator = null
+        if walked_row_filled {
+            walked_row_filled = false
+            index = index + 1
+        }
         if overlaps {
             overlapped_reads.append(read_name)
         }
