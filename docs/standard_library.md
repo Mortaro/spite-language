@@ -679,7 +679,10 @@ place, so no Spite changes with the backend). `--final-classes` prints them as b
 class, and `bootstrap/source/generation/maths_primitives.spite` is the one place that says what C each becomes:
 a macro written where it is called, so `angle.sine()` is `sinf(angle)` in the C, with no function of Spite's own
 around it, and a whole number's `clamp` is two comparisons in one statement. None has hand-written C in a `.spite`
-file of `library/`.
+file of `library/`. A call whose operands are all constants, `(0.5).sine()` or `Float.pi().cosine()`, is worked out
+while compiling with the same C library function, so its answer is bit for bit the one the program would have
+computed ([optimizations.md](optimizations.md#maths-on-constants-is-worked-out-while-compiling);
+`conformance/stage6/maths_folding`).
 
 **Tree-shaken, and nothing at run time** (D177). A member a program never calls is not in its C; `<math.h>` is
 included only when a member that calls the C library survives tree shaking, and only then does a build on Linux or

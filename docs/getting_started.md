@@ -14,7 +14,7 @@ runs (and again whenever that file is newer), then compiles and runs the program
 compiler emits for its own sources, so building it by hand is one command too:
 
 ```bash
-cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite
+cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite -lm
 ```
 
 The compiler writes C and builds it with the command in the `CC` environment variable, or the first of `cc`,

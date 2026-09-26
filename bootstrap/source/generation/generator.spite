@@ -8054,6 +8054,12 @@ func generate_method_call(
         return generate_method_call(matched, object_ast, arguments_ast, scope, class_information)
     }
     forget_indices_if_shrinking(member.name, object_ast, scope)
+    if maths.is_member(member.name) and not maths.is_constant(member.name) {
+        var folded_maths = folded_maths_call(member.name, object_ast, arguments_ast, class_information)
+        if folded_maths {
+            return folded_maths
+        }
+    }
     var fused = generate_fused_chain(member, object_ast, arguments_ast, scope, class_information)
     if fused {
         return fused
@@ -21411,4 +21417,117 @@ func offload_steps(scheduler_class: Analysis.ClassInfo, function: Analysis.Funct
         lines.append("if (spite_over) spite_frame->spite_result = spite_frame->spite_call.result;")
     }
     return lines.join("\n")
+}
+
+func folded_maths_call(
+    name: String,
+    object_ast: Syntax.Expressions.Expression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    if maths.is_predicate(name) {
+        return folded_question_call(name, object_ast, arguments_ast, class_information)
+    }
+    var folded = folded_maths_value(name, object_ast, arguments_ast, class_information)
+    assert folded
+    var is_float = folded.kind == "Float"
+    var literal = maths.decimal_literal(folded.value, is_float)
+    if is_float {
+        var folded_float_type = float_type()
+        return ExpressionResult(literal, folded_float_type)
+    }
+    var folded_double_type = double_type()
+    return ExpressionResult(literal, folded_double_type)
+}
+
+func folded_question_call(
+    name: String,
+    object_ast: Syntax.Expressions.Expression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult? {
+    assert arguments_ast.is_empty()
+    var receiver = folded_decimal(object_ast, class_information)
+    assert receiver
+    assert folds_on(receiver, name)
+    var answer = maths.folded_question(name, receiver.value)
+    var answer_type = Analysis.Types.ScalarType('boolean_kind')
+    return ExpressionResult("{answer}", answer_type)
+}
+
+func folds_on(receiver: FoldedDecimal, name: String): Boolean {
+    assert receiver.is_decimal()
+    var value_class = find_class_by_qualified(receiver.kind)
+    assert value_class
+    var function = find_or_instantiate_function(value_class, name)
+    assert function
+    return is_inline_supplied(function)
+}
+
+func folded_maths_value(
+    name: String,
+    object_ast: Syntax.Expressions.Expression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    class_information: Analysis.ClassInfo,
+): FoldedDecimal? {
+    assert maths.is_member(name) and not maths.is_constant(name) and not maths.is_predicate(name)
+    assert arguments_ast.count() == maths.operand_count(name)
+    var receiver = folded_decimal(object_ast, class_information)
+    assert receiver
+    assert folds_on(receiver, name)
+    var is_float = receiver.kind == "Float"
+    var operands = List<Double>()
+    var index = 0
+    while index < arguments_ast.count() {
+        var argument = folded_decimal(arguments_ast[index], class_information)
+        assert argument
+        var operand_value = argument.operand(is_float)
+        operands.append(operand_value)
+        index = index + 1
+    }
+    while operands.count() < 2 {
+        operands.append(0.0)
+    }
+    var value = receiver.operand(is_float)
+    var first = operands.get_at(0)
+    var second = operands.get_at(1)
+    var result = maths.folded(name, is_float, value, first, second)
+    return FoldedDecimal(result, receiver.kind)
+}
+
+func folded_decimal(expression: Syntax.Expressions.Expression, class_information: Analysis.ClassInfo): FoldedDecimal? {
+    var float_literal = shape.as_float_literal(expression)
+    if float_literal {
+        return FoldedDecimal(float_literal.value, "Float")
+    }
+    var integer_literal = shape.as_integer_literal(expression)
+    if integer_literal {
+        assert integer_literal.value > -9007199254740992 and integer_literal.value < 9007199254740992
+        var whole: Double = integer_literal.value
+        return FoldedDecimal(whole, "Integer")
+    }
+    var negated = shape.as_unary(expression)
+    if negated {
+        assert negated.operator == 'negate'
+        crash negated.operand
+        var negated_operand = folded_decimal(negated.operand, class_information)
+        assert negated_operand
+        return FoldedDecimal(-negated_operand.value, negated_operand.kind)
+    }
+    var call = shape.as_call(expression)
+    assert call
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    var static_receiver = try_resolve_static_path(member.object, class_information.qualified_dotted)
+    if static_receiver {
+        var kind = static_receiver.qualified_dotted
+        assert kind == "Float" or kind == "Double"
+        assert maths.is_constant(member.name) and call.arguments.is_empty()
+        var constant = maths.constant_value(member.name, kind == "Float")
+        return FoldedDecimal(constant, kind)
+    }
+    assert maths.is_member(member.name) and not maths.is_constant(member.name) and not maths.is_predicate(member.name)
+    return folded_maths_value(member.name, member.object, call.arguments, class_information)
 }

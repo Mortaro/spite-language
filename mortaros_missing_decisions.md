@@ -288,3 +288,28 @@ Behaviour that does not match the manual. The language was not changed; each is 
      Windows): about 700 ms to a file against about 140 ms buffered until exit; the same to a pipe or the null
      device. Nothing cheaper shows every line promptly without a thread. Keep it for every program, or should a
      program be able to say it prints to a file nobody watches (a build setting, say) and keep the buffer?
+
+## The maths functions (for SlopEngine's skinning, animation and PBR)
+
+198. **The maths names, and constants answered by the class.** Built as proposed by Claude, unconfirmed
+     (`docs/standard_library.md#maths--implemented`): members of the number classes, `angle.sine()`, each the C
+     library's function written where it is called. To confirm or rename:
+     - `rise.arc_tangent_over(run)` for C's `atan2(rise, run)`. Other readings: `rise.arc_tangent_of(run)`, or
+       an `angle()` on a future vector type instead.
+     - `logarithm()` for the natural logarithm, beside `logarithm_base_2()` and `logarithm_base_10()`; or
+       `natural_logarithm()`.
+     - `euler_number()` for e, since a name is never one letter; `pi()` and `tau()` kept.
+     - `largest()` and `smallest()`: `Float.smallest()` is the most negative finite `Float`, like
+       `Integer.smallest()`, not C's `FLT_MIN` (the smallest positive normal one), which is not built.
+     - `exponential()`, `truncate()`, `ceiling()`, and `round()` rounding half away from zero (C's `round`).
+     - **Constants are functions the class object answers**, `Float.pi()`, the one thing a number class answers
+       on its name: `angle.pi()` is an error naming it. The other shapes were an attribute of the class object,
+       `Float.pi` (like `Spite.Class.instances`), or a singleton `Maths`, which the brief ruled out. Keep
+       `Float.pi()`?
+     - `minimum`, `maximum` and so `clamp` follow C's `fmin`/`fmax`: a not-a-number operand is ignored, so
+       `nan.clamp(0.0, 1.0)` is `0`. IEEE 754-2019's `minimum` passes not-a-number on instead, which D200's "wrong
+       maths should not look plausible" leans towards, at a compare or two more per call. Which?
+     - D147 wants a library function to become Spite that calls it; these are instead primitives each backend
+       lowers, D178's form, because a backend without a C library would bring its own maths anyway. Agreed?
+     - Folding them at compile time (`docs/optimizations.md`) makes the compiler itself call the C library's
+       maths, so building the seed on Linux now needs `-lm`.

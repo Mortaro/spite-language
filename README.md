@@ -116,7 +116,7 @@ Spite compiles itself. `bootstrap/seed/spite_compiler.c` is the committed fixpoi
 needs nothing but a C compiler.
 
 ```
-cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite
+cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite -lm
 ./spite examples/hello
 ```
 
@@ -134,7 +134,7 @@ bash check.sh
 Build the compiler once, then point it at a program's folder:
 
 ```
-cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite
+cc -O2 -Wno-parentheses-equality bootstrap/seed/spite_compiler.c -o spite -lm
 export CC=cc                     # the compiler shells out to this to build the C it emits
 ./spite path/to/folder
 ```

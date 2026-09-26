@@ -43,6 +43,32 @@ func square_root(value: Float): Float {
     return guess
 }
 
+func power_of_two(exponent: Float): Float {
+    var whole = floor(exponent)
+    var fraction = exponent - whole
+    var result: Float = 1.0
+    var steps: Integer = whole
+    while steps > 0 {
+        result = result * 2.0
+        steps = steps - 1
+    }
+    while steps < 0 {
+        result = result * 0.5
+        steps = steps + 1
+    }
+    var scaled = fraction * 0.6931472
+    var term: Float = 1.0
+    var sum: Float = 1.0
+    var index = 1
+    while index < 10 {
+        var divisor: Float = index
+        term = term * scaled / divisor
+        sum = sum + term
+        index = index + 1
+    }
+    return result * sum
+}
+
 func wrapped_angle(angle: Float): Float {
     var turns = floor((angle + pi) / two_pi)
     return angle - turns * two_pi

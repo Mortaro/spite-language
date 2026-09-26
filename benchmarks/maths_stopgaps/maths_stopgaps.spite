@@ -27,7 +27,9 @@ func stopgap_pass(): Float {
         var turned = scalar.arc_tangent2(rise, run)
         var root = scalar.square_root(angle + 1.0)
         var whole = scalar.floor(angle)
-        total = total + rise + run + turned + root + whole
+        var exponent = angle * 0.01
+        var grown = scalar.power_of_two(exponent)
+        total = total + rise + run + turned + root + whole + grown
         index = index + 1
     }
     return total
@@ -35,6 +37,7 @@ func stopgap_pass(): Float {
 
 func primitive_pass(): Float {
     var total = 0.0
+    var two: Float = 2.0
     var index = 0
     while index < 2000000 {
         var angle: Float = index
@@ -45,7 +48,9 @@ func primitive_pass(): Float {
         var shifted = angle + 1.0
         var root = shifted.square_root()
         var whole = angle.floor()
-        total = total + rise + run + turned + root + whole
+        var exponent = angle * 0.01
+        var grown = two.power(exponent)
+        total = total + rise + run + turned + root + whole + grown
         index = index + 1
     }
     return total

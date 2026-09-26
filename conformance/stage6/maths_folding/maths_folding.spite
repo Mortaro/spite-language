@@ -1,0 +1,136 @@
+var console = Console()
+
+func MathsFolding() {
+    floats()
+    doubles()
+    edges()
+}
+
+func floats() {
+    var two: Float = 2.0
+    var half: Float = 0.5
+    var negative: Float = -2.5
+    var one: Float = 1.0
+    var zero: Float = 0.0
+    var folded_root = 2.0.square_root()
+    var computed_root = two.square_root()
+    same_float("square_root", folded_root, computed_root)
+    var folded_sine = 0.5.sine()
+    var computed_sine = half.sine()
+    same_float("sine", folded_sine, computed_sine)
+    var folded_cosine = 0.5.cosine()
+    var computed_cosine = half.cosine()
+    same_float("cosine", folded_cosine, computed_cosine)
+    var folded_tangent = 0.5.tangent()
+    var computed_tangent = half.tangent()
+    same_float("tangent", folded_tangent, computed_tangent)
+    var folded_arc_sine = 0.5.arc_sine()
+    var computed_arc_sine = half.arc_sine()
+    same_float("arc_sine", folded_arc_sine, computed_arc_sine)
+    var folded_arc_cosine = 0.5.arc_cosine()
+    var computed_arc_cosine = half.arc_cosine()
+    same_float("arc_cosine", folded_arc_cosine, computed_arc_cosine)
+    var folded_arc_tangent = 0.5.arc_tangent()
+    var computed_arc_tangent = half.arc_tangent()
+    same_float("arc_tangent", folded_arc_tangent, computed_arc_tangent)
+    var folded_over = 0.5.arc_tangent_over(-2.5)
+    var computed_over = half.arc_tangent_over(negative)
+    same_float("arc_tangent_over", folded_over, computed_over)
+    var folded_power = 2.0.power(0.5)
+    var computed_power = two.power(half)
+    same_float("power", folded_power, computed_power)
+    var folded_exponential = 0.5.exponential()
+    var computed_exponential = half.exponential()
+    same_float("exponential", folded_exponential, computed_exponential)
+    var folded_logarithm = 2.0.logarithm()
+    var computed_logarithm = two.logarithm()
+    same_float("logarithm", folded_logarithm, computed_logarithm)
+    var folded_base_2 = 0.5.logarithm_base_2()
+    var computed_base_2 = half.logarithm_base_2()
+    same_float("logarithm_base_2", folded_base_2, computed_base_2)
+    var folded_base_10 = 2.0.logarithm_base_10()
+    var computed_base_10 = two.logarithm_base_10()
+    same_float("logarithm_base_10", folded_base_10, computed_base_10)
+    var folded_rounding = (-2.5).floor() + (-2.5).ceiling() + (-2.5).round() + (-2.5).truncate()
+    var computed_rounding = negative.floor() + negative.ceiling() + negative.round() + negative.truncate()
+    same_float("floor, ceiling, round, truncate", folded_rounding, computed_rounding)
+    var folded_absolute = (-2.5).absolute()
+    var computed_absolute = negative.absolute()
+    same_float("absolute", folded_absolute, computed_absolute)
+    var folded_limits = 2.0.minimum(-2.5) + 2.0.maximum(0.5) + (-2.5).clamp(0.0, 1.0)
+    var computed_limits = two.minimum(negative) + two.maximum(half) + negative.clamp(zero, one)
+    same_float("minimum, maximum, clamp", folded_limits, computed_limits)
+    var pi = Float.pi()
+    var folded_pi_sine = Float.pi().sine()
+    var computed_pi_sine = pi.sine()
+    same_float("sine of Float.pi()", folded_pi_sine, computed_pi_sine)
+    var folded_twice = 2.0.square_root().square_root()
+    var computed_once = two.square_root()
+    var computed_twice = computed_once.square_root()
+    same_float("square_root twice", folded_twice, computed_twice)
+    var three: Float = 3.0
+    var folded_cube = 2.0.power(3)
+    var computed_cube = two.power(three)
+    same_float("power with an Integer literal", folded_cube, computed_cube)
+}
+
+func doubles() {
+    var pi = Double.pi()
+    var euler = Double.euler_number()
+    var folded_sine = Double.pi().sine()
+    var computed_sine = pi.sine()
+    same_double("sine of Double.pi()", folded_sine, computed_sine)
+    var folded_cosine = Double.pi().cosine()
+    var computed_cosine = pi.cosine()
+    same_double("cosine of Double.pi()", folded_cosine, computed_cosine)
+    var folded_logarithm = Double.euler_number().logarithm()
+    var computed_logarithm = euler.logarithm()
+    same_double("logarithm of Double.euler_number()", folded_logarithm, computed_logarithm)
+    var tenth: Double = 0.1
+    var folded_power = Double.pi().power(0.1)
+    var computed_power = pi.power(tenth)
+    same_double("power with a Float literal, exact as a Double", folded_power, computed_power)
+    var folded_root = Double.pi().square_root().exponential()
+    var computed_root = pi.square_root()
+    var computed_exponential = computed_root.exponential()
+    same_double("exponential of a square_root", folded_root, computed_exponential)
+}
+
+func edges() {
+    var negative: Float = -1.0
+    var zero: Float = 0.0
+    var big: Float = 1000.0
+    var folded_nothing = (-1.0).square_root()
+    var computed_nothing = negative.square_root()
+    same_float("square_root of -1, not a number", folded_nothing, computed_nothing)
+    var folded_minus_infinity = 0.0.logarithm()
+    var computed_minus_infinity = zero.logarithm()
+    same_float("logarithm of 0, minus infinity", folded_minus_infinity, computed_minus_infinity)
+    var folded_infinity = 1000.0.exponential()
+    var computed_infinity = big.exponential()
+    same_float("exponential of 1000, infinity", folded_infinity, computed_infinity)
+    var folded_negative_zero = (-0.0).square_root()
+    var negative_zero: Float = -0.0
+    var computed_negative_zero = negative_zero.square_root()
+    same_float("square_root of -0", folded_negative_zero, computed_negative_zero)
+    var largest_value = Double.largest()
+    var folded_overflow = Double.largest().power(2.0)
+    var two: Double = 2.0
+    var computed_overflow = largest_value.power(two)
+    same_double("power past the largest", folded_overflow, computed_overflow)
+    console.print(
+        "questions {(-1.0).square_root().is_not_a_number()} {1000.0.exponential().is_infinite()} {Float.pi().is_finite()}",
+    )
+}
+
+func same_float(label: String, folded: Float, computed: Float) {
+    var folded_wide: Double = folded
+    var computed_wide: Double = computed
+    var same = folded_wide.bits() == computed_wide.bits()
+    console.print("{label}: {same}")
+}
+
+func same_double(label: String, folded: Double, computed: Double) {
+    var same = folded.bits() == computed.bits()
+    console.print("{label}: {same}")
+}

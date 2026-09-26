@@ -1,0 +1,20 @@
+var value: Double = 0.0
+var kind = "Float"
+
+func FoldedDecimal(starting_value: Double, starting_kind: String) {
+    value = starting_value
+    kind = starting_kind
+}
+
+func is_decimal(): Boolean {
+    return kind == "Float" or kind == "Double"
+}
+
+func operand(is_float: Boolean): Double {
+    if not is_float {
+        return value
+    }
+    var narrow: Float = value
+    var wide: Double = narrow
+    return wide
+}
