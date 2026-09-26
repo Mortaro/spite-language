@@ -366,9 +366,6 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 ## From the one-List study (D222, docs/proposals/one_list.md)
 
-207. **Folding `Vector` and `Items` of plain values into `List`: what does `list[index]` answer?** `List`'s `[]`
-     answers `T?` today; `Items`/`Vector` answer `T` and halt out of range. One `List` needs one answer: `T?`
-     (safe, a narrowing at every read) or `T` with a halt (D199: a bad index is a developer mistake)?
 208. **How loudly a list that falls back to references is reported.** The study measured a hand-picked inline
      column at 8.1 ms a tick and the same code falling back to references at 35-40 ms -- one kept item anywhere
      causes it. Should the compiler report such a fallback (an error on a list marked as wanting inline? a line in a
