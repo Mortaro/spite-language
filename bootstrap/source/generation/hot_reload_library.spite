@@ -330,6 +330,7 @@ func library(builder: CodeBuilder, slot_names: List<String>, slot_owners: List<S
     var redirected = List<String>()
     while not shaker.waiting.is_empty() {
         var next = shaker.waiting.remove_last()
+        crash next
         crash shaker.piece_names[next]
         crash shaker.pieces[next]
         if bound[next] == true {

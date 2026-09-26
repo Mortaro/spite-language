@@ -1,0 +1,3 @@
+diagnostics/symbol_for_text/symbol_for_text.spite:9: error: 'world' in single quotes is a symbol, and text is wanted here: text is always written in double quotes, so write "world" (in SymbolForText.SymbolForText)
+diagnostics/symbol_for_text/symbol_for_text.spite:10: error: 'greet' in single quotes is a symbol, and text is wanted here: text is always written in double quotes, so write "greet" (in SymbolForText.SymbolForText)
+diagnostics/symbol_for_text/symbol_for_text.spite:11: error: 'cheerful' in single quotes is a symbol, and text is wanted here: text is always written in double quotes, so write "cheerful" (in SymbolForText.SymbolForText)

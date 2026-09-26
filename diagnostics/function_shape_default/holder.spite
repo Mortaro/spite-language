@@ -1,0 +1,9 @@
+generic $held_type
+
+var held: $held_type = null
+var count = 0
+
+func swing(): Integer {
+    count = count + 1
+    return held.strike()
+}

@@ -6,7 +6,7 @@ var picked = List<Integer>()
 var position = 0
 
 func run() {
-    if $system_type.has_function('run_each') {
+    if $system_type.has_function("run_each") {
         counts.clear()
         count_arguments()
         var total = combinations()

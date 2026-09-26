@@ -45,8 +45,8 @@ func BitwiseFunctions() {
     console.print("unsigned long inverted {unsigned_long.bits_inverted()} {unsigned_long.leading_zero_count()}")
     var zero = 0
     console.print("zero counts {zero.set_bit_count()} {zero.leading_zero_count()} {zero.trailing_zero_count()}")
-    var wide: Long = 4294967296 + 15
-    console.print("argument cast to the receiver {byte.bits_and(wide)} {eleven.bits_or(wide)}")
+    var narrow: Byte = 15
+    console.print("a narrower argument widens {eleven.bits_or(narrow)} {byte.bits_and(narrow)}")
     var mask: Byte = 240
     var wide_value: Long = 1000
     console.print("receiver keeps its width {wide_value.bits_and(mask)} {wide_value.bits_exclusive_or(mask)}")

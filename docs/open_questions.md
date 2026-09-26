@@ -45,7 +45,8 @@ these five are what is left, with where each stands today.
    When the bound type is a `type` whose members are all attributes, its default is a real object -- the object
    literal with each attribute at its own default, admitted to the shape -- so writes through it are kept
    (proposed by Claude, unconfirmed, 2026-09-24; `conformance/stage6/shape_defaults`). A `type` that requires a
-   function has no default object, since no literal can supply the function.
+   function has no default object, since no literal can supply the function, so that case is a compile error
+   naming the attribute (D211, [metaprogramming.md](metaprogramming.md#codegen-values---implemented)).
 3. Right-to-left casting makes `age > 0.5` with an Integer `age` mean `age > 0`. Accept, or make comparisons cast toward the wider type. D162 settled arithmetic (a wider right operand is an error); comparisons still cast right to left and are not checked (proposed by Claude, unconfirmed), so this stays open for them.
    - The abbreviation lint has no escape hatch for names that must mirror an external spelling (`keyword_var`). Keep it absolute, or allow a per line `# spelled: keyword_var` style exemption.
 6. **(Answered by D136 and D137: `_` means unused on purpose only on a parameter and private everywhere else, and

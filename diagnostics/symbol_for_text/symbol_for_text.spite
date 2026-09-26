@@ -1,0 +1,17 @@
+enum Mood {
+    'cheerful'
+    'grumpy'
+}
+
+var console = Console()
+
+func SymbolForText() {
+    var greeting = greet('world')
+    var answers = SymbolForText.has_function('greet')
+    var told = greet('cheerful')
+    console.print(greeting, answers, told)
+}
+
+func greet(name: String): String {
+    return "hello {name}"
+}

@@ -302,8 +302,8 @@ var console = Console()
 
 func FunctionQuestions() {
     var described = Sprinkler.name
-    var drains = Sprinkler.has_function('drain')
-    var fills = Sprinkler.has_function('fill')
+    var drains = Sprinkler.has_function("drain")
+    var fills = Sprinkler.has_function("fill")
     var updates = Sprinkler.has_function("<phase>_each")
     console.print(described, drains, fills, updates)
     var functions = Sprinkler.functions
@@ -322,7 +322,7 @@ drain false
 ```
 
 Here the answer is found at run time, from `.functions`, and the hole is any text. Asked of a generic's type, as
-in `if $system_type.has_function('run_each')`, it is decided while compiling instead, and only the branch taken is
+in `if $system_type.has_function("run_each")`, it is decided while compiling instead, and only the branch taken is
 compiled; there a pattern's hole matches only the values of the enum named for it, `Phase` for `<phase>`, as a
 name pattern's does (D180). Walking a function's arguments, a folder's classes or the functions that fit a pattern at compile time
 is in [metaprogramming.md](metaprogramming.md#a-classs-functions-a-folders-classes-and-a-names-pattern).

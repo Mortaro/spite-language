@@ -1,0 +1,10 @@
+type Weapon {
+    strike(): Integer
+}
+
+var console = Console()
+
+func FunctionShapeDefault() {
+    var holder = Holder<Weapon>()
+    console.print(holder.count)
+}

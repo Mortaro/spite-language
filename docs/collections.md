@@ -31,7 +31,7 @@ var empty = List<String>()
 | `list[index] = value` | | the explicit form is `set_at(index, value)`; nothing happens out of range |
 | `get_at(index)` | `T` | the default when out of range |
 | `remove_at(index)` | | nothing happens out of range |
-| `remove_first()` / `remove_last()` | `T` | removes and returns it; the default when empty |
+| `remove_first()` / `remove_last()` | `T?` | removes and returns it; `null` when empty, like `first()` (D211) |
 | `first()` / `last()` | `T?` | `null` when empty, like `[]` (proposed by Claude, unconfirmed): narrow it, `crash first` or `if first { }` |
 | `count()` / `is_empty()` | `Integer` / `Boolean` | `count()` is only ever the list's size |
 | `contains(value)` | `Boolean` | elements that are numbers, `Boolean`, `String` or an enum only |
@@ -721,7 +721,8 @@ The caller's function is passed as a bound function value (D17/D39), owned by wh
 ### List<T> additions  **[implemented]**
 
 A list's members, their results and their edge cases are [the table under `List<T>`](#listt), which is normative:
-out of range, `get_at`, `first`, `last`, `remove_first` and `remove_last` answer the element type's default,
+out of range, `get_at` answers the element type's default; `first`, `last`, `remove_first` and `remove_last` answer
+`null` on an empty list (D211, like `[]`),
 `insert` clamps to the nearest end, and `set_at` and `remove_at` do nothing; `list[index]` answers `T?`. There is
 no `for`: a list is walked with a template, a passed function ([above](#standard-library-metaprogramming--partial)),
 or a `while` that does more than they do.

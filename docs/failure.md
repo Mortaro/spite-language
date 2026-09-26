@@ -789,8 +789,9 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   'assert value' or 'crash value'" (`diagnostics/store_through_nullable`).
 
 `first()` and `last()` answer a `T?` too, `null` on an empty list, by the same argument (proposed by Claude,
-unconfirmed; the compiler's own reads of them are narrowed with `crash`). `tests/list_tests`,
-`diagnostics/index_reads`.
+unconfirmed; the compiler's own reads of them are narrowed with `crash`), and so do `remove_first()` and
+`remove_last()` (D211): nothing to take from an empty list is a normal outcome. `tests/list_tests`,
+`diagnostics/index_reads`, `conformance/stage3/lists`.
 **[implemented]**
 
 **Comparing needs no narrowing** (D69, decided by Mortaro, 2026-09-23). `==` and `!=` accept a `T?` on the left:

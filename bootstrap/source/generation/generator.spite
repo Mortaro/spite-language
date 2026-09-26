@@ -831,7 +831,7 @@ func folded_function_question(
         return false
     }
     report(
-        "'${bare_name}.has_function(...)' is decided while compiling, so the name it asks for is written as a literal: '${bare_name}.has_function('run_each')', or a pattern such as \"<phase>_each\"",
+        "'${bare_name}.has_function(...)' is decided while compiling, so the name it asks for is written as a literal: '${bare_name}.has_function(\"run_each\")', or a pattern such as \"<phase>_each\"",
     )
     return false
 }
@@ -865,6 +865,9 @@ func written_name(arguments: List<Syntax.Expressions.Expression>): String? {
     }
     var enum_literal = shape.as_enum_literal(arguments[0])
     assert enum_literal
+    report(
+        "'{enum_literal.value}' in single quotes is a symbol, and 'has_function' takes the name as text: text is always written in double quotes, so write \"{enum_literal.value}\"",
+    )
     return enum_literal.value
 }
 
@@ -2817,17 +2820,6 @@ func find_enum_qualified(owner_qualified: String, name: String): Analysis.EnumIn
     return null
 }
 
-func any_enum_has(value: String): Boolean {
-    var index = 0
-    while index < enums.count() {
-        if enums[index].has_value(value) {
-            return true
-        }
-        index = index + 1
-    }
-    return false
-}
-
 func find_enum_with_value(value: String): Analysis.EnumInfo? {
     var found: Analysis.EnumInfo? = null
     var matches = 0
@@ -3006,7 +2998,7 @@ func resolve_class_body(entry: Discovery.DiscoveredClass, information: Analysis.
         var variable_declaration = shape.as_variable_declaration(statement)
         if variable_declaration {
             if not functions_pass {
-                resolve_field(variable_declaration, information, empty_scope)
+                resolve_field(variable_declaration, information, empty_scope, file.statements)
             }
         }
         var function_declaration = shape.as_function_declaration(statement)
@@ -3036,7 +3028,12 @@ func infer_declared_type(
     return result.get_type()
 }
 
-func resolve_field(declaration: Syntax.Statements.VariableDeclaration, information: Analysis.ClassInfo, scope: Scope) {
+func resolve_field(
+    declaration: Syntax.Statements.VariableDeclaration,
+    information: Analysis.ClassInfo,
+    scope: Scope,
+    file_statements: List<Syntax.Statements.Statement>,
+) {
     assert declaration.value
     check_value_name(declaration.name, "attribute")
     report_nested_calls_in(declaration.value)
@@ -3057,6 +3054,7 @@ func resolve_field(declaration: Syntax.Statements.VariableDeclaration, informati
         return
     }
     var field_type = infer_declared_type(declaration.type_reference, declaration.value, scope, information)
+    report_function_shape_default(declaration, field_type, information, file_statements)
     var default_code = coerce_for_store(declaration.value, field_type, scope, information)
     if declaration.hardcoded_value {
         default_code = coerce_for_store(declaration.hardcoded_value, field_type, scope, information)
@@ -3064,6 +3062,60 @@ func resolve_field(declaration: Syntax.Statements.VariableDeclaration, informati
     }
     var field = Analysis.FieldInfo(declaration.name, field_type, default_code)
     information.fields.append(field)
+}
+
+func report_function_shape_default(
+    declaration: Syntax.Statements.VariableDeclaration,
+    field_type: Analysis.SpiteType,
+    information: Analysis.ClassInfo,
+    file_statements: List<Syntax.Statements.Statement>,
+) {
+    crash declaration.value
+    assert shape.is_null_literal(declaration.value)
+    assert not constructor_assigns(information.simple_name, declaration.name, file_statements)
+    var union_type = type_shape.as_union(field_type)
+    assert union_type
+    var information = find_union_by_c_name(union_type.c_name)
+    assert information
+    assert information.is_shape
+    var required = information.shape_fields.find_by_is_function(true)
+    assert required
+    report(
+        "'{declaration.name}' is {with_article(information.simple_name)}, a type that requires the function '{required.name}', so '= null' has no default to make: no object can supply a function it does not have. Make its type nullable, with a '?', and narrow it before use, or give it a real object in the constructor",
+    )
+}
+
+func constructor_assigns(
+    declaring_class: String,
+    name: String,
+    file_statements: List<Syntax.Statements.Statement>,
+): Boolean {
+    var index = 0
+    while index < file_statements.count() {
+        var constructor = shape.as_function_declaration(file_statements[index])
+        if constructor {
+            if constructor.name == declaring_class {
+                return assigns_at_top(constructor.body, name)
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func assigns_at_top(statements: List<Syntax.Statements.Statement>, name: String): Boolean {
+    var index = 0
+    while index < statements.count() {
+        var assignment = shape.as_assignment_statement(statements[index])
+        if assignment {
+            crash assignment.target
+            if is_identifier_named(assignment.target, name) {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
 }
 
 func hardcoded_setting(target_class: Analysis.ClassInfo, name: String): Syntax.Statements.VariableDeclaration? {
@@ -5744,9 +5796,11 @@ func coerce_for_store(
         if type_shape.is_symbol(expected_inner_type) {
             return ensure_symbol(enum_literal.value)
         }
-        if type_shape.as_string(expected_inner_type) and not any_enum_has(enum_literal.value) {
-            var symbol_text = ensure_symbol(enum_literal.value)
-            return cast(symbol_text, expected_inner_type, expected_type)
+        if type_shape.as_string(expected_inner_type) {
+            report(
+                "'{enum_literal.value}' in single quotes is a symbol, and text is wanted here: text is always written in double quotes, so write \"{enum_literal.value}\"",
+            )
+            return "SPITE_STRING_EMPTY"
         }
         var expected_enum = expected_enum_of(expected_type)
         if expected_enum {
@@ -6847,6 +6901,40 @@ func literal_value(expression: Syntax.Expressions.Expression): Long? {
     var negated_literal = shape.as_integer_literal(negated.operand)
     assert negated_literal
     return -negated_literal.value
+}
+
+func is_bits_function(name: String): Boolean {
+    return name == "bits_and" or name == "bits_or" or name == "bits_exclusive_or"
+}
+
+func report_wider_bits_operand(
+    name: String,
+    object_ast: Syntax.Expressions.Expression,
+    argument: Syntax.Expressions.Expression,
+    object_result: ExpressionResult,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var receiver_type = object_result.get_type()
+    var receiver_scalar = type_shape.as_scalar(receiver_type)
+    assert receiver_scalar
+    var saved_counter = temporary_counter
+    var probe = generate_expression(argument, scope, class_information)
+    rewind_temporaries(saved_counter)
+    var argument_type = probe.get_type()
+    var argument_scalar = type_shape.as_scalar(argument_type)
+    assert argument_scalar
+    assert not literal_fits(argument, receiver_scalar.kind)
+    var fraction = is_float_kind(argument_scalar.kind) and not is_float_kind(receiver_scalar.kind)
+    assert fraction or scalar_bits(argument_scalar.kind) > scalar_bits(receiver_scalar.kind)
+    var printer = Syntax.SourcePrinter()
+    var argument_text = printer.source_expression(argument)
+    var receiver_text = printer.source_expression(object_ast)
+    var receiver_name = type_display_name(receiver_type)
+    var argument_name = type_display_name(argument_type)
+    report(
+        "'{receiver_text}.{name}({argument_text})' works in {with_article(receiver_name)}, since a bitwise function takes its receiver's type, and '{argument_text}' is {with_article(argument_name)}, which would be cut to fit: store the receiver in {with_article(argument_name)} first ('var wide: {argument_name} = {receiver_text}'), or store '{argument_text}' in {with_article(receiver_name)} first if it fits one",
+    )
 }
 
 func report_wider_right(
@@ -8050,6 +8138,16 @@ func generate_method_call(
     }
     var object_scalar = type_shape.as_scalar(object_result_type)
     if object_scalar {
+        if is_bits_function(member.name) and arguments_ast.count() == 1 {
+            report_wider_bits_operand(
+                member.name,
+                object_ast,
+                arguments_ast[0],
+                object_result,
+                scope,
+                class_information,
+            )
+        }
         return generate_value_method(
             object_scalar.kind,
             member.name,
@@ -21058,6 +21156,8 @@ func emit_state_machines() {
     while not machine_queue_functions.is_empty() {
         var information = machine_queue_classes.remove_first()
         var function = machine_queue_functions.remove_first()
+        crash information
+        crash function
         emit_resumable_function(information, function)
     }
     var lines = List<String>()

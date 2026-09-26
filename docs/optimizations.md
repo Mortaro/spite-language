@@ -128,7 +128,7 @@ even use things that would not compile for this build. That covers:
 - a class test the value's type already answers, `if item == $wanted_type`, and one that can never be true for one
   instantiation of a generic, which folds to `false` there instead of being an error
   ([D167](decisions.md));
-- `$system_type.has_function('run_each')` ([D114](decisions.md));
+- `$system_type.has_function("run_each")` ([D114](decisions.md));
 - `not`, `and`, `or`, `==` and `!=` over any of these.
 
 A function of a generic class is then compiled for one instantiation only when code that survived folding names

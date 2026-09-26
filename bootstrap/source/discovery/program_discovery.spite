@@ -780,6 +780,7 @@ func reopen_with_supplied_members() {
         parsed_file.path = prelude.path()
         var segments = class_path.split("/")
         var stem = segments.remove_last()
+        crash stem
         add_parsed_file(parsed_file, segments, stem)
         index = index + 1
     }
