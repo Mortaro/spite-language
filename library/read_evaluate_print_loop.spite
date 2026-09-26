@@ -107,6 +107,9 @@ func serve_client(client: Socket) {
 }
 
 func handed_over(command: String): Answer {
+    if build.hot_reload {
+        compile_before_reload(command)
+    }
     pending_command = command
     handover.write_long_atomically(0, 1)
     scheduler.signal()
@@ -116,6 +119,12 @@ func handed_over(command: String): Answer {
     crash answered
     handover.write_long_atomically(0, 0)
     return answered
+}
+
+func compile_before_reload(command: String) {
+    if command == "reload" {
+        hot_reload.compile_for_request()
+    }
 }
 
 func answer_pending() {

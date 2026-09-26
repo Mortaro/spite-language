@@ -1,0 +1,8 @@
+func Chef() {
+    load "garnish/pepper"
+}
+
+func serve(): String {
+    var topping = Garnish.Pepper.Topping()
+    return topping.name()
+}

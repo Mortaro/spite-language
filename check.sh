@@ -147,8 +147,9 @@ locks="$work/singleton_lock_calls.c"
 "$work/generation_two.exe" conformance/stage6/singleton_lock_calls --run=false --c-source --c-path="$locks" > /dev/null 2>&1 || {
   echo "FAILED: singleton_lock_calls does not write its C"; exit 1; }
 if ! grep -q "_Alignas(64) int64_t owner" "$locks" || ! grep -q "^Registry_count_one___unguarded(self);" "$locks" \
-   || ! grep -q "^#define Registry___outside_enter() spite_guard_enter(&Registry___guard)" "$locks" || grep -q "Rules___guard" "$locks"; then
-  echo "FAILED: singleton_lock_calls should pad its lock, call itself unlocked, lock a write from outside and not lock Rules"; exit 1
+   || ! grep -q "^#define Registry___outside_enter() spite_guard_enter(&Registry___guard)" "$locks" || grep -q "Rules___guard" "$locks" \
+   || [ "$(grep -c "Registry___outside_enter();" "$locks")" -lt 2 ]; then
+  echo "FAILED: singleton_lock_calls should pad its lock, call itself unlocked, lock a write and a read from outside and not lock Rules"; exit 1
 fi
 echo "production C: hello carries no unused class, table or counter, singleton_forms takes no lock, singleton_lock_calls locks only Registry"
 # D201: a whole-number division checks its divisor for zero, except where a proof already shows it is not zero:
@@ -159,6 +160,16 @@ if grep -q "whole / pieces" "$work/division.c" || ! grep -q "total / parts" "$wo
   echo "FAILED: division_by_zero should check 'total / parts' and not the proven 'whole / pieces'"; exit 1
 fi
 echo "division: a proven divisor carries no zero check"
+# D211: live reload watches every folder a program loads, and a loop's check point is one load of a flag.
+"$work/generation_two.exe" conformance/stage6/load_on_build --run=false --hot-reload --c-source --c-path="$work/watched.c" --flavor=salty > /dev/null 2>&1 || {
+  echo "FAILED: load_on_build does not write its C with --hot-reload"; exit 1; }
+"$work/generation_two.exe" conformance/stage3/lists --run=false --repl-port=4000 --c-source --c-path="$work/checked_loops.c" > /dev/null 2>&1 || {
+  echo "FAILED: lists does not write its C with --repl-port"; exit 1; }
+if ! grep -qF 'load_on_build/kitchen\nconformance/stage6/load_on_build/salty\nconformance/stage6/load_on_build/kitchen/garnish/pepper' "$work/watched.c" \
+   || ! grep -q "if (__atomic_load_n(&spite_check_point_wanted, __ATOMIC_RELAXED) != 0)" "$work/checked_loops.c"; then
+  echo "FAILED: a --hot-reload build should watch every loaded folder and check its loops with one load of a flag"; exit 1
+fi
+echo "live reload: every loaded folder is watched, and a loop's check point is one load of a flag"
 
 # The benchmarks (benchmarks/README.md) are timed by hand with benchmarks/run.sh; here they only have to compile.
 benchmarked=0
@@ -321,11 +332,21 @@ done
 [ "$watched" == '{"ok":true,"value":"rebuilt Monster","type":""}' ] || hot_fail "the watcher did not rebuild Monster alone: $watched"
 expect 'monster.roar()' '{"ok":true,"value":"Goblin roars louder","type":"String"}'
 expect 'greeting()' '{"ok":true,"value":"welcome back, visit 42","type":"String"}'
+# A function a reload adds is listed and callable at the prompt: reflection follows the reload (D211).
+printf '\nfunc growl(): String {\n    return "{name} growls"\n}\n' >> "$hot_folder/monster.spite"
+grown=""
+for attempt in $(seq 1 150); do
+  ask reload > /dev/null
+  grown=$(ask 'monster.growl()')
+  [ "$grown" == '{"ok":true,"value":"Goblin growls","type":"String"}' ] && break
+  sleep 0.2
+done
+[ "$grown" == '{"ok":true,"value":"Goblin growls","type":"String"}' ] || hot_fail "a function added by a reload was not callable: $grown"
 expect 'exit' '{"ok":true,"value":"","type":""}'
 for attempt in $(seq 1 50); do kill -0 $served 2>/dev/null || break; sleep 0.2; done
 kill -0 $served 2>/dev/null && hot_fail "the program kept running after exit"
 wait $served || hot_fail "the program ended with exit code $?"
-echo "live reload: an edited class was swapped in by reload and another by the watcher, keeping the program's state"
+echo "live reload: an edited class was swapped in by reload and another by the watcher, keeping the program's state, and a new function answers at the prompt"
 
 # --final-classes writes the program back out as Spite source. What it writes has to be a program:
 # printing a corpus program and running what came out must print the same thing. symbol_codegen proves the

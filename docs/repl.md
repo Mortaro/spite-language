@@ -271,7 +271,7 @@ program runs`. For an AI: edit the file, send `reload`, and read `last_reload` i
 | You change | What happens |
 |---|---|
 | a function's body | the next call runs the new body; a call already running finishes the old one |
-| a new function on an existing class | the new code calls it; the REPL's `functions` keeps listing what the program started with |
+| a new function on an existing class | the new code calls it, the REPL's `functions` lists it and the prompt can call it |
 | a function's parameters or return type | it becomes a new function: the rebuilt class and every class that calls it are rebuilt too |
 | a function you deleted | whatever still holds it -- a function value, the REPL -- keeps its last code; the answer says `removed Monster.roar` |
 | an attribute's default value | instances made after the reload get the new default |
@@ -300,14 +300,13 @@ next save reloads.
 - **The swap happens where the program waits** ([D37](decisions.md)), or at the end of a pass of one of its
   loops: the program loads the library
   with the operating system's loader, the one `DynamicLibrary` uses, hands it the addresses of the program's
-  functions, and re-points the slots. Nothing runs halfway through a step. The program waits while the library is
-  compiled, typically well under a second.
+  functions, and re-points the slots. Nothing runs halfway through a step. The library is compiled on a helper
+  thread while the program keeps running, so a game keeps drawing frames while its code is rebuilt.
 - **The watcher is the standard library's [`Watcher`](standard_library.md#watch-files-and-folders)**, the one any
   program can use, started on a thread of its own: `ReadDirectoryChangesW` on Windows, `inotify` on Linux and
   `kqueue` on macOS, with no polling. The thread sits in `wait_for_changes()`, which the operating system wakes;
   a burst of changes is waited out until 100 ms pass without one, so a save that writes a file in pieces reloads
-  once. The program's own folder is watched with every folder below it, not the folders it `load`s; send
-  `reload` after changing those. A build beside its program (the default) writes each reload's library into that
+  once. The program's own folder is watched with every folder below it, and so is every folder it `load`s. A build beside its program (the default) writes each reload's library into that
   folder too, which wakes the watcher once more for a check that finds nothing changed; `--executable-path=`
   elsewhere avoids it.
 - The compiler, its options and the executable are recorded in the build, so the program must run from the folder
@@ -432,13 +431,16 @@ The choices below are **(proposed by Claude, unconfirmed)**:
   The standard library's own loops have no check points, so a command waits for a library call to return.
 - **Every loop is a check point in a REPL build** (D174, decided by Mortaro; the mechanism proposed by Claude,
   unconfirmed). In a `--repl-port` or `--hot-reload` build, the generator ends every pass of every
-  `while` in the program's own code (not `library/` or `launcher/`) with a call to `Scheduler.check_point()`, which
-  on the scheduler's thread answers a pending command (the handover flag `answer_pending` already reads) and runs a
-  pending reload. On any other thread -- a `Parallel`, a helper -- it does nothing. A loop that never waits is
+  `while` in the program's own code (not `library/` or `launcher/`) with a check point: one relaxed load of a C flag
+  that `Scheduler.signal()` raises, which the REPL's thread and the file watcher call when they hand something over
+  (D211, decided by Claude under D205). Only when it is raised does the pass call `Scheduler.check_point()`, which
+  lowers it and, on the scheduler's thread, answers a pending command (the handover flag `answer_pending` already
+  reads) and runs a pending reload. On any other thread -- a `Parallel`, a helper -- it does nothing. A loop that never waits is
   answered between two passes, so the old compile error for such a loop, and `diagnostics/remote_loop_never_waits`,
   are gone. A build without those flags has no check point: its C is byte for byte what it was (checked on a busy
   loop and `examples/dungeon`). `--repl` alone answers after the constructor returns, from the console, so it needs
-  none. The cost where it exists is a call and two atomic loads per pass.
+  none. The cost where it exists is one load per pass: 400 000 000 passes took 106 ms, against 1 566 ms when each
+  pass called `check_point()` (`docs/optimizations.md`).
 - **The port is part of the build**, like any flag the compiler folds (D84): `main` listens on it, on the main
   thread, before the constructor runs, so a client that connects any time after the program starts is served. A
   port another program holds stops the program before its constructor with `error: the REPL could not listen on
@@ -512,14 +514,21 @@ session against a copy of the program it edits.
 - **Swapping at a drain point** (D37). The running program opens the library with `LoadLibraryA`/`dlopen`, the
   calls `DynamicLibrary` opens a library with, and calls its `spite_reload_bind`, which looks up each running
   function it uses by name (the allocator included, so the library allocates and frees through the program) and then
-  re-points the slots of the rebuilt functions whose prototypes are unchanged, with an atomic store. `reload` is a
-  REPL command, so it runs where the program waits; the watcher's signal is handled in the scheduler's idle, beside
-  the REPL's commands. While a reload runs, the scheduler is paused and a wait blocks where it is, so nothing else
-  runs until the swap is done; the program waits for the compile (under a second for a small program). After a swap the file hashes
-  are updated. A library is never unloaded: values it made, such as its text literals, may still be referenced.
+  re-points the slots of the rebuilt functions whose prototypes are unchanged, with an atomic store. **The compile
+  runs on a helper thread** (D211, decided by Claude under D205): the watcher's thread compiles a change it sees,
+  and the REPL's thread compiles before it hands `reload` over, one compile at a time; the finished library waits
+  until the program's first wait or check point after it, where the program swaps it in, so the program never waits
+  for the compiler. `reload` answers what its own compile produced (swapped in by then), and a later result
+  replaces one not yet swapped in, except that `unchanged` never replaces a library. While the swap runs, the
+  scheduler is paused and a wait blocks where it is, so nothing else runs until it is done. After a swap the file
+  hashes are updated. A library is never unloaded: values it made, such as its text literals, may still be
+  referenced.
 - **What reloads.** A function body (the next call runs it; a call already running finishes the old one). A new
-  function or a new class (the new code calls it; the REPL's `functions` and reflection keep what the program
-  started with). A changed parameter list or return type (a new function: the rebuilt class and its callers are
+  function or a new class (the new code calls it). **Reflection follows the reload** (D211, decided by Claude under
+  D205): each program class's list of functions, `<Class>___functions`, has a slot like a function, and a rebuilt
+  class's library swaps in its new list, so the REPL's `functions` lists a function a reload added and calls it at
+  the prompt (`check.sh` adds `growl()` to `monster.spite` and calls `monster.growl()`). The cost is one slot per
+  class, only in a `--hot-reload` build. A changed parameter list or return type (a new function: the rebuilt class and its callers are
   rebuilt). A deleted function keeps its last code for whatever still holds it, a function value or the REPL, and
   the answer names it. An attribute's default value (through the `_init` slot, for instances made afterwards).
 - **What needs a restart: a class's attributes or enums.** When the layout of a class or enum the running
@@ -533,8 +542,10 @@ session against a copy of the program it edits.
   `Watcher` ([System classes](standard_library.md#system-classes--implemented)), the one watcher any program uses: `ReadDirectoryChangesW` with overlapped I/O from
   `kernel32.dll` on Windows, `inotify` and `poll` from `libc.so.6` on Linux, and `kqueue`/`kevent` on each folder
   and file from `libSystem.dylib` on macOS -- no polling. On a thread of its own, it calls `wait_for_changes()`,
-  which returns once 100 ms pass without a change, then sets a flag and wakes the scheduler. The program's own
-  folder is watched with every folder below it, not the folders it `load`s; `reload` picks those up.
+  which returns once 100 ms pass without a change, then compiles the change and wakes the scheduler. The program's
+  own folder is watched with every folder below it, and so is **every folder the program loads** (D211: the
+  compiler writes their list into the build, `HotReload.loaded_folders()`; `check.sh` holds it for
+  `conformance/stage6/load_on_build`).
 - **Windows' C runtime.** When the C compiler targets MSVC (its `-dumpmachine`), the program and its libraries are
   built against the C runtime DLL (`-fms-runtime-lib=dll`) so they share one heap and one standard output.
 - **Untested:** Linux and macOS -- their watchers, `.so`/`.dylib` libraries and `Program.executable_path` (which

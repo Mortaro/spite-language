@@ -288,3 +288,14 @@ Behaviour that does not match the manual. The language was not changed; each is 
      Windows): about 700 ms to a file against about 140 ms buffered until exit; the same to a pipe or the null
      device. Nothing cheaper shows every line promptly without a thread. Keep it for every program, or should a
      program be able to say it prints to a file nobody watches (a build setting, say) and keep the buffer?
+## Put back from D211 (building it would measure slower)
+
+200. **Reads overlapping the statements after them (item 149).** D211 settled it as "a read overlaps the
+     statements after it until its name is used, where the compiler proves they do not touch the file", but it
+     measured slower, so under D205 it is not built. The overlap needs the read on a helper thread (a
+     `Concurrent`), and starting one costs more than a small read saves. Measured with a 4 KB file, `clang -O2`,
+     Windows, best of seven, reading it and then doing work that never touches it: with about 20 microseconds of
+     work between the read and its use, 2 000 rounds took 186 ms read in place and 393 ms overlapped; with about
+     450 microseconds of work, 300 rounds took 136 ms against 137 ms. The overlap only wins when the read itself
+     waits long (a cold or remote file), which the compiler cannot know. Keep reads where they are (only reads in a
+     row overlap, as built), or overlap them anyway where the file is large or remote by some rule you choose?

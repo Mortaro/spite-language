@@ -1,0 +1,13 @@
+singleton
+
+var drawn = 0
+
+func run() {
+    while true {
+        drawn = drawn + 1
+    }
+}
+
+func frames(): Integer {
+    return drawn
+}

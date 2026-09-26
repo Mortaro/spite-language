@@ -1,0 +1,7 @@
+var console = Console()
+
+func WeakAcrossThreads() {
+    var tree = Tree()
+    var counted = Parallel(tree.grow)
+    console.print(counted)
+}

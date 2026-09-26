@@ -35,6 +35,10 @@ var weak_classes = List<String>()
 var scheduler_used = false
 var implicit_joins = List<Syntax.Expressions.MemberExpression>()
 var parallel_used = false
+var check_point_flag_written = false
+var parallel_site_keys = List<String>()
+var parallel_site_texts = List<String>()
+var parallel_site_places = List<String>()
 var guarded_classes = List<Analysis.ClassInfo>()
 var guarded_functions = List<Analysis.FunctionInfo>()
 var guarded_positions = List<Integer>()
@@ -149,6 +153,12 @@ var hardcoded_settings = List<Syntax.Statements.VariableDeclaration>()
 var placement = Placement()
 var old_spellings = OldSpellings()
 var frame_candidates = List<String>()
+var lent_parameters_class = ""
+var frame_variadic_allowed = false
+var framed_cleanups = List<String>()
+var framed_list_counter = 0
+var framed_list_helpers = List<String>()
+var read_list_answers = Dictionary<Boolean>()
 var pending_allocator: Syntax.Statements.AssignmentStatement? = null
 var chosen_allocator_lines = List<String>()
 var allocated_classes = List<Analysis.ClassInfo>()
@@ -546,6 +556,9 @@ func generate(
     emit_hot_reload_support()
     if parallel_used {
         finish_singleton_guards()
+    }
+    if parallel_used and not weak_classes.is_empty() {
+        report_weak_across_threads()
     }
     if not atomic_classes.is_empty() {
         finish_atomic_singletons()
@@ -4336,11 +4349,35 @@ func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInf
         if class_path == "memory/address" {
             function.supplied_body = address_body(function)
         }
+        if class_path == "scheduler" and function.name.ends_with("_check_point") {
+            function.supplied_body = check_point_flag_body(function.name)
+        }
         return
     }
     report(
         "'{information.simple_name}.{function.name}' has no body, and only a function whose body the compiler supplies is written without one: give it a body",
     )
+}
+
+func check_point_flag_body(name: String): String {
+    var checked = remote_loop_port > 0 or hot_reload
+    if not checked and name == "_want_check_point" {
+        return "(void)self;"
+    }
+    if not checked {
+        return "(void)self;\nreturn true;"
+    }
+    ensure_check_point_flag()
+    if name == "_want_check_point" {
+        return "(void)self;\n__atomic_store_n(&spite_check_point_wanted, 1, __ATOMIC_RELEASE);"
+    }
+    return "(void)self;\nreturn __atomic_exchange_n(&spite_check_point_wanted, 0, __ATOMIC_ACQ_REL) != 0;"
+}
+
+func ensure_check_point_flag() {
+    assert not check_point_flag_written
+    check_point_flag_written = true
+    builder.add_prototype("static int32_t spite_check_point_wanted = 0;")
 }
 
 func address_body(function: Analysis.FunctionInfo): String {
@@ -7356,10 +7393,135 @@ func generate_spread_arguments(
         )
         return result
     }
+    if framing_variadic(fixed_count) {
+        var framed_code = framed_variadic(elements, variadic, scope, class_information)
+        result.append(framed_code)
+        return result
+    }
     var gathered: Syntax.Expressions.Expression = Syntax.Expressions.ListLiteralExpression(elements)
     var gathered_code = coerce_for_store(gathered, variadic, scope, class_information)
     result.append(gathered_code)
     return result
+}
+
+func framing_variadic(variadic_index: Integer): Boolean {
+    assert frame_variadic_allowed and conditional_depth == 0 and not resumable_mode and not argument_callee.is_empty()
+    var key = "{argument_callee}#{variadic_index}"
+    if read_list_answers.has(key) {
+        return read_list_answers[key] == true
+    }
+    var answer = callee_only_reads(argument_callee, variadic_index)
+    read_list_answers.set(key, answer)
+    return answer
+}
+
+func callee_only_reads(callee_c_name: String, variadic_index: Integer): Boolean {
+    var class_index = 0
+    while class_index < classes.count() {
+        var owner = classes[class_index]
+        var function_index = 0
+        while function_index < owner.functions.count() {
+            var function = owner.functions[function_index]
+            if function.c_name == callee_c_name {
+                assert not is_hot_class(owner) and function.has_body
+                var names = List<String>()
+                var parameter_lists = List<List<String>>()
+                var bodies = List<List<Syntax.Statements.Statement>>()
+                collect_list_parameters(owner, names, parameter_lists, bodies)
+                var read_lists = placement.study_read_lists(names, parameter_lists, bodies)
+                return read_lists.contains("{function.name}#{variadic_index}")
+            }
+            function_index = function_index + 1
+        }
+        class_index = class_index + 1
+    }
+    return false
+}
+
+func collect_list_parameters(
+    owner: Analysis.ClassInfo,
+    names: List<String>,
+    parameter_lists: List<List<String>>,
+    bodies: List<List<Syntax.Statements.Statement>>,
+) {
+    var index = 0
+    while index < owner.functions.count() {
+        var function = owner.functions[index]
+        if function.has_body and not function.is_constructor {
+            names.append(function.name)
+            var list_names = list_parameter_names(function)
+            parameter_lists.append(list_names)
+            bodies.append(function.body)
+        }
+        index = index + 1
+    }
+}
+
+func list_parameter_names(function: Analysis.FunctionInfo): List<String> {
+    var names = List<String>()
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var parameter_type = parameter.get_type()
+        if type_shape.as_list(parameter_type) {
+            names.append(parameter.name)
+        } else {
+            names.append("")
+        }
+        index = index + 1
+    }
+    return names
+}
+
+func framed_variadic(
+    elements: List<Syntax.Expressions.ListElement>,
+    variadic: Analysis.SpiteType,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var gathered_list = type_shape.as_list(variadic)
+    crash gathered_list
+    var element = gathered_list.get_element()
+    var list_name = ensure_list(element)
+    ensure_framed_list_helper(list_name)
+    framed_list_counter = framed_list_counter + 1
+    var framed = "spite_framed_{framed_list_counter}"
+    var element_c_type = c_type_name(element)
+    var element_count = elements.count()
+    var slots = element_count
+    if slots == 0 {
+        slots = 1
+    }
+    builder.add_user("{list_name} {framed}; {element_c_type} {framed}_items[{slots}]; int32_t {framed}_count = 0;")
+    var lines = List<String>()
+    var index = 0
+    while index < element_count {
+        var listed = elements.get_at(index)
+        crash listed.value
+        var element_code = coerce_for_store(listed.value, element, scope, class_information)
+        lines.append("{framed}_items[{index}] = {element_code};")
+        index = index + 1
+    }
+    lines.append("{framed}_count = {element_count};")
+    lines.append("{list_name}___framed(&{framed}, (int64_t)(intptr_t){framed}_items, {element_count});")
+    if type_needs_drop(element) {
+        var released = release_call(element, "{framed}_items[spite_index]")
+        framed_cleanups.append(
+            "for (int32_t spite_index = 0; spite_index < {framed}_count; spite_index = spite_index + 1) \{ {released}; }",
+        )
+    }
+    return "(\{ {lines.join(" ")} })"
+}
+
+func ensure_framed_list_helper(list_name: String) {
+    assert not framed_list_helpers.contains(list_name)
+    framed_list_helpers.append(list_name)
+    var list_class = find_class_by_c_name(list_name)
+    crash list_class
+    builder.add_prototype("static {list_name}* {list_name}___framed({list_name}* self, int64_t items, int32_t count);")
+    builder.add_support(
+        "static {list_name}* {list_name}___framed({list_name}* self, int64_t items, int32_t count) \{\n{list_name}___init(self);\nself->header.ref_count = 2;\nself->header.class_id = {list_class.class_id};\nself->items_ = items;\nself->item_count_ = count;\nself->capacity_ = count;\nreturn self;\n}",
+    )
 }
 
 func whole_list_passed(
@@ -9278,6 +9440,7 @@ func check_parallel_work(
         assert own
         var visited = List<String>()
         check_parallel_reach(class_information, own, "Parallel({work_text})", visited)
+        remember_parallel_site(class_information, own, work_text)
         return
     }
     var member = shape.as_member(work)
@@ -9295,6 +9458,83 @@ func check_parallel_work(
     assert function
     var visited = List<String>()
     check_parallel_reach(owner, function, "Parallel({work_text})", visited)
+    remember_parallel_site(owner, function, work_text)
+}
+
+func remember_parallel_site(owner: Analysis.ClassInfo, function: Analysis.FunctionInfo, work_text: String) {
+    parallel_site_keys.append("{owner.simple_name}#{function.name}")
+    parallel_site_texts.append(work_text)
+    parallel_site_places.append("{current_path}\n{current_line}\n{current_owner}\n{current_function}")
+}
+
+func report_weak_across_threads() {
+    assert not weak_classes.is_empty()
+    var index = 0
+    while index < parallel_site_keys.count() {
+        var keys = List<String>()
+        var site_key = parallel_site_keys.get_at(index)
+        keys.append(site_key)
+        var reached = call_effects.reached_classes(keys)
+        var weak_name = weak_class_reached(reached)
+        if not weak_name.is_empty() {
+            var site_place = parallel_site_places.get_at(index)
+            var place = site_place.split("\n")
+            current_path = place.get_at(0)
+            var line_text = place.get_at(1)
+            current_line = line_text.to_integer()
+            current_owner = place.get_at(2)
+            current_function = place.get_at(3)
+            var work_text = parallel_site_texts.get_at(index)
+            report(
+                "'Parallel({work_text})' runs on another thread, and what it runs reaches '{weak_name}', which is a Weak or is held by one: a Weak is kept in one table that is not shared between threads, so a Weak and the objects it holds stay on the program's own thread. Hold the object itself in the work, or keep the Weak out of what the Parallel reaches",
+            )
+        }
+        index = index + 1
+    }
+}
+
+func weak_class_reached(reached: Dictionary<Boolean>): String {
+    var index = 0
+    while index < weak_classes.count() {
+        var held = find_class_by_c_name(weak_classes[index])
+        if held {
+            if reached.has(held.simple_name) {
+                return held.simple_name
+            }
+        }
+        index = index + 1
+    }
+    index = 0
+    while index < classes.count() {
+        var reached_class = classes[index]
+        if reached.has(reached_class.simple_name) and not is_library_class(reached_class) {
+            var weak_field = weak_field_of(reached_class)
+            if not weak_field.is_empty() {
+                return weak_field
+            }
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func weak_field_of(information: Analysis.ClassInfo): String {
+    var index = 0
+    while index < information.fields.count() {
+        var field_type = information.fields[index].get_type()
+        var inner = expected_type_without_nullable(field_type)
+        var class_ref = type_shape.as_class_ref(inner)
+        if class_ref {
+            var held = find_class_by_c_name(class_ref.c_name)
+            if held {
+                if held.qualified_dotted == "Weak" {
+                    return "{information.simple_name}.{information.fields[index].name}"
+                }
+            }
+        }
+        index = index + 1
+    }
+    return ""
 }
 
 func collect_declared_names(statements: List<Syntax.Statements.Statement>, names: List<String>) {
@@ -10626,7 +10866,12 @@ func emit_functions_function(information: Analysis.ClassInfo) {
         instantiate_member_templates_of(information)
     }
     var lines = List<String>()
-    lines.append("{list_name}* {function_c_name}({information.c_name}* self) \{")
+    var defined_name = function_c_name
+    if is_hot_class(information) {
+        defined_name = "{function_c_name}___hot"
+        add_hot_functions_slot(information, list_name)
+    }
+    lines.append("{list_name}* {defined_name}({information.c_name}* self) \{")
     lines.append("{list_name}* result = {list_name}___make();")
     var index = 0
     while index < information.functions.count() {
@@ -10646,7 +10891,11 @@ func emit_functions_function(information: Analysis.ClassInfo) {
                 )
                 parameter_index = parameter_index + 1
             }
-            lines.append("described->spite_owner = {information.c_name}___retain(self);")
+            var retained_self = "{information.c_name}___retain(self)"
+            if is_hot_class(information) {
+                retained_self = "(\{ SPITE_COUNT_UP(self->header.ref_count); self; })"
+            }
+            lines.append("described->spite_owner = {retained_self};")
             lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
             var function_return_type = function.get_return_type()
             var callable = not is_inline_supplied(function)
@@ -12850,6 +13099,9 @@ func generate_member_read_raw(
         var peeked_temporary = next_temporary()
         var peeked_read = "(\{ {c_type_name(object_result_type)} {peeked_temporary} = {peeked}; {peeked_temporary} != 0 ? ({peeked_temporary})->{c_value_name(member.name)} : ({field.default_value_code}); })"
         return ExpressionResult(peeked_read, peeked_field_type)
+    }
+    if reads_changing_singleton(target_class, class_information) {
+        return guarded_outside_read(target_class, object_result, member.object, field)
     }
     if owns(object_result, member.object) {
         var object_temporary = next_temporary()
@@ -15176,6 +15428,48 @@ func generate_store(
         return
     }
     report("unsupported assignment target")
+}
+
+func study_lent_parameters_of(information: Analysis.ClassInfo) {
+    assert lent_parameters_class != information.c_name
+    lent_parameters_class = information.c_name
+    var names = List<String>()
+    var parameter_lists = List<List<String>>()
+    var bodies = List<List<Syntax.Statements.Statement>>()
+    var index = 0
+    var swappable = is_hot_class(information)
+    while index < information.functions.count() {
+        var function = information.functions[index]
+        if function.has_body and not function.is_constructor and not swappable {
+            names.append(function.name)
+            var address_names = address_parameter_names(function)
+            parameter_lists.append(address_names)
+            bodies.append(function.body)
+        }
+        index = index + 1
+    }
+    placement.study_lent_parameters(names, parameter_lists, bodies)
+}
+
+func address_parameter_names(function: Analysis.FunctionInfo): List<String> {
+    var names = List<String>()
+    var index = 0
+    while index < function.parameters.count() {
+        var parameter = function.parameters[index]
+        var parameter_type = parameter.get_type()
+        var scalar = type_shape.as_scalar(parameter_type)
+        var address = false
+        if scalar {
+            address = scalar.kind == 'address_kind'
+        }
+        if address {
+            names.append(parameter.name)
+        } else {
+            names.append("")
+        }
+        index = index + 1
+    }
+    return names
 }
 
 func generate_statement_list(
@@ -18386,8 +18680,9 @@ func add_loop_check_point(class_information: Analysis.ClassInfo) {
     var check_point = find_or_instantiate_function(scheduler_class, "check_point")
     crash check_point
     var scheduler = singleton_call(scheduler_class)
+    ensure_check_point_flag()
     builder.add_user(
-        "\{ Scheduler* spite_check_point = {scheduler}; {check_point.c_name}(spite_check_point); Scheduler___release(spite_check_point); }",
+        "if (__atomic_load_n(&spite_check_point_wanted, __ATOMIC_RELAXED) != 0) \{ Scheduler* spite_check_point = {scheduler}; {check_point.c_name}(spite_check_point); Scheduler___release(spite_check_point); }",
     )
 }
 
@@ -18796,13 +19091,22 @@ func generate_expression_statement(
     assert expression_statement.value
     assert not freed_from_frame(expression_statement, scope)
     report_dropped_construction(expression_statement.value, class_information)
+    frame_variadic_allowed = not resumable_mode
     var result = generate_expression(expression_statement.value, scope, class_information)
+    frame_variadic_allowed = false
+    emit_result_statement(result, expression_statement)
+    framed_cleanups.each(builder.add_user)
+    framed_cleanups.clear()
+}
+
+func emit_result_statement(result: ExpressionResult, expression_statement: Syntax.Statements.ExpressionStatement) {
     var result_type = result.get_type()
     if type_shape.is_void(result_type) {
         builder.add_user("{result.code};")
         return
     }
     if type_needs_drop(result_type) {
+        crash expression_statement.value
         if owns(result, expression_statement.value) {
             var temporary = next_temporary()
             builder.add_user("{c_type_name(result_type)} {temporary} = {result.code};")
@@ -19394,6 +19698,7 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         current_path = function.source_path
     }
     bind_symbol_of(function)
+    study_lent_parameters_of(information)
     var waiting = waiting_kind(information, function)
     if not waiting.is_empty() {
         waiting_classes.append(information)
@@ -19915,12 +20220,84 @@ func finish_singleton_guards() {
             builder.replace_user(position, "{unguarded_signature} \{")
             builder.add_prototype("{unguarded_signature};")
             emit_guard_wrapper(information, function, unguarded_name)
+            report_endless_locked_loop(information, function)
             wrapped.append(index)
         }
         index = index + 1
     }
     emitted_guards = guarded_names
     call_unguarded_inside(wrapped)
+}
+
+func report_endless_locked_loop(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
+    var line = endless_loop_line(function.body)
+    assert line > 0
+    current_path = information.source_path
+    if not function.source_path.is_empty() {
+        current_path = function.source_path
+    }
+    current_owner = information.qualified_dotted
+    current_function = function.name
+    current_line = line
+    report(
+        "'{information.simple_name}.{function.name}' holds {information.simple_name}'s lock for the whole call, since a Parallel reaches {information.simple_name}, and this loop never ends, so every other call on {information.simple_name} would wait forever: move the loop into a class that is not a singleton, and call {information.simple_name} from it",
+    )
+}
+
+func endless_loop_line(statements: List<Syntax.Statements.Statement>): Integer {
+    var index = 0
+    while index < statements.count() {
+        var line = statement_endless_loop_line(statements[index])
+        if line > 0 {
+            return line
+        }
+        index = index + 1
+    }
+    return 0
+}
+
+func statement_endless_loop_line(statement: Syntax.Statements.Statement): Integer {
+    switch statement {
+        Syntax.Statements.WhileStatement: {
+            crash statement.condition
+            if shape.is_true_literal(statement.condition) and not can_leave(statement.body) {
+                return statement.line
+            }
+            return endless_loop_line(statement.body)
+        }
+        Syntax.Statements.IfStatement: {
+            var then_line = endless_loop_line(statement.then_branch)
+            if then_line > 0 {
+                return then_line
+            }
+            return endless_loop_line(statement.else_branch)
+        }
+        _: return 0
+    }
+}
+
+func can_leave(statements: List<Syntax.Statements.Statement>): Boolean {
+    return statements.any(statement_can_leave)
+}
+
+func statement_can_leave(statement: Syntax.Statements.Statement): Boolean {
+    switch statement {
+        Syntax.Statements.ReturnStatement: return true
+        Syntax.Statements.AssertStatement: return true
+        Syntax.Statements.IfStatement: return can_leave(statement.then_branch) or can_leave(statement.else_branch)
+        Syntax.Statements.WhileStatement: return can_leave(statement.body)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                if can_leave(statement.cases[case_index].body) {
+                    return true
+                }
+                case_index = case_index + 1
+            }
+            return false
+        }
+        _: return false
+    }
 }
 
 func call_unguarded_inside(wrapped: List<Integer>) {
@@ -20314,6 +20691,55 @@ func emit_guarded_outside_write(
         builder.add_user("{target_code} = {stored};")
         builder.add_user("{owner}___outside_leave();")
     }
+}
+
+func reads_changing_singleton(target_class: Analysis.ClassInfo, class_information: Analysis.ClassInfo): Boolean {
+    assert guards_outside_write(target_class) and target_class.c_name != class_information.c_name
+    return changes_after_construction(target_class)
+}
+
+func guarded_outside_read(
+    target_class: Analysis.ClassInfo,
+    object_result: ExpressionResult,
+    object_ast: Syntax.Expressions.Expression,
+    field: Analysis.FieldInfo,
+): ExpressionResult {
+    var owner = target_class.c_name
+    var object_type = object_result.get_type()
+    var field_type = field.get_type()
+    var object_temporary = next_temporary()
+    var field_temporary = next_temporary()
+    var lines = List<String>()
+    lines.append("{c_type_name(object_type)} {object_temporary} = {object_result.code};")
+    var place = "({object_temporary})->{c_value_name(field.name)}"
+    var atomic = atomic_singleton_fields(target_class)
+    var loaded_atomically = atomic.contains(field.name)
+    if loaded_atomically {
+        if not atomic_class_names.contains(owner) {
+            atomic_class_names.append(owner)
+            atomic_classes.append(target_class)
+        }
+        lines.append("{c_type_name(field_type)} {field_temporary} = SPITE_SINGLETON_LOAD({owner}, {place});")
+    } else {
+        if not outside_class_names.contains(owner) {
+            outside_class_names.append(owner)
+            outside_classes.append(target_class)
+        }
+        var read_code = place
+        if type_needs_drop(field_type) {
+            read_code = retain_call(field_type, place)
+        }
+        lines.append("{owner}___outside_enter();")
+        lines.append("{c_type_name(field_type)} {field_temporary} = {read_code};")
+        lines.append("{owner}___outside_leave();")
+    }
+    if owns(object_result, object_ast) {
+        lines.append("{release_call(object_type, object_temporary)};")
+    }
+    lines.append("{field_temporary};")
+    var guarded_read = ExpressionResult("(\{ {lines.join(" ")} })", field_type)
+    guarded_read.owning_override = type_needs_drop(field_type) and not loaded_atomically
+    return guarded_read
 }
 
 func finish_atomic_singletons() {
@@ -20766,6 +21192,21 @@ func add_hot_slot(information: Analysis.ClassInfo, function: Analysis.FunctionIn
     hot_slot_displays.append("{information.qualified_dotted}.{function.name}")
 }
 
+func add_hot_functions_slot(information: Analysis.ClassInfo, list_name: String) {
+    var functions_name = "{information.c_name}___functions"
+    builder.add_prototype("{list_name}* {functions_name}___hot({information.c_name}* self);")
+    builder.add_slot(
+        functions_name,
+        "static {list_name}* (*{functions_name}___slot)({information.c_name}* self) = {functions_name}___hot;",
+    )
+    builder.add_support(
+        "{list_name}* {functions_name}({information.c_name}* self) \{\nreturn {functions_name}___slot(self);\n}",
+    )
+    hot_slot_names.append(functions_name)
+    hot_slot_owners.append(information.c_name)
+    hot_slot_displays.append("{information.qualified_dotted}'s list of functions")
+}
+
 func add_hot_initialize_slot(information: Analysis.ClassInfo) {
     var initialize_name = "{information.c_name}___init"
     builder.add_prototype("void {initialize_name}___hot({information.c_name}* self);")
@@ -20788,6 +21229,19 @@ func hot_reload_body(name: String): String {
     }
     if name == "program_file" {
         return "return {owned_c_text(hot_reload_program_file)};"
+    }
+    if name == "loaded_folders" {
+        var folders = List<String>()
+        var index = 0
+        while index < loaded_folders.count() {
+            var folder = loaded_folders[index]
+            var folder_length = folder.length()
+            var without_slash = folder.slice(0, folder_length - 1)
+            folders.append(without_slash)
+            index = index + 1
+        }
+        var joined = folders.join("\n")
+        return "return {owned_c_text(joined)};"
     }
     if name == "watcher_entry" and hot_reload {
         return "return (int64_t)(intptr_t)&spite_hot_reload_thread;"

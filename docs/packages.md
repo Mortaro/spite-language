@@ -314,8 +314,15 @@ package/engine/renderer/debug.spite      ->  Engine.Renderer.Debug()
   the program's folder has its `load`s followed, the entry file's first, like every file of a loaded root, so a
   sibling file's `load "tools"` loads `tools/` as a package root (D195: a `load` works in any file, and the entry
   file only names what runs first; `conformance/stage6/sibling_load`). The launcher class's own `load`s, printed
-  into a `--final-classes` folder, are the launcher's and are not followed from there. A file in a sub folder that loads a folder inside its own tree gets it twice,
-  as a namespace and as a root, as a package does (`mortaros_missing_decisions.md` item 154).
+  into a `--final-classes` folder, are the launcher's and are not followed from there.
+- **A folder named by a `load` inside its own tree is never also a namespace** (D211, decided by Claude under
+  D205). A package `kitchen/` whose file loads `"garnish/pepper"` gets `kitchen/garnish/pepper/` as a root of its
+  own, and not also as the namespace `Garnish.Pepper`, as the program's own folder already did for what its top
+  files load; the same holds for a file in any folder of the program. Every `load` written in the package counts,
+  including one under an `if` the build decides the other way, so `kitchen/garnish/sugar/` is neither a root nor a
+  namespace then. The compiler finds them by reading the package's `load` lines before it walks its folders
+  (`diagnostics/loaded_folder_namespace`, `conformance/stage6/load_on_build`). `Build` is still read before any
+  package is loaded, so a package's `build.spite` cannot add a field that decides a `load`.
 - **Folder names are always lowercase snake_case, package roots included** (D181): `slop_window_plugin`, never
   `slop-window-plugin`, for every folder that actually contains a `.spite` file anywhere inside it (an unrelated
   folder with none, such as `.git` or a build output directory, is never descended for classes). A folder that

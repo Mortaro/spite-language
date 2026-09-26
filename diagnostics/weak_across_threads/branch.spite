@@ -1,0 +1,1 @@
+var parent = Weak<Branch>(null)

@@ -1,0 +1,4 @@
+diagnostics/loaded_folder_namespace/kitchen/chef.spite:6: error: unknown identifier 'Garnish' (in Chef.serve)
+diagnostics/loaded_folder_namespace/kitchen/chef.spite:6: error: 'Pepper' cannot be read from this value (in Chef.serve)
+diagnostics/loaded_folder_namespace/kitchen/chef.spite:6: error: a Value has no function 'Topping' (in Chef.serve)
+diagnostics/loaded_folder_namespace/kitchen/chef.spite:7: error: a Value has no function 'name' (in Chef.serve)

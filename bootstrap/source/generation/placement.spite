@@ -1,4 +1,6 @@
 var shape = Analysis.AstShape()
+var lent_parameters = List<String>()
+var read_lists = List<String>()
 
 func frame_candidates(statements: List<Syntax.Statements.Statement>): List<String> {
     var names = List<String>()
@@ -163,7 +165,8 @@ func expression_keeps_in_frame(
             var lends = lends_address(expression.callee, receiver)
             var index = 0
             while index < expression.arguments.count() {
-                assert expression_keeps_in_frame(name, receiver, expression.arguments[index], lends)
+                var argument_lent = lends or lent_to_own_function(expression.callee, index)
+                assert expression_keeps_in_frame(name, receiver, expression.arguments[index], argument_lent)
                 index = index + 1
             }
             var at_address = shape.as_member(expression.callee)
@@ -214,6 +217,53 @@ func expression_keeps_in_frame(
     }
 }
 
+func lent_to_own_function(callee: Syntax.Expressions.Expression, index: Integer): Boolean {
+    var called = shape.as_identifier(callee)
+    assert called
+    return lent_parameters.contains("{called.name}#{index}")
+}
+
+func study_lent_parameters(
+    names: List<String>,
+    parameter_lists: List<List<String>>,
+    bodies: List<List<Syntax.Statements.Statement>>,
+) {
+    lent_parameters = List<String>()
+    var changed = true
+    while changed {
+        changed = false
+        var index = 0
+        while index < names.count() {
+            var function_name = names.get_at(index)
+            var parameters = parameter_lists.get_at(index)
+            var body = bodies.get_at(index)
+            if study_function_parameters(function_name, parameters, body) {
+                changed = true
+            }
+            index = index + 1
+        }
+    }
+}
+
+func study_function_parameters(
+    function_name: String,
+    parameters: List<String>,
+    body: List<Syntax.Statements.Statement>,
+): Boolean {
+    var added = false
+    var index = 0
+    while index < parameters.count() {
+        var key = "{function_name}#{index}"
+        var parameter = parameters.get_at(index)
+        if not parameter.is_empty() and not lent_parameters.contains(key) and stays_in_frame(parameter, "", body, 0) {
+            lent_parameters.append(key)
+            added = true
+        }
+        index = index + 1
+    }
+    return added
+}
+
 func lends_address(callee: Syntax.Expressions.Expression, receiver: String): Boolean {
     var member = shape.as_member(callee)
     assert member
@@ -253,4 +303,177 @@ func is_address_primitive(name: String): Boolean {
         "text"
     ]
     return primitives.contains(name)
+}
+
+func study_read_lists(
+    names: List<String>,
+    parameter_lists: List<List<String>>,
+    bodies: List<List<Syntax.Statements.Statement>>,
+): List<String> {
+    read_lists = List<String>()
+    var changed = true
+    while changed {
+        changed = false
+        var index = 0
+        while index < names.count() {
+            var function_name = names.get_at(index)
+            var parameters = parameter_lists.get_at(index)
+            var body = bodies.get_at(index)
+            if study_read_list_parameters(function_name, parameters, body) {
+                changed = true
+            }
+            index = index + 1
+        }
+    }
+    return read_lists
+}
+
+func study_read_list_parameters(
+    function_name: String,
+    parameters: List<String>,
+    body: List<Syntax.Statements.Statement>,
+): Boolean {
+    var added = false
+    var index = 0
+    while index < parameters.count() {
+        var key = "{function_name}#{index}"
+        var parameter = parameters.get_at(index)
+        if not parameter.is_empty() and not read_lists.contains(key) and block_only_reads(parameter, body) {
+            read_lists.append(key)
+            added = true
+        }
+        index = index + 1
+    }
+    return added
+}
+
+func block_only_reads(name: String, statements: List<Syntax.Statements.Statement>): Boolean {
+    var index = 0
+    while index < statements.count() {
+        assert statement_only_reads(name, statements[index])
+        index = index + 1
+    }
+    return true
+}
+
+func statement_only_reads(name: String, statement: Syntax.Statements.Statement): Boolean {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: {
+            crash statement.value
+            return statement.name != name and expression_only_reads(name, statement.value)
+        }
+        Syntax.Statements.AssignmentStatement: {
+            crash statement.target
+            crash statement.value
+            assert not written_through(name, statement.target)
+            return expression_only_reads(name, statement.target) and expression_only_reads(name, statement.value)
+        }
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            return expression_only_reads(name, statement.value)
+        }
+        Syntax.Statements.ReturnStatement: {
+            if statement.value {
+                return expression_only_reads(name, statement.value)
+            }
+            return true
+        }
+        Syntax.Statements.AssertStatement: {
+            crash statement.value
+            return expression_only_reads(name, statement.value)
+        }
+        Syntax.Statements.IfStatement: {
+            crash statement.condition
+            return expression_only_reads(name, statement.condition) and block_only_reads(name, statement.then_branch) and block_only_reads(name, statement.else_branch)
+        }
+        Syntax.Statements.WhileStatement: {
+            crash statement.condition
+            return expression_only_reads(name, statement.condition) and block_only_reads(name, statement.body)
+        }
+        _: return false
+    }
+}
+
+func written_through(name: String, target: Syntax.Expressions.Expression): Boolean {
+    var assigned = shape.as_identifier(target)
+    if assigned {
+        return assigned.name == name
+    }
+    var indexed = shape.as_index(target)
+    assert indexed
+    crash indexed.object
+    var indexed_list = shape.as_identifier(indexed.object)
+    assert indexed_list
+    return indexed_list.name == name
+}
+
+func expression_only_reads(name: String, expression: Syntax.Expressions.Expression): Boolean {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return expression.name != name
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            return expression_only_reads(name, expression.left) and expression_only_reads(name, expression.right)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return expression_only_reads(name, expression.operand)
+        }
+        Syntax.Expressions.CallExpression: return call_only_reads(name, expression)
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            return expression_only_reads(name, expression.object)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            assert names_list(name, expression.object) or expression_only_reads(name, expression.object)
+            return expression_only_reads(name, expression.index)
+        }
+        Syntax.Expressions.StringLiteralExpression: return true
+        Syntax.Expressions.IntegerLiteral: return true
+        Syntax.Expressions.EnumLiteralExpression: return true
+        Syntax.Expressions.TrueLiteral: return true
+        Syntax.Expressions.FalseLiteral: return true
+        Syntax.Expressions.NullLiteral: return true
+        _: return false
+    }
+}
+
+func names_list(name: String, expression: Syntax.Expressions.Expression): Boolean {
+    var named = shape.as_identifier(expression)
+    assert named
+    return named.name == name
+}
+
+func call_only_reads(name: String, call: Syntax.Expressions.CallExpression): Boolean {
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    var read_on_list = false
+    if member {
+        crash member.object
+        read_on_list = names_list(name, member.object)
+        assert not read_on_list or is_list_read(member.name)
+    }
+    if not read_on_list {
+        assert expression_only_reads(name, call.callee)
+    }
+    var own = shape.as_identifier(call.callee)
+    var index = 0
+    while index < call.arguments.count() {
+        var argument = call.arguments[index]
+        if names_list(name, argument) {
+            assert own
+            assert read_lists.contains("{own.name}#{index}")
+        } else {
+            assert expression_only_reads(name, argument)
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func is_list_read(name: String): Boolean {
+    var reads = ["count", "is_empty", "get_at", "find_at", "first", "last", "contains", "join"]
+    return reads.contains(name)
 }
