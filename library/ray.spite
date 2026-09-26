@@ -1,0 +1,87 @@
+var origin_x: Float = 0.0
+var origin_y: Float = 0.0
+var origin_z: Float = 0.0
+var direction_x: Float = 0.0
+var direction_y: Float = 0.0
+var direction_z: Float = -1.0
+
+func Ray(starting_origin: Vector3, starting_direction: Vector3) {
+    origin_x = starting_origin.x_value
+    origin_y = starting_origin.y_value
+    origin_z = starting_origin.z_value
+    direction_x = starting_direction.x_value
+    direction_y = starting_direction.y_value
+    direction_z = starting_direction.z_value
+}
+
+func origin(): Vector3 {
+    return Vector3(origin_x, origin_y, origin_z)
+}
+
+func direction(): Vector3 {
+    return Vector3(direction_x, direction_y, direction_z)
+}
+
+func point_at(along: Float): Vector3 {
+    return Vector3(origin_x + direction_x * along, origin_y + direction_y * along, origin_z + direction_z * along)
+}
+
+func hit_plane(plane: Plane): Float? {
+    var facing = plane.normal_x * direction_x + plane.normal_y * direction_y + plane.normal_z * direction_z
+    assert facing != 0.0
+    var height = plane.normal_x * origin_x + plane.normal_y * origin_y + plane.normal_z * origin_z + plane.distance
+    var along = (0.0 - height) / facing
+    assert along >= 0.0
+    return along
+}
+
+func hit_box(box: AxisAlignedBox): Float? {
+    var inverse_x = 1.0 / direction_x
+    var inverse_y = 1.0 / direction_y
+    var inverse_z = 1.0 / direction_z
+    var first_x = (box.lowest_x - origin_x) * inverse_x
+    var second_x = (box.highest_x - origin_x) * inverse_x
+    var first_y = (box.lowest_y - origin_y) * inverse_y
+    var second_y = (box.highest_y - origin_y) * inverse_y
+    var first_z = (box.lowest_z - origin_z) * inverse_z
+    var second_z = (box.highest_z - origin_z) * inverse_z
+    var enter_x = first_x.minimum(second_x)
+    var enter_y = first_y.minimum(second_y)
+    var enter_z = first_z.minimum(second_z)
+    var leave_x = first_x.maximum(second_x)
+    var leave_y = first_y.maximum(second_y)
+    var leave_z = first_z.maximum(second_z)
+    var entering = enter_x.maximum(enter_y)
+    entering = entering.maximum(enter_z)
+    var leaving = leave_x.minimum(leave_y)
+    leaving = leaving.minimum(leave_z)
+    assert leaving >= 0.0 and entering <= leaving
+    if entering >= 0.0 {
+        return entering
+    }
+    return leaving
+}
+
+func hit_triangle(first: Vector3, second: Vector3, third: Vector3): Float? {
+    var first_edge = second - first
+    var second_edge = third - first
+    var ray_direction = Vector3(direction_x, direction_y, direction_z)
+    var across = ray_direction.cross(second_edge)
+    var facing = first_edge.dot(across)
+    assert facing.absolute() > 0.0000001
+    var inverse_facing = 1.0 / facing
+    var ray_origin = Vector3(origin_x, origin_y, origin_z)
+    var from_corner = ray_origin - first
+    var first_weight = from_corner.dot(across) * inverse_facing
+    assert first_weight >= 0.0 and first_weight <= 1.0
+    var turned = from_corner.cross(first_edge)
+    var second_weight = ray_direction.dot(turned) * inverse_facing
+    assert second_weight >= 0.0 and first_weight + second_weight <= 1.0
+    var along = second_edge.dot(turned) * inverse_facing
+    assert along >= 0.0
+    return along
+}
+
+func to_string(): String {
+    return "from ({origin_x}, {origin_y}, {origin_z}) toward ({direction_x}, {direction_y}, {direction_z})"
+}

@@ -376,7 +376,10 @@ read as `x_value`, `y_value`, `z_value`, `w_value` (never `.x`), with `+ - * /` 
 `rotation.set_axis_angle(axis, angle)`, `set_euler(angles, 'xyz')`; `a * b` applies `b` first;
 `matrix.transform_point(point)`, `rotation.rotate(vector)`, `inverse()` a `Matrix4?`. Matrices are column-major,
 parts `column_0_row_0` to `column_3_row_3`. Each answer is a new object, so one step per line:
-`var moved = velocity.scaled(delta)` then `position = position + moved`.
+`var moved = velocity.scaled(delta)` then `position = position + moved`. Culling and picking: `AxisAlignedBox(lowest,
+highest)`, `Plane()` with `set_point_normal`, `Frustum()` with `set_from_view_projection(matrix)` then
+`intersects_box`/`intersects_sphere`, and `Ray(origin, direction)` whose `hit_plane`, `hit_box` and `hit_triangle`
+answer a `Float?` distance, `null` for a miss.
 Every class here, the numbers and `List` included, is a Spite file in `library/`, and a program's own file of the
 same name reopens it: `list.spite` adds a member template, `integer.spite` a function on every `Integer`.
 

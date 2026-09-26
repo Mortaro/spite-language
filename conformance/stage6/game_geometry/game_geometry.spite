@@ -1,0 +1,120 @@
+var console = Console()
+
+func GameGeometry() {
+    boxes()
+    culling()
+    picking()
+}
+
+func boxes() {
+    var low = Vector3(-1.0, -1.0, -1.0)
+    var high = Vector3(1.0, 2.0, 3.0)
+    var box = AxisAlignedBox(low, high)
+    console.print("box {box} center {box.center()} size {box.size()}")
+    var inside = Vector3(0.0, 1.5, 2.0)
+    var outside = Vector3(0.0, 2.5, 2.0)
+    console.print("contains {box.contains(inside)} {box.contains(outside)}")
+    var far_low = Vector3(5.0, 5.0, 5.0)
+    var far_high = Vector3(6.0, 6.0, 6.0)
+    var far_box = AxisAlignedBox(far_low, far_high)
+    console.print("united {box.united(far_box)} intersects {box.intersects(far_box)} {box.intersects(box)}")
+    console.print("including {box.including(outside)}")
+    var turn = Quaternion()
+    var axis = Vector3(0.0, 0.0, 1.0)
+    var quarter = Float.pi() * 0.5
+    turn.set_axis_angle(axis, quarter)
+    var place = Vector3(10.0, 0.0, 0.0)
+    var size = Vector3(1.0, 1.0, 1.0)
+    var model = Matrix4()
+    model.set_transform(place, turn, size)
+    var moved = box.transformed(model)
+    var moved_low = moved.lowest()
+    var moved_high = moved.highest()
+    console.print("transformed {near_vector(moved_low)} to {near_vector(moved_high)}")
+}
+
+func culling() {
+    var projection = Matrix4()
+    var view_angle = Float.pi() * 0.5
+    projection.set_perspective(view_angle, 1.0, 1.0, 100.0)
+    var camera = Matrix4()
+    var eye = Vector3(0.0, 0.0, 10.0)
+    var target = Vector3(0.0, 0.0, 0.0)
+    var up = Vector3(0.0, 1.0, 0.0)
+    camera.set_look_at(eye, target, up)
+    var view_projection = projection * camera
+    var frustum = Frustum()
+    frustum.set_from_view_projection(view_projection)
+    var ahead = Vector3(0.0, 0.0, 0.0)
+    var behind = Vector3(0.0, 0.0, 20.0)
+    var aside = Vector3(30.0, 0.0, 0.0)
+    console.print(
+        "points {frustum.contains_point(ahead)} {frustum.contains_point(behind)} {frustum.contains_point(aside)}",
+    )
+    console.print("spheres {frustum.intersects_sphere(aside, 25.0)} {frustum.intersects_sphere(behind, 5.0)}")
+    var low = Vector3(8.0, -1.0, -1.0)
+    var high = Vector3(12.0, 1.0, 1.0)
+    var edge_box = AxisAlignedBox(low, high)
+    var far_low = Vector3(50.0, -1.0, -1.0)
+    var far_high = Vector3(52.0, 1.0, 1.0)
+    var far_box = AxisAlignedBox(far_low, far_high)
+    console.print("boxes {frustum.intersects_box(edge_box)} {frustum.intersects_box(far_box)}")
+    console.print("near plane {near_plane(frustum.near)}")
+}
+
+func picking() {
+    var origin = Vector3(0.0, 0.0, 5.0)
+    var forward = Vector3(0.0, 0.0, -1.0)
+    var ray = Ray(origin, forward)
+    var floor = Plane()
+    var on_floor = Vector3(0.0, 0.0, -2.0)
+    var facing = Vector3(0.0, 0.0, 1.0)
+    floor.set_point_normal(on_floor, facing)
+    console.print("ray {ray} plane {floor}")
+    var floor_hit = ray.hit_plane(floor)
+    console.print("plane {describe(floor_hit)}")
+    var backward = Vector3(0.0, 0.0, 1.0)
+    var away = Ray(origin, backward)
+    var floor_behind = away.hit_plane(floor)
+    console.print("plane behind {describe(floor_behind)}")
+    var low = Vector3(-1.0, -1.0, -1.0)
+    var high = Vector3(1.0, 1.0, 1.0)
+    var box = AxisAlignedBox(low, high)
+    var box_hit = ray.hit_box(box)
+    var box_behind = away.hit_box(box)
+    console.print("box {describe(box_hit)} behind {describe(box_behind)}")
+    var centered = Vector3(0.0, 0.0, 0.0)
+    var from_inside = Ray(centered, forward)
+    var inside_hit = from_inside.hit_box(box)
+    console.print("box from inside {describe(inside_hit)}")
+    var first = Vector3(-1.0, -1.0, 0.0)
+    var second = Vector3(1.0, -1.0, 0.0)
+    var third = Vector3(0.0, 1.0, 0.0)
+    var triangle_hit = ray.hit_triangle(first, second, third)
+    console.print("triangle {describe(triangle_hit)} at {ray.point_at(5.0)}")
+    var shifted = Vector3(3.0, 0.0, 5.0)
+    var missing = Ray(shifted, forward)
+    var triangle_missed = missing.hit_triangle(first, second, third)
+    console.print("triangle missed {describe(triangle_missed)}")
+}
+
+func describe(distance: Float?): String {
+    if distance {
+        return "hit at {distance}"
+    }
+    return "no hit"
+}
+
+func near_plane(plane: Plane): String {
+    return "({near(plane.normal_x)}, {near(plane.normal_y)}, {near(plane.normal_z)}; {near(plane.distance)})"
+}
+
+func near(value: Float): Float {
+    var scaled = value * 10000.0
+    var whole = scaled.round()
+    return whole / 10000.0 + 0.0
+}
+
+func near_vector(vector: Vector3): String {
+    return "({near(vector.x_value)}, {near(vector.y_value)}, {near(vector.z_value)})"
+}

@@ -71,7 +71,7 @@ Read them in this order the first time; each page assumes the ones before it.
 16. [json.md](json.md) -- `Json<T>`: any value to JSON text and back.
 17. [time.md](time.md) -- instants, durations, the calendar, time zones as presentation, and ISO 8601 text.
 18. [game_maths.md](game_maths.md) -- vectors, matrices and quaternions for games: `Vector3`, `Matrix4`,
-    `Quaternion`, column-major, Vulkan clip space, and what each operation costs.
+    `Quaternion`, boxes, frustums and rays, column-major, Vulkan clip space, and what each operation costs.
 19. [foreign_libraries.md](foreign_libraries.md) -- `DynamicLibrary`, and how each operating system's folder
     reopens the classes it changes.
 20. [targets.md](targets.md) -- planned: other targets, the web, isomorphic classes and the wire format.

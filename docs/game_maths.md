@@ -1,7 +1,8 @@
 # Game maths
 
 The standard library has the maths a game engine is built on: `Vector2`, `Vector3` and `Vector4`, `Matrix3` and
-`Matrix4`, and `Quaternion` ([D213](decisions.md)). They are plain classes in `library/` holding `Float`s and
+`Matrix4`, and `Quaternion`, with the boxes, planes, frustums and rays that culling and picking need
+([D213](decisions.md)). They are plain classes in `library/` holding `Float`s and
 nothing else, so a list of them fits a [`Vector<T>`](collections.md) column and a binary writer, and a program that
 uses none of them carries none of their code ([D177](decisions.md)). They are built on the number classes' own
 maths -- `square_root()`, `sine()`, `arc_cosine()` ([values_and_types.md](values_and_types.md#maths-functions)) --
@@ -116,6 +117,46 @@ true true
 true true (0, 0, 0, 1)
 ```
 
+## Boxes, frustums and rays
+
+`AxisAlignedBox(lowest, highest)` is a box along the axes: `contains(point)`, `intersects(other)`,
+`united(other)`, `including(point)`, `center()`, `size()`, and `transformed(matrix)`, the box that holds the
+turned and moved one. A `Plane()` is set with `set_point_normal(point, normal)` or `set_parts(x, y, z,
+distance)`, and `signed_distance_to(point)` says how far in front of it a point is. A `Frustum()` is set from a
+camera's view-projection matrix and culls: `contains_point`, `intersects_sphere(center, radius)` and
+`intersects_box(box)`. A `Ray(origin, direction)` picks: `hit_plane(plane)`, `hit_box(box)` and
+`hit_triangle(first, second, third)` answer how far along the ray the hit is, as a `Float?` that is `null` when
+there is none -- a miss is an answer, not a failure ([D199](decisions.md)).
+
+```gdscript title=game_picking_basics/game_picking_basics.spite entry
+var console = Console()
+
+func GamePickingBasics() {
+    var low = Vector3(-1.0, -1.0, -1.0)
+    var high = Vector3(1.0, 1.0, 1.0)
+    var box = AxisAlignedBox(low, high)
+    var origin = Vector3(0.0, 0.0, 5.0)
+    var forward = Vector3(0.0, 0.0, -1.0)
+    var ray = Ray(origin, forward)
+    var hit = ray.hit_box(box)
+    if hit {
+        console.print("hit {hit} away, at {ray.point_at(hit)}")
+    }
+    var backward = Vector3(0.0, 0.0, 1.0)
+    var away = Ray(origin, backward)
+    var missed = away.hit_box(box)
+    if missed {
+        console.print("hit behind")
+    } else {
+        console.print("nothing behind")
+    }
+}
+```
+```output
+hit 4 away, at (0, 0, 1)
+nothing behind
+```
+
 ## What they cost
 
 Every function that answers a vector, a matrix or a quaternion makes a new one, and **a new one is an allocation**:
@@ -175,8 +216,25 @@ the layout and the conventions.
   `spherical_interpolate(target, amount)` and `normalized_interpolate(target, amount)` (both along the shorter
   way; the spherical one falls back to the normalized one when the two are within about 1.8 degrees),
   `to_matrix()`, and `to_string()`.
+- **`AxisAlignedBox`** (parts `lowest_x` ... `highest_z`, made with `AxisAlignedBox(lowest, highest)`):
+  `lowest()`, `highest()`, `center()`, `size()`, `contains(point)` (the faces count as inside), `intersects(other)`
+  (touching counts), `united(other)`, `including(point)`, `transformed(matrix)` (the box around the eight turned
+  corners, found from the center and the absolute upper 3x3, not the corners one by one), `to_string()`.
+- **`Plane`** (`normal_x`, `normal_y`, `normal_z`, `distance`: the points where `normal . point + distance` is 0;
+  `Plane()` is the floor through the origin facing +y): `set_parts`, `set_point_normal(point, normal)` (the normal
+  is normalized), `normal()`, `signed_distance_to(point)` (positive in front), `normalize()`, `to_string()`.
+- **`Frustum`** (`left`, `right`, `bottom`, `top`, `near`, `far`, each a `Plane` facing in):
+  `set_from_view_projection(matrix)` (the planes of a Vulkan clip space, depth 0 to 1, normalized),
+  `contains_point(point)`, `intersects_sphere(center, radius)`, `intersects_box(box)` (the corner farthest along
+  each plane's normal: a box may be kept when it is only near a corner of the frustum, never dropped when it is
+  inside).
+- **`Ray`** (`origin_x` ... `direction_z`, made with `Ray(origin, direction)`; the direction need not be of length 1,
+  and distances are in lengths of it): `origin()`, `direction()`, `point_at(distance)`, `hit_plane(plane): Float?`
+  (`null` when parallel or behind), `hit_box(box): Float?` (the distance where the ray enters, or leaves when it
+  starts inside; `null` when it misses or the box is behind), `hit_triangle(first, second, third): Float?` (either
+  side, Moller and Trumbore's test; `null` when it misses, is parallel or is behind), `to_string()`.
 - **Cost.** Each function answering a vector, matrix or quaternion allocates it; the `set_` functions write in
   place and allocate nothing (`benchmarks/game_maths`). Removing the allocations is open
   (`mortaros_missing_decisions.md`).
-- `conformance/stage6/game_vectors` and `game_matrices` pin every function, rounding what goes through a sine to
+- `conformance/stage6/game_vectors`, `game_matrices` and `game_geometry` pin every function, rounding what goes through a sine to
   four places so the C library's last bit does not show.

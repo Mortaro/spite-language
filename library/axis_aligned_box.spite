@@ -1,0 +1,79 @@
+var lowest_x: Float = 0.0
+var lowest_y: Float = 0.0
+var lowest_z: Float = 0.0
+var highest_x: Float = 0.0
+var highest_y: Float = 0.0
+var highest_z: Float = 0.0
+
+func AxisAlignedBox(starting_lowest: Vector3, starting_highest: Vector3) {
+    lowest_x = starting_lowest.x_value
+    lowest_y = starting_lowest.y_value
+    lowest_z = starting_lowest.z_value
+    highest_x = starting_highest.x_value
+    highest_y = starting_highest.y_value
+    highest_z = starting_highest.z_value
+}
+
+func lowest(): Vector3 {
+    return Vector3(lowest_x, lowest_y, lowest_z)
+}
+
+func highest(): Vector3 {
+    return Vector3(highest_x, highest_y, highest_z)
+}
+
+func center(): Vector3 {
+    return Vector3((lowest_x + highest_x) * 0.5, (lowest_y + highest_y) * 0.5, (lowest_z + highest_z) * 0.5)
+}
+
+func size(): Vector3 {
+    return Vector3(highest_x - lowest_x, highest_y - lowest_y, highest_z - lowest_z)
+}
+
+func contains(point: Vector3): Boolean {
+    return point.x_value >= lowest_x and point.x_value <= highest_x and point.y_value >= lowest_y and point.y_value <= highest_y and point.z_value >= lowest_z and point.z_value <= highest_z
+}
+
+func intersects(other: AxisAlignedBox): Boolean {
+    return lowest_x <= other.highest_x and highest_x >= other.lowest_x and lowest_y <= other.highest_y and highest_y >= other.lowest_y and lowest_z <= other.highest_z and highest_z >= other.lowest_z
+}
+
+func united(other: AxisAlignedBox): AxisAlignedBox {
+    var low = Vector3(lowest_x, lowest_y, lowest_z)
+    var other_low = Vector3(other.lowest_x, other.lowest_y, other.lowest_z)
+    var high = Vector3(highest_x, highest_y, highest_z)
+    var other_high = Vector3(other.highest_x, other.highest_y, other.highest_z)
+    var united_low = low.minimum(other_low)
+    var united_high = high.maximum(other_high)
+    return AxisAlignedBox(united_low, united_high)
+}
+
+func including(point: Vector3): AxisAlignedBox {
+    var low = Vector3(lowest_x, lowest_y, lowest_z)
+    var high = Vector3(highest_x, highest_y, highest_z)
+    var grown_low = low.minimum(point)
+    var grown_high = high.maximum(point)
+    return AxisAlignedBox(grown_low, grown_high)
+}
+
+func transformed(matrix: Matrix4): AxisAlignedBox {
+    var middle = center()
+    var half_x = (highest_x - lowest_x) * 0.5
+    var half_y = (highest_y - lowest_y) * 0.5
+    var half_z = (highest_z - lowest_z) * 0.5
+    var moved = matrix.transform_point(middle)
+    var reach_x = half_x * matrix.column_0_row_0.absolute() + half_y * matrix.column_1_row_0.absolute()
+    reach_x = reach_x + half_z * matrix.column_2_row_0.absolute()
+    var reach_y = half_x * matrix.column_0_row_1.absolute() + half_y * matrix.column_1_row_1.absolute()
+    reach_y = reach_y + half_z * matrix.column_2_row_1.absolute()
+    var reach_z = half_x * matrix.column_0_row_2.absolute() + half_y * matrix.column_1_row_2.absolute()
+    reach_z = reach_z + half_z * matrix.column_2_row_2.absolute()
+    var reach = Vector3(reach_x, reach_y, reach_z)
+    var low = moved - reach
+    var high = moved + reach
+    return AxisAlignedBox(low, high)
+}
+
+func to_string(): String {
+    return "[({lowest_x}, {lowest_y}, {lowest_z}) to ({highest_x}, {highest_y}, {highest_z})]"
+}
