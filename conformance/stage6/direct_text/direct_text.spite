@@ -1,0 +1,61 @@
+enum Mood {
+    'awake'
+    'asleep'
+}
+
+var console = Console()
+var label = Label()
+
+func DirectText() {
+    var clicks = 42
+    var clicks_text: String = clicks
+    console.print(clicks_text)
+    label.text = clicks
+    console.print(label.text)
+    show(clicks)
+    var returned = number_text(clicks)
+    console.print(returned)
+    var ratio = 0.5
+    show(ratio)
+    var mood: Mood = 'asleep'
+    var mood_text: String = mood
+    console.print(mood_text)
+    var badge = Badge()
+    var badge_text: String = badge
+    console.print(badge_text)
+    label.text = badge
+    console.print(label.text)
+    show(badge)
+    var returned_badge = badge_text_of(badge)
+    console.print(returned_badge)
+    var made: String = made_badge()
+    console.print(made)
+    show(badge.class)
+    var names = List<String>()
+    names.append(clicks)
+    names.append(badge)
+    var joined = names.join(", ")
+    console.print(joined)
+    var by_name = Dictionary<Integer>()
+    by_name[clicks] = 1
+    by_name[badge] = 2
+    var keys = by_name.keys()
+    var joined_keys = keys.join(", ")
+    console.print(joined_keys)
+}
+
+func number_text(value: Integer): String {
+    return value
+}
+
+func badge_text_of(value: Badge): String {
+    return value
+}
+
+func made_badge(): Badge {
+    return Badge()
+}
+
+func show(text: String) {
+    console.print(text)
+}

@@ -1,0 +1,5 @@
+var number = 7
+
+func to_string(): String {
+    return "badge {number}"
+}

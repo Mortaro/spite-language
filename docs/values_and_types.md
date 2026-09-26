@@ -699,6 +699,16 @@ error too, naming its value: `'(65536 - 120) * 65536' is 4287102976, which does 
 arithmetic is done in, so it would wrap: write the number itself, 4287102976, which is a Long`.
 `diagnostics/wider_right_operand`. Both checks happen while compiling and change nothing in what is emitted.
 
+**Anything with a `to_string()` casts to text** ([D223](decisions.md), decided by Mortaro for assignment; its reach
+to every place a `String` is wanted proposed by Claude, unconfirmed). **[implemented]** Where a `String` (or a
+`String?`) is wanted -- assignment, `var name: String = value`, an argument, a `return`, a `Dictionary` key -- and
+the value is not text, it becomes text through its `to_string()`, the conversion a text hole makes: a number, a
+`Boolean`, an enum value (its name), a class object (`Spite.Class`, its name) and an object of any class that
+declares `func to_string(): String`. `label.text = clicks` with an `Integer` `clicks` stores `"42"`, and
+`show(badge)` with `func show(text: String)` passes `badge.to_string()`. It is the cast the right-to-left rule
+already made for numbers, extended to classes; the text made is released like any other (`conformance/stage6/direct_text`).
+A class with no `to_string()` stays an error: `a Pet cannot be used where a String is needed`.
+
 **Text casts to an enum by its name** (proposed by Claude, unconfirmed; built for D95's `Json`, 2026-09-24):
 `var course: Recipe.Course = name` is the value spelled `name`, or the enum's first value when none is, exactly as
 text that does not parse becomes `0` for an `Integer`. Compare `"{course}" == name` to tell the two apart. **[implemented]**

@@ -6630,6 +6630,11 @@ func coerce_for_store(
         var joined_ast = implicit_join_ast(expression_ast)
         return coerce_for_store(joined_ast, expected_type, scope, class_information)
     }
+    if becomes_text(result_type, expected_type) {
+        rewind_temporaries(saved_counter)
+        var text_ast = to_string_ast(expression_ast)
+        return coerce_for_store(text_ast, expected_type, scope, class_information)
+    }
     var expected_union = expected_type_without_nullable(expected_type)
     if type_shape.as_string(result_type) and type_shape.as_union(expected_union) {
         var owned_text = result.code
@@ -6983,10 +6988,21 @@ func text_of_class(
     if not text_converter(value_type) {
         return value
     }
+    var called = to_string_ast(value_ast)
+    return generate_expression(called, scope, class_information)
+}
+
+func to_string_ast(value_ast: Syntax.Expressions.Expression): Syntax.Expressions.Expression {
     var callee: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(value_ast, "to_string")
     var no_arguments = List<Syntax.Expressions.Expression>()
-    var called: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(callee, no_arguments)
-    return generate_expression(called, scope, class_information)
+    return Syntax.Expressions.CallExpression(callee, no_arguments)
+}
+
+func becomes_text(value_type: Analysis.SpiteType, expected_type: Analysis.SpiteType): Boolean {
+    var wanted = expected_type_without_nullable(expected_type)
+    assert type_shape.as_string(wanted)
+    assert text_converter(value_type)
+    return true
 }
 
 func generate_string_binary(
