@@ -194,6 +194,101 @@ The rules for what a borrowed item may do, and what they cost, are in
 a **row**, an object literal a system takes as a `type` for one call, which is how an engine joins its component
 columns ([memory.md](memory.md#a-row-of-borrowed-items-for-one-call), [D206](decisions.md)).
 
+## `Items<T>`: the storage chosen for you
+
+A generic class that keeps values of a type it does not know -- an engine's `Column<$component_type>` -- cannot
+say `Vector` or `List` without knowing whether the type fits a `Vector`. `Items<T>` (`library/items.spite`, the
+name provisional) answers that while compiling ([D218](decisions.md)): when `T.fits_vector()` its items are
+inline and borrowed, exactly as a `Vector`'s; otherwise they are references, as a `List`'s. The members are the
+same either way, so one class serves both:
+
+```gdscript title=items_basics/velocity.spite
+var across = 0.0
+
+func Velocity(new_across: Float) {
+    across = new_across
+}
+```
+```gdscript title=items_basics/trail.spite
+var lefts = List<Float>()
+var last = 0.0
+
+func mark(left: Float) {
+    lefts.append(left)
+    last = left
+}
+```
+```gdscript title=items_basics/items_basics.spite entry
+var console = Console()
+
+func ItemsBasics() {
+    var velocities = Items<Velocity>()
+    var slow = Velocity(1.0)
+    velocities.append(slow)
+    var fast = Velocity(4.0)
+    velocities.append(fast)
+    var first = velocities[0]
+    first.across = 2.0
+    var trails = Items<Trail>()
+    var trail = Trail()
+    trails.append(trail)
+    var kept = trails[0]
+    kept.mark(3.5)
+    velocities.remove_swapping(0)
+    var total = velocities.sum_across()
+    var marks = trail.lefts.count()
+    console.print(slow.across, total, trail.last, marks)
+}
+```
+```output
+1 4 3.5 1
+```
+
+`Velocity` fits a `Vector`, so `velocities[0]` is the item inside the block, borrowed, and `slow` keeps its own
+`1.0`. `Trail` holds a `List`, so it does not fit, and `trails[0]` is `trail` itself, a counted reference like a
+list's element: writing through it writes `trail`. `remove_swapping(0)` moves the last item into the hole instead
+of moving every later one down, which is what a sparse set wants.
+
+| Member | Result | Notes |
+|---|---|---|
+| `append(value)` | | inline: copies `value`'s attributes in; references: keeps `value` |
+| `items[index]` / `get_at(index)` | `T` | inline: the item, borrowed; references: the reference; out of range halts, either way |
+| `items[index] = value` / `set_at(index, value)` | | replaces the item; out of range halts |
+| `remove_at(index)` | | moves every later item down; nothing happens out of range |
+| `remove_swapping(index)` | | moves the last item into `index` (name provisional); nothing happens out of range |
+| `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
+| `copy()` / `deep_copy()` | `Items<T>` | inline: every item copied; references: one level, or all the way down |
+| `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()`, `parallel_each_<member>()` | | as on a vector; `filter_` gives an `Items<T>`, and a chain is one loop |
+
+Where the items are inline every rule of a borrowed item applies, and the error says why the item is borrowed,
+so a class that starts to fit a `Vector` shows where its old uses keep an item:
+
+```gdscript title=items_borrow_mistake/velocity.spite
+var across = 0.0
+
+func Velocity(new_across: Float) {
+    across = new_across
+}
+```
+```gdscript title=items_borrow_mistake/items_borrow_mistake.spite entry error
+var console = Console()
+
+func ItemsBorrowMistake() {
+    var velocities = Items<Velocity>()
+    var slow = Velocity(1.0)
+    velocities.append(slow)
+    var first = velocities[0]
+    velocities.remove_swapping(0)
+    console.print(first.across)
+}
+```
+```diagnostic
+'Velocity' fits a Vector, so the items of 'velocities' are borrowed: 'first' is borrowed from 'velocities'
+```
+
+An engine's column holds its values in an `Items`, and D217's walked row reads them the same way for both kinds
+([memory.md](memory.md#a-row-of-borrowed-items-for-one-call)). The rules are [below](#itemst--implemented-the-name-provisional).
+
 ## Member templates: loops you do not write
 
 A list of a class answers a family of functions named after the element's members (a function of your own is
@@ -803,6 +898,63 @@ unconfirmed:
   is still open).
 
 `diagnostics/vector_borrows`, `diagnostics/vector_items`, `conformance/stage6/vector_items`.
+
+### Items\<T\>  **[implemented; the name provisional]**
+
+D218 (decided by Claude under D205 and D214): `Items<T>` chooses its storage while compiling, inline like a
+`Vector<T>` when `T.fits_vector()` and references like a `List<T>` otherwise, behind one set of members. Its
+members are [the table under `Items<T>`](#itemst-the-storage-chosen-for-you), which is normative. The readings
+below, and the names `Items` and `remove_swapping`, are proposed by Claude, unconfirmed:
+
+- **One class, folded.** `library/items.spite` is one generic class. Its storage is the same for both kinds -- a
+  heap block, a count and a capacity -- and each body that touches an item folds on `$element_type.fits_vector()`
+  ([metaprogramming.md](metaprogramming.md#asking-whether-a-class-fits-a-vector)): the inline branch goes through
+  `InlineMemory<T>`, the reference branch through `TypedMemory<T>`, and the branch not taken is not compiled. So a
+  `T` that does not fit never makes a `Vector<T>`, never meets the item errors of
+  [Vector](#vectort--implemented), and never has an item function written for it. Both helpers are singletons
+  bound as attributes (D144), so an `Items` object holds one pointer more than a `Vector` or a `List`, one per
+  collection and never per item. No syntax was added: the language already folds a body on `fits_vector()`, and
+  the storage did not need an attribute of its own per kind.
+- **Which kind.** `T` fits exactly when a `Vector<T>` could be made (D204's rule: a number, a `Boolean`, an enum, a
+  `String`, or a class made only of those, with no `drop()` and no function that uses `this` as a value). A
+  union, a `type`, a `List`, a `Dictionary` or a class holding one is kept by reference. `Items<Integer>` and
+  `Items<String>` are plain arrays of the values, as a vector's are.
+- **Reading.** `items[index]` and `get_at(index)` answer a `T`, never a `T?`, for both kinds, and an index out of
+  range halts with the crash report of `library/items.spite`'s `_out_of_range`. Inline, the item is borrowed, and
+  every rule of [memory.md's borrowed items](memory.md#borrowed-items-of-a-vectort--implemented) applies to it,
+  rows included. By reference, it is a counted reference like a list element read with `get_at`: it may be kept,
+  passed, returned and read after the collection changes size. `List`'s `[]` answers `T?` instead; `Items` does
+  not, so that code reading an item compiles the same whichever kind a class falls into, and so D217's walked row
+  can take the item as it is.
+- **The borrow checks apply only where the storage is inline.** A class that changes kind can meet new errors
+  where it is read, and each names the choice first: `'Velocity' fits a Vector, so the items of 'velocities' are
+  borrowed: 'stored' is borrowed from 'velocities' and cannot be kept in the attribute 'kept': keep
+  'stored.copy()', an independent object`, and the same for a return, an argument, a list, a second name, a
+  function value, a row that is kept, and a read after a line that may change the size
+  (`diagnostics/items_borrows`). What may change the size is what may change a `Vector`'s, with
+  `remove_swapping` beside `remove_at`: called on the collection, or through D169's call effects, where a call
+  that swaps an item out counts as a removal.
+- **Writing and removing.** `append` and `set_at` copy the value's attributes in when inline (counting each
+  `String` attribute once more) and keep the value when by reference; `remove_at`, `remove_swapping`, `clear` and
+  dropping the collection release what they remove. `remove_swapping(index)` moves the last item into `index`
+  and does nothing out of range; it keeps no order, and costs the same however many items there are.
+- **Templates.** `each_`, `map_`, `filter_`, `count_`, `any_`, `all_` and `sum_<member>()` are in
+  `library/items.spite`, each folded the same way; `filter_` answers an `Items<T>` (copies when inline, the same
+  references otherwise) and `map_` a `List` of the members' values. A chain is one loop over the block (D105),
+  and `parallel_each_<member>()` splits it across the thread pool, as for a vector. The passed-function forms
+  (`each(f)`, `map(f)`, ...) are not offered for either kind, since an inline item is never passed on: `'each'
+  passes each item to a function, and 'Velocity' fits a Vector, so an item of these Items is borrowed from them,
+  never passed on: give the item's class a function and call it with a member template, such as
+  'each_<function>()'`; by reference the error says that `Items` does not do it whichever storage it chose.
+- **Cost.** Nothing runs to choose: the folds are decided while compiling and the untaken branch is absent from
+  the C, so an `Items<Velocity>` compiles to a `Vector<Velocity>`'s code and an `Items<Trail>` to a
+  `List<Trail>`'s, reading its elements uncounted in the templates as a list does
+  ([optimizations.md](optimizations.md#a-lists-templates-read-its-elements-without-counting-them)). The range
+  check of `[]` is one comparison, and its crash report sits in a function of its own so that the read is small
+  enough for the C compiler to inline. A program that makes no `Items` carries none of it. Measured in
+  `benchmarks/items_storage`.
+
+`conformance/stage6/items_columns`, `diagnostics/items_borrows`.
 
 ### Heap\<T\> -- removed (D1, decided by Mortaro, 2026-09-19)
 

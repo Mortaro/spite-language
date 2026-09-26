@@ -1,0 +1,41 @@
+var console = Console()
+var velocities = Items<Velocity>()
+var trails = Items<Trail>()
+var kept = Velocity(0.0)
+var kept_trail = Trail()
+var runner = Runner<Moving>()
+
+func ItemsBorrows() {
+    var first = Velocity(1.0)
+    velocities.append(first)
+    var velocity = velocities[0]
+    velocities.append(first)
+    velocity.across = 3.0
+    var swapped = velocities[0]
+    velocities.remove_swapping(1)
+    swapped.across = 4.0
+    var stored = velocities[0]
+    kept = stored
+    velocities.each(describe)
+    var trail = Trail()
+    trails.append(trail)
+    var held = trails[0]
+    trails.append(trail)
+    held.lefts.append(1.0)
+    kept_trail = held
+    trails.each(note)
+    runner.run()
+}
+
+func describe(described: Velocity) {
+    console.print(described.across)
+}
+
+func note(noted: Trail) {
+    var steps = noted.lefts.count()
+    console.print(steps)
+}
+
+func leaked(): Velocity {
+    return velocities[0]
+}

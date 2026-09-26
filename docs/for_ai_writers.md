@@ -197,6 +197,15 @@ func is_alive(): Boolean {
   compiling), each branch one such line: `Entity(entity)` is made in the frame, a reference column's value
   (`ReferenceColumn<attribute.class>().at(found[attribute.index])`) is counted for the row (D217). Keep the index
   expression to parameters, `attribute.index` and whole numbers; work anything else out before the walk.
+- In a generic class that keeps values of a type it does not know (an engine's `Column<$component_type>`), use
+  `Items<$component_type>()` (D218, name provisional): inline and borrowed like a `Vector` when the type fits
+  one, references like a `List` when not, with one set of members (`append`, `items[index]` (a `T`, out of range
+  halts), `set_at`, `remove_at`, `remove_swapping(index)` (the last item moves into `index`), `count`, `is_empty`,
+  `clear`, `copy`, `deep_copy`, and the `each_`/`map_`/`filter_`/`count_`/`any_`/`all_`/`sum_`/`parallel_each_`
+  templates; no `each(f)` forms). Then one column class serves every component, and the walked row's line is
+  `Column<attribute.class>().values[found[attribute.index]]` for all of them, with no `fits_vector()` branch. The
+  borrow rules above apply only to a type that fits; the error then starts `'Velocity' fits a Vector, so the
+  items of 'velocities' are borrowed: ...`.
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
   built or planned, and what it could ever change that you see, is in [optimizations.md](optimizations.md).

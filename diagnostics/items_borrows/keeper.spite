@@ -1,0 +1,11 @@
+type Moving {
+    velocity: Velocity
+    trail: Trail
+}
+
+var velocities = Column<Velocity>()
+
+func remove_while_moving(moving: Moving) {
+    moving.velocity.across = moving.velocity.across + 1.0
+    velocities.remove(0)
+}

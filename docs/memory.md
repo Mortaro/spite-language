@@ -389,6 +389,26 @@ ReferenceColumn<Trail>().at(found[3])}`: the `Entity` is made in the frame, sinc
 item, and the `Trail` is counted once for the row and let go after the call. Only `Position` and `Velocity` are
 borrowed, so only their vectors are checked for a resize during the call.
 
+Two column classes, and a choice in every line that reaches them, are only there because a `Vector<Trail>` cannot
+be made. An [`Items<T>`](collections.md#itemst-the-storage-chosen-for-you) makes that choice itself, inline when
+the class fits and by reference when it does not ([D218](decisions.md)), so one `Column<$component_type>` holding
+`var values = Items<$component_type>()` serves every component, and the fill template needs no `fits_vector()`:
+
+```gdscript
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: Items<Integer>, entity: Integer) {
+    if attribute.class == Entity {
+        row.attributes[attribute] = Entity(entity)
+    } else {
+        row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
+    }
+}
+```
+
+For `Moving` the row borrows `Column<Position>().values[found[1]]` and `Column<Velocity>().values[found[2]]` and
+counts `Column<Trail>().values[found[3]]` for the call, exactly as above, and a column removes an entity with
+`values.remove_swapping(dense)`, which a system handed the row may not reach for a column it borrows from
+(`conformance/stage6/items_columns`).
+
 ## `drop()` runs once, right before the object is freed
 
 A class may define a zero-argument `func drop() { ... }` for cleanup (closing a handle, clearing a
@@ -1160,7 +1180,18 @@ kept past its use. What is built (the error texts and the readings marked are pr
     `benchmarks/sparse_rows`: 200 000 entities, two systems, sparse sets for every component, 7.4 ms a tick with
     `Vector` columns and walked rows against 24.0 ms with reference columns and a reused row object (best of five,
     `clang -O2`).
+- **Items of an `Items<T>`** (D218, decided by Claude under D205 and D214; the readings below proposed by Claude,
+  unconfirmed). An [`Items<T>`](collections.md#itemst--implemented-the-name-provisional) whose `T` fits a
+  `Vector` lends its items exactly as a `Vector` does: `items[index]`, `get_at(index)` and the item a template
+  visits are borrowed, and every rule above applies to them, rows and walked rows included; `remove_swapping`
+  counts as a removal wherever `remove_at` does, on the collection or through the call effects. An `Items<T>`
+  whose `T` does not fit lends nothing: its items are counted references, and none of these rules apply to them.
+  In a walked row, `Column<attribute.class>().values[found[attribute.index]]` over an `Items` value is therefore a
+  borrowed item for a class that fits and a counted value for one that does not, the D217 mix, decided per
+  attribute while compiling. Every error about an `Items` item begins with the choice that made it borrowed:
+  `'Velocity' fits a Vector, so the items of 'velocities' are borrowed: ...`. Nothing runs for any of it.
 
 `diagnostics/vector_borrows`, `diagnostics/vector_items`, `diagnostics/vector_rows`, `conformance/stage6/vector_items`,
 `conformance/stage6/vector_rows`, `conformance/stage6/walked_rows`, `diagnostics/walked_rows`,
-`conformance/stage6/sparse_rows`, `diagnostics/sparse_rows`.
+`conformance/stage6/sparse_rows`, `diagnostics/sparse_rows`, `conformance/stage6/items_columns`,
+`diagnostics/items_borrows`.

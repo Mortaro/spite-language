@@ -157,6 +157,7 @@ var constant_texts = Dictionary<String>()
 var borrow_statements = List<Syntax.Statements.Statement>()
 var borrow_index = 0
 var borrowed_names = List<String>()
+var items_sources = Dictionary<String>()
 var borrow_site = ""
 var lending_rows = false
 var walked_row_filled = false
@@ -8971,7 +8972,8 @@ func report_not_a_number_constant(information: Analysis.ClassInfo, name: String,
 }
 
 func forget_indices_if_shrinking(name: String, object_ast: Syntax.Expressions.Expression, scope: Scope) {
-    assert name == "clear" or name == "remove_at" or name == "remove_first" or name == "remove_last"
+    var shrinking = ["clear", "remove_at", "remove_first", "remove_last", "remove_swapping"]
+    assert shrinking.contains(name)
     var shrunk = operand_text(object_ast)
     assert not shrunk.is_empty()
     var crossed_loop_readers = List<String>()
@@ -9164,7 +9166,8 @@ func generate_method_call(
     if not is_implicit_join(member) {
         report_private_member(target_class, member.name, class_information)
     }
-    if target_class.qualified_dotted == "Vector" and member.name.starts_with("parallel_each_") {
+    var vector_like = target_class.qualified_dotted == "Vector" or is_items_class(target_class)
+    if vector_like and member.name.starts_with("parallel_each_") {
         return generate_vector_parallel_each(
             target_class,
             member.name,
@@ -9210,6 +9213,9 @@ func generate_method_call(
         var missed = range_miss(target_class, member.name)
         if target_class.qualified_dotted == "Vector" and is_function_form(member.name, arguments_ast) {
             missed = "'{member.name}' passes each item to a function, and an item of a Vector is borrowed from it, never passed on: give the item's class a function and call it with a member template, such as '{member.name}_<function>()'"
+        }
+        if is_items_class(target_class) and is_function_form(member.name, arguments_ast) {
+            missed = items_form_miss(target_class, member.name)
         }
         if missed.is_empty() {
             if not reported_old_spelling(member.name) {
@@ -10856,8 +10862,19 @@ func generate_vector_parallel_each(
 func vector_class_of(receiver_type: Analysis.SpiteType): Analysis.ClassInfo? {
     var found = class_behind(receiver_type)
     assert found
-    assert found.qualified_dotted == "Vector" and not found.codegen_types.is_empty()
+    assert found.qualified_dotted == "Vector" or found.qualified_dotted == "Items"
+    assert not found.codegen_types.is_empty()
     return found
+}
+
+func items_form_miss(items_class: Analysis.ClassInfo, name: String): String {
+    crash items_class.codegen_types[0]
+    var label = type_display_name(items_class.codegen_types[0])
+    var advice = "give the item's class a function and call it with a member template, such as '{name}_<function>()'"
+    if items_fit_vector(items_class) {
+        return "'{name}' passes each item to a function, and '{label}' fits a Vector, so an item of these Items is borrowed from them, never passed on: {advice}"
+    }
+    return "'{name}' passes each item to a function, which Items does not do whichever storage it chose, since an item that fits a Vector is borrowed and never passed on: {advice}"
 }
 
 func chain_class_of(receiver_type: Analysis.SpiteType, element: Analysis.SpiteType): Analysis.ClassInfo {
@@ -10872,7 +10889,13 @@ func chain_item_read(base_list: Analysis.ClassInfo): String {
     if base_list.qualified_dotted == "Vector" {
         return "values.item_at(items, index)"
     }
-    return "values.read_value(items, index)"
+    if not is_items_class(base_list) {
+        return "values.read_value(items, index)"
+    }
+    if items_fit_vector(base_list) {
+        return "inline.item_at(items, index)"
+    }
+    return "references.read_value(items, index)"
 }
 
 func fused_step(
@@ -10888,7 +10911,7 @@ func fused_step(
     assert callee
     var name = callee.name
     if is_function_form(name, call.arguments) {
-        assert base_list.qualified_dotted != "Vector"
+        assert base_list.qualified_dotted != "Vector" and not is_items_class(base_list)
         var argument = call.arguments.first()
         var passed = resolve_passed_function(argument, scope, class_information)
         assert passed
@@ -11075,6 +11098,11 @@ func fused_chain_source(
     } else if last.prefix == "filter_" and base_list.qualified_dotted == "Vector" and current_name == "item" {
         returns = ": Vector<{element_spelling}>"
         before.append("    var collected = Vector<{element_spelling}>()")
+        loop_lines.append("{indent}if {read} \{\n{indent}    collected._append_copy(items, index - 1)\n{indent}}")
+        after.append("    return collected")
+    } else if last.prefix == "filter_" and is_items_class(base_list) and current_name == "item" {
+        returns = ": Items<{element_spelling}>"
+        before.append("    var collected = Items<{element_spelling}>()")
         loop_lines.append("{indent}if {read} \{\n{indent}    collected._append_copy(items, index - 1)\n{indent}}")
         after.append("    return collected")
     } else if last.prefix == "filter_" {
@@ -14591,8 +14619,17 @@ func called_effects(
 }
 
 func resizes_unnamed_collection(member: Syntax.Expressions.MemberExpression, owner: String): Boolean {
-    var resizing = ["append", "prepend", "insert", "remove_at", "remove_first", "remove_last", "clear"]
-    var collections = ["List", "Vector", "Dictionary", "*"]
+    var resizing = [
+        "append"
+        "prepend"
+        "insert"
+        "remove_at"
+        "remove_first"
+        "remove_last"
+        "remove_swapping"
+        "clear"
+    ]
+    var collections = ["List", "Vector", "Items", "Dictionary", "*"]
     assert resizing.contains(member.name) and collections.contains(owner)
     crash member.object
     return not is_name_path(member.object) and not shape.as_generic_call(member.object)
@@ -15154,7 +15191,7 @@ func generate_variable_declaration(
 }
 
 func lends_items(target_class: Analysis.ClassInfo, name: String): Boolean {
-    var vector_item = target_class.qualified_dotted == "Vector" and name == "get_at"
+    var vector_item = holds_items_inline(target_class) and name == "get_at"
     var inline_item = target_class.qualified_dotted == "InlineMemory" and name == "item_at"
     assert vector_item or inline_item
     assert not target_class.codegen_types.is_empty()
@@ -15162,6 +15199,38 @@ func lends_items(target_class: Analysis.ClassInfo, name: String): Boolean {
     var item_class = inline_item_class(target_class.codegen_types[0])
     assert item_class
     return true
+}
+
+func holds_items_inline(information: Analysis.ClassInfo): Boolean {
+    if information.qualified_dotted == "Vector" {
+        return true
+    }
+    return is_items_class(information) and items_fit_vector(information)
+}
+
+func is_items_class(information: Analysis.ClassInfo): Boolean {
+    return information.qualified_dotted == "Items" and not information.codegen_types.is_empty()
+}
+
+func items_fit_vector(information: Analysis.ClassInfo): Boolean {
+    crash information.codegen_types[0]
+    var problem = vector_item_problem(information.codegen_types[0])
+    return problem.is_empty()
+}
+
+func items_choice(sources: String): String {
+    var named = sources.split("' and '")
+    var index = 0
+    while index < named.count() {
+        var label = items_sources.get(named[index])
+        if label {
+            if not label.is_empty() {
+                return "'{label}' fits a Vector, so the items of '{named[index]}' are borrowed: "
+            }
+        }
+        index = index + 1
+    }
+    return ""
 }
 
 func lend_item(
@@ -15178,6 +15247,12 @@ func lend_item(
     }
     result.borrowed_from = source
     note_constructed_root(object_ast)
+    var label = ""
+    if is_items_class(target_class) {
+        crash target_class.codegen_types[0]
+        label = type_display_name(target_class.codegen_types[0])
+    }
+    items_sources.set(source, label)
 }
 
 func note_constructed_root(expression: Syntax.Expressions.Expression) {
@@ -15223,7 +15298,8 @@ func constructed_root_of(path: String): String {
 }
 
 func in_vector_library(class_information: Analysis.ClassInfo): Boolean {
-    return class_information.qualified_dotted == "Vector" or class_information.qualified_dotted == "InlineMemory"
+    var named = class_information.qualified_dotted
+    return named == "Vector" or named == "InlineMemory" or named == "Items"
 }
 
 func may_lend(value: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): Boolean {
@@ -15866,7 +15942,7 @@ func report_row_call_resize(
                 var saved_line = current_line
                 current_line = statement_line(statement)
                 report(
-                    "'{name}' borrows items from '{source}' for the call it is passed to, and {resize} may move the items of '{source}': a function that is handed a row may not append to or remove from the vectors it borrows from, directly or through what it calls",
+                    "{items_choice(source)}'{name}' borrows items from '{source}' for the call it is passed to, and {resize} may move the items of '{source}': a function that is handed a row may not append to or remove from the vectors it borrows from, directly or through what it calls",
                 )
                 current_line = saved_line
                 return true
@@ -15984,19 +16060,22 @@ func report_kept_borrow(
         return
     }
     var copied = "'{text}.copy()', an independent object"
+    var reason = items_choice(source)
     if site == "return" {
-        report("'{text}' is borrowed from '{source}' and cannot be returned: return {copied}")
+        report("{reason}'{text}' is borrowed from '{source}' and cannot be returned: return {copied}")
         return
     }
     if site.starts_with("attribute:") {
         var attribute = site.slice(10, site_length)
-        report("'{text}' is borrowed from '{source}' and cannot be kept in the attribute '{attribute}': keep {copied}")
+        report(
+            "{reason}'{text}' is borrowed from '{source}' and cannot be kept in the attribute '{attribute}': keep {copied}",
+        )
         return
     }
     if site.starts_with("local:") {
         var local = site.slice(6, site_length)
         report(
-            "'{text}' is borrowed from '{source}', and a borrowed item has one name: use '{text}' itself instead of '{local}', or keep {copied}",
+            "{reason}'{text}' is borrowed from '{source}', and a borrowed item has one name: use '{text}' itself instead of '{local}', or keep {copied}",
         )
         return
     }
@@ -16005,20 +16084,20 @@ func report_kept_borrow(
         into_list = site.ends_with("_append") or site.ends_with("_prepend") or site.ends_with("_insert") or site.ends_with("_set_at")
     }
     if into_list {
-        report("'{text}' is borrowed from '{source}' and cannot be put in a list: a list keeps {copied}")
+        report("{reason}'{text}' is borrowed from '{source}' and cannot be put in a list: a list keeps {copied}")
         return
     }
     if site.starts_with("argument:") {
         report(
-            "'{text}' is borrowed from '{source}' and cannot be passed as an argument: pass {copied}, or the attributes the function needs",
+            "{reason}'{text}' is borrowed from '{source}' and cannot be passed as an argument: pass {copied}, or the attributes the function needs",
         )
         return
     }
-    report("'{text}' is borrowed from '{source}' and cannot be kept past the line that reads it: keep {copied}")
+    report("{reason}'{text}' is borrowed from '{source}' and cannot be kept past the line that reads it: keep {copied}")
 }
 
 func report_kept_row(text: String, source: String, site: String) {
-    var held = "'{text}' holds items borrowed from '{source}' for this call"
+    var held = "{items_choice(source)}'{text}' holds items borrowed from '{source}' for this call"
     var site_length = site.length()
     if site == "return" {
         report("{held} and cannot be returned: return the values the caller needs, or a 'copy()' of one of its items")
@@ -16082,7 +16161,7 @@ func report_captured_borrow(
     assert not text.is_empty()
     var source = borrowed_source_of(member.object, object_result, scope)
     report(
-        "'{text}.{member.name}' would keep '{text}', which is borrowed from '{source}', in a function value: make it from a copy, 'var kept = {text}.copy()' and then 'kept.{member.name}'",
+        "{items_choice(source)}'{text}.{member.name}' would keep '{text}', which is borrowed from '{source}', in a function value: make it from a copy, 'var kept = {text}.copy()' and then 'kept.{member.name}'",
     )
 }
 
@@ -16094,12 +16173,12 @@ func report_borrowed_reassignment(assignment: Syntax.Statements.AssignmentStatem
     assert not source.is_empty()
     if not scope.row_source(identifier.name).is_empty() {
         report(
-            "'{identifier.name}' holds items borrowed from '{source}' for this call and is not assigned again: make each row with a new 'var'",
+            "{items_choice(source)}'{identifier.name}' holds items borrowed from '{source}' for this call and is not assigned again: make each row with a new 'var'",
         )
         return true
     }
     report(
-        "'{identifier.name}' is borrowed from '{source}' and is not assigned again: read another item with a new 'var', such as 'var next = {source}[index]'",
+        "{items_choice(source)}'{identifier.name}' is borrowed from '{source}' and is not assigned again: read another item with a new 'var', such as 'var next = {source}[index]'",
     )
     return true
 }
@@ -16137,7 +16216,7 @@ func borrow_outlives_resize(
             if mentioned.contains(name) {
                 current_line = statement_line(statement)
                 report(
-                    "'{name}' is borrowed from '{source}', and {resize} may move the items of '{source}', so '{name}' is not read after it: read '{source}[index]' again after that line, or keep '{name}.copy()', an independent object",
+                    "{items_choice(source)}'{name}' is borrowed from '{source}', and {resize} may move the items of '{source}', so '{name}' is not read after it: read '{source}[index]' again after that line, or keep '{name}.copy()', an independent object",
                 )
                 return true
             }
@@ -16358,7 +16437,16 @@ func call_resizes(
     var member = shape.as_member(call.callee)
     if member {
         crash member.object
-        var resizing = ["append", "prepend", "insert", "remove_at", "remove_first", "remove_last", "clear"]
+        var resizing = [
+            "append"
+            "prepend"
+            "insert"
+            "remove_at"
+            "remove_first"
+            "remove_last"
+            "remove_swapping"
+            "clear"
+        ]
         if operand_text(member.object) == source and resizing.contains(member.name) {
             return "'{callee_text}()'"
         }
@@ -16466,7 +16554,7 @@ func effect_resizes(
         }
         var resized_class = call_effects.field_classes.get(resized)
         assert resized_class
-        return resized_class == "Vector"
+        return resized_class == "Vector" or resized_class == "Items"
     }
     var vector_link = links.last()
     assert vector_link
@@ -16480,7 +16568,12 @@ func borrowed_element(
 ): String {
     var statements = borrow_statements
     var start = borrow_index + 1
-    assert class_information.qualified_dotted == "List" and not declaration.type_reference and not hot_reload
+    var holder_name = "values"
+    if is_items_class(class_information) {
+        holder_name = "references"
+    }
+    assert class_information.qualified_dotted == "List" or is_items_class(class_information)
+    assert not declaration.type_reference and not hot_reload
     assert not scope.entry_names.contains(declaration.name) and not class_information.codegen_types.is_empty()
     crash declaration.value
     var read = shape.as_member(declaration.value)
@@ -16493,7 +16586,7 @@ func borrowed_element(
     var member = shape.as_member(call.callee)
     assert member and member.name == "read_value"
     crash member.object
-    assert is_identifier_named(member.object, "values") and is_identifier_named(call.arguments[0], "items")
+    assert is_identifier_named(member.object, holder_name) and is_identifier_named(call.arguments[0], "items")
     crash class_information.codegen_types[0]
     var element_type = class_information.codegen_types[0]
     assert type_needs_drop(element_type) and not type_shape.as_nullable(element_type)
@@ -20120,8 +20213,8 @@ func report_written_handle_type(declaration: Syntax.Statements.VariableDeclarati
 }
 
 func has_no_attribute_to_spare(information: Analysis.ClassInfo): Boolean {
-    var collection = information.qualified_dotted == "List" or information.qualified_dotted == "Vector"
-    return information.is_value_class or collection or information.qualified_dotted == "Dictionary"
+    var collections = ["List", "Vector", "Items", "Dictionary"]
+    return information.is_value_class or collections.contains(information.qualified_dotted)
 }
 
 func report_local_singleton(declaration: Syntax.Statements.VariableDeclaration, class_information: Analysis.ClassInfo) {

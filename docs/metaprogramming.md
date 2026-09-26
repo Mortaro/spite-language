@@ -530,6 +530,10 @@ true inline, 0 so far
 false as references, 0 so far
 ```
 
+The standard library makes this choice once, in `Items<T>`, a collection whose every body folds on it
+([collections.md](collections.md#itemst-the-storage-chosen-for-you)), so a generic that only needs to keep its
+values writes `Items<$component_type>()` and never asks.
+
 Inside a walk of attributes, `attribute.class.fits_vector()` asks the same of each attribute, and
 `attribute.index` is the attribute's place in the walk, 0 for the first: together they let a runner keep a
 sparse set per component and fill a row of borrowed items from it

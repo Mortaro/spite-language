@@ -1,0 +1,208 @@
+var console = Console()
+var clock = Clock()
+var item_total = 200000
+
+func ItemsStorage() {
+    var packed = Vector<Velocity>()
+    var inline = Items<Velocity>()
+    var listed = List<Trail>()
+    var referenced = Items<Trail>()
+    var start = clock.elapsed_nanoseconds()
+    fill_vector(packed)
+    var packed_filled = clock.elapsed_nanoseconds()
+    fill_inline(inline)
+    var inline_filled = clock.elapsed_nanoseconds()
+    fill_list(listed)
+    var listed_filled = clock.elapsed_nanoseconds()
+    fill_referenced(referenced)
+    var referenced_filled = clock.elapsed_nanoseconds()
+    var shared = List<Trail>()
+    var shared_items = Items<Trail>()
+    share(shared, shared_items)
+    var round = 0
+    while round < 3 {
+        var first = clock.elapsed_nanoseconds()
+        var packed_total = vector_ticks(packed)
+        var second = clock.elapsed_nanoseconds()
+        var inline_total = inline_ticks(inline)
+        var third = clock.elapsed_nanoseconds()
+        var inline_sum = inline_reads(inline)
+        var fourth = clock.elapsed_nanoseconds()
+        var packed_sum = vector_reads(packed)
+        var fifth = clock.elapsed_nanoseconds()
+        var listed_total = list_ticks(shared)
+        var sixth = clock.elapsed_nanoseconds()
+        var referenced_total = referenced_ticks(shared_items)
+        var seventh = clock.elapsed_nanoseconds()
+        var listed_sum = list_reads(shared)
+        var eighth = clock.elapsed_nanoseconds()
+        var referenced_sum = referenced_reads(shared_items)
+        var ninth = clock.elapsed_nanoseconds()
+        console.print("round", round)
+        report("Vector<Velocity>", packed_filled - start, second - first, fifth - fourth)
+        report("Items<Velocity>", inline_filled - packed_filled, third - second, fourth - third)
+        report("List<Trail>", listed_filled - inline_filled, sixth - fifth, eighth - seventh)
+        report("Items<Trail>", referenced_filled - listed_filled, seventh - sixth, ninth - eighth)
+        console.print("totals", packed_total, inline_total, listed_total, referenced_total)
+        console.print("reads", packed_sum, inline_sum, listed_sum, referenced_sum)
+        round = round + 1
+    }
+}
+
+func report(label: String, filling: Long, ticking: Long, reading: Long) {
+    var fill_microseconds = filling / 1000
+    var tick_microseconds = ticking / 100000
+    var read_microseconds = reading / 100000
+    var line = "{label} fill {fill_microseconds} us, template tick {tick_microseconds} us, indexed tick {read_microseconds} us"
+    console.print(line)
+}
+
+func share(shared: List<Trail>, shared_items: Items<Trail>) {
+    var index = 0
+    while index < item_total {
+        var trail = Trail(index % 100, index % 7, index % 3 != 0)
+        shared.append(trail)
+        shared_items.append(trail)
+        index = index + 1
+    }
+}
+
+func fill_vector(velocities: Vector<Velocity>) {
+    var index = 0
+    while index < item_total {
+        var velocity = Velocity(index % 100, index % 7, index % 3 != 0)
+        velocities.append(velocity)
+        index = index + 1
+    }
+}
+
+func fill_inline(velocities: Items<Velocity>) {
+    var index = 0
+    while index < item_total {
+        var velocity = Velocity(index % 100, index % 7, index % 3 != 0)
+        velocities.append(velocity)
+        index = index + 1
+    }
+}
+
+func fill_list(trails: List<Trail>) {
+    var index = 0
+    while index < item_total {
+        var trail = Trail(index % 100, index % 7, index % 3 != 0)
+        trails.append(trail)
+        index = index + 1
+    }
+}
+
+func fill_referenced(trails: Items<Trail>) {
+    var index = 0
+    while index < item_total {
+        var trail = Trail(index % 100, index % 7, index % 3 != 0)
+        trails.append(trail)
+        index = index + 1
+    }
+}
+
+func vector_ticks(velocities: Vector<Velocity>): Float {
+    var total = 0.0
+    var tick = 0
+    while tick < 100 {
+        velocities.each_integrate()
+        var moved = velocities.filter_moving().sum_across()
+        total = total + moved
+        tick = tick + 1
+    }
+    return total
+}
+
+func inline_ticks(velocities: Items<Velocity>): Float {
+    var total = 0.0
+    var tick = 0
+    while tick < 100 {
+        velocities.each_integrate()
+        var moved = velocities.filter_moving().sum_across()
+        total = total + moved
+        tick = tick + 1
+    }
+    return total
+}
+
+func list_ticks(trails: List<Trail>): Float {
+    var total = 0.0
+    var tick = 0
+    while tick < 100 {
+        trails.each_integrate()
+        var moved = trails.filter_moving().sum_across()
+        total = total + moved
+        tick = tick + 1
+    }
+    return total
+}
+
+func referenced_ticks(trails: Items<Trail>): Float {
+    var total = 0.0
+    var tick = 0
+    while tick < 100 {
+        trails.each_integrate()
+        var moved = trails.filter_moving().sum_across()
+        total = total + moved
+        tick = tick + 1
+    }
+    return total
+}
+
+func vector_reads(velocities: Vector<Velocity>): Float {
+    var total = 0.0
+    var place = 0
+    var step = 0
+    while step < item_total * 100 {
+        place = (place + 7919) % item_total
+        var velocity = velocities[place]
+        velocity.down = velocity.down + 1.0
+        total = total + velocity.across
+        step = step + 1
+    }
+    return total
+}
+
+func inline_reads(velocities: Items<Velocity>): Float {
+    var total = 0.0
+    var place = 0
+    var step = 0
+    while step < item_total * 100 {
+        place = (place + 7919) % item_total
+        var velocity = velocities[place]
+        velocity.down = velocity.down + 1.0
+        total = total + velocity.across
+        step = step + 1
+    }
+    return total
+}
+
+func list_reads(trails: List<Trail>): Float {
+    var total = 0.0
+    var place = 0
+    var step = 0
+    while step < item_total * 100 {
+        place = (place + 7919) % item_total
+        var trail = trails.get_at(place)
+        trail.down = trail.down + 1.0
+        total = total + trail.across
+        step = step + 1
+    }
+    return total
+}
+
+func referenced_reads(trails: Items<Trail>): Float {
+    var total = 0.0
+    var place = 0
+    var step = 0
+    while step < item_total * 100 {
+        place = (place + 7919) % item_total
+        var trail = trails[place]
+        trail.down = trail.down + 1.0
+        total = total + trail.across
+        step = step + 1
+    }
+    return total
+}
