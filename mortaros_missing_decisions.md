@@ -304,7 +304,7 @@ Behaviour that does not match the manual. The language was not changed; each is 
 
 ## The maths functions (for SlopEngine's skinning, animation and PBR)
 
-199. **The maths names, and constants answered by the class.** Built as proposed by Claude, unconfirmed
+200. **The maths names, and constants answered by the class.** Built as proposed by Claude, unconfirmed
      (`docs/standard_library.md#maths--implemented`): members of the number classes, `angle.sine()`, each the C
      library's function written where it is called. To confirm or rename:
      - `rise.arc_tangent_over(run)` for C's `atan2(rise, run)`. Other readings: `rise.arc_tangent_of(run)`, or
