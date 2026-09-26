@@ -149,18 +149,23 @@ templates run on the items in place the same way, and a chain of them is one loo
 | Member | Result | Notes |
 |---|---|---|
 | `append(value)` | | copies `value`'s attributes in as a new last item |
-| `vector[index]` / `get_at(index)` | `T` | the item itself, borrowed; an index out of range halts |
+| `vector[index]` / `get_at(index)` | `T` | the item itself, borrowed; a plain value (a number, `Boolean` or enum) is copied instead; an index out of range halts |
 | `vector[index] = value` / `set_at(index, value)` | | copies `value` over the item; out of range halts |
 | `remove_at(index)` | | moves every later item down; nothing happens out of range |
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
 | `reserve(count)` | | makes room for `count` items in all without making any, so appending up to there never grows the block (proposed by Claude, unconfirmed; D208) |
 | `copy()` / `deep_copy()` | `Vector<T>` | a new vector with its own copy of every item |
 | `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()` | | as on a list; `filter_` gives a `Vector<T>` of copies |
+| `each(f)`, `map(f)`, `filter(f)`, `count(f)`, `any(f)`, `all(f)`, `sum(f)` | | only for plain values, as on a list ([below](#passing-a-function-for-each-element)); `filter(f)` gives a `Vector<T>` |
 | `parallel_each_<member>()` | | as on a list ([concurrency.md](concurrency.md#parallel_each_-a-member-on-every-element)) |
 
 An item is of known size: a number, a `Boolean`, an enum, a `String`, or a class whose attributes are only those.
 A class with a `List`, a `Dictionary` or another object in an attribute is an error naming the attribute, and it
 belongs in a `List` ([the rules](#vectort--implemented)).
+
+Only an item that is a class is borrowed. A plain value -- a number, a `Boolean`, an enum -- is copied as it is
+read ([D221](decisions.md)), since copying it costs less than borrowing it, so `var first = numbers[0]` is a number
+of its own that may be kept, passed, returned and read after `numbers` grows.
 
 A borrowed item is read and written through its members. It is never kept: not in an attribute, a list, a
 returned value or a function value, and not past anything that may change the vector's size or move its block,
@@ -252,13 +257,14 @@ of moving every later one down, which is what a sparse set wants.
 | Member | Result | Notes |
 |---|---|---|
 | `append(value)` | | inline: copies `value`'s attributes in; references: keeps `value` |
-| `items[index]` / `get_at(index)` | `T` | inline: the item, borrowed; references: the reference; out of range halts, either way |
+| `items[index]` / `get_at(index)` | `T` | inline: the item, borrowed, or a copy of a plain value; references: the reference; out of range halts, either way |
 | `items[index] = value` / `set_at(index, value)` | | replaces the item; out of range halts |
 | `remove_at(index)` | | moves every later item down; nothing happens out of range |
 | `remove_swapping(index)` | | moves the last item into `index` (name provisional); nothing happens out of range |
 | `count()` / `is_empty()` / `clear()` | | `clear()` keeps the block's capacity |
 | `copy()` / `deep_copy()` | `Items<T>` | inline: every item copied; references: one level, or all the way down |
 | `each_`, `map_`, `filter_`, `count_`, `any_`, `all_`, `sum_<member>()`, `parallel_each_<member>()` | | as on a vector; `filter_` gives an `Items<T>`, and a chain is one loop |
+| `each(f)`, `map(f)`, `filter(f)`, `count(f)`, `any(f)`, `all(f)`, `sum(f)` | | only for plain values, as on a vector; `filter(f)` gives an `Items<T>` |
 
 Where the items are inline every rule of a borrowed item applies, and the error says why the item is borrowed,
 so a class that starts to fit a `Vector` shows where its old uses keep an item:
@@ -557,6 +563,44 @@ func say_hello(name: String) {
 The template still sees only the element: a function that needs more, such as `print_statement(statement, depth)`,
 is called from a `while`.
 
+A list's own functions are passed the same way, so `numbers.each(found.append)` copies every number into `found`.
+A `Vector` or an `Items` of plain values -- numbers, `Boolean`, enums -- takes every form but `find` and `sort_by`,
+because its items are copied as they are read and there is nothing borrowed to pass on
+([D221](decisions.md)); a chain of them is one loop over the block:
+
+```gdscript title=plain_vector/plain_vector.spite entry
+var console = Console()
+
+func PlainVector() {
+    var weights = Vector<Float>()
+    weights.append(1.5)
+    weights.append(2.5)
+    weights.append(4.0)
+    var found = List<Float>()
+    weights.each(found.append)
+    var heavy = weights.filter(is_heavy).sum(double_of)
+    var first = weights[0]
+    weights.append(8.0)
+    var joined = found.join(", ")
+    console.print(joined, heavy, first)
+}
+
+func is_heavy(weight: Float): Boolean {
+    return weight > 2.0
+}
+
+func double_of(weight: Float): Float {
+    return weight * 2.0
+}
+```
+```output
+1.5, 2.5, 4 13 1.5
+```
+
+An item that is a class is borrowed and never passed on, and a `String` item is not a plain value here
+(`velocities.each(f)` is an error naming a member template instead; `names.each(f)` on a `Vector<String>` says to
+keep the text in a `List<String>`).
+
 ## Chains run as one loop
 
 Every template takes what the one before it gives, so they chain: `map_<member>()` turns a list of teams into a
@@ -787,13 +831,16 @@ of each element, never a function of this class, so pass this class's 'say_hello
 The caller's function is passed as a bound function value (D17/D39), owned by whoever it is bound to:
 
 - **The forms.** `each(f)`, `map(f)`, `filter(f)`, `any(f)`, `all(f)`, `count(f)`, `find(f)`, `sort_by(f)` and
-  `sum(f)` on a `List` or a `Dictionary` (through its values), for an element of any type. `f` takes the element
+  `sum(f)` on a `List` or a `Dictionary` (through its values), for an element of any type, and all but `find` and
+  `sort_by` on a `Vector` or an `Items` of plain values (D221, below). `f` takes the element
   as its only argument, with exactly the element's type; D15's table applies to what it returns (`filter`, `any`,
   `all`, `count` and `find` want `Boolean`, `sum` a number, `sort_by` a number or a `String`, `map` a value, `each`
   anything). `find(f)` answers the first element `f` is true for, or `null` -- the `find_by_` template with
   `true` as its value. `count` with no argument stays the collection's size.
 - **The owner.** `say_hello` alone is bound to this instance; `greeter.greet` to `greeter`; a variable holding a
   `Spite.Function<T, R>` is called through the value. `people.map(greeter.label).filter(is_short)` mixes owners.
+  A list's own function is bound to the list the same way (`numbers.each(found.append)`, proposed by Claude,
+  unconfirmed); a chain that passes one is not fused, and runs step by step.
 - **How it is written.** No template changes: the same `library/list.spite` template (`each_member(member:
   Symbol<$element_type>)`) is instantiated once per function and owner class, with a last hidden parameter holding
   the owner (the function's instance, passed at the call site), and `item.attributes[member]` reads as
@@ -874,7 +921,10 @@ unconfirmed:
   from the Vector, never an object to keep or to pass on: read and write its attributes instead`.
 - **Reading.** `vector[index]` and `get_at(index)` answer the item itself, a `T` and never a `T?`: an index out of
   range halts with the crash report of `library/vector.spite`'s `crash index >= 0 and index < item_count`. A vector
-  of numbers, `Boolean`s, enums or `String`s answers the value, as a list does. What a borrowed item may do, and
+  of numbers, `Boolean`s, enums or `String`s answers the value, as a list does: a plain value -- a number, a
+  `Boolean`, an enum, `Memory.Address` included -- is copied as it is read and never borrowed (D221, decided by
+  Claude under D205), so none of the borrow rules applies to it; a `String` is answered as a counted reference,
+  as a list's is. What a borrowed item may do, and
   what a row of them passed to a system may do (D206), is
   [memory.md's rule](memory.md#borrowed-items-of-a-vectort--implemented).
 - **Writing.** `append(value)` and `set_at(index, value)` (`vector[index] = value`) copy the value's attributes
@@ -887,17 +937,26 @@ unconfirmed:
   `library/vector.spite`, written over the borrowed items; `filter_` answers a `Vector<T>` of copies and `map_` a
   `List` of the members' values. A chain of them is one loop over the block (D105), with `filter_` steps in the
   middle, and `parallel_each_<member>()` splits the walk across the thread pool as it does a list's.
-  `sort_by_`, `find_by_`, the passed-function forms and a program's own templates are not built for a vector; a
-  passed function would take the item as an argument, which a borrowed item never is, so `velocities.each(f)` is
-  `'each' passes each item to a function, and an item of a Vector is borrowed from it, never passed on: give the
-  item's class a function and call it with a member template, such as 'each_<function>()'`. The D171 rule for a
-  `while` a template already says does not look at a vector's loops yet.
+  `sort_by_`, `find_by_` and a program's own templates are not built for a vector. The passed-function forms
+  `each`, `map`, `filter`, `count`, `any`, `all` and `sum` are, for a vector of plain values only (D221): the
+  same templates, instantiated per function as for a list, reading each item as a copy, and fusing in a chain;
+  `filter(f)` answers a `Vector<T>`. `find(f)` and `sort_by(f)` are `'find' takes a function on a List, and a
+  Vector of plain values takes one only in 'each', 'map', 'filter', 'any', 'all', 'count' and 'sum': keep the
+  values in a 'List<Integer>' to use 'find'`. A passed function would take a class item as an argument, which a
+  borrowed item never is, so `velocities.each(f)` is `'each' passes each item to a function, and an item of a
+  Vector is borrowed from it, never passed on: give the item's class a function and call it with a member
+  template, such as 'each_<function>()'`; a vector of `String`s is not counted as plain (it holds references to
+  text, and D221 decided the rule conservatively), so `names.each(f)` is `'each' passes each item to a function,
+  which a Vector does only for plain values -- numbers, Boolean and enums, copied as they are read -- and a String
+  is not one: keep the values in a 'List<String>' to pass them on` (`diagnostics/plain_items`). The D171 rule for
+  a `while` a template already says does not look at a vector's loops yet.
 - **Its allocator.** `velocities.memory.allocator = arena` on the next line places the `Vector` object in the
   arena, as for any object (D152). **Not built:** its block of items following it there; the block is on the heap,
   because a class cannot read its own `.memory` yet (item 175's proposal, `memory.allocator` read inside a class,
   is still open).
 
-`diagnostics/vector_borrows`, `diagnostics/vector_items`, `conformance/stage6/vector_items`.
+`diagnostics/vector_borrows`, `diagnostics/vector_items`, `diagnostics/plain_items`,
+`conformance/stage6/vector_items`, `conformance/stage6/plain_items`.
 
 ### Items\<T\>  **[implemented; the name provisional]**
 
@@ -920,7 +979,8 @@ below, and the names `Items` and `remove_swapping`, are proposed by Claude, unco
   union, a `type`, a `List`, a `Dictionary` or a class holding one is kept by reference. `Items<Integer>` and
   `Items<String>` are plain arrays of the values, as a vector's are.
 - **Reading.** `items[index]` and `get_at(index)` answer a `T`, never a `T?`, for both kinds, and an index out of
-  range halts with the crash report of `library/items.spite`'s `_out_of_range`. Inline, the item is borrowed, and
+  range halts with the crash report of `library/items.spite`'s `_out_of_range`. A plain value (a number, a
+  `Boolean`, an enum) is copied, never borrowed (D221). Otherwise, inline, the item is borrowed, and
   every rule of [memory.md's borrowed items](memory.md#borrowed-items-of-a-vectort--implemented) applies to it,
   rows included. By reference, it is a counted reference like a list element read with `get_at`: it may be kept,
   passed, returned and read after the collection changes size. `List`'s `[]` answers `T?` instead; `Items` does
@@ -948,7 +1008,9 @@ below, and the names `Items` and `remove_swapping`, are proposed by Claude, unco
   `library/items.spite`, each folded the same way; `filter_` answers an `Items<T>` (copies when inline, the same
   references otherwise) and `map_` a `List` of the members' values. A chain is one loop over the block (D105),
   and `parallel_each_<member>()` splits it across the thread pool, as for a vector. The passed-function forms
-  (`each(f)`, `map(f)`, ...) are not offered for either kind, since an inline item is never passed on: `'each'
+  (`each(f)`, `map(f)`, ...) are offered, as on a vector, only for plain values (D221), whose items are copies;
+  `filter(f)` answers an `Items<T>`. For any other item they are not offered for either kind, since an inline
+  item is never passed on: `'each'
   passes each item to a function, and 'Velocity' fits a Vector, so an item of these Items is borrowed from them,
   never passed on: give the item's class a function and call it with a member template, such as
   'each_<function>()'`; by reference the error says that `Items` does not do it whichever storage it chose.
@@ -960,7 +1022,8 @@ below, and the names `Items` and `remove_swapping`, are proposed by Claude, unco
   enough for the C compiler to inline. A program that makes no `Items` carries none of it. Measured in
   `benchmarks/items_storage`.
 
-`conformance/stage6/items_columns`, `diagnostics/items_borrows`.
+`conformance/stage6/items_columns`, `conformance/stage6/plain_items`, `diagnostics/items_borrows`,
+`diagnostics/plain_items`.
 
 ### Heap\<T\> -- removed (D1, decided by Mortaro, 2026-09-19)
 

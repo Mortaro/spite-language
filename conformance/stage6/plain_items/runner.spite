@@ -1,0 +1,45 @@
+generic $row_type
+
+var matcher = Matcher()
+
+func run(mover: Mover, entity_count: Integer) {
+    var entity = 0
+    while entity < entity_count {
+        matcher.clear()
+        find_attributes(entity)
+        if not matcher.missing {
+            var row: $row_type = null
+            fill_attributes(row)
+            mover.update_each(row)
+        }
+        entity = entity + 1
+    }
+}
+
+func run_passed(mover: Mover, entity_count: Integer) {
+    var entity = 0
+    while entity < entity_count {
+        matcher.clear()
+        find_attributes(entity)
+        if not matcher.missing {
+            var row: $row_type = null
+            pass_attributes(row, matcher.rows)
+            mover.update_each(row)
+        }
+        entity = entity + 1
+    }
+}
+
+func find_attribute(attribute: Symbol<$row_type>, entity: Integer) {
+    var column = Column<attribute.class>()
+    var dense = column.set.dense_index(entity)
+    matcher.note(dense)
+}
+
+func fill_attribute(attribute: Symbol<$row_type>, row: $row_type) {
+    row.attributes[attribute] = Column<attribute.class>().values[matcher.rows[attribute.index]]
+}
+
+func pass_attribute(attribute: Symbol<$row_type>, row: $row_type, rows: Vector<Integer>) {
+    row.attributes[attribute] = Column<attribute.class>().values[rows[attribute.index]]
+}

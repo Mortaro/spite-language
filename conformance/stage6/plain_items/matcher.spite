@@ -1,0 +1,16 @@
+singleton
+
+var rows = Vector<Integer>()
+var missing = false
+
+func clear() {
+    rows.clear()
+    missing = false
+}
+
+func note(dense: Integer) {
+    if dense < 0 {
+        missing = true
+    }
+    rows.append(dense)
+}

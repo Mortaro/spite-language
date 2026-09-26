@@ -1,0 +1,96 @@
+enum Side {
+    'left'
+    'right'
+}
+
+var console = Console()
+var numbers = Vector<Integer>()
+var found = List<Integer>()
+var weights = Vector<Float>()
+var counts = Items<Integer>()
+var sides = Vector<Side>()
+var runner = Runner<Moving>()
+var mover = Mover()
+var positions = Column<Position>()
+var velocities = Column<Velocity>()
+
+func PlainItems() {
+    numbers.append(3)
+    numbers.append(5)
+    numbers.each(found.append)
+    var joined = found.join(", ")
+    console.print("found", joined)
+    var first = numbers[0]
+    numbers.append(7)
+    var kept = List<Integer>()
+    kept.append(first)
+    kept.append(numbers[2])
+    var last = largest()
+    var joined_kept = kept.join(", ")
+    console.print("kept", joined_kept, "first", first, "largest", last)
+    weights.append(1.5)
+    weights.append(2.5)
+    weights.append(4.0)
+    var doubled = weights.map(double_of)
+    var joined_doubled = doubled.join(", ")
+    var big = weights.filter(is_big)
+    var big_count = big.count()
+    var total = weights.sum(double_of)
+    var big_total = weights.filter(is_big).sum(double_of)
+    var counted = weights.count(is_big)
+    var any_big = weights.any(is_big)
+    var all_big = weights.all(is_big)
+    console.print("doubled", joined_doubled, "big", big_count, "total", total, big_total)
+    console.print("counted", counted, any_big, all_big)
+    counts.append(2)
+    counts.append(9)
+    counts.each(found.append)
+    var counted_total = counts.sum(twice)
+    var joined_found = found.join(", ")
+    console.print("found", joined_found, "counts", counted_total)
+    sides.append('left')
+    sides.append('right')
+    sides.append('left')
+    var lefts_counted = sides.count(is_left)
+    console.print("sides on the left", lefts_counted)
+    spawn()
+    runner.run(mover, 4)
+    runner.run_passed(mover, 4)
+    var lefts = positions.values.map_left()
+    var joined_lefts = lefts.join(", ")
+    console.print("lefts", joined_lefts, "moved", mover.moved)
+}
+
+func spawn() {
+    var entity = 0
+    while entity < 4 {
+        var left: Float = entity * 10
+        var position = Position(left)
+        positions.insert(entity, position)
+        entity = entity + 1
+    }
+    var fast = Velocity(5.0)
+    velocities.insert(3, fast)
+    var slow = Velocity(1.0)
+    velocities.insert(1, slow)
+}
+
+func largest(): Integer {
+    return numbers[2]
+}
+
+func double_of(weight: Float): Float {
+    return weight * 2.0
+}
+
+func is_big(weight: Float): Boolean {
+    return weight > 2.0
+}
+
+func twice(count: Integer): Integer {
+    return count * 2
+}
+
+func is_left(side: Side): Boolean {
+    return side == 'left'
+}

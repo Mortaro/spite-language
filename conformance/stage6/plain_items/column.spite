@@ -1,0 +1,11 @@
+singleton
+
+generic $component_type
+
+var set = SparseSet()
+var values = Vector<$component_type>()
+
+func insert(entity: Integer, value: $component_type) {
+    set.place(entity)
+    values.append(value)
+}
