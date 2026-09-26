@@ -64,6 +64,7 @@ nothing at run time because they emit nothing.
 | [A number joined into text is written in place](#a-number-joined-into-text-is-written-in-place) | built | every | fewer allocations |
 | [Allocation is the C library's, counted only where read](#allocation-is-the-c-librarys-counted-only-where-read) | built | every but `--debug-memory`, decided per program | nothing: `live_allocations()` still answers |
 | [A dictionary hashes a key once, cheaply](#a-dictionary-hashes-a-key-once-cheaply) | built | every | nothing but speed |
+| [A dictionary keyed by numbers hashes the numbers](#a-dictionary-keyed-by-numbers-hashes-the-numbers) | built | every | fewer allocations; compiling takes a second pass |
 | [Reading through a `type` without counting](#reading-through-a-type-without-counting) | built | every but `--hot-reload` | nothing but speed |
 | [Short text lives inside the `String`](#short-text-lives-inside-the-string) | built | every | fewer allocations; `.memory.section` of built text; a box when text travels as a shape |
 | [Maths on constants is worked out while compiling](#maths-on-constants-is-worked-out-while-compiling) | built | every | nothing but speed; a folded call is the compiling machine's C library's answer |
@@ -1004,6 +1005,32 @@ compares key texts only when those bits match.
 **When.** Every `Dictionary`, in every build. **What you notice.** Speed: `benchmarks/dictionary_keys` went from
 413 ms to 282 ms. Keys, values and their order are the same, and so is every allocation: the slot table is still
 one block, twice as large. **Built** (2026-09-25; proposed by Claude, unconfirmed).
+
+### A dictionary keyed by numbers hashes the numbers
+
+**What it does.** A `Dictionary` the program gives whole-number keys ([collections.md](collections.md#keyed-by-numbers),
+D224) is compiled as its own form of `library/dictionary.spite`, whose bodies fold on the key's type as `Items`
+folds on `fits_vector()`: its keys are a `List` of the numbers, a key is hashed by one multiply (Knuth's
+6364136223846793005) instead of a loop over characters, and a slot's key is compared directly, without the 32 bits
+of hash a text key keeps beside it. No `String` is made for a key, in a lookup or in the table. A dictionary given
+text keys compiles to exactly the code it did before.
+
+**When.** Every build, for each dictionary whose keys are whole numbers. Which dictionaries those are is worked out
+while compiling: every place a dictionary is made or named (a `Dictionary<T>()`, an attribute, a parameter, a
+return type) is a site, sites a dictionary flows between are joined wherever the compiler checks that one
+dictionary type fits another, and a site's kind is that of the keys given to any site it is joined with. The key
+kinds are known only once the whole program has been compiled, so a program that gives some dictionary a number
+key is compiled a second time with them known (a third or more only when a dictionary's kind changes which
+generic classes are made, at most eight); a program with only text keys is compiled once, the compiler itself
+included.
+
+**What you notice.** Speed and allocations: `benchmarks/number_keys` does a million lookups in 8 ms keyed by the
+number, against 66 ms keyed by `index.to_string()` and 106 ms before D224, when a number key was quietly turned
+into text; `conformance/stage6/number_keys` pins its 158 allocations, with a thousand number keys making none.
+`keys()` answers the numbers, and a mixed dictionary is a compile error. Compiling a program with number keys
+costs the second pass: `benchmarks/number_keys` compiles to C in about 300 ms against about 200 ms in one pass
+(reading and parsing are not repeated). **Built** (2026-09-26; decided by Claude under D205, the readings proposed by Claude,
+unconfirmed).
 
 ### Reading through a `type` without counting
 

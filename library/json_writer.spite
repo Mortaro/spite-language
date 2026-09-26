@@ -52,13 +52,14 @@ func _written(shown: $value_type): String {
         return "[{joined_elements}]"
     } else if $value_type == Dictionary {
         var entry_json = JsonWriter<$value_type.value_type>(null)
+        var key_json = JsonWriter<$value_type.key_type>(null)
         var keys = shown.keys()
         var values = shown.values()
         var entries = List<String>()
         var index = 0
         while index < keys.count() {
-            var key = keys.get_at(index)
-            var quoted_key = quoted(key)
+            key_json.value = keys.get_at(index)
+            var quoted_key = key_json.key_text()
             entry_json.value = values.get_at(index)
             entry_json.path = "{path}[{quoted_key}]"
             var entry_text = entry_json.write()
@@ -150,4 +151,12 @@ func escape_of(code: Integer): String {
     var high = digits.character_at(code / 16)
     var low = digits.character_at(code % 16)
     return "\\u00{high}{low}"
+}
+
+func key_text(): String {
+    crash value
+    if $value_type == String {
+        return quoted(value)
+    }
+    return "\"{value}\""
 }

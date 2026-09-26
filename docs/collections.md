@@ -48,9 +48,10 @@ Names say where: `append` and `prepend`, never `add`; `remove_last`, never `pop`
 
 ## `Dictionary<T>`
 
-Keys are `String`, entries keep the order they were inserted in, and `get`, `has`, `set` and `[]` take the same
-time however many keys there are -- it is a hash table over two lists. `remove` is the exception: it moves every
-later entry down, as `remove_at` does on a list.
+Keys are text or whole numbers, entries keep the order they were inserted in, and `get`, `has`, `set` and `[]`
+take the same time however many keys there are -- it is a hash table over two lists. `remove` is the exception: it
+moves every later entry down, as `remove_at` does on a list. There is nothing to write for the key: a dictionary
+given text keys is keyed by text, and one given whole numbers is keyed by numbers ([below](#keyed-by-numbers)).
 
 | Member | Result | Notes |
 |---|---|---|
@@ -60,7 +61,7 @@ later entry down, as `remove_at` does on a list.
 | `has(key)` | `Boolean` | |
 | `remove(key)` | | nothing happens when the key is absent |
 | `count()` | `Integer` | |
-| `keys()` / `values()` | `List<String>` / `List<T>` | a fresh list, in insertion order |
+| `keys()` / `values()` | `List<String>` (or the numbers) / `List<T>` | a fresh list, in insertion order |
 | `copy()` / `deep_copy()` | `Dictionary<T>` | |
 
 ```gdscript title=dictionary_tasks/dictionary_tasks.spite entry
@@ -98,6 +99,40 @@ total items 7
 
 `inventory["shield"]` is `null`, and `null` equals nothing, so `inventory["shield"] == 0` is `false`: absent is
 not zero. `has(key)` asks the question directly.
+
+### Keyed by numbers
+
+Give a dictionary whole numbers -- `Integer`, `Long` or any other whole-number type -- and it is keyed by them: it
+stores and hashes the number itself, never text made from it, and `keys()` answers the numbers. Which kind a
+dictionary is keyed by is worked out while compiling from every key the program gives it, wherever the dictionary
+goes: a parameter, an attribute or a generic class that receives it is keyed the same way.
+
+```gdscript title=number_keys_tasks/number_keys_tasks.spite entry
+var console = Console()
+var names = Dictionary<String>()
+
+func NumberKeysTasks() {
+    names[3] = "fern"
+    names[11] = "moss"
+    names.set(7, "reed")
+    names.remove(11)
+    crash names[7]
+    console.print("seven", names[7])
+    var ids = names.keys()
+    crash ids[0]
+    var first_id = ids[0] + 100
+    var joined_ids = ids.join(",")
+    console.print("ids", joined_ids, "first plus 100", first_id)
+}
+```
+```output
+seven reed
+ids 3,7 first plus 100 103
+```
+
+One dictionary is keyed by one kind: given a text key in one place and a number in another, even through a
+parameter, it is a compile error naming both places. A number in a key is not turned into text; to key by text, give
+text.
 
 ## `Vector<T>`: items inline
 
@@ -882,10 +917,36 @@ write 'remove_last()', or 'remove_first()' to take from the start` (`diagnostics
 
 ### Dictionary\<T\>  **[implemented]**
 
-String-keyed and insertion-ordered; its members are [the table under `Dictionary<T>`](#dictionaryt), which is
-normative. `dictionary[key]` is `get(key)`, a `T?` that is `null` for an absent key, and `dictionary[key] = value`
-is `set(key, value)`; there is no `get_at`/`set_at` on a dictionary. `keys()` and `values()` answer fresh copies,
-in insertion order.
+Insertion-ordered, keyed by text or by whole numbers; its members are [the table under
+`Dictionary<T>`](#dictionaryt), which is normative. `dictionary[key]` is `get(key)`, a `T?` that is `null` for an
+absent key, and `dictionary[key] = value` is `set(key, value)`; there is no `get_at`/`set_at` on a dictionary.
+`keys()` and `values()` answer fresh copies, in insertion order.
+
+**The key kind is decided while compiling** (D224, decided by Claude under D205; the readings below proposed by
+Claude, unconfirmed). Each dictionary is keyed by text or by whole numbers, never both, and nothing is written for
+it: `Dictionary<T>` stays the one spelling.
+
+- The keys the program gives a dictionary decide it -- the key of `[]`, `[] =`, `set`, `get`, `has` and
+  `remove`. A `String`, a symbol or an enum value is a text key (an enum value becomes its name, as before); a
+  `Tiny`, `Byte`, `Short`, `UnsignedShort`, `Integer`, `UnsignedInteger`, `Long` or `UnsignedLong` is a number
+  key. A dictionary given no key at all is keyed by text.
+- The kind follows the dictionary wherever it goes, like its value type: a local it is assigned to, a parameter it
+  is passed to, an attribute that holds it, a function that returns it, a list of dictionaries, and a generic
+  class it is handed to (`JsonWriter(scores)`, `BinaryReader<Shelf>`). A key given anywhere along that path
+  decides it for all of them.
+- One dictionary given a text key and a number key is a compile error at the number key, naming the text key's
+  place: `this dictionary is given a whole-number key here and a text key at <file>:<line> (in <class>.<function>):
+  a dictionary is keyed by text or by whole numbers, never both -- give every key of it the same kind`
+  (`diagnostics/mixed_dictionary_keys`).
+- A number-keyed dictionary's key type is the widest whole-number type any of its keys has (`Integer` keys and one
+  `Long` key make a `Long`-keyed dictionary); a narrower key is widened as an argument is. `keys()` answers a
+  `List` of that type, and `copy()` and `deep_copy()` are keyed the same way.
+- A number key is stored and hashed as the number: no `String` is made for it, in a lookup or in the table.
+  Everything else is as for text keys: insertion order, `null` for an absent key, `remove` moving later entries
+  down, the member templates through the values (`conformance/stage6/number_keys`).
+- Written as JSON, a number key is the number in quotes (`{"7":"SEVEN"}`), and reading JSON into a number-keyed
+  dictionary reads each key's text as the number. Binary bytes carry the number as its type is written, and
+  `schema()` counts the key's type in, so text-keyed and number-keyed dictionaries have different schemas.
 
 It is a hash table over two ordered lists (the decision log's hash-table row, proposed by Claude, unconfirmed):
 `get`, `has`, `set` and `[]` take the same time however many keys there are, and `remove` takes time in

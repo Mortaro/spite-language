@@ -287,14 +287,8 @@ func is_on(name: String): Boolean {
 }
 
 func generated(discovery: Discovery.DiscoveryResult): Generation.Generator? {
-    var prelude = Generation.Prelude()
-    var generator = Generation.Generator()
-    configure(generator)
-    var header = prelude.header()
-    var structs = prelude.structs()
-    var prototypes = prelude.prototypes()
-    var bodies = prelude.bodies()
-    generated_code = generator.generate(discovery, header, structs, prototypes, bodies)
+    var no_host_classes = List<String>()
+    var generator = keyed_generator(discovery, no_host_classes)
     if generator.has_error {
         report_error(generator.error_message)
         return null
@@ -305,6 +299,36 @@ func generated(discovery: Discovery.DiscoveryResult): Generation.Generator? {
         var reload = Generation.HotReloadLibrary()
         last_hot_state = hot_state(generator, reload, 0)
     }
+    return generator
+}
+
+func keyed_generator(discovery: Discovery.DiscoveryResult, host_classes: List<String>): Generation.Generator {
+    var number_keys = Dictionary<Analysis.SpiteType>()
+    var generator = generator_pass(discovery, host_classes, number_keys)
+    var passes = 1
+    while generator.key_sites_changed and passes < 8 {
+        number_keys = generator.learned_key_sites
+        generator = generator_pass(discovery, host_classes, number_keys)
+        passes = passes + 1
+    }
+    return generator
+}
+
+func generator_pass(
+    discovery: Discovery.DiscoveryResult,
+    host_classes: List<String>,
+    number_keys: Dictionary<Analysis.SpiteType>,
+): Generation.Generator {
+    var generator = Generation.Generator()
+    configure(generator)
+    generator.seed_class_names(host_classes)
+    generator.number_key_sites = number_keys
+    var prelude = Generation.Prelude()
+    var header = prelude.header()
+    var structs = prelude.structs()
+    var prototypes = prelude.prototypes()
+    var bodies = prelude.bodies()
+    generated_code = generator.generate(discovery, header, structs, prototypes, bodies)
     return generator
 }
 
@@ -726,15 +750,7 @@ func run_reload(discovery: Discovery.DiscoveryResult) {
     var reload = Generation.HotReloadLibrary()
     reload.read_host(host_text)
     reload.read_state(state_text)
-    var generator = Generation.Generator()
-    configure(generator)
-    generator.seed_class_names(reload.host_classes)
-    var prelude = Generation.Prelude()
-    var header = prelude.header()
-    var structs = prelude.structs()
-    var prototypes = prelude.prototypes()
-    var bodies = prelude.bodies()
-    generator.generate(discovery, header, structs, prototypes, bodies)
+    var generator = keyed_generator(discovery, reload.host_classes)
     if generator.has_error {
         console.print(generator.error_message)
         program.exit(1)

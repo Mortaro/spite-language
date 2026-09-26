@@ -1,7 +1,16 @@
 var element: SpiteType? = null
+var key: SpiteType? = null
+var site = ""
 
-func DictionaryType(starting_element: SpiteType) {
+func DictionaryType(starting_element: SpiteType, starting_key: SpiteType, starting_site: String) {
     element = starting_element
+    key = starting_key
+    site = starting_site
+}
+
+func get_key(): SpiteType {
+    crash key
+    return key
 }
 
 func get_element(): SpiteType {

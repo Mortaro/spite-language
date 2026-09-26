@@ -1,0 +1,16 @@
+var console = Console()
+var scores = Dictionary<Integer>()
+
+func MixedDictionaryKeys() {
+    scores["ada"] = 3
+    var tally = Dictionary<Integer>()
+    tally[1] = 5
+    record(tally)
+    var total = scores.count() + tally.count()
+    console.print(total)
+}
+
+func record(recorded: Dictionary<Integer>) {
+    recorded["grace"] = 2
+    scores[7] = 1
+}

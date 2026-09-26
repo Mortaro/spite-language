@@ -126,6 +126,14 @@ var site_ordinal = 0
 var current_site_id = ""
 var functions_function_classes = List<Analysis.ClassInfo>()
 var dictionary_names = List<String>()
+var number_key_sites = Dictionary<Analysis.SpiteType>()
+var key_site_parents = Dictionary<String>()
+var key_sites = List<String>()
+var text_key_uses = Dictionary<KeyUse>()
+var number_key_uses = Dictionary<KeyUse>()
+var number_key_types = Dictionary<Analysis.SpiteType>()
+var learned_key_sites = Dictionary<Analysis.SpiteType>()
+var key_sites_changed = false
 var class_names_by_id = List<String>()
 var current_owner = ""
 var nullable_scalar_labels = List<String>()
@@ -598,6 +606,7 @@ func generate(
     if not outside_classes.is_empty() {
         finish_outside_writes()
     }
+    settle_key_sites()
     if not has_error {
         report_unused_attributes()
     }
@@ -1563,7 +1572,7 @@ func exact_type_label(spite_type: Analysis.SpiteType): String {
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
         var dictionary_element = dictionary_type.get_element()
-        return "Dictionary_{exact_type_label(dictionary_element)}"
+        return "Dictionary_{exact_type_label(dictionary_element)}{dictionary_key_suffix(dictionary_type)}"
     }
     var function_type = type_shape.as_class_ref(spite_type)
     if function_type {
@@ -3194,8 +3203,7 @@ func container_class_of(from: Analysis.SpiteType): Analysis.ClassInfo? {
     }
     var dictionary_type = type_shape.as_dictionary(from)
     if dictionary_type {
-        var dictionary_element = dictionary_type.get_element()
-        var ensured_dictionary = ensure_dictionary(dictionary_element)
+        var ensured_dictionary = ensure_dictionary(dictionary_type)
         return find_class_by_c_name(ensured_dictionary)
     }
     return null
@@ -3209,8 +3217,8 @@ func instance_type_of(information: Analysis.ClassInfo): Analysis.SpiteType {
     if information.qualified_dotted == "List" and information.codegen_types.count() == 1 {
         return list_type_of(information.codegen_types[0])
     }
-    if information.qualified_dotted == "Dictionary" and information.codegen_types.count() == 1 {
-        return dictionary_type_of(information.codegen_types[0])
+    if information.qualified_dotted == "Dictionary" and information.codegen_types.count() == 2 {
+        return fixed_dictionary_type(information)
     }
     return value_class_type(information)
 }
@@ -5111,7 +5119,11 @@ func schema_text(spite_type: Analysis.SpiteType, visiting: List<String>): String
     if mapped {
         var entry = mapped.get_element()
         var entry_text = schema_text(entry, visiting)
-        return "Dictionary<{entry_text}>"
+        var mapped_key = mapped.get_key()
+        if type_shape.as_string(mapped_key) {
+            return "Dictionary<{entry_text}>"
+        }
+        return "Dictionary<{entry_text}>by{type_label(mapped_key)}"
     }
     var shown = type_display_name(spite_type)
     var enumerated = type_shape.as_enum(spite_type)
@@ -5505,7 +5517,7 @@ func resolve_named_type(named: Syntax.Types.NamedType, current_namespace: String
         if name == "Dictionary" {
             var dictionary_element = resolve_single_type_argument(named, current_namespace)
             if dictionary_element {
-                return dictionary_type_of(dictionary_element)
+                return dictionary_type_at(dictionary_element, named.line, named.column)
             }
             return null
         }
@@ -5676,6 +5688,9 @@ func codegen_member_type(owner: Analysis.SpiteType, name: String): Analysis.Spit
     }
     var owner_dictionary = type_shape.as_dictionary(owner)
     if owner_dictionary {
+        if name == "key_type" {
+            return owner_dictionary.get_key()
+        }
         assert name == "value_type"
         return owner_dictionary.get_element()
     }
@@ -5913,9 +5928,12 @@ func types_equal(left_type: Analysis.SpiteType, right_type: Analysis.SpiteType):
     if left_dictionary {
         var right_dictionary = type_shape.as_dictionary(right_type)
         if right_dictionary {
+            join_key_sites(left_dictionary.site, right_dictionary.site)
             var left_dictionary_element = left_dictionary.get_element()
             var right_dictionary_element = right_dictionary.get_element()
-            return types_equal(left_dictionary_element, right_dictionary_element)
+            var left_key = left_dictionary.get_key()
+            var right_key = right_dictionary.get_key()
+            return types_equal(left_dictionary_element, right_dictionary_element) and types_equal(left_key, right_key)
         }
         return false
     }
@@ -6053,7 +6071,7 @@ func type_label(spite_type: Analysis.SpiteType): String {
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
         var dictionary_type_element = dictionary_type.get_element()
-        return "Dictionary_{type_label(dictionary_type_element)}"
+        return "Dictionary_{type_label(dictionary_type_element)}{dictionary_key_suffix(dictionary_type)}"
     }
     var union_type = type_shape.as_union(spite_type)
     if union_type {
@@ -6124,8 +6142,7 @@ func c_type_name(spite_type: Analysis.SpiteType): String {
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
-        var dictionary_type_element = dictionary_type.get_element()
-        return "{ensure_dictionary(dictionary_type_element)}*"
+        return "{ensure_dictionary(dictionary_type)}*"
     }
     var union_type = type_shape.as_union(spite_type)
     if union_type {
@@ -6174,8 +6191,7 @@ func default_value_for_type(spite_type: Analysis.SpiteType): String {
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
-        var dictionary_type_element = dictionary_type.get_element()
-        return "{ensure_dictionary(dictionary_type_element)}___make()"
+        return "{ensure_dictionary(dictionary_type)}___make()"
     }
     var union_type = type_shape.as_union(spite_type)
     if union_type {
@@ -6487,8 +6503,7 @@ func retain_call(spite_type: Analysis.SpiteType, code: String): String {
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
-        var dictionary_type_element = dictionary_type.get_element()
-        return "{ensure_dictionary(dictionary_type_element)}___retain({code})"
+        return "{ensure_dictionary(dictionary_type)}___retain({code})"
     }
     var union_type = type_shape.as_union(spite_type)
     if union_type {
@@ -6517,8 +6532,7 @@ func release_call(spite_type: Analysis.SpiteType, code: String): String {
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
-        var dictionary_type_element = dictionary_type.get_element()
-        return "{ensure_dictionary(dictionary_type_element)}___release({code})"
+        return "{ensure_dictionary(dictionary_type)}___release({code})"
     }
     var union_type = type_shape.as_union(spite_type)
     if union_type {
@@ -9606,9 +9620,8 @@ func generate_method_call(
     }
     var object_dictionary = type_shape.as_dictionary(object_result_type)
     if object_dictionary {
-        var object_dictionary_element = object_dictionary.get_element()
         return generate_dictionary_method(
-            object_dictionary_element,
+            object_dictionary,
             member.name,
             object_result,
             object_ast,
@@ -10501,8 +10514,9 @@ func generate_fused_chain(
     var generated_member_object = generate_member_object(base, scope, class_information)
     var receiver = as_text(generated_member_object)
     var receiver_type = receiver.get_type()
-    if type_shape.as_dictionary(receiver_type) {
-        var dictionary_name = ensure_dictionary(element)
+    var receiver_dictionary = type_shape.as_dictionary(receiver_type)
+    if receiver_dictionary {
+        var dictionary_name = ensure_dictionary(receiver_dictionary)
         var empty_types = no_types()
         var list_type = list_type_of(element)
         var no_arguments = List<Syntax.Expressions.Expression>()
@@ -12848,12 +12862,11 @@ func ensure_reflect_function(spite_type: Analysis.SpiteType): String {
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
-        var dictionary_element = dictionary_type.get_element()
-        var dictionary_name = ensure_dictionary(dictionary_element)
+        var dictionary_name = ensure_dictionary(dictionary_type)
         lines.append("reflected->spite_held = {dictionary_name}___retain(value);")
         lines.append("reflected->spite_release_held = (void (*)(void*)){dictionary_name}___release;")
         lines.append(
-            "reflected->spite_held_attributes = (void* (*)(void*)){ensure_dictionary_attributes_function(dictionary_element)};",
+            "reflected->spite_held_attributes = (void* (*)(void*)){ensure_dictionary_attributes_function(dictionary_type)};",
         )
     }
     lines.append("return reflected;")
@@ -12883,8 +12896,9 @@ func ensure_list_attributes_function(element: Analysis.SpiteType): String {
     return function_c_name
 }
 
-func ensure_dictionary_attributes_function(element: Analysis.SpiteType): String {
-    var dictionary_name = ensure_dictionary(element)
+func ensure_dictionary_attributes_function(dictionary: Analysis.Types.DictionaryType): String {
+    var element = dictionary.get_element()
+    var dictionary_name = ensure_dictionary(dictionary)
     var function_c_name = "{dictionary_name}___attributes"
     if reflect_function_names.contains(function_c_name) {
         return function_c_name
@@ -12897,11 +12911,15 @@ func ensure_dictionary_attributes_function(element: Analysis.SpiteType): String 
     var signature = "{attributes_list}* {function_c_name}({dictionary_name}* self)"
     builder.add_prototype("{signature};")
     var reflect = ensure_reflect_function(element)
-    var string_spite_type = string_type()
-    var key = list_item_code(string_spite_type, "self->entry_keys_", "spite_index")
+    var key_type = dictionary.get_key()
+    var key = list_item_code(key_type, "self->entry_keys_", "spite_index")
+    var key_text = "SpiteString___retain({key})"
+    if not type_shape.as_string(key_type) {
+        key_text = long_text("(int64_t)({key})")
+    }
     var entry = list_item_code(element, "self->entry_values_", "spite_index")
     builder.add_support(
-        "{signature} \{\n{attributes_list}* result = {attributes_list}___make();\nfor (int64_t spite_index = 0; spite_index < self->entry_keys_->item_count_; spite_index = spite_index + 1) {attributes_list}_append(result, {reflect}(SpiteString___retain({key}), {entry}));\nreturn result;\n}",
+        "{signature} \{\n{attributes_list}* result = {attributes_list}___make();\nfor (int64_t spite_index = 0; spite_index < self->entry_keys_->item_count_; spite_index = spite_index + 1) {attributes_list}_append(result, {reflect}({key_text}, {entry}));\nreturn result;\n}",
     )
     return function_c_name
 }
@@ -13293,8 +13311,7 @@ func deep_copy_code(spite_type: Analysis.SpiteType, code: String): String {
     }
     var dictionary_type = type_shape.as_dictionary(spite_type)
     if dictionary_type {
-        var dictionary_type_element = dictionary_type.get_element()
-        return "{ensure_dictionary_deep_copy(dictionary_type_element)}({code})"
+        return "{ensure_dictionary_deep_copy(dictionary_type)}({code})"
     }
     var nullable = type_shape.as_nullable(spite_type)
     if nullable {
@@ -13360,18 +13377,21 @@ func ensure_list_deep_copy(element: Analysis.SpiteType): String {
     return function_c_name
 }
 
-func ensure_dictionary_deep_copy(element: Analysis.SpiteType): String {
-    var dictionary_name = ensure_dictionary(element)
+func ensure_dictionary_deep_copy(dictionary: Analysis.Types.DictionaryType): String {
+    var element = dictionary.get_element()
+    var dictionary_name = ensure_dictionary(dictionary)
     var function_c_name = "{dictionary_name}___deep_copy"
     if deep_copy_names.contains(function_c_name) {
         return function_c_name
     }
     deep_copy_names.append(function_c_name)
     builder.add_prototype("{dictionary_name}* {function_c_name}({dictionary_name}* self);")
-    var string_spite_type = string_type()
+    var key_type = dictionary.get_key()
     var item_code = list_item_code(element, "self->entry_values_", "spite_index")
+    var key_code = list_item_code(key_type, "self->entry_keys_", "spite_index")
+    var kept_key = retain_call(key_type, key_code)
     builder.add_support(
-        "{dictionary_name}* {function_c_name}({dictionary_name}* self) \{\nif (self == 0) return 0;\n{dictionary_name}* copied = {dictionary_name}___make();\nfor (int64_t spite_index = 0; spite_index < self->entry_keys_->item_count_; spite_index = spite_index + 1) \{ {dictionary_name}_set(copied, SpiteString___retain({list_item_code(string_spite_type, "self->entry_keys_", "spite_index")}), {deep_copy_code(element, item_code)}); }\nreturn copied;\n}",
+        "{dictionary_name}* {function_c_name}({dictionary_name}* self) \{\nif (self == 0) return 0;\n{dictionary_name}* copied = {dictionary_name}___make();\nfor (int64_t spite_index = 0; spite_index < self->entry_keys_->item_count_; spite_index = spite_index + 1) \{ {dictionary_name}_set(copied, {kept_key}, {deep_copy_code(element, item_code)}); }\nreturn copied;\n}",
     )
     return function_c_name
 }
@@ -13437,8 +13457,10 @@ func generate_generic_constructor(
                 class_information.qualified_dotted,
             )
             if dictionary_element {
-                var dictionary_type = dictionary_type_of(dictionary_element)
-                return ExpressionResult("{ensure_dictionary(dictionary_element)}___make()", dictionary_type)
+                var made_dictionary = dictionary_type_at(dictionary_element, generic_call.line, generic_call.column)
+                var made_type = type_shape.as_dictionary(made_dictionary)
+                crash made_type
+                return ExpressionResult("{ensure_dictionary(made_type)}___make()", made_dictionary)
             }
         }
         if callee.name == "List" and generic_call.type_arguments.count() == 1 {
@@ -13603,11 +13625,16 @@ func generate_index_read(
     var object_dictionary = type_shape.as_dictionary(object_result_type)
     if object_dictionary {
         var value_type = object_dictionary.get_element()
-        var string_spite_type = string_type()
-        var single_types = one_type(string_spite_type)
+        var key_parameter = dictionary_key_parameter(
+            object_dictionary,
+            index_expression.index,
+            scope,
+            class_information,
+        )
+        var single_types = one_type(key_parameter)
         var nullable_type = nullable_type_of(value_type)
         var lookup = generate_generic_call(
-            "{ensure_dictionary(value_type)}_get",
+            "{ensure_dictionary(object_dictionary)}_get",
             object_result,
             index_expression.object,
             arguments_ast,
@@ -13748,8 +13775,10 @@ func supply_concurrency_functions(instance: Analysis.ClassInfo) {
     }
 }
 
-func ensure_dictionary(element: Analysis.SpiteType): String {
-    var dictionary_name = "Dictionary_{type_label(element)}"
+func ensure_dictionary(dictionary: Analysis.Types.DictionaryType): String {
+    var element = dictionary.get_element()
+    var key_type = dictionary.get_key()
+    var dictionary_name = "Dictionary_{type_label(element)}{dictionary_key_suffix(dictionary)}"
     if dictionary_names.contains(dictionary_name) {
         return dictionary_name
     }
@@ -13762,13 +13791,214 @@ func ensure_dictionary(element: Analysis.SpiteType): String {
         return dictionary_name
     }
     crash dictionary_template
-    instantiated_container(dictionary_template, element, dictionary_name)
+    var types = List<Analysis.SpiteType>()
+    types.append(element)
+    types.append(key_type)
+    var codes = ["", ""]
+    var texts = ["", ""]
+    var container = instantiated_with(dictionary_template, types, codes, texts, dictionary_name)
+    container.is_container = true
     return dictionary_name
 }
 
-func dictionary_type_of(element: Analysis.SpiteType): Analysis.SpiteType {
-    var resolved: Analysis.SpiteType = Analysis.Types.DictionaryType(element)
+func dictionary_key_suffix(dictionary: Analysis.Types.DictionaryType): String {
+    var key_type = dictionary.get_key()
+    var suffix = ""
+    if not type_shape.as_string(key_type) {
+        suffix = "_by_{type_label(key_type)}"
+    }
+    return suffix
+}
+
+func fixed_dictionary_type(information: Analysis.ClassInfo): Analysis.SpiteType {
+    crash information.codegen_types[0]
+    crash information.codegen_types[1]
+    var resolved: Analysis.SpiteType = Analysis.Types.DictionaryType(
+        information.codegen_types[0],
+        information.codegen_types[1],
+        "",
+    )
     return resolved
+}
+
+func dictionary_type_at(element: Analysis.SpiteType, line: Integer, column: Integer): Analysis.SpiteType {
+    var owner = ""
+    if current_class {
+        if current_class.qualified_dotted == "Dictionary" and current_class.codegen_types.count() == 2 {
+            return fixed_dictionary_type(current_class)
+        }
+        owner = current_class.c_name
+    }
+    var site = "{owner}@{current_path}:{line}:{column}"
+    if not key_site_parents.has(site) {
+        key_site_parents[site] = site
+        key_sites.append(site)
+    }
+    var key_type = string_type()
+    if number_key_sites[site] {
+        key_type = number_key_sites[site]
+    }
+    var resolved: Analysis.SpiteType = Analysis.Types.DictionaryType(element, key_type, site)
+    return resolved
+}
+
+func key_site_root(site: String): String {
+    var root = site
+    while key_site_parents.has(root) and key_site_parents[root] != root {
+        var parent = key_site_parents[root]
+        crash parent
+        root = parent
+    }
+    return root
+}
+
+func join_key_sites(left_site: String, right_site: String) {
+    assert not left_site.is_empty() and not right_site.is_empty()
+    var left_root = key_site_root(left_site)
+    var right_root = key_site_root(right_site)
+    assert left_root != right_root
+    key_site_parents[right_root] = left_root
+    if text_key_uses[right_root] and not text_key_uses.has(left_root) {
+        text_key_uses[left_root] = text_key_uses[right_root]
+    }
+    if number_key_uses[right_root] and not number_key_uses.has(left_root) {
+        number_key_uses[left_root] = number_key_uses[right_root]
+    }
+    assert number_key_types[right_root]
+    widen_number_key(left_root, number_key_types[right_root])
+}
+
+func widen_number_key(root: String, given: Analysis.SpiteType) {
+    var widest = given
+    if number_key_types[root] {
+        if whole_number_rank(number_key_types[root]) >= whole_number_rank(given) {
+            widest = number_key_types[root]
+        }
+    }
+    number_key_types[root] = widest
+}
+
+func whole_number_rank(spite_type: Analysis.SpiteType): Integer {
+    var scalar = type_shape.as_scalar(spite_type)
+    var rank = -1
+    if scalar {
+        var ranked: List<Analysis.Types.NumericKind> = [
+            'tiny_kind'
+            'byte_kind'
+            'short_kind'
+            'unsigned_short_kind'
+            'integer_kind'
+            'unsigned_integer_kind'
+            'long_kind'
+            'unsigned_long_kind'
+        ]
+        var position = 0
+        while position < ranked.count() {
+            if ranked[position] == scalar.kind {
+                rank = position
+            }
+            position = position + 1
+        }
+    }
+    return rank
+}
+
+func is_whole_number_type(spite_type: Analysis.SpiteType): Boolean {
+    return whole_number_rank(spite_type) >= 0
+}
+
+func key_use_here(): KeyUse {
+    return KeyUse(current_path, current_line, current_owner, current_function)
+}
+
+func dictionary_key_parameter(
+    dictionary: Analysis.Types.DictionaryType,
+    key_ast: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType {
+    var key_type = dictionary.get_key()
+    if dictionary.site.is_empty() {
+        return key_type
+    }
+    var saved_counter = temporary_counter
+    var probe = generate_expression(key_ast, scope, class_information)
+    rewind_temporaries(saved_counter)
+    var given = probe.get_type()
+    var root = key_site_root(dictionary.site)
+    if is_whole_number_type(given) {
+        if not number_key_uses.has(root) {
+            number_key_uses[root] = key_use_here()
+        }
+        widen_number_key(root, given)
+        if type_shape.as_string(key_type) {
+            return given
+        }
+        return key_type
+    }
+    if type_shape.as_string(given) or type_shape.is_symbol(given) or is_enum_type(given) {
+        if not text_key_uses.has(root) {
+            text_key_uses[root] = key_use_here()
+        }
+        return string_type()
+    }
+    return key_type
+}
+
+func settle_key_sites() {
+    var index = 0
+    while index < key_sites.count() {
+        var site = key_sites[index]
+        var root = key_site_root(site)
+        if number_key_types[root] {
+            learned_key_sites[site] = number_key_types[root]
+        }
+        index = index + 1
+    }
+    key_sites_changed = not same_key_sites(learned_key_sites, number_key_sites)
+    assert not key_sites_changed
+    index = 0
+    while index < key_sites.count() {
+        var site = key_sites[index]
+        if key_site_root(site) == site {
+            report_mixed_keys(site)
+        }
+        index = index + 1
+    }
+}
+
+func same_key_sites(learned: Dictionary<Analysis.SpiteType>, given: Dictionary<Analysis.SpiteType>): Boolean {
+    var same = learned.count() == given.count()
+    var sites = learned.keys()
+    var index = 0
+    while same and index < sites.count() {
+        var site = sites[index]
+        crash learned[site]
+        same = given.has(site) and key_label(given[site]) == type_label(learned[site])
+        index = index + 1
+    }
+    return same
+}
+
+func key_label(key_type: Analysis.SpiteType?): String {
+    var label = ""
+    if key_type {
+        label = type_label(key_type)
+    }
+    return label
+}
+
+func report_mixed_keys(root: String) {
+    var text_use = text_key_uses[root]
+    var number_use = number_key_uses[root]
+    assert text_use and number_use
+    current_path = number_use.path
+    current_line = number_use.line
+    current_owner = number_use.owner
+    current_function = number_use.function_name
+    report(
+        "this dictionary is given a whole-number key here and a text key at {text_use.path}:{text_use.line} (in {text_use.owner}.{text_use.function_name}): a dictionary is keyed by text or by whole numbers, never both -- give every key of it the same kind",
+    )
 }
 
 func nullable_type_of(inner: Analysis.SpiteType): Analysis.SpiteType {
@@ -13780,7 +14010,7 @@ func nullable_type_of(inner: Analysis.SpiteType): Analysis.SpiteType {
 }
 
 func generate_dictionary_method(
-    element: Analysis.SpiteType,
+    dictionary: Analysis.Types.DictionaryType,
     name: String,
     object_result: ExpressionResult,
     object_ast: Syntax.Expressions.Expression,
@@ -13788,7 +14018,8 @@ func generate_dictionary_method(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
-    var dictionary_name = ensure_dictionary(element)
+    var element = dictionary.get_element()
+    var dictionary_name = ensure_dictionary(dictionary)
     if is_function_form(name, arguments_ast) {
         var empty_types = no_types()
         var list_type = list_type_of(element)
@@ -13818,8 +14049,8 @@ func generate_dictionary_method(
         )
     }
     if name == "set" {
-        var string_spite_type = string_type()
-        var pair_types = two_types(string_spite_type, element)
+        var key_parameter = dictionary_key_parameter_of(dictionary, arguments_ast, scope, class_information)
+        var pair_types = two_types(key_parameter, element)
         var void_spite_type = void_type()
         return generate_generic_call(
             "{dictionary_name}_set",
@@ -13833,8 +14064,8 @@ func generate_dictionary_method(
         )
     }
     if name == "get" {
-        var string_spite_type = string_type()
-        var single_types = one_type(string_spite_type)
+        var key_parameter = dictionary_key_parameter_of(dictionary, arguments_ast, scope, class_information)
+        var single_types = one_type(key_parameter)
         var nullable_type = nullable_type_of(element)
         return generate_generic_call(
             "{dictionary_name}_get",
@@ -13848,9 +14079,9 @@ func generate_dictionary_method(
         )
     }
     if name == "deep_copy" {
-        var ensured_dictionary_deep_copy = ensure_dictionary_deep_copy(element)
+        var ensured_dictionary_deep_copy = ensure_dictionary_deep_copy(dictionary)
         var empty_types = no_types()
-        var dictionary_type = dictionary_type_of(element)
+        var dictionary_type: Analysis.SpiteType = dictionary
         var copied_dictionary = generate_generic_call(
             ensured_dictionary_deep_copy,
             object_result,
@@ -13866,7 +14097,7 @@ func generate_dictionary_method(
     }
     if name == "copy" {
         var empty_types = no_types()
-        var dictionary_type = dictionary_type_of(element)
+        var dictionary_type: Analysis.SpiteType = dictionary
         var shared_dictionary = generate_generic_call(
             "{dictionary_name}_copy",
             object_result,
@@ -13881,8 +14112,8 @@ func generate_dictionary_method(
         return shared_dictionary
     }
     if name == "has" {
-        var string_spite_type = string_type()
-        var single_types = one_type(string_spite_type)
+        var key_parameter = dictionary_key_parameter_of(dictionary, arguments_ast, scope, class_information)
+        var single_types = one_type(key_parameter)
         var boolean_spite_type = boolean_type()
         return generate_generic_call(
             "{dictionary_name}_has",
@@ -13896,8 +14127,8 @@ func generate_dictionary_method(
         )
     }
     if name == "remove" {
-        var string_spite_type = string_type()
-        var single_types = one_type(string_spite_type)
+        var key_parameter = dictionary_key_parameter_of(dictionary, arguments_ast, scope, class_information)
+        var single_types = one_type(key_parameter)
         var void_spite_type = void_type()
         return generate_generic_call(
             "{dictionary_name}_remove",
@@ -13928,8 +14159,8 @@ func generate_dictionary_method(
     }
     if name == "keys" {
         var empty_types = no_types()
-        var string_spite_type = string_type()
-        var list_type = list_type_of(string_spite_type)
+        var key_type = dictionary.get_key()
+        var list_type = list_type_of(key_type)
         return generate_generic_call(
             "{dictionary_name}_keys",
             object_result,
@@ -13993,6 +14224,19 @@ func generate_dictionary_method(
         scope,
         class_information,
     )
+}
+
+func dictionary_key_parameter_of(
+    dictionary: Analysis.Types.DictionaryType,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType {
+    var key_ast = arguments_ast.first()
+    if not key_ast {
+        return dictionary.get_key()
+    }
+    return dictionary_key_parameter(dictionary, key_ast, scope, class_information)
 }
 
 func release_statement(spite_type: Analysis.SpiteType, code: String): String {
@@ -17986,8 +18230,7 @@ func allocatable_class(declared_type: Analysis.SpiteType): Analysis.ClassInfo? {
     }
     var dictionary = type_shape.as_dictionary(declared_type)
     if dictionary {
-        var dictionary_element = dictionary.get_element()
-        placed_c_name = ensure_dictionary(dictionary_element)
+        placed_c_name = ensure_dictionary(dictionary)
     }
     var placed_class = find_class_by_c_name(placed_c_name)
     assert placed_class
@@ -18581,13 +18824,17 @@ func generate_store(
             var dictionary_arguments = List<Syntax.Expressions.Expression>()
             dictionary_arguments.append(index_target.index)
             dictionary_arguments.append(assignment.value)
-            var indexed_dictionary_element = indexed_dictionary.get_element()
-            var string_spite_type = string_type()
+            var key_parameter = dictionary_key_parameter(
+                indexed_dictionary,
+                index_target.index,
+                scope,
+                class_information,
+            )
             var element = indexed_dictionary.get_element()
-            var pair_types = two_types(string_spite_type, element)
+            var pair_types = two_types(key_parameter, element)
             var void_spite_type = void_type()
             var dictionary_set_call = generate_generic_call(
-                "{ensure_dictionary(indexed_dictionary_element)}_set",
+                "{ensure_dictionary(indexed_dictionary)}_set",
                 indexed_result,
                 index_target.object,
                 dictionary_arguments,
