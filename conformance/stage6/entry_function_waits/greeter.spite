@@ -1,0 +1,6 @@
+var console = Console()
+var greeting = "hello"
+
+func Greeter() {
+    console.print("made the one greeter")
+}

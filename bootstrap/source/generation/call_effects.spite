@@ -442,6 +442,37 @@ func add_template_members(callee: String, waiting: List<String>) {
     }
 }
 
+func calls_back_into(class_name: String, name: String): Boolean {
+    var effects = by_function.get("{class_name}#{name}")
+    if effects {
+        return reaches_own_class(effects, class_name)
+    }
+    return true
+}
+
+func reaches_own_class(effects: FunctionEffects, class_name: String): Boolean {
+    var entries = List<String>()
+    var index = 0
+    while index < effects.calls.count() {
+        var call = effects.calls[index]
+        if call.callee_class != class_name {
+            add_callee_entry(call, entries)
+        }
+        index = index + 1
+    }
+    var reached = reached_classes(entries)
+    return reached.has(class_name)
+}
+
+func add_callee_entry(call: EffectCall, entries: List<String>) {
+    var resolved = resolved_key("{call.callee_class}#{call.callee}")
+    if resolved.is_empty() {
+        add_template_members(call.callee, entries)
+    } else {
+        entries.append(resolved)
+    }
+}
+
 func writes_from_outside(class_name: String): List<String> {
     var names = List<String>()
     var index = 0

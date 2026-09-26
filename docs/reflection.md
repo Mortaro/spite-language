@@ -343,7 +343,9 @@ never runs: that belongs to the one real instance, at exit. A singleton whose at
 compiler already knows, such as `Build`, holds nothing at run time, so its `.attributes` answer those settings:
 `build.class.attributes` lists `run` with the value `true`, `repl_port` with `0`, and so on. The program's entry
 class is described with no stand-in at all, since making one would run the program again, so its `.functions` is
-empty and `has_function` asked of it is `false`.
+empty and `has_function` asked of it is `false`. `function_waits` asked of it still answers, from a list of its
+functions described with no instance behind them, which nothing can call and only `function_waits` reads
+(`conformance/stage6/entry_function_waits`).
 
 Which singletons are objects at all depends on the build ([D143](decisions.md)): in a `--development`,
 `--hot-reload`, `--repl` or `--repl-port` build a singleton that holds nothing, such as `Build`, is an ordinary
@@ -581,6 +583,9 @@ way. `Spite.Attribute.class` and `Spite.Argument.class` are real `Spite.Class` o
   `--repl`/`--repl-port` build), every other program's attribute lists hold `null` there and box nothing, and no
   attribute carries text, so a program walking `.attributes` allocates no strings for it. A number is
   never boxed where its type is known: `x.attributes[attribute]` in a Symbol template reads the plain field.
+  A box is freed with the attribute that holds it, also for a class first described late while compiling (a
+  `Lock` taken by a described function brings the lists inside `Spite.Class`): letting go of an `Anything` is
+  written once every class that can be boxed into it is known (`conformance/stage6/default_handles`).
   **`value.attributes` works on a `type` or union value**, answered from the value's own class at run time, so
   `create_entity_from_bundle(bundle: Anything)` walks whatever bundle it is given. An attribute holding a
   `Dictionary` lists its entries as attributes named by their keys, as a `List` lists its elements, which is
@@ -598,7 +603,17 @@ way. `Spite.Attribute.class` and `Spite.Argument.class` are real `Spite.Class` o
   rather than leaked (proposed by Claude, unconfirmed, 2026-09-25; `conformance/stage6/reflection_stand_in`,
   `conformance/stage6/every_class`,
   `conformance/stage6/singleton_stand_in`). The program's entry class has no stand-in, since making one would run
-  the program again: its `.functions` is empty and `has_function` asked of it is `false`.
+  the program again: its `.functions` is empty and `has_function` asked of it is `false`. `function_waits` asked of
+  it answers from the compile-time table all the same: its class object keeps a private list of its functions
+  described with no instance (`Spite.Class._unbound_functions`), made only when the program reads `.functions`,
+  `has_function` or `function_waits` of some class and uses the entry class's class object, and never callable (proposed by
+  Claude, unconfirmed, 2026-09-26; `conformance/stage6/entry_function_waits`). A stand-in of `Concurrent<T>` or
+  `Parallel<T>` is finished and joins nothing ([concurrency.md](concurrency.md)).
+  A class object and a namespace object are each made once, whichever thread asks first: in a program that starts
+  threads, making them takes one lock shared by every class and namespace object (a thread may take it again
+  while it makes the objects one refers to), and once made, asking again is one atomic load of a flag. A program
+  without threads carries no lock (proposed by Claude, unconfirmed, 2026-09-26;
+  `conformance/stage6/threaded_class_objects`).
   A singleton that holds nothing (`Build`, `TypedMemory<T>`) is an ordinary object, one of its `.instances`, only
   in an inspectable build (`--development`, `--hot-reload`, `--repl`, `--repl-port`); every other build makes it one
   static object that `.instances` does not list (D143, [optimizations.md](optimizations.md#singletons-that-hold-nothing-are-static-objects)).

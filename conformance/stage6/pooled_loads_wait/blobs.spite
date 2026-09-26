@@ -1,0 +1,44 @@
+var loads = List<Parallel<String>>()
+var loaded = ""
+var started = false
+
+func bytes_of(): String? {
+    if loaded.is_empty() {
+        advance()
+    }
+    assert not loaded.is_empty()
+    return loaded
+}
+
+func advance() {
+    if not started {
+        start()
+    }
+    var index = loads.count() - 1
+    while index >= 0 {
+        finish_if_done(index)
+        index = index - 1
+    }
+}
+
+func start() {
+    var task = BlobLoad(".spite-cache/pooled_loads_wait.txt")
+    var loading = Parallel(task.run)
+    loads.append(loading)
+    started = true
+}
+
+func finish_if_done(index: Integer) {
+    crash loads[index]
+    var finished = loads[index].finished_value()
+    assert finished
+    loaded = finished
+    loads.remove_at(index)
+}
+
+func locate_then_start() {
+    var index_file = File(".spite-cache/pooled_loads_wait.txt")
+    var index_text = index_file.read()
+    assert index_text
+    start()
+}

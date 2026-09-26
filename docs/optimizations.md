@@ -710,7 +710,8 @@ its `get()` never locks, and only a thread's `set` does
 ### Singletons a `Parallel` reaches take a lock
 
 **What it does.** In a program that makes a `Parallel`, every singleton of the program's own that can change after
-it is made gets a lock of its own, taken around every one of its functions ([D183](decisions.md)).
+it is made gets a lock of its own, taken around every one of its functions that touches what can change
+([D183](decisions.md); which functions, below).
 It can change when one of its functions assigns one of its attributes outside its constructor, when code in
 another class assigns one (`registry.last = name`), or when it holds a list, a dictionary, a function value, or an
 object of a class that can change -- an object whose class never assigns its attributes after its constructor,
@@ -720,6 +721,19 @@ the cheaper forms in the next section is proven safe for that singleton. The che
 nothing they own is not built.
 
 How the lock is kept cheap:
+
+- **A function that touches none of the changing state takes no lock.** Only a function that reads or writes an
+  attribute that can change (one assigned after the constructor, here or from another class, or holding a list,
+  a dictionary, a function value or an object that can change), or calls one of its own functions that does, or
+  calls out to code that can call back into the singleton (from the call-effects facts), is wrapped in the lock.
+  `make_piece(size)`, which only computes from its arguments, or a function that only reads an attribute set once
+  in the constructor, runs as written. This is as safe as locking it -- a function that touches nothing that
+  changes is one indivisible step on its own -- and it removes a deadlock: a locked function that polls a
+  `Parallel` whose work calls a stateless function of the same singleton used to wait for that work while the work
+  waited for the lock. The compiler decides it from the function's C: every use of the singleton that is not a
+  read of an attribute that never changes, or a call to one of its own functions, counts as touching it
+  (`conformance/stage6/singleton_stateless_calls`, whose C `check.sh` holds: `Workshop.build` is locked and
+  `Workshop.make_piece` is not).
 
 - **Each lock has a cache line of its own.** A lock is 64 bytes, aligned to 64 (`_Alignas(64)`, C11), so two
   singletons' locks never share a line and taking one never makes another core reload the other. In SlopEngine's
@@ -746,7 +760,8 @@ once. `conformance/stage6/singleton_lock_calls` holds these points from its C in
 locked, pads its lock, calls itself unlocked and locks the write `registry.last = ...` and the read of
 `registry.last` from the entry class, and
 `Rules` takes no lock. **Built** (the lock; the padding, the unlocked calls to itself, the locked writes from
-outside and the read-only held objects 2026-09-25, proposed by Claude, unconfirmed).
+outside and the read-only held objects 2026-09-25, proposed by Claude, unconfirmed; no lock for a function that
+touches no changing state 2026-09-26, proposed by Claude, unconfirmed).
 
 ### Thread safety for singletons, the cheapest safe form
 

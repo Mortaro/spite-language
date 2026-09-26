@@ -47,6 +47,8 @@ var atomic_owner = ""
 var atomic_classes = List<Analysis.ClassInfo>()
 var atomic_class_names = List<String>()
 var guarded_ends = List<Integer>()
+var touch_callers = List<String>()
+var touch_callees = List<String>()
 var outside_classes = List<Analysis.ClassInfo>()
 var outside_class_names = List<String>()
 var outside_written = Dictionary<Boolean>()
@@ -86,6 +88,9 @@ var deferred_wait_classes = List<Analysis.ClassInfo>()
 var deferred_wait_functions = List<Analysis.FunctionInfo>()
 var task_value_arguments = 0
 var function_waits_table_used = false
+var listed_typed_calls = List<String>()
+var entry_functions_cache = ""
+var described_lock_emitted = false
 var development = false
 var keeps_internals = false
 var hot_reload = false
@@ -190,6 +195,7 @@ var placed_receiver_codes = List<String>()
 var boxed_value_types = Dictionary<Analysis.SpiteType>()
 var constant_boxes = List<String>()
 var box_release_emitted = false
+var union_release_positions = Dictionary<Integer>()
 var synthetic_value_classes = List<Analysis.ClassInfo>()
 var synthetic_value_types = Dictionary<Analysis.SpiteType>()
 var attribute_object_used = false
@@ -573,6 +579,7 @@ func generate(
         emit_pending_functions()
     }
     emit_attribute_object_bodies()
+    refresh_union_releases()
     finish_wait_questions()
     emit_hot_reload_support()
     if parallel_used {
@@ -1214,6 +1221,15 @@ func emit_function_waits_table() {
             lines.append("if (typed_call == (void*){made}) return true;")
         }
         index = index + 1
+    }
+    var listed_index = 0
+    while listed_index < listed_typed_calls.count() {
+        var listed = listed_typed_calls.get_at(listed_index)
+        var made_too = function_value_makers.contains("spite_function_value_{listed}")
+        if not made_too and wait_facts.may_wait(listed) {
+            lines.append("if (typed_call == (void*){listed}) return true;")
+        }
+        listed_index = listed_index + 1
     }
     lines.append("return false;")
     lines.append("}")
@@ -2482,6 +2498,26 @@ func emit_union_class_of_bodies() {
 }
 
 func emit_union_release(information: Analysis.UnionInfo) {
+    var position = builder.support_count()
+    union_release_positions.set(information.c_name, position)
+    var release_text = union_release_text(information)
+    builder.add_support(release_text)
+}
+
+func refresh_union_releases() {
+    var index = 0
+    while index < unions.count() {
+        var information = unions[index]
+        var position = union_release_positions.get(information.c_name)
+        if position {
+            var release_text = union_release_text(information)
+            builder.replace_support(position, release_text)
+        }
+        index = index + 1
+    }
+}
+
+func union_release_text(information: Analysis.UnionInfo): String {
     var name = information.c_name
     var release_lines = List<String>()
     release_lines.append("void {name}___release({name} self) \{")
@@ -2499,8 +2535,7 @@ func emit_union_release(information: Analysis.UnionInfo) {
         member_index = member_index + 1
     }
     release_lines.append("}")
-    var joined_release_lines = release_lines.join("\n")
-    builder.add_support(joined_release_lines)
+    return release_lines.join("\n")
 }
 
 func emit_shape_peekers(information: Analysis.UnionInfo) {
@@ -11401,6 +11436,10 @@ func emit_class_object_bodies() {
         var function_c_name = class_object_names[position]
         var lines = List<String>()
         lines.append("Spite_Class* {function_c_name}(void) \{")
+        lines.append(
+            "if (SPITE_SINGLETON_FOUND({function_c_name}_ready)) return Spite_Class___retain({function_c_name}_cache);",
+        )
+        lines.append("spite_described_enter();")
         lines.append("if ({function_c_name}_cache == 0) \{")
         crash class_object_displays[position]
         lines.append("{function_c_name}_cache = Spite_Class___make({ensure_symbol(class_object_displays[position])});")
@@ -11459,8 +11498,14 @@ func emit_class_object_bodies() {
                 lines.append("{listed_name}___release({function_c_name}_cache->_functions_);")
                 lines.append("{function_c_name}_cache->_functions_ = {thunk}();")
             }
+            if class_level_functions_used and describes_members(described) and described.c_name == entry_class_c_name {
+                var unbound_function = ensure_functions_function(described)
+                entry_functions_cache = "{function_c_name}_cache"
+                lines.append("{entry_functions_cache}->_unbound_functions_ = {unbound_function}(0);")
+            }
         }
         lines.append("}")
+        lines.append("spite_described_leave(&{function_c_name}_ready);")
         lines.append("return Spite_Class___retain({function_c_name}_cache);")
         lines.append("}")
         var joined_lines = lines.join("\n")
@@ -11567,6 +11612,7 @@ func ensure_namespace_object(namespace_dotted: String): String {
     }
     namespace_object_keys.append(namespace_dotted)
     builder.add_typedef("static Spite_Namespace* {function_c_name}_cache = 0;")
+    add_described_lock(function_c_name)
     builder.add_prototype("Spite_Namespace* {function_c_name}(void);")
     return function_c_name
 }
@@ -11583,6 +11629,10 @@ func emit_namespace_object_bodies() {
         crash namespace_name
         var lines = List<String>()
         lines.append("Spite_Namespace* {function_c_name}(void) \{")
+        lines.append(
+            "if (SPITE_SINGLETON_FOUND({function_c_name}_ready)) return Spite_Namespace___retain({function_c_name}_cache);",
+        )
+        lines.append("spite_described_enter();")
         lines.append("if ({function_c_name}_cache == 0) \{")
         lines.append(
             "{function_c_name}_cache = Spite_Namespace___make({ensure_symbol(namespace_name)}, {ensure_symbol(namespace_dotted)});",
@@ -11638,6 +11688,7 @@ func emit_namespace_object_bodies() {
             }
         }
         lines.append("}")
+        lines.append("spite_described_leave(&{function_c_name}_ready);")
         lines.append("return Spite_Namespace___retain({function_c_name}_cache);")
         lines.append("}")
         var joined_lines = lines.join("\n")
@@ -11661,8 +11712,18 @@ func ensure_class_object(display_name: String, namespace: String, label: String)
     class_object_namespaces.append(namespace)
     class_object_labels.append(label)
     builder.add_typedef("static Spite_Class* {function_c_name}_cache = 0;")
+    add_described_lock(function_c_name)
     builder.add_prototype("Spite_Class* {function_c_name}(void);")
     return function_c_name
+}
+
+func add_described_lock(function_c_name: String) {
+    builder.add_typedef("static bool {function_c_name}_ready = false;")
+    assert not described_lock_emitted
+    described_lock_emitted = true
+    builder.add_typedef(
+        "static int64_t spite_described_owner = 0;\nstatic int32_t spite_described_depth = 0;\nstatic SPITE_THREAD_LOCAL char spite_described_thread;\nstatic void spite_described_enter(void) \{\n#ifdef SPITE_THREADS\nint64_t spite_me = (int64_t)(intptr_t)&spite_described_thread;\nif (__atomic_load_n(&spite_described_owner, __ATOMIC_ACQUIRE) != spite_me) \{\nint64_t spite_free = 0;\nwhile (!__atomic_compare_exchange_n(&spite_described_owner, &spite_free, spite_me, 0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) \{ spite_free = 0; }\n}\n#endif\nspite_described_depth = spite_described_depth + 1;\n}\nstatic void spite_described_leave(bool* ready) \{\nspite_described_depth = spite_described_depth - 1;\nif (spite_described_depth > 0) return;\n#ifdef SPITE_THREADS\n__atomic_store_n(ready, true, __ATOMIC_RELEASE);\n__atomic_store_n(&spite_described_owner, 0, __ATOMIC_RELEASE);\n#else\n*ready = true;\n#endif\n}",
+    )
 }
 
 func class_object_call(spite_type: Analysis.SpiteType): String {
@@ -12061,7 +12122,7 @@ func emit_functions_function(information: Analysis.ClassInfo) {
             }
             var retained_self = "{information.c_name}___retain(self)"
             if is_hot_class(information) {
-                retained_self = "(\{ SPITE_COUNT_UP(self->header.ref_count); self; })"
+                retained_self = "(\{ if (self != 0) SPITE_COUNT_UP(self->header.ref_count); self; })"
             }
             lines.append("described->spite_owner = {retained_self};")
             lines.append("described->spite_release_owner = (void (*)(void*)){information.c_name}___release;")
@@ -12072,6 +12133,9 @@ func emit_functions_function(information: Analysis.ClassInfo) {
             }
             if callable {
                 lines.append("described->spite_typed_call = (void*){function.c_name};")
+            }
+            if callable and not listed_typed_calls.contains(function.c_name) {
+                listed_typed_calls.append(function.c_name)
             }
             if callable and read_evaluate_print_loop {
                 var text_call = ensure_text_call(information, function)
@@ -22357,12 +22421,14 @@ func finish_singleton_guards() {
     var guarded_names = List<String>()
     var wrapped = List<Integer>()
     var reached = call_effects.thread_reached_classes()
+    var touching = state_touching_functions()
     var index = 0
     while index < guarded_functions.count() {
         var information = guarded_classes.get_at(index)
         var function = guarded_functions[index]
         var position = guarded_positions.get_at(index)
-        if reached.has(information.simple_name) or called_implicitly(information) {
+        var threaded = reached.has(information.simple_name) or called_implicitly(information)
+        if threaded and touching.has(function.c_name) {
             if not guarded_names.contains(information.c_name) {
                 guarded_names.append(information.c_name)
                 builder.add_support("static SpiteGuard {information.c_name}___guard = \{ 0, 0 };")
@@ -22379,6 +22445,179 @@ func finish_singleton_guards() {
     }
     emitted_guards = guarded_names
     call_unguarded_inside(wrapped)
+}
+
+func state_touching_functions(): Dictionary<Boolean> {
+    var touching = Dictionary<Boolean>()
+    var own_names = Dictionary<Boolean>()
+    var index = 0
+    while index < guarded_functions.count() {
+        var function = guarded_functions[index]
+        own_names.set(function.c_name, true)
+        index = index + 1
+    }
+    touch_callers.clear()
+    touch_callees.clear()
+    index = 0
+    while index < guarded_functions.count() {
+        var information = guarded_classes.get_at(index)
+        var function = guarded_functions[index]
+        var changing = changing_field_codes(information)
+        var touches = call_effects.calls_back_into(information.simple_name, function.name)
+        var line_index = guarded_positions.get_at(index) + 1
+        var end = guarded_ends.get_at(index)
+        while line_index < end and not touches {
+            var line = builder.user_at(line_index)
+            touches = line_touches_state(line, information, changing, function.c_name, own_names)
+            line_index = line_index + 1
+        }
+        if touches {
+            touching.set(function.c_name, true)
+        }
+        index = index + 1
+    }
+    spread_touches(touching)
+    return touching
+}
+
+func spread_touches(touching: Dictionary<Boolean>) {
+    var spreading = true
+    while spreading {
+        spreading = false
+        var pair = 0
+        while pair < touch_callers.count() {
+            var caller = touch_callers.get_at(pair)
+            var callee = touch_callees.get_at(pair)
+            if touching.has(callee) and not touching.has(caller) {
+                touching.set(caller, true)
+                spreading = true
+            }
+            pair = pair + 1
+        }
+    }
+}
+
+func changing_field_codes(information: Analysis.ClassInfo): List<String> {
+    var assigned = List<String>()
+    var index = 0
+    while index < information.functions.count() {
+        var function = information.functions[index]
+        if not function.is_constructor {
+            collect_assigned_roots(function.body, assigned)
+        }
+        index = index + 1
+    }
+    var outside = call_effects.writes_from_outside(information.simple_name)
+    var codes = List<String>()
+    index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var field_type = field.get_type()
+        var written = assigned.contains(field.name) or outside.contains(field.name)
+        if written or shares_state(field_type) {
+            var field_code = c_value_name(field.name)
+            codes.append(field_code)
+        }
+        index = index + 1
+    }
+    return codes
+}
+
+func line_touches_state(
+    line: String,
+    information: Analysis.ClassInfo,
+    changing: List<String>,
+    caller: String,
+    own_names: Dictionary<Boolean>,
+): Boolean {
+    if line.contains("spite_singleton_{information.c_name}") {
+        return true
+    }
+    var pieces = line.split("self")
+    var index = 1
+    while index < pieces.count() {
+        var before = pieces.get_at(index - 1)
+        var after = pieces.get_at(index)
+        var whole = not ends_in_name(before) and not starts_with_name(after)
+        if whole and self_touches(before, after, changing, caller, own_names) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func self_touches(
+    before: String,
+    after: String,
+    changing: List<String>,
+    caller: String,
+    own_names: Dictionary<Boolean>,
+): Boolean {
+    if after.starts_with("->") {
+        var after_length = after.length()
+        var field_text = after.slice(2, after_length)
+        var field_code = leading_name(field_text)
+        return changing.contains(field_code)
+    }
+    assert not before.ends_with("(void)")
+    if not before.ends_with("(") {
+        return true
+    }
+    var before_length = before.length()
+    var called_text = before.slice(0, before_length - 1)
+    var called = trailing_name(called_text)
+    if not own_names.has(called) {
+        return true
+    }
+    touch_callers.append(caller)
+    touch_callees.append(called)
+    return false
+}
+
+func ends_in_name(text: String): Boolean {
+    var text_length = text.length()
+    assert text_length != 0
+    var last = text.code_at(text_length - 1)
+    return is_c_name_code(last)
+}
+
+func starts_with_name(text: String): Boolean {
+    assert not text.is_empty()
+    var first = text.code_at(0)
+    return is_c_name_code(first)
+}
+
+func leading_name(text: String): String {
+    var text_length = text.length()
+    var end = 0
+    var inside = true
+    while end < text_length and inside {
+        var code = text.code_at(end)
+        inside = is_c_name_code(code)
+        if inside {
+            end = end + 1
+        }
+    }
+    return text.slice(0, end)
+}
+
+func trailing_name(text: String): String {
+    var start = text.length()
+    var inside = true
+    while start > 0 and inside {
+        var code = text.code_at(start - 1)
+        inside = is_c_name_code(code)
+        if inside {
+            start = start - 1
+        }
+    }
+    var text_length = text.length()
+    return text.slice(start, text_length)
+}
+
+func is_c_name_code(code: Integer): Boolean {
+    return code >= 97 and code <= 122 or code >= 65 and code <= 90 or code >= 48 and code <= 57 or code == 95
 }
 
 func report_endless_locked_loop(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
@@ -23278,6 +23517,12 @@ func emit_main(launcher_mangled_name: String) {
             class_object,
             "if ({cache} != 0 && {cache}->_namespace_ != 0) \{ Spite_Namespace___release({cache}->_namespace_); {cache}->_namespace_ = 0; }",
         )
+        if cache == entry_functions_cache {
+            builder.add_main_if_kept(
+                class_object,
+                "if ({cache} != 0) \{ {listed_name}___release({cache}->_unbound_functions_); {cache}->_unbound_functions_ = 0; }",
+            )
+        }
         builder.add_main_if_kept(class_object, "Spite_Class___release({cache});")
         cache_index = cache_index + 1
     }

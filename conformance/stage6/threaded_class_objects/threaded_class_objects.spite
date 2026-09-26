@@ -1,0 +1,37 @@
+var console = Console()
+
+func ThreadedClassObjects() {
+    var runs = List<Parallel<Integer>>()
+    var index = 0
+    while index < 8 {
+        var run = Parallel(count_parts)
+        runs.append(run)
+        index = index + 1
+    }
+    var total = 0
+    index = 0
+    while index < runs.count() {
+        var counted: Integer = runs[index]
+        total = total + counted
+        index = index + 1
+    }
+    console.print("eight threads described", total, "part functions, each class object made once")
+}
+
+func count_parts(): Integer {
+    var classes = Spite.Class.instances
+    var counted = 0
+    var index = 0
+    while index < classes.count() {
+        var described = classes[index]
+        var in_part = false
+        if described.namespace {
+            in_part = described.namespace.name_with_namespaces == "Part"
+        }
+        if in_part {
+            counted = counted + described.functions.count()
+        }
+        index = index + 1
+    }
+    return counted
+}

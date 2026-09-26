@@ -1,0 +1,9 @@
+var console = Console()
+var workshop = Workshop()
+
+func SingletonStatelessCalls() {
+    var built = workshop.build()
+    var kept = workshop.count()
+    console.print("the Parallel made pieces worth", built, "while build polled it")
+    console.print("pieces kept:", kept)
+}

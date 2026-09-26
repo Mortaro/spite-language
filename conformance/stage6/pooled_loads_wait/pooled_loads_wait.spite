@@ -1,0 +1,38 @@
+var console = Console()
+var program = Program()
+
+func PooledLoadsWait() {
+    var level = File(".spite-cache/pooled_loads_wait.txt")
+    level.write("forest")
+    var blobs = Blobs()
+    var text = ""
+    while text.is_empty() {
+        var found = blobs.bytes_of()
+        if found {
+            text = found
+        } else {
+            program.sleep(1)
+        }
+    }
+    console.print("the pool read", text)
+    var probe = Probe<Blobs>()
+    var folded = probe.answer()
+    console.print("folded:", folded)
+    var bytes_waits = Blobs.function_waits("bytes_of")
+    var advance_waits = Blobs.function_waits("advance")
+    var start_waits = Blobs.function_waits("start")
+    var finish_waits = Blobs.function_waits("finish_if_done")
+    var locate_waits = Blobs.function_waits("locate_then_start")
+    console.print(
+        "at run time: bytes_of",
+        bytes_waits,
+        "advance",
+        advance_waits,
+        "start",
+        start_waits,
+        "finish_if_done",
+        finish_waits,
+        "locate_then_start",
+        locate_waits,
+    )
+}

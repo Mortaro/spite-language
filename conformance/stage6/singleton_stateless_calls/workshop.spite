@@ -1,0 +1,30 @@
+singleton
+
+var program = Program()
+var pieces = List<Integer>()
+
+func build(): Integer {
+    var helper = Helper()
+    var working = Parallel(helper.work)
+    var polls = 0
+    var made = 0
+    while made == 0 and polls < 5000 {
+        polls = polls + 1
+        var finished = working.finished_value()
+        if finished {
+            made = finished
+        } else {
+            program.sleep(1)
+        }
+    }
+    pieces.append(made)
+    return made
+}
+
+func make_piece(size: Integer): Integer {
+    return size * 2
+}
+
+func count(): Integer {
+    return pieces.count()
+}

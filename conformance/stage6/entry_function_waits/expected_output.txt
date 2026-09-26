@@ -1,0 +1,4 @@
+made the one greeter
+the entry class asked at run time: true false true false
+the entry class has no stand-in, so it describes 0 functions
+the greeter says hello
