@@ -77,11 +77,12 @@ this order, from a first program to the compiler's internals:
 14. [Standard library](docs/standard_library.md) -- `String`, files, folders, processes, the console, sockets.
 15. [Collections](docs/collections.md) -- `List`, `Dictionary` and member templates.
 16. [JSON](docs/json.md) and [Time](docs/time.md).
-17. [Foreign libraries](docs/foreign_libraries.md) -- `DynamicLibrary` and one folder per operating system.
-18. [Targets](docs/targets.md) -- planned: the web and isomorphic classes.
-19. [The compiler](docs/compiler.md), [the REPL and live reload](docs/repl.md), [testing](docs/testing.md),
+17. [Game maths](docs/game_maths.md) -- `Vector2` to `Vector4`, `Matrix3`, `Matrix4`, `Quaternion`.
+18. [Foreign libraries](docs/foreign_libraries.md) -- `DynamicLibrary` and one folder per operating system.
+19. [Targets](docs/targets.md) -- planned: the web and isomorphic classes.
+20. [The compiler](docs/compiler.md), [the REPL and live reload](docs/repl.md), [testing](docs/testing.md),
     [optimizations](docs/optimizations.md) and [self hosting](docs/self_hosting.md).
-20. [Decisions](docs/decisions.md), [open questions](docs/open_questions.md) and
+21. [Decisions](docs/decisions.md), [open questions](docs/open_questions.md) and
     [known issues](docs/KNOWN_ISSUES.md) -- why each rule is what it is, and what is not settled or not built.
 
 Writing Spite with an AI? Paste [docs/for_ai_writers.md](docs/for_ai_writers.md), the whole language on one

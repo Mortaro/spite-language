@@ -229,29 +229,31 @@ func is_binary(name: String): Boolean {
 
 func decimal_body(c_name: String, name: String, is_float: Boolean): String {
     var suffix = ""
+    var cast = "(double)"
     if is_float {
         suffix = "f"
+        cast = "(float)"
     }
     if is_constant(name) {
         return "#define {c_name}() ({constant_literal(name, is_float)})"
     }
     if name == "clamp" {
-        return "#define {c_name}(self, low, high) fmin{suffix}(fmax{suffix}(self, low), high)"
+        return "#define {c_name}(self, low, high) fmin{suffix}(fmax{suffix}({cast}(self), {cast}(low)), {cast}(high))"
     }
     if name == "is_finite" {
-        return "#define {c_name}(self) ((bool)isfinite(self))"
+        return "#define {c_name}(self) ((bool)isfinite({cast}(self)))"
     }
     if name == "is_infinite" {
-        return "#define {c_name}(self) ((bool)isinf(self))"
+        return "#define {c_name}(self) ((bool)isinf({cast}(self)))"
     }
     if name == "is_not_a_number" {
-        return "#define {c_name}(self) ((bool)isnan(self))"
+        return "#define {c_name}(self) ((bool)isnan({cast}(self)))"
     }
     var called = "{library_name(name)}{suffix}"
     if is_binary(name) {
-        return "#define {c_name}(self, other) {called}(self, other)"
+        return "#define {c_name}(self, other) {called}({cast}(self), {cast}(other))"
     }
-    return "#define {c_name}(self) {called}(self)"
+    return "#define {c_name}(self) {called}({cast}(self))"
 }
 
 func constant_literal(name: String, is_float: Boolean): String {

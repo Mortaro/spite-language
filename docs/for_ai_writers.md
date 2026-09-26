@@ -368,6 +368,15 @@ reads a local reading: `var zones = TimeZones()`, `zones.find("America/New_York"
 `DynamicLibrary("ucrtbase.dll", 'identity', "")` calls a native library's functions as members
 (`c_runtime.strlen(text)`, `_as_long`/`_as_double`/`_as_text` for wider results); the standard library's
 `library/windows/`, `linux/` and `mac/` folders reopen the classes each system changes (docs/foreign_libraries.md).
+Game maths (docs/game_maths.md): `Vector2`, `Vector3`, `Vector4` are made with their parts, `Vector3(1.0, 2.0, 3.0)`,
+read as `x_value`, `y_value`, `z_value`, `w_value` (never `.x`), with `+ - * /` part by part, `scaled(factor)`,
+`dot`, `cross`, `length()`, `normalized()`, `distance_to`, `linear_interpolate(target, amount)`. `Matrix4()` and
+`Quaternion()` are the identity and are set in place: `matrix.set_transform(translation, rotation, scale)`,
+`set_perspective(field_of_view, aspect, near, far)` (Vulkan: y down, depth 0 to 1), `set_look_at`,
+`rotation.set_axis_angle(axis, angle)`, `set_euler(angles, 'xyz')`; `a * b` applies `b` first;
+`matrix.transform_point(point)`, `rotation.rotate(vector)`, `inverse()` a `Matrix4?`. Matrices are column-major,
+parts `column_0_row_0` to `column_3_row_3`. Each answer is a new object, so one step per line:
+`var moved = velocity.scaled(delta)` then `position = position + moved`.
 Every class here, the numbers and `List` included, is a Spite file in `library/`, and a program's own file of the
 same name reopens it: `list.spite` adds a member template, `integer.spite` a function on every `Integer`.
 

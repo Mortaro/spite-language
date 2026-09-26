@@ -1,0 +1,25 @@
+identity [1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 1]
+translated point (2, 3, 4) direction (1, 1, 1)
+translation after scale (3, 5, 7) determinant 24
+transposed [1 0 0 0; 0 1 0 0; 0 0 1 0; 1 2 3 1]
+transform a Vector4 (3, 5, 7, 1)
+inverse times itself is the identity: true
+a flattening matrix has no inverse
+composed moves (1, 0, 0) to (5, 8, 7)
+decomposed (5, 6, 7) (2, 2, 2) (0, 0, 0.7071, 0.7071)
+a mirrored scale (-1, 1, 1)
+normal matrix turns (1, 0, 0) to (0, 0.5, 0)
+perspective depth (0, 0, 0) (0, 0, 1), up goes to (0, -0.5, 0.7538)
+orthographic (1, -1, 0) (-1, 1, 1)
+look_at puts the origin at (0, 0, -5) and +x at (1, 0, -5)
+a quarter turn about z moves (1, 0, 0) to (0, 1, 0)
+through its matrix (0, 1, 0)
+euler xyz moves (0, 1, 0) to (0, 0, 1), zyx to (-1, 0, 0)
+multiply rotates by the right one first: (0, 0, 1) (0, 0, 1)
+halfway (0.7071, 0.7071, 0) (0.7071, 0.7071, 0)
+normalized (0, 0, 0.6, 0.8) conjugate (-0, -0, -3, 4) length 5
+inverse (-0, -0, -0.12, 0.16) gives (0, 0, 0, 1)
+dot 4 identity (0, 0, 0, 1)
+Matrix3 [1 0 0; 0 1 0; 0 0 1] turns (1, 0, 0) to (0, 1, 0) determinant 1
+Matrix3 inverse [1 -2 0; 0 1 0; 0 0 0.25] gives the identity: true
+Matrix3 transposed [1 0 0; 2 1 0; 0 0 4]

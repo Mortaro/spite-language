@@ -1,0 +1,180 @@
+var console = Console()
+
+func GameMatrices() {
+    basics()
+    transforms()
+    projections()
+    rotations()
+    third_order()
+}
+
+func basics() {
+    var identity = Matrix4()
+    console.print("identity {identity}")
+    var moved = Matrix4()
+    var offset = Vector3(1.0, 2.0, 3.0)
+    moved.set_translation(offset)
+    var point = Vector3(1.0, 1.0, 1.0)
+    console.print("translated point {moved.transform_point(point)} direction {moved.transform_direction(point)}")
+    var grown = Matrix4()
+    var factor = Vector3(2.0, 3.0, 4.0)
+    grown.set_scale(factor)
+    var both = moved * grown
+    console.print("translation after scale {both.transform_point(point)} determinant {both.determinant()}")
+    console.print("transposed {moved.transposed()}")
+    var column = Vector4(1.0, 1.0, 1.0, 1.0)
+    console.print("transform a Vector4 {both.transform(column)}")
+    var inverse = both.inverse()
+    if inverse {
+        var back = both * inverse
+        console.print("inverse times itself is the identity: {back == identity}")
+    }
+    var flat = Matrix4()
+    var squashed = Vector3(1.0, 0.0, 1.0)
+    flat.set_scale(squashed)
+    var flattened_inverse = flat.inverse()
+    if flattened_inverse {
+        console.print("a flattening matrix has an inverse")
+    } else {
+        console.print("a flattening matrix has no inverse")
+    }
+}
+
+func transforms() {
+    var turn = Quaternion()
+    var axis = Vector3(0.0, 0.0, 1.0)
+    var quarter = Float.pi() * 0.5
+    turn.set_axis_angle(axis, quarter)
+    var place = Vector3(5.0, 6.0, 7.0)
+    var size = Vector3(2.0, 2.0, 2.0)
+    var model = Matrix4()
+    model.set_transform(place, turn, size)
+    var along = Vector3(1.0, 0.0, 0.0)
+    var moved = model.transform_point(along)
+    console.print("composed moves (1, 0, 0) to {near_vector(moved)}")
+    var translation = model.translation_part()
+    var scale = model.scale_part()
+    var rotation = model.rotation_part()
+    console.print("decomposed {translation} {near_vector(scale)} {near_quaternion(rotation)}")
+    var mirror = Matrix4()
+    var flipped = Vector3(-1.0, 1.0, 1.0)
+    mirror.set_scale(flipped)
+    var mirrored = mirror.scale_part()
+    console.print("a mirrored scale {mirrored}")
+    var normals = model.normal_matrix()
+    assert normals
+    var normal = normals.transform(along)
+    console.print("normal matrix turns (1, 0, 0) to {near_vector(normal)}")
+}
+
+func projections() {
+    var near_plane = 0.5
+    var far_plane = 100.0
+    var projection = Matrix4()
+    var view_angle = Float.pi() * 0.5
+    projection.set_perspective(view_angle, 2.0, near_plane, far_plane)
+    var on_near = Vector3(0.0, 0.0, -0.5)
+    var on_far = Vector3(0.0, 0.0, -100.0)
+    var above = Vector3(0.0, 1.0, -2.0)
+    var near_depth = projection.project_point(on_near)
+    var far_depth = projection.project_point(on_far)
+    var above_projected = projection.project_point(above)
+    console.print(
+        "perspective depth {near_vector(near_depth)} {near_vector(far_depth)}, up goes to {near_vector(above_projected)}",
+    )
+    var flat = Matrix4()
+    flat.set_orthographic(-4.0, 4.0, -2.0, 2.0, 1.0, 11.0)
+    var corner = Vector3(4.0, 2.0, -1.0)
+    var back_corner = Vector3(-4.0, -2.0, -11.0)
+    console.print("orthographic {flat.project_point(corner)} {flat.project_point(back_corner)}")
+    var camera = Matrix4()
+    var eye = Vector3(0.0, 0.0, 5.0)
+    var target = Vector3(0.0, 0.0, 0.0)
+    var up = Vector3(0.0, 1.0, 0.0)
+    camera.set_look_at(eye, target, up)
+    var right = Vector3(1.0, 0.0, 0.0)
+    console.print(
+        "look_at puts the origin at {camera.transform_point(target)} and +x at {camera.transform_point(right)}",
+    )
+}
+
+func rotations() {
+    var axis = Vector3(0.0, 0.0, 1.0)
+    var quarter = Float.pi() * 0.5
+    var turn = Quaternion()
+    turn.set_axis_angle(axis, quarter)
+    var along = Vector3(1.0, 0.0, 0.0)
+    var turned = turn.rotate(along)
+    console.print("a quarter turn about z moves (1, 0, 0) to {near_vector(turned)}")
+    var as_matrix = turn.to_matrix()
+    var through_matrix = as_matrix.transform_point(along)
+    console.print("through its matrix {near_vector(through_matrix)}")
+    var angles = Vector3(quarter, 0.0, quarter)
+    var first_order = Quaternion()
+    first_order.set_euler(angles, 'xyz')
+    var other_order = Quaternion()
+    other_order.set_euler(angles, 'zyx')
+    var up = Vector3(0.0, 1.0, 0.0)
+    var by_first = first_order.rotate(up)
+    var by_other = other_order.rotate(up)
+    console.print("euler xyz moves (0, 1, 0) to {near_vector(by_first)}, zyx to {near_vector(by_other)}")
+    var tilt = Quaternion()
+    tilt.set_axis_angle(along, quarter)
+    var both = turn * tilt
+    var at_once = both.rotate(up)
+    var tilted = tilt.rotate(up)
+    var one_by_one = turn.rotate(tilted)
+    console.print("multiply rotates by the right one first: {near_vector(at_once)} {near_vector(one_by_one)}")
+    var still = Quaternion()
+    var halfway = still.spherical_interpolate(turn, 0.5)
+    var normalized_halfway = still.normalized_interpolate(turn, 0.5)
+    var spherical_point = halfway.rotate(along)
+    var normalized_point = normalized_halfway.rotate(along)
+    console.print("halfway {near_vector(spherical_point)} {near_vector(normalized_point)}")
+    var long = Quaternion()
+    long.set_parts(0.0, 0.0, 3.0, 4.0)
+    console.print("normalized {long.normalized()} conjugate {long.conjugate()} length {long.length()}")
+    var undone = long.inverse()
+    if undone {
+        var product = long * undone
+        console.print("inverse {undone} gives {product}")
+    }
+    console.print("dot {long.dot(still)} identity {still}")
+}
+
+func third_order() {
+    var identity = Matrix3()
+    var turn = Quaternion()
+    var axis = Vector3(0.0, 0.0, 1.0)
+    var quarter = Float.pi() * 0.5
+    turn.set_axis_angle(axis, quarter)
+    var rotation = Matrix3()
+    rotation.set_rotation(turn)
+    var along = Vector3(1.0, 0.0, 0.0)
+    var turned = rotation.transform(along)
+    var turned_determinant = rotation.determinant()
+    console.print("Matrix3 {identity} turns (1, 0, 0) to {near_vector(turned)} determinant {near(turned_determinant)}")
+    var skew = Matrix3()
+    skew.column_1_row_0 = 2.0
+    skew.column_2_row_2 = 4.0
+    var inverse = skew.inverse()
+    if inverse {
+        var back = skew * inverse
+        console.print("Matrix3 inverse {inverse} gives the identity: {back == identity}")
+    }
+    console.print("Matrix3 transposed {skew.transposed()}")
+}
+
+func near(value: Float): Float {
+    var scaled = value * 10000.0
+    var whole = scaled.round()
+    return whole / 10000.0 + 0.0
+}
+
+func near_vector(vector: Vector3): String {
+    return "({near(vector.x_value)}, {near(vector.y_value)}, {near(vector.z_value)})"
+}
+
+func near_quaternion(rotation: Quaternion): String {
+    return "({near(rotation.x_value)}, {near(rotation.y_value)}, {near(rotation.z_value)}, {near(rotation.w_value)})"
+}

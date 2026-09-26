@@ -326,3 +326,15 @@ Behaviour that does not match the manual. The language was not changed; each is 
        lowers, D178's form, because a backend without a C library would bring its own maths anyway. Agreed?
      - Folding them at compile time (`docs/optimizations.md`) makes the compiler itself call the C library's
        maths, so building the seed on Linux now needs `-lm`.
+
+## Game maths (D213)
+
+201. **Vectors and matrices allocate on every answer.** Built (proposed by Claude, unconfirmed): `Vector3` and the
+     others are classes, so `position + velocity.scaled(delta)` makes two heap objects and frees one
+     (`benchmarks/game_maths`: 26 ms and two allocations per step for a million steps; clang removed them only
+     where nothing but a sum survived). Ways to remove them, none built: (a) extend D108's placement to a class
+     instance that never outlives its statement or loop pass, so the temporary lives in the frame; (b) let a class
+     of only numbers be a value kept inline like a number (D149 makes every class a reference today); (c) in-place
+     twins such as `position.add(moved)`, which cost nothing but double the names. Which, if any? And the parts:
+     `x_value`...`w_value` because a name is never one letter -- keep them, or allow `x`, `y`, `z`, `w` on these
+     classes as the field's own names (as D213 allows `Vector2`)?
