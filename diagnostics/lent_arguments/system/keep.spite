@@ -1,0 +1,5 @@
+var kept: Position? = null
+
+func update_each(position: Position) {
+    kept = position
+}

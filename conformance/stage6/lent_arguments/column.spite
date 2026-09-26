@@ -1,0 +1,44 @@
+singleton
+
+generic $component_type
+
+var dense_of = List<Integer>()
+var entities = Items<Integer>()
+var values = Items<$component_type>()
+
+func insert(entity: Integer, value: $component_type) {
+    var dense = dense_index(entity)
+    if dense >= 0 {
+        values.set_at(dense, value)
+        return
+    }
+    while dense_of.count() <= entity {
+        dense_of.append(0)
+    }
+    entities.append(entity)
+    values.append(value)
+    dense_of[entity] = values.count()
+}
+
+func remove(entity: Integer) {
+    var dense = dense_index(entity)
+    assert dense >= 0
+    var last = entities.count() - 1
+    var moved = entities[last]
+    values.remove_swapping(dense)
+    entities.remove_swapping(dense)
+    dense_of[moved] = dense + 1
+    dense_of[entity] = 0
+}
+
+func dense_index(entity: Integer): Integer {
+    if entity >= dense_of.count() {
+        return -1
+    }
+    crash dense_of[entity]
+    return dense_of[entity] - 1
+}
+
+func inline(): Boolean {
+    return $component_type.fits_vector()
+}

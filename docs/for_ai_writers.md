@@ -206,6 +206,14 @@ func is_alive(): Boolean {
   `Column<attribute.class>().values[found[attribute.index]]` for all of them, with no `fits_vector()` branch. The
   borrow rules above apply only to a type that fits; the error then starts `'Velocity' fits a Vector, so the
   items of 'velocities' are borrowed: ...`.
+- A system may take components as arguments (`update_each(position: Position, velocity: Velocity)`); the runner
+  passes them with `system.phase_each(made_arguments(found))` on a line of its own, where `made_argument(argument:
+  Symbol<$system_type.phase_each>, rows: Items<Integer>): argument.class` is the one line `return
+  Column<argument.class>().values[rows[argument.index]]` (an `if` on `argument.class == Entity` may choose another
+  line, such as `return Entity(entity)`). The items are borrowed for that one call only (D220): the system may not
+  keep them or resize their columns, and calling `made_position(...)` anywhere else is the error for returning a
+  borrowed item. The template's `Symbol` parameter must be a word of its name (`made_argument(argument: ...)`), or
+  it has no plural.
 - A runner that treats systems of one row and of several differently asks `if phase.argument_count() == 1 { }`
   inside its walk over `phase: Symbol<$system_type.phase_each>` (or `$system_type.argument_count("update_each")`
   of one function; D219, name provisional). It is decided while compiling, so the branch for the other arity is

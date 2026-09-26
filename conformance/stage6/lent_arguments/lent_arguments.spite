@@ -1,0 +1,46 @@
+var console = Console()
+var positions = Column<Position>()
+var velocities = Column<Velocity>()
+var trails = Column<Trail>()
+var drifting = Runner<System.Drift>()
+var moving = Runner<System.Move>()
+var marking = Runner<System.Mark>()
+
+func LentArguments() {
+    var entity = 0
+    while entity < 4 {
+        spawn(entity)
+        entity = entity + 1
+    }
+    velocities.remove(1)
+    var tick = 0
+    while tick < 2 {
+        drifting.run(4)
+        moving.run(4)
+        marking.run(4)
+        tick = tick + 1
+    }
+    console.print("drifted", drifting.system.slowed, "moved", moving.system.moved)
+    report(0)
+    report(1)
+    report(2)
+    report(3)
+}
+
+func spawn(entity: Integer) {
+    var position = Position(10.0 * entity)
+    positions.insert(entity, position)
+    var velocity = Velocity(4.0 + entity)
+    velocities.insert(entity, velocity)
+    var trail = Trail()
+    trails.insert(entity, trail)
+}
+
+func report(entity: Integer) {
+    var dense = positions.dense_index(entity)
+    var trail_dense = trails.dense_index(entity)
+    var trail = trails.values[trail_dense]
+    var lefts = trail.lefts.join(" ")
+    var steps = "[{lefts}]"
+    console.print("entity", entity, "left", positions.values[dense].left, "owner", trail.owner, "trail", steps)
+}

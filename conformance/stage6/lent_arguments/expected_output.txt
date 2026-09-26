@@ -1,0 +1,5 @@
+drifted 6 moved 6
+entity 0 left 3 owner 0 trail [2 3]
+entity 1 left 10 owner 1 trail [10 10]
+entity 2 left 24.5 owner 2 trail [23 24.5]
+entity 3 left 35.25 owner 3 trail [33.5 35.25]

@@ -1,0 +1,3 @@
+func update_each(velocity: Component.Velocity) {
+    velocity.down = velocity.down + 0.25
+}

@@ -409,6 +409,91 @@ counts `Column<Trail>().values[found[3]]` for the call, exactly as above, and a 
 `values.remove_swapping(dense)`, which a system handed the row may not reach for a column it borrows from
 (`conformance/stage6/items_columns`).
 
+### Borrowed arguments, for one call
+
+A system may take its components as arguments instead of a row, `update_each(position: Position, velocity:
+Velocity)`, and a generic runner fills them with a template over the function's arguments whose plural is the
+call's whole argument list ([metaprogramming.md](metaprogramming.md#asking-for-a-function-and-walking-its-arguments)).
+The template's line is the walked row's line, read per argument: `argument.index` is the argument's place, so
+`Column<argument.class>().values[rows[argument.index]]` is that component's item. The plural stands for exactly
+one call the compiler writes, so its results may be borrowed items for that call and no longer
+([D220](decisions.md)):
+
+```gdscript title=lent_arguments_doc/position.spite
+var left = 0.0
+```
+```gdscript title=lent_arguments_doc/velocity.spite
+var across = 0.0
+
+func Velocity(new_across: Float) {
+    across = new_across
+}
+```
+```gdscript title=lent_arguments_doc/mover.spite
+func update_each(position: Position, velocity: Velocity) {
+    position.left = position.left + velocity.across
+}
+```
+```gdscript title=lent_arguments_doc/column.spite
+singleton
+
+generic $component_type
+
+var values = Items<$component_type>()
+```
+```gdscript title=lent_arguments_doc/runner.spite
+generic $system_type
+
+enum Phase {
+    'update'
+}
+
+var system: $system_type = null
+var found = Items<Integer>()
+
+func run(index: Integer) {
+    found.clear()
+    found.append(index)
+    found.append(index)
+    run_phases_each()
+}
+
+func run_phase_each(phase: Symbol<$system_type.phase_each>) {
+    system.phase_each(made_arguments(found))
+}
+
+func made_argument(argument: Symbol<$system_type.phase_each>, rows: Items<Integer>): argument.class {
+    return Column<argument.class>().values[rows[argument.index]]
+}
+```
+```gdscript title=lent_arguments_doc/lent_arguments_doc.spite entry
+var console = Console()
+var positions = Column<Position>()
+var velocities = Column<Velocity>()
+var runner = Runner<Mover>()
+
+func LentArgumentsDoc() {
+    var position = Position()
+    positions.values.append(position)
+    var velocity = Velocity(2.5)
+    velocities.values.append(velocity)
+    runner.run(0)
+    runner.run(0)
+    console.print(positions.values[0].left)
+}
+```
+```output
+5
+```
+
+For `Runner<Mover>` the call is written out as `system.update_each(Column<Position>().values[found[0]],
+Column<Velocity>().values[found[1]])`: `update_each` writes the columns' own items, and nothing is copied, counted
+or allocated. Every rule for a borrowed item holds for the call: `update_each` may not keep `position`, return it
+or pass it on, and nothing it reaches may append to or remove from a column it borrows from. `made_position`
+called anywhere else is an ordinary function, and returning a borrowed item from it is the error for returning one.
+The template may also fill a whole walked row for an argument that is a `type`
+([the rules](#borrowed-items-of-a-vectort--implemented)).
+
 ## `drop()` runs once, right before the object is freed
 
 A class may define a zero-argument `func drop() { ... }` for cleanup (closing a handle, clearing a
@@ -1198,8 +1283,44 @@ kept past its use. What is built (the error texts and the readings marked are pr
   borrowed item for a class that fits and a counted value for one that does not, the D217 mix, decided per
   attribute while compiling. Every error about an `Items` item begins with the choice that made it borrowed:
   `'Velocity' fits a Vector, so the items of 'velocities' are borrowed: ...`. Nothing runs for any of it.
+- **Arguments a plural fills** (D220, decided by Claude under D205 and D214; the readings below proposed by
+  Claude, unconfirmed). A call whose whole argument list is the plural of a template over that function's
+  arguments, written as a statement of its own (`system.phase_each(made_arguments(found))`), stands for exactly
+  one call, and its results may carry borrowed items into it. For each argument in order, the compiler folds the
+  template's body for that argument (an `if` decided while compiling keeps only its branch, as in a walked row)
+  and writes it out before the call when what is left is:
+  - **one `return` of a walked line**, built as a walked row's line is (`<value>.attributes[...]` aside):
+    attribute reads, `[ ]`, calls and constructions, the template's other parameters (read as the plural's
+    arguments), `argument.index` and whole numbers, with `Column<argument.class>()` the singleton made with the
+    argument's class -- `return Column<argument.class>().values[rows[argument.index]]`. It is a local of the call;
+    a borrowed item from a `Vector`, or from an `Items` whose class fits one, is a borrowed name, and the function
+    is called through its `___lent_<positions>` copy, in which that parameter is a borrowed name for the call: it
+    is not retained or released, and every rule above holds for it (it is not kept, returned, passed on, given a
+    second name or assigned). Any other value (`Entity(entity)`, a reference from an `Items` that does not fit) is
+    an ordinary local, counted for the call and let go after it.
+  - **a walked row declared, filled and returned** -- `var row: $row_type = null`, `fill_attributes(row, rows)`,
+    `return row` (or `var row: argument.class = null`) -- which is written out as the walked row it is, under
+    every rule above, and passed as a row. Folding `argument.class == $row_type` is what lets a generic
+    `Stream<$system_type, $row_type>` fill the one argument of its row type this way
+    (`conformance/stage6/streamed_rows`).
+  Any other body is the template's ordinary call, as before; a call none of whose arguments borrows is left as
+  it was. **The call may not resize what it borrows from**: a call whose call effects may append to or remove
+  from a borrowed argument's collection is `'Position' fits a Vector, so the items of 'Column<Position>().values'
+  are borrowed: 'position' is borrowed from 'Column<Position>().values' for the one call
+  'system.phase_each(made_arguments(found))' stands for, and 'system.update_each()' on line 20 may move the items
+  of 'Column<Position>().values': a function handed borrowed arguments may not append to or remove from the
+  collections they borrow from, directly or through what it calls` (a row keeps D206's error). **Anywhere else a
+  result keeps D204's refusal**: the template called by its single name (`made_position(found)`) is an ordinary
+  function, and its `return` of a borrowed item is the error for returning one, which then adds `-- a template
+  over the arguments of 'phase_each' may hand back a borrowed item only through its plural, as the whole argument
+  list of the one call it fills: 'phase_each(made_arguments(...))' (D220)` (`diagnostics/lent_arguments`).
+  **Cost.** The written-out arguments cost what the walked line costs; the template is not called, so it is not
+  compiled for that call. `benchmarks/lent_arguments`: 6.9 ms a tick against 34.3 ms copying each argument out and
+  back ([optimizations.md](optimizations.md#a-row-of-borrowed-items-lives-in-the-frame);
+  `conformance/stage6/lent_arguments`).
 
 `diagnostics/vector_borrows`, `diagnostics/vector_items`, `diagnostics/vector_rows`, `conformance/stage6/vector_items`,
 `conformance/stage6/vector_rows`, `conformance/stage6/walked_rows`, `diagnostics/walked_rows`,
 `conformance/stage6/sparse_rows`, `diagnostics/sparse_rows`, `conformance/stage6/items_columns`,
-`diagnostics/items_borrows`.
+`diagnostics/items_borrows`, `conformance/stage6/lent_arguments`, `conformance/stage6/streamed_rows`,
+`diagnostics/lent_arguments`.

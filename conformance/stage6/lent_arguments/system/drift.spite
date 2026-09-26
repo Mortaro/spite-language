@@ -1,0 +1,6 @@
+var slowed = 0
+
+func update_each(velocity: Velocity) {
+    velocity.slow_down()
+    slowed = slowed + 1
+}

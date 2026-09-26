@@ -1,0 +1,6 @@
+var moved = 0
+
+func update_each(position: Position, velocity: Velocity) {
+    position.left = position.left + velocity.across
+    moved = moved + 1
+}

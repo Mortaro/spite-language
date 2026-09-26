@@ -162,6 +162,8 @@ var borrow_site = ""
 var lending_rows = false
 var walked_row_filled = false
 var walked_row_mixing = false
+var writing_lent_arguments = false
+var lent_plural_text = ""
 var walk_refused = ""
 var walk_refused_attribute = ""
 var walk_partial: Syntax.Expressions.ObjectLiteralExpression? = null
@@ -909,6 +911,13 @@ func walked_class_is(
     assert symbol_identifier
     assert symbol_identifier.name == bound_symbol_name
     assert bound_field_type
+    var right_generic = shape.as_generic_identifier(right)
+    if right_generic {
+        var right_name = without_dollar(right_generic.name)
+        var right_type = codegen_bound_type(right_name, class_information)
+        assert right_type
+        return exact_type_label(bound_field_type) == exact_type_label(right_type)
+    }
     var field_class = type_shape.as_class_ref(bound_field_type)
     assert field_class
     assert not field_class.has_signature
@@ -6609,6 +6618,10 @@ func coerce_for_store(
         var row_type = result.get_type()
         return cast(result.code, row_type, expected_type)
     }
+    if lending_rows and writing_lent_arguments and site.starts_with("argument:") and is_lent_item_name(expression_ast, scope) {
+        var item_type = result.get_type()
+        return cast(result.code, item_type, expected_type)
+    }
     report_kept_borrow(expression_ast, result, site, scope, class_information)
     var result_type = result.get_type()
     if joins_into(result_type, expected_type) {
@@ -8826,6 +8839,9 @@ func generate_own_function_call(
             )
         } else if not missed.is_empty() {
             report(missed)
+        } else if not misnamed_plural(class_information, name).is_empty() {
+            var misnamed = misnamed_plural(class_information, name)
+            report(misnamed)
         } else if maths.is_member(name) or not maths.spelled(name).is_empty() {
             report(
                 "this class has no function '{name}': maths is a function of the number itself, like 'value.{maths_spelling(name)}()'",
@@ -8854,6 +8870,32 @@ func generate_own_function_call(
         return waited
     }
     return ExpressionResult("{called_c_name}({full_arguments.join(", ")})", function_return_type)
+}
+
+func misnamed_plural(information: Analysis.ClassInfo, name: String): String {
+    var index = 0
+    while index < information.templates.count() {
+        var template = information.templates[index]
+        if template.passed and "{template.prefix}s" == name {
+            var words = template.prefix.split("_")
+            words.remove_last()
+            words.append(template.symbol_parameter)
+            var renamed = words.join("_")
+            return "'{name}' is the plural of '{template.prefix}', but '{template.prefix}' walks nothing: its '{template.symbol_parameter}' is not a word of its name, so it is a helper compiled for the one symbol passed to it, not a template with a plural. Name it '{renamed}' and call '{renamed}s(...)'"
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func misnamed_plural_argument(arguments: List<Syntax.Expressions.Expression>, information: Analysis.ClassInfo): String {
+    assert arguments.count() == 1
+    var call = shape.as_call(arguments[0])
+    assert call
+    crash call.callee
+    var callee = shape.as_identifier(call.callee)
+    assert callee
+    return misnamed_plural(information, callee.name)
 }
 
 func passed_template(information: Analysis.ClassInfo, name: String): Analysis.TemplateInfo? {
@@ -8991,6 +9033,13 @@ func generate_generic_call(
     return finish_generic_call(called_c_name, object_result, object_ast, argument_codes, return_type)
 }
 
+func is_lent_item_name(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
+    var identifier = shape.as_identifier(expression)
+    assert identifier
+    assert scope.row_source(identifier.name).is_empty()
+    return not scope.borrow_source(identifier.name).is_empty()
+}
+
 func is_row_name(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
     var identifier = shape.as_identifier(expression)
     assert identifier
@@ -9019,6 +9068,19 @@ func lent_variant_name(
             crash row_identifier
             if sources.is_empty() {
                 sources = scope.row_source(row_identifier.name)
+            }
+        } else if writing_lent_arguments and is_lent_item_name(arguments_ast[index], scope) {
+            if index >= expected_types.count() or variadic_list(expected_types) {
+                return function_c_name
+            }
+            if type_shape.as_union(expected_types[index]) {
+                return function_c_name
+            }
+            positions.append("{index}")
+            var item_identifier = shape.as_identifier(arguments_ast[index])
+            crash item_identifier
+            if sources.is_empty() {
+                sources = scope.borrow_source(item_identifier.name)
             }
         }
         index = index + 1
@@ -15602,6 +15664,9 @@ func lends_to_local(
     if in_vector_library(class_information) {
         return true
     }
+    if writing_lent_arguments {
+        report_lent_argument_resize(declaration.name, lent.borrowed_from, scope, class_information)
+    }
     if scope.row_source(lent.borrowed_from).is_empty() {
         report_borrow_past_resize(declaration.name, lent.borrowed_from, scope, class_information)
         return true
@@ -15736,6 +15801,360 @@ func lends_walked_row(
     borrow_index = saved_index
     walked_row_filled = lent
     return lent
+}
+
+func lends_spread_arguments(
+    statement: Syntax.Statements.ExpressionStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+    function_information: Analysis.FunctionInfo,
+): Boolean {
+    assert not writing_lent_arguments and not resumable_mode
+    crash statement.value
+    var call = shape.as_call(statement.value)
+    assert call
+    crash call.callee
+    var member = shape.as_member(call.callee)
+    assert member
+    var spread = spread_template(call.arguments, class_information)
+    assert spread
+    var ranged = range_function(class_information, spread)
+    assert ranged
+    var range = range_path(spread)
+    var ranged_name = range.last()
+    assert member.name == ranged_name or member.name == ranged.name
+    var plural = shape.as_call(call.arguments[0])
+    assert plural
+    var saved_symbol_name = bound_symbol_name
+    var saved_field_name = bound_field_name
+    var saved_field_index = bound_field_index
+    var saved_field_type = bound_field_type
+    var saved_refused = walk_refused
+    var statements = List<Syntax.Statements.Statement>()
+    var names = List<String>()
+    var lends = false
+    var index = 0
+    while index < ranged.parameters.count() {
+        var parameter = ranged.parameters[index]
+        bound_symbol_name = spread.symbol_parameter
+        bound_field_name = parameter.name
+        bound_field_index = index
+        bound_field_type = parameter.get_type()
+        var lent = write_lent_argument(
+            spread,
+            plural,
+            parameter,
+            statement.line,
+            statements,
+            names,
+            scope,
+            class_information,
+        )
+        lends = lends or lent
+        index = index + 1
+    }
+    bound_symbol_name = saved_symbol_name
+    bound_field_name = saved_field_name
+    bound_field_index = saved_field_index
+    bound_field_type = saved_field_type
+    walk_refused = saved_refused
+    assert lends
+    var passed = List<Syntax.Expressions.Expression>()
+    var name_index = 0
+    while name_index < names.count() {
+        var passed_name: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(names[name_index])
+        passed.append(passed_name)
+        name_index = name_index + 1
+    }
+    crash member.object
+    var named_callee: Syntax.Expressions.Expression = Syntax.Expressions.MemberExpression(member.object, ranged.name)
+    var lent_call: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(named_callee, passed)
+    var call_statement = Syntax.Statements.ExpressionStatement(lent_call)
+    call_statement.line = statement.line
+    statements.append(call_statement)
+    var printer = Syntax.SourcePrinter()
+    lent_plural_text = printer.source_expression(statement.value)
+    builder.add_user("\{")
+    writing_lent_arguments = true
+    generate_block(statements, scope, class_information, function_information)
+    writing_lent_arguments = false
+    lent_plural_text = ""
+    builder.add_user("}")
+    return true
+}
+
+func write_lent_argument(
+    spread: Analysis.TemplateInfo,
+    plural: Syntax.Expressions.CallExpression,
+    parameter: Analysis.ParamInfo,
+    line: Integer,
+    statements: List<Syntax.Statements.Statement>,
+    names: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var declaration = spread.get_declaration()
+    var parameters = declaration.parameters.map_name()
+    var symbol_position = name_position(parameters, spread.symbol_parameter)
+    if symbol_position < parameters.count() {
+        parameters.remove_at(symbol_position)
+    }
+    var walk = RowWalk(spread.symbol_parameter, "", parameters, plural.arguments)
+    var parameter_type = parameter.get_type()
+    var written = written_lent_argument(
+        declaration.body,
+        parameter,
+        parameter_type,
+        walk,
+        line,
+        statements,
+        names,
+        scope,
+        class_information,
+    )
+    if written == true or written == false {
+        return written == true
+    }
+    var single: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(
+        "{spread.prefix}{parameter.name}{spread.suffix}",
+    )
+    var made: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(single, plural.arguments)
+    var mentioned = List<String>()
+    collect_mentioned_names(made, mentioned)
+    var name = lent_argument_name(parameter.name, mentioned, names, scope, class_information)
+    var fallback = Syntax.Statements.VariableDeclaration(name, null, made)
+    fallback.line = line
+    fallback.source_path = current_path
+    statements.append(fallback)
+    names.append(name)
+    return false
+}
+
+func written_lent_argument(
+    body: List<Syntax.Statements.Statement>,
+    parameter: Analysis.ParamInfo,
+    parameter_type: Analysis.SpiteType,
+    walk: RowWalk,
+    line: Integer,
+    statements: List<Syntax.Statements.Statement>,
+    names: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean? {
+    var argument_type = syntax_type_for(parameter_type)
+    assert argument_type
+    var folded = folded_template_body(body, scope, class_information)
+    assert folded
+    var attribute = Syntax.Statements.FieldDeclaration(parameter.name, argument_type)
+    if folded.count() == 1 {
+        return written_lent_value(folded[0], attribute, walk, line, statements, names, scope, class_information)
+    }
+    assert folded.count() == 3
+    assert written_lent_row(folded, attribute, walk, line, statements, names, scope, class_information)
+    return true
+}
+
+func written_lent_value(
+    statement: Syntax.Statements.Statement,
+    attribute: Syntax.Statements.FieldDeclaration,
+    walk: RowWalk,
+    line: Integer,
+    statements: List<Syntax.Statements.Statement>,
+    names: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean? {
+    var returned = shape.as_return_statement(statement)
+    assert returned
+    crash returned.value
+    walk_refused = ""
+    var value = walked_value(returned.value, attribute, walk)
+    assert walk_refused.is_empty()
+    crash value
+    var mentioned = List<String>()
+    collect_mentioned_names(value, mentioned)
+    var name = lent_argument_name(attribute.name, mentioned, names, scope, class_information)
+    var written = Syntax.Statements.VariableDeclaration(name, null, value)
+    written.line = line
+    written.source_path = current_path
+    statements.append(written)
+    names.append(name)
+    return may_lend(value, scope, class_information)
+}
+
+func written_lent_row(
+    folded: List<Syntax.Statements.Statement>,
+    attribute: Syntax.Statements.FieldDeclaration,
+    walk: RowWalk,
+    line: Integer,
+    statements: List<Syntax.Statements.Statement>,
+    names: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var row = shape.as_variable_declaration(folded[0])
+    assert row
+    crash row.value
+    assert row.type_reference and shape.is_null_literal(row.value)
+    var filling = shape.as_expression_statement(folded[1])
+    assert filling
+    crash filling.value
+    var fill = shape.as_call(filling.value)
+    assert fill
+    crash fill.callee
+    assert shape.as_identifier(fill.callee)
+    var returned = shape.as_return_statement(folded[2])
+    assert returned
+    crash returned.value
+    assert is_identifier_named(returned.value, row.name)
+    walk_refused = ""
+    var mentioned = List<String>()
+    var arguments = List<Syntax.Expressions.Expression>()
+    var row_index = -1
+    var index = 0
+    while index < fill.arguments.count() {
+        var written = fill.arguments[index]
+        if is_identifier_named(written, row.name) {
+            row_index = index
+            arguments.append(written)
+        } else {
+            var value = walked_value(written, attribute, walk)
+            crash value
+            collect_mentioned_names(value, mentioned)
+            arguments.append(value)
+        }
+        index = index + 1
+    }
+    assert walk_refused.is_empty() and row_index >= 0
+    var name = lent_argument_name(attribute.name, mentioned, names, scope, class_information)
+    var row_reference: Syntax.Expressions.Expression = Syntax.Expressions.IdentifierExpression(name)
+    arguments.set_at(row_index, row_reference)
+    var row_type = row.type_reference
+    crash row_type
+    if symbol_class_type(row_type, walk.symbol_parameter) {
+        row_type = attribute.type_reference
+        crash row_type
+    }
+    var nothing: Syntax.Expressions.Expression = Syntax.Expressions.NullLiteral()
+    var declared = Syntax.Statements.VariableDeclaration(name, row_type, nothing)
+    declared.line = line
+    declared.source_path = current_path
+    statements.append(declared)
+    var filled_call: Syntax.Expressions.Expression = Syntax.Expressions.CallExpression(fill.callee, arguments)
+    var filled = Syntax.Statements.ExpressionStatement(filled_call)
+    filled.line = line
+    statements.append(filled)
+    names.append(name)
+    return true
+}
+
+func symbol_class_type(written: Syntax.Types.Type, symbol_parameter: String): Boolean {
+    var named = shape.as_named_type(written)
+    assert named
+    return named.path.count() == 2 and named.path[0] == symbol_parameter and named.path[1] == "class"
+}
+
+func folded_template_body(
+    statements: List<Syntax.Statements.Statement>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): List<Syntax.Statements.Statement>? {
+    var folded = List<Syntax.Statements.Statement>()
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        var chosen = shape.as_if_statement(statement)
+        if chosen {
+            crash chosen.condition
+            var decided = constant_condition(chosen.condition, scope, class_information)
+            assert decided == true or decided == false
+            var taken = chosen.else_branch
+            if decided == true {
+                taken = chosen.then_branch
+            }
+            var inner = folded_template_body(taken, scope, class_information)
+            assert inner
+            var inner_index = 0
+            while inner_index < inner.count() {
+                folded.append(inner[inner_index])
+                inner_index = inner_index + 1
+            }
+        } else {
+            folded.append(statement)
+        }
+        var last = folded.last()
+        if last {
+            if shape.as_return_statement(last) {
+                return folded
+            }
+        }
+        index = index + 1
+    }
+    return folded
+}
+
+func lent_argument_name(
+    parameter_name: String,
+    mentioned: List<String>,
+    names: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    if lent_name_free(parameter_name, mentioned, names, scope, class_information) {
+        return parameter_name
+    }
+    return "{parameter_name}_argument"
+}
+
+func lent_name_free(
+    name: String,
+    mentioned: List<String>,
+    names: List<String>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    assert not mentioned.contains(name) and not names.contains(name)
+    assert not scope.written_type(name) and not class_information.find_field(name)
+    return not class_information.find_function(name)
+}
+
+func syntax_type_for(spite_type: Analysis.SpiteType): Syntax.Types.Type? {
+    var no_arguments = List<Syntax.Types.GenericArgument>()
+    var class_ref = type_shape.as_class_ref(spite_type)
+    if class_ref {
+        assert not class_ref.has_signature
+        var named_class = find_class_by_c_name(class_ref.c_name)
+        assert named_class
+        assert not is_instantiated_class(named_class)
+        var class_path = named_class.qualified_dotted.split(".")
+        var named_class_type: Syntax.Types.Type = Syntax.Types.NamedType(class_path, no_arguments)
+        return named_class_type
+    }
+    var union_type = type_shape.as_union(spite_type)
+    assert union_type
+    var information = find_union_by_c_name(union_type.c_name)
+    assert information
+    var union_path = List<String>()
+    if not information.owner_qualified.is_empty() {
+        union_path = information.owner_qualified.split(".")
+    }
+    union_path.append(information.simple_name)
+    var named_union_type: Syntax.Types.Type = Syntax.Types.NamedType(union_path, no_arguments)
+    return named_union_type
+}
+
+func report_lent_argument_resize(name: String, source: String, scope: Scope, class_information: Analysis.ClassInfo) {
+    var statements = borrow_statements
+    var call_statement = statements.last()
+    assert call_statement
+    var resize = resize_in_statement(call_statement, source, scope, class_information)
+    assert not resize.is_empty()
+    var saved_line = current_line
+    current_line = statement_line(call_statement)
+    report(
+        "{items_choice(source)}'{name}' is borrowed from '{source}' for the one call '{lent_plural_text}' stands for, and {resize} may move the items of '{source}': a function handed borrowed arguments may not append to or remove from the collections they borrow from, directly or through what it calls",
+    )
+    current_line = saved_line
 }
 
 func refused_row(scope: Scope, class_information: Analysis.ClassInfo): Boolean {
@@ -16304,7 +16723,9 @@ func report_kept_borrow(
     var copied = "'{text}.copy()', an independent object"
     var reason = items_choice(source)
     if site == "return" {
-        report("{reason}'{text}' is borrowed from '{source}' and cannot be returned: return {copied}")
+        report(
+            "{reason}'{text}' is borrowed from '{source}' and cannot be returned: return {copied}{lent_result_hint()}",
+        )
         return
     }
     if site.starts_with("attribute:") {
@@ -16338,11 +16759,41 @@ func report_kept_borrow(
     report("{reason}'{text}' is borrowed from '{source}' and cannot be kept past the line that reads it: keep {copied}")
 }
 
+func lent_result_hint(): String {
+    assert not bound_symbol_name.is_empty()
+    crash current_class
+    return lent_result_hint_of(current_class)
+}
+
+func lent_result_hint_of(information: Analysis.ClassInfo): String {
+    var index = 0
+    while index < information.templates.count() {
+        var template = information.templates[index]
+        var declaration = template.get_declaration()
+        var returns = false
+        if declaration.return_type {
+            returns = true
+        }
+        if template.symbol_parameter == bound_symbol_name and template.range and not template.passed and returns {
+            if template_range_owner(information, template) == "function" {
+                var range = range_path(template)
+                var ranged = range.last()
+                crash ranged
+                return " -- a template over the arguments of '{ranged}' may hand back a borrowed item only through its plural, as the whole argument list of the one call it fills: '{ranged}({template.prefix}{template.symbol_parameter}s{template.suffix}(...))' (D220)"
+            }
+        }
+        index = index + 1
+    }
+    return ""
+}
+
 func report_kept_row(text: String, source: String, site: String) {
     var held = "{items_choice(source)}'{text}' holds items borrowed from '{source}' for this call"
     var site_length = site.length()
     if site == "return" {
-        report("{held} and cannot be returned: return the values the caller needs, or a 'copy()' of one of its items")
+        report(
+            "{held} and cannot be returned: return the values the caller needs, or a 'copy()' of one of its items{lent_result_hint()}",
+        )
         return
     }
     if site.starts_with("attribute:") {
@@ -20675,6 +21126,9 @@ func report_argument_calls(callee: Syntax.Expressions.Expression, arguments: Lis
     if current_class {
         assert not spread_template(arguments, current_class)
     }
+    if current_class {
+        assert misnamed_plural_argument(arguments, current_class).is_empty()
+    }
     var printer = Syntax.SourcePrinter()
     var called = printer.source_expression(callee)
     var index = 0
@@ -21704,7 +22158,9 @@ func generate_statement_kind(
     class_information: Analysis.ClassInfo,
     function_information: Analysis.FunctionInfo,
 ): Boolean {
-    report_nested_calls(statement, class_information)
+    if not writing_lent_arguments {
+        report_nested_calls(statement, class_information)
+    }
     var variable_declaration = shape.as_variable_declaration(statement)
     if variable_declaration {
         generate_variable_declaration(variable_declaration, scope, class_information)
@@ -21746,7 +22202,9 @@ func generate_statement_kind(
     }
     var expression_statement = shape.as_expression_statement(statement)
     if expression_statement {
-        generate_expression_statement(expression_statement, scope, class_information)
+        if not lends_spread_arguments(expression_statement, scope, class_information, function_information) {
+            generate_expression_statement(expression_statement, scope, class_information)
+        }
         return false
     }
     report("unsupported statement kind in this stage")
@@ -22300,6 +22758,15 @@ func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis
     }
 }
 
+func declare_lent_parameter(name: String, parameter_type: Analysis.SpiteType, sources: String, scope: Scope) {
+    if type_shape.as_union(parameter_type) {
+        var no_paths = List<String>()
+        scope.declare_row(name, parameter_type, sources, no_paths)
+        return
+    }
+    scope.declare_borrowed(name, parameter_type, sources)
+}
+
 func parameter_scope(function: Analysis.FunctionInfo): Scope {
     var scope = Scope(null)
     arguments_parameter_names.clear()
@@ -22311,8 +22778,7 @@ func parameter_scope(function: Analysis.FunctionInfo): Scope {
             arguments_parameter_names.append(parameter.name)
         }
         if function.lent_parameters.contains(parameter.name) {
-            var no_paths = List<String>()
-            scope.declare_row(parameter.name, parameter_type, function.lent_sources, no_paths)
+            declare_lent_parameter(parameter.name, parameter_type, function.lent_sources, scope)
         } else if type_needs_drop(parameter_type) {
             scope.declare_owned(parameter.name, parameter_type)
         } else {

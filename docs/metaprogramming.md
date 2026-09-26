@@ -620,7 +620,9 @@ Hero has no run_each
 ```
 
 `Caller<Hero>` keeps only its `else` branch, and the templates over `run_each` are never generated for it. An
-argument of type `List<Row>` names its row type as `argument.class.element_type`. Asking with a name that is not
+argument of type `List<Row>` names its row type as `argument.class.element_type`. Because the plural stands for
+one call, the values it passes may be items borrowed from a column for that call, with no copy
+([memory.md](memory.md#borrowed-arguments-for-one-call), D220). Asking with a name that is not
 written in the code cannot be decided while compiling:
 
 ```gdscript title=function_name_error/asker.spite
@@ -1286,7 +1288,17 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
   right. That is how one generic calls a function of any arity without variadic generics. Anywhere else such a
   plural is an error naming the call it belongs in, and so is passing it to a different function
   (`diagnostics/function_reflection`). D77's rule does not apply to it: the call it stands for is
-  written by the compiler.
+  written by the compiler. **Its results may be borrowed items for that one call** (D220): when the template's
+  body folds to one `return` of a walked line, such as `Column<argument.class>().values[rows[argument.index]]`
+  (`argument.index` is the argument's place, from 0), or to a walked row declared, filled and returned, the
+  compiler writes each argument out before the call instead of calling the template, and the borrow ends when the
+  call returns ([memory.md](memory.md#borrowed-items-of-a-vectort--implemented) has the rules). A condition on the
+  argument folds per argument there as in a walked row, `argument.class == $row_type` included. A plural of a
+  function whose `Symbol` parameter is not a word of its name is an error naming the rename, since that function
+  is a helper compiled for the symbol passed to it and has no plural: "'streamed_rows' is the plural of
+  'streamed_row', but 'streamed_row' walks nothing: its 'argument' is not a word of its name, so it is a helper
+  compiled for the one symbol passed to it, not a template with a plural. Name it 'streamed_argument' and call
+  'streamed_arguments(...)'" (`diagnostics/lent_arguments`).
 - **`system: Symbol<System>` ranges over the classes of every folder named `system`** (D115): `System.Heal`,
   `Ui.System.Interact` -- a range that names no class or type is read as the end of a dotted namespace, and the
   classes of every namespace ending in it are walked in order of their dotted names. Inside, `system.class` is

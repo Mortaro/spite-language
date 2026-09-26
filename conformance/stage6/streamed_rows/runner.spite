@@ -1,0 +1,22 @@
+generic $system_type
+
+enum Phase {
+    'update'
+}
+
+var system: $system_type = null
+
+func run(entity_count: Integer) {
+    run_phases_each(entity_count)
+}
+
+func run_phase_each(phase: Symbol<$system_type.phase_each>, entity_count: Integer) {
+    if phase.argument_count() == 1 {
+        stream_arguments(entity_count)
+    }
+}
+
+func stream_argument(argument: Symbol<$system_type.phase_each>, entity_count: Integer) {
+    var stream = Stream<$system_type, argument.class>()
+    stream.run(system, entity_count)
+}

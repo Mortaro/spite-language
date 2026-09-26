@@ -1,0 +1,7 @@
+var positions = Column<Position>()
+
+func update_each(position: Position) {
+    position.left = position.left + 1.0
+    var grown = Position(2.0)
+    positions.insert(9, grown)
+}

@@ -1,0 +1,24 @@
+var console = Console()
+var positions = Column<Position>()
+var velocities = Column<Velocity>()
+var moving = Runner<System.Move>()
+
+func StreamedRows() {
+    var entity = 0
+    while entity < 3 {
+        var position = Position(10.0 * entity)
+        positions.insert(entity, position)
+        var velocity = Velocity(1.0 + entity)
+        velocities.insert(entity, velocity)
+        entity = entity + 1
+    }
+    moving.run(3)
+    moving.run(3)
+    console.print(
+        "moved",
+        moving.system.moved,
+        positions.values[0].left,
+        positions.values[1].left,
+        positions.values[2].left,
+    )
+}

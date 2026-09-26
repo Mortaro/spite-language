@@ -1048,6 +1048,19 @@ the end of the row's block. **What you notice.** No allocation per row for a fra
 registered with `--debug-memory`'s table, like the row itself, and is not in `.instances`. **Built** (2026-09-26;
 proposed by Claude, unconfirmed).
 
+The arguments a plural value template fills (D220, `system.phase_each(made_arguments(found))`) are written out
+the same way, in the caller: when the template's body, folded for an argument, is one `return` of a walked line
+(`Column<argument.class>().values[rows[argument.index]]`) or a walked row declared, filled and returned, the
+compiler writes that value as a local of a C block around the call, one per argument in order, and calls the
+function's `___lent_<positions>` copy, in which a borrowed item's parameter is neither retained nor released. The
+template is not called for that call, so it is not compiled for it; an argument whose body has any other shape
+is its template's ordinary call, as before, and a call none of whose arguments borrows is left exactly as it was
+(SlopEngine's `examples/stress` compiles to the same C). **What you notice.** No copy, no allocation and no count
+per argument that borrows (`conformance/stage6/lent_arguments` pins its count), and `benchmarks/lent_arguments`:
+200 000 entities in sparse sets over `Items` columns, systems of one and two component arguments, 6.9 ms a tick
+against 34.3 ms when each argument is copied out of its column, passed and stored back. **Built** (2026-09-26;
+proposed by Claude, unconfirmed).
+
 ### An `Items`' storage is chosen while compiling
 
 **What it does.** `Items<T>` ([collections.md](collections.md#itemst-the-storage-chosen-for-you), D218) is one

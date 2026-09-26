@@ -1,0 +1,3 @@
+func update_each(entity: Entity, position: Position, trail: Trail) {
+    trail.mark(entity.id, position.left)
+}

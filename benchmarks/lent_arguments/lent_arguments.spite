@@ -1,0 +1,72 @@
+var console = Console()
+var clock = Clock()
+var moving = Runner<System.Move>()
+var mending = Runner<System.Regenerate>()
+var drifting = Runner<System.Drift>()
+var copied_moving = CopyRunner<System.Move>()
+var copied_mending = CopyRunner<System.Regenerate>()
+var copied_drifting = CopyRunner<System.Drift>()
+var positions = Column<Component.Position>()
+var velocities = Column<Component.Velocity>()
+var healths = Column<Component.Health>()
+var regenerations = Column<Component.Regeneration>()
+var entity_count = 200000
+
+func LentArguments() {
+    var entity = 0
+    while entity < entity_count {
+        spawn(entity)
+        entity = entity + 1
+    }
+    var round = 0
+    while round < 3 {
+        measure()
+        round = round + 1
+    }
+    var last = positions.values.count() - 1
+    var left: Integer = positions.values[last].left
+    var amount = healths.values[0].amount
+    console.print("left", left, "health", amount)
+}
+
+func measure() {
+    var start = clock.elapsed_nanoseconds()
+    var tick = 0
+    while tick < 20 {
+        moving.run(entity_count)
+        mending.run(entity_count)
+        drifting.run(entity_count)
+        tick = tick + 1
+    }
+    var middle = clock.elapsed_nanoseconds()
+    tick = 0
+    while tick < 20 {
+        copied_moving.run(entity_count)
+        copied_mending.run(entity_count)
+        copied_drifting.run(entity_count)
+        tick = tick + 1
+    }
+    var end = clock.elapsed_nanoseconds()
+    var lent_microseconds = (middle - start) / 20000
+    var copied_microseconds = (end - middle) / 20000
+    console.print(
+        "borrowed arguments",
+        lent_microseconds,
+        "copied per row",
+        copied_microseconds,
+        "microseconds per tick",
+    )
+}
+
+func spawn(entity: Integer) {
+    var position = Component.Position()
+    positions.insert(entity, position)
+    var velocity = Component.Velocity()
+    velocities.insert(entity, velocity)
+    if entity % 2 == 0 {
+        var health = Component.Health()
+        healths.insert(entity, health)
+        var regeneration = Component.Regeneration()
+        regenerations.insert(entity, regeneration)
+    }
+}
