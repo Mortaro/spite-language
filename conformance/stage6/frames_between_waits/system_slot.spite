@@ -1,0 +1,28 @@
+generic $system_type
+
+var system: $system_type = null
+var tasks = List<Concurrent<Nothing>>()
+
+func frame() {
+    if $system_type.function_waits("update_each") {
+        if tasks.is_empty() {
+            var task = Concurrent(system.update_each)
+            tasks.append(task)
+        }
+    } else {
+        system.update_each()
+    }
+}
+
+func finished(): Boolean {
+    var done = true
+    var index = 0
+    while index < tasks.count() {
+        var task = tasks[index]
+        if not task.finished {
+            done = false
+        }
+        index = index + 1
+    }
+    return done
+}

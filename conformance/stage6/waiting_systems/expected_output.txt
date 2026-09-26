@@ -1,0 +1,10 @@
+System.FileLoader can wait, so an engine runs it between frames
+the Concurrent path has started, finished: false
+the loader read forest
+System.Mover never waits, so an engine calls it inside a frame
+the mover moved to 1
+the direct path has returned
+System.Ticker can wait, so an engine runs it between frames
+the ticker ticked under its lock
+the Concurrent path has started, finished: true
+asked at run time: true false true

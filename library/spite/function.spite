@@ -1,6 +1,7 @@
 var _name: Symbol = 'unnamed'
 var _arguments = List<Spite.Argument>()
 var _returns = Spite.Class('Nothing')
+var _waits = false
 
 func Function(starting_name: Symbol, starting_returns: Spite.Class) {
     _name = starting_name
@@ -17,6 +18,10 @@ func get_arguments(): List<Spite.Argument> {
 
 func get_returns(): Spite.Class {
     return _returns
+}
+
+func waits(): Boolean {
+    return _waits
 }
 
 func name_fits(pattern: String): Boolean {

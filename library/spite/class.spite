@@ -38,6 +38,17 @@ func has_function(name: String): Boolean {
     return found
 }
 
+func function_waits(name: String): Boolean {
+    var found = false
+    var index = 0
+    while not found and index < _functions.count() {
+        var function = _functions[index]
+        found = function.name_fits(name) and function.waits()
+        index = index + 1
+    }
+    return found
+}
+
 func to_string(): String {
     return _name
 }

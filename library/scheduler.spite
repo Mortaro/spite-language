@@ -9,6 +9,7 @@ var serving = false
 var commands: Spite.Function<Nothing>? = null
 var reloads: Spite.Function<Nothing>? = null
 var paused = false
+var resumes_when_asked = false
 var wake: Long = 0
 
 func start() {
@@ -19,8 +20,12 @@ func start() {
     }
 }
 
+func resume_only_when_asked() {
+    resumes_when_asked = true
+}
+
 func waits_here(): Boolean {
-    assert started and not paused and (not tasks.is_empty() or serving)
+    assert started and not paused and (not tasks.is_empty() and not resumes_when_asked or serving)
     return current_thread() == scheduler_thread
 }
 
@@ -47,6 +52,11 @@ func frame_done(frame: Memory.Address): Boolean {
 }
 
 func run_ready(): Integer {
+    assert started and current_thread() == scheduler_thread
+    return step_ready()
+}
+
+func step_ready(): Integer {
     var finished = 0
     var index = 0
     while index < tasks.count() {
@@ -63,7 +73,7 @@ func run_ready(): Integer {
 
 func wait_for(frame: Long) {
     while not frame_done(frame) {
-        idle()
+        idle_stepping(true)
     }
 }
 
@@ -109,7 +119,9 @@ func yield_now() {
     if reloads {
         reloads()
     }
-    run_ready()
+    if not resumes_when_asked {
+        step_ready()
+    }
 }
 
 func sleep(milliseconds: Integer) {
@@ -151,13 +163,20 @@ func signal() {
 }
 
 func idle() {
+    idle_stepping(not resumes_when_asked)
+}
+
+func idle_stepping(steps: Boolean) {
     if commands {
         commands()
     }
     if reloads {
         reloads()
     }
-    var finished = run_ready()
+    var finished = 0
+    if steps {
+        finished = step_ready()
+    }
     if finished == 0 {
         var wait_limit = timeout()
         crash wait_limit >= 0 or offloads_running > 0 or serving

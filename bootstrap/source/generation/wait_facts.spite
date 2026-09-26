@@ -1,0 +1,94 @@
+var edge_callers = List<String>()
+var edge_callees = List<String>()
+var edge_keys = Dictionary<Boolean>()
+var shape_callers = List<String>()
+var shape_callees = List<String>()
+var counted = -1
+var waits = Dictionary<Boolean>()
+var answers = Dictionary<Boolean>()
+var asked_names = List<String>()
+var asked_texts = List<String>()
+var asked_paths = List<String>()
+var asked_lines = List<Integer>()
+var asked_owners = List<String>()
+var asked_functions = List<String>()
+
+func add_edge(caller: String, callee: String) {
+    var key = "{caller} {callee}"
+    if not edge_keys.has(key) {
+        edge_keys.set(key, true)
+        edge_callers.append(caller)
+        edge_callees.append(callee)
+    }
+}
+
+func add_shape_edge(caller: String, callee: String) {
+    shape_callers.append(caller)
+    shape_callees.append(callee)
+}
+
+func settle(call_callers: List<String>, call_callees: List<String>, seeds: List<String>) {
+    var size = call_callers.count() + edge_callers.count() + shape_callers.count() + seeds.count()
+    assert size != counted
+    counted = size
+    waits = Dictionary<Boolean>()
+    var index = 0
+    while index < seeds.count() {
+        var seed = seeds.get_at(index)
+        waits.set(seed, true)
+        index = index + 1
+    }
+    var changed = true
+    while changed {
+        var by_name = spread(call_callers, call_callees)
+        var through_values = spread(edge_callers, edge_callees)
+        var through_shapes = spread(shape_callers, shape_callees)
+        changed = by_name or through_values or through_shapes
+    }
+}
+
+func spread(callers: List<String>, callees: List<String>): Boolean {
+    var changed = false
+    var index = 0
+    while index < callers.count() {
+        var caller = callers.get_at(index)
+        var callee = callees.get_at(index)
+        if not waits.has(caller) and waits.has(callee) {
+            waits.set(caller, true)
+            changed = true
+        }
+        index = index + 1
+    }
+    return changed
+}
+
+func may_wait(name: String): Boolean {
+    return waits.has(name)
+}
+
+func answer(name: String, text: String, path: String, line: Integer, owner: String, function: String): Boolean {
+    if answers.has(name) {
+        return answers.get(name) == true
+    }
+    var answered = waits.has(name)
+    answers.set(name, answered)
+    asked_names.append(name)
+    asked_texts.append(text)
+    asked_paths.append(path)
+    asked_lines.append(line)
+    asked_owners.append(owner)
+    asked_functions.append(function)
+    return answered
+}
+
+func first_changed_answer(): Integer {
+    var index = 0
+    while index < asked_names.count() {
+        var name = asked_names.get_at(index)
+        if answers.get(name) == true != waits.has(name) {
+            return index
+        }
+        index = index + 1
+    }
+    return -1
+}

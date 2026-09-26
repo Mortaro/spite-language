@@ -1,0 +1,21 @@
+var console = Console()
+
+func WaitingSystems() {
+    var level = File(".spite-cache/waiting_systems_level.txt")
+    level.write("forest")
+    run_systems()
+    var loader_waits = System.FileLoader.function_waits("update_each")
+    var mover_waits = System.Mover.function_waits("update_each")
+    var ticker_waits = System.Ticker.function_waits("update_each")
+    console.print("asked at run time:", loader_waits, mover_waits, ticker_waits)
+}
+
+func run_system(system: Symbol<System>) {
+    if system.class.function_waits("update_each") {
+        console.print(system.name, "can wait, so an engine runs it between frames")
+    } else {
+        console.print(system.name, "never waits, so an engine calls it inside a frame")
+    }
+    var runner = Runner<system.class>()
+    runner.run()
+}

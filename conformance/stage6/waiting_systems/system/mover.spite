@@ -1,0 +1,7 @@
+var console = Console()
+var position = 0
+
+func update_each() {
+    position = position + 1
+    console.print("the mover moved to", position)
+}

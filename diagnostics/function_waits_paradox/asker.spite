@@ -1,0 +1,11 @@
+generic $system_type
+
+var program = Program()
+
+func ask(): Boolean {
+    if $system_type.function_waits("update_each") {
+        return true
+    }
+    program.sleep(1)
+    return false
+}

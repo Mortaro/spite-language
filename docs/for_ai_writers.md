@@ -338,6 +338,13 @@ in for what the function returns and reading it is the wait (there is no `.wait(
 member may read only its own element's plain values, and a `Parallel(f)` only its own instance's plain values, its locals, singletons, a `Lock` or a `ThreadLocal`; anything else is an error naming the attribute. There is no `async`/`await`: a function
 that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can
 run ([concurrency.md](concurrency.md)).
+`$system_type.function_waits("update_each")` is decided while compiling like `has_function` (and
+`system.class.function_waits(...)` in a `Symbol<...>` walk): `true` when the function can reach a wait, so an engine
+starts it as a `Concurrent` and polls `finished`, and calls it directly otherwise; `klass.function_waits(name)` asks
+the same at run time. A system never says that it does IO. `Scheduler().resume_only_when_asked()` keeps
+`Concurrent`s out of the stages: they then resume only at `Scheduler().run_ready()`, which the frame loop calls
+between frames, or where one's value is read or its handle dropped. A loop polling `finished` in that mode must call
+`run_ready()`, or it never ends.
 `JsonWriter(value).write(): String` writes JSON and `JsonReader<T>(text).read(): T?` reads it
 (`read_or_crash(): T` halts instead), for any class, list, dictionary, enum, number, `Boolean`, `String` or `T?`;
 `read` skips unknown keys, keeps defaults for missing ones, and is `null` on a value of the wrong kind; a `Symbol`

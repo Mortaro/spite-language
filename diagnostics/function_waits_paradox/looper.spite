@@ -1,0 +1,7 @@
+var console = Console()
+
+func update_each() {
+    var asker = Asker<Looper>()
+    var answer = asker.ask()
+    console.print(answer)
+}

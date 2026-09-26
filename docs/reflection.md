@@ -21,8 +21,8 @@ a generic's type -- is constant data or folds while compiling. The whole list is
 
 | Object | Members |
 |---|---|
-| `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)` |
-| `Spite.Function` | `.name`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()`, `name_fits(pattern)` |
+| `Spite.Class` | `.name: Symbol`, `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)`, `function_waits(name)` |
+| `Spite.Function` | `.name`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()`, `name_fits(pattern)`, `waits()` |
 | `Spite.Argument` | `.name`, `.class: Spite.Class` |
 | `Spite.Attribute` | `.name`, `.class: Spite.Class`, `.value: Anything?` (the value itself; `.value.to_string()` is its text) |
 | `Spite.Namespace` | `.name` (the segment), `.name_with_namespaces` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |
@@ -446,8 +446,8 @@ namespace: a program's `spite/` folder may only reopen its classes, and `load "s
 
 | Object | Members |
 |---|---|
-| `Spite.Class` | `.name: Symbol` (D68), `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)` (D114; folds on a codegen type) -- the functions of `Spite.Class` ([below](#functions-of-spiteclass-and-why-there-are-no-static-functions--partial)) |
-| `Spite.Function` | `.name: Symbol`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()`, `name_fits(pattern)` (D116) |
+| `Spite.Class` | `.name: Symbol` (D68), `.namespace: Spite.Namespace?`, `.attributes`, `.functions`, `.instances`, `is_singleton()`, `has_function(name)` (D114; folds on a codegen type), `function_waits(name)` (D209; folds the same way, [metaprogramming.md](metaprogramming.md#asking-whether-a-function-waits)) -- the functions of `Spite.Class` ([below](#functions-of-spiteclass-and-why-there-are-no-static-functions--partial)) |
+| `Spite.Function` | `.name: Symbol`, `.arguments: List<Spite.Argument>`, `.returns: Spite.Class` (`Nothing` when none is declared), `call_function()`, `name_fits(pattern)` (D116), `waits()` (D209: whether it can reach a wait) |
 | `Spite.Argument` | `.name: Symbol`, `.class: Spite.Class` |
 | `Spite.Attribute` | `.name: Symbol`, `.class: Spite.Class`, `.value: Anything?` (the value itself; its text is `.value.to_string()`, below) |
 | `Spite.Namespace` | `.name: Symbol` (the segment), `.name_with_namespaces: Symbol` (dotted), `.parent: Spite.Namespace?`, `.classes`, `.namespaces` |

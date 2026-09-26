@@ -77,6 +77,11 @@ var concurrent_arguments = 0
 var task_root_names = List<String>()
 var task_root_classes = List<Analysis.ClassInfo>()
 var task_root_functions = List<Analysis.FunctionInfo>()
+var wait_facts = WaitFacts()
+var deferred_wait_classes = List<Analysis.ClassInfo>()
+var deferred_wait_functions = List<Analysis.FunctionInfo>()
+var task_value_arguments = 0
+var function_waits_table_used = false
 var development = false
 var keeps_internals = false
 var hot_reload = false
@@ -543,6 +548,7 @@ func generate(
         emit_pending_functions()
     }
     emit_attribute_object_bodies()
+    finish_wait_questions()
     emit_hot_reload_support()
     if parallel_used {
         finish_singleton_guards()
@@ -806,11 +812,11 @@ func folded_function_question(
     crash call.callee
     var member = shape.as_member(call.callee)
     assert member
-    assert member.name == "has_function"
+    assert member.name == "has_function" or member.name == "function_waits"
     crash member.object
     var symbol_class = shape.as_member(member.object)
     if symbol_class {
-        return symbol_function_question(symbol_class, call.arguments, class_information)
+        return symbol_function_question(symbol_class, member.name, call.arguments, class_information)
     }
     var generic_identifier = shape.as_generic_identifier(member.object)
     assert generic_identifier
@@ -826,18 +832,35 @@ func folded_function_question(
         if bound_class_ref {
             var owner = find_class_by_c_name(bound_class_ref.c_name)
             crash owner
-            return class_has_function(owner, pattern, class_information)
+            return class_function_answer(owner, member.name, pattern, class_information)
         }
         return false
     }
+    var example = "run_each"
+    if member.name == "function_waits" {
+        example = "update_each"
+    }
     report(
-        "'${bare_name}.has_function(...)' is decided while compiling, so the name it asks for is written as a literal: '${bare_name}.has_function('run_each')', or a pattern such as \"<phase>_each\"",
+        "'${bare_name}.{member.name}(...)' is decided while compiling, so the name it asks for is written as a literal: '${bare_name}.{member.name}('{example}')', or a pattern such as \"<phase>_each\"",
     )
     return false
 }
 
+func class_function_answer(
+    owner: Analysis.ClassInfo,
+    question: String,
+    pattern: String,
+    asking: Analysis.ClassInfo,
+): Boolean {
+    if question == "function_waits" {
+        return class_function_waits(owner, pattern, asking)
+    }
+    return class_has_function(owner, pattern, asking)
+}
+
 func symbol_function_question(
     symbol_class: Syntax.Expressions.MemberExpression,
+    question: String,
     arguments: List<Syntax.Expressions.Expression>,
     class_information: Analysis.ClassInfo,
 ): Boolean? {
@@ -854,7 +877,7 @@ func symbol_function_question(
     assert not bound_class_ref.has_signature
     var owner = find_class_by_c_name(bound_class_ref.c_name)
     assert owner
-    return class_has_function(owner, pattern, class_information)
+    return class_function_answer(owner, question, pattern, class_information)
 }
 
 func written_name(arguments: List<Syntax.Expressions.Expression>): String? {
@@ -895,6 +918,197 @@ func class_has_function(owner: Analysis.ClassInfo, pattern: String, asking: Anal
     var missing = missing_hole_enum(asking, hole, pattern)
     report(missing)
     return false
+}
+
+func class_function_waits(owner: Analysis.ClassInfo, pattern: String, asking: Analysis.ClassInfo): Boolean {
+    var wanted = List<String>()
+    var opening = pattern.index_of("<")
+    var closing = pattern.index_of(">")
+    if opening < 0 or closing < opening {
+        wanted.append(pattern)
+    } else {
+        var pattern_length = pattern.length()
+        var prefix = pattern.slice(0, opening)
+        var suffix = pattern.slice(closing + 1, pattern_length)
+        var hole = pattern.slice(opening + 1, closing)
+        var hole_values = hole_enum(asking, hole)
+        if not hole_values {
+            var missing = missing_hole_enum(asking, hole, pattern)
+            report(missing)
+            return false
+        }
+        crash hole_values
+        var value_index = 0
+        while value_index < hole_values.values.count() {
+            var value = hole_values.values[value_index]
+            wanted.append("{prefix}{value}{suffix}")
+            value_index = value_index + 1
+        }
+    }
+    settle_wait_facts()
+    var functions = declared_functions_of(owner)
+    var waits = false
+    var index = 0
+    while index < functions.count() {
+        var function = functions[index]
+        if wanted.contains(function.name) {
+            var asked = "{owner.simple_name}.{function.name}"
+            if wait_facts.answer(function.c_name, asked, current_path, current_line, current_owner, current_function) {
+                waits = true
+            }
+        }
+        index = index + 1
+    }
+    return waits
+}
+
+func settle_wait_facts() {
+    var seeds = List<String>()
+    var index = 0
+    while index < waiting_functions.count() {
+        if waiting_kinds.get_at(index) != "yield" {
+            var waiting = waiting_functions.get_at(index)
+            seeds.append(waiting.c_name)
+        }
+        index = index + 1
+    }
+    wait_facts.shape_callers.clear()
+    wait_facts.shape_callees.clear()
+    index = 0
+    while index < unions.count() {
+        var information = unions[index]
+        if information.is_shape {
+            add_shape_wait_edges(information)
+        }
+        index = index + 1
+    }
+    wait_facts.settle(call_edge_callers, call_edge_callees, seeds)
+}
+
+func add_shape_wait_edges(information: Analysis.UnionInfo) {
+    var name_index = 0
+    while name_index < information.caller_names.count() {
+        var name = information.caller_names[name_index]
+        var member_index = 0
+        while member_index < information.members.count() {
+            var member = information.members[member_index]
+            var called = member.find_function(name)
+            if called {
+                wait_facts.add_shape_edge("{information.c_name}___call_{name}", called.c_name)
+            }
+            member_index = member_index + 1
+        }
+        name_index = name_index + 1
+    }
+}
+
+func note_wait_edge(callee: String) {
+    assert not resumable_mode and not current_function_c_name.is_empty()
+    wait_facts.add_edge(current_function_c_name, callee)
+}
+
+func value_call_key(arguments: List<Analysis.SpiteType>, returns: Analysis.SpiteType?): String {
+    var pieces = arguments.map(c_type_name)
+    var returned = "void"
+    if returns {
+        var returns_class = type_shape.as_class_ref(returns)
+        var returns_nothing = false
+        if returns_class {
+            returns_nothing = returns_class.c_name == "Nothing"
+        }
+        if not returns_nothing and not type_shape.is_void(returns) {
+            returned = c_type_name(returns)
+        }
+    }
+    return "spite_value_call {returned}({pieces.join(", ")})"
+}
+
+func asks_function_waits(statements: List<Syntax.Statements.Statement>): Boolean {
+    var expressions = List<Syntax.Expressions.Expression>()
+    collect_block_expressions(statements, expressions)
+    return expressions.any(expression_asks_waits)
+}
+
+func expression_asks_waits(expression: Syntax.Expressions.Expression): Boolean {
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            var member = shape.as_member(expression.callee)
+            if member {
+                if member.name == "function_waits" {
+                    return true
+                }
+            }
+            if expression_asks_waits(expression.callee) {
+                return true
+            }
+            return any_expression_asks_waits(expression.arguments)
+        }
+        Syntax.Expressions.GenericCallExpression: return any_expression_asks_waits(expression.arguments)
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            if expression_asks_waits(expression.left) {
+                return true
+            }
+            return expression_asks_waits(expression.right)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return expression_asks_waits(expression.operand)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            return expression_asks_waits(expression.object)
+        }
+        _: return false
+    }
+}
+
+func any_expression_asks_waits(expressions: List<Syntax.Expressions.Expression>): Boolean {
+    return expressions.any(expression_asks_waits)
+}
+
+func finish_wait_questions() {
+    assert (not wait_facts.asked_names.is_empty() or function_waits_table_used) and not has_error
+    settle_wait_facts()
+    var changed = wait_facts.first_changed_answer()
+    if changed >= 0 {
+        current_path = wait_facts.asked_paths.get_at(changed)
+        current_line = wait_facts.asked_lines.get_at(changed)
+        current_owner = wait_facts.asked_owners.get_at(changed)
+        current_function = wait_facts.asked_functions.get_at(changed)
+        var asked = wait_facts.asked_texts.get_at(changed)
+        var asked_name = wait_facts.asked_names.get_at(changed)
+        var now_waits = wait_facts.may_wait(asked_name)
+        var before = not now_waits
+        report(
+            "whether '{asked}' can wait was answered {before} here, before the functions that ask 'function_waits' were compiled, and it is {now_waits} once they are: it reaches one of them, or a function value made in one, so its answer would decide itself (D209) -- ask from a function that '{asked}' does not reach",
+        )
+        return
+    }
+    if function_waits_table_used {
+        emit_function_waits_table()
+    }
+}
+
+func emit_function_waits_table() {
+    var lines = List<String>()
+    lines.append("static bool spite_function_waits(void* typed_call) \{")
+    var index = 0
+    while index < function_value_makers.count() {
+        var maker = function_value_makers.get_at(index)
+        var maker_length = maker.length()
+        var made = maker.slice(21, maker_length)
+        if wait_facts.may_wait(made) {
+            lines.append("if (typed_call == (void*){made}) return true;")
+        }
+        index = index + 1
+    }
+    lines.append("return false;")
+    lines.append("}")
+    var joined_lines = lines.join("\n")
+    builder.add_support(joined_lines)
 }
 
 func folded_text(
@@ -1929,6 +2143,10 @@ func shape_function_value(
     signature.returns = return_type
     if type_shape.is_void(return_type) {
         signature.returns = Analysis.Types.ClassRefType("Nothing")
+    }
+    if task_value_arguments == 0 {
+        var value_call = value_call_key(signature.arguments, signature.returns)
+        wait_facts.add_edge(value_call, caller)
     }
     var maker = "spite_function_value_{caller}"
     if not function_value_makers.contains(maker) {
@@ -4139,6 +4357,17 @@ func is_bound_attributes_index(index_expression: Syntax.Expressions.IndexExpress
 }
 
 func emit_pending_functions() {
+    emit_pending_only()
+    while not deferred_wait_functions.is_empty() {
+        var information = deferred_wait_classes.remove_first()
+        var function = deferred_wait_functions.remove_first()
+        current_owner = information.qualified_dotted
+        emit_user_function_body(information, function)
+        emit_pending_only()
+    }
+}
+
+func emit_pending_only() {
     var emitted_any = true
     while emitted_any {
         emitted_any = false
@@ -7379,6 +7608,23 @@ func singleton_call(target_class: Analysis.ClassInfo): String {
     return "{function_c_name}()"
 }
 
+func hands_function_to_task(
+    target_class: Analysis.ClassInfo,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+): Boolean {
+    var task = target_class.qualified_dotted == "Concurrent" or target_class.qualified_dotted == "Parallel"
+    assert task and arguments_ast.count() == 1
+    var member = shape.as_member(arguments_ast[0])
+    if member {
+        return true
+    }
+    var identifier = shape.as_identifier(arguments_ast[0])
+    if identifier {
+        return true
+    }
+    return false
+}
+
 func generate_constructor_call(
     target_class: Analysis.ClassInfo,
     arguments_ast: List<Syntax.Expressions.Expression>,
@@ -7404,6 +7650,7 @@ func generate_constructor_call(
     var expected_types = List<Analysis.SpiteType>()
     if target_class.constructor {
         expected_types = parameter_types_of(target_class.constructor.parameters)
+        note_wait_edge(target_class.constructor.c_name)
     }
     if target_class.is_singleton {
         if not expected_types.is_empty() or not arguments_ast.is_empty() {
@@ -7421,7 +7668,14 @@ func generate_constructor_call(
     if starts_concurrent {
         concurrent_arguments = concurrent_arguments + 1
     }
+    var hands_over_value = hands_function_to_task(target_class, arguments_ast)
+    if hands_over_value {
+        task_value_arguments = task_value_arguments + 1
+    }
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
+    if hands_over_value {
+        task_value_arguments = task_value_arguments - 1
+    }
     if starts_concurrent {
         concurrent_arguments = concurrent_arguments - 1
     }
@@ -7646,6 +7900,13 @@ func function_value(
     owner_ast: Syntax.Expressions.Expression,
 ): ExpressionResult {
     var maker = "spite_function_value_{function.c_name}"
+    if task_value_arguments == 0 {
+        var described_signature = signature_of(function)
+        var value_signature = type_shape.as_class_ref(described_signature)
+        crash value_signature
+        var value_call = value_call_key(value_signature.arguments, value_signature.returns)
+        wait_facts.add_edge(value_call, function.c_name)
+    }
     var starts_work = concurrent_arguments > 0 or not is_library_class(information)
     if function.parameters.is_empty() and starts_work and not task_root_names.contains(function.c_name) {
         task_root_names.append(function.c_name)
@@ -7724,6 +7985,8 @@ func call_function_value(
     var signature = type_shape.as_class_ref(held_type)
     crash signature
     var argument_codes = generate_argument_list(arguments_ast, signature.arguments, scope, class_information)
+    var value_call = value_call_key(signature.arguments, signature.returns)
+    note_wait_edge(value_call)
     var pointer_parameters = List<String>()
     pointer_parameters.append("void*")
     var index = 0
@@ -8216,7 +8479,7 @@ func generate_method_call(
         return void_result()
     }
     crash function
-    if member.name == "has_function" and target_class.c_name == "Spite_Class" {
+    if (member.name == "has_function" or member.name == "function_waits") and target_class.c_name == "Spite_Class" {
         class_level_functions_used = true
     }
     var parameter_types = parameter_types_of(function.parameters)
@@ -12494,7 +12757,7 @@ func generate_call(
     var member = shape.as_member(call.callee)
     if member {
         crash member.object
-        if member.name == "has_function" {
+        if member.name == "has_function" or member.name == "function_waits" {
             var answered = folded_function_question(call, class_information)
             if answered == true or answered == false {
                 var answer_type: Analysis.SpiteType = Analysis.Types.ScalarType('boolean_kind')
@@ -18156,6 +18419,7 @@ func union_member_call(
 ): String {
     var found_function = find_or_instantiate_function(member, member_name)
     if found_function {
+        note_wait_edge(found_function.c_name)
         var call_arguments = argument_temporaries.copy()
         call_arguments.prepend(casted_object)
         return "{found_function.c_name}({call_arguments.join(", ")})"
@@ -19349,6 +19613,15 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
         builder.add_user("{function_signature(information, function)} \{\n{function.supplied_body}\n}")
         return
     }
+    if asks_function_waits(function.body) {
+        deferred_wait_classes.append(information)
+        deferred_wait_functions.append(function)
+        return
+    }
+    emit_user_function_body(information, function)
+}
+
+func emit_user_function_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo) {
     site_ordinal = 0
     frame_candidates.clear()
     placed_names.clear()
@@ -19402,6 +19675,11 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
     builder.add_user("{named_signature(information, function, defined_name)} \{")
     if function.c_name == "Spite_Function_get_arguments" {
         builder.add_user("spite_function_arguments_described(self);")
+    }
+    if function.c_name == "Spite_Function_waits" {
+        function_waits_table_used = true
+        builder.add_prototype("static bool spite_function_waits(void* typed_call);")
+        builder.add_user("self->_waits_ = spite_function_waits(self->spite_typed_call);")
     }
     var scope = parameter_scope(function)
     terminal_if = terminal_if_of(function.body)
