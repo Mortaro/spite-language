@@ -1,0 +1,4 @@
+func FunctionWaitsParadox() {
+    var looper = Looper()
+    looper.update_each()
+}

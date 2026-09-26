@@ -129,6 +129,8 @@ even use things that would not compile for this build. That covers:
   instantiation of a generic, which folds to `false` there instead of being an error
   ([D167](decisions.md));
 - `$system_type.has_function('run_each')` ([D114](decisions.md));
+- `$system_type.function_waits('update_each')` ([D209](decisions.md)), answered from the functions the compiler
+  turns into state machines;
 - `not`, `and`, `or`, `==` and `!=` over any of these.
 
 A function of a generic class is then compiled for one instantiation only when code that survived folding names

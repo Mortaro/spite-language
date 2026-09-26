@@ -595,6 +595,74 @@ func FunctionNameError() {
 is decided while compiling, so the name it asks for is written as a literal
 ```
 
+### Asking whether a function waits
+
+`$system_type.function_waits("update_each")` asks a second question the same way: can this function reach a wait
+-- a file or socket read, a sleep, anything that calls one ([concurrency.md](concurrency.md#what-the-compiler-does-at-a-wait))?
+The compiler already knows, since it compiles exactly those functions into state machines, so the answer is a
+constant like `has_function`'s, and only the branch taken is compiled. An engine uses it to start a system that
+does IO as a `Concurrent` it polls between frames, and to call every other system directly, while each system is
+written as straight-line code ([D209](decisions.md); the spelling is proposed, unconfirmed):
+
+```gdscript title=waiting_question/loader.spite
+var console = Console()
+var notes = File(".spite-cache/documentation_waiting_notes.txt")
+
+func update_each() {
+    var text = notes.read()
+    crash text
+    console.print("loaded", text)
+}
+```
+```gdscript title=waiting_question/spinner.spite
+var console = Console()
+var turns = 0
+
+func update_each() {
+    turns = turns + 1
+    console.print("spun", turns)
+}
+```
+```gdscript title=waiting_question/stage.spite
+generic $system_type
+
+var system: $system_type = null
+var console = Console()
+
+func run() {
+    var name = $system_type.name
+    if $system_type.function_waits("update_each") {
+        var loading = Concurrent(system.update_each)
+        console.print(name, "started between frames, finished:", loading.finished)
+    } else {
+        system.update_each()
+        console.print(name, "ran inside the frame")
+    }
+}
+```
+```gdscript title=waiting_question/waiting_question.spite entry
+func WaitingQuestion() {
+    var notes = File(".spite-cache/documentation_waiting_notes.txt")
+    notes.write("the map")
+    var loading = Stage<Loader>()
+    loading.run()
+    var spinning = Stage<Spinner>()
+    spinning.run()
+}
+```
+```output
+Loader started between frames, finished: false
+loaded the map
+spun 1
+Spinner ran inside the frame
+```
+
+`Stage<Spinner>` has no `Concurrent` in it at all. Inside a template over a folder's classes,
+`system.class.function_waits("update_each")` is decided for each class walked, and `klass.function_waits(name)`
+answers the same at run time. A function that asks cannot be asked about itself: its own answer would decide
+whether it waits, and that is an error ([the rules](#a-classs-functions-a-folders-classes-and-a-names-pattern--implemented-the-spellings-proposed-by-claude-unconfirmed)).
+[concurrency.md](concurrency.md#choosing-where-concurrents-resume) shows the frame loop that polls what it starts.
+
 ### Every class in a folder
 
 `system: Symbol<System>` ranges over the classes of every folder named `system`, however deep:
@@ -1005,6 +1073,36 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
   class), `system.class.has_function("run_each")` with a literal name folds for each class walked, and only the
   branch taken is compiled for it; with a name that is not a literal it is the run-time question of
   `Spite.Class`, since `system.class` is also an ordinary value (`conformance/stage6/symbol_class_function`).
+- **`$system_type.function_waits("update_each")` folds exactly like `has_function`** (D209, decided by Mortaro;
+  the spelling and the reading below are proposed by Claude, unconfirmed).  **[implemented]** It is `true` when a
+  function the class declares, whose name fits the literal (a name, or a pattern whose hole is read as
+  `has_function`'s), can reach a wait, and `false` otherwise -- also for a name the class does not declare. It
+  folds wherever it is written (an `if`, a `var`, a `return`, either side of `and`, `or` and `not`), for each class
+  a `Symbol<...>` walk visits as `system.class.function_waits(...)`, and a name that is not a literal is the error
+  `has_function` gives, naming `function_waits`. It is a function of `Spite.Class` too, so
+  `klass.function_waits(name)` answers at run time from `.functions`, through `Spite.Function.waits()`.
+  - **What can wait.** A function waits when it is one of the waits a state machine returns from -- `Program.sleep`,
+    reading the console, reading or writing a `File`, a `Socket`'s `accept_client`, `read_line` and `read_bytes`,
+    reading or dropping a `Concurrent` ([concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows)) --
+    or calls one, transitively. Over calls made by name this is exactly the set D176 compiles into state
+    machines. Three more calls count, conservatively, where D176 runs the wait in place instead of returning from
+    it: a constructor, a call through a union's dispatch or a `type`, and a call through a function value. A call
+    through a function value of one signature may wait when some function of that signature that the program
+    makes into a value can wait; a function value handed straight to `Concurrent(...)` or `Parallel(...)` is not
+    counted, since those run it as a state machine or on the pool, never through such a call. So a system whose
+    `update_each` runs `guard.while_locked(tick)`, where `tick` sleeps, waits, and a `Concurrent` of it runs it to
+    the end where it is made, as for any function without a state machine. Joining a `Parallel` is not a wait
+    here, as it is not in D176.
+  - **A question cannot decide itself.** A function that asks is compiled after every function that does not, so
+    its answer sees all of them. When the answer depends on a function that itself asks (or on a function value
+    made in one), the branch chosen could change the answer, so the compiler checks every answer again once
+    everything is compiled, and one that changed is an error at the question: "whether 'Looper.update_each' can
+    wait was answered false here, before the functions that ask 'function_waits' were compiled, and it is true
+    once they are: ... (D209) -- ask from a function that 'Looper.update_each' does not reach"
+    (`diagnostics/function_waits_paradox`).
+  - **Cost.** Folded, nothing: no table, no class object. Asked at run time, the program carries one function
+    comparing a function's address against those of the functions it makes into values that can wait, and keeps
+    those functions (`conformance/stage6/waiting_systems`).
 - **`argument: Symbol<$system_type.run_each>` ranges over the arguments of `run_each`** (D114). A `Symbol<X>`
   already ranged over X's members; a function's members are its arguments. Inside, `argument.name` is the
   argument's name and `argument.class` its type, written as a type (`Query<argument.class>()`,

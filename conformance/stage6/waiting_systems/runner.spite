@@ -1,0 +1,23 @@
+generic $system_type
+
+var system: $system_type = null
+var console = Console()
+
+func run() {
+    var chosen = path()
+    if $system_type.function_waits("update_each") {
+        var running = Concurrent(system.update_each)
+        console.print(chosen, "has started, finished:", running.finished)
+    } else {
+        system.update_each()
+        console.print(chosen, "has returned")
+    }
+}
+
+func path(): String {
+    var waits = $system_type.function_waits("update_each")
+    if waits {
+        return "the Concurrent path"
+    }
+    return "the direct path"
+}
