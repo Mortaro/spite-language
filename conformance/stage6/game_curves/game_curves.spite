@@ -1,0 +1,120 @@
+var console = Console()
+var easing = Easing()
+
+func GameCurves() {
+    curves()
+    easings()
+    noises()
+}
+
+func curves() {
+    var start = Vector2(0.0, 0.0)
+    var first_handle = Vector2(0.25, 0.1)
+    var second_handle = Vector2(0.25, 1.0)
+    var end = Vector2(1.0, 1.0)
+    var curve = CubicBezier(start, first_handle, second_handle, end)
+    var halfway = curve.point_at(0.5)
+    console.print("point_at 0 {curve.point_at(0.0)} 1 {curve.point_at(1.0)} half {near_vector(halfway)}")
+    var probes = [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0]
+    probes.each(show_curve_value)
+    var straight_start = Vector2(0.0, 0.0)
+    var straight_first = Vector2(0.3333333, 0.3333333)
+    var straight_second = Vector2(0.6666667, 0.6666667)
+    var straight_end = Vector2(1.0, 1.0)
+    var straight = CubicBezier(straight_start, straight_first, straight_second, straight_end)
+    var straight_height = straight.y_at_x(0.3)
+    console.print("a straight curve at 0.3 is {near(straight_height)}")
+}
+
+func show_curve_value(x_wanted: Float) {
+    var start = Vector2(0.0, 0.0)
+    var first_handle = Vector2(0.25, 0.1)
+    var second_handle = Vector2(0.25, 1.0)
+    var end = Vector2(1.0, 1.0)
+    var curve = CubicBezier(start, first_handle, second_handle, end)
+    var height = curve.y_at_x(x_wanted)
+    var reached = _check_point(curve, height, x_wanted)
+    console.print("y_at_x {x_wanted} is {near(height)}, and the curve passes there: {reached}")
+}
+
+func _check_point(curve: CubicBezier, height: Float, x_wanted: Float): Boolean {
+    var steps = 0
+    var found = false
+    while steps <= 10000 and not found {
+        var amount: Float = steps
+        amount = amount / 10000.0
+        var point = curve.point_at(amount)
+        var across = point.x_value - x_wanted
+        var up = point.y_value - height
+        found = across.absolute() < 0.001 and up.absolute() < 0.002
+        steps = steps + 1
+    }
+    return found
+}
+
+func easings() {
+    var amounts = [0.0, 0.25, 0.5, 0.75, 1.0]
+    amounts.each(show_easing)
+}
+
+func show_easing(amount: Float) {
+    var smooth = easing.smooth_step(amount)
+    var smoother = easing.smoother_step(amount)
+    var quadratic = easing.in_out_quadratic(amount)
+    var cubic = easing.in_out_cubic(amount)
+    var sine = easing.in_out_sine(amount)
+    var exponential = easing.in_exponential(amount)
+    console.print(
+        "{amount}: smooth {near(smooth)} smoother {near(smoother)} quadratic {near(quadratic)} cubic {near(cubic)} sine {near(sine)} exponential {near(exponential)}",
+    )
+    var back = easing.out_back(amount)
+    var elastic = easing.out_elastic(amount)
+    var bounce = easing.out_bounce(amount)
+    var in_cubic = easing.in_cubic(amount)
+    var out_quadratic = easing.out_quadratic(amount)
+    console.print(
+        "    back {near(back)} elastic {near(elastic)} bounce {near(bounce)} in_cubic {near(in_cubic)} out_quadratic {near(out_quadratic)}",
+    )
+}
+
+func noises() {
+    var noise = Noise(7)
+    var other_seed = Noise(8)
+    var value_middle = noise.value_2d(0.5, 0.5)
+    var value_corner = noise.value_2d(3.0, 4.0)
+    var value_other_seed = other_seed.value_2d(0.5, 0.5)
+    console.print("value_2d {near(value_middle)} {near(value_corner)} seed 8 {near(value_other_seed)}")
+    var gradient_middle = noise.gradient_2d(0.5, 0.5)
+    var gradient_corner = noise.gradient_2d(3.0, 4.0)
+    var gradient_negative = noise.gradient_2d(-2.25, 7.75)
+    console.print("gradient_2d {near(gradient_middle)} {near(gradient_corner)} {near(gradient_negative)}")
+    var value_deep = noise.value_3d(0.5, 0.5, 0.5)
+    var gradient_deep = noise.gradient_3d(0.5, 0.25, 0.75)
+    var gradient_whole = noise.gradient_3d(1.0, 2.0, 3.0)
+    console.print("value_3d {near(value_deep)} gradient_3d {near(gradient_deep)} {near(gradient_whole)}")
+    var dither = noise.interleaved_gradient(10.0, 20.0)
+    var next_dither = noise.interleaved_gradient(11.0, 20.0)
+    console.print("interleaved_gradient {near(dither)} {near(next_dither)}")
+    var lowest = 1.0
+    var highest = -1.0
+    var step = 0
+    while step < 1000 {
+        var place: Float = step
+        place = place * 0.137
+        var sample = noise.gradient_2d(place, place * 0.5)
+        lowest = lowest.minimum(sample)
+        highest = highest.maximum(sample)
+        step = step + 1
+    }
+    console.print("gradient_2d over 1000 samples stays in -1.5 to 1.5: {lowest >= -1.5 and highest <= 1.5}")
+}
+
+func near(value: Float): Float {
+    var scaled = value * 1000.0
+    var whole = scaled.round()
+    return whole / 1000.0 + 0.0
+}
+
+func near_vector(vector: Vector2): String {
+    return "({near(vector.x_value)}, {near(vector.y_value)})"
+}

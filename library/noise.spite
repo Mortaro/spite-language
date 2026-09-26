@@ -1,0 +1,176 @@
+var seed: UnsignedInteger = 0
+
+func Noise(starting_seed: UnsignedInteger) {
+    seed = starting_seed
+}
+
+func value_2d(x_position: Float, y_position: Float): Float {
+    var cell_x = x_position.floor()
+    var cell_y = y_position.floor()
+    var fraction_x = _fade(x_position - cell_x)
+    var fraction_y = _fade(y_position - cell_y)
+    var left: Integer = cell_x
+    var bottom: Integer = cell_y
+    var lower_left = _lattice_value(left, bottom, 0)
+    var lower_right = _lattice_value(left + 1, bottom, 0)
+    var upper_left = _lattice_value(left, bottom + 1, 0)
+    var upper_right = _lattice_value(left + 1, bottom + 1, 0)
+    var lower = lower_left + (lower_right - lower_left) * fraction_x
+    var upper = upper_left + (upper_right - upper_left) * fraction_x
+    return lower + (upper - lower) * fraction_y
+}
+
+func value_3d(x_position: Float, y_position: Float, z_position: Float): Float {
+    var cell_x = x_position.floor()
+    var cell_y = y_position.floor()
+    var cell_z = z_position.floor()
+    var fraction_x = _fade(x_position - cell_x)
+    var fraction_y = _fade(y_position - cell_y)
+    var fraction_z = _fade(z_position - cell_z)
+    var left: Integer = cell_x
+    var bottom: Integer = cell_y
+    var back: Integer = cell_z
+    var near_layer = _value_layer(left, bottom, back, fraction_x, fraction_y)
+    var far_layer = _value_layer(left, bottom, back + 1, fraction_x, fraction_y)
+    return near_layer + (far_layer - near_layer) * fraction_z
+}
+
+func gradient_2d(x_position: Float, y_position: Float): Float {
+    var cell_x = x_position.floor()
+    var cell_y = y_position.floor()
+    var offset_x = x_position - cell_x
+    var offset_y = y_position - cell_y
+    var fraction_x = _fade(offset_x)
+    var fraction_y = _fade(offset_y)
+    var left: Integer = cell_x
+    var bottom: Integer = cell_y
+    var lower_left = _gradient_dot_2d(left, bottom, offset_x, offset_y)
+    var lower_right = _gradient_dot_2d(left + 1, bottom, offset_x - 1.0, offset_y)
+    var upper_left = _gradient_dot_2d(left, bottom + 1, offset_x, offset_y - 1.0)
+    var upper_right = _gradient_dot_2d(left + 1, bottom + 1, offset_x - 1.0, offset_y - 1.0)
+    var lower = lower_left + (lower_right - lower_left) * fraction_x
+    var upper = upper_left + (upper_right - upper_left) * fraction_x
+    return lower + (upper - lower) * fraction_y
+}
+
+func gradient_3d(x_position: Float, y_position: Float, z_position: Float): Float {
+    var cell_x = x_position.floor()
+    var cell_y = y_position.floor()
+    var cell_z = z_position.floor()
+    var offset_x = x_position - cell_x
+    var offset_y = y_position - cell_y
+    var offset_z = z_position - cell_z
+    var left: Integer = cell_x
+    var bottom: Integer = cell_y
+    var back: Integer = cell_z
+    var near_layer = _gradient_layer(left, bottom, back, offset_x, offset_y, offset_z)
+    var far_layer = _gradient_layer(left, bottom, back + 1, offset_x, offset_y, offset_z - 1.0)
+    var fraction_z = _fade(offset_z)
+    return near_layer + (far_layer - near_layer) * fraction_z
+}
+
+func interleaved_gradient(pixel_x: Float, pixel_y: Float): Float {
+    var inner = 0.06711056 * pixel_x + 0.00583715 * pixel_y
+    var inner_fraction = inner - inner.floor()
+    var outer = 52.9829189 * inner_fraction
+    return outer - outer.floor()
+}
+
+func _value_layer(left: Integer, bottom: Integer, depth: Integer, fraction_x: Float, fraction_y: Float): Float {
+    var lower_left = _lattice_value(left, bottom, depth)
+    var lower_right = _lattice_value(left + 1, bottom, depth)
+    var upper_left = _lattice_value(left, bottom + 1, depth)
+    var upper_right = _lattice_value(left + 1, bottom + 1, depth)
+    var lower = lower_left + (lower_right - lower_left) * fraction_x
+    var upper = upper_left + (upper_right - upper_left) * fraction_x
+    return lower + (upper - lower) * fraction_y
+}
+
+func _gradient_layer(
+    left: Integer,
+    bottom: Integer,
+    depth: Integer,
+    offset_x: Float,
+    offset_y: Float,
+    offset_z: Float,
+): Float {
+    var fraction_x = _fade(offset_x)
+    var fraction_y = _fade(offset_y)
+    var lower_left = _gradient_dot_3d(left, bottom, depth, offset_x, offset_y, offset_z)
+    var lower_right = _gradient_dot_3d(left + 1, bottom, depth, offset_x - 1.0, offset_y, offset_z)
+    var upper_left = _gradient_dot_3d(left, bottom + 1, depth, offset_x, offset_y - 1.0, offset_z)
+    var upper_right = _gradient_dot_3d(left + 1, bottom + 1, depth, offset_x - 1.0, offset_y - 1.0, offset_z)
+    var lower = lower_left + (lower_right - lower_left) * fraction_x
+    var upper = upper_left + (upper_right - upper_left) * fraction_x
+    return lower + (upper - lower) * fraction_y
+}
+
+func _gradient_dot_2d(cell_x: Integer, cell_y: Integer, offset_x: Float, offset_y: Float): Float {
+    var hashed = _hash(cell_x, cell_y, 0)
+    var corner = hashed.bits_and(7)
+    var first = offset_x
+    var second = offset_y
+    if corner.bits_and(4) != 0 {
+        first = offset_y
+        second = offset_x
+    }
+    if corner.bits_and(1) != 0 {
+        first = -first
+    }
+    if corner.bits_and(2) != 0 {
+        second = -second
+    }
+    return first + second * 0.5
+}
+
+func _gradient_dot_3d(
+    cell_x: Integer,
+    cell_y: Integer,
+    cell_z: Integer,
+    offset_x: Float,
+    offset_y: Float,
+    offset_z: Float,
+): Float {
+    var hashed = _hash(cell_x, cell_y, cell_z)
+    var edge = hashed.bits_and(15)
+    var first = offset_y
+    if edge < 8 {
+        first = offset_x
+    }
+    var second = offset_z
+    if edge < 4 {
+        second = offset_y
+    } else if edge == 12 or edge == 14 {
+        second = offset_x
+    }
+    if edge.bits_and(1) != 0 {
+        first = -first
+    }
+    if edge.bits_and(2) != 0 {
+        second = -second
+    }
+    return first + second
+}
+
+func _lattice_value(cell_x: Integer, cell_y: Integer, cell_z: Integer): Float {
+    var hashed = _hash(cell_x, cell_y, cell_z)
+    var kept = hashed.bits_and(16777215)
+    var share: Float = kept
+    return share / 16777215.0 * 2.0 - 1.0
+}
+
+func _hash(cell_x: Integer, cell_y: Integer, cell_z: Integer): UnsignedInteger {
+    var first: UnsignedInteger = cell_x
+    var second: UnsignedInteger = cell_y
+    var third: UnsignedInteger = cell_z
+    var mixed: UnsignedInteger = seed + first * 374761393 + second * 668265263 + third * 2147483647
+    var high_bits = mixed.shifted_right(13)
+    mixed = mixed.bits_exclusive_or(high_bits)
+    mixed = mixed * 1274126177
+    var top_bits = mixed.shifted_right(16)
+    return mixed.bits_exclusive_or(top_bits)
+}
+
+func _fade(amount: Float): Float {
+    return amount * amount * amount * (amount * (amount * 6.0 - 15.0) + 10.0)
+}

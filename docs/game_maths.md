@@ -2,7 +2,8 @@
 
 The standard library has the maths a game engine is built on: `Vector2`, `Vector3` and `Vector4`, `Matrix3` and
 `Matrix4`, and `Quaternion`, with the boxes, planes, frustums and rays that culling and picking need,
-and `Color` with the web's colour formats ([D213](decisions.md)). They are plain classes in `library/` holding `Float`s and
+`Color` with the web's colour formats, and the curves, easings, noise and half-precision floats that animation and
+rendering need ([D213](decisions.md)). They are plain classes in `library/` holding `Float`s and
 nothing else, so a list of them fits a [`Vector<T>`](collections.md) column and a binary writer, and a program that
 uses none of them carries none of their code ([D177](decisions.md)). They are built on the number classes' own
 maths -- `square_root()`, `sine()`, `arc_cosine()` ([values_and_types.md](values_and_types.md#maths-functions)) --
@@ -195,6 +196,60 @@ not a colour
 #ff2010 back to #ff6347
 ```
 
+## Curves, easing and noise
+
+`CubicBezier(start, first_handle, second_handle, end)` is a curve of four `Vector2` points: `point_at(amount)`
+walks it, and `y_at_x(x)` answers its height where it passes `x`, which is how an animation curve in Blender
+(an F-curve) is read. `Easing()` is a singleton of the usual easing curves, each taking an amount from 0 to 1:
+`smooth_step`, `smoother_step`, `in_quadratic`, `out_quadratic`, `in_out_quadratic`, the same for `cubic` and
+`sine`, `in_exponential`, `out_exponential`, `in_back`, `out_back`, `out_elastic` and `out_bounce`.
+`Noise(seed)` answers smooth noise from -1 to 1 -- `value_2d`, `value_3d`, `gradient_2d`, `gradient_3d` -- the
+same for the same seed on every machine, and `interleaved_gradient(pixel_x, pixel_y)`, the 0 to 1 dither a
+shader uses.
+
+```gdscript title=game_curves_basics/game_curves_basics.spite entry
+var console = Console()
+var easing = Easing()
+
+func GameCurvesBasics() {
+    var start = Vector2(0.0, 0.0)
+    var first_handle = Vector2(0.5, 0.0)
+    var second_handle = Vector2(0.5, 1.0)
+    var end = Vector2(1.0, 1.0)
+    var curve = CubicBezier(start, first_handle, second_handle, end)
+    console.print("{curve.y_at_x(0.5)} {easing.smooth_step(0.25)} {easing.in_out_cubic(0.5)}")
+    var noise = Noise(7)
+    var sample = noise.gradient_2d(0.5, 0.5)
+    console.print("{sample >= -1.5 and sample <= 1.5} {noise.gradient_2d(3.0, 4.0)}")
+}
+```
+```output
+0.5 0.15625 0.5
+true 0
+```
+
+## Half precision
+
+A GPU often takes a 16-bit float. `value.to_half_precision()` turns a `Float` into its 16 bits, as an
+`UnsignedShort`, rounding to the nearest and to even on a tie, as the hardware does; `bits.half_precision_to_float()`
+turns them back. Past 65504 is infinity, below about 6e-8 is zero, and not-a-number stays not-a-number.
+
+```gdscript title=half_precision_basics/half_precision_basics.spite entry
+var console = Console()
+
+func HalfPrecisionBasics() {
+    var tenth: Float = 0.1
+    var packed = tenth.to_half_precision()
+    var unpacked = packed.half_precision_to_float()
+    var huge: Float = 100000.0
+    var one: Float = 1.0
+    console.print("{packed} {unpacked} {huge.to_half_precision()} {one.bits()}")
+}
+```
+```output
+11878 0.099975586 31744 1065353216
+```
+
 ## What they cost
 
 Every function that answers a vector, a matrix or a quaternion makes a new one, and **a new one is an allocation**:
@@ -283,8 +338,26 @@ the layout and the conventions.
   `hsl(`/`hsla(` with a hue in degrees (a `deg` suffix allowed, any number of turns), saturation and lightness as
   percentages; the CSS named colours and `transparent` (`named_hex(name)` answers one's `#rrggbb`, or `""`).
   Anything else -- a wrong count of digits or numbers, a letter where a number goes, a missing `)` -- is `null`.
+- **`CubicBezier`** (parts `start_x` ... `end_y`, made with four `Vector2`s): `point_at(amount)` (not clamped),
+  `y_at_x(x)` (the amount found by at most 8 Newton steps, then 30 halvings if Newton did not settle, `x` held
+  between the end points; for a curve whose x goes back on itself the first root found wins).
+- **`Easing`**, a singleton bound like any other (`var easing = Easing()`): `smooth_step` and `smoother_step`
+  (amount clamped to 0..1), and `in_`, `out_` and `in_out_` forms of `quadratic`, `cubic` and `sine`,
+  `in_exponential`/`out_exponential` (exactly 0 at 0 and 1 at 1), `in_back`/`out_back` (overshoot 1.70158),
+  `out_elastic` and `out_bounce`, as easings.net writes them; outside 0..1 they extrapolate unless said above.
+- **`Noise(seed: UnsignedInteger)`**: `value_2d`, `value_3d` (a random value at each whole point, blended with the
+  quintic fade), `gradient_2d`, `gradient_3d` (Perlin's improved noise, gradients from a hash of the point and the
+  seed, 0 on every whole point, within -1.5..1.5 in 2D), and `interleaved_gradient(pixel_x, pixel_y)` (Jimenez's
+  dither, 0 to 1). Nothing is random at run time: the same seed and point give the same value everywhere.
+- **Half precision** (IEEE 754 binary16): `Float.to_half_precision(): UnsignedShort` rounds to nearest even,
+  overflows to infinity from 65520, keeps not-a-number as `0x7e00`, and makes subnormals below 6.1e-5;
+  `UnsignedShort.half_precision_to_float(): Float` is exact. Both are Spite over `Float.bits(): UnsignedInteger`
+  and `UnsignedInteger.bits_as_float(): Float`, which reinterpret the four bytes and which a program may use too.
+  **Cost**: each call writes the value to a small heap block and reads it back, since reading a value's bytes is
+  a primitive only an address has (D178), so a conversion allocates up to four times; a primitive for the
+  reinterpretation is a question for Mortaro.
 - **Cost.** Each function answering a vector, matrix or quaternion allocates it; the `set_` functions write in
   place and allocate nothing (`benchmarks/game_maths`). Removing the allocations is open
   (`mortaros_missing_decisions.md`).
-- `conformance/stage6/game_vectors`, `game_matrices`, `game_geometry` and `game_colors` pin every function, rounding what goes through a sine to
+- `conformance/stage6/game_vectors`, `game_matrices`, `game_geometry`, `game_colors`, `game_curves` and `half_precision` pin every function, rounding what goes through a sine to
   four places so the C library's last bit does not show.

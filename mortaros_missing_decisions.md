@@ -338,3 +338,8 @@ Behaviour that does not match the manual. The language was not changed; each is 
      twins such as `position.add(moved)`, which cost nothing but double the names. Which, if any? And the parts:
      `x_value`...`w_value` because a name is never one letter -- keep them, or allow `x`, `y`, `z`, `w` on these
      classes as the field's own names (as D213 allows `Vector2`)?
+202. **Reading a number's bits allocates.** `Double.bits()`, and now `Float.bits()` and
+     `UnsignedInteger.bits_as_float()` under the half-precision conversion, write the value into a heap block and
+     read it back, because only a `Memory.Address` may read bytes (D178); a half conversion allocates up to four
+     times. A `bits()` and `bits_as_float()` the backend writes as one `memcpy` in place, like D178's reads, would
+     cost nothing (proposed by Claude, unconfirmed: a new primitive of the number classes, so it waits for you).

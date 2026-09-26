@@ -5,3 +5,37 @@ func to_string(): String {
     var wide: Double = this
     return wide.shortest_text(16777216, -149, 9)
 }
+
+func bits(): UnsignedInteger {
+    var heap = Memory.Heap()
+    var address = heap.allocate(4)
+    address.write_float(0, this)
+    var bit_pattern = address.read_unsigned_integer(0)
+    heap.free(address)
+    return bit_pattern
+}
+
+func to_half_precision(): UnsignedShort {
+    var bit_pattern = bits()
+    var sign_part = bit_pattern.shifted_right(16).bits_and(32768)
+    var magnitude = bit_pattern.bits_and(2147483647)
+    var half: UnsignedInteger = 0
+    if magnitude >= 1199570944 {
+        half = 31744
+        if magnitude > 2139095040 {
+            half = 32256
+        }
+    } else if magnitude < 947912704 {
+        var magic: UnsignedInteger = 1056964608
+        var magnitude_value = magnitude.bits_as_float()
+        var magic_value = magic.bits_as_float()
+        var shifted = magnitude_value + magic_value
+        half = shifted.bits() - magic
+    } else {
+        var odd = magnitude.shifted_right(13).bits_and(1)
+        var rounded = magnitude + 3355447295 + odd
+        half = rounded.shifted_right(13)
+    }
+    var result: UnsignedShort = half.bits_or(sign_part)
+    return result
+}

@@ -1,0 +1,24 @@
+point_at 0 (0, 0) 1 (1, 1) half (0.313, 0.538)
+y_at_x 0 is 0, and the curve passes there: true
+y_at_x 0.1 is 0.095, and the curve passes there: true
+y_at_x 0.25 is 0.409, and the curve passes there: true
+y_at_x 0.5 is 0.802, and the curve passes there: true
+y_at_x 0.75 is 0.96, and the curve passes there: true
+y_at_x 0.9 is 0.994, and the curve passes there: true
+y_at_x 1 is 1, and the curve passes there: true
+a straight curve at 0.3 is 0.3
+0: smooth 0 smoother 0 quadratic 0 cubic 0 sine 0 exponential 0
+    back 0 elastic 0 bounce 0 in_cubic 0 out_quadratic 0
+0.25: smooth 0.156 smoother 0.104 quadratic 0.125 cubic 0.063 sine 0.146 exponential 0.006
+    back 0.817 elastic 0.912 bounce 0.473 in_cubic 0.016 out_quadratic 0.438
+0.5: smooth 0.5 smoother 0.5 quadratic 0.5 cubic 0.5 sine 0.5 exponential 0.031
+    back 1.088 elastic 1.016 bounce 0.766 in_cubic 0.125 out_quadratic 0.75
+0.75: smooth 0.844 smoother 0.896 quadratic 0.875 cubic 0.938 sine 0.854 exponential 0.177
+    back 1.064 elastic 1.006 bounce 0.973 in_cubic 0.422 out_quadratic 0.938
+1: smooth 1 smoother 1 quadratic 1 cubic 1 sine 1 exponential 1
+    back 1 elastic 1 bounce 1 in_cubic 1 out_quadratic 1
+value_2d 0.067 -0.43 seed 8 -0.098
+gradient_2d 0.25 0 -0.205
+value_3d -0.071 gradient_3d 0.023 0
+interleaved_gradient 0.743 0.298
+gradient_2d over 1000 samples stays in -1.5 to 1.5: true

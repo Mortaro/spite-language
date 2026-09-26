@@ -382,7 +382,10 @@ highest)`, `Plane()` with `set_point_normal`, `Frustum()` with `set_from_view_pr
 answer a `Float?` distance, `null` for a miss. Colours: `Color(red, green, blue, alpha)` from 0 to 1, read from
 text with `var color_text = ColorText()` then `color_text.read_color("#ff6347")` (also `rgb()`, `rgba()`, `hsl()`,
 `hsla()` and CSS names; a `Color?`), written with `to_hex()`, `to_rgb_text()`, `to_hsl_text()`, converted with
-`to_linear()` and `to_standard_rgb()`.
+`to_linear()` and `to_standard_rgb()`. Animation and shading: `CubicBezier(start, first_handle, second_handle, end)`
+with `y_at_x(x)`, `var easing = Easing()` then `easing.in_out_cubic(amount)` and the rest, `Noise(seed)` with
+`gradient_2d(x, y)` and `interleaved_gradient`, and `value.to_half_precision()` / `bits.half_precision_to_float()`
+for 16-bit floats.
 Every class here, the numbers and `List` included, is a Spite file in `library/`, and a program's own file of the
 same name reopens it: `list.spite` adds a member template, `integer.spite` a function on every `Integer`.
 

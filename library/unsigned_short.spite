@@ -5,3 +5,22 @@ func to_string(): String {
     var wide: Long = this
     return wide.to_string()
 }
+
+func half_precision_to_float(): Float {
+    var whole: UnsignedInteger = this
+    var shifted_exponent: UnsignedInteger = 260046848
+    var bit_pattern = whole.bits_and(32767).shifted_left(13)
+    var exponent = shifted_exponent.bits_and(bit_pattern)
+    bit_pattern = bit_pattern + 939524096
+    if exponent == shifted_exponent {
+        bit_pattern = bit_pattern + 939524096
+    } else if exponent == 0 {
+        bit_pattern = bit_pattern + 8388608
+        var magic: UnsignedInteger = 947912704
+        var value = bit_pattern.bits_as_float() - magic.bits_as_float()
+        bit_pattern = value.bits()
+    }
+    var sign_part = whole.bits_and(32768).shifted_left(16)
+    bit_pattern = bit_pattern.bits_or(sign_part)
+    return bit_pattern.bits_as_float()
+}
