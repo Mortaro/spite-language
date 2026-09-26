@@ -778,7 +778,7 @@ has no frame and no pool job: `finished` is `true`, `finished_value()` is `null`
 and frees nothing. A `Lock` or `ThreadSlot` made that way likewise gives back no lock or key it never took. Nothing
 is added to pay for it: a `Concurrent` starts with its `finished` flag set and clears it only when it starts a
 frame, and a `Parallel` allocates its job's state only when it submits the job
-(`conformance/stage6/default_handles`).
+(`conformance/stage6/default_handles`, which describes a function taking each of the four).
 
 **The thread pool** (D135 and D191, decided by Mortaro; the shape below is proposed by Claude, unconfirmed).
 **[implemented on Windows]** `library/thread_pool.spite` is a singleton, `ThreadPool()`, that the `Parallel`s share.

@@ -11,7 +11,7 @@ func join(handle: Concurrent<String>): String {
     return level
 }
 
-func total(counting: Parallel<Integer>, _slot: ThreadSlot): Integer {
+func total(counting: Parallel<Integer>, _slot: ThreadSlot, _guard: Lock): Integer {
     var counted: Integer = counting
     return counted
 }

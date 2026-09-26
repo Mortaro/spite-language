@@ -583,6 +583,9 @@ way. `Spite.Attribute.class` and `Spite.Argument.class` are real `Spite.Class` o
   `--repl`/`--repl-port` build), every other program's attribute lists hold `null` there and box nothing, and no
   attribute carries text, so a program walking `.attributes` allocates no strings for it. A number is
   never boxed where its type is known: `x.attributes[attribute]` in a Symbol template reads the plain field.
+  A box is freed with the attribute that holds it, also for a class first described late while compiling (a
+  `Lock` taken by a described function brings the lists inside `Spite.Class`): letting go of an `Anything` is
+  written once every class that can be boxed into it is known (`conformance/stage6/default_handles`).
   **`value.attributes` works on a `type` or union value**, answered from the value's own class at run time, so
   `create_entity_from_bundle(bundle: Anything)` walks whatever bundle it is given. An attribute holding a
   `Dictionary` lists its entries as attributes named by their keys, as a `List` lists its elements, which is

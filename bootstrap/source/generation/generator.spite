@@ -193,6 +193,7 @@ var placed_receiver_codes = List<String>()
 var boxed_value_types = Dictionary<Analysis.SpiteType>()
 var constant_boxes = List<String>()
 var box_release_emitted = false
+var union_release_positions = Dictionary<Integer>()
 var synthetic_value_classes = List<Analysis.ClassInfo>()
 var synthetic_value_types = Dictionary<Analysis.SpiteType>()
 var attribute_object_used = false
@@ -576,6 +577,7 @@ func generate(
         emit_pending_functions()
     }
     emit_attribute_object_bodies()
+    refresh_union_releases()
     finish_wait_questions()
     emit_hot_reload_support()
     if parallel_used {
@@ -2494,6 +2496,26 @@ func emit_union_class_of_bodies() {
 }
 
 func emit_union_release(information: Analysis.UnionInfo) {
+    var position = builder.support_count()
+    union_release_positions.set(information.c_name, position)
+    var release_text = union_release_text(information)
+    builder.add_support(release_text)
+}
+
+func refresh_union_releases() {
+    var index = 0
+    while index < unions.count() {
+        var information = unions[index]
+        var position = union_release_positions.get(information.c_name)
+        if position {
+            var release_text = union_release_text(information)
+            builder.replace_support(position, release_text)
+        }
+        index = index + 1
+    }
+}
+
+func union_release_text(information: Analysis.UnionInfo): String {
     var name = information.c_name
     var release_lines = List<String>()
     release_lines.append("void {name}___release({name} self) \{")
@@ -2511,8 +2533,7 @@ func emit_union_release(information: Analysis.UnionInfo) {
         member_index = member_index + 1
     }
     release_lines.append("}")
-    var joined_release_lines = release_lines.join("\n")
-    builder.add_support(joined_release_lines)
+    return release_lines.join("\n")
 }
 
 func emit_shape_peekers(information: Analysis.UnionInfo) {
