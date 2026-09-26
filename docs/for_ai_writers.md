@@ -178,6 +178,11 @@ func is_alive(): Boolean {
   reading it after a line that may resize the vector (`append`, `remove_at`, `clear`, or a call that may do one)
   are errors, each naming the fix: `velocity.copy()`, an independent object, or reading `velocities[index]` again.
   A class kept in a `Vector` may not use `this` as a value, nor have a `drop()`.
+- Only a class item is borrowed. An item that is a number, `Boolean` or enum is copied when read (D221): keep,
+  pass or return `numbers[index]` freely, and pass functions as on a list: `numbers.each(found.append)`,
+  `weights.map(double_of)`, `weights.filter(is_heavy).sum(double_of)` (`each`, `map`, `filter`, `count`, `any`,
+  `all`, `sum`; not `find` or `sort_by`, which only a `List` has). A `Vector<String>` takes no passed function:
+  keep text you pass on in a `List<String>`.
 - A row of borrowed items for a system: `var row: Moving = {position: positions[index], velocity:
   velocities[index]}` (`Moving` a `type`), then `mover.update_each(row)`. The row costs nothing (it lives in the
   frame) and may be passed only to a function called by name whose parameter is a `type`; inside it,
@@ -196,13 +201,17 @@ func is_alive(): Boolean {
   per attribute with an `if` on `attribute.class == Entity` or `attribute.class.fits_vector()` (both decided while
   compiling), each branch one such line: `Entity(entity)` is made in the frame, a reference column's value
   (`ReferenceColumn<attribute.class>().at(found[attribute.index])`) is counted for the row (D217). Keep the index
-  expression to parameters, `attribute.index` and whole numbers; work anything else out before the walk.
+  expression to parameters, `attribute.index` and whole numbers; work anything else out before the walk. The
+  places may live in another object: pass its vector straight in (`fill_attributes(row, matcher.rows)`) or read
+  `matcher.rows[attribute.index]` in the line -- its items are numbers, copied (D221) -- and never copy them into a
+  vector of the runner's first.
 - In a generic class that keeps values of a type it does not know (an engine's `Column<$component_type>`), use
   `Items<$component_type>()` (D218, name provisional): inline and borrowed like a `Vector` when the type fits
   one, references like a `List` when not, with one set of members (`append`, `items[index]` (a `T`, out of range
   halts), `set_at`, `remove_at`, `remove_swapping(index)` (the last item moves into `index`), `count`, `is_empty`,
   `clear`, `copy`, `deep_copy`, and the `each_`/`map_`/`filter_`/`count_`/`any_`/`all_`/`sum_`/`parallel_each_`
-  templates; no `each(f)` forms). Then one column class serves every component, and the walked row's line is
+  templates; `each(f)` forms only for numbers, `Boolean` and enums). Then one column class serves every component,
+  and the walked row's line is
   `Column<attribute.class>().values[found[attribute.index]]` for all of them, with no `fits_vector()` branch. The
   borrow rules above apply only to a type that fits; the error then starts `'Velocity' fits a Vector, so the
   items of 'velocities' are borrowed: ...`.

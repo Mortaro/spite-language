@@ -1,0 +1,7 @@
+found 3, 5
+kept 3, 7 first 3 largest 7
+doubled 3, 5, 8 big 2 total 16 13
+counted 2 true false
+found 3, 5, 2, 9 counts 22
+sides on the left 2
+lefts 0, 11.5, 20, 37.5 moved 4

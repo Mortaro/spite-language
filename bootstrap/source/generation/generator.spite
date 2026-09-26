@@ -9450,6 +9450,17 @@ func generate_method_call(
             class_information,
         )
     }
+    if vector_like and is_function_form(member.name, arguments_ast) and copies_items(target_class) {
+        return generate_copied_item_form(
+            target_class,
+            member.name,
+            object_result,
+            object_ast,
+            arguments_ast,
+            scope,
+            class_information,
+        )
+    }
     var function = find_or_instantiate_function(target_class, member.name)
     if not function {
         if member.name == "deep_copy" {
@@ -9489,6 +9500,12 @@ func generate_method_call(
         }
         if is_items_class(target_class) and is_function_form(member.name, arguments_ast) {
             missed = items_form_miss(target_class, member.name)
+        }
+        if vector_like and is_function_form(member.name, arguments_ast) {
+            var unpassed = unpassed_value_miss(target_class, member.name)
+            if not unpassed.is_empty() {
+                missed = unpassed
+            }
         }
         if missed.is_empty() {
             if not reported_old_spelling(member.name) {
@@ -11141,6 +11158,21 @@ func vector_class_of(receiver_type: Analysis.SpiteType): Analysis.ClassInfo? {
     return found
 }
 
+func vector_kind(vector_class: Analysis.ClassInfo): String {
+    if is_items_class(vector_class) {
+        return "an Items"
+    }
+    return "a Vector"
+}
+
+func unpassed_value_miss(vector_class: Analysis.ClassInfo, name: String): String {
+    crash vector_class.codegen_types[0]
+    var item_type = vector_class.codegen_types[0]
+    assert not inline_item_class(item_type)
+    var label = type_display_name(item_type)
+    return "'{name}' passes each item to a function, which {vector_kind(vector_class)} does only for plain values -- numbers, Boolean and enums, copied as they are read -- and {type_with_article(item_type)} is not one: keep the values in a 'List<{label}>' to pass them on"
+}
+
 func items_form_miss(items_class: Analysis.ClassInfo, name: String): String {
     crash items_class.codegen_types[0]
     var label = type_display_name(items_class.codegen_types[0])
@@ -11185,7 +11217,8 @@ func fused_step(
     assert callee
     var name = callee.name
     if is_function_form(name, call.arguments) {
-        assert base_list.qualified_dotted != "Vector" and not is_items_class(base_list)
+        var inline_items = base_list.qualified_dotted == "Vector" or is_items_class(base_list)
+        assert not inline_items or plain_item_type(current_type)
         var argument = call.arguments.first()
         var passed = resolve_passed_function(argument, scope, class_information)
         assert passed
@@ -11492,6 +11525,11 @@ func bound_function_of(
     var probe = generate_expression(member.object, scope, class_information)
     rewind_temporaries(saved_counter)
     var probe_type = probe.get_type()
+    var listed = type_shape.as_list(probe_type)
+    if listed {
+        var listed_element = listed.get_element()
+        return passed_list_function(member.object, probe_type, listed_element, member.name)
+    }
     var owner_ref = type_shape.as_class_ref(probe_type)
     assert owner_ref
     assert not owner_ref.has_signature
@@ -11515,6 +11553,24 @@ func passed_member_function(
     var passed = PassedFunction(owner, owner_type, name, returned)
     passed.parameter_types = parameter_types_of(function.parameters)
     passed.label = "{name}_for_{owner_class.c_name.lower_case()}"
+    return passed
+}
+
+func passed_list_function(
+    owner: Syntax.Expressions.Expression,
+    owner_type: Analysis.SpiteType,
+    element: Analysis.SpiteType,
+    name: String,
+): PassedFunction? {
+    assert not name.starts_with("_")
+    var list_class = list_class_of(element)
+    var function = find_or_instantiate_function(list_class, name)
+    assert function
+    assert not function.is_constructor
+    var returned = function.get_return_type()
+    var passed = PassedFunction(owner, owner_type, name, returned)
+    passed.parameter_types = parameter_types_of(function.parameters)
+    passed.label = "{name}_for_{list_class.c_name.lower_case()}"
     return passed
 }
 
@@ -11667,6 +11723,38 @@ func generate_function_form(
         passed_arguments,
         parameter_types,
         function_return_type,
+        scope,
+        class_information,
+    )
+}
+
+func generate_copied_item_form(
+    vector_class: Analysis.ClassInfo,
+    name: String,
+    receiver: ExpressionResult,
+    receiver_ast: Syntax.Expressions.Expression,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): ExpressionResult {
+    crash vector_class.codegen_types[0]
+    var element = vector_class.codegen_types[0]
+    var prefix = form_prefix(name)
+    if not template_with_prefix(vector_class, prefix) {
+        var label = type_display_name(element)
+        report(
+            "'{name}' takes a function on a List, and {vector_kind(vector_class)} of plain values takes one only in 'each', 'map', 'filter', 'any', 'all', 'count' and 'sum': keep the values in a 'List<{label}>' to use '{name}'",
+        )
+        return void_result()
+    }
+    var form_argument = arguments_ast.first()
+    return generate_function_form(
+        vector_class,
+        element,
+        name,
+        receiver,
+        receiver_ast,
+        form_argument,
         scope,
         class_information,
     )
@@ -15511,6 +15599,17 @@ func holds_items_inline(information: Analysis.ClassInfo): Boolean {
     return is_items_class(information) and items_fit_vector(information)
 }
 
+func plain_item_type(item_type: Analysis.SpiteType): Boolean {
+    return type_shape.as_scalar(item_type) or is_enum_type(item_type)
+}
+
+func copies_items(information: Analysis.ClassInfo): Boolean {
+    var vector_like = information.qualified_dotted == "Vector" or is_items_class(information)
+    assert vector_like and not information.codegen_types.is_empty()
+    crash information.codegen_types[0]
+    return plain_item_type(information.codegen_types[0])
+}
+
 func is_items_class(information: Analysis.ClassInfo): Boolean {
     return information.qualified_dotted == "Items" and not information.codegen_types.is_empty()
 }
@@ -16400,10 +16499,22 @@ func name_position(names: List<String>, name: String): Integer {
 func walk_argument_is_plain(argument: Syntax.Expressions.Expression, row_name: String, is_row: Boolean): Boolean {
     switch argument {
         Syntax.Expressions.IdentifierExpression: return is_row == (argument.name == row_name)
+        Syntax.Expressions.MemberExpression: return not is_row and is_attribute_path(argument)
         Syntax.Expressions.IntegerLiteral: return not is_row
         Syntax.Expressions.FloatLiteral: return not is_row
         Syntax.Expressions.TrueLiteral: return not is_row
         Syntax.Expressions.FalseLiteral: return not is_row
+        _: return false
+    }
+}
+
+func is_attribute_path(argument: Syntax.Expressions.Expression): Boolean {
+    switch argument {
+        Syntax.Expressions.IdentifierExpression: return true
+        Syntax.Expressions.MemberExpression: {
+            crash argument.object
+            return is_attribute_path(argument.object)
+        }
         _: return false
     }
 }

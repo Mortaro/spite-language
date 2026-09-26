@@ -83,6 +83,11 @@ costs nothing. In exchange the compiler never lets it be kept -- in an attribute
 function value, or past a line that may grow or shrink the vector -- and each of those errors names `copy()`,
 which makes an independent object ([the rules](#borrowed-items-of-a-vectort--implemented)).
 
+Only an item that is a class is lent. An item that is a plain value -- a number, a `Boolean`, an enum -- is
+copied as it is read ([D221](decisions.md)): `var count = counts[index]` is a number of its own, as reading a
+list's number is, so it may be kept, passed, returned and read after `counts` grows, and a vector of numbers takes
+a passed function (`counts.each(found.append)`, `weights.filter(is_heavy).sum(double_of)`) as a list does.
+
 ### A row of borrowed items, for one call
 
 An engine keeps each component in its own `Vector` and hands a system one entity's components at a time. The
@@ -220,7 +225,9 @@ An engine that adds and removes components all the time keeps each one in a **sp
 `Column<Position>` whose `Vector` is packed, so each entity sits at a different place in each column. The runner
 works out those places first, one per attribute, and the walk's line reads each attribute from its own column at
 its own place: `Column<attribute.class>().values[found[attribute.index]]`, where `attribute.index` is the
-attribute's place in the `type` ([D217](decisions.md)). A class that cannot be a `Vector` item stays a reference
+attribute's place in the `type` ([D217](decisions.md)). The places are numbers, copied as they are read, so they
+may come from any `Vector<Integer>` -- the runner's own, or another object's, `fill_attributes(row,
+matcher.rows)` ([D221](decisions.md)). A class that cannot be a `Vector` item stays a reference
 in a `List`, `attribute.class.fits_vector()` choosing while compiling, and the row may hold it beside the borrowed
 items, as it may hold an `Entity` made from the id:
 
@@ -1137,6 +1144,18 @@ kept past its use. What is built (the error texts and the readings marked are pr
   object would lay them out, with no header, no class and no reference count, one after another
   (`InlineMemory<T>`, `library/inline_memory.spite`, whose functions the compiler writes per item type). A vector
   of numbers, `Boolean`s, enums or `String`s is a plain array of them, like a list's buffer.
+- **Only a class is borrowed; a plain value is copied** (D221, decided by Claude under D205 and D214; the
+  readings below proposed by Claude, unconfirmed). An item of a `Vector<T>` or an `Items<T>` whose `T` is a plain
+  value -- a whole number of any size, `Float`, `Double`, `Boolean`, an enum, `Memory.Address` -- is copied when
+  it is read and never borrowed: none of the rules below applies to it, so `var first = numbers[0]` may be kept in
+  an attribute or a list, returned, passed, given a second name, captured and read after `numbers` grows, as a
+  list's number may. The passed-function forms `each`, `map`, `filter`, `count`, `any`, `all` and `sum` work on
+  such a vector or `Items` as on a list ([collections.md](collections.md#passing-a-function-for-each-element)),
+  and a list's own functions may be passed (`numbers.each(found.append)`). A `String` is not a plain value for
+  this rule: it is read as a counted reference, as a list's is, which is safe, but the passed-function forms stay
+  a list's, the conservative choice (a `String` item holds a reference to its text beyond 15 bytes). Nothing is
+  weakened: a copied number cannot outlive or be moved away from anything, and a copy of eight bytes costs no
+  more than an address. `conformance/stage6/plain_items`, `diagnostics/plain_items`.
 - **A borrowed item** is what `vector[index]`, `vector.get_at(index)` and the item a member template visits are.
   It is the address of the item inside the block, and reading or writing its attributes (`first.down = 2.0`,
   `velocities[0].across`, `first.integrate()`) reads and writes the vector's own item. It is never retained or
@@ -1233,7 +1252,8 @@ kept past its use. What is built (the error texts and the readings marked are pr
   with `attribute: Symbol<$row_type>`) is a row when the walk writes out to one: the template's body is the one
   statement `row.attributes[attribute] = <value>`, the value built from `<object>.attributes[attribute]` (read as
   `<object>.<the attribute's name>`), member reads, `[ ]`, the template's other parameters and whole numbers, and
-  the call's arguments are the row and names or number or `Boolean` literals. The compiler then writes the literal
+  the call's arguments are the row and names, attribute paths (`matcher.rows`, D221) or number or `Boolean`
+  literals. The compiler then writes the literal
   in place of the two lines, one attribute for each attribute of the `type` in its order
   (`{position: columns.position[index], velocity: columns.velocity[index]}`), and every rule above applies to it
   unchanged, the check for a resize starting on the line after the walk. The template is not called, so it is not
@@ -1250,7 +1270,13 @@ kept past its use. What is built (the error texts and the readings marked are pr
     included (the D144 and D110 errors leave it out).
   - **The place of the attribute.** `attribute.index` is the attribute's place among those walked, from 0, a
     constant written into the line (`found[attribute.index]` becomes `found[1]`), and it may be read in any
-    function a walk of attributes calls. Read elsewhere, it is `'attribute.index' is the attribute's place among
+    function a walk of attributes calls. The places are read from a `Vector<Integer>` or `Items<Integer>`, whose
+    items are copied (D221), so the vector may be any object's: the runner's own attribute, a walk argument such
+    as `matcher.rows`, or `matcher.rows[attribute.index]` read in the line itself. It is read once, when the row is
+    made, and no rule of the row reaches it; a runner no longer copies another object's places into its own
+    vector first. `benchmarks/matched_rows`: 200 000 entities, two systems, 6.8 ms a tick reading the places
+    from the matcher against 8.2 ms copying them into the runner's vector first (best of three rounds of three,
+    `clang -O2`). Read elsewhere, it is `'attribute.index' is the attribute's place among
     the attributes walked, so it is read in a function a walk of attributes calls, such as 'fill_attribute(attribute:
     Symbol<Row>, ...)'`. The line's parts are `<value>.attributes[attribute]`, attribute reads, `[ ]`, calls
     (constructions included), the walk's parameters, `attribute.index` and whole numbers; anything else in the line

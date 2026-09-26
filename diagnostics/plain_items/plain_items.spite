@@ -1,0 +1,27 @@
+var console = Console()
+var names = Vector<String>()
+var labels = Items<String>()
+var numbers = Vector<Integer>()
+
+func PlainItems() {
+    names.append("Ada")
+    names.each(greet)
+    labels.append("Grace")
+    labels.each(greet)
+    numbers.append(3)
+    var odd = numbers.find(is_odd)
+    var sorted = numbers.sort_by(twice)
+    console.print(odd, sorted)
+}
+
+func greet(name: String) {
+    console.print(name)
+}
+
+func is_odd(number: Integer): Boolean {
+    return number % 2 == 1
+}
+
+func twice(number: Integer): Integer {
+    return number * 2
+}
