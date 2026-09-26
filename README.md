@@ -6,6 +6,23 @@ compiler is written in Spite and compiles itself. The compiler is also its own f
 no separate style guide to follow, it rewrites your file to the one true style and refuses a naming problem
 outright instead of silently accepting it.
 
+> **Spite: you write your intention, the compiler reminds you that you are a moron, and emits the fastest
+> possible code.**
+
+That goes for everyone who writes it -- people, AI agents and the language's own author. In practice:
+
+- **You say what you want, not how to do it.** Chains of list operations become one loop, singletons get the
+  cheapest safe form of thread safety, and anything a program does not use is not in it -- decided from what the
+  whole program does. The direction is one `List` whose layout (inline, on the stack, vectorised, across threads)
+  the compiler picks too; that is being proven before it is built ([D222](docs/decisions.md)).
+- **The compiler refuses mistakes instead of guessing.** An error names the problem and the fix -- a race, a
+  value that may be null, a borrowed item kept too long, a misspelt or abbreviated name -- and there is no
+  warning to ignore: it compiles or it tells you why not.
+- **Nothing fails silently.** Something that can be absent is a `T?` you must handle; a real developer mistake
+  crashes with the line that made it.
+- **Every optimisation is written down.** What the compiler does behind your back is listed in
+  [docs/optimizations.md](docs/optimizations.md), so it surprises nobody.
+
 A file is a class named after it, and a program is a folder: `arena/arena.spite` is the entry, and its constructor
 runs the program.
 
