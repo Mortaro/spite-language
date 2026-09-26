@@ -3,6 +3,7 @@ var _namespace: Spite.Namespace? = null
 var _singleton = false
 var _attributes = List<Spite.Attribute>()
 var _functions = List<Spite.Function>()
+var _unbound_functions: List<Spite.Function>? = null
 
 func Class(starting_name: Symbol) {
     _name = starting_name
@@ -39,10 +40,17 @@ func has_function(name: String): Boolean {
 }
 
 func function_waits(name: String): Boolean {
+    if _unbound_functions {
+        return _any_function_waits(_unbound_functions, name)
+    }
+    return _any_function_waits(_functions, name)
+}
+
+func _any_function_waits(functions: List<Spite.Function>, name: String): Boolean {
     var found = false
     var index = 0
-    while not found and index < _functions.count() {
-        var function = _functions[index]
+    while not found and index < functions.count() {
+        var function = functions[index]
         found = function.name_fits(name) and function.waits()
         index = index + 1
     }

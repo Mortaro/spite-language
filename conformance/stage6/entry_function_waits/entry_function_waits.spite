@@ -1,0 +1,23 @@
+var greeter = Greeter()
+var console = Console()
+var program = Program()
+
+func EntryFunctionWaits() {
+    var load_waits = EntryFunctionWaits.function_waits("load_level")
+    var count_waits = EntryFunctionWaits.function_waits("count_up")
+    var pattern_waits = EntryFunctionWaits.function_waits("load_<name>")
+    var missing_waits = EntryFunctionWaits.function_waits("unknown")
+    console.print("the entry class asked at run time:", load_waits, count_waits, pattern_waits, missing_waits)
+    var described = EntryFunctionWaits.functions.count()
+    console.print("the entry class has no stand-in, so it describes", described, "functions")
+    console.print("the greeter says", greeter.greeting)
+}
+
+func load_level(): String {
+    program.sleep(1)
+    return "forest"
+}
+
+func count_up(): Integer {
+    return 3
+}

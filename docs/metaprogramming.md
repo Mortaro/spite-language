@@ -1080,7 +1080,11 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
   folds wherever it is written (an `if`, a `var`, a `return`, either side of `and`, `or` and `not`), for each class
   a `Symbol<...>` walk visits as `system.class.function_waits(...)`, and a name that is not a literal is the error
   `has_function` gives, naming `function_waits`. It is a function of `Spite.Class` too, so
-  `klass.function_waits(name)` answers at run time from `.functions`, through `Spite.Function.waits()`.
+  `klass.function_waits(name)` answers at run time from `.functions`, through `Spite.Function.waits()`, whose
+  table holds every waiting function the program makes into a value or lists in a `.functions`. Asked of the
+  entry class, which has no stand-in and so an empty `.functions`, it answers from the same table through a
+  private list of the entry class's functions described with no instance (proposed by Claude, unconfirmed;
+  `conformance/stage6/entry_function_waits`, [reflection.md](reflection.md)).
   - **What can wait.** A function waits when it is one of the waits a state machine returns from -- `Program.sleep`,
     reading the console, reading or writing a `File`, a `Socket`'s `accept_client`, `read_line` and `read_bytes`,
     reading or dropping a `Concurrent` ([concurrency.md](concurrency.md#concurrency-concurrent-parallel-and-hidden-waiting--implemented-on-windows)) --
@@ -1101,8 +1105,9 @@ program calls (D177). The spellings below are Claude's, chosen to be the existin
     once they are: ... (D209) -- ask from a function that 'Looper.update_each' does not reach"
     (`diagnostics/function_waits_paradox`).
   - **Cost.** Folded, nothing: no table, no class object. Asked at run time, the program carries one function
-    comparing a function's address against those of the functions it makes into values that can wait, and keeps
-    those functions (`conformance/stage6/waiting_systems`).
+    comparing a function's address against those of the functions it makes into values or lists in a
+    `.functions` that can wait, and keeps those functions (`conformance/stage6/waiting_systems`,
+    `conformance/stage6/default_handles`).
 - **`argument: Symbol<$system_type.run_each>` ranges over the arguments of `run_each`** (D114). A `Symbol<X>`
   already ranged over X's members; a function's members are its arguments. Inside, `argument.name` is the
   argument's name and `argument.class` its type, written as a type (`Query<argument.class>()`,
