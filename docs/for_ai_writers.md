@@ -135,7 +135,10 @@ func is_alive(): Boolean {
 - Numbers: `Integer` (32 bit, the default), `Long`, `Tiny`, `Short`, `Byte`, `UnsignedShort`, `UnsignedInteger`,
   `UnsignedLong`, `Float` (the default for decimals), `Double`. `Boolean`. `String` (double quotes only).
 - No cast syntax: the right side is cast toward the left. `"age {3}"` is `"age 3"`; `var total: Integer = "12"` parses
-  it. Arithmetic is done in the left side's type, so write the wider operand first: `total * count` with a `Long`
+  it. Anything with a `to_string()` (numbers, `Boolean`, enums, a class that declares one) casts to text wherever a
+  `String` is wanted: `label.text = clicks`, `show(clicks)`, `return clicks`, `names[clicks]` on a `Dictionary`. So a
+  text of one hole and nothing else, `"{clicks}"`, is an error naming the direct form; elsewhere write
+  `clicks.to_string()`. Arithmetic is done in the left side's type, so write the wider operand first: `total * count` with a `Long`
   `total`, never `count * total`, which is an error (so is an `Integer` plus a `Float`); a literal on the right that
   fits is fine. A constant that overflows `Integer` (`65536 * 65536`) is an error: write the number. Comparisons are
   not checked and still cast the right side toward the left. A value that does not fit wraps. A whole number divided by zero (`/` or `%`) halts naming the line, and a divisor written as zero is an error; after `assert divisor != 0` the check is gone. Floats keep infinity and not-a-number.
@@ -496,6 +499,7 @@ to rediscover. The rows marked *silent* compile, and do something you did not me
 | `toString()`, `__str__`, `Display` | (nothing calls it) | `func to_string(): String` in the class, which `console.print` and text holes call |
 | `console.log(object)`, `dbg!`, `__repr__`, `{:?}` | | `console.debug(value)`: every value has `to_debug()`, and a class may declare its own |
 | `"hello " + name` | `text written down is not joined with '+'` | `"hello {name}"`; two values still join with `+` |
+| `label.text = "{clicks}"`, to turn a value into text | `'"{clicks}"' is a text of one value and nothing else: assign the value directly, 'label.text = clicks'` | `label.text = clicks`: a value casts to text where text is wanted; `clicks.to_string()` elsewhere |
 | `"hello ${name}"` | *silent*: prints `hello $` and the name | `"hello {name}"` |
 | `'hello'` for text | `'hello' in single quotes is a symbol, and text is wanted here: text is always written in double quotes` | `"hello"`: single quotes are symbols and enum values |
 | `flags.bits_and(mask)` with a wider `mask` | `'flags.bits_and(mask)' works in a Byte, since a bitwise function takes its receiver's type` | widen the receiver first: `var wide: Long = flags` |

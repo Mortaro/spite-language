@@ -231,6 +231,39 @@ than joined to it with `+`: `"hello {name}"`, where `{ }` holds one value of any
 `Boolean`, and enum format themselves) and `\{` is a brace meant literally. Two values still join with `+`, and
 joining written text with `+` is an error naming the form above. `==`/`!=`/`<`/`>` compare by content.
 
+A text that is one hole and nothing else, `"{clicks}"`, is an error ([D223](decisions.md)): it is the value
+itself, so the value is written directly, and where text is wanted it becomes text on its own
+([the rules](#casting)). The error gives the line to write:
+
+```gdscript title=lone_hole/lone_hole.spite entry error
+var console = Console()
+var label = ""
+
+func LoneHole() {
+    var clicks = 3
+    label = "{clicks}"
+    console.print(label)
+}
+```
+```diagnostic
+'"{clicks}"' is a text of one value and nothing else: assign the value directly, 'label = clicks'
+```
+
+```gdscript title=direct_text/direct_text.spite entry
+var console = Console()
+var label = ""
+
+func DirectText() {
+    var clicks = 3
+    label = clicks
+    var line = "clicks: {clicks}"
+    console.print(label, line)
+}
+```
+```output
+3 clicks: 3
+```
+
 Building text a piece at a time costs what the pieces cost, not the text so far: `text = "{text}{piece}"` (or
 `text = text + piece`) on a local variable appends in place when nothing else holds that text, and copies it
 once when something does, so the other holder still sees the text it had.
@@ -708,6 +741,28 @@ declares `func to_string(): String`. `label.text = clicks` with an `Integer` `cl
 `show(badge)` with `func show(text: String)` passes `badge.to_string()`. It is the cast the right-to-left rule
 already made for numbers, extended to classes; the text made is released like any other (`conformance/stage6/direct_text`).
 A class with no `to_string()` stays an error: `a Pet cannot be used where a String is needed`.
+
+**A text of one hole and nothing else is an error** ([D223](decisions.md), decided by Mortaro: "string
+concatenation to have only one variable in it with no extra string should be a crime and force direct
+assignment"; the wording and the rewrite for each place proposed by Claude, unconfirmed). **[implemented]**
+`"{value}"` -- no written character before or after, one hole -- is the value itself, so writing it is refused
+with the exact line to write instead, the value directly when it is text and cast by the rule above when it is
+not (`diagnostics/lone_hole`):
+
+| Where the text stands | The rewrite named |
+|---|---|
+| `counter.label.text = "{counter.click_count.clicks}"` | `assign the value directly, 'counter.label.text = counter.click_count.clicks'` |
+| `var shown = "{clicks}"` | `declare the value directly, 'var shown: String = clicks'` (`'var shown = name'` when `name` is text; a written type is kept) |
+| `return "{clicks}"` | `return the value directly, 'return clicks'` |
+| `show("{clicks}")` | `pass the value directly, 'show(clicks)'` |
+| `keyed["{clicks}"]` on a `Dictionary` | `look it up by the value directly, 'keyed[clicks]'` |
+| `line + "{clicks}"` with a text `line` | `join the value directly, 'line + clicks'` |
+| anywhere else, as `"{clicks}" == "0"` | `write its text as 'clicks.to_string()'` (`'write the value directly'` when it is text) |
+
+The message starts `'"{clicks}"' is a text of one value and nothing else:`. A text with any written character
+(`"clicks {clicks}"`, `"{clicks} "`) or two holes (`"{clicks}{label}"`) is unaffected. The check reads each
+statement of a function body as written, before it is generated, so it costs nothing in what is emitted; an
+attribute's default is not checked.
 
 **Text casts to an enum by its name** (proposed by Claude, unconfirmed; built for D95's `Json`, 2026-09-24):
 `var course: Recipe.Course = name` is the value spelled `name`, or the enum's first value when none is, exactly as

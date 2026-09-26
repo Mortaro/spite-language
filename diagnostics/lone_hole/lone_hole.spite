@@ -1,0 +1,27 @@
+var console = Console()
+var counter = Counter()
+
+func LoneHole() {
+    counter.label.text = "{counter.click_count.clicks}"
+    var shown = "{counter.click_count.clicks}"
+    var named = "{counter.label.text}"
+    var typed: String = "{counter.click_count.clicks}"
+    show("{counter.click_count.clicks}")
+    var keyed = Dictionary<Integer>()
+    keyed["{counter.click_count.clicks}"] = 1
+    var line = "clicks: "
+    line = line + "{counter.click_count.clicks}"
+    crash "{counter.click_count.clicks}" == "0"
+    var joined = "{counter.click_count.clicks}{counter.label.text}"
+    var written = "clicks {counter.click_count.clicks}"
+    var returned = clicks_text()
+    console.print(shown, named, typed, line, joined, written, returned)
+}
+
+func clicks_text(): String {
+    return "{counter.click_count.clicks}"
+}
+
+func show(text: String) {
+    console.print(text)
+}

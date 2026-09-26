@@ -1,0 +1,2 @@
+var label = Label()
+var click_count = ClickCount()

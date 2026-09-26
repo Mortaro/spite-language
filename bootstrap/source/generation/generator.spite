@@ -21628,6 +21628,377 @@ func constructor_name(callee: Syntax.Expressions.Expression): String {
     return ""
 }
 
+func report_lone_holes(statement: Syntax.Statements.Statement, scope: Scope, class_information: Analysis.ClassInfo) {
+    switch statement {
+        Syntax.Statements.VariableDeclaration: report_lone_hole_declared(statement, scope, class_information)
+        Syntax.Statements.AssignmentStatement: report_lone_hole_assigned(statement, scope, class_information)
+        Syntax.Statements.ReturnStatement: {
+            if statement.value {
+                report_lone_hole_returned(statement.value, scope, class_information)
+            }
+        }
+        Syntax.Statements.ExpressionStatement: {
+            crash statement.value
+            report_holes_in(statement.value, scope, class_information)
+        }
+        Syntax.Statements.AssertStatement: {
+            crash statement.value
+            report_holes_in(statement.value, scope, class_information)
+        }
+        Syntax.Statements.IfStatement: {
+            crash statement.condition
+            report_holes_in(statement.condition, scope, class_information)
+        }
+        Syntax.Statements.WhileStatement: {
+            crash statement.condition
+            report_holes_in(statement.condition, scope, class_information)
+        }
+        Syntax.Statements.SwitchStatement: {
+            crash statement.subject
+            report_holes_in(statement.subject, scope, class_information)
+        }
+        _: return
+    }
+}
+
+func lone_hole_value(expression: Syntax.Expressions.Expression): Syntax.Expressions.Expression? {
+    var text_join = shape.as_binary(expression)
+    assert text_join
+    assert text_join.is_text_join
+    crash text_join.left
+    var leading = shape.as_string_literal(text_join.left)
+    assert leading
+    assert leading.value.is_empty()
+    return text_join.right
+}
+
+func report_lone_hole(text_expression: Syntax.Expressions.Expression, rewrite: String) {
+    var printer = Syntax.SourcePrinter()
+    var written = printer.source_expression(text_expression)
+    report("'{written}' is a text of one value and nothing else: {rewrite}")
+}
+
+func probed_type(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType {
+    var saved_counter = temporary_counter
+    var probe = generate_expression(expression, scope, class_information)
+    rewind_temporaries(saved_counter)
+    return probe.get_type()
+}
+
+func is_text_value(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var probe_type = probed_type(expression, scope, class_information)
+    assert type_shape.as_string(probe_type)
+    return true
+}
+
+func report_lone_hole_declared(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    crash declaration.value
+    var hole = lone_hole_value(declaration.value)
+    if hole {
+        var printer = Syntax.SourcePrinter()
+        var value_text = printer.source_expression(hole)
+        var declared_type = declared_type_text(declaration, hole, scope, class_information)
+        report_lone_hole(
+            declaration.value,
+            "declare the value directly, 'var {declaration.name}{declared_type} = {value_text}'",
+        )
+        return
+    }
+    report_holes_in(declaration.value, scope, class_information)
+}
+
+func declared_type_text(
+    declaration: Syntax.Statements.VariableDeclaration,
+    hole: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    if declaration.type_reference {
+        var printer = Syntax.SourcePrinter()
+        var written_type = printer.source_type(declaration.type_reference)
+        return ": {written_type}"
+    }
+    assert not is_text_value(hole, scope, class_information)
+    return ": String"
+}
+
+func report_lone_hole_assigned(
+    assignment: Syntax.Statements.AssignmentStatement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    crash assignment.target
+    crash assignment.value
+    report_holes_in(assignment.target, scope, class_information)
+    var hole = lone_hole_value(assignment.value)
+    if hole {
+        var printer = Syntax.SourcePrinter()
+        var target_text = printer.source_expression(assignment.target)
+        var value_text = printer.source_expression(hole)
+        report_lone_hole(assignment.value, "assign the value directly, '{target_text} = {value_text}'")
+        return
+    }
+    report_holes_in(assignment.value, scope, class_information)
+}
+
+func report_lone_hole_returned(
+    returned: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var hole = lone_hole_value(returned)
+    if hole {
+        var printer = Syntax.SourcePrinter()
+        var value_text = printer.source_expression(hole)
+        report_lone_hole(returned, "return the value directly, 'return {value_text}'")
+        return
+    }
+    report_holes_in(returned, scope, class_information)
+}
+
+func report_holes_in(expression: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo) {
+    var hole = lone_hole_value(expression)
+    if hole {
+        report_lone_hole_elsewhere(expression, hole, scope, class_information)
+        return
+    }
+    switch expression {
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            report_holes_in(expression.callee, scope, class_information)
+            report_holes_passed(expression, expression.arguments, scope, class_information)
+        }
+        Syntax.Expressions.GenericCallExpression: {
+            crash expression.callee
+            report_holes_in(expression.callee, scope, class_information)
+            report_holes_passed(expression, expression.arguments, scope, class_information)
+        }
+        Syntax.Expressions.BinaryExpression: report_holes_in_binary(expression, scope, class_information)
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            report_holes_in(expression.operand, scope, class_information)
+        }
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            report_holes_in(expression.object, scope, class_information)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            report_holes_in(expression.object, scope, class_information)
+            report_hole_indexed(expression, scope, class_information)
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var index = 0
+            while index < expression.elements.count() {
+                var element_value = expression.elements[index].value
+                crash element_value
+                report_holes_in(element_value, scope, class_information)
+                index = index + 1
+            }
+        }
+        Syntax.Expressions.ObjectLiteralExpression: {
+            var index = 0
+            while index < expression.fields.count() {
+                var field_value = expression.fields[index].value
+                crash field_value
+                report_holes_in(field_value, scope, class_information)
+                index = index + 1
+            }
+        }
+        _: return
+    }
+}
+
+func report_holes_in_binary(
+    binary: Syntax.Expressions.BinaryExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    crash binary.left
+    crash binary.right
+    if binary.is_text_join {
+        report_holes_in_text(binary, scope, class_information)
+        return
+    }
+    report_holes_in(binary.left, scope, class_information)
+    var hole = lone_hole_value(binary.right)
+    if hole {
+        report_joined_hole(binary, hole, scope, class_information)
+        return
+    }
+    report_holes_in(binary.right, scope, class_information)
+}
+
+func report_holes_in_text(
+    text_join: Syntax.Expressions.BinaryExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    crash text_join.left
+    crash text_join.right
+    var earlier = shape.as_binary(text_join.left)
+    if earlier {
+        report_holes_in_text(earlier, scope, class_information)
+    }
+    if not shape.as_string_literal(text_join.right) {
+        report_holes_in(text_join.right, scope, class_information)
+    }
+}
+
+func report_joined_hole(
+    binary: Syntax.Expressions.BinaryExpression,
+    hole: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    crash binary.left
+    crash binary.right
+    if binary.operator == 'add' and is_text_value(binary.left, scope, class_information) {
+        var joined: Syntax.Expressions.Expression = Syntax.Expressions.BinaryExpression('add', binary.left, hole)
+        var printer = Syntax.SourcePrinter()
+        var joined_text = printer.source_expression(joined)
+        report_lone_hole(binary.right, "join the value directly, '{joined_text}'")
+        return
+    }
+    report_lone_hole_elsewhere(binary.right, hole, scope, class_information)
+}
+
+func report_holes_passed(
+    call: Syntax.Expressions.Expression,
+    arguments: List<Syntax.Expressions.Expression>,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var position = 0
+    while position < arguments.count() {
+        report_hole_passed(call, arguments, position, arguments[position], scope, class_information)
+        position = position + 1
+    }
+}
+
+func report_hole_passed(
+    call: Syntax.Expressions.Expression,
+    arguments: List<Syntax.Expressions.Expression>,
+    position: Integer,
+    argument: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var hole = lone_hole_value(argument)
+    if hole {
+        var passed = passed_directly(arguments, position, hole)
+        var rewritten = call_passing(call, passed)
+        var printer = Syntax.SourcePrinter()
+        var rewritten_text = printer.source_expression(rewritten)
+        report_lone_hole(argument, "pass the value directly, '{rewritten_text}'")
+        return
+    }
+    report_holes_in(argument, scope, class_information)
+}
+
+func passed_directly(
+    arguments: List<Syntax.Expressions.Expression>,
+    position: Integer,
+    hole: Syntax.Expressions.Expression,
+): List<Syntax.Expressions.Expression> {
+    var passed = List<Syntax.Expressions.Expression>()
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments[index]
+        if index == position {
+            passed.append(hole)
+        } else {
+            passed.append(argument)
+        }
+        index = index + 1
+    }
+    return passed
+}
+
+func call_passing(
+    call: Syntax.Expressions.Expression,
+    passed: List<Syntax.Expressions.Expression>,
+): Syntax.Expressions.Expression {
+    var generic_call = shape.as_generic_call(call)
+    if generic_call {
+        crash generic_call.callee
+        var rewritten_generic = Syntax.Expressions.GenericCallExpression(
+            generic_call.callee,
+            generic_call.type_arguments,
+            passed,
+        )
+        rewritten_generic.names_class = generic_call.names_class
+        return rewritten_generic
+    }
+    var plain_call = shape.as_call(call)
+    crash plain_call
+    crash plain_call.callee
+    return Syntax.Expressions.CallExpression(plain_call.callee, passed)
+}
+
+func report_hole_indexed(
+    indexed: Syntax.Expressions.IndexExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    crash indexed.object
+    crash indexed.index
+    var hole = lone_hole_value(indexed.index)
+    if hole {
+        report_indexed_hole(indexed, hole, scope, class_information)
+        return
+    }
+    report_holes_in(indexed.index, scope, class_information)
+}
+
+func report_indexed_hole(
+    indexed: Syntax.Expressions.IndexExpression,
+    hole: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    crash indexed.object
+    crash indexed.index
+    var object_type = probed_type(indexed.object, scope, class_information)
+    if type_shape.as_dictionary(object_type) {
+        var looked_up: Syntax.Expressions.Expression = Syntax.Expressions.IndexExpression(indexed.object, hole)
+        var printer = Syntax.SourcePrinter()
+        var looked_up_text = printer.source_expression(looked_up)
+        report_lone_hole(indexed.index, "look it up by the value directly, '{looked_up_text}'")
+        return
+    }
+    report_lone_hole_elsewhere(indexed.index, hole, scope, class_information)
+}
+
+func report_lone_hole_elsewhere(
+    text_expression: Syntax.Expressions.Expression,
+    hole: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+) {
+    var printer = Syntax.SourcePrinter()
+    if is_text_value(hole, scope, class_information) {
+        var value_text = printer.source_expression(hole)
+        report_lone_hole(text_expression, "write the value directly, '{value_text}'")
+        return
+    }
+    var converted = to_string_ast(hole)
+    var converted_text = printer.source_expression(converted)
+    report_lone_hole(text_expression, "write its text as '{converted_text}'")
+}
+
 func generate_switch_statement(
     switch_statement: Syntax.Statements.SwitchStatement,
     scope: Scope,
@@ -23353,6 +23724,7 @@ func generate_statement_kind(
 ): Boolean {
     if not writing_lent_arguments {
         report_nested_calls(statement, class_information)
+        report_lone_holes(statement, scope, class_information)
     }
     var variable_declaration = shape.as_variable_declaration(statement)
     if variable_declaration {
