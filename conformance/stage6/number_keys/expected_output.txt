@@ -1,0 +1,12 @@
+3 SEVEN true false false
+42 is forty-two
+7,42 49 SEVEN,forty-two
+7 -> SEVEN
+42 -> forty-two
+5000000000,5000000001,2 true false
+evens 2
+twenty empty 2
+3 2 10,20,30
+999 999 false true
+{"7":"SEVEN","42":"forty-two"} forty-two
+twenty 10,20

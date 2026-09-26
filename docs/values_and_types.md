@@ -734,7 +734,8 @@ arithmetic is done in, so it would wrap: write the number itself, 4287102976, wh
 
 **Anything with a `to_string()` casts to text** ([D223](decisions.md), decided by Mortaro for assignment; its reach
 to every place a `String` is wanted proposed by Claude, unconfirmed). **[implemented]** Where a `String` (or a
-`String?`) is wanted -- assignment, `var name: String = value`, an argument, a `return`, a `Dictionary` key -- and
+`String?`) is wanted -- assignment, `var name: String = value`, an argument, a `return`, a `Dictionary` key that
+is not a whole number (one that is keys the dictionary by numbers, [D224](decisions.md)) -- and
 the value is not text, it becomes text through its `to_string()`, the conversion a text hole makes: a number, a
 `Boolean`, an enum value (its name), a class object (`Spite.Class`, its name) and an object of any class that
 declares `func to_string(): String`. `label.text = clicks` with an `Integer` `clicks` stores `"42"`, and
@@ -755,7 +756,7 @@ not (`diagnostics/lone_hole`):
 | `var shown = "{clicks}"` | `declare the value directly, 'var shown: String = clicks'` (`'var shown = name'` when `name` is text; a written type is kept) |
 | `return "{clicks}"` | `return the value directly, 'return clicks'` |
 | `show("{clicks}")` | `pass the value directly, 'show(clicks)'` |
-| `keyed["{clicks}"]` on a `Dictionary` | `look it up by the value directly, 'keyed[clicks]'` |
+| `keyed["{clicks}"]` on a `Dictionary` | `look it up by the value directly, 'keyed[clicks]'` (a whole number then keys it by numbers, D224) |
 | `line + "{clicks}"` with a text `line` | `join the value directly, 'line + clicks'` |
 | anywhere else, as `"{clicks}" == "0"` | `write its text as 'clicks.to_string()'` (`'write the value directly'` when it is text) |
 

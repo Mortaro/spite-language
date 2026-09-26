@@ -1,0 +1,100 @@
+var console = Console()
+
+func NumberKeys() {
+    var ages = Dictionary<String>()
+    ages[7] = "seven"
+    ages.set(3, "three")
+    ages[42] = "forty-two"
+    ages[7] = "SEVEN"
+    crash ages[7]
+    var ages_count = ages.count()
+    var has_three = ages.has(3)
+    var has_four = ages.has(4)
+    console.print(ages_count, ages[7], has_three, has_four, ages[4] == "")
+    var found = ages.get(42)
+    if found {
+        console.print("42 is", found)
+    }
+    ages.remove(3)
+    ages.remove(1000)
+    var keys = ages.keys()
+    var key_total = keys.sum(key_itself)
+    var joined_keys = keys.join(",")
+    var joined_values = ages.values().join(",")
+    console.print(joined_keys, key_total, joined_values)
+    var index = 0
+    while index < keys.count() {
+        var key = keys[index]
+        crash ages[key]
+        console.print(key, "->", ages[key])
+        index = index + 1
+    }
+    var distances = Dictionary<Integer>()
+    var far: Long = 5000000000
+    distances[far] = 1
+    distances[far + 1] = 2
+    distances[2] = 3
+    var long_keys = distances.keys().join(",")
+    var has_far = distances.has(far)
+    var has_farther = distances.has(far + 2)
+    console.print(long_keys, has_far, has_farther)
+    var tally = count_evens(distances)
+    console.print("evens", tally)
+    var shelf = Shelf()
+    shelf.place(10, "ten")
+    shelf.place(20, "twenty")
+    var twenty = shelf.named(20)
+    var thirty = shelf.named(30)
+    var shelf_count = shelf.labels.count()
+    console.print(twenty, thirty, shelf_count)
+    var copied = shelf.labels.copy()
+    copied[30] = "thirty"
+    var copied_count = copied.count()
+    shelf_count = shelf.labels.count()
+    var copied_keys = copied.keys().join(",")
+    console.print(copied_count, shelf_count, copied_keys)
+    var many = Dictionary<Integer>()
+    var number = 0
+    while number < 1000 {
+        many[number * 7] = number
+        number = number + 1
+    }
+    many.remove(0)
+    crash many[6993]
+    var many_count = many.count()
+    var has_zero = many.has(0)
+    var has_seven = many.has(7)
+    console.print(many_count, many[6993], has_zero, has_seven)
+    var ages_writer = JsonWriter(ages)
+    var ages_text = ages_writer.write()
+    var ages_reader = JsonReader<Dictionary<String>>(ages_text)
+    var read_ages = ages_reader.read()
+    crash read_ages
+    crash read_ages[42]
+    console.print(ages_text, read_ages[42])
+    var shelf_writer = BinaryWriter(shelf)
+    var shelf_bytes = shelf_writer.write()
+    var shelf_reader = BinaryReader<Shelf>(shelf_bytes)
+    var read_shelf = shelf_reader.read()
+    crash read_shelf
+    var read_twenty = read_shelf.named(20)
+    var shelf_keys = read_shelf.labels.keys().join(",")
+    console.print(read_twenty, shelf_keys)
+}
+
+func key_itself(key: Integer): Integer {
+    return key
+}
+
+func count_evens(counted: Dictionary<Integer>): Integer {
+    var evens = 0
+    var keys = counted.keys()
+    var index = 0
+    while index < keys.count() {
+        if keys[index] % 2 == 0 {
+            evens = evens + 1
+        }
+        index = index + 1
+    }
+    return evens
+}

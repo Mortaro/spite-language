@@ -136,7 +136,7 @@ func is_alive(): Boolean {
   `UnsignedLong`, `Float` (the default for decimals), `Double`. `Boolean`. `String` (double quotes only).
 - No cast syntax: the right side is cast toward the left. `"age {3}"` is `"age 3"`; `var total: Integer = "12"` parses
   it. Anything with a `to_string()` (numbers, `Boolean`, enums, a class that declares one) casts to text wherever a
-  `String` is wanted: `label.text = clicks`, `show(clicks)`, `return clicks`, `names[clicks]` on a `Dictionary`. So a
+  `String` is wanted: `label.text = clicks`, `show(clicks)`, `return clicks`, `names[badge]` on a `Dictionary` (a whole number there keys it by numbers instead). So a
   text of one hole and nothing else, `"{clicks}"`, is an error naming the direct form; elsewhere write
   `clicks.to_string()`. Arithmetic is done in the left side's type, so write the wider operand first: `total * count` with a `Long`
   `total`, never `count * total`, which is an error (so is an `Integer` plus a `Float`); a literal on the right that
@@ -167,9 +167,11 @@ func is_alive(): Boolean {
   and so does `crash glyphs[code - 32]`, or any index with no call in it, with no copy into a local first;
   `crash names.count() == 3` proves `names[0]` to `names[2]`, and `while index < names.count()` proves
   `names[index]` in the loop body, so a `crash names[index]` inside that loop is an error saying so: delete it).
-  `Dictionary<T>` (String keys, insertion order): `set`, `get` (a `T?`), `has`, `remove`, `count`, `keys`,
+  `Dictionary<T>` (insertion order): `set`, `get` (a `T?`), `has`, `remove`, `count`, `keys`,
   `values`, `dictionary["key"]` (a `T?`, like `list[index]`: `inventory["shield"] == 0` is false for an absent
-  key). A list or a dictionary is not printable: `console.print(list)` is `'List<Integer>' does not fit type
+  key). Keys are text or whole numbers, decided from the keys you give it: key by the number itself
+  (`created_layouts[entity]`), never by text made from it -- no `"{entity}"` -- and `keys()` answers the numbers.
+  One dictionary never takes both kinds (a compile error naming both places). A list or a dictionary is not printable: `console.print(list)` is `'List<Integer>' does not fit type
   'Printable'`; print `list.join(", ")`, or `console.debug(list)`.
 - A chain of templates, `teams.filter_active().map_lead().sum_age()`, runs as one loop with no list in between.
 - `Vector<T>` holds its items inline for fast walks (`append`, `vector[index]`, `set_at`, `remove_at`, `count`,

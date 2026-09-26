@@ -1,0 +1,13 @@
+var labels = Dictionary<String>()
+
+func place(slot: Integer, label: String) {
+    labels[slot] = label
+}
+
+func named(slot: Integer): String {
+    var label = labels.get(slot)
+    if label {
+        return label
+    }
+    return "empty"
+}

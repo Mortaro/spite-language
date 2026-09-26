@@ -207,7 +207,7 @@ A reader reads one type; to read a different one from the same bytes, a second r
 | a `Symbol` | its name, as text; read back only as a name the program already uses as a `Symbol` | its name, as a `String` is written; read back the same way |
 | a class | an object, one key per attribute | its attributes, one after another in declaration order, with nothing around them |
 | `List<T>` | an array | its count as a count, then each element |
-| `Dictionary<T>` | an object, one key per entry | its count as a count, then each key as a `String` and its value |
+| `Dictionary<T>` | an object, one key per entry; a number key as the number in quotes | its count as a count, then each key as its type is written (a `String`, or the whole number) and its value |
 | `T?` | `null`, or what `T` becomes | 1 byte, `0` for empty or `1` followed by what `T` becomes |
 
 A **count** is an unsigned LEB128 varint: seven bits per byte, low bits first, the top bit set on every byte but
@@ -284,8 +284,9 @@ true false
 
 `Place` has exactly `Point`'s bytes, but it is another class, so its hash differs. The hash is the 64-bit FNV-1a
 of a text the compiler writes, and which a program never sees: `Point{across:Integer;down:Integer}`, lists as
-`List<...>`, dictionaries as `Dictionary<...>`, `T?` with a `?`, an enum as its name and its values in brackets,
-and a class already being written, a recursive one, by its name alone. The same classes give the same hash in
+`List<...>`, dictionaries as `Dictionary<...>` (followed by `by` and the key's type when it is keyed by numbers),
+`T?` with a `?`, an enum as its name and its values in brackets, and a class already being written, a recursive
+one, by its name alone. The same classes give the same hash in
 every build and on every machine; renaming, adding, removing, reordering or retyping an attribute changes it.
 
 ## Reading input you did not write

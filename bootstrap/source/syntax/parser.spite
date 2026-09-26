@@ -914,7 +914,15 @@ func parse_type_path(path: List<String>): Syntax.Types.Type {
     if path.count() == 1 and path[0] == "Nullable" {
         fail("'Nullable<T>' was replaced by a '?' suffix: write 'Monster?' for a value that may be null")
     }
-    return Syntax.Types.NamedType(path, arguments)
+    var named = Syntax.Types.NamedType(path, arguments)
+    placed_type(named)
+    return named
+}
+
+func placed_type(named: Syntax.Types.NamedType) {
+    var following = current()
+    named.line = following.line
+    named.column = following.column
 }
 
 func generic_member_type(generic_name: String): Syntax.Types.Type {
@@ -1059,7 +1067,9 @@ func try_parse_type_quiet(): Syntax.Types.Type? {
     }
     assert ok
     var arguments = try_parse_generic_argument_list_quiet()
-    var type_reference: Syntax.Types.Type = Syntax.Types.NamedType(path, arguments)
+    var named = Syntax.Types.NamedType(path, arguments)
+    placed_type(named)
+    var type_reference: Syntax.Types.Type = named
     return with_nullable_suffix(type_reference)
 }
 
@@ -1254,6 +1264,9 @@ func parse_postfix_rest(expression: Syntax.Expressions.Expression): Syntax.Expre
         }
         var arguments = parse_argument_list()
         var generic_call = Syntax.Expressions.GenericCallExpression(expression, type_arguments, arguments)
+        var following = current()
+        generic_call.line = following.line
+        generic_call.column = following.column
         return parse_postfix_rest(generic_call)
     }
     return expression

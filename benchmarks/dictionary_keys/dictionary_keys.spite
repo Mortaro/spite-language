@@ -24,9 +24,8 @@ func DictionaryKeys() {
     while round < 10 {
         index = 0
         while index < 50000 {
-            var key: String = index
-            if by_number[key] {
-                total = total + by_number[key]
+            if by_number[index] {
+                total = total + by_number[index]
             }
             index = index + 1
         }

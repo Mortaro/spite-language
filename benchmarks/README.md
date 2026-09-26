@@ -15,7 +15,8 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 | Benchmark | What it leans on |
 |---|---|
 | `fused_chain` | 100 000 objects walked 300 times by fused `filter_`/`map_`/`sum_`/`count_` chains |
-| `dictionary_keys` | a `Dictionary` keyed by numbers cast to text (`by_number[index]`) and by 2 000 names, set and read |
+| `dictionary_keys` | a `Dictionary` keyed by 50 000 numbers (by text made from them before D224) and one by 2 000 names, set and read |
+| `number_keys` | 100 000 entries set and a million lookups, once keyed by the number itself and once by text made from it (`index.to_string()`); prints the milliseconds of each |
 | `text_building` | appending to text in a loop, `"word{index}"` pieces and `join` |
 | `reflection_walks` | a Symbol walk (`show_attributes`), a `.attributes` walk reading `.value`, and `JsonWriter` |
 | `serialisation` | 100 000 small objects written and read back as JSON (`JsonWriter`/`JsonReader`, one text each) and as bytes (`BinaryWriter.append_to` into one `Vector<Byte>`, `BinaryReader`); prints the sizes and the milliseconds of each step |
@@ -332,3 +333,21 @@ allocations, which is one per answer -- two per vector step, one per matrix prod
 | a million `position + velocity.scaled(delta)` on `Vector3` | 26 |
 | 200 000 `Matrix4` products | 6 |
 | a million `Matrix4.transform_point` | 0 (clang removes the allocation and the loop, since only a sum survives) |
+
+### Dictionaries keyed by numbers (D224)
+
+A dictionary given whole-number keys stores and hashes the numbers ([collections.md](../docs/collections.md#keyed-by-numbers),
+[optimizations.md](../docs/optimizations.md#a-dictionary-keyed-by-numbers-hashes-the-numbers)). `clang -O2` on
+Mortaro's Windows machine, best of five runs of `number_keys` (100 000 entries, a million lookups), the same source
+compiled before D224 -- where `dictionary[index]` quietly turned the number into text -- and after:
+
+| step | before ms | after ms |
+|---|---|---|
+| fill, keyed by the number | 10 | 5 |
+| a million lookups, keyed by the number | 106 | 8 |
+| a million lookups, keyed by `index.to_string()` | 65 | 66 |
+| the whole program | 459 | 184 |
+
+The text-keyed half does not move: a dictionary given text keys compiles to the code it did before. A lookup by
+the number itself is about eight times faster than one by the text made from it. `dictionary_keys`, whose
+50 000 number-derived keys are now the numbers, went from 179 to 142 ms, the 2 000 names unchanged.

@@ -13,7 +13,6 @@ func has(entity: Integer): Boolean {
 }
 
 func of(entity: Integer): $component_type {
-    var key: String = entity
-    crash components[key]
-    return components[key]
+    crash components[entity]
+    return components[entity]
 }

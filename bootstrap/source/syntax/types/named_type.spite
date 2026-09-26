@@ -1,5 +1,7 @@
 var path = List<String>()
 var arguments = List<GenericArgument>()
+var line = 0
+var column = 0
 
 func NamedType(starting_path: List<String>, starting_arguments: List<GenericArgument>) {
     path = starting_path

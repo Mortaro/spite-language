@@ -1,13 +1,14 @@
 generic $value_type
+generic $key_type
 
-var entry_keys = List<String>()
+var entry_keys = List<$key_type>()
 var entry_values = List<$value_type>()
 var heap = Memory.Heap()
 var slots: Memory.Address = 0
 var slot_count = 0
 var used_slots = 0
 
-func set(key: String, value: $value_type) {
+func set(key: $key_type, value: $value_type) {
     var existing = index_of_key(key)
     if existing >= 0 {
         entry_values.set_at(existing, value)
@@ -20,7 +21,7 @@ func set(key: String, value: $value_type) {
     }
 }
 
-func get(key: String): $value_type? {
+func get(key: $key_type): $value_type? {
     var existing = index_of_key(key)
     if existing >= 0 {
         return entry_values.get_at(existing)
@@ -28,12 +29,12 @@ func get(key: String): $value_type? {
     return null
 }
 
-func has(key: String): Boolean {
+func has(key: $key_type): Boolean {
     var existing = index_of_key(key)
     return existing >= 0
 }
 
-func remove(key: String) {
+func remove(key: $key_type) {
     var slot = find_slot(key)
     if slot >= 0 {
         var position = slots.read_integer(slot * 8) - 1
@@ -48,7 +49,7 @@ func count(): Integer {
     return entry_keys.count()
 }
 
-func keys(): List<String> {
+func keys(): List<$key_type> {
     return entry_keys.copy()
 }
 
@@ -74,7 +75,7 @@ func drop() {
     }
 }
 
-func index_of_key(key: String): Integer {
+func index_of_key(key: $key_type): Integer {
     var slot = find_slot(key)
     if slot < 0 {
         return -1
@@ -82,7 +83,7 @@ func index_of_key(key: String): Integer {
     return slots.read_integer(slot * 8) - 1
 }
 
-func find_slot(key: String): Integer {
+func find_slot(key: $key_type): Integer {
     if slot_count == 0 {
         return -1
     }
@@ -91,7 +92,11 @@ func find_slot(key: String): Integer {
     var slot = home_slot(hash)
     var stored = slots.read_integer(slot * 8)
     while stored != 0 {
-        if stored > 0 and slots.read_integer(slot * 8 + 4) == fragment and entry_keys.get_at(stored - 1) == key {
+        if $key_type == String {
+            if stored > 0 and slots.read_integer(slot * 8 + 4) == fragment and entry_keys.get_at(stored - 1) == key {
+                return slot
+            }
+        } else if stored > 0 and entry_keys.get_at(stored - 1) == key {
             return slot
         }
         slot = next_slot(slot)
@@ -100,7 +105,7 @@ func find_slot(key: String): Integer {
     return -1
 }
 
-func place(key: String, position: Integer) {
+func place(key: $key_type, position: Integer) {
     var hash = hash_of(key)
     var slot = home_slot(hash)
     var stored = slots.read_integer(slot * 8)
@@ -157,16 +162,21 @@ func rebuild_slots() {
     }
 }
 
-func hash_of(key: String): UnsignedLong {
-    var hash: UnsignedLong = 1469598103934665603
-    var key_length = key.length()
-    var index = 0
-    while index < key_length {
-        var code = key.code_at(index)
-        hash = hash.bits_exclusive_or(code) * 1099511628211
-        index = index + 1
+func hash_of(key: $key_type): UnsignedLong {
+    if $key_type == String {
+        var hash: UnsignedLong = 1469598103934665603
+        var key_length = key.length()
+        var index = 0
+        while index < key_length {
+            var code = key.code_at(index)
+            hash = hash.bits_exclusive_or(code) * 1099511628211
+            index = index + 1
+        }
+        return hash
+    } else {
+        var number: UnsignedLong = key
+        return number * 6364136223846793005
     }
-    return hash
 }
 
 func home_slot(hash: UnsignedLong): Integer {
