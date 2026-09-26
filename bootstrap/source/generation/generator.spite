@@ -8533,6 +8533,14 @@ func generate_passed_symbol_call(
     var full_arguments = argument_codes.copy()
     full_arguments.prepend("self")
     var instance_return_type = instance.get_return_type()
+    record_call(instance.c_name)
+    var self_type = value_class_type(class_information)
+    var self_result = ExpressionResult("self", self_type)
+    self_result.owning_override = false
+    var waited = hoisted_wait(instance.c_name, self_result, false, argument_codes, instance_return_type)
+    if waited {
+        return waited
+    }
     return ExpressionResult("{instance.c_name}({full_arguments.join(", ")})", instance_return_type)
 }
 
@@ -9068,23 +9076,31 @@ func generate_sequenced_call(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
+    record_call(function_c_name)
     var lines = List<String>()
     var object_temporary = next_temporary()
     var object_result_type = object_result.get_type()
     lines.append("{c_type_name(object_result_type)} {object_temporary} = {object_result.code};")
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
-    var passed = List<String>()
-    passed.append(object_temporary)
+    var passed_arguments = List<String>()
     var index = 0
     while index < argument_codes.count() and index < expected_types.count() {
         var temporary = next_temporary()
         lines.append("{c_type_name(expected_types[index])} {temporary} = {argument_codes[index]};")
-        passed.append(temporary)
+        passed_arguments.append(temporary)
         index = index + 1
     }
+    var object_owned = owns(object_result, object_ast)
+    var held_object = ExpressionResult(object_temporary, object_result_type)
+    var waited = hoisted_wait_after(function_c_name, lines, held_object, object_owned, passed_arguments, return_type)
+    if waited {
+        return waited
+    }
+    var passed = passed_arguments.copy()
+    passed.prepend(object_temporary)
     var call_code = "{function_c_name}({passed.join(", ")})"
     var release_object = ""
-    if owns(object_result, object_ast) {
+    if object_owned {
         release_object = "{release_call(object_result_type, object_temporary)};"
     }
     if type_shape.is_void(return_type) {
@@ -22905,11 +22921,24 @@ func hoisted_wait(
     argument_codes: List<String>,
     return_type: Analysis.SpiteType,
 ): ExpressionResult? {
+    var nothing_before = List<String>()
+    return hoisted_wait_after(callee, nothing_before, receiver, receiver_owned, argument_codes, return_type)
+}
+
+func hoisted_wait_after(
+    callee: String,
+    before: List<String>,
+    receiver: ExpressionResult,
+    receiver_owned: Boolean,
+    argument_codes: List<String>,
+    return_type: Analysis.SpiteType,
+): ExpressionResult? {
     assert resumable_mode and conditional_depth == 0
     assert waiting_names.has(callee) and ensure_machine(callee)
     wait_mark_counters.append(temporary_counter)
     var start = builder.user_count()
     wait_mark_positions.append(start)
+    before.each(builder.add_user)
     resume_point_count = resume_point_count + 1
     var point = resume_point_count
     var receiver_type = receiver.get_type()

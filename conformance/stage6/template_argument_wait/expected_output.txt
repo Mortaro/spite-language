@@ -1,0 +1,6 @@
+made nap before the wait
+nap 1 for 60 ms
+made nap before the wait
+nap 2 for 60 ms
+the worker waited across frames: true
+naps seen asleep between frames: 2

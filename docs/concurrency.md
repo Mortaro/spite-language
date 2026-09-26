@@ -845,13 +845,18 @@ a resumable version (`bootstrap/source/generation/state_machine.spite`):
   the callee's frame with the arguments, step it until it answers `true` (returning `false` from this step while it
   does not), take its result and free it. It runs before the rest of the statement it is written in (a C statement
   expression cannot be jumped back into). A `while` whose condition waits becomes a loop that waits at the top of
-  every pass and leaves when the condition is false.
+  every pass and leaves when the condition is false. A call inside a template is a call by name like any other:
+  `system.phase_each(made_arguments())`, whose arguments a plural template makes, holds the receiver and then
+  makes each argument in order into the frame before the wait, and a helper the template passes its symbol to,
+  `nap_again(phase)`, waits the same way (`conformance/stage6/template_argument_wait`).
 - **Waits that run the loop in place.** A wait inside the right side of `and`/`or` or `==` on a nullable value, one
   reached through a function value, a union's dispatch or a constructor, and a `Concurrent` dropped inside a
   `Concurrent` are the plain calls: they wait by running the event loop where they are, as code outside a
   `Concurrent` does, which keeps every other state machine going but holds this one until the wait is over
   (`mortaros_missing_decisions.md` item 179). A `Concurrent` whose function has no state machine runs it to the end
-  when it is made.
+  when it is made. `function_waits` still answers `true` for a function whose only wait is one of these, since it
+  does wait: the wait just holds whoever stepped the frame, such as the loop calling `run_ready()`, until it is
+  over.
 - **The waits at the bottom** are small state machines the generator writes: `Program.sleep` registers a deadline
   and is over when the clock passes it; `Console.read_line_into`, `File.read_into`, `File.write_text`,
   `File.write_from`, `Socket.accept_handle` and `Socket.receive_into` start their one system call on a helper thread

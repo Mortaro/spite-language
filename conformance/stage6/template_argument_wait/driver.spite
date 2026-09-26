@@ -1,0 +1,32 @@
+generic $system_type
+
+enum Phase {
+    'update'
+}
+
+var system: $system_type = null
+var console = Console()
+
+func start_waiting(): Concurrent<Nothing> {
+    return Concurrent(drain)
+}
+
+func drain() {
+    drain_phases_each()
+}
+
+func drain_phase_each(phase: Symbol<$system_type.phase_each>) {
+    system.phase_each(made_arguments())
+    nap_again(phase)
+}
+
+func nap_again(phase: Symbol<$system_type.phase_each>) {
+    system.phase_each(made_arguments())
+}
+
+func made_argument(argument: Symbol<$system_type.phase_each>): argument.class {
+    var made: argument.class = null
+    made.length = 60
+    console.print("made", argument.name, "before the wait")
+    return made
+}

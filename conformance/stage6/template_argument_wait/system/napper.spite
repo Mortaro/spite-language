@@ -1,0 +1,16 @@
+type Nap {
+    length: Integer
+}
+
+var program = Program()
+var console = Console()
+var naps = 0
+var awake = true
+
+func update_each(nap: Nap) {
+    naps = naps + 1
+    awake = false
+    console.print("nap", naps, "for", nap.length, "ms")
+    program.sleep(nap.length)
+    awake = true
+}

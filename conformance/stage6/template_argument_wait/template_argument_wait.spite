@@ -1,0 +1,23 @@
+var console = Console()
+var program = Program()
+var scheduler = Scheduler()
+
+func TemplateArgumentWait() {
+    scheduler.resume_only_when_asked()
+    var driver = Driver<System.Napper>()
+    var worker = driver.start_waiting()
+    var frame = 0
+    var seen_asleep = List<Integer>()
+    while not worker.finished and frame < 200 {
+        frame = frame + 1
+        scheduler.run_ready()
+        var napper = driver.system
+        if not napper.awake and not seen_asleep.contains(napper.naps) {
+            seen_asleep.append(napper.naps)
+        }
+        program.sleep(16)
+    }
+    console.print("the worker waited across frames:", frame > 1)
+    var naps_seen = seen_asleep.count()
+    console.print("naps seen asleep between frames:", naps_seen)
+}
