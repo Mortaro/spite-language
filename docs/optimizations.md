@@ -833,7 +833,12 @@ cannot, and no `const` keyword is needed. To know which function a call reaches,
 the call is made on: an attribute's or variable's declared type, the class a constructor makes, the class the
 function that made the value returns (`var address = heap.allocate(8)` is a `Memory.Address`), or the left side
 of a `+` (an address plus an offset is an address), and `List`, `Dictionary` or `String` for a value of those
-types; a call on a value whose class it cannot tell may reach every function of that name. A `return`'s own
+types. A receiver that is an expression has its type's class too: `File(path).read()` reaches only `File.read`,
+`names.copy().count()` and `lists[0].count()` only `List.count`, and an item of a `Vector` or `Dictionary` its
+element's class, so a program's own `read` or `count` no longer undoes a proof it cannot touch. A call on a value
+whose class it cannot tell (a shape, a type parameter, a function value) may reach every function of that name,
+and a `clear` or `remove_...` on a list reached through `[]` or a call may be any list, so it keeps no proof
+about a list. A `return`'s own
 calls keep every proof, since nothing after the `return` runs. It runs entirely while compiling and emits nothing. What you can
 observe: a proof after a call that may change it must be written again, and a call through a function value
 keeps no proof about attributes or lists ([failure.md](failure.md#a-call-may-undo-a-proof)).

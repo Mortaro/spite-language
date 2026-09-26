@@ -1,0 +1,4 @@
+after File().read() ada
+after copy().count() ada 2
+after lists[0].count() ada 2
+Shelf.clear() emptied the list it holds: 0

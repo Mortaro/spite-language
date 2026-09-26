@@ -2,7 +2,9 @@ var shape = Analysis.AstShape()
 var by_function = Dictionary<FunctionEffects>()
 var function_keys = List<String>()
 var field_classes = Dictionary<String>()
+var element_classes = Dictionary<String>()
 var return_classes = Dictionary<String>()
+var class_names = Dictionary<Boolean>()
 var plain_fields = Dictionary<Boolean>()
 var shared_defaults = Dictionary<Boolean>()
 
@@ -11,6 +13,7 @@ func study(class_files: List<Discovery.DiscoveredClass>) {
     while index < class_files.count() {
         var discovered = class_files[index]
         var file = discovered.get_file()
+        class_names.set(discovered.simple_name, true)
         record_fields(file.statements, discovered.simple_name)
         index = index + 1
     }
@@ -44,6 +47,10 @@ func record_fields(statements: List<Syntax.Statements.Statement>, class_name: St
             var declared_class = declared_class_name(declared)
             if not declared_class.is_empty() {
                 field_classes.set("{class_name}#{declared.name}", declared_class)
+            }
+            var declared_element = declared_element_name(declared)
+            if not declared_element.is_empty() {
+                element_classes.set("{class_name}#{declared.name}", declared_element)
             }
             if holds_plain_value(declared) {
                 plain_fields.set("{class_name}#{declared.name}", true)
@@ -140,6 +147,35 @@ func type_class_name(type_reference: Syntax.Types.Type): String {
     var wrapped = shape.as_type_argument(named.arguments[0])
     assert wrapped
     crash wrapped.value
+    return type_class_name(wrapped.value)
+}
+
+func declared_element_name(declaration: Syntax.Statements.VariableDeclaration): String {
+    if declaration.type_reference {
+        return element_class_name(declaration.type_reference)
+    }
+    crash declaration.value
+    var constructed = shape.as_generic_call(declaration.value)
+    assert constructed and not constructed.type_arguments.is_empty()
+    var first = shape.as_type_argument(constructed.type_arguments[0])
+    assert first
+    crash first.value
+    return type_class_name(first.value)
+}
+
+func element_class_name(type_reference: Syntax.Types.Type): String {
+    var named = shape.as_named_type(type_reference)
+    assert named
+    assert not named.path.is_empty() and not named.arguments.is_empty()
+    var last = named.path.last()
+    crash last
+    var wrapped = shape.as_type_argument(named.arguments[0])
+    assert wrapped
+    crash wrapped.value
+    if last == "Nullable" {
+        return element_class_name(wrapped.value)
+    }
+    assert last == "List" or last == "Vector" or last == "Dictionary"
     return type_class_name(wrapped.value)
 }
 

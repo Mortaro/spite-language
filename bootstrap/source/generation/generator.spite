@@ -14297,11 +14297,50 @@ func called_effects(
             return call_effects.effects_of(member.name, member.name)
         }
         crash member.object
-        var receiver_type = receiver_type_of(member.object, scope, class_information)
-        var owner = owner_name(receiver_type)
-        return call_effects.effects_of(owner, member.name)
+        var owner = receiver_owner(member.object, scope, class_information)
+        var effects = call_effects.effects_of(owner, member.name)
+        if not resizes_unnamed_collection(member, owner) {
+            return effects
+        }
+        var widened = effects.copy()
+        var growing = ["append", "prepend", "insert"]
+        if growing.contains(member.name) {
+            widened.append("grow:*")
+        } else {
+            widened.append("shrink:*")
+        }
+        return widened
     }
     return unknown
+}
+
+func resizes_unnamed_collection(member: Syntax.Expressions.MemberExpression, owner: String): Boolean {
+    var resizing = ["append", "prepend", "insert", "remove_at", "remove_first", "remove_last", "clear"]
+    var collections = ["List", "Vector", "Dictionary", "*"]
+    assert resizing.contains(member.name) and collections.contains(owner)
+    crash member.object
+    return not is_name_path(member.object) and not shape.as_generic_call(member.object)
+}
+
+func receiver_owner(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var construction = shape.as_generic_call(expression)
+    if construction {
+        crash construction.callee
+        var constructed = called_name_of(construction.callee)
+        if call_effects.class_names.has(constructed) {
+            return constructed
+        }
+        return "*"
+    }
+    var receiver_type = receiver_type_of(expression, scope, class_information)
+    if receiver_type {
+        return owner_name(receiver_type)
+    }
+    return "*"
 }
 
 func receiver_type_of(
@@ -14319,11 +14358,87 @@ func receiver_type_of(
         assert field
         return field.get_type()
     }
+    var indexed = shape.as_index(expression)
+    if indexed {
+        crash indexed.object
+        var listed_type = receiver_type_of(indexed.object, scope, class_information)
+        return indexed_type_through(listed_type)
+    }
+    var call = shape.as_call(expression)
+    if call {
+        return call_result_type(call, scope, class_information)
+    }
     var member = shape.as_member(expression)
     assert member
     crash member.object
     var object_type = receiver_type_of(member.object, scope, class_information)
     return member_type_through(object_type, member.name)
+}
+
+func indexed_type_through(spite_type: Analysis.SpiteType?): Analysis.SpiteType? {
+    assert spite_type
+    var plain = spite_type
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        plain = nullable.get_inner()
+    }
+    var listed = type_shape.as_list(plain)
+    if listed {
+        return listed.get_element()
+    }
+    var dictionary = type_shape.as_dictionary(plain)
+    if dictionary {
+        return dictionary.get_element()
+    }
+    return returned_type_through(plain, "get_at")
+}
+
+func call_result_type(
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    crash call.callee
+    var constructed = try_resolve_static_path(call.callee, class_information.qualified_dotted)
+    if constructed {
+        var constructed_type: Analysis.SpiteType = Analysis.Types.ClassRefType(constructed.c_name)
+        return constructed_type
+    }
+    var identifier = shape.as_identifier(call.callee)
+    if identifier {
+        assert not scope.written_type(identifier.name) and not class_information.find_field(identifier.name)
+        var own = class_information.find_function(identifier.name)
+        assert own
+        return own.get_return_type()
+    }
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    var object_type = receiver_type_of(member.object, scope, class_information)
+    return returned_type_through(object_type, member.name)
+}
+
+func returned_type_through(spite_type: Analysis.SpiteType?, name: String): Analysis.SpiteType? {
+    assert spite_type
+    var plain = spite_type
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        plain = nullable.get_inner()
+    }
+    var listed = type_shape.as_list(plain)
+    if listed {
+        var element = listed.get_element()
+        var list_member = list_class_of(element).find_function(name)
+        assert list_member
+        return list_member.get_return_type()
+    }
+    var class_ref = type_shape.as_class_ref(plain)
+    assert class_ref and not class_ref.has_signature
+    var owner_class = find_class_by_c_name(class_ref.c_name)
+    assert owner_class
+    var function = owner_class.find_function(name)
+    assert function
+    return function.get_return_type()
 }
 
 func changing_effect(
@@ -15755,6 +15870,9 @@ func effect_resizes(
     }
     assert not resized.is_empty()
     if local_root {
+        if resized.starts_with("*#") {
+            return true
+        }
         var resized_class = call_effects.field_classes.get(resized)
         assert resized_class
         return resized_class == "Vector"
