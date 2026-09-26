@@ -25,6 +25,7 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 | `vector_items` | 200 000 `Velocity` items in a `List<Velocity>` and in a `Vector<Velocity>`, 100 ticks of `each_integrate()` and a fused `filter_moving().sum_across()` on each; prints the microseconds per tick of both |
 | `vector_rows` | 200 000 entities with position and velocity, half with health and regeneration, `Move` and `Regenerate` systems taking a `type` row per entity for 20 ticks: once from four `Vector` columns as rows of borrowed items (D206), once from four `List` columns through a reused row object; prints the microseconds per tick of both |
 | `sparse_rows` | 200 000 entities kept in sparse sets (a generic singleton `Column<T>` per component, each entity at a different place in each), position and velocity for all, health and regeneration for half, `Move` and `Regenerate` taking a walked row per entity for 20 ticks: once with `Vector` columns and rows filled by D217's walk (borrowed items, an `Entity` made in the frame), once with every column a `List` of references and a row object reused across the tick; prints the microseconds per tick of both |
+| `items_storage` | 200 000 `Velocity` items (they fit a `Vector`) in a `Vector` and an `Items`, and 200 000 `Trail` objects (they hold a `List`) in a `List` and an `Items` sharing the same objects: filling, 100 ticks of `each_integrate()` and a fused `filter_moving().sum_across()`, and 100 ticks of 200 000 `[]` reads and writes at scattered places; three rounds, each printing microseconds per tick of all four |
 | `stress` | SlopEngine's `examples/stress` shape: component columns as generic singletons, `system/` classes with `update_each` over `type` rows filled by a Symbol walk, 50 000 entities, 20 ticks |
 | `console_lines` | 200 000 `console.print` lines, each written out as it is printed; `run.sh` times it into a pipe, and redirected to a file is where the write per line costs (about 700 ms against 140 ms buffered until exit, [standard_library.md](../docs/standard_library.md#system-classes--implemented)) |
 | `game_maths` | a million `position + velocity.scaled(delta)` steps on `Vector3`, 200 000 `Matrix4` products and a million `transform_point`s; each answer is a new object, so the allocation count is the point |
@@ -216,6 +217,25 @@ The 800 115 allocations are filling: 200 000 entities, positions and velocities 
 regenerations, each kept in its reference column and copied into its vector, and the sparse sets; the walked rows
 make none. Most of the 7.4 ms is finding the places, a sparse lookup through a generic singleton per attribute,
 which both sides pay.
+
+### `Items<T>`: storage chosen while compiling (D218)
+
+`items_storage`, the program's own timers, three rounds in one run (`clang -O2`, the compiler of the commit that
+builds D218, on a machine another session was also using). `Items<Velocity>` is inline, `Items<Trail>`
+references; the `List<Trail>` and `Items<Trail>` hold the same 200 000 objects:
+
+| collection | fill µs | template tick µs | `[]` tick µs |
+|---|---|---|---|
+| `Vector<Velocity>` | 6 788 | 201-218 | 573-601 |
+| `Items<Velocity>` | 6 967 | 193-212 | 510-533 |
+| `List<Trail>` | 15 481 | 534-645 | 911-1 518 |
+| `Items<Trail>` | 15 466 | 515-668 | 818-948 |
+
+The templates are the same C either way. `[]` is faster than both because `Items.get_at` keeps its crash report
+in a function of its own and is inlined where it is called; with the report inside it (the first build), the
+`Items<Trail>` reads took 1 600-2 400 µs against the list's 1 000-1 900, because `List.get_at` was inlined and
+`Items.get_at` was not. `benchmarks/sparse_rows` with its `Column` holding an `Items` instead of a `Vector` ran
+6 863-7 010 µs a tick against 7 190-7 471 µs, five runs each, alternating.
 
 ### Short text inside the `String` (D203)
 
