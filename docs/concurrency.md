@@ -771,6 +771,15 @@ an engine system that only collects finished work is not taken for one that does
 followed by a read costs, and a program that never calls it carries none of it
 (`conformance/stage6/finished_values`).
 
+**A handle made at its defaults started nothing, so it is finished and joins nothing** (proposed by Claude,
+unconfirmed). Reflection makes one: describing a class whose function takes a `Concurrent<T>` or a `Parallel<T>`
+describes that handle's class too, from a stand-in at its defaults ([reflection.md](reflection.md)). Such a handle
+has no frame and no pool job: `finished` is `true`, `finished_value()` is `null`, and dropping it waits for nothing
+and frees nothing. A `Lock` or `ThreadSlot` made that way likewise gives back no lock or key it never took. Nothing
+is added to pay for it: a `Concurrent` starts with its `finished` flag set and clears it only when it starts a
+frame, and a `Parallel` allocates its job's state only when it submits the job
+(`conformance/stage6/default_handles`).
+
 **The thread pool** (D135 and D191, decided by Mortaro; the shape below is proposed by Claude, unconfirmed).
 **[implemented on Windows]** `library/thread_pool.spite` is a singleton, `ThreadPool()`, that the `Parallel`s share.
 It is the program's one pool: any code hands work to it by `Parallel(function)` and gets a handle whose `finished`

@@ -1,0 +1,17 @@
+func collect(handle: Concurrent<String>): String {
+    var found = handle.finished_value()
+    if found {
+        return found
+    }
+    return ""
+}
+
+func join(handle: Concurrent<String>): String {
+    var level: String = handle
+    return level
+}
+
+func total(counting: Parallel<Integer>, _slot: ThreadSlot): Integer {
+    var counted: Integer = counting
+    return counted
+}

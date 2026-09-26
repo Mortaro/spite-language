@@ -1,4 +1,4 @@
-var _key: Long = 0
+var _key: Long = -1
 
 func ThreadSlot() {
     _key = create_key()
@@ -13,5 +13,6 @@ func write(value: Long) {
 }
 
 func drop() {
+    assert _key != -1
     delete_key(_key)
 }
