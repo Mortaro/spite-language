@@ -172,13 +172,13 @@ var console = Console()
 var color_text = ColorText()
 
 func GameColorsBasics() {
-    var tomato = color_text.read_color("tomato")
+    var tomato = color_text.read("tomato")
     crash tomato
     console.print("{tomato} {tomato.to_rgb_text()} {tomato.to_hsl_text()}")
-    var faded = color_text.read_color("hsl(210, 50%, 40%, 0.25)")
+    var faded = color_text.read("hsl(210, 50%, 40%, 0.25)")
     crash faded
     console.print("{faded} {faded.to_rgb_text()}")
-    var wrong = color_text.read_color("#12")
+    var wrong = color_text.read("#12")
     if wrong {
         console.print("read")
     } else {
@@ -332,7 +332,7 @@ the layout and the conventions.
   `to_rgb_text()` (`rgb(255, 99, 71)`, or `rgba(...)` with alpha to three places), `to_hsl_text()` (hue, saturation
   and lightness to one place), and `to_string()`, which is `to_hex()`. Writing clamps each channel to 0..1 and rounds
   it to a byte.
-- **`ColorText`** (`read_color(text): Color?`; text is trimmed and read without regard to case): `#` and 3, 4, 6 or 8
+- **`ColorText`** (`read(text): Color?`; text is trimmed and read without regard to case): `#` and 3, 4, 6 or 8
   hex digits, `#rgb` doubling each digit; `rgb(`/`rgba(` with three or four numbers, separated by commas, spaces or
   a `/` before alpha, each channel 0 to 255 or a percentage and clamped, alpha 0 to 1 or a percentage;
   `hsl(`/`hsla(` with a hue in degrees (a `deg` suffix allowed, any number of turns), saturation and lightness as
