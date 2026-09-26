@@ -1,0 +1,11 @@
+singleton
+
+var positions = Vector<Position>()
+var velocities = Vector<Velocity>()
+
+func spawn() {
+    var position = Position(0.0)
+    positions.append(position)
+    var velocity = Velocity(1.0)
+    velocities.append(velocity)
+}

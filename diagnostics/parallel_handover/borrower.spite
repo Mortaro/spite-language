@@ -1,0 +1,9 @@
+var items = List<Integer>()
+
+func Borrower(given: List<Integer>) {
+    items = given
+}
+
+func count_items(): Integer {
+    return items.count()
+}

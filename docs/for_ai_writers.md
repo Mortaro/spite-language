@@ -168,6 +168,15 @@ func is_alive(): Boolean {
   reading it after a line that may resize the vector (`append`, `remove_at`, `clear`, or a call that may do one)
   are errors, each naming the fix: `velocity.copy()`, an independent object, or reading `velocities[index]` again.
   A class kept in a `Vector` may not use `this` as a value, nor have a `drop()`.
+- A row of borrowed items for a system: `var row: Moving = {position: positions[index], velocity:
+  velocities[index]}` (`Moving` a `type`), then `mover.update_each(row)`. The row costs nothing (it lives in the
+  frame) and may be passed only to a function called by name whose parameter is a `type`; inside it,
+  `moving.position.left = 3.0` writes the vector's item. Keeping the row (`'moving' holds items borrowed from
+  'positions' and 'velocities' for this call and cannot be kept in the attribute 'kept'`), returning it, putting
+  it in a list, `var alias = row`, assigning `moving.position = ...`, or a called function that may append to or
+  remove from those vectors (`... may move the items of 'positions': a function that is handed a row may not
+  append to or remove from the vectors it borrows from`) are errors. Build a row only of borrowed items and plain
+  values.
 - Do not hand-optimise: the compiler folds `Build` fields and codegen tests, fuses chains, appends to text in
   place, puts short-lived buffers in the frame and shakes out what is unused, on its own. Every such optimisation,
   built or planned, and what it could ever change that you see, is in [optimizations.md](optimizations.md).
@@ -335,7 +344,7 @@ answer `0` or `null` and writes send nothing -- check `closed`, never a count of
 `Concurrent(function)` runs a function as a compile-time state machine and `Parallel(function)` on the thread pool: the handle stands
 in for what the function returns and reading it is the wait (there is no `.wait()`: `an Integer has no function
 'wait'`), `finished` answers without waiting, and dropping the handle waits for it. A `parallel_each_<member>()`
-member may read only its own element's plain values, and a `Parallel(f)` only its own instance's plain values, its locals, singletons, a `Lock` or a `ThreadLocal`; anything else is an error naming the attribute. There is no `async`/`await`: a function
+member may read only its own element's plain values, and a `Parallel(f)` only its own instance's plain values, its locals, singletons, a `Lock` or a `ThreadLocal`; anything else is an error naming the attribute. One exception: `var crafter = Crafter(first)` then `var run = Parallel(crafter.craft)` hands the object over, so its task may keep lists of values (`List<Integer>`, `List<String>`) and objects of its own that it made itself; touching `crafter` after that line is `'crafter' was handed to 'Parallel(crafter.craft)', which keeps its 'recipe_ids' on another thread, so it is not used after that line`. Keep a list of ids as a `List<Integer>`, never as comma-joined text. There is no `async`/`await`: a function
 that reads, sleeps or waits is an ordinary function, and the compiler suspends it there when something else can
 run ([concurrency.md](concurrency.md)).
 `Json(value).write(): String` writes JSON and `Json<T>(null)` reads it (`read(text): T?`,

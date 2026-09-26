@@ -4,6 +4,7 @@ var function_keys = List<String>()
 var field_classes = Dictionary<String>()
 var return_classes = Dictionary<String>()
 var plain_fields = Dictionary<Boolean>()
+var shared_defaults = Dictionary<Boolean>()
 
 func study(class_files: List<Discovery.DiscoveredClass>) {
     var index = 0
@@ -47,6 +48,9 @@ func record_fields(statements: List<Syntax.Statements.Statement>, class_name: St
             if holds_plain_value(declared) {
                 plain_fields.set("{class_name}#{declared.name}", true)
             }
+            if not makes_its_own(declared) {
+                shared_defaults.set("{class_name}#{declared.name}", true)
+            }
         }
         var function = shape.as_function_declaration(statements[index])
         if function {
@@ -86,6 +90,26 @@ func holds_plain_value(declaration: Syntax.Statements.VariableDeclaration): Bool
         return true
     }
     return shape.is_true_literal(value) or shape.is_false_literal(value)
+}
+
+func makes_its_own(declaration: Syntax.Statements.VariableDeclaration): Boolean {
+    crash declaration.value
+    return is_fresh_value(declaration.value)
+}
+
+func is_fresh_value(value: Syntax.Expressions.Expression): Boolean {
+    if shape.is_null_literal(value) or shape.as_generic_call(value) or shape.as_list_literal(value) {
+        return true
+    }
+    var called = shape.as_call(value)
+    assert called
+    crash called.callee
+    var callee_name = last_name(called.callee)
+    return names_a_class(callee_name)
+}
+
+func default_is_shared(class_name: String, name: String): Boolean {
+    return shared_defaults.has("{class_name}#{name}")
 }
 
 func record_return(function: Syntax.Statements.FunctionDeclaration, class_name: String) {

@@ -83,6 +83,62 @@ costs nothing. In exchange the compiler never lets it be kept -- in an attribute
 function value, or past a line that may grow or shrink the vector -- and each of those errors names `copy()`,
 which makes an independent object ([the rules](#borrowed-items-of-a-vectort--implemented)).
 
+### A row of borrowed items, for one call
+
+An engine keeps each component in its own `Vector` and hands a system one entity's components at a time. The
+row is an object literal of borrowed items, and the system takes it as a `type`
+([D206](decisions.md)):
+
+```gdscript title=vector_row_doc/position.spite
+var left = 0.0
+```
+```gdscript title=vector_row_doc/velocity.spite
+var across = 0.0
+
+func Velocity(new_across: Float) {
+    across = new_across
+}
+```
+```gdscript title=vector_row_doc/mover.spite
+type Moving {
+    position: Position
+    velocity: Velocity
+}
+
+func update_each(moving: Moving) {
+    moving.position.left = moving.position.left + moving.velocity.across
+}
+```
+```gdscript title=vector_row_doc/vector_row_doc.spite entry
+var console = Console()
+var positions = Vector<Position>()
+var velocities = Vector<Velocity>()
+var mover = Mover()
+
+func VectorRowDoc() {
+    var position = Position()
+    positions.append(position)
+    var velocity = Velocity(2.5)
+    velocities.append(velocity)
+    var tick = 0
+    while tick < 4 {
+        var row: Moving = {position: positions[0], velocity: velocities[0]}
+        mover.update_each(row)
+        tick = tick + 1
+    }
+    console.print(positions[0].left)
+}
+```
+```output
+10
+```
+
+The row is made in the function's frame, not on the heap, and nothing in it is counted: `update_each` writes the
+vectors' own items. In exchange the row lives for exactly the call it is passed to. It is never kept, returned,
+put in a list or given a second name, by the function that makes it or the one it is passed to, and the call may
+not append to or remove from a vector the row borrows from, directly or through anything it calls
+([the rules](#borrowed-items-of-a-vectort--implemented)).
+
 ## `drop()` runs once, right before the object is freed
 
 A class may define a zero-argument `func drop() { ... }` for cleanup (closing a handle, clearing a
@@ -751,5 +807,46 @@ kept past its use. What is built (the error texts and the readings marked are pr
 - **Run-time cost (D177).** None beyond the block: every rule above is proven while compiling, a borrowed item is
   one address, and a program that makes no `Vector` carries none of `library/vector.spite` or `InlineMemory`.
   Measured in `benchmarks/vector_items`.
+- **A row of borrowed items** (D206, decided by Claude under D205; the error texts and the readings below are
+  proposed by Claude, unconfirmed). An object literal written as `var row = {...}` or `var row: Moving = {...}`
+  whose attributes include a borrowed item -- `positions[index]`, or a name already borrowed from a vector -- is a
+  **row**: each attribute is a borrowed item or a plain value (a number, `Boolean` or enum), and anything else is
+  `'mixed' borrows items from a Vector, so each of its attributes is a borrowed item or a plain value: 'name'
+  holds a String, which the row would have to keep`. The row is a borrowed name like the items it holds:
+  - It is **passed** only as an argument of a function called by name (`mover.update_each(row)`, `report(row)`)
+    whose parameter at that place is a `type`. That parameter is then a row too for the length of the call: the
+    compiler writes a second copy of the function, `<name>___lent_<positions>`, in which reading
+    `moving.position` answers the item uncounted and the parameter is never released, and calls it; every other
+    caller keeps the ordinary function, so passing a class instance to the same `update_each` is unchanged. A row
+    passed to any other function is `'row' holds items borrowed from 'positions' and 'velocities' for this call
+    and is passed only to a function called by name whose parameter is a 'type', which borrows it for that call:
+    pass the attributes the function needs`.
+  - It is never **kept**, in the function that makes it or the one it is passed to: `'moving' holds items
+    borrowed from 'positions' and 'velocities' for this call and cannot be kept in the attribute 'kept': keep the
+    values it needs, or a 'copy()' of one of its items`, and the same for being returned (`... and cannot be
+    returned: return the values the caller needs, or a 'copy()' of one of its items`), put in a list (`... cannot
+    be put in a list: a list keeps a 'copy()' of one of its items`), given a second name (`..., and a row has one
+    name: use 'row' itself instead of 'alias'`) or assigned again (`... and is not assigned again: make each row
+    with a new 'var'`). A required function of its `type` read as a value is `'row.describe' would keep 'row',
+    ... in a function value: call 'row.describe()' instead`.
+  - Its **attributes** are borrowed items: `moving.position.left = 3.0` and `moving.velocity.slow_down()` work on
+    the vector's item, `var position = moving.position` names it (borrowed, with every rule above), and
+    `moving.position.integrate` as a function value is `'moving.position.integrate' would keep 'moving.position',
+    which is borrowed from 'moving', in a function value: ...`. The row's own attributes are not assigned:
+    `'moving' holds items borrowed from 'positions' and 'velocities' for this call, so 'moving.position' is not
+    assigned: write the item's attributes, such as 'moving.position.<attribute> = ...'`.
+  - **The call may not resize what it borrows from.** A statement that passes the row, directly or inside an
+    `if`, `while` or `switch` after it, is checked with the call effects above: a call whose `grow:` or `shrink:`
+    facts reach a vector the row borrows from is `'row' borrows items from 'positions' for the call it is passed
+    to, and 'keeper.spawn_while_moving()' on line 13 may move the items of 'positions': a function that is handed
+    a row may not append to or remove from the vectors it borrows from, directly or through what it calls`, and
+    a call through a function value may do anything. After the call the row follows the rule for any borrowed
+    name: it is not read past a line that may change the size of one of its vectors.
+  - **Cost.** The row is a struct in the frame of the function that makes it, with a header whose count is never
+    touched, and a read through the parameter is the `type`'s uncounted read, one class test and a load
+    ([optimizations.md](optimizations.md#a-row-of-borrowed-items-lives-in-the-frame)). A program that makes no
+    row carries none of it. `benchmarks/vector_rows`: 200 000 entities, two systems, 2.4 ms a tick with `Vector`
+    columns and rows against 6.0 ms with `List` columns and a reused row object (best of five, `clang -O2`).
 
-`diagnostics/vector_borrows`, `diagnostics/vector_items`, `conformance/stage6/vector_items`.
+`diagnostics/vector_borrows`, `diagnostics/vector_items`, `diagnostics/vector_rows`, `conformance/stage6/vector_items`,
+`conformance/stage6/vector_rows`.

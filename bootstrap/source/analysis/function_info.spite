@@ -19,6 +19,8 @@ var symbol_function_name = ""
 var symbol_display_name = ""
 var symbol_range = ""
 var symbol_enum_c_name = ""
+var lent_parameters = List<String>()
+var lent_sources = ""
 
 func FunctionInfo(
     starting_name: String,

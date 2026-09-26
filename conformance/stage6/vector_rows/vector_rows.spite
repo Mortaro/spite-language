@@ -1,0 +1,48 @@
+var console = Console()
+var positions = Vector<Position>()
+var velocities = Vector<Velocity>()
+var mover = Mover()
+
+func VectorRows() {
+    var entity = 0
+    while entity < 6 {
+        var position = Position(entity, 10.0 * entity)
+        positions.append(position)
+        if entity % 2 == 0 {
+            var velocity = Velocity(entity, 4.0, "velocity {entity}")
+            velocities.append(velocity)
+        }
+        entity = entity + 1
+    }
+    var tick = 0
+    while tick < 3 {
+        move_all()
+        tick = tick + 1
+    }
+    var index = 0
+    while index < positions.count() {
+        var position = positions[index]
+        console.print("entity", position.entity, "left", position.left, "top", position.top)
+        index = index + 1
+    }
+    console.print("moved", mover.moved, "rows; the last velocity is", velocities[2].name, velocities[2].across)
+}
+
+func move_all() {
+    var position_index = 0
+    var velocity_index = 0
+    while position_index < positions.count() and velocity_index < velocities.count() {
+        var position_entity = positions[position_index].entity
+        var velocity_entity = velocities[velocity_index].entity
+        if position_entity < velocity_entity {
+            position_index = position_index + 1
+        } else if velocity_entity < position_entity {
+            velocity_index = velocity_index + 1
+        } else {
+            var row: Moving = {position: positions[position_index], velocity: velocities[velocity_index]}
+            mover.update_each(row)
+            position_index = position_index + 1
+            velocity_index = velocity_index + 1
+        }
+    }
+}

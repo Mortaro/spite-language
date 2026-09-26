@@ -1,0 +1,21 @@
+var console = Console()
+
+func ParallelHandover() {
+    var crafting = List<Parallel<Integer>>()
+    var first = 0
+    while first < 400 {
+        var crafter = Crafter(first)
+        crafter.want(1)
+        crafter.want(2)
+        crafter.want(3)
+        var run = Parallel(crafter.craft)
+        crafting.append(run)
+        first = first + 100
+    }
+    var index = 0
+    while index < crafting.count() {
+        var result: Integer = crafting.get_at(index)
+        console.print("crafter", index, "made", result / 1000, "recipes adding up to", result % 1000)
+        index = index + 1
+    }
+}

@@ -143,6 +143,9 @@ var borrow_statements = List<Syntax.Statements.Statement>()
 var borrow_index = 0
 var borrowed_names = List<String>()
 var borrow_site = ""
+var lending_rows = false
+var parallel_handover = ""
+var parallel_keeps = List<String>()
 var argument_callee = ""
 var first_discovered_class = 0
 var hardcoded_settings = List<Syntax.Statements.VariableDeclaration>()
@@ -2271,6 +2274,33 @@ func generate_shape_read(
     var read = ExpressionResult("(\{ {lines.join(" ")} })", field_type)
     read.owning_override = true
     if not owns(object_result, object_ast) and not hot_reload and type_shape.as_class_ref(field_type) {
+        read.peek_union = information
+        read.peek_field = field_name
+        read.peek_object = object_result.code
+    }
+    return read
+}
+
+func generate_row_read(
+    information: Analysis.UnionInfo,
+    field_name: String,
+    object_result: ExpressionResult,
+    row_name: String,
+): ExpressionResult {
+    var field_type = shape_field_type(information, field_name)
+    if not field_type {
+        report("type '{information.simple_name}' has no attribute '{field_name}'")
+        return void_result()
+    }
+    crash field_type
+    mark_members_read(information.members, field_name)
+    var peeker = ensure_shape_peeker(information, field_name, field_type)
+    var read = ExpressionResult("{peeker}({object_result.code})", field_type)
+    read.owning_override = false
+    if type_needs_drop(field_type) {
+        read.borrowed_from = row_name
+    }
+    if type_shape.as_class_ref(field_type) {
         read.peek_union = information
         read.peek_field = field_name
         read.peek_object = object_result.code
@@ -5764,6 +5794,10 @@ func coerce_for_store(
     borrow_site = ""
     var saved_counter = temporary_counter
     var result = generate_expression(expression_ast, scope, class_information)
+    if lending_rows and site.starts_with("argument:") and is_row_name(expression_ast, scope) {
+        var row_type = result.get_type()
+        return cast(result.code, row_type, expected_type)
+    }
     report_kept_borrow(expression_ast, result, site, scope, class_information)
     var result_type = result.get_type()
     if joins_into(result_type, expected_type) {
@@ -7783,19 +7817,23 @@ func generate_own_function_call(
     }
     crash function
     var parameter_types = parameter_types_of(function.parameters)
+    var saved_lending = lending_rows
+    var called_c_name = lent_variant_name(function.c_name, arguments_ast, parameter_types, scope)
+    lending_rows = called_c_name != function.c_name
     var argument_codes = generate_argument_list(arguments_ast, parameter_types, scope, class_information)
+    lending_rows = saved_lending
     var full_arguments = argument_codes.copy()
     full_arguments.prepend("self")
     var function_return_type = function.get_return_type()
-    record_call(function.c_name)
+    record_call(called_c_name)
     var self_type = value_class_type(class_information)
     var self_result = ExpressionResult("self", self_type)
     self_result.owning_override = false
-    var waited = hoisted_wait(function.c_name, self_result, false, argument_codes, function_return_type)
+    var waited = hoisted_wait(called_c_name, self_result, false, argument_codes, function_return_type)
     if waited {
         return waited
     }
-    return ExpressionResult("{function.c_name}({full_arguments.join(", ")})", function_return_type)
+    return ExpressionResult("{called_c_name}({full_arguments.join(", ")})", function_return_type)
 }
 
 func passed_template(information: Analysis.ClassInfo, name: String): Analysis.TemplateInfo? {
@@ -7915,9 +7953,135 @@ func generate_generic_call(
     scope: Scope,
     class_information: Analysis.ClassInfo,
 ): ExpressionResult {
+    var saved_lending = lending_rows
+    var called_c_name = lent_variant_name(function_c_name, arguments_ast, expected_types, scope)
+    lending_rows = called_c_name != function_c_name
     argument_callee = function_c_name
     var argument_codes = generate_argument_list(arguments_ast, expected_types, scope, class_information)
     argument_callee = ""
+    lending_rows = saved_lending
+    return finish_generic_call(called_c_name, object_result, object_ast, argument_codes, return_type)
+}
+
+func is_row_name(expression: Syntax.Expressions.Expression, scope: Scope): Boolean {
+    var identifier = shape.as_identifier(expression)
+    assert identifier
+    return not scope.row_source(identifier.name).is_empty()
+}
+
+func lent_variant_name(
+    function_c_name: String,
+    arguments_ast: List<Syntax.Expressions.Expression>,
+    expected_types: List<Analysis.SpiteType>,
+    scope: Scope,
+): String {
+    var positions = List<String>()
+    var sources = ""
+    var index = 0
+    while index < arguments_ast.count() {
+        if is_row_name(arguments_ast[index], scope) {
+            if index >= expected_types.count() or variadic_list(expected_types) {
+                return function_c_name
+            }
+            if not is_shape_type(expected_types[index]) {
+                return function_c_name
+            }
+            positions.append("{index}")
+            var row_identifier = shape.as_identifier(arguments_ast[index])
+            crash row_identifier
+            if sources.is_empty() {
+                sources = scope.row_source(row_identifier.name)
+            }
+        }
+        index = index + 1
+    }
+    if positions.is_empty() {
+        return function_c_name
+    }
+    var owner = class_of_function_c_name(function_c_name)
+    if not owner {
+        return function_c_name
+    }
+    crash owner
+    if owner.source_path.starts_with("library/") {
+        return function_c_name
+    }
+    var variant_c_name = "{function_c_name}___lent_{positions.join("_")}"
+    var function_index = 0
+    while function_index < owner.functions.count() {
+        var candidate = owner.functions[function_index]
+        if candidate.c_name == variant_c_name {
+            return variant_c_name
+        }
+        function_index = function_index + 1
+    }
+    var original = function_by_c_name(owner, function_c_name)
+    crash original
+    var original_return_type = original.get_return_type()
+    var variant = Analysis.FunctionInfo(
+        original.name,
+        variant_c_name,
+        original.parameters,
+        original_return_type,
+        original.body,
+        false,
+    )
+    variant.line = original.line
+    variant.source_path = original.source_path
+    variant.symbol_name = original.symbol_name
+    variant.symbol_field_name = original.symbol_field_name
+    variant.symbol_field_type = original.symbol_field_type
+    variant.symbol_owner_c_name = original.symbol_owner_c_name
+    variant.symbol_through_caller = original.symbol_through_caller
+    variant.symbol_pattern = original.symbol_pattern
+    variant.symbol_function_name = original.symbol_function_name
+    variant.symbol_display_name = original.symbol_display_name
+    variant.symbol_range = original.symbol_range
+    variant.symbol_enum_c_name = original.symbol_enum_c_name
+    variant.lent_sources = sources
+    var parameter_index = 0
+    while parameter_index < original.parameters.count() {
+        if positions.contains("{parameter_index}") {
+            variant.lent_parameters.append(original.parameters[parameter_index].name)
+        }
+        parameter_index = parameter_index + 1
+    }
+    owner.functions.append(variant)
+    builder.add_prototype("{function_signature(owner, variant)};")
+    return variant_c_name
+}
+
+func class_of_function_c_name(function_c_name: String): Analysis.ClassInfo? {
+    var index = 0
+    while index < classes.count() {
+        var information = classes[index]
+        if function_by_c_name(information, function_c_name) {
+            return information
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func function_by_c_name(information: Analysis.ClassInfo, function_c_name: String): Analysis.FunctionInfo? {
+    var index = 0
+    while index < information.functions.count() {
+        var function = information.functions[index]
+        if function.c_name == function_c_name and function.has_body {
+            return function
+        }
+        index = index + 1
+    }
+    return null
+}
+
+func finish_generic_call(
+    function_c_name: String,
+    object_result: ExpressionResult,
+    object_ast: Syntax.Expressions.Expression,
+    argument_codes: List<String>,
+    return_type: Analysis.SpiteType,
+): ExpressionResult {
     record_call(function_c_name)
     var object_owned = owns(object_result, object_ast)
     var waited = hoisted_wait(function_c_name, object_result, object_owned, argument_codes, return_type)
@@ -9122,8 +9286,15 @@ func check_parallel_name(
     if field {
         var field_type = field.get_type()
         if reaches_shared(field_type) and template_name.starts_with("Parallel(") {
+            var no_classes = List<String>()
+            if not parallel_handover.is_empty() and kept_by_task_alone(owner, name, field_type, no_classes) {
+                if not parallel_keeps.contains(name) {
+                    parallel_keeps.append(name)
+                }
+                return
+            }
             report(
-                "'{template_name}' runs '{function.name}' on another thread, so it may reach only the attributes of its own '{owner.simple_name}' that hold values, its locals and singletons (D179): '{name}' holds {type_with_article(field_type)}, which another thread may share. Give the work what it needs as numbers or text of its own, or make an object for the work alone and pass it in",
+                "'{template_name}' runs '{function.name}' on another thread, so it may reach only the attributes of its own '{owner.simple_name}' that hold values, its locals and singletons (D179): '{name}' holds {type_with_article(field_type)}, which another thread may share. Give the work what it needs as numbers or text of its own, or make an object for the work alone that nothing else holds or touches after 'Parallel(...)' (D207)",
             )
             return
         }
@@ -9196,7 +9367,388 @@ func check_parallel_work(
     var function = owner.find_function(member.name)
     assert function
     var visited = List<String>()
-    check_parallel_reach(owner, function, "Parallel({work_text})", visited)
+    var task = "Parallel({work_text})"
+    parallel_handover = handed_over_name(member.object, owner)
+    parallel_keeps = List<String>()
+    check_parallel_reach(owner, function, task, visited)
+    if not parallel_keeps.is_empty() {
+        report_use_after_handover(parallel_handover, task, owner)
+    }
+    parallel_handover = ""
+    parallel_keeps = List<String>()
+}
+
+func handed_over_name(object_ast: Syntax.Expressions.Expression, owner: Analysis.ClassInfo): String {
+    var named = shape.as_identifier(object_ast)
+    assert named
+    var name = named.name
+    var statements = borrow_statements
+    var here = borrow_index
+    assert here < statements.count()
+    var made_at = -1
+    var index = 0
+    while index < here {
+        var declared = shape.as_variable_declaration(statements[index])
+        if declared {
+            if declared.name == name and constructs_class(declared.value, owner) {
+                made_at = index
+            }
+        }
+        index = index + 1
+    }
+    assert made_at >= 0
+    index = made_at + 1
+    while index < here {
+        assert not statement_hands_out(statements[index], name, owner)
+        index = index + 1
+    }
+    var function_index = 0
+    while function_index < owner.functions.count() {
+        var function = owner.functions[function_index]
+        assert function.is_constructor or not block_keeps_this(function.body, owner)
+        function_index = function_index + 1
+    }
+    return name
+}
+
+func block_keeps_this(statements: List<Syntax.Statements.Statement>, information: Analysis.ClassInfo): Boolean {
+    var expressions = List<Syntax.Expressions.Expression>()
+    collect_block_expressions(statements, expressions)
+    var index = 0
+    while index < expressions.count() {
+        if expression_keeps_this(expressions[index], information) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func expression_keeps_this(expression: Syntax.Expressions.Expression, information: Analysis.ClassInfo): Boolean {
+    var call = shape.as_call(expression)
+    if call {
+        crash call.callee
+        var member = shape.as_member(call.callee)
+        if member {
+            var passing = ["each", "map", "filter", "any", "all", "count", "find", "sort_by", "sum"]
+            if passing.contains(member.name) {
+                crash member.object
+                if expression_keeps_this(member.object, information) {
+                    return true
+                }
+                return any_argument_keeps_this(call.arguments, information)
+            }
+        }
+    }
+    return expression_uses_this(expression, information)
+}
+
+func any_argument_keeps_this(arguments: List<Syntax.Expressions.Expression>, information: Analysis.ClassInfo): Boolean {
+    var index = 0
+    while index < arguments.count() {
+        var argument = arguments[index]
+        var named = shape.as_identifier(argument)
+        var own_function = false
+        if named {
+            if named.name != "this" and named.name != "self" and information.find_function(named.name) {
+                own_function = true
+            }
+        }
+        if not own_function and expression_keeps_this(argument, information) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func constructs_class(value: Syntax.Expressions.Expression?, owner: Analysis.ClassInfo): Boolean {
+    assert value
+    var called = shape.as_call(value)
+    assert called
+    crash called.callee
+    return called_name_of(called.callee) == owner.simple_name
+}
+
+func report_use_after_handover(name: String, task: String, owner: Analysis.ClassInfo) {
+    var statements = borrow_statements
+    var index = borrow_index + 1
+    var kept = parallel_keeps.join("', '")
+    while index < statements.count() {
+        var statement = statements[index]
+        var mentioned = List<String>()
+        collect_statement_names(statement, mentioned)
+        if mentioned.contains(name) {
+            var saved_line = current_line
+            current_line = statement_line(statement)
+            report(
+                "'{name}' was handed to '{task}', which keeps its '{kept}' on another thread, so it is not used after that line: make another '{owner.simple_name}' for what follows, or read the task's result",
+            )
+            current_line = saved_line
+            return
+        }
+        index = index + 1
+    }
+}
+
+func statement_hands_out(statement: Syntax.Statements.Statement, name: String, holder: Analysis.ClassInfo?): Boolean {
+    var assigned = shape.as_assignment_statement(statement)
+    if assigned {
+        crash assigned.target
+        if is_identifier_named(assigned.target, name) {
+            return true
+        }
+    }
+    var expressions = List<Syntax.Expressions.Expression>()
+    collect_statement_expressions(statement, expressions)
+    var index = 0
+    while index < expressions.count() {
+        if uses_as_value(expressions[index], name, holder) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func uses_as_value(expression: Syntax.Expressions.Expression, name: String, holder: Analysis.ClassInfo?): Boolean {
+    switch expression {
+        Syntax.Expressions.IdentifierExpression: return expression.name == name
+        Syntax.Expressions.MemberExpression: {
+            crash expression.object
+            if is_identifier_named(expression.object, name) {
+                return not holds_plain_field(holder, expression.name)
+            }
+            return uses_as_value(expression.object, name, holder)
+        }
+        Syntax.Expressions.CallExpression: {
+            crash expression.callee
+            var receiver = shape.as_member(expression.callee)
+            var called_on_it = false
+            if receiver {
+                crash receiver.object
+                called_on_it = is_identifier_named(receiver.object, name)
+            }
+            if not called_on_it and uses_as_value(expression.callee, name, holder) {
+                return true
+            }
+            return any_use_as_value(expression.arguments, name, holder)
+        }
+        Syntax.Expressions.GenericCallExpression: return any_use_as_value(expression.arguments, name, holder)
+        Syntax.Expressions.BinaryExpression: {
+            crash expression.left
+            crash expression.right
+            if uses_as_value(expression.left, name, holder) {
+                return true
+            }
+            return uses_as_value(expression.right, name, holder)
+        }
+        Syntax.Expressions.UnaryExpression: {
+            crash expression.operand
+            return uses_as_value(expression.operand, name, holder)
+        }
+        Syntax.Expressions.IndexExpression: {
+            crash expression.object
+            crash expression.index
+            if not is_identifier_named(expression.object, name) and uses_as_value(expression.object, name, holder) {
+                return true
+            }
+            return uses_as_value(expression.index, name, holder)
+        }
+        Syntax.Expressions.ListLiteralExpression: {
+            var index = 0
+            while index < expression.elements.count() {
+                var element_value = expression.elements[index].value
+                crash element_value
+                if uses_as_value(element_value, name, holder) {
+                    return true
+                }
+                index = index + 1
+            }
+            return false
+        }
+        Syntax.Expressions.ObjectLiteralExpression: {
+            var index = 0
+            while index < expression.fields.count() {
+                var field_value = expression.fields[index].value
+                crash field_value
+                if uses_as_value(field_value, name, holder) {
+                    return true
+                }
+                index = index + 1
+            }
+            return false
+        }
+        _: return false
+    }
+}
+
+func any_use_as_value(
+    expressions: List<Syntax.Expressions.Expression>,
+    name: String,
+    holder: Analysis.ClassInfo?,
+): Boolean {
+    var index = 0
+    while index < expressions.count() {
+        if uses_as_value(expressions[index], name, holder) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func holds_plain_field(holder: Analysis.ClassInfo?, name: String): Boolean {
+    assert holder
+    var field = holder.find_field(name)
+    assert field
+    var field_type = field.get_type()
+    return not reaches_shared(field_type)
+}
+
+func kept_by_task_alone(
+    owner: Analysis.ClassInfo,
+    name: String,
+    field_type: Analysis.SpiteType,
+    visited: List<String>,
+): Boolean {
+    var held = field_type
+    var nullable = type_shape.as_nullable(field_type)
+    if nullable {
+        held = nullable.get_inner()
+    }
+    assert kept_inside(owner, name, held)
+    var listed = type_shape.as_list(held)
+    if listed {
+        var element = listed.get_element()
+        return inline_value_type(element)
+    }
+    var keyed = type_shape.as_dictionary(held)
+    if keyed {
+        var value_type = keyed.get_element()
+        return inline_value_type(value_type)
+    }
+    var held_class = class_behind(held)
+    assert held_class and type_shape.as_class_ref(held)
+    return self_contained(held_class, visited)
+}
+
+func self_contained(information: Analysis.ClassInfo, visited: List<String>): Boolean {
+    if visited.contains(information.c_name) {
+        return true
+    }
+    visited.append(information.c_name)
+    assert not information.source_path.starts_with("library/") and not information.is_value_class
+    var function_index = 0
+    while function_index < information.functions.count() {
+        var function = information.functions[function_index]
+        assert function.is_constructor or not block_keeps_this(function.body, information)
+        function_index = function_index + 1
+    }
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        var field_type = field.get_type()
+        assert not reaches_shared(field_type) or kept_by_task_alone(information, field.name, field_type, visited)
+        index = index + 1
+    }
+    return true
+}
+
+func kept_inside(owner: Analysis.ClassInfo, name: String, held: Analysis.SpiteType): Boolean {
+    assert not call_effects.default_is_shared(owner.simple_name, name)
+    var written_outside = call_effects.writes_from_outside(owner.simple_name)
+    assert not written_outside.contains(name)
+    var holder = class_behind(held)
+    var function_index = 0
+    while function_index < owner.functions.count() {
+        var function = owner.functions[function_index]
+        assert not block_hands_out(function.body, name, holder)
+        function_index = function_index + 1
+    }
+    return true
+}
+
+func block_hands_out(
+    statements: List<Syntax.Statements.Statement>,
+    name: String,
+    holder: Analysis.ClassInfo?,
+): Boolean {
+    var index = 0
+    while index < statements.count() {
+        var statement = statements[index]
+        if assigns_other_than_fresh(statement, name) or statement_hands_out_value(statement, name, holder) {
+            return true
+        }
+        if blocks_hand_out(statement, name, holder) {
+            return true
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func blocks_hand_out(statement: Syntax.Statements.Statement, name: String, holder: Analysis.ClassInfo?): Boolean {
+    switch statement {
+        Syntax.Statements.IfStatement: {
+            if block_hands_out(statement.then_branch, name, holder) {
+                return true
+            }
+            return block_hands_out(statement.else_branch, name, holder)
+        }
+        Syntax.Statements.WhileStatement: return block_hands_out(statement.body, name, holder)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                if block_hands_out(statement.cases[case_index].body, name, holder) {
+                    return true
+                }
+                case_index = case_index + 1
+            }
+            return false
+        }
+        _: return false
+    }
+}
+
+func assigns_other_than_fresh(statement: Syntax.Statements.Statement, name: String): Boolean {
+    var assigned = shape.as_assignment_statement(statement)
+    assert assigned
+    crash assigned.target
+    assert is_identifier_named(assigned.target, name)
+    crash assigned.value
+    return not call_effects.is_fresh_value(assigned.value)
+}
+
+func statement_hands_out_value(
+    statement: Syntax.Statements.Statement,
+    name: String,
+    holder: Analysis.ClassInfo?,
+): Boolean {
+    var expressions = List<Syntax.Expressions.Expression>()
+    var assigned = shape.as_assignment_statement(statement)
+    if assigned {
+        crash assigned.target
+        crash assigned.value
+        if not is_identifier_named(assigned.target, name) {
+            expressions.append(assigned.target)
+        }
+        expressions.append(assigned.value)
+    } else if not holds_blocks(statement) {
+        collect_statement_expressions(statement, expressions)
+    } else {
+        add_block_condition(statement, expressions)
+    }
+    return any_use_as_value(expressions, name, holder)
+}
+
+func add_block_condition(statement: Syntax.Statements.Statement, expressions: List<Syntax.Expressions.Expression>) {
+    switch statement {
+        Syntax.Statements.IfStatement: add_optional_expression(statement.condition, expressions)
+        Syntax.Statements.WhileStatement: add_optional_expression(statement.condition, expressions)
+        Syntax.Statements.SwitchStatement: add_optional_expression(statement.subject, expressions)
+        _: return
+    }
 }
 
 func collect_declared_names(statements: List<Syntax.Statements.Statement>, names: List<String>) {
@@ -12773,6 +13325,9 @@ func generate_member_read_raw(
     var field_type = field.get_type()
     var alias_read = ExpressionResult("({object_result.code})->{c_value_name(member.name)}", field_type)
     alias_read.owning_override = false
+    if type_needs_drop(field_type) and is_row_name(member.object, scope) {
+        alias_read.borrowed_from = operand_text(member.object)
+    }
     return alias_read
 }
 
@@ -13386,6 +13941,7 @@ func generate_variable_declaration(
         return
     }
     assert not lends_to_local(declaration, scope, class_information)
+    assert not lends_row(declaration, scope, class_information)
     var declared_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
     borrow_site = "local:{declaration.name}"
     var value_code = coerce_for_store(declaration.value, declared_type, scope, class_information)
@@ -13442,6 +13998,15 @@ func may_lend(value: Syntax.Expressions.Expression, scope: Scope, class_informat
         crash indexed.object
         return receiver_lends(indexed.object, "get_at", scope, class_information)
     }
+    var row_read = shape.as_member(value)
+    if row_read {
+        crash row_read.object
+        assert is_row_name(row_read.object, scope)
+        var saved_counter = temporary_counter
+        var probe = generate_expression(value, scope, class_information)
+        rewind_temporaries(saved_counter)
+        return not probe.borrowed_from.is_empty()
+    }
     var call = shape.as_call(value)
     assert call
     crash call.callee
@@ -13482,10 +14047,227 @@ func lends_to_local(
     scope.declare_borrowed(declaration.name, item_type, lent.borrowed_from)
     scope.check_last(current_line)
     check_value_name(declaration.name, "variable")
-    if not in_vector_library(class_information) {
+    if in_vector_library(class_information) {
+        return true
+    }
+    if scope.row_source(lent.borrowed_from).is_empty() {
         report_borrow_past_resize(declaration.name, lent.borrowed_from, scope, class_information)
+        return true
+    }
+    var row_paths = scope.paths_of_row(lent.borrowed_from)
+    var path_index = 0
+    while path_index < row_paths.count() {
+        report_borrow_past_resize(declaration.name, row_paths[path_index], scope, class_information)
+        path_index = path_index + 1
     }
     return true
+}
+
+func lends_row(
+    declaration: Syntax.Statements.VariableDeclaration,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    crash declaration.value
+    var literal = shape.as_object_literal(declaration.value)
+    assert literal and not in_vector_library(class_information)
+    assert not scope.entry_names.contains(declaration.name) and borrows_an_item(literal, scope, class_information)
+    var names = List<String>()
+    var types = List<Analysis.SpiteType>()
+    var codes = List<String>()
+    var paths = List<String>()
+    var index = 0
+    while index < literal.fields.count() {
+        var field = literal.fields[index]
+        crash field.value
+        var field_result = generate_expression(field.value, scope, class_information)
+        var field_type = field_result.get_type()
+        var borrowed_path = borrowed_path_of(field.value, field_result, scope)
+        if borrowed_path.is_empty() and type_needs_drop(field_type) {
+            report(
+                "'{declaration.name}' borrows items from a Vector, so each of its attributes is a borrowed item or a plain value: '{field.name}' holds {type_with_article(field_type)}, which the row would have to keep",
+            )
+            return true
+        }
+        if not borrowed_path.is_empty() and not paths.contains(borrowed_path) {
+            paths.append(borrowed_path)
+        }
+        names.append(field.name)
+        types.append(field_type)
+        codes.append(field_result.code)
+        index = index + 1
+    }
+    var information = literal_class(names, types)
+    var storage = next_temporary()
+    builder.add_user("{information.c_name} {storage} = \{ \{ 1, {information.class_id} } };")
+    var assign_index = 0
+    while assign_index < names.count() {
+        crash codes[assign_index]
+        builder.add_user("{storage}.{c_value_name(names[assign_index])} = {codes[assign_index]};")
+        assign_index = assign_index + 1
+    }
+    var literal_type: Analysis.SpiteType = Analysis.Types.ClassRefType(information.c_name)
+    var row_type = literal_type
+    if declaration.type_reference {
+        row_type = infer_declared_type(declaration.type_reference, declaration.value, scope, class_information)
+    }
+    var row_code = cast("(&{storage})", literal_type, row_type)
+    builder.add_user("{c_type_name(row_type)} {c_value_name(declaration.name)} = {row_code};")
+    var sources = paths.join("' and '")
+    scope.declare_row(declaration.name, row_type, sources, paths)
+    scope.check_last(current_line)
+    check_value_name(declaration.name, "variable")
+    var path_index = 0
+    while path_index < paths.count() {
+        var path = paths[path_index]
+        var start = borrow_index + 1
+        var statements = borrow_statements
+        var saved_line = current_line
+        if report_row_call_resize(declaration.name, path, statements, start, scope, class_information) {
+            current_line = saved_line
+            return true
+        }
+        report_borrow_past_resize(declaration.name, path, scope, class_information)
+        current_line = saved_line
+        path_index = path_index + 1
+    }
+    return true
+}
+
+func borrows_an_item(
+    literal: Syntax.Expressions.ObjectLiteralExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = 0
+    while index < literal.fields.count() {
+        var value = literal.fields[index].value
+        crash value
+        if may_lend(value, scope, class_information) {
+            return true
+        }
+        var named = shape.as_identifier(value)
+        if named {
+            if not scope.borrow_source(named.name).is_empty() {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func borrowed_path_of(value: Syntax.Expressions.Expression, result: ExpressionResult, scope: Scope): String {
+    if not result.borrowed_from.is_empty() {
+        return result.borrowed_from
+    }
+    var named = shape.as_identifier(value)
+    assert named
+    return scope.borrow_source(named.name)
+}
+
+func report_row_call_resize(
+    name: String,
+    source: String,
+    statements: List<Syntax.Statements.Statement>,
+    start: Integer,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    var index = start
+    while index < statements.count() {
+        var statement = statements[index]
+        if row_call_resizes_within(name, source, statement, scope, class_information) {
+            return true
+        }
+        var mentioned = List<String>()
+        collect_statement_names(statement, mentioned)
+        if mentioned.contains(name) and not holds_blocks(statement) {
+            var resize = resize_in_statement(statement, source, scope, class_information)
+            if not resize.is_empty() {
+                var saved_line = current_line
+                current_line = statement_line(statement)
+                report(
+                    "'{name}' borrows items from '{source}' for the call it is passed to, and {resize} may move the items of '{source}': a function that is handed a row may not append to or remove from the vectors it borrows from, directly or through what it calls",
+                )
+                current_line = saved_line
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func holds_blocks(statement: Syntax.Statements.Statement): Boolean {
+    switch statement {
+        Syntax.Statements.IfStatement: return true
+        Syntax.Statements.WhileStatement: return true
+        Syntax.Statements.SwitchStatement: return true
+        _: return false
+    }
+}
+
+func row_call_resizes_within(
+    name: String,
+    source: String,
+    statement: Syntax.Statements.Statement,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Boolean {
+    switch statement {
+        Syntax.Statements.IfStatement: {
+            if report_row_call_resize(name, source, statement.then_branch, 0, scope, class_information) {
+                return true
+            }
+            return report_row_call_resize(name, source, statement.else_branch, 0, scope, class_information)
+        }
+        Syntax.Statements.WhileStatement: return report_row_call_resize(name, source, statement.body, 0, scope, class_information)
+        Syntax.Statements.SwitchStatement: {
+            var case_index = 0
+            while case_index < statement.cases.count() {
+                var body = statement.cases[case_index].body
+                if report_row_call_resize(name, source, body, 0, scope, class_information) {
+                    return true
+                }
+                case_index = case_index + 1
+            }
+            return false
+        }
+        _: return false
+    }
+}
+
+func literal_class(names: List<String>, types: List<Analysis.SpiteType>): Analysis.ClassInfo {
+    var label = "Object"
+    var index = 0
+    while index < names.count() {
+        crash types[index]
+        label = "{label}_{names[index]}_{type_label(types[index])}"
+        index = index + 1
+    }
+    var information = find_class_by_c_name(label)
+    if information {
+        return information
+    }
+    var class_id = allocate_class_id(label)
+    var created = Analysis.ClassInfo(label, "Object", "", label, class_id)
+    var field_index = 0
+    while field_index < names.count() {
+        var listed_name = names[field_index]
+        var listed_type = types[field_index]
+        crash listed_type
+        var default_value_code = default_value_for_type(listed_type)
+        var listed_field = Analysis.FieldInfo(listed_name, listed_type, default_value_code)
+        created.fields.append(listed_field)
+        field_index = field_index + 1
+    }
+    classes.append(created)
+    builder.add_typedef("typedef struct {label} {label};")
+    var saved_owner = current_owner
+    emit_class(created)
+    current_owner = saved_owner
+    return created
 }
 
 func borrowed_text_of(expression_ast: Syntax.Expressions.Expression, result: ExpressionResult, scope: Scope): String {
@@ -13518,8 +14300,12 @@ func report_kept_borrow(
     var text = borrowed_text_of(expression_ast, result, scope)
     assert not text.is_empty()
     var source = borrowed_source_of(expression_ast, result, scope)
-    var copied = "'{text}.copy()', an independent object"
     var site_length = site.length()
+    if result.borrowed_from.is_empty() and not scope.row_source(text).is_empty() {
+        report_kept_row(text, source, site)
+        return
+    }
+    var copied = "'{text}.copy()', an independent object"
     if site == "return" {
         report("'{text}' is borrowed from '{source}' and cannot be returned: return {copied}")
         return
@@ -13551,6 +14337,42 @@ func report_kept_borrow(
         return
     }
     report("'{text}' is borrowed from '{source}' and cannot be kept past the line that reads it: keep {copied}")
+}
+
+func report_kept_row(text: String, source: String, site: String) {
+    var held = "'{text}' holds items borrowed from '{source}' for this call"
+    var site_length = site.length()
+    if site == "return" {
+        report("{held} and cannot be returned: return the values the caller needs, or a 'copy()' of one of its items")
+        return
+    }
+    if site.starts_with("attribute:") {
+        var attribute = site.slice(10, site_length)
+        report(
+            "{held} and cannot be kept in the attribute '{attribute}': keep the values it needs, or a 'copy()' of one of its items",
+        )
+        return
+    }
+    if site.starts_with("local:") {
+        var local = site.slice(6, site_length)
+        report("{held}, and a row has one name: use '{text}' itself instead of '{local}'")
+        return
+    }
+    var into_list = site == "list"
+    if site.starts_with("argument:List_") {
+        into_list = site.ends_with("_append") or site.ends_with("_prepend") or site.ends_with("_insert") or site.ends_with("_set_at")
+    }
+    if into_list {
+        report("{held} and cannot be put in a list: a list keeps a 'copy()' of one of its items")
+        return
+    }
+    if site.starts_with("argument:") {
+        report(
+            "{held} and is passed only to a function called by name whose parameter is a 'type', which borrows it for that call: pass the attributes the function needs",
+        )
+        return
+    }
+    report("{held} and cannot be kept past it: keep the values it needs, or a 'copy()' of one of its items")
 }
 
 func assignment_site(assignment: Syntax.Statements.AssignmentStatement, scope: Scope): String {
@@ -13592,6 +14414,12 @@ func report_borrowed_reassignment(assignment: Syntax.Statements.AssignmentStatem
     assert identifier
     var source = scope.borrow_source(identifier.name)
     assert not source.is_empty()
+    if not scope.row_source(identifier.name).is_empty() {
+        report(
+            "'{identifier.name}' holds items borrowed from '{source}' for this call and is not assigned again: make each row with a new 'var'",
+        )
+        return true
+    }
     report(
         "'{identifier.name}' is borrowed from '{source}' and is not assigned again: read another item with a new 'var', such as 'var next = {source}[index]'",
     )
@@ -14974,6 +15802,13 @@ func generate_store(
     var member = shape.as_member(assignment.target)
     if member {
         assert member.object
+        if is_row_name(member.object, scope) {
+            var row_name = operand_text(member.object)
+            report(
+                "'{row_name}' holds items borrowed from '{scope.row_source(row_name)}' for this call, so '{row_name}.{member.name}' is not assigned: write the item's attributes, such as '{row_name}.{member.name}.<attribute> = ...'",
+            )
+            return
+        }
         var object_result = generate_expression(member.object, scope, class_information)
         var object_result_type = object_result.get_type()
         var shaped_union = type_shape.as_union(object_result_type)
@@ -17995,8 +18830,18 @@ func generate_union_dispatch(
             )
         }
         var wanted = find_required_function(information, member_name)
+        var row_name = operand_text(object_ast)
+        var from_row = is_row_name(object_ast, scope)
         if wanted {
+            if from_row {
+                report(
+                    "'{row_name}.{member_name}' would keep '{row_name}', which holds items borrowed from '{scope.row_source(row_name)}' for this call, in a function value: call '{row_name}.{member_name}()' instead",
+                )
+            }
             return shape_function_value(information, wanted, object_result, object_ast)
+        }
+        if from_row {
+            return generate_row_read(information, member_name, object_result, row_name)
         }
         return generate_shape_read(information, member_name, object_result, object_ast)
     }
@@ -19369,7 +20214,10 @@ func parameter_scope(function: Analysis.FunctionInfo): Scope {
         if type_shape.is_arguments(parameter_type) {
             arguments_parameter_names.append(parameter.name)
         }
-        if type_needs_drop(parameter_type) {
+        if function.lent_parameters.contains(parameter.name) {
+            var no_paths = List<String>()
+            scope.declare_row(parameter.name, parameter_type, function.lent_sources, no_paths)
+        } else if type_needs_drop(parameter_type) {
             scope.declare_owned(parameter.name, parameter_type)
         } else {
             scope.declare(parameter.name, parameter_type)

@@ -1,0 +1,18 @@
+var console = Console()
+var kept = List<Crafter>()
+
+func ParallelHandover() {
+    var crafter = Crafter()
+    crafter.want(1)
+    var crafting = Parallel(crafter.craft)
+    crafter.want(2)
+    var shared = Crafter()
+    kept.append(shared)
+    var sharing = Parallel(shared.craft)
+    var given = List<Integer>()
+    var borrower = Borrower(given)
+    var borrowing = Parallel(borrower.count_items)
+    var collector = Collector()
+    var collecting = Parallel(collector.collect)
+    console.print(crafting, sharing, borrowing, collecting)
+}

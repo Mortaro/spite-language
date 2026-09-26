@@ -1,0 +1,15 @@
+var entity = 0
+var across = 0.0
+var down = 0.0
+var name = ""
+
+func Velocity(new_entity: Integer, new_across: Float, new_name: String) {
+    entity = new_entity
+    across = new_across
+    down = new_across / 2.0
+    name = new_name
+}
+
+func slow_down() {
+    across = across / 2.0
+}
