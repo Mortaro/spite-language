@@ -12,6 +12,7 @@ var next_same = List<Integer>()
 var type_piece_count = 0
 var guard_names = List<String>()
 var guard_lines = List<String>()
+var shaken_macros = Dictionary<Boolean>()
 
 func shake(roots: String, body: String): String {
     split_pieces(body)
@@ -283,7 +284,18 @@ func piece_name(line: String): String {
     if trimmed.ends_with("}") {
         return one_line_defined_name(trimmed)
     }
+    if trimmed.starts_with("#define ") {
+        return shaken_macro_name(trimmed)
+    }
     return defined_name(line)
+}
+
+func shaken_macro_name(trimmed: String): String {
+    var open = trimmed.index_of("(")
+    assert open > 8
+    var name = trimmed.slice(8, open)
+    assert shaken_macros.has(name)
+    return name
 }
 
 func static_variable_name(trimmed: String): String {

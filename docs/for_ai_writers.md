@@ -144,6 +144,16 @@ func is_alive(): Boolean {
   `bits_exclusive_or(mask)`, `bits_inverted()`, `set_bit_count()`, `leading_zero_count()`, `trailing_zero_count()`.
   The mask is cast to the receiver's type; a count of the width or more shifts everything out, a negative one
   halts. Do not fake them with `/` and `%` by powers of two.
+- Maths is functions on the numbers too, every name in full, never a `Math` class: on a `Float` or `Double`
+  `square_root()`, `sine()`, `cosine()`, `tangent()`, `arc_sine()`, `arc_cosine()`, `arc_tangent()`,
+  `rise.arc_tangent_over(run)` (C's `atan2(rise, run)`), `power(exponent)`, `exponential()`, `logarithm()`
+  (natural), `logarithm_base_2()`, `logarithm_base_10()`, `floor()`, `ceiling()`, `round()`, `truncate()`,
+  `absolute()`, `minimum(other)`, `maximum(other)`, `clamp(low, high)`, `is_finite()`, `is_infinite()`,
+  `is_not_a_number()`; on a whole number `absolute()`, `minimum`, `maximum`, `clamp`. Constants are asked of the
+  class: `Float.pi()`, `tau()`, `euler_number()`, `infinity()`, `not_a_number()`, `largest()`, `smallest()` (the most
+  negative), and `Integer.largest()`, `Long.smallest()` and so on. Each is the C library's function, called
+  inline; do not write your own `sine` or square root from a series. Nothing halts: `(-1.0).square_root()` is
+  `nan`.
 - Everything that is not a number, a `Boolean` or an enum value is a reference: passing, assigning and storing share
   the same object. `copy()` copies one level, `deep_copy()` all the way down. `drop()` runs when the last reference
   goes. Two objects that refer to each other leak: hold the back reference as a `Weak<T>` (`get()` is a `T?`, `null` once the object is freed), or clear one side.
@@ -371,6 +381,12 @@ to rediscover. The rows marked *silent* compile, and do something you did not me
 |---|---|---|
 | `a && b`, `a \|\| b`, `!a` | `Spite writes 'and' and 'or' as words` / `Spite writes 'not' as a word` | `a and b`, `a or b`, `not a` |
 | `a << 3`, `a >> 3`, `a & mask`, `a \| mask`, `a ^ mask`, `~a` | `Spite has no '<<': bits are functions on the whole numbers` (each names its function) | `a.shifted_left(3)`, `a.shifted_right(3)`, `a.bits_and(mask)`, `a.bits_or(mask)`, `a.bits_exclusive_or(mask)`, `a.bits_inverted()` |
+| `x.sqrt()`, `x.sin()`, `x.atan2(y)`, `x.pow(y)`, `x.abs()`, `a.min(b)`, `x.ceil()`, `x.isnan()`, ... | `Float has no function 'sqrt': Spite spells it 'square_root', since no name is abbreviated` | every name in full: `square_root()`, `sine()`, `cosine()`, `tangent()`, `arc_sine()`, `arc_cosine()`, `arc_tangent()`, `power(y)`, `exponential()`, `logarithm()`, `logarithm_base_2()`, `logarithm_base_10()`, `absolute()`, `minimum(b)`, `maximum(b)`, `ceiling()`, `truncate()`, `is_not_a_number()`, `is_infinite()`, `is_finite()`; `floor()`, `round()` and `clamp(low, high)` keep their names |
+| `Math.atan2(y, x)`, `atan2f(y, x)` | `Spite has no 'Math'` | `y.arc_tangent_over(x)`: the angle of the point `(x, y)` |
+| `Math.sqrt(x)`, `Math.PI` | `Spite has no 'Math': maths is a function of the number itself, like 'value.square_root()'` | `x.square_root()`, `Float.pi()` |
+| `sqrt(x)`, `sqrtf(x)`, `pow(x, y)` | `this class has no function 'sqrt': maths is a function of the number itself` | `x.square_root()`, `x.power(y)` |
+| `M_PI`, `f32::consts::PI`, `FLT_MAX`, `INT_MAX`, `INFINITY`, `NAN` | `unknown identifier 'M_PI'` | `Float.pi()` (`Double.pi()` for the 64-bit one), `Float.largest()`, `Integer.largest()`, `Float.infinity()`, `Float.not_a_number()` |
+| `angle.pi()` | `'pi()' is a constant of the class Float, not of a value` | `Float.pi()` |
 | `count++`, `count += 1` | `Spite has no '++': write 'count = count + 1'` | `count = count + 1` |
 | `condition ? a : b` | `Spite has no 'condition ? a : b'` | an `if` with an `else`, or a function that returns one or the other |
 | `int`, `Int`, `bool`, `Bool`, `to_int()` | `'Int' is spelled 'Integer'`, `'int' abbreviates: write 'integer'` | `Integer`, `Boolean`, `to_integer()`: no name is abbreviated, the language's own included (D122) |

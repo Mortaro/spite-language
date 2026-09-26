@@ -179,6 +179,51 @@ func BitwiseBasics() {
 0 -1 4
 ```
 
+### Maths functions
+
+The maths a game or a renderer needs are functions of the number classes too, spelled out in full: on a `Float`
+or a `Double`, `square_root()`, `sine()`, `cosine()`, `tangent()`, `arc_sine()`, `arc_cosine()`,
+`arc_tangent()`, `rise.arc_tangent_over(run)` (the angle of the point `(run, rise)`, in the right quadrant),
+`power(exponent)`, `exponential()`, `logarithm()` (natural), `logarithm_base_2()`, `logarithm_base_10()`,
+`floor()`, `ceiling()`, `round()` (half away from zero), `truncate()`, `absolute()`, `minimum(other)`,
+`maximum(other)`, `clamp(low, high)`, `is_finite()`, `is_infinite()` and `is_not_a_number()`. The whole numbers
+have `absolute()`, `minimum(other)`, `maximum(other)` and `clamp(low, high)`. Each answers the receiver's type
+(the three questions a `Boolean`), with the other operands cast to it like any argument, and each is the C
+library's function written where it is called -- `sqrtf` on a `Float`, `sqrt` on a `Double` -- with no call of
+Spite's own around it (the names proposed by Claude, unconfirmed).
+
+A number class also answers its constants on the class itself, `Float.pi()`, since they belong to no one value:
+`pi()`, `tau()`, `euler_number()`, `infinity()`, `not_a_number()`, `largest()` and `smallest()` on `Float` and `Double`, and
+`largest()` and `smallest()` on every whole number. `Integer.largest()` is 2147483647 and `Float.smallest()` the
+most negative `Float` there is.
+
+```gdscript title=maths_basics/maths_basics.spite entry
+var console = Console()
+
+func MathsBasics() {
+    var side: Double = 2.0
+    var diagonal = side.square_root()
+    console.print("{diagonal} {Float.pi()} {Double.pi()}")
+    var speed = 7.5
+    var capped = speed.clamp(0.0, 5.0)
+    var ahead = speed.round()
+    var behind = -2.5
+    console.print("{capped} {ahead} {behind.round()} {behind.floor()} {behind.absolute()}")
+    var negative = -1.0
+    var root = negative.square_root()
+    console.print("{root} {root.is_not_a_number()} {Integer.largest()}")
+}
+```
+```output
+1.4142135623730951 3.1415927 3.141592653589793
+5 8 -3 -3 2.5
+nan true 2147483647
+```
+
+As with `/` on a float (D200), nothing here halts: the square root of `-1` is not-a-number and the logarithm of
+`0` is minus infinity, the IEEE answers. What each function answers at its edges is
+[standard_library.md](standard_library.md#maths--implemented)'s.
+
 ## `String`
 
 Immutable, length-prefixed (not a bare `char*`), reference counted. A value is placed inside written text rather
@@ -742,6 +787,15 @@ as the receiver. Inside it, **`this`** is that value: `func doubled(): Integer {
     widens the `Byte`. The count is an `Integer`. It agrees with D162: arithmetic, too, takes the left side's type.
   - Called on `Float`, `Double` or `Boolean`, they are an error naming the whole numbers
     (`diagnostics/bitwise_on_float`). `conformance/stage6/bitwise_functions` and `negative_shift` pin them.
+- **The maths functions and the constants are members of the number classes** (proposed by Claude, unconfirmed:
+  the names, the constants answered by the class itself, and the lowering; [the teaching above](#maths-functions)).
+  Which there are, what each answers at its edges and how each is lowered is
+  [standard_library.md](standard_library.md#maths--implemented)'s, their one home. A constant is answered only by
+  the class: `angle.pi()` is "'pi()' is a constant of the class Float, not of a value: write 'Float.pi()'", and a
+  function of a value called on the class, `Float.square_root()`, names the constants the class answers
+  (`diagnostics/maths_constant_on_value`). The short names other languages use are errors naming the Spite one:
+  `side.sqrt()` is "Float has no function 'sqrt': Spite spells it 'square_root', since no name is abbreviated"
+  (`diagnostics/maths_other_spellings`).
 - **`this` works in every class** (D146, decided by Mortaro), only to pass or return the object itself --
   `registry.append(this)`. A member is still reached by its bare name, so reading one through `this` is an
   error: `this.name` is "a class reads its own attributes by name: write 'name', not 'this.name'", and

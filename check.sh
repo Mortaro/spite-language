@@ -138,6 +138,10 @@ fi
 if grep -qE "AllocationTable|spite_debug_|spite_live_allocation|SPITE_DEBUG_MEMORY" "$work/hello_shaken.c"; then
   echo "FAILED: examples/hello's C carries --debug-memory's table or an allocation counter"; exit 1
 fi
+# The maths functions are the C library's, and <math.h> is included only when one survives tree shaking (D177).
+if grep -qE "#include <math.h>|Spite(Float|Double|Integer)_(square_root|sine|absolute|pi)" "$work/hello_shaken.c"; then
+  echo "FAILED: examples/hello's C includes math.h or a maths function it never calls"; exit 1
+fi
 "$work/generation_two.exe" conformance/stage6/singleton_forms --run=false --c-source --c-path="$work/singleton_forms.c" > /dev/null 2>&1 || {
   echo "FAILED: singleton_forms does not write its C"; exit 1; }
 if ! grep -q "^#define HitCounter___atomic 1$" "$work/singleton_forms.c" || grep -q "SpiteGuard [A-Za-z_]*___guard" "$work/singleton_forms.c"; then

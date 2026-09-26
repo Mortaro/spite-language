@@ -1,0 +1,337 @@
+func decimal_members(type_name: String): List<String> {
+    var called = "written by the generator: one call of the C library"
+    var constant = "written by the generator: the value itself"
+    return [
+        "func square_root(): {type_name}"
+        called
+        "func sine(): {type_name}"
+        called
+        "func cosine(): {type_name}"
+        called
+        "func tangent(): {type_name}"
+        called
+        "func arc_sine(): {type_name}"
+        called
+        "func arc_cosine(): {type_name}"
+        called
+        "func arc_tangent(): {type_name}"
+        called
+        "func arc_tangent_over(run: {type_name}): {type_name}"
+        called
+        "func power(exponent: {type_name}): {type_name}"
+        called
+        "func exponential(): {type_name}"
+        called
+        "func logarithm(): {type_name}"
+        called
+        "func logarithm_base_2(): {type_name}"
+        called
+        "func logarithm_base_10(): {type_name}"
+        called
+        "func floor(): {type_name}"
+        called
+        "func ceiling(): {type_name}"
+        called
+        "func round(): {type_name}"
+        called
+        "func truncate(): {type_name}"
+        called
+        "func absolute(): {type_name}"
+        called
+        "func minimum(other: {type_name}): {type_name}"
+        called
+        "func maximum(other: {type_name}): {type_name}"
+        called
+        "func clamp(low: {type_name}, high: {type_name}): {type_name}"
+        called
+        "func is_finite(): Boolean"
+        called
+        "func is_infinite(): Boolean"
+        called
+        "func is_not_a_number(): Boolean"
+        called
+        "func pi(): {type_name}"
+        constant
+        "func tau(): {type_name}"
+        constant
+        "func euler_number(): {type_name}"
+        constant
+        "func infinity(): {type_name}"
+        constant
+        "func not_a_number(): {type_name}"
+        constant
+        "func largest(): {type_name}"
+        constant
+        "func smallest(): {type_name}"
+        constant
+    ]
+}
+
+func whole_members(type_name: String): List<String> {
+    var operation = "written by the generator: a comparison or two"
+    var constant = "written by the generator: the value itself"
+    return [
+        "func absolute(): {type_name}"
+        operation
+        "func minimum(other: {type_name}): {type_name}"
+        operation
+        "func maximum(other: {type_name}): {type_name}"
+        operation
+        "func clamp(low: {type_name}, high: {type_name}): {type_name}"
+        operation
+        "func largest(): {type_name}"
+        constant
+        "func smallest(): {type_name}"
+        constant
+    ]
+}
+
+func is_member(name: String): Boolean {
+    return not library_name(name).is_empty() or is_constant(name) or is_predicate(name) or name == "clamp"
+}
+
+func is_constant(name: String): Boolean {
+    var constants = ["pi", "tau", "euler_number", "infinity", "not_a_number", "largest", "smallest"]
+    return constants.contains(name)
+}
+
+func is_predicate(name: String): Boolean {
+    return name == "is_finite" or name == "is_infinite" or name == "is_not_a_number"
+}
+
+func uses_library(name: String): Boolean {
+    return not is_constant(name)
+}
+
+func library_name(name: String): String {
+    var names = [
+        "square_root"
+        "sine"
+        "cosine"
+        "tangent"
+        "arc_sine"
+        "arc_cosine"
+        "arc_tangent"
+        "exponential"
+        "logarithm"
+        "logarithm_base_2"
+        "logarithm_base_10"
+        "floor"
+        "ceiling"
+        "round"
+        "truncate"
+        "absolute"
+        "arc_tangent_over"
+        "power"
+        "minimum"
+        "maximum"
+    ]
+    var library_names = [
+        "sqrt"
+        "sin"
+        "cos"
+        "tan"
+        "asin"
+        "acos"
+        "atan"
+        "exp"
+        "log"
+        "log2"
+        "log10"
+        "floor"
+        "ceil"
+        "round"
+        "trunc"
+        "fabs"
+        "atan2"
+        "pow"
+        "fmin"
+        "fmax"
+    ]
+    var index = 0
+    while index < names.count() {
+        if names[index] == name {
+            return library_names.get_at(index)
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func spelled(name: String): String {
+    var others = [
+        "sqrt"
+        "sin"
+        "cos"
+        "tan"
+        "asin"
+        "acos"
+        "atan"
+        "atan2"
+        "pow"
+        "exp"
+        "log"
+        "log2"
+        "log10"
+        "ln"
+        "ceil"
+        "trunc"
+        "abs"
+        "fabs"
+        "min"
+        "max"
+        "is_nan"
+        "isnan"
+        "is_infinity"
+        "isinf"
+        "isfinite"
+    ]
+    var spellings = [
+        "square_root"
+        "sine"
+        "cosine"
+        "tangent"
+        "arc_sine"
+        "arc_cosine"
+        "arc_tangent"
+        "arc_tangent_over"
+        "power"
+        "exponential"
+        "logarithm"
+        "logarithm_base_2"
+        "logarithm_base_10"
+        "logarithm"
+        "ceiling"
+        "truncate"
+        "absolute"
+        "absolute"
+        "minimum"
+        "maximum"
+        "is_not_a_number"
+        "is_not_a_number"
+        "is_infinite"
+        "is_infinite"
+        "is_finite"
+    ]
+    var index = 0
+    while index < others.count() {
+        if others[index] == name {
+            return spellings.get_at(index)
+        }
+        index = index + 1
+    }
+    return ""
+}
+
+func is_binary(name: String): Boolean {
+    return name == "arc_tangent_over" or name == "power" or name == "minimum" or name == "maximum"
+}
+
+func decimal_body(c_name: String, name: String, is_float: Boolean): String {
+    var suffix = ""
+    if is_float {
+        suffix = "f"
+    }
+    if is_constant(name) {
+        return "#define {c_name}() ({constant_literal(name, is_float)})"
+    }
+    if name == "clamp" {
+        return "#define {c_name}(self, low, high) fmin{suffix}(fmax{suffix}(self, low), high)"
+    }
+    if name == "is_finite" {
+        return "#define {c_name}(self) ((bool)isfinite(self))"
+    }
+    if name == "is_infinite" {
+        return "#define {c_name}(self) ((bool)isinf(self))"
+    }
+    if name == "is_not_a_number" {
+        return "#define {c_name}(self) ((bool)isnan(self))"
+    }
+    var called = "{library_name(name)}{suffix}"
+    if is_binary(name) {
+        return "#define {c_name}(self, other) {called}(self, other)"
+    }
+    return "#define {c_name}(self) {called}(self)"
+}
+
+func constant_literal(name: String, is_float: Boolean): String {
+    if is_float {
+        return float_constant(name)
+    }
+    return double_constant(name)
+}
+
+func float_constant(name: String): String {
+    if name == "pi" {
+        return "0x1.921fb6p+1f"
+    }
+    if name == "tau" {
+        return "0x1.921fb6p+2f"
+    }
+    if name == "euler_number" {
+        return "0x1.5bf0a8p+1f"
+    }
+    if name == "infinity" {
+        return "__builtin_inff()"
+    }
+    if name == "not_a_number" {
+        return "__builtin_nanf(\"\")"
+    }
+    if name == "largest" {
+        return "0x1.fffffep+127f"
+    }
+    assert name == "smallest"
+    return "-0x1.fffffep+127f"
+}
+
+func double_constant(name: String): String {
+    if name == "pi" {
+        return "0x1.921fb54442d18p+1"
+    }
+    if name == "tau" {
+        return "0x1.921fb54442d18p+2"
+    }
+    if name == "euler_number" {
+        return "0x1.5bf0a8b145769p+1"
+    }
+    if name == "infinity" {
+        return "__builtin_inf()"
+    }
+    if name == "not_a_number" {
+        return "__builtin_nan(\"\")"
+    }
+    if name == "largest" {
+        return "0x1.fffffffffffffp+1023"
+    }
+    assert name == "smallest"
+    return "-0x1.fffffffffffffp+1023"
+}
+
+func whole_body(c_name: String, name: String, c_type: String): String {
+    var is_unsigned = c_type.starts_with("u")
+    var c_type_length = c_type.length()
+    var limit = c_type.slice(0, c_type_length - 2).upper_case()
+    if name == "largest" {
+        return "#define {c_name}() (({c_type}){limit}_MAX)"
+    }
+    if name == "smallest" and is_unsigned {
+        return "#define {c_name}() (({c_type})0)"
+    }
+    if name == "smallest" {
+        return "#define {c_name}() (({c_type}){limit}_MIN)"
+    }
+    if name == "absolute" and is_unsigned {
+        return "#define {c_name}(self) (({c_type})(self))"
+    }
+    if name == "absolute" {
+        return "#define {c_name}(self) (\{ {c_type} spite_value = (self); spite_value < 0 ? ({c_type})(0 - (u{c_type})spite_value) : spite_value; })"
+    }
+    if name == "minimum" {
+        return "#define {c_name}(self, other) (\{ {c_type} spite_value = (self); {c_type} spite_other = (other); spite_value < spite_other ? spite_value : spite_other; })"
+    }
+    if name == "maximum" {
+        return "#define {c_name}(self, other) (\{ {c_type} spite_value = (self); {c_type} spite_other = (other); spite_value > spite_other ? spite_value : spite_other; })"
+    }
+    assert name == "clamp"
+    return "#define {c_name}(self, low, high) (\{ {c_type} spite_value = (self); {c_type} spite_low = (low); {c_type} spite_high = (high); spite_value = spite_value < spite_low ? spite_low : spite_value; spite_value > spite_high ? spite_high : spite_value; })"
+}

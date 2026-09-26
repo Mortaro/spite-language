@@ -24,6 +24,7 @@ on Mortaro's Windows machine and move by 10-20% from run to run; the allocation 
 | `vector_items` | 200 000 `Velocity` items in a `List<Velocity>` and in a `Vector<Velocity>`, 100 ticks of `each_integrate()` and a fused `filter_moving().sum_across()` on each; prints the microseconds per tick of both |
 | `stress` | SlopEngine's `examples/stress` shape: component columns as generic singletons, `system/` classes with `update_each` over `type` rows filled by a Symbol walk, 50 000 entities, 20 ticks |
 | `console_lines` | 200 000 `console.print` lines, each written out as it is printed; `run.sh` times it into a pipe, and redirected to a file is where the write per line costs (about 700 ms against 140 ms buffered until exit, [standard_library.md](../docs/standard_library.md#system-classes--implemented)) |
+| `maths_stopgaps` | two million passes of sine, cosine, arc tangent, square root and floor on a `Float`, first through the pure-Spite stopgaps SlopEngine wrote while Spite had no maths (`slop/math/scalar.spite`, copied in as `stopgap_scalar.spite`), then through the number classes' own maths functions; prints the milliseconds of each and the largest error of the stopgap `sine` over one turn |
 
 ## Results
 
@@ -208,3 +209,16 @@ ms for sixty ticks. A dictionary lookup by a key longer than 15 bytes is about 1
 loop over four such keys: 190 → 210 ms), because the key is passed as sixteen bytes rather than a pointer and
 compared through the form it takes. Before `code_at` became the compiler's (the third D203 commit) the same loop
 took 315 ms: the hash re-copied the key for every character.
+
+### Maths functions against SlopEngine's stopgaps
+
+`maths_stopgaps`, built with `clang -O2` by the compiler that added the maths functions, best of seven runs on
+Mortaro's Windows machine (the C library is the Universal C Runtime's). Both passes add up the same five results
+per angle, so they do the same work.
+
+| pass | milliseconds |
+|---|---|
+| the stopgaps: a Taylor series for `sine` and `cosine`, a polynomial `arc_tangent`, 24 Newton steps for `square_root` | 187 |
+| the maths functions: `sinf`, `cosf`, `atan2f`, `sqrtf` and `floorf`, written where they are called | 40 |
+
+The stopgap `sine` is also off by up to 3.6e-6 over one turn, where `sinf` is within one unit in the last place.

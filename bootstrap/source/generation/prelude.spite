@@ -266,7 +266,24 @@ func number_members(stem: String): List<String> {
         }
         index = index + 1
     }
+    var maths_members = maths_members_of(stem, type_name)
+    var maths_index = 0
+    while maths_index < maths_members.count() {
+        members.append(maths_members[maths_index])
+        maths_index = maths_index + 1
+    }
     return members
+}
+
+func maths_members_of(stem: String, type_name: String): List<String> {
+    var maths = MathsPrimitives()
+    if stem == "float" or stem == "double" {
+        return maths.decimal_members(type_name)
+    }
+    if stem == "boolean" {
+        return List<String>()
+    }
+    return maths.whole_members(type_name)
 }
 
 func bitwise_members(type_name: String, width: Integer, is_signed: Boolean): List<String> {

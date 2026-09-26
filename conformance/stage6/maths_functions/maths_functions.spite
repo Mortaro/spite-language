@@ -1,0 +1,117 @@
+var console = Console()
+
+func MathsFunctions() {
+    decimals()
+    edges()
+    constants()
+    whole_numbers()
+}
+
+func decimals() {
+    var two: Double = 2.0
+    var nine: Double = 9.0
+    console.print("square_root {two.square_root()} {nine.square_root()}")
+    var zero: Double = 0.0
+    var one: Double = 1.0
+    console.print("sine {zero.sine()} cosine {zero.cosine()} tangent {zero.tangent()}")
+    var angle: Double = 0.5
+    var sine = angle.sine()
+    var cosine = angle.cosine()
+    var tangent = angle.tangent()
+    console.print("sine {rounded(sine)} cosine {rounded(cosine)} tangent {rounded(tangent)}")
+    var arc_sine = angle.arc_sine()
+    var arc_cosine = angle.arc_cosine()
+    var arc_tangent = one.arc_tangent()
+    console.print("arc_sine {rounded(arc_sine)} arc_cosine {rounded(arc_cosine)} arc_tangent {rounded(arc_tangent)}")
+    var minus_one: Double = -1.0
+    var first_quarter = one.arc_tangent_over(one)
+    var second_quarter = one.arc_tangent_over(minus_one)
+    var third_quarter = minus_one.arc_tangent_over(minus_one)
+    var fourth_quarter = minus_one.arc_tangent_over(one)
+    console.print(
+        "arc_tangent_over {rounded(first_quarter)} {rounded(second_quarter)} {rounded(third_quarter)} {rounded(fourth_quarter)}",
+    )
+    console.print("arc_tangent_over of zeros {zero.arc_tangent_over(zero)} {zero.arc_tangent_over(minus_one)}")
+    var ten: Double = 10.0
+    console.print("power {two.power(ten)} {nine.power(angle)} {two.power(minus_one)}")
+    var euler = one.exponential()
+    console.print("exponential {zero.exponential()} {rounded(euler)}")
+    var eight: Double = 8.0
+    var thousand: Double = 1000.0
+    console.print(
+        "logarithm {one.logarithm()} base 2 {eight.logarithm_base_2()} base 10 {thousand.logarithm_base_10()}",
+    )
+    var up: Double = 2.5
+    var down: Double = -2.5
+    console.print("floor {up.floor()} {down.floor()} ceiling {up.ceiling()} {down.ceiling()}")
+    console.print("round {up.round()} {down.round()} truncate {up.truncate()} {down.truncate()}")
+    console.print("absolute {down.absolute()} {up.absolute()}")
+    console.print("minimum {up.minimum(down)} maximum {up.maximum(down)}")
+    console.print("clamp {ten.clamp(down, up)} {minus_one.clamp(zero, up)} {one.clamp(zero, up)}")
+    var third: Float = 2.5
+    var less: Float = 0.5
+    console.print("Float {third.floor()} {third.round()} {less.minimum(third)} {third.clamp(0.0, 1.0)}")
+}
+
+func edges() {
+    var negative: Double = -1.0
+    var zero: Double = 0.0
+    var not_a_number = negative.square_root()
+    console.print("square_root of -1 {not_a_number}, logarithm of 0 {zero.logarithm()}, of -1 {negative.logarithm()}")
+    console.print("arc_sine of pi {Double.pi().arc_sine()} {not_a_number.is_not_a_number()}")
+    var huge: Double = 1000.0
+    var overflowed = huge.exponential()
+    console.print(
+        "exponential of 1000 {overflowed} finite {overflowed.is_finite()} infinite {overflowed.is_infinite()}",
+    )
+    console.print("minimum ignores not a number: {not_a_number.minimum(zero)} {zero.maximum(not_a_number)}")
+    console.print("clamp of not a number {not_a_number.clamp(zero, huge)}")
+    console.print("clamp with low above high {zero.clamp(huge, negative)}")
+    var float_negative: Float = -4.0
+    var float_nothing = float_negative.square_root()
+    console.print(
+        "Float square_root of -4 {float_nothing} {float_nothing.is_not_a_number()} {float_negative.is_finite()}",
+    )
+    var negative_zero: Double = -0.0
+    console.print("negative zero {negative_zero.absolute()} {negative_zero.square_root()}")
+}
+
+func constants() {
+    console.print("Float pi {Float.pi()} tau {Float.tau()} euler_number {Float.euler_number()}")
+    console.print("Double pi {Double.pi()} tau {Double.tau()} euler_number {Double.euler_number()}")
+    console.print("Float infinity {Float.infinity()} not a number {Float.not_a_number()}")
+    console.print("Float largest {Float.largest()} smallest {Float.smallest()}")
+    console.print("Double largest {Double.largest()} smallest {Double.smallest()}")
+    var infinite = Double.infinity()
+    var negative_infinite = -infinite
+    console.print(
+        "Double infinity {infinite} {negative_infinite} {infinite.is_infinite()} {Double.not_a_number().is_finite()}",
+    )
+}
+
+func whole_numbers() {
+    var count = -7
+    var other = 3
+    console.print(
+        "Integer absolute {count.absolute()} minimum {count.minimum(other)} maximum {count.maximum(other)} clamp {count.clamp(-3, 3)}",
+    )
+    console.print("Integer largest {Integer.largest()} smallest {Integer.smallest()}")
+    var lowest = Integer.smallest()
+    console.print("absolute of the smallest wraps to itself: {lowest.absolute()}")
+    var tiny: Tiny = -128
+    console.print("Tiny {Tiny.largest()} {Tiny.smallest()} {tiny.absolute()}")
+    var byte: Byte = 200
+    console.print("Byte {Byte.largest()} {Byte.smallest()} {byte.absolute()} {byte.clamp(10, 100)} {byte.minimum(300)}")
+    var long: Long = -9000000000
+    console.print("Long {Long.largest()} {Long.smallest()} {long.absolute()} {long.maximum(4)}")
+    console.print(
+        "UnsignedLong {UnsignedLong.largest()} Short {Short.smallest()} UnsignedShort {UnsignedShort.largest()}",
+    )
+    var high = 10
+    console.print("clamp with low above high {other.clamp(high, 1)}")
+}
+
+func rounded(value: Double): Double {
+    var scaled = value * 1000000.0
+    return scaled.round() / 1000000.0
+}

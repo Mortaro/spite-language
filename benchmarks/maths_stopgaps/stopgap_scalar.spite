@@ -1,0 +1,112 @@
+singleton
+
+var pi = 3.14159265
+var two_pi = 6.2831853
+
+func floor(value: Float): Float {
+    var whole: Integer = value
+    var back: Float = whole
+    if back > value {
+        back = back - 1.0
+    }
+    return back
+}
+
+func absolute(value: Float): Float {
+    if value < 0.0 {
+        return 0.0 - value
+    }
+    return value
+}
+
+func clamp(value: Float, low: Float, high: Float): Float {
+    if value < low {
+        return low
+    }
+    if value > high {
+        return high
+    }
+    return value
+}
+
+func square_root(value: Float): Float {
+    assert value > 0.0
+    var guess = value
+    if guess < 1.0 {
+        guess = 1.0
+    }
+    var step = 0
+    while step < 24 {
+        guess = 0.5 * (guess + value / guess)
+        step = step + 1
+    }
+    return guess
+}
+
+func wrapped_angle(angle: Float): Float {
+    var turns = floor((angle + pi) / two_pi)
+    return angle - turns * two_pi
+}
+
+func sine(angle: Float): Float {
+    var reduced = wrapped_angle(angle)
+    if reduced > pi * 0.5 {
+        reduced = pi - reduced
+    } else if reduced < 0.0 - pi * 0.5 {
+        reduced = 0.0 - pi - reduced
+    }
+    var square = reduced * reduced
+    var term = reduced
+    var sum = reduced
+    var power = 1
+    while power < 9 {
+        var next_power: Float = power
+        term = 0.0 - term * square / ((next_power + 1.0) * (next_power + 2.0))
+        sum = sum + term
+        power = power + 2
+    }
+    return sum
+}
+
+func cosine(angle: Float): Float {
+    return sine(angle + pi * 0.5)
+}
+
+func tangent(angle: Float): Float {
+    var cosine_value = cosine(angle)
+    var sine_value = sine(angle)
+    return sine_value / cosine_value
+}
+
+func arc_tangent(value: Float): Float {
+    if value > 1.0 {
+        var inverse = arc_tangent(1.0 / value)
+        return pi * 0.5 - inverse
+    }
+    if value < -1.0 {
+        var inverse = arc_tangent(1.0 / value)
+        return 0.0 - pi * 0.5 - inverse
+    }
+    var square = value * value
+    return value * (0.9998660 + square * (-0.3302995 + square * (0.1801410 + square * (-0.0851330 + square * 0.0208351))))
+}
+
+func arc_tangent2(rise: Float, run: Float): Float {
+    if run > 0.0 {
+        return arc_tangent(rise / run)
+    }
+    if run < 0.0 {
+        var base = arc_tangent(rise / run)
+        if rise >= 0.0 {
+            return base + pi
+        }
+        return base - pi
+    }
+    if rise > 0.0 {
+        return pi * 0.5
+    }
+    if rise < 0.0 {
+        return 0.0 - pi * 0.5
+    }
+    return 0.0
+}

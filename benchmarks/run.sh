@@ -18,13 +18,16 @@ if [ -z "$CC" ]; then
         done
     fi
 fi
+# Linux keeps the C library's maths (sqrt, sin, ...) in libm; Windows has it in the C runtime.
+maths_library="-lm"
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) maths_library="" ;; esac
 names=("$@")
-[ ${#names[@]} -eq 0 ] && names=(fused_chain dictionary_keys text_building reflection_walks function_values small_allocations parallel_calls stress console_lines vector_items)
+[ ${#names[@]} -eq 0 ] && names=(fused_chain dictionary_keys text_building reflection_walks function_values small_allocations parallel_calls stress console_lines vector_items maths_stopgaps)
 printf "| %-18s | %8s | %12s | %s\n" "benchmark" "best ms" "allocations" "output"
 for name in "${names[@]}"; do
     "$compiler" "benchmarks/$name" --run=false --c-source --c-path="$work/$name.c" > "$work/$name.log" 2>&1 || {
         echo "FAILED: $name does not compile"; head -5 "$work/$name.log"; continue; }
-    "$CC" -O2 -w "$work/$name.c" -o "$work/$name.exe" 2> "$work/$name.log" || {
+    "$CC" -O2 -w "$work/$name.c" -o "$work/$name.exe" $maths_library 2> "$work/$name.log" || {
         echo "FAILED: $name's C does not compile"; head -5 "$work/$name.log"; continue; }
     best=""
     for attempt in 1 2 3 4 5 6 7; do
@@ -37,7 +40,7 @@ for name in "${names[@]}"; do
     # the program built again with --debug-memory's table, which only that build's C carries, for the number of
     # allocations it makes
     "$compiler" "benchmarks/$name" --run=false --c-source --debug-memory --c-path="$work/${name}_counted.c" > "$work/$name.log" 2>&1 || continue
-    "$CC" -O2 -w "$work/${name}_counted.c" -o "$work/${name}_counted.exe" 2> "$work/$name.log" || continue
+    "$CC" -O2 -w "$work/${name}_counted.c" -o "$work/${name}_counted.exe" $maths_library 2> "$work/$name.log" || continue
     allocations=$("$work/${name}_counted.exe" 2>&1 | tr -d '\r' | grep '^allocations: ' | sed -E 's/allocations: ([0-9]+) frees: ([0-9]+)/\1/')
     printf "| %-18s | %8s | %12s | %s\n" "$name" "$best" "$allocations" "$output"
 done

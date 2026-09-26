@@ -1,0 +1,10 @@
+var console = Console()
+
+func MathsConstantOnValue() {
+    var angle = 1.5
+    var circle = angle.pi()
+    var root = Float.square_root()
+    var whole = Integer.pi()
+    var zero = Double.euler_number(1.0)
+    console.print(circle, root, whole, zero)
+}
