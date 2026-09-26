@@ -1,0 +1,7 @@
+var lefts = List<Float>()
+var owner = -1
+
+func mark(entity: Integer, left: Float) {
+    lefts.append(left)
+    owner = entity
+}

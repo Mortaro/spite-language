@@ -175,7 +175,7 @@ func element_class_name(type_reference: Syntax.Types.Type): String {
     if last == "Nullable" {
         return element_class_name(wrapped.value)
     }
-    assert last == "List" or last == "Vector" or last == "Dictionary"
+    assert last == "List" or last == "Vector" or last == "Items" or last == "Dictionary"
     return type_class_name(wrapped.value)
 }
 

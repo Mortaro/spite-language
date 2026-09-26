@@ -1,0 +1,51 @@
+var console = Console()
+var runner = Runner<Moving>()
+var mover = Mover()
+var positions = Column<Position>()
+var velocities = Column<Velocity>()
+var trails = Column<Trail>()
+
+func ItemsColumns() {
+    var entity = 0
+    while entity < 4 {
+        spawn(entity)
+        entity = entity + 1
+    }
+    var replaced = Position(20.0)
+    positions.insert(2, replaced)
+    velocities.remove(1)
+    runner.run(mover, 4)
+    runner.run(mover, 4)
+    var positions_inline = positions.inline()
+    var trails_inline = trails.inline()
+    console.print("positions inline", positions_inline, "trails inline", trails_inline)
+    var counts = "{positions.values.count()} positions, {velocities.values.count()} velocities, {trails.values.count()} trails"
+    console.print(counts, "moved", mover.moved)
+    var third = positions.dense_index(3)
+    var position = positions.values[third]
+    position.left = position.left + 100.0
+    var trail = trails.values[third]
+    trail.owner = 30
+    report(0)
+    report(1)
+    report(2)
+    report(3)
+}
+
+func spawn(entity: Integer) {
+    var position = Position(10.0 * entity)
+    positions.insert(entity, position)
+    var velocity = Velocity(1.0 + entity)
+    velocities.insert(entity, velocity)
+    var trail = Trail()
+    trails.insert(entity, trail)
+}
+
+func report(entity: Integer) {
+    var dense = positions.dense_index(entity)
+    var trail_dense = trails.dense_index(entity)
+    var trail = trails.values[trail_dense]
+    var lefts = trail.lefts.join(" ")
+    var steps = "[{lefts}]"
+    console.print("entity", entity, "left", positions.values[dense].left, "owner", trail.owner, "trail", steps)
+}

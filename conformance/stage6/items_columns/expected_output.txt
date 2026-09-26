@@ -1,0 +1,6 @@
+positions inline true trails inline false
+4 positions, 3 velocities, 4 trails moved 6
+entity 0 left 1.5 owner 0 trail [1 1.5]
+entity 1 left 10 owner -1 trail []
+entity 2 left 24.5 owner 2 trail [23 24.5]
+entity 3 left 136 owner 30 trail [34 36]

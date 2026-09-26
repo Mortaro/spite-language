@@ -1,0 +1,299 @@
+generic $element_type
+
+var heap = Memory.Heap()
+var inline = InlineMemory<$element_type>()
+var references = TypedMemory<$element_type>()
+var items: Memory.Address = 0
+var item_count = 0
+var capacity = 0
+
+func count(): Integer {
+    return item_count
+}
+
+func is_empty(): Boolean {
+    return item_count == 0
+}
+
+func append(value: $element_type) {
+    _make_room()
+    if $element_type.fits_vector() {
+        inline.write_item(items, item_count, value)
+    } else {
+        references.write_value(items, item_count, value)
+    }
+    item_count = item_count + 1
+}
+
+func get_at(index: Integer): $element_type {
+    if index < 0 or index >= item_count {
+        _out_of_range(index)
+    }
+    if $element_type.fits_vector() {
+        return inline.item_at(items, index)
+    }
+    return references.read_value(items, index)
+}
+
+func set_at(index: Integer, value: $element_type) {
+    if index < 0 or index >= item_count {
+        _out_of_range(index)
+    }
+    if $element_type.fits_vector() {
+        inline.release_item(items, index)
+        inline.write_item(items, index, value)
+    } else {
+        references.release_value(items, index)
+        references.write_value(items, index, value)
+    }
+}
+
+func remove_at(index: Integer) {
+    if index >= 0 and index < item_count {
+        _release(index)
+        var bytes = _item_bytes()
+        var start = items + _item_start()
+        (start + bytes * (index + 1)).copy_to(start + bytes * index, bytes * (item_count - index - 1))
+        item_count = item_count - 1
+    }
+}
+
+func remove_swapping(index: Integer) {
+    if index >= 0 and index < item_count {
+        _release(index)
+        var last = item_count - 1
+        if index != last {
+            var bytes = _item_bytes()
+            var start = items + _item_start()
+            (start + bytes * last).copy_to(start + bytes * index, bytes)
+        }
+        item_count = last
+    }
+}
+
+func clear() {
+    var index = 0
+    while index < item_count {
+        _release(index)
+        index = index + 1
+    }
+    item_count = 0
+}
+
+func copy(): Items<$element_type> {
+    var copied = Items<$element_type>()
+    copied._reserve_exactly(item_count)
+    var index = 0
+    while index < item_count {
+        copied._append_copy(items, index)
+        index = index + 1
+    }
+    return copied
+}
+
+func deep_copy(): Items<$element_type> {
+    if $element_type.fits_vector() {
+        return copy()
+    }
+    var copied = Items<$element_type>()
+    copied._reserve_exactly(item_count)
+    var index = 0
+    while index < item_count {
+        var item = references.read_value(items, index)
+        var item_copy = item.deep_copy()
+        copied.append(item_copy)
+        index = index + 1
+    }
+    return copied
+}
+
+func _append_copy(source: Memory.Address, index: Integer) {
+    if $element_type.fits_vector() {
+        _make_room()
+        inline.copy_item(source, index, items, item_count)
+        item_count = item_count + 1
+    } else {
+        var item = references.read_value(source, index)
+        append(item)
+    }
+}
+
+func filter_member(member: Symbol<$element_type>): Items<$element_type> {
+    var filtered = Items<$element_type>()
+    var index = 0
+    while index < item_count {
+        if $element_type.fits_vector() {
+            var item = inline.item_at(items, index)
+            if item.attributes[member] {
+                filtered._append_copy(items, index)
+            }
+        } else {
+            var item = references.read_value(items, index)
+            if item.attributes[member] {
+                filtered.append(item)
+            }
+        }
+        index = index + 1
+    }
+    return filtered
+}
+
+func count_member(member: Symbol<$element_type>): Integer {
+    var counted = 0
+    var index = 0
+    while index < item_count {
+        if $element_type.fits_vector() {
+            var item = inline.item_at(items, index)
+            if item.attributes[member] {
+                counted = counted + 1
+            }
+        } else {
+            var item = references.read_value(items, index)
+            if item.attributes[member] {
+                counted = counted + 1
+            }
+        }
+        index = index + 1
+    }
+    return counted
+}
+
+func any_member(member: Symbol<$element_type>): Boolean {
+    var index = 0
+    while index < item_count {
+        if $element_type.fits_vector() {
+            var item = inline.item_at(items, index)
+            if item.attributes[member] {
+                return true
+            }
+        } else {
+            var item = references.read_value(items, index)
+            if item.attributes[member] {
+                return true
+            }
+        }
+        index = index + 1
+    }
+    return false
+}
+
+func all_member(member: Symbol<$element_type>): Boolean {
+    var index = 0
+    while index < item_count {
+        if $element_type.fits_vector() {
+            var item = inline.item_at(items, index)
+            assert item.attributes[member]
+        } else {
+            var item = references.read_value(items, index)
+            assert item.attributes[member]
+        }
+        index = index + 1
+    }
+    return true
+}
+
+func sum_member(member: Symbol<$element_type>): member.class {
+    var total: member.class = 0
+    var index = 0
+    while index < item_count {
+        if $element_type.fits_vector() {
+            var item = inline.item_at(items, index)
+            total = total + item.attributes[member]
+        } else {
+            var item = references.read_value(items, index)
+            total = total + item.attributes[member]
+        }
+        index = index + 1
+    }
+    return total
+}
+
+func each_member(member: Symbol<$element_type>) {
+    var index = 0
+    while index < item_count {
+        if $element_type.fits_vector() {
+            var item = inline.item_at(items, index)
+            item.attributes[member]
+        } else {
+            var item = references.read_value(items, index)
+            item.attributes[member]
+        }
+        index = index + 1
+    }
+}
+
+func map_member(member: Symbol<$element_type>): List<member.class> {
+    var mapped = List<member.class>()
+    var index = 0
+    while index < item_count {
+        if $element_type.fits_vector() {
+            var item = inline.item_at(items, index)
+            var value = item.attributes[member]
+            mapped.append(value)
+        } else {
+            var item = references.read_value(items, index)
+            var value = item.attributes[member]
+            mapped.append(value)
+        }
+        index = index + 1
+    }
+    return mapped
+}
+
+func drop() {
+    clear()
+    heap.free(items)
+}
+
+func _out_of_range(index: Integer) {
+    crash index >= 0 and index < item_count
+}
+
+func _release(index: Integer) {
+    if $element_type.fits_vector() {
+        inline.release_item(items, index)
+    } else {
+        references.release_value(items, index)
+    }
+}
+
+func _item_bytes(): Long {
+    if $element_type.fits_vector() {
+        return inline.item_bytes()
+    }
+    return references.value_bytes()
+}
+
+func _item_start(): Long {
+    if $element_type.fits_vector() {
+        return inline.item_start()
+    }
+    return 0
+}
+
+func _block_bytes(wanted: Integer): Long {
+    if $element_type.fits_vector() {
+        return inline.block_bytes(wanted)
+    }
+    return references.value_bytes() * wanted
+}
+
+func _reserve_exactly(wanted: Integer) {
+    if wanted > capacity {
+        var bytes = _block_bytes(wanted)
+        items = heap.resize(items, bytes)
+        capacity = wanted
+    }
+}
+
+func _make_room() {
+    if item_count == capacity {
+        var grown = capacity * 2
+        if capacity == 0 {
+            grown = 4
+        }
+        var bytes = _block_bytes(grown)
+        items = heap.resize(items, bytes)
+        capacity = grown
+    }
+}

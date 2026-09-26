@@ -132,6 +132,8 @@ even use things that would not compile for this build. That covers:
 - `$system_type.has_function("run_each")` ([D114](decisions.md));
 - `$system_type.function_waits("update_each")` ([D209](decisions.md)), answered from the functions the compiler
   turns into state machines;
+- `$component_type.fits_vector()` and `attribute.class.fits_vector()` ([D217](decisions.md)), which is how
+  `Items<T>` picks inline or reference storage ([below](#an-items-storage-is-chosen-while-compiling));
 - `not`, `and`, `or`, `==` and `!=` over any of these.
 
 A function of a generic class is then compiled for one instantiation only when code that survived folding names
@@ -1027,6 +1029,31 @@ the end of the row's block. **What you notice.** No allocation per row for a fra
 7.4 ms a tick against 24.0 ms with reference columns and a reused row object. A frame-made object is not
 registered with `--debug-memory`'s table, like the row itself, and is not in `.instances`. **Built** (2026-09-26;
 proposed by Claude, unconfirmed).
+
+### An `Items`' storage is chosen while compiling
+
+**What it does.** `Items<T>` ([collections.md](collections.md#itemst-the-storage-chosen-for-you), D218) is one
+class in `library/items.spite` whose every body that touches an item folds on `$element_type.fits_vector()`.
+For a `T` that fits, only the inline branches are compiled (the item functions of `InlineMemory<T>`, borrowed
+reads, a `Vector`'s layout); for any other, only the reference branches (`TypedMemory<T>`, counted references,
+a `List`'s layout). A chain of its templates is fused into one loop and `parallel_each_` is split across the
+pool as for a `Vector`, and the reference kind's templates read their elements uncounted as a `List`'s do
+([above](#a-lists-templates-read-its-elements-without-counting-them)). `[]` checks its range with one comparison
+and keeps the crash report in a separate function, `_out_of_range`, so that the read itself is small enough for
+the C compiler to inline where it is called.
+
+**When.** Every build, for every `Items<T>`; the choice is a fact of `T`, so it cannot change while the program
+runs, and a program that makes no `Items` carries none of it.
+
+**What you notice.** Speed the same as the storage chosen, or better: `benchmarks/items_storage` (200 000 items,
+`clang -O2`, three rounds) runs the member templates of `Items<Velocity>` in 193-212 µs a tick against 201-218 µs
+for `Vector<Velocity>`, and of `Items<Trail>` in 515-668 µs against 534-645 µs for `List<Trail>` over the same
+objects; 200 000 random `[]` reads and writes take 510-533 µs against a `Vector`'s 573-601 µs, and 818-948 µs
+against `List.get_at`'s 911-1518 µs, the difference being the inlined read. A walked-row runner over
+`Items` columns (`benchmarks/sparse_rows` with `Column`'s `Vector` swapped for an `Items`) ran 6.9 ms a tick
+against 7.2 ms. An `Items` object holds one pointer more than a `Vector` or `List` (both helper singletons are
+attributes); nothing is added per item. A crash out of range is reported from `Items._out_of_range`.
+**Built** (2026-09-26; proposed by Claude, unconfirmed).
 
 ### A proven divisor is not checked
 

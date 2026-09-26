@@ -1,0 +1,15 @@
+type Moving {
+    entity: Entity
+    position: Position
+    velocity: Velocity
+    trail: Trail
+}
+
+var moved = 0
+
+func update_each(moving: Moving) {
+    moving.position.left = moving.position.left + moving.velocity.across
+    moving.velocity.slow_down()
+    moving.trail.mark(moving.entity.id, moving.position.left)
+    moved = moved + 1
+}
