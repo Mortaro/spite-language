@@ -1,0 +1,5 @@
+the reader received 1
+the reader received 2
+the reader received 3
+the mover ran once a frame: true
+the reader resumed inside a stage: false

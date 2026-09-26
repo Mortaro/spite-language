@@ -1,0 +1,5 @@
+var position = 0
+
+func update_each() {
+    position = position + 1
+}

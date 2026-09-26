@@ -1,0 +1,10 @@
+singleton
+
+var in_stage = false
+var resumed_in_stage = false
+
+func note_resumed() {
+    if in_stage {
+        resumed_in_stage = true
+    }
+}

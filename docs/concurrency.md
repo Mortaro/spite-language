@@ -10,6 +10,9 @@
 > `--repl-port` build answers its commands there.
 > `list.parallel_each_update()` runs a member on every element across the pool, and the compiler checks that the
 > member reaches only its own element. Reads written one after another overlap without being asked.
+> A program asks while compiling which functions can wait (`$system_type.function_waits("update_each")`), and an
+> engine keeps `Concurrent`s out of its stages with `Scheduler().resume_only_when_asked()` and
+> `Scheduler().run_ready()` between frames ([D209](decisions.md)).
 > A singleton of the program's own that a `Parallel` reaches is made thread-safe by the compiler, in the cheapest
 > form it can prove safe. A program that uses none of this carries none of it ([what it costs](#what-it-costs)).
 > Windows runs all of it; the Linux and macOS folders are held to compiling. **Not built:** HTTP, cancelling a
@@ -141,12 +144,13 @@ the program's event loop (`library/scheduler.spite`) runs it again from where it
 | The program writes | While it waits |
 |---|---|
 | `program.sleep(milliseconds)` | the state machine returns, and is run again once its time has come |
-| `Console.read_line()`, reading or writing a `File`, a `Socket`'s `accept_client`, `read_line` or `read_bytes` | the one blocking system call runs on a short-lived helper thread, and the state machine is run again when it returns |
+| `Console.read_line()`, reading or writing a `File`, a `Socket`'s `accept_client`, `read_line` or `read_bytes` | the one blocking system call runs on a short-lived helper thread, and the state machine is run again, on the program's thread, once it has returned |
 | reading a `Concurrent`'s value, or dropping it | the state machine is run again once that one has finished |
 | reading a `Parallel`'s value, or dropping it | the pool finishes it (the waiting thread runs it itself if no worker has started it), then anything ready runs once |
 
 Code that is not inside a `Concurrent` -- the entry constructor and everything it calls -- waits where it is: its
-wait runs the event loop itself, so the state machines keep going around it until it is done. Only one piece of
+wait runs the event loop itself, so the state machines keep going around it until it is done -- unless the program
+has chosen [where they resume](#choosing-where-concurrents-resume). Only one piece of
 Spite code runs on the program's thread at a time, and a state machine only stops at one of these points, so no
 two pieces of Spite code touch the program's state at the same time. The helper thread runs the system call and
 nothing else.
@@ -243,6 +247,70 @@ loaded forest with 100000 tiles while frames kept running: true
 ```
 
 It is the same on every system: it reads a flag the worker sets when the function returns, with no system call.
+
+### Choosing where `Concurrent`s resume
+
+A `Concurrent` moves on wherever the program waits: a `program.sleep` on the program's thread, a read outside any
+`Concurrent`, reading a `Parallel`. That suits a tool, and not a game: a state machine that resumes in the middle
+of a stage sees the world half updated. So an engine says where they resume ([D209](decisions.md); both spellings
+are proposed by Claude, unconfirmed):
+
+- `Scheduler().resume_only_when_asked()` makes every other wait on the program's thread leave the `Concurrent`s
+  alone from then on: a sleep only sleeps, a read only blocks, reading a `Parallel` only joins it.
+- `Scheduler().run_ready()` runs every `Concurrent` whose wait is over, once each, and returns at once -- the
+  engine calls it between two frames.
+- Reading a `Concurrent`'s value, or dropping it, still runs them all until that one is done. The program asked for
+  that one, and it may be waiting on another, so a join never waits for something only the loop could finish.
+
+The IO itself goes on meanwhile: a blocking read inside a `Concurrent` -- a file, or a `Socket`'s `read_bytes` --
+runs on its helper thread, and the state machine continues on the program's thread at the next `run_ready()`.
+
+```gdscript title=frame_io/save_game.spite
+var console = Console()
+var save = File(".spite-cache/documentation_save.txt")
+
+func update_each() {
+    var loads = 0
+    while loads < 3 {
+        var text = save.read()
+        crash text
+        loads = loads + 1
+        console.print("load", loads, "read", text)
+    }
+}
+```
+```gdscript title=frame_io/frame_io.spite entry
+var console = Console()
+var program = Program()
+var scheduler = Scheduler()
+
+func FrameIo() {
+    scheduler.resume_only_when_asked()
+    var save_file = File(".spite-cache/documentation_save.txt")
+    save_file.write("level 3")
+    var game = SaveGame()
+    var loading = Concurrent(game.update_each)
+    var frames = 0
+    while not loading.finished {
+        frames = frames + 1
+        program.sleep(1)
+        scheduler.run_ready()
+    }
+    console.print("each load took a frame of its own:", frames >= 3)
+}
+```
+```output
+load 1 read level 3
+load 2 read level 3
+load 3 read level 3
+each load took a frame of its own: true
+```
+
+The `program.sleep(1)` in the frame never resumes the loads; only `run_ready()` does. That also means a loop that
+polls `finished` and never calls `run_ready()` never ends, since nothing moves the `Concurrent` on -- the one
+mistake this mode allows. Which systems to start this way is asked while compiling, with
+`$system_type.function_waits("update_each")` ([metaprogramming.md](metaprogramming.md#asking-whether-a-function-waits)),
+so a system never says that it does IO.
 
 ## `Parallel`: work that computes
 
@@ -578,6 +646,7 @@ carries none of it ([D177](decisions.md)); the compiler's side of each is on
 | uses none of it | nothing: no scheduler, no state machine, no helper thread, no pool, no lock, plain reference counts; every wait is the plain blocking call |
 | makes a `Concurrent`, or has two reads in a row | the `Scheduler` singleton and its event loop; a second, resumable copy of each function a `Concurrent` reaches that waits (the plain copy is dropped when nothing calls it); one heap frame per waiting call made inside a `Concurrent`; one short-lived operating-system thread per blocking call made while something else could run; atomic reference counts everywhere |
 | makes a `Parallel` or runs a `parallel_each_` pass | the `ThreadPool` singleton, whose workers start at the first `Parallel` and never again; about two dozen allocations per `Parallel` and one per pass; atomic reference counts everywhere; for each program singleton a `Parallel` can reach and that changes, atomics or an uncontended lock per call |
+| calls `Scheduler().resume_only_when_asked()` or `run_ready()` | one `Boolean` the scheduler reads at each wait, and each function it calls; neither is there otherwise |
 | makes a `ThreadLocal` or a `Lock` | one system per-thread slot or lock each, freed with it |
 | is built with `--repl-port` or `--hot-reload` | the scheduler, and one check-point call at the end of every pass of every loop of its own code; nothing of either in any other build |
 
@@ -752,7 +821,8 @@ block, and the compiler knows them by class and function (the list above, and `T
 reading or dropping a `Parallel`). In a program that uses the scheduler -- one that makes a `Concurrent`, or is
 built with `--repl-port` or `--hot-reload` -- each of them is emitted under a `_waiting` name with a small wrapper
 in front: a sleep runs the event loop until its time, a blocking call runs on a helper thread while the event loop
-runs, and a `Parallel` join joins and then runs whatever is ready once. Every other program gets none of it: no
+runs, and a `Parallel` join joins and then runs whatever is ready once (none of which steps a state machine after
+`resume_only_when_asked()`, below). Every other program gets none of it: no
 wrapper, no scheduler, no state machine, the same C as before.
 
 **Blocking is what the compiler picks when it is faster** (D99). The wrapper asks the scheduler first: when no
@@ -766,6 +836,28 @@ reload, if any, steps every frame that is not already running further down the C
 waits on one event -- an auto-reset event on Windows, a pipe read with `poll` elsewhere -- that the helper threads
 and the REPL's socket thread signal, with the nearest deadline as its timeout. Waiting forever on nothing is a
 deadlock, and a crash.
+
+**Where `Concurrent`s resume** (D209, decided by Mortaro: an engine runs IO tasks between frames; the two
+functions below are proposed by Claude, unconfirmed).  **[implemented on Windows]** `Scheduler` has two public
+functions for a program that wants `Concurrent`s to resume only between its own stages:
+
+- **`run_ready(): Integer`** steps once every `Concurrent` frame that is not already running, and answers how many
+  finished. It never blocks. On any thread but the scheduler's, and before any `Concurrent` exists, it does
+  nothing and answers `0`, so a `Parallel` cannot touch the scheduler's frames through it.
+- **`resume_only_when_asked()`** holds for the rest of the run (proposed: nothing has needed a way back). A wait
+  on the program's thread outside a state machine then steps no frame: with no REPL listening, the waiting
+  wrapper makes the plain blocking call; in a `--repl-port` build the wait still answers commands; after joining a
+  `Parallel`, nothing ready runs. A wait that runs the loop in place inside a state machine (the list above) steps
+  no other frame either. Frames are then stepped only by `run_ready()` and by joining a `Concurrent` outside a
+  state machine -- reading its value or dropping it -- which steps every frame until that one has finished,
+  because it may be waiting on another `Concurrent`: a join never waits for a loop the program has stopped.
+  Inside a state machine a wait is a point it returns from, as before.
+- **Not detected:** a loop that polls `finished` and never calls `run_ready()` does not end. It is not a deadlock
+  the scheduler can see -- the program is running -- so it is documented rather than caught.
+- `conformance/stage6/frames_between_waits`: an engine-shaped loop whose stages join a `Parallel`, sleep and
+  write to a socket while a `Concurrent` reads that socket with `read_bytes` three times; the reader resumes only
+  at `run_ready()`, never inside a stage. Without `resume_only_when_asked()` the same program's reader resumes
+  inside a stage's sleep.
 
 **Soundness.** A program that starts a thread (a `Concurrent`'s helpers, a `Parallel`, or `--repl-port`) is compiled
 with `SPITE_THREADS`: every retain and release is an atomic operation, and the `--debug-memory` table takes a lock.
