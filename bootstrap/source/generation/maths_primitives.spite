@@ -86,6 +86,31 @@ func whole_members(type_name: String): List<String> {
     ]
 }
 
+func bit_view_members(stem: String): List<String> {
+    var written = "written by the generator: the same bits read as another type, in place"
+    if stem == "float" {
+        return ["func bits(): UnsignedInteger", written]
+    }
+    if stem == "double" {
+        return ["func bits(): Long", written]
+    }
+    if stem == "unsigned_integer" {
+        return ["func bits_as_float(): Float", written]
+    }
+    if stem == "long" or stem == "unsigned_long" {
+        return ["func bits_as_double(): Double", written]
+    }
+    return List<String>()
+}
+
+func is_bit_view(name: String): Boolean {
+    return name == "bits" or name == "bits_as_float" or name == "bits_as_double"
+}
+
+func bit_view_body(c_name: String, from_c_type: String, to_c_type: String): String {
+    return "#define {c_name}(self) (((union \{ {from_c_type} spite_value; {to_c_type} spite_bits; }) \{ .spite_value = (self) }).spite_bits)"
+}
+
 func is_member(name: String): Boolean {
     return not library_name(name).is_empty() or is_constant(name) or is_predicate(name) or name == "clamp"
 }

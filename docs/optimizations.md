@@ -833,7 +833,12 @@ cannot, and no `const` keyword is needed. To know which function a call reaches,
 the call is made on: an attribute's or variable's declared type, the class a constructor makes, the class the
 function that made the value returns (`var address = heap.allocate(8)` is a `Memory.Address`), or the left side
 of a `+` (an address plus an offset is an address), and `List`, `Dictionary` or `String` for a value of those
-types; a call on a value whose class it cannot tell may reach every function of that name. A `return`'s own
+types. A receiver that is an expression has its type's class too: `File(path).read()` reaches only `File.read`,
+`names.copy().count()` and `lists[0].count()` only `List.count`, and an item of a `Vector` or `Dictionary` its
+element's class, so a program's own `read` or `count` no longer undoes a proof it cannot touch. A call on a value
+whose class it cannot tell (a shape, a type parameter, a function value) may reach every function of that name,
+and a `clear` or `remove_...` on a list reached through `[]` or a call may be any list, so it keeps no proof
+about a list. A `return`'s own
 calls keep every proof, since nothing after the `return` runs. It runs entirely while compiling and emits nothing. What you can
 observe: a proof after a call that may change it must be written again, and a call through a function value
 keeps no proof about attributes or lists ([failure.md](failure.md#a-call-may-undo-a-proof)).
@@ -1095,6 +1100,28 @@ thing to know: the answer is the C library of the machine that compiles. A progr
 on another whose C library rounds a last bit differently gets the compiling system's answer for a folded call and
 its own for the rest; `sqrt`, `floor`, `ceil`, `round`, `trunc`, `fabs`, `fmin` and `fmax` are exact everywhere, so
 only the transcendental functions can differ, by at most that last bit. **Built.**
+
+### A binary schema is a constant
+
+**What it does.** `BinaryWriter<T>.schema()` and `BinaryReader<T>.schema()` ([json.md](json.md#the-schema-hash),
+[D215](decisions.md)) are worked out while compiling: the compiler writes the attribute walk of `T` as text, hashes
+it with FNV-1a, and the C gets a macro that is the number, with the text beside it in a comment. **When.** Every
+build, for each `T` a writer or reader is made for and whose `schema()` is called; nothing is emitted otherwise.
+**What you notice.** Nothing: no walk runs and nothing is allocated when a program asks. **Built.**
+
+### A number's bits are read in place
+
+**What it does.** `Float.bits()`, `Double.bits()`, `UnsignedInteger.bits_as_float()`, `Long.bits_as_double()` and
+`UnsignedLong.bits_as_double()` are C macros over a union of the two types
+([D215](decisions.md), [values_and_types.md](values_and_types.md#rules-in-full)): the call is written where it is made
+and the value's bits are read as the other type, with no memory written and read back and nothing allocated. Before,
+each went through a 4- or 8-byte block that the frame slot kept off the heap, so they allocated nothing then either,
+but the C held a block, a write and a read for the C compiler to see through.
+
+**When.** Every build, for every call; a program that calls none carries none of them. **What you notice.** Nothing
+but speed in an unoptimised build: `benchmarks/half_precision` (ten million `to_half_precision` and back) takes
+416 ms against 482 ms with `clang -O0`, and 13 ms either way from `-O1`, where clang already saw through the block;
+it allocates nothing per conversion before and after. **Built.**
 
 ## Planned
 

@@ -1,4 +1,4 @@
-func read_color(text: String): Color? {
+func read(text: String): Color? {
     var cleaned = text.trim().lower_case()
     if cleaned.starts_with("#") {
         return _read_hex(cleaned)

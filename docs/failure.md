@@ -800,8 +800,14 @@ How a read is proven (the rules are Claude's proposal, unconfirmed -- D64 asked 
   class and name, so assigning `Scope.owned` does not undo a proof about `Monster.owned`; a receiver's class is
   read from declared types (a parameter's type, a `var` built by a constructor or annotated), a `List`,
   `Dictionary` or `String` receiver included, so `items.count()` reaches only `List.count` and never a program's
-  own `count`; a call whose receiver's class cannot be told (a shape) is followed into every function of that
-  name; the calls a `return` makes undo nothing, since nothing after it runs on that path (a call in a branch
+  own `count`; a receiver that is itself an expression has the class of that expression's type -- the class a
+  constructor makes (`File(path).read()` reaches `File.read`), the class the called function returns
+  (`names.copy().count()` reaches `List.count`), the element class of a `[]` read on a `List`, `Vector` or
+  `Dictionary` (`lists[0].count()`), an attribute read's declared class (`receiver_call_effects`); a call whose
+  receiver's class cannot be told (a shape, a type parameter, a function value) is followed into every function
+  of that name; `clear`, `remove_at`, `remove_first` or `remove_last` on a collection reached through `[]` or a
+  call rather than a name may be the very list a proof reads, so it undoes every proof about a list
+  (`append`, `prepend` and `insert` there count as growing a borrowed `Vector`'s storage, D204/D206); the calls a `return` makes undo nothing, since nothing after it runs on that path (a call in a branch
   before its `return` still undoes proofs after the branch); a list passed to a function that
   shrinks its parameter undoes proofs about the list passed; calling a function value may do anything, so it
   undoes every proof that reads an attribute or a list; operator functions and getters are not followed; a

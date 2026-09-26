@@ -241,14 +241,52 @@ from the new source, since nothing in the bytes says which class they are or wha
 - **Reading never trusts a count.** A text length or an element count larger than the bytes left fails the read
   before anything is allocated, so a corrupt or hostile buffer cannot make a reader allocate gigabytes.
 
-**A schema hash** (proposed by Claude, unconfirmed; not built). D31 asks for one in the handshake, so an old client
-meeting a new server fails with a clear report instead of misreading bytes. It belongs to the handshake or the
-file header, not to every value: a value's bytes stay bare so that thousands of them can share one buffer. The
-proposal is `BinaryWriter<T>.schema(): Long`, a hash of the attribute walk -- each attribute's name and type,
-recursively, and each enum's values in order -- computed while compiling, so it costs one constant; a program
-writes it once at the start of a file or a connection and compares it before reading. It is not built because
-nothing in the language computes a value from a type walk at compile time yet, and computing it at run time would
-walk the types on every call.
+### The schema hash
+
+D31 asks for one in the handshake, so an old client meeting a new server fails with a clear report instead of
+misreading bytes. It belongs to the handshake or the file header, not to every value: a value's bytes stay bare so
+that thousands of them can share one buffer. `writer.schema(): Long` and `reader.schema(): Long` answer a hash of
+the attribute walk the bytes follow ([D215](decisions.md); the name is provisional): the class's name, then each
+attribute's name and type in order, nested classes the same way, and each enum's values in order. The compiler
+works it out and the C holds the constant, so asking costs nothing; a program writes it once at the start of a
+file or a connection and compares it before reading.
+
+```gdscript title=schema_header/point.spite
+var across = 0
+var down = 0
+```
+```gdscript title=schema_header/place.spite
+var across = 0
+var down = 0
+```
+```gdscript title=schema_header/schema_header.spite entry
+var console = Console()
+
+func SchemaHeader() {
+    var point = Point()
+    var writer = BinaryWriter(point)
+    var bytes = writer.write()
+    var reader = BinaryReader<Point>(bytes)
+    var place = Place()
+    var other_writer = BinaryWriter(place)
+    var written = writer.schema()
+    var expected = reader.schema()
+    var other = other_writer.schema()
+    console.print("{written == expected} {written == other}")
+    var corner = place.across + place.down
+    console.print(corner)
+}
+```
+```output
+true false
+0
+```
+
+`Place` has exactly `Point`'s bytes, but it is another class, so its hash differs. The hash is the 64-bit FNV-1a
+of a text the compiler writes, and which a program never sees: `Point{across:Integer;down:Integer}`, lists as
+`List<...>`, dictionaries as `Dictionary<...>`, `T?` with a `?`, an enum as its name and its values in brackets,
+and a class already being written, a recursive one, by its name alone. The same classes give the same hash in
+every build and on every machine; renaming, adding, removing, reordering or retyping an attribute changes it.
 
 ## Reading input you did not write
 
@@ -472,6 +510,14 @@ What follows is Claude's reading where D22, D95 and D208 are not specific (propo
   bytes that holds every index, text as a varint length and UTF-8, `T?` as a presence byte, lists and dictionaries
   as a varint count and the items, nested objects inline, and no header. D208 asked for exactly these; the varint
   is unsigned LEB128, and a count or length above what an `Integer` holds, or above the bytes left, fails the read.
+- **`BinaryWriter<T>.schema()` and `BinaryReader<T>.schema()` answer a `Long` the compiler works out** (D215,
+  decided by Claude under D205 and D214; the name provisional): the 64-bit FNV-1a hash, as a signed `Long`, of the
+  walk's text -- the class's qualified name, then `name:type` for each attribute the bytes carry (not `_...`), in
+  order, joined by `;` inside `{ }`, a nested class written the same way, `List<T>`, `Dictionary<T>`, `T?`, an
+  enum as its name and `(` its values joined by `,` `)`, a class already being written by its name alone, and any
+  other type by its name. It is a bodiless declaration the compiler supplies (D82), a C macro that is the constant,
+  so it costs nothing at run time and a program that never asks carries none of it. A writer and a reader of the
+  same `T` answer the same value (`conformance/stage6/binary_schema`).
 - **The bytes are a `Vector<Byte>`** (D204's inline, uncounted items; D208 preferred it): one block, no count per
   byte, and a reader over it borrows nothing, since it keeps the vector itself and reads its block afresh at every
   `read()`. `read_memory` covers memory the program did not put in a vector. `Vector<T>` has `reserve(count)` for

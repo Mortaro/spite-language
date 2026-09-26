@@ -75,12 +75,3 @@ func shortest_text(significand_limit: Long, lowest_exponent: Long, most_digits: 
     }
     return number_text.scientific_text(fallback, fallback_exponent)
 }
-
-func bits(): Long {
-    var heap = Memory.Heap()
-    var address = heap.allocate(8)
-    address.write_double(0, this)
-    var bit_pattern = address.read_long(0)
-    heap.free(address)
-    return bit_pattern
-}

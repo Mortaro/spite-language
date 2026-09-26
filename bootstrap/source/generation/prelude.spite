@@ -1,3 +1,5 @@
+var maths = MathsPrimitives()
+
 func header(): String {
     var lines = [
         "/* The floor: the only C the Spite compiler writes by hand. Everything above it"
@@ -194,6 +196,8 @@ func reopened_classes(): List<String> {
         "typed_memory"
         "weak"
         "inline_memory"
+        "binary_writer"
+        "binary_reader"
         "dynamic_library"
         "hot_reload"
         "concurrent"
@@ -272,11 +276,16 @@ func number_members(stem: String): List<String> {
         members.append(maths_members[maths_index])
         maths_index = maths_index + 1
     }
+    var bit_views = maths.bit_view_members(stem)
+    var view_index = 0
+    while view_index < bit_views.count() {
+        members.append(bit_views[view_index])
+        view_index = view_index + 1
+    }
     return members
 }
 
 func maths_members_of(stem: String, type_name: String): List<String> {
-    var maths = MathsPrimitives()
     if stem == "float" or stem == "double" {
         return maths.decimal_members(type_name)
     }
@@ -367,6 +376,9 @@ func supplied_members(stem: String): List<String> {
     }
     if stem == "inline_memory" {
         return inline_memory_members()
+    }
+    if stem == "binary_writer" or stem == "binary_reader" {
+        return ["func schema(): Long", "written per value type by the generator: a constant hash of the attribute walk"]
     }
     if stem == "concurrent" {
         return concurrent_members()

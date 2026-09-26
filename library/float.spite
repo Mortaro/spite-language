@@ -6,15 +6,6 @@ func to_string(): String {
     return wide.shortest_text(16777216, -149, 9)
 }
 
-func bits(): UnsignedInteger {
-    var heap = Memory.Heap()
-    var address = heap.allocate(4)
-    address.write_float(0, this)
-    var bit_pattern = address.read_unsigned_integer(0)
-    heap.free(address)
-    return bit_pattern
-}
-
 func to_half_precision(): UnsignedShort {
     var bit_pattern = bits()
     var sign_part = bit_pattern.shifted_right(16).bits_and(32768)

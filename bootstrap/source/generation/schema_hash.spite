@@ -1,0 +1,27 @@
+var high: Long = 3421674724
+var low: Long = 2216829733
+
+func hash_of(text: String): Long {
+    high = 3421674724
+    low = 2216829733
+    var index = 0
+    var text_length = text.length()
+    while index < text_length {
+        var code = text.code_at(index)
+        mix(code)
+        index = index + 1
+    }
+    if high >= 2147483648 {
+        return (high - 4294967296) * 4294967296 + low
+    }
+    return high * 4294967296 + low
+}
+
+func mix(code: Integer) {
+    var mixed = low.bits_exclusive_or(code)
+    var product = mixed * 435
+    var carry = product / 4294967296
+    var shifted = mixed * 256 % 4294967296
+    high = (high * 435 + carry + shifted) % 4294967296
+    low = product % 4294967296
+}

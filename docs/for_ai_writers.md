@@ -385,7 +385,9 @@ if `null` is wanted. **Between Spite programs, and for files a Spite program rea
 `BinaryWriter(value).write(): Vector<Byte>` (or `append_to(bytes)` to add to a buffer you have) and
 `BinaryReader<T>(bytes).read(): T?`, which reads the next value each call and is `null` on bytes that are not a `T`;
 a quarter of JSON's size and more than ten times faster, with no keys, so both ends must be built from the same
-classes. `read_memory(address, count)` reads straight from a socket's buffer. Attributes named `_...` are left out
+classes. `read_memory(address, count)` reads straight from a socket's buffer. To catch two ends built from
+different classes, write `writer.schema()` (a `Long` the compiler works out from the classes, free to ask) once at
+the start of a file or connection and compare it with `reader.schema()` before reading. Attributes named `_...` are left out
 of both. A union, a `type` (`Anything` included) or a function value anywhere in what they see is a compile error at
 the line that makes the writer or reader (`JsonWriter cannot write 'Owner': 'Owner.pet' is the union Pet, ...`):
 keep what they see to the kinds above ([json.md](json.md)). `Json` no longer exists: it is the two classes above.
@@ -414,12 +416,14 @@ parts `column_0_row_0` to `column_3_row_3`. Each answer is a new object, so one 
 highest)`, `Plane()` with `set_point_normal`, `Frustum()` with `set_from_view_projection(matrix)` then
 `intersects_box`/`intersects_sphere`, and `Ray(origin, direction)` whose `hit_plane`, `hit_box` and `hit_triangle`
 answer a `Float?` distance, `null` for a miss. Colours: `Color(red, green, blue, alpha)` from 0 to 1, read from
-text with `var color_text = ColorText()` then `color_text.read_color("#ff6347")` (also `rgb()`, `rgba()`, `hsl()`,
+text with `var color_text = ColorText()` then `color_text.read("#ff6347")` (also `rgb()`, `rgba()`, `hsl()`,
 `hsla()` and CSS names; a `Color?`), written with `to_hex()`, `to_rgb_text()`, `to_hsl_text()`, converted with
 `to_linear()` and `to_standard_rgb()`. Animation and shading: `CubicBezier(start, first_handle, second_handle, end)`
 with `y_at_x(x)`, `var easing = Easing()` then `easing.in_out_cubic(amount)` and the rest, `Noise(seed)` with
 `gradient_2d(x, y)` and `interleaved_gradient`, and `value.to_half_precision()` / `bits.half_precision_to_float()`
-for 16-bit floats.
+for 16-bit floats. A number's raw bits are `Float.bits(): UnsignedInteger` and `Double.bits(): Long`, and back
+`UnsignedInteger.bits_as_float()` and `Long`'s or `UnsignedLong`'s `bits_as_double()`; they cost nothing (a C
+union), so use them rather than writing a value into memory to read its bytes.
 Every class here, the numbers and `List` included, is a Spite file in `library/`, and a program's own file of the
 same name reopens it: `list.spite` adds a member template, `integer.spite` a function on every `Integer`.
 

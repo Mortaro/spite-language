@@ -1,0 +1,41 @@
+var console = Console()
+var names = ["ada", "grace"]
+
+func ReceiverCallEffects() {
+    reading()
+    counting()
+    indexing()
+    shelving()
+}
+
+func reading() {
+    crash names[0]
+    var missing = File("no_such_file.txt").read()
+    if missing {
+        console.print(missing)
+    }
+    console.print("after File().read()", names[0])
+}
+
+func counting() {
+    crash names[0]
+    var copied = names.copy().count()
+    console.print("after copy().count()", names[0], copied)
+}
+
+func indexing() {
+    var lists = [names]
+    crash names[0]
+    crash lists[0]
+    var total = lists[0].count()
+    console.print("after lists[0].count()", names[0], total)
+}
+
+func shelving() {
+    var shelf = Shelf(names)
+    var shelves = [shelf]
+    crash shelves[0]
+    shelves[0].clear()
+    var left = names.count()
+    console.print("Shelf.clear() emptied the list it holds:", left)
+}

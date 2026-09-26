@@ -4,6 +4,7 @@ var calls = List<EffectCall>()
 var parameters = List<String>()
 var local_sources = Dictionary<String>()
 var local_classes = Dictionary<String>()
+var local_elements = Dictionary<String>()
 var in_constructor = false
 var class_name = ""
 var table: CallEffects? = null
@@ -24,6 +25,8 @@ func take_parameters(declared: List<Syntax.Statements.Parameter>) {
         crash parameter.type_reference
         var parameter_class = table.type_class_name(parameter.type_reference)
         local_classes.set(parameter.name, parameter_class)
+        var parameter_element = table.element_class_name(parameter.type_reference)
+        local_elements.set(parameter.name, parameter_element)
         index = index + 1
     }
 }
@@ -80,6 +83,18 @@ func study_declaration(declaration: Syntax.Statements.VariableDeclaration) {
         declared_class = returned_class(declaration.value)
     }
     local_classes.set(declaration.name, declared_class)
+    var declared_element = table.declared_element_name(declaration)
+    if declared_element.is_empty() {
+        declared_element = literal_element(declaration.value)
+    }
+    local_elements.set(declaration.name, declared_element)
+}
+
+func literal_element(value: Syntax.Expressions.Expression): String {
+    var listed = shape.as_list_literal(value)
+    assert listed and not listed.elements.is_empty()
+    crash listed.elements[0].value
+    return owner_class(listed.elements[0].value)
 }
 
 func returned_class(value: Syntax.Expressions.Expression): String {
@@ -285,6 +300,91 @@ func owner_class(expression: Syntax.Expressions.Expression): String {
         crash binary.left
         return owner_class(binary.left)
     }
+    var indexed = shape.as_index(expression)
+    if indexed {
+        crash indexed.object
+        return element_owner(indexed.object)
+    }
+    var constructed = shape.as_generic_call(expression)
+    if constructed {
+        crash constructed.callee
+        var constructed_name = called_name(constructed.callee)
+        return known_or_any(constructed_name)
+    }
+    var called = shape.as_call(expression)
+    if called {
+        return call_owner(called)
+    }
+    return "*"
+}
+
+func element_owner(listed: Syntax.Expressions.Expression): String {
+    var identifier = shape.as_identifier(listed)
+    if identifier {
+        var local_element = local_elements.get(identifier.name)
+        if local_element {
+            return known_or_any(local_element)
+        }
+        if parameters.contains(identifier.name) or local_sources.has(identifier.name) {
+            return "*"
+        }
+        return element_class(class_name, identifier.name)
+    }
+    var member = shape.as_member(listed)
+    if member {
+        crash member.object
+        var object_class = owner_class(member.object)
+        if object_class != "*" {
+            return element_class(object_class, member.name)
+        }
+    }
+    return "*"
+}
+
+func element_class(owner: String, field: String): String {
+    crash table
+    var found = table.element_classes.get("{owner}#{field}")
+    if found {
+        return known_or_any(found)
+    }
+    return "*"
+}
+
+func call_owner(called: Syntax.Expressions.CallExpression): String {
+    crash called.callee
+    crash table
+    var callee_identifier = shape.as_identifier(called.callee)
+    if callee_identifier {
+        if table.names_a_class(callee_identifier.name) {
+            return known_or_any(callee_identifier.name)
+        }
+        if parameters.contains(callee_identifier.name) or local_sources.has(callee_identifier.name) {
+            return "*"
+        }
+        return returned_owner(class_name, callee_identifier.name)
+    }
+    var member = shape.as_member(called.callee)
+    if not member {
+        return "*"
+    }
+    crash member
+    if table.names_a_class(member.name) {
+        return known_or_any(member.name)
+    }
+    crash member.object
+    var receiver_class = owner_class(member.object)
+    if receiver_class == "*" {
+        return "*"
+    }
+    return returned_owner(receiver_class, member.name)
+}
+
+func returned_owner(owner: String, name: String): String {
+    crash table
+    var found = table.return_classes.get("{owner}#{name}")
+    if found {
+        return known_or_any(found)
+    }
     return "*"
 }
 
@@ -298,10 +398,11 @@ func field_class(owner: String, field: String): String {
 }
 
 func known_or_any(found_class: String): String {
-    if found_class.is_empty() {
-        return "*"
+    crash table
+    if table.class_names.has(found_class) {
+        return found_class
     }
-    return found_class
+    return "*"
 }
 
 func classified(expressions: List<Syntax.Expressions.Expression>): List<String> {

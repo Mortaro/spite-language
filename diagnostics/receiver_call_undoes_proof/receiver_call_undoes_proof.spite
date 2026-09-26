@@ -1,0 +1,11 @@
+var console = Console()
+var names = ["ada", "grace"]
+
+func ReceiverCallUndoesProof() {
+    var shelf = Shelf(names)
+    var shelves = [shelf]
+    crash shelves[0]
+    crash names[0]
+    var counted = shelves[0].count()
+    console.print(names[0], counted)
+}

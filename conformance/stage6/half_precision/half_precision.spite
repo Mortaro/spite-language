@@ -23,6 +23,12 @@ func HalfPrecision() {
     show(nothing)
     var one: Float = 1.0
     console.print("bits of 1.0 {one.bits()}")
+    var pattern: UnsignedInteger = 1078530011
+    console.print("1078530011 as a Float {pattern.bits_as_float()}")
+    var wide: Double = -1.5
+    var wide_bits = wide.bits()
+    var unsigned_bits: UnsignedLong = 4609434218613702656
+    console.print("bits of -1.5 {wide_bits}, back {wide_bits.bits_as_double()}, {unsigned_bits.bits_as_double()}")
 }
 
 func show(value: Float) {

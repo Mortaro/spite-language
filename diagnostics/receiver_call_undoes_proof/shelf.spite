@@ -1,0 +1,25 @@
+var rows = List<List<String>>()
+
+func Shelf(first: List<String>) {
+    rows.append(first)
+}
+
+func read(): String {
+    clear()
+    return "read"
+}
+
+func count(): Integer {
+    clear()
+    return 0
+}
+
+func append(name: String) {
+    assert rows[0]
+    rows[0].append(name)
+}
+
+func clear() {
+    assert rows[0]
+    rows[0].clear()
+}

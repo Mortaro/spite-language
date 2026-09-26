@@ -1067,10 +1067,9 @@ func setting_source(name: String, class_name: String): String {
 }
 
 func hardcode_setting(variable: Syntax.Statements.VariableDeclaration, reader: String) {
-    crash supplied_settings[variable.name]
-    var literal = spelled_setting(reader, supplied_settings[variable.name])
     var flag = flag_of(variable.name)
     crash supplied_settings[variable.name]
+    var literal = spelled_setting(reader, supplied_settings[variable.name])
     var given = "{flag}={supplied_settings[variable.name]}"
     if bare_settings.contains(variable.name) {
         given = flag

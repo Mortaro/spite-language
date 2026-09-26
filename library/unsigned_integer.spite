@@ -5,12 +5,3 @@ func to_string(): String {
     var wide: Long = this
     return wide.to_string()
 }
-
-func bits_as_float(): Float {
-    var heap = Memory.Heap()
-    var address = heap.allocate(4)
-    address.write_unsigned_integer(0, this)
-    var value = address.read_float(0)
-    heap.free(address)
-    return value
-}

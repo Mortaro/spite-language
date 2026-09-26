@@ -210,8 +210,10 @@ var pending_constraint_owners = List<String>()
 var pending_constraint_functions = List<String>()
 var failed_constraints = List<String>()
 var call_effects = CallEffects()
+var schema_hash = SchemaHash()
 var pending_calls = List<Syntax.Expressions.Expression>()
 var pending_call_lines = List<Integer>()
+var schema_pending = "0 /* the schema hash, written when the function is emitted */"
 
 func report(message: String) {
     has_error = true
@@ -4736,12 +4738,19 @@ func supply_body(information: Analysis.ClassInfo, function: Analysis.FunctionInf
         if class_path == "memory/address" {
             function.supplied_body = address_body(function)
         }
+        if class_path == "binary_writer" or class_path == "binary_reader" {
+            maths_macros[function.c_name] = false
+            function.supplied_body = "#define {function.c_name}(self) {schema_pending}"
+        }
         if class_path == "scheduler" and function.name.ends_with("_check_point") {
             function.supplied_body = check_point_flag_body(function.name)
         }
         var number_classes = Prelude().number_classes()
         if number_classes.contains(class_path) and maths.is_member(function.name) {
             function.supplied_body = maths_body(information, function)
+        }
+        if number_classes.contains(class_path) and maths.is_bit_view(function.name) {
+            function.supplied_body = bit_view_body(information, function)
         }
         return
     }
@@ -4809,6 +4818,90 @@ func maths_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo
     var value_type = value_class_type(information)
     var c_type = c_type_name(value_type)
     return maths.whole_body(function.c_name, function.name, c_type)
+}
+
+func schema_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    crash information.codegen_types[0]
+    var value_type = information.codegen_types[0]
+    var visiting = List<String>()
+    var text = schema_text(value_type, visiting)
+    var hash = schema_hash.hash_of(text)
+    var literal = long_literal(hash)
+    return "#define {function.c_name}(self) ((void)(self), (int64_t){literal}) /* {text} */"
+}
+
+func long_literal(value: Long): String {
+    if value == -9223372036854775807 - 1 {
+        return "(-9223372036854775807LL - 1)"
+    }
+    return "({value}LL)"
+}
+
+func schema_text(spite_type: Analysis.SpiteType, visiting: List<String>): String {
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        var inner = nullable.get_inner()
+        var inner_text = schema_text(inner, visiting)
+        return "{inner_text}?"
+    }
+    var listed = type_shape.as_list(spite_type)
+    if listed {
+        var element = listed.get_element()
+        var element_text = schema_text(element, visiting)
+        return "List<{element_text}>"
+    }
+    var mapped = type_shape.as_dictionary(spite_type)
+    if mapped {
+        var entry = mapped.get_element()
+        var entry_text = schema_text(entry, visiting)
+        return "Dictionary<{entry_text}>"
+    }
+    var shown = type_display_name(spite_type)
+    var enumerated = type_shape.as_enum(spite_type)
+    if enumerated {
+        var values_text = enumerated.values.join(",")
+        return "{shown}({values_text})"
+    }
+    var information = schema_class(spite_type)
+    if not information {
+        return shown
+    }
+    crash information
+    if visiting.contains(information.c_name) {
+        return information.qualified_dotted
+    }
+    visiting.append(information.c_name)
+    var parts = List<String>()
+    var index = 0
+    while index < information.fields.count() {
+        var field = information.fields[index]
+        if not field.name.starts_with("_") {
+            var field_type = field.get_type()
+            var field_text = schema_text(field_type, visiting)
+            parts.append("{field.name}:{field_text}")
+        }
+        index = index + 1
+    }
+    visiting.remove_last()
+    var parts_text = parts.join(";")
+    return "{information.qualified_dotted}\{{parts_text}}"
+}
+
+func schema_class(spite_type: Analysis.SpiteType): Analysis.ClassInfo? {
+    var class_ref = type_shape.as_class_ref(spite_type)
+    assert class_ref and not class_ref.has_signature
+    var information = find_class_by_c_name(class_ref.c_name)
+    assert information and not information.is_value_class
+    return information
+}
+
+func bit_view_body(information: Analysis.ClassInfo, function: Analysis.FunctionInfo): String {
+    maths_macros[function.c_name] = false
+    var from_type = value_class_type(information)
+    var to_type = function.get_return_type()
+    var from_c_type = c_type_name(from_type)
+    var to_c_type = c_type_name(to_type)
+    return maths.bit_view_body(function.c_name, from_c_type, to_c_type)
 }
 
 func note_maths_macro(function: Analysis.FunctionInfo) {
@@ -14416,11 +14509,50 @@ func called_effects(
             return call_effects.effects_of(member.name, member.name)
         }
         crash member.object
-        var receiver_type = receiver_type_of(member.object, scope, class_information)
-        var owner = owner_name(receiver_type)
-        return call_effects.effects_of(owner, member.name)
+        var owner = receiver_owner(member.object, scope, class_information)
+        var effects = call_effects.effects_of(owner, member.name)
+        if not resizes_unnamed_collection(member, owner) {
+            return effects
+        }
+        var widened = effects.copy()
+        var growing = ["append", "prepend", "insert"]
+        if growing.contains(member.name) {
+            widened.append("grow:*")
+        } else {
+            widened.append("shrink:*")
+        }
+        return widened
     }
     return unknown
+}
+
+func resizes_unnamed_collection(member: Syntax.Expressions.MemberExpression, owner: String): Boolean {
+    var resizing = ["append", "prepend", "insert", "remove_at", "remove_first", "remove_last", "clear"]
+    var collections = ["List", "Vector", "Dictionary", "*"]
+    assert resizing.contains(member.name) and collections.contains(owner)
+    crash member.object
+    return not is_name_path(member.object) and not shape.as_generic_call(member.object)
+}
+
+func receiver_owner(
+    expression: Syntax.Expressions.Expression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): String {
+    var construction = shape.as_generic_call(expression)
+    if construction {
+        crash construction.callee
+        var constructed = called_name_of(construction.callee)
+        if call_effects.class_names.has(constructed) {
+            return constructed
+        }
+        return "*"
+    }
+    var receiver_type = receiver_type_of(expression, scope, class_information)
+    if receiver_type {
+        return owner_name(receiver_type)
+    }
+    return "*"
 }
 
 func receiver_type_of(
@@ -14445,11 +14577,87 @@ func receiver_type_of(
         var made_type: Analysis.SpiteType = Analysis.Types.ClassRefType(made.c_name)
         return made_type
     }
+    var indexed = shape.as_index(expression)
+    if indexed {
+        crash indexed.object
+        var listed_type = receiver_type_of(indexed.object, scope, class_information)
+        return indexed_type_through(listed_type)
+    }
+    var call = shape.as_call(expression)
+    if call {
+        return call_result_type(call, scope, class_information)
+    }
     var member = shape.as_member(expression)
     assert member
     crash member.object
     var object_type = receiver_type_of(member.object, scope, class_information)
     return member_type_through(object_type, member.name)
+}
+
+func indexed_type_through(spite_type: Analysis.SpiteType?): Analysis.SpiteType? {
+    assert spite_type
+    var plain = spite_type
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        plain = nullable.get_inner()
+    }
+    var listed = type_shape.as_list(plain)
+    if listed {
+        return listed.get_element()
+    }
+    var dictionary = type_shape.as_dictionary(plain)
+    if dictionary {
+        return dictionary.get_element()
+    }
+    return returned_type_through(plain, "get_at")
+}
+
+func call_result_type(
+    call: Syntax.Expressions.CallExpression,
+    scope: Scope,
+    class_information: Analysis.ClassInfo,
+): Analysis.SpiteType? {
+    crash call.callee
+    var constructed = try_resolve_static_path(call.callee, class_information.qualified_dotted)
+    if constructed {
+        var constructed_type: Analysis.SpiteType = Analysis.Types.ClassRefType(constructed.c_name)
+        return constructed_type
+    }
+    var identifier = shape.as_identifier(call.callee)
+    if identifier {
+        assert not scope.written_type(identifier.name) and not class_information.find_field(identifier.name)
+        var own = class_information.find_function(identifier.name)
+        assert own
+        return own.get_return_type()
+    }
+    var member = shape.as_member(call.callee)
+    assert member
+    crash member.object
+    var object_type = receiver_type_of(member.object, scope, class_information)
+    return returned_type_through(object_type, member.name)
+}
+
+func returned_type_through(spite_type: Analysis.SpiteType?, name: String): Analysis.SpiteType? {
+    assert spite_type
+    var plain = spite_type
+    var nullable = type_shape.as_nullable(spite_type)
+    if nullable {
+        plain = nullable.get_inner()
+    }
+    var listed = type_shape.as_list(plain)
+    if listed {
+        var element = listed.get_element()
+        var list_member = list_class_of(element).find_function(name)
+        assert list_member
+        return list_member.get_return_type()
+    }
+    var class_ref = type_shape.as_class_ref(plain)
+    assert class_ref and not class_ref.has_signature
+    var owner_class = find_class_by_c_name(class_ref.c_name)
+    assert owner_class
+    var function = owner_class.find_function(name)
+    assert function
+    return function.get_return_type()
 }
 
 func changing_effect(
@@ -16189,6 +16397,9 @@ func effect_resizes(
     }
     assert not resized.is_empty()
     if local_root {
+        if resized.starts_with("*#") {
+            return true
+        }
         var resized_class = call_effects.field_classes.get(resized)
         assert resized_class
         return resized_class == "Vector"
@@ -21597,6 +21808,9 @@ func emit_user_function(information: Analysis.ClassInfo, function: Analysis.Func
     assert not function.is_emitted
     function.is_emitted = true
     if is_inline_supplied(function) {
+        if function.supplied_body.ends_with(schema_pending) {
+            function.supplied_body = schema_body(information, function)
+        }
         note_maths_macro(function)
         builder.add_typedef(function.supplied_body)
         return

@@ -33,7 +33,7 @@ func GameColors() {
 }
 
 func show(text: String) {
-    var color = color_text.read_color(text)
+    var color = color_text.read(text)
     if color {
         console.print("'{text}': {color} {color.to_rgb_text()} {color.to_hsl_text()}")
     } else {
