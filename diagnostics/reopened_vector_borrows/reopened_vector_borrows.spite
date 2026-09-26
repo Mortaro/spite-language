@@ -1,0 +1,14 @@
+var console = Console()
+var velocities = Vector<Velocity>()
+var others = Vector<Velocity>()
+var kept = Items<Velocity>()
+var spare = Items<Velocity>()
+
+func ReopenedVectorBorrows() {
+    var first = Velocity(1.0)
+    console.print(first.across)
+    others.append(first)
+    velocities.grow_from(others)
+    spare.append(first)
+    kept.keep_first(spare)
+}

@@ -1,0 +1,5 @@
+func keep_first(other: Items<$element_type>) {
+    var first = other[0]
+    other.remove_swapping(0)
+    append(first)
+}

@@ -1092,6 +1092,10 @@ kept past its use. What is built (the error texts and the readings marked are pr
 - **Inside the item's class.** A function of the item's class runs on a borrowed item when a template or a call
   reaches it, so it may not use `this` as a value (the item-class error in
   [collections.md's rules](collections.md#vectort--implemented)).
+- **Only the library is trusted.** The functions of `Vector`, `Items` and `InlineMemory` in `library/` hand out
+  and move borrowed items by design, so these rules are not checked inside them. A function a program adds to one
+  of those classes by reopening it in its own file ([packages.md](packages.md)) is checked like any other code
+  (proposed by Claude, unconfirmed; `diagnostics/reopened_vector_borrows`).
 - **What stays an object.** `append(value)` and `set_at(index, value)` copy the value's attributes in, counting
   each `String` attribute once more, and the value stays an ordinary object; `remove_at`, `clear` and dropping the
   vector release the `String`s of the items they remove.

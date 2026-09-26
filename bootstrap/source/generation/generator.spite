@@ -15298,7 +15298,8 @@ func constructed_root_of(path: String): String {
 
 func in_vector_library(class_information: Analysis.ClassInfo): Boolean {
     var named = class_information.qualified_dotted
-    return named == "Vector" or named == "InlineMemory" or named == "Items"
+    var collection = named == "Vector" or named == "InlineMemory" or named == "Items"
+    return collection and current_path.starts_with("library/")
 }
 
 func may_lend(value: Syntax.Expressions.Expression, scope: Scope, class_information: Analysis.ClassInfo): Boolean {
