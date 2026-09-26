@@ -1,0 +1,21 @@
+var position = 0.0
+var speed = 1.0
+var energy = 0.0
+
+func Particle(new_speed: Float) {
+    speed = new_speed
+}
+
+func step() {
+    position = position + speed
+}
+
+func simulate() {
+    var value = energy
+    var round = 0
+    while round < 200 {
+        value = value * 0.999 + speed * 0.001
+        round = round + 1
+    }
+    energy = value
+}
