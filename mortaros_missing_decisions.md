@@ -630,3 +630,18 @@ All of it is proposed by Claude, unconfirmed.
      a local, `'heap'` read from an attribute, `'constant'` for a literal as before, and `'heap'` for long text.
      Would you rather have a fourth section, `'inline'`, that says the characters are in the value, wherever it
      is?
+
+## Rows of borrowed items (D206)
+
+200. **A generic runner cannot build a row.** D206's row is an object literal written at the call site
+     (`{position: positions[index], velocity: velocities[index]}`), which is built and measured
+     (`benchmarks/vector_rows`: 2.4 ms a tick against 6.0 ms with `List` columns). SlopEngine's runner is
+     generic: its `Row<$row_type>` fills a row attribute by attribute with a Symbol walk
+     (`row.attributes[attribute] = slot.fetch(...)`) and keeps it in `current` between calls, so neither its fill
+     nor its keeping can hold borrowed items. Tried on a copy of the engine-shaped `benchmarks/stress` with
+     `Vector` columns: `Column.of` returning an item is refused (`'values[row]' is borrowed from 'values' and
+     cannot be returned`), and a hand-written runner per system with row literals runs the whole program in 89 ms
+     against 129 ms. Proposal (Claude, unconfirmed): a local `var row: $row_type = null` whose attributes a Symbol
+     walk in the same function fills with borrowed items, and which is then only passed on, is a row too -- no
+     new syntax, the same compile-time rules; the fill would have to be a template the compiler unrolls in that
+     function rather than a call into the `Row` singleton. Or should engines write one runner per system shape?
